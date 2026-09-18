@@ -5,9 +5,9 @@ and `letterSpacing` each **default to a provided value** — `fontFamily =
 provided("fontFamily", "sans-serif")` and its kin — so a bare run inherits its
 region's style, and setting one on a container **provides** it to every `Text`
 beneath. That is why restyling a region's text means setting those on the container:
-the container provides the value, each run reads it. (These slots used to sit on
-`View`; they came off the geometry base with provided values — a container draws no
-glyphs.) `fontWeight` takes the nine keywords (`thin` … `black`, plus `normal`/`bold`)
+the container provides the value, each run reads it. (A `View` carries none of them:
+a container draws no glyphs, it only **provides** the value the runs beneath read.)
+`fontWeight` takes the nine keywords (`thin` … `black`, plus `normal`/`bold`)
 or a number 1–1000 — the same line, since the keywords are CSS's names for the
 hundreds — so a variable font's `wght` axis is reachable at any point:
 `fontWeight = 350`. `fontFamily` takes a family string, a `Font` object, or a list of
@@ -147,3 +147,35 @@ baseline alignment needs: `y = { title.y + title.baseline - this.baseline }` sit
 different runs on one line, no hand arithmetic. Both renderers place the first line's
 baseline at the font ascent; a declared `lineHeight` changes the stride between lines,
 never where the first baseline sits. Read-only, reactive.
+
+## textColor
+The colour of the glyphs. Like the rest of the face it defaults to the nearest
+**provided** value, so a bare run inherits its region's colour and setting it on a
+container recolours every run beneath. `textFill` takes a gradient where a flat colour
+is not enough.
+
+## fontSize
+The size of the run, defaulting to the provided value. It is also the unit the
+rest of the face is expressed against: `lineHeight` multiplies it, and a font's natural
+line box is derived from it.
+
+## fontFamily
+The face this run renders in: a family string, a `Font` object, or a list of
+them to fall back through. Defaults to the provided value, so a container's choice reaches
+every run below. A list holding a `Font` is a value, so it is written in a `{ }`.
+
+## fontWeight
+The weight of the run — one of the nine keywords, or a number from 1 to 1000,
+which is the same line since the keywords are the hundreds' names. A variable font's
+weight axis is therefore reachable at any point. Defaults to the provided value.
+
+## letterSpacing
+Tracking, in the run's own units, added between characters. Negative
+tightens. Defaults to the provided value, and it is part of what `measureText` must be
+told about when measuring a run that should match this one.
+
+## selectable
+Whether this run's text can be selected by the reader. It is a **provided**
+value as much as a slot: setting it on a container opts a whole subtree in, and a leaf
+declares it so one run can opt back out. A caption you never want dragged over sets it
+false; a code block sets it true on the container above it.

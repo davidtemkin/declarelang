@@ -1,8 +1,8 @@
 /*
 # Cupertino
 
-The compact-desktop record (library-charter §6: presets are DATA riding
-one machinery, never code paths): Cupertino metrics — compact controls, 6px
+The compact-desktop record — a preset is data riding one machinery, never a
+code path: Cupertino metrics — compact controls, 6px
 radii, the tight hairline focus halo hugging the control (gap 0), a muted
 disabled treatment. The type stack (the platform UI face via -apple-system)
 is the consuming app's `fontFamily`, not a theme token.

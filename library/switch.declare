@@ -2,8 +2,8 @@
 # Switch
 
 A boolean control with a sliding thumb — same value contract as Checkbox (`checked`,
-`input` owns the destination), different body language: the thumb SPRINGS between
-its two rest points, so toggling moves rather than jumps.
+`input` owns the destination), different body language: the thumb **springs**
+between its two rest points, so toggling moves rather than jumps.
 
 ## checked
 Whether the switch is on. Bind it (`checked = { app.muted }`) and override `input`
@@ -60,7 +60,7 @@ class Switch extends Control [
     stroke  = { stroke(1, checked ? theme.accent : theme.line) },
 
     // the thumb derives from the track: inset 2 normally; a theme may say the
-    // UNCHECKED thumb is smaller (M3's 16→24 grow-on-check)
+    // unchecked thumb is smaller (Mountain View's 16→24 grow-on-check)
 
     thumb: View [ cornerRadius = { this.width / 2 },
         width  = { checked || typeof theme.switchThumbOff != "number" ? classroot.height - 4 : theme.switchThumbOff },

@@ -33,9 +33,13 @@ cards or avatars is built.
 ## align
 The **cross axis** — `y` on a row, `x` on a stack. `none` (the default) leaves it to the
 children, who place themselves with the ordinary `y = center`. `start | center | end`
-aligns every child within the **line**: the tallest (widest) laid child's extent, so a
-short chip centres against a tall one and a container that derives its own height from
-these children never enters a cycle. `baseline` — a row only — sits every child on one
+aligns every child within the **band**: the view's own cross extent — so a column
+`width = 260` centres a `width = { parent.width - 32 }` child at 16, with the inset split
+evenly — falling back to the **line**, the tallest (widest) laid child's extent, on a view
+that derives its own cross size from these very children (reading an extent this
+arrangement feeds would be a cycle, and on such a view the line *is* that extent). A
+child wider than the band keeps the line, so it never hangs out both sides.
+`baseline` — a row only — sits every child on one
 baseline: a `Text` reports its own, and a composite **declares** which part carries it
 (`baseline: number = { cap.y + cap.baseline }`); a laid child that declares none is
 refused by name, at the child, and the checker says so before anything runs. A bare
@@ -61,11 +65,11 @@ class SimpleLayout extends Layout [
         const flexing = (c) => (c as any).flexes === true
 
         // slack, only when someone flexes: the view's extent along the axis
-        // minus the rigid content and the gaps between visible children
-        // a child's slot is its FOOTPRINT (the scale/rotation-composed box),
+        // minus the rigid content and the gaps between visible children.
+        // A child's slot is its footprint (the scale/rotation-composed box),
         // so a scale = 0.5 child occupies half the run and a rotated card
         // reserves what it visibly covers; the box's lead compensates the
-        // transform's own offset so the VISIBLE edge lands on the slot
+        // transform's own offset so the visible edge lands on the slot
         let each = 0
         let flexN = 0
         for (const c of kids) if (c.visible && flexing(c)) flexN = flexN + 1
@@ -82,9 +86,12 @@ class SimpleLayout extends Layout [
         }
 
         // the cross axis, when `align` claims it: children align within the
-        // LINE — the largest laid cross extent — never this.view's extent,
-        // which may derive from these very children (the cycle the one-pass
-        // discipline forbids). A baseline line is the deepest DECLARED one.
+        // BAND — the view's own cross extent, or the largest laid cross extent
+        // when the view measures these very children (viewExtent answers 0 on
+        // that view: reading an extent this pass feeds is the cycle the
+        // one-pass discipline forbids, and there the two agree anyway).
+        // Math.max keeps an over-wide child from hanging out both sides.
+        // A baseline line is the deepest declared one.
         const al = this.align
         const cross = axis == "x" ? "y" : "x"
         const crossSize = axis == "x" ? "height" : "width"
@@ -98,13 +105,16 @@ class SimpleLayout extends Layout [
                 const b = (c as any).baseline
                 if (al == "baseline" && typeof b == "number") lineBase = Math.max(lineBase, b)
             }
+            // `start` places at the band's origin and `baseline` on the shared
+            // line — neither reads the band, so only center/end ask for it
+            if (al == "center" || al == "end") line = Math.max(line, this.viewExtent(crossSize))
         }
 
         let pos = 0
         return kids.map((c) => {
             const flex = c.visible && flexing(c)
             // footprint, never bounds: the strategy must not read the slot it
-            // writes (one-pass discipline). A flexing child's size is ALLOCATED
+            // writes (one-pass discipline). A flexing child's size is allocated
             // (box.w/h), so its footprint is never consulted — lead 0, raw slot.
             const f = flex ? null : (c as any).footprint()
             const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)

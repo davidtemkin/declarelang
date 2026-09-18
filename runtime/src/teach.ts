@@ -34,13 +34,13 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   flexDirection: "arrangement is the 'layout' attribute — 'axis = x' or 'axis = y'",
   justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
   alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
-  gap: "spacing rides the layout — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
+  gap: "spacing between arranged children rides the layout — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
   margin: "there is no margin — position with x/y, a layout's spacing, or a wrapping View",
   padding: "there is no padding — inset children with x/y or an inner View",
-  // `onChange` EXISTS (Node): it answers the values a node names in
-  // `trackChanges`. The CSS/DOM instinct arrives at it meaning something else —
-  // an input's edits — so this entry disambiguates rather than denies.
-  onChange: "onChange(e: ChangeEvent) answers the values a node names in 'trackChanges' — a state change to act on once; an INPUT's edits are 'onInput()'",
+  // (`onChange` left this table 2026-09-15: it IS a Declare event now — the
+  // values a node names in `trackChanges`. The DOM instinct that arrives at it
+  // meaning an input's edits is answered by the event's own prose, which names
+  // `onInput`, rather than by a table that would deny the name exists.)
   // CSS names for capabilities Declare HAS, reached through the wrong door:
   // These earn their place by the table's own rule — one true equivalent each
   // — and they matter because "no such attribute" ends the search at exactly
@@ -49,9 +49,9 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   rotate: "rotation is the attribute — 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); 'rotateX'/'rotateY' turn a view out of its plane under the parent's 'perspective'; inside a drawing, d.rotate(rad)",
   transform: "there is no transform list: position is x/y, size is width/height; 'scale', 'scaleX'/'scaleY', 'skewX'/'skewY', 'rotation', 'rotateX'/'rotateY'/'translateZ' transform about pivotX/pivotY (the parent's 'perspective' is the eye), and arbitrary geometry is a 'draw(d: Draw)' member",
   skew: "a shear is 'skewX = 20' / 'skewY = 20' (degrees, about pivotX/pivotY)",
+  backfaceVisibility: "'backface = hidden' hides a view turned past 90° about X or Y",
   scaleX: "per-axis scale is 'scaleX' / 'scaleY' (multiplied with the uniform 'scale')",
   perspective: "'perspective = 700' on the PARENT is the eye its children's 'rotateX'/'rotateY'/'translateZ' are seen through (px; 0 = orthographic)",
-  backfaceVisibility: "'backface = hidden' hides a view turned past 90° about X or Y",
   blur: "blur is a filter — 'filter = blur(4)' blurs this view's own paint as a group (a list composes: 'filter = [blur(4), brightness(0.8)]'); 'backdrop = blur(20)' blurs what lies BENEATH; inside a drawing, d.filter",
   dropShadow: "a shadow of the painted ALPHA is 'filter = shadow(dx, dy, blur, color)' (the box's own shadow is the 'shadow' attribute; glyphs take 'textShadow')",
   mixBlendMode: "compositing is the 'blend' attribute — 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",

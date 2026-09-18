@@ -4,13 +4,10 @@
 Declare's own look — named for where Declare is made — and the theme a widget
 renders when nothing provides one: `control.declare` defaults `theme` to
 `SanFrancisco` (the light record), so an app that never mentions a theme is San
-Francisco light, always (the determinism ruling, components-baseline.md Contract
-2). These declarations are the authored truth for the preset:
-`tools/internal/gen-themes.mjs` projects every `library/themes/*.declare` record
-into `runtime/src/themes-data.ts` (gated for freshness), where `themes.ts` serves
-them by name — one source, in the language.
+Francisco light, always. These declarations are the preset itself, written in the
+language; the runtime serves them by name.
 
-A record is COMPLETE, not a delta: every token the standard library consults is
+A record is **complete**, not a delta: every token the standard library consults is
 stated, so a preset reads whole with nothing to chase.
 */
 

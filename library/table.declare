@@ -1,30 +1,26 @@
 /*
 # Table / TableRow
 
-The list collection, componentized (docs/system-design/component-briefs.md §2 —
-D8 RULED): the selection-bearing, scroll-owning frame around a replicated (or
-written) collection, carrying the RULED selection model
-(docs/system-design/selection-model.md) so no app hand-rolls it again:
+The list collection, componentized: the selection-bearing, scroll-owning frame around a replicated (or
+written) collection, carrying the selection model so no app hand-rolls it again:
 
-- **Selection is the Table's VALUE** — `selected` (the primary member) and
-  `selection` (all of them, presented order), holding MEMBERS: the record for
-  a replicated row, the row view itself for a written one. App-ownable via
-  `input` (Contract 1 form b); identity per the ruled ladder (a record's `id`
-  by convention, else the object itself — the reconciler's own rule).
-- **The three facts**: selection, the ANCHOR (where ranges extend from), and
+- **Selection is the Table's value** — `selected` (the primary member) and
+  `selection` (all of them, presented order), holding **members**: the record
+  for a replicated row, the row view itself for a written one. App-ownable via
+  `input`; identity by the usual ladder (a record's `id` by convention, else
+  the object itself — the reconciler's own rule).
+- **The three facts**: selection, the anchor (where ranges extend from), and
   the keyboard position `active` — moved by arrows, extended by shift,
   walked alone by ⌘ with Space toggling (discontiguous keyboard selection).
 - **`selects` declares the mode**: `none | single | multi` (default single).
-  (Build note: the ruled docs used one word for the mode AND the value; the
-  value keeps the ruled name `selection`, so the mode rides `selects`.)
 - Rows are TableRow instances — the RadioGroup discipline: direct children
   reaching their table as `parent`, replicated over data or written by hand.
   The row template stays free of any selection wiring.
 - Windowing composes: put `virtualize` on the row template and selection,
-  ranges, and keyboard travel keep working — members are read from the DATA
+  ranges, and keyboard travel keep working — members are read from the data
   through any row's cursor, never from instances, so an unmaterialized row
-  can be range-selected and arrow travel scrolls it into existence (uniform
-  row extents, the kernel's own v1 assumption).
+  can be range-selected and arrow travel scrolls it into existence (rows are
+  assumed uniform in height).
 
     Table [ width = 300, height = 400, datapath = { app.d.value },
         selects = "multi", input(sel: object) { app.chosen = sel },
@@ -168,17 +164,17 @@ The active row shows an accent ring only while the table's focus is visible (key
 include [ "control.declare" ]
 
 class Table extends Control [
-    // the marker rows guard on (the wrap-probe discipline: a bare TableRow
-    // under a plain parent must boot, not crash into a missing protocol)
+    // the marker rows guard on: a bare TableRow under a plain parent must
+    // boot, not crash into a missing protocol
 
     isTable: boolean = true,
 
-    // ── the value (selection-model.md §3) ─────────────────────────────────
+    // ── the value ─────────────────────────────────────────────────────────
 
     selected:  object = null,   // the primary selected member, or null
     selection: array  = null,   // every selected member, presented order (null = none)
 
-    // the keyboard position — the member the keyboard stands on (D8: `active`)
+    // the keyboard position — the member the keyboard stands on
 
     active: object = null,
 
@@ -186,22 +182,22 @@ class Table extends Control [
 
     selects: string = "single",
 
-    // ── internals: the anchor and the active INDEX (logical, data order) ──
+    // ── internals: the anchor and the active index (logical, data order) ──
 
     anchorIndex: number = -1,
     activeIndex: number = -1,
 
-    // ── identity — the ruled ladder's keyless rungs, shared with the
-    //    reconciler by convention: a record's scalar `id` IS its identity;
-    //    anything else compares as itself ─────────────────────────────────
+    // ── identity — the ladder's keyless rungs, shared with the reconciler
+    //    by convention: a record's scalar `id` is its identity; anything
+    //    else compares as itself ───────────────────────────────────────────
 
     idOf(m: object) -> object { return m != null && typeof m == "object" && !Array.isArray(m) && m.id !== undefined && typeof m.id != "object" ? m.id : m },
     same(a: object, b: object) -> boolean { return this.idOf(a) === this.idOf(b) },
     isSelected(m: object) -> boolean { return (this.selection ?? []).some(s => this.same(s, m)) },
     isActive(m: object)   -> boolean { return this.active != null && this.same(this.active, m) },
 
-    // ── the delivery seam (Contract 1): every gesture lands here; the
-    //    default writes the value slots, a use-site override redirects ────
+    // ── the delivery seam: every gesture lands here; the default writes
+    //    the value slots, a use-site override redirects ───────────────────
 
     input(sel: object) {
         selection = sel
@@ -210,7 +206,7 @@ class Table extends Control [
 
     clearSelection() { input(null) },
 
-    // ── the member universe, read from DATA (never instances — the
+    // ── the member universe, read from data (never instances — the
     //    windowing contract). A replicated table reaches its array through
     //    any row's cursor; a written table's members are its TableRow
     //    children. Handlers only — presentation code derives from the value.
@@ -220,7 +216,7 @@ class Table extends Control [
         return arr != null ? arr[i] : null
         },
     memberArray() -> array {
-        // the probe must be a ROW (a subclass may hold other cursor-bearing
+        // the probe must be a row (a subclass may hold other cursor-bearing
         // children — DataGrid's header island rides a different dataset)
         const probe = this.children.find(c => (c as TableRow).isTableRow === true && c.datapath != null && (c.datapath as Cursor).data != null) as any
         if (probe != null) return probe.datapath.data.read(probe.datapath.path.slice(0, -1))
@@ -231,7 +227,7 @@ class Table extends Control [
         return arr != null ? arr.length : 0
         },
 
-    // ── the protocol (selection-model.md §4) ─────────────────────────────
+    // ── the click protocol ────────────────────────────────────────────────
 
     rowClick(i: number, m: object, toggle: boolean, range: boolean) {
         if (selects == "none" || disabled) return
@@ -277,8 +273,8 @@ class Table extends Control [
         },
 
     // ensure the active row is on screen: use its instance when one exists;
-    // an unmaterialized target scrolls by arithmetic (uniform extents — the
-    // windowed kernel's own v1 model) and materializes on arrival.
+    // an unmaterialized target scrolls by arithmetic (rows are assumed
+    // uniform in height) and materializes on arrival.
 
     showRow(i: number) {
         const inst = this.children.find(c => (c as TableRow).isTableRow === true && (c as TableRow).rowIndex() == i)
@@ -309,7 +305,7 @@ class Table extends Control [
             this.activateRequested()                       // …and Enter opens what the walk landed on
         },
 
-    // Delete/Backspace with a selection, delivered only while the table IS the
+    // Delete/Backspace with a selection, delivered only while the table is the
     // focus (target-only keys) — so a field's Backspace is never confused for
     // it. A delivery seam like Menu's `picked`: the app declares the verb;
     // the default is refusal-by-inertness.
@@ -340,12 +336,12 @@ class TableRow extends Control [
 
     isTableRow: boolean = true,
 
-    // The MEMBER this row presents: its RECORD when replicated (the whole
+    // The member this row presents: its record when replicated (the whole
     // region at its cursor), the row view itself when written.
 
     member() -> object { return this.datapath != null ? this.$data("") : this },
 
-    // the row's LOGICAL index — the cursor path's last segment when
+    // the row's logical index — the cursor path's last segment when
     // replicated (true data order, windowing included); a written row asks
     // its position among its table's row children. A method, not a derived
     // slot: its consumers are gestures (handlers), and the written-member
@@ -357,16 +353,16 @@ class TableRow extends Control [
         return (parent as Table).children.filter(c => (c as TableRow).isTableRow === true).indexOf(this as any)
         },
 
-    // the selection facts, DERIVED from the table's value — a row presents
-    // membership, it never stores it (the instance-free doctrine)
+    // the selection facts, derived from the table's value — a row presents
+    // membership, it never stores it
 
     selected: boolean = { (parent as Table).isTable === true && (parent as Table).isSelected(this.member()) },
     active:   boolean = { (parent as Table).isTable === true && (parent as Table).isActive(this.member()) },
 
-    // rows are NEVER tab stops (the one-stop policy — focus-scopes.md): the
-    // TABLE is the stop and the keyboard position moves inside it. A pointer
-    // press on a row therefore focuses the TABLE (Control's default would
-    // claim focus for the row itself, stranding the arrow keys).
+    // rows are never tab stops (the one-stop policy): the table is the stop
+    // and the keyboard position moves inside it. A pointer press on a row
+    // therefore focuses the table (Control's default would claim focus for
+    // the row itself, stranding the arrow keys).
 
     focusable = false,
 
@@ -385,10 +381,8 @@ class TableRow extends Control [
 
     width = { (parent as Table).width },
 
-    // On the shared ladder. This read `control` as SELECTED and `surface` as
-    // hover — exactly inverted from Segment, which read `control` as hover and
-    // `surface` as selected. Two components, two opposite meanings for one pair
-    // of tokens: neither wrong alone, incoherent together.
+    // on the shared ladder, so a selected row and a selected segment mean the
+    // same tokens
 
     fill = { selected ? theme.controlSelected : hot ? theme.controlHover : null },
     stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }

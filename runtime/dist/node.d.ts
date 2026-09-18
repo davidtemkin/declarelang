@@ -29,6 +29,19 @@ export declare class Node {
      *  throws, naming the value. Lives on Node, not View: a faceless coordinator
      *  node reads provided values too. */
     $provided(name: string, ...dflt: unknown[]): unknown;
+    /** The read behind `providedTextStyle(overrides?)` — the `TextStyle` in force
+     *  at THIS node: the five provided face names, each falling to the same default
+     *  a `Text` would (attributes.ts PROVIDED_FACE, the one table), with the
+     *  caller's fields replacing any of them.
+     *
+     *  It exists because `measureText` and a drawing's `fillText` take a style
+     *  RECORD and inherit nothing — they have no place in the tree to inherit
+     *  from — so measuring "as a Text here would render it" otherwise meant
+     *  hand-writing five provided reads and keeping their defaults in step. The
+     *  value is a property of the node, not of where it is read: a value slot and
+     *  that same view's `draw()` get the same record, and a drawing's own `d.font`
+     *  state is unrelated to it. */
+    $providedTextStyle(overrides?: Record<string, unknown> | null): Record<string, unknown>;
     /** The STRUCTURE cell — lazily created on the first tracked read of this
      *  node's child list (extentOf's contentWidth/contentHeight walk), woken by
      *  insertChild/removeChild. This is what makes a constraint over a

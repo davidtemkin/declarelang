@@ -31,7 +31,7 @@ import { TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES } from
 import { LANGUAGE_API, LANGUAGE_STATICS } from "../../../compiler/dist/scaffold.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
-import { parseProgram } from "../../../runtime/dist/parser.js";
+import { parseProgram, parseLibrary } from "../../../runtime/dist/parser.js";
 
 // RichText is the abstract base of Markdown/HTMLText — documented, but not in the
 // instantiable SCHEMAS registry (like Layout). Fold it in for the extractor only.
@@ -113,6 +113,13 @@ async function measureStage(src, floor = 200) {
   } catch { return floor; }
 }
 
+// A fence that does not compile is rendered as STATIC CODE — that is how a
+// deliberate FRAGMENT (`src: DataSource [ … ]`, a lone member line) is told from a
+// whole program, and it must stay silent. But a fence that opens with `App [` was
+// written to RUN, so its failure is a defect, not a fragment: silently demoting it
+// loses the live island AND leaves broken code on the page. Those are collected
+// here and reported with the coverage gaps.
+const brokenFences = [];
 // split prose Markdown into ordered segments: { md } for text/static-code, or
 // { md:"", code:[{id, source, lines, stageH}] } for a runnable island (0-or-1 array so
 // the app constructs the island by datapath replication). Merges runs of plain text.
@@ -137,6 +144,10 @@ async function segmentize(md, idBase) {
       segs.push({ md: "", code: [{ id, source: run, lines: run.split("\n").length, stageH: await measureStage(run) }] });
     } else {
       pushMd(part);                                          // non-runnable → render as static code
+      if (/^App \[/m.test(block)) {
+        const why = await compile(block, {}).then((o) => o.errors?.[0]?.message ?? "settles to nothing").catch((e) => e.message);
+        brokenFences.push(`${idBase}: a \`\`\`declare fence written as a whole program does not compile, so it lost its live island and renders broken — ${why}`);
+      }
     }
   }
   return segs;
@@ -440,9 +451,16 @@ for (const name of TARGETS) {
     const raw = prose.members[attr] ?? null;
     const doc = raw === null ? null : raw.replace(/^\*\*Read-only\.?\*\*\s*[—–-]?\s*/, "");
     const d = decor[attr];
+    // PUBLIC unless the SCHEMA says otherwise (schema.ts `internal`). This used
+    // to be `api: doc !== null` — public meant "somebody wrote prose" — so an
+    // attribute nobody documented was silently reclassified internal and dropped
+    // from its own class page. 37 were, `scrollStartX` among them, whose own twin's
+    // prose names it. Silence must not be a signal: absence of prose is now a gate
+    // failure, and hiding a slot is a line in the schema a reviewer sees.
+    const internal = (schema.internal ?? []).includes(attr);
     nodes[id] = {
       id, name: attr, kind: "attribute",
-      doc, docSegs: await segmentize(doc, id), api: doc !== null,
+      doc, docSegs: await segmentize(doc, id), api: !internal, internal,
       source: d ? { file: d.file, line: d.line } : { file: "runtime/src/schema.ts", line: 0 },
       parent: clsId, seeAlso: [],
       type: renderType(schema.attrs[attr]),
@@ -660,6 +678,39 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   roots.push(tag);
 }
 
+// ── the THEME PRESETS — one reference entry per declared record ──
+// The library's themes live in `library/themes/*.declare` as `theme Name [ … ]`
+// declarations, not components, so the manifest-driven loop above never sees
+// them — and the reference carried none of the eight names the glossary and the
+// guide point a reader at (`CupertinoDark` was a help-tool miss). Each file
+// declares a light record and its `…Dark` companion under one header, so both
+// entries carry that header's prose.
+{
+  const dir = path.join(ROOT, "library/themes");
+  for (const f of readdirSync(dir).filter((n) => n.endsWith(".declare")).sort()) {
+    const rel = "library/themes/" + f;
+    const src = readFileSync(path.join(ROOT, rel), "utf8");
+    let decls;
+    try { decls = parseLibrary(src).themes ?? []; } catch { decls = []; }
+    if (decls.length === 0) continue;
+    const head = decls.find((d) => !/Dark$/.test(d.name))?.name ?? decls[0].name;
+    const prose = headerProse(src, head);
+    for (const d of decls) {
+      const dark = /Dark$/.test(d.name);
+      const id = d.name;
+      if (nodes[id]) continue;
+      PROSE[id] = prose;
+      nodes[id] = { id, name: id, kind: "theme",
+        doc: prose.class, docSegs: await segmentize(prose.class, id), api: true,
+        source: { file: rel, line: 0 }, parent: null, seeAlso: [],
+        extends: null, subclasses: [], origin: "library",
+        attributes: [], methods: [], events: [], example: null,
+        appearance: dark ? "dark" : "light", pair: dark ? id.replace(/Dark$/, "") : id + "Dark" };
+      roots.push(id);
+    }
+  }
+}
+
 // reverse edge: subclasses (only among documented classes carry a live link)
 for (const [base, subs] of Object.entries(subclassIndex)) {
   if (nodes[base]) nodes[base].subclasses = subs;
@@ -797,11 +848,19 @@ const CLASS_GROUPS = [
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
   ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "Editor", "TextInput", "Combobox", "Segmented", "SegmentedItem", "ProgressBar", "FocusRing"]],
-  ["Chrome",        ["Bar", "MenuBar", "Menu", "ContextMenu", "Dialog", "Tooltip", "Accordion", "Pane"]],
-  ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket", "Table", "TableRow", "DataGrid", "Column", "GridRow"]],
+  // "Structure", not "Chrome": the word is the browser the gates drive, and the
+  // reference is read by agents as often as by people, so the collision was one
+  // we would have been adding on purpose. It is also the word the language file's
+  // own map already uses for these — "controls, structure, layouts, embedding".
+  ["Structure",     ["Bar", "MenuBar", "Menu", "ContextMenu", "Dialog", "Tooltip", "Accordion", "Pane"]],
+  // Data holds what STORES or FETCHES data and paints nothing. The tables are
+  // views that display it — a different kind of thing, filed with their kind.
+  ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket"]],
+  ["Tables",        ["Table", "TableRow", "DataGrid", "Column", "GridRow"]],
   ["Motion and state", ["Animator", "AnimatorGroup", "Spring", "State", "Time"]],
   ["Services",      ["Keys", "Focus", "Tip"]],
   ["Embedding",     ["DOMIsland", "AppIsland"]],
+  ["Themes",        ["SanFrancisco", "SanFranciscoDark", "Cupertino", "CupertinoDark", "MountainView", "MountainViewDark", "Redmond", "RedmondDark"]],
   ["Icons",         ["Icon", "IconHost", "ArrowIcon", "ChevronIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon", "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon"]],
 ];
 const groupProblems = [];
@@ -819,8 +878,9 @@ const classGroups = CLASS_GROUPS.map(([name, names]) => ({ name, classes: names.
 const tree = roots.map((id) => {
   const c = nodes[id];
   return {
-    id: c.id, name: c.name, doc: c.doc, docSegs: c.docSegs, api: c.api,
+    id: c.id, name: c.name, kind: c.kind, doc: c.doc, docSegs: c.docSegs, api: c.api,
     extends: c.extends, chain: c.chain, abstract: c.abstract === true, subclasses: c.subclasses, origin: c.origin,
+    appearance: c.appearance, pair: c.pair,
     attributes: c.attributes.map((a) => nodes[a]).filter((n) => n.api),
     events: c.events.map((e) => nodes[e]).filter((n) => n.api),
     methods: c.methods.map((m) => nodes[m]).filter((n) => n.api),
@@ -1069,9 +1129,24 @@ console.log(`  @api:    ${documented} documented / ${Object.keys(nodes).length -
 // ── the coverage gates: every documented, non-abstract class has a usage example;
 //    every expression override carries its intent ──
 const coverage = [];
+// EVERY DECLARED EVENT IS API, by construction: an author writes a handler for
+// it, the checker names it when the handler is misspelled, and declare-help
+// answers it by that name. So an event with no prose is not "internal" (the
+// marker attributes and methods may carry) — it is missing. And it fails
+// silently: `api: doc !== null` above drops it from its own class page, so the
+// surface disappears from the reference with nothing said. Eight events were in
+// that state on 2026-09-15 — the whole touch family, dblClick, contextMenu,
+// App.follow, Keys.navClaim — reachable in every program and absent from the
+// generated reference.
+for (const [id, n] of Object.entries(nodes)) {
+  if (n.kind !== "event" || n.api) continue;
+  const handler = "on" + n.name.charAt(0).toUpperCase() + n.name.slice(1);
+  coverage.push(`${id}: an event with no prose — add '## ${handler}' to the class's prose file (an event is API by construction; there is no internal event)`);
+}
 for (const c of tree) {
   const has = (c.example && c.example.length) || (c.docSegs || []).some((sg) => (sg.code || []).length);
-  if (!c.abstract && !has) coverage.push(`${c.id}: no usage example (apps/docs/demos/${c.id}.declare, or a compiling \`\`\`declare fence in its prose)`);
+  // a theme preset is a record, not a component: its whole usage is `theme = Name`
+  if (!c.abstract && !has && c.kind !== "theme") coverage.push(`${c.id}: no usage example (apps/docs/demos/${c.id}.declare, or a compiling \`\`\`declare fence in its prose)`);
   for (const a of c.attributes) if (a.overrides && !a.doc && /^\{/.test("" + a.default)) coverage.push(`${c.id}.${a.name}: an expression override with no intent — add '## ${a.name}' to the class's prose`);
 }
 // A fence that compiles becomes a LIVE island — and an island that settles to
@@ -1095,6 +1170,7 @@ for (const [id, src] of Object.entries(genFiles)) {
   } catch { /* a fence that needs a browser to settle is not judged here */ }
 }
 for (const b of blankIslands) coverage.push(b);
+for (const b of brokenFences) coverage.push(b);
 if (coverage.length > 0) {
   console.log(`  COVERAGE: ${coverage.length} gap(s)`);
   for (const u of coverage) console.log(`    ${u}`);

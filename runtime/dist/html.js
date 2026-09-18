@@ -13,7 +13,7 @@
 // This is a whitelist, not a general HTML engine — the SUPPORTED_TAGS set below
 // is the single source of truth, and everything outside it is handled by policy.
 // A near-leaf: it imports only md.ts's tree types + entity decoder.
-import { decodeEntities } from "./md.js";
+import { decodeEntities, scanViewTag } from "./md.js";
 // ── the whitelist ──────────────────────────────────────────────────────────
 // Inline tags carry a run style; block tags open a block. Aliases collapse to
 // one meaning (b→strong, i→em, s/strike/del→strike). This IS the supported set.
@@ -30,7 +30,7 @@ function unsupported(tag) {
 /** Tokenize + build a whitelisted element tree. Malformed input degrades to
  *  defined output: a stray `<`, an unclosed tag, or a mismatched close never
  *  throws under `strip` — only a genuinely unsupported tag does under `error`. */
-function buildTree(src, policy) {
+function buildTree(src, policy, opts) {
     const root = { tag: "", attrs: {}, kids: [] };
     // stack frames mirror open tags; el=null marks an UNWRAPPED unknown tag whose
     // children flow into the nearest real ancestor.
@@ -83,6 +83,30 @@ function buildTree(src, policy) {
             i = gt + 1;
             continue;
         }
+        // AN INLINE VIEW, read before the whitelist and case-SENSITIVELY: a tag
+        // whose name is a class the program declares creates one real view of that
+        // class, placed in the flowing text. This is also the tie-break the ruling
+        // names — a program class called exactly like a whitelisted tag (a class
+        // literally named `code`) wins here in rich text.
+        if (opts?.isClass !== undefined) {
+            const vt = scanViewTag(src, lt, opts.isClass);
+            if (vt !== null) {
+                if (vt.selfClosing) {
+                    target().kids.push({ view: vt });
+                    i = gt + 1;
+                    continue;
+                }
+                // Self-closing only, this version (rule 9) — the content error path:
+                // `error` throws, `strip` reports and unwraps (the tag goes, its text
+                // stays), exactly as an unsupported tag does today.
+                if (policy === "error")
+                    throw new Error(`HTMLText: <${vt.name}> is an inline view, and an inline view must be self-closing — write <${vt.name}/>`);
+                opts.refuse?.(`<${vt.name}> is an inline view, and an inline view must be self-closing — write <${vt.name}/>`);
+                stack.push({ tag: vt.name.toLowerCase(), el: null });
+                i = gt + 1;
+                continue;
+            }
+        }
         const selfClose = raw.endsWith("/");
         const { tag, attrs } = parseTag(selfClose ? raw.slice(0, -1) : raw);
         if (tag === "") {
@@ -133,7 +157,7 @@ function parseTag(inner) {
 function textOf(el) {
     let s = "";
     for (const k of el.kids)
-        s += "text" in k ? k.text : textOf(k);
+        s += "text" in k ? k.text : "view" in k ? "" : textOf(k);
     return s;
 }
 /** Drop one leading newline from a run list (the `<pre>\n…` authoring convention). */
@@ -150,6 +174,12 @@ function inlineOf(kids) {
     for (const k of kids) {
         if ("text" in k) {
             out.push({ t: "text", value: k.text });
+            continue;
+        }
+        if ("view" in k) {
+            out.push(k.view.key === undefined
+                ? { t: "view", name: k.view.name, attrs: k.view.attrs }
+                : { t: "view", name: k.view.name, attrs: k.view.attrs, key: k.view.key });
             continue;
         }
         switch (k.tag) {
@@ -212,7 +242,7 @@ function blockOf(el) {
         const start = ordered ? parseInt(el.attrs.start ?? "1", 10) || 1 : 1;
         const items = [];
         for (const c of el.kids)
-            if (!("text" in c) && c.tag === "li")
+            if (!("text" in c) && !("view" in c) && c.tag === "li")
                 items.push({ task: null, blocks: blocksOf(c.kids) });
         return [{ t: "list", ordered, start, loose: items.some((it) => it.blocks.length > 1), items }];
     }
@@ -236,8 +266,8 @@ function blocksOf(kids) {
         out.push({ t: "paragraph", inline: inl });
     };
     for (const k of kids) {
-        if ("text" in k)
-            buf.push(k);
+        if ("text" in k || "view" in k)
+            buf.push(k); // an inline view flows with the text
         else if (BLOCK.has(k.tag)) {
             flush();
             out.push(...blockOf(k));
@@ -249,8 +279,10 @@ function blocksOf(kids) {
     return out;
 }
 /** Parse a whitelisted-HTML string into the block tree. `policy` decides what an
- *  unsupported tag does (strip = unwrap / error = throw). */
-export function parseHtml(src, policy = "strip") {
-    return blocksOf(buildTree(src, policy).kids);
+ *  unsupported tag does (strip = unwrap / error = throw). `opts.isClass` turns a
+ *  tag naming a program class into an inline view (md.ts ReadOptions); with
+ *  none, every tag keeps today's meaning. */
+export function parseHtml(src, policy = "strip", opts) {
+    return blocksOf(buildTree(src, policy, opts).kids);
 }
 //# sourceMappingURL=html.js.map

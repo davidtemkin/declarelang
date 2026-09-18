@@ -19,10 +19,7 @@ The target slot this animator drives — a **bare attribute name** of the enclos
 reference.
 
 ## to
-The value to animate **to**. Like any `{ }` it may read the record: an animator is a member
-of its view, so a `:path` here resolves against that view's cursor — `to = { :rank * rowH }`
-on a replicated row springs to a target the data supplies, and re-targets when the record
-changes.
+The value to animate **to**.
 
 ## from
 The value to start **from** — **omit it to sample the target's current value** at start, so

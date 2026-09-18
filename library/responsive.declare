@@ -26,12 +26,12 @@ Each entry's `from` means *use this plan when the view is at least this wide*
 list, and an entry with `from: 0` is the fallback for anything narrower.
 `flow` is the arrangement: `"row"` places children left to right; `"stack"`
 places them top to bottom. `share` divides the width (what is left of it
-after the gaps) among the children it NAMES — the names are the view's own
+after the gaps) among the children it names — the names are the view's own
 child names, checked when the layout first arranges (a name with no child is
 a loud error). `logo: 15` gives logo 15% of it; **`0` hides that child while
 the plan is active** — so "the actions disappear on small screens" is just a
 number in the narrow plan, and they reappear by themselves when the view
-widens. A child a plan does NOT name is left alone: natural width, the flow
+widens. A child a plan does not name is left alone: natural width, the flow
 just places it. `gap` sets the space between children (an entry may carry
 its own `gap` to override the layout's). Heights are never touched: children
 keep their own heights, and the view's height falls out of its content, as
@@ -56,7 +56,7 @@ its own ResponsiveLayout, its plans answer to its own width, automatically.
 Room flows down; each level responds locally. (A plan can only name direct
 children — managing a grandchild is the child's own plan's business.)
 
-**Division of labor.** ResponsiveLayout manages NAMED regions. A collection
+**Division of labor.** ResponsiveLayout manages **named regions**. A collection
 of uniform, replicated cards that should reflow to fit is the other tool:
 `WrappingLayout` (it wraps by fitting, no plan needed) with a width
 constraint on the card.
@@ -128,14 +128,14 @@ class ResponsiveLayout extends Layout [
         const avail = W - gap * Math.max(0, visN - 1)
         const shareW = (c) => (stack ? W : avail) * (shares.get(c) as number) / 100
 
-        // Rigid content along the FLOW axis, to size the spacers: widths in a
+        // Rigid content along the flow axis, to size the spacers: widths in a
         // row (a share is a width), the children's own heights in a stack.
         let rigid = 0
         let flexN = 0
         for (const c of kids) {
             if (!c.visible || hidden(c)) continue
             if (flexing(c)) { flexN = flexN + 1; continue }
-            // natural sizes are the FOOTPRINT (scale/rotation composed,
+            // natural sizes are the footprint (scale/rotation composed,
             // position-free); a share or flex allocation stays the raw slot it
             // claims — the strategy never reads a slot it writes
             rigid = rigid + (stack ? (c as any).footprint().height : (shares.has(c) ? shareW(c) : (c as any).footprint().width))
@@ -155,7 +155,7 @@ class ResponsiveLayout extends Layout [
             const f = natural ? (c as any).footprint() : null
             const lead = f == null ? 0 : (stack ? f.y : f.x)
             const box = (stack ? ({ y: pos - lead }) : ({ x: pos - lead })) as any
-            if (shares.has(c)) box.w = shareW(c)                       // a share allocates WIDTH, both flows
+            if (shares.has(c)) box.w = shareW(c)                       // a share allocates width, both flows
             if (flexing(c)) box[stack ? "h" : "w"] = each              // a spacer flexes along the flow axis
             const adv = flexing(c) ? each
                       : stack      ? (f as any).height

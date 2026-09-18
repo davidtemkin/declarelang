@@ -12,8 +12,8 @@ tells it directly. That is the whole routing model, and it fits in a sentence:
 
 ## Interaction state you never wire
 
-Hover and press are not events you route — they are **read-only attributes every view
-already has**. `hovered` is true while the view is on the live *hit chain*: the topmost
+Hover and press are not events you route — they are **facts**: read-only attributes every
+view already has. `hovered` is true while the view is on the live *hit chain*: the topmost
 visible view under the pointer, plus its ancestors — occlusion-correct, so anything
 covering a view suppresses it, and always false on touch. `pressed` is true from a
 pointer-down on the chain until release — drag off a button and it lets go, drag back
@@ -31,9 +31,8 @@ App [ width = 220, height = 100, fill = white,
     ]
 ```
 
-No declarations, no `onPointerOver` bookkeeping — the four handlers and two booleans this
-took before the intrinsics existed are simply gone, and what remains is the one line
-that was ever the point: the `fill` constraint. Everything composes as usual: gate a
+No declarations, no `onPointerOver` bookkeeping, no state to keep in sync — just the one
+line that was ever the point: the `fill` constraint. Everything composes as usual: gate a
 State on it (`applied = { hovered }`), read another view's (`visible =
 { parent.parent.hovered }`), or spring from it. Because the chain derives from
 geometry too, a view that *moves* under a stationary cursor updates — and because the
@@ -41,7 +40,7 @@ chain is occlusion-correct, one transparent view laid over a region silences eve
 hover beneath it (the "activation glass" idiom: how a desktop declares
 click-to-activate windows). Declaring or assigning `hovered`/`pressed` is a compile
 error that says so — like `contentWidth`, they are computed for you. For controls, the
-library's `Control` derives a styling pair from them (`hot`/`down` — the intrinsics
+library's `Control` derives a styling pair from them (`hot`/`down` — the facts
 gated by `disabled`, plus the keyboard flash), which is what its buttons paint with.
 
 ## Two layers: what happened, and what it meant

@@ -4,7 +4,7 @@ surface; see that page. What `Video` adds is exactly the picture: set `source` t
 and, unless you constrain its size, the box adopts the clip's natural pixel dimensions
 once the metadata arrives. `Image`'s shape, with time added.
 
-There are **no player controls and no methods to call** — the family ruling, stated on
+There are **no player controls and no methods to call** — the family contract, stated on
 `Media`. Transport is attributes: you do not tell a clip to play, you declare the
 condition under which it is playing, and it follows.
 
@@ -26,4 +26,4 @@ Two of `Media`'s notes bind tightest here: `muted` defaults **`true`** on this l
 (browsers refuse audible video autoplay, so an unmuted default would make the common
 declaration silently never start — set it `false` only where a person has asked for
 sound), and `loaded` is the poster idiom (`still: Image [ visible = { !reel.loaded } ]`
-— compose the two rather than wishing for a `poster` attribute).
+— there is no `poster` attribute; compose the two).

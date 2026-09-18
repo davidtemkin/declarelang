@@ -1,0 +1,8 @@
+style Keyword  [ textColor = #C678DD, fontWeight = bold ]
+
+style TypeName [ textColor = #2E6FE0 ]
+
+App [ width = 400, height = 90, textStyles = { { Keyword, TypeName } },   // the whole app's palette, once
+    doc: Markdown [ width = { parent.width },
+        text = "A <span class='Keyword'>class</span> declares a <span class='TypeName'>View</span>." ]
+    ]

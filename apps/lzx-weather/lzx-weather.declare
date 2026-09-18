@@ -1,11 +1,11 @@
 /*
 # NeoWeather
 
-A small but complete weather app in Declare, mirroring the classic
-apps/lzx-weather/lzx-weather.lzx. Its data is the bundled static file
-data/weather.json; it's one file, and the classes below are all specific to
-it. Three named fonts: `Chrome` and `Body` are already on the machine,
-`Title` is a web font downloaded from its .woff2 file.
+A small but complete weather app in Declare, mirroring the classic Laszlo
+weather sample. Its data is the bundled static file data/weather.json; it's
+one file, and the classes below are all specific to it. Three named fonts,
+each a `Font` on the App: `chrome` and `body` are faces already on the
+machine, `title` is a web font loaded from its .woff2 file.
 */
 
 
@@ -105,7 +105,7 @@ class WeatherTab extends View [ width = 100%,
 // read from whichever forecast entry it's bound to.
 
 class WeatherSummary extends View [ fill = #000000, width = 34, height = 34, x = 10,
-    fontFamily = ["Helvetica", "Arial", "sans-serif"], fontSize = 12,
+    fontFamily = { app.body }, fontSize = 12,
 
     icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
         source = { :code != null ? `resources/icons/${:code}.gif` : "" } ],
@@ -140,10 +140,12 @@ data has loaded.
 */
 
 App [ width = 240, height = 320, fill = #EAEAEA,
+    chrome: Font [ family = "Tahoma, Geneva, sans-serif" ],
+    body: Font [ family = "Helvetica, Arial, sans-serif" ],
     title: Font [
         Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ]
         ],
-    fontFamily = ["Tahoma", "Geneva", "sans-serif"], fontSize = 9,
+    fontFamily = { app.chrome }, fontSize = 9,
     fontWeight = bold, textColor = #FFFFFF,
 
     zip: string = "94403",
@@ -152,6 +154,17 @@ App [ width = 240, height = 320, fill = #EAEAEA,
     // .failed flags, and read the weather from its .value (or .error).
 
     weatherData: DataSource [ url = "data/weather.json" ],
+
+    // The two slides that answer a fetch's outcome are a change event on the
+    // source's status: the top bar comes down on success, the zip bar comes
+    // back on failure.
+
+    fetchStatus: string = { weatherData.status },
+    trackChanges = ["fetchStatus"],
+    onChange(e: ChangeEvent) {
+        if (weatherData.loaded) report.topBar.slideDown.start()
+        else if (weatherData.failed) splash.zipBtn.slideIn.start()
+        },
 
     bg: Image [ source = "resources/weather_bg.jpg" ],
 
@@ -186,10 +199,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                 stop(0.92, #797AB4), stop(1, #27283B)),
                 onClick() {
                     slideOut.start()
-                    weatherData.fetch().then(() => {
-                        if (weatherData.failed) slideIn.start()
-                        else App.report.topBar.slideDown.start()
-                        })
+                    weatherData.fetch()
                     }
                 ],
 
@@ -199,13 +209,13 @@ App [ width = 240, height = 320, fill = #EAEAEA,
             caption: Text [ text = "Enter Zip Code:", x = 15, y = 9,
                 textShadow = shadow(1, 0, 0, #222222) ],
 
-            // The zip box: it looks like a text field but isn't editable yet — it
-            // just displays App.zip.
+            // The zip box: it looks like a text field but is not editable — it
+            // just displays app.zip.
 
             field: View [ x = 120, y = 5, width = 80, height = 20,
                 fill = #FFFFFF, stroke = stroke(2, #1A1A1A),
 
-                entry: Text [ x = 3, y = 4, text = { App.zip }, textColor = #000000 ]
+                entry: Text [ x = 3, y = 4, text = { app.zip }, textColor = #000000 ]
                 ],
 
             ok: Text [ text = "OK", x = 205, y = 9, textShadow = shadow(1, 0, 0, #222222) ]
@@ -238,16 +248,16 @@ App [ width = 240, height = 320, fill = #EAEAEA,
                 Animator [ attribute = opacity, to = 0 ]
                 ],
 
-            onPointerUp() {
+            onClick() {
                 slideUp.start()
-                App.splash.zipBtn.slideIn.start()
+                app.splash.zipBtn.slideIn.start()
                 weatherData.clear()
                 },
 
             title:    Text [ text = "Rain or Shine?", x = 8, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
             bullet:   View [ x = 150, y = 6, width = 5, height = 5, fill = #BCC4E2 ],
             zipLabel: Text [ text = "Zipcode:", x = 159, y = 3, textShadow = shadow(1, 1, 0, #1A2452) ],
-            zip:      Text [ text = { App.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = shadow(1, 1, 0, #1A2452) ]
+            zip:      Text [ text = { app.zip }, x = 208, y = 3, width = 100, textColor = #CAD0EC, textShadow = shadow(1, 1, 0, #1A2452) ]
             ],
 
         weatherContent: TabSlider [ y = 15, height = 305,
@@ -258,7 +268,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
                     layout: SimpleLayout [ axis = y, spacing = 10 ],
 
-                    form: View [ width = 240, fontFamily = ["Helvetica", "Arial", "sans-serif"], fontSize = 14,
+                    form: View [ width = 240, fontFamily = { app.body }, fontSize = 14,
 
                         where: Text [ x = 15, width = 240,
                             text = { :location.city + ", " + :location.region } ],

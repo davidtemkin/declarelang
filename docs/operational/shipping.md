@@ -97,18 +97,26 @@ npm test                        # every source suite; no derive needed
 node tools/verify.mjs <file>    # or: one program, six rungs, while iterating
 npm run test:ladder             # before a push that touched layout, paint or input
 
-# 3. regenerate + gate the artifacts — AFTER the last source edit
-npm run derive                  # rewrites AND STAGES its outputs
+# 3. stage your sources — BEFORE the derive
+git status                      # the suite may have rewritten bundles/; look before you stage
+git add <your files>
+
+# 4. regenerate + gate the artifacts — AFTER the last source edit
+npm run derive                  # rewrites AND STAGES its outputs, beside your sources
 npm run test:derived            # the artifact gates — right after a derive
 
-# 4. ONE commit, then push — pre-push asks its two questions, read-only
-git status                      # the suite may have rewritten bundles/; look before you stage
-git add <your files> && git commit
+# 5. ONE commit, then push — pre-push asks its two questions, read-only
+git add <the stamped files derive rewrote> && git commit
 git push
 ```
 
-Derive **after your last source edit** and immediately before the commit, and the push sails
-through: one commit ships a change, artifacts included. Edit source after the derive — even
+Stage your sources before the derive, and the index never holds artifacts of a source state
+it does not also hold — derive stages what it writes, so staged sources and staged outputs
+describe one tree, whether the commit follows at once or waits. Mid-arc, when you want the
+artifacts refreshed to look at and the index left where it is, `npm run derive -- --no-stage`
+writes the files and touches nothing else; the staging run above is what a commit wants. Derive **after your last
+source edit** and immediately before the commit, and the push sails through: one commit ships
+a change, artifacts included. Edit source after the derive — even
 a one-line checker message — and the bundles are behind again, invisibly, until pre-push
 says so.
 
@@ -128,7 +136,9 @@ layout, paint, and input exist. *Pitfalls:* if you filter a long run through `gr
 block buffering, and that one `FAIL` line is easy to miss in a green-looking wall — check the
 exit code, not the vibe. And a green suite proves the *sources*, never the bundles.
 
-**3 — Derive + gate.** `npm run derive` regenerates every committed artifact whose inputs
+**3 — Stage your sources, then derive + gate.** Stage what you authored first, by path:
+derive stages its own outputs, and outputs staged beside unstaged sources leave the index
+describing a tree that exists nowhere. Then `npm run derive` regenerates every committed artifact whose inputs
 changed and **stages what it owns** (rewrites, new content-hashed paths, prunes — `git add -A`
 per output pathspec, so a `git commit -a` can never publish a page that 404s on its own
 bundle). Two boundaries: **stamped** files (README, `docs/declare.md`, the `index.html` pages,
@@ -182,6 +192,6 @@ the derive chain on top of current main. Quick self-check before pushing a branc
 
 ## The one-glance version
 
-Edit (canon) → `npm test` → **derive after the last edit** → `test:derived` → `git status` →
-stage by path → one commit → push. If pre-push refuses: `npm run derive` — commit what it
+Edit (canon) → `npm test` → `git status` → **stage your sources by path** → **derive after the
+last edit** → `test:derived` → stage the stamped files → one commit → push. If pre-push refuses: `npm run derive` — commit what it
 regenerates and push, or, if it regenerates nothing, just push.

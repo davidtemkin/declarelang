@@ -19,8 +19,6 @@ then changes once.
 about to change to this font keeps its current look (the app's first paint included),
 and `late` decides what a face arriving after that does. Text, layout, drawings and
 `measureText` follow a face landing with no code — reading the font is the dependency.
-The top-level `font Name [ … ]` declaration is retired; the checker names this form
-instead.
 
 ```declare
 App [ width = 320, height = 100, fill = white, textColor = black,

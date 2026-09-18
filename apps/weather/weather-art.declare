@@ -1,7 +1,7 @@
 // weather-art — the skies and the drawn vocabulary for apps/weather.
 // Included by weather.declare so the app file stays about the app.
 //
-// Everything here that displays data is DRAWN: a `draw(d: Draw)` method is a
+// Everything here that displays data is drawn: a `draw(d: Draw)` method is a
 // tracked computation — it re-runs when the reactive values it reads change,
 // never per frame — and its output is resolution-independent. Two skies are
 // photographs (sky/LICENSES.md records their sources); the other two are
@@ -15,7 +15,7 @@ script {
     // callable from any draw() in the file.
 
     // ── the two drawn skies ────────────────────────────────────────────────
-    // Functions rather than classes, because a sky is drawn at TWO sizes: the
+    // Functions rather than classes, because a sky is drawn at two sizes: the
     // full page, and a 92px list row. Both are the same picture scaled by its
     // own box, and both are worth drawing — a row's sky is the thing that
     // tells you at a glance which cities are clear and which are overcast.
@@ -28,7 +28,7 @@ script {
         d.fillStyle = g
         d.fillRect(0, 0, w, h)
         // the sun: a layered radial glow, high right. The radius is clamped
-        // because a NEGATIVE radial radius throws — and a drawn component
+        // because a negative radial radius throws — and a drawn component
         // that throws takes the whole boot with it, which is too sharp an
         // edge for the zero-width moment before a box has been measured.
         const sx = w * 0.82, sy = h * 0.10
@@ -184,28 +184,29 @@ class WIcon extends View [
 // ── the skies ──────────────────────────────────────────────────────────────
 // Every sky fills its parent and sits behind everything. The photographic
 // skies drift very slowly — ambient motion, driven by a per-frame Time because
-// the pan ACCUMULATES: the next offset depends on the previous one, which is
-// integration, not a formula over the clock.
+// the pan runs on the sky's own elapsed running time: a sum of frame steps
+// that pauses while the sky is hidden and never jumps on return, which no
+// clock fact gives — integration, not a formula over the wall clock.
 
 class SkyPhoto extends View [ clip = true,
     source: string = "",
     driftT: number = 0,
     driftAcc: number = 0,
 
-    // The drift is a per-frame handler, so it runs ONLY where it can be seen:
+    // The drift is a per-frame handler, so it runs only where it can be seen:
     // a sky that is hidden, or small enough that a 3% pan is invisible, has
     // nothing to animate. Twenty-five list rows each carrying two of these
-    // meant fifty handlers ticking forever for no visible motion.
+    // would be fifty handlers ticking forever for no visible motion.
     //
-    // And it WRITES at ~10Hz, not per frame: the pan crosses ~3% of the width
-    // over minutes — 0.005px per frame at 60Hz — so a per-frame write woke
-    // style/layout/paint sixty times a second to move the sky by less than a
-    // hair. Banking dt and landing it in steps a tenth of a second wide is
-    // visually identical at this speed. (`driftAcc` has no dependents, so its
-    // per-frame write wakes nothing — only the `driftT` write below reaches
-    // the pipeline.) A hidden PAGE pauses a Time by itself — a page nobody can
-    // see banks nothing — so only the view-level gate is written here; the
-    // constraint re-running is what stops and restarts it.
+    // And it writes at ~10Hz, not per frame: the pan crosses ~3% of the width
+    // over minutes — 0.005px per frame at 60Hz — so a per-frame write would
+    // wake style/layout/paint sixty times a second to move the sky by less
+    // than a hair. Banking dt and landing it in steps a tenth of a second
+    // wide is visually identical at this speed. (`driftAcc` has no dependents,
+    // so its per-frame write wakes nothing — only the `driftT` write below
+    // reaches the pipeline.) A hidden page pauses a Time by itself — a page
+    // nobody can see banks nothing — so only the view-level gate is written
+    // here; the constraint re-running is what stops and restarts it.
 
     beat: Time [ tick = frame, running = { classroot.visible && classroot.height > 200 },
         onTick(dt: number) {
@@ -230,8 +231,8 @@ class SkyPhoto extends View [ clip = true,
 /*
 # WSky — the one sky slot
 
-Bind `cond`, get that city's sky. A condition is either DRAWN (the sun and
-its glow, the star field) or PHOTOGRAPHED, so this holds one of each rather
+Bind `cond`, get that city's sky. A condition is either drawn (the sun and
+its glow, the star field) or photographed, so this holds one of each rather
 than one per condition: the drawing is a branch inside a single `draw()`, and
 the single photograph changes its source.
 
@@ -239,7 +240,7 @@ That shape matters more than it looks. A hidden `draw()` still allocates its
 canvas at full size and rasterizes into it, so four children showing one meant
 paying for every sky a city might have had — at a full page that is tens of
 megabytes of backing store nobody can see. Here a photographic condition
-records NOTHING, and an empty recording has no bounds, so no canvas exists at
+records nothing, and an empty recording has no bounds, so no canvas exists at
 all. One canvas or one image, never both, never four.
 */
 
@@ -378,7 +379,7 @@ class SunCurve extends View [
 
 
 // The wind dial: a ring of ticks, cardinal letters, and a needle at `deg`
-// (meteorological: the direction the wind comes FROM).
+// (meteorological: the direction the wind comes from).
 
 class WindDial extends View [
     deg: number = 0,
@@ -478,7 +479,7 @@ class PressureGauge extends View [
 
 
 // The moon: a photographic disc (art/LICENSES.md) with the phase shadow
-// DRAWN over it. The photograph carries the maria and craters no draw() was
+// drawn over it. The photograph carries the maria and craters no draw() was
 // going to earn; the terminator must move with the data, so that half is
 // drawn.
 
@@ -492,10 +493,10 @@ class MoonDisc extends View [
 
 
 // The terminator, built by composition rather than one clever path: clip to
-// the disc, fill it dark, then CARVE OUT the lit part — the lit semicircle
+// the disc, fill it dark, then carve out the lit part — the lit semicircle
 // always, plus (gibbous) or minus (crescent) an ellipse whose width is how
 // far the terminator has swung. Correct at every phase, and it cannot fringe
-// past the limb because the clip IS the limb.
+// past the limb because the clip is the limb.
 //   `illum` is the lit fraction 0..1; `waning` puts the lit limb on the left.
 
 class MoonShadow extends View [ opacity = 0.88,
@@ -548,7 +549,7 @@ class MoonShadow extends View [ opacity = 0.88,
 
 
 // ── the precipitation map ──────────────────────────────────────────────────
-// A bundled public-domain base map (maps/LICENSES.md) with the radar DRAWN
+// A bundled public-domain base map (maps/LICENSES.md) with the radar drawn
 // over it: blobs placed and sized from the city's own precipitation figure,
 // so a dry city has a clean map and a stormy one is covered. Deterministic —
 // the same city always paints the same weather, because the seed is its own
@@ -603,7 +604,7 @@ class MapPin extends View [
 
 // ── MasonryLayout ──────────────────────────────────────────────────────────
 // A column-packing grid: every card lands in the column run where it can sit
-// HIGHEST, so a short card never leaves a hole under a tall neighbour the
+// highest, so a short card never leaves a hole under a tall neighbour the
 // way a row flow does.
 //
 // A layout in Declare is one pure `place()`: read the children, return one
@@ -611,7 +612,7 @@ class MapPin extends View [
 // that apply them. This one reads two attributes the cards declare about
 // themselves — `span` (columns occupied) and `baseH` (natural height) — and
 // makes one promise in return: it never reads a height it writes. Packing
-// from DECLARED heights is what keeps the layout a straight computation
+// from declared heights is what keeps the layout a straight computation
 // instead of a feedback loop.
 
 class MasonryLayout extends Layout [
@@ -634,7 +635,7 @@ class MasonryLayout extends Layout [
         const out = [] as any
         for (let i = 0; i < kids.length; i++) out.push({ x: 0, y: 0 })
 
-        // a card with `baseH` is packed AND sized from it; one without keeps
+        // a card with `baseH` is packed and sized from it; one without keeps
         // its own height and is never stretched
         const naturalH = (c) => {
             const b = (c as any).baseH
@@ -658,12 +659,12 @@ class MasonryLayout extends Layout [
         const growTo = [] as number[]           // stretched height, 0 = natural
         for (let i = 0; i < kids.length; i++) { startCol.push(0); spanned.push(0); growTo.push(0) }
 
-        // Levelling works in BANDS. A child spanning every column (the
+        // Levelling works in bands. A child spanning every column (the
         // hourly strip, the footer) evens the board by itself, so raggedness
         // only exists between full-span children: when one is placed, the
         // band above it closes, and the card ending each of the band's
         // columns stretches to the closer's seat. A card stretches only if
-        // it ends EVERY column it occupies — one with a later neighbour
+        // it ends every column it occupies — one with a later neighbour
         // below it in some column must not grow into it.
         const bandLast = [] as number[]
         for (let k = 0; k < n; k++) bandLast.push(-1)
@@ -683,11 +684,11 @@ class MasonryLayout extends Layout [
         const unplaced = [] as number[]
         for (let i = 0; i < kids.length; i++) if (kids[i].visible) unplaced.push(i)
 
-        // Fill the LOWEST gap on the board, every time: ask every waiting
+        // Fill the lowest gap on the board, every time: ask every waiting
         // card where it could sit highest, and seat the one whose best seat
         // is highest of all (ties to the earliest, so reading order survives
         // where it can). Asking every card is what makes a hole impossible —
-        // a gap is only left when NOTHING fits it.
+        // a gap is only left when nothing fits it.
         while (unplaced.length > 0) {
             let bestJ = -1
             let bestCol = 0

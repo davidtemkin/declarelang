@@ -29,7 +29,7 @@ app against the OpenLaszlo 5.0 DHTML build of the same dashboard:
 
 | | Declare | OpenLaszlo | |
 |---|---|---|---|
-| source lines | 1,233 | 2,949 | 2.4× fewer |
+| source lines | 1,315 | 2,949 | 2.2× fewer |
 | HTTP requests | 61 | 183 | 3.0× fewer |
 | code over the wire, gzipped | 71 KB | 152 KB | 2.1× smaller |
 | JS heap, desktop open | 6.6 MB | 11.3 MB | 1.7× smaller |
@@ -99,16 +99,19 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
         { "messages": [] }
         },
 
-    clockText: string = "",
-    tick() {
-        const d = new Date()
+    // The clock is a member: `now` turns over on the minute, and the label
+    // derives from it.
+
+    minuteClock: Time [ tick = minute ],
+    clockText: string = { app.clockLabel(app.minuteClock.now) },
+    clockLabel(now: number) -> string {
+        const d = new Date(now)
         const wd = ["Sun", "Mon", "Tues", "Wed", "Thur", "Fri", "Sat"][d.getDay()]
         const h = d.getHours() % 12 === 0 ? 12 : d.getHours() % 12
         const mm = String(d.getMinutes()).padStart(2, "0")
-        clockText = `${wd} ${h}:${mm} ${d.getHours() >= 12 ? "PM" : "AM"}`
+        return `${wd} ${h}:${mm} ${d.getHours() >= 12 ? "PM" : "AM"}`
         },
     onInit() {
-        tick(); setInterval(() => this.tick(), 30000)
         contactsData.fetch(); musicData.fetch(); videosData.fetch()
         },
 
@@ -324,9 +327,13 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
             stroke = stroke(3, #3E3E3E),
             clip = true, fill = #C26E54,
 
+            // the form fades up as the grow lands — the group's own stop hook,
+            // not a timer guessing its duration
+
             grow: AnimatorGroup [ process = simultaneous, duration = 700, motion = laszloIn,
                 Animator [ attribute = width, to = 307 ],
-                Animator [ attribute = height, to = 172 ]
+                Animator [ attribute = height, to = 172 ],
+                onStop() { form.fadeUp.start() }
                 ],
 
             topBar: View [ width = 100%, height = 30, fill = #303030,
@@ -346,11 +353,13 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
                 fadeOut: Animator [ attribute = opacity, to = 0, duration = 700 ]
                 ],
 
+            // the bar holds for a beat before the sequence starts — a timing
+            // rule, so a timer is the right tool for exactly this one wait
+
             onInit() {
                 setTimeout(() => {
                     loadView.fadeOut.start()
                     grow.start()
-                    setTimeout(() => { form.fadeUp.start() }, 720)
                     }, 600)
                 },
 

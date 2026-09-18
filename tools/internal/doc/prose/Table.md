@@ -1,5 +1,5 @@
 The list collection, componentized: the selection-bearing, scroll-owning frame around a
-replicated (or written) set of `TableRow` children — the ruled selection model in one
+replicated (or written) set of `TableRow` children — the selection model in one
 place, so no app hand-rolls it. Selection is the Table's **value**: `selected` (the
 primary member) and `selection` (all of them, presented order) hold **members** — the
 record for a replicated row, the row view itself for a written one — identified by the
@@ -38,8 +38,8 @@ The member the keyboard stands on — moved by arrows, independent of selection 
 The mode: `"none"`, `"single"` (default), or `"multi"`.
 
 ## input()
-The delivery seam (Contract 1 form b): every gesture lands here; the default writes
+The delivery seam: every gesture lands here; the default writes
 `selection`/`selected`, and a use-site override redirects the edit to its owner.
 
 ## clearSelection()
-The explicit deselect-all (selection never clears on Esc — the focus-scope rule).
+The explicit deselect-all — selection never clears on Esc.

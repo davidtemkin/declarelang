@@ -10,10 +10,10 @@ placed time-blocks; drag one to reschedule. Year is the same surface a step
 further out, each month folding into a mini.
 */
 
-// static reference reaches them and the keep-list would drop the classes. This
-// is the documented cost of a computed name — it lands only on the apps that
-// actually compute one, which is why it is three words here and nothing at all
-// in the apps that write `iconLeft = TrashIcon`.
+// The theme switch names its three icons in data (`icon: "SunIcon"`), so no
+// static reference reaches them and the build would drop the classes. `use`
+// is the cost of a computed name — three words here, and nothing at all in an
+// app that writes `iconLeft = TrashIcon`.
 
 use [ SunIcon, AutoIcon, MoonIcon ]
 
@@ -153,22 +153,16 @@ rest, text brightening on hover, and `controlSelected` under the chosen tab.
 */
 
 
-// the sliding highlight springs a normalised lane (0..3), so x = lane × tabW snaps
-// on a resize and slides only when the selected tab changes
-
-
-// the pressed/hovered pill machinery the arrows and Today share — state, handlers,
-// and the fill; each concrete button adds its content and its action
+// the pill the arrows and Today share — the box and its pressed fill; each
+// concrete button adds its content and its action
 
 class BarButton extends View [ height = 34, cornerRadius = 10,
     fill = { classroot.pressed ? provided("theme").controlSelected : provided("theme").control }
     ]
 
 
-// `dir` now says everything: −1 turns the chevron left, +1 right. The pair used
-// to carry `glyph = "‹"` / `"›"` — two typographic quotation marks standing in
-// for a disclosure mark, at a different weight from every other chevron in the
-// app.
+// `dir` says everything: −1 turns the chevron left, +1 right — the same
+// disclosure mark, at the same weight, as every other chevron in the app
 
 class NavArrow extends BarButton [ width = 36,
     dir: number = 1,
@@ -187,9 +181,6 @@ class TextButton extends BarButton [ width = 64,
         textColor = { classroot.pressed || classroot.hovered ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
     onClick()     { app.today() }
     ]
-
-
-// one segment of the Light / Auto / Dark switch
 
 
 /*
@@ -211,9 +202,7 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { prov
         lbl: Text [ x = 15, y = 16, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
             textColor = { app.openSection == classroot.idx ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
 
-        // open/closed as minus/plus, drawn. `theme.chevron` was this app's own
-        // near-duplicate of `textMuted` (register D4); with the marks shared, so
-        // is the colour.
+        // open/closed as minus/plus, drawn, in the same muted ink as the label
 
         chevM: MinusIcon [ x = { parent.width - 26 }, y = 15, iconSize = 15,
             visible = { app.openSection == classroot.idx }, ink = { provided("theme").textMuted } ],
@@ -222,12 +211,9 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { prov
         onClick() { app.openSection = classroot.idx }
         ],
 
-    // A TextInput carries its own themed chrome, derived from the HOUSE role
-    // names (`surface`, `line`) that this app's palette does not speak — left
-    // alone it falls back to a white box. The derives YIELD to an author
-    // assignment, so the field is styled here in the app's own vocabulary,
-    // focus edge included. (When the calendar moves onto the component library
-    // this goes away and the house rendition takes over.)
+    // A TextInput derives its own chrome from the house role names (`surface`,
+    // `line`); those derives yield to an author assignment, so the field is
+    // styled here in the app's own vocabulary, focus edge included.
 
     content: TextInput [ x = 13, y = 50, width = { parent.width - 26 }, height = { parent.height - 60 }, multiline = true, wrap = true,
         fontSize = 13, textColor = { provided("theme").bodyText }, placeholder = { "Add " + classroot.field },
@@ -238,14 +224,14 @@ class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { prov
     ]
 
 
-// clip = true: this app is a fixed window — every view and interaction lives
-// in-frame, and the browser must never scroll the app itself. The box-clip
-// CONTAINS: the detail panel parked beyond the right edge (x > width, sliding
-// in via panelInset) paints nowhere, adds no document scroll extent, and
-// cannot be focus-scrolled into view.
+// This app is a fixed window — every view and interaction lives in-frame, and
+// the browser must never scroll the app itself. The App's clip **contains**:
+// the detail panel parked beyond the right edge (x > width, sliding in via
+// panelInset) paints nowhere, adds no document scroll extent, and cannot be
+// focus-scrolled into view.
 
 // Below the floor the calendar degrades instead of adapting (the grid needs its
-// rows), so it declares one and the stage pans. The floor is PHONE-honest:
+// rows), so it declares one and the stage pans. The floor is phone-honest:
 // with the bar tiering to two rows and the detail panel overlaying instead of
 // insetting (below), nothing but the grid itself decides the minimum — seven
 // legible columns, the same budget a phone-native month view spends.
@@ -254,24 +240,23 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     fill = { provided("theme").bg }, fontFamily = ["system-ui", "sans-serif"],
 
     /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
-       is Light / Dark / Auto — Auto follows the ENVIRONMENT: the host's
+       is Light / Dark / Auto — Auto follows the environment: the host's
        `app.env.dark` when this app runs embedded (a desktop passing its
        appearance through), else the OS through `app.dark`.
 
-       The record is the HOUSE preset extended, not replaced: the standard
+       The record is the house preset extended, not replaced: the standard
        tokens underneath, this app's own values over them, and its domain names
        (weekendBg, holidayText, miniCurrentBg …) alongside. A standard control
        dropped in here finds every token it consults, while the calendar keeps
-       the exact palette it always had — the spread only ADDS the tokens the app
-       never named. */
+       its own palette — the spread only adds the tokens the app never named. */
 
     theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...(app.isDark ? app.darkTheme() : app.lightTheme()) } },
     themeMode: string = "auto",
 
-    // Auto's environment, three tiers (the viewer's pattern): the host's
-    // typed fact first (`external darkOverride` — "" = the host said nothing,
-    // and the checked half of the island bridge), then the untyped ancestor
-    // (an older host passing env.dark), then the system preference.
+    // Auto's environment, three tiers: the host's typed fact first (`external
+    // darkOverride` — "" = the host said nothing, and the checked half of the
+    // island bridge), then the untyped ancestor (a host passing only
+    // env.dark), then the system preference.
 
     external darkOverride: string = "",
     isDark: boolean = { app.themeMode == "auto"
@@ -294,12 +279,27 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     showTheme: boolean = { app.width >= 1030 },
     tabsCompact: boolean = { app.width < 910 },
     brandCompact: boolean = { app.width < 640 },     // "Declare Calendar" → "Declare" (still the way home)
-    barNarrow: boolean = { app.width < 560 },        // the bar tiers to TWO ROWS: controls above, date nav below
+    barNarrow: boolean = { app.width < 560 },        // the bar tiers to two rows: controls above, date nav below
     tabW: number = { app.tabsCompact ? 44 : 74 },
     tabsW: number = { 4 * app.tabW },
-    dateW: number = { app.mode == "week" ? 200 : app.mode == "day" ? 210 : app.mode == "month" ? 138 : 64 },
+
+    // The date block is a fixed width per mode, from the widest label that mode
+    // can ever show — measured, in the face the title actually renders in, so
+    // a font or locale change moves it with no constant to retune. It must not
+    // follow the current label: the arrows sit at its edges, so a width that
+    // tracked "May 4" and then "September 30" would shift them as you page.
+
+    titleFace: object = { providedTextStyle(({ fontSize: 16, fontWeight: "semibold" })) },
+    widestOf(samples: string[]) -> number {
+        return Math.max(0, ...samples.map((t) => measureText(t, app.titleFace).width))
+        },
+    dateW: number = { Math.ceil(app.widestOf(
+        app.mode == "week"  ? ["September 30 – October 31"]           // the cross-month week, longest names
+      : app.mode == "day"   ? ["Wednesday, September 30"]              // longest weekday + longest month
+      : app.mode == "month" ? ["September 2088"]
+      :                       ["2088"]) + 14) },
     navW: number = { app.dateW + 84 },      // date block plus its two arrows
-    panelOverlay: boolean = { app.width < 720 },     // the detail panel OVERLAYS the grid instead of insetting it
+    panelOverlay: boolean = { app.width < 720 },     // the detail panel overlays the grid instead of insetting it
     panelW: number = { Math.min(340, app.width - 32) },
 
     // view + paging state
@@ -342,15 +342,15 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     downX: number = 0,
     downY: number = 0,
 
-    /* The address is ENVIRONMENT-AWARE: standalone, the fixture sits beside the
+    /* The address is environment-aware: standalone, the fixture sits beside the
        app; hosted (the desktop passes env.base — its own transport's path to
        this app's home), the same relative address resolves through that base.
-       `auto` covers the hosted case, where env lands after init: the url
-       CHANGES when base arrives and the source refetches the right address. */
+       `auto` loads it either way: the url is the reactive thing, and when a
+       late-landing base changes it the source fetches the right address. */
 
     data: DataSource [ auto = true, url = { ("" + (app.env.base || "")) + "data/events.json" } ],
 
-    /* The model is DERIVED, not built: `cal.contents` recomputes when the visible
+    /* The model is derived, not built: `cal.contents` recomputes when the visible
        month or the events change, and keyed replication (`:key`, `:id`) makes each
        recompute cost only the days that changed. The year grid is its own
        derivation, deferred until first visited and memoized on the year. */
@@ -393,14 +393,15 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
     colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
     rowH: number = { (app.bodyH - app.headH) / app.nr },
-    blockness: number = { app.clamp(2 - app.nr, 0, 1) },   // 0 = month chips, 1 = time blocks — keyed on the FOCUS SPAN
 
-    // (one focused row IS a time view), never on pixel height: a short-landscape
-    // day still resolves to blocks (rowH-keyed, it stalled at 0.27 there — chips
-    // posing as a day view, with in-day rescheduling silently dead), and a tall
-    // monitor's month can never start half-morphing its chips. Riding `nr`
-    // keeps the morph continuous: chips hold shape while the focus zooms,
-    // then resolve into blocks over the last row of travel.
+    // 0 = month chips, 1 = time blocks. Keyed on the focus span (one focused
+    // row **is** a time view), never on pixel height: a short-landscape day
+    // still resolves to blocks, and a tall monitor's month can never start
+    // half-morphing its chips. Riding `nr` also keeps the morph continuous:
+    // chips hold shape while the focus zooms, then resolve into blocks over
+    // the last row of travel.
+
+    blockness: number = { app.clamp(2 - app.nr, 0, 1) },
 
     gutter: number = { app.blockness * 52 },                             // hour-label gutter, opens in time views
 
@@ -460,26 +461,25 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         },
     dayLabel(k: string) -> string { const d = app.parseKey(k); return app.dowLong(d.getDay()) + ", " + app.monthName(d.getMonth() + 1) + " " + d.getDate() },
 
-    // -> number, not Color: these return a CONCRETE 0xRRGGBB (theme slots are
-    // never null at read time), and number is what mix() blends — the
-    // nullable Color return would refuse every mix(catFill(…), …) call site.
-    // (Surfaced when compile-time path plans made datapath bodies typecheckable.)
+    // -> number, not Color: these return a concrete 0xRRGGBB (theme slots are
+    // never null at read time), and number is what mix() blends — a nullable
+    // Color return would refuse every mix(catFill(…), …) call site.
 
     catFill(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
     catText(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
     /* ── the two palettes — every color in the app, named by role ──
 
-       LIGHT is house San Francisco: `bg`, `line`, `text`, `textMuted`,
+       Light is house San Francisco: `bg`, `line`, `text`, `textMuted`,
        `textFaint`, `accent`, `control` and `controlSelected` are the preset's own
        values, to the byte.
 
-       DARK deliberately is not, and the reason is the grid. House dark is
-       STEPPED — bg → surface → control each a visible rung apart (ΔE 5.4 and
+       Dark deliberately is not, and the reason is the grid. House dark is
+       stepped — bg → surface → control each a visible rung apart (ΔE 5.4 and
        7.7). A month is a 2D tiling of 42 equal cells, and stepped surfaces there
-       read as corduroy, so this palette is FLAT and deep instead (the same two
+       read as corduroy, so this palette is flat and deep instead (the same two
        gaps, ΔE 2.6 and 2.5) with one bright exception: `controlSelected` sits 4 L*
-       ABOVE house so the selection still pops out of the quiet field.
+       above house so the selection still pops out of the quiet field.
        `textMuted` drops ~8 L* to hold its hierarchy against the flatter
        surfaces. `text` and `accent` are house exactly, in both modes.
 
@@ -600,7 +600,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        Pointer capture, plus the runtime's click rule, give click-vs-drag for
        free: a gesture that moved is a drag and clicks nothing, so the block's
        `onClick` fires only on a real tap. The threshold below is the app's own
-       (when the GHOST appears), not a click suppressor. A drop writes through
+       (when the ghost appears), not a click suppressor. A drop writes through
        the dataset's mutation API, so it wakes the derived model exactly like a
        title edit — no copy to rebuild. */
 
@@ -618,9 +618,9 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         if (this.dragging) { const cell = this.cellAt(this.pointerX, this.pointerY); this.dropKey = cell != null ? cell.key : "" }
         },
     armDrag() {
-        // The chip's hold fired: lift the ghost NOW, before any movement — on
-        // touch this is the moment the claim engages, and the pickup should be
-        // visible while the finger is still parked.
+        // The chip's hold fired: lift the ghost at once, before any movement —
+        // on touch this is the moment the claim engages, and the pickup should
+        // be visible while the finger is still parked.
         if (this.dragId < 0) return
         this.dragging = true
         const cell = this.cellAt(this.pointerX, this.pointerY); this.dropKey = cell != null ? cell.key : ""
@@ -629,7 +629,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         if (this.dragId < 0) return
         // A drag never clicks — the runtime's own rule (a gesture whose pointer
         // wandered past slop resolves to no click), so the drop just commits —
-        // but never an INTERRUPTED one: on touch the browser may take the
+        // but never an interrupted one: on touch the browser may take the
         // gesture for a scroll (a quick swipe over a chip), and that release
         // must not move the event to wherever the finger happened to be.
         if (this.dragging && !canceled) this.commitDrop(px, py)
@@ -654,14 +654,10 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             }
         },
 
-    onInit() {
-        if (app.env.base == null) this.data.fetch()      // hosted: auto refetches when env.base lands
-        },
-
     /* ## Keyboard
        Arrows page the current view; Escape closes the detail panel. A Keys
        member — lifetime-managed, no listener to clean up. The arrows
-       gate on the panel being CLOSED: its text fields own the keyboard while
+       gate on the panel being closed: its text fields own the keyboard while
        an event is being edited (Keys is the raw stream). */
 
     keys: Keys [
@@ -724,7 +720,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         secs: View [ x = 22, y = 24, width = { parent.width - 44 },
             layout: SimpleLayout [ axis = y, spacing = 8 ],
 
-            /* The EVENT section — the title block in the sections' own grammar: the
+            /* The event section — the title block in the sections' own grammar: the
                same card, its label row carrying the panel's close where the others
                carry their chevron, the category color as the card's left edge, and
                the read-only date · time under the editable title. */
@@ -772,14 +768,14 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     bar: View [ width = { app.width }, height = { app.barH }, fill = { provided("theme").bg },
         rule: View [ y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
 
-        // Row-1 items center in the FIRST 60px band — fixed, not barH-derived,
+        // Row-1 items center in the first 60px band — fixed, not barH-derived,
         // so the narrow tier's second row doesn't drag them downward.
 
         brand: View [ x = 20, y = 19, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
 
             // the word "Declare" is the way home — navigate() resolves against the
-            // DISTRO root, so this works on either host at any mount point
+            // distro root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
@@ -788,10 +784,9 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
                 visible = { !app.brandCompact } ]
             ],
 
-        // Light / System / Dark — the house control, with the house marks. The
-        // three glyphs this used to type (☀︎ ◐ ☾) were three unrelated corners
-        // of whatever font the platform had; drawn, they share one disc and one
-        // stroke, and four apps stop each drawing their own.
+        // Light / System / Dark — the house control, with the house marks:
+        // drawn icons that share one disc and one stroke, rather than three
+        // typed glyphs from unrelated corners of whatever font the platform has.
 
         themeSwitch: Segmented [ x = 196, height = 34, width = 94, y = 13,
             visible = { app.showTheme },
@@ -810,7 +805,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         // to itself. Wide: it floats near the center, clamped off both side
         // clusters — and the clamp can never invert (the max is floored at the
         // min, so a squeezed bar pins the nav left rather than flinging it
-        // off-frame, the bug the 480 floor used to paint).
+        // off-frame).
 
         nav: View [ height = 34, y = { app.barNarrow ? 56 : 13 }, width = { app.navW },
             x = { app.barNarrow
@@ -826,12 +821,9 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
         today: TextButton [ y = 13, x = { app.width - app.tabsW - (app.barNarrow ? 88 : 100) }, label = "Today" ],
 
-        // Day / Week / Month / Year. This was the corpus's best segmented control
-        // and its most bespoke one: a hand-built track, a hand-sprung pill, and
-        // four hand-placed tabs with no keyboard at all. The pill's good idea —
-        // spring a normalised LANE so a resize snaps instead of skating — is now
-        // the library's, so adopting `Segmented` loses nothing and gains tab
-        // stops, arrow roving, and the shared look.
+        // Day / Week / Month / Year — the library's `Segmented`, which springs
+        // its pill along a normalised lane so a resize snaps instead of
+        // skating, and brings tab stops, arrow roving, and the shared look.
         //
         // The labels shorten to single letters when the bar narrows, which the
         // data carries: `choices` is a constraint like any other.

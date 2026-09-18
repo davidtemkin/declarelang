@@ -83,8 +83,19 @@ export function schemaCheck(program: Program): DeclareError[] {
     // stands at its fields; an array-root document (`schema = Task[]`, typed
     // data) stands AT the array, so `:​[]` on the value replicates elements.
     const datasets = new Map<string, Ctx>();
+    // A data node by its CHAIN: Dataset, DataSource, or a program class
+    // extending either (`class Feed extends DataSource`).
+    const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+    const isDataNode = (tag: string): boolean => {
+      const seen = new Set<string>();
+      for (let t: string | undefined = tag; t !== undefined && !seen.has(t); t = bases.get(t)) {
+        seen.add(t);
+        if (t === "Dataset" || t === "DataSource") return true;
+      }
+      return false;
+    };
     for (const c of root.children) {
-      if (c.name !== null && (c.tag === "Dataset" || c.tag === "DataSource")) {
+      if (c.name !== null && isDataNode(c.tag)) {
         const sa = c.attrs.find((a) => a.name === "schema" && a.value.kind === "schema");
         if (sa !== undefined && sa.value.kind === "schema") {
           const v = sa.value;

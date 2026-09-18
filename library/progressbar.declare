@@ -2,8 +2,8 @@
 # ProgressBar
 
 Display-only bounded number — the read-only sibling of Slider (same `value`/
-`min`/`max` vocabulary, no interaction, no `input`). Restyle by theme; impose a
-width per the interior contract.
+`min`/`max` vocabulary, no interaction, no `input`). Restyle by theme; set
+`width` at the use site (220 by default).
 
 ## value
 Where the bar sits, in the units you choose. Clamped into `min`…`max` for display,
@@ -27,9 +27,9 @@ house look. See `Control.theme`.
 */
 
 class ProgressBar extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
     width = 220, height = 8, cornerRadius = 4,

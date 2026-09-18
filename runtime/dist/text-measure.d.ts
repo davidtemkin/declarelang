@@ -20,5 +20,5 @@ interface StyleFields {
     slashedZero?: unknown;
 }
 /** Measure `text` in `style` — one line per hard newline, or wrapped at `width`. */
-export declare function measureText(text: unknown, style?: StyleFields | null, width?: number): TextMeasure;
+export declare function measureText(text: unknown, style: StyleFields | null, width?: number): TextMeasure;
 export {};

@@ -15,7 +15,7 @@ class SparkIcon extends Icon [
 
 App [ textColor = 0x172530,
     row: View [ x = 20, y = 20, height = 48, width = { this.contentWidth },
-        layout: SimpleLayout [ axis = x, spacing = 24 ],   // an Icon centres itself on y
+        layout: SimpleLayout [ axis = x, spacing = 24 ],   // an Icon centers itself on y
         SparkIcon [ iconSize = 16 ],
         SparkIcon [ iconSize = 24 ],
         SparkIcon [ iconSize = 32 ],

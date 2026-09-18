@@ -17,11 +17,6 @@ overlay take it back: the app being inspected must stay fully usable while you
 inspect it.
 */
 
-// One record, read by everything. A developer tool earns its keep at 2am, so
-// the contrast is deliberately high and the accents are few.
-
-class Ink extends View [ ]
-
 // ── small type components ────────────────────────────────────────────────────
 
 class Label extends Text [ fontSize = 12, fontFamily = ["system-ui", "sans-serif"],
@@ -42,7 +37,7 @@ class Tool extends View [ height = 22, cornerRadius = 6,
     width = { this.g.width + 16 },
     stroke = { stroke(1, classroot.on ? app.c.accent : app.c.line) },
     fill = { classroot.on ? app.c.accent : (classroot.hovered ? app.c.hover : null) },
-    g: Text [ x = 8, y = center, fontSize = 11.5, fontFamily = ["ui-monospace", "monospace"], wrap = false,
+    g: TextLabel [ x = 8, fontSize = 11.5, fontFamily = ["ui-monospace", "monospace"], wrap = false,
         textColor = { classroot.on ? app.c.onAccent : (classroot.hovered ? app.c.text : app.c.muted) },
         text = { classroot.glyph } ]
     ]
@@ -52,9 +47,9 @@ class Tool extends View [ height = 22, cornerRadius = 6,
 // Drawn, not typed: a glyph triangle sits on the text baseline and jitters
 // between fonts. 7px, rotating 90° when open.
 
-// The drawn arrow is 7px, but a 7px CLICK target is a mis-click generator. The
-// view is a full row-height box with the arrow centred in it — the affordance is
-// small, the target is not.
+// The drawn arrow is 7px, but a 7px click target is a mis-click generator. The
+// view is a full row-height box with the arrow centered in it — the affordance
+// is small, the target is not.
 
 class Twisty extends View [ width = 18, height = 19,
     open: boolean = false,
@@ -101,12 +96,14 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
     shown: boolean = true,
 
-    // ── the palette ──────────────────────────────────────────────────────────
+    // ── the palette: one record, read by everything ──────────────────────────
 
     // A developer tool that looked like the app it inspects would be a liability:
     // you must never wonder which surface you are reading. So the light rendition
-    // is deliberately atypical — MIDDLE GREY chrome with lighter emphasis, a
-    // palette no product ships — rather than the usual near-white panel.
+    // is deliberately atypical — middle-gray chrome with lighter emphasis, a
+    // palette no product ships — rather than the usual near-white panel. A
+    // developer tool earns its keep at 2am, so the contrast is high and the
+    // accents are few.
 
     darkUI: boolean = false,
 
@@ -204,9 +201,16 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         },
 
     // ── the refresh pulse ────────────────────────────────────────────────────
-    // The subject is not our reactive graph, so nothing here can be woken BY it.
+    // The subject is not our reactive graph, so nothing here can be woken by it.
     // A modest tick re-derives what is on screen; it is passed as an argument to
     // every derived list so the constraint visibly depends on it.
+    //
+    // It is a host interval, not a `Time`, because the pulse must keep beating
+    // while the subject is frozen: the inspector runs on the subject's runtime,
+    // and freezing puts their one shared frame clock — the clock a `Time` at
+    // `frame` rides — under manual stepping, while the calendar tiers are too
+    // coarse for a 110 ms pulse. The interval outlives nothing: the inspector
+    // is mounted once and re-pointed, never retired.
 
     tick: number = 0,
     running: boolean = true,
@@ -251,14 +255,14 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
     // ── slots of the selected object ─────────────────────────────────────────
     // Each slot may open into a value tree (records, arrays, a Dataset's value);
-    // a View-valued slot is a LINK, never an inline expansion — the view graph
+    // a View-valued slot is a link, never an inline expansion — the view graph
     // is cyclic, and one subject at a time is what a developer wants anyway.
 
     slotRows(t: number, p: string, v: object) -> array {
         if (!Inspect.ready()) return []
         const out = []
         // A view under a `datapath` reads its `:fields` from a record. That
-        // record IS part of what this object is, so it leads the pane rather
+        // record is part of what this object is, so it leads the pane rather
         // than hiding behind the slots — and its keys are exactly what a `:`
         // expression in the strip below can reach.
         const drows = Inspect.dataRows(p)
@@ -382,7 +386,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
     // ── the pick overlay ─────────────────────────────────────────────────────
 
-    // While picking, the view under the pointer is a CONSTRAINT over the live
+    // While picking, the view under the pointer is a constraint over the live
     // pointer rather than an event handler's bookkeeping — it cannot fall out
     // of step with the pointer, and it re-derives with the tick like everything
     // else here.
@@ -483,7 +487,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                     onClick() { app.picking = !app.picking; app.hoverPath = "" }
                     ],
 
-                // These drive the SUBJECT's driven clock, not our refresh rate:
+                // These drive the subject's driven clock, not our refresh rate:
                 // freeze stops its animation where it stands so a spring can be
                 // read mid-flight, and step advances exactly one frame.
 
@@ -612,7 +616,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
                             // a long value (a font stack, a path) must not run under
                             // the provenance marker: clip it to the space before
-                            // it — measured from the marker ITSELF, since a nested
+                            // it — measured from the marker itself, since a nested
                             // data row carries no marker and a flat reserve would
                             // cost it a hundred pixels of value for nothing.
 
@@ -719,7 +723,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                     ]
                 ],
 
-            // The seams come LAST so no column paints over them — a divider a
+            // The seams come last so no column paints over them — a divider a
             // later sibling covers is a divider you cannot grab.
 
             seamA: Seam [ x = { parent.colA - 4 }, height = { parent.height }, which = "a" ],

@@ -1,7 +1,7 @@
 The animated-reflow base you **extend** to glide children between two whole layouts
 through one scalar `t`. Your subclass supplies a `place()` and its own state; drive `t`
 from `0`→`1` with a constraint or an `Animator` and the children slide *between*
-arrangements rather than snapping. This is the forcing case for author-written layouts —
+arrangements rather than snapping. The case for an author-written layout —
 a grid that becomes a list, a fan that collapses to a stack.
 
 ## t

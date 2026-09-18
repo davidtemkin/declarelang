@@ -166,7 +166,7 @@ function reportUnsupported(fns) {
     if (warned || fns.length === 0)
         return;
     warned = true;
-    console.warn(`[declare] canvas filter ${fns.join(", ")} is not expressible on this engine and was not applied.`);
+    console.warn(`[Declare] canvas filter ${fns.join(", ")} is not expressible on this engine and was not applied.`);
 }
 const scratch = [];
 function take(w, h) {

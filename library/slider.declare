@@ -1,13 +1,12 @@
 /*
 # Slider
 
-A bounded number by drag (docs/system-design/components-baseline.md, Contract 1). Same value
-contract as every control — `value` is the attribute, **`input` owns the
-destination** (default: itself) — and the delivery is CONTINUOUS during a drag
-(ruled: the owner decides what to do with the stream; the data layer owns
-coalescing). Pressing the track jumps to that position (local coordinates);
-the drag then follows the pointer by root-space delta (`app.pointerX` — the
-captured-move pattern the calendar's drag uses). Arrow keys nudge by `step`.
+A bounded number by drag. Same value contract as every control — `value` is the
+attribute, **`input` owns the destination** (default: itself) — and the delivery
+is continuous during a drag. Pressing the track jumps to that position (local
+coordinates); the drag then follows the pointer by root-space delta
+(`app.pointerX`), so it survives the pointer leaving the control. Arrow keys
+nudge by `step`.
 
 ```declare
 col: View [ x = 20, y = 20,
@@ -92,9 +91,7 @@ include [ "control.declare" ]
 
 class Slider extends Control [
 
-    // keyboard focus rings the circular GRABBER — the part the keys move.
-    // (Read at focus time: an arrow-key change moves the thumb under a
-    // resting ring; the follower-constraint refinement is a recorded next.)
+    // keyboard focus rings the circular grabber — the part the keys move
 
     focusShape() { return ({ x: this.thumb.x, y: this.thumb.y, w: this.thumb.width, h: this.thumb.height, rad: this.thumb.width / 2 }) },
     width = 220, height = 28,
@@ -141,17 +138,17 @@ class Slider extends Control [
 
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
-    // M3's current spec draws the handle as a vertical BAR with a gap in the
-    // track around it; every other system uses the round thumb. One token —
+    // Mountain View draws the handle as a vertical bar with a gap in the
+    // track around it; every other theme uses the round thumb. One token —
     // theme.sliderHandle == "bar" — selects the rendition; the gap is the
-    // track being SHORTENED to either side of the handle rather than drawn
+    // track being shortened to either side of the handle rather than drawn
     // through it. Data, not a fork.
 
     barStyle() { return theme.sliderHandle == "bar" },
 
-    // Fluent's (Redmond) thumb: a 20px round grabber, surface-filled, with an
-    // accent DOT inside that grows a touch on hover/press. One more value of
-    // the same token — data, not a fork.
+    // Redmond's thumb: a 20px round grabber, surface-filled, with an accent
+    // dot inside that grows a touch on hover/press. One more value of the
+    // same token — data, not a fork.
 
     dotStyle() { return theme.sliderHandle == "dot" },
 

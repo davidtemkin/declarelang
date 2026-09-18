@@ -22,7 +22,7 @@ Declare at all. The language competes on different ground, and each piece is
 something you have already touched:
 
 - **The whole contract fits in context.** The language's complete definition is
-  [one file](declare-docs:spec:core) of about ten thousand tokens — a small fraction
+  [one file](declare-docs:spec:core) of about <!--stat:spec.tokens-->12,000<!--/stat--> tokens — a small fraction
   of a modern context window. An LLM doesn't need a corpus for a language it can
   hold the entire spec of *while writing*; recent research (cited on
   [the homepage](declare-docs:essay:why-declare)) shows LLMs writing
@@ -85,10 +85,8 @@ harness (`evals/`) that hands LLMs an application brief and the language referen
 *alone* — no repo, no examples — has them write the program cold, in one-shot and
 iterated tracks, and scores the result mechanically with the same verify ladder you
 use. Failures feed back into the language, the diagnostics, and the documentation;
-several language changes exist specifically because evals showed LLMs tripping —
-when the first eval cycle found programs failing because the docs never showed how
-to draw a border, the fix was a sentence in the docs, and the next run came back
-clean. The loop is spec → diagnostics → evals → revision, continuously. That is what
+several language changes exist specifically because evals showed LLMs tripping.
+The loop is spec → diagnostics → evals → revision, continuously. That is what
 it means for a language to be designed for this era: not a hope, a feedback system.
 
 The calendar is that system's exhibit. The person's work was product work —

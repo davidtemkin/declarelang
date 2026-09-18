@@ -70,6 +70,26 @@ await test("a [Declare] diagnostic IS coded (the contained-report path)", () => 
   assert.equal(entries.length, 1, "coded");
   assert.ok(out.includes("${phase}") && out.includes("${e}"), "values kept");
   assert.ok(!out.includes("replicated"), "prose gone");
+  // the warning level is the same report (it shipped as prose until 2026-09-15)
+  const warn = stripSource('console.warn(`[Declare] app.post("${topic}"): this app is not linked to a host island — message dropped`);');
+  assert.equal(warn.entries.length, 1, "console.warn coded");
+  assert.ok(!warn.src.includes("island"), "prose gone");
+});
+
+await test("no [Declare] sentence survives a production build — the rule, enforced over the whole runtime", async () => {
+  // slim off, so every runtime module a program could reach is in the bundle;
+  // DOM and canvas, so each backend's own reports are too. What may remain is a
+  // bare "[Declare] " prefix joined to a coded builder's return — never words.
+  const { buildProduction } = await import("../tools/declarec.mjs");
+  const src = `App [ width = 100, Text [ text = "a" ] ]`;
+  for (const render of ["dom", "canvas"]) {
+    const out = await buildProduction(src, { slim: false, render });
+    assert.ok(out.ok, `${render} build failed`);
+    const app = out.files.find((f) => f.name.startsWith("app.")).contents;
+    const prose = [...app.matchAll(/[`"']\[Declare\](?! E[0-9A-F]{6}\])\s*[^`"'\s][^`"']{0,60}/g)].map((m) => m[0]);
+    assert.deepEqual(prose, [], `${render}: diagnostic prose ships — write it as new DeclareError / console.error|warn("[Declare] …") / diag\`…\` (CONTRIBUTING.md, Diagnostics)`);
+    assert.ok(!/[`"']\[declare\]/.test(app), `${render}: a lowercase [declare] report escapes the strip — spell it [Declare]`);
+  }
 });
 
 await test("a diag-tagged sentence is coded — the helper-borne diagnostic — and stays a template", () => {

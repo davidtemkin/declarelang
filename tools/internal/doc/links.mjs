@@ -43,9 +43,11 @@ function titleOf(file) {
 /** id → { path (repo-relative), title, kind }. */
 /** `reference` (optional): the extract model's reference map, passed by assemble
  *  so the registry is built from the doc tree of THIS run rather than from the
- *  committed model of the last one. The CLI (`--check`) passes nothing and reads
- *  the committed model — correct for a gate, which judges the committed corpus. */
-export function buildRegistry(reference) {
+ *  committed model of the last one. `typeNames` (optional) is the same for the
+ *  TYPE pages assemble builds in that run. The CLI (`--check`) passes neither and
+ *  reads the committed model — correct for a gate, which judges the committed
+ *  corpus. */
+export function buildRegistry(reference, typeNames) {
   const ids = {};
   const add = (id, file, kind, title) => {
     // A duplicate id is an ERROR, never a silent last-write: two chapters whose
@@ -76,9 +78,18 @@ export function buildRegistry(reference) {
   ids["essay:why-declare"] = { path: "apps/homepage/homepage.declare", title: "Why Declare", kind: "essay" };
 
   // Reference symbols: the model's node keys are already the IDs (`View.width`).
-  const ref = reference ?? (existsSync(MODEL) ? JSON.parse(readFileSync(MODEL, "utf8")).reference : null);
+  const committed = (reference === undefined || typeNames === undefined) && existsSync(MODEL)
+    ? JSON.parse(readFileSync(MODEL, "utf8")) : null;
+  const ref = reference ?? committed?.reference ?? null;
   for (const key of Object.keys(ref ?? {})) {
     ids[key] = { path: "docs/declare-model.json", title: key, kind: "reference" };
+  }
+  // Types: one id per enum / shared type page. PREFIXED, because a type name and
+  // a class name share one namespace otherwise (`View` is both a component and a
+  // declarable type) — `type:Motion`, the same shape `guide:` and `operational:`
+  // have. The docs app resolves it to the type's own page.
+  for (const n of typeNames ?? Object.keys(committed?.types?.pages ?? {})) {
+    ids[`type:${n}`] = { path: "docs/declare-model.json", title: n, kind: "type" };
   }
   return ids;
 }

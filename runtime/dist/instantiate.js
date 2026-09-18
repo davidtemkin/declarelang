@@ -52,7 +52,7 @@ import { Animator, AnimatorGroup } from "./animator.js";
 import { Spring } from "./spring.js";
 import { State } from "./state.js";
 import { Constraint } from "./reactive.js";
-import { attrType, descendsFrom, BUILTIN_PROVIDED, RichTextSchema, TextSchema } from "./schema.js";
+import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED, RichTextSchema, TextSchema } from "./schema.js";
 // The validators (check.js) and the schema half (program-schema.js) import
 // separately ON PURPOSE: a precompiled program was fully checked at build
 // time, so a production bundle substitutes check.js with a stub
@@ -71,7 +71,7 @@ import { bindConstraint, provideBind, bindPercent, bindAlign, bindData, bindData
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
 import { staticSegs } from "./datapath.js";
-import { provideViewCreator } from "./view.js";
+import { provideViewCreator, provideInlineViewHost } from "./view.js";
 import { toCursor } from "./data.js";
 import { validateDoc } from "./data-schema.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
@@ -248,15 +248,29 @@ function buildTree(program, trusted) {
     const { infos, schemas, errors } = programSchemas(program.classes, programShapes);
     if (errors.length > 0)
         throw errors[0];
-    const tags = { ...TAGS };
+    // Every constructible built-in, one table: the tree tags plus the non-view
+    // families (data, animators, groups, sources, states). A user class extends
+    // ANY of them — `class Reveal extends Spring`, `class Feed extends
+    // DataSource`, `class Hot extends Keys`, `class Wide extends State` — and
+    // its synthesized ctor joins the same table under its own name, so every
+    // construct path resolves a tag's class here, built-in or authored alike.
+    const tags = {
+        ...TAGS,
+        ...DATA,
+        ...ANIMATORS,
+        ...ANIMATOR_GROUPS,
+        ...SOURCES,
+        ...STATES,
+    };
     const layoutCtors = { ...LAYOUT_BASES };
     const classes = new Map();
     for (const info of infos) {
-        // The base ctor exists: programSchemas validated the base name, and bases
-        // precede their subclasses, so a user base is already registered. A layout
-        // subclass (descends from Layout) synthesizes against the layout table and
-        // registers back there — a strategy is never a tree tag; a View subclass
-        // synthesizes against `tags` and joins it.
+        // The base ctor exists: programSchemas validated the base name (an
+        // abstract base is refused there), and bases precede their subclasses, so
+        // a user base is already registered. A layout subclass (descends from
+        // Layout) synthesizes against the layout table and registers back there —
+        // a strategy is never a tree tag; every other subclass synthesizes against
+        // `tags` and joins it.
         const chain = [...(classes.get(info.decl.base)?.chain ?? []), info.decl.body];
         const isShapeType = (n) => programShapes.has(n);
         if (descendsFrom(info.schema, "Layout")) {
@@ -679,6 +693,195 @@ function ctorWithDecls(el, base, schema, isComponent, isShape = () => false) {
     }
     return ctor;
 }
+/** The member sources of an instance — every family's one answer. The class
+ *  chain's bodies come first, base → leaf: their members were written in the
+ *  instance's own class, so they bind `classroot` to the instance itself. The
+ *  use site comes last: its members bind to the enclosing scope — or, at the
+ *  tree root, the root itself (its members are written in its own body: the
+ *  anonymous App class's). */
+function memberSources(el, node, outer, user) {
+    const self = node;
+    return [...(user?.chain ?? []).map((body) => ({ el: body, croot: self })), { el, croot: outer ?? self }];
+}
+/** Install the methods of `sources` on `node` — the one installer every
+ *  family runs, a View's and a Spring's alike. Methods land first, before any
+ *  literal, binding or init, because a sibling's constraint may call one
+ *  during its first evaluation.
+ *
+ *  THE SUPER RULE: sources run base → leaf → use site, and each body's methods
+ *  are compiled against a SNAPSHOT of what was installed before it — the
+ *  `$base` object `super.name(…)` reaches (compile.ts rewrites the keyword).
+ *  Nearest provider still wins the instance member; a base body's own `super`
+ *  reaches ITS base, since its snapshot was taken before it. A body that never
+ *  says super (compiled bodies spell it $base) shares the empty base, so a
+ *  replicated row whose class never does pays no per-instance object.
+ *
+ *  The floor of every chain is the RUNTIME's own method, when the built-in
+ *  has one: a declared `fetch()` on a DataSource replaces DataSource.fetch as
+ *  an own property (the runtime's internal `this.fetch()` calls reach the
+ *  override, which is the point), and the snapshot beneath the first body
+ *  that names it carries the runtime implementation bound to the node, so
+ *  `super.fetch()` calls it. A runtime member that is NOT a method — a field
+ *  or accessor (`surface`, `parent`, `childViews`) — and a `$`-member (the
+ *  compiled-form plumbing) stay refused: there is no method to replace.
+ *
+ *  Each method closes over the instance (rather than relying on call-site
+ *  `this`), so an extracted reference — `const f = v.select; f()` — still
+ *  works and `this`/`parent`/`classroot` inside the body always mean this
+ *  node, its parent, and the scope the member was written in. The runtime-
+ *  member facts are instantiation-context facts (the checker is runtime-free
+ *  by design); the compiler's static twin is runtime-methods.ts. */
+function installMethods(node, sources, eff, ctx) {
+    const methods = new Map();
+    for (const s of sources) {
+        const saysSuper = s.el.methods.some((m) => m.body.includes("$base"));
+        const base = saysSuper ? Object.fromEntries(methods) : NO_BASE;
+        for (const m of s.el.methods) {
+            if (!ctx.trusted) {
+                const r = checkMethod(eff, m);
+                if (!r.ok)
+                    throw r.error;
+            }
+            const rt = runtimeMember(node, m.name);
+            if (rt.kind === "field") {
+                throw new DeclareError(`${eff.name}.${m.name}: '${m.name}' is a built-in field of the runtime ${eff.name}, not a method — a method may not take its name`, m.pos);
+            }
+            if (rt.kind === "object") {
+                throw new DeclareError(`${eff.name}.${m.name}: '${m.name}' is a member of every object — choose another name`, m.pos);
+            }
+            if (rt.kind === "plumbing") {
+                throw new DeclareError(`${eff.name}.${m.name}: '${m.name}' is runtime plumbing (a $-member) — choose another name`, m.pos);
+            }
+            // The runtime's implementation is the floor: it enters the snapshot only
+            // where no body beneath this one provided the name.
+            if (rt.kind === "method" && saysSuper && !methods.has(m.name)) {
+                const impl = rt.fn;
+                base[m.name] = (...args) => impl.apply(node, args);
+            }
+            const c = compileBody(m.params.map((p) => p.name), m.body);
+            if ("error" in c)
+                throw new DeclareError(`${eff.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+            const fn = c.fn;
+            const mcroot = s.croot;
+            methods.set(m.name, (...args) => fn.call(node, node.parent, mcroot, base, ...args));
+        }
+    }
+    for (const [name, installed] of methods)
+        node[name] = installed;
+}
+function runtimeMember(node, name) {
+    if (!(name in node))
+        return { kind: "none" };
+    if (name.startsWith("$"))
+        return { kind: "plumbing" };
+    if (Object.hasOwn(node, name))
+        return { kind: "field" };
+    for (let p = Object.getPrototypeOf(node); p !== null && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+        const d = Object.getOwnPropertyDescriptor(p, name);
+        if (d === undefined)
+            continue;
+        return typeof d.value === "function" ? { kind: "method", fn: d.value } : { kind: "field" };
+    }
+    return { kind: "object" };
+}
+/** The attribute channels of `sources`, nearest provider winning. Map-insertion
+ *  order IS the ruled precedence — class bodies base → leaf, then the use site
+ *  — so a derived body overrides its base's and the instance overrides the
+ *  class's; only the winner installs, so a class-body `{ }` binding and an
+ *  instance literal on one slot never fight over ownership. */
+function mergeAttrs(sources) {
+    const attrs = new Map();
+    for (const s of sources)
+        for (const a of s.el.attrs)
+            attrs.set(a.name, { attr: a, croot: s.croot });
+    return attrs;
+}
+/** A bare `[ … ]` literal on an array slot, materialized: plain values —
+ *  numbers, strings, booleans, null, colors — frozen, because a bare literal
+ *  is set once and the value the slot holds is not something a later push
+ *  should appear to change. check.ts vetted the item kinds. */
+function literalList(items) {
+    return Object.freeze(items.map((it) => {
+        if (it.kind === "number" || it.kind === "string")
+            return it.value;
+        if (it.kind === "hexColor") {
+            const c = coerce({ kind: "color" }, it);
+            return c.ok ? c.value : null;
+        }
+        if (it.kind === "ident") {
+            if (it.name === "null")
+                return null;
+            if (it.name === "true")
+                return true;
+            if (it.name === "false")
+                return false;
+            const c = coerce({ kind: "color" }, it);
+            return c.ok ? c.value : null;
+        }
+        return null;
+    }));
+}
+/** Land one attribute of a NON-VIEW node — a data node, an animator, a group,
+ *  a source, a state's own slot. A bare list on an array slot materializes; a
+ *  provision applies; a `{ }` binding installs in pass two; a literal lands
+ *  now. A `:path` is refused (a cursor belongs to a view — `pathRefusal` says
+ *  so in the family's words) and so is a percent (no axis to resolve against).
+ *  Returns the landed literal, when one landed (a group reads its cascade off
+ *  it), else null. */
+function landNodeAttr(node, attr, croot, eff, ctx, pathRefusal) {
+    const self = node;
+    if (attrType(eff, attr.name)?.kind === "array" && attr.value.kind === "list") {
+        const items = literalList(attr.value.items);
+        self[attr.name] = items;
+        return { literal: items };
+    }
+    const r = routeAttr(eff, attr, ctx.trusted);
+    if (!r.ok)
+        throw r.error;
+    if (applyProvision(r, node, attr, ctx, croot))
+        return null;
+    if ("binding" in r) {
+        ctx.pending.push({ view: node, attr, code: r.binding.src, classroot: croot });
+        return null;
+    }
+    if ("datapath" in r) {
+        throw new DeclareError(`${eff.name}.${attr.name} = :${r.datapath.path}: ${pathRefusal}`, r.datapath.pos);
+    }
+    if (isPercent(r.value)) {
+        throw new DeclareError(`${eff.name}.${attr.name}: no axis to resolve a percent against`, attr.value.pos);
+    }
+    self[attr.name] = r.value;
+    return { literal: r.value };
+}
+/** The shared front of every non-view family's construction — the same steps
+ *  construct() takes for a view: resolve the class (a built-in, or a program
+ *  class synthesized over one, its declared attributes installed as reactive
+ *  slots; inline use-site declarations the same way), take the effective
+ *  schema, gather the member sources, install the methods. What differs per
+ *  family — a data node's JSON body, a group's members, a state's overrides —
+ *  is that path's own business after this. */
+function beginNode(el, schema, outer, ctx) {
+    if (el.raw !== undefined && !descendsFrom(schema, "Dataset")) {
+        throw new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
+    }
+    const baseCtor = Object.hasOwn(ctx.tags, el.tag) ? ctx.tags[el.tag] : null;
+    if (baseCtor === null)
+        throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
+    const isComponent = (n) => ctx.schemas[n] !== undefined;
+    const isShape = (n) => ctx.shapes.has(n);
+    const node = new (ctorWithDecls(el, baseCtor, schema, isComponent, isShape))();
+    node.classroot = outer;
+    const eff = withDecls(schema, el.decls, isComponent, isShape);
+    const sources = memberSources(el, node, outer, ctx.classes.get(el.tag));
+    installMethods(node, sources, eff, ctx);
+    return { node, eff, sources };
+}
+/** Is this schema a SOURCE — a non-visual member whose handlers are called
+ *  from outside the tree (sources.ts: Keys, Focus, Tip; streams.ts: the
+ *  transports)? Chain-based, so a program's `class Hot extends Keys` is one. */
+function isSourceSchema(schema) {
+    return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tip") || descendsFrom(schema, "Stream");
+}
 function construct(el, outer, ctx, parentSchema = null) {
     // Own-key lookups: a tag named `constructor` must not resolve through
     // Object.prototype.
@@ -698,7 +901,7 @@ function construct(el, outer, ctx, parentSchema = null) {
     if (schema !== null && descendsFrom(schema, "AnimatorGroup")) {
         return constructAnimatorGroup(el, schema, outer, ctx);
     }
-    if (schema !== null && Object.hasOwn(SOURCES, el.tag)) {
+    if (schema !== null && isSourceSchema(schema)) {
         return constructSource(el, schema, outer, ctx);
     }
     if (schema !== null && descendsFrom(schema, "State")) {
@@ -720,8 +923,7 @@ function construct(el, outer, ctx, parentSchema = null) {
     // the instance overrides the class's — and only the winner installs, so a
     // class-body `{ }` binding and an instance literal on one slot never fight
     // over ownership.
-    const attrs = new Map();
-    const sources = [...(user?.chain ?? []).map((body) => ({ el: body, croot: view })), { el, croot }];
+    const sources = memberSources(el, view, outer, user);
     // Stamp the navigation target (capabilities.md §6, links.ts): the leaf-most
     // source with a `link` wins — a use-site override beats the class body, the
     // same nearest-wins rule the methods/attrs merge below follows. Read only by
@@ -729,20 +931,12 @@ function construct(el, outer, ctx, parentSchema = null) {
     for (const s of sources)
         if (s.el.link)
             view._navLink = s.el.link;
-    // (methods are installed per SOURCE below, so each body's `super` reaches
-    // the providers beneath it — see the install loop)
-    // Attribute channels land in the ruled precedence order, so "nearest
-    // provider wins" is simply map-insertion order: class-body sets base→leaf
-    // (rank 4), then the use site (rank 5). Only the winner installs, so no two
-    // channels ever contend over ownership. (The retired `styles` bundle-on-a-view
-    // channel used to sit between them — provided values and subclassing replace it;
-    // `style` bundles survive only as the `<span class>` run vehicle in RichText.)
-    for (const s of sources.slice(0, -1)) {
-        for (const a of s.el.attrs)
-            attrs.set(a.name, { attr: a, croot: s.croot });
-    }
-    for (const a of el.attrs)
-        attrs.set(a.name, { attr: a, croot });
+    // Attribute channels land in the ruled precedence order (mergeAttrs): class-
+    // body sets base→leaf (rank 4), then the use site (rank 5). (The retired
+    // `styles` bundle-on-a-view channel used to sit between them — provided values
+    // and subclassing replace it; `style` bundles survive only as the `<span
+    // class>` run vehicle in RichText.)
+    const attrs = mergeAttrs(sources);
     // Component-typed provisions (View.layout): the nearest provider wins across
     // class bodies → use site, in either form — the member `layout: SimpleLayout
     // [ … ]` or the cancelling literal `layout = null` (how a use site turns an
@@ -761,7 +955,7 @@ function construct(el, outer, ctx, parentSchema = null) {
         for (const c of s.el.children) {
             if (c.name !== null && attrType(eff, c.name)?.kind === "component") {
                 layoutEl = c;
-                layoutCroot = s.croot;
+                layoutCroot = s.croot ?? croot;
             }
         }
     }
@@ -770,46 +964,9 @@ function construct(el, outer, ctx, parentSchema = null) {
         if (t !== null && t.kind === "component")
             ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
     }
-    // Methods first: they are the instance's behavior, in place before any
-    // literal lands, any binding runs, or init fires — a sibling's constraint
-    // may call them during its first evaluation.
-    //
-    // SUPER (2026-09-12): sources run base → leaf → use site, and each body's
-    // methods are compiled against a SNAPSHOT of what was installed before it —
-    // the `$base` object `super.name(…)` reaches (compile.ts rewrites the
-    // keyword). Nearest provider still wins the instance member; a base body's
-    // own `super` reaches ITS base, since its snapshot was taken before it.
-    const methods = new Map();
-    for (const s of sources) {
-        // built only for a body that calls super (compiled bodies spell it $base):
-        // a replicated row whose class never does pays no per-instance object
-        const base = s.el.methods.some((m) => m.body.includes("$base")) ? Object.fromEntries(methods) : NO_BASE;
-        for (const m of s.el.methods) {
-            if (!ctx.trusted) {
-                const r = checkMethod(eff, m);
-                if (!r.ok)
-                    throw r.error;
-            }
-            // Collision with the runtime's own members is an instantiation-context
-            // fact (the checker is runtime-free by design, like percent-on-root):
-            // installing over `attach`/`children`/`toString` would corrupt the view.
-            if (m.name in view) {
-                throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
-            }
-            const c = compileBody(m.params.map((p) => p.name), m.body);
-            if ("error" in c)
-                throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
-            const fn = c.fn;
-            const mcroot = s.croot;
-            // Close over the instance (rather than relying on call-site `this`), so
-            // an extracted reference — `const f = v.select; f()` — still works and
-            // `this`/`parent`/`classroot` inside the body always mean this view, its
-            // parent, and the scope the member was written in.
-            methods.set(m.name, (...args) => fn.call(view, view.parent, mcroot, base, ...args));
-        }
-    }
-    for (const [name, installed] of methods)
-        view[name] = installed;
+    // Methods first (installMethods: the super rule, the runtime-member guard),
+    // then the attribute channels.
+    installMethods(view, sources, eff, ctx);
     for (const { attr, croot: acroot } of attrs.values()) {
         const t0 = attrType(eff, attr.name);
         // A bare `[tl, tr, br, bl]` on a radius slot — check.ts vetted the shape.
@@ -822,26 +979,7 @@ function construct(el, outer, ctx, parentSchema = null) {
         // Frozen like the styling lists: a bare literal is set once, so the value
         // the slot holds is not something a later push should appear to change.
         if (t0?.kind === "array" && attr.value.kind === "list") {
-            view[attr.name] =
-                Object.freeze(attr.value.items.map((it) => {
-                    if (it.kind === "number" || it.kind === "string")
-                        return it.value;
-                    if (it.kind === "hexColor") {
-                        const c = coerce({ kind: "color" }, it);
-                        return c.ok ? c.value : null;
-                    }
-                    if (it.kind === "ident") {
-                        if (it.name === "null")
-                            return null;
-                        if (it.name === "true")
-                            return true;
-                        if (it.name === "false")
-                            return false;
-                        const c = coerce({ kind: "color" }, it);
-                        return c.ok ? c.value : null;
-                    }
-                    return null;
-                }));
+            view[attr.name] = literalList(attr.value.items);
             continue;
         }
         // `theme = Cupertino` → the named theme record (a declared Theme slot),
@@ -947,51 +1085,27 @@ function construct(el, outer, ctx, parentSchema = null) {
     appendChildren(el, view, croot, ctx, eff, slot);
     return view;
 }
-/** The effective `styles` list across the member sources (class chain →
- *  use site, NEAREST wins — the slot resolves like any other; `styles =
- *  null` and an empty list both cancel an inherited one). */
 /** Construct a data node (R8): a Dataset adopts its embedded JSON, a
- *  DataSource waits for fetch; attributes land like a view's (literals now,
- *  `{ }` bindings in pass two). Mirrors checkDataNode for unchecked trees. */
+ *  DataSource waits for fetch. Members install like a view's (beginNode: the
+ *  class chain then the use site — literals now, `{ }` bindings in pass two,
+ *  methods with the super rule); only the JSON body is the family's own. A
+ *  data node has no children: its structure is its data. Mirrors
+ *  checkDataNode for unchecked trees. */
 function constructData(el, schema, outer, ctx) {
-    const handlers = el.methods.filter((m) => el.tag === "DataSource" && m.name === "onLoad");
-    if (el.decls.length > 0 || el.methods.length > handlers.length || el.children.length > 0) {
-        throw new DeclareError(`a ${el.tag} takes attributes only`, el.pos);
+    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+    for (const s of sources) {
+        for (const c of s.el.children)
+            throw new DeclareError(`a data node has no children — its structure is its data`, c.pos);
     }
-    const node = new DATA[el.tag]();
-    // the declared event handler (schema events: DataSource fires `load`),
-    // installed like an animator's — in place before any binding runs
-    for (const m of handlers) {
-        const c = compileBody(m.params.map((p) => p.name), m.body);
-        if ("error" in c)
-            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
-        const fn = c.fn;
-        node[m.name] =
-            (...args) => fn.call(node, node.parent, outer, NO_BASE, ...args);
+    for (const { attr, croot } of mergeAttrs(sources).values()) {
+        landNodeAttr(node, attr, croot, eff, ctx, "a data node is where data lives — a :path reads a view's cursor");
     }
-    for (const a of el.attrs) {
-        const r = routeAttr(schema, a, ctx.trusted);
-        if (!r.ok)
-            throw r.error;
-        if (applyProvision(r, node, a, ctx, outer))
-            continue;
-        if ("binding" in r)
-            ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
-        else if ("datapath" in r) {
-            throw new DeclareError(`${el.tag}.${a.name} = :${r.datapath.path}: a data node is where data lives — a :path reads a view's cursor`, r.datapath.pos);
-        }
-        else if (isPercent(r.value)) {
-            throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
-        }
-        else {
-            node[a.name] = r.value;
-        }
-    }
-    if (el.tag === "Dataset") {
+    if (!descendsFrom(schema, "DataSource")) {
         // A literal `{ }` body OR a derived `contents = { … }` (bound above via
-        // pass two) — one or the other. The derived case leaves value null until
-        // the contents constraint first runs, which mirrors it into value.
-        const derived = el.attrs.some((a) => a.name === "contents");
+        // pass two, from any member source) — one or the other. The derived case
+        // leaves value null until the contents constraint first runs, which
+        // mirrors it into value.
+        const derived = sources.some((s) => s.el.attrs.some((a) => a.name === "contents"));
         if (el.raw === undefined && !derived) {
             throw new DeclareError(`a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'`, el.pos);
         }
@@ -1022,57 +1136,21 @@ function constructData(el, schema, outer, ctx) {
     return node;
 }
 /** Construct an animator node (animation.md §1–§3): a non-visual Node member
- *  that drives a target slot. Unlike a data node it carries the on* handlers
- *  AND built-in start()/stop(), so this path installs methods/handlers (like a
- *  View) as well as attributes — literals now, `{ }` bindings in pass two.
- *  The numeric-slot check is the checker's (it needs parent context); the
- *  guards here mirror checkAnimatorNode so a direct instantiate of an
- *  unchecked tree still fails soundly. `target` defaults to the parent —
- *  resolved at start() (this.parent) — so nothing to wire here. */
+ *  that drives a target slot. Members install like a view's (beginNode) —
+ *  the on* handlers and any plain method, then the attributes; the built-in
+ *  guard protects start()/stop()/tick exactly as it does a View's own. The
+ *  numeric-slot check is the checker's (it needs parent context); the guards
+ *  here mirror checkAnimatorNode so a direct instantiate of an unchecked tree
+ *  still fails soundly. `target` defaults to the parent — resolved at start()
+ *  (this.parent) — so nothing to wire here. */
 function constructAnimator(el, schema, outer, ctx) {
-    if (el.decls.length > 0 || el.children.length > 0) {
-        throw new DeclareError(`an ${el.tag} takes attributes and on* handlers only`, el.pos);
+    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+    for (const s of sources) {
+        for (const c of s.el.children)
+            throw new DeclareError(`an animator drives a slot — it has no children`, c.pos);
     }
-    if (el.raw !== undefined) {
-        throw new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos);
-    }
-    const node = new ANIMATORS[el.tag]();
-    // Methods first (handlers + any plain method), installed like a View's — in
-    // place before any binding runs or auto-start fires. The built-in guard
-    // (`in node`) protects start()/stop()/tick, exactly as it does a View's own.
-    for (const m of el.methods) {
-        if (!ctx.trusted) {
-            const r = checkMethod(schema, m);
-            if (!r.ok)
-                throw r.error;
-        }
-        if (m.name in node) {
-            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
-        }
-        const c = compileBody(m.params.map((p) => p.name), m.body);
-        if ("error" in c)
-            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
-        const fn = c.fn;
-        node[m.name] =
-            (...args) => fn.call(node, node.parent, outer, NO_BASE, ...args);
-    }
-    for (const a of el.attrs) {
-        const r = routeAttr(schema, a, ctx.trusted);
-        if (!r.ok)
-            throw r.error;
-        if (applyProvision(r, node, a, ctx, outer))
-            continue;
-        if ("binding" in r)
-            ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
-        else if ("datapath" in r) {
-            throw new DeclareError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
-        }
-        else if (isPercent(r.value)) {
-            throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
-        }
-        else {
-            node[a.name] = r.value;
-        }
+    for (const { attr, croot } of mergeAttrs(sources).values()) {
+        landNodeAttr(node, attr, croot, eff, ctx, "an animator attribute is a value or a { }, not a data read");
     }
     return node;
 }
@@ -1083,66 +1161,14 @@ function constructAnimator(el, schema, outer, ctx) {
  *  are wired by initTree's autoStart — the same lifecycle hook an animator uses,
  *  which is also why a source costs nothing for a handler nobody declared. */
 function constructSource(el, schema, outer, ctx) {
-    if (el.decls.length > 0 || el.children.length > 0) {
-        throw new DeclareError(`a ${el.tag} takes attributes and its own handlers only`, el.pos);
+    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+    for (const s of sources) {
+        for (const c of s.el.children) {
+            throw new DeclareError(`a ${el.tag} takes no children — it delivers events to its handlers, it is not a container`, c.pos);
+        }
     }
-    if (el.raw !== undefined) {
-        throw new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
-    }
-    const node = new SOURCES[el.tag]();
-    for (const m of el.methods) {
-        if (!ctx.trusted) {
-            const r = checkMethod(schema, m);
-            if (!r.ok)
-                throw r.error;
-        }
-        if (m.name in node) {
-            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
-        }
-        const c = compileBody(m.params.map((p) => p.name), m.body);
-        if ("error" in c)
-            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
-        const fn = c.fn;
-        node[m.name] =
-            (...args) => fn.call(node, node.parent, outer, NO_BASE, ...args);
-    }
-    for (const a of el.attrs) {
-        // A bare `[ … ]` on an array slot (`listenTo = ["delta", "done"]`) —
-        // materialized exactly as the view path's literal-list arm above: frozen,
-        // set once.
-        if (attrType(schema, a.name)?.kind === "array" && a.value.kind === "list") {
-            node[a.name] =
-                Object.freeze(a.value.items.map((it) => {
-                    if (it.kind === "number" || it.kind === "string")
-                        return it.value;
-                    if (it.kind === "ident") {
-                        if (it.name === "null")
-                            return null;
-                        if (it.name === "true")
-                            return true;
-                        if (it.name === "false")
-                            return false;
-                    }
-                    return null;
-                }));
-            continue;
-        }
-        const r = routeAttr(schema, a, ctx.trusted);
-        if (!r.ok)
-            throw r.error;
-        if (applyProvision(r, node, a, ctx, outer))
-            continue;
-        if ("binding" in r)
-            ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
-        else if ("datapath" in r) {
-            throw new DeclareError(`${el.tag}.${a.name}: a ${el.tag} attribute is a value or a { }, not a data read`, a.value.pos);
-        }
-        else if (isPercent(r.value)) {
-            throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
-        }
-        else {
-            node[a.name] = r.value;
-        }
+    for (const { attr, croot } of mergeAttrs(sources).values()) {
+        landNodeAttr(node, attr, croot, eff, ctx, "a source attribute is a value or a { }, not a data read");
     }
     return node;
 }
@@ -1170,77 +1196,51 @@ const CASCADE_ATTRS = new Set([
  *  checkAnimatorGroupNode so a direct instantiate of an unchecked tree still
  *  fails soundly. */
 function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
-    if (el.raw !== undefined) {
-        throw new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos);
-    }
-    if (el.decls.length > 0) {
-        throw new DeclareError(`an ${el.tag} takes attributes, on* handlers, and animator members only`, el.pos);
-    }
-    const node = new ANIMATOR_GROUPS[el.tag]();
-    for (const m of el.methods) {
-        if (!ctx.trusted) {
-            const r = checkMethod(schema, m);
-            if (!r.ok)
-                throw r.error;
-        }
-        if (m.name in node) {
-            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
-        }
-        const c = compileBody(m.params.map((p) => p.name), m.body);
-        if ("error" in c)
-            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
-        const fn = c.fn;
-        node[m.name] =
-            (...args) => fn.call(node, node.parent, outer, NO_BASE, ...args);
-    }
+    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
     // The effective cascade for members: what this group inherited, overlaid with
-    // its own cascadeable literals (a `{ }`-bound cascade attribute stays on the
-    // group — v1 does not cascade bindings).
+    // its own cascadeable literals — from any member source, nearest winning (a
+    // `{ }`-bound cascade attribute stays on the group — v1 does not cascade
+    // bindings).
     const cascade = { ...inherited };
-    for (const a of el.attrs) {
-        const r = routeAttr(schema, a, ctx.trusted);
-        if (!r.ok)
-            throw r.error;
-        if (applyProvision(r, node, a, ctx, outer))
-            continue;
-        if ("binding" in r)
-            ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
-        else if ("datapath" in r) {
-            throw new DeclareError(`${el.tag}.${a.name}: an animator attribute is a value or a { }, not a data read`, a.value.pos);
-        }
-        else if (isPercent(r.value)) {
-            throw new DeclareError(`${el.tag}.${a.name}: no axis to resolve a percent against`, a.value.pos);
-        }
-        else {
-            node[a.name] = r.value;
-            if (CASCADE_ATTRS.has(a.name))
-                cascade[a.name] = r.value;
-        }
+    for (const { attr, croot } of mergeAttrs(sources).values()) {
+        const landed = landNodeAttr(node, attr, croot, eff, ctx, "an animator attribute is a value or a { }, not a data read");
+        if (landed !== null && CASCADE_ATTRS.has(attr.name))
+            cascade[attr.name] = landed.literal;
     }
     // Members: each child animator / nested group, linked under the group and
-    // group-driven. An animator inherits the group's cascade for attributes it
-    // omitted; a nested group is threaded the effective cascade so ITS members
-    // inherit transitively (constructed directly, not via the generic dispatch,
-    // to carry the cascade down).
-    for (const childEl of el.children) {
-        const cs = Object.hasOwn(ctx.schemas, childEl.tag) ? ctx.schemas[childEl.tag] : null;
-        if (cs === null || !(descendsFrom(cs, "Animator") || descendsFrom(cs, "AnimatorGroup"))) {
-            throw new DeclareError(`an ${el.tag} coordinates animators — '${childEl.tag}' is not an Animator or AnimatorGroup`, childEl.pos);
-        }
-        let member;
-        if (descendsFrom(cs, "AnimatorGroup")) {
-            member = constructAnimatorGroup(childEl, cs, outer, ctx, cascade);
-        }
-        else {
-            member = constructAnimator(childEl, cs, outer, ctx);
-            const memberSet = new Set(childEl.attrs.map((a) => a.name));
-            for (const k of Object.keys(cascade)) {
-                if (!memberSet.has(k))
-                    member[k] = cascade[k];
+    // group-driven — the class bodies' members (they belong to every instance,
+    // scoped to it), then the use site's, concatenated like a view's children.
+    // An animator inherits the group's cascade for attributes it omitted; a
+    // nested group is threaded the effective cascade so ITS members inherit
+    // transitively (constructed directly, not via the generic dispatch, to carry
+    // the cascade down). A member's own class chain is its own affair: a member
+    // that SETS a cascaded attribute in its class body has set it.
+    for (const s of sources) {
+        for (const childEl of s.el.children) {
+            const cs = Object.hasOwn(ctx.schemas, childEl.tag) ? ctx.schemas[childEl.tag] : null;
+            if (cs === null || !(descendsFrom(cs, "Animator") || descendsFrom(cs, "AnimatorGroup"))) {
+                throw new DeclareError(`an ${el.tag} coordinates animators — '${childEl.tag}' is not an Animator or AnimatorGroup`, childEl.pos);
             }
+            let member;
+            if (descendsFrom(cs, "AnimatorGroup")) {
+                member = constructAnimatorGroup(childEl, cs, s.croot, ctx, cascade);
+            }
+            else {
+                member = constructAnimator(childEl, cs, s.croot, ctx);
+                const memberSet = new Set();
+                for (const body of ctx.classes.get(childEl.tag)?.chain ?? [])
+                    for (const a of body.attrs)
+                        memberSet.add(a.name);
+                for (const a of childEl.attrs)
+                    memberSet.add(a.name);
+                for (const k of Object.keys(cascade)) {
+                    if (!memberSet.has(k))
+                        member[k] = cascade[k];
+                }
+            }
+            node.appendChild(member);
+            member.markGrouped();
         }
-        node.appendChild(member);
-        member.markGrouped();
     }
     return node;
 }
@@ -1254,43 +1254,20 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
  *  coercion and binding compile. The guards mirror checkStateNode so a direct
  *  instantiate of an unchecked tree still fails soundly. */
 function constructState(el, schema, outer, ctx, parentSchema) {
-    if (el.raw !== undefined) {
-        throw new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
-    }
-    const node = new STATES[el.tag]();
+    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
     const label = el.name ?? el.tag;
-    // on* handlers (onApply / onRemove) install like a View's / animator's.
-    for (const m of el.methods) {
-        if (!ctx.trusted) {
-            const r = checkMethod(schema, m);
-            if (!r.ok)
-                throw r.error;
-        }
-        if (m.name in node) {
-            throw new DeclareError(`${schema.name}.${m.name}: '${m.name}' is a built-in member of the runtime ${schema.name} — choose another name`, m.pos);
-        }
-        const c = compileBody(m.params.map((p) => p.name), m.body);
-        if ("error" in c)
-            throw new DeclareError(`${schema.name}.${m.name}(…) ${c.error}`, m.bodyPos);
-        const fn = c.fn;
-        node[m.name] = (...args) => fn.call(node, node.parent, outer, NO_BASE, ...args);
-    }
-    // Attributes: `applied` is the one control slot (a literal now, a `{ }` gate
-    // in pass two). Every other attribute is an OVERRIDE on the enclosing view —
+    // Attributes: the state's OWN slots — `applied`, the control (a literal now,
+    // a `{ }` gate in pass two), and any attribute its class declares — land on
+    // the node. Every other attribute is an OVERRIDE on the enclosing view —
     // captured as a slot + a factory that builds a FRESH driving Constraint each
-    // apply, coerced / compiled against the parent's schema (the view it targets).
+    // apply, coerced / compiled against the parent's schema (the view it
+    // targets). Overrides come from every member source, nearest winning: a
+    // state class's body carries the overrides every instance applies, and a
+    // use site adds to or replaces them.
     const overrides = [];
-    for (const a of el.attrs) {
-        if (a.name === "applied") {
-            const r = routeAttr(schema, a, ctx.trusted);
-            if (!r.ok)
-                throw r.error;
-            if (applyProvision(r, node, a, ctx, outer))
-                continue;
-            if ("binding" in r)
-                ctx.pending.push({ view: node, attr: a, code: r.binding.src, classroot: outer });
-            else if ("value" in r)
-                node.applied = r.value;
+    for (const { attr: a, croot } of mergeAttrs(sources).values()) {
+        if (attrType(eff, a.name) !== null) {
+            landNodeAttr(node, a, croot, eff, ctx, "a state's own slot is a value or a { }, not a data read");
             continue;
         }
         if (parentSchema === null) {
@@ -1305,7 +1282,6 @@ function constructState(el, schema, outer, ctx, parentSchema) {
             if ("error" in c)
                 throw new DeclareError(`${parentSchema.name}.${slot} = { … } ${c.error}`, a.value.pos);
             const fn = c.fn;
-            const croot = outer;
             overrides.push({
                 slot,
                 make: (t) => new Constraint(`${t.constructor.name}.${slot} (state ${label})`, () => fn.call(t, t.parent, croot), (v) => setBound(t, slot, v)),
@@ -1326,10 +1302,11 @@ function constructState(el, schema, outer, ctx, parentSchema) {
         }
     }
     node.overrides = overrides;
-    // Child subtree: captured as templates + the materializer + this use site.
-    node.childTemplates = el.children;
+    // Child subtree: captured as templates + the materializer. Each template
+    // keeps the classroot of the source it was written in — the state instance
+    // for a class body's children, the use site's scope for its own.
+    node.childTemplates = sources.flatMap((s) => s.el.children.map((c) => ({ el: c, croot: s.croot })));
     node.materialize = materializer(ctx);
-    node.childClassroot = outer;
     return node;
 }
 /** Build a layout strategy from its element (checkComponentValue has just
@@ -1380,30 +1357,10 @@ function buildLayout(el, owner, croot, ctx) {
 function installLayoutClass(layout, el, uc, croot, ctx) {
     const eff = withDecls(ctx.schemas[el.tag], el.decls, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n));
     const self = layout;
-    // Methods: class chain base→leaf, then the use site; nearest provider wins.
-    // Each body compiles against a snapshot of the providers beneath it — what
-    // its `super.name(…)` reaches (the view path's rule).
-    const methods = new Map();
-    for (const body of [...uc.chain, el]) {
-        const base = body.methods.some((m) => m.body.includes("$base")) ? Object.fromEntries(methods) : NO_BASE;
-        for (const m of body.methods) {
-            if (!ctx.trusted) {
-                const r = checkMethod(eff, m);
-                if (!r.ok)
-                    throw r.error;
-            }
-            if (m.name in layout) {
-                throw new DeclareError(`${el.tag}.${m.name}: '${m.name}' is a built-in member of the runtime layout — choose another name`, m.pos);
-            }
-            const c = compileBody(m.params.map((p) => p.name), m.body);
-            if ("error" in c)
-                throw new DeclareError(`${el.tag}.${m.name}(…) ${c.error}`, m.bodyPos);
-            const fn = c.fn;
-            methods.set(m.name, (...args) => fn.call(layout, layout.parent, croot, base, ...args));
-        }
-    }
-    for (const [name, installed] of methods)
-        self[name] = installed;
+    // Methods: class chain base→leaf, then the use site; nearest provider wins,
+    // the runtime's own method is the floor — the one installer (installMethods)
+    // with every body binding the layout's classroot.
+    installMethods(layout, [...uc.chain, el].map((body) => ({ el: body, croot })), eff, ctx);
     // Attributes: class chain base→leaf, then use site; a literal lands directly,
     // a `{ }` binding installs a constraint over the layout's slot.
     const attrs = new Map();
@@ -1617,4 +1574,64 @@ export function createElementIn(root, el, parent) {
     }
 }
 provideViewCreator(createViewIn);
+/** THE CLASS TABLE rich text's inline views resolve against (view.ts
+ *  InlineViewHost). Registered here because this is where a program's classes
+ *  become runtime classes; everything the feature DOES with the table — reading
+ *  a tag, converting its attributes, keeping a matched view across a content
+ *  change — lives in the rich-text engine, which only ships when a program uses
+ *  it. `declares` admits exactly the program's own VIEW classes: a built-in tag
+ *  name is not one (the whitelist owns lowercase tags, and a `<Text/>` in prose
+ *  keeps meaning nothing), and a Layout or data class is not buildable in a line
+ *  of text. */
+provideInlineViewHost((root) => {
+    const ctx = CONTEXTS.get(root);
+    if (ctx === undefined)
+        return null;
+    return {
+        declares: (name) => {
+            const uc = ctx.classes.get(name);
+            return uc !== undefined && descendsFrom(uc.info.schema, "View");
+        },
+        attrType: (cls, name) => {
+            const s = ctx.schemas[cls];
+            return s === undefined ? null : attrType(s, name);
+        },
+        readOnly: (cls, name) => {
+            const s = ctx.schemas[cls];
+            return s !== undefined && isReadOnly(s, name);
+        },
+        create: (parent, cls, attrs, provides) => {
+            // THE TAG IS THE USE SITE. Its attributes ride the synthesized element's
+            // `attrs`, so they enter construct's ordinary channel merge (mergeAttrs)
+            // as the leaf-most source — exactly as an instance's `[ … ]` literals do.
+            // That is what makes `<Box width='120'/>` mean `Box [ width = 120 ]`: the
+            // class body's set of the same slot loses, and because only the winner
+            // installs, a class-body `{ }` constraint on that slot is never built and
+            // cannot recompute over the tag's value. Landing them afterwards (as
+            // plain writes) could not express this — the constraint installed first
+            // and won every re-evaluation.
+            const el = { tag: cls, name: null, attrs, decls: [], methods: [], children: [], pos: { line: 0, col: 0 } };
+            const made = materializer(ctx)(el, parent);
+            // PROVISIONS FIRST — before provide(), before attach: a face slot's
+            // default is a provided READ, and a read that finds nothing here tracks
+            // the ancestor it fell through to instead of this instance. Landing them
+            // after attach would leave the body wearing the document's face forever.
+            for (const [k, v] of Object.entries(provides))
+                provideWrite(made.view, k, v);
+            parent.insertChild(made.view, parent.children.length);
+            made.provide();
+            const ps = parent.surface;
+            if (ps !== null && parent.backend !== null)
+                made.view.attach(parent.backend, ps, null);
+            // `finish` lands the rest of the use site's own channels — a percent among
+            // them (`width='50%'`), which resolves against the parent's extent like
+            // any child's, and needs the link `insertChild` above just made.
+            made.finish();
+            // No childrenMutated() here (createViewIn's notify): the rebuild that
+            // creates these slots notifies ONCE for the whole burst, like a
+            // replicator's reconcile.
+            return made.view;
+        },
+    };
+});
 //# sourceMappingURL=instantiate.js.map

@@ -58,6 +58,45 @@ test("used-set: a no-prose app does NOT include rich text", async () => {
   assert.ok(!u.has("Markdown") && !u.has("HTMLText"));
 });
 test("used-set: use[] adds a name with no static reference", async () => assert.ok((await used(`use [ Markdown ]\nApp [ Text [ text = "x" ] ]`)).has("Markdown")));
+// ── the used-set sees a class named in LITERAL rich-text content ────────────
+// An inline view is written as a TAG inside `HTMLText.html` / `Markdown.text`, so
+// the content string is a reference site. Miss it and the build has the worst
+// shape of bug it can have: dev ships the registry whole and the tag renders as a
+// real view, production drops the class and the same tag renders as plain text.
+test("used-set: a class named ONLY by a tag in a literal html string is kept", async () => {
+  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
+    App [ width = 400, HTMLText [ width = 380, html = "Fixed by <Issue id='142'/> today." ] ]`);
+  assert.ok(u.has("Issue"), "the tag in the literal is the only reference — it must keep the class");
+});
+test("used-set: the same tag in a literal Markdown `text` is kept", async () => {
+  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
+    App [ width = 400, Markdown [ width = 380, text = "Fixed by <Issue id='142'/>." ] ]`);
+  assert.ok(u.has("Issue"));
+});
+test("used-set: the content slot is found by SCHEMA CHAIN, so a subclass carries it too", async () => {
+  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
+    class Note extends HTMLText [ width = 380 ]
+    App [ width = 400, Note [ html = "see <Issue/>" ] ]`);
+  assert.ok(u.has("Issue"));
+});
+test("used-set: a COMPUTED document keeps nothing — `use` is the author's tool there", async () => {
+  const src = (uses) => `${uses}class Issue extends View [ width = 60, height = 20 ]
+    App [ width = 400, who: string = "x",
+      HTMLText [ width = 380, html = { "Fixed by <Issue/> by " + app.who } ] ]`;
+  assert.ok(!(await used(src(""))).has("Issue"), "a { }-built string is not scanned (nor is a fetched one)");
+  assert.ok((await used(src("use [ Issue ]\n"))).has("Issue"), "…and `use` is what keeps it");
+});
+test("used-set: a whitelisted tag keeps nothing — the scan is intersected with the program's classes", async () => {
+  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
+    App [ width = 400, HTMLText [ width = 380, html = "<b>bold</b> <span class='x'>y</span> <br/>" ] ]`);
+  assert.ok(!u.has("Issue"), "nothing in this document names Issue");
+});
+test("used-set: a non-rich-text `text` slot is not content — Text is not scanned", async () => {
+  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
+    App [ width = 400, Text [ text = "not a document: <Issue/>" ] ]`);
+  assert.ok(!u.has("Issue"), "Text descends from neither Markdown nor HTMLText");
+});
+
 test("used-set: a declared stream member is detected", async () => {
   const u = await used(`App [ feed: EventStream [ url = "x" ], Text [ text = "y" ] ]`);
   assert.ok(u.has("EventStream") && !u.has("Socket"));
@@ -264,13 +303,14 @@ if (!CHROME) {
     assert.ok(modsOf(with_)["data-schema.js"] > STUBBED, "a declared schema keeps the validator");
   });
 
-  await test("the named vocabulary — effects, 3D, measureText, drawn text and images, features, Face — rides only where a program names it", async () => {
-    const MODS = ["effects.js", "dom-effects.js", "projective.js", "text-measure.js", "font-derive.js", "face-literal.js", "draw-image.js", "draw-text.js"];
+  await test("the named vocabulary — effects, 3D, measureText, drawn text and images, features, Face, the change event — rides only where a program names it", async () => {
+    const MODS = ["effects.js", "dom-effects.js", "projective.js", "text-measure.js", "font-derive.js", "face-literal.js", "draw-image.js", "draw-text.js", "change-event.js"];
     const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
     for (const f of MODS) assert.ok((none[f] ?? 0) < STUBBED, `${f} should be stubbed for a program naming none of it, was ${none[f]}`);
     // every word named, and it RENDERS on the real modules (effects.js and value.js import each other)
     const src = `App [ width = 200, fill = white,
-      a: View [ width = 40, height = 40, fill = radialGradient(0.5, 0.5, 1, red, blue), filter = [blur(2), colorize(navy)], rotateY = 20 ],
+      a: View [ width = 40, height = 40, fill = radialGradient(0.5, 0.5, 1, red, blue), filter = [blur(2), colorize(navy)], rotateY = 20,
+        trackChanges = ["opacity"], onChange(e: ChangeEvent) { } ],
       b: View [ y = 50, width = 40, height = 40, fill = red, mask = gradient(#000000, #00000000) ],
       c: Text [ y = 100, text = "12", numerals = lining, width = { measureText("12", { fontSize: 13 }).width + 4 } ],
       e: View [ y = 130, width = 60, height = 20, draw(d: Draw) { d.fillText("hi", 2, 14, { fontSize: 12 }) } ],
@@ -285,8 +325,85 @@ if (!CHROME) {
     assert.ok(modsOf(faced)["face-literal.js"] > STUBBED && modsOf(faced)["draw-image.js"] > STUBBED, "a Face and a drawImage call keep their modules");
   });
 
+  // The DOM backend's native rich-text flow (dom-rich.js) is reachable from one
+  // place only — a RichText pushing its parsed blocks at the surface beneath it
+  // — so an app that names no rich-text component pays nothing for it, inline
+  // views included. The fact reads the USED-SET, which carries every class's
+  // `extends` base: a subclass (at any depth) keeps the module as surely as the
+  // built-in tag does.
+  await test("the DOM rich-text flow rides only with rich text — a subclass keeps it too", async () => {
+    const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
+    assert.ok((none["dom-rich.js"] ?? 0) < STUBBED, `dom-rich.js should be stubbed for a prose-free app, was ${none["dom-rich.js"]}`);
+    const tag = `App [ width = 200, fill = white, Markdown [ width = 180, text = "# hi\\n\\nsome *prose*" ] ]`;
+    assert.ok(modsOf(await buildProduction(tag, {}))["dom-rich.js"] > STUBBED, "a Markdown keeps the flow");
+    await renders(tag);
+    // …and through a base chain the tag never names: Deep → Note → HTMLText
+    const sub = `class Note extends HTMLText [ width = 180 ]
+class Deep extends Note [ ]
+App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
+    assert.ok(modsOf(await buildProduction(sub, {}))["dom-rich.js"] > STUBBED,
+      "a class whose base chain reaches HTMLText keeps the flow");
+    await renders(sub);
+  });
+
+  // THE FAILURE THE WORD MATCH HAD. A slimming decision may only drop a module
+  // the program CANNOT reach. A filter or a paint that arrives from a remote
+  // `DataSource` is named nowhere in the source, so a match over the program's
+  // text saw nothing, dropped the module, and the production build threw on a
+  // program that ran fine in development. The decision reads the parse tree now:
+  // a carrying slot whose value is not a literal keeps its module.
+  await test("a value that can only arrive at RUN TIME keeps its module (the word match dropped it)", async () => {
+    const dynFilter = `App [ width = 200, fill = white,
+      d: DataSource [ url = "look.json" ],
+      v: View [ width = 40, height = 40, fill = red, filter = { d.value.f } ] ]`;
+    assert.ok(modsOf(await buildProduction(dynFilter, {}))["effects.js"] > STUBBED,
+      "a filter whose value comes from data must keep effects.js — nothing in the source names blur()");
+    const dynPaint = `App [ width = 200, fill = white,
+      d: DataSource [ url = "look.json" ],
+      v: View [ width = 40, height = 40, fill = { d.value.paint } ] ]`;
+    assert.ok(modsOf(await buildProduction(dynPaint, {}))["effects.js"] > STUBBED,
+      "a computed fill can yield a gradient, so effects.js must ride");
+    // …and the DOM half, for a mask or a colorize arriving the same way
+    const dynMask = `App [ width = 200, fill = white,
+      d: DataSource [ url = "look.json" ],
+      v: View [ width = 40, height = 40, fill = red, mask = { d.value.m } ] ]`;
+    assert.ok(modsOf(await buildProduction(dynMask, {}))["dom-effects.js"] > STUBBED,
+      "a mask set from data must keep dom-effects.js");
+    // the floor still holds: a program with no carrying slot at all stays slim
+    const plain = modsOf(await buildProduction(`App [ width = 200, fill = navy, Text [ text = "hi" ] ]`, {}));
+    assert.ok((plain["effects.js"] ?? 0) < STUBBED && (plain["dom-effects.js"] ?? 0) < STUBBED,
+      "a program that sets no filter, mask or computed fill is still slimmed");
+  });
+
   await test("a service-free app still RENDERS (the stubs satisfy boot's wiring)", async () => {
     await renders(`App [ width = 200, fill = white, Text [ x = 10, y = 10, text = "no services" ] ]`);
+  });
+
+  // escapeHtml is prelude vocabulary with no slimming fact of its own: it lives
+  // in services.js, which the production entry imports unconditionally. A
+  // prelude name that typechecks but is absent from body scope fails as a boot
+  // ReferenceError and nothing else — which is why this asks the SLIMMED bundle
+  // for the value, not the compiler for the signature.
+  await test("escapeHtml resolves in a slimmed production build (no fact gates it)", async () => {
+    const src = `App [ width = 200, fill = white,
+      me: string = "Ada <'&\\">",
+      safe: string = { escapeHtml(app.me) },
+      t: Text [ x = 4, y = 4, text = { app.safe } ] ]`;
+    const b = await buildProduction(src, {});
+    assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
+    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    try {
+      const page = await browser.newPage();
+      const errs = [];
+      page.on("pageerror", (e) => errs.push(e.message));
+      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await new Promise((r) => setTimeout(r, 350));
+      assert.equal(errs.length, 0, "page errors: " + errs.slice(0, 2).join(" | "));
+      const text = await page.evaluate(() => document.getElementById("host")?.textContent ?? "");
+      assert.ok(text.includes("Ada &lt;&#39;&amp;&quot;&gt;"),
+        `the slimmed bundle should have escaped &, <, >, " and ' — got ${JSON.stringify(text)}`);
+    } finally { await browser.close(); }
   });
 }
 

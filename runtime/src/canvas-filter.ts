@@ -151,7 +151,7 @@ let warned = false;
 function reportUnsupported(fns: string[]): void {
   if (warned || fns.length === 0) return;
   warned = true;
-  console.warn(`[declare] canvas filter ${fns.join(", ")} is not expressible on this engine and was not applied.`);
+  console.warn(`[Declare] canvas filter ${fns.join(", ")} is not expressible on this engine and was not applied.`);
 }
 
 // a scratch is the page's canvas element, or an OffscreenCanvas in the raster

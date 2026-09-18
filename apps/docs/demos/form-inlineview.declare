@@ -1,0 +1,22 @@
+// A view in the middle of a sentence
+// A tag whose name is a class this program declares builds one real view of that class,
+// placed in the flowing line as an atomic box the words wrap around. Each chip sizes itself
+// to its label and carries its own state — click one and watch the line re-flow around its
+// new width, which no styled run of text could do.
+
+class Chip extends View [
+    label: string = "",
+    picked: boolean = false,
+    height = 20, width = { this.t.width + 20 }, cornerRadius = 10,
+    fill = { picked ? 0x4C8DFF : (hovered ? 0xDDE4EB : 0xE9EEF3) },
+    onClick() { picked = !picked },
+    t: TextLabel [ x = 10, y = center, fontSize = 12, fontWeight = medium,
+        text = { classroot.picked ? classroot.label + " ✓" : classroot.label },
+        textColor = { classroot.picked ? 0xFFFFFF : 0x33424E } ]
+    ]
+
+
+App [ fill = #F6F8FA, textColor = 0x172530, fontSize = 15,
+    HTMLText [ x = 20, y = 18, width = 420, lineHeight = 1.45, bodyColor = 0x33424E,
+        html = "Filed under <Chip label='docs'/>, <Chip label='runtime'/> and <Chip label='renderers'/> — every chip here is a view, with a size of its own, a state of its own, and the whole language available to it." ]
+    ]

@@ -158,6 +158,43 @@ function typeSpine() {
  *
  *  Parsed from the PRELUDE text rather than re-declared here, so the reference
  *  cannot drift from what the compiler actually emits. */
+/** Every prelude declaration's own doc comment, by name. The PRELUDE is where a
+ *  shared type or function is DECLARED, so it is where the sentence explaining it
+ *  belongs — and carrying it here is what puts it in the reference and in
+ *  `declare-help`. Before this, 82 shared names projected with a signature and no
+ *  prose: the help tool answered every one of them with a name, a type, and a
+ *  blank body, which looks like an answer and teaches nothing.
+ *
+ *  Adjacency is the rule: the block must sit immediately above the declaration,
+ *  so a comment about something else cannot be captured by accident. */
+function preludeDocs(prelude) {
+  const DECL = /^(?:declare\s+)?(?:interface|type|function|const|var|let|class|enum|namespace)\s+([A-Za-z]\w*)/;
+  const docs = {};
+  let pending = null, inBlock = false;
+  for (const raw of prelude.split("\n")) {
+    const l = raw.trim();
+    if (!inBlock && l.startsWith("/**")) {
+      pending = [];
+      inBlock = !l.endsWith("*/");
+      const body = l.replace(/^\/\*\*/, "").replace(/\*\/$/, "").trim();
+      if (body) pending.push(body);
+      continue;
+    }
+    if (inBlock) {
+      inBlock = !l.endsWith("*/");
+      const body = l.replace(/\*\/$/, "").replace(/^\*\s?/, "").trim();
+      if (body) pending.push(body);
+      continue;
+    }
+    const m = l.match(DECL);
+    // The PRELUDE is a template literal, so its doc comments carry ESCAPED
+    // backticks. Unescape them: the reader wants `0xRRGGBB`, not \\`0xRRGGBB\\`.
+    if (m) { if (pending !== null) docs[m[1]] = pending.join(" ").replace(/\s+/g, " ").replace(/\\`/g, "`").trim(); pending = null; continue; }
+    if (l) pending = null;                        // adjacency broken
+  }
+  return docs;
+}
+
 function sharedTypes() {
   const src = readFileSync(join(ROOT, "compiler/src/scaffold.ts"), "utf8");
   // The template literal closes with a backtick-semicolon at the END of its last
@@ -167,6 +204,7 @@ function sharedTypes() {
   // form-agnostic gate is what exposed it.
   const prelude = src.split("const PRELUDE = `")[1]?.split(/`;\s*$/m)[0] ?? "";
   const out = { interfaces: [], aliases: [], functions: [], namespaces: [] };
+  const docs = preludeDocs(prelude);
   // Line-based, because the PRELUDE mixes forms: block interfaces, one-liners
   // (`interface Touch { id: number; x: number }`), and `extends` (`interface
   // WheelEvent extends PointerEvent { … }`). A block regex swallowed every
@@ -191,7 +229,7 @@ function sharedTypes() {
         members.push(...splitMembers(l));
       }
     }
-    out.interfaces.push({ name, extends: base ?? null, members });
+    out.interfaces.push({ name, extends: base ?? null, members, doc: docs[name] ?? null });
   }
   // `declare const NAME: { … }` — the namespaced objects (`Themes.sanFrancisco(dark)`,
   // `Inspect.…`). A fourth declaration form the first pass skipped silently, which is
@@ -211,13 +249,13 @@ function sharedTypes() {
         members.push(...splitMembers(l.replace(/^\{|\}$/g, "")));
       }
     }
-    out.namespaces.push({ name, members: members.filter(Boolean) });
+    out.namespaces.push({ name, members: members.filter(Boolean), doc: docs[name] ?? null });
   }
   for (const m of prelude.matchAll(/^type\s+([A-Za-z]\w*)\s*=\s*([^\n]+?);?$/gm)) {
-    out.aliases.push({ name: m[1], type: m[2].trim().replace(/;$/, "") });
+    out.aliases.push({ name: m[1], type: m[2].trim().replace(/;$/, ""), doc: docs[m[1]] ?? null });
   }
   for (const m of prelude.matchAll(/^declare function\s+([A-Za-z]\w*)([^\n]*?);?$/gm)) {
-    out.functions.push({ name: m[1], signature: (m[1] + m[2]).replace(/;$/, "").trim() });
+    out.functions.push({ name: m[1], signature: (m[1] + m[2]).replace(/;$/, "").trim(), doc: docs[m[1]] ?? null });
   }
   return out;
 }
@@ -485,8 +523,10 @@ function elementDoc(id, ref) {
   return L.join("\n");
 }
 
-const enumsDoc = (spine) => ["# Enums", "", "*The language's fixed token sets — write the token itself, never a CSS-style value.*", "",
-  ...Object.entries(spine.enums).map(([n, toks]) => `**${n}** — ${toks.map((t) => "`" + t + "`").join(" · ")}\n`)].join("\n");
+const enumsDoc = (spine, types) => ["# Enums", "", "*The language's fixed token sets — write the token itself, never a CSS-style value. Each has a page of its own in the reference (`type/<Name>`), with where it is used.*", "",
+  ...Object.entries(spine.enums).flatMap(([n, toks]) => [
+    `**${n}** — ${toks.map((t) => "`" + t + "`").join(" · ")}`,
+    ...(types?.pages?.[n]?.doc ? ["", types.pages[n].doc] : []), ""])].join("\n");
 const colorsDoc = (spine) => ["# Named colors", "",
   "*The color names a **bare** slot accepts — `fill = navy`, `textColor = slategray` — the CSS set, with the hex each stands for. Inside a `{ }` body write the number: `0x000080`, not `navy`; the checker names the rewrite. A hex literal takes alpha as a fourth pair: `#RRGGBBAA`.*", "",
   "| name | hex |", "|---|---|", ...Object.entries(spine.colors).map(([n, hex]) => `| \`${n}\` | \`${hex}\` |`)].join("\n");
@@ -548,6 +588,7 @@ const VOCAB_NOTE = {
   conicGradient: "a conic `Gradient` — `conicGradient(cx, cy, angle, stops…)`, swept clockwise from the angle",
   Mask: "what a `mask` slot holds — a gradient's alpha, or a stencil view",
   colorWithAlpha: "an `0xRRGGBB` plus an alpha, as the packed form the paint slots take",
+  escapeHtml: "a value, made safe to concatenate into rich-text content — escape what you interpolate, not the markup",
   cubicBezier: "a custom easing curve",
   back: "an overshooting easing curve",
   steps: "a stepped easing curve",
@@ -661,6 +702,180 @@ const sharedTypesDoc = (spine) => {
   return out.join("\n");
 };
 
+// ── the TYPE PAGES — one reference page per named vocabulary ─────────────────
+//
+// A type printed in a signature (`motion: Motion`, `onKeyDown(e: KeyEvent)`) was
+// a name and nothing else: no page to open, no tokens to read, no way to tell
+// where the vocabulary is used. These build one page per ENUM (the fixed token
+// sets, spine.enums) and per SHARED TYPE (the aliases and interfaces the scaffold
+// PRELUDE declares into every check block, spine.types.shared) — the same shape
+// the language forms have, so the docs app renders them with the form page's
+// machinery and `declare-help` points at the same location.
+//
+// Functions and namespaces are deliberately NOT pages: a function is a call, not
+// a type, and the Types-and-functions page plus `declare-help <name>` already
+// answer for them.
+//
+// The rail's order, chosen rather than inherited — the same discipline
+// CLASS_GROUPS (extract.mjs) applies to the classes. The gate below files every
+// type exactly once, so a new enum or a new PRELUDE declaration fails the
+// assembly until it is placed.
+const TYPE_GROUPS = [
+  ["Enums", ["Axis", "Backface", "Blend", "Claim", "Credentials", "CrossAlign", "DataStatus", "Edges",
+             "FitAlign", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
+             "Process", "Scrolls", "StreamStatus", "Stretch", "TextAlign", "TextTransform", "Tick"]],
+  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Shape", "Stroke", "Outline",
+              "Shadow", "Filter", "Backdrop", "Theme", "MotionCurve", "Cursor", "TextMeasure", "IslandPost"]],
+  ["Text", ["TextStyle", "TextStyles", "BlockGeometry", "RichTextLayout"]],
+  ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
+                      "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "ChangeEvent", "ValueChange"]],
+  ["Drawing", ["Draw", "DrawGradient", "DrawImageSource"]],
+  ["Host", ["Headers", "AbortSignal", "AbortController", "RequestInit", "Response", "Blob", "FormData",
+            "URLSearchParams", "URL"]],
+];
+
+/** The enum prose: `tools/internal/doc/prose/enums.md`, one `## <Name>` section
+ *  each — the same keyed-Markdown channel the class prose files use. An enum has
+ *  no declaration site to carry a doc comment (a token set is an `enumType(…)`
+ *  call in a schema), so this file is its home; a SHARED type's prose stays in
+ *  the PRELUDE beside the declaration, where `Color`'s sentence already lives. */
+function enumProse() {
+  const text = readFileSync(join(ROOT, "tools/internal/doc/prose/enums.md"), "utf8");
+  const parts = text.split(/^## +(.+)$/m);
+  const out = {};
+  for (let i = 1; i < parts.length; i += 2) out[parts[i].trim()] = (parts[i + 1] ?? "").trim();
+  return out;
+}
+
+/** Group an enum's tokens by their STEM when the set is built from directional
+ *  suffixes (`quadIn`/`quadOut`/`quadBoth`) — derived, never hand-listed, so a
+ *  new family groups itself. A set with no repeated stem stays one flat run. */
+function tokenGroups(tokens) {
+  const stem = (t) => t.replace(/(In|Out|Both)$/, "");
+  const stems = tokens.map(stem);
+  const flat = [{ name: "", tokens: tokens.map((t) => ({ name: t })) }];
+  if (new Set(stems).size === tokens.length) return flat;
+  const groups = [], loose = [];
+  for (const t of tokens) {
+    const s = stem(t);
+    if (stems.filter((x) => x === s).length < 2) { loose.push({ name: t }); continue; }
+    let g = groups.find((x) => x.name === s);
+    if (!g) groups.push((g = { name: s, tokens: [] }));
+    g.tokens.push({ name: t });
+  }
+  return [...(loose.length ? [{ name: "", tokens: loose }] : []), ...groups];
+}
+
+/** Where a type is USED, read off the doc tree and the PRELUDE rather than
+ *  hand-listed: every documented attribute whose type IS this one (by name, or —
+ *  for an enum the renderer prints as its token union — by that union), every
+ *  event or method whose signature names it, every other type whose definition
+ *  names it, and every shared function that takes or returns it. A member row
+ *  links to its class page, which is where a member's own entry lives; a type row
+ *  to that type's page; a function has no page of its own, so it carries no link. */
+function typeUses(name, tokens, ref, shared, siblings) {
+  const union = tokens ? tokens.join(" | ") : null;
+  const named = new RegExp(`(^|[^A-Za-z0-9_$])${name}([^A-Za-z0-9_$]|$)`);
+  const rows = [];
+  for (const [other, def] of siblings) {
+    if (other !== name && named.test(def)) rows.push({ label: other, cls: other, member: "", kind: "type", detail: "", loc: "type/" + other });
+  }
+  for (const f of shared.functions ?? []) {
+    if (named.test(f.signature)) rows.push({ label: f.name, cls: f.name, member: "", kind: "function", detail: f.signature, loc: "" });
+  }
+  for (const n of Object.values(ref)) {
+    if (n.api === false || n.internal === true) continue;
+    const cls = n.parent;
+    if (!cls || ref[cls] === undefined || ref[cls].api === false) continue;
+    let detail = null;
+    if (n.kind === "attribute") {
+      const t = "" + (n.type ?? "");
+      if (t === name || (union !== null && t === union)) detail = n.default != null ? "= " + n.default : "";
+    } else if (n.kind === "event" || n.kind === "method") {
+      const sig = "" + (n.signature ?? "");
+      if (named.test(sig)) detail = sig;
+    }
+    if (detail === null) continue;
+    rows.push({ label: cls + "." + n.name, cls, member: n.name, kind: n.kind, detail, loc: "reference/" + cls });
+  }
+  const rank = { attribute: 0, event: 1, method: 2, type: 3, function: 4 };
+  return rows.sort((a, b) => (rank[a.kind] - rank[b.kind]) || a.label.localeCompare(b.label));
+}
+
+function buildTypes(spine, docsModel) {
+  const ref = docsModel.reference;
+  const prose = enumProse();
+  const shared = spine.types.shared;
+  const sentence = (s) => {
+    if (!s) return "";
+    const head = s[0].toUpperCase() + s.slice(1);
+    return /[.!?)]$/.test(head) ? head : head + ".";
+  };
+  const raw = new Map();
+  for (const [n, toks] of Object.entries(spine.enums)) raw.set(n, { name: n, kind: "enum", tokens: [...toks], doc: prose[n] ?? "" });
+  for (const a of shared.aliases) raw.set(a.name, { name: a.name, kind: "alias", type: a.type, doc: a.doc ?? "" });
+  for (const i of shared.interfaces) raw.set(i.name, { name: i.name, kind: "interface", members: i.members, extends: i.extends, doc: i.doc ?? "" });
+
+  // the filing gate — every type in exactly one group, every group naming only
+  // real types (the CLASS_GROUPS discipline, one tier down)
+  const filed = new Map();
+  const problems = [];
+  for (const [g, names] of TYPE_GROUPS) for (const n of names) {
+    if (filed.has(n)) problems.push(`type ${n} is filed twice (${filed.get(n)}, ${g})`);
+    filed.set(n, g);
+    if (!raw.has(n)) problems.push(`group '${g}' files ${n}, which is no enum or shared type`);
+  }
+  for (const n of raw.keys()) if (!filed.has(n)) problems.push(`type ${n} is in no group — file it in TYPE_GROUPS (assemble.mjs)`);
+  if (problems.length) throw new Error("assemble: TYPE GROUPS\n  " + problems.join("\n  "));
+
+  // every type's DEFINITION text, so a type can say which other types name it
+  const siblings = [...raw.values()].map((t) => [t.name,
+    t.kind === "alias" ? t.type : t.kind === "interface" ? (t.extends ?? "") + " " + t.members.join("; ") : ""]);
+
+  const pages = {}, order = [], groups = [];
+  for (const [gname, names] of TYPE_GROUPS) {
+    const rows = [];
+    for (const n of names) {
+      const t = raw.get(n);
+      // a host global carries no PRELUDE doc by policy (surfaces.mjs
+      // "vocabulary": the host's surface is documented as a policy, never name
+      // by name) — its one-line vocabulary note is what the page says instead
+      const doc = (t.doc && t.doc.trim()) || sentence(VOCAB_NOTE[n] ?? "");
+      const syntax = t.kind === "alias" ? `type ${n} = ${t.type}`
+        : t.kind === "interface" ? [`interface ${n}${t.extends ? " extends " + t.extends : ""} {`,
+            ...t.members.map((m) => "    " + m), "}"].join("\n")
+        : "";
+      const uses = typeUses(n, t.tokens ?? null, ref, shared, siblings);
+      const page = {
+        slug: n, name: n, kind: t.kind, group: gname, doc,
+        gist: doc.split(/(?<=\.)\s/)[0].replace(/\n/g, " "),
+        syntax, syntaxText: syntax,
+        extends: t.extends ?? null,
+        tokenGroups: t.tokens ? tokenGroups(t.tokens) : [],
+        nTokens: t.tokens ? t.tokens.length : 0,
+        members: (t.members ?? []).map((m) => ({ line: m })),
+        usedBy: uses, nUsed: uses.length,
+      };
+      pages[n] = page; order.push(n);
+      rows.push({ slug: n, name: n, kind: t.kind, gist: page.gist });
+    }
+    groups.push({ name: gname, types: rows });
+  }
+
+  // The LINK INDEX the reference's signatures resolve against: a printed name →
+  // the location that documents it. Types first, then every documented class, so
+  // `fontFamily: Font` reaches the Font page and `layout: Layout` the Layout one.
+  // `unions` is the second door: the renderer prints a named enum as its TOKEN
+  // LIST (`left | center | right`), which is the spelling a reader sees, so the
+  // whole run is matched as written rather than changing what the page prints.
+  const index = { link: {}, unions: {} };
+  for (const n of order) index.link[n] = "type/" + n;
+  for (const c of docsModel.tree ?? []) if (!(c.name in index.link)) index.link[c.name] = "reference/" + c.name;
+  for (const [n, toks] of Object.entries(spine.enums)) index.unions[toks.join(" | ")] = "type/" + n;
+
+  return { groups, pages, order, index };
+}
+
 const themeTokensDoc = (spine) => {
   const t = spine.themeTokens;
   const row = (r) => `| \`${r.name}\` | ${r.read.slice(0, 6).join(", ")}${r.read.length > 6 ? ", …" : ""} |`;
@@ -693,7 +908,7 @@ const themeTokensDoc = (spine) => {
 // ── the BROWSE tree: the single walkable IA. Every leaf is a DOCUMENT — either
 // an authored .md (a `path`) or a page hydrated from the structured model above
 // (an inline `doc`). Folders drill; documents open. One family, no special case.
-function buildBrowse(dm, spine) {
+function buildBrowse(dm, spine, types) {
   const ref = dm.reference;
   const cat = (name, children, subtitle = "") => ({ name, subtitle, kind: "category", children });
   const elementLeaf = (id) => ({ name: ref[id].name, subtitle: ref[id].extends ? "extends " + ref[id].extends : "", kind: "element",
@@ -723,7 +938,7 @@ function buildBrowse(dm, spine) {
     cat("Vocabulary", [
       hydrated("Types and functions", sharedTypesDoc(spine)),
       hydrated("Theme tokens", themeTokensDoc(spine)),
-      hydrated("Enums", enumsDoc(spine)),
+      hydrated("Enums", enumsDoc(spine, types)),
       hydrated("Named colors", colorsDoc(spine)),
       hydrated("Flags", flagsDoc(spine)),
       hydrated("Diagnostics", diagnosticsDoc(spine)),
@@ -745,7 +960,8 @@ function comprehensiveModel(spine) {
   // no longer touches it, so a bare extract can no longer corrupt it.
   const EXTRACT = join(ROOT, ".derive/docs-extract.json");
   const docsModel = JSON.parse(readFileSync(existsSync(EXTRACT) ? EXTRACT : join(ROOT, "docs/declare-model.json"), "utf8"));
-  const registry = buildRegistry(docsModel.reference);
+  const types = buildTypes(spine, docsModel);
+  const registry = buildRegistry(docsModel.reference, types.order);
   const links = { ids: Object.fromEntries(Object.keys(registry).sort().map((k) => [k, registry[k]])), outgoing: scan(registry).outgoing };
   return JSON.stringify({
     meta: {
@@ -776,7 +992,8 @@ function comprehensiveModel(spine) {
     guideParts: docsModel.guideParts,
     tenets: docsModel.tenets,
     forms: docsModel.forms ?? { groups: [], pages: {}, order: [] },
-    browse: buildBrowse(docsModel, spine),
+    types,
+    browse: buildBrowse(docsModel, spine, types),
   }, null, 1) + "\n";
 }
 

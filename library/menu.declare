@@ -1,42 +1,37 @@
 /*
 # Menu
 
-The record-driven menu (planes.md §4–§6): items are DATA — the component
-arranges; the author never composes rows. The standard record covers real OS
-menus:
+The record-driven menu: **items are data** — the component arranges; the
+author never composes rows. The standard record covers real OS menus:
 
-    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }
+    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props?, minWidth? }
 
-- `key` renders right-aligned (display only — registration is the Keys
-  service's, later).
+- `key` renders right-aligned — display only; the menu registers no shortcut.
 - `icon: "ClassName"` names an icon class for the leading column, and the label
   shifts right to make room — the same vocabulary `Segmented`'s choices use.
-
-  This was THREE mechanisms before the icon set landed: a text glyph (`"◐"`), a
-  hardcoded `"lightbulb"` that special-cased its way to a drawn bulb because no
-  glyph matched, and `iconKind` naming a class. The middle one was the tell —
-  somebody needed a mark the fonts could not give, and the escape hatch already
-  existed. One field now; a COMPUTED name needs its class kept with
-  `use [ Name ]`, since no static reference reaches it.
+  One field covers every mark, including the ones no font gives you; a computed
+  name needs its class kept with `use [ Name ]`, since no static reference
+  reaches it.
 - `enabled: false` dims the row (theme.disabledOpacity) and refuses pick.
 - `{ divider: true }` is a separator line.
-- `submenu: [ …records… ]` marks a cascade (the ▸ arrow; the cascade itself
-  lands with the roving-keyboard stage).
-- `kind: "ClassName"` renders the row's CONTENT with a named author class
+- `submenu: [ …records… ]` marks a cascade (the ▸ arrow).
+- `kind: "ClassName"` renders the row's content with a named author class
   (app.createView — keep data-only classes with `use [ Name ]`), passed
   `props` as its datapath context. Behavior stays the row's: highlight,
   pick, keyboard are the menu's, always.
+- `minWidth` is the room a row needs when it has no label to measure — a
+  `kind:` row's own content. The panel is at least this wide; a longer label
+  elsewhere still wins. Only a custom row needs it.
 
-Declared ONCE, opened by many (the worked example): rows carry
+Declared once, opened by many: rows carry
 `onContextMenu(e) { app.rowMenu.openAt(this, e) }`; the menu's `items`
 constraint derives from `opener` — per-row variation with zero per-row
 instances, live while open. `openAt` point-positions (the context-menu
 rule); `openFor` drops below a control (the attached-menu rule); both
-RAISE the menu (promotion — order is a slot) and clamp inside the app.
+raise the menu (promotion — order is a slot) and clamp inside the app.
 
-Dismissal: the BACKDROP (a full-app child under the panel) — a press
-outside closes AND is swallowed, the Mac rule (planes.md §12.1, resolved
-for v1); Escape closes; pick closes after delivery.
+Dismissal: the backdrop (a full-app child under the panel) — a press
+outside closes **and** is swallowed, the Mac rule; Escape closes; pick closes after delivery.
 
 ```declare
 App [ width = 320, height = 130,
@@ -55,7 +50,7 @@ App [ width = 320, height = 130,
 ## items
 The rows, as **records — never children**. A menu arranges its own rows, so handing it
 views is not merely discouraged, there is nowhere to put them. The record is
-`{ id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props? }`;
+`{ id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props?, minWidth? }`;
 a plain array is fine (no `Dataset` required). Because it is an ordinary attribute it
 can be a constraint — **derive it from `opener` and one menu serves every row of a
 table**, live while it is open.
@@ -104,7 +99,7 @@ all. **A menu with no icons has no gutter**, and the text edge moves accordingly
 ## hasChecks
 Whether any row *can* be checked — a record carrying `checked`, true or false — which
 is what decides the check column exists, exactly as AppKit reserves its state column
-for any item with a state image to draw (measured 2026-09-11). A menu of plain
+for any item with a state image to draw. A menu of plain
 commands leads its text 17 in; one with a checkable row, 24.
 
 ## checkW
@@ -136,25 +131,10 @@ decides whether the key column exists.
 ## hasSubs
 Whether any row opens a submenu — a cascade arrow needs its own trailing room.
 
-## width
-Follows the rows: the text edge, the widest label, then the key column or the trailing
-air — the metrics of a real macOS menu, measured (a label trails the edge by 18; a key
-column sits 26 clear of the longest label and ends 16 from the edge). A use site's own
-`width` overrides; `minWidth` floors it.
-
-## minWidth
-The narrowest a menu gets, whatever its rows measure — a two-item menu of short words
-still reads as a menu.
-
-## widestLabel
-The widest row label, measured — the content the panel's width is built from.
-
-## widestKey
-The widest key equivalent, measured; zero when no row carries one, which is what
-decides whether the key column exists.
-
-## hasSubs
-Whether any row opens a submenu — a cascade arrow needs its own trailing room.
+## widestCustom
+The widest `minWidth` any row asks for. A `kind:` row renders its own content and has no
+label to measure, so it states the room it needs in its record and the panel is at least
+that wide; a longer label elsewhere still wins.
 
 ## expectedHeight()
 The panel's height *before it has been laid out*, measured when it exists and estimated
@@ -234,8 +214,13 @@ Enters the roved row's submenu and puts the rover on its first row — ArrowRigh
 ## visible
 Derived from `shown`, the menu's own open fact. Visibility is never set from outside — `openAt` and `openFor` set the fact, and dismissal clears it.
 
+## selectable
+Chrome, never prose: a menu's rows do not select, even inside a `selectable` region — the same provision every `Control` makes for its label.
+
 ## height
-As tall as its panel, which is as tall as its rows; a menu never scrolls its own list.
+As tall as its panel, which is as tall as its rows — capped just inside the app's
+height, past which the panel scrolls its rows and the rover keeps the landing row in
+view.
 
 ## theme
 The provided design-token record this widget styles off — a **provided value**
@@ -247,79 +232,82 @@ house look. See `Control.theme`.
 include [ "control.declare" ]
 
 class Menu extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown },
     height = { this.panel.height },              // the panel; the backdrop deliberately overflows
 
-    // WIDTH FOLLOWS THE ROWS. Measured on real NSMenus (2026-09-11, a native
-    // probe popping menus over a white window, pixel-measured at 2x): with a
-    // check column the text leads the panel edge by 25.5pt (textEdge, below)
-    // and the longest label TRAILS it by 17.5pt; with key equivalents the
-    // longest label sits 26pt clear of the key column, which ends 16pt from the
-    // edge. A fixed width ran a long label into the edge (the desktop's
-    // "Embedding Declare in a project").
-    // The widest label and key are MEASURED by two hidden runs over the same
-    // records (a y-run's contentWidth is its widest child — content-sized text,
-    // so no cycle through the panel's width; the checker rightly refuses an
-    // aggregate over live children). A use site's own `width` overrides.
-    // Plain `Text`, not `TextLabel`: these runs only MEASURE widths, and a TextLabel
-    // owns its own `y` (cap-centring) — inside a y-stack that is a conflict the
-    // runtime reports on every open, once per row per run.
+    // A menu is chrome, not prose: its rows never select, even inside a
+    // `selectable` region — the same provision `Control` makes for a label.
 
-    labelRun: View [ visible = false, datapath = { classroot.data.value },
-        layout: SimpleLayout [ axis = y, spacing = 0 ],
-        Text [ datapath = :rows[], fontSize = 13, wrap = false, text = { "" + (:label || "") } ]
-        ],
-    keyRun: View [ visible = false, datapath = { classroot.data.value },
-        layout: SimpleLayout [ axis = y, spacing = 0 ],
-        Text [ datapath = :rows[], fontSize = 12, wrap = false, text = { "" + (:key || "") } ]
-        ],
-    widestLabel: number = { this.labelRun.contentWidth },
-    widestKey:   number = { this.keyRun.contentWidth },
+    selectable = false,
+
+    // Width follows the rows, at a native menu's metrics: with a check column
+    // the text leads the panel edge by 25.5 (textEdge, below) and the longest
+    // label trails it by 17.5; with key equivalents the longest label sits 26
+    // clear of the key column, which ends 16 from the edge. The widest label
+    // and key are measured from the records, which is what the rows are built
+    // from — a fold over data, not an aggregate over live children (which the
+    // checker rightly refuses). A use site's own `width` overrides. Measured in
+    // the face the rows are actually drawn in: a row's `TextLabel` sets only
+    // its `fontSize` and inherits the rest, and `providedTextStyle` is that
+    // inherited face, so the measurement and the run cannot disagree.
+
+    widestLabel: number = { Math.max(0, ...(this.items || []).map((r) =>
+        r.label == null ? 0 : measureText("" + r.label, providedTextStyle(({ fontSize: 13 }))).width)) },
+    widestKey:   number = { Math.max(0, ...(this.items || []).map((r) =>
+        r.key == null ? 0 : measureText("" + r.key, providedTextStyle(({ fontSize: 12 }))).width)) },
     hasSubs:     boolean = { (this.items || []).some((r) => r.submenu != null) },
+
+    // A `kind:` row carries its own content and so has no label to measure — the
+    // runs above see an empty string for it. Such a row states the room it needs
+    // as `minWidth` in its record (a Help menu's search field: a capsule with a
+    // placeholder is not a label), and the panel is at least that wide. Read off
+    // the items (data), not the built rows, so it stays a plain fold.
+
+    widestCustom: number = { Math.max(0, ...(this.items || []).map((r) => r.minWidth || 0)) },
+
+    // The house floor: a menu narrower than this reads as a mistake rather
+    // than as a tight fit.
+
     minWidth:    number = 120,
-    width = { Math.max(minWidth, textEdge + widestLabel + (widestKey > 0 ? 26 + widestKey + 16 : hasSubs ? 34 : 18)) },
+    width = { Math.max(minWidth, widestCustom, textEdge + widestLabel + (widestKey > 0 ? 26 + widestKey + 16 : hasSubs ? 34 : 18)) },
 
     items: array = null,
     opener: View = null,
     shown: boolean = false,
 
-    // THE COLUMN MODEL (ruled 2026-07-31; the check column re-ruled 2026-09-11
-    // to match AppKit, measured): a CHECK column exists when some row in THIS
-    // menu CAN be checked — a record carrying `checked`, true or false — the way
-    // an NSMenuItem reserves the state column for any item with a state image to
-    // draw (a checked or mixed item, or an unchecked one given an off-state
-    // image); a menu whose rows carry no `checked` leads its text 17 in, as the
-    // Mac does (17.5 measured). An ICON column exists only when some row
-    // carries an icon (no icons → no gutter at all); and the TEXT LEFT EDGE is
-    // one line for every row, icons or not. Custom (kind) rows align their
-    // content to the same text edge.
+    // The column model: a check column exists when some row in this menu can be
+    // checked — a record carrying `checked`, true or false — the way a native
+    // menu reserves its state column for any item with a state image to draw;
+    // a menu whose rows carry no `checked` leads its text 17 in. An icon column
+    // exists only when some row carries an icon (no icons → no gutter at all);
+    // and the text's left edge is one line for every row, icons or not. Custom
+    // (kind) rows align their content to the same text edge.
     //   check col (iff hasChecks): x 7..24   ·   icon col (iff hasIcons): x 24..44 (17..37 without checks)
     //   text edge: 50 with icons, 24 without — 43 and 17 when no check column (the
-    //   column's own increment is 7: the Mac's 25.5 vs 17.5, measured)
+    //   column's own increment is 7: a native menu's 25.5 against its 17.5)
     //
-    // The 6px between the icon column and the text edge is measured, not picked
-    // (2026-08-03). The Mac leaves about 7.5pt from its icon BOX to its text,
-    // but its symbols carry side bearing — only the widest glyph in a menu comes
-    // within 8.5pt of the label, while a padlock or a power mark sits 10–11pt
-    // clear. Ours are drawn to fill their 16px box, so every row landed at that
-    // tight extreme at once, uniformly, which is what read as crowding: the
-    // right number to match is the Mac's AVERAGE air (≈9.5pt), not its minimum.
+    // The 6px between the icon column and the text edge matches a native
+    // menu's average air between icon and label, not its minimum: native
+    // symbols carry side bearing, so only the widest glyph comes close to the
+    // label while most sit well clear. Ours are drawn to fill their 16px box,
+    // so matching the minimum would land every row at that tight extreme at
+    // once, which reads as crowding.
 
     hasIcons:  boolean = { (this.items || []).some((r) => r.icon != null) },
     hasChecks: boolean = { (this.items || []).some((r) => r.checked != null) },
     checkW:    number  = { hasChecks ? 7 : 0 },
     textEdge:  number  = { (hasIcons ? 43 : 17) + checkW },
 
-    // the cascade: ONE lazily-created child Menu (app.createView — a Menu
+    // the cascade: one lazily-created child Menu (app.createView — a Menu
     // cannot declare a Menu child without recursing), reused across rows;
-    // rootMenu threads to the chain's root (null ON the root). activeRow is
+    // rootMenu threads to the chain's root (null on the root). activeRow is
     // the keyboard rover's highlight. View-typed slots can't see Menu
-    // members, so all child-driving goes through ANY-typed method params —
+    // members, so all child-driving goes through any-typed method params —
     // the untyped seam, used deliberately.
 
     isRoot: boolean = true,
@@ -331,7 +319,7 @@ class Menu extends View [
 
     picked(id: string) { },
 
-    // the panel's height BEFORE first paint: measured when it exists, else
+    // the panel's height before first paint: measured when it exists, else
     // estimated from the records (the flip decision can't wait a settle)
 
     expectedHeight() -> number {
@@ -348,8 +336,8 @@ class Menu extends View [
         this.raise()
         },
 
-    // viewport-aware: the list drops BELOW the control; when it wouldn't fit
-    // and there's more room above, it emerges ABOVE instead (the native
+    // viewport-aware: the list drops below the control; when it wouldn't fit
+    // and there's more room above, it emerges above instead (the native
     // select discipline). place() still clamps whatever remains.
 
     openFor(v: View) {
@@ -364,10 +352,10 @@ class Menu extends View [
         this.raise()
         },
 
-    // place() takes ROOT-space targets (openAt/openFor get them from
-    // `rootOrigin()` — THE one scroll-aware walk, so a serving view inside a
-    // scrolled pane anchors where the user SEES it) and converts to
-    // parent-space, so a Menu works declared at App level OR inside a
+    // place() takes root-space targets (openAt/openFor get them from
+    // `rootOrigin()` — the one scroll-aware walk, so a serving view inside a
+    // scrolled pane anchors where the user sees it) and converts to
+    // parent-space, so a Menu works declared at App level or inside a
     // component (MenuBar owns one). The chain offset is snapshotted at
     // open — menu chrome doesn't move while a menu is up.
 
@@ -392,14 +380,12 @@ class Menu extends View [
         Keys.navClaim(this, false)
         },
 
-    // A pick DISMISSES FIRST, then delivers — the native menu contract
-    // (AppKit ends tracking and dispatches on the next runloop pass; Win32
-    // destroys the menu window before WM_COMMAND): the takedown is part of
-    // the GESTURE, so a long action can never freeze an open menu on
-    // screen. Delivery defers past one PAINT (rAF, then a tick — rAF alone
-    // runs BEFORE that frame's paint); a host with no rAF defers a plain
-    // tick. Submenus route synchronously to the ROOT: the chain closes as
-    // one, and only the root defers the app-facing delivery.
+    // A pick dismisses first, then delivers — the native menu contract: the
+    // takedown is part of the gesture, so a long action can never freeze an
+    // open menu on screen. Delivery defers past one paint (rAF, then a tick —
+    // rAF alone runs before that frame's paint); a host with no rAF defers a
+    // plain tick. Submenus route synchronously to the root: the chain closes
+    // as one, and only the root defers the app-facing delivery.
 
     pick(id: string) {
         if (!isRoot) { this.picked(id); this.close(); return }
@@ -412,9 +398,9 @@ class Menu extends View [
 
     // ── the cascade ────────────────────────────────────────────────────────
 
-    // `row`/`r` below are typed `object` — a row is an ANONYMOUS replicated
+    // `row`/`r` below are typed `object` — a row is an anonymous replicated
     // template (the `datapath = :rows[]` view), whose type has no name to
-    // write. The declared any-seam, until a template's type is nameable.
+    // write.
 
     openSub(row: object, subItems: array) {
         const o = (row as View).rootOrigin()
@@ -424,7 +410,7 @@ class Menu extends View [
 
     driveSub(c: Menu, subItems: array, x: number, y: number) {
         c.items = subItems
-        c.picked = (id) => this.pick(id)         // delivery + close route through the CHAIN to the root
+        c.picked = (id) => this.pick(id)         // delivery + close route through the chain to the root
         c.shown = true
         Keys.navClaim(c, true)
         c.place(x, y)
@@ -481,17 +467,17 @@ class Menu extends View [
         onKeyUp(e: KeyEvent) {
             if (!classroot.shown || e.key != "Escape") return
             if (classroot.subShown(classroot.child)) return   // the deeper menu handles
-            classroot.rootClose()                             // Escape closes the WHOLE chain (the desktop rule)
+            classroot.rootClose()                             // Escape closes the whole chain (the desktop rule)
             }
         ],
 
-    // items → rows through an INTERNAL derived dataset (the author passes a
-    // plain array — the no-dataset-requirement ruling; the wrap is ours)
+    // items → rows through an internal derived dataset: the author passes a
+    // plain array, and the wrap is the menu's own
 
     data: Dataset [ contents = { { rows: classroot.items || [] } } ],
 
-    // the backdrop: the light-dismiss stratum in embryonic form — a full-app
-    // press-catcher UNDER the panel; outside presses close and are SWALLOWED
+    // the backdrop: the light-dismiss layer — a full-app press-catcher under
+    // the panel; outside presses close and are swallowed
 
     back: View [ visible = { classroot.isRoot },
         x = { -classroot.x - classroot.offX }, y = { -classroot.y - classroot.offY },
@@ -501,7 +487,7 @@ class Menu extends View [
 
     // the panel
 
-    // the panel caps at the viewport; past that the BODY scrolls (the long
+    // the panel caps at the viewport; past that the body scrolls (the long
     // list — a thousand bound options stay usable, the rover reveals as it
     // roves)
 
@@ -531,7 +517,7 @@ class Menu extends View [
                 sub:      boolean = { !!:submenu },
                 custom:   string  = { typeof :kind == "string" ? "" + :kind : "" },
 
-                // the row's highlight gate: the hover intrinsic under MENU policy
+                // the row's highlight gate: the hover intrinsic under menu policy
 
                 hot:      boolean = { this.hovered && this.enabled && !this.divider },
                 height = { divider ? 11 : custom != "" ? Math.max(26, this.host.height + 8) : (typeof theme.menuRow == "number" ? theme.menuRow : 26) },
@@ -545,7 +531,7 @@ class Menu extends View [
                     },
 
                 // the rover's verbs — written on the row so :id / :submenu
-                // resolve against THIS row's record
+                // resolve against this row's record
 
                 pickSelf() { classroot.pick("" + :id) },
                 openSelf() { classroot.openSub(this, :submenu) },
@@ -570,11 +556,9 @@ class Menu extends View [
                 rule: View [ x = 10, y = 5, width = { parent.width - 20 }, height = 1,
                     visible = { parent.divider }, fill = { theme.line } ],
 
-                // The check, from the shared set. This was one of two private
-                // checkmarks in this library — the other in `Checkbox`, drawn at
-                // a different weight with different joins, the same tick twice.
-                // The INK stays local: a checked row inverts on the hot row,
-                // which is the row's business, not the icon's.
+                // The check, from the shared set — the same tick `Checkbox`
+                // draws. The ink stays local: a checked row inverts on the hot
+                // row, which is the row's business, not the icon's.
 
                 check: CheckIcon [ x = 7, y = center, iconSize = 12,
                     visible = { !parent.divider && !!:checked },
@@ -583,7 +567,7 @@ class Menu extends View [
                           : theme.text } ],
 
                 // an authored icon-column cell (`icon`): the class renders
-                // the icon; the ROW stays standard — check, text edge, pick
+                // the icon; the row stays standard — check, text edge, pick
 
                 // the row's ink reaches the created icon through the provided
                 // text colour — the same channel IconHost publishes
@@ -605,16 +589,12 @@ class Menu extends View [
                     textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHlText != null ? theme.menuHlText : theme.accentText) : theme.textMuted },
                     text = { "" + (:key || "") } ],
 
-                // the submenu chevron is DRAWN (larger and
-                // more legible than any glyph; reactive draw, both backends)
-
                 // The cascade arrow, from the shared set — a chevron turned
-                // right. It was the third private chevron in this library
-                // (`Combobox.disc` and `DataGrid`'s sort glyph were the others),
-                // each at its own weight.
+                // right, so it agrees with every other disclosure mark in the
+                // chrome.
 
                 arrow: ChevronIcon [ iconSize = 12, dir = "right", visible = { parent.sub },
-                    x = { parent.width - 17 }, y = { (parent.height - this.height) / 2 },
+                    x = { parent.width - 17 }, y = center,
                     ink = { this.parent.hot || classroot.activeRow == this.parent
                           ? (typeof theme.menuHlText == "number" ? theme.menuHlText : theme.accentText)
                           : theme.textMuted } ],

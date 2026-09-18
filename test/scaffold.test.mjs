@@ -134,6 +134,10 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     "declare function radialGradient(cx: number, cy: number, r: number, ",
     "declare function conicGradient(cx: number, cy: number, angle: number, ",
     "declare function colorWithAlpha(rgb: number, a: number): number;",
+    // Rich-text content built by concatenation: a value's own `<` or `'` would
+    // otherwise close an attribute or open an element (and a tag in content can
+    // name a program class, so it would open a VIEW).
+    "declare function escapeHtml(s: string): string;",
   ]) {
     assert.ok(s.includes(line), `prelude should contain: ${line}`);
   }
@@ -195,7 +199,11 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   assert.ok(node.includes("classroot: View;"), "classroot noun");
   assert.ok(node.includes("root: App;"), "root noun typed App (backs the `app` noun)");
   assert.ok(node.includes("readonly children: View[];"), "children noun");
-  assert.ok(s.startsWith("type Percent"), "prelude leads the scaffold");
+  // The prelude leads. Asserted on the first DECLARATION rather than the first
+  // characters: each prelude declaration now carries its own doc comment (the
+  // sentence the reference and declare-help publish), so the file opens with one.
+  const firstDecl = s.split("\n").find((l) => /^(?:type|interface|declare) /.test(l));
+  assert.match(firstDecl ?? "", /^type Percent/, "prelude leads the scaffold");
 });
 
 await test("scaffold: Text extends View with its own leaf attrs", () => {

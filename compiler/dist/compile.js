@@ -47,6 +47,7 @@ import { parseProgram } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors } from "../../runtime/dist/errors.js";
 import { check, programSchemas } from "../../runtime/dist/check.js";
 import { SCHEMAS, descendsFrom, attrType } from "../../runtime/dist/schema.js";
+import { SUPPORTED_TAGS } from "../../runtime/dist/html.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
@@ -230,10 +231,11 @@ import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { hostGlobalHint } from "../../runtime/dist/teach.js";
-import { PRELUDE_NAMES } from "./scaffold.js";
+import { PRELUDE_NAMES, runtimePlumbing } from "./scaffold.js";
+import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
 import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES } from "../../runtime/dist/include.js";
 import { typecheckBodies } from "./typecheck.js";
-import { Diag, toDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
+import { Diag, toDiagnostic, formatDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
 /** The names resolution leaves alone in CALLEE position: the four value
  *  constructors expr.ts scopes into every body — `stroke(…)` builds a Stroke
  *  while bare `stroke` is still the slot — plus one more: the spine's
@@ -268,10 +270,58 @@ function wholeBodyParen(src) {
  *  fallback) CARRYING its rendered form, plus the whole-compile `report` —
  *  spread into every result literal so no exit path can omit either. Errors
  *  precede warnings; a caller wanting source order can sort on `pos`. */
+/** COLLAPSE one phase's diagnostics. The compiler reports every independent
+ *  problem in a phase together, which is right — but one CAUSE often lights up
+ *  many sites, and a wall of the same sentence is harder to act on than the
+ *  sentence once. Two reductions, in order:
+ *
+ *    1. An EXACT duplicate — same message at the same position — is dropped.
+ *       Nothing is lost; the same sentence at the same place said twice is a
+ *       reporting artifact, not two problems.
+ *    2. The same message at DIFFERENT positions becomes ONE entry, keeping the
+ *       first position and naming the others. The count is always stated, so a
+ *       collapsed report never looks like a smaller problem than it is — the
+ *       thing a collapse must not do.
+ *
+ *  Order is preserved: the first occurrence keeps its place in the list. */
+function collapse(list) {
+    const groups = new Map();
+    for (const d of list) {
+        const g = groups.get(d.message);
+        if (g === undefined) {
+            groups.set(d.message, { first: d, sites: [d] });
+            continue;
+        }
+        // an exact duplicate (same message AND same position) adds no site
+        if (g.sites.some((s) => s.pos?.line === d.pos?.line && s.pos?.col === d.pos?.col))
+            continue;
+        g.sites.push(d);
+    }
+    const out = [];
+    for (const { first, sites } of groups.values()) {
+        if (sites.length === 1) {
+            out.push(first);
+            continue;
+        }
+        // Name the LINES, deduped — several sites on one line is common (a row of
+        // sibling views) and "line 2, line 2, line 2" helps nobody.
+        const lines = [...new Set(sites.slice(1).map((x) => x.pos?.line).filter((n) => n !== undefined))];
+        const named = lines.slice(0, 4).join(", ");
+        const more = lines.length > 4 ? `, and ${lines.length - 4} more` : "";
+        const also = lines.length === 0 ? ` — ${sites.length} sites`
+            : lines.length === 1 && lines[0] === first.pos?.line ? ` — ${sites.length} sites on this line`
+                : ` — ${sites.length} sites, also on ${lines.length === 1 ? "line" : "lines"} ${named}${more}`;
+        const merged = { ...first, message: first.message + also };
+        out.push({ ...merged, rendered: formatDiagnostic(merged) });
+    }
+    return out;
+}
 function diagnose(errors, warnings, errPhase, warnPhase = "name") {
+    // Errors and warnings collapse SEPARATELY: the same sentence at one severity
+    // is one problem; across severities it is two different claims.
     const diagnostics = [
-        ...errors.map((e) => toDiagnostic(e, "error", errPhase)),
-        ...warnings.map((w) => toDiagnostic(w, "warning", warnPhase)),
+        ...collapse(errors.map((e) => toDiagnostic(e, "error", errPhase))),
+        ...collapse(warnings.map((w) => toDiagnostic(w, "warning", warnPhase))),
     ];
     return { diagnostics, report: renderReport(diagnostics) };
 }
@@ -321,6 +371,40 @@ function smallFieldWarnings(program, mainStart) {
     walk(program.root, null);
     return out;
 }
+/** A program class named exactly like a tag the rich-text whitelist owns — a
+ *  class literally called `code`, `span`, `b`, `p`. Inside `Markdown`/`HTMLText`
+ *  content a tag is resolved against the program's classes BEFORE the whitelist,
+ *  so that class silently takes the tag over for every document the app renders.
+ *  A WARNING (the class is legal, the behaviour is defined), and only when the
+ *  program HAS rich text: on an app with no flow at all the name collides with
+ *  nothing, and warning there would be noise on a working program.
+ *
+ *  Rich text is decided by SCHEMA CHAIN, not by tag name — a `class Note extends
+ *  Markdown` renders documents exactly as `Markdown` does, and a class of the
+ *  author's that merely happens to be called `Markdown`-something does not. */
+function richTextTagShadowWarnings(program) {
+    const shadowed = program.classes.filter((c) => SUPPORTED_TAGS.includes(c.name));
+    if (shadowed.length === 0)
+        return [];
+    const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+    const isRichText = (tag) => {
+        let name = tag;
+        const seen = new Set();
+        while (bases.has(name) && !seen.has(name)) {
+            seen.add(name);
+            const b = bases.get(name);
+            if (b === undefined || b === null || b === "")
+                return false;
+            name = b;
+        }
+        const schema = Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name] : null;
+        return schema !== null && (schema.name === "RichText" || descendsFrom(schema, "RichText"));
+    };
+    const flows = (el) => isRichText(el.tag) || el.children.some(flows);
+    if (!flows(program.root) && !program.classes.some((c) => flows(c.body)))
+        return [];
+    return shadowed.map((c) => Diag.shadowsRichTextTag(c.name, c.pos));
+}
 /** Names bound in every body without being members: the scope-noun arguments of
  *  the compiled Function (expr.ts) and its own `arguments`. `this` is not an
  *  identifier and needs no entry. `classroot` is deliberately NOT here — it is
@@ -358,7 +442,7 @@ const ES_GLOBALS = new Set([
 // in a handler is the service, never a member to resolve. `afterSettle` and
 // `tint` are the function-shaped entries; the built-in theme presets are in
 // scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
-const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Inspect", "afterSettle", "tint", ...THEME_PRESET_NAMES]);
+const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Inspect", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
 const isKnownGlobal = (name) => ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name);
 /** Compile a Declare source: full diagnostics (include resolve + check + scope
  *  resolution), and a SELF-CONTAINED resolved source the zero-dependency
@@ -703,6 +787,7 @@ export async function compile(source, opts = {}) {
         r.resolveBundle(s.body);
     r.resolveElement(program.root, [], program.root);
     r.warnings.push(...smallFieldWarnings(program, preludeLen));
+    r.warnings.push(...richTextTagShadowWarnings(program));
     r.warnings.push(...coldLoadWarnings);
     const byPos = (a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
     r.errors.sort(byPos);
@@ -1356,6 +1441,14 @@ class Resolver {
         }
         for (const m of el.methods) {
             this.resolveBody(m.body, m.bodyPos, false, m.params.map((p) => p.name), levels, mainRoot, scope);
+            // A method named like the built-in root's runtime PLUMBING — a runtime
+            // method the reference documents no contract for (DataSource.maybeAuto,
+            // Animator.tick, View.attach). Legal: a method is a method, and the
+            // override stands (super reaches the runtime's). Warned, because the
+            // runtime calls it on its own schedule and nothing documents when.
+            const root = this.builtinRoot(el.tag);
+            if (root !== null && runtimePlumbing(root).has(m.name))
+                this.warnings.push(Diag.overridesPlumbing(el.tag, m.name, root, m.pos));
             // A per-frame Time whose onTick never reads its step is not integrating —
             // it is polling (declare.md §1, "nothing waits"). A warning: the program
             // runs, but the handler's condition names what it was really waiting
@@ -1445,6 +1538,19 @@ class Resolver {
                     start: bodyStart + id.start,
                     end: bodyStart + id.end,
                     text: "this.$provided",
+                });
+                continue;
+            }
+            if (id.name === "providedTextStyle" && id.callee) {
+                // `providedTextStyle(overrides?)` — the whole provided text face as one
+                // `TextStyle`, for the calls that take a style record and inherit
+                // nothing (`measureText`, a drawing's `fillText`/`strokeText`). Same
+                // rewrite as `provided` above, for the same reason: `this` must be the
+                // reading node.
+                this.edits.push({
+                    start: bodyStart + id.start,
+                    end: bodyStart + id.end,
+                    text: "this.$providedTextStyle",
                 });
                 continue;
             }
@@ -1541,18 +1647,22 @@ class Resolver {
             });
         }
     }
-    /** THE SUPER RULE (2026-09-12). A method is a method (the draw ruling: no
-     *  sixth member shape), and a subclass's method REPLACES its base's — so a
-     *  body that wants the base's behaviour says so: `super.name(args)`, anywhere
-     *  in the body, before, between, after, or not at all. It resolves to the
-     *  nearest provider of `name` BENEATH the body in the class chain (a class
-     *  body reaches its base's chain; a use-site body reaches the class's), and
-     *  the runtime hands each body that provider set as `$base` (instantiate.ts).
-     *  Refused where it cannot mean anything: outside a method body, in any form
-     *  but a call, or with no provider up the chain — a built-in's method is not
-     *  overridable (the runtime refuses the name), so `super` only ever reaches
-     *  a method written in this program. Rewritten to `$base` — the same length,
-     *  so every later offset in the body stays true for the typecheck. */
+    /** THE SUPER RULE. A method is a method (the draw ruling: no sixth member
+     *  shape), and a subclass's method REPLACES its base's — so a body that
+     *  wants the base's behaviour says so: `super.name(args)`, anywhere in the
+     *  body, before, between, after, or not at all. It resolves to the nearest
+     *  provider of `name` BENEATH the body in the class chain (a class body
+     *  reaches its base's chain; a use-site body reaches the class's), and the
+     *  runtime hands each body that provider set as `$base` (instantiate.ts).
+     *  The floor of every chain is the built-in's own runtime method, when it
+     *  has one: `super.fetch()` in `class Fetcher extends DataSource` reaches
+     *  DataSource.fetch — known here from the static RUNTIME_METHODS table
+     *  (runtime-methods.ts), pinned against the runtime classes. Refused where
+     *  it cannot mean anything: outside a method body, in any form but a call,
+     *  or with no provider up the chain — no class body declares the name and
+     *  the built-in implements none (a handler: the built-in FIRES the event,
+     *  it writes no body). Rewritten to `$base` — the same length, so every
+     *  later offset in the body stays true for the typecheck. */
     resolveSuper(src, bodyStart, expression, levels, scope) {
         if (!/\bsuper\b/.test(src))
             return;
@@ -1581,8 +1691,11 @@ class Resolver {
                 while (cls !== undefined && !seen.has(cls)) {
                     seen.add(cls);
                     const d = this.classDecls.get(cls);
-                    if (d === undefined)
+                    // The chain's end is a built-in: its runtime methods are the floor.
+                    if (d === undefined) {
+                        found = runtimeMethodsOf(cls).has(name);
                         break;
+                    }
                     if (d.body.methods.some((m) => m.name === name)) {
                         found = true;
                         break;
@@ -1590,14 +1703,13 @@ class Resolver {
                     cls = d.base;
                 }
                 if (!found) {
-                    // Uniform, for every name: super needs a provider WRITTEN in Declare.
-                    // Every built-in is a base — App extends View extends Node — but a
-                    // built-in supplies no body to call: it FIRES events rather than
-                    // writing handlers, and its own methods cannot be replaced (the
-                    // runtime refuses a member of that name). So the wall is the same
-                    // whether the name is a handler or a plain method.
+                    // Uniform, for every name: super needs a provider beneath the body —
+                    // a class body that declares the name, or the built-in root's own
+                    // runtime method. A HANDLER has neither: the built-in FIRES the
+                    // event rather than writing a body for it, so `super.onInit()` in a
+                    // program's App reaches nothing.
                     const from = own !== undefined ? `${here.tag} extends ${own.base}` : here.tag;
-                    this.errors.push(new DeclareError(`super.${name}(): no class beneath ${from} declares ${name}() — super reaches a method written in this program or the library; a built-in base fires events and owns its own methods, and offers neither as a body to call`, pos));
+                    this.errors.push(new DeclareError(`super.${name}(): no class beneath ${from} declares ${name}() — super reaches a method written in this program or the library, or a built-in's own runtime method; a built-in fires its events, so a handler has no base body to call`, pos));
                     return;
                 }
                 this.edits.push({ start: bodyStart + n.getStart(sf), end: bodyStart + n.getEnd(), text: "$base" });
@@ -1606,6 +1718,16 @@ class Resolver {
             ts.forEachChild(n, walk);
         };
         walk(sf);
+    }
+    /** The built-in schema at the root of `tag`'s chain — the class whose runtime
+     *  methods a program's `tag` instances carry (a user class resolves through
+     *  its bases; a built-in is its own root). Null for an unknown tag. */
+    builtinRoot(tag) {
+        for (let s = this.schemas[tag]; s !== undefined && s !== null; s = s.base) {
+            if (Object.hasOwn(SCHEMAS, s.name))
+                return s.name;
+        }
+        return null;
     }
     /** The explicit path to level `k` of `count` levels: the node itself, a
      *  parent chain, or the body root. In a CLASS body the root is `classroot`

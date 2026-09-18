@@ -1,10 +1,9 @@
 /*
 # Spacer — a flexing child that absorbs a run's slack
 
-When a row (or stack)
-does not fill its container, the leftover space has to go SOMEWHERE — and
-the laid children cannot take it themselves (their flow-axis slot is owned
-by the layout). A Spacer says where, structurally: put one between two
+When a row (or stack) does not fill its container, the leftover space has to
+go somewhere — and the laid children cannot take it themselves (their
+flow-axis slot is owned by the layout). A Spacer says where, structurally: put one between two
 groups and they push apart ("logo left, actions right"); put one on each
 side of a run and it centers; put one first and the run right-aligns.
 Several spacers split the slack evenly. When there is no slack — a plan

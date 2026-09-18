@@ -67,3 +67,16 @@ equivalent of `started = true`.
 ## stop()
 Halts the group and all its members in place. Members keep their current values; nothing
 rewinds.
+
+## running
+**Read-only.** True while any member of the group is in flight — the group's own
+physical sense, across however many settles the journey takes. Read it to disable a
+control mid-motion, or to hold a request until the arrangement stops moving. A settle
+is not the unit here: motion is many small settles, and this stays true through all of
+them.
+
+## arrived
+**Read-only.** True when every member has reached its destination — the pair to
+`running`, and the one to bind to when the interesting moment is the **end** of a motion
+rather than the change that caused it. An interrupted group never arrives; it simply
+keeps running toward the new target.

@@ -3,8 +3,7 @@ WebSocket as a source: the `Stream` surface plus `send(text)` — `send` is a ca
 `status`/`open`/`error`/`last`. Unlike SSE the platform has **no native reconnect**, so a
 `Socket` that should survive a dropped connection must say so: `retry = 2` re-dials two
 seconds after any close the app didn't ask for, for as long as `active` holds — the whole
-policy is that one number. Text frames only; a binary frame is dropped (a later attribute
-if a real project needs one, not a speculative shape now).
+policy is that one number. Text frames only; a binary frame is dropped.
 
 ```declare-fragment
 live: Socket [ url = "wss://api.example.com/feed", retry = 2,

@@ -3,16 +3,16 @@
 
 An issue tracker fast enough to triage a six-figure backlog: one flat
 list, searched as you type, filtered, sorted, and grouped; issues open
-IN PLACE for editing; create, bulk operations, and delete with undo; a
+in place for editing; create, bulk operations, and delete with undo; a
 live statistics rail. Not one word of virtualization vocabulary appears
 in this file — the list windows, recycles, measures its mixed-height
-rows, and holds its viewport steady because the RUNTIME does all of
+rows, and holds its viewport steady because the runtime does all of
 that; this source just declares rows over data.
 
 The architecture, end to end:
 
 - **One truth.** `db` holds the issues. Every mutation writes `db`, and
-  every derivation re-runs because it READ `db` — no clock, no ticking,
+  every derivation re-runs because it read `db` — no clock, no ticking,
   nothing anywhere keeping view-side state about data.
 - **Views are derivations.** `shown` — the projected dataset the list
   renders — derives from the truth plus the view facts (filters, query,
@@ -23,11 +23,11 @@ The architecture, end to end:
   rendered rows. The query narrows the derived dataset exactly as a
   status chip does; Enter and the search field's arrows walk the
   narrowed rows, which materialize on arrival like any others.
-- **Editing is a working copy.** An open issue edits a DRAFT dataset
+- **Editing is a working copy.** An open issue edits a draft dataset
   bound with `<->`; Save commits the draft into the truth and closes,
   Cancel discards and closes — cancel is honest, and autosave is not
   pretended.
-- **Selection holds RECORDS**, not indices: it survives sort flips,
+- **Selection holds records**, not indices: it survives sort flips,
   filter changes, and scrolling out of the window; regenerating the
   dataset is the only thing that clears it.
 
@@ -38,7 +38,7 @@ kept in sync by hand (the seed and the pools are the contract). Every
 millisecond the rail reports is measured in this file, not asserted.
 */
 
-use [ Menu, SunIcon, AutoIcon, MoonIcon ]   // the appearance menu names its icons in data
+use [ SunIcon, AutoIcon, MoonIcon, PersonIcon ]   // the menus name their icons in data
 
 // ── script land: plain TypeScript helpers, zero reactive machinery ────────
 //
@@ -48,19 +48,19 @@ use [ Menu, SunIcon, AutoIcon, MoonIcon ]   // the appearance menu names its ico
 
 script [ "tracker-data.ts" ]
 
-// ── small pieces: the tracker's ICON VOCABULARY ───────────────────────────
-//
-// One glance, no reading: status is a RING (hollow = open, dotted =
-// in progress, filled = blocked, checked = done), priority is a BAR
-// TRIO, a person is an AVATAR. Text codes ("P2", "in-progress") retreat
-// to the places prose belongs — menus and the detail panel.
-
 schema Issue [ id: number, title: string, description: string,
     status: "open" | "in-progress" | "blocked" | "closed",
     priority: "P0" | "P1" | "P2" | "P3",
     labels[]: string, assignee?: string,
     created: number, updated: number, closedAt?: number, comments: number ]
 
+
+// ── small pieces: the tracker's icon vocabulary ───────────────────────────
+//
+// One glance, no reading: status is a ring (hollow = open, dotted =
+// in progress, filled = blocked, checked = done), priority is a bar
+// trio, a person is an avatar. Text codes ("P2", "in-progress") retreat
+// to the places prose belongs — menus and the detail panel.
 
 class StatusIcon extends View [ width = 14, height = 14,
     s: string = "open",
@@ -116,7 +116,7 @@ class Tag extends View [ height = 18, cornerRadius = 9,
     ]
 
 
-// a FILTER CHIP: one value of one facet, its live count, and the on state —
+// a filter chip: one value of one facet, its live count, and the on state —
 // clicking toggles the facet (a Control: tab stop, Space/Enter, the ring)
 
 class Chip extends Control [ height = 28, cornerRadius = 8,
@@ -127,7 +127,7 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
     width = { this.row.contentWidth + 24 },
     fill = { on ? theme.controlSelected : hot ? theme.control : null },
 
-    // the tally is a SPRUNG NUMBER — `Spring [ attribute = … ]` animates any
+    // the tally is a sprung number — `Spring [ attribute = … ]` animates any
     // slot, data included, so a bulk move rolls the counts over instead of
     // snapping them. One declaration; no other wiring anywhere.
 
@@ -150,7 +150,7 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
     ]
 
 
-// the ISSUE ROW — one calm line: icons carry status and priority, the
+// the issue row — one calm line: icons carry status and priority, the
 // title is the row's single strong element, everything else recedes to
 // the right (labels, the avatar, the date). Group headers are the
 // taller face. The row never mentions how many of it exist.
@@ -160,31 +160,32 @@ class IssueRow extends TableRow [
 
     exp: boolean = { !isHdr && ("" + :id) == ("" + app.expandedId) },
 
-    // Opening and closing an issue ANIMATES — the one deliberate act in the
+    // Opening and closing an issue animates — the one deliberate act in the
     // list, and the motion is what says "this row became a pane" rather than
     // "the list jumped". `targetH` is the resting height; the Spring carries
-    // the row to it.
+    // the row to it, and its landing is when the open card is revealed —
+    // the spring's own event, not a guess at its duration.
     //
-    // What must NOT animate is a row REVEALED by scrolling. That is the
+    // What must **not** animate is a row revealed by scrolling. That is the
     // reconciler's business, not the author's: an instance presenting a record
-    // it was not presenting before takes its geometry outright (Spring.arrive,
-    // via replicate.ts), so an expanded row scrolled out and back returns at
-    // its open height with no motion, and a recycled row never slides from the
-    // departed record's geometry. Verified in materialization.test.mjs.
+    // it was not presenting before takes its geometry outright, so an expanded
+    // row scrolled out and back returns at its open height with no motion,
+    // and a recycled row never slides from the departed record's geometry.
 
     targetH: number = { isHdr ? 42 : exp ? 356 : 44 },
     height = 44,
-    Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34 ],
+    Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34,
+        onStop() { if (classroot.exp) app.revealOpen() }
+        ],
 
     // ── the group header face ─────────────────────────────────────────────
 
     hdrRow: View [ visible = { parent.isHdr }, x = 0, y = 12, width = { parent.width }, height = 24,
-        // collapsed points right, open points down — one class, turned. `▶`/`▼`
-        // were solid triangles from two different Unicode blocks; this is the
-        // same chevron the rest of the chrome discloses with.
+        // collapsed points right, open points down — one class, turned: the
+        // same chevron the rest of the chrome discloses with
 
         chev: ChevronIcon [ x = 23, y = 3, iconSize = 11, ink = { theme.textFaint },
-            dir = { app.isCollapsed("" + :status, app.groupRev) ? "right" : "down" } ],
+            dir = { app.isCollapsed("" + :status) ? "right" : "down" } ],
         d: StatusIcon [ x = 42, y = 3, s = { "" + :status } ],
         cap: Text [ x = 64, y = 2, fontSize = 13, fontWeight = semibold, wrap = false,
             text = { trkStatusLabel("" + :status) } ],
@@ -209,7 +210,9 @@ class IssueRow extends TableRow [
 
     prio: PrioIcon [ visible = { !parent.isHdr }, y = 16, x = { parent.colPrio }, p = { "" + :priority } ],
 
-    title: Text [ visible = { !parent.isHdr }, y = 14, fontSize = 13.5, wrap = false, clip = true,
+    // an over-long title ellipsizes rather than being cut mid-glyph by the clip
+
+    title: Text [ visible = { !parent.isHdr }, y = 14, fontSize = 13.5, wrap = false, maxLines = 1,
         x = { parent.colTitle },
         width = { parent.tags.x - parent.colTitle - 16 },
         text = { "" + :title } ],
@@ -241,7 +244,7 @@ class IssueRow extends TableRow [
         height = { Math.min(parent.height, 44) - 12 },
         fill = { theme.accent } ],
 
-    // the OPEN-IN-PLACE editor: rides below the row's own line while the
+    // the open-in-place editor: rides below the row's own line while the
     // height spring makes room; absorbs clicks so the row doesn't toggle
 
     card: EditorCard [ visible = { parent.exp }, x = 12, y = 48, clip = true,
@@ -260,9 +263,7 @@ class IssueRow extends TableRow [
         if (disabled) return
         if (isHdr) { app.toggleGroup("" + :status); return }
         if (exp) { app.closeDetail(); return }
-        (parent as Table).rowClick(this.rowIndex(), this.member(),
-            Keys.isDown("MetaLeft") || Keys.isDown("MetaRight") || Keys.isDown("ControlLeft") || Keys.isDown("ControlRight"),
-            Keys.isDown("ShiftLeft") || Keys.isDown("ShiftRight"))
+        super.onClick()
         app.openDetail()
         },
 
@@ -276,10 +277,7 @@ class IssueRow extends TableRow [
     ]
 
 
-// the UNDO TOAST — one at a time, rises from the bottom, waits eight
-// seconds, honors its word
-
-// a person's avatar as a MENU ICON — created into the standard icon
+// a person's avatar as a menu icon — created into the standard icon
 // column (`iconKind`), so person rows keep the settled anatomy: check
 // column, icon column, labels on one text edge
 
@@ -288,7 +286,7 @@ class PersonIcon extends Avatar [ width = 16, height = 16, cornerRadius = 8, cap
     ]
 
 
-// a ROLLING NUMBER — the rail's working unit: a Spring on the value itself
+// a rolling number — the rail's working unit: a Spring on the value itself
 
 class Roll extends Text [ wrap = false,
     n: number = 0,
@@ -299,7 +297,7 @@ class Roll extends Text [ wrap = false,
 
 
 // one rail statistic: status icon or avatar, a name, a bar, a rolling count.
-// The row IS a filter — clicking it toggles the facet it counts.
+// The row **is** a filter — clicking it toggles the facet it counts.
 
 class RailStat extends Control [ height = 30, cornerRadius = 7,
     width = { app.railW - 40 },
@@ -313,7 +311,7 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
     tintUse: number = { hueName != "" ? trkHue(hueName) : tint },
     on: boolean = false,
     fill = { on ? theme.controlSelected : hot ? theme.control : null },
-    name: Text [ x = 30, y = center, fontSize = 12.5, wrap = false, clip = true, width = 92,
+    name: Text [ x = 30, y = center, fontSize = 12.5, wrap = false, maxLines = 1, width = 92,
         fontWeight = { classroot.on ? "semibold" : "normal" },
         textColor = { classroot.on ? theme.text : theme.textMuted },
         text = { classroot.cap } ],
@@ -333,6 +331,9 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
     ]
 
 
+// the undo toast — one at a time, rises from the bottom, waits eight
+// seconds, honors its word
+
 class Toast extends View [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10,
     shown: boolean = false,
     msg: string = "",
@@ -348,9 +349,9 @@ class Toast extends View [ visible = { shown || lift > 0.02 }, height = 40, corn
     u: Control [ y = 7, height = 26, cornerRadius = 7,
         x = { parent.cap.x + parent.cap.width + 10 },
         width = { this.t.width + 18 },
-        fill = { hot || down ? provided("theme").accent : null },
+        fill = { hot || down ? theme.accent : null },
         t: Text [ x = 9, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
-            textColor = { this.parent.hot || this.parent.down ? provided("theme").accentText : provided("theme").accent }, text = "Undo" ],
+            textColor = { this.parent.hot || this.parent.down ? theme.accentText : theme.accent }, text = "Undo" ],
         press() { app.undoDelete() },
         onClick() { if (!disabled) press() }
         ],
@@ -366,7 +367,7 @@ class Toast extends View [ visible = { shown || lift > 0.02 }, height = 40, corn
     ]
 
 
-// an editable LABEL TAG for the detail panel — the list Tag plus a remove ×
+// an editable label tag for the detail panel — the list Tag plus a remove ×
 
 class EditTag extends View [ height = 22, cornerRadius = 7,
     t: string = "",
@@ -383,7 +384,7 @@ class EditTag extends View [ height = 22, cornerRadius = 7,
     ]
 
 
-// the in-place EDITOR — an issue edits WHERE IT LIVES. The card binds the
+// the in-place editor — an issue edits where it lives. The card binds the
 // draft dataset (Save commits and closes, Cancel discards and closes);
 // the host row's height springs open around it, and the windowed kernel's
 // measured ladder carries the animation, so the rows below glide out of
@@ -398,9 +399,7 @@ class EditorCard extends View [
 
         titleF: TextInput [ width = { parent.width }, height = 36, fontSize = 16, fontWeight = semibold,
             text <-> :it.title,
-            placeholder = "Issue title",
-            onInput(t: string) { app.draftRev = app.draftRev + 1 }
-            ],
+            placeholder = "Issue title" ],
 
         facets: View [ width = { parent.width }, height = 28,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
@@ -414,9 +413,9 @@ class EditorCard extends View [
                 layout: WrappingLayout [ spacing = 6 ],
                 EditTag [ datapath = :it.labels[], t = { "" + this.$data("") } ],
                 add: Control [ height = 22, cornerRadius = 7, width = 26,
-                    fill = { hot ? provided("theme").control : null },
-                    stroke = { stroke(1, provided("theme").line) },
-                    t: Text [ x = 8, y = 3, fontSize = 12, textColor = { provided("theme").textMuted }, text = "+" ],
+                    fill = { hot ? theme.control : null },
+                    stroke = { stroke(1, theme.line) },
+                    t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
                     press() { app.openAddLabel(this) },
                     onClick() { if (!disabled) press() }
                     ]
@@ -425,11 +424,9 @@ class EditorCard extends View [
 
         descF: TextInput [ width = { parent.width }, height = 84, fontSize = 16, multiline = true, wrap = true,
             text <-> :it.description,
-            placeholder = "Add a description…",
-            onInput(t: string) { app.draftRev = app.draftRev + 1 }
-            ],
+            placeholder = "Add a description…" ],
 
-        // ONE ROW, ONE BASELINE. Every control here is the same height, so
+        // One row, one baseline. Every control here is the same height, so
         // the same-sized labels (the buttons' and Delete's) share a baseline
         // by construction; only the small meta line needs the cap-difference
         // correction that `trkBaselineNudge` names.
@@ -453,8 +450,8 @@ class EditorCard extends View [
 
             del: Control [ width = 84, visible = { !app.creating },
                 height = { app.footRowH },
-                cornerRadius = { typeof provided("theme").buttonRadius == "number" ? Math.min(provided("theme").buttonRadius, this.height / 2) : provided("theme").controlRadius },
-                fill = { hot || down ? provided("theme").control : provided("theme").surface },
+                cornerRadius = { typeof theme.buttonRadius == "number" ? Math.min(theme.buttonRadius, this.height / 2) : theme.controlRadius },
+                fill = { hot || down ? theme.control : theme.surface },
                 stroke = { stroke(1, trkRed()) },
                 t: Text [ x = 0, y = center, width = 84, textAlign = center, wrap = false,
                     fontSize = { app.footLabelPx },
@@ -468,7 +465,7 @@ class EditorCard extends View [
     ]
 
 
-// one editable FACET BUTTON in the editor card: the current value and a
+// one editable facet button in the editor card: the current value and a
 // chevron; press opens the shared options menu for its field
 
 class Facet extends Control [ height = 28, cornerRadius = 7,
@@ -506,20 +503,16 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     theme = { app.darkUI ? SanFranciscoDark : SanFrancisco },
 
-    // ── THE TRUTH ──────────────────────────────────────────────────────────
+    // ── the truth ──────────────────────────────────────────────────────────
     //
     // `db` holds the issues, and that is the whole of it: a verb writes db and
     // every projection that read db re-runs. Nothing else anywhere holds data.
     //
-    // This used to hang off a `rev` counter every verb bumped, threaded through
-    // nine method parameters, on the stated grounds that "a method's reads are
-    // not tracked — the ARGUMENTS are the wiring". That reason was FALSE: the
-    // compiler reads through method bodies (declare.md §5), and a method here
-    // wires `this.root.db.read(["issues"])` with no help. What the clock was
-    // really covering for is one line — `issuesOf` used to read
-    // `db.value.issues`, a raw property walk off the value with no cell to
-    // subscribe to, so the projection never woke. `read([…])` is the region
-    // read the language tracks. One spelling, and the clock was redundant.
+    // No change counter is threaded through anything: the compiler reads
+    // through method bodies, so a projection that calls `issuesOf` is wired
+    // to `db.read(["issues"])` with no help. `read([…])` is the region read
+    // the language tracks — a raw `db.value.issues` walk would subscribe to
+    // no cell and never wake.
 
     db: Dataset [ schema = [ issues[]: Issue ] ] { { "issues": [] } },
 
@@ -541,8 +534,6 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         },
 
     adopt(issues: array) {
-        for (const it of issues as any) {
-            }
         db.set(["issues"], issues)
         this.takeSelection(null)
         this.closeDetail()
@@ -566,18 +557,23 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     fAssignee: string = "",
     fLabel: string = "",
 
-    // A filter, sort, or grouping change is a NEW arrangement, not an edit
+    // A filter, sort, or grouping change is a new arrangement, not an edit
     // to the old one — the list starts it at the top. The runtime pins the
-    // viewport to its anchor row across DATA changes (so an edit never
+    // viewport to its anchor row across data changes (so an edit never
     // yanks the reader); a rearrangement is the one case where that
     // stability is wrong, so the request is made twice: once now, and once
     // after the new projection has settled — the anchor compensation is a
-    // sanctioned writer that runs AFTER the first request and re-scrolls to
+    // sanctioned writer that runs after the first request and re-scrolls to
     // follow the anchor row, so a single request cannot survive it. (The
     // platform's held-request hold covers a surface that cannot take a
     // scroll yet, not one a later writer moves — this is the latter.)
 
-    rearranged() {
+    // The arrangement's inputs, named once: every writer of one of these gets
+    // the top of the list, and no writer has to remember to ask.
+
+    trackChanges = ["fStatus", "fAssignee", "fLabel", "query", "sortOn", "sortDir", "groupBy"],
+
+    onChange(e: ChangeEvent) {
         this.list.scrollTo(0)
         setTimeout(() => { this.list.scrollTo(0) }, 0)
         },
@@ -595,57 +591,46 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     clearAll() {
         fStatus = ""; fAssignee = ""; fLabel = ""; query = ""
         this.bar.omni.text = ""
-        this.rearranged()
         },
 
     toggleFilter(facet: string, value: string) {
         if (facet == "status") fStatus = fStatus == value ? "" : value
         else if (facet == "assignee") fAssignee = fAssignee == value ? "" : value
         else if (facet == "label") fLabel = fLabel == value ? "" : value
-        this.rearranged()
         },
 
     setSort(field: string) {
         if (sortOn != field) { sortOn = field; sortDir = field == "title" ? "asc" : "desc" }
-        this.rearranged()
         },
 
     toggleSortDir() {
         sortDir = sortDir == "desc" ? "asc" : "desc"
-        this.rearranged()
         },
 
-    // collapsed groups — a plain array behind a change clock. This clock is
-    // REAL, unlike the data one that used to sit above: `_collapsed` is an
-    // ordinary JS array stashed on the instance, not a reactive slot, so
-    // nothing can notice it change and something has to say so. The honest fix
-    // is to make it a slot; until then the counter is doing actual work.
+    // collapsed groups — a reactive slot, replaced whole on every toggle so
+    // each reader (the header chevrons, the projection) wakes on its own
 
-    groupRev: number = 0,
-    collapsedSet() -> array { return (this as any)._collapsed ?? ((this as any)._collapsed = []) },
-    isCollapsed(s: string, g: number) -> boolean { return this.collapsedSet().includes(s) },
+    collapsed: string[] = [],
+    isCollapsed(s: string) -> boolean { return collapsed.includes(s) },
     toggleGroup(s: string) {
-        const c = this.collapsedSet()
-        const i = c.indexOf(s)
-        if (i < 0) c.push(s); else c.splice(i, 1)
-        groupRev = groupRev + 1
+        collapsed = collapsed.includes(s) ? collapsed.filter((x) => x != s) : [...collapsed, s]
         },
 
-    // ── THE PROJECTION — the one derived dataset the list renders.
+    // ── the projection — the one derived dataset the list renders.
     //    filter → sort → (group); group headers are records too ({ kind:
     //    "hdr" }) — non-uniform rows are just rows.
     //
-    //    The arguments are the VIEW FACTS, and they are arguments because that
+    //    The arguments are the view facts, and they are arguments because that
     //    reads well, not because the wiring needs them: the body could read
-    //    `app.query` directly and wire identically. The DATA is not among them
+    //    `app.query` directly and wire identically. The data is not among them
     //    — `project` reaches it through `issuesOf`, and the compiler follows
     //    the call. ─────────────────────────────────────────────────────────
 
-    shown: Dataset [ contents = { app.project(app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy, app.groupRev) } ],
+    shown: Dataset [ contents = { app.project(app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy) } ],
 
     issuesOf() -> Issue[] { return db.read(["issues"]) ?? [] },
 
-    project(byStatus: string, byAssignee: string, byLabel: string, query: string, sortOn: string, sortDir: string, grouping: string, groupClock: number) -> object {
+    project(byStatus: string, byAssignee: string, byLabel: string, query: string, sortOn: string, sortDir: string, grouping: string) -> object {
         let rows = this.issuesOf()
         if (byStatus != "" || byAssignee != "" || byLabel != "") {
             rows = rows.filter((it) =>
@@ -653,25 +638,17 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 (byAssignee == "" || it.assignee == byAssignee) &&
                 (byLabel == "" || (it.labels ?? []).includes(byLabel)))
             }
-        // the query NARROWS like any other filter (a tracker searches by
+        // the query narrows like any other filter (a tracker searches by
         // hiding what doesn't match, not by bolding what does); the scan is
         // timed and the number rides out with the value — pure, no clocks
         let searchMs = 0
         if (query.trim() != "") {
             const t0 = trkNow()
             const needle = query.trim().toLowerCase()
-            const hay = ((this as any)._hay ??= new WeakMap())
-            rows = rows.filter((it) => {
-                let h = hay.get(it)
-                if (h == null || (h as any).u != it.updated) {
-                    h = ({ u: it.updated, s: (it.title + "\n" + (it.description ?? "") + "\n" + (it.labels ?? []).join(" ") + "\n" + (it.assignee ?? "")).toLowerCase() })
-                    hay.set(it, h)
-                    }
-                return (h as any).s.includes(needle)
-                })
+            rows = rows.filter((it) => trkHaystack(it).includes(needle))
             searchMs = Math.max(0, Math.round((trkNow() - t0) * 10) / 10)
             }
-        // Every comparator is ASCENDING — least-interesting first: oldest,
+        // Every comparator is ascending — least-interesting first: oldest,
         // lowest priority, A→Z. `desc` then reverses, uniformly, with no key
         // carrying a special case (so a new sort field inherits the rule).
         const RANK = ({ P0: 3, P1: 2, P2: 1, P3: 0 })
@@ -681,13 +658,12 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         rows = [...rows].sort(sortDir == "desc" ? (a, b) => asc(b, a) : asc)
         if (grouping != "status") return ({ rows: rows, total: rows.length, searchMs: searchMs })
         const order = ["open", "in-progress", "blocked", "closed"]
-        const collapsed = this.collapsedSet()
         const out = []
         for (const st of order) {
             const members = rows.filter((it) => it.status == st)
             if (members.length == 0) continue
             out.push(({ kind: "hdr", id: "hdr:" + st, status: st, count: members.length }))
-            if (!collapsed.includes(st)) out.push(...members)
+            if (!this.isCollapsed(st)) out.push(...members)
             }
         return ({ rows: out, total: rows.length, searchMs: searchMs })
         },
@@ -730,13 +706,13 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             }
         const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
         const peak = Math.max(1, un, ...top.map((e) => e[1]))
-        // peak rides ON EACH ROW (a row's cursor sees its own record, not
+        // peak rides on each row (a row's cursor sees its own record, not
         // the root) — the view-model fact lands where the view reads it
         const rows = top.map((e) => ({ name: e[0], n: e[1], peak: peak }))
         return ({ rows: [...rows, ({ name: "", n: un, peak: peak })] })
         },
 
-    // ── SEARCH — one more filter on the projection: the query NARROWS the
+    // ── search — one more filter on the projection: the query narrows the
     //    list (typing hides the non-matches; clearing restores). Enter and
     //    the omnibox arrows walk the narrowed rows; Enter opens the walked
     //    row's detail. ────────────────────────────────────────────────────
@@ -760,7 +736,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         if (this.selected != null) this.openDetail()
         },
 
-    // ── SELECTION — held on the App, as RECORDS ───────────────────────────
+    // ── selection — held on the App, as records ───────────────────────────
     //
     // The Table's selection binds down to these slots, and every verb that
     // needs "what is selected" reads them here — so selection survives any
@@ -776,39 +752,33 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         if (clean != null && (clean as any).length > 1) editing = false
         selected = selection != null ? (selection as any)[(selection as any).length - 1] : null
         if (selection == null) this.closeDetail()
-        // The editor follows the selection: which issue is open is DERIVED from
+        // The editor follows the selection: which issue is open is derived from
         // it, so the draft has to move with it or the open row shows another
-        // issue's fields. (It did, before this: only click/Enter reseeded, so
-        // arrowing left the first issue's text in every row you opened after.)
-        // NOTE — an in-flight edit is discarded here, and equally when you open
-        // a different issue. That is a real gap, not a decision: the draft is
-        // one slot, so there is nowhere to keep an edit you have navigated away
-        // from. Fixing it means a draft PER ISSUE (or a dirty guard), which is
-        // its own piece of work.
+        // issue's fields. An in-flight edit is discarded here, and equally
+        // when you open a different issue — a real gap, not a decision: the
+        // draft is one slot, so there is nowhere to keep an edit you have
+        // navigated away from. Closing it means a draft per issue (or a dirty
+        // guard), which is its own piece of work.
         else if (editing && (clean as any).length == 1) this.seedDraft()
         },
 
     selCount: number = { (selection ?? []).length },
 
-    // ── THE DETAIL DRAFT — a working copy; Save commits, Cancel is honest ──
+    // ── the detail draft — a working copy; Save commits, Cancel is honest ──
 
     draft: Dataset { { "it": null } },
     editing: boolean = false,
     creating: boolean = false,
-    draftRev: number = 0,
 
-    // Seed the working copy from the CURRENT record — a copy, so edits never
+    // Seed the working copy from the current record — a copy, so edits never
     // reach the truth until Save. Every path that changes which issue is open
     // goes through here, which is the whole point: the draft must follow the
     // expanded row or the editor shows one issue's fields inside another
-    // issue's row. (It did. Arrow travel moved the selection and the expansion
-    // followed, but only click/Enter reseeded, so walking the list left the
-    // first issue's text sitting in every row you opened after it.)
+    // issue's row.
 
     seedDraft() {
         if (selected == null) return
         draft.set(["it"], ({ ...(selected as any), labels: [...((selected as any).labels ?? [])] }))
-        draftRev = draftRev + 1
         },
 
     openDetail() {
@@ -816,7 +786,6 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         creating = false
         this.seedDraft()
         editing = true
-        setTimeout(() => this.revealOpen(), 380)
         },
 
     newIssue() {
@@ -824,15 +793,15 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         creating = true
         const maxId = this.issuesOf().reduce((m, it) => Math.max(m, (it as any).id), 0)
         draft.set(["it"], ({ id: maxId + 1, title: "", description: "", status: "open", priority: "P2", labels: [], assignee: null, created: 1735689600000, updated: 1735689600000, comments: 0 }))
-        draftRev = draftRev + 1
         editing = true
-        setTimeout(() => Focus.focus(this.creator.card.col.titleF as any), 0)
+        afterSettle(() => Focus.focus(this.creator.card.col.titleF as any))   // the strip is real once this settle closes
         },
 
     closeDetail() { editing = false; creating = false },
 
-    // best effort: once the card has sprung open, scroll so its full extent
-    // sits inside the pane — top-aligned when it cannot all fit
+    // best effort: once the card has sprung open (the row's height Spring
+    // lands), scroll so its full extent sits inside the pane — top-aligned
+    // when it cannot all fit
 
     revealOpen() {
         const rows = (this.shown.value.rows ?? [])
@@ -848,9 +817,13 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         else if (top < viewTop) this.list.scrollTo(top - 8)
         },
 
-    draftDirty: boolean = { app.draftRev >= 0 && app.editing && app.draftDiffers(app.draftRev) },
-    draftDiffers(dr: number) -> boolean {
-        const d = draft.value.it
+    // dirty = the draft differs from the truth. `read(["it"])` is the tracked
+    // region read: every field edit — typed into a `<->` field or set by a
+    // facet — wakes it, so Save enables and disables on its own.
+
+    draftDirty: boolean = { app.editing && app.draftDiffers() },
+    draftDiffers() -> boolean {
+        const d = draft.read(["it"])
         if (d == null) return false
         if (creating) return true
         const t = this.issuesOf().find((it) => (it as any).id == (d as any).id)
@@ -890,10 +863,9 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
     setDraftField(field: string, v: object) {
         draft.set(["it", field], v)
-        draftRev = draftRev + 1
         },
 
-    // ── MUTATION VERBS — every write to the truth lives here ──────────────
+    // ── mutation verbs — every write to the truth lives here ──────────────
     //
     // Each verb writes `db` and keeps the derived display fields honest
     // (closedAt). That is all a verb does — there is nothing to notify, because
@@ -914,6 +886,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         this.performDelete()
         },
 
+    lastDeleted: array = [],            // what Undo puts back: { index, rec } per removed issue; empty = nothing to undo
+
     performDelete() {
         const sel = selection ?? []
         const ids = (sel as any).map((r) => (r as any).id)
@@ -925,17 +899,17 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             }
         removed.sort((a, b) => (b as any).index - (a as any).index)
         for (const r of removed) db.removeAt(["issues"], (r as any).index)
-        ;(this as any)._undo = removed
+        lastDeleted = removed
         this.takeSelection(null)
         this.toast.show((removed as any).length == 1 ? "Deleted 1 issue" : "Deleted " + (removed as any).length + " issues")
         },
 
     undoDelete() {
-        const u = (this as any)._undo
-        if (u == null) return
+        const u = lastDeleted
+        if (u.length == 0) return
         const back = [...(u as any)].sort((a, b) => (a as any).index - (b as any).index)
         for (const r of back) db.insert(["issues"], Math.min((r as any).index, this.issuesOf().length), (r as any).rec)
-        ;(this as any)._undo = null
+        lastDeleted = []
         this.takeSelection((back as any).map((r) => (r as any).rec))
         this.toast.hide()
         },
@@ -959,7 +933,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             }
         },
 
-    // ── the shared MENUS (one instance each — the record-driven door) ──────
+    // ── the shared menus (one instance each — the record-driven door) ──────
 
     facetMenu: Menu [ ],
 
@@ -1073,8 +1047,6 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         picked(id: string) { app.themeMode = id }
         ],
 
-    dlg: Dialog [ ],
-
     // ⌘K claims the omnibox from anywhere; Escape backs out by layers
 
     keys: Keys [
@@ -1082,19 +1054,19 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             // ⌘K or "/" reach the search field from anywhere — but "/" is a
             // character, so it only counts when nothing is taking text
             if ((e.meta || e.ctrl) && e.code == "KeyK") { Focus.focus(app.bar.omni as any) }
-            // Escape unwinds the INNERMOST layer first: the open editor, then
+            // Escape unwinds the innermost layer first: the open editor, then
             // a selection, then the query, then the facet filters. Anything
             // else and a keystroke meant for the thing in front of you lands
             // on something behind it.
             else if (e.key == "Escape") {
                 if (app.editing) app.closeDetail()
                 else if (app.selCount > 0) app.takeSelection(null)
-                else if (app.query != "") { app.query = ""; app.bar.omni.text = ""; app.rearranged() }
+                else if (app.query != "") { app.query = ""; app.bar.omni.text = "" }
                 else if (app.fStatus != "" || app.fAssignee != "" || app.fLabel != "") app.clearAll()
                 }
             },
 
-        // "/" moves focus on key UP, not down: a printable shortcut handled on
+        // "/" moves focus on key up, not down: a printable shortcut handled on
         // the way down would still be delivered as text to the field it just
         // focused, and the search box would open holding a stray "/".
 
@@ -1103,7 +1075,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             }
         ],
 
-    // ── THE BAR — brand · search · scale · appearance ─────────────────────
+    // ── the bar — brand · search · scale · appearance ─────────────────────
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").surface },
         hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
@@ -1125,7 +1097,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             x = { app.compact ? 96 : 210 },
             width = { Math.min(380, Math.max(110, parent.views.x - this.x - 16)) },
             placeholder = { app.compact ? "Search" : "Search issues…   ⌘K" },
-            onInput(t: string) { app.query = "" + t; app.rearranged() },
+            onInput(t: string) { app.query = "" + t },
             onEnter() { app.enterHit() },
             onKeyDown(e: KeyEvent) {
                 if (e.key == "ArrowDown") app.stepHit(1)
@@ -1148,21 +1120,21 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
         appear: Control [ y = 12, height = 32, width = 54, cornerRadius = 8, tip = "Appearance",
             x = { app.width - this.width - 14 },
-            fill = { hot || down ? provided("theme").control : null },
-            stroke = { stroke(1, provided("theme").line) },
+            fill = { hot || down ? theme.control : null },
+            stroke = { stroke(1, theme.line) },
             g: IconHost [ x = 9, y = center, iconSize = 15,
                 kind = { app.themeMode == "light" ? "SunIcon" : app.themeMode == "dark" ? "MoonIcon" : "AutoIcon" } ],
-            arrow: ChevronIcon [ iconSize = 12, ink = { provided("theme").textMuted },
+            arrow: ChevronIcon [ iconSize = 12, ink = { theme.textMuted },
                 x = { parent.width - 18 }, y = { (parent.height - this.height) / 2 } ],
             press() { app.appearanceMenu.openFor(this) },
             onClick() { if (!disabled) press() }
             ]
         ],
 
-    // ── the TOOLBAR: filters on the left, actions on the right ────────────
+    // ── the toolbar: filters on the left, actions on the right ────────────
 
     // The tools row wraps into two — chips (countless), then acts — instead of
-    // letting the clusters collide in the middle. It wraps when they WOULD
+    // letting the clusters collide in the middle. It wraps when they would
     // collide, which is a measurement, not a breakpoint: the left group's
     // content, the right group's content, and the margins between and around
     // them. A fixed width cannot know this, because both groups size to their
@@ -1188,24 +1160,24 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             Chip [ facet = "status", value = "closed", count = { (app.counts as any).closed ?? 0 }, on = { app.fStatus == "closed" } ],
             gap1: View [ width = 6, height = 1 ],
             assigneeBtn: Control [ height = 28, cornerRadius = 8,
-                width = { this.t.width + 36 },   // 26 as before, plus the mark that left the label string
-                fill = { app.fAssignee != "" ? provided("theme").controlSelected : hot ? provided("theme").control : null },
+                width = { this.t.width + 36 },   // the label's padding plus the chevron's room
+                fill = { app.fAssignee != "" ? theme.controlSelected : hot ? theme.control : null },
                 t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false,
                     fontWeight = { app.fAssignee != "" ? "semibold" : "normal" },
-                    textColor = { app.fAssignee != "" ? provided("theme").text : provided("theme").textMuted },
+                    textColor = { app.fAssignee != "" ? theme.text : theme.textMuted },
                     text = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee" } ],
-                c: ChevronIcon [ iconSize = 11, ink = { provided("theme").textMuted }, y = center, x = { parent.width - 15 } ],
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
                 press() { app.openAssigneeFilter(this) },
                 onClick() { if (!disabled) press() }
                 ],
             labelBtn: Control [ height = 28, cornerRadius = 8,
-                width = { this.t.width + 36 },   // 26 as before, plus the mark that left the label string
-                fill = { app.fLabel != "" ? provided("theme").controlSelected : hot ? provided("theme").control : null },
+                width = { this.t.width + 36 },   // the label's padding plus the chevron's room
+                fill = { app.fLabel != "" ? theme.controlSelected : hot ? theme.control : null },
                 t: TextLabel [ x = 13, fontSize = 12.5, wrap = false,
                     fontWeight = { app.fLabel != "" ? "semibold" : "normal" },
-                    textColor = { app.fLabel != "" ? provided("theme").text : provided("theme").textMuted },
+                    textColor = { app.fLabel != "" ? theme.text : theme.textMuted },
                     text = { app.fLabel != "" ? app.fLabel : "Label" } ],
-                c: ChevronIcon [ iconSize = 11, ink = { provided("theme").textMuted }, y = center, x = { parent.width - 15 } ],
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
                 press() { app.openLabelFilter(this) },
                 onClick() { if (!disabled) press() }
                 ]
@@ -1219,21 +1191,21 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 label = "Grouped",
                 textColor = { provided("theme").textMuted },
                 checked = { app.groupBy == "status" },
-                input(v: object) { app.groupBy = v ? "status" : "none"; app.rearranged() }
+                input(v: object) { app.groupBy = v ? "status" : "none" }
                 ],
             gapSort: View [ width = 8, height = 1 ],
             sortBtn: Control [ height = 28, cornerRadius = 8, y = 1,
-                width = { this.t.width + 36 },   // 26 as before, plus the mark that left the label string
-                fill = { hot ? provided("theme").control : null },
-                t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
+                width = { this.t.width + 36 },   // the label's padding plus the chevron's room
+                fill = { hot ? theme.control : null },
+                t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
                     text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) } ],
-                c: ChevronIcon [ iconSize = 11, ink = { provided("theme").textMuted }, y = center, x = { parent.width - 15 } ],
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
                 press() { app.openSort(this) },
                 onClick() { if (!disabled) press() }
                 ],
             dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tip = "Toggle sort direction",
-                fill = { hot || down ? provided("theme").control : null },
-                t: ArrowIcon [ iconSize = 13, ink = { provided("theme").textMuted },
+                fill = { hot || down ? theme.control : null },
+                t: ArrowIcon [ iconSize = 13, ink = { theme.textMuted },
                     x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
                     dir = { app.sortDir == "desc" ? "down" : "up" } ],
                 press() { app.toggleSortDir() },
@@ -1243,10 +1215,10 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             newBtn: Control [ height = 30, cornerRadius = 8,
                 pressedFill: number = 0x3557C7,      // the accent, one step deeper
                 width = { this.t.width + 30 },
-                fill = { hot || down ? this.pressedFill : provided("theme").accent },
+                fill = { hot || down ? this.pressedFill : theme.accent },
                 shadow = { shadow(0, 1, 3, 0x00000030) },
                 t: Text [ x = 15, y = center, fontSize = 12.5, fontWeight = semibold, wrap = false,
-                    textColor = { provided("theme").accentText }, text = "New issue" ],
+                    textColor = { theme.accentText }, text = "New issue" ],
                 press() { app.newIssue() },
                 onClick() { if (!disabled) press() }
                 ]
@@ -1258,7 +1230,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         const names = this.assignees()
         m.items = [({ id: "", label: "Anyone", checked: app.fAssignee == "" }), ({ id: "d", divider: true }),
             ...names.map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))]
-        m.picked = (id) => { app.fAssignee = id; app.rearranged() }
+        m.picked = (id) => { app.fAssignee = id }
         m.openFor(anchor)
         },
 
@@ -1266,11 +1238,11 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         const m = this.facetMenu as any
         m.items = [({ id: "", label: "any label", checked: app.fLabel == "" }),
             ...TRK_LABELS.map((l) => ({ id: l, label: l, checked: app.fLabel == l }))]
-        m.picked = (id) => { app.fLabel = id; app.rearranged() }
+        m.picked = (id) => { app.fLabel = id }
         m.openFor(anchor)
         },
 
-    // ── THE LIST — a windowed Table over the projection ───────────────────
+    // ── the list — a windowed Table over the projection ───────────────────
     //
     // `virtualize = true` is the whole virtualization story: the runtime
     // windows, recycles, and measures rows (including one springing open
@@ -1279,13 +1251,13 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     contentY: number = { app.barH + app.tools.height },
     mainW: number = { Math.min(app.width - (app.railOn ? app.railW : 0), 1460) },
 
-    // which row is OPEN IN PLACE: an issue edits where it lives — the
+    // which row is open in place: an issue edits where it lives — the
     // row's height springs open and the kernel's measured ladder carries
     // the animation through the windowed list
 
     expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? ((app.selected as any).id ?? -1) : -1 },
 
-    // THE LIST. Rows over the projection; every hard thing about scale is
+    // The list. Rows over the projection; every hard thing about scale is
     // someone else's honest work. The empty state says why it is empty.
 
     creatorH: number = { app.creating ? 356 : 0 },
@@ -1304,7 +1276,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         IssueRow [ datapath = :rows[], virtualize = true ]
         ],
 
-    // ── THE RAIL: an instrument, not a sidebar. Every number below is a
+    // ── the rail: an instrument, not a sidebar. Every number below is a
     //    live derivation off the one truth; every row is also a filter. ─────
 
     rail: View [ visible = { app.railOn }, clip = true,
@@ -1461,7 +1433,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         card: EditorCard [ x = 0, y = 0, width = { parent.width } ]
         ],
 
-    // ── the FOOTER — the quiet ledger line: how many, how many shown ──────
+    // ── the footer — the quiet ledger line: how many, how many shown ──────
 
     foot: View [ x = 0, width = { app.width }, height = 32,
         y = { app.height - 32 },
@@ -1490,13 +1462,13 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             text = { app.issuesOf().length == 0 ? "No issues yet" : "No issues match" } ],
         sub: Text [ width = 280, textAlign = center, fontSize = 12.5, textColor = { provided("theme").textMuted },
             text = { app.issuesOf().length == 0
-                ? "Create the first one — N is waiting."
+                ? "Create the first one — New issue is waiting."
                 : "Try a different search, or clear the filters." } ],
         clear: Control [ x = 90, height = 30, cornerRadius = 8, width = 100,
             visible = { app.issuesOf().length > 0 },
-            fill = { hot || down ? provided("theme").control : null },
-            stroke = { stroke(1, provided("theme").line) },
-            t: TextLabel [ x = 0, width = 100, textAlign = center, fontSize = 12.5, textColor = { provided("theme").textMuted }, text = "Clear all" ],
+            fill = { hot || down ? theme.control : null },
+            stroke = { stroke(1, theme.line) },
+            t: TextLabel [ x = 0, width = 100, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted }, text = "Clear all" ],
             press() { app.clearAll() },
             onClick() { if (!disabled) press() }
             ]
@@ -1531,7 +1503,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             act: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
                 fill = { hot ? app.bulk.inkHover : null },
                 t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
-                    textColor = { provided("theme").tooltipText }, text = "Set status ▾" ],
+                    textColor = { theme.tooltipText }, text = "Set status ▾" ],
                 press() { app.openBulk(this) },
                 onClick() { if (!disabled) press() }
                 ],
@@ -1546,7 +1518,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             clr: Control [ height = 28, cornerRadius = 7, width = 28,
                 fill = { hot ? app.bulk.inkHover : null },
                 t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
-                    textColor = { provided("theme").tooltipText }, text = "×" ],
+                    textColor = { theme.tooltipText }, text = "×" ],
                 press() { app.takeSelection(null) },
                 onClick() { if (!disabled) press() }
                 ]
@@ -1556,14 +1528,14 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     toast: Toast [ x = { (app.width - this.width) / 2 },
         y = { app.height - 84 + (1 - this.lift) * 20 } ],
 
-    // the ENTRY SCREEN — honest states for the one fetch
+    // the entry screen — honest states for the one fetch
 
     entry: View [ visible = { !app.booted }, x = 0, y = 0, width = { app.width }, height = { app.height },
         fill = { provided("theme").bg },
         col: View [ x = { (app.width - 220) / 2 }, y = { app.height * 0.38 }, width = 220,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
             Text [ fontSize = 22, fontWeight = semibold, textAlign = center, width = 220,
-                textFill = { gradient("90deg", provided("theme").accent, 0x37B6A9) }, text = "Tracker" ],
+                textFill = { gradient("90deg", provided("theme").accent, trkTeal()) }, text = "Tracker" ],
             Text [ fontSize = 12.5, textAlign = center, width = 220, textColor = { provided("theme").textMuted },
                 text = { app.src.failed ? "Could not load issues.json" : "Loading issues…" } ]
             ]

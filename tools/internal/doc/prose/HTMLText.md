@@ -5,10 +5,34 @@ native, contiguous text selection for free. Supported tags are the text-shaped o
 `p`, `h1`–`h6`, `b`/`strong`, `i`/`em`, `code`, `s`/`del`, `a`, `br`, `ul`/`ol`/`li`,
 `blockquote`, `pre`, `hr`, `span`, `div` — and nothing else.
 
-This is **not** the `HTML[ ]` island (that mounts arbitrary host DOM you manage yourself):
+This is **not** a `DOMIsland` (that mounts arbitrary host DOM you manage yourself):
 `HTMLText` is *sanitized rich text*, with defined, safe behaviour on anything outside the
 whitelist — so it is the right choice for content that arrives from data. `html = { post.body }`
 re-parses and re-renders reactively.
+
+**Your own view classes are tags here too.** Alongside the whitelist, a self-closing tag naming
+a view class the program declares is one real **inline view** of that class, flowed in the line
+as a box the words wrap around (the family's `RichText` entry states the whole of it). A name is
+resolved against your classes first and the whitelist second, so a class named exactly like a
+supported tag takes that tag over inside content — the compiler warns when one does. Unlike
+every other tag, whose attributes are ignored but for `href` and `class`, an inline view's
+attributes are **read and converted** by the class's declared types, and anything that will not
+apply goes to `unsupported` along with the unknown tags. Since content may name any view class
+the program declares, a document loaded from elsewhere can place any of them — the classes your
+program contains are the boundary.
+
+```declare
+class Chip extends View [ label: string = "",
+    height = 19, width = { this.t.width + 18 }, cornerRadius = 9,
+    fill = 0xDDF4E4,
+    t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]
+    ]
+
+App [ width = 430, height = 90,
+    HTMLText [ x = 16, y = 16, width = 398, fontSize = 15,
+        html = "<b>Bold</b> is a tag the whitelist knows; <Chip label='docs'/> is a view you declared." ]
+    ]
+```
 
 ```declare
 HTMLText [ width = { parent.width },
@@ -19,36 +43,8 @@ HTMLText [ width = { parent.width },
 ## html
 The HTML source — a literal, or a `{ }` constraint that re-parses whenever it changes (a
 fetched document, a live-edited field). Only `<a href>` and `<span class>` (see `textStyles`)
-are read; every other attribute is ignored.
-
-## textStyles
-The *inline* styling hook (the only attribute read besides `href`): a map of **name → a bundle
-of Text's own style attributes** — `fontSize`, `fontFamily`, `fontWeight`, `textColor`,
-`textFill`, `letterSpacing`, and the treatments (`italic`, `textShadow`, `outline`,
-`smallCaps`, `textTransform`, `underline`, `strike`) — that a `<span class="name">` references.
-The field names are exactly the ones you set on a `Text`, so there is nothing new to learn.
-A `<span class>` **also** resolves a top-level `style` bundle — the run vehicle for prose,
-whose fields may themselves read `provided(…)` (so a highlighted keyword follows the theme) —
-so a palette shared across the app lives in one place; use this local map for a
-one-off. The content only *names* a style the app defines; it never carries CSS itself, so this stays safe for
-loaded HTML (an unknown class renders as plain text). One flowing string can carry a bigger,
-differently-faced, gradient word, correctly baseline-aligned with the prose around it:
-
-```declare
-HTMLText [ width = { parent.width },
-    textStyles = { { lead: { fontSize: 40, fontFamily: "Georgia", textFill: gradient("90deg", 0x4C8DFF, 0x37E0C8) } } },
-    html = "The <span class='lead'>headline</span> word sits big and on the baseline."
-    ]
-```
-
-The map is a `{ }` value, so it is written as an object — `fontSize: 40` (a colon, not
-`=`), a color as `0x…`, a weight as `"black"`. A `<span class="lead">` then wears the whole
-bundle.
-
-A style may set any of those attributes. A `fontSize` larger than the surrounding text grows
-that line's box while the run stays on the shared baseline — the line box is content-derived,
-like CSS. (`accents`, the old fill-only version of this hook, folded in: a fill is now just
-the `textFill` field, one attribute among many.)
+are read; every other attribute is ignored — except on a tag naming one of your view classes,
+whose attributes are the view's (above).
 
 ## unsupported
 What a tag **outside the whitelist** does — the reason this is safe for loaded content:
@@ -59,5 +55,5 @@ What a tag **outside the whitelist** does — the reason this is safe for loaded
 - `error` — the first unsupported tag **throws**, naming it. Use this when unexpected markup
   should be a hard failure rather than silently pruned.
 
-(`lineHeight`, `bodyColor`, and `onLink` — the shared prose styling and the link event — come
+(`textStyles`, `lineHeight`, `bodyColor`, and `onLink` — the named-style palette, the shared prose styling and the link event — come
 from the `RichText` base.)

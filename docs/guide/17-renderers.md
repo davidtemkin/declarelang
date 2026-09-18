@@ -20,7 +20,7 @@ port:
 
 ```
 …/calendar/calendar.declare?render=canvas     (URL)
-declare build calendar.declare --render canvas (CLI)
+declarec calendar.declare --render canvas     (CLI)
 ```
 
 And then there is the claim that sounds impossible until you watch it: **Look
@@ -54,8 +54,8 @@ tree of native layers, with input walked by the same rules on the runtime's
 side of the bridge.
 
 `draw()` is the same story three times: your drawing records once into a
-display list, and each renderer realizes it its own way — the DOM backend
-rasterizes it into that view's own crisp, dpr-aware raster; the canvas backend
+display list, and each renderer realizes it its own way — the DOM renderer
+rasterizes it into that view's own crisp, dpr-aware raster; the canvas renderer
 replays it straight into the shared surface; the Mac host replays it into its
 layer. Same recording, three realizations, the same pixels.
 
@@ -71,18 +71,9 @@ requires byte-identical answers.
 
 ## What the numbers say
 
-Measured on the real apps (same machine, both browser renderers driven with
-real clicks and drags):
-
-| | DOM | canvas |
-|---|---|---|
-| settled parity (non-desktop apps) | — | ≤ 0.2% of pixels, 0 structural |
-| input latency, real presses (calendar) | ~1 ms avg, 3–4 ms max | same |
-| animation (dock magnification sweep, calendar view zoom) | ~120 fps | ~120 fps |
-| JS heap (per app) | 2–9 MB | within 0.5 MB of DOM |
-| elements on the page | 28–536, tracks app size | **14–18, constant** |
-| first paint, light apps | ~100–240 ms | same |
-| first paint, scene-heavy apps (calendar grid, desktop wallpaper) | ~100–140 ms | **550–700 ms** |
+Both browser renderers are driven with real clicks and drags over the real apps, and the
+measurements are the test suite's, not this page's: the perceptual and conformance suites
+hold the two to each other on every run, so the figures live where they are checked.
 
 The shape of the trade: once running, the two are indistinguishable — latency,
 frame rate, and memory are the same because the reactive graph doing the work
@@ -116,17 +107,14 @@ needs only a place to put a view tree, and the second needs a real browser.
 | | a child Declare app (`AppIsland`) | foreign web content (`DOMIsland`) |
 |---|---|---|
 | DOM | yes | yes |
+| canvas | yes — the tenant's tree joins the sealed surface, no element anywhere | yes — a positioned overlay above the canvas, the same mechanism a native field uses |
 | Mac | **yes** | no — the native host embeds no web engine |
-| canvas | no | no |
 
-The desktop demo shows both halves. Its dock, windows, menus, and wallpaper are
-fully canvas-capable (the magnification sweep holds the same ~120 fps), and on
-the Mac host opening Calendar from the dock renders the whole app inside its
-window — a child program, its own reactive graph, hosted natively with no DOM
-anywhere. On canvas that same window paints its frame, title bar and shadow
-around an empty interior: nothing there can take a tenant yet. That is an
-unbuilt path rather than an impossible one — the Mac host proves a tenant needs
-no element, and what canvas lacks is the mounting seam, not the capability.
+The desktop demo shows the first half on every renderer. Its dock, windows, menus,
+and wallpaper are fully canvas-capable (the magnification sweep holds the same
+~120 fps), and opening Calendar from the dock renders the whole app inside its
+window — a child program with its own reactive graph — whether the host is the
+DOM, the canvas, or the Mac host, where it runs natively with no DOM anywhere.
 
 
 ### Getting the Mac host
@@ -158,7 +146,7 @@ the whole language and the standard library, but it is a runtime environment, no
 a packaging story: no standalone signed app with its own identity, no system
 integration, no per-program installer. `declarec --render mac` refuses for that
 reason. The full operational detail — the build chain, the stamp, the gates — is in
-[`operational/mac-host.md`](../operational/mac-host.md).
+[The Mac host](declare-docs:operational:mac-host).
 
 **Overlay effects are at parity.** Frosted surfaces — a menu's panel, a
 dock shelf, translucent chrome — are the `backdrop` attribute
@@ -184,7 +172,7 @@ trustworthy.
 
 ## Choosing
 
-Default to DOM: accessibility, islands, native selection, and instant first
+Default to DOM: accessibility, native selection, and instant first
 paint. Reach for canvas when the surface must be sealed and uniform — pixels
 you can capture, composite, or ship somewhere a DOM cannot go — or when an
 interface is so element-heavy that a constant-size page matters more than

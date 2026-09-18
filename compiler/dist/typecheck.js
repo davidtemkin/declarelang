@@ -58,7 +58,7 @@ import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas } from "../../runtime/dist/check.js";
 import { resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText } from "./scaffold.js";
-import { attrType, descendsFrom } from "../../runtime/dist/schema.js";
+import { attrType, descendsFrom, SCHEMAS } from "../../runtime/dist/schema.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 /** TS primitives a Declare type name can resolve to — where "declare it" is
@@ -669,9 +669,20 @@ class CaseEmitter {
         // A method body's `super.name(…)` arrives here as `$base.name(…)` (the
         // super rule, compile.ts): `$base` is typed as what super reaches — a
         // class body's BASE class, any other element's own class — so the call
-        // checks against the base method's real signature.
-        const baseTs = expression ? null
+        // checks against the base method's real signature. Intersected with the
+        // built-in root's plumbing interface (scaffold.ts emitClass), so an
+        // override of a runtime method the reference documents no contract for
+        // can still say `super.name(…)` — the override rule is uniform.
+        const baseName = expression ? null
             : (classBody && levels.length === 1 ? (this.schemas[levels[0].tag]?.base?.name ?? "Node") : levels[0].tag);
+        let rootName = null;
+        for (let s = baseName === null ? undefined : this.schemas[baseName]; s !== undefined && s !== null; s = s.base ?? undefined) {
+            if (Object.hasOwn(SCHEMAS, s.name)) {
+                rootName = s.name;
+                break;
+            }
+        }
+        const baseTs = baseName === null ? null : rootName === null ? baseName : `${baseName} & ${rootName}$plumbing`;
         const baseSig = baseTs === null ? "" : `, $base: ${baseTs}`;
         const baseArg = baseTs === null ? "" : `, undefined as any`;
         const paramSig = params.map((p) => `, ${p.name}: ${paramTs(p)}`).join("");

@@ -10,9 +10,50 @@
 // block nodes, each carrying inline nodes (or nested blocks). Raw HTML is NOT
 // interpreted — every `<tag>` renders as literal text (the one documented
 // deviation); character entities still decode (they are characters).
-// ── entry ──────────────────────────────────────────────────────────────────
+/** The options in force for the current (synchronous) parse — module-scoped
+ *  like `currentRefs`, because the inline scan is reached through a dozen
+ *  block-level call sites and threading a bag through all of them would be
+ *  churn for nothing. */
+let currentOpts = null;
+/** Scan a self-closing INLINE VIEW tag at `at` (where `src[at]` is `<`): a tag
+ *  whose name is a class the program declares. Returns the class name, its
+ *  attributes (case PRESERVED — an attribute names a slot, and slots are
+ *  camelCase), the reserved `key`, whether the tag closed itself, and the index
+ *  past `>`. Null when this `<` does not open a class tag at all, which leaves
+ *  every other `<` to the meaning it already has. Shared by both readers. */
+export function scanViewTag(src, at, isClass) {
+    if (src[at] !== "<")
+        return null;
+    const gt = src.indexOf(">", at);
+    if (gt === -1)
+        return null;
+    const inner = src.slice(at + 1, gt);
+    const m = /^([A-Za-z_][A-Za-z0-9_]*)/.exec(inner);
+    if (m === null || !isClass(m[1]))
+        return null;
+    const selfClosing = inner.trimEnd().endsWith("/");
+    const body = selfClosing ? inner.trimEnd().slice(0, -1).slice(m[0].length) : inner.slice(m[0].length);
+    const attrs = {};
+    let key;
+    const re = /([A-Za-z_:][-A-Za-z0-9_:.]*)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
+    let a;
+    while ((a = re.exec(body)) !== null) {
+        const raw = a[2] ?? a[3] ?? a[4];
+        const val = raw === undefined ? true : decodeEntities(raw);
+        // `key` is the view's IDENTITY, reserved: it never reaches the class.
+        if (a[1] === "key") {
+            if (val !== true)
+                key = val;
+            continue;
+        }
+        attrs[a[1]] = val;
+    }
+    return key === undefined
+        ? { name: m[1], attrs, selfClosing, end: gt + 1 }
+        : { name: m[1], attrs, key, selfClosing, end: gt + 1 };
+}
 /** Parse a Markdown document into its block tree. */
-export function parse(src) {
+export function parse(src, opts) {
     const lines = src.replace(/\r\n?/g, "\n").replace(/\t/g, "    ").split("\n");
     // Link reference definitions (`[label]: dest "title"`) are collected FIRST and
     // their lines blanked, so a `[text][label]` / `[label]` anywhere — even before
@@ -20,12 +61,15 @@ export function parse(src) {
     // the duration of this synchronous parse); a standalone parseInline call with
     // no document context simply finds no definitions and leaves refs literal.
     const prev = currentRefs;
+    const prevOpts = currentOpts;
     currentRefs = collectDefs(lines);
+    currentOpts = opts ?? null;
     try {
         return parseBlocks(lines, 0, lines.length);
     }
     finally {
         currentRefs = prev;
+        currentOpts = prevOpts;
     }
 }
 /** Link reference definitions in scope for the current document parse. */
@@ -221,11 +265,11 @@ function parseBlocks(lines, lo, hi) {
         // GFM table — a header row followed by a delimiter row of dashes/colons.
         if (line.includes("|") && i + 1 < hi && isTableDelim(lines[i + 1])) {
             const align = parseAlignRow(lines[i + 1]);
-            const header = splitRow(line).map(parseInline);
+            const header = splitRow(line).map((c) => parseInline(c));
             const rows = [];
             let j = i + 2;
             for (; j < hi && lines[j].includes("|") && lines[j].trim() !== ""; j++) {
-                rows.push(splitRow(lines[j]).map(parseInline));
+                rows.push(splitRow(lines[j]).map((c) => parseInline(c)));
             }
             out.push({ t: "table", align, header, rows });
             i = j;
@@ -386,7 +430,8 @@ function splitRawRow(line) {
 const PUNCT = new Set("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".split(""));
 const isWs = (ch) => ch === undefined || /\s/.test(ch);
 const isPunct = (ch) => ch !== undefined && PUNCT.has(ch);
-export function parseInline(src) {
+export function parseInline(src, opts) {
+    const o = opts ?? currentOpts;
     const head = { inline: null, delim: null, prev: null, next: null }; // sentinel
     let tail = head;
     const delims = [];
@@ -480,6 +525,26 @@ export function parseInline(src) {
                 const close = src.indexOf("-->", i + 4);
                 i = close === -1 ? src.length : close + 3;
                 continue;
+            }
+            // An INLINE VIEW: `<Issue id='142'/>`, where `Issue` is a class the
+            // program declares. Read before the autolink test and ONLY for a name the
+            // predicate claims, so every other `<` — an autolink, a raw HTML tag, a
+            // lone `<` — keeps the meaning the ruling gave it.
+            if (o?.isClass !== undefined) {
+                const vt = scanViewTag(src, i, o.isClass);
+                if (vt !== null) {
+                    if (vt.selfClosing) {
+                        flush();
+                        push(vt.key === undefined
+                            ? { t: "view", name: vt.name, attrs: vt.attrs }
+                            : { t: "view", name: vt.name, attrs: vt.attrs, key: vt.key }, null);
+                        i = vt.end;
+                        continue;
+                    }
+                    // Self-closing only, this version: report and leave the text literal
+                    // (which is what a raw tag has always rendered as in Markdown).
+                    o.refuse?.(`<${vt.name}> is an inline view, and an inline view must be self-closing — write <${vt.name}/>`);
+                }
             }
             const gt = src.indexOf(">", i + 1);
             if (gt !== -1) {

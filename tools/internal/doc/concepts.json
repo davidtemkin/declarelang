@@ -201,13 +201,14 @@
     },
     {
       "terms": [
-        "key",
         "keys prop",
         "ref",
         "refs",
-        "useRef"
+        "useRef",
+        "react key",
+        "key prop"
       ],
-      "answer": "No `key=` and no refs — a named member IS its handle (`box: View [ … ]` → `app.box`), and replicated rows take their identity from the record's own `id` field automatically. Reach any node by its dotted path; give records an `id` when their identity matters across reloads."
+      "answer": "No refs — a named member IS its handle (`box: View [ … ]` → `app.box`); reach any node by its dotted path. Replicated rows take their identity from the record's `id` field on their own, and `key = :field` on the replicated node names it when it lives under another name — that is Declare's `key`, an identity attribute, not React's reconciliation prop."
     },
     {
       "terms": [

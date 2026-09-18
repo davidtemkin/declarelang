@@ -2,17 +2,11 @@
 # Field
 
 A labeled form row: the label column, then whatever control the use site nests
-(its DIRECT child, arranged by the row's layout):
+(its direct child, arranged by the row's layout):
 
     Field [ label = "Name", TextInput [ width = 220, height = 30 ] ]
 
-`labelWidth` is the shared-column knob (Contract 4, ruled: a form wanting
-aligned labels sets ONE plain value and each row constrains to it — never
-aggregation, which the constraint system forbids by design).
-
-A note/error line under the control is DEFERRED: routing use-site children into
-named regions is the §13 slots/`placement` open — this component is Tier 1's
-concrete evidence for that item's priority.
+`labelWidth` is the shared-column knob.
 
 ```declare
 form: View [ x = 20, y = 20,
@@ -48,9 +42,9 @@ house look. See `Control.theme`.
 class Field extends View [
     baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the field by its caption
 
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
 

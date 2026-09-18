@@ -1,43 +1,43 @@
-// crossings.declare — Scenario II of the two-way demo: a DECLARE app hosting
-// two FOREIGN web apps (plain JS — tally.js and orbit.js, mounted by the page
+// crossings.declare — Scenario II of the two-way demo: a Declare app hosting
+// two foreign web apps (plain JS — tally.js and orbit.js, mounted by the page
 // into the two DOMIsland boxes below).
 //
-// Everything that crosses the boundary is DECLARED, right here, as the
+// Everything that crosses the boundary is declared, right here, as the
 // islands' `external` surface (guide ch. 18) — a typed contract, not an open
 // door. Read the two island bodies below as the whole wiring diagram:
 //
 //   host → tenant    the class declares `external hue: number` and the
-//                    instance BINDS it (`hue = { app.masterHue }`) — so the
+//                    instance binds it (`hue = { app.masterHue }`) — so the
 //                    host owns the slot: whenever masterHue changes, the
 //                    runtime pushes the new value to the tenant (which sees it
 //                    via handle.observe). A tenant write to a host-bound slot
-//                    is REFUSED, loudly, naming the constraint — ownership is
+//                    is refused, loudly, naming the constraint — ownership is
 //                    refereed, not hoped for.
 //
 //   tenant → host    `external readonly count: number = 0` — `readonly` means
-//                    readonly TO THE HOST: the tenant owns the fact and pushes
+//                    readonly to the host: the tenant owns the fact and pushes
 //                    it (handle.set); here it is an ordinary reactive value,
 //                    so `app.tally.count` below drives a gauge, a caption, and
-//                    even the OTHER tenant, all by constraint.
+//                    even the other tenant, all by constraint.
 //
 //   tenant ⇄ tenant  `dots = { app.tally.count }` on the orbit island — a
-//                    fact that LEAVES one foreign app, crosses into Declare,
+//                    fact that leaves one foreign app, crosses into Declare,
 //                    and is pushed into the second foreign app by a one-line
 //                    constraint. Two boundary crossings, no wiring code
 //                    anywhere.
 //
 //   verbs            post()/onPost() — commands, consumed once, never
-//                    re-readable. The reset button posts DOWN to both tenants;
-//                    each tenant posts UP (milestones, bursts) into the
+//                    re-readable. The reset button posts down to both tenants;
+//                    each tenant posts up (milestones, bursts) into the
 //                    islands' onPost handlers, which feed the log line.
 //
 // Compare Scenario I (dial/pulse + index.html): same two directions, but with
 // an HTML host the wiring is imperative page JS. Here it is constraints.
 
-// The islands' declared surfaces — each class IS the boundary contract, in
-// full. `readonly` reads from the HOST's side: the tenant owns that fact and
+// The islands' declared surfaces — each class is the boundary contract, in
+// full. `readonly` reads from the host's side: the tenant owns that fact and
 // pushes it (handle.set); the host reads, derives, and provably never writes.
-// The host-owned slots (hue, dots) are declared here WITHOUT bindings and
+// The host-owned slots (hue, dots) are declared here without bindings and
 // bound at the instances below — see the "spelling matters" note there.
 // (Corpus convention: classes first, the App closes the file.)
 
@@ -57,7 +57,7 @@ class OrbitIsland extends DOMIsland [
 
     external hue: number = 0,
 
-    // host → tenant, but SOURCED from the other tenant (bound below to
+    // host → tenant, but sourced from the other tenant (bound below to
     // app.tally.count) — the fact that crosses two app boundaries
 
     external dots: number = 0,
@@ -70,7 +70,7 @@ class OrbitIsland extends DOMIsland [
 
 App [ width = 960, height = 600, fill = #101820,
 
-    // The master fact. The Declare slider writes it, and the PAGE writes it
+    // The master fact. The Declare slider writes it, and the page writes it
     // too (the demo keeps one hue everywhere — the page forwards the dial's).
 
     masterHue: number = 210,
@@ -105,7 +105,7 @@ App [ width = 960, height = 600, fill = #101820,
     masterOut: Text [ x = 374, y = 42, textColor = #E7EEF2, fontSize = 14,
         fontWeight = medium, text = { "master hue " + Math.round(app.masterHue) + "°" } ],
 
-    // A VERB, not a fact: "become zero again" is a command the tenants apply
+    // A verb, not a fact: "become zero again" is a command the tenants apply
     // to state the host cannot see (tally's count, orbit's speed are theirs).
 
     reset: Button [ y = 34, x = { parent.width - width - 24 }, label = "reset the tenants",
@@ -121,12 +121,12 @@ App [ width = 960, height = 600, fill = #101820,
     tallyLabel: Text [ x = 24, y = 84, textColor = #6C7683, fontSize = 11,
         text = "FOREIGN TENANT · TALLY.JS (PLAIN DOM)" ],
 
-    // SPELLING MATTERS here, and it is worth reading closely. The externals
-    // are declared on the island CLASSES (above) and BOUND on these
-    // instances — the STRICT input spelling. An instance bind is a standing,
+    // spelling matters here, and it is worth reading closely. The externals
+    // are declared on the island classes (above) and bound on these
+    // instances — the strict input spelling. An instance bind is a standing,
     // owning constraint: a tenant push to `hue` is refused, loudly, naming it.
     // Writing `external hue: number = { app.masterHue }` directly on the
-    // instance would DECLARE-with-a-default instead, and a declaration default
+    // instance would declare-with-a-default instead, and a declaration default
     // is a soft input by the language's own rank rules — a tenant push would
     // silently displace the binding and the host feed would be severed.
 
@@ -160,7 +160,7 @@ App [ width = 960, height = 600, fill = #101820,
         onPost(m: IslandPost) { app.log = "orbit posted \"" + m.topic + "\" with " + m.payload + " dots" }
         ],
 
-    // ── readouts: host constraints DERIVING from tenant-owned facts ──
+    // ── readouts: host constraints deriving from tenant-owned facts ──
 
     gaugeTrack: View [ x = 24, y = 446, height = 10, cornerRadius = 5,
         width = { parent.width - 48 }, fill = #1A222C ],

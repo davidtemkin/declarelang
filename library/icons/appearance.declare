@@ -1,11 +1,11 @@
 /*
 # Appearance icons — sun, moon, and the half-disc
 
-The Light / System / Dark triad. Five apps built this switch independently and
-all five reached for `☀︎ ◐ ☾`, which is the worst case for glyphs: three marks
-that must read as ONE family at 14px, drawn by three unrelated parts of whatever
-font the platform happens to have. The sun is a heavy sunburst, the moon a thin
-crescent, the half-disc a geometric shape — they never matched.
+The Light / System / Dark triad. Typed as `☀︎ ◐ ☾` it is the worst case for
+glyphs: three marks that must read as **one family** at 14px, drawn by three
+unrelated parts of whatever font the platform happens to have. The sun is a
+heavy sunburst, the moon a thin crescent, the half-disc a geometric shape —
+they never match.
 
 Drawn, they share a circle of the same radius and the same stroke, so they read
 as a set: a disc with rays, a disc bitten by a shadow, a disc half filled.
@@ -13,17 +13,14 @@ as a set: a disc with rays, a disc bitten by a shadow, a disc half filled.
 
 include [ "icon.declare" ]
 
-// The three share a disc of one radius. What they do NOT yet share is settled:
-// `solid` picks the rendition, and the two are worth comparing on sight rather
-// than in prose (test/probe/iconbook.declare shows the set across the weight ramp).
-//
-// The original argument for filling all three: at 14–18px a 1.6px ring reads far
-// lighter than a filled crescent, so filling is what makes them siblings and the
-// difference between them is what is SUBTRACTED from the disc — nothing, half, a
-// bite. The argument against: a MIXED language — outline sun, outline crescent,
-// half-filled disc — is principled, because the half-disc is the one of the
-// three whose meaning IS its fill; outlining the other two keeps the triad's
-// ink balanced instead of letting the sun and moon carry double the weight.
+// The three share a disc of one radius; `solid` picks each mark's rendition.
+// The default is a mixed language — outline sun, outline crescent, half-filled
+// disc — because the half-disc is the one of the three whose meaning is its
+// fill; outlining the other two keeps the triad's ink balanced instead of
+// letting the sun and moon carry double the weight. Filling all three is the
+// other reading: at 14–18px a 1.6px ring reads far lighter than a filled
+// crescent, and the difference between the marks becomes what is subtracted
+// from the disc — nothing, half, a bite.
 
 /*
 # SunIcon
@@ -47,7 +44,7 @@ Renders the disc and its rays.
 
 class SunIcon extends Icon [
     rays: number = 8,
-    solid: boolean = false,         // true = the original filled disc; false = the ring
+    solid: boolean = false,         // true = the filled disc; false = the ring
     draw(d: Draw) {
         d.scale(unit, unit)
         d.fillStyle = ink
@@ -77,7 +74,7 @@ class SunIcon extends Icon [
 // circles' two intersection points, so the horns close to a point instead of
 // leaving the tail an arc pair leaves.
 //
-// One path, two renditions: FILL it and you get a solid crescent; STROKE the
+// One path, two renditions: fill it and you get a solid crescent; stroke the
 // same closed path and the horns taper, because the two arcs meet at a point.
 // Nothing about the geometry changes — only what is done with it.
 
@@ -99,7 +96,7 @@ Renders the crescent.
 */
 
 class MoonIcon extends Icon [
-    solid: boolean = false,         // true = the original filled crescent; false = the stroked horns
+    solid: boolean = false,         // true = the filled crescent; false = the stroked horns
     draw(d: Draw) {
         d.scale(unit, unit)
         d.beginPath()

@@ -1,0 +1,11 @@
+class Chip extends View [ label: string = "",
+    height = 19, width = { this.t.width + 18 }, cornerRadius = 9,
+    fill = 0xDDF4E4,
+    t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]
+    ]
+
+
+App [ width = 430, height = 96,
+    HTMLText [ x = 16, y = 16, width = 398, fontSize = 15,
+        html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> — each one a real view, sitting on the line's baseline." ]
+    ]

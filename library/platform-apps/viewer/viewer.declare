@@ -1,31 +1,32 @@
 // Declare Viewer — a live, syntax-highlighted view of a Declare source file.
 //
-// It renders nothing on its own: the server runs the compiler's highlight()
-// (compiler/src/highlight.ts) over a `.declare` file and hands the resulting
-// SEGMENTS to this app through the host→app seed channel (app.demoSources), so
-// the Viewer is a plain consumer. Each segment is either PROSE — the Markdown
-// carried in a block comment, rendered by the Markdown component — or CODE — a
-// run of syntax-highlighted <pre> HTML whose per-token <span> classes this app's
-// `textStyles` map colors (theme-aware, so the same segments render light or dark).
+// It renders nothing on its own: the server runs the compiler's highlighter
+// over a `.declare` file and hands the resulting segments to this app through
+// the host→app seed channel (app.demoSources), so the Viewer is a plain
+// consumer. Each segment is either prose — the Markdown carried in a block
+// comment, rendered by the Markdown component — or code — a run of
+// syntax-highlighted <pre> HTML whose per-token <span> classes this app's
+// `textStyles` map colors (theme-aware, so the same segments render light or
+// dark).
 //
-// Reach it with a request type (reqtypes.ts): a bare `foo.declare?viewer` opens the
-// default Reader tab (the program URL is the address — a directory carries no
+// Reach it with a request type: a bare `foo.declare?viewer` opens the default
+// Reader tab (the program URL is the address — a directory carries no
 // behavior). The Reader / Source / Edit triple (?viewer=reader | source | edit)
-// switches between the rendered view, the verbatim source, and an editing workbench
-// (the source in an editor, the running program below it, compile errors sandwiched
-// between); the A stepper zooms every text size; the ☀/◐/☾ switch picks
-// Light / System / Dark.
+// switches between the rendered view, the verbatim source, and an editing
+// workbench (the source in an editor, the running program below it, compile
+// errors sandwiched between); the A stepper zooms every text size; the
+// sun / half-disc / moon switch picks Light / System / Dark.
 //
-// A program's `include [ "…" ]` paths and its bare library tags are LINKS: the
+// A program's `include [ "…" ]` paths and its bare library tags are links: the
 // reader follows them in place (the location names the file), ‹ › appear
 // beside the brand once a link has been followed, and an include's Edit tab —
 // classes, no App, nothing to run — says which program to edit instead.
 
-// the appearance switch names its icons in data — see calendar for the rule
+// the appearance switch names its icons in data, so the build keeps the classes
 
 use [ SunIcon, AutoIcon, MoonIcon ]
 
-// one segment: prose (Markdown) OR code (colored, monospace <pre>). Exactly one
+// one segment: prose (Markdown) or code (colored, monospace <pre>). Exactly one
 // child is visible, so the segment's auto-height is that child's height. Prose is
 // inset (a narrower reading column); code spans the full width, so the two read as
 // distinct — commentary vs. program — and code gets the room.
@@ -34,15 +35,15 @@ class Block extends View [ kind: string = "",
     md: string = "",
     html: string = "",
     nested: boolean = false,                     // born inside a declaration's body: an aside, not a section break
-    joinBelow: boolean = false,                  // the NEXT segment is a nested aside: this card's bottom-left squares
+    joinBelow: boolean = false,                  // the next segment is a nested aside: this card's bottom-left squares
 
     width = { parent.width },
 
     // prose reads like a book: left-aligned to the shared spine, capped at the
     // reading measure, with space above it that becomes the section break.
-    // A NESTED aside — a block comment inside a class or instance body — keeps
+    // A nested aside — a block comment inside a class or instance body — keeps
     // the code's teal spine running through it and sits inset to the code's own
-    // text gutter, so the declaration it interrupts still reads as ONE
+    // text gutter, so the declaration it interrupts still reads as one
     // specimen: header card, threaded aside, body card.
 
     prose: Markdown [ visible = { classroot.kind == "prose" }, x = { classroot.nested ? 20 : 0 },
@@ -51,8 +52,8 @@ class Block extends View [ kind: string = "",
         text = { classroot.md }, scale = { app.fontScale }, lineHeight = 1.6,
         bodyColor = { provided("theme").text }, dark = { app.isDark }, selectable = true ],
 
-    // the thread: the code spine, continued through the aside — UNBROKEN and at
-    // the spine's own weight. It reaches UP across the column's 12px gap to
+    // the thread: the code spine, continued through the aside — unbroken and at
+    // the spine's own weight. It reaches up across the column's 12px gap to
     // meet the card above, and runs a hair past the prose so a resuming code
     // card's bridge (below) meets it across the next gap.
 
@@ -74,11 +75,11 @@ class Block extends View [ kind: string = "",
         height = { this.body.height + 32 },
         clip = true,                             // the card contains its code: long lines clip at the box (the DOM's pre scrolls natively; the sealed surface must say so)
 
-        // the card's own shape, stated exactly: rounded everywhere EXCEPT the
-        // corner an aside joins (DT's ruling) — the card above an aside squares
-        // its bottom-left, the card below its top-left. Per-corner radii say
-        // it directly, and the spine is painted inside the same path, clipped
-        // to the arcs, so the thread meets the gap connectors dead-on.
+        // the card's own shape, stated exactly: rounded everywhere except the
+        // corner an aside joins — the card above an aside squares its
+        // bottom-left, the card below its top-left. Per-corner radii say it
+        // directly, and the spine is painted inside the same path, clipped to
+        // the arcs, so the thread meets the gap connectors dead-on.
 
         draw(d: Draw) {
             const r = 8
@@ -115,9 +116,8 @@ class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
     onClick() { app.fontScale = classroot.delta == 0 ? 0.9
         : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
 
-    lbl: Text [ fontWeight = semibold, fontSize = { classroot.glyph }, textColor = { provided("theme").textMuted },
-        text = "A", wrap = false,
-        x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
+    lbl: TextLabel [ fontWeight = semibold, fontSize = { classroot.glyph }, textColor = { provided("theme").textMuted },
+        text = "A", wrap = false, x = center ]
     ]
 
 
@@ -128,24 +128,24 @@ App [ fill = { provided("theme").bg },
 
     appName = { app.baseName() },
 
-    // EMBEDDED self-loading: a HOST (the desktop) passes `env.program` — a
+    // Embedded self-loading: a host (the desktop) passes `env.program` — a
     // program path valid in the host's transport base — and this app fetches
     // its own reader artifacts from that program URL's ?segments and ?file
     // requests: the same bytes the serve wrapper seeds via demoSources,
     // pulled by the app itself, on either hosting mode. A seeded
     // demoSources still wins wherever both exist.
     //
-    // FOLLOWING AN INCLUDE is the same self-loading, aimed elsewhere: the
-    // location names a file by its SERVED PATH (`reader/apps/weather/
+    // Following an include is the same self-loading, aimed elsewhere: the
+    // location names a file by its served path (`reader/apps/weather/
     // weather-art.declare` — the address bar's own spelling, minus the leading
     // slash, so the fragment is honest shareable coordinates), and these two
-    // sources fetch IT — the seeds keep serving only the file the page was
+    // sources fetch it — the seeds keep serving only the file the page was
     // opened on.
 
     segSrc: DataSource [ format = "text", auto = true, url = { app.srcUrl("?segments") } ],
 
     // when the raw file lands (the env-driven embedded case has no seeds),
-    // PUBLISH it on the live channel: the edit pane's island then runs the
+    // publish it on the live channel: the edit pane's island then runs the
     // viewed program as soon as the tab opens — no first keystroke needed
 
     rawSrc: DataSource [ format = "text", auto = true, url = { app.srcUrl("?file") },
@@ -166,10 +166,10 @@ App [ fill = { provided("theme").bg },
     headH: number = { 46 * app.fontScale },    // filename title + rule, above the body
 
     // "reader" = highlighted + Markdown, "source" = verbatim, "edit" = live
-    // workbench — the viewer's location (docs/system-design/location.md). The `?viewer=` request
-    // seeds the opening tab (the host translates the query into the initial
-    // location); a tab click writes `app.location` and this derives back from it, so
-    // the tab is a single source of truth that back/forward walk for free.
+    // workbench — the viewer's location. The `?viewer=` request seeds the
+    // opening tab (the host translates the query into the initial location);
+    // a tab click writes `app.location` and this derives back from it, so the
+    // tab is a single source of truth that back/forward walk for free.
 
     // The location's grammar: `<mode>` alone views the file the page was
     // opened on; `<mode>/<served path>` views another — an include or a
@@ -180,9 +180,9 @@ App [ fill = { provided("theme").bg },
     mode: string = { (app.location || "reader").split("/")[0] || "reader" },
     fileRel: string = { (app.location || "").indexOf("/") < 0 ? "" : app.location.slice(app.location.indexOf("/") + 1) },
 
-    // The history walk is the HOST's — the browser's Back/Forward, the mac
+    // The history walk is the host's — the browser's Back/Forward, the mac
     // titlebar's ‹ › — because a followed file is one location entry and a tab
-    // switch REPLACES its entry (the Segmented's `replace`), so Back walks
+    // switch replaces its entry (the Segmented's `replace`), so Back walks
     // files, never tabs. The viewer draws no chrome of its own for it.
 
     fontScale: number = 0.9,    // reader font zoom (0.9 = the comfortable default; the A stepper drives it)
@@ -192,11 +192,11 @@ App [ fill = { provided("theme").bg },
     liveCard: string = "",      // the edit tab republishes each keystroke on this pair …
     liveSource: string = "",    // … and the host recompiles it, feeding app.liveReport back
 
-    // auto follows the HOST's appearance, three tiers: the island bridge's
+    // auto follows the host's appearance, three tiers: the island bridge's
     // typed fact first (`external darkOverride` — "" = the host said nothing,
     // which is what an unlinked standalone run reads), then the env ancestor
-    // (an older host passing env.dark), then the system preference.
-    // Light/Dark stay explicit overrides.
+    // (a host passing env.dark), then the system preference. Light/Dark stay
+    // explicit overrides.
 
     external darkOverride: string = "",
 
@@ -206,12 +206,11 @@ App [ fill = { provided("theme").bg },
             : (app.env.dark != null ? app.env.dark == true : app.dark))
         : app.themeMode == "dark" },
 
-    // The HOUSE preset, plus this app's two domain names — and no private values
-    // for the standard tokens. It used to carry a full second palette (GitHub's,
-    // ported) over the top, which is why the same markdown read one color here
-    // and another in the desktop's reader window: two houses, one document.
-    // A reader's page is a SHEET, so it paints `surface` — the token the
-    // desktop's window paints — and the chrome around it recedes to `bg`.
+    // The house preset, plus this app's two domain names — and no private
+    // values for the standard tokens, so the same markdown reads one color
+    // here and in the desktop's reader window. A reader's page is a sheet, so
+    // it paints `surface` — the token the desktop's window paints — and the
+    // chrome around it recedes to `bg`.
 
     theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...app.domainTheme() } },
 
@@ -223,11 +222,11 @@ App [ fill = { provided("theme").bg },
     parseDoc() {
         const raw = app.fileRel == "" ? ((app.demoSources && app.demoSources["__source__"]) || app.segSrc.value || "[]") : (app.segSrc.value || "[]")
         let segs = []
-        // two shapes for one material: the seeded channel is the BARE array; the
+        // two shapes for one material: the seeded channel is the bare array; the
         // ?segments request wraps it ({ path, segments }) — accept either
         try { const p = JSON.parse(raw); segs = Array.isArray(p) ? p : (p && p.segments) || [] } catch (e) { segs = [] }
-        // graceful floor: a host with no highlighter (?segments is a recorded
-        // gap on the static host) still reads — the raw file as ONE code block
+        // graceful floor: a host with no highlighter (a static host answers no
+        // ?segments) still reads — the raw file as one code block
         if (segs.length == 0 && (app.rawSrc.value || "") != "") {
             const e = ("" + app.rawSrc.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             segs = [({ kind: "code", html: "<pre>" + e + "</pre>" })]
@@ -236,7 +235,7 @@ App [ fill = { provided("theme").bg },
             joinBelow: segs[i + 1] != null && segs[i + 1].nested == true })) })
         },
 
-    // INCLUDE LINKS. A code segment's html is the highlighter's <pre> of
+    // Include links. A code segment's html is the highlighter's <pre> of
     // <span class=…> tokens; two token shapes name another file, and each
     // becomes an in-app link — an <a href="#reader/…"> the reader follows
     // through app.follow, so it works on every renderer and the history
@@ -253,9 +252,9 @@ App [ fill = { provided("theme").bg },
         const inc = new RegExp('<span class=' + q + 'k' + q + '>(include|script)<\\/span>\\s*\\[([\\s\\S]*?)\\]', 'g')
         const str = new RegExp('<span class=' + q + 's' + q + '>' + q + '([^' + q + ']+)' + q + '<\\/span>', 'g')
         const tag = new RegExp('<span class=' + q + 't' + q + '>([A-Z]\\w*)<\\/span>', 'g')
-        // the anchor's text is BARE (no accent span inside): the accent would
+        // the anchor's text is bare (no accent span inside): the accent would
         // compose over the link color, and a link should read as a link —
-        // linkColor + linkUnderline on the HTMLText style it. The QUOTE MARKS
+        // linkColor + linkUnderline on the HTMLText style it. The quote marks
         // stay outside the anchor, in the string accent: the file is the link,
         // its quoting is syntax.
         const quote = '<span class=' + q + 's' + q + '>' + q + '</span>'
@@ -292,7 +291,7 @@ App [ fill = { provided("theme").bg },
         return "<pre>" + e + "</pre>"
         },
 
-    // the verbatim text of the VIEWED file — the seeds' for the opened file,
+    // the verbatim text of the viewed file — the seeds' for the opened file,
     // the fetched one for a followed include
 
     rawText() -> string {
@@ -308,7 +307,7 @@ App [ fill = { provided("theme").bg },
     hasApp(src: string) -> boolean { return src != "" && /^\s*App\s*\[/m.test(src.replace(new RegExp('\\/\\*[\\s\\S]*?\\*\\/', 'g'), "")) },
     isInclude: boolean = { app.rawText() != "" && !app.hasApp(app.rawText()) },
 
-    // is the file this page OPENED ON a runnable program? False when the page
+    // is the file this page opened on a runnable program? False when the page
     // was opened directly on an include — then there is no program to point at.
 
     seededRunnable: boolean = { app.hasApp((app.demoSources && app.demoSources["__raw__"]) || (app.fileRel == "" ? app.rawText() : "")) },
@@ -321,9 +320,8 @@ App [ fill = { provided("theme").bg },
     // the viewed file's served path: the followed file's own, else the opened program's
 
     filePath() { return app.fileRel == "" ? app.seededPath() : app.fileRel },
-    seededDir() -> string { const p = app.seededPath(); const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i + 1) },
 
-    // the VIEWED file's directory (served), the base an include path in it resolves against
+    // the viewed file's directory (served), the base an include path in it resolves against
 
     viewedDir() -> string { const p = app.filePath(); const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i + 1) },
 
@@ -338,13 +336,13 @@ App [ fill = { provided("theme").bg },
             try { const p = JSON.parse(app.segSrc.value); m = (p && p.metrics) || null } catch (e) { m = null }
             }
         // a static host serves the raw file but answers no ?segments — count
-        // the lines HERE, so the label holds on every hosting mode
+        // the lines here, so the label holds on every hosting mode
         if (m == null && app.rawText() != "") m = this.localMetrics(app.rawText())
         return m == null ? "" : "· " + m.total + " lines, " + m.code + " code"
         },
 
-    // the compiler's line classification in miniature: comments mask OUT,
-    // """ text blocks and whole { } constraint bodies mask IN (a // inside a
+    // the compiler's line classification in miniature: comments mask out,
+    // """ text blocks and whole { } constraint bodies mask in (a // inside a
     // body is body, not comment — the compiler's rule), and a line counts
     // as code when anything masked-in and non-blank survives on it
 
@@ -423,7 +421,7 @@ App [ fill = { provided("theme").bg },
 
     // What this app adds to the house palette, and nothing more.
     //
-    // `codeBg` is the house BACKDROP showing through the page — a code well is
+    // `codeBg` is the house backdrop showing through the page — a code well is
     // recessed, which is the same relationship in both modes and needs no value
     // of its own. `accentSecondary` is the far end of the brand gradient (the
     // wordmark, a card's spine, the live grip); the house has one accent, and a
@@ -506,16 +504,16 @@ App [ fill = { provided("theme").bg },
     // render while it shows). A file with no App declaration reports instead of
     // running — honest, if unglamorous.
 
-    // An INCLUDE on the Edit tab: it declares components and no App, so there
-    // is nothing to run — one centred line points at the one program this page
-    // actually knows, the one it opened on. (Which programs include a file is
-    // unknowable in general — any program may — so the message claims nothing
-    // about inclusion.)
+    // An include on the Edit tab: it declares components and no App, so there
+    // is nothing to run — one centered line points at the one program this
+    // page actually knows, the one it opened on. (Which programs include a
+    // file is unknowable in general — any program may — so the message claims
+    // nothing about inclusion.)
 
     noRun: View [ visible = { app.mode == "edit" && app.isInclude }, x = 0, y = { app.barH },
         width = { app.hostWidth }, height = { app.hostHeight - app.barH }, fill = { provided("theme").surface },
 
-        // two centred lines with a blank line between; the second names the
+        // two centered lines with a blank line between; the second names the
         // page's own program when it has one, and claims nothing otherwise
 
         l1: Text [ x = center, y = { parent.height / 2 - 44 * app.fontScale }, wrap = false,
@@ -528,7 +526,7 @@ App [ fill = { provided("theme").bg },
             name: Text [ wrap = false, fontSize = { 15 * app.fontScale }, fontWeight = semibold,
                 textColor = { app.isDark ? 0x58A6FF : 0x0969DA },
 
-                // a location WRITE, not a `link` attr: "edit" is the viewer's own
+                // a location write, not a `link` attr: "edit" is the viewer's own
                 // location grammar, not a `shows` destination — the registry
                 // (rightly) refuses the literal form, and the write is the same
                 // edge the tabs emit
@@ -557,8 +555,7 @@ App [ fill = { provided("theme").bg },
         editor: TextInput [ x = 0, y = 0, width = { parent.width }, height = { parent.editorH },
             multiline = true, spellcheck = false, wrap = false, padding = 14,
 
-            // the A stepper drives every pane, this one included — it read as a
-            // dead control here, since the tab it is showing ignored it
+            // the A stepper drives every pane, this one included
 
             fontFamily = ["ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
             textColor = { app.codeFg() },
@@ -583,17 +580,16 @@ App [ fill = { provided("theme").bg },
                 parent.edited = false
                 app.liveCard = "__raw__"; app.liveSource = raw
                 },
-            lbl: Text [ fontSize = 11, fontWeight = semibold, wrap = false,
-                x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
+            lbl: TextLabel [ fontSize = 11, fontWeight = semibold, wrap = false, x = center,
                 textColor = { provided("theme").textMuted }, text = "Revert" ]
             ],
 
         // the divider: the press captures the pointer to this view (the router's
         // capture model — the calendar's drag uses the same), so its move/up fire
         // for the whole drag wherever the pointer goes. The move reads the
-        // POINTER's app-space y (its own event coords are grip-local and the
-        // grip is what's moving); the shield above merely blocks the browser's
-        // native text selection in the editor beneath.
+        // pointer's app-space y (its own event coords are grip-local and the
+        // grip is what's moving); the shield (the last child) merely blocks
+        // the browser's native text selection in the editor beneath.
 
         grip: View [ x = 0, y = { parent.editorH }, width = { parent.width }, height = 6,
             dragging: boolean = false,
@@ -604,9 +600,9 @@ App [ fill = { provided("theme").bg },
             onPointerUp()    { dragging = false }
             ],
 
-        // the error sandwich: the last recompile's report IN FULL, only while one
-        // stands — the wrapped multi-line text is the docs/homepage treatment (a
-        // single unwrapped line showed only the report's "1 error" summary)
+        // the error sandwich: the last recompile's report in full, only while one
+        // stands — wrapped multi-line text, the docs/homepage treatment, so the
+        // report reads past its "1 error" summary line
 
         report: View [ visible = { app.liveReport != "" }, x = 0, y = { parent.editorH + 6 },
             width = { parent.width }, clip = true,
@@ -627,7 +623,7 @@ App [ fill = { provided("theme").bg },
             program = { app.mode == "edit" ? "__raw__" : "" } ],
 
         // the drag shield — last child, so it sits over everything while a
-        // divider drag is on. The ROUTER already captures the drag to the grip;
+        // divider drag is on. The router already captures the drag to the grip;
         // this view's whole job is to be the browser's native hit target, so the
         // editor's textarea underneath cannot rubber-band a text selection.
 
@@ -659,29 +655,28 @@ App [ fill = { provided("theme").bg },
 
         // Reader / Source / Edit. The tab writes `app.location`, and `app.mode`
         // derives back from it — so the switch stays a single source of truth
-        // that back/forward walk for free, which is what the location comment
-        // above already wanted. `Segmented` keeps that seam intact: `value` reads
-        // the derived mode, `input` writes the location.
+        // that back/forward walk for free. `Segmented` keeps that seam intact:
+        // `value` reads the derived mode, `input` writes the location.
 
         modeSwitch: Segmented [ y = { (app.barH - 30) / 2 }, height = 30, width = 244,
             x = { Math.max(200, (app.hostWidth - 244) / 2) },
-            replace = true,        // a tab switch never buries Back — the walk is between FILES
+            replace = true,        // a tab switch never buries Back — the walk is between files
             value = { app.mode },
 
-            // KEEP the viewed file across tabs: a bare `location = v` here
-            // silently dropped the followed include (the choice's own location
-            // carries the suffix, but this write ran after it and won the
-            // settle). The keyboard path (Enter on a segment) arrives only
-            // here, so this must build the full location itself — and replace,
-            // like the click path, so no tab switch ever buries Back.
+            // Keep the viewed file across tabs: a bare `location = v` here would
+            // drop the followed include (the choice's own location carries the
+            // suffix, but this write runs after it and wins the settle). The
+            // keyboard path (Enter on a segment) arrives only here, so this must
+            // build the full location itself — and replace, like the click
+            // path, so no tab switch ever buries Back.
 
             input(v: object) { app.follow("#" + ("" + v) + (app.fileRel == "" ? "" : "/" + app.fileRel), true) },
 
-            // each tab states its location, which is what makes the switch a LINK
+            // each tab states its location, which is what makes the switch a link
             // the crawler can follow — without it this app emits one document
             // (the default) and Source and Edit are unreachable to extraction
 
-            // …and keeps the viewed FILE: switching tabs on a followed include
+            // …and keeps the viewed file: switching tabs on a followed include
             // stays on that include
 
             choices = { [ ({ id: "reader", label: "Reader", location: "reader" + (app.fileRel == "" ? "" : "/" + app.fileRel) }),

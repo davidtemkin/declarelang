@@ -532,6 +532,13 @@ const RICH_ATTRS = {
     codeBackground: { kind: "color" },
     codeRule: { kind: "color" },
     richTextLayout: { kind: "record", name: "RichTextLayout" },
+    // The named-style palette a `<span class>` references — on the rich BASE (so
+    // Markdown has it too; its spans resolve the same way) and INHERITED like
+    // every other name here, so an app names the palette once and every rich text
+    // below takes it, a nearer one overriding. It was HTMLText's alone and set per
+    // element, which is what made a look that follows the theme cost a line at
+    // every use site.
+    textStyles: { kind: "record", name: "TextStyles" },
 };
 /** The BUILT-IN provided values — the names a container may set BARE (no type)
  *  to provide to its subtree, because the language already knows them: the text
@@ -847,11 +854,6 @@ const HTMLTextSchema = {
     attrs: {
         html: { kind: "string" },
         unsupported: enumType("Unsupported", "strip", "error"),
-        // Named styles a `<span class="…">` can reference — a map of name → a bundle
-        // of Text's own style attributes (`styles = { { hero: { fontSize = 28,
-        // fontFamily = "Anton" } } }`). The one styling hook: content names a style
-        // the app defines, by the same attribute names as Text; never CSS itself.
-        textStyles: { kind: "record", name: "TextStyles" },
     },
 };
 // Layout strategies (R7). The abstract base IS in the name table so a class
@@ -1244,6 +1246,21 @@ export const SCHEMAS = {
     Socket: SocketSchema,
     State: StateSchema,
     Node: NodeSchema,
+};
+/** The schemas NO runtime class implements — the abstract family bases. They
+ *  are in SCHEMAS so the reference documents each once and its concrete
+ *  members inherit checkably, but nothing constructs one: not as a tag, and
+ *  not as a class's base (`class X extends Stream` is refused, naming the
+ *  concrete members). Every other schema is a base a program class may
+ *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
+ *  so it cannot drift when a component joins either table. */
+export const ABSTRACT_SCHEMAS = new Set(["Media", "Editor", "Stream"]);
+/** For the refusal above: the concrete members an abstract base's would-be
+ *  subclass should extend instead. */
+export const ABSTRACT_CONCRETE = {
+    Media: "Video, Audio",
+    Editor: "TextInput",
+    Stream: "EventStream, Socket",
 };
 /** Does `schema`'s inheritance chain pass through a component named
  *  `ancestor`? The checker's kind test — "is this tag a Layout?", "may a

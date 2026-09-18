@@ -323,4 +323,36 @@ await test("4005 for an authored union names ONLY the quoted spelling — there 
   assert.match(be.message, /bare only as the whole slot \(fontWeight = semibold\)/);
 });
 
+await test("a class named like a whitelisted rich-text tag warns ONCE, and only where there is rich text", async () => {
+  // Inside `Markdown`/`HTMLText` content a tag is resolved against the program's
+  // own classes before the HTML whitelist, so a class literally called `code`
+  // takes `<code>` over for every document the app renders. Legal, defined, and
+  // invisible — a warning, at the class declaration.
+  const r = await compile(`class code extends View [ width = 10, height = 10, fill = navy ]
+    App [ width = 400, height = 100, HTMLText [ width = 380, html = "<p>a <code>b</code></p>" ] ]`, { originDir: process.cwd() });
+  const w = (r.warnings ?? []).filter((x) => x.code === "DECLARE4010");
+  assert.equal(w.length, 1, "one class, one warning: " + (r.warnings ?? []).map((x) => x.message).join(" | "));
+  assert.match(w[0].message, /class code hides the rich-text tag <code>/);
+  assert.match(w[0].message, /builds one code view, not the tag/, "names what happens");
+  assert.match(w[0].message, /Rename the class/, "names the fix");
+
+  // A subclass of a rich-text format is rich text too (the test is the schema
+  // chain, never the tag's spelling).
+  const sub = await compile(`class code extends View [ width = 10, height = 10, fill = navy ]
+    class Note extends Markdown [ width = 380 ]
+    App [ width = 400, height = 100, Note [ text = "hi" ] ]`, { originDir: process.cwd() });
+  assert.equal((sub.warnings ?? []).filter((x) => x.code === "DECLARE4010").length, 1, "a Markdown subclass counts as rich text");
+
+  // No flow in the program → the name collides with nothing, and a warning here
+  // would be noise on a working app.
+  const quiet = await compile(`class code extends View [ width = 10, height = 10, fill = navy ]
+    App [ width = 400, height = 100, c: code [ ], Text [ text = "no documents here" ] ]`, { originDir: process.cwd() });
+  assert.equal((quiet.warnings ?? []).filter((x) => x.code === "DECLARE4010").length, 0, "no rich text, no warning");
+
+  // …and a class whose name is not in the whitelist never warns, rich text or not.
+  const unrelated = await compile(`class Issue extends View [ width = 60, height = 20, fill = navy ]
+    App [ width = 400, height = 100, HTMLText [ width = 380, html = "see <Issue/>" ] ]`, { originDir: process.cwd() });
+  assert.equal((unrelated.warnings ?? []).filter((x) => x.code === "DECLARE4010").length, 0, "Issue shadows no tag");
+});
+
 summarize("diagnostics-hints");

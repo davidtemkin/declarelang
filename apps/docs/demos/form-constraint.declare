@@ -1,5 +1,5 @@
 // A relationship that stays true
-// The box's size and colour are constraints on the slider's value; nothing subscribes,
+// The box's size and color are constraints on the slider's value; nothing subscribes,
 // nothing re-renders — the expressions are re-evaluated when what they read changes.
 
 App [ fill = 0xF6F8FA, textColor = 0xFFFFFF, fontSize = 13,

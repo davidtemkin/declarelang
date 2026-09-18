@@ -21,6 +21,7 @@ import type { CompileOptions } from "./compile.js";
 import { parseProgram, type Program, type Element } from "../../runtime/dist/parser.js";
 import { resolveIncludes, NO_INCLUDES, referencedComponentNames } from "../../runtime/dist/include.js";
 import { REGISTRY_NAMES } from "../../runtime/dist/registry.js";
+import { SCHEMAS, descendsFrom, type ComponentSchema } from "../../runtime/dist/schema.js";
 import { check } from "../../runtime/dist/check.js";
 import { toDiagnostic, renderReport, type Diagnostic } from "../../runtime/dist/diagnostics.js";
 import type { DeclareError } from "../../runtime/dist/errors.js";
@@ -62,19 +63,74 @@ export interface ProgramBuild {
   usedComponents: readonly string[];
 }
 
+/** Each rich-text format's CONTENT slot, keyed by the schema that owns it. An
+ *  inline view inside that content is written as a tag, so the slot's text is a
+ *  reference site for the program's own classes — see inlineViewNames below. */
+const RICH_TEXT_CONTENT: readonly (readonly [string, string])[] = [["HTMLText", "html"], ["Markdown", "text"]];
+
+/** `<Name` — the cheapest possible tag-name scan. The capture swallows the whole
+ *  name, so the match already ends on a name-character boundary (`<Issues` never
+ *  yields `Issue`), and a close tag is skipped because `/` is not a name start.
+ *  Nothing else about the content is parsed: the intersection with the program's
+ *  own class names is what makes a hit meaningful. */
+const TAG_NAME = /<([A-Za-z_$][\w$]*)/g;
+
+/** The program classes a LITERAL rich-text document names as an inline view.
+ *  Inside `HTMLText.html` / `Markdown.text`, a tag whose name matches a class
+ *  declared in the program builds one real view of that class — so the string IS
+ *  a static reference, and the used-set must see it or a production build drops
+ *  the class and the tag renders as plain text (dev, which ships the registry
+ *  whole, would keep working: the worst shape of bug this build can have).
+ *
+ *  Only a literal is scanned, and only against the program's own class names:
+ *  a whitelisted tag (`<b>`, `<span>`) keeps nothing, and content a body
+ *  computes or a `DataSource` fetches keeps nothing either — `use [ Issue ]` is
+ *  the author's tool for a class named by a string it cannot see. */
+function inlineViewNames(el: Element, classNames: ReadonlySet<string>, schemaOf: (tag: string) => ComponentSchema | null): string[] {
+  const schema = schemaOf(el.tag);
+  if (schema === null) return [];
+  const out: string[] = [];
+  for (const [base, slot] of RICH_TEXT_CONTENT) {
+    if (schema.name !== base && !descendsFrom(schema, base)) continue;
+    const a = el.attrs.find((x) => x.name === slot);
+    if (a === undefined || a.value.kind !== "string") continue;
+    for (const m of a.value.value.matchAll(TAG_NAME)) if (classNames.has(m[1])) out.push(m[1]);
+  }
+  return out;
+}
+
 /** The component NAMES a program may instantiate: its STATIC tree references
  *  (tags + class bases) ∪ any component a `{ }` body constructs BY NAME
- *  (`new Markdown()`, scanned via free-idents) ∪ the explicit `use [ … ]`
- *  keep-list. Sound because Declare has no reflective new-by-value: every
- *  construction path is a compile-time literal, so this set is complete (a
- *  future create-by-STRING is what `use` covers). The scan vocabulary is the
- *  built-in registry plus the program's own class names, so only real component
- *  identifiers count — `Math`, `console`, locals, etc. are ignored, and a name
- *  shadowed by a local is (correctly) not free. */
+ *  (`new Markdown()`, scanned via free-idents) ∪ the classes a LITERAL rich-text
+ *  document names as inline-view tags ∪ the explicit `use [ … ]` keep-list.
+ *  Sound because Declare has no reflective new-by-value: every construction path
+ *  is a compile-time literal, so this set is complete (create-by-STRING — an
+ *  `iconLeft = "TrashIcon"`, a fetched document — is what `use` covers). The
+ *  scan vocabulary is the built-in registry plus the program's own class names,
+ *  so only real component identifiers count — `Math`, `console`, locals, etc.
+ *  are ignored, and a name shadowed by a local is (correctly) not free. */
 export function usedComponentNames(program: Program): string[] {
-  const vocab = new Set<string>([...REGISTRY_NAMES, ...program.classes.map((c) => c.name)]);
+  const classNames = new Set(program.classes.map((c) => c.name));
+  const vocab = new Set<string>([...REGISTRY_NAMES, ...classNames]);
   const used = new Set<string>(referencedComponentNames(program));
   for (const name of program.uses) used.add(name);
+  // A tag's BUILT-IN schema: walk the declared-class chain to its terminal base,
+  // then the schema table. This is what makes the rich-text test a schema-chain
+  // question rather than a literal tag-name one — a `class Note extends Markdown`
+  // carries `text`, and a class of the author's named `Markdown`-something does
+  // not (the same discipline compile.ts's tagDescendsFrom follows).
+  const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+  const schemaOf = (tag: string): ComponentSchema | null => {
+    let name = tag;
+    const seen = new Set<string>();
+    while (bases.has(name) && !seen.has(name)) {
+      seen.add(name);
+      const b = bases.get(name);
+      if (b === undefined || b === null || b === "") return null;
+      name = b;
+    }
+    return Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name] : null;
+  };
   const scan = (src: string, expression: boolean, params: readonly string[]): void => {
     const ids = freeIdentifiers(src, { expression, bound: [...params] });
     if (ids === null) return; // unparseable body — the checker owns that error
@@ -84,6 +140,7 @@ export function usedComponentNames(program: Program): string[] {
     for (const a of el.attrs) if (a.value.kind === "code") scan(a.value.src, true, []);
     for (const d of el.decls) if (d.def?.kind === "code") scan(d.def.src, true, []);
     for (const m of el.methods) scan(m.body, false, m.params.map((p) => p.name));
+    for (const n of inlineViewNames(el, classNames, schemaOf)) used.add(n);
     for (const c of el.children) walk(c);
   };
   walk(program.root);

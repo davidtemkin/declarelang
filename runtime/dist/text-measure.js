@@ -5,10 +5,14 @@
 //   width = { measureText(app.label, { fontFamily: app.brand, fontSize: 13 }).width + 16 }
 //   draw(d: Draw) { const m = measureText("Plate 4", Caption); d.fillText("Plate 4", (d.w - m.width) / 2, m.baseline, Caption) }
 //
-// The style is a record of `Text` attribute names — a `style` bundle, or an inline
-// record — and a field left out takes its plain default, never an inherited value:
-// a measurement depends only on what it is given, so it means the same wherever it
-// is called. Its dependencies are ordinary: the values passed, and — through a
+// The style is REQUIRED and is a record of `Text` attribute names — a `style`
+// bundle, or an inline record — and a field left out takes its plain default,
+// never an inherited value: a measurement depends only on what it is given, so it
+// means the same wherever it is called. To measure a run the way a `Text` HERE
+// would render it, hand over the face: `providedTextStyle({ fontSize: 13 })`.
+// The style is not optional precisely because silence would otherwise mean two
+// different things — plain defaults, or the ambient face — and the wrong one
+// returns a plausible number rather than an error. Its dependencies are ordinary: the values passed, and — through a
 // Font in `fontFamily` — that font's current family and faces, tracked reads
 // (font-value.ts, face-table.ts). The compiler keeps a body that calls this on the
 // tracking path (dep-extract.ts), as a drawing always is.

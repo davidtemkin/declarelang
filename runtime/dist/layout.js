@@ -72,7 +72,7 @@
 // rAF, zero polling.
 import { Node } from "./node.js";
 import { Constraint, afterSettle } from "./reactive.js";
-import { defineAttributes, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
+import { cellsOf, defineAttributes, isSet, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
 import { DeclareError, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { isWindowedBlock, View } from "./view.js";
 import { Animator } from "./animator.js";
@@ -256,6 +256,52 @@ export class Layout extends Node {
             seen.add("baseline");
             console.error("[Declare] " + noBaselineMessage(child.constructor.name, this.constructor.name));
         });
+    }
+    /** THE BAND an alignment places children in: the arranged view's own extent
+     *  on `size` — or **0 when that extent is measured from the very children
+     *  this strategy lays**, where reading it would be the one-pass discipline's
+     *  forbidden cycle (place() writes the children the extent sums). A caller
+     *  folds it in with `Math.max(line, this.viewExtent(size))`: on a view that
+     *  measures its children the answer is 0 and the line stands (and the two
+     *  agree anyway — an aligned run's extent IS its widest child); on a view
+     *  that was told its size the band is the box the author drew, which is what
+     *  `align = center` has always meant.
+     *
+     *  (The defect this closed, 2026-09-17: a child sized `{ parent.width - 32 }`
+     *  IS the widest laid child, so the line was its own width — it aligned to
+     *  offset 0 and its siblings centred on IT instead of on the card. Every
+     *  `align = center` column whose children derive their width from the
+     *  parent lost its inset; textsampler's cards were the field report.)
+     *
+     *  The read of the extent is TRACKED, so a parent that resizes re-places its
+     *  aligned children. The safety test is not: ownership is settled at attach
+     *  and `!isSet` covers the window before auto-extent installs, so the only
+     *  gap is a view whose content-derived size is later displaced by a direct
+     *  imperative write — which re-places on the next child change like any
+     *  other untracked fact the arrangement rearms on. */
+    viewExtent(size) {
+        const v = this.view;
+        if (v === null)
+            return 0;
+        const owner = ownerOf(v, size);
+        if (owner === null) {
+            // Unset and unowned: auto-extent measures these very children the moment
+            // it installs, and attach order is not ours to assume.
+            if (!isSet(v, size))
+                return 0;
+        }
+        else {
+            // Owned — by auto-extent, by `{ this.contentWidth + 16 }`, by a percent,
+            // by the grandparent's own layout, by `{ parent.width }`. Only the ones
+            // that READ a laid child close the loop; ask the constraint itself.
+            const cells = new Set();
+            for (const c of this.laid())
+                for (const cell of cellsOf(c))
+                    cells.add(cell);
+            if (owner.readsAny(cells))
+                return 0;
+        }
+        return v[size] ?? 0;
     }
     stackReported = false;
     refuseStackBaseline() {

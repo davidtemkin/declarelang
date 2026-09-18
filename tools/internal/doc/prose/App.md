@@ -3,7 +3,7 @@ one, at the top of the tree; reach it from any depth with the **`app` noun**
 (`app.hostWidth`, `app.scrollY`) rather than a fragile `parent` chain. It extends `View`,
 so it is also the outermost box — and it **fills its host by default** (its `width`/`height`
 default to `hostWidth`/`hostHeight`), so a plain app is full-window and an aspect-locked
-one reads the host extent. Two rules distinguish it from a plain View (ruled 2026-07-29):
+one reads the host extent. Two rules distinguish it from a plain View:
 an App is **clipped by definition** — a program owns its rectangle, so `clip = false` is a
 compile error (a Shape clip keeps its meaning) — and it **scrolls by default**
 (`scrolls = y`), with its scroller being **the page itself**: content taller than the
@@ -34,7 +34,7 @@ element when embedded. The App's own `width` defaults to it, so read `app.hostWi
 responsive layout at any depth. Assigning it is a compile error.
 
 ## hostHeight
-**Read-only.** The host's height — at top level, the REAL visible height: the layout
+**Read-only.** The host's height — at top level, the **real visible height**: the layout
 viewport, widened to the unzoomed visual viewport where that is larger. The distinction is
 iOS: the browser lets content occupy zones the layout viewport excludes (behind collapsed
 bar chrome, the home-indicator band), and flow content paints there on its own — so a
@@ -45,10 +45,10 @@ Neither a pinch nor the software keyboard ever changes it. Size full-height pane
 ## scrollY
 **Read-only.** The App's own scroll offset — which **is the page's**, since the App's
 scroller is the page (an interior `scrolls` container exposes its own `scrollY` the same
-way, writable there for now). The user's scrolling writes it; read it for scroll-driven
-chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`. To land
-the page somewhere, call the target view's `scrollIntoView()` — assigning this slot never
-moved the page anyway (the write was dead), which is why it is now refused.
+way). The user's scrolling writes it; read it for scroll-driven
+chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`. **Read-only**:
+to land the page somewhere, call the target view's `scrollIntoView()`; assigning this slot is
+refused.
 
 ## pointerX
 **Read-only.** The pointer's horizontal position in **viewport space**, live and
@@ -100,7 +100,7 @@ is a service **method**, not an attribute — call it from a handler; `app.navig
 error.
 
 ## follow()
-The **one operation behind every arrival** (docs/system-design/location.md §0.5): a linked
+The **one operation behind every arrival**: a linked
 view's activation, an authored href in rendered prose, a pasted URL, and back/forward all
 reduce to `app.follow(ref)`. The reference passes through `onFollow` once; an external
 reference leaves through `navigate`; a `#…` reference writes `location` — a bare anchor
@@ -111,6 +111,17 @@ the app declares `onArrive`, which replaces that landing with the app's own. You
 rarely call this yourself — `link` calls it for you — but a handler that computes its
 destination may: `app.follow(picked)`. `follow(ref, true)` replaces the current history
 entry instead of pushing (the `replace` attribute's path).
+
+## onFollow
+The app-scoped door every arrival passes through, once: a linked view followed, a prose
+href, a cold URL, a back or forward step. It receives the reference and **returns the one
+to proceed with** — rewrite it, or return `""` to veto the navigation entirely. That
+return is what makes it unlike every other handler here, and why it is the place for a
+guard ("this address needs a signed-in reader") or a rewrite ("the short link expands to
+the real one").
+
+It is declared as an event so the checker admits the handler, but the platform *calls* it
+and uses its answer; nothing else in the family does either.
 
 ## onArrive
 The landing to `onFollow`'s door — the same arrival, delivered at the other end. Where
@@ -144,13 +155,13 @@ last step — the same move as `tabOrder()` composing `tabDefault()`. Without a 
 
 ## destinationOf()
 The destination part of a location: strips the runtime's own trailing `@name` —
-`app.destinationOf("why@story")` is `"why"`. The one string rule the runtime owns (§6);
+`app.destinationOf("why@story")` is `"why"`. The one string rule the runtime owns;
 apps never hand-write that split. This is the comparison `shows` lowers to, exposed so
 your own grammar code can agree with it.
 
 ## location
-The app's slice of the URL — the **fragment**, as one two-way reactive string
-(docs/system-design/location.md). The host seeds it from the URL *before first settle* (a deep link
+The app's slice of the URL — the **fragment**, as one two-way reactive string.
+The host seeds it from the URL *before first settle* (a deep link
 is just an initial value), mirrors app writes outward (one history entry per changed
 settle), and writes it back on back/forward — so navigation, deep links, and the back
 button are all the same thing: a `location` write your constraints re-derive from. The
@@ -190,7 +201,7 @@ App [ location = "", waypoint = "",
     query: string = { app.waypoint },
     submit(text: string) {
         app.waypoint = text                      // Back undoes this turn…
-        app.location = "results"                 // …and this move, in ONE entry
+        app.location = "results"                 // …and this move, in one entry
         }
     ]
 ```
@@ -241,8 +252,8 @@ intent: the runtime stamps the home-screen web-app metas (`mobile-web-app-capabl
 app launches truly full screen. A fact about the app, read at mount — not a runtime
 toggle. Desktop browsers are unaffected either way.
 
-In a browser TAB the top chrome region is always the browser's; what a covered app
-controls there is its COLOR — the page behind a top-level app wears the app's `fill`
+In a browser tab the top chrome region is always the browser's; what a covered app
+controls there is its **color** — the page behind a top-level app wears the app's `fill`
 (live, following a constraint fill), and a `theme-color` meta rides the same path, which
 is the channel the browser honors for its own chrome. An app whose fill tracks its content
 (the weather app's sky tone) keeps the browser bands reading as part of the app.
@@ -313,7 +324,7 @@ Opens the Inspector on this app, or on an embedded child app when given its slot
 pass `declarec --debug`.
 
 ## post()
-The island bridge's tenant-side VERB: when this app runs **embedded as an island's
+The island bridge's tenant-side verb: when this app runs **embedded as an island's
 tenant**, `app.post(topic, payload)` delivers to the host island's `onPost({ topic,
 payload })`. Not linked (a top-level app), it drops with a console note — a verb has no
 meaning without a receiver. The state channel is the app's `external` declarations;
@@ -330,3 +341,14 @@ behaves as an ordinary attribute on both sides: this app writes it and the host'
 constraints re-derive; the host feeds it and this app's constraints re-derive.
 Ownership arbitrates direction — a slot the host *binds* refuses this app's writes,
 loudly.
+
+## revealInset
+How much room to leave above a view the platform scrolls into place —
+an arrival, an anchor in prose, `reveal(target)`. Set it to the height of fixed chrome
+so a heading does not land underneath the header that covers it.
+
+## crawlSeeds
+Extra references for the build's extraction crawl to visit, beyond the
+ones the registry knows and the links each render emits. For a location the program
+computes and no rendered link reaches — a deep address assembled from data — list it
+here and the crawl emits its document too. An ordinary attribute, read once at boot.

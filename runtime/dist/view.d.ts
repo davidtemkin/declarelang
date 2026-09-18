@@ -3,9 +3,44 @@ import { type Backdrop, type Fill, type FilterValue, type Mask, type Radius, typ
 import { type RenderBackend, type Surface } from "./backend.js";
 type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
 export declare function provideViewCreator(fn: ViewCreator): void;
+/** The PROGRAM'S CLASS TABLE, as rich text's inline views need it (markdown.ts):
+ *  which names a tag in flowing content may claim, what each attribute's
+ *  declared type is, and how to make one. The same injection seam as the view
+ *  creator above, and for the same reason — the rich-text engine must not import
+ *  the instantiator. A tree not built from a program has no table, and an inline
+ *  view then never resolves (a tag stays plain text).
+ *
+ *  Small on purpose: the mechanism that RESOLVES a tag, converts its attributes
+ *  and reconciles the views lives with rich text, which only ships when a program
+ *  uses Markdown/HTMLText. What has to live in always-shipped code is just this
+ *  lookup. */
+export interface InlineViewHost {
+    /** Is `name` a VIEW class this program declares? Exact, case-sensitive — and
+     *  only the program's own classes, never a built-in tag. */
+    declares(name: string): boolean;
+    /** The declared type of attribute `name` on class `cls` (an AttrType from
+     *  value.ts), or null when the class has no such attribute. */
+    attrType(cls: string, name: string): AttrType | null;
+    /** Is `cls.name` a read-only slot — computed from its declaration, never
+     *  assignable? A tag that names one is refused (through the rich text's
+     *  `unsupported` policy) instead of throwing from the setter mid-render. */
+    readOnly(cls: string, name: string): boolean;
+    /** Make one instance of `cls` under `parent`: a full citizen (bindings
+     *  installed, `onInit` fired, discard reachable), with `attrs` — the tag's
+     *  attributes, as literals — joining the instantiation as THE USE-SITE LAYER
+     *  of the ordinary attribute merge, so a tag attribute beats a class body's
+     *  set of the same slot (literal or `{ }` constraint) and only the winner
+     *  installs. `provides` lands BEFORE the instance attaches — which is what
+     *  lets its body inherit the surrounding run's text face. */
+    create(parent: View, cls: string, attrs: readonly Attr[], provides: Record<string, unknown>): View;
+}
+export declare function provideInlineViewHost(fn: (root: Node) => InlineViewHost | null): void;
+/** The class table for the program `v` belongs to, or null (no program). */
+export declare function inlineViewHost(v: View): InlineViewHost | null;
 import { type Draw } from "./draw.js";
 import { type Affine } from "./affine.js";
-import type { LinkTarget } from "./parser.js";
+import { type AttrType } from "./value.js";
+import type { Attr, LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 /** What a layout strategy is to the View — the whole protocol: begin
  *  arranging this view (get back the undo), and re-arrange when the CHILDREN

@@ -18,8 +18,11 @@ virtual-DOM pass, no reconciliation.
 One source tree renders to managed DOM or directly to pixels on a canvas — and
 runs headlessly, no screen at all — with the same layout and input handling. The
 language owns its semantics; no DOM assumptions leak into a program. The DOM and
-canvas renderers are held equal, verified pixel-for-pixel.
-*Held in:* FAQ ("renderer-independence"); declare.md §12 ("the same file runs unchanged in a native Mac host, held to the browser renderers by a conformance suite").
+canvas renderers are held equal, verified pixel-for-pixel, and the native Mac host is held
+to both by a conformance suite. (The Mac host is a renderer, first-class and complete for
+what it does; it is not yet a way to deliver an offline desktop application, which needs
+integration the host does not have.)
+*Held in:* FAQ ("renderer-independence"); the guide's Renderers chapter.
 
 ### ROTAS-4 — One tree, one language
 Structure, style, and behavior are one tree in one language — not the HTML/CSS/JS

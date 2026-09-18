@@ -363,6 +363,56 @@ async function shootApp(page) {
   });
 }
 
+/** A LONG DOCUMENT, captured as a sequence of settled viewport frames instead of
+ *  one very tall image.
+ *
+ *  A document app's extent is its content, which can be many screens; shooting it
+ *  whole makes an image nobody can look at, and any single shifted pixel fails the
+ *  whole page without saying where. A frame sequence is bounded, and a failure
+ *  names the frame — which is the part of the document to go and look at.
+ *
+ *  Each frame is SETTLED before it is shot, not merely scrolled to: the scroll is
+ *  requested through the app's own page scroller, the model is allowed to quiesce
+ *  (a virtualized flow builds rows on arrival, prose re-measures), and then the
+ *  two-frame present guarantee applies as it does for a whole-app shot. The last
+ *  frame is clamped to the document's end, so a document that is not a whole
+ *  multiple of the viewport does not get a band of background in its baseline. */
+async function shootFrames(page, viewportH) {
+  // The document's length is the app's CONTENT extent, not its box. An app that
+  // scrolls its own page is exactly viewport-high by construction — reading
+  // `height` there gave one frame for a document of any length, which is the
+  // whole case this exists for.
+  // The document's length is what SCROLLS, not the app's box. An app that scrolls
+  // its own page is exactly viewport-high by construction, so reading the box gave
+  // one frame for a document of any length — the whole case this exists for. The
+  // page's scroll extent is the honest measure, and it is what the scroll below
+  // actually moves through; the app's own box is the floor for an app that does
+  // not scroll at all.
+  const extent = await page.evaluate(() => {
+    const a = window.__declare.inspect();
+    const doc = Math.max(document.documentElement.scrollHeight, document.body?.scrollHeight ?? 0);
+    return { w: a.width, h: Math.max(a.height ?? 0, doc) };
+  });
+  const total = Math.max(1, Math.ceil(extent.h));
+  const step = Math.max(1, Math.floor(viewportH));
+  const tops = [];
+  for (let y = 0; y < total; y += step) tops.push(Math.min(y, Math.max(0, total - step)));
+  const shots = [];
+  for (const top of [...new Set(tops)]) {
+    await page.evaluate((y) => { window.scrollTo(0, y); }, top);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+    shots.push({
+      top,
+      data: await page.screenshot({
+        clip: { x: 0, y: top, width: Math.max(1, Math.ceil(extent.w)), height: Math.min(step, total - top) },
+        encoding: "base64",
+      }),
+    });
+  }
+  await page.evaluate(() => { window.scrollTo(0, 0); });
+  return shots;
+}
+
 /** In-page strict pixel diff (per-channel tolerance): the browser's own PNG
  *  decode — the perceptual suite's technique. Returns { over, max, total }.
  *
@@ -426,7 +476,7 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
   return withHost({ compiled, appDir, fixturesDir, backendClass }, async ({ openApp }) => {
     const failures = [];
     const results = [];
-    const KNOWN_STATE_KEYS = new Set(["name", "viewport", "clock", "scheme", "dpr", "mask", "route"]);
+    const KNOWN_STATE_KEYS = new Set(["name", "viewport", "clock", "scheme", "dpr", "mask", "route", "frames"]);
     for (const st of states) {
       for (const k of Object.keys(st)) {
         if (KNOWN_STATE_KEYS.has(k)) continue;
@@ -440,23 +490,61 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
       const app = await openApp({ ...viewport, clock: st.clock ?? null, scheme: st.scheme ?? "light", dpr: st.dpr ?? 1 });
       try {
         if (typeof st.route === "function") await st.route({ drive: app.drive, expect: app.expect, page: app.page });
-        const shot = await shootApp(app.page);
-        const file = join(resolve(baselinesDir), `${st.name}@${viewport.width}x${viewport.height}${suffix}.png`);
-        if (bless) {
-          mkdirSync(dirname(file), { recursive: true });
-          writeFileSync(file, Buffer.from(shot, "base64"));
-          results.push(`${st.name}: blessed → ${relative(ROOT, file)}`);
-        } else if (!existsSync(file)) {
-          failures.push(`${st.name}: no baseline (${relative(ROOT, file)}) — run with --bless to create it`);
-        } else {
-          const baseline = readFileSync(file).toString("base64");
-          const d = await diffPng(app.page, baseline, shot, tolerance, st.mask ?? []);
-          if (d.over !== 0) {
-            const actual = file.replace(/\.png$/, ".actual.png");
-            writeFileSync(actual, Buffer.from(shot, "base64"));
-            failures.push(`${st.name}: ${d.over === -1 ? d.note : `${d.over} channel values past tolerance (max Δ ${d.max})`} — actual saved to ${relative(ROOT, actual)}`);
+        // LET LATE DATA LAND. The page is `networkidle0` when the program boots,
+        // but an `auto` DataSource fetches AFTER that — so a document app can be
+        // captured before its own document arrives. The viewer was exactly this:
+        // blessed empty at 360×220 one run and full at 1024×768 the next, which
+        // makes a baseline a coin toss rather than a fact.
+        //
+        // Tolerant by construction: an app that never goes idle (a live stream, a
+        // poll) simply proceeds after the wait times out, because "no more
+        // requests" is a convenience here and never a requirement.
+        try { await app.page.waitForNetworkIdle({ idleTime: 250, timeout: 5000 }); } catch { /* a program that keeps a connection open never idles */ }
+        // AND LET MOTION FINISH. A focus ring travels on springs, a menu opens on
+        // one, a dock magnifies on one — so a capture two frames after the model
+        // quiesces can still catch a spring mid-flight, and the frame it catches
+        // depends on how busy the machine was. That is what made the sampler's
+        // `focus-first-tab` differ run to run by tens of channels while nothing
+        // about the program changed.
+        //
+        // `motionBusy` is the shared clock's own answer (inspect.ts stats): true
+        // while any animator or spring is still running. Waiting for it makes the
+        // captured frame a property of the PROGRAM rather than of the machine.
+        // Perpetual motion — a `Time` at `tick = frame`, an idle animation — never
+        // rests, so this is a bounded wait and not a requirement; such a state
+        // should pin the clock instead.
+        try {
+          await app.page.waitForFunction(
+            () => window.__declare?.stats?.().motionBusy === false,
+            { timeout: 5000, polling: 50 });
+        } catch { /* perpetual motion: capture it where it is */ }
+        // `frames: true` — a long document, as a sequence of settled viewport
+        // frames rather than one very tall image. Each frame is its own baseline,
+        // so a failure names the screen to go and look at.
+        const shots = st.frames === true
+          ? await shootFrames(app.page, viewport.height)
+          : [{ top: null, data: await shootApp(app.page) }];
+        const base = join(resolve(baselinesDir), `${st.name}@${viewport.width}x${viewport.height}${suffix}`);
+        for (let i = 0; i < shots.length; i++) {
+          const { top, data: shot } = shots[i];
+          const label = top === null ? st.name : `${st.name} frame ${i + 1}/${shots.length} (y ${top})`;
+          const file = top === null ? `${base}.png` : `${base}.f${i + 1}.png`;
+          if (bless) {
+            mkdirSync(dirname(file), { recursive: true });
+            writeFileSync(file, Buffer.from(shot, "base64"));
+            results.push(`${label}: blessed → ${relative(ROOT, file)}`);
+          } else if (!existsSync(file)) {
+            failures.push(`${label}: no baseline (${relative(ROOT, file)}) — run with --bless to create it`);
           } else {
-            results.push(`${st.name}: matches baseline`);
+            const baseline = readFileSync(file).toString("base64");
+            const d = await diffPng(app.page, baseline, shot, tolerance, st.mask ?? []);
+            if (d.over !== 0) {
+              const actual = file.replace(/\.png$/, ".actual.png");
+              writeFileSync(actual, Buffer.from(shot, "base64"));
+              failures.push(`${label}: ${d.over === -1 ? d.note : `${d.over} channel values past tolerance (max Δ ${d.max})`} — actual saved to ${relative(ROOT, actual)}`);
+            } else {
+              results.push(`${label}: matches baseline`);
+            }
           }
         }
         for (const e of app.pageErrors) failures.push(`${st.name}: page error: ${e}`);

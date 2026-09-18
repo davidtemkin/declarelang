@@ -1,6 +1,6 @@
 // Where the slack goes
 // A Spacer absorbs a row's leftover space, structurally: one between two groups pushes
-// them apart, one on each side centres a run, one first right-aligns it.
+// them apart, one on each side centers a run, one first right-aligns it.
 
 App [ textColor = 0xFFFFFF, fontSize = 13,
     col: View [ x = 20, y = 16, width = { parent.width - 40 },
@@ -22,7 +22,7 @@ App [ textColor = 0xFFFFFF, fontSize = 13,
             layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
             Spacer [ ],
             View [ width = 90, height = 28, fill = 0x8F6F28, cornerRadius = 6,
-                TextLabel [ x = 8, text = "centred" ]
+                TextLabel [ x = 8, text = "centered" ]
                 ],
             Spacer [ ]
             ],

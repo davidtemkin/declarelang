@@ -34,6 +34,18 @@ export interface ComponentSchema {
    *  compile error, not a silent no-op). Inherited events come from the
    *  `base` chain; absent = declares none of its own. */
   readonly events?: readonly string[];
+  /** Which of this schema's OWN attrs are INTERNAL — machinery a program cannot
+   *  usefully name, kept off the reference and out of `declare-help`.
+   *
+   *  It exists so that SILENCE IS NOT A SIGNAL. The extractor used to compute
+   *  "public" as "somebody wrote prose for it", which meant an attribute nobody
+   *  documented was quietly reclassified as internal and dropped from its own
+   *  class page — 37 of them, including `scrollStartX`, whose documented twin's
+   *  prose names it ("`scrollStartX` for the other axis"). Nobody decided that.
+   *  Now every attribute is PUBLIC and owes prose, and hiding one is a decision
+   *  written here, where a reviewer sees it. Absent = none of its own, which is
+   *  the expected state. */
+  readonly internal?: readonly string[];
 }
 
 // View's literal attributes (the language reference's View header, §6):
@@ -560,6 +572,13 @@ const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
   codeBackground: { kind: "color" },
   codeRule: { kind: "color" },
   richTextLayout: { kind: "record", name: "RichTextLayout" },
+  // The named-style palette a `<span class>` references — on the rich BASE (so
+  // Markdown has it too; its spans resolve the same way) and INHERITED like
+  // every other name here, so an app names the palette once and every rich text
+  // below takes it, a nearer one overriding. It was HTMLText's alone and set per
+  // element, which is what made a look that follows the theme cost a line at
+  // every use site.
+  textStyles: { kind: "record", name: "TextStyles" },
 };
 
 /** The BUILT-IN provided values — the names a container may set BARE (no type)
@@ -886,11 +905,6 @@ const HTMLTextSchema: ComponentSchema = {
   attrs: {
     html: { kind: "string" },
     unsupported: enumType("Unsupported", "strip", "error"),
-    // Named styles a `<span class="…">` can reference — a map of name → a bundle
-    // of Text's own style attributes (`styles = { { hero: { fontSize = 28,
-    // fontFamily = "Anton" } } }`). The one styling hook: content names a style
-    // the app defines, by the same attribute names as Text; never CSS itself.
-    textStyles: { kind: "record", name: "TextStyles" },
   },
 };
 
@@ -1303,6 +1317,23 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   Socket: SocketSchema,
   State: StateSchema,
   Node: NodeSchema,
+};
+
+/** The schemas NO runtime class implements — the abstract family bases. They
+ *  are in SCHEMAS so the reference documents each once and its concrete
+ *  members inherit checkably, but nothing constructs one: not as a tag, and
+ *  not as a class's base (`class X extends Stream` is refused, naming the
+ *  concrete members). Every other schema is a base a program class may
+ *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
+ *  so it cannot drift when a component joins either table. */
+export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Editor", "Stream"]);
+
+/** For the refusal above: the concrete members an abstract base's would-be
+ *  subclass should extend instead. */
+export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
+  Media: "Video, Audio",
+  Editor: "TextInput",
+  Stream: "EventStream, Socket",
 };
 
 /** Does `schema`'s inheritance chain pass through a component named

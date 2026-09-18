@@ -134,11 +134,11 @@ export class State extends Node {
   // Captured from the body at construct.
   /** Value overrides on the enclosing view. */
   overrides: Override[] = [];
-  /** Conditional child templates, the build-time materializer, and the
-   *  classroot their bodies' members bind to (the state's use site). */
-  childTemplates: readonly Element[] = [];
+  /** Conditional child templates — each with the classroot its body's members
+   *  bind to (the state instance for a class body's children, the use site's
+   *  scope for its own) — and the build-time materializer. */
+  childTemplates: readonly { el: Element; croot: View | null }[] = [];
   materialize: ((t: Element, croot: View) => { view: View; finish: () => void }) | null = null;
-  childClassroot: View | null = null;
 
   // Runtime state.
   /** Declaration-order precedence, cached at init before any child inserts. */
@@ -212,10 +212,10 @@ export class State extends Node {
     let index = target.children.indexOf(this) + 1;
     const finishes: (() => void)[] = [];
     for (const tmpl of this.childTemplates) {
-      const { view, finish } = this.materialize(tmpl, this.childClassroot ?? target);
+      const { view, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
       target.insertChild(view, index++);
-      if (tmpl.name !== null && !(tmpl.name in target)) {
-        (target as unknown as Record<string, unknown>)[tmpl.name] = view;
+      if (tmpl.el.name !== null && !(tmpl.el.name in target)) {
+        (target as unknown as Record<string, unknown>)[tmpl.el.name] = view;
       }
       this.builtChildren.push(view);
       finishes.push(finish);
@@ -241,8 +241,8 @@ export class State extends Node {
   private teardownChildren(target: View): void {
     for (const v of this.builtChildren) v.discard();
     for (const tmpl of this.childTemplates) {
-      if (tmpl.name !== null && (target as unknown as Record<string, unknown>)[tmpl.name] !== undefined) {
-        delete (target as unknown as Record<string, unknown>)[tmpl.name];
+      if (tmpl.el.name !== null && (target as unknown as Record<string, unknown>)[tmpl.el.name] !== undefined) {
+        delete (target as unknown as Record<string, unknown>)[tmpl.el.name];
       }
     }
     this.builtChildren = [];

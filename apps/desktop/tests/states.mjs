@@ -3,25 +3,18 @@
 //   bless:   node tools/verify.mjs apps/desktop/desktop.declare --states apps/desktop/tests/states.mjs --bless
 //   compare: node tools/verify.mjs apps/desktop/desktop.declare --states apps/desktop/tests/states.mjs
 //
-// The desktop is the last app to get an instrument, and it needs one before its
-// menu icons migrate (chrome-divergences D11 puts WindowIcon and CodeIcon here).
-// Most of its drawn marks are window chrome — wallpaper, dock plate, grip, zoom
-// triangle — and stay app-local; these states exist to prove that work does not
-// disturb them, not to redesign them.
+// Most of the desktop's drawn marks are window chrome — wallpaper, dock plate,
+// grip, zoom triangle — and stay app-local; these states exist to prove that
+// chrome work does not disturb them, not to redesign them.
 //
-// THE CLOCK IS PINNED: the menubar carries a live clock on a 15s tick. So is the
-// colour scheme, by the harness default — see verify-behave's openApp.
+// The clock is pinned: the menubar carries a live clock (`Time [ tick = minute ]`).
+// So is the color scheme, by the harness default — see verify-behave's openApp.
 //
-// These states settle MOTION rather than waiting a fixed span, which they could
-// not do until 2026-08-03: six `magSpring`s in the dock's minimized-window badges
-// chased a NaN target forever (chrome-divergences F1), so `settleMotion` could
-// never return and a fixed window was the only honest option. With the gate fixed
-// the desktop comes to rest, and a state that waits for rest is deterministic by
-// construction instead of by three lucky compares.
+// These states settle motion rather than waiting a fixed span: the desktop comes
+// to rest, and a state that waits for rest is deterministic by construction.
 //
-// Boot is deferred by design — `onInit` opens the welcome note and Files one tick
-// later, because their geometry reads `app.width`, wired after construction — so
-// each route steps past that before settling.
+// Boot is deferred by design — `onReady` opens the welcome note and Files once
+// the app's geometry is wired — so each route steps past that before settling.
 
 const CLOCK = "2026-08-12T10:30:00";
 const rest = async (drive) => { await drive.wait(120); await drive.settleMotion(); };

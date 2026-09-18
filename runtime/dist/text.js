@@ -27,7 +27,7 @@ import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight
 import { holdsFamily, heldFamily } from "./font-value.js";
 /** A line count under `maxLines` (0 = no clamp). */
 const clampN = (n, max) => (max > 0 ? Math.min(n, max) : n);
-import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
+import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 export class Text extends View {
     /** The per-line advance: the declared leading (a fontSize multiplier, the
@@ -177,11 +177,10 @@ defineAttributes(Text, {
     // The FACE slots, off View (docs/system-design/style.md): each defaults to the
     // nearest provided value, so a bare Text inherits its region's style; setting
     // one overrides just this run. `selectable` carries the DOM selection push.
-    textColor: { def: 0x000000, defBinding: providedDefault("textColor", 0x000000) },
-    fontSize: { def: 16, defBinding: providedDefault("fontSize", 16) },
-    fontFamily: { def: "sans-serif", defBinding: providedDefault("fontFamily", "sans-serif") },
-    fontWeight: { def: "normal", defBinding: providedDefault("fontWeight", "normal") },
-    letterSpacing: { def: 0, defBinding: providedDefault("letterSpacing", 0) },
+    // …built from the ONE face table (attributes.ts PROVIDED_FACE), which
+    // `providedTextStyle()` reads too, so a measurement and the run it measures
+    // can never fall to different defaults.
+    ...faceSlots(),
     selectable: {
         def: false,
         defBinding: providedDefault("selectable", false),

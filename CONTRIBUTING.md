@@ -118,6 +118,56 @@ whether the identifier is two *words* (`ignoreClip`, `pointerEvents`, `cornerRad
 word however many it was built from (`stylesheet`, `spellcheck`, `placeholder`, `multiline`
 are each a single word and stay lowercase).
 
+## One version of the truth, and where history is allowed
+
+Everything a program author or an agent reads carries the **current** truth and no trace
+of what came before. That is not tidiness; it is most of what the language is offering.
+A reader has no way to tell a current form from a former one, so one sentence about a
+previous design introduces a second candidate answer and no way to choose between them.
+
+**User-facing** — the reference prose under [`tools/internal/doc/prose/`](tools/internal/doc/prose),
+a component's own `/* # Name … */` header, the guide, `docs/declare.md`, the tenets, the
+operational pages, every diagnostic message: no former designs, renames or migrations; no
+implementation history; no dates or "ruled" notes; no citations into `docs/system-design/`;
+no prior-art framing. Mid-sentence ALL-CAPS is not emphasis here either — `**bold**` once
+or twice, or a better sentence. The prose rule, with examples, is
+[`prose/STYLE.md`](tools/internal/doc/prose/STYLE.md#one-version-of-the-truth).
+
+**Internal** — comments inside `runtime/`, `compiler/`, `tools/` and `test/`, and the
+design record in `docs/system-design/`: history is *welcome*. A comment saying why a
+thing is shaped this way, including the bug that shaped it and the measurement that
+settled it, saves the next maintainer a re-derivation and should stay. Those files are
+read by people changing the code, who need the reasoning; the surface is read by people
+using it, who need one answer.
+
+**The line is the audience, not the directory.** The trap is the file that looks internal
+and is not: a library component's doc header lives in `library/*.declare` beside its code
+and is *published* as that component's reference entry, so it follows the user-facing
+rule even though everything around it does not.
+
+## Diagnostics in the runtime
+
+**Developer prose never ships in a production build.** A production build replaces each
+developer diagnostic's sentence with a code plus the values it interpolated —
+`[Declare E3A14CE] /nope/deep, '/nope' is missing` — and `declare-help E3A14CE` gives the
+sentence back (what an app author sees:
+[`building.md`](docs/operational/building.md)). The strip finds a diagnostic by how it is
+*written*, never by what a string looks like, so write every one in one of these forms:
+
+| write | for |
+|---|---|
+| `` throw new DeclareError(`…`) `` | an error that stops something |
+| `` console.error(`[Declare] …`) `` or `` console.warn(`[Declare] …`) `` | a contained report — the literal is the whole first argument, `[Declare]` capitalized |
+| `` diag`…` `` (`runtime/src/errors.ts`) | a sentence that reaches its reader any other way: a builder's return, a helper's argument, one arm of a conditional |
+
+The exceptions are deliberate. A plain `Error` is text an *app* may put on screen (a
+`DataSource`'s `.error`), so it is never coded. Dev keeps every sentence — the dev server,
+the live-compile pages, the Mac runtime, the tests, `declarec --debug` — because that is
+where a developer meets them. A literal joined to built text (`"[Declare] " + build(…)`) and
+a multiline literal are skipped rather than mangled: put the sentence in the builder, tagged
+`diag`. `test/error-codes.test.mjs` refuses a production build in which any `[Declare]`
+sentence survives.
+
 ## Commits
 
 Explain the *why*, not the diff — the change is visible in the patch; the reasoning is not.

@@ -334,10 +334,13 @@ await test("send is Socket's alone: a handler calling feed.send is a type error 
   app.discard();
 });
 
-await test("a stream declares no attributes of its own", async () => {
+await test("a stream may declare attributes of its own, like any node", async () => {
   const r = await compile(`App [ feed: EventStream [ url = "https://x.test", extra: number = 1 ] ]`);
-  assert.notEqual(r.errors.length, 0);
-  assert.match(r.errors[0].message, /declares no attributes/);
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = instantiate(r.program);
+  settle();
+  assert.equal(app.feed.extra, 1);
+  app.discard();
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

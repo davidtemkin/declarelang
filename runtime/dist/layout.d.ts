@@ -115,6 +115,29 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  these hold the line for what only exists at run time (a bound `align`, a
      *  created child, a `baseline` binding that yields none). */
     refuseBaseline(child: View): void;
+    /** THE BAND an alignment places children in: the arranged view's own extent
+     *  on `size` — or **0 when that extent is measured from the very children
+     *  this strategy lays**, where reading it would be the one-pass discipline's
+     *  forbidden cycle (place() writes the children the extent sums). A caller
+     *  folds it in with `Math.max(line, this.viewExtent(size))`: on a view that
+     *  measures its children the answer is 0 and the line stands (and the two
+     *  agree anyway — an aligned run's extent IS its widest child); on a view
+     *  that was told its size the band is the box the author drew, which is what
+     *  `align = center` has always meant.
+     *
+     *  (The defect this closed, 2026-09-17: a child sized `{ parent.width - 32 }`
+     *  IS the widest laid child, so the line was its own width — it aligned to
+     *  offset 0 and its siblings centred on IT instead of on the card. Every
+     *  `align = center` column whose children derive their width from the
+     *  parent lost its inset; textsampler's cards were the field report.)
+     *
+     *  The read of the extent is TRACKED, so a parent that resizes re-places its
+     *  aligned children. The safety test is not: ownership is settled at attach
+     *  and `!isSet` covers the window before auto-extent installs, so the only
+     *  gap is a view whose content-derived size is later displaced by a direct
+     *  imperative write — which re-places on the next child change like any
+     *  other untracked fact the arrangement rearms on. */
+    viewExtent(size: "width" | "height"): number;
     private stackReported;
     refuseStackBaseline(): void;
     protected claim(child: View, slot: string, k: Constraint): void;

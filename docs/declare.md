@@ -12,7 +12,7 @@ this file is the first:*
 *Declare is new, and no LLM has been trained on it. It resembles React, CSS, and HTML in places,
 and this file is where those resemblances stop. Every complete program below is compiled by the
 test suite, so the examples are current by construction; where this file and the
-compiler disagree, the compiler is right. Status: pre-1.0, under active design (2026-07).*
+compiler disagree, the compiler is right. Status: pre-1.0, under active design.*
 
 ## The map
 
@@ -21,8 +21,8 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design (
 | [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `node tools/declare-help.mjs <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included; a true miss exits 1 and says what it searched, so silence is trustworthy | you need a name, a type, a signature, or what a code means |
 | [`declare-model.json`](declare-model.json) | what `declare-help` reads: every component, attribute, type, method, event and diagnostic, generated from source; a class's page carries its ancestors' members too, so everything reachable on it is on one page | you want to browse the whole surface rather than ask one question |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
-| `apps/` | complete programs; `apps/README.md` maps the whole corpus — `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->850<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
-| [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter | you want the reasoning, or you are learning rather than looking up |
+| `apps/` | complete programs; `apps/README.md` maps the whole corpus — `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->840<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
+| [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter; its [glossary](guide/23-glossary.md) is one word per idea | you want the reasoning, or you are learning rather than looking up — or a term used a specific way |
 | [`docs/operational/`](operational/) | install, dev server, build, deploy | you are running or shipping rather than writing |
 
 **Those six carry everything you need to write Declare.** The language is closed and small, so
@@ -191,7 +191,8 @@ component class, an event payload (`onPointerUp(e: PointerUpEvent)`), a function
 method that returns nothing. A computed *value* is still not a method but an attribute with
 a `{ }` default, `segIndex: number = { … }` — an attribute stays reactively true; a method
 runs when called. A subclass's method, handlers included, **replaces** the base's of the same
-name; `super.name(args)` calls the replaced one, wherever in the body it is written, or never.
+name, a built-in's own runtime methods (`fetch`, `start`, `scrollTo`) among them; `super.name(args)`
+calls the replaced one, wherever in the body it is written, or never.
 
 **Events from outside the tree arrive as children.** `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node
 app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to
@@ -257,8 +258,7 @@ Imports resolve at the build toolchain's bundler; the in-browser compile refuses
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
 (`createView`, §7). **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
-literal values — a token record, and the style of a run of text with no view (§9). A typeface is
-not a declaration but an object in the tree, `brand: Font [ Face [ … ] ]` (§9).
+literal values — a token record, and the style of a run of text with no view (§9).
 
 ### `classroot`
 
@@ -335,10 +335,7 @@ so, layout places, sizes update — one indivisible step, run to completion, cal
 glide cannot be *in* a settle, only cause the next. This is why the world is never
 half-updated, and why history can count "one entry per settle" (§6). Animation is a user of
 it, not an exception: a Spring writes its attribute once per frame, and each frame's writes
-get a settle of their own — motion is many small settles, never one long one. (The physical
-sense is a different pair of facts with their own names: an Animator in flight reads
-`running = true`, and one that reached its destination reads `arrived = true`, across however
-many settles the journey took.)
+get a settle of their own — motion is many small settles, never one long one.
 
 Inside a handler, the world you read is the world *before* your writes land. Almost always
 the right response is no response: state what should be true with a constraint, and it is
@@ -446,9 +443,10 @@ child opts out of its parent's regime with `ignoreLayout` or `ignoreClip`.
 
 **Positions are literals.** `x = center` and `x = end`, and the same on `y`, place a view against
 its parent — resolved reactively, exactly like `100%`. The closed set is `center` and `end`; the
-start is `0`. One optical exception: on a `Text`, `y = center` centers the *ink*, the
-cap-height-to-baseline band, so labels read centered regardless of font metrics. Every other view
-centers its box.
+start is `0`. `y = center` centers a view's box, a `Text` included. A label inside a control usually
+wants its *ink* centered instead — the cap band, not the font box with its uneven leading —
+and that is what the library's `TextLabel` is: a `Text` whose `y` is a cap-centering
+constraint over its own metric facts.
 
 **The App fills its host by default**, so `App [ … ]` with no size line fills the window and
 resizes with it, while an explicit size makes a fixed widget. For an embedded app the host is its
@@ -478,65 +476,34 @@ why: View [ shows = "why",
     ]
 ```
 
-`shows` implies the visibility (the location's destination part equals the name — the runtime
-strips its own trailing `@name`), and the compiler gains a **registry**: every literal reference
-is checked at build — a typo'd `#stroy` is a compile error naming the real names — and
-data-driven references (`link = { :to }`) are checked when the crawl evaluates them. A linked
-view realizes a REAL `<a href>` (⌘-click, copy-link, the crawler's edge); `link = ""` is not a
-link at all. `replace = true` beside a link overwrites the
-history entry — fine-grained movement within a place (a deck's arrows) must not bury Back.
+Because references are declared rather than assembled, the compiler gains a **registry** and
+checks every one at build: a typo'd `#stroy` is a compile error naming the real names. A linked
+view realizes a real `<a href>`, so ⌘-click and copy-link work, and the build's crawler walks
+the same edges — which is what makes a deep link indexable.
 
-Every arrival — a link, a prose href, a pasted URL, back/forward — reduces to one operation,
-`app.follow(ref)`, and one app-scoped hook sees them all: `onFollow(ref) -> ref'` may transform,
-veto (`""`), or log; it runs ONCE, and on a cold arrival it runs at declared initials, before
-any data loads — so gate access at the destination, where a raw URL cannot bypass it:
-
-```declare-fragment
-account: View [ shows = "account", visible = { app.authed } ],
-login:   View [ shows = "account", visible = { !app.authed } ]   // location preserved
-```
-
-`onFollow` holds the arrival while it is still a string — the door. **`onArrive(target)`** is
-the landing: the same arrival, delivered as the view the reference names, once it exists and
-has its geometry — immediately if already standing, or as soon as data builds it; the waiting
-is the platform's. Undeclared, the landing is the built-in scroll: an arrival starts at the
-top, an `@name` anchor scrolls into view once its prose has measured, `revealInset` honored.
-Declaring it **replaces** that policy — write it where your space's idea of *showing* is a
-camera or a pan (`onArrive(target: View) { app.frameOn(target) }`), and compose the scroll
-back with `app.reveal(target)` when you want both. It runs per follow — arriving where you
-already are arrives again — and Back and Forward come through the same door, so a motion
-answered here answers them too. Motion is never waited for: the target arrives when it
-structurally exists, even if still gliding into how it looks.
-
-For computed families the grammar after `#` is the app's own (`#deck/q3/47` — parse it from
-`app.location`, derive everything). Never assign the derived state — that displaces its
-constraint (§5) and disconnects the back button. The build's crawler boots the app headless at
-every registry destination and traverses the links each render emits — which is what makes a
-deep link indexable, and why the crawl fails loudly on a reference naming nothing.
+Arrival is one operation whatever caused it, so a link, a prose href, a pasted URL and the Back
+button are the same event, and an app answers it in one place: a hook to transform or veto the
+reference, and a handler delivered the view it names once that view exists. Undeclared, arriving
+scrolls; declaring the landing replaces that with your own idea of showing, a camera or a pan.
 
 **Location is the app's shareable coordinates** — what a recipient should see when handed the
-URL, nothing more; a draft or a session's working values are ordinary attributes. (The fragment
-never reaches the server — location stays client-side by construction.)
-
-State that the Back button *should* undo but a stranger should never see — the turns of a
-search, which page of a wizard — is the third kind, and it has its own attribute:
-**`waypoint`**, `location`'s twin with the opposite visibility. One two-way reactive string,
-grammar the app's own, carried in the History entry itself and never in the URL. A history
-entry is the pair *(location, waypoint)* — one entry per settle in which either changed, and
-one Back restores the pair atomically — so back/forward can work over a URL that never moves,
-while a reload, exactly like a pasted URL, rebuilds from `location` alone at the declared
-initial step. The dividing test, applicable in five seconds: *would you hand the value to a
+URL, nothing more; a draft or a session's working values are ordinary attributes. Between those
+two sits a third kind, state the Back button *should* undo but a stranger should never see, and
+it has its own attribute: **`waypoint`**, location's twin, carried in the history entry and never
+in the URL. A history entry is the pair, one per settle in which either changed,
+and one Back restores both. The dividing test takes five seconds: *would you hand the value to a
 stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neither → an ordinary
-attribute. Waypoints are coordinates, never data (derive the data; keep the string small);
-they pass no `onFollow`; and the crawl never sees them — crawlable and shareable are the same
-property, and both belong to `location`.
+attribute.
 
-→ `link`/`shows`/`anchor`/`replace`, `App.follow`/`onFollow`/`onArrive`/`reveal`/`revealInset`: the model reference
+→ `link`/`shows`/`anchor`, arrival and the crawl: the model reference ·
+[the location chapter](declare-docs:guide:location)
 
 ## 7. Data
 
-A `datapath` selects a place in the data. Descendants read fields relative to it with `:path`,
-and a path matching many records **replicates** its node — one instance per record. This is the
+A `datapath` selects a place in the data. Descendants read fields relative to it with `:path`
+— every member, not only the visible ones, so a `Spring`'s target or a `Time`'s gate reads the
+cursor of the view it is written in — and a path matching many records **replicates** its node
+— one instance per record. This is the
 replacement for React's `{items.map(…)}`: a collection of children comes from data, never from
 code in the tree.
 
@@ -570,7 +537,8 @@ index.
 A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing commas. The
 replicated node is anonymous, but names inside it resolve per instance. **Identity is
 inferred** — a record's `id` field is its identity by convention, so reconciliation reuses
-instances across sorts, filters and edits with nothing declared.
+instances across sorts, filters and edits with nothing declared; when identity lives under
+another name, `key = :email` on the replicated node says which.
 
 **Count the data, not the tree.** A Dataset's `.value` is the parsed data, so a count is ordinary
 TypeScript on it. Reach for this whenever you would have counted rendered rows.
@@ -583,10 +551,8 @@ rather than being toggled. An optional `schema = [ field: type, rows[]: [ … ] 
 response's shape: it validates the payload on receipt — so malformed data yields `.failed` rather
 than `undefined` three bindings deep — and lets every `:path` be checked against the shape at
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
-attribute falls back to its default. A request carries `method`, `body`, `credentials` and
-`headers` — the last a reactive record (`headers = { { Authorization: "Bearer " + app.token } }`),
-so an API-keyed or token-authenticated endpoint stays declarative; an empty header value is not
-sent, which is the whole "only when signed in" conditional.
+attribute falls back to its default. The request's own parts — method, body, credentials,
+headers — are ordinary reactive attributes, so an authenticated endpoint stays declarative.
 
 **A schema is a named type — declare it once, at the top level, and use it in any type position.**
 `schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is a
@@ -595,9 +561,8 @@ declaration in the one type system: the name works in every type position (`sel:
 document with it (`schema = [ tasks[]: Task ]`, or `schema = Task[]` for a bare-array response),
 and its `.value` is then *typed* — `nest.value.tasks` is `Task[]` in every `{ }` body, so a
 misspelled field dies at compile time and the `as` casts go. The runtime enforces the same
-declaration at every boundary: arrival, the embedded body, and the mutation verbs
-(`set(["tasks", 0, "done"], "yes")` refuses at the write). The schema grammar is deliberately the
-subset of TypeScript a JSON document can carry — which is exactly what makes one declaration
+declaration at every boundary, the mutation verbs included. The schema grammar is deliberately
+the subset of TypeScript a JSON document can carry — which is exactly what makes one declaration
 checkable by the compiler *and* enforceable against live data. Extra keys always pass: a schema
 declares what the program relies on.
 
@@ -714,7 +679,7 @@ describes. Like `contentWidth`, they are computed for you.
 
 There is no CSS, no stylesheet file, no selector, no cascade, and no specificity — which is also
 what makes a non-DOM renderer possible. Your CSS *knowledge* transfers: colors, font stacks, and
-shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**, a CSS `filter` is `filter = [blur(3), brightness(0.8)]` (the same list beneath the view is `backdrop`), a soft mask is `mask`, and a transform is its parts — `scale`/`scaleX`/`scaleY`, `skewX`/`skewY`, `rotation`, `rotateX`/`rotateY`/`translateZ` under a parent's `perspective`
+shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**
 (one number, or `[topLeft, topRight, bottomRight, bottomLeft]` to round only some corners),
 and `borderWidth`, `boxShadow`, and `outline` do not exist.
 
@@ -725,16 +690,10 @@ works this way (each lives on `Text`, defaulting to `provided(…)`, so setting 
 provides it to the runs below), and so does **`theme`**, a token record every color in an app
 should name once.
 
-A **typeface is an object in the tree**, like an `Image`: `brand: Font [ Face [ src =
-"brand-400.woff2" ], Face [ src = "brand-700.woff2", weight = bold ] ]`, usually on the App; a
-`Font [ family = "Helvetica Neue" ]` with no faces is a system font, the same kind of object.
-`fontFamily` takes a Font, a family string, or a list — a list holding a font is a value,
-`fontFamily = { [app.brand, "sans-serif"] }` — so switching fonts is an assignment. A font's
-`loaded` and `failed` are read-only facts; its `wait` (default 500 ms) is how long whatever is
-about to change to it keeps its current look, the first paint included, and `late` (`swap` or
-`keep`) decides what a face arriving after that does. Text, layout and drawings follow a face
-landing with no code. `measureText(text, style, width?)` measures a run in a style record with
-the measurer a `Text` uses — fields left out take plain defaults, never inherited ones.
+A **typeface is an object in the tree**, like an `Image` — `brand: Font [ Face [ … ] ]`, usually
+on the App — and `fontFamily` takes that object as its value. So a face is a value like any
+other: choosing one is an assignment, and text, layout and drawings follow a face landing with
+no code of yours.
 
 ```declare-fragment
 theme = { app.dark ? SanFranciscoDark : SanFrancisco },      // on the App: PROVIDE a preset, light or dark
@@ -748,33 +707,32 @@ panel: View [                                                // on a DESCENDANT,
 `provided(…)` is the one new construct — an explicit up-the-tree read, bare in `[ ]` (like
 `gradient(…)`) or a call in `{ }`. It is explicit on purpose: it reaches past this node, and a
 non-local read is worth showing. You rarely write it — `Text` and the library widgets read the face
-and theme values *for* you, so app code that only *sets* those values never says `provided(…)` at
-all; you write it where your own code reads a value from up the tree. A read that finds no provider
+and theme values *for* you, so app code that only *sets* those values never says `provided(…)`;
+you write it where your own code reads a value from up the tree. A read that finds no provider
 falls to an optional default (`provided("theme", SanFrancisco)`), else throws, naming the
 value.
 
-Start from a library preset — `SanFrancisco` / `Cupertino` / `MountainView` / `Redmond`, each a
-light record with a `…Dark` companion, in scope by name — and spread to change a token. The
-standard library reads specific token names, so build from a preset rather than an empty record.
-You can declare your own with `theme Brand [ … ]`, a top-level named record like a `style` bundle.
-
-The `{ { … } }` is not special syntax: the outer braces open the constraint, the inner ones are a
-TypeScript object literal. With no theme provided an app renders the house default (`SanFrancisco`,
-set on `Control.theme`), and that zero-declaration look never varies by system dark mode —
-following the system is the one-line opt-in above.
+Start from a library preset — each a light record with a `…Dark` companion, in scope by name —
+and spread to change a token; the standard library reads specific token names, so build from a
+preset rather than an empty record. You can declare your own with `theme Brand [ … ]`, a
+top-level named record like a `style` bundle. The `{ { … } }` is not special syntax: the outer
+braces open the constraint, the inner ones are a TypeScript object literal.
 
 A **`style` bundle** is a named record of literal text attributes — the style of a run of text
-that has no view: a `<span class>` inside `HTMLText`/`Markdown` wears it, and a drawing's
-`d.fillText` and `measureText` take it. Like a theme record it holds literals only — it has no
-place in the tree, so nothing in it can depend on where it is used — and its name is a value in
-any `{ }`, typed by the fields it sets. A look that follows the theme is written where it is
-used: a `textStyles = { … }` map on the rich text, or a spread in a drawing. To reuse a look
-across whole views you **subclass** instead (`class Card extends View [ … ]`).
+that has no view, which a `<span class>` inside `HTMLText`/`Markdown` wears. Like a theme record
+it holds literals only: it has no place in the tree, so nothing in it can depend on where it is
+used, and its name is a value in any `{ }`, typed by the fields it sets. A look that follows the
+theme is written where it is used. To reuse a look across whole views you **subclass** instead
+(`class Card extends View [ … ]`).
 
 ```declare-fragment
-style Keyword [ textColor = #C678DD, fontWeight = bold ]                          // a <span class='Keyword'> in prose wears it
-class Plate extends View [ draw(d: Draw) { d.fillText("class", 0, 20, { ...Keyword, textColor: provided("theme").accent }) } ]   // a drawn run, following the theme
+style Keyword [ textColor = #C678DD, fontWeight = bold ]   // a <span class='Keyword'> in prose wears it
 ```
+
+Rich-text content can also carry **views**: inside `HTMLText`/`Markdown`, a self-closing tag
+naming one of your own view classes (`<Chip label='docs'/>`) places one real view of that class
+in the flowing line, its attributes converted by their declared types. A `<span class>` remains
+a style; a tag is never one.
 
 Precedence is fixed: a value **set locally always outranks a provided one** — a `Text` that sets
 its own `fontSize` ignores the region's, and a provided value is a default a node overrides, never

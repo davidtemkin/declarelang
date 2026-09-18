@@ -86,9 +86,9 @@ long-press. Neither costs anything on a view that does not declare it.
 
 ## Dismissal is the part you would get wrong
 
-Two regimes, and choosing between them is the real design decision:
+Two rules, and choosing between them is the real design decision:
 
-- **Light dismiss** (menus, popovers): a press outside closes the layer **and is
+- **Light-dismiss** (menus, popovers): a press outside closes the layer **and is
   swallowed** — the Mac rule. The click that dismisses does not also activate whatever
   was underneath. Escape closes; a pick closes.
 - **Modal** (dialogs): a full-app scrim swallows *every* press, there is no light
@@ -100,9 +100,8 @@ is invisible until it bites:
 > **Dismiss first, deliver second.** The layer leaves the screen — a real painted frame —
 > before your handler runs.
 
-That is the native contract (AppKit ends tracking before dispatching; Win32 destroys the
-menu window before `WM_COMMAND`), and it means a slow action can never freeze an open menu
-on screen while it works. You get it for free, and you only notice it if you assume the
+That is the native platforms' contract too, and it means a slow action can never freeze
+an open menu on screen while it works. You get it for free, and you only notice it if you assume the
 opposite and try to read the menu's state inside `picked`.
 
 ## Modals and the focus you have to give back
@@ -162,7 +161,7 @@ Two arrive on their own, and knowing they exist is the whole lesson:
 
 - **`Tooltip`** — set `tip = "…"` on *any* view. Delay, placement, edge-flipping and
   theming are nobody's problem at the use site.
-- **`FocusRing`** — the traveling focus indicator, provided to any app that uses a
+- **`FocusRing`** — the traveling focus indicator, spliced into any app that uses a
   library control. It is what you saw fly in the last chapter.
 
 Both are singletons spliced in when a program earns one, and **declaring your own by that
@@ -183,7 +182,7 @@ habits are the difference between a panel that works and one that mostly works.
 
 **What you can now say:** you can put a menu, a context menu, a dialog or a filtering
 picker into an app without a portal, a z-index, or a dismissal handler — and you know why
-they take records rather than children, which of the two dismissal regimes a given layer
+they take records rather than children, which of the two dismissals a given layer
 wants, and the ordering rule that keeps a slow action from freezing one on screen.
 
 [Next: **Where the user is** →](declare-docs:guide:location)

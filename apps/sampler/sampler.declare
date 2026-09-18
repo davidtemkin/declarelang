@@ -1,36 +1,33 @@
 /*
 # The component sampler
 
-The styling arc's proof point (library-charter §6): EVERY library component,
-under four switchable stylings — San Francisco (the default), Mountain View,
-Cupertino, and Redmond. One machinery, four token records: the stylings are
-DATA, never code paths.
+The library's controls under four switchable stylings — San Francisco (the
+default), Mountain View, Cupertino, and Redmond. One machinery, four token
+records: the stylings are **data**, never code paths.
 
-The chrome is the house arrangement (Viewer/Calendar): a FIXED-HEIGHT top bar
+The chrome is the house arrangement (Viewer/Calendar): a fixed-height top bar
 — the brand at left (compacting to just "Declare" when narrow, the Calendar
-move), the page switch in the centre (Controls · Table · DataGrid), and ONE
-appearance affordance at right opening the APPEARANCE MENU: theme mode
-(Light/System/Dark, checked rows), the four stylings, the accent-tint dot row
-(the Finder tag-dots idiom), and the focus-flourish toggle — the whole
-styling rig, off the page and into the menu. The Controls page reads as
-CARDS, two columns wide, one below the breakpoint the cards actually need.
+move), the page switch in the center (Controls · Table · DataGrid), and one
+appearance affordance at right opening the appearance menu: theme mode
+(Light/System/Dark, checked rows), the four stylings, the accent-tint dot row,
+and the focus-flourish toggle — the whole styling rig, off the page and into
+the menu. The Controls page reads as cards, two columns wide, one below the
+breakpoint the cards actually need.
 */
 
 use [ TintRow, SunIcon, AutoIcon, MoonIcon ]   // the door and the menu name their icons in data
 
-// A custom menu-item CONTENT class — rung 2 of the record door: named in the
-// items DATA (`kind: "TintRow"`), created by name (app.createView through the
-// menu's row host), fed `props` as its datapath context. The Finder tag-dots
-// idiom: the row's INTERIOR is individually interactive — each dot claims its
+// A custom menu-item content class: named in the items data (`kind: "TintRow"`),
+// created by name through the menu's row host, fed `props` as its datapath
+// context. The row's interior is individually interactive — each dot claims its
 // own click (deepest sink wins), applies the accent, and closes the menu; the
 // row wrapper suppresses its own pick and highlight for kind rows.
 
 class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
     c: Color = #2E6FE0,
-    name: string = "",
 
-    // the Finder rollover: the hovered dot ENLARGES in place — scale is
-    // painted-only (no layout shift, neighbors stay put, hit-testing follows)
+    // the hovered dot enlarges in place — scale is painted-only (no layout
+    // shift, neighbors stay put, hit-testing follows)
 
     scale = { hovered ? 1.4 : 1 },
     pivotX = 8,
@@ -41,20 +38,20 @@ class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
     ]
 
 
-// The dots row: color and the selected ring say everything — no caption
-// (ruled 2026-07-31). The menu's row host aligns it to the text edge, the
-// Finder rollover enlarges the hovered dot, a re-click clears the tint.
+// The dots row: color and the selected ring say everything — no caption. The
+// menu's row host aligns it to the text edge, the rollover enlarges the
+// hovered dot, a re-click clears the tint.
 
 class TintRow extends View [
     height = 22,
 
     dots: View [ x = 0, y = 3,
         layout: SimpleLayout [ axis = x, spacing = 7 ],
-        TintDot [ c = #2E6FE0, name = "Blue" ],
-        TintDot [ c = #6750A4, name = "Purple" ],
-        TintDot [ c = #E0447E, name = "Pink" ],
-        TintDot [ c = #D03A2F, name = "Red" ],
-        TintDot [ c = #3A9E4C, name = "Green" ]
+        TintDot [ c = #2E6FE0 ],
+        TintDot [ c = #6750A4 ],
+        TintDot [ c = #E0447E ],
+        TintDot [ c = #D03A2F ],
+        TintDot [ c = #3A9E4C ]
         ]
     ]
 
@@ -81,42 +78,47 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
     // ── the responsive facts, each scoped to what it governs ───────────────
 
-    compact: boolean = { app.width < 640 },      // the BAR: brand drops "Sampler", tighter segments
-    narrow: boolean = { app.width < 940 },       // the CONTROLS page: the card columns stack
-    gridNarrow: boolean = { app.width < 760 },   // the GRID: the narrow column-width set
+    compact: boolean = { app.width < 640 },      // the bar: brand drops "Sampler", tighter segments
+    narrow: boolean = { app.width < 940 },       // the Controls page: the card columns stack
+    gridNarrow: boolean = { app.width < 760 },   // the grid: the narrow column-width set
 
     barH: number = 52,                           // fixed — the bar never grows
 
-    page: string = "controls",                   // controls | table | grid — the centre switch
+    page: string = "controls",                   // controls | table | grid — the center switch
     style: string = "sanFrancisco",
     menuLocked: boolean = true,
     lastPick: string = "(none yet)",
     lastCtx: string = "(none yet)",
-    themeMode: string = "auto",                  // light | auto | dark — ORTHOGONAL to the styling
+    themeMode: string = "auto",                  // light | auto | dark — orthogonal to the styling
     darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     animateFocus: boolean = true,
-    accentPick: number = 0,                      // 0 = the mode's own accent; a tint overrides it EVERYWHERE
+    accentPick: number = 0,                      // 0 = the mode's own accent; a pick overrides it everywhere
 
-    // the LIBRARY presets, by city and mode: SanFrancisco / Cupertino /
-    // MountainView and their …Dark companions. An accent pick re-derives the
-    // active tint (tint) so nothing keeps a stale tone.
+    // the library presets, by city and mode: SanFrancisco / MountainView /
+    // Cupertino / Redmond and their …Dark companions. An accent pick re-derives
+    // the active tone (activeTone) so nothing keeps a stale one.
+
+    preset: Theme = { style == "mountainView" ? (darkUI ? MountainViewDark : MountainView) : style == "cupertino" ? (darkUI ? CupertinoDark : Cupertino) : style == "redmond" ? (darkUI ? RedmondDark : Redmond) : (darkUI ? SanFranciscoDark : SanFrancisco) },
 
     theme = { {
-        ...(style == "mountainView" ? (darkUI ? MountainViewDark : MountainView) : style == "cupertino" ? (darkUI ? CupertinoDark : Cupertino) : style == "redmond" ? (darkUI ? RedmondDark : Redmond) : (darkUI ? SanFranciscoDark : SanFrancisco)),
+        ...app.preset,
+        // the brand gradient's second stop — the family's teal, as docs and
+        // the calendar name it; no preset carries it
+        accentSecondary: darkUI ? 0x37E0C8 : 0x12A594,
         focusAnimate: animateFocus,
-        // The rig's choice, as data: authentic Windows focus RESTS (the record
+        // The rig's choice, as data: authentic Windows focus rests (the record
         // says "rest"), but with the flourish switched on the role upgrades to
-        // "both" — and the two-tone rectangle FLIES. The theme file stays
+        // "both" — and the two-tone rectangle flies. The theme file stays
         // faithful; the demo overrides one token.
         ...(style == "redmond" && animateFocus ? ({ focusRing: "both" }) : ({})),
-        ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: tint(accentPick, darkUI) }) : ({})),
+        ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: activeTone(accentPick, app.preset.surface) }) : ({})),
     } },
 
     // the type stack is part of the styling: Roboto for Mountain View, the system face for Cupertino
 
     fontFamily = { style == "mountainView" ? [app.roboto, "system-ui", "sans-serif"] : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
 
-    // ── data: the Table's cities; the DataGrid's issues (OWNED — seeded
+    // ── data: the Table's cities; the DataGrid's issues (app-owned — seeded
     //    once, so cell edits persist; the sort verb reorders the data) ──────
 
     cities: Dataset { {
@@ -136,7 +138,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
     gd: Dataset { { "rows": [] } },
 
-    // the grid's width overrides, APP-OWNED (the value pattern working):
+    // the grid's width overrides, app-owned (the value pattern working):
     // user resizes merge here; the narrow set folds beneath them
 
     gridWidths: object = null,
@@ -155,7 +157,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
     onInit() { gd.set(["rows"], this.issueRows()) },
 
-    // the sort DELIVERY's consumer: the app owns the data, so sorting is a
+    // the sort delivery's consumer: the app owns the data, so sorting is a
     // data verb — a reordered copy replaces the rows (identity by `id` keeps
     // every instance and every edit)
 
@@ -170,8 +172,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         gd.set(["rows"], rows)
         },
 
-    // ── the APPEARANCE menu — the whole styling rig as records: mode rows,
-    //    styling rows, the tint dots (the Finder idiom), the flourish ───────
+    // ── the appearance menu — the whole styling rig as records: mode rows,
+    //    styling rows, the tint dots, the flourish ───────────────────────────
 
     appearanceMenu: Menu [
         width = 240,
@@ -219,7 +221,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             }
         ],
 
-    // the context menu — declared ONCE, opened by the serving surface's own
+    // the context menu — declared once, opened by the serving surface's own
     // two-line gesture wiring (right-click on fine pointers, hold on touch)
 
     ctxMenu: ContextMenu [
@@ -236,7 +238,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     dlg: Dialog [ ],
     lastDialog: string = "(none yet)",
 
-    // ── the top bar: FIXED height — brand · pages · the appearance door ────
+    // ── the top bar: fixed height — brand · pages · the appearance door ────
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").surface },
 
@@ -249,7 +251,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             // distro root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
-                textFill = { gradient("90deg", provided("theme").accent, 0x37B6A9) }, text = "Declare",
+                textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
 
@@ -259,8 +261,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 visible = { !app.compact }, text = "Sampler" ]
             ],
 
-        // the page switch IS the platform pattern — the library Segmented
-        // (one tab stop, arrows move, the ring hugs the active segment)
+        // the page switch is the library Segmented — one tab stop, arrows
+        // move, the ring hugs the active segment
 
         pageSwitch: Segmented [ y = 11,
             x = { Math.max(app.compact ? 104 : 200, (app.width - this.width) / 2) },
@@ -272,25 +274,25 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                           ({ id: "grid",     label: "DataGrid" }) ] }
             ],
 
-        // the appearance DOOR — reads as a menu popper: the mode glyph and a
-        // chevron in a bordered pill; opens the menu right under itself
+        // the appearance door — reads as a menu popper: the mode glyph and a
+        // chevron in a bordered pill. `menu` is the role: the anchored open
+        // under the pill, Space/Enter and ArrowDown from the keyboard all come
+        // with it, so the control declares nothing about opening.
 
         appear: Control [ y = 11, height = 30,
             width = 54,
             x = { app.width - this.width - 14 },
             cornerRadius = 8, tip = "Appearance",
-            fill = { hot || down ? provided("theme").control : null },
+            menu = { app.appearanceMenu },
+            fill = { menuOpen || hot || down ? provided("theme").control : null },   // held open while its menu shows
             stroke = { stroke(1, provided("theme").line) },
 
-            // the mode's own mark, and the disclosure — both from the set. The
-            // chevron here was a sixth private copy, in its own 9×6 box.
+            // the mode's own mark, and the disclosure — both from the icon set
 
             g: IconHost [ x = 9, y = center, iconSize = 15,
                 kind = { app.themeMode == "light" ? "SunIcon" : app.themeMode == "dark" ? "MoonIcon" : "AutoIcon" } ],
             arrow: ChevronIcon [ iconSize = 12, ink = { provided("theme").textMuted },
-                x = { parent.width - 18 }, y = { (parent.height - this.height) / 2 } ],
-            press() { app.appearanceMenu.openFor(this) },
-            onClick() { if (!disabled) press() }
+                x = { parent.width - 18 }, y = { (parent.height - this.height) / 2 } ]
             ]
         ],
 
@@ -304,7 +306,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             width = { Math.min(960, app.width - (app.narrow ? 32 : 64)) },
             layout: SimpleLayout [ axis = y, spacing = 24 ],
 
-            // ── CONTROLS page: specimen cards, two balanced columns ────────
+            // ── Controls page: specimen cards, two balanced columns ────────
 
             grid: View [ visible = { app.page == "controls" }, width = { parent.width },
                 layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = { app.narrow ? 20 : 32 } ],
@@ -339,7 +341,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                         demo: View [ x = 16, y = 44, width = { parent.width - 32 },
                             layout: SimpleLayout [ axis = y, spacing = 14 ],
                             vol: Slider [ width = { Math.min(280, parent.width) }, value = 40, tip = "Volume — arrows nudge" ],
-                            ProgressBar [ width = { Math.min(280, parent.width) }, value = { this.parent.vol.value } ]
+                            ProgressBar [ width = { Math.min(280, parent.width) }, value = { parent.vol.value } ]
                             ]
                         ],
 
@@ -355,7 +357,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                                     ({ id: "barbara", label: "Barbara Liskov" }),
                                 ] } ],
                             cap: Text [ fontSize = 12, textColor = { provided("theme").textFaint },
-                                text = { "chosen: " + (this.parent.cb.value != null ? (this.parent.cb.value as any).label : "none") } ]
+                                text = { "chosen: " + (parent.cb.value != null ? (parent.cb.value as any).label : "none") } ]
                             ]
                         ],
 
@@ -389,11 +391,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                         row: View [ x = 16, y = 44,
                             layout: SimpleLayout [ axis = x, spacing = 14 ],
 
-                            // `menu` is the ROLE — the chevron, the anchored open,
-                            // the held-open styling and Down-to-open come with
-                            // it. The mark used to be a character inside the
-                            // label string, which is why five sites drew five
-                            // different ones.
+                            // `menu` is the role — the chevron, the anchored open,
+                            // the held-open styling and Down-to-open come with it
 
                             Button [ width = 130, label = "Options",
                                 menu = { app.optionsMenu } ],
@@ -442,7 +441,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     ]
                 ],
 
-            // ── TABLE page: the ruled selection model, at real height ──────
+            // ── Table page: the ruled selection model, at real height ──────
 
             tablePage: View [ visible = { app.page == "table" }, width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 10 ],
@@ -462,7 +461,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                            + (((parent.tbl.selection ?? []).map((r) => r.name).join(", ")) || "none") } ]
                 ],
 
-            // ── DATAGRID page: 500 windowed rows, LIVE cells ───────────────
+            // ── DataGrid page: 500 windowed rows, live cells ───────────────
 
             gridPage: View [ visible = { app.page == "grid" }, width = { parent.width },
                 layout: SimpleLayout [ axis = y, spacing = 10 ],

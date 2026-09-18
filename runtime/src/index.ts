@@ -185,4 +185,4 @@ export type { Color, Length, Percent, AttrType, AttrValue, Coerced, Fill, Gradie
 export type { Pos } from "./errors.js";
 export type { Element, Attr, Method, Literal, AttrDecl, ClassDecl, Program, Library, IncludeRef } from "./parser.js";
 
-export { THEME_PRESETS, THEME_PRESET_NAMES, tint } from "./themes.js";
+export { THEME_PRESETS, THEME_PRESET_NAMES, activeTone } from "./themes.js";

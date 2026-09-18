@@ -56,6 +56,10 @@ const CONSTRUCTORS = new Set(["gradient","stroke","shadow","stop","colorWithAlph
 const ITER = new Set(["map","filter","find","findIndex","some","every","reduce","reduceRight","forEach","sort","flatMap","slice","concat","indexOf","includes","join","keys","values","entries","flat","at","reverse","fill","findLast"]);
 const PURE_METHODS = new Set(["toFixed","toString","toPrecision","valueOf","toExponential","toUpperCase","toLowerCase","trim","trimStart","trimEnd","padStart","padEnd","charAt","charCodeAt","codePointAt","substring","substr","repeat","startsWith","endsWith","split","replace","replaceAll","match","matchAll","search","normalize","localeCompare","slice","at","indexOf","lastIndexOf","includes","getFullYear","getMonth","getDate","getDay","getHours","getMinutes","getSeconds","getTime","getMilliseconds","getTimezoneOffset","toISOString","toLocaleDateString","toLocaleTimeString","toLocaleString","toDateString","getUTCFullYear","getUTCMonth","getUTCDate"]);
 const NODE_COLLECTIONS = new Set(["children","childViews","subviews","views","members","instances"]);
+/** The face names `providedTextStyle()` reads — mirrors attributes.ts
+ *  PROVIDED_FACE. Kept as names only: this module wires edges and never needs
+ *  the defaults, and runtime/ is not importable from here. */
+const PROVIDED_FACE_NAMES = ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing"] as const;
 
 /** A code value (`{ }`) with the extracted deps optionally attached. */
 type CodeValue = { kind: "code"; src: string; pos?: { offset?: number }; deps?: readonly string[] };
@@ -607,6 +611,13 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             const a0 = s.arguments[0];
             if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`this.$provided(${JSON.stringify(a0.text)})`);
             else errors.push(new DepError(`provided(<expr>) — the provided value's name must be a literal string so its dependency can be wired; write provided("name")`, s.getStart()));
+          } else if (m === "$providedTextStyle" && recv.kind === ts.SyntaxKind.ThisKeyword) {
+            // `providedTextStyle(…)` compiled to `this.$providedTextStyle(…)`:
+            // it reads the FIVE provided face names, so it wires to exactly the
+            // five edges the hand-written form would have. No new edge kind —
+            // each is the same dynamic provided read as above, so a face change
+            // anywhere up the chain re-derives a measurement taken with it.
+            for (const name of PROVIDED_FACE_NAMES) reads.add(`this.$provided(${JSON.stringify(name)})`);
           } else if (ITER.has(m)) {
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }

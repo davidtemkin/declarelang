@@ -32,7 +32,7 @@ standing by, not a house style.
 ## A spring drives an attribute toward a target
 
 A `Spring` is physics on one attribute, toward a **reactive target**. You declare
-where the thing belongs; the spring finds the path and settles:
+where the thing belongs; the spring finds the path and arrives:
 
 ```declare
 App [ width = 420, height = 120, fill = black,
@@ -101,10 +101,12 @@ when it lifts, they all revert. Note what is unwritable here: the "set it on ent
 forget to unset it on exit" bug. An attribute's value is a pure function of its base
 plus the active states, so **a state cannot leak** — there is no exit code to forget
 because there is no exit code. States compose (two active states each contribute;
-on a conflict the later declaration wins), they can target named descendants by
-dotted path, and the condition is any constraint — including `app.width < 480`,
-which is the "swap the whole arrangement" form of responsiveness promised in
-the [Space](declare-docs:guide:space) chapter.
+on a conflict the later declaration wins), and the condition is any constraint —
+including `app.width < 480`, which is the "swap the whole arrangement" form of
+responsiveness promised in the [Space](declare-docs:guide:space) chapter. A state
+overrides its own element's attributes only: `bg.opacity = 0.5` inside one is a
+compile error. A child that should follow the same condition declares its own state
+on it, or a constraint that reads the flag.
 
 ## One mechanism, two faces
 

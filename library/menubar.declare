@@ -1,18 +1,17 @@
 /*
 # MenuBar
 
-The record-driven menu bar (planes.md §4–§6): whole menus are DATA —
+The record-driven menu bar: **whole menus are data** —
 
     menus = { [ ({ id, label, bold?, items: [ …menu records… ] }), … ] }
 
-— and the component arranges. ONE internal Menu serves every title; its
+— and the component arranges. One internal Menu serves every title; its
 `items` constraint derives from the open title's record, so item state
-(enabled, checked, labels) stays LIVE while the menu is up. Because the
+(enabled, checked, labels) stays live while the menu is up. Because the
 records are the single declaration, an app can derive its key registry
-from the same array the bar renders — nothing is declared twice (the
-Newton keys direction, proven in apps/desktop).
+from the same array the bar renders — nothing is declared twice.
 
-Tracking is the classic desktop behavior: titles do NOT highlight on mere hover;
+Tracking is the classic desktop behavior: titles do not highlight on mere hover;
 a click opens (and highlights) a title; while any menu is open, moving
 across another title switches to it; clicking the open title closes.
 
@@ -83,6 +82,9 @@ the bar.
 ## width
 Content-sized to its row of titles, so it sits in a chrome bar without a stated width.
 
+## selectable
+Chrome, never prose: the titles do not select, even inside a `selectable` region — the same provision every `Control` makes for its label.
+
 ## theme
 The provided design-token record this widget styles off — a **provided value**
 (the app provides it once with `App [ theme = { … } ]`; `Control` and the library
@@ -93,24 +95,28 @@ house look. See `Control.theme`.
 include [ "menu.declare" ]
 
 class MenuBar extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
     height = 25,
 
+    // chrome, not prose: the titles never select inside a `selectable` region
+
+    selectable = false,
+
     // menu records: { id, label, bold?, kind?, items } — `kind` names an
-    // author class rendered AS the title (a brand mark in the leading
+    // author class rendered as the title (a brand mark in the leading
     // slot); behavior stays the title's (open, track). Keep kind-only
     // classes with `use [ Name ]`, exactly as Menu's kind rows do.
 
     menus: array = null,
 
-    // optional title-ink override: when set, the menu TITLES render in this
-    // colour instead of `theme.text` — for a bar drawn straight over a
+    // optional title-ink override: when set, the menu titles render in this
+    // color instead of `theme.text` — for a bar drawn straight over a
     // wallpaper (no background), where the platform text turns light. Null =
-    // the theme's text colour, as before. The dropdown menus stay themed.
+    // the theme's text color. The dropdown menus stay themed.
 
     ink: Color = null,
 
@@ -123,26 +129,25 @@ class MenuBar extends View [
 
     width = { this.row.contentWidth },
 
-    // `t`/`r` below are typed `object` — a title is an ANONYMOUS replicated
+    // `t`/`r` below are typed `object` — a title is an anonymous replicated
     // template (the `datapath = :m[]` view); see menu.declare's same seam.
 
     openMenu(t: object) {
         openId = "" + t.mid
         this.menu.openFor(t)
         // the menu self-raises, which lifts its full-app backdrop over the
-        // titles — but a tracking bar stays HOT while a menu is open (that is
+        // titles — but a tracking bar stays hot while a menu is open (that is
         // what tracking is). Promote the row back above the backdrop; the
         // panel drops below the bar, so nothing occludes visually.
         this.row.raise()
         // raise() is per parent: the menu is this bar's child, so it rose
-        // above the bar's row and nothing else. A sibling declared AFTER the
-        // bar — a page's content, laid out under the chrome — still painted
-        // over the dropped panel and took its clicks (the docs page, 2026-09-10).
-        // The bar is chrome: while it drops a menu it belongs above its
-        // siblings, so it raises itself too. (A bar nested in a container that
-        // is itself under other content declares that container last —
-        // stacking is source order — or hosts its menu at the app layer, the
-        // Combobox idiom.)
+        // above the bar's row and nothing else. A sibling declared after the
+        // bar — a page's content, laid out under the chrome — would still
+        // paint over the dropped panel and take its clicks. The bar is chrome:
+        // while it drops a menu it belongs above its siblings, so it raises
+        // itself too. (A bar nested in a container that is itself under other
+        // content declares that container last — stacking is source order —
+        // or hosts its menu at the app layer, the Combobox idiom.)
         this.raise()
         },
 

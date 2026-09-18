@@ -45,6 +45,46 @@ one clause is the right length. Don't pad it to look thorough.
 - **"Renders a button" description** — a strong reader predicted it. Zero value.
 - **Obvious behaviour** — say the surprising thing or nothing.
 
+## One version of the truth
+
+The reference describes what Declare **is**, and nothing else. It carries no trace of
+what it was.
+
+That is a promise the language makes, not a matter of taste. A reader — and far more
+often a model — arrives with no way to tell a current form from a former one, so a
+single sentence about a previous design costs more than it explains: it introduces a
+second candidate answer and no way to choose. One authoritative version, uncomplicated
+by history, is a large part of what Declare is offering.
+
+So in any entry, and in any component's own `/* # Name … */` header:
+
+- **No former designs, renames or migrations.** Not "used to sit on `View`", not
+  "replaces the old `accents`", not "this was three mechanisms before". If the old form
+  is gone, it is gone; if it still exists, document the one that is correct.
+- **No implementation history.** "Verified frame-by-frame against the original",
+  "found exactly that way", "ruled 2026-07-29" — all of it belongs to the decision, not
+  to the surface. Date nothing.
+- **No citations into `docs/system-design/`.** That directory is the design record,
+  including superseded decisions; pointing a reader at it hands them the archaeology we
+  just removed. Cite the guide, a sibling entry, or nothing. (`declare.md`'s one
+  pointer — that the directory exists and is background, not truth — is the exception,
+  and exists to steer readers away.)
+- **No prior-art framing.** "OpenLaszlo's `basetabslider`, reborn" tells a newcomer
+  nothing and tells a model to go looking. Describe the component.
+
+**Emphasis is a word, not a case.** ALL-CAPS mid-sentence reads as shouting to a person
+and is noise to a tokenizer, and it spreads: one entry in capitals invites the next.
+Use `**bold**` for the one load-bearing clause, at most once or twice an entry, and
+reach for a better sentence before either. Genuine acronyms (`CSS`, `SQL`, `IME`) are
+not emphasis and are fine.
+
+**Where the history goes.** Inside `runtime/`, `compiler/` and the tools, a comment
+explaining why a thing is shaped the way it is — including the bug that shaped it — is
+valuable and should stay: that reader is the next maintainer, and the cost of
+re-deriving it is real. The line is the audience, not the repository. Anything a
+program author or an agent reads — this prose, a component's header, the guide, the
+language file, a diagnostic — carries the current truth only.
+
 ## Two facts that change how you write
 
 - **The doc is also a generation constraint.** For an editing agent the entry is a

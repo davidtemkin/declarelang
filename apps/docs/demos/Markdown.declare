@@ -8,7 +8,7 @@ App [
 A **declarative** UI language:
 
 - reactive `{ }` constraints
-- native layout, both backends
+- native layout, on every renderer
 - text authored in Markdown
 """ ]
     ]

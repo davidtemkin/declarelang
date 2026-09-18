@@ -1,15 +1,16 @@
 /*
 # Accordion
 
-OpenLaszlo's `basetabslider`, reborn — stacked pane headers, one
-pane open at a time, panes SLIDING open and closed by a spring on height. The
-load-bearing mechanic (docs/system-design/tabslider-gaps.md, verified
-frame-by-frame against the original): a pane's content is PRESENT through the
-whole open **and** close, revealed and concealed by the pane's own clip as its
-height animates — never an instant pop, never a blank gap.
+Stacked pane headers with one pane open at a time, each pane sliding open and
+closed on a spring over its height.
 
-Value contract (components-baseline.md): the open pane is ONE attribute on the
-group — `value`, the open pane's name — exactly RadioGroup's shape. Panes are
+The load-bearing mechanic: a pane's content is **present through the whole open
+and close**, revealed and concealed by the pane's own clip as its height
+animates. That is what makes the motion read as a pane opening rather than as
+content appearing — never an instant pop, never a blank gap.
+
+The open pane is **one attribute on the group** — `value`, the open pane's name
+— which is exactly `RadioGroup`'s shape. Panes are
 the group's direct children; each names itself (`name`, defaulting to its
 `label`) and derives `open` from the group. Content is authored as the Pane's
 ordinary children — the Pane stacks its header then the content, and clips.
@@ -72,6 +73,11 @@ Applies `initial`. Fires once per pane.
 ## width
 A pane is as wide as its accordion; only its height is its own.
 
+## opacity
+Disabled dims the whole pane, header and content alike, rather than recolouring it — to
+the theme's `disabledOpacity`, or 0.45 when the theme states none. A disabled pane
+neither opens nor closes; whatever it shows stays as it is.
+
 ## theme
 The provided design-token record this widget styles off — a **provided value**
 (the app provides it once with `App [ theme = { … } ]`; `Control` and the library
@@ -82,15 +88,15 @@ house look. See `Control.theme`.
 include [ "control.declare", "icons/core.declare" ]
 
 class Accordion extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
 
     value: string = "",
 
-    // one open pane at a time, stacked flush — the sliding heights ARE the
+    // one open pane at a time, stacked flush — the sliding heights are the
     // arrangement; the group just stacks whatever heights the springs say
 
     layout: SimpleLayout [ axis = y, spacing = 2 ]
@@ -108,30 +114,32 @@ class Pane extends Control [ width = { parent.width }, clip = true,
 
     // the slide: height springs between the bare header and the content's own
     // wanted extent; `clip = true` is what carries the content through the
-    // whole motion (the OL mechanic — concealed by the clip, never removed)
+    // whole motion — concealed by the clip, never removed
 
     slide: Spring [ attribute = height, to = { open ? contentHeight : classroot.header.height }, stiffness = 220, damping = 26, epsilon = 0.4 ],
 
-    // a CLOSED pane is clip-occluded, not hidden — its content stays visible
-    // so the slide can carry it (the OL mechanic), but focus must never
-    // descend into it (the web's inert lesson; ARIA's inactive-panel rule).
-    // The traversal protocol handles it: while closed, this Pane contributes
-    // no members — the header stop (the Pane itself) remains.
+    // a closed pane is clip-occluded, not hidden — its content stays visible
+    // so the slide can carry it, but focus must never descend into it (the
+    // web's inert rule; ARIA's inactive-panel rule). The traversal protocol
+    // handles it: while closed, this Pane contributes no members — the header
+    // stop (the Pane itself) remains.
 
     tabOrder() { return open ? this.tabDefault() : [] },
 
     press()   { (parent as Accordion).value = name },
     onClick() { if (!disabled) press() },
 
+    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
+
     layout: SimpleLayout [ axis = y, spacing = 0 ],
 
-    // headers are FILLED, edgeless — an edge reads as an input field (David).
-    // The one exception is the component channel of the focus model: while
-    // THIS pane holds KEYBOARD focus (Control's focusVisible — the web's
-    // :focus-visible rule), a darker-than-fill edge appears. A pointer click
-    // focuses silently — the click is its own feedback, no edge.
+    // headers are filled, edgeless — an edge reads as an input field. The one
+    // exception is the component channel of the focus model: while this pane
+    // holds keyboard focus (Control's focusVisible — the web's :focus-visible
+    // rule), a darker-than-fill edge appears. A pointer click focuses silently
+    // — the click is its own feedback, no edge.
 
-    // The twisty ROTATES rather than swapping between two marks, and it does it
+    // The twisty rotates rather than swapping between two marks, and it does it
     // on a spring — so it turns in step with the pane sliding open instead of
     // snapping while the height animates. `ChevronIcon` takes an `angle` for
     // exactly this: `dir` is the sugar for four resting orientations, the angle

@@ -3,7 +3,7 @@ import type { RenderBackend, Surface } from "./backend.js";
 import { type FontWeight, type TextTransform } from "./measure.js";
 import { type Numerals, type NumeralWidth } from "./font-features.js";
 import { type FamilyValue } from "./font-value.js";
-import { type Block } from "./md.js";
+import { type Block, type ReadOptions } from "./md.js";
 import { type Unsupported } from "./html.js";
 import type { Fill, Shadow, Outline, Color } from "./value.js";
 export interface RunStyle {
@@ -62,13 +62,22 @@ export declare abstract class RichText extends View {
      *  and re-width. */
     baseline: number | null;
     private built;
-    /** Parse the current source into the block tree. */
-    protected abstract parseSource(): Block[];
+    /** Parse the current source into the block tree. `opts` carries the inline-view
+     *  gate (which tag names are program classes) and the refusal channel. */
+    protected abstract parseSource(opts: ReadOptions): Block[];
+    /** What a refused piece of content does: `strip` (drop it, keep going, say so
+     *  once) or `error` (throw). HTMLText declares it; Markdown has no such
+     *  attribute and takes the default, which is also what raw markup has always
+     *  done there — it stays the text it was written as. */
+    protected policy(): Unsupported;
     /** The source string(s) folded into the reactive render key, so an edit
      *  (or a policy change) re-parses and re-flows. */
     protected abstract sourceKey(): string;
     /** Named styles a source can reference (HTMLText's `styles`); none by
      *  default — Markdown has no syntax to name one. */
+    /** The named-style palette for this render: the `textStyles` map, which
+     *  defaults to the nearest provided one (defineAttributes below). */
+    textStyles: Record<string, RunStyle>;
     protected stylesOf(): Record<string, RunStyle>;
     /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
      *  paint transform it means on a plain View — so mask the base flush()'s scale
@@ -124,13 +133,17 @@ export declare abstract class RichText extends View {
     /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
      *  it is a prose flow its first line's baseline IS this box's. */
     private claimBaseline;
+    /** The inline views this rich text holds (identity across content changes) —
+     *  created on first need, so a document with no `<Class/>` tag allocates
+     *  nothing at all. */
+    private slotHost;
     private rebuild;
 }
 /** Rich content authored in Markdown (`text`). */
 export declare class Markdown extends RichText {
     text: string;
     protected sourceKey(): string;
-    protected parseSource(): Block[];
+    protected parseSource(opts: ReadOptions): Block[];
 }
 /** Rich content authored in a WHITELISTED HTML subset (`html`), validated at
  *  render time. `unsupported` decides what a tag outside the set does — `strip`
@@ -139,8 +152,7 @@ export declare class Markdown extends RichText {
 export declare class HTMLText extends RichText {
     html: string;
     unsupported: Unsupported;
-    textStyles: Record<string, RunStyle>;
     protected sourceKey(): string;
-    protected parseSource(): Block[];
-    protected stylesOf(): Record<string, RunStyle>;
+    protected parseSource(opts: ReadOptions): Block[];
+    protected policy(): Unsupported;
 }

@@ -17,9 +17,8 @@ state and behaviour with no pixels of its own.
 
 ## onInit
 Fires once when the node has finished constructing and its subtree exists — the place for
-setup that needs the built tree. Every node gets it, **faceless subclasses included**
-(the init walk covers non-View children since 2026-08-20 — before that, only views were
-visited and a Node's `onInit` silently never fired). Answered by `onInit()`.
+setup that needs the built tree. Every node gets it, **faceless subclasses included** — the
+init walk visits non-View children too. Answered by `onInit()`.
 
 ## trackChanges
 The values this node reports changes to: `trackChanges = [ "loaded", "kind" ]`. Each name
@@ -41,6 +40,10 @@ thing). Silent at boot: first values are not changes, and setup belongs in `onIn
 the whole tree, the App's `onReady`. A handler's writes are the next settle, so a change may
 cause a change; a handler may not assign a value it was told about, and a ring of handlers
 ends on its own, because a value is delivered at most once per settle chain.
+
+Not to be confused with an input's edits, which is the instinct the name carries in from
+HTML and React: a field reports what the reader typed through `onInput`, and a control
+reports its own value through `input()`. This event is about a value the *program* holds.
 
 **Use it only for a genuine state change** — something happened and the program must act
 once: mark a conversation read when the reader reaches its end, open a pane when the data

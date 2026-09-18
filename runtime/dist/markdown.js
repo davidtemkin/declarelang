@@ -13,12 +13,14 @@
 // styled segment-piece (plus a chip behind code, a rule through strike). Declare's
 // `Text` is one style per run, so rich flow is composed FROM runs, not a new
 // backend primitive — both backends render it identically, for free.
-import { View, onDiscard, fireEvent } from "./view.js";
+import { View, onDiscard, fireEvent, inlineViewHost } from "./view.js";
 import { Text } from "./text.js";
 import { Image } from "./image.js";
 import { Layout } from "./layout.js";
-import { Constraint } from "./reactive.js";
-import { defineAttributes, providedDefault, providedRead, setBound } from "./attributes.js";
+import { Cell, Constraint } from "./reactive.js";
+import { defineAttributes, provideWrite, providedDefault, providedRead, setBound } from "./attributes.js";
+import { DeclareError } from "./errors.js";
+import { coerce, isAlign, isAuthoredUnion } from "./value.js";
 import { ellipsize, fontMetrics, fontString, textWidth, transformText } from "./measure.js";
 import { featureFamily, featureTags } from "./font-features.js";
 import { faceGeneration } from "./face-table.js";
@@ -27,6 +29,7 @@ import { parse } from "./md.js";
 import { headingSlug } from "./slug.js";
 import { parseHtml } from "./html.js";
 import { resolveAsset } from "./asset-base.js";
+import { percentAxis } from "./bind.js";
 import { styleBundles, bundleRecord } from "./style-bundles.js";
 // ── prose style map ──────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
@@ -228,6 +231,282 @@ function resolveStyle(name) {
 }
 const sz = (n) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
 const FALLBACK_FAMILY = "system-ui, sans-serif";
+const NUMERIC = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
+const HEXCOLOR = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+const HEXNUM = /^0[xX][0-9a-fA-F]+$/;
+const PERCENT = /^[+-]?(?:\d+\.?\d*|\.\d+)%$/;
+const TOKEN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const NOPOS = { line: 0, col: 0, offset: 0 };
+/** A tag attribute's string as THE LITERAL ITS DECLARED TYPE EXPECTS, so the one
+ *  coercion (value.ts `coerce`) converts it exactly as it converts a literal
+ *  written in source — no second vocabulary. Type-directed because the same text
+ *  means different things in different slots: `text='142'` is the string "142"
+ *  while `id='142'` is the number 142, and a bare token is an enum member in an
+ *  enum slot and a named color in a Color one. A bare attribute (`<Chip loud/>`)
+ *  is `true`. */
+function literalFor(type, raw) {
+    if (raw === true)
+        return { kind: "ident", name: "true", pos: NOPOS };
+    const t = raw.trim();
+    // A string slot takes the text AS WRITTEN (untrimmed) — it is the value.
+    if (type.kind === "string" || type.kind === "font" || type.kind === "faceSource")
+        return { kind: "string", value: raw, pos: NOPOS };
+    if (type.kind === "enum") {
+        // A declaration's own spelling (the ruling): a built-in vocabulary declares
+        // bare tokens, an authored literal union declares quoted members.
+        if (isAuthoredUnion(type.name))
+            return { kind: "string", value: t, pos: NOPOS };
+        if (type.numeric !== undefined && NUMERIC.test(t))
+            return { kind: "number", value: parseFloat(t), hex: false, pos: NOPOS };
+        return { kind: "ident", name: t, pos: NOPOS };
+    }
+    if (HEXCOLOR.test(t))
+        return { kind: "hexColor", raw: t, pos: NOPOS };
+    if (HEXNUM.test(t))
+        return { kind: "number", value: parseInt(t.slice(2), 16), hex: true, hexLen: t.length - 2, pos: NOPOS };
+    if (PERCENT.test(t))
+        return { kind: "percent", value: parseFloat(t), pos: NOPOS };
+    if (NUMERIC.test(t))
+        return { kind: "number", value: parseFloat(t), hex: false, pos: NOPOS };
+    return TOKEN.test(t) ? { kind: "ident", name: t, pos: NOPOS } : { kind: "string", value: raw, pos: NOPOS };
+}
+/** The five provided face names an inline view inherits from the run it sits in
+ *  — so a chip in a heading is heading-sized unless it sets its own size, and
+ *  `providedTextStyle()` inside the view answers the run's style. */
+function runFace(s, family) {
+    return {
+        fontSize: s.size,
+        fontFamily: s.family ?? family,
+        fontWeight: s.weight,
+        textColor: s.color,
+        letterSpacing: s.tracking,
+    };
+}
+/** THE BASELINE AN INLINE VIEW SITS BY, measured down from the top of its own
+ *  box — the number both flows place it with.
+ *
+ *  An inline view is not a picture: a chip whose content is a label reads as a
+ *  word in the sentence, so it must sit on the sentence's baseline, not hang
+ *  its bottom edge off it. The rule is CSS's for an inline-block and the
+ *  library's for `align = baseline` at once: the view's OWN `baseline` if it
+ *  declares one (Button, Checkbox, Field, RadioGroup, a Text, a RichText, or any
+ *  class that says `baseline: number = { … }`), else the FIRST descendant that
+ *  claims one, in paint order, carried up into the view's coordinates. A view
+ *  whose subtree claims nothing has no baseline, and its bottom sits on the
+ *  line's — what a replaced box (an `<img>`) gets, and what this did before.
+ *
+ *  A baseline is CLAIMED, never discovered (check.ts's rule for a baseline row):
+ *  nothing here measures glyphs or asks a renderer — it reads the declarations,
+ *  and every read is tracked, so a font arriving or a label's text changing
+ *  moves the answer and re-flows the line. */
+function claimedBaseline(v) {
+    const own = v.baseline;
+    return typeof own === "number" ? own : descendantBaseline(v, 0);
+}
+/** The first baseline claimed anywhere under `v`, in declaration (paint) order,
+ *  offset into `v`'s coordinates. An invisible child paints nothing and carries
+ *  no line, so it is passed over. */
+function descendantBaseline(v, dy) {
+    for (const c of v.children) {
+        if (!(c instanceof View) || c.visible === false)
+            continue;
+        const y = dy + (c.y || 0);
+        const b = c.baseline;
+        if (typeof b === "number")
+            return y + b;
+        const deeper = descendantBaseline(c, y);
+        if (deeper !== null)
+            return deeper;
+    }
+    return null;
+}
+/** THE SLOTS of one rich text: resolve each `<Name …/>` to a live view, keep a
+ *  matched one across content changes, prune the vanished. The persistent
+ *  inline-image cache (TextFlow.imageFor) is the pattern; this generalizes it
+ *  one level up, because a view — unlike an image — must survive the rebuild
+ *  that a new `html`/`text` triggers. */
+class SlotHost {
+    owner;
+    slots = new Map();
+    used = new Set();
+    seq = new Map();
+    /** Diagnostics already spoken, so a refusal that is re-read on every rebuild
+     *  says its sentence once instead of storming. */
+    said = new Set();
+    policy = "strip";
+    constructor(owner) {
+        this.owner = owner;
+    }
+    /** Does the program declare a VIEW class called `name`? The one gate that
+     *  turns a tag into a view — everything else stays the text it is today. */
+    declares(name) {
+        return inlineViewHost(this.owner)?.declares(name) ?? false;
+    }
+    /** The reader options for this rich text's parse. */
+    readOptions(policy) {
+        this.policy = policy;
+        return { isClass: (n) => this.declares(n), refuse: (m) => this.refuse(m) };
+    }
+    /** Refused, through the component's own `unsupported` policy: `error` throws
+     *  naming the offence, `strip` drops it, keeps going, and says so once. */
+    refuse(message) {
+        if (this.policy === "error")
+            throw new DeclareError(message);
+        if (this.said.has(message))
+            return;
+        this.said.add(message);
+        console.error("[Declare] " + this.owner.constructor.name + ": " + message);
+    }
+    begin() { this.used = new Set(); this.seq = new Map(); }
+    /** Resolve one inline-view tag against the program's classes: create or match
+     *  the view, convert the attributes by their DECLARED types, hand the run's
+     *  face down as provided values. Returns the slot key the run carries, or null
+     *  when the tag is refused whole. */
+    resolve(node, style, family) {
+        const host = inlineViewHost(this.owner);
+        if (host === null)
+            return null; // no program table: not a view
+        const cls = node.name;
+        // IDENTITY: the `key` attribute, else the class name plus the ordinal of
+        // this tag among the class's UNKEYED tags — so inserting a keyed tag before
+        // an unkeyed one cannot shift what the unkeyed one is.
+        let key = node.key;
+        if (key === undefined) {
+            const n = this.seq.get(cls) ?? 0;
+            this.seq.set(cls, n + 1);
+            key = cls + "#" + n;
+        }
+        else if (this.used.has(key)) {
+            const n = this.seq.get(cls) ?? 0;
+            this.seq.set(cls, n + 1);
+            this.refuse(`two inline views share key='${key}' — a key is an identity, and identities are unique`);
+            key = cls + "#" + n;
+        }
+        // READ THE TAG FIRST, as the LITERALS its slots' declared types expect: the
+        // tag is the USE SITE of the ordinary attribute merge (instantiate.ts
+        // mergeAttrs — class bodies base → leaf, then the use site; only the winner
+        // installs), so `<Box width='120'/>` means `Box [ width = 120 ]` and a
+        // class-body `width = { 40 }` on the same slot never installs. Every
+        // attribute is vetted before anything is created: a refusal under `error`
+        // must throw first, and nothing a tag says may be quietly dropped.
+        const attrs = [];
+        // The plain values that landed, for the rewrite comparison below. A percent
+        // is deliberately absent: it lands as a standing constraint, not a value,
+        // and `shape` is what decides whether it is still the same one.
+        const values = new Map();
+        for (const [name, raw] of Object.entries(node.attrs)) {
+            // The flow owns placement, exactly as a layout owns its children's.
+            if (name === "x" || name === "y") {
+                this.refuse(`<${cls} ${name}='…'/>: the text flow places an inline view — '${name}' is not yours to set here`);
+                continue;
+            }
+            const type = host.attrType(cls, name);
+            if (type === null) {
+                this.refuse(`<${cls} ${name}='…'/>: ${cls} has no attribute '${name}'`);
+                continue;
+            }
+            // A computed slot (View's `hovered`, `contentWidth`, a class's own
+            // `readonly`) refuses assignment from anywhere; through a tag that would
+            // throw out of the render, so it is a refusal like any other.
+            if (host.readOnly(cls, name)) {
+                this.refuse(`<${cls} ${name}='…'/>: ${cls}.${name} is read-only — it is computed from its declaration and cannot be set`);
+                continue;
+            }
+            const lit = literalFor(type, raw);
+            const c = coerce(type, lit);
+            if (!c.ok) {
+                this.refuse(`<${cls} ${name}='${raw === true ? "" : raw}'/>: ${name} expects ${c.expected}${c.found === undefined ? "" : ` — found ${c.found}`}`);
+                continue;
+            }
+            // A percent resolves against the parent's extent on its own axis, like
+            // any child's — the parent here is the rich text, so `width='50%'` is half
+            // the content width. A slot with no axis to resolve against is refused
+            // rather than bound (bindPercent would throw mid-render).
+            if (lit.kind === "percent" && percentAxis(name) === null) {
+                this.refuse(`<${cls} ${name}='${String(raw)}'/>: no axis to resolve a percent against — ${name} is not a width or a height`);
+                continue;
+            }
+            // `center` / `end` align a view against its parent's box; the flow places
+            // an inline view, and x/y are refused above, so an align literal has no
+            // reading here (it would silently bind the wrong axis).
+            if (isAlign(c.value)) {
+                this.refuse(`<${cls} ${name}='${String(raw)}'/>: the text flow places an inline view — center and end have no meaning on ${name}`);
+                continue;
+            }
+            attrs.push({ name, value: lit, pos: NOPOS });
+            if (lit.kind !== "percent")
+                values.set(name, c.value);
+        }
+        // Which slots this tag claims (a percent's number included — see Slot).
+        const shape = attrs.map((a) => a.name + (a.value.kind === "percent" ? `=${a.value.value}%` : "")).sort().join(" ");
+        const provides = runFace(style, family);
+        let slot = this.slots.get(key);
+        // A key reused for a DIFFERENT class is a different thing — and so is a tag
+        // that claims a different set of slots: what the use-site layer covers is
+        // decided when the view is built. Either way, retire the old.
+        if (slot !== undefined && (slot.cls !== cls || slot.shape !== shape)) {
+            slot.view.discard();
+            this.slots.delete(key);
+            slot = undefined;
+        }
+        if (slot === undefined) {
+            const view = host.create(this.owner, cls, attrs, provides);
+            slot = { cls, view, shape, values, flow: null };
+            this.slots.set(key, slot);
+        }
+        else {
+            // A MATCHED view keeps everything it has; only what changed is written.
+            // Its shape is unchanged, so every name here is a slot the tag already
+            // claimed at build time — an ordinary write to an unowned slot.
+            for (const [name, v] of values) {
+                if (slot.values.get(name) === v)
+                    continue;
+                slot.view[name] = v;
+                slot.values.set(name, v);
+            }
+            // The face travels with the run: a chip that moved into a heading is
+            // heading-sized. Equality-gated inside provideWrite.
+            for (const [name, v] of Object.entries(provides))
+                provideWrite(slot.view, name, v);
+        }
+        slot.flow = null;
+        this.used.add(key);
+        return key;
+    }
+    /** Bind the flow that lays these slots out — called as each flow is built, so
+     *  the Layout knows whose published box to read. */
+    bind(flow, keys) {
+        for (const k of keys) {
+            const s = this.slots.get(k);
+            if (s === undefined)
+                continue;
+            s.flow = flow;
+            flow.slotViews.set(k, s.view);
+        }
+    }
+    /** The view a slot holds (the flow's size watch reads these). */
+    viewOf(key) { return this.slots.get(key)?.view; }
+    /** Retire the views the new content no longer names, and answer the placement
+     *  table the rich text's Layout arranges from. */
+    end() {
+        for (const [key, s] of [...this.slots]) {
+            if (this.used.has(key))
+                continue;
+            s.view.discard();
+            this.slots.delete(key);
+        }
+        const out = new Map();
+        for (const [key, s] of this.slots)
+            if (s.flow !== null)
+                out.set(s.view, { key, flow: s.flow });
+        return out;
+    }
+    /** Every live inline view — the teardown sweep. */
+    views() { return [...this.slots.values()].map((s) => s.view); }
+}
+/** The slot host of the rich text being built, for the duration of the build —
+ *  the same per-rebuild module scope `C`, `STYLES` and `RESOLVE_SRC` use. */
+let SLOTS = null;
 function base(size, weight, color, tracking = 0) {
     return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
 }
@@ -271,7 +550,7 @@ function applyStyle(style, rs) {
     return s;
 }
 /** Walk the inline tree, resolving each leaf's effective style. */
-function flatten(ns, style, out) {
+function flatten(ns, style, out, family) {
     for (const n of ns) {
         switch (n.t) {
             case "text":
@@ -284,25 +563,34 @@ function flatten(ns, style, out) {
                 out.push({ br: true });
                 break;
             case "strong":
-                flatten(n.inline, { ...style, weight: "bold" }, out);
+                flatten(n.inline, { ...style, weight: "bold" }, out, family);
                 break;
             case "em":
-                flatten(n.inline, { ...style, italic: true }, out);
+                flatten(n.inline, { ...style, italic: true }, out, family);
                 break;
             case "strike":
-                flatten(n.inline, { ...style, strike: true }, out);
+                flatten(n.inline, { ...style, strike: true }, out, family);
                 break;
             case "link":
-                flatten(n.inline, { ...style, color: LINKC, link: n.href }, out);
+                flatten(n.inline, { ...style, color: LINKC, link: n.href }, out, family);
                 break;
             // An inline image is an atomic box, not styled text; it carries the ambient
             // link (an image that is a link's content) so the box is clickable.
             case "image":
                 out.push({ img: { src: RESOLVE_SRC(n.src), alt: n.alt, title: n.title, href: style.link } });
                 break;
+            // An inline VIEW is an atomic box too, and not styled text at all: the tag
+            // becomes one real view of that class, which sees THIS run's face as its
+            // provided values. A refused tag yields nothing and the text flows on.
+            case "view": {
+                const key = SLOTS?.resolve(n, style, family) ?? null;
+                if (key !== null)
+                    out.push({ slot: key });
+                break;
+            }
             case "styled": {
                 const rs = resolveStyle(n.name);
-                flatten(n.inline, rs !== undefined ? applyStyle(style, rs) : style, out);
+                flatten(n.inline, rs !== undefined ? applyStyle(style, rs) : style, out, family);
                 break;
             }
         }
@@ -353,12 +641,16 @@ function rectAt(x, y, w, h, fill) {
  *  what it is told. Mirrors `flatten`, then bakes the per-run family. */
 function richRunsOf(inline, style, family) {
     const atoms = [];
-    flatten(inline, style, atoms);
+    flatten(inline, style, atoms, family);
     return atoms.map((a) => {
         if ("br" in a)
             return { br: true };
         if ("img" in a)
             return { img: a.img };
+        // The size is stamped from the live view on every render (TextFlow.render):
+        // the flow needs a box to reserve, and the view owns how big it is.
+        if ("slot" in a)
+            return { view: { slot: a.slot, width: 0, height: 0 } };
         const s = a.style;
         const run = {
             text: a.text, size: s.size, weight: s.weight, italic: s.italic,
@@ -416,6 +708,10 @@ function applyRunTreatments(t, r) {
  *  whose load has FAILED degrades to its `alt` text. */
 function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
     const views = [];
+    // The INLINE-VIEW GEOMETRY FACT this pass produces: slot → box, in flow
+    // coordinates. Identical in shape to what the DOM path reads back off its
+    // placeholders, which is what lets one Layout place views on either substrate.
+    const slots = {};
     // How many lines this flow may show — the share of `RichText.maxLines` its
     // document allotted it when it was built (TextFlow.clampLines). Absent = all.
     let remaining = opts?.keep ?? Infinity;
@@ -477,6 +773,15 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
                 }
                 if ("img" in r)
                     continue; // an image never occurs in a `pre` (code) block
+                // An inline view inside a `pre` takes its seat at the cursor: a pre does
+                // not wrap, so there is nothing to wrap it against — but every slot still
+                // gets a box, so the view is never left stranded at the origin.
+                if ("view" in r) {
+                    if (ln < remaining)
+                        slots[r.view.slot] = { x: px, y: y + ln * adv + halfLead, width: r.view.width, height: r.view.height };
+                    px += r.view.width;
+                    continue;
+                }
                 const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
                 const segs = r.text.split("\n");
                 for (let si = 0; si < segs.length; si++) {
@@ -536,6 +841,15 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
             // the baseline. Before the bitmap loads it occupies nothing (it pops in on
             // load, when the flow reflows); a FAILED load degrades to the `alt` text (a
             // broken image's own fallback), in the block's lead style.
+            // An inline VIEW on the manual flow: an atomic replaced box of the view's
+            // current size, wrapped like a word and sat on the baseline — the same
+            // treatment an image gets, except that the box is filled by a real view
+            // the flow does not own (it only says where the box landed).
+            if ("view" in r) {
+                flush();
+                toks.push({ slot: r.view.slot, w: r.view.width, h: r.view.height, bl: r.view.baseline });
+                continue;
+            }
             if ("img" in r) {
                 const info = imageFor?.(r.img.src);
                 if (info !== undefined && !info.failed) {
@@ -644,6 +958,9 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
         // grows a line; until then this pass changes no pixel. Baseline alignment (a
         // run sits ON the line baseline, not top-aligned) falls out of pass 2 for free
         // — it generalizes the old `ry` fix.
+        // A laid entry is either a VIEW this pass created (text, chip, rule), a
+        // PERSISTENT child the flow keeps (an inline image), or a SLOT — a box with
+        // no view of its own, published as the geometry fact instead of positioned.
         const blockViews = [];
         const lineRight = new Map();
         let x = 0, line = 0, pending = false;
@@ -708,6 +1025,33 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
             // not fit, grow the line to its height (bottom on the baseline), and place
             // the persistent Image view. Zero-sized (not-yet-loaded) images just take
             // their seat; the load reflows the whole flow.
+            // AN INLINE VIEW: an atomic box wrapped like a word, sat on the line by the
+            // baseline it CLAIMS — so a chip's label reads on the same line as the words
+            // around it. With no claim the box's BOTTOM takes the baseline, the placement
+            // a replaced box gets (and what the `bl = vh` default makes bit-identical to
+            // before). The box then straddles the baseline, so it grows the line on BOTH
+            // sides: `bl` above it, `vh - bl` below.
+            if ("slot" in tok) {
+                flushGroup();
+                const vw = tok.w, vh = tok.h;
+                const bl = tok.bl ?? vh;
+                const gap = pending && x > 0 ? spaceOf(pendingRun) : 0;
+                if (vw > 0 && x + gap + vw > width && x > 0) {
+                    line++;
+                    x = 0;
+                }
+                else
+                    x += gap;
+                pending = false;
+                if (vh > 0) {
+                    lineAbove[line] = Math.max(lineAbove[line] ?? strutAbove, bl);
+                    lineBelow[line] = Math.max(lineBelow[line] ?? strutBelow, vh - bl);
+                }
+                blockViews.push({ v: null, line, boff: -bl, slot: tok.slot, sx: x, sw: vw, sh: vh });
+                x += vw;
+                lineRight.set(line, x);
+                continue;
+            }
             if ("img" in tok) {
                 flushGroup();
                 const iw = tok.w, ih = tok.h;
@@ -827,13 +1171,23 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
             yy += (lineAbove[k] ?? strutAbove) + (lineBelow[k] ?? strutBelow);
         }
         firstBaseline ??= lineTop[0] + (lineAbove[0] ?? strutAbove); // line 0's baseline, grown or strut
-        for (const bv of blockViews)
-            bv.v.y = lineTop[bv.line] + (lineAbove[bv.line] ?? strutAbove) + bv.boff;
+        for (const bv of blockViews) {
+            const yy2 = lineTop[bv.line] + (lineAbove[bv.line] ?? strutAbove) + bv.boff;
+            if (bv.v !== null)
+                bv.v.y = yy2;
+            else
+                bv.sy = yy2;
+        }
         if (b.align === "center" || b.align === "right") {
-            for (const { v, line: ln } of blockViews) {
-                const free = width - (lineRight.get(ln) ?? 0);
-                if (free > 0)
-                    v.x += b.align === "center" ? free / 2 : free;
+            for (const bv of blockViews) {
+                const free = width - (lineRight.get(bv.line) ?? 0);
+                if (free <= 0)
+                    continue;
+                const d = b.align === "center" ? free / 2 : free;
+                if (bv.v !== null)
+                    bv.v.x += d;
+                else
+                    bv.sx = (bv.sx ?? 0) + d;
             }
         }
         // THE CLAMP (RichText.maxLines). The lines exist here — every view carries
@@ -869,6 +1223,16 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
         // cache — position them (done above) but do NOT hand them back to be inserted
         // and discarded with the per-pass text views.
         for (const bv of blockViews) {
+            // A slot on a clamped-away line gets no box: the view stays unplaced (and
+            // its class decides what an unplaced chip looks like) rather than being
+            // stranded at a position the flow never laid out.
+            if (bv.slot !== undefined) {
+                if (bv.line < keep)
+                    slots[bv.slot] = { x: bv.sx ?? 0, y: bv.sy ?? 0, width: bv.sw ?? 0, height: bv.sh ?? 0 };
+                continue;
+            }
+            if (bv.v === null)
+                continue;
             if (bv.line >= keep) {
                 if (bv.persistent !== true)
                     bv.v.discard();
@@ -879,7 +1243,7 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
         }
         y = yy;
     }
-    return { views, height: y, anchors, firstBaseline, lines };
+    return { views, height: y, anchors, firstBaseline, lines, slots };
 }
 /** TextFlow — the internal native-flow renderer (NOT a user component; see the
  *  RichText family below). A flowing block of styled text: `content` (resolved
@@ -888,6 +1252,24 @@ function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
 class TextFlow extends View {
     content = [];
     flowWidth = 0;
+    /** The INLINE VIEWS this flow lays out, by slot key. The views are children
+     *  of the RICH TEXT (they outlive this flow, which a content change rebuilds);
+     *  this flow reads their sizes and publishes where it put them. */
+    slotViews = new Map();
+    /** THE GEOMETRY FACT: each slot's box inside this flow, as the renderer
+     *  measured it — the DOM read it back off the placeholders it emitted, the
+     *  manual flow computed it while wrapping the line. The rich text's Layout
+     *  places the views from exactly this, which is how a `Layout` arranges
+     *  DOM-flowed text without ever asking the DOM anything. */
+    slotBoxes = {};
+    slotCell = new Cell();
+    slots() { this.slotCell.track(); return this.slotBoxes; }
+    publishSlots(boxes) {
+        if (sameSlots(this.slotBoxes, boxes))
+            return;
+        this.slotBoxes = boxes;
+        this.slotCell.changed();
+    }
     /** The lines this flow may show under its document's `maxLines`, allotted
      *  when the document was BUILT and reused by every render after; 0 = all. */
     clampLines = 0;
@@ -1038,6 +1420,19 @@ class TextFlow extends View {
         const c = new Constraint("TextFlow.flow", () => `${this.flowWidth} ${this.effSelectable()}`, () => this.render(), 0);
         c.run();
         onDiscard(this, () => c.dispose());
+        // AN INLINE VIEW'S OWN SIZE is the flow's input: the view owns its width and
+        // height (literal, derived, auto-sized, sprung), and when either changes the
+        // text has to flow again around the new box — so the words move. Its claimed
+        // BASELINE rides the same constraint: it is what the line sits the box by, and
+        // it moves when a font arrives or a label's text changes (`faceGeneration()`
+        // is in the key because the baseline a Text claims is measured from the
+        // effective font, which a late face replaces). One constraint over every slot
+        // this flow holds; a flow with no inline views reads nothing and never wakes.
+        if (this.slotViews.size > 0) {
+            const sc = new Constraint("TextFlow.slotSizes", () => faceGeneration() + " " + [...this.slotViews.values()].map((v) => `${v.width}×${v.height}@${claimedBaseline(v)}`).join(" "), () => this.render(), 0);
+            sc.run();
+            onDiscard(this, () => sc.dispose());
+        }
     }
     clearManual() {
         for (const v of this.manual) {
@@ -1067,7 +1462,39 @@ class TextFlow extends View {
         // height arrives through onMeasured a frame later; until then this flow's
         // height is provisional and an anchored reveal must hold (§0.5.3).
         this.measurePending = s.deferredRichMeasure === true;
-        const h = s.setRichContent(this.content, this.effSelectable(), this.flowWidth, (nh) => this.onMeasured(nh), link);
+        // THE VIEW'S OWN SIZE, stamped into the runs: the flow reserves this much
+        // room for the box, and a change to it re-ran this render (the slotSizes
+        // constraint in attach).
+        if (this.slotViews.size > 0) {
+            for (const b of this.content) {
+                for (const r of b.runs) {
+                    if (!("view" in r))
+                        continue;
+                    const v = this.slotViews.get(r.view.slot);
+                    if (v === undefined)
+                        continue;
+                    r.view.width = v.width;
+                    r.view.height = v.height;
+                    // …and the baseline it claims, which is where the LINE sits it: both
+                    // flows read this one number (the DOM turns it into the placeholder's
+                    // vertical-align, the manual flow into the box's offset from the line
+                    // baseline), so the two agree by construction.
+                    const bl = claimedBaseline(v);
+                    if (bl === null)
+                        delete r.view.baseline;
+                    else
+                        r.view.baseline = bl;
+                }
+            }
+        }
+        // A NATIVE FLOW THAT CANNOT PLACE INLINE VIEWS is not asked to: this flow
+        // lays its content out manually instead (the Canvas path, which places every
+        // slot itself). Correct pixels through the other path, rather than a native
+        // engine silently dropping the boxes it was never taught about.
+        const native = this.slotViews.size === 0 || s.richInlineSlots === true;
+        const h = native
+            ? s.setRichContent(this.content, this.effSelectable(), this.flowWidth, (nh) => this.onMeasured(nh), link, this.slotViews.size > 0 ? (boxes) => this.publishSlots(boxes) : undefined)
+            : -1;
         if (h >= 0) { // native path: the backend flowed + measured
             this.clearManual();
             this.height = h;
@@ -1088,7 +1515,9 @@ class TextFlow extends View {
         this.clearManual();
         this.imageUsed.clear();
         this.imageSeq.clear();
-        const { views, height, anchors, firstBaseline } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink, this.imageFor, this.clampLines > 0 ? { keep: this.clampLines } : undefined);
+        this.measurePending = false; // the manual flow measured synchronously
+        const { views, height, anchors, firstBaseline, slots } = flowRichCanvas(this.content, this.flowWidth, this.onLink ?? this.followLink, this.imageFor, this.clampLines > 0 ? { keep: this.clampLines } : undefined);
+        this.publishSlots(slots);
         // Prune image children the content no longer references (a re-pointed `text`).
         for (const [key, im] of this.imageViews)
             if (!this.imageUsed.has(key)) {
@@ -1117,15 +1546,73 @@ class TextFlow extends View {
  *  own tiny y-stack for rendered blocks — same place() shape, no surface). */
 class ProseStack extends Layout {
     spacing = 0;
+    /** THE INLINE VIEWS this stack also places — view → (its slot, the flow that
+     *  laid it out). Empty for every prose container but the rich text's own
+     *  stack, where the inline views live. A slot child takes no room in the
+     *  column: its box comes from its flow's published geometry, offset into these
+     *  coordinates. This is the Layout the design calls for — it computes from
+     *  values (the published fact, the flow's own position) and asks the DOM
+     *  nothing. */
+    slotOf = EMPTY_SLOTS;
     place() {
-        let pos = 0;
-        return this.laid().map((c) => {
-            const box = { y: pos };
+        const kids = this.laid();
+        if (this.slotOf.size === 0) {
+            let pos = 0;
+            return kids.map((c) => {
+                const box = { y: pos };
+                if (c.visible)
+                    pos += c.height + this.spacing;
+                return box;
+            });
+        }
+        // Pass one: the column, over the BLOCK children only.
+        const pos = new Map();
+        let y = 0;
+        for (const c of kids) {
+            if (this.slotOf.has(c))
+                continue;
+            pos.set(c, y);
             if (c.visible)
-                pos += c.height + this.spacing;
-            return box;
+                y += c.height + this.spacing;
+        }
+        return kids.map((c) => {
+            const s = this.slotOf.get(c);
+            if (s === undefined)
+                return { y: pos.get(c) ?? 0 };
+            const box = s.flow.slots()[s.key];
+            if (box === undefined)
+                return { x: 0, y: 0 }; // not yet flowed
+            // Compose the flow-local box into these coordinates: the offsets of every
+            // container between the flow and the top-level block (a list row, a quote
+            // body, a table cell), then the block's own place in the column.
+            //
+            // ⚠ The top-level block's `y` is taken from `pos` above, NOT read off the
+            // view — this pass WRITES that slot, and a pass that reads what it writes
+            // is its own dependency.
+            let ox = box.x, oy = box.y;
+            let n = s.flow;
+            while (n.parent instanceof View && n.parent !== this.view) {
+                ox += n.x;
+                oy += n.y;
+                n = n.parent;
+            }
+            return { x: ox + n.x, y: oy + (pos.get(n) ?? n.y) };
         });
     }
+}
+const EMPTY_SLOTS = new Map();
+/** Do two slot-geometry facts say the same thing? The equality gate on the
+ *  publish, so a re-measure that moved nothing wakes nothing. */
+function sameSlots(a, b) {
+    const ka = Object.keys(a);
+    if (ka.length !== Object.keys(b).length)
+        return false;
+    for (const k of ka) {
+        const x = a[k], y = b[k];
+        if (y === undefined || x.x !== y.x || x.y !== y.y || x.width !== y.width || x.height !== y.height)
+            return false;
+    }
+    return true;
 }
 function yStack(spacing) {
     const s = new ProseStack();
@@ -1141,6 +1628,17 @@ function flowView(content, width, ctx) {
     rt.content = content;
     rt.onLink = ctx.onLink;
     setRewidth(rt, (w) => rt.reflow(w));
+    // Whose inline views these are: the slot host binds each key to THIS flow, so
+    // the rich text's Layout knows where to read its box from.
+    if (SLOTS !== null) {
+        const keys = [];
+        for (const b of content)
+            for (const r of b.runs)
+                if ("view" in r)
+                    keys.push(r.view.slot);
+        if (keys.length > 0)
+            SLOTS.bind(rt, keys);
+    }
     return rt;
 }
 const REWIDTH = new WeakMap();
@@ -1157,7 +1655,8 @@ function inlineText(inline) {
             s += " ";
         else if (n.t === "image")
             s += n.alt;
-        else
+        // An inline view contributes no text to a heading's slug: it is a view.
+        else if ("inline" in n)
             s += inlineText(n.inline);
     }
     return s;
@@ -1335,7 +1834,7 @@ function buildPre(b, width, bodyColor, ctx) {
     // the widest line, for the gutter decision below — the runs' own text, priced
     // with the code face (a pre never wraps, so this is the scroll-overflow test)
     const preFont = fontString({ fontFamily: CODEFAM, fontSize: sz(CODESIZE), fontWeight: "normal" });
-    const preMaxW = runs.map((r) => ("br" in r ? "\n" : "img" in r ? "" : r.text)).join("").split("\n").reduce((m, l) => Math.max(m, textWidth(l, preFont)), 0);
+    const preMaxW = runs.map((r) => ("br" in r ? "\n" : "text" in r ? r.text : "")).join("").split("\n").reduce((m, l) => Math.max(m, textWidth(l, preFont)), 0);
     if (!boxed)
         return flow; // today's behaviour when no chrome is set
     // Chrome opted in: wrap the flow in the same tinted box (+ optional bar) a fenced
@@ -1593,9 +2092,12 @@ function buildQuote(b, width, ctx) {
 // live on the base, so both formats inherit them.
 export class RichText extends View {
     built = [];
-    /** Named styles a source can reference (HTMLText's `styles`); none by
-     *  default — Markdown has no syntax to name one. */
-    stylesOf() { return {}; }
+    /** What a refused piece of content does: `strip` (drop it, keep going, say so
+     *  once) or `error` (throw). HTMLText declares it; Markdown has no such
+     *  attribute and takes the default, which is also what raw markup has always
+     *  done there — it stays the text it was written as. */
+    policy() { return "strip"; }
+    stylesOf() { return this.textStyles ?? EMPTY_STYLES; }
     /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
      *  paint transform it means on a plain View — so mask the base flush()'s scale
      *  push. Without this, a `scale` constraint that evaluates before the surface
@@ -1732,6 +2234,10 @@ export class RichText extends View {
         const first = this.laid[0]?.view;
         setBound(this, "baseline", first instanceof TextFlow ? first.firstBaseline : null);
     }
+    /** The inline views this rich text holds (identity across content changes) —
+     *  created on first need, so a document with no `<Class/>` tag allocates
+     *  nothing at all. */
+    slotHost = null;
     rebuild() {
         C = this.isDark() ? COLORS_DARK : COLORS_LIGHT; // pick the palette for this render
         BUDGET = this.maxLines > 0 ? this.maxLines : Infinity; // the flow clamp, for this render
@@ -1769,10 +2275,23 @@ export class RichText extends View {
         LAYOUT = this.richTextLayout ?? {};
         RESOLVE_SRC = (src) => resolveAsset(src, this.root);
         const ctx = { family, lead, onLink: (href) => this.dispatchLink(href) };
+        // THE INLINE VIEWS of this build. The host is the identity across content
+        // changes: a tag matched to a view it already made keeps that view (hover, a
+        // running spring, focus) and only the attributes whose converted values
+        // changed are rewritten; a vanished tag's view is discarded at `end()`.
+        const host = (this.slotHost ??= new SlotHost(this));
+        host.begin();
+        SLOTS = host;
         // Render the block tree to a flat list of stacked sub-views: paragraphs and
         // headings coalesce into native TextFlows, and list/table/quote/code/rule each
         // become their own reactive sub-view (their text regions are TextFlows too).
-        const children = layoutBlocks(this.parseSource(), width, bodyColor, ctx);
+        let children;
+        try {
+            children = layoutBlocks(this.parseSource(host.readOptions(this.policy())), width, bodyColor, ctx);
+        }
+        finally {
+            SLOTS = null;
+        }
         let at = 0;
         for (const e of children) {
             this.insertChild(e.view, at++);
@@ -1780,11 +2299,27 @@ export class RichText extends View {
             if (this.backend !== null)
                 e.view.attach(this.backend, this.surface);
         }
+        // AN INLINE VIEW PAINTS ON TOP OF THE FLOW IT SITS IN, and its surface must
+        // say so. Model order already does — the blocks above went in at 0…n, ahead
+        // of views the block pass had appended — but the surfaces did not follow: a
+        // slot view is realized while the blocks are still being laid out, so it was
+        // parented before any flow existed and stayed UNDER the flow's element.
+        // Under it the view is not merely behind, it is unreachable: the flow's box
+        // carries the selectable text and takes pointer events across the whole
+        // line, so every click on the view landed on the text instead and no handler
+        // ever ran. Re-parent them at the end, in model order, now the flows are in.
+        if (this.surface !== null)
+            for (const v of host.views())
+                if (v.surface !== null)
+                    this.surface.insertChild(v.surface, null);
         this.laid = children; // kept so a width change can re-width
         // Stack the block-views, PROSE.blockGap apart; their heights (a TextFlow's
         // measured at attach, a container's derived by auto-extent) drive the stack,
-        // and auto-extent gives this box its height — so leave `height` unset.
-        this.layout = yStack(PROSE.blockGap);
+        // and auto-extent gives this box its height — so leave `height` unset. The
+        // same stack also places the inline views, from their flows' published boxes.
+        const stack = yStack(PROSE.blockGap);
+        stack.slotOf = host.end();
+        this.layout = stack;
         this.childrenMutated();
         this.claimBaseline();
         // The build spent the budget; report what happened, so a
@@ -1799,7 +2334,7 @@ export class Markdown extends RichText {
     // path where a null still reaches here — unreproduced headless, guarded
     // anyway, since the correct rendering of a null source IS the empty flow.
     sourceKey() { return this.text ?? ""; }
-    parseSource() { return parse(this.text ?? ""); }
+    parseSource(opts) { return parse(this.text ?? "", opts); }
 }
 /** Rich content authored in a WHITELISTED HTML subset (`html`), validated at
  *  render time. `unsupported` decides what a tag outside the set does — `strip`
@@ -1808,12 +2343,19 @@ export class Markdown extends RichText {
 export class HTMLText extends RichText {
     // folded into the key (as a signature) so a re-themed style re-renders.
     sourceKey() { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
-    parseSource() { return parseHtml(this.html, this.unsupported); }
-    stylesOf() { return this.textStyles ?? {}; }
+    parseSource(opts) { return parseHtml(this.html, this.unsupported, opts); }
+    policy() { return this.unsupported; }
 }
 // Shared attributes live on the RichText base; Markdown/HTMLText inherit them
 // and add only their own source attribute(s).
+/** One frozen empty palette, so a rich text with no styles never churns its
+ *  source key (stylesOf rides sourceKey's signature). */
+const EMPTY_STYLES = Object.freeze({});
 defineAttributes(RichText, {
+    // The named-style palette — inherited, like the face slots below it. `styles`
+    // is taken (View.styles = the skin class list), so the map the CONTENT
+    // references is `textStyles`; the `text` earns its place disambiguating them.
+    textStyles: { def: EMPTY_STYLES, defBinding: providedDefault("textStyles", EMPTY_STYLES) },
     // FACE slots, off View: each defaults to the nearest provided value.
     textColor: { def: 0x000000, defBinding: providedDefault("textColor", 0x000000) },
     fontSize: { def: 16, defBinding: providedDefault("fontSize", 16) },
@@ -1844,6 +2386,8 @@ defineAttributes(Markdown, {
 defineAttributes(HTMLText, {
     html: { def: "" },
     unsupported: { def: "strip" },
-    textStyles: { def: {} },
+    // `textStyles` is the rich BASE's, and inherited (defineAttributes(RichText)):
+    // re-declaring it here shadowed that defBinding with a plain default, so a
+    // palette provided by an ancestor reached a Markdown and not an HTMLText.
 });
 //# sourceMappingURL=markdown.js.map

@@ -47,6 +47,9 @@ function inlineHtml(runs: readonly Inline[]): string {
       case "link": out += `<a href="${escAttr(r.href)}">${inlineHtml(r.inline)}</a>`; break;
       case "br": out += "<br>"; break;
       case "styled": out += `<span>${inlineHtml(r.inline)}</span>`; break; // named style — content only
+      // An inline view is UI, not content — the static extraction emits nothing
+      // for it, exactly as it emits nothing for a TextInput's draft state.
+      case "view": break;
     }
   }
   return out;

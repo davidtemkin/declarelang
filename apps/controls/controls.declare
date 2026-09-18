@@ -1,11 +1,11 @@
 /*
 # Controls
 
-The component library's showcase — every Tier 1 control, in its three use forms
-(docs/system-design/components-baseline.md, Contract 1): STANDALONE (the control owns its
-state), APP-BOUND (derive down with a constraint, deliver up through `input`),
-and under a PARTIAL THEME OVERRIDE (the house theme with one role swapped,
-by plain object spread — every control beneath follows, no per-control styling).
+The component library's showcase — the standard controls, each in its three
+use forms: **standalone** (the control owns its state), **app-bound** (derive
+down with a constraint, deliver up through `input`), and under a **partial
+theme override** (the house theme with one role swapped, by plain object
+spread — every control beneath follows, no per-control styling).
 */
 
 App [ width = 880, height = 320, theme = SanFrancisco, fill = { provided("theme").bg },

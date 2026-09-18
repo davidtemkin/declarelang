@@ -7,8 +7,9 @@
 // and construct/init events (R4/R5). Establishing the Node↔View seam now is
 // what lets those land without reshaping the base.
 
-import { Cell, isTracking, trackNode, untrackNode } from "./reactive.js";
-import { providedRead, defineAttributes } from "./attributes.js";
+import { Cell, isTracking } from "./reactive.js";
+import { trackNode, untrackNode } from "./change-event.js";
+import { providedRead, defineAttributes, PROVIDED_FACE } from "./attributes.js";
 
 /** The cursor read, installed by view.ts. A cursor belongs to a VIEW — it comes
  *  from that view's `datapath` and its place in replication — but the things
@@ -48,6 +49,26 @@ export class Node {
    *  node reads provided values too. */
   $provided(name: string, ...dflt: unknown[]): unknown {
     return providedRead(this, name, dflt.length > 0, dflt[0]);
+  }
+
+  /** The read behind `providedTextStyle(overrides?)` — the `TextStyle` in force
+   *  at THIS node: the five provided face names, each falling to the same default
+   *  a `Text` would (attributes.ts PROVIDED_FACE, the one table), with the
+   *  caller's fields replacing any of them.
+   *
+   *  It exists because `measureText` and a drawing's `fillText` take a style
+   *  RECORD and inherit nothing — they have no place in the tree to inherit
+   *  from — so measuring "as a Text here would render it" otherwise meant
+   *  hand-writing five provided reads and keeping their defaults in step. The
+   *  value is a property of the node, not of where it is read: a value slot and
+   *  that same view's `draw()` get the same record, and a drawing's own `d.font`
+   *  state is unrelated to it. */
+  $providedTextStyle(overrides?: Record<string, unknown> | null): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [name, def] of PROVIDED_FACE) out[name] = providedRead(this, name, true, def);
+    if (overrides == null) return out;
+    for (const k of Object.keys(overrides)) out[k] = overrides[k];
+    return out;
   }
 
   /** The STRUCTURE cell — lazily created on the first tracked read of this

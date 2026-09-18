@@ -19,7 +19,7 @@ Each axis — width and height — is one of three things, chosen by what you wr
 - **a constant** (`width = 300`) → fixed;
 - **a constraint** (`width = { parent.width - 40 }`) → whatever the expression says.
 
-Two read-only intrinsics, `contentWidth` and `contentHeight`, expose what the content
+Two read-only facts, `contentWidth` and `contentHeight`, expose what the content
 *wants* to be — so a clamp is not a `maxHeight` attribute but plain arithmetic:
 
 ```declare
@@ -99,7 +99,7 @@ motion for free.
 > reading `app.width`. Your spatial *intuitions* transfer; the negotiation machinery
 > stays behind.
 
-A child can opt **out** of a parent regime, and the opt-out is declared on the child —
+A child can opt **out** of what its parent imposes, and the opt-out is declared on the child —
 the one who differs is the one who says so. `ignoreLayout = true` makes the parent's
 layout skip it: it keeps its own `x`/`y` while its siblings are arranged around it (a
 badge pinned to a corner of a stacked card). `ignoreClip = true` makes the parent's
@@ -111,8 +111,8 @@ below.
 
 ## The transform, in two and three dimensions
 
-`scale` and `rotation` about `pivotX`/`pivotY` were the whole transform; now they are
-the middle of one family, and every member obeys the same **one-geometry rule** — paint,
+`scale` and `rotation` about `pivotX`/`pivotY` sit in the middle of one family, and every
+member obeys the same **one-geometry rule** — paint,
 hit-testing (`hovered`, `pressed`, `viewAt`), `rootTransform()` and the parent's auto-size
 all read the same matrix:
 
@@ -126,7 +126,7 @@ stage:  View [ perspective = 700,                                   // the eye, 
 ```
 
 `perspective` sits on the **parent**, CSS's model: the eye's distance in pixels, the
-vanishing point at that box's centre; with none, a rotated child simply foreshortens.
+vanishing point at that box's center; with none, a rotated child simply foreshortens.
 A view out of its plane is hit through the projected geometry — a press on the tipped
 card lands where the card is drawn, and a hidden back face takes nothing.
 
@@ -188,15 +188,15 @@ dragging the page along. Panes nest to any depth, and a native text field is the
 smallest case, handling itself. In a `{ }` body the axis is a token string:
 compare it explicitly (`scrolls == "y"`), never truthily.
 
-Which leaves the chrome — the header that must not scroll away. A scroll is a
-*regime* a container imposes on its children, and Declare's regimes come with
-opt-outs declared on the child — you just met `ignoreLayout` and `ignoreClip`.
+Which leaves the chrome — the header that must not scroll away. A scroll is
+something a container imposes on its children, and what a container imposes comes
+with an opt-out declared on the child — you just met `ignoreLayout` and `ignoreClip`.
 Scrolling completes the family:
 
 > **`ignoreScroll` — the scroll carries everyone but me. I ride the frame.**
 
 A child that opts out stands still against its scroller's frame — the window when
-the page is the regime, the pane's own frame inside a `scrolls` view — and
+the page is the scroller, the pane's own frame inside a `scrolls` view — and
 contributes nothing to the scroll range:
 
 ```declare-fragment

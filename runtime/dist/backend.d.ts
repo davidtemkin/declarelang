@@ -36,8 +36,25 @@ export type RichRun = {
         href?: string;
     };
 } | {
+    view: {
+        slot: string;
+        width: number;
+        height: number;
+        baseline?: number;
+    };
+} | {
     br: true;
 };
+/** One inline-view slot's measured box inside its flow — the GEOMETRY FACT the
+ *  renderer publishes and the inline-view Layout places from. One shape on
+ *  every renderer: the DOM reads back the placeholders it emitted, the manual
+ *  flow computes the boxes as it wraps the line. Flow-local coordinates. */
+export interface SlotBox {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
 /** One block of a rich-text flow — a paragraph or heading (`tag` = "p" | "h1"…
  *  "h6" for native semantics), its inline runs, the space above it, and its line
  *  leading. A flow is an ordered list of these; the browser (DOM) or the manual
@@ -360,8 +377,21 @@ export interface Surface {
      *  keeps its own height in step so the surrounding stack re-flows. `onLink` is
      *  called with a run's href when a link is activated — the DOM backend makes
      *  link runs real `<a href>` (native affordances) but routes a plain click here
-     *  so the app's navigation policy, not the browser, decides. */
-    setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void): number;
+     *  so the app's navigation policy, not the browser, decides.
+     *
+     *  `onSlots` — present only for content carrying inline views — receives every
+     *  slot's measured box whenever the flow is laid out (synchronously here, and
+     *  again when a later measurement moves things): the renderer measures, the
+     *  model places. A backend that cannot place inline views says so by leaving
+     *  `richInlineSlots` unset, and the flow then lays that content out itself. */
+    setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void, onSlots?: (boxes: Record<string, SlotBox>) => void): number;
+    /** OPTIONAL — true when this backend's native rich flow can hold INLINE VIEW
+     *  slots: it reserves each slot's box in the line and publishes where the box
+     *  landed (`setRichContent`'s `onSlots`). Absent = it cannot, and a flow whose
+     *  content carries inline views takes the manual layout on this backend
+     *  instead — correct pixels through a different path, which is what keeps the
+     *  feature honest on a native text engine that knows nothing about it. */
+    readonly richInlineSlots?: boolean;
     /** OPTIONAL width-only follow-up to `setRichContent`: adopt a new flow width
      *  without re-flowing content — for flows whose layout provably cannot change
      *  (an all-`pre` flow; its lines never rewrap) but whose host box still bounds

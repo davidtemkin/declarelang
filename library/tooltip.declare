@@ -1,18 +1,18 @@
 /*
 # Tooltip
 
-The layer system's floor (planes.md §2, tier 1): any view sets `tip = "…"`
-and this singleton renders it — hover delay, placement, flip, and theming
-are nobody's problem at the use site. It arrives automatically when any
-view in the program carries a tip (the FocusRing auto-arrival mechanism);
-declare your own `Tooltip [ ]` (or subclass) to replace the rendition.
+The layer system's floor: any view sets `tip = "…"` and this singleton renders
+it — hover delay, placement, flip, and theming are nobody's problem at the use
+site. It arrives automatically when any view in the program carries a tip, as
+`FocusRing` does; declare your own `Tooltip [ ]` (or subclass) to replace the
+rendition.
 
 It listens to the Tip service (a `Tip [ onTip(e: TipEvent) { … } ]` member), which owns the platform
 conventions (the show delay — `tooltipDelay`, ~1s in the Cupertino and Redmond
-conventions, ~500ms Material — instant retarget while showing, hide on
-press). PLACEMENT is theme data too (`tooltipPlacement`): "below" (the
+conventions, ~500ms MountainView — instant retarget while showing, hide on
+press). **Placement is theme data too** (`tooltipPlacement`): "below" (the
 default — under the target, centered, flipping above at the edge), "above"
-(Fluent/WinUI's default, flipping below), or "pointer" (the Cupertino help tag —
+(flipping below), or "pointer" (the Cupertino help tag —
 offset below-right of where the cursor rests). Always clamped inside the
 app. Pure chrome — never focusable, never a pointer target, always above
 content (the auto-splice puts it last in the App, and source order stacks).
@@ -85,6 +85,9 @@ The theme's tooltip ground when it names one, else a dark slate — a tip is the
 ## stroke
 A hairline only when the theme names a tooltip line; flat themes get none.
 
+## selectable
+Chrome, never prose: a tip's text does not select, even inside a `selectable` region — the same provision every `Control` makes for its label.
+
 ## theme
 The provided design-token record this widget styles off — a **provided value**
 (the app provides it once with `App [ theme = { … } ]`; `Control` and the library
@@ -93,9 +96,9 @@ house look. See `Control.theme`.
 */
 
 class Tooltip extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown && tipText != "" },
@@ -113,7 +116,7 @@ class Tooltip extends View [
         onTip(e: TipEvent) {
             if (e == null || e.root != app) { classroot.shown = false; return }
             classroot.ex = e.x; classroot.ey = e.y; classroot.ew = e.w; classroot.eh = e.h
-            classroot.px = app.pointerX; classroot.py = app.pointerY   // the pointer as it RESTS at show
+            classroot.px = app.pointerX; classroot.py = app.pointerY   // the pointer as it rests at show
             classroot.tipText = e.text
             classroot.shown = true
             classroot.raise()     // chrome stays chrome: above whatever raised last
@@ -143,10 +146,13 @@ class Tooltip extends View [
     // pure chrome: never a pointer target — and never on the hover chain
     // either, which is what pointerEvents (unlike a hit-test override) governs.
     // "none" is a corridor, not a lid (View.pointerEvents), so the label must
-    // carry it too — measured 2026-08-24: without its own "none" the label
-    // answered viewAt and sat on the hover chain, and this comment was a lie.
+    // carry it too, or it would answer viewAt and sit on the hover chain.
 
     pointerEvents = "none",
+
+    // chrome, not prose: a tip never selects inside a `selectable` region
+
+    selectable = false,
 
     t: Text [ pointerEvents = "none",
         x = 8, y = 5, fontSize = { typeof theme.tooltipSize == "number" ? theme.tooltipSize : 12 },

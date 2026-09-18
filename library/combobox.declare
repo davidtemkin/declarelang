@@ -1,26 +1,26 @@
 /*
 # Combobox
 
-Filter-as-you-type over a collection (component-briefs.md §3 — D8 RULED): a
-text field owning a QUERY plus a dismissable option list owning a CHOICE — the
-canonical derived selection over data. Composition, not invention: TextInput
-for the entry, the Menu machinery for the list (overlay, raise, light-dismiss,
-Escape closes — the whole dismissal discipline rides along), and the matches
-are a DERIVED collection — a constraint over the items array, so the live
-match count is free and no rendered row is ever scanned.
+Filter-as-you-type over a collection: a text field owning a **query** plus a
+dismissable option list owning a **choice** — a derived selection over data.
+Composition, not invention: `TextInput` for the entry, the `Menu` machinery for
+the list (overlay, raise, light-dismiss, Escape closes — the whole dismissal
+discipline rides along), and the matches are a derived collection — a
+constraint over the items array, so the live match count is free and no
+rendered row is ever scanned.
 
     Combobox [ width = 240, placeholder = "Assignee",
         items = { app.people }, input(v: object) { app.assignee = v } ]
 
 - **Items are members** (the selection model's currency): records — shown by
-  their `label` (or `id`) — or plain strings. `value` holds the CHOSEN member;
-  `input(v)` is the delivery seam (Contract 1): the default writes `value`, a
-  use-site override redirects and the slot stays untouched.
-- **Typing filters live** (case-insensitive substring); opening WITHOUT typing
-  shows the full list (the disclosure-button read). Picking echoes the label
+  their `label` (or `id`) — or plain strings. `value` holds the chosen member;
+  `input(v)` is the delivery seam: the default writes `value`, a use-site
+  override redirects and the slot stays untouched.
+- **Typing filters live** (case-insensitive substring); opening without typing
+  shows the full list (the disclosure-button path). Picking echoes the label
   into the field and closes; editing again re-filters from the new text.
 - **Keyboard**: arrows rove the list (the Menu rover), Enter picks the roved
-  row — or the FIRST match when none is roved (the type-then-Enter path);
+  row — or the first match when none is roved (the type-then-Enter path);
   Escape closes the list (then a second Escape leaves the control — the
   focus-scope ascent). The list is never a tab stop of its own.
 - The list is a collection like any other — bind 100k options and
@@ -108,9 +108,6 @@ Whether the list is currently up.
 Whether the keyboard rover is sitting on a row. **This is what makes Enter mean two
 things**: pick the roved row when there is one, else take the first match — the
 type-then-Enter path.
-
-## isCombobox
-**Internal.** The marker identifying this control — not API.
 */
 
 include [ "control.declare", "menu.declare" ]
@@ -118,20 +115,16 @@ include [ "control.declare", "menu.declare" ]
 use [ Menu ]
 
 class Combobox extends Control [
-    // the marker (the wrap-probe discipline)
-
-    isCombobox: boolean = true,
-
     width = 220,
     height = 30,
 
     // ── the surface ───────────────────────────────────────────────────────
 
     items: array = null,        // the option members: records or strings
-    value: object = null,       // the CHOICE — the chosen member, or null
+    value: object = null,       // the choice — the chosen member, or null
     placeholder: string = "",
 
-    // the QUERY — what the user has typed since last pick; `filtering` is
+    // the query — what the user has typed since last pick; `filtering` is
     // false until they type, so a bare disclosure shows the whole list
 
     query: string = "",
@@ -143,15 +136,15 @@ class Combobox extends Control [
         return "" + m
         },
 
-    // ── the derived collection (the brief's constraint: filtering is a data
-    //    derivation — the count rides along, nothing scans rendered rows) ──
+    // ── the derived collection: filtering is a data derivation — the count
+    //    rides along, nothing scans rendered rows ───────────────────────────
 
     matches: array = { !filtering || query == ""
         ? (items ?? [])
         : (items ?? []).filter((m) => this.labelOf(m).toLowerCase().includes(query.toLowerCase())) },
     matchCount: number = { (matches ?? []).length },
 
-    // ── the delivery seam (Contract 1 form b) ─────────────────────────────
+    // ── the delivery seam ─────────────────────────────────────────────────
 
     input(v: object) { value = v },
 
@@ -164,14 +157,14 @@ class Combobox extends Control [
         input(m)
         },
 
-    // ── the list lives at the APP layer (the shipped overlay idiom — the
-    //    same app.createView Menu's own cascade uses; planes.md's floating
-    //    stratum by construction): created lazily at first open, so it
-    //    paints over EVERYTHING, not just the combobox's later siblings.
-    //    Its items are PUSHED on each keystroke (the driveSub discipline) ──
+    // ── the list lives at the app layer (the overlay idiom — the same
+    //    app.createView Menu's own cascade uses): created lazily at first
+    //    open, so it paints over everything, not just the combobox's later
+    //    siblings. Its items are pushed on each keystroke, as Menu drives its
+    //    own cascade child ──────────────────────────────────────────────────
 
     //    (View-typed slot + any-seam driving — Menu members are invisible
-    //    across files, the menu.declare discipline)
+    //    across files, the seam menu.declare itself uses)
 
     list: View = null,
 
@@ -235,13 +228,11 @@ class Combobox extends Control [
         // 22px tap area (the touch path: tap opens, tap picks) — an icon is a
         // mark, not a hit target, so the two stay separate objects.
 
-        mark: ChevronIcon [ iconSize = 13, ink = { theme.textMuted },
-            x = { (parent.width - this.width) / 2 },
-            y = { (parent.height - this.height) / 2 } ]
+        mark: ChevronIcon [ iconSize = 13, ink = { theme.textMuted }, x = center, y = center ]
         ]
 
     // (the Menu machinery arrives whole with the app-level instance above:
     //  overlay, raise, backdrop light-dismiss, Escape, the arrow rover, the
-    //  viewport flip, the long-list scroll — the id is the match INDEX,
+    //  viewport flip, the long-list scroll — the id is the match index,
     //  identity stays the member's)
     ]

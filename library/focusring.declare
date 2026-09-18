@@ -1,37 +1,32 @@
 /*
 # FocusRing
 
-The traveling focus indicator — the OpenLaszlo 3.4 `focusoverlay` line, on the
-reactive core, at its third form: a SHAPE-HUGGING rounded outline whose
-terminus reshapes to the focused control's own silhouette (library-charter §6
-— the ring springs position, size, AND cornerRadius; a Radio's row ring, a
-pill Switch's ring, and a text field's ring differ because the targets do).
+The travelling focus indicator: a **shape-hugging** rounded outline that flies to
+the focused control and reshapes to its own silhouette on arrival. The ring springs
+position, size **and** `cornerRadius` together, which is why a Radio's row ring, a
+pill Switch's ring and a text field's ring each differ — the targets do.
 
-The layered model (charter, ratified):
+The model:
 
 - **The fact** — the ring listens to Focus (a `Focus [ onFocusChange(v: View) { … } ]` member) and
-  tracks the target's root-space geometry on EVERY change, pointer or
-  keyboard. A pointer focus PARKS the ring there silently (snap, no show) —
+  tracks the target's root-space geometry on every change, pointer or
+  keyboard. A pointer focus **parks** the ring there silently (snap, no show) —
   so the next Tab's flight departs from the control the user just clicked,
   never from a stale perch.
 - **Roles, theme-elected** — `theme.focusRing`: `"both"` (or `true`, the
-  default) · `"travel"` (flight + the OL idle fade) · `"rest"` (no flight —
+  default) · `"travel"` (flight, then an idle fade) · `"rest"` (no flight —
   the ring appears in place and stays) · `false` (no ring; the theme's
   components carry the at-rest indication — the invariant lives with the
-  THEME+components pair). While keyboard modality holds and the role includes
-  rest, the ring RESTS — no idle fade; a pointer press clears modality and
-  the ring hides (web :focus-visible semantics).
-- **The flight is the flourish** — `theme.focusAnimate = false` (the
-  sampler's "Animate focus transitions" toggle) snaps every move; the
-  underdamped travel is default-on.
+  theme-and-components pair). While keyboard modality holds and the role
+  includes rest, the ring rests — no idle fade; a pointer press clears
+  modality and the ring hides (web :focus-visible semantics).
+- **The flight is the flourish** — `theme.focusAnimate = false` snaps every
+  move; the underdamped travel is default-on.
 
-It arrives automatically with any Control-descended component (the OL
-`canvas.focusclass` default); declare your own `FocusRing [ ]` (or subclass)
-to replace it. Pure chrome: never focusable, never a pointer target.
-(v1 limits, recorded: root-space bounds are summed through the parent chain —
-a scrolled container is not compensated; the silhouette is the target's
-`cornerRadius` — a `focusShape()` override protocol arrives with the
-emulation passes.)
+It arrives automatically with any Control-descended component; declare your
+own `FocusRing [ ]` (or subclass) to replace it. Pure chrome: never focusable,
+never a pointer target. The silhouette is the target's `focusShape()` when it
+declares one, else its bounds at its `cornerRadius`.
 
 **You do not instantiate this, and you do not position it.** Tab between the controls
 below and watch it fly; the members exist for a subclass that replaces the rendition,
@@ -57,7 +52,7 @@ because a flight from nowhere is a streak across the app.
 
 ## ringRole()
 The theme's election, from `theme.focusRing`: `"both"` (the default), `"travel"`
-(flight plus the OpenLaszlo idle fade), `"rest"` (appears in place and stays, no
+(flight, then fading once it settles), `"rest"` (appears in place and stays, no
 flight), or `"off"`. **`"off"` is legitimate only when the theme's own controls carry
 an at-rest focus indication** — the invariant belongs to the theme-and-components pair,
 not to the ring alone.
@@ -80,8 +75,8 @@ the menu's own rover is the focus story, and a page ring poking around a panel r
 chrome fighting chrome.
 
 ## idle
-True once a travel-role ring has sat still long enough to fade out — the OpenLaszlo
-idle behaviour. A resting ring never sets it.
+True once a travel-role ring has sat still long enough to fade out. A resting ring
+never sets it.
 
 ## draw()
 Renders the outline: four corner arcs with arms whose length is a pure function of
@@ -113,6 +108,9 @@ sights" reading; `theme.focusRingInnerWidth` adds the Fluent two-tone band.
 ## visible
 Visible while its faded opacity still shows anything, and never while an overlay is up — a ring behind a dialog would point at something you cannot reach.
 
+## selectable
+Chrome, never prose: the ring never selects inside a `selectable` region — the same provision every `Control` makes for its label.
+
 ## theme
 The provided design-token record this widget styles off — a **provided value**
 (the app provides it once with `App [ theme = { … } ]`; `Control` and the library
@@ -121,14 +119,14 @@ house look. See `Control.theme`.
 */
 
 class FocusRing extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
     opacity = 0,
 
-    // an OVERLAY owns the keys (an open menu — Keys.navClaim): the ring
+    // an overlay owns the keys (an open menu — Keys.navClaim): the ring
     // stands down while it's up — the menu's rover is the focus story, and
     // a page ring poking around a panel reads as chrome fighting chrome
 
@@ -136,7 +134,7 @@ class FocusRing extends View [
     claims: Keys [ onNavClaim(on: boolean) { classroot.overlayUp = on }
         ],
 
-    // where the ring is HEADED — written by the subscription; the springs chase
+    // where the ring is headed — written by the subscription; the springs chase
 
     tx: number = 0,
     ty: number = 0,
@@ -145,9 +143,9 @@ class FocusRing extends View [
     trad: number = 8,
     rad: number = 8,
     shown: boolean = false,
-    placed: boolean = false,                     // has the ring EVER had a target to park on?
+    placed: boolean = false,                     // has the ring ever had a target to park on?
 
-    // the OL idle fade — TRAVEL role only; a resting ring does not fade
+    // the idle fade — travel role only; a resting ring does not fade
 
     idle: boolean = false,
     gen:  number = 0,
@@ -160,21 +158,20 @@ class FocusRing extends View [
 
     snapTo() { this.x = tx; this.y = ty; this.width = tw; this.height = th; rad = trad },
 
-    // the target's LIVE silhouette, root-space, from the service's follower —
+    // the target's live silhouette, root-space, from the service's follower —
     // tracked through the parent chain and focusShape(), so an arrow-keyed
     // slider thumb (or a reflowing layout) moves the resting ring with it.
-    // The band sits OUTSIDE the silhouette: inner edge touching the control's
+    // The band sits outside the silhouette: inner edge touching the control's
     // boundary (the Mac halo's hug), displaced by gap + half the stroke.
 
     focus: Focus [
         onGeometry(g: FocusGeometry) {
             if (g.root != app) return
-            // TRAVEL WITH the target's scroller: the ring's surface re-hosts
-            // inside the scrolled container and positions in ITS content
+            // Travel with the target's scroller: the ring's surface re-hosts
+            // inside the scrolled container and positions in its content
             // coordinates — the platform then carries ring and control
-            // together, zero lag, no per-scroll re-derive (the sticky-frame
-            // inverse). A backend without the ride keeps root-space reactive
-            // positioning.
+            // together, zero lag, no per-scroll re-derive. A renderer without
+            // the ride keeps root-space reactive positioning.
             const prev = (this as any)._lastTarget
             const prevHome = (this as any)._lastHome
             const hadHome = (this as any)._hasHome === true
@@ -183,9 +180,9 @@ class FocusRing extends View [
             const homed = classroot.travelWith(g.scroller)
             const gx = homed ? g.homeX : g.x
             const gy = homed ? g.homeY : g.y
-            // Crossing scroll HOMES (the bar's button → a control in the
+            // Crossing scroll homes (the bar's button → a control in the
             // scrolled page): the flight must still fly. The ring's current
-            // position converts through ROOT space into the DESTINATION
+            // position converts through root space into the destination
             // home's coordinates — same painted spot, new numbers — and the
             // springs then travel entirely within the new space (correct
             // even if that pane scrolls mid-flight).
@@ -203,16 +200,16 @@ class FocusRing extends View [
             const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
             const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
             const off = gap + iw + lw / 2
-            // a traveled ring draws the CONTENT-space box (homeW/homeH/homeRad):
+            // a traveled ring draws the content-space box (homeW/homeH/homeRad):
             // any ancestor transform above the scroller reaches its surface
             // through the platform, so frame-space extents would double-apply it
             classroot.tx = gx - off; classroot.ty = gy - off
             classroot.tw = (homed ? g.homeW : g.w) + 2 * off; classroot.th = (homed ? g.homeH : g.h) + 2 * off
             classroot.trad = (homed ? g.homeRad : g.rad) + off
-            // Only a FOCUS CHANGE flies. The same control moving under a resting
+            // Only a focus change flies. The same control moving under a resting
             // ring — a dragged slider thumb, a reflow — takes the ring with it
-            // rigidly: the springs' targets just moved, so land them NOW. The
-            // discriminator is target IDENTITY (a handler-scratch expando — not
+            // rigidly: the springs' targets just moved, so land them now. The
+            // discriminator is target identity (a handler-scratch expando — not
             // reactive state, just the previous event's view for comparison).
             ;(this as any)._lastTarget = g.view
             ;(this as any)._lastHome = g.scroller
@@ -227,7 +224,7 @@ class FocusRing extends View [
             // Another app on the page (an embedded preview) owns this target — its own
             // ring indicates it; this one stands down rather than chase foreign coordinates.
             if (n != app) { classroot.shown = false; return }
-            // Pointer focus: PARK silently — geometry current, ring hidden. The next
+            // Pointer focus: park silently — geometry current, ring hidden. The next
             // keyboard flight departs from here (the just-clicked control).
             if (!Focus.byKeyboard()) { classroot.shown = false; classroot.snapTo(); classroot.placed = true; return }
             if (classroot.ringRole() == "off") { classroot.shown = false; return }
@@ -247,8 +244,8 @@ class FocusRing extends View [
         ],
 
     // the travel: underdamped springs = motion toward the target + a little
-    // arrival overshoot — the 3.4 bounce, by physics. The radius travels too:
-    // the terminus reshapes to the control it surrounds.
+    // arrival overshoot, by physics. The radius travels too: the terminus
+    // reshapes to the control it surrounds.
 
     Spring [ attribute = x,      to = { tx }, stiffness = 220, damping = 16 ],
     Spring [ attribute = y,      to = { ty }, stiffness = 220, damping = 16 ],
@@ -265,14 +262,18 @@ class FocusRing extends View [
 
     pointerEvents = "none",
 
+    // chrome, not prose: never selects inside a `selectable` region
+
+    selectable = false,
+
     // the shape-hugging outline — a rounded rect at the sprung radius, drawn,
     // so it re-derives as the radius travels between silhouettes
 
-    // the OL brackets and the shape-hugging outline are ONE rendition at two
-    // coverages: four corner-anchored strokes whose straight arms extend
+    // the corner brackets and the shape-hugging outline are one rendition at
+    // two coverages: four corner-anchored strokes whose straight arms extend
     // toward each edge's midpoint by cov ∈ (0..1]. cov = 1 → arms meet, a
     // closed outline; cov low → open corner brackets ("target sights").
-    // Coverage is a pure function of DISTANCE from target, so the physics
+    // Coverage is a pure function of distance from target, so the physics
     // does the choreography: a flight breaks the ring open mid-air and the
     // settle closes the sights around the new silhouette. Small targets skip
     // the bracket phase (a ring around a radio dot has no arms to open).
@@ -282,18 +283,18 @@ class FocusRing extends View [
         const Q = Math.PI / 2
         const dist = Math.abs(this.x - tx) + Math.abs(this.y - ty) + Math.abs(this.width - tw) + Math.abs(this.height - th)
         const small = Math.min(w, h) < 40
-        // Ruled 2026-07-17: the ring travels as a CLOSED outline, source shape
-        // to destination shape — no bracket mode intervening. The sights
-        // rendition survives behind `theme.focusSights = true` (data, not a
-        // code path) for its possible return: fully open in motion, arms
-        // sweeping shut inside the last 16px of settle.
+        // By default the ring travels as a closed outline, source shape to
+        // destination shape — no bracket mode intervening. `theme.focusSights
+        // = true` elects the sights rendition instead (data, not a code path):
+        // fully open in motion, arms sweeping shut inside the last 16px of
+        // settle.
         const cov = theme.focusSights == true && !small ? Math.max(0.22, 1 - dist / 16) : 1
         const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
-        // The indicator is ONE band or TWO, by data: `focusRingInnerWidth` > 0
+        // The indicator is one band or two, by data: `focusRingInnerWidth` > 0
         // adds an inner stroke between the control and the outer one — the
-        // Fluent (Redmond) two-tone focus rectangle, black over white. Both
-        // passes are the same outline at different insets; the flight, the
-        // sights, and the silhouette machinery are shared, not forked.
+        // Redmond two-tone focus rectangle, black over white. Both passes are
+        // the same outline at different insets; the flight, the sights, and
+        // the silhouette machinery are shared, not forked.
         const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
         const pass = (ins, lwp, color) => {
             const r = Math.max(1, Math.min(rad - ins, Math.min(w, h) / 2 - ins))

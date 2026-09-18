@@ -1,6 +1,6 @@
 A named node holding a JSON value — the in-memory data a subtree reads through
-**datapaths**. Its data is EITHER a raw `{ }` body (the JSON literal) OR a derived
-`contents = { }` constraint; point a view's `datapath` at it (or a slice of it) and
+**datapaths**. Its data is either a raw `{ }` body (the JSON literal) or a derived
+`contents = { }` constraint — one or the other; point a view's `datapath` at it (or a slice of it) and
 descendants read with relative `:paths`, replicating one instance per array element with
 `:arr[]`. It is a **non-visual** node: it lives in the tree as a named member with no box
 of its own. For data that arrives over the network, use `DataSource`.
@@ -31,10 +31,12 @@ list with `key = :field` on its replicated child so a recompute reconciles by th
 field (O(changed) instances) instead of by object identity (rebuild-all).
 
 ## read()
-Tracked region read: `data.read([ "cols" ])` returns the value at that path AND subscribes
-the caller to it, so a derivation (or any constraint) that reads through `read` re-runs on an
-in-place `.set` edit to that region — the granular counterpart to reading `.value` (which
-tracks only a wholesale replacement).
+Tracked region read: `data.read([ "cols" ])` returns the value at that path **and subscribes
+the caller to it**, so a derivation (or any constraint) that reads through `read` re-runs on an
+in-place `.set` edit to that region. A literal read through `.value` is tracked by region just
+the same — `{ data.value.cols.length }` re-runs on the same edit — so reach for `read` when
+the path is **computed at run time** (`read([ app.column ])`), which the static reading of a
+`{ }` cannot follow.
 
 ## set()
 Writes `v` at a path inside the value, waking exactly the readers of that place — the

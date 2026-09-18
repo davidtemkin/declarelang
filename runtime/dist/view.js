@@ -18,9 +18,18 @@ let viewCreator = null;
 export function provideViewCreator(fn) {
     viewCreator = fn;
 }
+let inlineHost = null;
+export function provideInlineViewHost(fn) {
+    inlineHost = fn;
+}
+/** The class table for the program `v` belongs to, or null (no program). */
+export function inlineViewHost(v) {
+    return inlineHost === null ? null : inlineHost(v.root);
+}
 import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
-import { Constraint, Cell, afterSettle, setChangeDispatcher, trackNode } from "./reactive.js";
+import { Constraint, Cell, afterSettle } from "./reactive.js";
+import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
@@ -1281,7 +1290,7 @@ export function fireEvent(view, event, ...args) {
     if (event === "init") {
         // `init` is the moment a node is LIVE for the change event: the values it
         // tracks are read once here to seed, so boot's own first values are not
-        // changes (reactive.ts trackNode).
+        // changes (change-event.ts trackNode).
         view.$live = true;
         const names = view.trackChanges;
         if (Array.isArray(names) && names.length > 0)
@@ -2108,7 +2117,7 @@ defineAttributes(DOMIsland, {
     slot: { def: "", push: (v, id) => v.surface?.setEmbed(id, v) },
     childName: { def: "" },
 });
-// THE CHANGE EVENT's delivery (reactive.ts wakes and batches; this module owns
+// THE CHANGE EVENT's delivery (change-event.ts wakes and batches; this module owns
 // the handler door). The node remembers which values it is being called for, so
 // attributes.ts can refuse the handler writing one of them back.
 setChangeDispatcher((node, changed) => {

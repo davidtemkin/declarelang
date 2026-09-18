@@ -14,6 +14,18 @@ export interface ComponentSchema {
      *  compile error, not a silent no-op). Inherited events come from the
      *  `base` chain; absent = declares none of its own. */
     readonly events?: readonly string[];
+    /** Which of this schema's OWN attrs are INTERNAL — machinery a program cannot
+     *  usefully name, kept off the reference and out of `declare-help`.
+     *
+     *  It exists so that SILENCE IS NOT A SIGNAL. The extractor used to compute
+     *  "public" as "somebody wrote prose for it", which meant an attribute nobody
+     *  documented was quietly reclassified as internal and dropped from its own
+     *  class page — 37 of them, including `scrollStartX`, whose documented twin's
+     *  prose names it ("`scrollStartX` for the other axis"). Nobody decided that.
+     *  Now every attribute is PUBLIC and owes prose, and hiding one is a decision
+     *  written here, where a reviewer sees it. Absent = none of its own, which is
+     *  the expected state. */
+    readonly internal?: readonly string[];
 }
 /** The BUILT-IN provided values — the names a container may set BARE (no type)
  *  to provide to its subtree, because the language already knows them: the text
@@ -30,6 +42,17 @@ export declare const RichTextSchema: ComponentSchema;
  *  table, data nodes with its data table, animators with its animator table);
  *  R6 registers user classes into both. */
 export declare const SCHEMAS: Readonly<Record<string, ComponentSchema>>;
+/** The schemas NO runtime class implements — the abstract family bases. They
+ *  are in SCHEMAS so the reference documents each once and its concrete
+ *  members inherit checkably, but nothing constructs one: not as a tag, and
+ *  not as a class's base (`class X extends Stream` is refused, naming the
+ *  concrete members). Every other schema is a base a program class may
+ *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
+ *  so it cannot drift when a component joins either table. */
+export declare const ABSTRACT_SCHEMAS: ReadonlySet<string>;
+/** For the refusal above: the concrete members an abstract base's would-be
+ *  subclass should extend instead. */
+export declare const ABSTRACT_CONCRETE: Readonly<Record<string, string>>;
 /** Does `schema`'s inheritance chain pass through a component named
  *  `ancestor`? The checker's kind test — "is this tag a Layout?", "may a
  *  class extend this base?" — kept name-based so per-program schema copies

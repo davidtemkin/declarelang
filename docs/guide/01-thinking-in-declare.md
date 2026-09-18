@@ -18,8 +18,8 @@ This chapter makes the case and shows you the idea running. The rest of the guid
 teaches you to think in it — and "think in it" is the right phrase, because the
 language asks for one genuine shift in how you picture an interface, and then pays
 that shift back everywhere. By the end you will open a real calendar application —
-four views, continuous zoom, drag-to-reschedule; 480 lines of code, about seven
-hundred with its detailed comments — and understand all of it. That is the promise
+four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->502<!--/stat--> lines of code, about
+<!--stat:calendar.total-->841<!--/stat--> with its detailed comments — and understand all of it. That is the promise
 this guide is structured around; hold it to it.
 
 ## Sixty seconds of proof
@@ -129,7 +129,7 @@ no gaps, nothing to bridge.
 
 There is also a newer reason, and it is worth stating plainly: a growing share of
 code is now written by machines, and Declare was designed in that light. The entire
-language fits in [one file](declare-docs:spec:core) of about ten thousand tokens —
+language fits in [one file](declare-docs:spec:core) of about <!--stat:spec.tokens-->12,000<!--/stat--> tokens —
 small enough to hand to an LLM whole, so it never has to guess from training-data
 resemblance. The compiler answers mistakes with the rule and the exact position —
 and, for the instincts it anticipates, the fix by name — so an LLM's

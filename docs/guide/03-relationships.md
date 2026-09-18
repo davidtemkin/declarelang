@@ -80,10 +80,10 @@ library methods are analyzed on the same footing, and the familiar builtins
 (`Math.max`, `.toFixed()`, `.split()`) are known to read nothing reactive at all.
 
 One asymmetry is worth meeting before it meets you. A declaration with a computed
-default — `segIndex: number = { … }` — is a **formula, not a slot**: reading it inlines
+default — `segIndex: number = { … }` — is a **formula, not a cell**: reading it inlines
 its expression, so *its* dependencies quietly become yours. A set attribute —
-`width = { … }` — is the opposite: a standing constraint that owns its slot, and
-reading the slot subscribes to the slot. The practical difference shows up exactly
+`width = { … }` — is the opposite: a standing constraint that owns a cell, and
+reading the slot subscribes to that cell. The practical difference shows up exactly
 once: a computed default can make your constraint react to things you never named,
 because you inherited its inputs.
 
@@ -117,7 +117,7 @@ instead."* You cannot clobber a standing relationship by accident. (Animators an
 it, re-evaluated, when they are done.)
 
 A **computed default** is the case to watch: `mode: string = { … }`, a declaration whose
-default is an expression. It owns no slot, so there is nothing to protect — the write
+default is an expression. It owns no cell, so there is nothing to protect — the write
 simply lands, the formula is gone, and nothing warns you. If `mode` derives from
 `app.location`, a handler that assigns `mode` directly works once and quietly
 disconnects everything that made `mode` trustworthy.
@@ -210,10 +210,6 @@ rather than a silent surprise. Five instincts trigger it:
 In practice the friction rounds to zero — across every real Declare program in the
 repository, all constraints are analyzable — and handler code is unrestricted
 TypeScript whenever you genuinely need the dynamic case.
-
-Two narrower binding modes exist beside the always-live `{ }`: `once` (evaluate at
-init, keep the snapshot) and `immediate` (evaluate during construction). Reach for
-plain `{ }` unless you specifically want a value frozen.
 
 ---
 

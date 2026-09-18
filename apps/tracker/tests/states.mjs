@@ -3,14 +3,14 @@
 //   bless:   node tools/verify.mjs apps/tracker/tracker.declare --states apps/tracker/tests/states.mjs --bless
 //   compare: node tools/verify.mjs apps/tracker/tracker.declare --states apps/tracker/tests/states.mjs
 //
-// The tracker carries more glyph-as-icon sites than any other app — the four
-// filter/sort buttons wear `▾` inside their LABEL STRINGS, the group headers use
-// `▶`/`▼`, and the sort-direction control uses `↑`/`↓`. All of them sit in the
-// default state, which is why one screenshot does most of the work here.
+// The tracker carries more icon sites than any other app — the four filter/sort
+// buttons, the group headers and the sort-direction control all wear drawn
+// icons (`ChevronIcon`, `ArrowIcon`). All of them sit in the default state, which
+// is why one screenshot does most of the work here.
 //
-// THE CLOCK IS PINNED so the row list's dates don't drift.
+// The clock is pinned so the row list's dates don't drift.
 //
-// THE PERF READOUT IS MASKED. The status strip renders `loadMs`/`adoptMs` —
+// The perf readout is masked. The status strip renders `loadMs`/`adoptMs` —
 // `performance.now()` deltas — so it differs on every run by construction.
 // Settling does not help (it is not motion) and pinning the clock cannot help
 // either: the animation clock IS performance.now, so freezing it would stop

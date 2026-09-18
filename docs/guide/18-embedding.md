@@ -11,9 +11,11 @@ running inside it. Three directions, one principle each time: **the boundary
 is a box**. Declare sizes and positions the box like any view; whatever is
 inside keeps its own model, and neither side reaches across.
 
-All three are DOM-renderer stories today — the canvas renderer draws a single
-sealed surface, and these seams are exactly the places where two renderings
-must interleave.
+Two of the three need a browser: a page hosting an app, and an app hosting
+foreign DOM, each want a document to put an element in — on the canvas renderer a
+foreign island is realized as an overlay above the sealed surface, and the
+native Mac host embeds no web engine at all. An app inside an app needs no
+element, and runs on every renderer.
 
 One boundary this chapter does *not* own: bringing foreign **code** into a
 program, rather than a foreign **rendering** into a box. A JS/TS library —
@@ -69,8 +71,7 @@ its own asset directory, none with any page-scoped wiring:
 </script>
 ```
 
-The tenancy contract is structural, and it is pinned by test
-(test/embed.test.mjs): an embedded app's `appName` never retitles the page,
+The tenancy contract is structural: an embedded app's `appName` never retitles the page,
 its `location` moves neither the URL nor the page's history, and an untouched
 page books **zero animation frames** — the host is notified when an app
 writes; nothing polls. `boot()` returns the app, and the host element carries
@@ -142,9 +143,9 @@ or a relative path, resolved from the host program's `demos/` folder — so
 no copy; `""` detaches the island. Input stays honest at the seam, too: a
 click inside the tenant belongs to the tenant, while the host hears only *a
 press on the island* — which is how a desktop window raises itself when you
-click into the app it hosts. On the canvas backend the tenant mounts by
+click into the app it hosts. On the canvas renderer the tenant mounts by
 **surface composition** — its tree becomes a subtree of the sealed surface,
-no DOM anywhere — which is also exactly how the native host has always done it.
+no DOM anywhere — which is also exactly how the native Mac host mounts one.
 
 This is not a corner feature. The desktop demo's windows, the homepage's
 live previews, and this documentation's own runnable examples are all
@@ -183,7 +184,7 @@ App [ external volume: number = 0,     // arrives from the host, constraints re-
 Facts vs. verbs is the load-bearing distinction. An `external` attribute is a
 **fact** — continuous, typed, meaningful whenever read; direction is
 arbitrated by ownership (a slot the host *binds* refuses tenant writes,
-naming the constraint; `readonly external` declares a tenant-owned out-fact
+naming the constraint; `external readonly` declares a tenant-owned out-fact
 the host provably can't write). `post(topic, payload)` / `onPost(m)` are
 **verbs** — consumed once, ordered, never re-readable: "do this", never
 "this is so". Data only crosses: an `external` must carry a data type
@@ -197,20 +198,19 @@ reaches it through the island element's one sanctioned handle:
 const h = box.__declareIsland;         // the island's element, after mount
 h.externals();                         // [{ name, type, readonly }] — discovery
 h.get("volume"); h.observe("volume", v => audio.volume = v);
-h.set("pos", 12.5);                    // boundary-VALIDATED against the declared type
+h.set("pos", 12.5);                    // validated at the boundary against the declared type
 h.post("clicked", id);                 // → the island's onPost
 h.onPost(m => { … });                  // ← the island's post()
 ```
 
 A mistyped foreign push is refused with the type named — the same trust-edge
-rule a DataSource applies to arriving bytes. (`env` and `childName`, the
-bridge's untyped ancestors, still work; new code should declare its surface.)
+rule a DataSource applies to arriving bytes.
 
 Three handles are sanctioned, and only three: `el.__declareApp` (the app an
 embedding page booted into this element), `el.__declareIsland` (the foreign
 tenant's bridge, above), and `__childApp` on an island's element — or, on
 canvas, its view — (the Declare tenant an island mounted). Everything else a
-backend or host plants is internal and may vanish without notice.
+renderer or host plants is internal and may vanish without notice.
 
 ## A tenant that loads itself
 
@@ -230,7 +230,7 @@ signin: DOMIsland [ slot = "auth", width = 320, height = 420,
 ```js
 const h = box.__declareIsland;
 let started = false;
-h.observe("wanted", async (want) => {                    // the constraint IS the cue
+h.observe("wanted", async (want) => {                    // the constraint is the cue
   if (!want || started) return;
   started = true;
   const sdk = await import("https://cdn.example/auth.js");   // fetched now, not at boot

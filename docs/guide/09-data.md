@@ -17,9 +17,7 @@ write.
 ## `:path` reads from a cursor
 
 `datapath = …` sets a **cursor** on a node; every descendant reads `:field` relative
-to it, reactively — and *descendant* means every member, not only the visible ones. A
-`Spring`'s target, a `Time`'s gate, a `DataSource`'s url are all written inside some view,
-so a `:path` in one of them reads that view's cursor like anything else there. And the strongest move follows from one rule: a path that matches
+to it, reactively. And the strongest move follows from one rule: a path that matches
 *many* records **replicates** its node — one instance per record:
 
 ```declare
@@ -38,6 +36,21 @@ App [ width = 300, height = 160, fill = midnightblue, textColor = gainsboro,
         ]
     ]
 ```
+
+**Every member reads it, not only the visible ones.** A `Spring`'s target, a `Time`'s gate,
+a `DataSource`'s url are written inside some view, so a `:path` in one of them reads that
+view's cursor exactly as a `text` or a `width` there would — at any depth, and through any
+number of non-visual members between:
+
+```declare-fragment
+class Row extends View [ width = { parent.width }, height = 44,
+    move: Spring [ attribute = y, to = { :rank * 44 } ],     // springs to what the record says
+    beat: Time [ tick = frame, running = { :typing } ]       // ticks while the record says so
+    ]
+```
+
+The target re-aims when the record changes, like any other read. What stays a view's
+alone is **writing**: a two-way `<->` binding belongs to the leaf that owns the edit.
 
 The inner view is written **once**, against an abstract cursor, and instanced per
 row. Add a record to the running example and an instance appears; delete one and its
@@ -66,7 +79,7 @@ bind to that.)
 
 The one shape a `:` does **not** name is a *scalar* datum — when a replicated array
 holds bare values (`"tags": ["new", "sale"]`), `datapath = :tags[]` instances a node
-per string, but there is no `:` that names the string itself (though `:tags[*]` now
+per string, but there is no `:` that names the string itself (though `:tags[*]`
 reads the whole list as a value). Give the values a field server-side
 (`[{ "label": "new" }, …]`) and read `:label`. (A bare-scalar cursor is a known gap.)
 
@@ -247,8 +260,7 @@ none, the dynamic reads above remain the right tool. (Two boundary notes: `?`
 means the data may *omit* the field or send null — JSON APIs rarely honor the
 difference, so the schema doesn't either; and a tagged union of record kinds —
 an activity feed's `{"type": "push", …} | {"type": "issue", …}` — is regular
-shape the grammar cannot yet say: today those fields are `any`, and the
-register carries the increment.)
+shape the grammar cannot yet say: today those fields are `any`.)
 
 Second, **a schema is not a parser.** No transforms, no coerced dates, no
 renamed keys — a schema checks what arrives; it never rewrites it. When a
@@ -453,9 +465,9 @@ The edit session belongs to **editors** — it lives on `Editor`, the abstract b
 `Segmented` cannot two-way bind at all: the compiler refuses `<->` on them and names the
 value pattern as the fix. They use derive-down/deliver-up, and they **write immediately**.
 
-(`Editor` is one of four classes you never write but will meet in the reference — with
-`Layout`, `Stream`, and `RichText`. Each exists so its concrete forms inherit one
-documented surface; writing the base itself reports "unknown component.")
+(`Editor` is one of four classes you never instantiate but will meet in the reference —
+with `Layout`, `Stream`, and `RichText`. Each exists so its concrete forms inherit one
+documented surface; instantiating the base itself reports "unknown component.")
 
 There is a reason: a draft only means something when the in-progress value is
 unrepresentable in the model. `"12/3"` is not a date and `"abc"` is not a number, so those
@@ -587,8 +599,8 @@ and when — the chapter's walls, in one look back:
 
 The second column carries the principle: **the runtime stands where data the
 program didn't construct comes in; the compiler stands where the program
-constructs it.** The last two rows are the honest edge — one a known gap the
-register carries, one a horizon no static checker can cross. The runtime walls
+constructs it.** The last two rows are the honest edge — one a known gap, one a
+horizon no static checker can cross. The runtime walls
 stand either way: validation reads the declaration, not the compiler's reach.
 
 ---

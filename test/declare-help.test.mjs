@@ -192,4 +192,56 @@ await test("a runtime error code expands to its sentence (the production strip's
   assert.match(miss.out, /no runtime error EFFFFFF/);
 });
 
+await test("a HANDLER NAME answers as the event it handles — every one of them", () => {
+  // The name an author types and the compiler refuses. The events were in the
+  // reference all along and reachable only as `View.event.click`, the one
+  // spelling nobody guesses; `onChange` was answered by the CSS-instinct table
+  // as "not a Declare name" the day after it became one.
+  const r = help("onClick");
+  assert.match(r.out, /^onClick\(e: PointerEvent\) — an event on: View/);
+  assert.ok(r.out.includes("a handler is a method answering it"), `got:\n${r.out}`);
+
+  const ch = help("onChange");
+  assert.match(ch.out, /^onChange\(e: ChangeEvent\) — an event on: Node/);
+
+  // no payload, no empty parens lie
+  assert.match(help("onInit").out, /^onInit\(\) — an event on: Node/);
+
+  // the bare event name lands too, when nothing else claims the word
+  assert.match(help("click").out, /^onClick\(e: PointerEvent\) — an event on: View/);
+
+  // and EVERY declared handler resolves: the gate that keeps a new event from
+  // shipping answerable only by its class-qualified id
+  const model = JSON.parse(readFileSync(new URL("../docs/declare-model.json", import.meta.url), "utf8"));
+  const spine = model.spine ?? model;
+  const handlers = [...new Set(Object.values(spine.schemas).flatMap((sc) => (sc.events ?? [])
+    .map((e) => "on" + e.charAt(0).toUpperCase() + e.slice(1))))];
+  const deaf = handlers.filter((h) => !help(h).out.includes("— an event on:"));
+  assert.deepEqual(deaf, [], "handler names that do not answer as events");
+});
+
+// A hint key that BECOMES a real name turns the tool into a confident liar: the
+// hint message opens "'X' is not a Declare name", and six keys had quietly become
+// real — `scaleX`, `perspective` and `blur` arrived with the graphics pass, and
+// `gap`, `padding` and `position` are attributes on particular components — so
+// `declare-help scaleX` answered "'scaleX' is not a Declare name — per-axis scale
+// is 'scaleX'": a denial and the answer in one sentence. A real name now answers
+// as itself, with the instinct riding ALONG for the reader arriving from CSS.
+await test("no foreign-name hint denies a name the language actually has", () => {
+  const model = JSON.parse(readFileSync(new URL("../docs/declare-model.json", import.meta.url), "utf8"));
+  const shared = ["interfaces", "aliases", "functions", "namespaces"]
+    .flatMap((k) => (model.spine?.types?.shared?.[k] ?? []).map((x) => x.name));
+  const real = new Set([...Object.keys(model.reference).map((id) => id.split(".").pop()), ...shared]);
+  const overlap = Object.keys(CSS_ATTRIBUTE_HINTS).filter((k) => real.has(k));
+  assert.ok(overlap.length > 0, "the overlap set is empty — this pin would be vacuous");
+  const lying = overlap.filter((k) => help(k).out.includes("is not a Declare name"));
+  assert.deepEqual(lying, [], "hint keys answered as foreign though the language declares them");
+  // …and the orientation is not lost: the CSS reader still gets the instinct
+  for (const k of overlap) {
+    assert.match(help(k).out, /the CSS instinct:/, `${k} answered without its CSS orientation`);
+  }
+  // a genuinely foreign name still answers as foreign
+  assert.match(help("zIndex").out, /is not a Declare name/);
+});
+
 summarize("declare-help");

@@ -120,9 +120,13 @@ export default [
     name: "focus-first-tab",
     route: async ({ drive }) => {
       await drive.click("app.content.col.grid.left.0.row.0");   // Primary
-      await settle(drive);
+      await settle(drive, { focused: true });
       await drive.key("Tab");                                    // → Secondary
-      await settle(drive);
+      // `focused` like every other focus state here: the travelling indicator
+      // starts after a beat, so `settleMotion` alone can return BEFORE the ring
+      // has begun to move and catch it mid-flight. That is what made this one
+      // state differ by a few dozen pixels about one run in three.
+      await settle(drive, { focused: true });
     },
   },
 

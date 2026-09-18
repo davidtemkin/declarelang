@@ -63,8 +63,8 @@ this slot animates the number form.
 
 ## stroke
 A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the
-layout rectangle — the box stays the one geometry fact. `null` by default. Chosen over
-CSS's `border` precisely so a bordered view and an unbordered one occupy the same space.
+layout rectangle — the box stays the one geometry fact. `null` by default. Unlike
+CSS's `border`, a bordered view and an unbordered one occupy the same space.
 
 ## shadow
 A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape
@@ -74,7 +74,7 @@ sites, one look (its `blur` is the box-shadow radius everywhere).
 
 ## filter
 The view's own painted subtree, filtered as a **group** — children included — before
-`opacity` and `blend` land (graphics-pass.md §1). One function or a bare list:
+`opacity` and `blend` land. One function or a bare list:
 `filter = blur(3)`, `filter = [blur(2), brightness(0.8)]`, `filter = { [blur(k), saturate(1.4)] }`.
 The functions are `blur(radius)`, `brightness(k)`, `contrast(k)`, `saturate(k)`,
 `grayscale(k)`, `invert(k)`, `sepia(k)`, `hueRotate(deg)`, `colorize(color)` — the group's
@@ -87,8 +87,8 @@ it. Paint only, never input — a blurred button is still its box. `null` (the d
 The same vocabulary, sampled **beneath** the view, is `backdrop`.
 
 ## mask
-A soft alpha mask over the view's painted (clipped) subtree, applied before `opacity`
-(graphics-pass.md §2): a gradient's **alpha** over the box — `mask = gradient("180deg",
+A soft alpha mask over the view's painted (clipped) subtree, applied before `opacity`:
+a gradient's **alpha** over the box — `mask = gradient("180deg",
 #00000000, #000000FF)` fades the top out; `radialGradient(…)` vignettes — or a **stencil**,
 another view whose painted alpha, placed by its own `x`/`y` inside this box, is the mask:
 `mask = { stencil }` with `stencil: Image [ visible = false, … ]` as a child is the idiom.
@@ -146,7 +146,7 @@ toolbar, and the overlay layer that stages parked furniture are all this one att
 ## scrolls
 Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,
 or `both`. One class overrides that default: an **`App` scrolls `y` by default**, and its
-scroller is the page itself (the ruled page shape — see `App`). A scrolling view clips to its box; overflow along a declared axis becomes its
+scroller is the page itself (see `App`). A scrolling view clips to its box; overflow along a declared axis becomes its
 scroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out
 of frame. The value is a token **string** in a `{ }` body — compare explicitly
 (`scrolls == "y"`), never truthily: `"none"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.
@@ -195,7 +195,7 @@ the arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spac
 Set `layout = null` for explicit none.
 
 ## datapath
-The data cursor (language §9): sets the place in a dataset that this view and its
+The data cursor: sets the place in a dataset that this view and its
 descendants read relative to. Write it as a `:path` (relative to the inherited
 cursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`
 expression yielding a place. Descendants read with their own relative `:paths`.
@@ -230,12 +230,11 @@ belongs on the node whose `datapath` matches many, beside that path, and it mean
 anywhere else (a node that replicates nothing has no collection to describe, and the checker
 says so).
 
-**A boolean, off by default.** Below the threshold where construction hurts, materializing
-everything is simply faster and keeps `childViews` whole; above it, this is the one word that
-changes. There is no automatic mode and no count to tune — a virtualized block costs a flat
-~0.06 ms per scroll tick at any size, so there is no cliff a threshold could protect, and
-what full materialization actually costs is construction, which depends on how rich a row is
-rather than how many there are.
+**A boolean, off by default.** Full materialization keeps `childViews` whole and browser
+find-in-page working over every record, and below the size where construction hurts it is
+simply faster; above it, this is the one word that changes. There is no automatic mode and
+no count to tune: what full materialization costs is construction, which depends on how
+rich a row is rather than how many there are.
 
 Like any boolean it takes a `{ }`, and the policy is read inside the replication match — so a
 collection can start fully materialized and virtualize when it grows, engaging and
@@ -257,15 +256,15 @@ like `contentWidth` and `contentHeight`, and read-only. `false` unless this view
 container of a virtualized block, which is every view in a program that never asks for
 virtualization.
 
-**Read it on the CONTAINER, not the template.** `virtualize` is declared on the replicated
+**Read it on the container, not the template.** `virtualize` is declared on the replicated
 child — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to
 the *parent* that holds the instances, so the parent is what answers. A row instance reports
 `false`, and that is the honest answer: an instance has no replicated content of its own. In
 ordinary speech the list is virtualized, not the row.
 
 ```declare-fragment
-list: View [ datapath = { app.d.value },                  // ← ask THIS one
-    Row [ datapath = :rows[], virtualize = true ]         // ← declared HERE
+list: View [ datapath = { app.d.value },                  // ← ask this one
+    Row [ datapath = :rows[], virtualize = true ]         // ← declared here
     ]
 ```
 
@@ -331,16 +330,19 @@ vanishing point sat at its own pivot — the exact projection depends on where t
 lands in its parent and on the parent's size, which the layout is deciding — so an
 auto-sized reel of flipping digits sizes without a cycle; the hit walk uses the exact
 projection. Reach for `bounds()` everywhere else.
+
 ## rootBounds()
 This view's transformed box in **root-content space** — every ancestor's position,
 scale, rotation, and scroll composed (the hit walk's own math). A one-shot query for
 handlers, deliberately not a reactive fact: absolute geometry depends on every
 ancestor, and a live slot would re-derive on each scrolled pixel. For the reactive
 question — "am I visible?" — bind `onScreen` or `visibleRect` instead.
+
 ## rootTransform()
 The composed similarity from this view's frame to root space — `{x, y, scale,
 rotation}`. The method tier's exact transform; the visibility facts are its coarse,
 at-rest companions.
+
 ## onScreen
 Is this view **on screen** — inside the viewport, not scrolled away, not in a hidden
 subtree? A coarse reactive fact that flips at threshold crossings, so a binding
@@ -349,11 +351,13 @@ re-derives only when the answer changes: the gate for ambient work
 lazily at the first read — a program that never binds it pays nothing. On the DOM the
 feed sees the whole page, so an embedded app's box scrolled off its **host** page
 reads `false` too. Read-only.
+
 ## visibleRect
 What of this view is visible, **in its own coordinates** — `{x, y, width, height}`,
 all zeros when nothing shows. Updates **at rest** (when motion settles and scrolling
 quiets), never per frame of a glide — a tile or rung decision wants the flight's end.
 Cull margins are your arithmetic on the truth, not a platform knob. Read-only.
+
 ## apparentScale
 The composed scale from this view's units to **device pixels** — ancestor scales ×
 devicePixelRatio. The raster-rung fact: an image pyramid picks its tier from it, a
@@ -371,6 +375,7 @@ glide; a tier keyed on `apparentScale` asks on arrival and may land soft, then
 sharpen. Those are opposite ends of the same flight, both legitimate: departure-phase
 policy is written against your target state, arrival-phase truth against these facts,
 and the two compose.
+
 ## onClick
 Fires when the pointer presses **and** releases on the same view (a true click, not a
 stray press) — answered by an `onClick()` handler. The primary interaction event;
@@ -434,6 +439,46 @@ finger: the drag's claim engages *at the hold* instead of at touchdown, so a qui
 swipe still scrolls the surface underneath and a held finger picks the thing up — the
 hold-to-drag idiom for draggables on scrolling surfaces.
 
+## onDblClick
+The **resolved** pair: a second click on this same view inside the double-click interval
+(and, on touch, within a few pixels of the first tap). The desktop rule holds — a third
+click starts a fresh cycle, so triple is a double plus a single, not two doubles.
+
+Declaring it changes when `click` arrives, which is the part to know: a view that answers
+both **withholds** the first click for the length of the interval, so a single click fires
+late and a pair fires `click` then `dblClick` together. If a single click must feel
+immediate, keep the two handlers on different views.
+
+## onTouchStart
+The **raw** multi-finger stream, and the layer below the recognized gestures: a finger
+landed. `e.touches` is every live finger in this view's coordinates, `e.changed` the ones
+this event is about. Reach for it when no recognized gesture fits — two-finger gestures
+are `onPinch*`, a tap is `onClick`, a drag is the claim family — because the raw stream
+means doing the finger arithmetic yourself.
+
+Declaring any of the touch family **claims** from the browser exactly what that handler
+needs to fire, and nothing more.
+
+## onTouchMove
+A finger moved. Same payload shape: every live finger, and the ones that moved.
+
+## onTouchEnd
+A finger lifted. `e.touches` is what remains down, so the last finger's lift is the one
+that leaves it empty.
+
+## onTouchCancel
+The system took a finger away — a call arrived, the browser reclaimed the gesture, the
+finger left the surface. It is not a lift: nothing was completed, and a gesture in
+progress should be abandoned rather than finished. Pair it with `onTouchEnd` in any
+handler that holds state across a touch.
+
+## onContextMenu
+The platform's context gesture — a right-click, or a two-finger tap on a trackpad —
+carrying the point in this view's coordinates. Declaring it **suppresses the browser's own
+menu**, and exactly where it is declared: elsewhere on the page the native menu still
+opens. A touch long-press does not arrive here; that is `onHold`, which is the gate touch
+context rides.
+
 ## onWheel
 The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which
 arrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).
@@ -488,9 +533,8 @@ ancestor's `scrollOffset`). A no-op if nothing above it scrolls.
 ## scrollTo()
 Ask **this scroller** to go to offset `y` — a **request, not an assignment**: the platform
 clamps it to the real scroll range, and a pane that cannot take it yet (hidden, or not yet
-laid out) holds the request and applies it the moment it can — which is why
-"`scrollTo(0)` before showing a pane" simply works where an assignment was lost to the
-hidden pane's lying offset. **`scrollTo(Infinity)` means the far end** — "scroll to the
+laid out) holds the request and applies it the moment it can — so `scrollTo(0)` before
+showing a pane simply works. **`scrollTo(Infinity)` means the far end** — "scroll to the
 bottom" with no magic number; the clamp resolves it against the range the pane has when it
 can finally take it. The `scrollY` fact follows the platform's answer. Call it on the
 `scrolls` view itself; to reveal a particular *view*, `scrollIntoView()` on the target
@@ -544,8 +588,8 @@ smaller"); the parent packs the transformed **footprint** (`bounds()`). Pair wit
 ## scaleX
 Per-axis scale, multiplied with the uniform `scale` — `scaleY = 0.2` squashes a card to a
 sliver without changing its width (the frame of a flip). Same pivot, same one-geometry
-rule: paint, the hit walk's inverse, `rootTransform()` and the footprint share one matrix
-(graphics-pass.md §5). `1` is unscaled.
+rule: paint, the hit walk's inverse, `rootTransform()` and the footprint share one matrix.
+`1` is unscaled.
 
 ## scaleY
 The vertical twin of `scaleX`.
@@ -559,7 +603,7 @@ The vertical twin of `skewX`.
 
 ## rotateX
 A rotation about the view's **horizontal axis**, in degrees, about the pivot — the third
-dimension (graphics-pass.md §6), seen through the parent's `perspective`. A card tipped
+dimension, seen through the parent's `perspective`. A card tipped
 away foreshortens; past 90° its back shows (`backface`). Hit-testing unprojects, so
 `hovered`, `pressed` and `viewAt` name the view where it is drawn. `0` is flat.
 
@@ -641,22 +685,22 @@ a paging strip's position or scroll-driven effects.
 
 ## anchor
 Names this view as a **reveal target** for a location's `@name` suffix
-(`#guide/04-tree@intro` scrolls to the view with `anchor = "intro"`). The `<a name>`
-lineage, reborn reactive: the anchor namespace is named views (this attribute) plus
-heading slugs inside rendered rich text — a heading needs nothing from you. Resolution
-prefers views over slugs, preorder-first.
+(`#guide/04-tree@intro` scrolls to the view with `anchor = "intro"`).
+The anchor namespace is named views (this attribute) plus heading slugs inside
+rendered rich text, so a heading needs nothing from you. Resolution prefers views over
+slugs, preorder-first.
 
 ## claim
 The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps
 vertical pan with the enclosing scroll regime while the drag owns horizontal — a grid
 column's header drag or edge-resize on touch. Scopes an existing drag declaration
-(`onPointerMove`); it never creates one. See claim-surface.md for the arbitration.
+(`onPointerMove`); it never creates one. The guide's Gestures chapter has the arbitration.
 
 ## onRetire
-The departure hook — fires once when this view's PRESENCE ends (its record leaves the
+The departure hook — fires once when this view's **presence** ends (its record leaves the
 replicated match, or the subtree is discarded), children before parents, with everything
 still alive. The exact symmetric of `onInit`'s membership rule: a windowed row's
-dematerialization is NOT a departure and never fires it.
+dematerialization is **not** a departure and never fires it.
 
 ## hovered
 True while the pointer is over this view — read-only, maintained by the same hit walk that
@@ -700,7 +744,7 @@ out, every target derives:
 ```declare-fragment
 // on the dragger
 onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
-onPointerUp(e: PointerEvent)   { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },
+onPointerUp(e: PointerUpEvent) { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },
 // on each target — no handlers, just a standing relationship
 hot = { app.dropTarget == this }
 ```
@@ -733,13 +777,6 @@ higher layer.
 ```declare-fragment
 onPointerDown() { this.raise() }        // click-to-front, e.g. a window in a desktop
 ```
-
-## rootOrigin()
-This view's origin in **root space**, as `{ x, y }` — the one scroll-aware walk up the
-parent chain. Reach for it when positioning something in a different coordinate system
-from the thing that anchored it: an overlay declared at the App that must appear beside a
-control nested inside a scrolled pane. **The scroll-awareness is the point** — a naive sum
-of `x`/`y` anchors where the view *would* be if nothing had scrolled.
 
 ## travelWith()
 Re-hosts this view's surface inside `scroller`'s scrolling content, so the **platform**
@@ -809,3 +846,32 @@ tabOrder() { return open ? this.tabDefault() : [] }
 ## tabDefault()
 The default traversal list — visible children in source order. **The thing a `tabOrder()`
 override calls** when it wants the ordinary answer under a condition of its own.
+
+## scrollStartX
+The horizontal offset a `scrolls` view **starts at** — applied once, at
+first layout, the declared twin of a `scrollTo` on arrival and the other axis of
+`scrollStartY`. The `scrollX` fact then reports where the platform actually put it. A
+test fixture that must be shot mid-scroll declares this rather than gesturing.
+
+## link
+Makes this view a **link**: one reference string, the same one an authored
+Markdown href carries. `"#why"` names a destination or an anchor in this app, an absolute
+URL leaves it. The view realizes a real `<a href>`, so ⌘-click, copy-link and the build's
+crawler all work, and every literal reference is checked at build against the registry — a
+typo is a compile error naming the real names. `link = ""` is not a link at all, which is
+how a row turns its own linkage off. A data-driven reference (`link = { :to }`) is checked
+when the crawl evaluates it.
+
+## replace
+Beside a `link`, **overwrites** the current history entry instead of pushing a
+new one. For fine-grained movement inside one place — a deck's arrows, a wizard's steps —
+where every step pushing an entry would bury the Back button under motion the reader does
+not think of as navigation.
+
+## shows
+Declares that this view **manifests a location**: when the app's location names
+this string, the view is shown, and the visibility comes with it — there is no second
+`visible` to keep in step. It is also what puts the name in the compiler's registry, so a
+link to it is checked at build and the crawler knows to visit it. Two views may declare the
+same name and choose between themselves on a condition, which is how a signed-out reader
+gets the sign-in screen at the same address.

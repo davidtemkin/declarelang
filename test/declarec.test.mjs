@@ -183,11 +183,21 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // (numeral features), face-literal.js (Face), draw-image.js, draw-text.js
   // (styled runs). Measured 89.5; 89.2 once the 3D paths left view.ts,
   // interaction.ts and dom-backend.ts for projective.ts too (spec3DOf,
-  // childHomography, footprint3D, domTransform3D). What remains is surface every program reaches:
+  // childHomography, footprint3D, domTransform3D). 91 → 90 KB: measured 88.5 once
+  // the change event rode only with `trackChanges` (change-event.ts, ~0.6 KB of
+  // tracker registry, batching, ring guard and seeding every program paid for) and
+  // console.warn reports joined the error-code strip (six warnings had shipped as
+  // prose). What remains is surface every program reaches:
   // the filter list at the seam (a theme's menuBackdrop is data), the one-matrix
   // transform (affine.js), the new attributes' schema, the font-value plumbing
   // every text measure reads, and the rich clamp.
-  assert.ok(gz > 20 * 1024 && gz < 91 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  // A ninth module joins the eight: dom-rich.js, the DOM backend's whole native
+  // rich-text flow — the block/run builder, inline images and links, the
+  // inline-view slot placement, the line clamp — reachable only from a RichText
+  // and so stubbed for a program that names none. It had shipped to every app,
+  // because a method on DomSurface is unreachable to a tree shaker. Measured
+  // 89.0; the calendar names no rich text and pays nothing for it.
+  assert.ok(gz > 20 * 1024 && gz < 90 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces
@@ -210,7 +220,8 @@ await test("the production stubs mirror every value export of the modules they r
   for (const [src, stubName] of [["draw.ts", "drawStub"], ["canvas-filter.ts", "filterStub"],
     ["effects.ts", "effectsStub"], ["dom-effects.ts", "domEffectsStub"], ["projective.ts", "projectiveStub"],
     ["text-measure.ts", "measureTextStub"], ["font-derive.ts", "fontDeriveStub"], ["face-literal.ts", "faceLiteralStub"],
-    ["draw-image.ts", "drawImageStub"], ["draw-text.ts", "drawTextStub"]]) {
+    ["draw-image.ts", "drawImageStub"], ["draw-text.ts", "drawTextStub"], ["change-event.ts", "changeEventStub"],
+    ["dom-rich.ts", "domRichStub"]]) {
     const stub = stubOf(stubName);
     const missing = valueExports(src).filter((n) => !new RegExp(`export (?:function|const|class) ${n}\\b`).test(stub));
     assert.deepEqual(missing, [], `${stubName} lacks exports that ${src} has: ${missing.join(", ")} — add them to the stub in tools/declarec.mjs`);
@@ -351,6 +362,23 @@ await test("check: an unreadable file is a reported diagnostic, not a crash", ()
   const r = runCheck(["no/such/file.declare"]);
   assert.equal(r.status, 1);
   assert.match(r.stderr, /cannot read/);
+});
+
+// escapeHtml — prelude vocabulary shared by every `{ }` body and every method.
+// It exists because a tag in rich-text content can name a program class, so a
+// value's own `<` or `'` concatenated into `html`/`text` opens an element rather
+// than reading as text. Escapes exactly &, <, >, " and ' — and nothing else, so
+// text that was already fine comes through unchanged.
+await test("escapeHtml is in scope in a { } body and in a method, and escapes the five", async () => {
+  const r = await compileProgram(`App [ width = 400, height = 100,
+      me: string = "Ada <'&\\">",
+      safe: string = { escapeHtml(app.me) },
+      twice() { return escapeHtml(this.me) + "|" + escapeHtml("plain text") },
+    ]`);
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const root = instantiate(JSON.parse(JSON.stringify(r.program)));
+  assert.equal(root.safe, "Ada &lt;&#39;&amp;&quot;&gt;");
+  assert.equal(root.twice(), "Ada &lt;&#39;&amp;&quot;&gt;|plain text");
 });
 
 console.log(`\ndeclarec: ${pass} passed, ${fail} failed`);

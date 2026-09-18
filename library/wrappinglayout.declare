@@ -1,19 +1,19 @@
 /*
 # WrappingLayout — a flow that wraps to new rows
 
-A horizontal flow that WRAPS: children run left to right
-`spacing` apart, and when the next one would overflow the view's width it
-drops to a new row (`lineSpacing` down; -1, the default, means "same as
-spacing"). With room for one row it is a plain row; as the view narrows it
-stacks — cards that reflow on a phone with no media query. It owns BOTH
-axes of each child (a flow is 2-D); sizes stay the children's own. `justify`
+A horizontal flow that **wraps**: children run left to right `spacing` apart,
+and when the next one would overflow the view's width it drops to a new row
+(`lineSpacing` down; -1, the default, means "same as spacing"). With room for
+one row it is a plain row; as the view narrows it stacks — cards that reflow
+on a phone with no media query. It owns both axes of each child (a flow is
+2-D); sizes stay the children's own. `justify`
 sets each finished row along the flow — `start`, `center`, `end`, or `fill`,
 which spreads a row's slack into its gaps the way justified text does;
 `indent` and `hangingIndent` inset the first row and every row after it, the
 two shapes a paragraph takes.
 
-Division of labor: this is the tool for UNIFORM, replicated collections
-that reflow by fitting. Managing NAMED regions per width tier is
+Division of labor: this is the tool for uniform, replicated collections
+that reflow by fitting. Managing named regions per width tier is
 ResponsiveLayout's.
 
 Written in Declare over the Layout kernel — the whole strategy is place().
@@ -39,16 +39,15 @@ uniform grid needs one number rather than two kept in step.
 How a finished row sits along the flow: `start` (the default, left), `center`, `end`
 (right), or `fill` — the row's slack is spread evenly into the gaps between its
 children, so every full row ends flush at the right edge, as justified text does. As
-in text, the LAST row is left at `start` under `fill` (a ragged last line), and a row
-of one child has no gap to widen and stays put. A bare literal. (Was `align` until
-2026-09-09; `align` now names the cross axis, as it does on every layout.)
+in text, the last row is left at `start` under `fill` (a ragged last line), and a row
+of one child has no gap to widen and stays put. A bare literal.
 
 ## indent
 The first row's inset from the left, in pixels — a paragraph's first-line indent. The
 first row's usable width shrinks by it; later rows are unaffected (see `hangingIndent`).
 
 ## hangingIndent
-The inset of every row AFTER the first — a hanging indent, the shape of a bibliography
+The inset of every row after the first — a hanging indent, the shape of a bibliography
 entry or a wrapped signature whose continuation lines step in under the name. The two
 compose: `indent` sets where the first row starts, `hangingIndent` where the rest do.
 
@@ -58,7 +57,10 @@ Where each child sits **within its row**: `start` (the default — the row's top
 `Text` reports its own, a composite **declares** which part carries it
 (`baseline: number = { cap.y + cap.baseline }`), and a child that declares none is
 refused by name and placed at the row's top. A row's height grows to hold the
-baseline-shifted children. A bare literal.
+baseline-shifted children. When the flow **never wrapped** — one row, which is the whole
+content — `center` and `end` align it in the view's own height instead, so a single row
+in a `height = 90` bar really sits in the middle of it; a view that derives its height
+from this flow keeps the row as the band. A bare literal.
 
 ## place()
 Runs the flow, wrapping when the next child would overflow the view's width. **It owns
@@ -87,7 +89,7 @@ class WrappingLayout extends Layout [
         const kids = this.laid()
         const out = [] as any
         const heights = [] as any   // per child, for the cross pass over its row
-        const bases = [] as any     // per child: its DECLARED baseline, or null
+        const bases = [] as any     // per child: its declared baseline, or null
         let cx = ind0
         let cy = 0
         let rowH = 0
@@ -124,6 +126,13 @@ class WrappingLayout extends Layout [
                     lineH = Math.max(lineH, top + heights[j])
                 }
             }
+            // A flow that never wrapped is not a row inside a stack of rows —
+            // it IS the view's content, so center/end align it in the view's
+            // own cross extent (`viewExtent` answers 0 when that extent is
+            // measured from these children, and the row height stands). With
+            // two or more rows the band is the row, as a wrapped flow's must
+            // be: there is no `align-content` here to spread the leftover.
+            if (rowStart == 0 && last && (al == "center" || al == "end")) lineH = Math.max(lineH, this.viewExtent("height"))
             for (let j = rowStart; j < end; j++) {
                 if (!kids[j].visible) continue
                 let off = 0
@@ -140,7 +149,7 @@ class WrappingLayout extends Layout [
         for (let i = 0; i < kids.length; i++) {
             const c = kids[i]
             if (!c.visible) { out.push({ x: cx, y: cy }); heights.push(0); bases.push(null); continue }   // skipped: reclaim its slot
-            // the child's FOOTPRINT (scale/rotation composed, position-free —
+            // the child's footprint (scale/rotation composed, position-free —
             // place() must not read the x/y it writes), and the transform's own
             // lead offset, compensated so the visible box lands on the flow
             const f = (c as any).footprint()

@@ -5,11 +5,10 @@ The marks the chrome uses everywhere: a chevron, a check, a close, plus/minus,
 and the menu's help bulb. Each is authored in a 16×16 box and scaled to the
 host's `iconSize` inside its recording (see `icon.declare`).
 
-Geometry is a property of the SET, not of the site: one stroke weight, round caps
-and joins throughout, one path per shape. Before this, the corpus drew a
-checkmark two ways (stroke 2.5 mitered in `Checkbox`, 1.8 round in `Menu`) and a
-chevron at least six, three of them inside the library. Ink stays local — a menu
-row inverts its check on the hot row, a checkbox always uses `accentText`.
+Geometry is a property of the **set**, not of the site: one stroke weight, round
+caps and joins throughout, one path per shape, so a checkmark in a `Checkbox` and
+one in a `Menu` row are the same mark. Ink stays local — a menu row inverts its
+check on the hot row, a checkbox always uses `accentText`.
 */
 
 include [ "icon.declare" ]
@@ -67,9 +66,9 @@ class ChevronIcon extends Icon [
 
 An arrow, **not a chevron** — the two mean different things and must not look alike.
 A chevron *discloses*; an arrow points at a direction that **is itself the state**:
-sort ascending, a trend, a transfer. The shaft is what a chevron lacks. Tracker had
-the two adjacent — a sort-direction control beside a sort-menu popper — and one shape
-for both read as a mistake.
+sort ascending, a trend, a transfer. The shaft is what a chevron lacks. The two often
+sit adjacent — a sort-direction control beside a sort-menu popper — and one shape for
+both reads as a mistake.
 
 ## dir
 Which way it points: `"up"` (the default), `"down"`, `"left"` or `"right"`.
@@ -110,11 +109,11 @@ class ArrowIcon extends Icon [
 
 The tick — a checked menu row, a `Checkbox`'s mark, a confirmation. **Ink stays
 local**: a menu row inverts its check on the highlighted row while a checkbox always
-uses the accent text colour, so the host sets `ink` rather than the icon assuming it.
+uses the accent text color, so the host sets `ink` rather than the icon assuming it.
 
 ## draw()
-Renders the tick. Before this class the corpus drew a checkmark two ways — stroke 2.5
-mitered in `Checkbox`, 1.8 round in `Menu` — which is the drift one shape ends.
+Renders the tick. One shape, one stroke, one join — so a checkbox's mark and a menu
+row's check cannot drift apart.
 */
 
 class CheckIcon extends Icon [
@@ -213,9 +212,9 @@ Renders the bulb. **This one mark is filled, and does not answer to `weight`**
 to widen. The bulb keeps its own visual weight at every rung.
 */
 
-// The one filled mark: the CONTOUR is the drawing — glass as a continuous
+// The one filled mark: the contour is the drawing — glass as a continuous
 // teardrop, the base as three tapering bars — so `weight` has no stroke to
-// act on here. No y-flip anywhere: the path counts DOWN, like this canvas.
+// act on here. No y-flip anywhere: the path counts down, like this canvas.
 
 class LightbulbIcon extends Icon [
     draw(d: Draw) {

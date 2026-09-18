@@ -31,9 +31,7 @@ as is on purpose: the bundle was stale, nothing could serve until it was rebuilt
 
 (`npm run build:mac` is *not* an exception, though it also runs `tsc` and the bundle
 rebuild: it runs them **through derive** — `derive --only tsc,bundles` — so the
-freshness ledger records them like any other derive. It used to call the rule bodies
-directly, which left the ledger behind after every mac session and got the next push
-refused over work already done.)
+freshness ledger records them like any other derive.)
 
 ## When what runs — the whole contract
 

@@ -73,8 +73,26 @@ if (query === "" || args.includes("--help")) {
 const model = JSON.parse(readFileSync(join(ROOT, "docs/declare-model.json"), "utf8"));
 const REF = model.reference;
 const SPINE = model.spine;
+const TYPES = model.types ?? { pages: {}, order: [] };
+/** The reference PAGE a named vocabulary has — every enum and every shared type
+ *  is a page of its own (`type/<Name>`), so an answer here ends where a form's
+ *  does: with the location that documents it. */
+const typePage = (name) => TYPES.pages[name] ?? null;
 const TREE = new Map(model.tree.map((n) => [n.id, n]));
 const CONCEPTS = SPINE.concepts ?? { synonyms: {}, forms: [], negative: [] };
+
+/** Is this word a name the language actually has — a class, any class's member,
+ *  or one of the shared types and functions every `{ }` body may name? What the
+ *  CSS-instinct table must never contradict: a hint that says "X is not a
+ *  Declare name" while X is declared is the worst answer the tool can give,
+ *  because it is confident and wrong. */
+const REAL_NAMES = new Set([
+  ...Object.keys(REF).map((id) => id.split(".").pop()),
+  ...Object.keys(REF),
+  ...["interfaces", "aliases", "functions", "namespaces"].flatMap((k) => (SPINE.types?.shared?.[k] ?? []).map((x) => x.name)),
+]);
+const isRealName = (q) => REAL_NAMES.has(q) || REAL_NAMES.has(q.toLowerCase())
+  || [...REAL_NAMES].some((n) => n.toLowerCase() === q.toLowerCase());
 
 // Every class name the reference answers for (kernel + library), and every
 // attribute name any of them carries — the two unscoped candidate pools.
@@ -145,6 +163,15 @@ function sayEntry(e) {
 function sayClass(cls) {
   const s = schemaOf(cls);
   const t = TREE.get(cls);
+  // A THEME PRESET is a record, not a component: one line says how it is used,
+  // and its pair is the other appearance of the same design.
+  if (t?.kind === "theme") {
+    say(`${cls} — a theme preset (${t.appearance}) · \`theme = ${cls}\` on the App provides it · pair: ${t.pair}`);
+    if (t.doc) say(`  ${firstSentence(t.doc)}`);
+    say(`  the record: ${t.source}`);
+    json = { kind: "theme", name: cls, appearance: t.appearance, pair: t.pair, doc: t.doc ?? null };
+    return true;
+  }
   const lib = SPINE.library[cls];
   const chain = chainOf(cls);
   const head = [lib ? `library component (${lib})` : "component", s?.base ? `extends ${s.base}` : null]
@@ -212,6 +239,9 @@ function answer() {
   if (schemaOf(query) !== null) { sayClass(query); json = { kind: "class", name: query }; return true; }
 
   // exact reference id — dotted, the model's own spelling
+  // a theme preset has a reference entry but no schema, so the class path above
+  // never sees it; route it to sayClass, whose preset branch says how it is used
+  if (REF[query]?.kind === "theme") return sayClass(query);
   if (REF[query]) { sayEntry(REF[query]); json = { kind: "entry", entry: REF[query] }; return true; }
 
   // dotted: Class.member (or a near-missed class)
@@ -257,8 +287,54 @@ function answer() {
     return true;
   }
 
-  // foreign name — the hint table verbatim, then its near-misses
-  if (Object.hasOwn(CSS_ATTRIBUTE_HINTS, query)) { say(`'${query}' is not a Declare name${cssAttributeHint(query)}`); json = { kind: "foreign", name: query, hint: cssAttributeHint(query) }; return true; }
+  // A HANDLER NAME, or the event's own name. `onClick` is what an author types
+  // and what the compiler refuses when it is wrong, so it must be answerable:
+  // the events are in the reference (75 entries, `View.event.click`) and were
+  // reachable only class-qualified, which is the one spelling nobody guesses.
+  //
+  // TWO PRIORITIES, because the two spellings differ in ambiguity. `onBlur` can
+  // only be the event, so it answers ahead of everything. The bare word `blur`
+  // is far more likely to be the CSS filter an author is hunting for, and
+  // `focus`, `load` and `change` are English the concept table answers better —
+  // so a bare event name answers LAST, only if nothing else claimed it.
+  const answerEvent = (handlerOnly) => {
+    const ev = query.startsWith("on") && query.length > 2
+      ? query.charAt(2).toLowerCase() + query.slice(3) : null;
+    if (handlerOnly && ev === null) return false;
+    for (const name of ev !== null ? [ev] : [query]) {
+      const owners = CLASS_NAMES.filter((c) => (schemaOf(c)?.events ?? []).includes(name));
+      if (owners.length === 0) continue;
+      const handler = "on" + name.charAt(0).toUpperCase() + name.slice(1);
+      const payload = SPINE.events?.payload?.[name];
+      const sig = `${handler}(${payload === undefined ? "" : "e: " + payload})`;
+      const entry = owners.map((c) => REF[`${c}.event.${name}`]).find((e) => e);
+      say(`${sig} — an event on: ${owners.slice(0, ALL ? Infinity : 8).join(", ")}${owners.length > 8 && !ALL ? `, …and ${owners.length - 8} more (--all)` : ""}`);
+      if (entry) for (const line of (ALL ? entry.doc : firstSentence(entry.doc)).split("\n")) say("  " + line);
+      say(`  a handler is a method answering it: ${sig} { … }`);
+      say(`  scoped entry: declare-help ${owners[0]}.${handler}`);
+      json = { kind: "event", name, handler, payload: payload ?? null, owners };
+      return true;
+    }
+    return false;
+  };
+  if (answerEvent(true)) return true;
+
+  // foreign name — the hint table verbatim, then its near-misses.
+  //
+  // ONLY when the word is not also a real name. Six hint keys had become real
+  // (`scaleX`, `perspective`, `blur` arrived with the graphics pass; `gap`,
+  // `padding`, `position` are attributes on particular components), and because
+  // this table was consulted first and returned, the tool answered "'scaleX' is
+  // not a Declare name — per-axis scale is 'scaleX'": a denial and the answer in
+  // one sentence. A real name now answers as itself, and the instinct rides
+  // ALONG as orientation rather than replacing it — the CSS reader still learns
+  // that there is no general padding, and the Declare reader still gets
+  // `TextInput.padding`. The gate in surfaces.mjs keeps the two halves honest.
+  if (Object.hasOwn(CSS_ATTRIBUTE_HINTS, query) && !isRealName(query)) {
+    say(`'${query}' is not a Declare name${cssAttributeHint(query)}`);
+    json = { kind: "foreign", name: query, hint: cssAttributeHint(query) };
+    return true;
+  }
 
   // enum — by enum name or by an attribute that carries one
   const enumByName = Object.keys(SPINE.enums).find((k) => k.toLowerCase() === query.toLowerCase());
@@ -269,7 +345,12 @@ function answer() {
         ty.slice(5, -1).split("|").join() === SPINE.enums[enumByName].join())
       .map(([a]) => `${c}.${a}`))[0];
     if (carrier) say(`  carried by ${carrier} — full entry: declare-help ${carrier}`);
-    json = { kind: "enum", name: enumByName, tokens: SPINE.enums[enumByName] };
+    // the vocabulary's own prose and its page — the same answer the reference
+    // shows, from the same place (tools/internal/doc/prose/enums.md → model.types)
+    const page = typePage(enumByName);
+    if (page?.doc) for (const line of page.doc.split("\n\n")) say(line.replace(/\n/g, " "));
+    if (page) say(`  ${page.nUsed} use${page.nUsed === 1 ? "" : "s"} in the reference · docs: type/${enumByName}`);
+    json = { kind: "enum", name: enumByName, tokens: SPINE.enums[enumByName], docs: page ? `type/${enumByName}` : null };
     return true;
   }
   const tokensQ = query.match(/^([A-Za-z]+)\s+tokens$/);
@@ -292,9 +373,39 @@ function answer() {
     const hit = (SPINE.types.shared[list] ?? []).find((x) => x.name.toLowerCase() === query.toLowerCase());
     if (!hit) return false;
     render(hit);
-    json = { kind, entry: hit };
+    // …and what it IS. The signature alone was the whole answer for every shared
+    // name — a name, a type, and a blank body, which reads as an answer and
+    // teaches nothing. The sentence is the declaration's own doc comment in the
+    // scaffold PRELUDE, carried here by the projection and required by the
+    // completeness gate, so a new shared name cannot ship without one.
+    if (hit.doc) say(hit.doc);
+    // …and where the reference documents it. A shared type is a page like an
+    // enum is (`type/Color`), with its definition and everywhere it is used.
+    const page = typePage(hit.name);
+    if (page) say(`  ${page.nUsed} use${page.nUsed === 1 ? "" : "s"} in the reference · docs: type/${hit.name}`);
+    json = { kind, entry: hit, ...(page ? { docs: `type/${hit.name}` } : {}) };
     return true;
   };
+  /** A bare name that is a MEMBER of one of the shared interfaces. Reports every
+   *  interface carrying it (the drawing surface, a gradient), with its signature
+   *  as the interface declares it. */
+  const answerSharedMember = () => {
+    const hits = [];
+    for (const i of SPINE.types.shared.interfaces ?? []) {
+      for (const mline of i.members ?? []) {
+        const n = (mline.match(/^([A-Za-z_$][\w$]*)\s*[<(:]/) ?? [])[1];
+        if (n !== undefined && n.toLowerCase() === query.toLowerCase()) hits.push({ cls: i.name, mline, doc: i.doc ?? null });
+      }
+    }
+    if (hits.length === 0) return false;
+    for (const h of hits) {
+      say(`${h.mline.trim()} — a member of ${h.cls}, a shared interface every { } body may name`);
+      if (h.cls === "Draw") say(`  the drawing surface: a \`draw(d: Draw)\` member receives it — declare-help View.method.draw`);
+    }
+    json = { kind: "shared-member", name: query, on: hits.map((h) => h.cls) };
+    return true;
+  };
+
   const answerShared = () =>
     sharedHit("shared-interface", "interfaces", (i) => {
       say(`${i.name} — a shared interface: every { } body may name it${i.name === "Draw" ? " (the argument of a draw(d: Draw) member — declare one on any view for custom drawing)" : ""}${i.extends ? ` · extends ${i.extends}` : ""}`);
@@ -335,12 +446,18 @@ function answer() {
   }
   if (answerShared()) return true;
 
+
   // a case-only miss on a class name answers AS the class — `button`, `image`,
   // `checkbox` are the HTML spellings of things the library ships, and the
   // member table beats a did-you-mean. After attributes (so `text` stays the
   // attribute it also is), before concepts and near-misses.
   const ciClass = CLASS_NAMES.find((c) => c.toLowerCase() === query.toLowerCase());
   if (ciClass) { sayClass(ciClass); json = { kind: "class", name: ciClass }; return true; }
+
+  // the bare event word, last: after attributes, shared types and class names,
+  // so `focus` stays the focus SERVICE and `text` stays the attribute, while
+  // `click` — a word nothing else owns — reaches its event.
+  if (answerEvent(false)) return true;
 
   // concept — the curated synonym table, then negative knowledge, then retrieval
   const norm = query.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
@@ -387,6 +504,18 @@ function answer() {
       return true;
     }
   }
+
+  // A MEMBER of a shared interface, by its bare name — `fillText`, `beginPath`,
+  // `addColorStop`. The drawing surface is reached through a PARAMETER
+  // (`draw(d: Draw)`), so its members carry no dotted id in the reference and no
+  // spelling answered them: `fillText` fell through to the generic miss while
+  // `measureText` beside it answered cleanly.
+  //
+  // Placed HERE, after the curated knowledge, and that position is the whole
+  // subtlety: `key` is a NEGATIVE entry — the language infers identity and has no
+  // `key` attribute — and it is also `KeyEvent.key`. Answering the member first
+  // replaced a ruling with a coincidence.
+  if (answerSharedMember()) return true;
   // multiword: any word that is a synonym answers (the "cover crop" case)
   const words = norm.split(" ");
   for (let span = Math.min(3, words.length); span >= 1; span--) {
@@ -443,6 +572,13 @@ function answer() {
 }
 
 const answered = answer();
+
+// A word that is BOTH a real name and a CSS instinct gets the real answer above
+// and the orientation here — the reader arriving from CSS still learns that there
+// is no general padding, and is not told the name does not exist.
+if (answered && json?.kind !== "foreign" && Object.hasOwn(CSS_ATTRIBUTE_HINTS, query)) {
+  say(cssAttributeHint(query).replace(/^\s*—\s*/, ""));
+}
 
 if (!answered) {
   const searched = `reference (${Object.keys(REF).length} entries), classes (${CLASS_NAMES.length}), enums, diagnostics, the hint tables, and the concept table`;

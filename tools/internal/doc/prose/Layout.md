@@ -1,6 +1,6 @@
 The abstract base every layout strategy **extends** — never used directly
 (`layout: Layout [ ]` names no arrangement and is a pointed error). A strategy
-IS its `place()`: pure geometry from the strategy's own attributes and its
+**is** its `place()`: pure geometry from the strategy's own attributes and its
 view's box, one box per managed child. The standard library's strategies are
 ordinary Declare classes over this base — `SimpleLayout`, `WrappingLayout`,
 `ResponsiveLayout` — and yours is written the same way:
@@ -106,6 +106,16 @@ names the child's class and the rewrite (declare `baseline: number = { … }`, o
 `align = baseline` on a **stack** — a y-axis `SimpleLayout`, whose cross axis is x — has no
 line to sit on. A strategy calls this once from `place()` and falls back to `start`; the
 kernel reports it once per layout. The checker refuses the literal form outright.
+
+## viewExtent()
+The **band an alignment places children in**: the arranged view's own extent on `size`
+(`"width"` or `"height"`) — or **0 when that extent is measured from the very children this
+strategy lays**, where reading it would close the one-pass discipline's forbidden cycle.
+Fold it in with `Math.max(line, this.viewExtent(size))`: on a view that sizes itself from
+its children the answer is 0 and the line stands (and the two agree anyway — an aligned
+run's extent *is* its widest child); on a view that was told its size the band is the box
+the author drew, which is what `align = center` has always meant. The read is tracked, so a
+parent that resizes re-places its aligned children.
 
 ## attachTo()
 Binds this strategy to a view. Setting a `layout:` member does it for you; a strategy

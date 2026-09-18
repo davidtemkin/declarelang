@@ -10,7 +10,7 @@ function warnMaskStencil() {
     if (maskWarned)
         return;
     maskWarned = true;
-    console.warn("[declare] a mask stencil on the DOM renderer must be an Image or a view with draw() — its alpha is what CSS mask-image can take; other stencils mask on the canvas and Mac renderers only.");
+    console.warn("[Declare] a mask stencil on the DOM renderer must be an Image or a view with draw() — its alpha is what CSS mask-image can take; other stencils mask on the canvas and Mac renderers only.");
 }
 /** `colorize(color)` in a filter list has no CSS function: it is an SVG
  *  `feColorMatrix` that maps every pixel to the colour and keeps alpha —

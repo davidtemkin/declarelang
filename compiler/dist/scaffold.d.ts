@@ -8,6 +8,17 @@ import type { ClassDecl, SchemaDecl } from "../../runtime/dist/parser.js";
  *  admitted by the resolver, refused by the checker — field report
  *  2026-08-21). */
 export declare const PRELUDE_NAMES: ReadonlySet<string>;
+/** The HOST's surface, not the language's. These are declared in the prelude so a
+ *  handler typechecks against the real shape each has in every host Declare runs
+ *  in — the checker loads no DOM lib, because its `Text`/`Image` would collide
+ *  with the components. They are documented as a POLICY (what a body may reach
+ *  for, and why script is the place for the rest), never name by name: Declare
+ *  does not own `fetch`, and restating MDN here would go stale.
+ *
+ *  The doc gate requires prose for every shared prelude name EXCEPT these, which
+ *  is what makes a NEW language-owned name fail the gate instead of shipping
+ *  undocumented. Add a name here only when the host owns it. */
+export declare const HOST_GLOBALS: ReadonlySet<string>;
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
  *  emitted in the prelude / near-use; component references the peer
@@ -63,6 +74,15 @@ export declare const LANGUAGE_API: Readonly<Record<string, readonly string[]>>;
  *  divergent accessors: `get(): number; set(v: Length)`. Symmetric kinds stay
  *  plain members. */
 export declare function memberSig(name: string, t: AttrType, nonNullColor?: boolean, readOnly?: boolean): string[];
+/** The names a built-in schema's runtime class implements as methods that the
+ *  reference does NOT document as its callable surface — runtime plumbing
+ *  (`DataSource.maybeAuto`, `Animator.tick`, `View.attach`). Overriding one is
+ *  legal (a method is a method) and warned (Diag.overridesPlumbing): the
+ *  runtime calls it on its own schedule, and the reference states no contract.
+ *  Documented = named in LANGUAGE_API up the schema chain, or in
+ *  PROSE_DOCUMENTED; test/override-runtime.test.mjs pins this set against the
+ *  doc model's own api/structural split, member by member. */
+export declare function runtimePlumbing(schema: string): ReadonlySet<string>;
 /** Generate the scaffold for a program: the fixed prelude, the enum type
  *  aliases every schema references, and one `declare class` per schema (built-in
  *  + user), base-before-derived. Pure — the returned STRING is the whole

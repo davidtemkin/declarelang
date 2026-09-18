@@ -2,7 +2,7 @@
 # Bar
 
 A labeled horizontal value bar: an optional caption, then a rounded track filled to
-`value`. A **placeholder component** (composition.md §1a) — coherent and restyleable,
+`value`. A **placeholder component** — coherent and restyleable,
 but not the final widget. For a themed, theme-tracking meter reach for `ProgressBar`
 instead; `Bar` exists for demos and dashboards that want a caption and their own colour.
 
@@ -23,8 +23,8 @@ The caption to the left of the track. `""` drops the caption column entirely and
 track takes the full width.
 
 ## tint
-The fill colour. **The one restyling knob** — `Bar` predates the theme tokens and
-carries literal defaults, so it does not follow a theme the way library controls do.
+The fill colour. **The one restyling knob** — `Bar` carries literal colour defaults
+rather than theme tokens, so it does not follow a theme the way library controls do.
 
 ## lead
 The caption column's width, derived from whether there is a `label` at all. Set it to

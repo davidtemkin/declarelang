@@ -198,13 +198,22 @@ const PERCENT_AXIS: Readonly<Record<string, "width" | "height">> = {
   height: "height",
 };
 
+/** The axis `name` resolves a percent against, or null when it has none — the
+ *  one reading of the table above, so a caller that must REFUSE a percent
+ *  before binding it (rich text's inline views: a tag attribute is refused
+ *  through the component's `unsupported` policy, never thrown mid-render) asks
+ *  the same question bindPercent answers. */
+export function percentAxis(name: string): "width" | "height" | null {
+  return Object.hasOwn(PERCENT_AXIS, name) ? PERCENT_AXIS[name] : null;
+}
+
 /** Bind `name = p%` as the runtime constraint described above. The root has
  *  no parent to resolve against — that is an instantiation-context fact, not
  *  a source fact (the same fragment could be checked for embedding
  *  elsewhere), which is why it surfaces here and not in check(). */
 export function bindPercent(view: View, name: string, percent: number, pos: Pos): void {
   const cls = view.constructor.name;
-  const axis = Object.hasOwn(PERCENT_AXIS, name) ? PERCENT_AXIS[name] : null;
+  const axis = percentAxis(name);
   if (axis === null) {
     throw new DeclareError(`${cls}.${name} = ${percent}%: no axis to resolve a percent against`, pos);
   }

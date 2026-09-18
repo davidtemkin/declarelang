@@ -139,10 +139,28 @@ export const SURFACES = [
       const got = model.spine?.types?.shared;
       if (!got) return ["spine.types.shared is missing — the PRELUDE projection did not run"];
       const projected = new Set(Object.values(got).flat().map((x) => x.name));
+      // Every language-owned shared name must carry PROSE. The projection reads
+      // each declaration's own doc comment in the PRELUDE (assemble.mjs
+      // preludeDocs), so the sentence lives where the thing is declared and
+      // reaches both the reference and `declare-help`. Without this gate a new
+      // shared type or function shipped answering with a signature and a blank
+      // body — which reads as an answer and teaches nothing. The exemption is
+      // declared IN THE CODE (scaffold HOST_GLOBALS): the host's own surface is
+      // documented as a policy, never name by name.
+      const { HOST_GLOBALS } = await import("../../../compiler/dist/scaffold.js");
+      const undocumented = [];
+      for (const [group, items] of Object.entries(got)) {
+        for (const it of items) {
+          if (HOST_GLOBALS.has(it.name)) continue;
+          const kind = { interfaces: "interface", aliases: "type alias", functions: "function", namespaces: "namespace" }[group] ?? group;
+          if (!it.doc) undocumented.push(`${it.name} — a shared ${kind} with no prose: add a /** … */ above its declaration in the scaffold PRELUDE (or list it in HOST_GLOBALS if the host owns it)`);
+        }
+      }
       return [
         ...declared.filter((n) => n !== "console" && !projected.has(n)).map((n) => `${n} — declared in the check block, absent from the projection`),
         // an interface that parsed to nothing is how a broken parser announces itself
         ...got.interfaces.filter((i) => !i.members.length).map((i) => `${i.name} — projected with no members, so the parser lost its shape`),
+        ...undocumented,
       ];
     },
   },
@@ -194,9 +212,26 @@ export const SURFACES = [
   // decision rather than an oversight — and so the spine-coverage check below has
   // somewhere to point when one of them grows a description worth holding.
   {
-    id: "enums", label: "enum token vocabularies", source: "schema enum types",
-    docsLive: "Vocabulary → Enums", spineKeys: ["enums"], gated: false,
-    why: "token lists, not prose — the tokens ARE the documentation, and the schema is their only source",
+    id: "enums",
+    label: "every enum vocabulary has a page and prose",
+    source: "schema enum types",
+    docsLive: "tools/internal/doc/prose/enums.md → the type page (type/<Name>)",
+    spineKeys: ["enums"],
+    gated: true,
+    // Was ungated, on the reasoning that "the tokens ARE the documentation".
+    // They are not: a reader who meets `motion: Motion` in a signature gets a
+    // name with nothing behind it, and a token list answers neither what the
+    // vocabulary selects nor how to choose within it. Every enum now has a page
+    // of its own with that paragraph, and this is what keeps a new one from
+    // shipping blank.
+    async check(model) {
+      const pages = model.types?.pages ?? {};
+      return Object.keys(model.spine?.enums ?? {}).flatMap((n) => {
+        if (!pages[n]) return [`${n} — no type page: file it in TYPE_GROUPS (tools/internal/doc/assemble.mjs)`];
+        if (!(pages[n].doc ?? "").trim()) return [`${n} — a page with no prose: add '## ${n}' to tools/internal/doc/prose/enums.md`];
+        return [];
+      });
+    },
   },
   {
     id: "colors", label: "named colors", source: "CSS_COLORS (runtime/src/css-colors.ts)",
@@ -227,6 +262,15 @@ export const SURFACES = [
     id: "commands", label: "the operations registry", source: "tools/internal/ops.mjs",
     docsLive: "operational/", spineKeys: ["commands"], gated: false,
     why: "gated by EXECUTION instead — ops.test runs every test:true entry against its declared expectation, which is stronger than a prose check",
+  },
+  {
+    id: "instincts",
+    label: "declare-help's foreign-name hints",
+    source: "runtime/src/teach.ts CSS_ATTRIBUTE_HINTS",
+    docsLive: "operational/help.md",
+    spineKeys: [],
+    gated: false,
+    why: "gated by EXECUTION instead — declare-help.test asserts that no hint key which is ALSO a real Declare name is answered with 'is not a Declare name'. Six keys had quietly become real (scaleX, perspective and blur with the graphics pass; gap, padding and position are attributes on particular components) and the tool denied all six while naming the answer in the same sentence. A collision is now SUPPORTED — the real name answers as itself and the instinct rides along — so the invariant to hold is the behaviour, not the absence of overlap",
   },
   {
     id: "concepts", label: "declare-help's concept table", source: "tools/internal/doc/concepts.json",

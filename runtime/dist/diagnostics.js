@@ -211,7 +211,18 @@ export const Diag = {
     /** A `shows` name that no initial `location` can ever equal — the screen is
      *  born hidden and nothing says so (field report 2026-09-04: `location = ""`
      *  with `shows = "home"` rendered display:none, silently, forever). */
-    showsUnreachable: (name, initial, names, pos) => err(code4(4008), `shows = ${JSON.stringify(name)}, but this program's initial location is ${initial === "" ? "empty" : JSON.stringify(initial)} — a 'shows' name IS the visibility gate (it lowers to app.destinationOf(app.location) == the name), so nothing here is visible on a cold load. Set App's location to one of ${names.map((n) => JSON.stringify(n)).join(" | ")}, or give this view its own 'visible'`, pos), scriptWrite: (name, pos) => err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
+    showsUnreachable: (name, initial, names, pos) => err(code4(4008), `shows = ${JSON.stringify(name)}, but this program's initial location is ${initial === "" ? "empty" : JSON.stringify(initial)} — a 'shows' name IS the visibility gate (it lowers to app.destinationOf(app.location) == the name), so nothing here is visible on a cold load. Set App's location to one of ${names.map((n) => JSON.stringify(n)).join(" | ")}, or give this view its own 'visible'`, pos),
+    // A WARNING: a program overrides a runtime method the reference documents
+    // no contract for. A method is a method, so the override stands — but the
+    // runtime calls this one on its own schedule, with its own arguments.
+    overridesPlumbing: (owner, name, base, pos) => err(code4(4009), `${owner}.${name}() replaces ${base}'s ${name}(), which is runtime plumbing — the reference documents no contract for it: the runtime calls it when and how it needs to, and a later version may change either. The override stands (super.${name}(…) reaches the runtime's); if this was meant as a method of your own, choose another name`, pos),
+    // A WARNING: a class named exactly like a tag the rich-text whitelist owns.
+    // Inside `Markdown`/`HTMLText` content a tag is resolved against the program's
+    // classes BEFORE the whitelist, so the class takes the tag over — defined
+    // behaviour, and a legal class, which is why this is a warning and not an
+    // error. Only raised when the program actually renders rich text.
+    shadowsRichTextTag: (name, pos) => err(code4(4010), `class ${name} hides the rich-text tag <${name}> — inside Markdown or HTMLText content a tag is resolved against this program's own classes before the HTML whitelist, so every <${name}> in a document builds one ${name} view, not the tag. Rename the class if the content means the tag`, pos),
+    scriptWrite: (name, pos) => err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
     // `classroot` reaches the root of the component (class) you are defining, so it
     // is meaningful ONLY inside a class body. `where` names the non-class body the
     // code is actually in ("the App", "a style bundle").
@@ -304,6 +315,8 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4006), phase: "name", summary: "a per-frame Time's onTick ignores dt — polling, not integration (warning)" },
     { code: code4(4007), phase: "name", summary: "a { } reads the ambient clock (Date.now(), new Date()) — a stopped clock (warning)" },
     { code: code4(4008), phase: "name", summary: "no 'shows' name matches the initial location — every screen starts hidden (warning)" },
+    { code: code4(4009), phase: "name", summary: "a method replaces a built-in's runtime plumbing — no documented contract (warning)" },
+    { code: code4(4010), phase: "name", summary: "a class is named like a rich-text tag — that tag builds this class inside content (warning)" },
     { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
     { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
     { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

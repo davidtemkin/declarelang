@@ -3,7 +3,7 @@ positioned overlay on canvas) so caret, selection, IME, and accessibility are th
 platform's, not reimplemented. It fires `input` on every edit and `enter` on a single-line
 submit, and inherits View's focus and keyboard events.
 
-It is also the first **Editor**: bind `text <-> :path` to edit a dataset record two-way — the
+It is also an **Editor**: bind `text <-> :path` to edit a dataset record two-way — the
 field reads the datapath, commits edits back into the dataset, and reseeds when the cursor
 moves to a new record. The dataset owns the committed value; the field owns the *edit session*
 — its draft plus `valid` / `error` / `dirty`. Supply a `validate(v: string)` method for a domain rule
@@ -85,3 +85,29 @@ moment — so `field.select("start")` on a freshly loaded draft puts the caret a
 top instead of the platform's end-of-value default. A pointer click into the field
 keeps the clicked caret: a deliberate click names a spot, and outranks a held
 selection by the platform's own ordering.
+
+## textColor
+The colour of the text being edited. Like the rest of the face it defaults to
+the nearest **provided** value, so a field inside a themed region matches the prose
+around it without being told.
+
+## fontSize
+The size of the text being edited, defaulting to the provided value. Worth
+one caution: iOS zooms the page toward any focused field below 16, and back out on
+blur, so a small field moves the whole viewport. The checker warns about it.
+
+## fontFamily
+The face the field types in — a family string, a `Font`, or a list of
+them — defaulting to the provided value so an editor inherits its region's face.
+
+## fontWeight
+The weight of the text being edited, defaulting to the provided value.
+
+## letterSpacing
+Tracking for the text being edited, defaulting to the provided value.
+A field and the label beside it stay in step because both read the same provision.
+
+## selectable
+Whether the text can be selected. A field's own content is always
+editable and therefore selectable while focused; this is the slot that opts a
+read-only field's text into ordinary selection, or out of it.

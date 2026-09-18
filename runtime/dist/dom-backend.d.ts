@@ -1,4 +1,4 @@
-import { type MaskSpec, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type Stretch, type Surface } from "./backend.js";
+import { type MaskSpec, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type SlotBox, type Stretch, type Surface } from "./backend.js";
 import { type Affine } from "./affine.js";
 import { type Fill, type Radius, type Shadow, type Stroke, type Filter } from "./value.js";
 import { type TextStyle } from "./measure.js";
@@ -36,9 +36,14 @@ export declare class DomSurface implements Surface {
     private textEl;
     private editEl;
     private edit;
-    private richEl;
-    private richObserver;
-    private onRichResize;
+    /** package-private: the rich-text flow module (dom-rich.ts) owns these four —
+     *  the flowing content element, the observer watching its height, and the two
+     *  callbacks a flow reports through (`onRichSlots` is set per setRichContent;
+     *  undefined for content with no inline views). */
+    richEl: HTMLDivElement | null;
+    richObserver: ResizeObserver | null;
+    onRichResize: ((height: number) => void) | undefined;
+    onRichSlots: ((boxes: Record<string, SlotBox>) => void) | undefined;
     /** package-private: a mask stencil's users read these (applyMask) */
     imgEl: Bitmap | null;
     drawEl: HTMLCanvasElement | null;
@@ -285,24 +290,13 @@ export declare class DomSurface implements Surface {
     private wheelXListener;
     private scrollXListener;
     setScrollX(on: boolean, onScroll?: (x: number) => void, _onScrolling?: (active: boolean) => void): void;
-    /** Native rich-text flow (RichText). Build ONE flowing content element — a block
-     *  per RichBlock (real `<p>`/`<h*>` for a11y), inline runs in NORMAL flow (a
-     *  `<span>`/`<code>`) — so the browser wraps, aligns baselines, and lets the user
-     *  select/copy/find contiguously. Returns the measured (flowed) height. */
-    /** Width-only follow-up to setRichContent: the host tracks the flow's width
-     *  (it bounds a pre block's native horizontal scroller) without re-flowing —
-     *  the cheap half the all-`pre` reflow early-out still needs. */
+    get richInlineSlots(): boolean;
     setRichWidth(width: number): void;
-    /** Clamp the flow to `maxLines` (0 lifts the clamp), and answer its new height.
-     *
-     *  `-webkit-line-clamp` on the flow HOST rather than on a block: the host is
-     *  one `-webkit-box` and a clamp there counts lines ACROSS its block children,
-     *  which is the cross-block semantics the model wants and not the usual use of
-     *  the property. Measured on the probe flow: 209px unclamped, 126px at five
-     *  lines, 81px at three, later blocks gone. The browser ends the last kept line
-     *  with its own ellipsis, because it is the one that wrapped it. */
     setRichClamp(maxLines: number): number;
-    setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void): number;
+    setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void, onSlots?: (boxes: Record<string, SlotBox>) => void): number;
+    /** dom-backend's coalesced iOS selectable-region refresh, reached from the
+     *  rich-flow module (its pending list is shared with the plain text leaves). */
+    refreshSelectable(el: HTMLElement): void;
     setEmbed(id: string, view?: unknown): void;
     setInput(sink: InputSink | null, wants?: InputWants): void;
     private wheelListener;

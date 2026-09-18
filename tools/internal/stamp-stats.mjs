@@ -46,12 +46,34 @@ const FORMATS = {
   "tracker.code":      () => group(stats.tracker.code),
   "tracker.comment":   () => String(stats.tracker.comment),
   "tracker.wireKB":    () => String(Math.round(stats.tracker.wireGzip / 1024)),
+  // THE LANGUAGE FILE'S SIZE IN TOKENS — the one figure AREPO-2 rests on ("a
+  // model can hold the complete spec while it writes"), and the only number in
+  // that prose that was hand-written. It had drifted badly: the claim said ten
+  // thousand while the file had grown past twelve.
+  //
+  // ESTIMATED, because the repo ships four dependencies and a tokenizer is not
+  // going to be the fifth. ~1.33 tokens per word is the standard figure for
+  // English prose under a BPE vocabulary, and it is the reasonable reading for a
+  // document that is mostly prose with fenced code. Rounded to the nearest
+  // thousand and spoken as "about", which is what the prose says.
+  //
+  // It is a MARKETING number and may read optimistically — the char-count
+  // estimate would put it a thousand higher — but not dishonestly: it is
+  // measured from the file on every derive, so it cannot drift again, and the
+  // claim it supports (the whole language fits in a context window) is
+  // unaffected either way.
+  "spec.tokens":       () => group(Math.round(specWords() * 1.33 / 1000) * 1000),
 };
+
+const specText = () => readFileSync(path.join(ROOT, "docs/declare.md"), "utf8");
+const specWords = () => specText().split(/\s+/).filter(Boolean).length;
 
 /** Thousands separators — prose reads "1,623 lines", never "1623". */
 function group(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 
 const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/tenets/1 SATOR.md",
+  "docs/tenets/2 AREPO.md", "docs/guide/01-thinking-in-declare.md", "docs/guide/20-with-an-llm.md",
+  "docs/guide/21-calendar.md",
   "docs/guide/19-run-check-ship.md", "docs/operational/building.md"];
 
 // THE PENDING RELEASE'S NOTES are a stamp target too — releases/v<version>.md

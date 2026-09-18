@@ -1,14 +1,14 @@
 /*
 # Declare docs
 
-The Declare reference, rendered AS a Declare app — self-hosted: Declare
-documenting Declare. It loads docs-model.json — the extractor's output
-(tools/internal/doc/extract.mjs), one walkable data structure — and renders a
-navigable class reference: a left rail of components, a detail pane with each
-class's Markdown prose and an attributes table, every doc string rendered by
-the runtime Markdown component. This one app is both the in-browser docs and
-(once built) the web docs; the live object browser is this same view reached
-from an instance.
+The Declare documentation, rendered as a Declare app — self-hosted: Declare
+documenting Declare. It loads `docs/declare-model.json` — the extractor's
+output (tools/internal/doc/extract.mjs), one walkable data structure — and
+renders three modes over it: the guide, chapter by chapter; the language, one
+page per form the grammar accepts; and the class reference, a page per
+component with its prose, members, and live examples. A left rail navigates
+the mode, a detail pane reads it, and every doc string is rendered by the
+runtime's own Markdown component.
 
 `{ }` bodies are TypeScript → `0x…` colors and expressions; `[ ]` literal
 slots take `#…` / named colors. Every color reads `theme.<token>` — one
@@ -21,33 +21,28 @@ use [ SunIcon, AutoIcon, MoonIcon ]
 /*
 ## Type tokens
 
-Selection is a PROVIDED value: these tokens don't opt in themselves — the
+Selection is a provided value: these tokens don't opt in themselves — the
 detail pane sets `selectable = true` on its container, so all right-pane text
 (including Markdown prose) is selectable, while the left rail stays
 unselectable chrome.
 */
 
-class Title extends Text [ fontFamily = ["system-ui", "sans-serif"],
-    fontWeight = semibold, textColor = { provided("theme").text }
-    ]
+class Title extends Text [ fontWeight = semibold, textColor = { provided("theme").text } ]
 
+class Muted extends Text [ textColor = { provided("theme").textMuted } ]
 
-class Muted extends Text [ fontFamily = ["system-ui", "sans-serif"],
-    textColor = { provided("theme").textMuted }
-    ]
-
-
-class Mono extends Text [ fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"] ]
+class Mono extends Text [ fontFamily = { app.mono } ]
 
 // a component tab in the left rail — selection is one App attribute
-// (`app.selected`, the class name); a tab lights when it matches and sets it
-// on click, so the whole navigator is one string
+// (`app.selected`, the class name); a tab lights when it matches and writes
+// the location on click, so the whole navigator is one string
 
 class ClassTab extends View [ width = { parent.width }, height = 30, cornerRadius = 6,
     cname:   string = "",
     lit: boolean = { app.mode == "reference" && app.selected == classroot.cname },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
-    onClick()     { app.refAt = classroot.cname; app.location = "reference/" + classroot.cname; app.showPage() },
+    link = { "#reference/" + cname },
+    onClick()     { app.goRef(classroot.cname) },
     lbl: Mono [ x = 24, y = 7, fontSize = 14, wrap = false,
         text = { classroot.cname },
         textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
@@ -70,7 +65,7 @@ class FoldHead extends View [ width = { parent.width }, height = 28, cornerRadiu
     onClick() { manual = !open; manualAt = app.page },
     mark: Mono [ x = 8, y = 8, fontSize = 10, wrap = false, textColor = { provided("theme").textMuted },
         text = { classroot.open ? "\u25BC" : "\u25B6" } ],
-    lbl: Text [ x = 24, y = 6, fontFamily = ["system-ui", "sans-serif"], fontSize = 14, fontWeight = semibold, wrap = false,
+    lbl: Text [ x = 24, y = 6, fontSize = 14, fontWeight = semibold, wrap = false,
         text = { classroot.label },
         textColor = { classroot.contains ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -95,9 +90,9 @@ class ClassGroup extends View [ width = { parent.width },
 
 The chips, links, rows, and strips a class page is built from. A chip is a
 member name in a tinted pill — attribute teal, method blue, event amber, class
-accent — and a class chip is a LINK: a location write, exactly as a rail tab.
+accent — and a class chip is a link: a location write, exactly as a rail tab.
 Every row of mixed type is a baseline row (`align = baseline`), and every
-composite in one CLAIMS its baseline.
+composite in one claims its baseline.
 */
 
 class Eyebrow extends Mono [ fontSize = { 11 * app.fontScale }, letterSpacing = 1.2, wrap = false,
@@ -132,7 +127,7 @@ class Chip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
            : provided("theme").chipBg },
     cursor = { cls != "" ? "pointer" : "default" },
     link = { cls != "" ? "#reference/" + cls : "" },
-    onClick() { if (cls != "") { app.refAt = cls; app.location = "reference/" + cls; app.showPage() } },
+    onClick() { if (cls != "") app.goRef(cls) },
     lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
         text = { classroot.label },
         textColor = { classroot.kind == "class"  ? provided("theme").accent
@@ -140,6 +135,62 @@ class Chip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
                     : classroot.kind == "event"  ? provided("theme").chipAmber
                     : classroot.kind == "token"  ? provided("theme").code
                     : provided("theme").chipTeal } ]
+    ]
+
+
+/*
+## Linked signatures
+
+A type printed in a signature is a NAME, and a name with a page behind it is a
+link. `app.typeLoc` answers where a printed type is documented — by name
+(`Color`, `Motion`, and every class), or by the TOKEN LIST a named enum prints
+as (`left | center | right` is `TextAlign`), which is the spelling the reference
+shows and so the spelling matched. A type with no page answers `""` and renders
+exactly as it did: the same face, the same tint, no cursor and no link.
+
+`SigRun` is the same answer for a whole signature — `onKeyDown(e: KeyEvent)`,
+`set(path: string, v: unknown): void` — split into runs, each identifier that
+names a page carrying it and everything between them left alone.
+*/
+
+class LocChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
+    baseline: number = { this.lbl.y + this.lbl.baseline },
+    label: string = "",
+    to:    string = "",                    // a docs location ("type/Color", "reference/View"), or "" for no link
+    tone:  Color  = { provided("theme").accent },
+    width = { this.lbl.width + 16 },
+    fill = { hovered && to != "" ? provided("theme").chipHov : provided("theme").chipBg },
+    cursor = { to != "" ? "pointer" : "default" },
+    link = { to != "" ? "#" + to : "" },
+    onClick() { if (to != "") app.goLoc(to) },
+    lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
+        text = { classroot.label },
+        textColor = { classroot.tone } ]
+    ]
+
+
+class SigRun extends View [
+    sig:    string = "",
+    size:   number = 15,
+    weight: number = 400,                  // the hundreds ARE the weight keywords (FontWeight)
+    dim:    Color  = { provided("theme").text },   // the colour of every run that is not a link
+    parts: Dataset [ contents = { { items: app.typeParts(classroot.sig) } } ],
+    width  = { this.run.width },
+    height = { this.run.height },
+    run: View [ datapath = { classroot.parts.value },
+        width = { this.contentWidth }, height = { this.contentHeight },
+        layout: SimpleLayout [ axis = x, spacing = 0 ],
+        Mono [ datapath = :items[], wrap = false,
+            fontSize = { classroot.size * app.fontScale },
+            fontWeight = { classroot.weight },
+            cursor = { :to != "" ? "pointer" : "default" },
+            link = { :to != "" ? "#" + :to : "" },
+            onClick() { if (:to != "") app.goLoc("" + :to) },
+            textColor = { :to == "" ? classroot.dim
+                        : hovered ? provided("theme").accent : provided("theme").accentSecondary },
+            text = { "" + :t }
+            ]
+        ]
     ]
 
 
@@ -168,7 +219,7 @@ class JumpLink extends View [
     onClick() { if (to != null) to.scrollIntoView() },
     row: View [ x = 12, y = { 5 * app.fontScale }, width = { this.contentWidth }, height = { 18 * app.fontScale },
         layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
-        name: Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
+        name: Text [ fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
             textColor = { provided("theme").accent }, text = { classroot.label } ],
         n: Mono [ fontSize = { 12 * app.fontScale }, wrap = false, textColor = { provided("theme").sigDim }, text = { "" + classroot.count } ]
         ]
@@ -178,7 +229,7 @@ class JumpLink extends View [
 /*
 ## The wrapping chip
 
-A chip in an inherited strip is a RUN OF WORDS, each word its own tinted box,
+A chip in an inherited strip is a run of words, each word its own tinted box,
 abutting — invisibly one chip while it fits. When the label is wider than the
 column the chip takes the whole width and its words wrap inside it, the
 continuation rows stepped in by the run's `hangingIndent`. Rounding is the
@@ -196,14 +247,13 @@ class WrapChip extends View [
 
     // wider than the column? then the chip is the column, and its words wrap
 
-    long:  boolean = { this.probe.width + 16 > parent.width },
+    long:  boolean = { measureText(label, ({ fontSize: 13 * app.fontScale, fontFamily: app.mono })).width + 16 > parent.width },
     width  = { long ? parent.width : this.run.contentWidth },
     height = { this.run.contentHeight },
     cursor = "pointer",
     link = { "#reference/" + cls },
-    onClick() { app.refAt = cls; app.location = "reference/" + cls; app.showPage() },
-    probe: Mono [ visible = false, fontSize = { 13 * app.fontScale }, wrap = false, text = { classroot.label } ],
-    words: Dataset [ contents = { { items: app.wordsOf(classroot.label) } } ],   // the words as DECLARED data — a cursor root
+    onClick() { app.goRef(cls) },
+    words: Dataset [ contents = { { items: app.wordsOf(classroot.label) } } ],   // the words as declared data — a cursor root
 
     // the run's width never comes from the chip (whose width follows the run's
     // content — a cycle): the column when long, else unbounded, pointer-transparent
@@ -212,8 +262,8 @@ class WrapChip extends View [
         datapath = { classroot.words.value },
         layout: WrappingLayout [ spacing = 0, lineSpacing = 4, hangingIndent = 24 ],
         View [ datapath = :items[], height = { 24 * app.fontScale },
-            first: boolean = { this.$data("i") == 0 },
-            last:  boolean = { this.$data("i") == classroot.n - 1 },
+            first: boolean = { :i == 0 },
+            last:  boolean = { :i == classroot.n - 1 },
             width = { this.t.width + (first ? 8 : 0) + (last ? 8 : 0) },
             cornerRadius = { [first ? 6 : 0, last ? 6 : 0, last ? 6 : 0, first ? 6 : 0] },
             fill = { classroot.hovered ? provided("theme").chipHov
@@ -221,7 +271,7 @@ class WrapChip extends View [
                    : classroot.kind == "event"  ? provided("theme").echipBg
                    : provided("theme").chipBg },
             t: Mono [ x = { parent.first ? 8 : 0 }, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
-                text = { "" + this.$data("w") },
+                text = { "" + :w },
                 textColor = { classroot.kind == "method" ? provided("theme").chipBlue
                             : classroot.kind == "event"  ? provided("theme").chipAmber
                             : provided("theme").chipTeal } ]
@@ -254,7 +304,6 @@ class OverrideLine extends View [ width = { parent.width },
 
 
 class AttrRow extends View [ width = { parent.width },
-    aname: string = { :name },
     live:  boolean = false,                 // page-active, threaded down to any inline island
 
     // a long or multi-line `{ … }` default leaves the signature line and sits on its
@@ -263,21 +312,36 @@ class AttrRow extends View [ width = { parent.width },
     long: boolean = { ("" + (:default ?? "")).length > 44 || ("" + (:default ?? "")).indexOf("\n") >= 0 || this.longType },
 
     // a long union type (blendMode's eleven modes) leaves the line the same way and
-    // WRAPS — an unwrapped line wider than the pane is what a click-to-jump scrolled
-    // the whole page sideways against (2026-09-11)
+    // wraps — an unwrapped line wider than the pane would let a click-to-jump scroll
+    // the whole page sideways
 
     longType: boolean = { ("" + :type).length > 56 },
+
+    // the printed type's own page, when it has one — a name, or a named enum's
+    // token list. "" (no page) leaves the run exactly as it renders today.
+
+    typeTo: string = { app.typeLoc("" + :type) },
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
     sig: View [ width = { parent.width },
         layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { :name } ],
-        Mono [ fontSize = { 15 * app.fontScale }, textColor = { provided("theme").accentSecondary }, visible = { !classroot.longType }, text = { ": " + :type } ],
+        ty: Mono [ fontSize = { 15 * app.fontScale }, visible = { !classroot.longType }, text = { ": " + :type },
+            textColor = { classroot.typeTo != "" && this.hovered ? provided("theme").accent : provided("theme").accentSecondary },
+            cursor = { classroot.typeTo != "" ? "pointer" : "default" },
+            link = { classroot.typeTo != "" ? "#" + classroot.typeTo : "" },
+            onClick() { if (classroot.typeTo != "") app.goLoc(classroot.typeTo) }
+            ],
         Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { !classroot.long },
             text = { :default != null ? "= " + :default : "" } ]
         ],
-    longTypeLine: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 14 * app.fontScale }, lineHeight = 1.45, textColor = { provided("theme").accentSecondary },
-        visible = { classroot.longType }, text = { ": " + :type } ],
+    longTypeLine: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 14 * app.fontScale }, lineHeight = 1.45,
+        visible = { classroot.longType }, text = { ": " + :type },
+        textColor = { classroot.typeTo != "" && this.hovered ? provided("theme").accent : provided("theme").accentSecondary },
+        cursor = { classroot.typeTo != "" ? "pointer" : "default" },
+        link = { classroot.typeTo != "" ? "#" + classroot.typeTo : "" },
+        onClick() { if (classroot.typeTo != "") app.goLoc(classroot.typeTo) }
+        ],
     longDefault: Mono [ x = 24, width = { parent.width - 24 }, fontSize = { 13 * app.fontScale }, lineHeight = 1.45, textColor = { provided("theme").sigDim },
         visible = { classroot.long }, text = { "= " + ("" + :default).split("\n").join("\n  ") } ],
 
@@ -294,9 +358,9 @@ class AttrRow extends View [ width = { parent.width },
 
 
 // The signature string (`set(path: string, v: unknown): void`) comes whole from
-// the model; a `:sig.slice()` would be MIS-READ as a datapath (the `.` extends
+// the model; a `:sig.slice()` would be read as a datapath (the `.` extends
 // the path), so the datapath values are captured into plain attributes first
-// and sliced in JS.
+// and sliced in TypeScript.
 
 class MethodRow extends View [ width = { parent.width },
     aname:    string = { :name },
@@ -308,7 +372,7 @@ class MethodRow extends View [ width = { parent.width },
     sig: View [ width = { parent.width },
         layout: SimpleLayout [ axis = x, spacing = 0 ],
         Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { classroot.aname } ],
-        Mono [ fontSize = { 15 * app.fontScale }, textColor = { provided("theme").mtail }, text = { classroot.tailtext } ]
+        SigRun [ sig = { classroot.tailtext }, size = 15, dim = { provided("theme").mtail } ]
         ],
 
     OverrideLine [ visible = { :overrides != null }, from = { "" + :overrides.from }, slot = { :name + "()" }, was = "" ],
@@ -319,11 +383,10 @@ class MethodRow extends View [ width = { parent.width },
 
 
 class EventRow extends View [ width = { parent.width },
-    aname: string = { :name },
     live:  boolean = false,
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
-    sig: Mono [ fontSize = { 15 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { :signature } ],
+    sig: SigRun [ sig = { "" + :signature }, size = 15, weight = 600, dim = { provided("theme").text } ],
 
     Block [ datapath = :docSegs[], width = { parent.width },
         live = { classroot.live }, tone = { provided("theme").refDim }, lead = 1.6 ]
@@ -333,9 +396,9 @@ class EventRow extends View [ width = { parent.width },
 /*
 ## The strips
 
-Per ancestor: what the class INHERITS (`Strip` — the disclosure, the class as a
+Per ancestor: what the class inherits (`Strip` — the disclosure, the class as a
 link, the member counts, one baseline row, then its one-line lead; open, a chip
-cloud of every name, each a link, never the ancestor's prose) and what it READS
+cloud of every name, each a link, never the ancestor's prose) and what it reads
 from above of its own (`ReadStrip`, under Provided — present only for an
 ancestor that reads something).
 */
@@ -362,7 +425,7 @@ class ReadStrip extends View [ width = { parent.width }, cornerRadius = 10, visi
             layout: SimpleLayout [ axis = y, spacing = 8 ],
             tokens: View [ width = { parent.width }, visible = { :reads.theme.length > 0 },
                 layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
-                Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]
+                Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]   // $data("") — the record is the string itself
                 ],
             provided: View [ width = { parent.width }, visible = { :reads.provided.length > 0 },
                 layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
@@ -420,17 +483,17 @@ class Strip extends View [ width = { parent.width }, cornerRadius = 10,
 /*
 ## The live example
 
-An editable source field beside a running preview — the SAME machinery as the
+An editable source field beside a running preview — the same machinery as the
 homepage's editable demos: a `TextInput` seeded from the demo source that
 republishes edits on `app.liveSource`, and an `AppIsland` the host mounts
-the compiled child app into. Both are keyed by the CLASS NAME: the editor
+the compiled child app into. Both are keyed by the class name: the editor
 seeds from `app.demoSources[<Class>]` (the server populates this from
 apps/docs/demos/), and the island's `program = <Class>` is what the host
 wires.
 */
 
 class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = false,
-    fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"], fontSize = { 13 * app.fontScale }, textColor = { provided("theme").code },   // 13 = the house code size (PROSE.codeSize)
+    fontFamily = { app.mono }, fontSize = { 13 * app.fontScale }, textColor = { provided("theme").code },   // 13 = the house code size (PROSE.codeSize)
     editName: string = "",
     src: string = "",
 
@@ -446,13 +509,13 @@ class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = 
 
 
 // Rendered by datapath replication over the class's 0-or-1 `example` array, so the
-// whole island (editor + preview) is CONSTRUCTED only for classes that ship a demo.
+// whole island (editor + preview) is constructed only for classes that ship a demo.
 
 class Example extends View [ width = { parent.width },
     cname:  string = { :name },
     elines: number = { :lines },
     esrc:   string = { :source },
-    estage: number = { :stageH || 250 },   // extractor-measured stage height — the frame FITS the settled app
+    estage: number = { :stageH || 250 },   // extractor-measured stage height — the frame fits the settled app
     live:   boolean = false,             // the parent gates the preview: it mounts only when this is true
 
     // this island's edit failed to compile (host publishes the report; see RunIsland)
@@ -471,20 +534,20 @@ class Example extends View [ width = { parent.width },
         ],
 
     // the editable source card — coheres with a static code block (the same
-    // `chipBg` tint, 8px radius, 13px code face) but is marked LIVE/EDITABLE by an
-    // AMBER left bar + label, where a read-only block carries the teal `codeRule`.
+    // `chipBg` tint, 8px radius, 13px code face) but is marked live/editable by an
+    // amber left bar + label, where a read-only block carries the teal `codeRule`.
 
     panel: View [ width = { parent.width }, fill = { provided("theme").chipBg },
         height = { Math.min(classroot.elines * 15 * app.fontScale + 105, 900) },   // 15px/line measured; field pad + 60/8 chrome
-        bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? provided("theme").errBar : 0xE6B450 } ],
+        bar:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? provided("theme").errBar : provided("theme").live } ],
         fname: Mono [ x = 18, y = 10, fontSize = { 11 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").strong },
             text = { classroot.cname + ".declare" } ],
 
-        // the marker is an INVERTED chip — the amber accent as fill, black letters —
+        // the marker is an inverted chip — the amber accent as fill, dark letters —
         // so "live/editable" reads at a glance, distinct from a read-only block
 
-        tag:   View [ y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450, x = { parent.width - this.width - 14 },
-            lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
+        tag:   View [ y = 7, height = 17, cornerRadius = 3, fill = { provided("theme").live }, x = { parent.width - this.width - 14 },
+            lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = { provided("theme").liveInk },
                 text = "LIVE · EDITABLE", wrap = false ],
             width = { this.lbl.width + 14 }
             ],
@@ -498,7 +561,7 @@ class Example extends View [ width = { parent.width },
             onClick() { classroot.panel.field.text = classroot.esrc
                         app.liveCard = classroot.cname
                         app.liveSource = classroot.esrc },
-            rlbl: Text [ x = 8, y = 3, fontFamily = ["system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
+            rlbl: Text [ x = 8, y = 3, fontSize = 11, fontWeight = semibold,
                 textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
 
@@ -516,7 +579,7 @@ class Example extends View [ width = { parent.width },
         height = { this.msg.height + 20 },
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
-            fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
+            fontFamily = { app.mono }, fontSize = { 12 * app.fontScale },
             textColor = { provided("theme").errText }, text = { app.liveReport } ]
         ],
 
@@ -524,16 +587,29 @@ class Example extends View [ width = { parent.width },
     // is live ONLY while the parent says so (`live`), so exactly one preview (the one
     // on the visible page) compiles at a time, even though every page is constructed.
 
-    stage: View [ width = { parent.width }, height = { classroot.estage }, fill = { provided("theme").chipBg },
-        run:     AppIsland [ width = { parent.width }, height = { parent.height },
-            program = { classroot.live ? classroot.cname : "" } ],
+    // The running app sits inset in the tinted box exactly as the code field
+    // above it does — same 18 left, 12 right — so the demo reads as a card on
+    // the page rather than paint running to the edge. The box carries the inset
+    // in its own height, so the app keeps the height the extractor measured.
+
+    stage: View [ width = { parent.width }, height = { classroot.estage + 52 }, fill = { provided("theme").chipBg },
+
+        // the app's own card, inset in the tinted box exactly as the code field
+        // above it is — and the app sits inset again inside the card, so its
+        // content has the same breathing room the code has
+
+        card: View [ x = 18, y = 14, width = { parent.width - 30 }, height = { parent.height - 28 },
+            cornerRadius = 8, fill = { provided("theme").surface },
+            run: AppIsland [ x = 12, y = 12, width = { parent.width - 24 }, height = { parent.height - 24 },
+                program = { classroot.live ? classroot.cname : "" } ]
+            ],
 
         // a blue rule (a darker shade of the chipBg box tint) divides the code above from the
         // running app below; the gold spine (drawn OVER both) continues the code's gold left bar
         // down the preview, same x/width
 
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { provided("theme").rule } ],
-        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ]
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").live } ]
         ]
     ]
 
@@ -554,7 +630,7 @@ class RunIsland extends View [ width = { parent.width },
     rid:    string  = { :id },
     rsrc:   string  = { :source },
     rlines: number  = { :lines },
-    rstage: number  = { :stageH || 200 },   // extractor-measured stage height — the frame FITS the settled app
+    rstage: number  = { :stageH || 200 },   // extractor-measured stage height — the frame fits the settled app
     live:   boolean = false,
 
     // this island's edit is the one that failed to compile — the host publishes the
@@ -572,9 +648,9 @@ class RunIsland extends View [ width = { parent.width },
 
     editor: View [ width = { parent.width }, fill = { provided("theme").chipBg },
         height = { Math.min(classroot.rlines * 15 * app.fontScale + 93, 900) },
-        bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? provided("theme").errBar : 0xE6B450 } ],
-        tag:  View [ x = 18, y = 7, height = 17, cornerRadius = 3, fill = 0xE6B450,
-            lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = 0x1A1A1A,
+        bar:  View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { classroot.broken ? provided("theme").errBar : provided("theme").live } ],
+        tag:  View [ x = 18, y = 7, height = 17, cornerRadius = 3, fill = { provided("theme").live },
+            lbl: Mono [ x = 7, y = 3, fontSize = 10, letterSpacing = 1, fontWeight = semibold, textColor = { provided("theme").liveInk },
                 text = "LIVE · EDITABLE", wrap = false ],
             width = { this.lbl.width + 14 }
             ],
@@ -589,7 +665,7 @@ class RunIsland extends View [ width = { parent.width },
             onClick() { classroot.editor.field.text = classroot.rsrc
                         app.liveCard = classroot.rid
                         app.liveSource = classroot.rsrc },
-            rlbl: Text [ x = 8, y = 3, fontFamily = ["system-ui", "sans-serif"], fontSize = 11, fontWeight = semibold,
+            rlbl: Text [ x = 8, y = 3, fontSize = 11, fontWeight = semibold,
                 textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
         hint: Muted [ y = 9, fontSize = { 11 * app.fontScale }, italic = true, text = "runs live below ↓",
@@ -609,15 +685,20 @@ class RunIsland extends View [ width = { parent.width },
         height = { this.msg.height + 20 },
         bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
         msg: Text [ x = 18, y = 10, width = { parent.width - 36 }, wrap = true,
-            fontFamily = ["ui-monospace, SFMono-Regular, monospace", "ui-monospace", "monospace"], fontSize = { 12 * app.fontScale },
+            fontFamily = { app.mono }, fontSize = { 12 * app.fontScale },
             textColor = { provided("theme").errText }, text = { app.liveReport } ]
         ],
 
-    stage: View [ width = { parent.width }, height = { classroot.rstage }, fill = { provided("theme").chipBg },
-        run:     AppIsland [ width = { parent.width }, height = { parent.height },
-            program = { classroot.live ? classroot.rid : "" } ],
+    // inset to match the code field above it, as the reference's Example is
+
+    stage: View [ width = { parent.width }, height = { classroot.rstage + 52 }, fill = { provided("theme").chipBg },
+        card: View [ x = 18, y = 14, width = { parent.width - 30 }, height = { parent.height - 28 },
+            cornerRadius = 8, fill = { provided("theme").surface },
+            run: AppIsland [ x = 12, y = 12, width = { parent.width - 24 }, height = { parent.height - 24 },
+                program = { classroot.live ? classroot.rid : "" } ]
+            ],
         divider: View [ x = 0, y = 0, width = { parent.width }, height = 2, fill = { provided("theme").rule } ],
-        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = 0xE6B450 ]
+        spine:   View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").live } ]
         ]
     ]
 
@@ -643,10 +724,9 @@ class Block extends View [ width = { parent.width },
 ## The class page
 
 One class's whole detail page. A single instance exists — the use site
-(refCol, below) computes the SELECTED class's model node as its datapath, so
+(refCol, below) computes the selected class's model node as its datapath, so
 switching classes re-roots this subtree and constructs exactly the page being
-read. (The pre-2026-08-08 shape built every class's page up front and picked
-one with `visible`; the whole reference priced every boot.)
+read, and a boot never pays for the pages it is not showing.
 */
 
 class ClassDetail extends View [ width = { parent.width },
@@ -687,7 +767,7 @@ class ClassDetail extends View [ width = { parent.width },
         subs: View [ width = { parent.width }, visible = { :subclasses.length > 0 },
             layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
             Muted [ fontSize = { 13 * app.fontScale }, text = "subclasses:" ],
-            Chip [ datapath = :subclasses[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]
+            Chip [ datapath = :subclasses[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]   // $data("") — the record is the name itself
             ],
         sibs: View [ width = { parent.width }, visible = { :siblings.length > 0 },
             layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
@@ -800,7 +880,7 @@ class FormTab extends View [ width = { parent.width }, height = 28, cornerRadius
     lit: boolean = { app.mode == "language" && app.form == classroot.slug },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
     link = { "#language/" + slug },
-    onClick()     { app.formAt = classroot.slug; app.location = "language/" + classroot.slug; app.showPage() },
+    onClick()     { app.goForm(classroot.slug) },
     lbl: Mono [ x = 24, y = 6, fontSize = 13, wrap = false,
         text = { "" + (:short ?? :name) },
         textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
@@ -856,7 +936,7 @@ class FormChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
     width = { this.lbl.width + 16 },
     fill = { hovered ? provided("theme").chipHov : provided("theme").chipBg },
     link = { "#language/" + slug },
-    onClick() { app.formAt = slug; app.location = "language/" + slug; app.showPage() },
+    onClick() { app.goForm(slug) },
     lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
         textColor = { provided("theme").accent }, text = { classroot.label } ]
     ]
@@ -867,8 +947,8 @@ class FormChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
 class FormRow extends View [ width = { parent.width },
     height = { Math.max(this.syn.height, this.gist.height) },
     cursor = "pointer",
-    link = { "#language/" + this.$data("slug") },
-    onClick() { app.formAt = "" + this.$data("slug"); app.location = "language/" + this.$data("slug"); app.showPage() },
+    link = { "#language/" + :slug },
+    onClick() { app.goForm("" + :slug) },
     syn: Mono [ x = 0, y = 0, width = 260, fontSize = { 14 * app.fontScale }, fontWeight = semibold, lineHeight = 1.5,
         textColor = { classroot.hovered ? provided("theme").accent : provided("theme").chipBlue }, text = { "" + :name } ],
     gist: Markdown [ x = 276, width = { parent.width - 276 }, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, scale = { app.fontScale }, dark = { app.darkUI },
@@ -953,11 +1033,122 @@ class FormDetail extends View [ width = { parent.width },
                 baseline: number = { this.lbl.y + this.lbl.baseline },
                 width = { this.lbl.width + 16 }, fill = { hovered ? provided("theme").chipHov : provided("theme").chipBg },
                 link = { "#guide/" + :chapter },
-                onClick() { app.guideAt = "" + this.$data("chapter"); app.location = "guide/" + this.$data("chapter"); app.showPage() },
+                onClick() { app.goGuide("" + :chapter) },
                 lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false, textColor = { provided("theme").accent },
                     text = { :chapter + " · " + :title } ]
                 ]
             ]
+        ],
+
+    tail: View [ width = { parent.width }, height = 48 ]
+    ]
+
+
+/*
+## The type pages
+
+A fourth mode over the same model (`type/<Name>`, no tab of its own — the types
+sit between the forms and the classes in the reference rail): one page per named
+vocabulary the language prints in a signature. Every enum (`spine.enums`) and
+every shared type the scaffold declares into a `{ }` body (`spine.types.shared`)
+has one, built by the assembler (tools/internal/doc/assemble.mjs → model.types)
+in the same shape the language forms have — which is why the page below is
+`FormDetail`'s twin rather than `ClassDetail`'s: a type is one definition, not a
+class with an ancestry, members and a live example.
+
+A page carries: what it is, its definition (an alias's type, an interface's
+members) or its tokens (an enum's, grouped by family where the set has one), and
+WHERE IT IS USED — every attribute whose type is this one, every event and method
+whose signature names it, the types that name it, the functions that take or
+return it. All of it derived from the model; nothing on the page is hand-listed.
+*/
+
+// a type tab in the rail — lit when it is the location's cursor
+
+class TypeTab extends View [ width = { parent.width }, height = 28, cornerRadius = 6,
+    tname: string = "",
+    lit: boolean = { app.mode == "type" && app.tname == classroot.tname },
+    fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
+    link = { "#type/" + tname },
+    onClick()     { app.goType(classroot.tname) },
+    lbl: Mono [ x = 24, y = 6, fontSize = 13, wrap = false,
+        text = { classroot.tname },
+        textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
+    ]
+
+
+class TypeGroup extends View [ width = { parent.width },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    head: FoldHead [ label = { "" + :name },
+        contains = { app.mode == "type" && (:types as any[]).some(t => t.name == app.tname) } ],
+    body: View [ width = { parent.width }, visible = { classroot.head.open },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        TypeTab [ datapath = :types[], tname = { "" + :name } ],
+        g: View [ height = 6 ]
+        ]
+    ]
+
+
+// one use of the type: what carries it, of what kind, and the signature or
+// default that carries it. The chip is a link wherever the thing has a page.
+
+class UseRow extends View [ width = { parent.width },
+    layout: WrappingLayout [ spacing = 10, lineSpacing = 6, align = baseline ],
+    LocChip [ label = { "" + :label }, to = { "" + :loc } ],
+    Muted [ fontSize = { 12 * app.fontScale }, wrap = false, text = { "" + :kind } ],
+    Mono [ fontSize = { 13 * app.fontScale }, textColor = { provided("theme").sigDim },
+        visible = { ("" + :detail) != "" }, text = { "" + :detail } ]
+    ]
+
+
+class TypeDetail extends View [ width = { parent.width },
+    tname: string = "",
+    visible = { app.mode == "type" && app.tname == classroot.tname },
+    layout: SimpleLayout [ axis = y, spacing = 36 ],
+
+    header: View [ width = { parent.width },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Eyebrow [ text = { "TYPE · " + ("" + :kind).toUpperCase() + " · " + :group } ],
+        Mono [ fontSize = { 32 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { "" + :name } ],
+        SyntaxBox [ visible = { ("" + :syntaxText) != "" }, lines = { "" + :syntaxText } ],
+        prose: Markdown [ width = { parent.width }, lineHeight = 1.6, bodyColor = { provided("theme").refDim },
+            scale = { app.fontScale }, dark = { app.darkUI }, text = { "" + :doc },
+            onLink(href: string) { app.openDocLink(href) }
+            ]
+        ],
+
+    jump: View [ width = { parent.width },
+        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
+        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page" ],
+        JumpLink [ label = "Tokens",  visible = { :nTokens > 0 }, count = { :nTokens }, to = { classroot.tokens } ],
+        JumpLink [ label = "Used by", visible = { :nUsed > 0 },   count = { :nUsed },   to = { classroot.uses } ]
+        ],
+
+    // the vocabulary itself. A set built from directional suffixes comes grouped
+    // by family (the easing curves); every other set is one flat run.
+
+    tokens: View [ width = { parent.width }, visible = { :nTokens > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 18 ],
+        SectionHead [ head = "Tokens",
+            note = { :nTokens + " of them. Write the token itself — bare, unquoted, in the slot the type names." } ],
+        fams: View [ width = { parent.width },
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            View [ datapath = :tokenGroups[], width = { parent.width },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                Muted [ fontSize = { 13 * app.fontScale }, visible = { ("" + :name) != "" }, text = { "" + :name } ],
+                row: View [ width = { parent.width },
+                    layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+                    Chip [ datapath = :tokens[], kind = "token", label = { "" + :name } ]
+                    ]
+                ]
+            ]
+        ],
+
+    uses: View [ width = { parent.width }, visible = { :nUsed > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        SectionHead [ head = "Used by",
+            note = "Everywhere the language names this type: the attributes that hold one, the events and methods whose signatures carry one, the types that are built from it, and the functions that take or return it. Each is a link to where it is documented." ],
+        UseRow [ datapath = :usedBy[], width = { parent.width } ]
         ],
 
     tail: View [ width = { parent.width }, height = 48 ]
@@ -972,13 +1163,10 @@ tabs over one model: a narrative GUIDE and the REFERENCE (the language forms,
 then the classes). `app.mode` picks which; each keeps its own selection
 (`app.chapter` / `app.selected` / `app.form`) so switching back lands where you
 left. Both rails are folds: a group opens when it holds the current page.
+
+Nav chrome does not ride `app.fontScale`: the A-stepper is a reading-comfort
+control for the content pane; the rail keeps its designed sizes.
 */
-
-// The mode switch is a full-width segmented pair — each tab half the rail, label
-// centered — so the rail's primary control reads at the rail's own (fixed) type
-// size. Nav chrome does NOT ride app.fontScale: the A-stepper is a reading-comfort
-// control for the content pane; the rail keeps its designed sizes.
-
 
 // one chapter link in the guide rail — lights when it is the current chapter
 
@@ -987,11 +1175,12 @@ class ChapterTab extends View [ width = { parent.width }, height = 32, cornerRad
     cnum: number = { :num },
     ctitle: string = { :short },
     fill = { app.chapter == classroot.cid ? provided("theme").sel : hovered ? provided("theme").control : null },
-    onClick()     { app.guideAt = classroot.cid; app.location = "guide/" + classroot.cid; app.showPage() },
+    link = { "#guide/" + cid },
+    onClick()     { app.goGuide(classroot.cid) },
 
     // numbered, because the chapters cite each other by number ("chapter 3")
 
-    lbl: Text [ x = 24, y = 8, fontFamily = ["system-ui", "sans-serif"], fontSize = 14, wrap = false,
+    lbl: Text [ x = 24, y = 8, fontSize = 14, wrap = false,
         text = { classroot.cnum + ". " + classroot.ctitle },
         textColor = { app.chapter == classroot.cid ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -1020,16 +1209,16 @@ class ChapterDetail extends View [ width = { parent.width },
     pageLive: boolean = { app.mode == "guide" && app.chapter == classroot.cid },
     layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-    // The chapter's content is its OWN file (chapters/<id>.json — the
-    // extractor's per-chapter projection), fetched WHEN VISIBILITY REQUIRES
-    // IT, not at construction (ruled 2026-08-08; the eager prefetch made every
-    // boot — and every crawl location — pay the whole corpus). `wanted` is a
-    // latch: the page being on screen asks for the file, and `loaded` holds
-    // the url steady afterward, so a chapter stays RESIDENT once landed —
-    // switches are instant on return, and nothing ever refetches. A boot
-    // costs the model plus exactly one chapter; the other 21 shells stay
-    // empty until walked to. The crawl pulls only the location's own chapter
-    // through its data resolver; a missing one still fails the build loudly.
+    // The chapter's content is its own file (chapters/<id>.json — the
+    // extractor's per-chapter projection), fetched when visibility requires
+    // it, not at construction — an eager prefetch would make every boot, and
+    // every crawl location, pay the whole corpus. `wanted` is a latch: the
+    // page being on screen asks for the file, and `loaded` holds the url
+    // steady afterward, so a chapter stays resident once landed — switches
+    // are instant on return, and nothing ever refetches. A boot costs the
+    // model plus exactly one chapter; the other shells stay empty until
+    // walked to. The crawl pulls only the location's own chapter through its
+    // data resolver; a missing one still fails the build loudly.
 
     wanted: boolean = { classroot.pageLive || classroot.src.loaded },
     src: DataSource [ auto = true,
@@ -1061,7 +1250,7 @@ class ChapterDetail extends View [ width = { parent.width },
 
 Three differently-sized "A"s — small · reset · large. Each cell is a centered
 "A" whose glyph size signals the action: the small A shrinks, the middle A
-resets to the default, the large A grows. The glyphs are FIXED (not
+resets to the default, the large A grows. The glyphs are fixed (not
 `* app.fontScale`) so the control itself never zooms. Every doc `fontSize`
 reads `{ N * app.fontScale }` (and Markdown takes `scale`), so one attribute
 zooms the whole document.
@@ -1073,15 +1262,10 @@ class SizeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
     fill = { hovered ? provided("theme").control : null },
     onClick() { app.fontScale = classroot.delta == 0 ? 1.0
                     : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
-    lbl: Text [ fontFamily = ["system-ui", "sans-serif"], fontWeight = semibold,
+    lbl: Text [ fontWeight = semibold,
         fontSize = { classroot.glyph }, textColor = { provided("theme").textMuted }, text = "A",
         x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 } ]
     ]
-
-
-// the theme switch — ☀ light · ◐ follow the system · ☾ dark. Selection is one
-// App attribute (`themeMode`); the theme record derives from it, so the whole
-// app (and every island's chrome) reskins from this row.
 
 
 /*
@@ -1093,7 +1277,7 @@ snippet arrives pre-built from `findDocs` (the match window is computed once
 per query there, not per row render). Click navigates: a result is a location
 write, so it deep-links and back-buttons like any rail tab.
 
-Every row is a FOCUS STOP — ↓ from the search field walks INTO the list (the
+Every row is a focus stop — ↓ from the search field walks into the list (the
 field genuinely loses focus; the house FocusRing rides the selection), ↓/↑
 walk rows, ↑ off the top hands focus back to the field, Return opens the
 focused row, Escape clears the search. `app.searchSel` mirrors the focused
@@ -1141,24 +1325,55 @@ left rail below it, and a scrolling detail pane, over the model.
 
 App [ fill = { provided("theme").bg }, appName = "Declare Docs",
 
-    /* Navigation is ONE string — `location`, the URL fragment (docs/system-design/location.md).
-       The grammar is this app's own: `<mode>/<cursor>[@heading]` (`guide/04-tree`,
+    // the two faces, named once: the UI face is provided from here, so every
+    // run below — the rail, the chrome, the prose — reads it unless it names
+    // the monospace face the reference and the code blocks use
+
+    fontFamily = ["system-ui", "sans-serif"],
+    mono: Font [ family = "ui-monospace, SFMono-Regular, monospace" ],
+
+    /* Navigation is one string — `location`, the URL fragment. The grammar is
+       this app's own: `<mode>/<cursor>[@heading]` (`guide/04-tree`,
        `reference/Slider`, `guide/04-tree@named-views`). The declared initial is the
        default, so a fresh `docs.declare` shows the first guide chapter with a clean
-       URL (§3). mode/chapter/selected DERIVE from it and are NEVER assigned — every
+       URL. mode/chapter/selected derive from it and are never assigned — every
        tab and link writes `location`, back/forward writes it back, state follows
        (the single-writer rule; assigning derived state would disconnect history). */
 
     location = "guide/01-thinking-in-declare",
 
-    /* Cross-mode memory (NOT a language feature — two plain remembered cursors).
-       `location` only carries the ACTIVE mode's cursor, so switching guide↔reference
-       would forget the other side. The tab handlers keep these in step and the mode
-       switch consults them, so returning to a mode lands where you left it. */
+    /* Cross-mode memory (not a language feature — three plain remembered cursors).
+       `location` only carries the active mode's cursor, so switching guide↔reference
+       would forget the other side. The navigation verbs keep these in step and the
+       mode switch consults them, so returning to a mode lands where you left it. */
 
     guideAt: string = "01-thinking-in-declare",              // last guide chapter visited …
     refAt:   string = "View",                  // … and last reference class
     formAt:  string = "",                      // … and last language form ("" = the index)
+    typeAt:  string = "Color",                 // … and last type page
+
+    // The three navigation verbs every tab, chip and link calls: remember the
+    // cursor for its mode, write the location, start the new page at its top.
+    // A view that calls one also declares the same reference as its `link`,
+    // so the crawler sees the edge and ⌘-click works; the handler runs first,
+    // then the follow.
+
+    goGuide(id: string)  { app.guideAt = id;   app.location = "guide/" + id;     app.showPage() },
+    goRef(name: string)  { app.refAt = name;   app.location = "reference/" + name; app.showPage() },
+    goForm(slug: string) { app.formAt = slug;  app.location = "language/" + slug; app.showPage() },
+    goType(name: string) { app.typeAt = name;  app.location = "type/" + name;     app.showPage() },
+
+    // …and the one verb a generated link calls, since a link's target names its
+    // own mode: the model hands out locations ("type/Color", "reference/View"),
+    // never a verb to guess at.
+
+    goLoc(loc: string) {
+        const mode = loc.split("/")[0], cursor = loc.split("/")[1]
+        if (mode == "type") app.goType(cursor)
+        else if (mode == "language") app.goForm(cursor)
+        else if (mode == "guide") app.goGuide(cursor)
+        else app.goRef(cursor)
+        },
 
     // The active view, parsed out of `location` (the anchor stripped first — it
     // selects a viewpoint, not a page). The inactive mode's cursor falls back to its
@@ -1169,6 +1384,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     chapter:  string = { app.mode == "guide" ? (app.page.split("/")[1] || "01-thinking-in-declare") : app.guideAt },
     selected: string = { app.mode == "reference" ? (app.page.split("/")[1] || "View") : app.refAt },
     form:     string = { app.mode == "language" ? (app.page.split("/")[1] || "") : app.formAt },
+    tname:    string = { app.mode == "type" ? (app.page.split("/")[1] || app.typeAt) : app.typeAt },
 
     // a form's display name, for a related-forms chip
 
@@ -1177,18 +1393,55 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
         return pages[slug] != null ? "" + pages[slug].name : slug
         },
 
+    /* ## Typed signatures
+       The model's link index: a printed type name → the location that
+       documents it (a type page, or a class page for a component type), plus
+       the token-list spelling a named enum prints as. One lookup answers for
+       every signature the reference renders, and a name the index does not
+       carry answers "" — which is what keeps an unlinkable type rendering
+       exactly as it always did instead of becoming a dead link. */
+
+    tindex: object = { app.docs.read(["types", "index"]) || ({}) },
+
+    typeLoc(s: string) -> string {
+        const idx = app.tindex as any
+        const u = idx.unions != null ? idx.unions["" + s] : null
+        if (u != null) return "" + u
+        const n = idx.link != null ? idx.link["" + s] : null
+        return n != null ? "" + n : ""
+        },
+
+    // a whole signature, split into runs: each identifier that names a page
+    // carries its location, everything between them carries "". A signature
+    // that resolves whole (an attribute's type) stays one run, so nothing about
+    // its rendering changes.
+
+    typeParts(s: string) -> array {
+        const text = "" + s
+        const whole = app.typeLoc(text)
+        if (whole != "") return [({ i: 0, t: text, to: whole })]
+        const out = []
+        let i = 0
+        for (const p of text.split(/([A-Za-z_$][A-Za-z0-9_$]*)/)) {
+            if (p == "") continue
+            out.push({ i: i, t: p, to: /^[A-Za-z_$]/.test(p) ? app.typeLoc(p) : "" })
+            i++
+        }
+        return out
+        },
+
     fontScale: number = 1.0,                   // reader font-size zoom for the CONTENT pane (the A stepper drives it; nav is fixed)
-    themeMode: string = "system",              // "light" | "system" | "dark" — the ☀◐☾ switch; system follows app.dark
+    themeMode: string = "auto",                // "light" | "auto" | "dark" — the ☀◐☾ switch; auto follows app.dark
     barH: number = 52,                         // the house chrome bar (Viewer/Calendar/Tracker share the height)
-    compact: boolean = { app.hostWidth < 780 },   // narrow bar: the type-size stepper stands down so the pill keeps its room
+    compact: boolean = { app.width < 780 },    // narrow bar: the type-size stepper stands down so the pill keeps its room
 
     /* ## Search
-       The header pill searches the WHOLE corpus — guide and reference — over
+       The header pill searches the whole corpus — guide and reference — over
        `search-index.json`, the extractor's flat plain-text projection (one
        entry per chapter and per documented member). The index is fetched on
-       the FIRST keystroke, never at boot (the demand-loading contract), and
+       the first keystroke, never at boot (the demand-loading contract), and
        `loaded` latches the url so it stays resident. `searchHits` derives
-       from the query — typing IS searching — and the overlay shows while the
+       from the query — typing is searching — and the overlay shows while the
        query is non-empty. A result click is a location write. */
 
     searchQ: string = "",
@@ -1196,16 +1449,10 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     searchIdx: DataSource [ auto = true,
         url = { app.searchQ != "" || this.loaded ? "search-index.json" : "" } ],
     searchHits: array = { app.findDocs(app.searchQ, app.searchIdx.value) },
-    hits: Dataset [ contents = { { items: app.searchHits } } ],   // the same list as DECLARED DATA — the results page's cursor root (the navSource idiom)
-
-    // Match + rank + snippet, in one pass per query. Terms AND — every term
-    // must appear in title or text. Rank: title prefix > title > body count.
-    // The snippet is a word-trimmed window around the first body match, terms
-    // bolded for the Markdown row (the snippet text is escaped first, so
-    // corpus punctuation cannot leak markup into a result).
+    hits: Dataset [ contents = { { items: app.searchHits } } ],   // the same list as declared data — the results page's cursor root (the navSource idiom)
 
     /* ## The class page's projections
-       The model stays NORMALIZED — inherited members are never copied into
+       The model stays normalized — inherited members are never copied into
        each class — so the page computes its ancestor views here, from the
        tree, per selection: the ancestry as links, each ancestor's strip
        (names, types, signatures, its one-line lead, its own reads), and a
@@ -1244,6 +1491,12 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
         const ws = ("" + label).match(/\S+\s*/g) || [label]
         return ws.map((w, i) => ({ i: i, w: w }))
         },
+
+    // Match + rank + snippet, in one pass per query. Terms AND — every term
+    // must appear in title or text. Rank: title prefix > title > body count.
+    // The snippet is a word-trimmed window around the first body match, terms
+    // bolded for the Markdown row (the snippet text is escaped first, so
+    // corpus punctuation cannot leak markup into a result).
 
     findDocs(q: string, idx: object) -> array {
         const query = ("" + q).trim().toLowerCase()
@@ -1287,9 +1540,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
 
     openResult(loc: string) {
         const mode = loc.split("/")[0], cursor = loc.split("/")[1]
-        if (mode == "guide") app.guideAt = cursor; else app.refAt = cursor
-        app.location = loc
-        app.showPage()
+        if (mode == "guide") app.goGuide(cursor); else app.goRef(cursor)
         app.dismissSearch()
         },
 
@@ -1315,42 +1566,41 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
             }
         ],
 
-    // the ONE resolved fact every color decision reads — the theme record AND
+    // the one resolved fact every color decision reads — the theme record and
     // the Markdown rich-element palette must agree, or an override leaves
-    // headings in the OS scheme while the chrome switches (seen in the wild)
+    // headings in the OS scheme while the chrome switches
 
-    darkUI: boolean = { themeMode == "dark" || (themeMode == "system" && app.dark) },
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
 
-    // the rail is fixed-width chrome: its type no longer rides the reading zoom,
-    // and the chapter slugs are short by design, so 232 sits snug around them
+    // the rail is fixed-width chrome: its type does not ride the reading zoom,
+    // and the chapter slugs are short by design, so 236 sits snug around them
 
     railW: number = 236,
     liveCard: string = "",                     // the demo an inline editor is republishing (name) …
     liveSource: string = "",                   // … and its current source — the host recompiles this pair live
 
-    // (app.liveReport — BUILT-IN — carries the host's rendered compile report; islands display it)
+    // (app.liveReport — built-in — carries the host's rendered compile report; islands display it)
 
-    /* The whole palette in one provided record, switched by the OS color
-       scheme (`app.dark`, fed live by the runtime) — every color below reads
-       `theme.<token>`, so the docs render dark or light and follow the system
-       theme as it flips. The dark set is the original tuned palette; the
-       live-preview canvas stays a fixed dark in both themes (the demos are
-       dark-authored examples). */
+    /* The whole palette in one provided record, switched by the theme mode
+       (`darkUI`, which follows the OS scheme under "auto") — every color
+       below reads `theme.<token>`, so the docs render dark or light and
+       follow the system theme as it flips. */
 
-    // The HOUSE preset extended, not replaced: the standard tokens underneath,
+    // The house preset extended, not replaced: the standard tokens underneath,
     // this app's own values over them, and its many domain names (chipBg, rail,
-    // modeOn, errBar …) alongside. A standard control dropped in here finds every
-    // token it consults; the docs palette is untouched.
+    // live, errBar …) alongside. A standard control dropped in here finds every
+    // token it consults; the docs palette is untouched. `live`/`liveInk` are
+    // the editable-example amber and its letters, the same in both modes.
 
     theme = { { ...(darkUI ? SanFranciscoDark : SanFrancisco), ...app.docsTokens(darkUI) } },
 
     docsTokens(dark: boolean) -> object { return dark
-        ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, control: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, modeOn: 0x1F3B54, chipHov: 0x1C3243, mchipHov: 0x213649, echipHov: 0x332B18, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accentSecondary: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, textMuted: 0x8A9BA6, modeOff: 0x7C93A2, sigDim: 0x6E8494, eyebrow: 0x55707F, tag: 0x4F6472, errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6 })
-        : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, control: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, modeOn: 0xD1DFF0, chipHov: 0xD9E4ED, mchipHov: 0xD4DEEF, echipHov: 0xECE3CD, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2E6FE0, accentSecondary: 0x12A594, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, textMuted: 0x6A7883, modeOff: 0x74828D, sigDim: 0x84929D, eyebrow: 0x93A0AA, tag: 0xA2AEB8, errBg: 0xFBE9EA, errBar: 0xC93B47, errText: 0x8E2830 }) },
+        ? ({ bg: 0x0B141B, rail: 0x0D1922, surface: 0x0C1620, chipBg: 0x14232E, control: 0x152633, sel: 0x1C2D39, mchipBg: 0x172436, echipBg: 0x241F12, chipHov: 0x1C3243, line: 0x1E313C, rule: 0x345B84, edge: 0x1B2C39, accent: 0x4C8DFF, accentSecondary: 0x37E0C8, chipTeal: 0x9FD9CE, chipBlue: 0xA9C7FF, chipAmber: 0xE7C98A, text: 0xE7EEF2, body: 0xC4CFD8, code: 0xC7D3DC, strong: 0xB7C6D2, mtail: 0x9FB3C2, tabIdle: 0x9BB0BE, refDim: 0x98A7B1, textMuted: 0x8A9BA6, sigDim: 0x6E8494, eyebrow: 0x55707F, live: 0xE6B450, liveInk: 0x1A1A1A, errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6 })
+        : ({ bg: 0xF6F8FA, rail: 0xECF0F4, surface: 0xFFFFFF, chipBg: 0xE9EFF4, control: 0xE4EBF1, sel: 0xDBE5EE, mchipBg: 0xE7EDF6, echipBg: 0xF5EFE0, chipHov: 0xD9E4ED, line: 0xDCE3E9, rule: 0xB6C8DA, edge: 0xE0E6EC, accent: 0x2E6FE0, accentSecondary: 0x12A594, chipTeal: 0x15806E, chipBlue: 0x3355C2, chipAmber: 0x8F6F28, text: 0x172530, body: 0x2E3B46, code: 0x2B3843, strong: 0x3A4A56, mtail: 0x4F5F6B, tabIdle: 0x55636F, refDim: 0x51606C, textMuted: 0x6A7883, sigDim: 0x84929D, eyebrow: 0x93A0AA, live: 0xE6B450, liveInk: 0x1A1A1A, errBg: 0xFBE9EA, errBar: 0xC93B47, errText: 0x8E2830 }) },
 
     /* Code-vs-prose coherence, matching the source-viewer reader: prose (and
        every non-code block) wraps to a reading measure while code fills the
-       column — so code renders WIDER than prose — and every code block gets a
+       column — so code renders wider than prose — and every code block gets a
        tinted box with a teal left bar. All provided, so every
        Markdown/HTMLText below inherits it. */
 
@@ -1363,23 +1613,23 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     onInit() { this.docs.fetch() },            // DataSource is explicit-fetch — kick it once, on construction
 
     /* The `declare-docs:` resolver — this app's packaging of the one symbolic
-       link scheme (tools/doc/links.mjs is the registry; the gate keeps every
-       target real). Guide and reference IDs navigate IN-APP; the rest resolve
-       by the same mechanical id→path rule the registry generates them with, and
-       leave through `navigate`. An ordinary href just navigates. */
+       link scheme (tools/internal/doc/links.mjs is the registry; the gate keeps
+       every target real). Guide and reference IDs navigate in-app; the rest
+       resolve by the same mechanical id→path rule the registry generates them
+       with, and leave through `navigate`. An ordinary href just navigates. */
 
-    // A page switch starts at the TOP of the new page — the detail pane keeps its
+    // A page switch starts at the top of the new page — the detail pane keeps its
     // scroll offset otherwise. The reveal target is a zero-size anchor at the pane's
-    // very top, NOT the column: the column sits 40px into the pane, so aligning ITS
+    // very top, not the column: the column sits 40px into the pane, so aligning its
     // top with the viewport would eat that margin. Every switch path routes through
     // here: rail tabs and prose links alike.
 
     showPage() { this.detail.top.scrollIntoView() },
 
-    // An in-app doc link is a location WRITE (docs/system-design/location.md §5) — it navigates
-    // the app exactly like a rail tab, so it deep-links, shares, and back-buttons. It
-    // also keeps the remembered cursor in step (like the tabs). External schemes still
-    // leave through `navigate`.
+    // An in-app doc link is a location write — it navigates the app exactly like
+    // a rail tab, so it deep-links, shares, and back-buttons. It also keeps the
+    // remembered cursor in step (like the tabs). External schemes still leave
+    // through `navigate`.
 
     openDocLink(href: string) {
         if (!href.startsWith("declare-docs:")) { app.navigate(href); return }
@@ -1387,17 +1637,13 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
         if (id.startsWith("guide:")) {                       // guide:tree → the chapter whose id ends with the slug
             const slug = id.slice("guide:".length)
             const hit = (app.docs.read(["guide"]) || []).find(c => c.id.replace(/^\d+-/, "") == slug)
-            if (hit) { app.guideAt = hit.id; app.location = "guide/" + hit.id; app.showPage() }
+            if (hit) app.goGuide(hit.id)
             return
         }
-        if (id == "reference:index") { app.location = "reference/" + app.refAt; app.showPage(); return }
-        if (id.startsWith("language:")) {                    // language:class → the form's page ("language:" alone → the index)
-            const slug = id.slice("language:".length)
-            app.formAt = slug; app.location = "language/" + slug; app.showPage(); return
-        }
-        if (!id.includes(":")) {                             // a reference symbol: View / View.width
-            app.refAt = id.split(".")[0]; app.location = "reference/" + app.refAt; app.showPage(); return
-        }
+        if (id == "reference:index") { app.goRef(app.refAt); return }
+        if (id.startsWith("language:")) { app.goForm(id.slice("language:".length)); return }   // language:class → the form's page ("language:" alone → the index)
+        if (id.startsWith("type:")) { app.goType(id.slice("type:".length)); return }           // type:Motion → the type's page
+        if (!id.includes(":")) { app.goRef(id.split(".")[0]); return }                      // a reference symbol: View / View.width
         if (id.startsWith("operational:")) { app.navigate("docs/operational/" + id.slice("operational:".length) + ".md"); return }
         if (id == "spec:core") { app.navigate("docs/declare.md"); return }
         if (id == "essay:why-declare") { app.navigate("apps/homepage/homepage.declare") }
@@ -1405,11 +1651,10 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
 
     /* ## The chrome bar
        The house header — Viewer's and Tracker's bar, on this app: brand at 20
-       (gradient "Declare", solid "Docs"), the SEARCH PILL centered, and the
-       type-size stepper + theme switch on the right (both moved up out of the
-       rail, where Viewer keeps them too). */
+       (gradient "Declare", solid "Docs"), the search pill centered, and the
+       type-size stepper + theme switch on the right. */
 
-    bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { provided("theme").rail },
+    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").rail },
         hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").edge } ],
 
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
@@ -1418,20 +1663,18 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
             // "Declare" is the way home — navigate() resolves against the
             // distro root, so this works on either host at any mount point
 
-            Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = 18,
-                fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
                 onClick() { app.navigate("apps/homepage/homepage.declare") }
                 ],
-            Text [ fontFamily = ["system-ui", "sans-serif"], fontSize = 18,
-                fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
+            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textColor = { provided("theme").text }, text = "Docs" ]
             ],
 
         // the pill: search-as-you-type over the whole corpus; Enter opens the
         // first hit; ⌘K focuses it from anywhere (the Keys source above)
 
-        /* The pill is a VIEW; the input lives in its FLAT ZONE. TextInput's
+        /* The pill is a View; the input lives in its flat zone. TextInput's
            `padding` is uniform (16px of it would crush a 32px field), so the
            capsule shape and the text inset split: the wrapper draws the
            chrome — surface fill, the themed line that turns accent while the
@@ -1439,10 +1682,10 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
            cap ends (x = the 16px radius), transparent chrome of its own.
            The field's own fill stays the surface tone (it paints only inside
            the flat zone, so its square corners are invisible) because the
-           editable's colorScheme derives from ITS view's fill — that is what
+           editable's colorScheme derives from its view's fill — that is what
            keeps the native caret and placeholder legible in dark. */
 
-        /* The pill CENTERS in the window but never collides: its span is the
+        /* The pill centers in the window but never collides: its span is the
            gap between the brand and whatever the right cluster starts with
            (measured off those views, not a breakpoint — a longer brand or a
            wider stepper moves the bound by itself), and the centered x is
@@ -1453,13 +1696,13 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
         search: View [ y = { (app.barH - 32) / 2 }, height = 32, cornerRadius = 16,
             lo: number = { parent.brand.x + parent.brand.width + 16 },
             hi: number = { (app.compact ? parent.themeSwitch.x : parent.size.x) - 16 },
-            x = { Math.max(this.lo, Math.min((app.hostWidth - this.width) / 2, this.hi - this.width)) },
+            x = { Math.max(this.lo, Math.min((app.width - this.width) / 2, this.hi - this.width)) },
             width = { Math.max(120, Math.min(440, this.hi - this.lo)) },
             fill = { provided("theme").surface },
             stroke = { stroke(1, this.field.focused ? provided("theme").accent : provided("theme").line) },
             field: TextInput [ x = 16, y = 1, width = { parent.width - 32 }, height = { parent.height - 2 },   // 1px in from the wrapper's stroke, or the field's fill paints over it
                 fill = { provided("theme").surface }, stroke = null, cornerRadius = 0, padding = 0,
-                fontSize = 14, textColor = { provided("theme").text },
+                fontSize = 16, textColor = { provided("theme").text },   // 16: a field under it makes iOS zoom the page toward it
                 placeholder = "Search the docs…   ⌘K",
                 onInput(t: string) { app.searchQ = "" + t; app.searchSel = -1 },
                 onEnter() { if (app.searchHits.length > 0) app.openResult(app.searchHits[0].loc) },
@@ -1482,45 +1725,44 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
             SizeBtn [ glyph = 19, delta = 0.1 ]
             ],
 
-        themeSwitch: Segmented [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 96 - 16 },
+        // the theme switch — light · follow the system · dark. Selection is one
+        // App attribute (`themeMode`); the theme record derives from it, so the
+        // whole app (and every island's chrome) reskins from this row.
+
+        themeSwitch: Segmented [ y = { (app.barH - 30) / 2 }, x = { app.width - 96 - 16 },
             height = 30, width = 96, iconSize = 15,
             value = { app.themeMode },
             input(v: object) { app.themeMode = "" + v },
-            choices = { [ ({ id: "light",  icon: "SunIcon" }),
-                          ({ id: "system", icon: "AutoIcon" }),
-                          ({ id: "dark",   icon: "MoonIcon" }) ] }
+            choices = { [ ({ id: "light", icon: "SunIcon" }),
+                          ({ id: "auto",  icon: "AutoIcon" }),
+                          ({ id: "dark",  icon: "MoonIcon" }) ] }
             ]
         ],
 
     /* ## The left rail
        Below the bar: the Guide/Reference switch, then the nav for the live
-       mode. (Brand and the display controls live in the bar now.) */
+       mode. */
 
-    rail: View [ x = 0, y = { app.barH }, width = { app.railW }, height = { app.hostHeight - app.barH }, scrolls = y, fill = { provided("theme").rail },
+    rail: View [ x = 0, y = { app.barH }, width = { app.railW }, height = { app.height - app.barH }, scrolls = y, fill = { provided("theme").rail },
         edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = { parent.height }, fill = { provided("theme").edge } ],
         col: View [ x = 16, y = 16, width = { app.railW - 32 },
             layout: SimpleLayout [ axis = y, spacing = 4 ],
 
-            // Guide / Reference. This was a segmented control in every respect
-            // except being one: two hand-styled `View`s, so no focus, no tab
-            // stop, no keyboard, no press state (register D10). The delivery
-            // seam already fit — the pair's value is `app.mode`, deriving from
-            // `app.location`, so a pick writes the location and the value comes
-            // back round, which is the single source of truth the location
-            // comment above asks for.
+            // Guide / Reference — a full-width segmented pair, each tab half the
+            // rail, at the rail's own fixed type size. The pair's value is
+            // `app.mode`, deriving from `app.location`, so a pick writes the
+            // location and the value comes back round — the single source of
+            // truth the location comment above asks for.
 
-            // Two tabs. The language pages are a third MODE (their own locations,
+            // Two tabs. The language pages are a third mode (their own locations,
             // `language/<form>`) but not a third tab: they live at the top of the
             // reference rail, so the Reference tab lights for both.
 
             modes: Segmented [ width = { parent.width }, height = 30,
-                value = { app.mode == "language" ? "reference" : app.mode },
-                input(v: object) {
-                    app.location = ("" + v) == "guide" ? "guide/" + app.guideAt : "reference/" + app.refAt
-                    app.showPage()
-                    },
+                value = { app.mode == "guide" ? "guide" : "reference" },
+                input(v: object) { if (("" + v) == "guide") app.goGuide(app.guideAt); else app.goRef(app.refAt) },
 
-                // each half declares WHERE it goes, so the switch is a link the
+                // each half declares where it goes, so the switch is a link the
                 // crawler can follow — without it the reference half of the docs
                 // is unreachable from the default location (see SegmentedItem)
 
@@ -1536,10 +1778,16 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
                 PartGroup [ datapath = :guideParts[] ]
                 ],
 
-            // reference nav — LANGUAGE (the forms, by group, with the index above
-            // them) then CLASSES (by topic: model.classGroups). Each group folds.
+            // reference nav — the language (the forms, by group, with the index
+            // above them), then the TYPES (the vocabulary a signature prints:
+            // model.types.groups), then the classes (by topic:
+            // model.classGroups). Each group folds. Types sit on the language
+            // side because that is what they are — the words the grammar and
+            // every signature are written in, not components you instantiate —
+            // and they keep their own eyebrow so a page with tokens and members
+            // is never mistaken for a form with syntax and rules.
 
-            refNav: View [ width = { parent.width }, visible = { app.mode == "reference" || app.mode == "language" },
+            refNav: View [ width = { parent.width }, visible = { app.mode == "reference" || app.mode == "language" || app.mode == "type" },
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
                 g1:    View [ height = 14 ],
                 langEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "LANGUAGE" ],
@@ -1548,14 +1796,23 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
                     lit: boolean = { app.mode == "language" && app.form == "" },
                     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
                     link = "#language/",
-                    onClick() { app.formAt = ""; app.location = "language/"; app.showPage() },
-                    Text [ x = 24, y = 6, fontFamily = ["system-ui", "sans-serif"], fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? provided("theme").text : provided("theme").tabIdle } ]
+                    onClick() { app.goForm("") },
+                    Text [ x = 24, y = 6, fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? provided("theme").text : provided("theme").tabIdle } ]
                     ],
                 FormGroup [ datapath = :forms.groups[] ],
                 g3:    View [ height = 18 ],
+                typeEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "TYPES" ],
+                g3b:   View [ height = 4 ],
+                TypeGroup [ datapath = :types.groups[] ],
+                g3c:   View [ height = 18 ],
                 classEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CLASSES" ],
                 g4:    View [ height = 4 ],
-                ClassGroup [ datapath = :classGroups[] ]
+                ClassGroup [ datapath = :classGroups[] ],
+
+                // the rail's own bottom margin: the last class group ends 24
+                // above the fold, matching the 16 the column starts with
+
+                tail:  View [ height = 24 ]
                 ]
             ]
         ],
@@ -1563,34 +1820,32 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     /* ## The detail pane
        Its own scroller. Guide chapters are light shells (each fetches and
        builds its content only once visibility asks — ChapterDetail); the
-       reference is ONE page, re-rooted to the selection (refCol). So the
+       reference is one page, re-rooted to the selection (refCol). So the
        scroller only ever measures what is actually being read.
        `selectable` (a provided value) opts the whole right pane into ordinary
        browser text selection — prose, signatures, Markdown runs — while the
        rail stays chrome.
 
-       SEARCH REPLACES THE CONTENT (ruled 2026-08-08): while the query is
-       non-empty the reading column hides and the results page takes the pane
-       — same column, same scroller, no overlay chrome. Clearing the query
-       (Escape, opening a result, deleting the text) brings the page back
-       exactly as it was: `visible` conceals, it never tears down. No matches
-       (or the index still loading) says so in the middle of the pane. */
+       Search replaces the content: while the query is non-empty the reading
+       column hides and the results page takes the pane — same column, same
+       scroller, no overlay chrome. Clearing the query (Escape, opening a
+       result, deleting the text) brings the page back exactly as it was:
+       `visible` conceals, it never tears down. No matches (or the index still
+       loading) says so in the middle of the pane. */
 
-    detail: View [ x = { app.railW }, y = { app.barH }, width = { app.hostWidth - app.railW }, height = { app.hostHeight - app.barH }, scrolls = y, selectable = true,
+    detail: View [ x = { app.railW }, y = { app.barH }, width = { app.width - app.railW }, height = { app.height - app.barH }, scrolls = y, selectable = true,
         top: View [ x = 0, y = 0, width = 1, height = 1 ],       // showPage's scroll-to-top anchor
         col: View [ x = 48, y = 40, width = { parent.width - 96 }, visible = { app.searchQ == "" },
             guideCol: View [ width = { parent.width }, visible = { app.mode == "guide" },
                 ChapterDetail [ datapath = :guide[], cid = :id ]
                 ],
 
-            /* ONE reference page exists at a time — the selection's (ruled
-               2026-08-08). The old shape replicated a ClassDetail per class
-               (356 fully-built pages, `visible` picking one): construction
-               paid the whole reference at every boot for one visible page.
-               The datapath now COMPUTES the selected class's node, so a
-               switch re-roots this single subtree and builds just that page;
-               the rail (ClassTab, above) still replicates the full list —
-               that IS what visibility requires of a navigator. */
+            /* One reference page exists at a time — the selection's. The
+               datapath computes the selected class's node, so a switch
+               re-roots this single subtree and builds just that page, and a
+               boot never constructs the hundreds it is not showing; the rail
+               (ClassTab, above) still replicates the full list — that is what
+               visibility requires of a navigator. */
 
             refCol: View [ width = { parent.width }, visible = { app.mode == "reference" },
                 ClassDetail [ datapath = { (app.docs.read(["tree"]) || []).find(c => c.name == app.selected) }, cname = :name ]
@@ -1602,6 +1857,13 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
             langCol: View [ width = { parent.width }, visible = { app.mode == "language" },
                 FormIndex [ datapath = { app.docs.read(["forms"]) } ],
                 FormDetail [ datapath = { ((app.docs.read(["forms", "pages"]) || {}) as any)[app.form] }, slug = { "" + :slug } ]
+                ],
+
+            // the type pane — ONE page, re-rooted to the selection, exactly as
+            // the reference and language panes are
+
+            typeCol: View [ width = { parent.width }, visible = { app.mode == "type" },
+                TypeDetail [ datapath = { ((app.docs.read(["types", "pages"]) || {}) as any)[app.tname] }, tname = { "" + :name } ]
                 ]
             ],
 

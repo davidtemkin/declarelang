@@ -297,6 +297,28 @@ export function providedDefault(name: string, def: unknown): (this: unknown) => 
   };
 }
 
+/** THE TEXT FACE, name by name, with the default each falls to when nothing above
+ *  provides it. The ONE source: `Text` builds its face slots' defBindings from
+ *  this table, and `providedTextStyle()` (Node) assembles the same five reads
+ *  into a `TextStyle`. They cannot drift, which matters because a measurement
+ *  taken with different defaults than the run it is measuring is silently wrong.
+ *  Only these five are provided; the rest of `TextStyle` (italic, small caps,
+ *  numerals, the treatments) is per-run and nobody provides it. */
+export const PROVIDED_FACE: readonly (readonly [string, unknown])[] = [
+  ["textColor", 0x000000],
+  ["fontSize", 16],
+  ["fontFamily", "sans-serif"],
+  ["fontWeight", "normal"],
+  ["letterSpacing", 0],
+];
+
+/** The face table as `defineAttributes` entries — what a text leaf declares. */
+export function faceSlots(): Record<string, { def: unknown; defBinding: (this: unknown) => unknown }> {
+  const out: Record<string, { def: unknown; defBinding: (this: unknown) => unknown }> = {};
+  for (const [name, def] of PROVIDED_FACE) out[name] = { def, defBinding: providedDefault(name, def) };
+  return out;
+}
+
 export function providedRead(self: object, name: string, hasDefault: boolean, dflt: unknown): unknown {
   // A node that PROVIDES a value can also read it — `App [ theme = { … }, fill =
   // { provided("theme").bg } ]`. Its own provision is checked first (a provision
@@ -386,6 +408,18 @@ export function addBound(self: object, name: string, delta: number): void {
  *  explicit `width=0` now means zero, not "measure me". */
 export function isSet(self: object, name: string): boolean {
   return (self as Carrier).$set?.has(name) ?? false;
+}
+
+/** The dependency nodes that exist for `self`'s slots — one per slot some
+ *  computation has tracked a read of (pay-per-use: an unobserved slot owns
+ *  none). The one way to ask "does that constraint read anything of THIS
+ *  object's?" without a reverse index: collect these, hand them to
+ *  `Constraint.readsAny`. Used by a layout to tell a parent extent that
+ *  measures its own laid children from one that does not (layout.ts
+ *  `viewExtent`). */
+export function cellsOf(self: object): Cell[] {
+  const cells = (self as Carrier).$cells;
+  return cells === undefined ? [] : Object.values(cells);
 }
 
 /** The slot's class-level default — what a `:path` binding falls back to

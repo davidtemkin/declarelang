@@ -13,7 +13,7 @@
 // expression validator (expr.ts) — modules the run-path carries anyway — so
 // shipping it costs nothing beyond its own lines.
 import { DeclareError, diag } from "./errors.js";
-import { SCHEMAS, attrType, isReadOnly, descendsFrom } from "./schema.js";
+import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, descendsFrom } from "./schema.js";
 import { coerce, declaredType, describeLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES = new Set();
@@ -118,26 +118,15 @@ export function programSchemas(classes, shapes = EMPTY_SHAPES) {
             return; // no schema to chain to; uses of this class report as unknown
         }
         const base = schemas[decl.base];
-        // The general rule is that a class may be subclassed like any class. Three
-        // roots are WIRED today: View (visual), Layout (a strategy — §5 "…and ones
-        // you write"), and Node (the plain atom — a non-visual controller / service
-        // / coordinator). The rest is a wiring gap, not a language rule: Dataset and
-        // Animator are subclassable IN PRINCIPLE (their construct paths simply don't
-        // yet install a subclass's own decls — the same plumbing D-7 did for Layout;
-        // note DataSource already IS a Dataset subclass), and State is declarative,
-        // with no computation to override. Hence "not wired yet", not "sealed".
-        // The WIRED subclassable roots. `descendsFrom(base, "Node")` no longer
-        // discriminates — since 2026-07-28 every schema descends from Node (the
-        // real runtime chain) — so the three are named directly, which is what the
-        // rule always meant: View (visual), Layout (a strategy), and Node itself
-        // (the plain atom). Dataset/Animator remain a wiring gap, not a law.
-        // (Time is NOT listed: a Node component built on the generic path — time.ts
-        // — so `class DesktopClock extends Time [ … ]` is wired like any Node subclass.)
-        const NODE_ROOTS = ["Dataset", "DataSource", "Animator", "AnimatorGroup", "Keys", "Focus", "Tip", "State"];
-        const wired = descendsFrom(base, "View") || descendsFrom(base, "Layout") ||
-            (descendsFrom(base, "Node") && !NODE_ROOTS.some((n) => descendsFrom(base, n)));
-        if (!wired) {
-            errors.push(new DeclareError(`subclassing '${decl.base}' is not wired yet — a class extends View, Layout, or Node today (Dataset/Animator want the same plumbing; State is declarative)`, decl.basePos));
+        // Any built-in component is a base. A class extends View, Layout, Node,
+        // Dataset, Spring, Keys, State — every family alike — and gets the base's
+        // attributes and behaviour plus its own declared attributes, constraints
+        // and methods; the runtime builds every family through the one class-chain
+        // install (instantiate.ts). The single refusal is an ABSTRACT base: a
+        // schema no runtime class implements (Stream, Media, Editor) has nothing
+        // to construct, so a class extends a concrete member of that family.
+        if (ABSTRACT_SCHEMAS.has(decl.base)) {
+            errors.push(new DeclareError(`'${decl.base}' is an abstract base — it names no component to construct; extend one of its concrete members (${ABSTRACT_CONCRETE[decl.base] ?? "a built-in that descends from it"})`, decl.basePos));
             state.set(decl.name, "done");
             return;
         }
@@ -319,7 +308,7 @@ isShape = () => false) {
         // Where it may live: an Island's declarations (the host's half of the
         // bridge) or an App's (a tenant's exports). Anywhere else there is no
         // boundary for it to cross.
-        if (schema.name !== "App" && !descendsFrom(schema, "DOMIsland")) {
+        if (!descendsFrom(schema, "App") && !descendsFrom(schema, "DOMIsland")) {
             return err(diag `'external ${d.name}' — an external attribute is an island-boundary slot: declare it on an Island (the host's half of the bridge) or on an App (a tenant's export). ${schema.name} has no boundary to cross`, d.pos);
         }
         // Data types only: the other side is a SEPARATE program (someday a
@@ -392,7 +381,13 @@ isShape = () => false) {
         // corpus itself uses (`rid: string = { :id }`): name it (Run-2 finding).
         const hint = d.def.kind === "path"
             ? diag ` — to seed from data, write a { } default: ${d.name}: ${d.type} = { :${d.def.path} }`
-            : "";
+            // A default that READS something — a provided value, a constructor, any
+            // expression — is a binding, and the braces are what say so. Without this
+            // the message named the type and left the author to guess the spelling
+            // that works (`x: number = { provided("x", 1) }`).
+            : d.def.kind === "call"
+                ? diag ` — a default that reads a value is a { } binding: ${d.name}: ${d.type} = { ${d.def.name}(…) }`
+                : "";
         return err(diag `${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}${hint}`, d.def.pos);
     }
     return { ok: true, type, value: c.value };

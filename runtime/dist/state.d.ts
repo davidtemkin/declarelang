@@ -15,14 +15,17 @@ export declare class State extends Node {
     applied: boolean;
     /** Value overrides on the enclosing view. */
     overrides: Override[];
-    /** Conditional child templates, the build-time materializer, and the
-     *  classroot their bodies' members bind to (the state's use site). */
-    childTemplates: readonly Element[];
+    /** Conditional child templates — each with the classroot its body's members
+     *  bind to (the state instance for a class body's children, the use site's
+     *  scope for its own) — and the build-time materializer. */
+    childTemplates: readonly {
+        el: Element;
+        croot: View | null;
+    }[];
     materialize: ((t: Element, croot: View) => {
         view: View;
         finish: () => void;
     }) | null;
-    childClassroot: View | null;
     /** Declaration-order precedence, cached at init before any child inserts. */
     private priority;
     /** Whether the effects are currently installed (idempotency guard). */

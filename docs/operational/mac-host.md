@@ -46,8 +46,7 @@ failed build never leaves you without an app.
 
 The artifact→inputs table lives in `tools/internal/build-mac-app.mjs`, and the bundle half
 of it is *imported* from `tools/internal/bundle-freshness.mjs` rather than restated. That
-matters: there used to be a second copy of the pairing in Swift, under a comment asserting
-the two could not drift apart. They had.
+matters: one copy of the pairing cannot drift from another.
 
 `bash mac-host/bundle.sh` still works — it is a wrapper on the same build.
 
@@ -72,8 +71,7 @@ the handler.
 second "dev build": `mac-host/.build/release/DeclareMac` is a SwiftPM intermediate, never
 run directly. The gates, the conformance suite and `test/mac-shell.test.mjs` all launch
 the installed app (`mac-host/app.mjs` is the one place that answers "where is it?"), so
-what they measure is what ships. It did not used to be — half the rigs spawned the bare
-binary with `DECLARE_ROOT` set, measuring a configuration nobody runs.
+what they measure is what ships.
 
 ### The app is independent of the tree
 
@@ -98,25 +96,21 @@ is the first of the three things the compile cache validates against
 (`CompileService.swift`, *"WHAT MAKES A CACHED COMPILE STILL VALID"*), so it answers "does
 this cached compile come from the platform I am running?".
 
-That is a question about **the app**, which is why it is no longer the tree's file. The
+That is a question about **the app**, which is why it is the app's own file and not the
+tree's. The
 tree's `BUILD_ID` is derive's, and it describes the app only when derive happens to have
 run since the last edit; copy it on an underived tree and the app silently reuses programs
 compiled by a *different* platform. Hashing the baked bytes makes that impossible by
 construction rather than by remembering to derive — and the id is stable when the content
 is, so a rebuild that changes nothing keeps the cache.
 
-It also means **a mac build writes nothing into the tree.** An earlier version of this
-build ran derive's `stamp-version` to keep the id honest, which also stamps
-`service-worker.js`, `index.html` and every `apps/*/index.html` — the *web's*
-cache-busters, twenty-one committed files, written by a per-machine app build. The
-dependency runs one way.
+It also means **a mac build writes nothing into the tree.** The web's cache-busters —
+`service-worker.js`, `index.html`, every `apps/*/index.html` — are derive's, never a
+per-machine app build's. The dependency runs one way.
 
-> **`DECLARE_ROOT` is gone.** It used to point a built app at a tree, which meant "which
-> runtime is this app running?" had three possible answers resolved at launch. Both
-> recorded misdiagnoses on this host are that ambiguity: a fix written, built, and then
-> debugged for a full cycle against an app still running the previous runtime. The
-> platform is chosen when the app is built, and the build will not bake a stale one — so
-> rebuild, which is one command and mostly incremental.
+> **The platform is chosen when the app is built.** There is no way to point a built app at
+> a different tree, and the build will not bake a stale platform — so when the runtime
+> changes, rebuild. That is one command, and mostly incremental.
 
 ## What it opens
 
@@ -209,9 +203,9 @@ DECLARE_CONTROL=1 "/Applications/Declare Mac.app/Contents/MacOS/Declare Mac" &
 
 - **The app behaves like an older version of the platform** — it is one. Run
   `npm run build:mac`; it rebuilds every stale link in the chain and refuses to assemble
-  an app from anything stale. `tsc` alone has never been enough — the host runs
-  `bundles/declare-mac.js`, not `runtime/dist` — and that is exactly why there is now one
-  command instead of four.
+  an app from anything stale. `tsc` alone is not enough — the host runs
+  `bundles/declare-mac.js`, not `runtime/dist` — which is why this is one command rather
+  than four.
 - **`ctl platform`** answers where the compiler and library are being read from, and which
   toolchain is baked in. It is a `file://` URL inside the `.app`; anything else means the
   bundle was not assembled by the build.

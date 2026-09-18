@@ -26,7 +26,11 @@ const SUITE = [
   "test/dataset-merge.test.mjs",
   "test/change-event.test.mjs",
   "test/cursor-reach.test.mjs",
+  "test/provided-text-style.test.mjs",
+  "test/hit-3d.test.mjs",
   "test/super.test.mjs",
+  "test/subclass-roots.test.mjs",  // a class extends ANY built-in: Spring, DataSource, AnimatorGroup, Keys, State, …
+  "test/override-runtime.test.mjs", // a method replaces a built-in's RUNTIME method; super reaches the runtime's; the method table is pinned
   "test/materialization.test.mjs",
   "test/dataschema.test.mjs",
   "test/datasource-failure.test.mjs",
@@ -47,6 +51,7 @@ const SUITE = [
   "test/themes.test.mjs",
   "test/html.test.mjs",
   "test/richtext.test.mjs",
+  "test/inline-views.test.mjs",    // a program class as a tag in rich text: one real view, placed in the line (DOM + canvas)
   "test/text.test.mjs",            // the silent text regressions only: headless, one stub measurer, ~1s
   "test/md-conformance.test.mjs",  // Declare's Markdown reader vs markdown-it (VS Code's) over the CommonMark+GFM surface
   "test/slim.test.mjs",

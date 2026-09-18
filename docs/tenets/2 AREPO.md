@@ -10,7 +10,7 @@ more. Declare is designed around that shift, not retrofitted to it.
 
 ### AREPO-2 — The whole language fits in a model's context
 The declarative surface is small, closed, and regular — its *entire* definition is
-one file (`docs/declare.md`, on the order of ten thousand tokens). No model has
+one file (`docs/declare.md`, on the order of <!--stat:spec.tokens-->12,000<!--/stat--> tokens). No model has
 trained on Declare, and none needs to: a model can hold the complete spec while it
 writes.
 *Held in:* declare.md preamble ("the language, in one file … no LLM has been trained on it"); FAQ; the "why" essay.

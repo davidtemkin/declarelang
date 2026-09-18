@@ -1,10 +1,8 @@
 /*
 # DataGrid / Column / GridRow
 
-The Table contract plus a COLUMN MODEL (component-briefs.md §5 — D8 RULED):
-headers, sortable, reorderable and resizable by drag, touch-correct, over a
-windowed collection — the header drags are the forcing case the axis-scoped
-`claim = x` was designed for.
+The Table contract plus a **column model**: headers, sortable, reorderable and
+resizable by drag, touch-correct, over a windowed collection.
 
     DataGrid [ width = 600, height = 400, datapath = { app.d.value },
         selects = "multi",
@@ -13,37 +11,33 @@ windowed collection — the header drags are the forcing case the axis-scoped
         Column [ title = "State", field = "state", width = 110 ],
         GridRow [ datapath = :rows[], virtualize = true ] ]
 
-- **Columns are written members** (`Column` — selection-model §1b: permanent,
-  authored, identity = the child): `title` heads the column, `field` names
-  what a cell shows, `width` is the authored width — a PLAIN value (the
-  column model derives through an unanalyzed children walk; a responsive
-  width belongs in the grid's `widths` state, which IS a tracked dep:
+- **Columns are written members** (`Column`: permanent, authored, its identity
+  the child itself): `title` heads the column, `field` names what a cell
+  shows, `width` is the authored width — a plain value (the column model
+  derives through an unanalyzed children walk; a responsive width belongs in
+  the grid's `widths` state, which is a tracked dependency:
   `widths = { app.narrow ? ({ id: 40, … }) : null }`). A column's id is its
   `field` (title as fallback).
-- **Order and widths are the grid's value-pattern state** (Contract 1 form b):
-  `order` (column ids, presented order) and `widths` (id → width overrides).
-  Reorder delivers through `arrangeInput(order)`, resize through
-  `resizeInput(id, w)` — defaults write the slots; an app override owns them
-  (persisted layouts). Widths are PLAIN VALUES — nothing measures cells.
-- **Header interactions**: click sorts — a DELIVERY (`sortInput(on, dir)`
-  writing `sortOn`/`sortDir` by default): sort NAMES a derivation, the truth
+- **Order and widths are the grid's value-pattern state**: `order` (column
+  ids, presented order) and `widths` (id → width overrides). Reorder delivers
+  through `arrangeInput(order)`, resize through `resizeInput(id, w)` — the
+  defaults write the slots; an app override owns them (persisted layouts).
+  Widths are plain values — nothing measures cells.
+- **Header interactions**: click sorts — a delivery (`sortInput(on, dir)`,
+  writing `sortOn`/`sortDir` by default): sort names a derivation, the truth
   stays in data (the app derives the sorted dataset; a grid displays the
-  order its collection has). Horizontal drag REORDERS (live swap at the
-  midpoint); the right-edge grip RESIZES. Both drags declare `claim = x` —
+  order its collection has). Horizontal drag reorders (the new order commits
+  on release); the right-edge grip resizes. Both drags declare `claim = x` —
   on touch the page keeps vertical pan while the drag owns x.
-- **Rows**: the use site writes ONE bare `GridRow` template over its rows
+- **Rows**: the use site writes one bare `GridRow` template over its rows
   path — cells generate from the column model, each showing `record[field]`.
   Selection, keyboard, windowing: Table's, unchanged — `virtualize` on the
   template windows the grid, and the header (a preceding sibling) offsets
-  the window's geometry (the kernel's leading anchor).
-- Focus: land-as-one-stop, browse mode (arrows navigate rows). Entry-mode
-  grids (`focusScope = capture`, the tax-form convention) are a later
-  increment; nothing here forecloses it.
-- AT: rows speak logical position (the Surface seam). The column dimension
-  (`aria-colcount`/`colindex`) is DEFERRED to the same seam — noted, not
-  wired, in v1.
-- Narrow widths: v1 clips (`clip` on the cell); the deliberate degrade
-  (priority, not squish) is a designed later increment per the brief.
+  the window's geometry.
+- Focus: the grid lands as one tab stop, in browse mode — arrows navigate
+  rows.
+- Narrow widths: a cell clips; a `widths` entry of `0` drops its column
+  entirely — priority, not squish.
 
 Selection, keyboard travel and windowing are `Table`'s, documented there. What follows
 is only the column model.
@@ -208,9 +202,9 @@ include [ "table.declare", "menu.declare" ]
 
 use [ Menu ]
 
-// A column DECLARATION — a data-only member (invisible; SimpleLayout skips
+// A column declaration — a data-only member (invisible; SimpleLayout skips
 // it and reclaims its space). `width` is the View slot, reused as the
-// authored column width. `kind` declares what a CELL is:
+// authored column width. `kind` declares what a cell is:
 //   "text"   — a static label (the default)
 //   "edit"   — a TextInput committing each edit into the record (live)
 //   "check"  — a Checkbox over a boolean field
@@ -218,9 +212,9 @@ use [ Menu ]
 // `options` feeds "select" (records or strings, shown by String()).
 
 class Column extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
 
@@ -236,13 +230,13 @@ class Column extends View [
 
 
 class DataGrid extends Table [
-    // the marker (the wrap-probe discipline)
+    // the marker rows and headers guard on
 
     isDataGrid: boolean = true,
 
     headerH: number = 30,
 
-    // ── the column-model state (Contract 1 form b) ────────────────────────
+    // ── the column-model state — the value pattern ────────────────────────
 
     order: array = null,        // column ids, presented order (null = authored)
     widths: object = null,      // { id: width } overrides (null = authored)
@@ -262,10 +256,10 @@ class DataGrid extends Table [
         },
 
     // ── the column records: the authored Columns, ordered and widthed by
-    //    the state, with running x offsets — the ONE derived truth every
+    //    the state, with running x offsets — the one derived truth every
     //    header cell and grid cell positions from. A for-of children walk
     //    (never .filter in constraint-reachable code); the state rides in as
-    //    ARGUMENTS so the deriving constraint tracks it ──────────────────────
+    //    arguments so the deriving constraint tracks it ──────────────────────
 
     columnRecords(v: number, ord: array, w: object) -> array {
         const cols = []
@@ -282,7 +276,7 @@ class DataGrid extends Table [
         for (const c of cols) {
             const id = this.colId(c)
             const wd = w != null && typeof (w as any)[id] == "number" ? (w as any)[id] : c.width
-            // width 0 DROPS the column — the deliberate narrow degrade
+            // width 0 drops the column — the deliberate narrow degrade
             // (priority, not squish): a responsive `widths` state zeroes the
             // low-priority columns and the model omits them entirely
             if (wd <= 0) continue
@@ -301,14 +295,10 @@ class DataGrid extends Table [
 
     colData: Dataset [ contents = { { cols: classroot.columnRecords(classroot.colVersion, classroot.order, classroot.widths) } } ],
 
-    // reorder-by-drag: the dragged header's CENTER against each column's
-    // span — crossing a neighbor's midpoint swaps live (the arrangement
-    // re-derives and every undragged cell animates to its new x)
-
-    // reorder-by-drag, DROP-COMMIT (no live swap — swapping under the
-    // pointer re-derived the spans mid-drag and flickered): while a header
-    // drags, `dragCol`/`dropAt` drive the INSERTION BAR (the vertical
-    // divider at the would-be slot); the order commits on release.
+    // reorder-by-drag commits on release, never live: swapping under the
+    // pointer would re-derive the spans mid-drag and flicker. While a header
+    // drags, `dragCol`/`dropAt` drive the insertion bar (the vertical divider
+    // at the would-be slot), and the order commits at the drop.
 
     dragCol: string = "",
     dropAt: number = -1,
@@ -321,8 +311,8 @@ class DataGrid extends Table [
         return cols.length
         },
 
-    // `at` rides in as an ARGUMENT so the insertion bar's constraint tracks
-    // it (the columnRecords discipline: method bodies are unanalyzed)
+    // `at` rides in as an argument so the insertion bar's constraint tracks
+    // it, as `columnRecords` takes its state
 
     dropBarX(at: number) -> number {
         const cols = this.colData.value.cols
@@ -349,14 +339,16 @@ class DataGrid extends Table [
         this.arrangeInput(ord)
         },
 
-    // resize helpers: the grip lives on the LEFT edge of the FOLLOWING cell
-    // (the boundary belongs to the cell that paints last there — hit-testing
-    // probes topmost siblings first), so it resizes the PREVIOUS column
-
-    // vertical arrows from an ACTIVE editor cell: the edit moves to the
+    // vertical arrows from an active editor cell: the edit moves to the
     // same column one row up/down (the spreadsheet expectation) — the
-    // destination scrolls into existence and its editor takes focus (a
-    // beat later: materialization lands on the settle after showRow)
+    // destination scrolls into existence and its editor takes focus.
+    //
+    // The focus is a host timer rather than an afterSettle step because
+    // showRow scrolls the platform scroller, and that scroll lands as an
+    // event after this settle: the windowed rows re-link on it, and an
+    // editor whose row element moves loses the focus it was just given. The
+    // timer's task queues behind that event, so the focus lands once the
+    // rows have re-seated.
 
     editStep(row: View, field: string, d: number) {
         const i = (row as TableRow).rowIndex() + d
@@ -382,17 +374,18 @@ class DataGrid extends Table [
         return r != null ? r.width : 0
         },
 
-    // ── the select-cell options menu: ONE app-layer Menu shared by every
-    //    select cell in the grid (the Combobox door — created by name at
-    //    first use, retargeted per cell); picking writes the RECORD through
-    //    the row's cursor, and the cell re-derives like any other read ─────
+    // ── the select-cell options menu: one app-layer Menu shared by every
+    //    select cell in the grid (as Combobox hosts its list — created by
+    //    name at first use, retargeted per cell); picking writes the record
+    //    through the row's cursor, and the cell re-derives like any other
+    //    read ────────────────────────────────────────────────────────────────
 
     selMenu: View = null,
 
     openSelect(row: View, cell: View, field: string, current: object) {
-        // the column's options are read HERE, at gesture time — a Column's
+        // the column's options are read here, at gesture time — a Column's
         // `options` may be a constraint (a fresh handler read sees it; the
-        // record deliberately does not carry it, the widths lesson)
+        // column record deliberately does not carry it)
         let opts = null
         for (const c of this.children) {
             if ((c as Column).isColumn === true && this.colId(c) == field) opts = (c as Column).options
@@ -405,30 +398,32 @@ class DataGrid extends Table [
         m.openFor(cell)
         },
 
-    // ── the header: chrome ABOVE the scroll region. The grid's BOX is the
+    // ── the header: chrome above the scroll region. The grid's box is the
     //    rows' scroll region exactly — the scrollbar spans rows only, no
-    //    row ever slides under the header. A DOM scroller CLIPS at its box
+    //    row ever slides under the header. A DOM scroller clips at its box
     //    (overflow is real clipping — ignoreClip is Declare's rule, not the
-    //    browser's), so the header's SURFACE escapes into the grid's parent
-    //    (travelWith — the ring's re-homing door, run the other way) and
-    //    positions in PARENT coordinates; the view-tree stays put, so hit
+    //    browser's), so the header's surface escapes into the grid's parent
+    //    (travelWith — the same ride the focus ring takes, run the other way)
+    //    and positions in parent coordinates; the view-tree stays put, so hit
     //    testing (ignoreClip) and the column model see nothing move.
-    //    Backends without the ride keep an in-box header (recorded gap).
-    //    ignoreLayout keeps full-mode stacking AND the kernel's leading
-    //    anchor off it — rows start at content 0 either way ─────────────────
+    //    Renderers without the ride keep an in-box header. ignoreLayout keeps
+    //    full-mode stacking and the kernel's leading anchor off it — rows
+    //    start at content 0 either way ──────────────────────────────────────
 
     escaped: boolean = false,
 
-    // init runs before the backend attaches (initTree precedes App.attach), so
-    // the request cannot be answered yet — but travelWith REMEMBERS it and the
-    // runtime applies it the moment this view attaches, so the ride itself is
-    // guaranteed without polling. One deferred read then records the settled
-    // answer for the fallback geometry below; `false` here means the backend
-    // has no ride (headless, native), never "attach was slow".
+    // init runs before the renderer attaches, so the request cannot be
+    // answered yet — but travelWith remembers it and the runtime applies it
+    // the moment this view attaches, so the ride itself is guaranteed without
+    // polling. One deferred read then records the settled answer for the
+    // fallback geometry below; `false` here means the renderer has no ride
+    // (headless, native), never "attach was slow".
     //
-    // (This replaced a 20×50ms retry chain that could EXHAUST its budget on a
-    // loaded machine and leave the header silently un-escaped — a wrong render
-    // with no error, and a visual-baseline flake nobody could reproduce.)
+    // The read is a host timer rather than an afterSettle step because the
+    // boot settle closes before the tree attaches: the host awaits the
+    // program's fonts between instantiating the tree and mounting it, so a
+    // step at this settle's close still finds no surface and records false
+    // for good. The timer runs after the mount, once the answer exists.
 
     onInit() {
         escaped = this.hdr.travelWith(this.parent as any)
@@ -455,10 +450,10 @@ class DataGrid extends Table [
             width = { :width },
             height = { parent.height },
 
-            // dragging LIFTS the header: an opaque ghost above its
+            // dragging lifts the header: an opaque ghost above its
             // neighbors (raise + surface fill + edge), tracking the pointer;
             // the grid's insertion bar shows the would-be slot; the order
-            // commits at RELEASE (drop-commit — no mid-drag re-derives)
+            // commits at release (drop-commit — no mid-drag re-derives)
 
             dragging: boolean = false,
             moved: boolean = false,
@@ -466,7 +461,7 @@ class DataGrid extends Table [
             x0: number = 0,
             p0: number = 0,
 
-            // the lifted ghost is unmistakably IN HAND: an accent-edged,
+            // the lifted ghost is unmistakably in hand: an accent-edged,
             // shadowed, rounded card floating over its neighbors
 
             fill = { dragging && moved ? theme.surface : null },
@@ -497,7 +492,7 @@ class DataGrid extends Table [
                 if (!dragging) return
                 dragging = false
                 if (moved) (classroot as DataGrid).commitDrop(colid)
-                // an unmoved press is the CLICK — the sort delivery
+                // an unmoved press is the click — the sort delivery
                 else (classroot as DataGrid).headerClick(colid)
                 },
 
@@ -505,11 +500,9 @@ class DataGrid extends Table [
                 textColor = { theme.textMuted },
                 text = { "" + :title } ],
 
-            // The sort direction, DRAWN. This shipped `▼`/`▲` as font glyphs
-            // INSIDE the library — the one place the corpus's own rule was
-            // broken by the code that sets it. One chevron class, turned by its
-            // `dir`, so a sort header agrees with every other disclosure mark in
-            // the chrome.
+            // The sort direction, drawn: one chevron class, turned by its
+            // `dir`, so a sort header agrees with every other disclosure mark
+            // in the chrome.
 
             sortMark: ChevronIcon [ y = center, iconSize = 11,
                 x = { parent.width - this.width - 14 },
@@ -517,7 +510,7 @@ class DataGrid extends Table [
                 ink = { theme.textMuted },
                 dir = { (classroot as DataGrid).sortDir == "desc" ? "down" : "up" } ],
 
-            // the resize grip: the LEFT-edge sliver, resizing the PREVIOUS
+            // the resize grip: the left-edge sliver, resizing the previous
             // column — the boundary region belongs to this cell (later
             // siblings hit first), so the grip must live here to be
             // reachable; absent on the first column. Plain widths delivered
@@ -550,7 +543,7 @@ class DataGrid extends Table [
                 x = { parent.width - 1 }, fill = { theme.line } ]
             ],
 
-        // the INSERTION BAR — where the dragged column would land
+        // the insertion bar — where the dragged column would land
 
         drop: View [ width = 2, y = 2, height = { parent.height - 4 },
             visible = { (classroot as DataGrid).dragCol != "" },
@@ -564,7 +557,7 @@ class DataGrid extends Table [
 
 
 // The row: TableRow's whole contract (selection, member, the click wiring),
-// generating one cell per column record. The use site writes it BARE over
+// generating one cell per column record. The use site writes it bare over
 // its rows path — the cells come from the grid's column model.
 
 class GridRow extends TableRow [
@@ -572,7 +565,7 @@ class GridRow extends TableRow [
 
     height = 28,
 
-    // the row's RECORD as a DERIVED slot — the $data read is analyzed, so
+    // the row's record as a derived slot — the $data read is analyzed, so
     // cells re-render when the record's fields change (a method call would
     // go stale); null when written/unreplicated
 
@@ -583,10 +576,10 @@ class GridRow extends TableRow [
         height = { parent.height },
         datapath = { (classroot.parent as DataGrid).isDataGrid === true ? (classroot.parent as DataGrid).colData.value : null },
 
-        // ONE cell per column record; `kind` picks the presentation. Editors
-        // write the RECORD through the row's cursor ($setData) — the grid
+        // One cell per column record; `kind` picks the presentation. Editors
+        // write the record through the row's cursor ($setData) — the grid
         // never holds cell state, so windowing and sort re-derives keep
-        // every edit (the instance-free doctrine, applied to editing).
+        // every edit.
 
         View [ datapath = :cols[],
             x = { :x },
@@ -621,9 +614,9 @@ class GridRow extends TableRow [
                 input(v: boolean) { classroot.$setData(["" + :field], v) }
                 ],
 
-            // the select cell is a CONTROL — a real tab stop (Space/Enter
+            // the select cell is a Control — a real tab stop (Space/Enter
             // opens the menu, the Control activation path), styled as a
-            // quiet button so it READS as interactive
+            // quiet button so it reads as interactive
 
             sel: Control [ x = 2, y = 2,
                 visible = { parent.k == "select" },

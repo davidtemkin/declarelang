@@ -42,15 +42,11 @@ class DashButton extends View [
     stroke = { stroke(1.5, edge) },
 
     // Centred in whatever height the pill is — 16 in the contacts bar, 20 on
-    // the login — with the engraved copy 0.7px above the face.
+    // the login — engraved by one textShadow 0.7px above the face.
 
-    shadowText: Text [ x = { Math.round((parent.width - this.width) / 2) + 0.5 },
-        y = { (classroot.height - this.height) / 2 - 0.7 },
-        fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = { edge },
-        text = { classroot.label } ],
-    faceText: Text [ x = { Math.round((parent.width - this.width) / 2) },
-        y = { (classroot.height - this.height) / 2 },
+    faceText: Text [ x = { Math.round((parent.width - this.width) / 2) }, y = center,
         fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #FFFFFF,
+        textShadow = { shadow(0.5, -0.7, 0, edge) },
         text = { classroot.label } ]
     ]
 
@@ -118,7 +114,7 @@ class DashTab extends View [
         onClick() { classroot.parent.select(classroot); app.stage.popup.hide() },
 
         draw(d: Draw) {
-            const bw = Math.min(width, titleW() + 11)
+            const bw = Math.min(width, title.width + 11)
             // One gradient with a hard stop per row, rather than eighteen
             // stacked rects: on a retina display the seam between abutting
             // rects antialiases and shows as banding, a single fill cannot.
@@ -139,13 +135,10 @@ class DashTab extends View [
             d.fillStyle = 0x00000080; d.fillRect(bw + 1, 0, 1, 18)
             bands(bw + 2, width - bw - 2, classroot.barBase)
             },
-        titleW(): number { return title.width },
 
-        titleShadow: Text [ x = 5.5, y = 1.5, fontFamily = { app.vera }, fontWeight = bold,
-            fontSize = 12, textColor = #000000, opacity = 0.5,
-            text = { classroot.label } ],
         title: Text [ x = 6, y = 1, fontFamily = { app.vera }, fontWeight = bold,
-            fontSize = 12, textColor = #FFFFFF, text = { classroot.label } ]
+            fontSize = 12, textColor = #FFFFFF, textShadow = shadow(-0.5, 0.5, 0, #00000080),
+            text = { classroot.label } ]
         ]
     ]
 
@@ -198,14 +191,16 @@ class DashWindow extends View [
 
     // four attributes moving together — the maximize and restore gesture
 
-    ax: Animator [ attribute = x, duration = 500, motion = laszloOut ],
-    ay: Animator [ attribute = y, duration = 500, motion = laszloOut ],
-    aw: Animator [ attribute = width, duration = 500, motion = laszloOut ],
-    ah: Animator [ attribute = height, duration = 500, motion = laszloOut ],
+    move: AnimatorGroup [ process = simultaneous, duration = 500, motion = laszloOut,
+        ax: Animator [ attribute = x ],
+        ay: Animator [ attribute = y ],
+        aw: Animator [ attribute = width ],
+        ah: Animator [ attribute = height ]
+        ],
 
     glide(tx: number, ty: number, tw: number, th: number) {
-        ax.to = tx; ay.to = ty; aw.to = tw; ah.to = th
-        ax.start(); ay.start(); aw.start(); ah.start()
+        move.ax.to = tx; move.ay.to = ty; move.aw.to = tw; move.ah.to = th
+        move.start()
         },
     maximize() {
         this.raise()

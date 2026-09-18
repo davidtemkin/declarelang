@@ -7,24 +7,23 @@ or any centered caption; use plain `Text` for flowing copy.
 
 Why it exists. `y = center` on a plain `Text` centers the geometric box (the
 ordinary meaning, matching every other view). But a label sitting in a box wants
-its LETTERFORMS optically centered, not the font's box with its asymmetric
+its **letterforms** optically centered, not the font's box with its asymmetric
 ascent/descent leading — otherwise the text reads a hair low. `TextLabel`
-supplies a `y` that centers the CAP BAND (cap-top to baseline), the optical
+supplies a `y` that centers the cap band (cap-top to baseline), the optical
 centre for a label:
 
     y = { parent.height / 2 - this.baseline + this.capHeight / 2 }
 
-That expression is exactly what `y = center` on a Text used to compute before the
-box-centering fix — the cap-centering is preserved, now explicit and living in
-one place. It is a plain constraint over the Text's own live metric facts
+That expression cap-centres the label: the ink sits centred by its cap band rather
+than by its box, which is what reads as centred for a label. It is written out here,
+once, instead of at every use site. It is a plain constraint over the Text's own live
+metric facts
 (`baseline`, `capHeight`, measured from the effective font), so it re-centers
 when the font, the size, or the parent's height changes. Override `y` on an
 instance to opt out.
 
-The centre is the CAP band because that is what the platform control themes
-(Cupertino, Mountain View, Redmond) are matched against. If a theme ever wants a
-different band — the x-height for lowercase-heavy labels — this one expression
-gains a `theme`-driven branch and every control follows, live; no other change.
+The centre is the cap band because that is what the platform control themes
+(Cupertino, Mountain View, Redmond) are matched against.
 
 ## y
 Centres the ink on the parent's height by its cap band — baseline and cap height — rather than by the line box, which is what a label beside a control wants and a paragraph does not.

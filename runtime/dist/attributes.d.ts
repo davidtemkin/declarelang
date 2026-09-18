@@ -1,4 +1,4 @@
-import { Constraint } from "./reactive.js";
+import { Cell, Constraint } from "./reactive.js";
 /** One attribute's class-level declaration: its default, the Surface push a
  *  change makes (absent for purely model-side attributes), and an optional
  *  value-equality predicate (decoration values gate on shallow structural
@@ -84,6 +84,19 @@ export declare function defineAttributes<S extends object>(ctor: abstract new ()
  *  is set locally (the accessor evaluates a defBinding only on an unset slot),
  *  so `Text [ fontSize = 70 ]` overrides without consulting the tree. */
 export declare function providedDefault(name: string, def: unknown): (this: unknown) => unknown;
+/** THE TEXT FACE, name by name, with the default each falls to when nothing above
+ *  provides it. The ONE source: `Text` builds its face slots' defBindings from
+ *  this table, and `providedTextStyle()` (Node) assembles the same five reads
+ *  into a `TextStyle`. They cannot drift, which matters because a measurement
+ *  taken with different defaults than the run it is measuring is silently wrong.
+ *  Only these five are provided; the rest of `TextStyle` (italic, small caps,
+ *  numerals, the treatments) is per-run and nobody provides it. */
+export declare const PROVIDED_FACE: readonly (readonly [string, unknown])[];
+/** The face table as `defineAttributes` entries — what a text leaf declares. */
+export declare function faceSlots(): Record<string, {
+    def: unknown;
+    defBinding: (this: unknown) => unknown;
+}>;
 export declare function providedRead(self: object, name: string, hasDefault: boolean, dflt: unknown): unknown;
 /** A runtime-side write: a constraint's apply, auto-size, a load result.
  *  Same store/push/wake as the setter, but it neither marks the slot as
@@ -101,6 +114,14 @@ export declare function addBound(self: object, name: string, delta: number): voi
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
  *  explicit `width=0` now means zero, not "measure me". */
 export declare function isSet(self: object, name: string): boolean;
+/** The dependency nodes that exist for `self`'s slots — one per slot some
+ *  computation has tracked a read of (pay-per-use: an unobserved slot owns
+ *  none). The one way to ask "does that constraint read anything of THIS
+ *  object's?" without a reverse index: collect these, hand them to
+ *  `Constraint.readsAny`. Used by a layout to tell a parent extent that
+ *  measures its own laid children from one that does not (layout.ts
+ *  `viewExtent`). */
+export declare function cellsOf(self: object): Cell[];
 /** The slot's class-level default — what a `:path` binding falls back to
  *  when the path is unresolved (the doc's rule, language §9). */
 export declare function defaultOf(self: object, name: string): unknown;

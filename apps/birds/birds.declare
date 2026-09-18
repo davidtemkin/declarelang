@@ -4,25 +4,25 @@
 Every value in this program lives in exactly one of three homes, sorted by the
 stranger test (guide ch. 13 — *would you hand it to a stranger?*):
 
-  location  the ADDRESSES — "" (the shelf), "b/<slug>" (one bird's page,
+  location  the addresses — "" (the shelf), "b/<slug>" (one bird's page,
             crawlable and shareable), "quiz" (the quiz room). The URL shows
             these and nothing else.
-  waypoint  the STEP — one string, "<seeds>|<answers>|<shown>", from which
+  waypoint  the step — one string, "<seeds>|<answers>|<shown>", from which
             the entire quiz round derives: which ten birds, what you answered,
             which card is up, even the decoy choices (deterministic — no stored
             shuffle). Every pick and every Next writes it, so each is a history
             entry: the Back button retraces the quiz action by action, the URL
             sitting motionless at #quiz the whole time. A coordinate rides on
-            its entry, so it comes back by TRAVERSAL only: reload the page (or
+            its entry, so it comes back by traversal only: reload the page (or
             open a shared #quiz link) and you get the invitation and a fresh
             round, because the URL is all an arrival has to rebuild from — one
             Back, though, and the old round is still on the entry behind you.
-  ordinary  everything else — hovers, the loaded flag, and the FLIGHTS (the
-            plate's zoom from shelf tile to page, and its return home —
-            LZPix-style). The flights are the third row made vivid: nobody
+  ordinary  everything else — hovers, the loaded flag, and the flights (the
+            plate's zoom from shelf tile to page, and its return home).
+            The flights are the third row made vivid: nobody
             shares a zoom, so their rects are plain attributes and history
             never hears of them. Arrivals animate only from gestures — a
-            pasted URL simply IS its page — but the journey HOME plays for
+            pasted URL simply is its page — but the journey home plays for
             the Back button too, armed inside `onFollow`: the hook is the one
             door a link click and a traversal both pass through, which is
             exactly what lets a motion answer Back without any handler running.
@@ -38,20 +38,21 @@ fixture (birds.json beside this file), which is what makes the whole guide
 crawlable from a static host.
 */
 
-//    hair #E2DACA · accent (oxblood) #7A3B2E · right #4A6B4D · wrong #9A4632
+// the palette: paper #F7F3E8 · mat #FFFDF6 · ink #2B2825 · muted #8A8272 ·
+// hair #E2DACA · accent (oxblood) #7A3B2E · right #4A6B4D · wrong #9A4632
 
 // ── one plate in a frame: cream mat, hairline, the engraving contained ───────
 
 class Plate extends View [ fill = #FFFDF6, stroke = stroke(1, #E2DACA), clip = true,
     slug: string = "",
-    lift: number = 0,                            // 0 = at rest, 1 = raised (hover) — the shadow deepens, LZPix-style
+    lift: number = 0,                            // 0 = at rest, 1 = raised (hover) — the shadow deepens
     shadow = { shadow(0, 2 + 5 * this.lift, 9 + 13 * this.lift, 0x00000024) },
     pic: Image [ x = 8, y = 8, width = { parent.width - 16 }, height = { parent.height - 16 },
         stretches = contain, source = { classroot.slug == "" ? "" : "plates/" + classroot.slug + ".jpg" } ]
     ]
 
 
-// ── a shelf tile: plate + caption, the whole thing one LINK to the bird ──────
+// ── a shelf tile: plate + caption, the whole thing one link to the bird ──────
 
 class Tile extends View [ width = { app.tileW }, height = { app.tileW + 44 },
     link = { "#b/" + :slug },
@@ -60,12 +61,12 @@ class Tile extends View [ width = { app.tileW }, height = { app.tileW + 44 },
     hoverT: number = 0,
     Spring [ attribute = hoverT, to = { classroot.hovered ? 1 : 0 }, stiffness = 220, damping = 20, epsilon = 0.001 ],
 
-    // the click CAPTURES this plate's place on the shelf before the link
+    // the click captures this plate's place on the shelf before the link
     // navigates (onClick beside a link runs first) — the flight's origin
 
-    onClick() { app.beginFlight(this.frame, Number(:i)) },
+    onClick() { app.beginFlight(this.frame) },
 
-    // while this bird is flying home its plate is simply NOT HERE — bare paper
+    // while this bird is flying home its plate is simply not here — bare paper
     // and a caption waiting for it (app.inFlight). The flyer wears the same mat
     // and lands on this exact rect, so the swap at touchdown is invisible.
 
@@ -89,7 +90,7 @@ class Choice extends View [ width = { parent.width }, height = 44, cornerRadius 
     fill = { this.state == "right" ? 0xDCE8DC : this.state == "wrong" ? 0xEFDCD6 : this.hovered ? 0xF2EDE0 : 0xFFFDF6 },
     stroke = { stroke(1, this.state == "right" ? 0x4A6B4D : this.state == "wrong" ? 0x9A4632 : 0xE2DACA) },
     onClick() { app.pick(this.pick) },
-    t: Text [ x = 16, y = center, fontSize = 15, fontFamily = "Georgia, 'Times New Roman', serif",
+    t: TextLabel [ x = 16, fontSize = 15,
         textColor = { parent.state == "wrong" ? 0x9A4632 : 0x2B2825 }, text = { classroot.label } ]
     ]
 
@@ -97,11 +98,19 @@ class Choice extends View [ width = { parent.width }, height = 44, cornerRadius 
 // ═════════════════════════════════════════════════════════════════════════════
 
 App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, textColor = #2B2825,
+
+    // One face for the whole book, declared once and provided: every Text below
+    // reads it, so no run names a family and changing the book's typeface is a
+    // one-line edit.
+
+    serif: Font [ family = "Georgia, 'Times New Roman', serif" ],
+    fontFamily = { app.serif },
+
     location = "",
     waypoint = "",
     appName = { app.bird != null ? "" + app.bird.name + " · 50 Birds" : app.dest == "quiz" ? "The Quiz · 50 Birds" : "50 Birds" },
 
-    /* ENVIRONMENT-AWARE, the calendar's idiom: standalone the fixture sits
+    /* Environment-aware, the calendar's idiom: standalone the fixture sits
        beside the app; hosted, the embedder passes env.base (its own
        transport's path to this app's home) and the same relative address
        resolves through it — `auto` refetches when base lands after init. */
@@ -123,14 +132,14 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
         const old = ({ "carolina-parrot": "carolina-parakeet", "great-footed-hawk": "peregrine-falcon",
             "mocking-bird": "northern-mockingbird", "white-headed-eagle": "bald-eagle" }) as any
         const renamed = ref.slice(0, 3) == "#b/" ? old[ref.slice(3)] : undefined
-        // The RETURN flight is armed here, in the hook, and not in any click
-        // handler — because the hook is the one door EVERY arrival passes
+        // The return flight is armed here, in the hook, and not in any click
+        // handler — because the hook is the one door every arrival passes
         // through, the Back button included, and Back runs no handler. One
         // condition covers both ways home: the "← the whole shelf" link and a
         // history traversal each announce themselves as an arrival at "#",
         // and if we are leaving a bird when that arrives, its plate flies
         // back to its tile (the inverse of beginFlight, derived from data
-        // rather than a captured rect, so it lands on the RIGHT tile even if
+        // rather than a captured rect, so it lands on the right tile even if
         // prev/next walked us far from the bird we originally opened).
         if (ref == "#" && app.bird != null) app.armReturn()
         return renamed != undefined ? "#b/" + renamed : ref
@@ -138,7 +147,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
     // ── waypoint → the session, parsed ("<seeds>|<answers>|<shown>") ─────────
     // The whole round is a pure function of this one string: ten bird indices
-    // drawn at start, the answers so far, and which card is up. The DECOYS
+    // drawn at start, the answers so far, and which card is up. The decoys
     // derive too — fixed co-prime offsets from the right answer, ordered by a
     // rotation the answer picks — so a restored waypoint rebuilds the exact
     // card, choices and all. Nothing about the round is stored anywhere else.
@@ -177,27 +186,24 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
     nameOf(n: number) -> string { return app.birds.length > n && n >= 0 ? "" + app.birds[n].name : "" },
     slugOf(n: number) -> string { return app.birds.length > n && n >= 0 ? "" + app.birds[n].slug : "" },
 
-    // ── the FLIGHT — one plate traveling from its shelf tile to the page ─────
-    // The LZPix move, and the desktop's own open-zoom: the SAME object leaves
-    // its grid slot and lands as the page's plate, so the transition reads as
-    // continuity, not replacement. Note what the flight is NOT: it is neither
-    // an address nor a step. A pasted `#b/…` URL and a Back press both land
-    // with no entrance — a URL should simply BE the page, and Back restores
-    // where you were rather than re-performing the click that took you there.
-    // So the captured rect lives in ordinary attributes (flyW < 0 = none),
-    // and only a real click ever starts the animator.
+    // ── the flight — one plate traveling from its shelf tile to the page ─────
+    // The same object leaves its grid slot and lands as the page's plate, so
+    // the transition reads as continuity, not replacement. Note what the
+    // flight is not: it is neither an address nor a step. A pasted `#b/…` URL
+    // and a Back press both land with no entrance — a URL should simply be
+    // the page, and Back restores where you were rather than re-performing
+    // the click that took you there. So the captured rect lives in ordinary
+    // attributes (flyW < 0 = none), and only a real click ever starts the
+    // animator.
 
     flyX: number = -1,                           // the tile plate's rect, in content coordinates
     flyY: number = -1,
     flyW: number = -1,
     lerp(a: number, b: number, t: number) -> number { return a + (b - a) * t },
-    beginFlight(v: View, i: number) {
-        let x = 0
-        let y = 0
-        let n = v
-        while (n != null && n != app) { x += n.x || 0; y += n.y || 0; n = n.parent }
-        app.flyX = x
-        app.flyY = y
+    beginFlight(v: View) {
+        const o = v.rootOrigin()                 // content coordinates, scroll-aware
+        app.flyX = o.x
+        app.flyY = o.y
         app.flyW = v.width
         app.page.fly.start()
         },
@@ -208,7 +214,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
         app.page.fly.start()
         },
     armReturn() {
-        // the inverse journey (see onFollow): remember WHO is going home, and
+        // the inverse journey (see onFollow): remember who is going home, and
         // fly. The flyer below derives both endpoints — the page's resting
         // plate and the bird's own tile — so nothing else needs capturing.
         app.retSlug = "" + app.bird.slug
@@ -218,7 +224,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
     retT:    number = 1,
     ret:     Animator [ attribute = retT, from = 0, to = 1, duration = 340, motion = cubicOut ],
 
-    // ONE PLATE, ONE PLACE. While a bird is flying home its shelf slot is bare
+    // One plate, one place. While a bird is flying home its shelf slot is bare
     // paper — the plate is not in two places, it is in the air — so the eye
     // follows a single object into the gap it left. The tile asks this of every
     // plate it draws; at rest it is always false.
@@ -250,15 +256,15 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
     bar: View [ ignoreScroll = true, x = 0, y = 0, width = { app.width }, height = 58, fill = #F7F3E8F2,
         rule: View [ x = 0, y = 57, width = { parent.width }, height = 1, fill = #E2DACA ],
-        mark: Text [ x = { app.colX }, y = center, fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 19, letterSpacing = 2,
+        mark: Text [ x = { app.colX }, y = center, fontSize = 19, letterSpacing = 2,
             text = "50 BIRDS", link = "#", textColor = #2B2825 ],
         sub: Text [ x = { app.colX + 118 }, y = 22, fontSize = 12, textColor = #8A8272, wrap = false,
             visible = { app.colW >= 700 }, text = "the plates of John James Audubon, 1827–1838" ],
-        quizLink: Text [ x = { app.colX + app.colW - 64 }, y = center, fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif",
+        quizLink: Text [ x = { app.colX + app.colW - 64 }, y = center, fontSize = 14,
             link = "#quiz", text = "The Quiz", textColor = { app.dest == "quiz" ? 0x7A3B2E : 0x2B2825 } ]
         ],
 
-    // ═══ the SHELF — every plate, grouped; each tile a link (an address) ═════
+    // ═══ the shelf — every plate, grouped; each tile a link (an address) ═════
 
     shelf: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.atShelf },
         datapath = { app.data.loaded ? app.data.value : null },
@@ -271,14 +277,14 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
         pad: View [ width = 1, height = 56 ]
         ],
 
-    // ═══ one BIRD — a page with an address you could hand to anyone ══════════
+    // ═══ one bird — a page with an address you could hand to anyone ══════════
 
     page: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.bird != null },
         datapath = { app.bird },
 
         // the arrival scalar: 0 = just left the shelf, 1 = at rest. A clicked
         // tile flies the plate here (geometry below); a page turn dissolves;
-        // a deep link or a traversal never starts it, so flyT RESTS at 1 and
+        // a deep link or a traversal never starts it, so flyT rests at 1 and
         // the page is simply present — the entrance belongs to the gesture
         // that caused it, never to the URL or the Back button.
 
@@ -301,20 +307,20 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
             width = { parent.wide ? parent.width - parent.plateW - 36 : parent.width },
             opacity = { parent.flyT },               // the details fade up as the plate lands
             layout: SimpleLayout [ axis = y, spacing = 14 ],
-            name: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 30, width = { parent.width }, text = { "" + (:name ?? "") } ],
+            name: Text [ fontSize = 30, width = { parent.width }, text = { "" + (:name ?? "") } ],
             latin: Text [ fontSize = 15, textColor = #8A8272, italic = true, text = { "" + (:latin ?? "") } ],
             plateNo: Text [ fontSize = 13, textColor = #8A8272,
                 text = { :plate == null ? "" : "Plate " + :plate + (:audubonName != :name ? "  ·  Audubon called it the " + :audubonName : "") } ],
             gone: Text [ fontSize = 13, textColor = #9A4632, visible = { :status == "extinct" }, text = "EXTINCT" ],
-            prose: Text [ width = { parent.width }, fontSize = 16, fontFamily = "Georgia, 'Times New Roman', serif", lineHeight = 1.55, text = { "" + (:prose ?? "") } ],
+            prose: Text [ width = { parent.width }, fontSize = 16, lineHeight = 1.55, text = { "" + (:prose ?? "") } ],
             kinHead: Text [ fontSize = 13, textColor = #8A8272, text = "SEE ALSO" ],
             kinRow: View [ width = { parent.width }, height = 24,
                 layout: SimpleLayout [ axis = x, spacing = 18 ],
-                k1: Text [ fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif", textColor = #7A3B2E, wrap = false,
+                k1: Text [ fontSize = 14, textColor = #7A3B2E, wrap = false,
                     onClick() { app.turnPage() },
                     link = { "#b/" + :kin[0] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[0])?.name ?? "") : "" }
                     ],
-                k2: Text [ fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif", textColor = #7A3B2E, wrap = false,
+                k2: Text [ fontSize = 14, textColor = #7A3B2E, wrap = false,
                     onClick() { app.turnPage() },
                     link = { "#b/" + :kin[1] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[1])?.name ?? "") : "" }
                     ]
@@ -341,27 +347,27 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
         closeBox: View [ x = { parent.width - 34 }, y = 6, width = 28, height = 28, cornerRadius = 14,
             fill = #F7F3E8F2, stroke = stroke(1, #E2DACA), link = "#", opacity = { parent.flyT },
-            mark: Text [ x = center, y = center, fontSize = 13, textColor = #8A8272, text = "✕" ]
+            mark: CloseIcon [ x = center, y = center, iconSize = 15, ink = #8A8272 ]
             ]
         ],
 
-    // ═══ the QUIZ — one address, a whole SESSION of history entries ══════════
+    // ═══ the quiz — one address, a whole session of history entries ══════════
 
     quiz: View [ shows = "quiz", x = { app.colX }, y = 84, width = { Math.min(620, app.colW) },
         card: View [ width = { parent.width },
             layout: SimpleLayout [ axis = y, spacing = 16 ],
 
-            // before a round: the invitation (also where a SHARED #quiz link
+            // before a round: the invitation (also where a shared #quiz link
             // lands — the URL carried the place, deliberately not the session)
 
             invite: View [ width = { parent.width }, visible = { !app.started },
                 layout: SimpleLayout [ axis = y, spacing = 14 ],
-                h: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 26, text = "Name the bird." ],
+                h: Text [ fontSize = 26, text = "Name the bird." ],
                 p: Text [ width = { parent.width }, fontSize = 15, lineHeight = 1.5, textColor = #8A8272,
                     text = "Ten plates, four names each. The Back button un-asks a question — try it mid-round and watch the URL not care." ],
                 go: View [ width = 180, height = 44, cornerRadius = 8, fill = #7A3B2E,
                     onClick() { app.startQuiz() },
-                    t: Text [ y = center, width = { parent.width }, textAlign = center, fontFamily = "Georgia, 'Times New Roman', serif",
+                    t: Text [ y = center, width = { parent.width }, textAlign = center,
                         fontSize = 16, textColor = #F7F3E8, text = "Begin" ]
                     ]
                 ],
@@ -377,7 +383,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                 tally: Text [ fontSize = 13, textColor = #8A8272,
                     text = { "Question " + (app.shown + 1) + " of " + app.seeds.length + "   ·   " + app.score + " right so far" } ],
                 frame: Plate [ width = { Math.min(440, parent.width) }, height = { Math.min(440, parent.width) * 0.9 },
-                    slug = { app.revealed ? app.slugOf(app.answer) : app.slugOf(app.answer) } ],
+                    slug = { app.slugOf(app.answer) } ],
                 c0: Choice [ pick = { app.choices[0] ?? -1 }, label = { app.nameOf(app.choices[0] ?? -1) },
                     state = { !app.revealed ? "" : (app.choices[0] == app.answer ? "right" : (app.choices[0] == app.picked ? "wrong" : "")) } ],
                 c1: Choice [ pick = { app.choices[1] ?? -1 }, label = { app.nameOf(app.choices[1] ?? -1) },
@@ -387,7 +393,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                 c3: Choice [ pick = { app.choices[3] ?? -1 }, label = { app.nameOf(app.choices[3] ?? -1) },
                     state = { !app.revealed ? "" : (app.choices[3] == app.answer ? "right" : (app.choices[3] == app.picked ? "wrong" : "")) } ],
                 verdict: View [ width = { parent.width }, height = 44, visible = { app.revealed },
-                    v: Text [ x = 0, y = center, fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 16,
+                    v: Text [ x = 0, y = center, fontSize = 16,
                         textColor = { app.picked == app.answer ? 0x4A6B4D : 0x9A4632 },
                         text = { app.picked == app.answer ? "Yes — the " + app.nameOf(app.answer) + "." : "No — that's the " + app.nameOf(app.answer) + "." } ],
                     onward: View [ x = { parent.width - 130 }, width = 130, height = 40, cornerRadius = 8, fill = #7A3B2E,
@@ -402,7 +408,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
 
             done: View [ width = { parent.width }, visible = { app.finished },
                 layout: SimpleLayout [ axis = y, spacing = 14 ],
-                h: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 26, text = { app.score + " of " + app.seeds.length } ],
+                h: Text [ fontSize = 26, text = { app.score + " of " + app.seeds.length } ],
                 p: Text [ width = { parent.width }, fontSize = 15, lineHeight = 1.5, textColor = #8A8272,
                     text = "Hold Back and the whole round unwinds, answer by answer — ten entries, one URL. Each bird below is an address; the round never was." ],
                 r0: Recap [ t = 0 ],
@@ -417,7 +423,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
                 r9: Recap [ t = 9 ],
                 again: View [ width = 180, height = 44, cornerRadius = 8, fill = #7A3B2E,
                     onClick() { app.startQuiz() },
-                    t: Text [ y = center, width = { parent.width }, textAlign = center, fontFamily = "Georgia, 'Times New Roman', serif",
+                    t: Text [ y = center, width = { parent.width }, textAlign = center,
                         fontSize = 16, textColor = #F7F3E8, text = "Another ten" ]
                     ]
                 ],
@@ -425,7 +431,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, fill = #F7F3E8, text
             ]
         ],
 
-    // the RETURN flyer — the same plate, traveling home (declared last, so it
+    // the return flyer — the same plate, traveling home (declared last, so it
     // paints above the shelf it lands on). An overlay rather than the page's
     // frame, because the page has already yielded to the shelf by the time the
     // return runs; at rest (retT = 1) it does not exist.
@@ -445,7 +451,7 @@ class Section extends View [ width = { parent.width },
     group: string = { "" + :name },
     n: number = { Number(:count) },
     height = { 34 + Math.ceil(this.n / app.cols) * (app.tileW + 62) },
-    head: Text [ fontFamily = "Georgia, 'Times New Roman', serif", fontSize = 17, letterSpacing = 1, textColor = #8A8272,
+    head: Text [ fontSize = 17, letterSpacing = 1, textColor = #8A8272,
         text = { classroot.group.toUpperCase() } ],
     grid: View [ y = 34, width = { parent.width },
         Tile [ datapath = :birds[], key = :slug ]
@@ -460,7 +466,7 @@ class Recap extends View [ width = { parent.width }, height = 26,
     ok: boolean = { app.answers[this.t] == app.seeds[this.t] },
     mark: Text [ x = 0, y = center, fontSize = 14, textColor = { classroot.ok ? 0x4A6B4D : 0x9A4632 },
         text = { classroot.ok ? "✓" : "✗" } ],
-    who: Text [ x = 26, y = center, fontSize = 14, fontFamily = "Georgia, 'Times New Roman', serif", textColor = #7A3B2E, wrap = false,
+    who: Text [ x = 26, y = center, fontSize = 14, textColor = #7A3B2E, wrap = false,
         link = { "#b/" + app.slugOf(app.seeds[classroot.t] ?? -1) }, text = { app.nameOf(app.seeds[classroot.t] ?? -1) } ],
     call: Text [ x = 300, y = center, fontSize = 13, textColor = #8A8272, wrap = false,
         visible = { !classroot.ok }, text = { "you said " + app.nameOf(app.answers[classroot.t] ?? -1) } ]

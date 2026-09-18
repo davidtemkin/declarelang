@@ -22,7 +22,7 @@ follows. Re-pointing it starts a fresh load; a superseded in-flight load is disc
 Whether the clip is running. **Two-way**: a constraint decides when it plays, and the
 element writes back when something outside the program changes it — the browser pausing a
 backgrounded tab, a media key, an autoplay the platform refused. Bind it to a fact about
-the world (`playing = { visible && !app.reducedMotion }`) rather than assigning it from a
+the world (`playing = { visible && app.pageVisible }`) rather than assigning it from a
 handler, and the clip does the right thing without anything scheduling it.
 
 ## loop
@@ -38,8 +38,8 @@ component that appears broken until you find the flag).
 ## position
 The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is
 `width = { parent.width * (clip.position / clip.duration) }`), assign it to seek. The
-runtime writes it back about four times a second, not once a frame; read it in a
-`Frames` handler when you genuinely need frame accuracy.
+runtime writes it back about four times a second, not once a frame; read it from a
+`Time [ tick = frame ]` member's `onTick` when you genuinely need frame accuracy.
 
 ## volume
 `0`–`1`, default `1`. Independent of `muted`, which gates it — muting does not zero the

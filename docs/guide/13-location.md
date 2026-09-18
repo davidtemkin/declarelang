@@ -185,7 +185,7 @@ Two details make it dependable. It fires per *follow*, not per change of address
 following the reference you already stand at arrives again — no dead clicks — and
 Back and Forward pass through the same door, so a camera flight written here answers
 them too. And it never waits for motion: the target arrives when it exists and has
-geometry, even if it is still gliding toward how it will look. "When the glide
+geometry, even if it is still moving toward how it will look. "When the motion
 lands" is a fact motion itself exposes (`arrived`, next chapter), not an arrival.
 
 > **From React:** this section replaced the router. No route table, no `<Link>`

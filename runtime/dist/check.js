@@ -29,6 +29,7 @@ import { CSS_COLORS } from "./css-colors.js";
 import { DeclareError, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
+import { runtimeMethodsOf } from "./runtime-methods.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
 import { coerce, describeLiteral, declaredType, isAuthoredUnion, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
@@ -41,6 +42,15 @@ let CHECK_SHAPES = new Set();
  *  redeclaring a member of the component it is instantiating — refused below,
  *  where the source shows it, rather than at boot. */
 let CLASS_MEMBERS = new Map();
+/** Class name → every attribute its class chain SETS (`class Reveal extends
+ *  Spring [ attribute = opacity ]`). A use site inherits those sets, so a
+ *  requirement one family has — an animator's `attribute`, a Dataset's data —
+ *  is met by the class as well as by the site. */
+let CLASS_SETS = new Map();
+/** Does the class chain of `tag` (if it is a program class) set `attr`? */
+function classSets(tag, attr) {
+    return CLASS_SETS.get(tag)?.has(attr) === true;
+}
 import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs } from "./datapath.js";
 import { fontObjectHint } from "./font-value.js";
@@ -105,6 +115,26 @@ export function check(input) {
         for (const c of program.classes)
             membersOf(c.name);
         CLASS_MEMBERS = members;
+        const sets = new Map();
+        const setsOf = (name, seen = new Set()) => {
+            const hit = sets.get(name);
+            if (hit !== undefined)
+                return hit;
+            const out = new Set();
+            sets.set(name, out);
+            const decl = byName.get(name);
+            if (decl === undefined || seen.has(name))
+                return out;
+            seen.add(name);
+            for (const n of setsOf(decl.base, seen))
+                out.add(n);
+            for (const a of decl.body.attrs)
+                out.add(a.name);
+            return out;
+        };
+        for (const c of program.classes)
+            setsOf(c.name);
+        CLASS_SETS = sets;
     }
     errors.push(...shapeResolution.errors);
     const env = checkStyleDecls(program, schemas, errors);
@@ -384,7 +414,8 @@ classRoot = false) {
     if (schema !== null && descendsFrom(schema, "Font")) {
         let faces = 0;
         for (const c of el.children) {
-            if (c.tag === "Face") {
+            const cs = Object.hasOwn(schemas, c.tag) ? schemas[c.tag] : null;
+            if (cs !== null && descendsFrom(cs, "Face")) {
                 faces++;
                 continue;
             }
@@ -395,7 +426,23 @@ classRoot = false) {
             errors.push(new DeclareError(`'family' names a system font (a Font with no faces) — a font with faces is named by its object; drop 'family'`, family.pos));
         }
     }
-    if (schema === null) {
+    // Inline declarations (an instance carrying its own members, §5) — on a
+    // view and on every non-view family alike (`feed: Feed [ rows: number = 0 ]`
+    // is the same one-off subclass `View [ n: number ]` is). On a class body the
+    // registration pass already validated and absorbed them into the class's
+    // schema (declsOwned), so only namespace membership remains to check below;
+    // elsewhere they are validated here, once, and the effective schema carries
+    // them for every member check that follows.
+    let eff = schema;
+    if (schema !== null && !declsOwned && el.decls.length > 0) {
+        for (const d of el.decls) {
+            const r = checkDecl(schema, d, schema.name, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
+            if (!r.ok)
+                errors.push(r.error);
+        }
+        eff = withDecls(schema, el.decls, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
+    }
+    if (schema === null || eff === null) {
         // A SCHEMA used as a tag (typed data): the compiler knows exactly what
         // the name is — say so, never "unknown" (the truthful-diagnostics rule).
         if (CHECK_SHAPES.has(el.tag)) {
@@ -414,15 +461,15 @@ classRoot = false) {
         return; // nothing beneath a misplaced layout to salvage
     }
     else if (descendsFrom(schema, "Dataset")) {
-        checkDataNode(el, schema, errors);
+        checkDataNode(el, eff, errors, classRoot);
         return; // a data node's whole surface was judged above — no subtree
     }
     else if (descendsFrom(schema, "Animator")) {
-        checkAnimatorNode(el, schema, parentSchema, errors);
+        checkAnimatorNode(el, eff, parentSchema, errors, false, classRoot);
         return; // an animator's whole surface is judged here — no subtree
     }
     else if (descendsFrom(schema, "AnimatorGroup")) {
-        checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, false);
+        checkAnimatorGroupNode(el, eff, schemas, parentSchema, errors, false);
         return; // a group judges its whole subtree (its members are animators)
     }
     else if (descendsFrom(schema, "Stream")) {
@@ -432,33 +479,20 @@ classRoot = false) {
             errors.push(new DeclareError(`'Stream' is the abstract base — it names no transport. Declare an EventStream (SSE) or a Socket (WebSocket)`, el.pos));
             return;
         }
-        checkSourceNode(el, schema, errors);
+        checkSourceNode(el, eff, errors);
         return; // a stream's whole surface is judged here — no subtree
     }
     else if (isSourceSchema(schema)) {
-        checkSourceNode(el, schema, errors);
+        checkSourceNode(el, eff, errors);
         return; // a source's whole surface is judged here — no subtree
     }
     else if (descendsFrom(schema, "State")) {
-        checkStateNode(el, schema, schemas, parentSchema, env, errors);
+        checkStateNode(el, eff, schemas, parentSchema, env, errors, classRoot);
         return; // a state judges its whole subtree (overrides + child views)
     }
     else {
-        // Inline declarations (an instance carrying its own members, §5). On a
-        // class body the registration pass already validated and absorbed them
-        // into the class's schema (declsOwned), so only namespace membership
-        // remains to check below.
         if (el.raw !== undefined) {
             errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
-        }
-        let eff = schema;
-        if (!declsOwned) {
-            for (const d of el.decls) {
-                const r = checkDecl(schema, d, schema.name, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
-                if (!r.ok)
-                    errors.push(r.error);
-            }
-            eff = withDecls(schema, el.decls, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
         }
         checkNamespace(el, eff, errors);
         // `key = :field` is replication metadata (language §9): on a child whose
@@ -482,7 +516,7 @@ classRoot = false) {
             // schema attributes and the element's own declarations. Data is heard
             // through an attribute over the path (`kind: string = { :kind }`) — one
             // door. A COMPUTED list is not visible here; the runtime refuses an
-            // unknown name when the node arms (reactive.ts trackNode).
+            // unknown name when the node arms (change-event.ts trackNode).
             if (attr.name === "trackChanges" && attr.value.kind === "list") {
                 for (const it of attr.value.items) {
                     if (it.kind !== "string") {
@@ -631,21 +665,26 @@ classRoot = false) {
     }
 }
 /** Validate a data node (R8: Dataset / DataSource — descendsFrom "Dataset").
- *  A data node is a NAMED member (bindings reach its lifecycle by name), it
- *  takes attributes only (its behavior is built in — no declarations,
- *  methods, or children), a Dataset carries its JSON in the raw `{ }` body
+ *  A data node is a NAMED member (bindings reach its lifecycle by name); its
+ *  members are a component's — attributes, declarations, methods and handlers
+ *  (`onLoad`), checked like any node's — but it has no children: its
+ *  structure is its data. A Dataset carries its JSON in the raw `{ }` body
  *  (validated here, positioned), and a DataSource's data arrives from `url`
  *  instead. `:path` attributes are refused: a data node is where data LIVES,
- *  not a reader of some other cursor. */
-function checkDataNode(el, schema, errors) {
-    if (el.name === null) {
+ *  not a reader of some other cursor. A class body (`classRoot`) is the
+ *  definition, not a member: it needs no name, and its data may come from
+ *  the use site. */
+function checkDataNode(el, schema, errors, classRoot) {
+    if (el.name === null && !classRoot) {
         errors.push(new DeclareError(`a ${el.tag} needs a name — write 'events: ${el.tag} …' so bindings can reach it`, el.pos));
     }
-    if (el.tag === "Dataset") {
+    if (!descendsFrom(schema, "DataSource")) {
         // A Dataset's value comes from EITHER a literal `{ }` JSON body OR a
-        // derived `contents = { … }` constraint — one, not both, not neither.
-        const derived = el.attrs.some((a) => a.name === "contents");
-        if (el.raw === undefined && !derived) {
+        // derived `contents = { … }` constraint — one, not both, not neither
+        // (a class body may leave it to the use site; its own `contents` counts
+        // at every use site).
+        const derived = el.attrs.some((a) => a.name === "contents") || classSets(el.tag, "contents");
+        if (el.raw === undefined && !derived && !classRoot) {
             errors.push(new DeclareError(`a Dataset needs data — a literal JSON body ('${el.name ?? "events"}: Dataset { … }') or a derived 'contents = { … }'`, el.pos));
         }
         else if (el.raw !== undefined && derived) {
@@ -663,15 +702,14 @@ function checkDataNode(el, schema, errors) {
     else if (el.raw !== undefined) {
         errors.push(new DeclareError(`a ${el.tag}'s data arrives from its url — only a Dataset embeds a { } body`, el.raw.pos));
     }
-    for (const d of el.decls) {
-        errors.push(new DeclareError(`${el.tag}.${d.name}: a data node declares no new attributes`, d.pos));
-    }
+    // Methods and handlers check like any node's: a handler answers a declared
+    // event (a DataSource fires `load`, so `onLoad() { … }` is its arrival
+    // hook); the built-in lifecycle (fetch, clear, set, …) is guarded at
+    // instantiate, the runtime-member fact.
     for (const m of el.methods) {
-        // event handlers pass: a DataSource declares `load` (schema events), so
-        // `onLoad() { … }` is its arrival hook, not a new lifecycle method
-        if (el.tag === "DataSource" && m.name === "onLoad")
-            continue;
-        errors.push(new DeclareError(`${el.tag}.${m.name}: a data node has no method members — its lifecycle (fetch, clear, set, …) is built in`, m.pos));
+        const r = checkMethod(schema, m);
+        if (!r.ok)
+            errors.push(r.error);
     }
     for (const c of el.children) {
         errors.push(new DeclareError(`a data node has no children — its structure is its data`, c.pos));
@@ -699,12 +737,13 @@ function checkDataNode(el, schema, errors) {
  *  (guarded at instantiate, the runtime-member fact). The one animation
  *  compile check lives here, where the PARENT (the animator's target) is in
  *  context. */
-/** Is this one of the SOURCE components (sources.ts) — a non-visual
- *  member whose handlers are called from outside the tree? Named rather than
- *  chained because they share no base: what unites them is the shape checked
- *  below, not an inheritance relationship. */
+/** Is this one of the SOURCE components (sources.ts) — a non-visual member
+ *  whose handlers are called from outside the tree — or a program class
+ *  descending from one (`class Hot extends Keys`)? Three chains rather than
+ *  one base: what unites them is the shape checked below, not an inheritance
+ *  relationship. */
 function isSourceSchema(schema) {
-    return schema.name === "Keys" || schema.name === "Focus" || schema.name === "Tip";
+    return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tip");
 }
 /** A source node (`Keys [ onKeyUp(e) { … } ]`, `EventStream [ onMessage(m) { … } ]`):
  *  its own attributes and its handlers, nothing else. Deliberately NOT the
@@ -713,10 +752,6 @@ function isSourceSchema(schema) {
 function checkSourceNode(el, schema, errors) {
     if (el.raw !== undefined) {
         errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
-    }
-    for (const d of el.decls) {
-        const builtIns = descendsFrom(schema, "Stream") ? " and its built-in attributes (url, active, retry, …)" : "";
-        errors.push(new DeclareError(`a ${el.tag} declares no attributes of its own — it carries its handlers${builtIns}`, d.pos));
     }
     for (const c of el.children) {
         errors.push(new DeclareError(`a ${el.tag} takes no children — it delivers events to its handlers, it is not a container`, c.pos));
@@ -759,12 +794,13 @@ function checkSourceNode(el, schema, errors) {
 function checkAnimatorNode(el, schema, parentSchema, errors, 
 /** An enclosing AnimatorGroup already provides `attribute` (the LZX
  *  default-cascade) — so a member that omits its own `attribute` is legal. */
-attributeCascaded = false) {
+attributeCascaded = false, 
+/** A class body (`class Reveal extends Spring [ … ]`): the definition, not a
+ *  use — it may leave `attribute` to its use sites, and has no target to
+ *  check the slot against. */
+classRoot = false) {
     if (el.raw !== undefined) {
         errors.push(new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos));
-    }
-    for (const d of el.decls) {
-        errors.push(new DeclareError(`${el.tag}.${d.name}: an animator declares no new attributes — its surface is built in`, d.pos));
     }
     for (const c of el.children) {
         errors.push(new DeclareError(`an animator drives a slot — it has no children`, c.pos));
@@ -807,7 +843,7 @@ attributeCascaded = false) {
         if (!r.ok)
             errors.push(r.error);
     }
-    if (!hasAttribute && !attributeCascaded) {
+    if (!hasAttribute && !attributeCascaded && !classRoot && !classSets(el.tag, "attribute")) {
         errors.push(new DeclareError(`an ${el.tag} needs 'attribute = <slot>' — the target slot it drives`, el.pos));
     }
 }
@@ -818,25 +854,28 @@ attributeCascaded = false) {
  *  schema (the parent it targets), and the children are a conditional subtree
  *  checked as views in that same parent context. It carries the onApply /
  *  onRemove handlers; it declares no new attributes and takes no `{ }` body. */
-function checkStateNode(el, schema, schemas, parentSchema, env, errors) {
+function checkStateNode(el, schema, schemas, parentSchema, env, errors, 
+/** A class body (`class Wide extends State [ … ]`): the definition — its
+ *  overrides target whatever view each use site puts it in. */
+classRoot = false) {
     if (el.raw !== undefined) {
         errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
     }
-    for (const d of el.decls) {
-        errors.push(new DeclareError(`${el.tag}.${d.name}: a state declares no new attributes — it overrides its view's slots and adds children`, d.pos));
-    }
-    if (parentSchema === null) {
+    if (parentSchema === null && !classRoot) {
         errors.push(new DeclareError(`a ${el.tag} must be a member of a view — at the top level it has no slots to override`, el.pos));
     }
-    // Handlers (onApply / onRemove) install like a View's.
+    // Handlers (onApply / onRemove) and methods install like a View's.
     for (const m of el.methods) {
         const r = checkMethod(schema, m);
         if (!r.ok)
             errors.push(r.error);
     }
     for (const a of el.attrs) {
-        if (a.name === "applied") {
-            const r = checkAttr(schema, a); // boolean literal or a { } gate
+        // The state's OWN slots — `applied` (a boolean literal or a { } gate) and
+        // any attribute its class declares — check against the state; everything
+        // else is an override of the enclosing view.
+        if (attrType(schema, a.name) !== null) {
+            const r = checkAttr(schema, a);
             if (!r.ok)
                 errors.push(r.error);
             continue;
@@ -881,9 +920,6 @@ function checkStateNode(el, schema, schemas, parentSchema, env, errors) {
 function checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, attributeCascaded) {
     if (el.raw !== undefined) {
         errors.push(new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos));
-    }
-    for (const d of el.decls) {
-        errors.push(new DeclareError(`${el.tag}.${d.name}: an animatorgroup declares no new attributes — its surface is built in`, d.pos));
     }
     for (const m of el.methods) {
         const r = checkMethod(schema, m);
@@ -1311,7 +1347,10 @@ export function checkMethod(schema, m) {
     //
     // Keyed on the schema's own event list rather than on a hardcoded name, so it
     // covers every such collision and cannot fire where the event does not exist.
-    if (eventsOf(schema).includes(m.name)) {
+    // Except where the name is ALSO the built-in's own runtime method (an
+    // Animator fires `start` AND implements start()): then the member is not
+    // dead but an override — the runtime calls it — and the override rule holds.
+    if (eventsOf(schema).includes(m.name) && !runtimeMethodsOf(schema).has(m.name)) {
         return err(`${schema.name}.${m.name}(…) is never called — '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. ` +
             `Rename it to '${handlerName(m.name)}(…)'. (The 'input(v)' value pattern belongs to CONTROLS — Checkbox, Slider, ` +
             `Segmented — which fire no such event; an editor delivers through its event instead.)`, m.pos);

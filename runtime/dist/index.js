@@ -141,5 +141,5 @@ export { Focus, FocusService, deliverKeys } from "./focus.js";
 // side-effect-free, and most of this runtime is not, so importing index.js for
 // these lines pinned modules a program could not reach (see services.ts).
 import "./services.js";
-export { THEME_PRESETS, THEME_PRESET_NAMES, tint } from "./themes.js";
+export { THEME_PRESETS, THEME_PRESET_NAMES, activeTone } from "./themes.js";
 //# sourceMappingURL=index.js.map

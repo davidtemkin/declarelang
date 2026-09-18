@@ -1,34 +1,34 @@
 {
   "homepage": {
-    "total": 1706,
-    "code": 849,
-    "comment": 571,
-    "blank": 286,
-    "wireGzip": 103166,
-    "programGzip": 17276
+    "total": 1598,
+    "code": 822,
+    "comment": 495,
+    "blank": 281,
+    "wireGzip": 114361,
+    "programGzip": 21335
   },
   "calendar": {
-    "total": 849,
-    "code": 497,
-    "comment": 213,
-    "blank": 139,
-    "wireGzip": 91325,
-    "programGzip": 18186
+    "total": 841,
+    "code": 502,
+    "comment": 202,
+    "blank": 137,
+    "wireGzip": 91315,
+    "programGzip": 18364
   },
   "tracker": {
-    "total": 1571,
-    "code": 1153,
-    "comment": 215,
-    "blank": 203,
-    "wireGzip": 113382,
-    "programGzip": 37440
+    "total": 1543,
+    "code": 1124,
+    "comment": 212,
+    "blank": 207,
+    "wireGzip": 111727,
+    "programGzip": 35536
   },
   "desktop": {
-    "total": 3174,
+    "total": 3131,
     "code": 1697,
-    "comment": 967,
-    "blank": 510,
-    "wireGzip": 130993,
-    "programGzip": 38875
+    "comment": 927,
+    "blank": 507,
+    "wireGzip": 134858,
+    "programGzip": 38675
   }
 }

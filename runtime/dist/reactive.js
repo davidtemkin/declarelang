@@ -19,6 +19,7 @@
 // guard — this module — stay. Runtime tracking remains for genuinely dynamic
 // reads (language §7 "Cost"), so the seam is exactly: who calls `reads()`.
 import { DeclareError } from "./errors.js";
+import { endChangeChain, fireChanges } from "./change-event.js";
 /** The computation currently recording its reads; null almost always —
  *  which is what makes an untracked read one pointer comparison. */
 let active = null;
@@ -189,6 +190,19 @@ export class Constraint {
     reads(cell) {
         this.deps.push(cell);
     }
+    /** @internal Does this constraint read any of `cells`? Dependency edges are
+     *  rebuilt from scratch every run, so the answer is about the LAST run's
+     *  reads — which is exactly what the cycle question needs ("would consuming
+     *  this constraint's output close a loop back through those slots?").
+     *  One O(deps) scan against a prepared set; the caller owns the set. */
+    readsAny(cells) {
+        if (cells.size === 0)
+            return false;
+        for (const d of this.deps)
+            if (cells.has(d))
+                return true;
+        return false;
+    }
     /** Queue for the next settle. Coalesces: already-queued, disposed, or
      *  suspended constraints are a no-op, so N invalidations cost one run. */
     invalidate(from) {
@@ -286,93 +300,8 @@ function enqueue(c) {
 }
 /** Steps registered by `afterSettle`, drained at the close of the settle. */
 const after = [];
-let dispatchChange = null;
-/** view.ts installs the dispatcher (this module cannot import it). */
-export function setChangeDispatcher(fn) { dispatchChange = fn; }
-const tracked = new Map();
-const moved = new Set();
-const firedInChain = new WeakMap();
-let chainNodes = [];
-/** Arm (or re-arm) `node` on exactly `names`. Called when the node goes live
- *  (view.ts, on `init`) and again whenever its `trackChanges` list is rebound,
- *  so a name added later starts silent rather than firing on arrival. A name
- *  the node does not have is refused HERE as well as by the checker: a computed
- *  list is not visible at compile time, and the alternative is a value that
- *  quietly never reports. */
-export function trackNode(node, names) {
-    untrackNode(node);
-    if (names === null || names.length === 0)
-        return;
-    const list = [];
-    for (const name of names) {
-        if (!(name in node)) {
-            throw new DeclareError(`trackChanges: '${name}' is not a value of ${node.constructor.name} — name an attribute this node declares or a fact it carries`);
-        }
-        const t = { name, last: undefined, current: undefined, seeded: false };
-        t.c = new Constraint(`${node.constructor.name}.trackChanges(${name})`, () => node[name], (v) => {
-            if (!t.seeded) {
-                t.seeded = true;
-                t.last = v;
-                t.current = v;
-                return;
-            }
-            t.current = v;
-            if (!Object.is(t.last, t.current))
-                moved.add(node);
-        });
-        t.c.run();
-        list.push(t);
-    }
-    tracked.set(node, list);
-}
-/** A retiring node leaves (node.ts runRetire), and its constraints with it. */
-export function untrackNode(node) {
-    const list = tracked.get(node);
-    if (list === undefined)
-        return;
-    for (const t of list)
-        t.c.dispose();
-    tracked.delete(node);
-    moved.delete(node);
-}
-/** The settle's close: deliver one event per node that moved, in the order the
- *  names were written. Returns whether anything fired, so the loop knows to run
- *  another pass for whatever the handlers wrote. */
-function fireChanges() {
-    if (moved.size === 0 || dispatchChange === null)
-        return false;
-    const batch = [...moved];
-    moved.clear();
-    let fired = false;
-    for (const node of batch) {
-        const list = tracked.get(node);
-        if (list === undefined)
-            continue;
-        const changed = [];
-        for (const t of list) {
-            if (Object.is(t.last, t.current))
-                continue; // moved and moved back inside one settle
-            let f = firedInChain.get(node);
-            if (f === undefined) {
-                firedInChain.set(node, (f = new Set()));
-                chainNodes.push(node);
-            }
-            if (f.has(t.name)) {
-                console.warn(`[Declare] onChange: '${t.name}' changed again in the same settle chain — a ring of change handlers; the second change is not delivered`);
-                t.last = t.current;
-                continue;
-            }
-            f.add(t.name);
-            changed.push({ name: t.name, previousValue: t.last, currentValue: t.current });
-            t.last = t.current;
-        }
-        if (changed.length === 0)
-            continue;
-        dispatchChange(node, changed);
-        fired = true;
-    }
-    return fired;
-}
+// THE CHANGE EVENT (`trackChanges` + `onChange`) lives in change-event.ts: the
+// settle's close delivers through fireChanges, and the cleanup ends the chain.
 /** The outer-loop guard — AFTER_LIMIT passes means a step (transitively)
  *  re-registers itself every pass, the afterSettle spelling of a cycle. */
 const AFTER_LIMIT = 100;
@@ -443,9 +372,7 @@ export function settle() {
         // Steps too: a throw (a cycle, a step that threw) must not leak the
         // remainder into whatever unrelated settle comes next.
         after.length = 0;
-        for (const n of chainNodes)
-            firedInChain.delete(n);
-        chainNodes = [];
+        endChangeChain();
     }
 }
 // ── observe — the notification half of the app↔host contract ────────────────

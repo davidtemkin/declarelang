@@ -2,10 +2,10 @@
 # Redmond
 
 The Fluent-fidelity record (Windows 11): 4px radii on everything, the
-Windows accent blue (light-on-dark flips to the pale #4CC2FF with DARK
+Windows accent blue (light-on-dark flips to the pale #4CC2FF with dark
 text on it), compact 32px buttons, the 40×20 toggle with its 12px
 off-thumb, the round slider grabber with the accent dot
-(`sliderHandle = "dot"`), and Fluent's two-tone focus RECTANGLE — a 2px
+(`sliderHandle = "dot"`), and Fluent's two-tone focus **rectangle** — a 2px
 outer stroke over a 1px inner separator (`focusRingInnerWidth`), black
 over white in light, white over black in dark. Windows focus does not
 fly: `focusRing = "rest"` — the indicator appears in place and stays.

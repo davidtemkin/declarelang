@@ -1,13 +1,12 @@
 /*
 # Control
 
-The interaction-state base every stateful control extends (docs/system-design/components-baseline.md,
-Contract 3). It owns how the pointer, keyboard, and focus relate to this view — and
+The interaction-state base every stateful control extends. It owns how the pointer, keyboard, and focus relate to this view — and
 nothing semantic: `checked`, `value`, and their kin live on the concrete control.
 
-The pointer half is the language's now: `hovered` and `pressed` are View's read-only
+The pointer half is the language's: `hovered` and `pressed` are View's read-only
 interaction intrinsics (chain-based, touch-correct, cancel-safe). What Control adds is
-the CONTROL policy on top of them, as derivations every concrete control reads:
+the control policy on top of them, as derivations every concrete control reads:
 
 - `hot` / `down` — the styling pair: the intrinsics gated by `disabled`, with the
   keyboard-activation `flash` folded into `down`. Style against these, not the raw
@@ -16,18 +15,15 @@ the CONTROL policy on top of them, as derivations every concrete control reads:
 - keyboard — Space or Enter on the focused control activates it, the same `press()`
   path a pointer uses, acknowledged by flashing the pressed look.
 
-It also owns the two things every labelled control was improvising:
+It also owns two things every labelled control shares:
 
 - `iconLeft` / `iconRight` — decoration, by class name. A concrete control lays
-  them out; Control only declares that they exist, so `Button` and `Segment`
-  answer to one vocabulary.
-- `menu` — the ROLE of dropping a menu. Not decoration: fifteen sites across the
-  corpus call `someMenu.openFor(control)`, and the disclosure mark for that one
-  role was drawn five different ways or omitted (a glyph inside the label string
-  in five places, a private chevron in two, a separate `Text` in one, nothing in
-  `MenuBar` and `DataGrid`). Nobody chose those differences. Setting `menu` gets
-  the mark, the anchored open, the held-open styling, and Down-to-open together,
-  which is the part a hand-rolled copy gets wrong one piece at a time.
+  them out; Control only declares that they exist, so every control that shows
+  one names it the same way.
+- `menu` — the **role** of dropping a menu, not decoration. Setting `menu` gets
+  the disclosure mark, the anchored open, the held-open styling, and
+  ArrowDown-to-open together, which is the part a hand-rolled copy gets wrong
+  one piece at a time.
 
 Extend it to make your own control a first-class one — focusable, keyboard-activated,
 and styled off the same state pair as everything the library ships:
@@ -106,8 +102,8 @@ look forever.
 
 ## rightIcon
 What actually renders on the right: `iconRight` when set, else the disclosure chevron
-implied by `menu`, else nothing. One place decides, so every menu-dropping control in
-the corpus wears the same mark.
+implied by `menu`, else nothing. One place decides, so every menu-dropping control
+wears the same mark.
 
 ## flash
 The keyboard-activation pulse — the control's own state, since the `pressed` intrinsic
@@ -158,11 +154,11 @@ A control takes focus unless it is disabled — one rule, so a disabled control 
 */
 
 class Control extends View [
-    // The design-token record every widget styles off. It is a PROVIDED value
-    // (docs/system-design/style.md): the app provides it once (`App [ theme =
-    // { … } ]`), and Control reads it here — so a widget body reads `theme.accent`
-    // as a plain, typed member. The default is `SanFrancisco`, so a widget in an
-    // app that never mentions a theme still renders — the visible library default.
+    // The design-token record every widget styles off — a provided value: the
+    // app provides it once (`App [ theme = { … } ]`) and Control reads it here,
+    // so a widget body reads `theme.accent` as a plain, typed member. The
+    // default is `SanFrancisco`, so a widget in an app that never mentions a
+    // theme still renders — the visible library default.
 
     theme: Theme = { provided("theme", SanFrancisco) },
 
@@ -175,13 +171,13 @@ class Control extends View [
 
     selectable = false,
 
-    // the styling pair — the interaction intrinsics under CONTROL policy
+    // the styling pair — the interaction intrinsics under control policy
 
     hot:  boolean = { this.hovered && !this.disabled },
     down: boolean = { (this.pressed && !this.disabled) || this.flash },
 
-    // The :focus-visible channel for the control's OWN styling (a Tab header's
-    // focus edge): focused AND the focus arrived by keyboard. Captured at the
+    // The :focus-visible channel for the control's own styling (a Tab header's
+    // focus edge): focused and the focus arrived by keyboard. Captured at the
     // focus event (the web's rule), cleared by blur — and by a pointer press on
     // this very control, the one case with no focus event (Focus.focus on the
     // already-focused target is a no-op, but the modality still cleared).
@@ -196,7 +192,7 @@ class Control extends View [
 
     // ── content slots ──────────────────────────────────────────────────────
     //
-    // Icons by CLASS NAME, resolved through the tag registry. A name rather than
+    // Icons by class name, resolved through the tag registry. A name rather than
     // a child because a control is a leaf — everything else about it is an
     // attribute — and because an attribute is the one form where authored and
     // bound are the same mechanism: `iconLeft = TrashIcon` and
@@ -211,19 +207,19 @@ class Control extends View [
 
     menu: View = null,
 
-    // DERIVED, not written. A flag set on open goes stale the moment the menu
+    // Derived, not written. A flag set on open goes stale the moment the menu
     // closes some other way — Escape, a pick, a click on the backdrop — and the
     // button keeps its held-open fill for the rest of the session. Reading the
-    // menu's own state cannot drift: it is open if the menu is shown AND this
+    // menu's own state cannot drift: it is open if the menu is shown and this
     // control is what opened it (one menu serves many openers).
 
     menuOpen: boolean = { this.menu != null
                        && (this.menu as any).shown === true
                        && (this.menu as any).opener === this },
 
-    // What a control SHOWS on the right: an explicit icon wins, else the
-    // disclosure chevron a `menu` implies. One place decides, so the five
-    // improvised indicators become one.
+    // What a control shows on the right: an explicit icon wins, else the
+    // disclosure chevron a `menu` implies. One place decides, so every
+    // menu-dropping control wears the same mark.
 
     rightIcon: string = { this.iconRight != "" ? this.iconRight : this.menu != null ? "ChevronIcon" : "" },
 
@@ -236,18 +232,18 @@ class Control extends View [
 
     press() { if (this.menu != null) this.openMenu() },
 
-    // the control's FOCUS SILHOUETTE — override to ring something other than
+    // the control's focus silhouette — override to ring something other than
     // the whole bounds (a Radio rings its dot). null = bounds + cornerRadius.
     // { x, y, w, h, rad } in the control's own coordinates.
 
     focusShape() { return null },
 
-    // keyboard activation's visual acknowledgment: flash the pressed look
-    // (the platform convention for buttons — and menu items, later). Value
-    // controls whose state change IS the feedback (Checkbox, Switch, Radio)
-    // don't call this. `flashMs` is per-control tunable. `flash` is the
-    // control's OWN state — the `pressed` intrinsic is the pointer's truth and
-    // is read-only; a keyboard pulse is a different fact, folded into `down`.
+    // keyboard activation's visual acknowledgment: flash the pressed look, the
+    // platform convention for buttons. Value controls whose state change is
+    // the feedback (Checkbox, Switch, Radio) don't call this. `flashMs` is
+    // per-control tunable. `flash` is the control's own state — the `pressed`
+    // intrinsic is the pointer's truth and is read-only; a keyboard pulse is a
+    // different fact, folded into `down`.
 
     flash:   boolean = false,
     flashMs: number  = 220,
@@ -260,15 +256,15 @@ class Control extends View [
     onFocus() { focused = true; focusVisible = Focus.byKeyboard() },
     onBlur()  { focused = false; focusVisible = false },
 
-    // a click is also a focus claim — the keyboard picks up where the pointer left
-
-    // A MENU opens here, not from `onClick`. Every other control routes the
-    // pointer through `press()` (`onClick() { if (!disabled) press() }`), but
-    // Button inverts that — its `onClick` is the USE SITE's action slot — so a
-    // menu hung off `press()` opened from the keyboard and never from a click.
-    // Pointer-down is also what the platform does: menus open on press, not
-    // release. The keyboard keeps its own path through `press()`, and the two
-    // cannot double-fire because a key press raises no pointer event.
+    // A click is also a focus claim — the keyboard picks up where the pointer
+    // left. A menu opens here, not from `onClick`: every other control routes
+    // the pointer through `press()` (`onClick() { if (!disabled) press() }`),
+    // but Button inverts that — its `onClick` is the use site's action slot —
+    // so a menu hung off `press()` alone would open from the keyboard and never
+    // from a click. Pointer-down is also what the platform does: menus open on
+    // press, not release. The keyboard keeps its own path through `press()`,
+    // and the two cannot double-fire because a key press raises no pointer
+    // event.
 
     onPointerDown() {
         if (disabled) return

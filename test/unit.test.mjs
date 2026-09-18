@@ -1302,17 +1302,22 @@ await test("a method may return a value (statement body, not an expression wrap)
   assert.equal(app.children[0].twice(21), 42);
 });
 
-await test("a method may not shadow a runtime built-in (instantiation-context fact)", () => {
-  // check() passes it — the checker is runtime-free by design — and the
-  // runtime bridge refuses it, like percent-on-root.
-  assert.deepEqual(check(parse("View [ attach() { } ]")), []);
+await test("a method may replace a runtime METHOD, not a runtime field (instantiation-context fact)", () => {
+  // check() passes all three — the checker is runtime-free by design. The
+  // runtime installs an override of one of its own METHODS (a method is a
+  // method; super reaches the runtime's) and refuses a name that is a FIELD
+  // or a member of every object, like percent-on-root.
+  assert.deepEqual(check(parse("View [ surface() { } ]")), []);
+  const app = build("App [ width=1, height=1, v: View [ hits: number = 0, scrollTo(y: number) { this.hits = this.hits + 1 } ] ]");
+  app.v.scrollTo(10);
+  assert.equal(app.v.hits, 1, "the declared scrollTo replaced the runtime's");
   assert.throws(
-    () => build("App [ width=1, height=1, View [ attach() { } ] ]"),
-    /View\.attach: 'attach' is a built-in member of the runtime View/
+    () => build("App [ width=1, height=1, View [ surface() { } ] ]"),
+    /View\.surface: 'surface' is a built-in field of the runtime View, not a method/
   );
   assert.throws(
     () => build("App [ width=1, height=1, View [ toString() { } ] ]"),
-    /built-in member/
+    /'toString' is a member of every object/
   );
 });
 
@@ -1995,6 +2000,153 @@ await test("align: WrappingLayout rows align per row; justify is the renamed row
   } finally { app.discard(); }
 });
 
+// ── the BAND: what center/end align WITHIN (2026-09-17) ───────────────────
+// The line — the largest laid cross extent — was the whole story, and that is
+// wrong the moment a child's cross size DERIVES FROM THE PARENT: such a child
+// IS the line, so it aligned to offset 0 and its siblings centred on IT rather
+// than on the container. textsampler's cards were the field report — a column
+// of `width = { parent.width - 32 }` children under `align = center` lost its
+// left inset entirely, 32px of gap all landing on the right. The band is the
+// VIEW's own cross extent now (`Layout.viewExtent`), with the line kept as the
+// fallback on a view that measures these very children — where reading the
+// extent would be the one-pass discipline's forbidden cycle, and where the two
+// answer the same number anyway.
+
+await test("align: center/end place within the VIEW's cross extent — a parent-derived child's inset is kept", async () => {
+  const r = await compile(`App [ width = 320, height = 420,
+      card: View [ x = 20, y = 20, width = 260, height = 120,
+        layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+        a: View [ width = { parent.width - 32 }, height = 30 ],
+        b: View [ width = 100, height = 30 ] ],
+      row: View [ x = 20, y = 150, width = 260, height = 120,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        a: View [ width = 30, height = { parent.height - 32 } ],
+        b: View [ width = 30, height = 40 ] ],
+      ec: View [ x = 20, y = 280, width = 260, height = 120,
+        layout: SimpleLayout [ axis = y, spacing = 8, align = end ],
+        a: View [ width = { parent.width - 32 }, height = 30 ],
+        b: View [ width = 100, height = 30 ] ],
+      sc: View [ x = 20, y = 400, width = 260, height = 120,
+        layout: SimpleLayout [ axis = y, spacing = 8, align = start ],
+        a: View [ width = { parent.width - 32 }, height = 30 ],
+        b: View [ width = 100, height = 30 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.card.a.width, 228, "the constraint resolved against the parent");
+    assert.equal(app.card.a.x, 16, "center on a stack: the 228-wide child splits the card's 32 of slack");
+    assert.equal(app.card.b.x, 80, "…and its literal-width sibling centres on the CARD, not on it");
+    assert.equal(app.card.a.y, 0, "the main axis is untouched");
+    assert.equal(app.card.b.y, 38);
+    assert.equal(app.row.a.y, 16, "center on a row: the same, cross = y");
+    assert.equal(app.row.b.y, 40);
+    assert.equal(app.ec.a.x, 32, "end: the derived child ends with the card's right edge");
+    assert.equal(app.ec.b.x, 160);
+    assert.equal(app.sc.a.x, 0, "start is the band's origin — band-independent, unchanged");
+    assert.equal(app.sc.b.x, 0);
+  } finally { app.discard(); }
+});
+
+await test("align: the LINE is the band when the view measures these very children — no cycle", async () => {
+  const r = await compile(`App [ width = 600, height = 300,
+      auto: View [ x = 0, y = 0,
+        layout: SimpleLayout [ axis = y, spacing = 4, align = center ],
+        a: View [ width = 120, height = 20 ], b: View [ width = 60, height = 20 ] ],
+      pad: View [ x = 200, y = 0, width = { this.contentWidth + 32 },
+        layout: SimpleLayout [ axis = y, spacing = 4, align = center ],
+        a: View [ width = 120, height = 20 ], b: View [ width = 60, height = 20 ] ],
+      wide: View [ x = 400, y = 0, width = 200,
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        a: View [ width = 20, height = 40 ], b: View [ width = 20, height = 20 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.auto.width, 120, "auto-extent still wraps the run");
+    assert.equal(app.auto.a.x, 0, "the widest child owns the line");
+    assert.equal(app.auto.b.x, 30, "…and the short one centres in it — the band is the line here");
+    assert.equal(app.pad.width, 152, "`{ this.contentWidth + 32 }` measures the children too");
+    assert.equal(app.pad.a.x, 0, "so it is a cycle to align within it: the line stands");
+    assert.equal(app.pad.b.x, 30);
+    assert.equal(app.wide.a.y, 0, "a row's cross is HEIGHT — an authored WIDTH is the main axis, not the band");
+    assert.equal(app.wide.b.y, 10, "…and the auto height still measures the children, so the line stands");
+  } finally { app.discard(); }
+});
+
+await test("align: a child sized wider than the band keeps the line — it never hangs out both sides", async () => {
+  const r = await compile(`App [ width = 400, height = 200,
+      narrow: View [ x = 0, y = 0, width = 80, height = 100,
+        layout: SimpleLayout [ axis = y, spacing = 0, align = center ],
+        wide: View [ width = 200, height = 20 ], small: View [ width = 40, height = 20 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.narrow.wide.x, 0, "the over-wide child starts at the origin, not at -60");
+    assert.equal(app.narrow.small.x, 80, "its siblings centre on the line it set");
+  } finally { app.discard(); }
+});
+
+await test("align: a size that ARRIVES — a measured Text centres in the band it lands in", async () => {
+  const r = await compile(`App [ width = 400, height = 200,
+      col: View [ x = 0, y = 0, width = 300, height = 100,
+        layout: SimpleLayout [ axis = y, spacing = 4, align = center ],
+        long: Text [ fontSize = 14, wrap = false, text = "a much longer measured line" ],
+        short: Text [ fontSize = 14, wrap = false, text = "short" ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    const mid = (v) => +(v.x + v.width / 2).toFixed(3);
+    assert.ok(app.col.long.width > 0 && app.col.long.width < 300, "the measurement arrived and is the widest");
+    assert.ok(app.col.long.width > app.col.short.width);
+    assert.equal(mid(app.col.long), 150, "the WIDEST measured run centres in the 300 band (it was pinned at 0)");
+    assert.equal(mid(app.col.short), 150, "…and so does the short one — on the view, not on its sibling");
+  } finally { app.discard(); }
+});
+
+await test("align: WrappingLayout — one row aligns in the view, two or more align per row", async () => {
+  const r = await compile(`App [ width = 600, height = 500,
+      one: View [ x = 0, y = 0, width = 380, height = 90,
+        layout: WrappingLayout [ spacing = 8, align = center ],
+        a: View [ width = 80, height = { parent.height - 40 } ], b: View [ width = 80, height = 20 ] ],
+      endr: View [ x = 0, y = 100, width = 380, height = 90,
+        layout: WrappingLayout [ spacing = 8, align = end ],
+        a: View [ width = 80, height = 30 ] ],
+      many: View [ x = 0, y = 200, width = 180, height = 300,
+        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = center ],
+        a: View [ width = 100, height = 40 ], b: View [ width = 100, height = 20 ],
+        c: View [ width = 60, height = 30 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    assert.equal(app.one.a.height, 50, "the constraint resolved against the flow's view");
+    assert.equal(app.one.a.y, 20, "a flow that never wrapped IS the content: centre it in the view's height");
+    assert.equal(app.one.b.y, 35);
+    assert.equal(app.endr.a.y, 60, "end, same band");
+    assert.equal(app.many.a.y, 0, "three children, two rows: the band is the ROW again…");
+    assert.equal(app.many.b.y, 53, "…so the tall box's 300 never enters it");
+    assert.equal(app.many.c.y, 48);
+  } finally { app.discard(); }
+});
+
+await test("align = baseline: the shared line, not the band — a tall box does not move it", async () => {
+  const r = await compile(`App [ width = 600, height = 300,
+      r: View [ x = 0, y = 0, width = 500, height = 200,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        big: Text [ fontSize = 24, text = "height" ], sm: Text [ fontSize = 13, text = "from" ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.source, { deps: r.deps });
+  try {
+    const bl = (v) => +(v.y + v.baseline).toFixed(3);
+    assert.equal(bl(app.r.big), bl(app.r.sm), "one baseline");
+    assert.equal(app.r.big.y, 0, "the deepest baseline sits at the row's top — the 200 height is not a band");
+  } finally { app.discard(); }
+});
+
 await test("a layout written in a class body reads that class's instance as `classroot`", async () => {
   // It read the enclosing scope instead: `spacing = { classroot.gap }` was NaN and
   // every child after the first sat at y = NaN, with no error (2026-09-14).
@@ -2605,10 +2757,13 @@ await test("a class may extend a layout strategy — custom layouts (class X ext
     "    place() { return this.view.children.map(c => ({ x: 0, y: 0, w: 10, h: 10, vis: true })) },\n" +
     "]\nApp [ width=1, height=1, layout: Grid [ ] ]"));
   assert.deepEqual(ok, [], "a custom TweenLayout subclass checks clean");
-  // The other non-visual families are still not subclassable surface.
-  const bad = check(parseProgram("class D extends Dataset [ ]\nApp [ width=1, height=1 ]"));
-  assert.equal(bad.length, 1);
-  assert.match(bad[0].message, /subclassing 'Dataset' is not wired yet/);
+  // Every other family is a base too: a class extends any built-in component.
+  const data = check(parseProgram("class D extends Dataset [ ]\nApp [ width=1, height=1 ]"));
+  assert.deepEqual(data, [], "a Dataset subclass checks clean");
+  // The one refusal: an abstract base — a schema no runtime class implements.
+  const abstract = check(parseProgram("class S extends Stream [ ]\nApp [ width=1, height=1 ]"));
+  assert.equal(abstract.length, 1);
+  assert.match(abstract[0].message, /'Stream' is an abstract base — .*extend one of its concrete members \(EventStream, Socket\)/);
 });
 
 await test("SimpleLayout stacks visible children in child order — the sanctioned semantic order", async () => {
@@ -2970,15 +3125,15 @@ await test("check: data nodes — named, attribute-only, JSON-validated", () => 
   assert.match(noBody[0].message, /a Dataset needs data/);
   const srcRaw = check(parse(`App [ s: DataSource { [1] } ]`));
   assert.match(srcRaw[0].message, /data arrives from its url/);
+  // A data node's members are a component's — a declaration and a method are
+  // as legal as on a view (the same one-off subclass); only children are not.
   const members = check(parse(`App [ s: DataSource [ url = "/d.json", n: number, go() { 1 }, View [ ] ] ]`));
   assert.deepEqual(
     members.map((e) => e.message.split(" (line")[0]),
-    [
-      "DataSource.n: a data node declares no new attributes",
-      "DataSource.go: a data node has no method members — its lifecycle (fetch, clear, set, …) is built in",
-      "a data node has no children — its structure is its data",
-    ]
+    ["a data node has no children — its structure is its data"]
   );
+  const badHandler = check(parse(`App [ s: DataSource [ url = "/d.json", onWiggle() { 1 } ] ]`));
+  assert.match(badHandler[0].message, /DataSource has no 'onWiggle' event/);
   const unknown = check(parse(`App [ d: Dataset { [1] }, e: Dataset [ url = "x" ] ]`));
   assert.ok(unknown.some((e) => /Dataset has no attribute 'url'/.test(e.message)));
   const rawElsewhere = check(parse(`App [ v: View { [1] } ]`));
@@ -3054,10 +3209,9 @@ await test("run: a derived Dataset recomputes, keyed replication reuses instance
   assert.equal(rows().length, 2, "still two instances after a keyed edit");
 });
 
-await test("check: a data node may bind url with { } — and a class may not extend one", () => {
+await test("check: a data node may bind url with { } — and a class may extend one", () => {
   assert.deepEqual(check(parse(`App [ s: DataSource [ url = { "/d/" + this.parent.width } ] ]`)), []);
-  const errs = check(parseProgram(`class Feed extends DataSource [ ]\nApp [ ]`));
-  assert.match(errs[0].message, /subclassing 'DataSource' is not wired yet/);
+  assert.deepEqual(check(parseProgram(`class Feed extends DataSource [ url = "/d.json" ]\nApp [ feed: Feed [ ] ]`)), []);
 });
 
 // A small data-backed tree, without the compile layer: scope nouns are written
@@ -4838,7 +4992,7 @@ await test("Animator: handlers are allowed (declared events); decls, children, t
   const errs = check(parseProgram(`App [ width=1, height=1, View [
     Animator [ attribute=x, to=1, foo: number = 1, onWiggle() { }, View [ ] ] ] ]`));
   const msgs = errs.map((e) => e.message).join("\n");
-  assert.match(msgs, /an animator declares no new attributes/);
+  assert.doesNotMatch(msgs, /foo/, "a declaration on an animator is a member like any node's");
   assert.match(msgs, /Animator has no 'onWiggle' event — its handlers: onInit, onChange, onStart, onStop, onRepeat/);
   assert.match(msgs, /an animator drives a slot — it has no children/);
 });

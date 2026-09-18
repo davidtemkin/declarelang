@@ -169,7 +169,7 @@ Table [ width = 300, height = 400, datapath = { app.d.value },
 
 Note the shape: the table *owns* `selected` and `selection`, and hands them out through
 `input` — the derive-down/deliver-up pair from
-[chapter 7](declare-docs:guide:interaction). You do not write into its slots.
+[chapter 8](declare-docs:guide:controls). You do not write into its slots.
 
 Sort the table, flip the direction, apply a filter, scroll a selected record out of the
 window — the selection is unchanged, because it was never a set of views. A selected
@@ -221,10 +221,12 @@ editable grid is a word per column, not a cell renderer per column.
 
 Two things here are worth carrying to your own work.
 
-**Sorting names a derivation; it does not reorder anything.** Clicking a header writes
-`sortOn`/`sortDir` and stops. The grid displays the order its collection already has, and
-*you* derive the sorted dataset — which is why sorting a virtualized million rows is a
-data operation, not a view operation, and why a server-side sort needs no special case.
+**Sorting names a derivation; it does not reorder anything.** Clicking a header delivers
+through `sortInput(on, dir)`, whose default writes `sortOn`/`sortDir` and stops. The grid
+displays the order its collection already has, and *you* derive the sorted dataset —
+overriding `sortInput` when the sort belongs to a server query — which is why sorting a
+virtualized million rows is a data operation, not a view operation, and why a server-side
+sort needs no special case.
 
 **Order and widths are the value pattern again.** `order` and `widths` are the grid's
 state, delivered through `arrangeInput` and `resizeInput` — override those and you own the

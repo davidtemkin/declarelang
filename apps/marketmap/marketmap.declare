@@ -89,7 +89,7 @@ class Market extends Node [
 
     // arrival seam: called once, with the day count, when the payload is in
     // place. Empty here — the App's instance overrides it to open on the
-    // data's last day OUTRIGHT (an arrival is a fact, not a change the map
+    // data's last day outright (an arrival is a fact, not a change the map
     // lived through, so it must not fly there).
 
     landed(nDays: number) { },
@@ -166,7 +166,7 @@ class Market extends Node [
         return fmtDateShort(iso) + "  ·  " + fmtPrice(price) + "  ·  " + fmtCap(shares * price)
         },
 
-    // which records does the stage need RIGHT NOW? The current group, plus the
+    // which records does the stage need right now? The current group, plus the
     // departing one while a drill morph is in flight. `stageRoster` derives
     // from this, and the stage replications feed from the roster — so stage
     // instances exist exactly when a stage key names them. Rows carry an `id`
@@ -197,7 +197,7 @@ class Market extends Node [
 
 A base `Layout`'s place-pass is a live tracked constraint, so a `place()` that
 reads `app.day` re-places continuously — the whole map morphs against the
-scrub with ONE evaluation distributing every position.
+scrub with one evaluation distributing every position.
 
 The boxes carry `x`/`y` only, deliberately: a box that also carried `w`/`h`
 would install a separate runtime constraint per child per dimension, each
@@ -213,7 +213,7 @@ class MarketLayout extends Layout [
             app.day, holder.width, holder.height)
         return this.laid().map((c) => {
             const r = lay[(c as Tile).pid]
-            // x/y ONLY — a box's shape declares ownership, and sizes belong
+            // x/y only — a box's shape declares ownership, and sizes belong
             // to the classes' own wired constraints
             return r ? { x: r.x, y: r.y } : { x: OFFSTAGE.x, y: OFFSTAGE.y }
             })
@@ -475,7 +475,7 @@ class StageTile extends View [ cursor = "pointer", clip = true,
         x = { Math.max(4, Math.min(classroot.width - this.width - 4,
             10 + (classroot.width - 20) * Math.max(0, classroot.probeU) - this.width / 2)) },
         y = { classroot.height * SPARK_TOP - 26 },
-        t: Text [ x = 7, y = center, fontSize = 9, letterSpacing = 1, textColor = #FFD54A,
+        t: TextLabel [ x = 7, fontSize = 9, letterSpacing = 1, textColor = #FFD54A,
             text = { classroot.probeU >= 0
                 ? app.market.probeLine(:closes as number[], :shares as number, app.day, classroot.probeU)
                 : "" } ]
@@ -530,7 +530,7 @@ class EraChip extends View [ height = 20, cornerRadius = 10, cursor = "pointer",
     fill = { hovered ? 0x2A2F3A : 0x1E222B },
     width = { this.t.width + 18 },
     onClick() { app.flyTo(this.iso) },
-    t: Text [ x = 9, y = center, fontSize = 9, letterSpacing = 1.5, textColor = #B7C0CE,
+    t: TextLabel [ x = 9, fontSize = 9, letterSpacing = 1.5, textColor = #B7C0CE,
         text = { label } ]
     ]
 
@@ -543,24 +543,6 @@ class LegendSwatch extends View [ height = 18, cornerRadius = 2,
         text = { (pct > 0 ? "+" : "") + pct + "%" } ]
     ]
 
-
-/*
-## The App
-
-Assembly, top to bottom: the console (slider, era chips, live date), the map
-field (tiles and bands under `MarketLayout`, with the halo, scrim, and stage
-as self-positioned chrome), and the legend. All interaction state is a handful
-of app attributes; every appearance below derives from them.
-*/
-
-/*
-## The App
-
-Assembly, top to bottom: the console (slider, era chips, live date), the map
-field (tiles and bands under `MarketLayout`, with the halo, scrim, and stage
-as self-positioned chrome), and the legend. All interaction state is a handful
-of app attributes; every appearance below derives from them.
-*/
 
 /*
 ## The geometry engine
@@ -670,7 +652,7 @@ script {
 
     // ── the grouping tree ──
     // Built once per dataset from Market.onLoad. Orderings sort by
-    // END-of-window cap, so the frame order never changes as the day scrubs —
+    // end-of-window cap, so the frame order never changes as the day scrubs —
     // only areas move.
 
     function buildTree(stocks: Stock[]): SecNode[] {
@@ -750,7 +732,7 @@ script {
     // The staged group's zone lerps from its map position to center court by
     // `zoom`; its members lay out inside ("stage:SYM", plus "stgband:"/
     // "stgzone:" sub-strips when a whole sector is staged). During a drill,
-    // the previous and next rosters are laid in the SAME stage box and
+    // the previous and next rosters are laid in the same stage box and
     // blended by `progress` — arrivers grow from their sub-block, leavers
     // shrink to their own centers.
 
@@ -886,11 +868,20 @@ script {
     }
 
 
+/*
+## The App
+
+Assembly, top to bottom: the console (slider, era chips, live date), the map
+field (tiles and bands under `MarketLayout`, with the halo, scrim, and stage
+as self-positioned chrome), and the legend. All interaction state is a handful
+of app attributes; every appearance below derives from them.
+*/
+
 App [ fill = #101216, appName = "Market Map",
     fontFamily = ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
 
     // when the data lands, open on its last day outright — writing both the
-    // sprung slot and its target parks the flight spring at NOW, whatever
+    // sprung slot and its target parks the flight spring on the present day, whatever
     // span the file carries
 
     market: Market [
@@ -901,7 +892,7 @@ App [ fill = #101216, appName = "Market Map",
         ],
 
     // ── time: one sprung scalar. The slider retargets it stiffly, a chip
-    // softly — same spring, different constants, so a chip click FLIES the
+    // softly — same spring, different constants, so a chip click flies the
     // map through every intervening day and stays interruptible.
     // The defaults only cover the beat before the data arrives; the market's
     // `landed` hook (below) then opens the app on the data's last day.
@@ -957,7 +948,7 @@ App [ fill = #101216, appName = "Market Map",
     stageRoster: Dataset [ contents = { app.market.rosterFor(app.stageKey, app.prevStageKey) } ],
 
     // ── hover state: one key for the map's hot group, one for the stage's
-    // hot sub-industry. Highlights GATE on the derived hover facts, so
+    // hot sub-industry. Highlights gate on the derived hover facts, so
     // leaving the grid or the popup drops them with no pointer-out handling.
 
     hotGroup: string = "",
@@ -1080,8 +1071,7 @@ App [ fill = #101216, appName = "Market Map",
                 fill = { hovered ? 0xE8BD2E : HIGHLIGHT },
                 opacity = { app.zoom },
                 onClick() { app.closeGroup() },
-                Text [ x = center, y = center, fontSize = 12, fontWeight = bold,
-                    textColor = { INK_ON_HIGHLIGHT }, text = "✕" ]
+                CloseIcon [ x = center, y = center, iconSize = 14, ink = { INK_ON_HIGHLIGHT } ]
                 ]
             ],
 

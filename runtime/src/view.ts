@@ -23,19 +23,60 @@ let viewCreator: ViewCreator | null = null;
 export function provideViewCreator(fn: ViewCreator): void {
   viewCreator = fn;
 }
+
+/** The PROGRAM'S CLASS TABLE, as rich text's inline views need it (markdown.ts):
+ *  which names a tag in flowing content may claim, what each attribute's
+ *  declared type is, and how to make one. The same injection seam as the view
+ *  creator above, and for the same reason — the rich-text engine must not import
+ *  the instantiator. A tree not built from a program has no table, and an inline
+ *  view then never resolves (a tag stays plain text).
+ *
+ *  Small on purpose: the mechanism that RESOLVES a tag, converts its attributes
+ *  and reconciles the views lives with rich text, which only ships when a program
+ *  uses Markdown/HTMLText. What has to live in always-shipped code is just this
+ *  lookup. */
+export interface InlineViewHost {
+  /** Is `name` a VIEW class this program declares? Exact, case-sensitive — and
+   *  only the program's own classes, never a built-in tag. */
+  declares(name: string): boolean;
+  /** The declared type of attribute `name` on class `cls` (an AttrType from
+   *  value.ts), or null when the class has no such attribute. */
+  attrType(cls: string, name: string): AttrType | null;
+  /** Is `cls.name` a read-only slot — computed from its declaration, never
+   *  assignable? A tag that names one is refused (through the rich text's
+   *  `unsupported` policy) instead of throwing from the setter mid-render. */
+  readOnly(cls: string, name: string): boolean;
+  /** Make one instance of `cls` under `parent`: a full citizen (bindings
+   *  installed, `onInit` fired, discard reachable), with `attrs` — the tag's
+   *  attributes, as literals — joining the instantiation as THE USE-SITE LAYER
+   *  of the ordinary attribute merge, so a tag attribute beats a class body's
+   *  set of the same slot (literal or `{ }` constraint) and only the winner
+   *  installs. `provides` lands BEFORE the instance attaches — which is what
+   *  lets its body inherit the surrounding run's text face. */
+  create(parent: View, cls: string, attrs: readonly Attr[], provides: Record<string, unknown>): View;
+}
+let inlineHost: ((root: Node) => InlineViewHost | null) | null = null;
+export function provideInlineViewHost(fn: (root: Node) => InlineViewHost | null): void {
+  inlineHost = fn;
+}
+/** The class table for the program `v` belongs to, or null (no program). */
+export function inlineViewHost(v: View): InlineViewHost | null {
+  return inlineHost === null ? null : inlineHost(v.root);
+}
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
-import { Constraint, Cell, afterSettle, setChangeDispatcher, trackNode } from "./reactive.js";
+import { Constraint, Cell, afterSettle } from "./reactive.js";
+import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine, type Affine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
 import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, localProvision, ownerOf, percentOwned, setBound, type DeclRecord } from "./attributes.js";
-import { declaredType } from "./value.js";
+import { declaredType, type AttrType } from "./value.js";
 import { observe } from "./reactive.js";
 import { handlerName } from "./schema.js";
 import { splitPath, type PathSeg } from "./datapath.js";
 import { selectValue } from "./select.js";
-import type { LinkTarget } from "./parser.js";
+import type { Attr, LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
 
 /** What a layout strategy is to the View — the whole protocol: begin
@@ -1457,7 +1498,7 @@ export function fireEvent(view: Node, event: string, ...args: unknown[]): void {
   if (event === "init") {
     // `init` is the moment a node is LIVE for the change event: the values it
     // tracks are read once here to seed, so boot's own first values are not
-    // changes (reactive.ts trackNode).
+    // changes (change-event.ts trackNode).
     (view as unknown as { $live?: boolean }).$live = true;
     const names = (view as unknown as { trackChanges?: unknown }).trackChanges;
     if (Array.isArray(names) && names.length > 0) trackNode(view, names.map((x) => String(x)));
@@ -2413,7 +2454,7 @@ defineAttributes(DOMIsland, {
   childName: { def: "" },
 });
 
-// THE CHANGE EVENT's delivery (reactive.ts wakes and batches; this module owns
+// THE CHANGE EVENT's delivery (change-event.ts wakes and batches; this module owns
 // the handler door). The node remembers which values it is being called for, so
 // attributes.ts can refuse the handler writing one of them back.
 setChangeDispatcher((node, changed) => {

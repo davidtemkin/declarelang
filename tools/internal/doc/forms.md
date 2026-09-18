@@ -182,9 +182,9 @@ class descending from them.
 - The base must be a component: a built-in or a declared class.
   > says: unknown base 'Widget' — a class extends a built-in component or a class declared in this program
   > probe: class Chip extends Widget [ ]\nApp [ Chip [ ] ]
-- Only the subclassable families extend today: View, Layout, and Node. A Dataset, Animator, or State is used, not extended.
-  > says: subclassing 'Dataset' is not wired yet — a class extends View, Layout, or Node today
-  > probe: class D extends Dataset [ ]\nApp [ ]
+- Any built-in component is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media, Editor), which no runtime class implements, is refused.
+  > says: 'Stream' is an abstract base — it names no component to construct; extend one of its concrete members (EventStream, Socket)
+  > probe: class S extends Stream [ ]\nApp [ ]
 - A subclass may not take a built-in's name.
   > says: there is already a component named 'View'
   > probe: class View extends View [ ]\nApp [ ]
@@ -194,6 +194,70 @@ class descending from them.
 forms: class, set, method
 classes: View, Node, Layout, Control
 guide: 11-make-your-own · Make your own
+
+## inlineview
+
+name: <Class/>
+short: inline view
+group: Structure
+family: content
+spec: §9 Style
+terms: inline view, inline views, view in text, view in a sentence, view in prose, chip in text, widget in text, component in markdown, inline-block, tag in content
+syntax:
+    HTMLText [ html = "Filed under <Chip label='docs'/> today." ]
+    Markdown [ text = "Fixed by <Issue id='142'/>." ]
+    <Chip key='a' label='docs'/>                 // key: this view's identity across a content change
+usage: form-inlineview
+
+Inside rich-text content, a **self-closing tag whose name is a view class the program
+declares** is one real view of that class, placed in the flowing line as an atomic box the
+words wrap around. There is no whitelist to extend and no attribute to set: the class
+existing is what makes the tag mean it, matched by the name exactly as written, in both
+formats (`HTMLText`'s `html` and `Markdown`'s `text`). A tag naming no class of yours keeps
+the meaning it already had — the HTML whitelist, an autolink, a literal `<` — and a
+`<span class>` stays a style, never a view.
+
+The tag's attributes are the class's, each converted from its string by the slot's
+**declared** type, exactly as a source literal is: `id='142'` is the number in a `number`
+slot, `tint='#DDF4E4'` a `Color`, `align='center'` an enum member, `width='50%'` a percent of
+the width the text flows in, a bare `hot` is `true`. The tag **is the use site**, so an
+attribute takes use-site precedence over what the class body sets for that slot — a literal
+or a `{ }` constraint — and only the winner installs; a slot the tag does not mention keeps
+the class's own behaviour. `x`/`y` are refused — the flow places the view, as a layout places
+its children — and an unknown attribute, a value that will not convert, a read-only slot, or
+a percent on a slot with no axis goes to the component's `unsupported` policy. The view owns
+its `width`/`height` while the flow owns its `x`/`y`, it never splits
+across a line, a taller one grows its line, a size change re-flows the text, and it reads the
+surrounding run's text face as provided values. Content is reactive: a tag still present keeps
+its view and its state, with only changed attributes rewritten (a tag that gains or loses an
+attribute is built again, since what it claims is settled at build), and `key='…'` fixes that
+identity when the order moves. Markup carries no expressions, so a live value is either
+concatenated into the content (with `escapeHtml` around every interpolated value) or derived
+inside the class from an identity the content names.
+
+### rules
+
+- Placement belongs to the flow, so a tag may not set `x` or `y`.
+  > says: the text flow places an inline view — 'x' is not yours to set here
+  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip x='4'/> b" ] ]
+- A tag names attributes the class actually has; anything else goes to `unsupported`.
+  > says: Chip has no attribute 'nope'
+  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip nope='1'/> b" ] ]
+- An inline view is self-closing: a tag with content between it and a closing tag is not one.
+  > says: is an inline view, and an inline view must be self-closing
+  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip>hi</Chip> b" ] ]
+- A percent needs an axis to resolve against, so it belongs on a width or a height.
+  > says: no axis to resolve a percent against
+  > probe: class Chip extends View [ pad: Length = 4, width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip pad='50%'/> b" ] ]
+- A read-only slot is computed from its declaration, so no tag may set it.
+  > says: is read-only
+  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip hovered='true'/> b" ] ]
+
+### related
+
+forms: instance, class, style
+classes: RichText, HTMLText, Markdown
+guide: 06-style · Style
 
 ## set
 
@@ -418,6 +482,7 @@ spec: §3 Members and scope
 terms: super, base method, call the base, override, overriding a method, parent class method, inherited method
 syntax:
     name(v: T) { super.name(v) }
+    fetch() { log = log + "fetching"; super.fetch() }
 usage: form-super
 
 A method a subclass declares replaces the base's method of the same name, handlers included.
@@ -425,7 +490,10 @@ A method a subclass declares replaces the base's method of the same name, handle
 body in the `extends` chain. It is an ordinary call, so the body decides where it goes —
 before its own work, after it, in the middle, conditionally, or not at all — and passes
 whatever arguments it likes. Inside the base's method, `this` is still the instance, so the
-base's own calls reach the subclass's overrides, as in any class language.
+base's own calls reach the subclass's overrides, as in any class language. A built-in's own
+runtime methods are replaced and reached the same way: `class Fetcher extends DataSource [
+fetch() { …; super.fetch() } ]` wraps the DataSource's fetch rather than rewriting it, and the
+runtime's own calls to `fetch()` land on the override.
 
 A use site that overrides a class's method (`Stepper [ input(v: number) { … } ]`) reaches the
 class's with `super` the same way. A constraint that calls a method stays live through
@@ -433,10 +501,10 @@ class's with `super` the same way. A constraint that calls a method stays live t
 
 ### rules
 
-- `super` reaches a method written in this program, up the chain.
+- `super` reaches a method up the chain: one written in this program or the library, or the built-in's own runtime method.
   > says: super.go(): no class beneath B extends A declares go()
   > probe: class A extends View [ ]\nclass B extends A [ go() { super.go() } ]\nApp [ B [ ] ]
-- A built-in base offers no body to call: it fires events and owns its own methods.
+- A built-in fires its events; a handler has no base body to call.
   > says: no class beneath App declares onInit()
   > probe: App [ onInit() { super.onInit() } ]
 - `super` is a call, not a value.
@@ -586,6 +654,38 @@ compile time.
 
 forms: twoway, constraint, schema, set
 classes: Dataset, DataSource, View
+guide: 09-data · Data, 10-scale · Scale
+
+## key
+
+name: key
+group: Values
+family: attribute
+spec: §7 Data
+terms: key, key =, record identity, identity, reconcile, reconciliation
+syntax:
+    View [ datapath = :people[], key = :email ]
+usage: form-key
+
+Replication reuses an instance across sorts, filters and edits when it can tell which
+record is which. By convention that is the record's `id` field, with nothing declared.
+When a collection's identity lives under another name, `key = :field` on the replicated
+node names it — a single `:path`, read per record. It is replication metadata, so it is
+legal only beside a many-path `datapath`.
+
+### rules
+
+- Only a node that replicates can carry a `key`.
+  > says: 'key' is replication metadata — it belongs on a node whose datapath matches many
+  > probe: App [ d: Dataset { { "rows": [ { "id": "a" } ] } }, v: View [ datapath = { d.value }, key = :id ] ]
+- A key is one `:path` to the identity field, never a literal or a many-path.
+  > says: key = :field names each record's identity field
+  > probe: App [ d: Dataset { { "rows": [ { "id": "a" } ] } }, datapath = { d.value }, View [ datapath = :rows[], key = "id" ] ]
+
+### related
+
+forms: datapath, schema
+classes: Dataset, View
 guide: 09-data · Data, 10-scale · Scale
 
 ## twoway
@@ -895,17 +995,13 @@ syntax:
     fontFamily = { [app.brand, "sans-serif"] }
 usage: form-font
 
-**Retired** (2026-09-14): there is no top-level `font` declaration. A typeface is an
-**object in the tree** — a `Font` with `Face` children, usually on the App, or a `Font [
-family = "…" ]` with no faces for a system font — and a family slot holds it:
-`fontFamily = { app.brand }`, or a list in a `{ }`, `{ [app.brand, "sans-serif"] }`.
-Switching fonts is an assignment; `loaded` and `failed` are the font's facts; `wait` and
-`late` say what loading is worth. See the `Font` and `Face` classes.
-
-The parser still reads the old form, so the checker can say exactly what to write
-instead: move the body into the App as `brand: Font [ … ]`, with the same Face children.
-A Face's `weight` keeps its vocabulary — a keyword, a number 1–1000, or `range(lo, hi)`
-for a variable font file.
+A typeface is an **object in the tree**, not a top-level declaration: a `Font` with `Face`
+children, usually on the App, or a `Font [ family = "…" ]` with no faces for a system font.
+A family slot holds it — `fontFamily = { app.brand }`, or a list in a `{ }`,
+`{ [app.brand, "sans-serif"] }` — so switching fonts is an assignment. `loaded` and
+`failed` are the font's facts; `wait` and `late` say what loading is worth. A Face's
+`weight` is a keyword, a number 1–1000, or `range(lo, hi)` for a variable font file. See
+the `Font` and `Face` classes.
 
 ### rules
 

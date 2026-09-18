@@ -102,9 +102,15 @@ class ContactRow extends View [
 
         flash: View [ width = 100%, height = 34, fill = #FFFFFF, opacity = 0,
             fade: Animator [ attribute = opacity, to = 0, duration = 2000 ],
-            watch: View [ visible = { app.flashUser === :user },
-                onInit() { parent.opacity = 0.9; parent.fade.start() }
-                ]
+
+            // The wash is a response to a moment — this contact becoming the one
+            // who just signed on — so it is a change event, not a constraint: the
+            // value it watches is derived, and the settle in which it turns true
+            // is the settle that starts the fade.
+
+            justOn: boolean = { app.flashUser === :user },
+            trackChanges = ["justOn"],
+            onChange(e: ChangeEvent) { if (this.justOn) { this.opacity = 0.9; this.fade.start() } }
             ]
         ],
 
@@ -244,8 +250,8 @@ class ContactsPanel extends View [
     */
 
     scrollPos: number = 0,
-    contentH(): number { return Math.max(1, list.rows.height) },
-    maxScroll(): number { return Math.max(0, contentH() - list.height) },
+    contentH() -> number { return Math.max(1, list.rows.height) },
+    maxScroll() -> number { return Math.max(0, contentH() - list.height) },
     scrollList(dy: number) { scrollPos = Math.max(0, Math.min(maxScroll(), scrollPos + dy)) },
 
     list: View [ y = { 25 + form.height }, width = { parent.width - 16 },
@@ -323,7 +329,7 @@ class ContactsPanel extends View [
             ],
 
         thumb: View [ x = 2, width = 14,
-            trackH(): number { return classroot.sbar.height - 26 },
+            trackH() -> number { return classroot.sbar.height - 26 },
             height = { Math.max(20, trackH()
                 * Math.min(1, classroot.list.height / classroot.contentH())) },
             y = { 13 + (trackH() - this.height)
@@ -464,7 +470,7 @@ class MediaTransport extends View [
             }
         ],
 
-    clockOf(secs: number): string {
+    clockOf(secs: number) -> string {
         const s = Math.floor(secs)
         return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`
         },
@@ -512,7 +518,7 @@ class MediaTransport extends View [
 class MusicPanel extends View [
     width = 100%, height = 100%, fill = #BB95C0,
 
-    // A clip that ends has to clear the WANT, not just its own state: since
+    // A clip that ends has to clear the want, not just its own state: since
     // `playing` is derived from `mediaWants`, leaving that true would
     // re-assert play the instant the element reported the end.
 
@@ -525,8 +531,8 @@ class MusicPanel extends View [
 
     onInit() { transport.player = song },
 
-    iconShadow: View [ x = 6, y = 5, width = 32, height = 32, fill = #826886 ],
     iconWell: Image [ x = 4, y = 3, width = 32, height = 32, stretches = both,
+        shadow = shadow(2, 2, 0, #826886),
         source = { app.nowPlayingIcon } ],
 
     transport: MediaTransport [ y = 32,

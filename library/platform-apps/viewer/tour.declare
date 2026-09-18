@@ -7,7 +7,7 @@ rendered as Markdown, and the code between them is syntax-highlighted. View it w
     library/platform-apps/viewer/tour.declare?viewer
 
 Everything below is real, compilable Declare — and it follows the house formatting
-(docs/system-design/formatting.md): four-space indent, a trailing comma on every member, and a
+(`docs/operational/format.md`): four-space indent, a comma between members, and a
 body that holds children or methods closing with its bracket hanging on its own,
 indented line.
 */
@@ -60,7 +60,7 @@ App [ width = 360, height = 220, fill = #0d1117,
 
     Counter [ x = 20, y = 20 ],
 
-    list: View [ x = 20, y = 90, datapath = { parent.facts.value },
+    list: View [ x = 20, y = 90, datapath = { app.facts.value },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         Row [ datapath = :rows[], label = :label, value = :n ]
         ]

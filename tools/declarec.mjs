@@ -23,10 +23,10 @@ import { compileProgram } from "../compiler/dist/declarec.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { THEME_PRESET_NAMES } from "../runtime/dist/themes.js";
 
-// A body USES the theme presets when it names one (`SanFrancisco`) or `tint` —
+// A body USES the theme presets when it names one (`SanFrancisco`) or `activeTone` —
 // the trigger that keeps themes.js (the preset records) aboard a production
 // build; an app that names none tree-shakes it to the empty stub.
-const THEME_USE = new RegExp(`\\b(?:${[...THEME_PRESET_NAMES, "tint"].join("|")})\\b`);
+const THEME_USE = new RegExp(`\\b(?:${[...THEME_PRESET_NAMES, "activeTone"].join("|")})\\b`);
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
@@ -310,6 +310,15 @@ export const Inspect = new Proxy({ ready: () => false }, {
     // walk below sees — including the library's Control (`focusable = { … }`).
     const SELF_FOCUSING = new Set(["TextInput"]);
     for (const name of built.usedComponents) if (SELF_FOCUSING.has(name)) focusKeys = true;
+    // The source components themselves (`Keys [ … ]`, `Focus [ … ]`, `Tip [ … ]`)
+    // — read off the used set, not the tree's tags, because the set also
+    // carries every class's `extends` base: a program whose keyboard member is
+    // `hot: Hot [ … ]` (class Hot extends Keys) needs the service as surely as
+    // one that writes `Keys [ … ]`.
+    for (const name of built.usedComponents) {
+      if (name === "Keys" || name === "Focus") focusKeys = true;
+      if (name === "Tip") tips = true;
+    }
     const walkEl = (el) => {
       if ((el.methods ?? []).some((m) => m.name === "draw")) draw = true;
 
@@ -331,9 +340,6 @@ export const Inspect = new Proxy({ ready: () => false }, {
         if (a.name === "focusable" && !(a.value?.kind === "ident" && a.value.name === "false")) focusKeys = true;
         if (a.name === "tip") tips = true;
       }
-      // The source components themselves (`Keys [ … ]`, `Focus [ … ]`, `Tip [ … ]`).
-      if (el.tag === "Keys" || el.tag === "Focus") focusKeys = true;
-      if (el.tag === "Tip") tips = true;
       for (const c of el.children ?? []) walkEl(c);
     };
     for (const r of roots) {
@@ -354,27 +360,119 @@ export const Inspect = new Proxy({ ready: () => false }, {
       walkEl(r);
       walkSel(r);
     }
-    // The graphics and text vocabulary a program has to NAME to use — each module
-    // below rides only when its words appear in the program: a literal call's name
-    // (`"name":"blur"` in the tree), an attribute, or a body's source. Read off the
-    // whole program as text, so every place a word can be written is covered, and
-    // over-approximated on purpose (a comment-free word match keeps a module a
-    // program may not need; it never drops one it does). A stub refuses loudly
-    // (notAboard) rather than paint wrong, should a name ever be assembled at runtime.
-    const text = JSON.stringify(built.program);
-    const EFFECT_NAMES = "blur|brightness|contrast|saturate|grayscale|invert|sepia|hueRotate|colorize|frost|radialGradient|conicGradient";
-    const effects = new RegExp(`"name":"(?:${EFFECT_NAMES})"|\\b(?:${EFFECT_NAMES})\\s*\\(`).test(text);
-    // the DOM's colorize matrix and mask-image: `colorize`, a theme record's
-    // "tint" filter, or a `mask` set anywhere
-    const domEffects = /\bcolorize\b|["']tint\\?["']|"name":"mask"|\bmask\s*=[^=]/.test(text);
-    const threeD = /\b(?:rotateX|rotateY|translateZ|perspective|backface)\b/.test(text);
-    const measure = /\bmeasureText\b/.test(text);
-    const drawImage = /\bdrawImage\b/.test(text);
-    const drawText = /\b(?:fillText|strokeText)\b/.test(text);
-    const features = /\b(?:numerals|numeralWidth|slashedZero)\b/.test(text);
+    // Every constructor name reachable as a `call` node in a bare value — one
+    // walk, so a nested call (`gradient(stop(0, blur(2)))`, absurd but legal to
+    // parse) is seen too.
+    const EFFECT_CALLS = new Set(["blur", "brightness", "contrast", "saturate", "grayscale", "invert",
+      "sepia", "hueRotate", "colorize", "frost", "radialGradient", "conicGradient"]);
+    const walkCalls = (v, hit) => {
+      if (v == null || typeof v !== "object") return;
+      if (v.kind === "call" && typeof v.name === "string") hit(v.name);
+      for (const k of Object.keys(v)) {
+        const x = v[k];
+        if (Array.isArray(x)) for (const y of x) walkCalls(y, hit);
+        else if (x != null && typeof x === "object") walkCalls(x, hit);
+      }
+    };
+
+    // ── THE GRAPHICS AND TEXT VOCABULARY ────────────────────────────────────
+    //
+    // Read from the PARSE TREE, not from the program's text. The rule these must
+    // obey is one-directional: a module may be dropped only when the program
+    // CANNOT reach it, never merely when it does not appear to. A word match got
+    // that backwards for the value-carrying modules — a filter or a gradient that
+    // arrives from a remote `DataSource` is named nowhere in the program, so the
+    // match saw nothing, the module was dropped, and the production build threw
+    // on a program that worked in development.
+    //
+    // So a slot that CAN carry one of these values keeps its module whenever the
+    // value is not a literal the compiler can read. `code` is a `{ }` body and
+    // `path` is a `:path` read: both can yield anything at run time.
+    const DYNAMIC = new Set(["code", "path", "query", "subfrom"]);
+    const isDynamic = (v) => v != null && DYNAMIC.has(v.kind);
+
+    // Slots that can hold a Filter list or a Backdrop; a Shape mask; an Image
+    // tint; and a Fill (which a gradient is). Named generously: a name here only
+    // ever KEEPS a module, and the library's own fill-ish slots vary by component.
+    const FILTER_SLOTS = new Set(["filter", "backdrop"]);
+    const MASK_SLOTS = new Set(["mask"]);
+    const TINT_SLOTS = new Set(["tint"]);
+    const FILL_SLOTS = new Set(["fill", "textFill", "ink", "background", "bg", "tintUse", "hue"]);
+    // Attributes that can only be reached by NAMING them, so their presence in
+    // the tree is exact — no dynamic path can set an attribute that is not written.
+    const THREE_D = new Set(["rotateX", "rotateY", "translateZ", "perspective", "backface"]);
+    const FEATURES = new Set(["numerals", "numeralWidth", "slashedZero"]);
+
+    let effects = false, domEffects = false, threeD = false, features = false;
+    let filterSlotSet = false, filterSlotDynamic = false, maskOrTint = false, fillDynamic = false;
+
+    const walkVocab = (el) => {
+      for (const a of el.attrs ?? []) {
+        if (THREE_D.has(a.name)) threeD = true;
+        if (FEATURES.has(a.name)) features = true;
+        if (FILTER_SLOTS.has(a.name)) { filterSlotSet = true; if (isDynamic(a.value)) filterSlotDynamic = true; }
+        if (MASK_SLOTS.has(a.name) || TINT_SLOTS.has(a.name)) maskOrTint = true;
+        if (FILL_SLOTS.has(a.name) && isDynamic(a.value)) fillDynamic = true;
+        // a BARE constructor call in a literal slot — `filter = [blur(3)]`,
+        // `fill = gradient(…)`: the name is a `call` node, read structurally
+        walkCalls(a.value, (name) => {
+          if (EFFECT_CALLS.has(name)) effects = true;
+          if (name === "colorize") domEffects = true;
+        });
+      }
+      for (const d of el.decls ?? []) {
+        if (isDynamic(d.def)) { /* a declared value can hold anything, but it only
+          reaches paint through a SET slot, which the checks above already see */ }
+        walkCalls(d.def, (name) => {
+          if (EFFECT_CALLS.has(name)) effects = true;
+          if (name === "colorize") domEffects = true;
+        });
+      }
+      for (const c of el.children ?? []) walkVocab(c);
+    };
+    for (const r of roots) walkVocab(r);
+    // A `{ }` body can CALL these by name: `fill = { gradient("90deg", a, b) }`,
+    // `d.filter = blur(2)`. Body sources are the other half of the tree.
+    let measure = false, drawImage = false, drawText = false;
+    for (const r of roots) {
+      walkBodies(r, (src) => {
+        for (const n of EFFECT_CALLS) if (new RegExp(`\\b${n}\\s*\\(`).test(src)) effects = true;
+        if (/\bcolorize\s*\(/.test(src)) domEffects = true;
+        if (/\bmeasureText\s*\(|\bprovidedTextStyle\s*\(/.test(src)) measure = true;
+        if (/\bdrawImage\s*\(/.test(src)) drawImage = true;
+        if (/\b(?:fillText|strokeText)\s*\(/.test(src)) drawText = true;
+      });
+    }
+    // THE ONE-DIRECTIONAL RULE, stated: a carrying slot whose value is not a
+    // literal keeps its module, because what that value will be is unknowable
+    // here. Dropping it would be a guess, and a wrong guess throws in production
+    // on a program that ran in development — the one failure this must not have.
+    if (filterSlotSet || fillDynamic) effects = true;
+    if (maskOrTint || filterSlotDynamic) domEffects = true;
     const faces = built.usedComponents.includes("Face");
+    // RICH TEXT. The DOM backend's native flow (dom-rich.js — the block/run
+    // builder, the inline-view slot placement, the line clamp) is reachable from
+    // exactly one place: a RichText pushing its parsed blocks at the surface
+    // beneath it. A program that names no rich-text component drops the
+    // component itself already (slim-registry above), so the flow could never
+    // run — but a method on DomSurface is unreachable to a tree shaker, which is
+    // why it shipped to every app. The used-set answers the question exactly:
+    // it carries every class's `extends` base, so `class Note extends Markdown`
+    // (and `class Deep extends Note`) puts `Markdown` in the set, as does a body
+    // that constructs one by name or a `use [ … ]` keep-list — the same
+    // indirection the source components above read off this set.
+    const richText = ["Markdown", "HTMLText", "RichText"].some((n) => built.usedComponents.includes(n));
+    // the change event arms only through `trackChanges` (an onChange with no
+    // list never fires), so the attribute's presence is the whole fact
+    let changeEvent = false;
+    const walkChange = (el) => {
+      if ((el.attrs ?? []).some((a) => a.name === "trackChanges")) changeEvent = true;
+      for (const c of el.children ?? []) walkChange(c);
+    };
+    for (const r of roots) walkChange(r);
     return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
-      usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces };
+      usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces, usesChangeEvent: changeEvent,
+      usesRichText: richText };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -495,8 +593,8 @@ export function isArrayDoc() { return false; }
   // themes.js is imported unconditionally by services.js (body scope) and
   // instantiate.js (theme resolution), so the stub keeps their named imports
   // resolvable while dropping the preset records: an empty preset table and an
-  // identity tint. A program that names a preset or `tint` keeps the real one.
-  const themesStub = `export const THEME_PRESETS = Object.freeze({});\nexport const THEME_PRESET_NAMES = [];\nexport function tint(c) { return c; }\n`;
+  // identity tone. A program that names a preset or `activeTone` keeps the real one.
+  const themesStub = `export const THEME_PRESETS = Object.freeze({});\nexport const THEME_PRESET_NAMES = [];\nexport function activeTone(accent) { return accent; }\n`;
   const viewportStub = `export function lockFocusZoom() {}\n`;
   // canvas-filter.js: the Safari ctx.filter fallback. Stubbed to "the engine
   // supports it" so replay() takes the direct path — correct for a program that
@@ -574,6 +672,26 @@ export function drawImageOp() { throw notAboard("drawImage", "unused"); }
   const drawTextStub = `import { notAboard } from "./errors.js";
 export function styledRun() { throw notAboard("fillText", "unused"); }
 `;
+  // The DOM backend's native rich-text FLOW (dom-rich.js): only a RichText
+  // reaches it, so an app that names none refuses the whole module. `false`
+  // for the slot capability is the honest answer from a build with no flow at
+  // all — nothing reads it, and a backend that says it cannot place inline
+  // views is the documented fallback rather than a lie.
+  const domRichStub = `import { notAboard } from "./errors.js";
+const refuse = () => { throw notAboard("Markdown", "unused"); };
+export const richInlineSlots = false;
+export const measureRichSlots = refuse;
+export const setRichWidth = refuse;
+export const setRichClamp = refuse;
+export const setRichContent = refuse;
+`;
+  const changeEventStub = `import { notAboard } from "./errors.js";
+export function setChangeDispatcher() {}
+export function trackNode(node, names) { if (names !== null && names.length > 0) throw notAboard("trackChanges", "unused"); }
+export function untrackNode() {}
+export function fireChanges() { return false; }
+export function endChangeChain() {}
+`;
   const stubFor = (name, filterRe, contents) => ({
     name,
     setup(build) {
@@ -604,6 +722,8 @@ export function styledRun() { throw notAboard("fillText", "unused"); }
     ...(programFacts.usesFaces ? [] : [stubFor("slim-face", /[/\\]face-literal\.js$/, faceLiteralStub)]),
     ...(programFacts.usesDrawImage ? [] : [stubFor("slim-draw-image", /[/\\]draw-image\.js$/, drawImageStub)]),
     ...(programFacts.usesDrawText ? [] : [stubFor("slim-draw-text", /[/\\]draw-text\.js$/, drawTextStub)]),
+    ...(programFacts.usesChangeEvent ? [] : [stubFor("slim-change-event", /[/\\]change-event\.js$/, changeEventStub)]),
+    ...(programFacts.usesRichText ? [] : [stubFor("slim-dom-rich", /[/\\]dom-rich\.js$/, domRichStub)]),
   ];
 
   const result = await esbuild.build({

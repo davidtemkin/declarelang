@@ -67,6 +67,8 @@ export declare const Diag: {
      *  born hidden and nothing says so (field report 2026-09-04: `location = ""`
      *  with `shows = "home"` rendered display:none, silently, forever). */
     showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos) => DeclareError;
+    overridesPlumbing: (owner: string, name: string, base: string, pos: Pos) => DeclareError;
+    shadowsRichTextTag: (name: string, pos: Pos) => DeclareError;
     scriptWrite: (name: string, pos: Pos) => DeclareError;
     classrootOutsideClass: (where: string, pos: Pos) => DeclareError;
     namedColorInExpr: (name: string, hex: string, pos: Pos) => DeclareError;

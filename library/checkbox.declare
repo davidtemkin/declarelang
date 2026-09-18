@@ -1,7 +1,7 @@
 /*
 # Checkbox
 
-A boolean control (docs/system-design/components-baseline.md, Contract 1). Its value is the
+A boolean control. Its value is the
 `checked` attribute; **`input` owns the value's destination** — by default the
 destination is the checkbox itself, so it works standalone with zero wiring:
 
@@ -69,7 +69,7 @@ include [ "control.declare" ]
 class Checkbox extends Control [
     baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the control by its label
 
-    // keyboard focus rings the BOX alone, not box+label (the Radio rule)
+    // keyboard focus rings the box alone, not box+label (the Radio rule)
 
     focusShape() { return ({ x: this.box.x, y: this.box.y, w: this.box.width, h: this.box.height, rad: this.box.cornerRadius }) },
     height = 24,
@@ -96,29 +96,23 @@ class Checkbox extends Control [
         fill   = { checked ? theme.accent : theme.control },
         stroke = { stroke(1, checked ? theme.accent : hot || down ? theme.textMuted : theme.line) },
 
-        // the mark is DRAWN (reactive draw(), not a glyph): pixel-identical on
-        // both backends, independent of any font
+        // The tick, from the shared set — drawn, so it is pixel-identical on
+        // every renderer and independent of any font. Sized from the box,
+        // which is a theme fact (14 in Cupertino, 20 in Redmond), so
+        // `iconSize` is overridden here rather than inherited: the provided
+        // value is a default, not a rule.
 
-        // The tick, from the shared set. This was drawn here at stroke 2.5
-        // with mitered joins while the menu drew the same tick at 1.8 with
-        // round ones — one shape, two hands. Sized from the BOX, which is a
-        // theme fact (14 in Cupertino, 20 in Redmond), so `iconSize` is
-        // overridden here rather than inherited: the provided value is a
-        // default, not a rule.
-
-        mark: CheckIcon [ visible = { checked },
-            iconSize = { parent.width * 0.72 },
-            x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
-            ink = { theme.accentText } ]
+        mark: CheckIcon [ visible = { checked }, iconSize = { parent.width * 0.72 },
+            x = center, y = center, ink = { theme.accentText } ]
         ],
 
-    // the label rides the BOX, not a constant: its gap is box-relative (the
+    // the label rides the box, not a constant: its gap is box-relative (the
     // box's size is a theme fact — 14 in Cupertino, 20 in Redmond), and both
     // center in the control's height, so they align automatically everywhere
 
-    // NO explicit textColor: the label follows the PROVIDED text style
-    // (the App's default is theme.text, so nothing changes anywhere) — and a
-    // use site restyles it with ordinary attributes, no subclass:
+    // No explicit textColor: the label follows the provided text style (the
+    // App's default is theme.text) — and a use site restyles it with ordinary
+    // attributes, no subclass:
     //     Checkbox [ label = "Grouped", fontSize = 12.5, textColor = { theme.textMuted }, size = 16 ]
 
     cap: TextLabel [ x = { parent.box.width + 8 }, wrap = false,

@@ -73,15 +73,15 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 declare any of them and two fingers over that subtree are yours, delivered as a
 cumulative `e.scale` (the spread now over the spread at start) with the fingers'
 midpoint in `e.center`, while a single finger keeps panning the page. You never do
-the finger arithmetic; "roll your own math over a subtree touch claim" was always
-possible and was never the answer. A pinch nearly always drives `scale` or
+the finger arithmetic; rolling your own over a subtree touch claim is not the
+answer. A pinch nearly always drives `scale` or
 `rotation` of a sub-surface — `onPinch(e) { zoom = anchor * e.scale }`, latching
 `anchor` at `onPinchEnd`. On the desktop the same intent arrives on the wheel
 stream as `e.pinch` (trackpad); handle both and every device zooms.
 
 **`claim` is the knob for "drag horizontally on a page that scrolls vertically."** It
 scopes a claim you already have rather than making one: declare the drag handler, then
-`claim = x`, and a finger travelling sideways is yours while a finger travelling down
+`claim = x`, and a finger traveling sideways is yours while a finger traveling down
 still scrolls the page. A `DataGrid` header drags this way. It cannot help once the
 `onTouch*` family has taken **every** finger, because there is nothing left to narrow.
 
@@ -129,7 +129,7 @@ block: View [
     onHold(e: PointerEvent)        { app.liftEvent(:id) },          // the pick-up moment
     onPointerDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
     onPointerMove(e: PointerEvent) { app.dragMove() },
-    onPointerUp(e: PointerEvent)   { app.dropDrag(e.x, e.y) },
+    onPointerUp(e: PointerUpEvent) { app.dropDrag(e.x, e.y) },
     ]
 ```
 

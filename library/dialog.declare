@@ -1,13 +1,13 @@
 /*
 # Dialog
 
-The modal tier (planes.md): a full-app SCRIM that swallows every press —
-modal input blocking, no light dismiss — under a centered panel with a
-focusTrap. Buttons are RECORDS (the records door): `{ id, label,
-default?, cancel? }`, rendered as themed library Buttons right-aligned in
-the platform arrangement. Focus SAVES on open and RETURNS on close.
+The modal tier: a full-app scrim that swallows every press — modal input
+blocking, no light dismiss — under a centered panel with a focus trap.
+Buttons are **records** (the records door): `{ id, label, default?, cancel? }`,
+rendered as themed library Buttons right-aligned in the platform arrangement.
+Focus is saved on open and restored on close.
 
-Keyboard: Return picks the DEFAULT button (the Cupertino rule; a focused
+Keyboard: Return picks the default button (the Cupertino rule; a focused
 button also activates on Space/Enter — the pick guard makes the double
 harmless), Escape picks the cancel record when one exists, else just
 closes.
@@ -22,14 +22,14 @@ The idioms — one verb each, an optional callback receiving the picked id
 `ask` is Cancel / No / Yes-default; `error` renders the title in the
 theme's errorColor.
 
-Platform STRUCTURE is data (the scheme): `dialogWidth`,
-`dialogButtons` = "end" (a right-aligned row — SF, Material) | "stack"
-(the stacked alert — full-width buttons stacked, DEFAULT ON TOP) | "fill"
-(WinUI ContentDialog — equal-width buttons filling the row),
-`dialogAlign` = "left" | "center" (the Cupertino centered title),
-`dialogTitleSize` / `dialogBodySize`. Plus scrimColor + scrimOpacity
-(Cupertino barely dims — alerts separate by SHADOW; Material's spec scrim is
-32%; Fluent's smoke 30%), the menuShadow family, errorColor.
+**Platform structure is data**: `dialogWidth`, `dialogButtons` = `"end"` (a
+right-aligned row — San Francisco, Material) | `"stack"` (the stacked alert —
+full-width buttons stacked, default on top) | `"fill"` (WinUI ContentDialog —
+equal-width buttons filling the row), `dialogAlign` = `"left"` | `"center"`
+(the Cupertino centered title), `dialogTitleSize` / `dialogBodySize`. Plus
+`scrimColor` + `scrimOpacity` (Cupertino barely dims — alerts separate by
+shadow; Material's scrim is 32%; Fluent's smoke 30%), the `menuShadow` family,
+`errorColor`.
 
 **Declare one and call it.** A `Dialog` is not a view you show and hide around your
 content — it is a standing member you open with a verb, so the same instance serves
@@ -150,9 +150,9 @@ include [ "control.declare" ]
 include [ "button.declare" ]
 
 class Dialog extends View [
-    // The design-token record, a PROVIDED value (docs/system-design/style.md):
-    // the app provides it once and this widget reads it, so `theme.x` reads below
-    // are plain typed members. Default = the house look (no runtime floor).
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
 
     theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown },
@@ -182,7 +182,9 @@ class Dialog extends View [
         saved = Focus.getFocus()
         shown = true
         this.raise()
-        setTimeout(() => this.focusDefault(), 0)
+        // the buttons are records until this settle closes; the default one
+        // is real, placed and focusable on the far side of it
+        afterSettle(this.focusDefault)
         },
 
     // ── the idioms ─────────────────────────────────────────────────────────
@@ -203,9 +205,9 @@ class Dialog extends View [
         shown = false
         const s = saved
         saved = null
-        // restore DEFERRED: the in-flight keystroke must finish against the
-        // OLD focus — an immediate restore hands the same Enter to the opener,
-        // which re-activates and reopens (the re-entry the probe caught)
+        // restore deferred: the in-flight keystroke must finish against the
+        // old focus — an immediate restore hands the same Enter to the opener,
+        // which re-activates and reopens
         if (s != null) setTimeout(() => Focus.focus(s), 0)
         },
 
@@ -255,7 +257,7 @@ class Dialog extends View [
         ],
 
     // buttons → Button instances through the internal derived dataset. The
-    // "stack" arrangement REORDERS: the default on top, cancel at the bottom
+    // "stack" arrangement reorders: the default on top, cancel at the bottom
     // (the Cupertino stacked alert); row arrangements keep authored order.
 
     arrangement: string = { typeof theme.dialogButtons == "string" ? theme.dialogButtons : "end" },
@@ -265,7 +267,7 @@ class Dialog extends View [
         ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
         : classroot.buttons || [] } } ],
 
-    // the scrim: MODAL input blocking — every press lands here and stops
+    // the scrim: modal input blocking — every press lands here and stops
 
     scrim: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
         fill = { theme.scrimColor != null ? theme.scrimColor : 0x000000 },
@@ -273,9 +275,8 @@ class Dialog extends View [
         onPointerDown() { }
         ],
 
-    panel: View [ focusTrap = true,
+    panel: View [ focusTrap = true, x = center,
         width = { typeof theme.dialogWidth == "number" ? theme.dialogWidth : 420 },
-        x = { (app.width - this.width) / 2 },
         y = { Math.max(40, (app.height - this.height) / 3) },
         height = { this.col.height + 40 },
         cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius + 2 : 10 },

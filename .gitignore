@@ -78,3 +78,6 @@ test/artifacts/
 
 # per-session git worktrees (Claude Code) — never part of the tree
 .claude/worktrees/
+
+# a scratch copy of the native host for the native-partition experiment (2026-09-16)
+mac-host-test/

@@ -77,6 +77,11 @@ const CHECK = has("--check");
 const DRY = has("--dry");
 const TIMING = has("--timing");
 const ALL = has("--all");
+// --no-stage: regenerate, touch the index not at all. Staging is derive's usual
+// last act (below) so that outputs and the sources they came from land in one
+// commit; a run that is only refreshing artifacts to look at — mid-arc, in a
+// tree whose sources are still moving — wants the files and not the git write.
+const NO_STAGE = has("--no-stage");
 // --only <a,b> (or --only=a,b): restrict this run to the named rules. Validated
 // against the rule table after it is defined; null = the whole graph.
 const onlyIx = argv.findIndex((a) => a === "--only" || a.startsWith("--only="));
@@ -431,10 +436,11 @@ if (CHECK) {
   let staged = false;
   // An empty pathspec list must SKIP the add (`git add -A --` bare means the
   // whole tree — the exact opposite of "only what derive owns").
-  if (specs.length === 0) staged = true;
+  if (NO_STAGE || specs.length === 0) staged = false;
   else try { run("git", ["add", "-A", "--", ...specs]); staged = true; }
   catch (e) { console.error(`derive: could not stage (${String(e.message ?? e).split("\n")[0]}) — stage by hand:\n   git add -A -- ${specs.join(" ")}`); }
   console.log(`derive: ${movedFiles.length} derived file(s) regenerated — ${ran} rule(s) ran, ${skipped} skipped (${total}s)` +
-    (staged ? ` · outputs staged` : "") + (ONLY !== null ? ` · only ${[...ONLY].join(",")}` : ""));
+    (staged ? ` · outputs staged` : NO_STAGE ? ` · index untouched (--no-stage)` : "") +
+    (ONLY !== null ? ` · only ${[...ONLY].join(",")}` : ""));
   for (const p of movedFiles.slice(0, 12)) console.log(`   ${p}`);
 }

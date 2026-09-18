@@ -42,6 +42,12 @@ export declare function bindDatapath(view: View, path: string | readonly string[
  *  (`datapath = { :detail }`) resolves against the INHERITED cursor, never
  *  the slot this constraint defines — the same rule bindDatapath states. */
 export declare function bindCursor(view: View, src: string, pos: Pos, classroot: View | null): void;
+/** The axis `name` resolves a percent against, or null when it has none — the
+ *  one reading of the table above, so a caller that must REFUSE a percent
+ *  before binding it (rich text's inline views: a tag attribute is refused
+ *  through the component's `unsupported` policy, never thrown mid-render) asks
+ *  the same question bindPercent answers. */
+export declare function percentAxis(name: string): "width" | "height" | null;
 /** Bind `name = p%` as the runtime constraint described above. The root has
  *  no parent to resolve against — that is an instantiation-context fact, not
  *  a source fact (the same fragment could be checked for embedding

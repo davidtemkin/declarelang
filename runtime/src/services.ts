@@ -24,16 +24,30 @@
 
 import { setBodyServices } from "./expr.js";
 import { setKeysFocusProbe, Keys } from "./keys.js";
-import { THEME_PRESETS, tint } from "./themes.js";
+import { THEME_PRESETS, activeTone } from "./themes.js";
 import { Focus } from "./focus.js";
 import { Inspect } from "./inspect-service.js";
 import { afterSettle } from "./reactive.js";
 import { measureText } from "./text-measure.js";
 
+// escapeHtml — the one string chore rich text needs and no host global covers.
+// Content assembled by concatenation (`html = { "<Person name='" + app.me +
+// "'/>" }`) must not let a value's own `<` or `'` become markup, and a tag in
+// rich-text content can name a program class, so an injected `<` is a view, not
+// just wrong text. Five lines and unconditional: it lives HERE rather than in a
+// module of its own because services.js is the production entry's one import, so
+// there is nothing for a slimming fact to gate — the function ships either way,
+// and a fact would only be a second thing to keep in step.
+const HTML_ESCAPES: Readonly<Record<string, string>> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
+function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
+}
+
 // The theme presets are in scope inside every `{ }` body by name (a bare
-// `SanFrancisco` / `CupertinoDark` is the record), alongside `tint`. afterSettle
+// `SanFrancisco` / `CupertinoDark` is the record), alongside `activeTone`. afterSettle
 // is a FUNCTION, not a service object — the one body-scope name that is a verb:
 // "finish after your change has taken effect" (language §7). `measureText` is a
-// pure function of what it is given (text-measure.ts).
-setBodyServices({ Focus, Keys, Inspect, afterSettle, tint, measureText, ...THEME_PRESETS });
+// pure function of what it is given (text-measure.ts), and `escapeHtml` above is
+// another.
+setBodyServices({ Focus, Keys, Inspect, afterSettle, activeTone, measureText, escapeHtml, ...THEME_PRESETS });
 setKeysFocusProbe(() => Focus.getFocus() !== null);

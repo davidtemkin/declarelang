@@ -9,7 +9,7 @@ width/height driving the tenant's size and no coordinate sync to maintain.
 preview: DOMIsland [ width = { parent.width }, height = 300, slot = "run:demo" ]
 ```
 
-**The bridge's fact surface.** Islands carry a typed BRIDGE: attributes declared with the
+**The bridge's fact surface.** Islands carry a typed bridge: attributes declared with the
 `external` modifier cross the boundary to the tenant, paired by name. On the island's side
 each is the host's half of one fact — bind it (`external volume: number = { app.masterVolume }`)
 and it flows to the tenant; declare it `readonly external` and it is *tenant-owned*: the
@@ -34,7 +34,7 @@ names its window by the open file). `""` until a child is up. It is the inbound 
 the child's own `appName`; the child changes it by changing *its* `appName`.
 
 ## post()
-The bridge's VERB, host → tenant: `post(topic, payload)` delivers to the tenant's
+The bridge's verb, host → tenant: `post(topic, payload)` delivers to the tenant's
 `onPost({ topic, payload })` — a Declare tenant's App handler, or a foreign tenant's
 `__declareIsland.onPost(cb)`. Data-shaped payloads. Dropped with a console note when no
 tenant is linked. Verbs are consumed once and never re-readable — "do this", never

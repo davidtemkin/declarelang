@@ -1,4 +1,11 @@
-App [
-    HTMLText [ width = { parent.width },
-        html = "<h3>Notice</h3><p>Loaded content with <b>bold</b>, <i>italic</i>, and a <a href='#'>link</a>.</p>" ]
+class Chip extends View [ label: string = "",
+    height = 19, width = { this.t.width + 18 }, cornerRadius = 9,
+    fill = 0xDDF4E4,
+    t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]
+    ]
+
+
+App [ width = 430, height = 90,
+    HTMLText [ x = 16, y = 16, width = 398, fontSize = 15,
+        html = "<b>Bold</b> is a tag the whitelist knows; <Chip label='docs'/> is a view you declared." ]
     ]

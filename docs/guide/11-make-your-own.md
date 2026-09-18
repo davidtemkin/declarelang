@@ -68,7 +68,7 @@ Three things arrived without being asked for:
 
 - **`hot` and `down`** — hover and press, already gated by `disabled`, so a disabled
   control cannot light up. Style against these, never the raw `hovered`/`pressed`
-  intrinsics from [chapter 7](declare-docs:guide:interaction); that gate is the whole
+  facts from [chapter 7](declare-docs:guide:interaction); that gate is the whole
   difference.
 - **Keyboard activation** — Space and Enter call `press()`, the same path the pointer
   takes. One override, both input methods.
@@ -76,7 +76,7 @@ Three things arrived without being asked for:
   focus ring finds it.
 
 A method you declare on a subclass replaces the base's method of the same name, and that is
-true of handlers too: they are methods. When you want the base's behaviour as well as your
+true of handlers too: they are methods. When you want the base's behavior as well as your
 own, call it — `super.press()` — before your work, after it, or only on some paths:
 
 ```declare
@@ -162,9 +162,9 @@ One path, three sizes, no variants. Two details carry that:
   pixels at every size. That is why the three above look like one family instead of the
   large one looking fat.
 
-`ink` follows the provided text colour (the `textColor` an ancestor provides), so an icon
+`ink` follows the provided text color (the `textColor` an ancestor provides), so an icon
 beside a muted label goes muted on its own — with one trap worth knowing: that value falls
-back to black platform-wide, so an icon in a context that never provides a text colour
+back to black platform-wide, so an icon in a context that never provides a text color
 renders black and vanishes on a dark surface. State `ink` when you are not sure.
 
 ## An arrangement nobody wrote for you
@@ -281,7 +281,7 @@ key that closed your panel reopens it.
 
 ## Reskin, don't hardcode
 
-Read `theme` tokens rather than literal colours — `theme.control`, `theme.text`,
+Read `theme` tokens rather than literal colors — `theme.control`, `theme.text`,
 `theme.accent`, `theme.line` — and your component follows the app's theme and its dark
 mode without knowing either exists. That is the only thing standing between a component
 that drops into someone else's app and one that has to be edited first, and it is the
@@ -289,7 +289,7 @@ same discipline [chapter 6](declare-docs:guide:style) taught for the app itself.
 
 ---
 
-The proof of all this is readable: open `library/`. `Checkbox` is forty lines,
+The proof of all this is readable: open `library/`. `Checkbox` is under eighty lines of code,
 `SimpleLayout` is one method, `Segmented` derives its sliding pill from the same
 constraint arithmetic you have been writing since chapter 3. They are worth reading not
 because you need to know their internals, but because they are the answer to *what does

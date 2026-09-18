@@ -2,7 +2,7 @@ The keyboard, as a member. `Keys` names one concept that a program can either **
 **listen to**: `Keys.isDown("KeyA")` is a call you make from any `{ }` body; a `Keys [ … ]`
 member is how the keyboard calls you.
 
-It is the RAW stream — it fires even while a text field has focus, so gate app-level
+It is the **raw stream** — it fires even while a text field has focus, so gate app-level
 shortcuts on app state where that matters. A *focused* view's own `onKeyDown`/`onKeyUp`
 handlers are the other half of the story, and usually the right one for keys that belong to
 a particular widget. Lifetime is the node's: subscribed at init, dropped when the node is
@@ -42,6 +42,15 @@ onClick() { (parent as Table).rowClick(this.rowIndex(), this.member(),
 
 ## held()
 Every key currently down, as `code` strings.
+
+## onNavClaim
+The navigation keys changed hands: `true` when something claimed them (an overlay opened
+and its arrows now rove it), `false` when the last claim released. It fires on the
+**transition only**, not per claim, so nested overlays that each claim do not chatter.
+
+This is how a focus ring stands down while a menu owns the arrows: the library's own ring
+subscribes to it, because during that time the menu's rover *is* the focus and a second
+indicator would be a lie.
 
 ## navClaim()
 Claims the navigation keys — arrows, Space, Home/End, Page — away from the browser's

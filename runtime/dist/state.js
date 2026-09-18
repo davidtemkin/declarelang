@@ -96,11 +96,11 @@ export class State extends Node {
     // Captured from the body at construct.
     /** Value overrides on the enclosing view. */
     overrides = [];
-    /** Conditional child templates, the build-time materializer, and the
-     *  classroot their bodies' members bind to (the state's use site). */
+    /** Conditional child templates — each with the classroot its body's members
+     *  bind to (the state instance for a class body's children, the use site's
+     *  scope for its own) — and the build-time materializer. */
     childTemplates = [];
     materialize = null;
-    childClassroot = null;
     // Runtime state.
     /** Declaration-order precedence, cached at init before any child inserts. */
     priority = 0;
@@ -172,10 +172,10 @@ export class State extends Node {
         let index = target.children.indexOf(this) + 1;
         const finishes = [];
         for (const tmpl of this.childTemplates) {
-            const { view, finish } = this.materialize(tmpl, this.childClassroot ?? target);
+            const { view, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
             target.insertChild(view, index++);
-            if (tmpl.name !== null && !(tmpl.name in target)) {
-                target[tmpl.name] = view;
+            if (tmpl.el.name !== null && !(tmpl.el.name in target)) {
+                target[tmpl.el.name] = view;
             }
             this.builtChildren.push(view);
             finishes.push(finish);
@@ -202,8 +202,8 @@ export class State extends Node {
         for (const v of this.builtChildren)
             v.discard();
         for (const tmpl of this.childTemplates) {
-            if (tmpl.name !== null && target[tmpl.name] !== undefined) {
-                delete target[tmpl.name];
+            if (tmpl.el.name !== null && target[tmpl.el.name] !== undefined) {
+                delete target[tmpl.el.name];
             }
         }
         this.builtChildren = [];

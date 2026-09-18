@@ -1,0 +1,13 @@
+class Tag extends View [
+    label: string = "",
+    height = 20, width = { this.t.width + 20 }, cornerRadius = 10,
+    fill = { this.hovered ? 0x4C8DFF : 0xE6ECF2 },
+    t: TextLabel [ x = 10, y = center, fontSize = 12, text = { classroot.label },
+        textColor = { classroot.hovered ? 0xFFFFFF : 0x33424E } ]
+    ]
+
+
+App [ width = 380, height = 96, fill = white,
+    HTMLText [ x = 20, y = 20, width = 340, fontSize = 15, bodyColor = 0x33424E,
+        html = "Hover <Tag label='either'/> or <Tag label='this one'/> — each is its own view." ]
+    ]

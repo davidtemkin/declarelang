@@ -1,0 +1,11 @@
+class Chip extends View [ label: string = "",
+    height = 19, width = { this.t.width + 18 }, cornerRadius = 9,
+    fill = 0xDDF4E4,
+    t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]
+    ]
+
+
+App [ width = 430, height = 90,
+    Markdown [ x = 16, y = 16, width = 398, fontSize = 15,
+        text = "**Bold** is Markdown's, `<b>` stays text, and <Chip label='docs'/> is yours." ]
+    ]

@@ -17,12 +17,12 @@ identical on the dev server and a static host — and renders the child.
 
 ### The bridge
 
-An AppIsland carries the ISLAND BRIDGE (guide ch. 18): declare `external`
+An AppIsland carries the **island bridge** (guide ch. 18): declare `external`
 attributes on the instance and they pair, by name and with a type handshake,
 against the tenant program's own `external` declarations — typed facts both
 ways, per settle. `post(topic, payload)` / `onPost(m: IslandPost)` carry the
-verbs. `env` and `childName` below are the bridge's untyped ancestors and
-still work; new code should declare its surface.
+verbs. `env` and `childName` below are untyped channels beside the bridge;
+declare `external` attributes wherever the type matters.
 
 The window frame, activation, and titling belong to the caller — a desktop window
 adds an `onPointerDown` that raises itself and reads `childName` for its title; the

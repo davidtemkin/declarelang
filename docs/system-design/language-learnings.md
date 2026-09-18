@@ -271,9 +271,9 @@ from the use-site) — one more vote for warning on class-body reads of App-only
 
 ## 2026-07-13 — factoring the homepage (the readability pass)
 
-- **Classes cannot extend non-View components.** `class Reveal extends Spring [ … ]`
-  compiles to `unknown component 'Reveal'` at the use sites — class registration only
-  covers View descendants. The natural use is real: the homepage repeats one
+- **A class extends any built-in component** — `class Reveal extends Spring [ … ]` is a
+  named Spring configuration, used as `reveal: Reveal [ … ]` wherever a Spring goes; every
+  family (Dataset, Animator, Keys, State, …) is a base. The natural use is real: the homepage repeats one
   scroll-reveal Spring (`attribute = opacity, stiffness = 90, damping = 22, to = { … }`)
   in three sections, and the calendar's four focus Springs share their tuning too. A
   named Spring configuration is exactly what `class` is for; today the repetition has

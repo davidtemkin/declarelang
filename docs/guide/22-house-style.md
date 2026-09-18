@@ -61,7 +61,7 @@ Its business is what happens *within* and *between* the lines you chose.
 
 The test is what *kind* of members a body holds, not how many lines it spans.
 
-A **leaf** holds attributes only — config and bindings, no child instance, no method, no
+A **leaf** holds attributes only — config and constraints, no child instance, no method, no
 state, no declaration. It closes **inline**, the `]` riding the last content line, even
 when the attributes wrapped:
 
@@ -176,7 +176,7 @@ size: number = 0,             // 0 = the theme's checkbox size
 ```
 
 Their gap has a two-space minimum and no maximum — at or above the floor, your spacing is
-preserved exactly. Aligning trailing comments across neighbouring lines is yours to do.
+preserved exactly. Aligning trailing comments across neighboring lines is yours to do.
 This is the one exception to the rule below.
 
 ## No row-to-row alignment
