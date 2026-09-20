@@ -1,4 +1,4 @@
-import { type Gradient, type Radius, type Shadow, type Stroke } from "./value.js";
+import { type BoxStroke, type Gradient, type Radius, type Shadow } from "./value.js";
 /** The box's retained paint state — the shape both surfaces keep. The solid
  *  fill is pre-resolved to a canvas fillStyle at set time (the R1 fast
  *  path); a gradient stays data (its geometry depends on the box). */
@@ -8,7 +8,7 @@ export interface BoxState {
     fill: string | null;
     gradient: Gradient | null;
     cornerRadius: Radius;
-    stroke: Stroke | null;
+    stroke: BoxStroke;
     shadow: Shadow | null;
 }
 /** Paint `b` into `ctx` at the current transform's origin. `box` is the

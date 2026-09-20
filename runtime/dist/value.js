@@ -5,12 +5,13 @@
 // `50%` into a Percent is deliberately imperative and lives here, never in
 // Declare source. Each type's `coerce` case owns its "expects …" wording, so
 // a type and its diagnostics are one thing and cannot drift apart.
-import { diag } from "./errors.js";
+import { diag, strokeShapeMessage } from "./errors.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS } from "./animate.js";
 import { faceSourceLiteral, faceWeightLiteral } from "./face-literal.js";
 import { coerceFilter, coerceRadialConic } from "./effects.js";
+import { coerceStrokeSides, sidesEqual, sidesUniform } from "./stroke-sides.js";
 /** The base of the translucent encoding — see the Color doc above. */
 const ALPHA = 0x100000000;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
@@ -35,6 +36,16 @@ export function gradientCss(g) {
 /** Narrow a Fill to its gradient arm. */
 export function isGradient(f) {
     return typeof f === "object" && f !== null;
+}
+/** The uniform Stroke this value is on all four sides, or null when it is
+ *  bare on all four — and `undefined` when the sides genuinely differ, which
+ *  is the signal to take a painter's per-side path. Keeps the overwhelmingly
+ *  common uniform case on the one-ring fast path in both backends; the FOUR-side
+ *  arm lives in stroke-sides.ts, one module for everything four sides mean. */
+export function strokeUniform(s) {
+    if (s === null || !Array.isArray(s))
+        return s;
+    return sidesUniform(s);
 }
 export function isMaskGradient(m) {
     return typeof m === "object" && m !== null && "stops" in m;
@@ -166,7 +177,13 @@ export function shadowEqual(a, b) {
         a.dx === b.dx && a.dy === b.dy && a.blur === b.blur && a.color === b.color;
 }
 export function strokeEqual(a, b) {
-    return a !== null && b !== null && a.width === b.width && a.color === b.color;
+    if (a === null || b === null)
+        return false;
+    if (Array.isArray(a) || Array.isArray(b))
+        return sidesEqual(a, b);
+    const s = a;
+    const t = b;
+    return s.width === t.width && s.color === t.color;
 }
 export function outlineEqual(a, b) {
     return a !== null && b !== null && a.width === b.width && a.color === b.color;
@@ -215,10 +232,29 @@ export function radiusIsSquare(r) {
 export function radiusMax(r) {
     return typeof r === "number" ? r : Math.max(r[0], r[1], r[2], r[3]);
 }
-/** The four corners fitted to a w×h box the way CSS fits border-radius: when
- *  two adjacent radii would overlap along an edge, EVERY radius shrinks by the
- *  same factor, so the shape stays a scaled copy of the one asked for. A uniform
- *  radius past half the box lands at half the box — a pill — exactly as before. */
+/** The four sides of an Inset — top, right, bottom, left. Negative values are
+ *  clamped to 0: an inset that grew the box would make a layout place children
+ *  outside the view it arranges. */
+export function insetSides(i) {
+    const n = (v) => (Number.isFinite(v) && v > 0 ? v : 0);
+    return typeof i === "number" ? [n(i), n(i), n(i), n(i)] : [n(i[0]), n(i[1]), n(i[2]), n(i[3])];
+}
+/** ONE side of an Inset, without materializing the other three — the hot pair:
+ *  every child's position push and every descent of the hit walk asks for the
+ *  LEADING inset (left on x, top on y), and the answer is almost always the
+ *  literal 0 an unpadded view carries. Same clamp as insetSides. */
+export function insetLead(i, axis) {
+    if (typeof i === "number")
+        return Number.isFinite(i) && i > 0 ? i : 0;
+    const v = axis === "x" ? i[3] : i[0];
+    return Number.isFinite(v) && v > 0 ? v : 0;
+}
+/** True when this inset takes nothing off any side — the zero-cost path a
+ *  layout takes when nobody asked for padding. */
+export function insetIsZero(i) {
+    const [t, r, b, l] = insetSides(i);
+    return t === 0 && r === 0 && b === 0 && l === 0;
+}
 export function radiusFit(r, w, h) {
     const c = radiusCorners(r).map((v) => Math.max(0, v));
     const [tl, tr, br, bl] = c;
@@ -254,6 +290,13 @@ const DECLARED_TYPES = {
     Length: { kind: "length" },
     Radius: { kind: "radius" },
     Shape: { kind: "shape" },
+    // An Inset (`View.padding`) is the same LITERAL shape as a Radius — one
+    // number, or four clockwise — and rides the same routes: the coercer and the
+    // bare-four-item-list path are the ones a Radius already has. It is its OWN
+    // KIND because the names mean different things to a reader (corners vs edges,
+    // and an Inset's four start at the TOP), and only a kind carries that to the
+    // scaffold and from there to the reference.
+    Inset: { kind: "inset" },
     // The records door (planes.md §4 — components arrange records): a slot
     // holding an ARRAY of records (`items`), a plain OBJECT record, or a VIEW
     // reference (`opener`). Literal defaults are null-only — structured values
@@ -336,11 +379,19 @@ export function coerce(type, lit) {
             }
             return fail(diag `a number`);
         case "radius":
-            // the list form `[tl, tr, br, bl]` never reaches coerce — a bare list is
-            // routed around it (check.ts / instantiate.ts), as every list slot is
+        case "inset":
+            // One value, or four clockwise — the house pattern (a Radius's four are
+            // corners from the top-left, an Inset's edges from the top). On a view's
+            // own attribute a bare list is routed around coercion like every list
+            // slot (check.ts / instantiate.ts); inside a component-valued member —
+            // `layout: SimpleLayout [ padding = [ 8, 12, 16, 20 ] ]` — this IS the
+            // path, so the four-item form is admitted here too.
             if (lit.kind === "number")
                 return ok(lit.value);
-            return fail(diag `a Radius (a number rounds all four corners; [topLeft, topRight, bottomRight, bottomLeft] rounds each)`);
+            if (lit.kind === "list" && lit.items.length === 4 && lit.items.every((it) => it.kind === "number")) {
+                return ok(Object.freeze(lit.items.map((it) => (it.kind === "number" ? it.value : 0))));
+            }
+            return fail(diag `a number for all four, or a list of four numbers — clockwise from the top (a Radius's corners start at the top-left; an Inset's edges at the top)`);
         case "boolean":
             if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) {
                 return ok(lit.name === "true");
@@ -534,7 +585,7 @@ function coerceColor(lit) {
 // names are ordinary functions inside `{ }` bodies (expr.ts puts them in
 // scope), so one vocabulary serves both lexical homes.
 export const FILL = diag `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
-const STROKE = diag `a Stroke (stroke(width, color) — drawn inside the box — or null)`;
+const STROKE = strokeShapeMessage(); // errors.ts — one sentence, shared with the typecheck's report of the same mistake made inside a { }
 const SHADOW = diag `a Shadow (shadow(dx, dy, blur, color), or null)`;
 /** A constructor argument as a plain color number (no null). */
 export function argColor(lit) {
@@ -620,6 +671,14 @@ function coerceFill(lit) {
     return c.ok ? c : fail(FILL, c.found);
 }
 function coerceStroke(lit) {
+    // The per-side form: four, clockwise from the top, `null` for a bare side.
+    // A list reaches coercion whole (like a filter list); stroke-sides.ts owns
+    // the shape check, so the type and its diagnostic stay one thing.
+    if (lit.kind === "list")
+        return coerceStrokeSides(lit, oneStroke, STROKE);
+    return oneStroke(lit);
+}
+function oneStroke(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);
     if (lit.kind !== "call" || lit.name !== "stroke")

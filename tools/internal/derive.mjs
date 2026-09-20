@@ -179,7 +179,11 @@ const RULES = [
   {
     name: "bake-crawler",            // the root page's static extraction (runs the homepage itself)
     inputs: ["tools/internal/bake-homepage-crawler.mjs", "compiler/dist", "runtime/dist", "library",
-             { dir: "apps/homepage", exclude: ["dist", "index.html"] }, "docs/declare.md"],
+             { dir: "apps/homepage", exclude: ["dist", "index.html"] }, "docs/declare.md",
+             // the island TENANTS the page composes: their text is baked INTO
+             // index.html now, so editing the article has to re-bake the artifact
+             // that carries it — otherwise the crawler's copy rots silently
+             { dir: "apps/architecture", exclude: ["dist", "index.html"] }],
     outputs: [],
     stamps: ["index.html"],
     run: () => run("node", ["tools/internal/bake-homepage-crawler.mjs"]),

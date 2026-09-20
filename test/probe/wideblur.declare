@@ -1,0 +1,33 @@
+// A WIDE blur probe — the desktop wallpaper's case: full-canvas radial fills,
+// each drawn under a large blur() with a `lighten` blend. On an engine without
+// ctx.filter every fill goes through the software fallback, and at this radius
+// the fallback's downsample factor decides almost all of its cost. The native
+// filter (Chrome) is the reference the fallback must agree with.
+
+App [ width = 600, height = 400, fill = #000000,
+    field: View [ x = 0, y = 0, width = 600, height = 400,
+        draw(d: Draw) {
+            d.fillStyle = "#0B0710"
+            d.fillRect(0, 0, 600, 400)
+            d.save()
+            d.filter = "blur(96px)"
+            d.globalCompositeOperation = "lighten"
+            const spots = [[120, 110, 260], [480, 90, 240], [300, 230, 300], [110, 330, 220]]
+            const inks = ["#E0457B", "#5B6CFF", "#20C4A8", "#F2A33A"]
+            for (let i = 0; i < spots.length; i++) {
+                const s = spots[i]
+                const g = d.createRadialGradient(s[0], s[1], 0, s[0], s[1], s[2])
+                g.addColorStop(0, inks[i])
+                g.addColorStop(1, "rgba(0,0,0,0)")
+                d.fillStyle = g
+                d.fillRect(0, 0, 600, 400)
+                }
+            d.restore()
+            // a hard edge too, so a wrong sigma shows as a wrong falloff, not just a wrong tint
+            d.filter = "blur(96px)"
+            d.fillStyle = "#FFFFFF"
+            d.fillRect(250, 150, 100, 100)
+            d.filter = "none"
+            }
+        ]
+    ]

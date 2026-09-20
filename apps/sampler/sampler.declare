@@ -34,7 +34,7 @@ class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
     pivotY = 8,
     fill = { c },
     stroke = { hovered ? stroke(2, provided("theme").text) : app.accentPick == c ? stroke(2, provided("theme").textMuted) : null },
-    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.appearanceMenu.close() }
+    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.stylingMenu.close() }
     ]
 
 
@@ -56,16 +56,17 @@ class TintRow extends View [
     ]
 
 
-// A specimen CARD: a surface with an eyebrow label; the use-site content
-// child positions itself at the 16px inset and the card wraps its height.
+// A specimen card: the library's `Card` — its surface, hairline and inset —
+// with an eyebrow label stacked above the use site's content. The card has an
+// inside, so a specimen's content is written with no coordinates at all, and
+// the card's height falls out of what it holds.
 
-class Card extends View [ width = { parent.width },
+class Specimen extends Card [ width = 100%,
     label: string = "",
-    height = { this.contentHeight + 16 },
     cornerRadius = 10,
-    fill = { provided("theme").surface },
-    stroke = { stroke(1, provided("theme").line) },
-    hd: Text [ x = 16, y = 14, fontSize = 11.5, fontWeight = semibold, letterSpacing = 1.1,
+    padding = [14, 16, 16, 16],                      // the eyebrow sits a little higher than it is deep
+    layout: SimpleLayout [ axis = y, spacing = 17 ],   // eyebrow, then the specimen
+    hd: Text [ fontSize = 11.5, fontWeight = semibold, letterSpacing = 1.1,
         textColor = { provided("theme").textFaint }, text = { label.toUpperCase() } ]
     ]
 
@@ -175,13 +176,13 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     // ── the appearance menu — the whole styling rig as records: mode rows,
     //    styling rows, the tint dots, the flourish ───────────────────────────
 
-    appearanceMenu: Menu [
+    // ── the STYLING menu — the styling rig as records: styling rows, the
+    //    tint dots (the Finder idiom), the flourish. Light/dark is the bar's
+    //    own switch, beside it. ───────────────────────────────────────────
+
+    stylingMenu: Menu [
         width = 240,
         items = { [
-            ({ id: "mode:light", label: "Light", icon: "SunIcon", checked: app.themeMode == "light" }),
-            ({ id: "mode:auto", label: "System", icon: "AutoIcon", checked: app.themeMode == "auto" }),
-            ({ id: "mode:dark", label: "Dark", icon: "MoonIcon", checked: app.themeMode == "dark" }),
-            ({ divider: true }),
             ({ id: "style:sanFrancisco", label: "San Francisco", checked: app.style == "sanFrancisco" }),
             ({ id: "style:mountainView", label: "Mountain View", checked: app.style == "mountainView" }),
             ({ id: "style:cupertino", label: "Cupertino", checked: app.style == "cupertino" }),
@@ -192,8 +193,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             ({ id: "animate", label: "Animate focus transitions", checked: app.animateFocus }),
         ] },
         picked(id: string) {
-            if (id.startsWith("mode:")) app.themeMode = id.slice(5)
-            else if (id.startsWith("style:")) app.style = id.slice(6)
+            if (id.startsWith("style:")) app.style = id.slice(6)
             else if (id == "animate") app.animateFocus = !app.animateFocus
             }
         ],
@@ -242,7 +242,11 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").surface },
 
-        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
+        // the rule under the bar is the bar's own bottom edge — a per-side stroke,
+        // not a child view. The cast is the slot's TS type (`Stroke`) not yet
+        // admitting the four-sided list a { } constraint may hand it.
+
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
 
         brand: View [ x = 20, y = 15, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
@@ -279,20 +283,20 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         // under the pill, Space/Enter and ArrowDown from the keyboard all come
         // with it, so the control declares nothing about opening.
 
-        appear: Control [ y = 11, height = 30,
-            width = 54,
-            x = { app.width - this.width - 14 },
-            cornerRadius = 8, tip = "Appearance",
-            menu = { app.appearanceMenu },
-            fill = { menuOpen || hot || down ? provided("theme").control : null },   // held open while its menu shows
-            stroke = { stroke(1, provided("theme").line) },
+        // the STYLING door — a button with a menu (the chevron and the anchored
+        // open come with Control's `menu` role); the stylings, the tints and
+        // the flourish live in it
 
-            // the mode's own mark, and the disclosure — both from the icon set
+        styling: Button [ y = { (app.barH - this.height) / 2 }, height = 30, label = "Styling",
+            x = { app.width - this.width - 14 - parent.appear.width - 8 },
+            menu = { app.stylingMenu } ],
 
-            g: IconHost [ x = 9, y = center, iconSize = 15,
-                kind = { app.themeMode == "light" ? "SunIcon" : app.themeMode == "dark" ? "MoonIcon" : "AutoIcon" } ],
-            arrow: ChevronIcon [ iconSize = 12, ink = { provided("theme").textMuted },
-                x = { parent.width - 18 }, y = { (parent.height - this.height) / 2 } ]
+        // light / dark: shows the appearance in force, a press flips it; until
+        // then `themeMode` stays "auto" and the OS decides
+
+        appear: AppearanceSwitch [ y = { (app.barH - this.height) / 2 }, x = { app.width - this.width - 14 },
+            dark = { app.darkUI },
+            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
         ],
 
@@ -308,14 +312,14 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
             // ── Controls page: specimen cards, two balanced columns ────────
 
-            grid: View [ visible = { app.page == "controls" }, width = { parent.width },
+            grid: View [ visible = { app.page == "controls" }, width = 100%,
                 layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = { app.narrow ? 20 : 32 } ],
 
                 left: View [ width = { app.narrow ? parent.width : (parent.width - 32) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-                    Card [ label = "Buttons",
-                        row: View [ x = 16, y = 44,
+                    Specimen [ label = "Buttons",
+                        row: View [
                             layout: SimpleLayout [ axis = x, spacing = 12 ],
                             Button [ width = { app.compact ? 94 : 110 }, label = "Primary", primary = true, tip = "The accent action" ],
                             Button [ width = { app.compact ? 94 : 110 }, label = "Secondary", primary = false ],
@@ -323,8 +327,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                             ]
                         ],
 
-                    Card [ label = "Checkbox · Switch · Radio",
-                        row: View [ x = 16, y = 44,
+                    Specimen [ label = "Checkbox · Switch · Radio",
+                        row: View [
                             layout: SimpleLayout [ axis = x, spacing = 24 ],
                             Checkbox [ label = "Notifications", checked = true ],
                             Switch [ checked = true ],
@@ -337,16 +341,16 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                             ]
                         ],
 
-                    Card [ label = "Slider · Progress",
-                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                    Specimen [ label = "Slider · Progress",
+                        demo: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 14 ],
                             vol: Slider [ width = { Math.min(280, parent.width) }, value = 40, tip = "Volume — arrows nudge" ],
                             ProgressBar [ width = { Math.min(280, parent.width) }, value = { parent.vol.value } ]
                             ]
                         ],
 
-                    Card [ label = "Combobox",
-                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                    Specimen [ label = "Combobox",
+                        demo: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 10 ],
                             cb: Combobox [ width = 250, placeholder = "Assignee…",
                                 items = { [
@@ -361,8 +365,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                             ]
                         ],
 
-                    Card [ label = "Context menu",
-                        pad: View [ x = 16, y = 44, width = { parent.width - 32 }, height = 74,
+                    Specimen [ label = "Context menu",
+                        pad: View [ width = 100%, height = 74,
                             cornerRadius = 8, fill = { provided("theme").bg }, stroke = { stroke(1, provided("theme").line) },
                             onContextMenu(e: PointerEvent) { app.ctxMenu.open(this, e) },
                             onHold(e: PointerEvent) { app.ctxMenu.open(this, e) },
@@ -377,8 +381,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 right: View [ width = { app.narrow ? parent.width : (parent.width - 32) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-                    Card [ label = "Text input · Field",
-                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                    Specimen [ label = "Text input · Field",
+                        demo: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 12 ],
                             TextInput [ width = { Math.min(280, parent.width) }, height = 30, placeholder = "Your name" ],
                             Field [ label = "Email", labelWidth = 56,
@@ -387,8 +391,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                             ]
                         ],
 
-                    Card [ label = "Menu",
-                        row: View [ x = 16, y = 44,
+                    Specimen [ label = "Menu",
+                        row: View [
                             layout: SimpleLayout [ axis = x, spacing = 14 ],
 
                             // `menu` is the role — the chevron, the anchored open,
@@ -401,8 +405,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                             ]
                         ],
 
-                    Card [ label = "Dialog",
-                        demo: View [ x = 16, y = 44, width = { parent.width - 32 },
+                    Specimen [ label = "Dialog",
+                        demo: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 10 ],
                             row: View [ layout: SimpleLayout [ axis = x, spacing = 12 ],
                                 Button [ width = 96, label = "Notice…",
@@ -419,20 +423,20 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                             ]
                         ],
 
-                    Card [ label = "Accordion",
-                        acc: Accordion [ x = 16, y = 44, width = { parent.width - 32 },
+                    Specimen [ label = "Accordion",
+                        acc: Accordion [ width = 100%,
                             Pane [ label = "First", initial = true,
-                                View [ width = { parent.width }, height = 64, fill = { provided("theme").bg },
+                                View [ width = 100%, height = 64, fill = { provided("theme").bg },
                                     Button [ x = 12, y = center, width = 110, label = "In pane 1" ]
                                     ]
                                 ],
                             Pane [ label = "Second",
-                                View [ width = { parent.width }, height = 64, fill = { provided("theme").bg },
+                                View [ width = 100%, height = 64, fill = { provided("theme").bg },
                                     Button [ x = 12, y = center, width = 110, label = "In pane 2" ]
                                     ]
                                 ],
                             Pane [ label = "Third",
-                                View [ width = { parent.width }, height = 56, fill = { provided("theme").bg },
+                                View [ width = 100%, height = 56, fill = { provided("theme").bg },
                                     Text [ x = 12, y = 10, textColor = { provided("theme").textMuted }, text = "A taller third pane." ]
                                     ]
                                 ]
@@ -443,11 +447,11 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
             // ── Table page: the ruled selection model, at real height ──────
 
-            tablePage: View [ visible = { app.page == "table" }, width = { parent.width },
+            tablePage: View [ visible = { app.page == "table" }, width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 10 ],
                 Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
                     textColor = { provided("theme").textFaint }, text = "TABLE — THE RULED SELECTION MODEL" ],
-                tbl: Table [ width = { parent.width },
+                tbl: Table [ width = 100%,
                     height = { Math.max(240, app.height - app.barH - 190) },
                     datapath = { app.cities.value }, selects = "multi",
                     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) }, cornerRadius = 8,
@@ -463,13 +467,13 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
             // ── DataGrid page: 500 windowed rows, live cells ───────────────
 
-            gridPage: View [ visible = { app.page == "grid" }, width = { parent.width },
+            gridPage: View [ visible = { app.page == "grid" }, width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 10 ],
                 Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
                     textColor = { provided("theme").textFaint },
                     text = "DATAGRID — 500 ROWS, WINDOWED; EVERY CELL WRITES THE RECORD" ],
                 hdrBand: View [ width = 8, height = 22 ],
-                grid: DataGrid [ width = { parent.width },
+                grid: DataGrid [ width = 100%,
                     height = { Math.max(280, app.height - app.barH - 220) },
                     datapath = { app.gd.value }, selects = "multi",
                     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) }, cornerRadius = 8,

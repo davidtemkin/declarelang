@@ -46,8 +46,9 @@ export function loadCompiler() {
   // NOT a repair for an observed fault: the scenario is reasoned, not reproduced. An
   // attempt to force it in a browser (2026-08-13) failed to prove anything, because
   // CDP request-blocking applies to the page target and a module worker fetches from
-  // its own — the compiler loaded anyway and the test measured nothing. `?warm=0`
-  // (boot-uniform) is the switch that could actually stage it.
+  // its own — the compiler loaded anyway and the test measured nothing. The boot no longer
+  // warms the compiler at all (boot-uniform: `?warm=1` opts in, 2026-09-17), so
+  // staging it now means preventing the ON-DEMAND load — the live-edit path.
   return (clientPromise ??= create().catch((e) => { clientPromise = null; throw e; }));
 }
 

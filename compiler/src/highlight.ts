@@ -31,7 +31,7 @@ export type Segment =
 // attribute *use* (ident before `=`) wins over the keyword class, so `style = …`
 // colors as an attribute while a top-level `style [ … ]` colors as a keyword.
 const KEYWORDS = new Set([
-  "class", "extends", "readonly", "external", "include", "use",
+  "class", "extends", "readonly", "include", "use",
   "script", "font", "theme", "style", "true", "false", "null",
 ]);
 

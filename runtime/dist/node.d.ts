@@ -10,6 +10,13 @@ type CursorRead = (node: Node, path: string | readonly unknown[]) => unknown;
 export declare function provideCursorRead(fn: CursorRead): void;
 export declare class Node {
     parent: Node | null;
+    /** The parent a removeChild just unlinked from — a re-link back to the SAME
+     *  parent (what replication does to every row of a block on any change) is
+     *  not a move, and must not invalidate the provider memos. */
+    private exParent;
+    /** Landing under a DIFFERENT parent changes this subtree's ancestor chain,
+     *  and only this subtree's: clear its provider memos (attributes.ts). */
+    private chainMoved;
     /** The values this node reports changes to (schema.ts NodeSchema). */
     trackChanges: string[] | null;
     /** Read `path` against the nearest enclosing cursor — what a `:path` island
@@ -29,6 +36,15 @@ export declare class Node {
      *  throws, naming the value. Lives on Node, not View: a faceless coordinator
      *  node reads provided values too. */
     $provided(name: string, ...dflt: unknown[]): unknown;
+    /** The read behind `hostProvided("name", default)` — a value this program's
+     *  HOST makes available: an island's `provides` name, a page's
+     *  `app.provide(…)`, the native host's launch parameters. The compiler
+     *  rewrites the callee to `this.$hostProvided`; the value lives on the
+     *  running App (its host values), so every node in the program reads the
+     *  same one. The default types the read and stands in when nothing is
+     *  provided (running standalone, or the host did not list the name); with
+     *  no default an absent value throws, naming it. */
+    $hostProvided(name: string, ...dflt: unknown[]): unknown;
     /** The read behind `providedTextStyle(overrides?)` — the `TextStyle` in force
      *  at THIS node: the five provided face names, each falling to the same default
      *  a `Text` would (attributes.ts PROVIDED_FACE, the one table), with the
@@ -55,6 +71,9 @@ export declare class Node {
      *  interest rather than up front, so a tree nobody asks about pays nothing. */
     watchChildList(): void;
     private childListChanged;
+    /** The child-list cell's kernel id (created on first need) — a native
+     *  rule's edge on "the SET of children changed" (the auto-extent rule). */
+    structureCellId(): number;
     /** The scope noun (R6) for members declared in THIS node's body — the
      *  enclosing class instance, set at construction. It lives here, on Node, not
      *  on View: a node's members have a scope whether or not the node is visual

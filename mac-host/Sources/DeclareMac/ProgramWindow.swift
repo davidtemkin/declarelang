@@ -165,6 +165,13 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     /// (`.stay`), and back/forward are already moving the cursor (`.replay`).
     func open(_ url: String, history: History = .push) {
         if history == .push { remember(url) }
+        // A NEW ATTEMPT RETIRES THE OLD VERDICT — except an error page, which IS
+        // the report of the failure and must not clear it. Cleared on the
+        // attempt rather than on success because the only success signal a
+        // caller could use is a commit, and the error page commits too.
+        if !url.hasPrefix(Bridge.platformBase() + "library/platform-apps/error/") {
+            ControlChannel.clearLoadFailure()
+        }
         currentURL = url
         loaded = true
         // Same rule as the session file: a harness's throwaway program is not

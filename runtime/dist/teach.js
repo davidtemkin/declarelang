@@ -32,8 +32,8 @@ export const CSS_ATTRIBUTE_HINTS = {
     justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
     alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
     gap: "spacing between arranged children rides the layout — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
-    margin: "there is no margin — position with x/y, a layout's spacing, or a wrapping View",
-    padding: "there is no padding — inset children with x/y or an inner View",
+    margin: "there is no margin — space around a child is the PARENT's 'padding', a layout's 'spacing', or the child's own x/y",
+    padding: "padding is the view's, not the layout's — 'View [ padding = 16, layout: SimpleLayout [ axis = y, spacing = 8 ] ]': it gives the view a content box that every child's x/y starts from (laid, self-placing or ignoreLayout alike) and that '100%' resolves against, while 'fill', 'stroke' and 'cornerRadius' stay on the full box; a Card brings one already",
     // (`onChange` left this table 2026-09-15: it IS a Declare event now — the
     // values a node names in `trackChanges`. The DOM instinct that arrives at it
     // meaning an input's edits is answered by the event's own prose, which names

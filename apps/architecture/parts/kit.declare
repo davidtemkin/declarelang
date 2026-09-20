@@ -1,0 +1,259 @@
+/*
+# Kit — the page's type, its figure frame, and the layer code
+
+Every text style is a class here, so the whole piece reskins from the App's
+theme record. Headings and body are the page face — Helvetica (`app.uiFace`,
+which a hosting page can override); diagram labels are Avenir Next Condensed;
+code, opcodes and byte counts are mono. All installed faces — the page renders
+the same in the DOM, on a canvas, and in the native Mac host.
+
+The five layer hues (`app`, `lib`, `run`, `ker`, `host`) are the one bold
+system on the page: every figure speaks them, so a reader learns the code once.
+*/
+
+script {
+    // a linear blend, the one piece of arithmetic every morph on the page uses
+    function mix(a: number, b: number, k: number): number {
+        return a + (b - a) * k
+        }
+
+    // clamp to 0..1 — a figure's sub-phase out of one sprung scalar
+    function unit(v: number): number {
+        return Math.max(0, Math.min(1, v))
+        }
+    }
+
+class Eyebrow extends Text [ fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"], fontSize = 12,
+    fontWeight = medium, letterSpacing = 1.4, textTransform = uppercase,
+    textColor = { provided("theme").muted }
+    ]
+
+
+class Title extends Text [ fontFamily = { app.uiFace },
+    fontWeight = { app.headWeight }, letterSpacing = { app.headTrack * fontSize }, lineHeight = 1.08,
+    textColor = { provided("theme").ink }, wrap = true, width = 100%
+    ]
+
+
+class Dek extends Text [ fontSize = 20, lineHeight = 1.45, textColor = { provided("theme").lead },
+    wrap = true, width = 100%
+    ]
+
+
+// a reading paragraph: HTML flow so <b>, <i> and <code> ride inline.
+// It says nothing about selection: a flowing document is selectable by its
+// nature, and the page provides the value once for the Text labels around it.
+
+class Para extends HTMLText [ width = 100%, fontSize = 17, lineHeight = 1.6,
+    bodyColor = { provided("theme").body }, codeColor = { provided("theme").ink },
+    codeBackground = { provided("theme").codeBg }, linkColor = { provided("theme").accent }
+    ]
+
+
+class Small extends Text [ fontSize = 13, lineHeight = 1.45, textColor = { provided("theme").muted },
+    wrap = true
+    ]
+
+
+// diagram label faces
+
+class Label extends Text [ fontFamily = ["Avenir Next Condensed", "Avenir Next", "Arial Narrow", "sans-serif"],
+    fontSize = 14, fontWeight = semibold, textColor = { provided("theme").ink }, wrap = false
+    ]
+
+
+class Note extends Text [ fontFamily = ["Avenir Next Condensed", "Avenir Next", "Arial Narrow", "sans-serif"],
+    fontSize = 13, fontWeight = medium, lineHeight = 1.3, textColor = { provided("theme").muted }
+    ]
+
+
+class Mono extends Text [ fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"], fontSize = 12.5,
+    textColor = { provided("theme").ink }, wrap = false
+    ]
+
+
+/*
+## Section head
+
+A numbered section: the number is information (the sections are the program's
+own sequence — compile, ship, run, paint, host), the title, and a dek.
+*/
+
+class SectionHead extends View [ width = 100%,
+    num: string = "",
+    head: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+    Eyebrow [ text = { classroot.num }, textColor = { provided("theme").accent } ],
+    Title [ fontSize = { app.width < 700 ? 30 : 38 }, text = { classroot.head } ]
+    ]
+
+
+/*
+## Section
+
+A numbered section of the article: its head, then whatever it holds. A use
+site adds its own children after the head.
+*/
+
+class Section extends View [ width = 100%,
+    num: string = "",
+    head: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+    SectionHead [ num = { classroot.num }, head = { classroot.head } ]
+    ]
+
+
+/*
+## Figure
+
+A figure breaks out of the reading column to the wide measure, with air above
+and below it: a caption carrying the figure's label first, at the reading
+column's measure, then the drawing — stacked and sized by `Run`, with the air
+above and below as the figure's own `padding`.
+*/
+
+class Figure extends View [ width = { app.wide }, x = center,
+    air: number = 36,
+    padding = { [this.air, 0, this.air, 0] },   // air above and below, none at the sides
+    layout: Run [ spacing = 16 ]
+    ]
+
+
+// the figure's label and its caption, together above the drawing, at the
+// reading column's measure and centred over the figure
+
+class Caption extends View [
+    fig: string = "",
+    text: string = "",
+    measure: number = { app.col },
+    layout: Run [ spacing = 6 ],
+
+    Eyebrow [ wrap = true, lineHeight = 1.4, text = { classroot.fig } ],
+    Text [ fontSize = 14, lineHeight = 1.5, textColor = { provided("theme").muted },
+        text = { classroot.text } ]
+    ]
+
+
+/*
+## Run — the page's one hand-written layout
+
+The INSET is the view's own `padding` now, not a layout's business: a padded
+view has an inside, every child is placed from it, and the view's automatic
+height counts the trailing inset back in. What is left for a layout here is the
+one thing the stock stack does not do — hand each child the full inner WIDTH,
+held to a child's declared `measure` (at most) or `atLeast` (at least), so a
+plate's contents never size themselves.
+*/
+
+class Run extends Layout [
+    spacing: number = 16,
+    place() {
+        // the room inside the view's padding — the CYCLE-SAFE read: 0 on a view
+        // that derives its own width from these very children, which is what a
+        // figure's inner stacks do
+        const W = Math.max(0, this.viewExtent("width"))
+        let y = 0
+        return this.laid().map((c) => {
+            // a child may declare a `measure` (a caption's line length: at most)
+            // or an `atLeast` (a table that scrolls rather than crush: at least)
+            const cap = (c as any).measure
+            const floor = (c as any).atLeast
+            const w0 = typeof cap == "number" && cap > 0 ? Math.min(W, cap) : W
+            const w = typeof floor == "number" ? Math.max(w0, floor) : w0
+            // a child held to a narrower measure is centred in the run
+            const box = ({ x: Math.max(0, (W - w) / 2), y: y, w: w })
+            if (c.visible) y = y + c.footprint().height + this.spacing
+            return box
+            })
+        }
+    ]
+
+
+// a plate: the figure's ground
+
+class Plate extends View [ cornerRadius = 14,
+    pad: number = 22,
+    gap: number = 16,
+    padding = { this.pad },                     // the inset is the view's own
+    layout: Run [ spacing = { classroot.gap } ],
+    fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").line) }
+    ]
+
+
+// a well: a sunken plate for code and specimens
+
+class Well extends Plate [ cornerRadius = 8, pad = 12, gap = 8, fill = { provided("theme").sunk }, stroke = null ]
+
+// A hairline between the rows of a table, taking its width from the `Run` it
+// sits in.
+//
+// Not the library's `Divider`, and the reason is worth recording on a page
+// about how the library works: a `Divider` derives its own `width` from the
+// parent's content box, and every rule this class stands in for sits inside a
+// `Run`, which claims `w` on each child it places. One slot has one owner, so
+// that pair is a refusal at boot, not a matter of taste. Where no arrangement
+// claims the width — a rule inside a plain view, or in a `SimpleLayout` stack
+// — `Divider` is the right class and this one is not needed.
+
+class Hair extends View [ height = 1, fill = { provided("theme").line } ]
+
+/*
+## Layer chip — the legend's atom
+
+A small square in a layer's hue with its name. The legend under the hero
+teaches the code; every later figure just uses the colors.
+*/
+
+class Swatch extends View [ width = 12, height = 12, cornerRadius = 3 ]
+
+class Key extends View [ height = 18,
+    hue: Color = gray,
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+
+    Swatch [ fill = { classroot.hue } ],
+    Note [ fontSize = 13, textColor = { provided("theme").lead }, text = { classroot.label } ]
+    ]
+
+
+/*
+## Detail — progressive disclosure
+
+The main path is a headline, a figure, a paragraph. A `Detail` is the second
+layer for the reader who wants the mechanism: a quiet row that opens in place.
+Its body's height is one sprung scalar (`k`), so the reveal travels — the text
+below slides down to make room rather than jumping.
+*/
+
+class Detail extends View [ width = 100%, clip = true,
+    label: string = "",
+    open: boolean = false,
+    k: number = 0,
+    height = { this.row.height + this.k * Math.max(0, this.contentHeight - this.row.height + 10) },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    Spring [ attribute = k, to = { classroot.open ? 1 : 0 }, stiffness = 210, damping = 26 ],
+
+    row: View [ height = { this.lbl.height + 18 }, width = 100%,
+        onClick() { classroot.open = !classroot.open },
+        rule: View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+        chev: View [ x = 0, y = 12, width = 16, height = 16, pivotX = 8, pivotY = 8,
+            rotation = { 90 * classroot.k },
+            draw(d: Draw) {
+                d.strokeStyle = provided("theme").accent
+                d.lineWidth = 1.8
+                d.lineCap = "round"
+                d.lineJoin = "round"
+                d.beginPath()
+                d.moveTo(6, 4)
+                d.lineTo(10.5, 8)
+                d.lineTo(6, 12)
+                d.stroke()
+                }
+            ],
+        lbl: Text [ x = 24, y = 9, width = { parent.width - 24 }, fontSize = 15, fontWeight = medium, lineHeight = 1.35,
+            textColor = { parent.hovered ? provided("theme").accentHover : provided("theme").accent },
+            text = { classroot.label } ]
+        ]
+    ]

@@ -2,7 +2,7 @@ import { type Affine } from "./affine.js";
 import type { MaskSpec, Surface, RenderBackend, InputSink, EditableSpec, RichBlock, Stretch, InputWants } from "./backend.js";
 import type { DisplayList } from "./draw.js";
 import { type TextStyle } from "./measure.js";
-import { type Fill, type Radius, type Shadow, type Stroke, type Filter } from "./value.js";
+import { type BoxStroke, type Fill, type Filter, type Inset, type Radius, type Shadow } from "./value.js";
 import { type HitTarget } from "./input.js";
 export declare const OP: {
     readonly CREATE: 1;
@@ -72,6 +72,10 @@ type Glide = {
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
     /** Apply one settle's ops (a JSON array of arrays) inside one CATransaction. */
+    /** The same, with the GEOMETRY ops as binary records (flushOps): `geoms`
+     *  holds `n` records of [seq, id, x, y, width, height], `seq` being the JSON
+     *  op index the record precedes — the host applies both in that one order. */
+    commitGeom?(json: string, geoms: Float64Array, n: number): void;
     commit(json: string): void;
     /** Measure text: returns [width, ascent, descent, capAscent]. Cold path. */
     measure(text: string, font: string, letterSpacing: number): number[];
@@ -165,7 +169,12 @@ declare class MacSurface implements Surface {
     fillCss: string | null;
     setFill(fill: Fill): void;
     setCornerRadius(r: Radius): void;
-    setStroke(s: Stroke | null): void;
+    /** The border. The host paints ONE ring, so a per-side stroke (BoxStroke,
+     *  four sides) crosses only when every side agrees; a genuinely per-side
+     *  border is a capability this host does not have (rendering-gaps.md), and
+     *  it paints none rather than a wrong one — silently, because the slot is
+     *  legal, the renderer simply cannot realize it. */
+    setStroke(s: BoxStroke): void;
     setShadow(sh: Shadow | null): void;
     setVisible(v: boolean): void;
     setOpacity(o: number): void;
@@ -231,6 +240,15 @@ declare class MacSurface implements Surface {
     setRasterScale(k: number): void;
     setClip(pathData: string | null): void;
     setBoxClip(on: boolean): void;
+    /** The content inset (`View.padding`). Nothing crosses to the host: the
+     *  leading half already rode over in the children's own POS ops (view.ts
+     *  shifts the position on its way to the seam), and the trailing half is
+     *  consumed HERE, in the extent this side computes and sends with every
+     *  SCROLLPOS — a padded scroller stops the full bottom inset past its last
+     *  child. */
+    private padBottom;
+    private padRight;
+    setPadding(inset: Inset): void;
     setIgnoreClip(on: boolean): void;
     /** Fixed chrome: this surface does not ride its scroller's content. The host
      *  realizes it by hosting the layer on the scroller's OWN layer rather than

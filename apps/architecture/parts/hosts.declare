@@ -1,0 +1,200 @@
+/*
+# Fig. 8 — one program, three hosts
+
+A mode switch (DOM · Canvas · Mac) sets one sprung scalar `m` (0, 1, 2). The
+upper stack is drawn once and marked identical; only its engine notes change.
+The seam relabels itself, and the four realization panels below crossfade:
+each carries three texts, and variant i's opacity is 1 − |m − i|, so the
+words dissolve through the switch rather than cutting.
+
+Under it, three matched screenshots of the desktop demo (same windows, same
+places), each a door into its mode.
+*/
+
+// the upper stack: drawn once — the point is that it doesn't change
+
+class SameBand extends View [ height = 38, cornerRadius = 8,
+    name: string = "",
+    note: string = "",
+    hue: Color = gray,
+    soft: Color = gray,
+    fill = { this.soft },
+    stroke = { stroke(1, this.hue) },
+    layout: ResponsiveLayout [ plan = { [({ from: 560, flow: "row", gap: 0 }), ({ from: 0, flow: "row", gap: 0, share: ({ n: 0 }) })] } ],
+    View [ width = 14 ],
+    TextLabel [ fontSize = 15, fontWeight = semibold,
+        fontFamily = ["Avenir Next Condensed", "Avenir Next", "Arial Narrow", "sans-serif"], text = { classroot.name } ],
+    Spacer [ ],
+    n: TextLabel [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").muted },
+        fontFamily = ["Avenir Next Condensed", "Avenir Next", "Arial Narrow", "sans-serif"], text = { classroot.note } ],
+    View [ width = 14 ]
+    ]
+
+
+// a text that exists in three versions, one per host, crossfaded by m
+
+class Tri extends View [
+    a: string = "",
+    b: string = "",
+    c: string = "",
+    m: number = 0,
+    size: number = 14,
+    heading: boolean = false,
+    t0: Text [ width = 100%, fontSize = { classroot.size }, lineHeight = 1.45, opacity = { unit(1 - Math.abs(classroot.m)) },
+        fontWeight = { classroot.heading ? "semibold" : "normal" },
+        textColor = { classroot.heading ? provided("theme").ink : provided("theme").body }, text = { classroot.a } ],
+    t1: Text [ width = 100%, fontSize = { classroot.size }, lineHeight = 1.45, opacity = { unit(1 - Math.abs(classroot.m - 1)) },
+        fontWeight = { classroot.heading ? "semibold" : "normal" },
+        textColor = { classroot.heading ? provided("theme").ink : provided("theme").body }, text = { classroot.b } ],
+    t2: Text [ width = 100%, fontSize = { classroot.size }, lineHeight = 1.45, opacity = { unit(1 - Math.abs(classroot.m - 2)) },
+        fontWeight = { classroot.heading ? "semibold" : "normal" },
+        textColor = { classroot.heading ? provided("theme").ink : provided("theme").body }, text = { classroot.c } ]
+    ]
+
+
+// one panel of the realization: a heading and a body, each in three versions
+// ([DOM, Canvas, Mac]) as they arrive from the data
+
+class Organ extends Plate [ pad = 16, gap = 6, cornerRadius = 10,
+    head: string[] = [],
+    body: string[] = [],
+    m: number = 0,
+    fill = { provided("theme").hostSoft }, stroke = { stroke(1, provided("theme").hostLine) },
+    Tri [ m = { classroot.m }, heading = true, size = 15,
+        a = { classroot.head[0] }, b = { classroot.head[1] }, c = { classroot.head[2] } ],
+    Tri [ m = { classroot.m }, size = 13.5,
+        a = { classroot.body[0] }, b = { classroot.body[1] }, c = { classroot.body[2] } ]
+    ]
+
+
+// one screenshot above its caption, and the click that chooses that host
+
+class ShotCol extends View [
+    src: string = "",
+    caption: string = "",
+    on: boolean = false,
+
+    // what a click means is the figure's business, not the column's: the seam
+    // is a method the use site overrides, where `classroot` is the figure
+
+    pick() { },
+
+    layout: Run [ spacing = 8 ],
+    Shot [ src = { classroot.src }, on = { classroot.on },
+        onClick() { classroot.pick() }
+        ],
+    Note [ fontSize = 13, text = { classroot.caption } ]
+    ]
+
+
+class Shot extends View [ cornerRadius = 8, clip = true,
+    src: string = "",
+    aspect: number = 0.7067,
+    on: boolean = false,
+    height = { this.width * this.aspect },
+    stroke = { stroke(this.on ? 2.5 : 1, this.on ? provided("theme").accent : provided("theme").line) },
+    shadow = { shadow(0, this.hovered ? 10 : 4, this.hovered ? 26 : 14, 0x00000024) },
+    Image [ width = 100%, height = 100%, stretches = both, source = { classroot.src } ]
+    ]
+
+
+class HostsFig extends View [
+    mode: number = 0,
+    m: number = 0,
+    Spring [ attribute = m, to = { classroot.mode }, stiffness = 120, damping = 20 ],
+    narrow: boolean = { this.width < 760 },
+    layout: Run [ spacing = 16 ],
+
+    // what each host does, per panel — one row per panel, each `head` and
+    // `body` a [DOM, Canvas, Mac] triple the panel crossfades between
+
+    organData: Dataset { { "rows": [
+        { "head": ["A <div> per view", "One <canvas>", "A CALayer tree"],
+          "body": ["Nested to mirror the tree, geometry set as inline style. 28 to 536 elements, growing with the app.",
+              "The whole program paints into one element. 14 to 18 elements on the page, whatever the app’s size.",
+              "In an AppKit window, with no WebView. The whole app is 7.8 MB, compiler included; an Electron app carries 100 MB or more of framework."] },
+        { "head": ["The browser paints", "Its own compositor", "Quartz paints"],
+          "body": ["CSS paints boxes, real text nodes carry text, <img> carries images. Only draw() rasterizes, into its own canvas.",
+              "Painter’s order, a dirty bit and one scheduled frame. Group opacity through an offscreen layer; idle costs nothing.",
+              "Core Graphics replays draw(), Core Text measures and sets text, frost samples the layer tree beneath."] },
+        { "head": ["Native where it matters", "Native fields, own scrolling", "Native fields and scrolling"],
+          "body": ["Selection, find-in-page, the page’s scroll, real <a href> links and form fields — each carrying the accessibility its own element brings.",
+              "Text fields are real <input>s laid over the canvas. Scrolling runs on the runtime’s own physics.",
+              "NSTextField and NSTextView overlays for fields; scrolling translates a content layer, driven by the trackpad."] },
+        { "head": ["Input: browser, then runtime", "Input: the runtime’s walk", "Input: the runtime’s walk"],
+          "body": ["The browser finds the element under the pointer; the runtime resolves it to the view that declared a handler.",
+              "Reverse painter’s order, clips subtracted, transforms inverted, scrollers corrected: in JavaScript.",
+              "NSEvents cross the bridge and take the same walk. The host keeps no second copy of the hit rules."] } ] } },
+
+    ctl: View [
+        Segmented [ x = center, width = 330, height = 32,
+            value = { classroot.mode == 0 ? "dom" : classroot.mode == 1 ? "canvas" : "mac" },
+            choices = { [ ({ id: "dom", label: "DOM" }), ({ id: "canvas", label: "Canvas" }), ({ id: "mac", label: "Mac host" }) ] },
+            input(v: object) { classroot.mode = v == "dom" ? 0 : v == "canvas" ? 1 : 2 }
+            ]
+        ],
+
+    plate: Plate [ gap = 8,
+
+        // ── above the seam: identical ──
+
+        same: View [ layout: Run [ spacing = 6 ],
+            SameBand [ name = "App program", note = "the same compiled program, byte for byte",
+                hue = { provided("theme").app }, soft = { provided("theme").appSoft } ],
+            SameBand [ name = "Library", note = "the same classes, compiled in",
+                hue = { provided("theme").lib }, soft = { provided("theme").libSoft } ],
+            SameBand [ name = "Runtime", height = 44,
+                note = { classroot.mode == 2 ? "the same JavaScript, running in JavaScriptCore on its own thread" : "the same JavaScript, running in the page’s engine" },
+                hue = { provided("theme").run }, soft = { provided("theme").runSoft } ],
+            SameBand [ name = "Kernel",
+                note = { classroot.mode == 2 ? "the same C source, linked into the app natively" : "the same C source, as WebAssembly" },
+                hue = { provided("theme").ker }, soft = { provided("theme").kerSoft } ]
+            ],
+
+        // ── the seam ──
+
+        seam: View [ height = 40,
+            draw(d: Draw) {
+                d.strokeStyle = provided("theme").muted
+                d.lineWidth = 1.2
+                d.setLineDash([5, 4])
+                d.beginPath()
+                d.moveTo(0, 20)
+                d.lineTo(d.w, 20)
+                d.stroke()
+                },
+            tag: View [ x = center, y = 6, height = 28, cornerRadius = 14, padding = [0, 12, 0, 12],
+                fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").muted) },
+                t: Mono [ y = center, fontSize = 12,
+                    text = { classroot.narrow ? (classroot.mode == 2 ? "the seam · one op batch per settle" : "the seam · 58 methods") : classroot.mode == 2 ? "the seam · one op buffer per settle, about fifty opcodes, applied in one CATransaction" : "the seam · the Surface interface: setX, setFill, setText, setDrawing … 58 methods" } ]
+                ]
+            ],
+
+        // ── below the seam: the realization ──
+
+        organs: View [ datapath = { classroot.organData.value },
+            layout: WrappingLayout [ spacing = 10, lineSpacing = 10 ],
+            Organ [ datapath = :rows[], head = :head, body = :body, m = { classroot.m },
+                width = { classroot.narrow ? parent.width : (parent.width - 10) / 2 } ]
+            ]
+        ],
+
+    // the proof: the same desktop, three hosts, window chrome and all
+
+    shots: View [
+        layout: ResponsiveLayout [ plan = { [({ from: 700, flow: "row", gap: 14, share: ({ sd: 33.33, sc: 33.33, sm: 33.33 }) }),
+            ({ from: 0, flow: "stack", gap: 18, share: ({ sd: 100, sc: 100, sm: 100 }) })] } ],
+        sd: ShotCol [ src = "resources/desktop-dom.png", caption = "Chrome · DOM",
+            on = { classroot.mode == 0 },
+            pick() { classroot.mode = 0 }
+            ],
+        sc: ShotCol [ src = "resources/desktop-canvas.png", caption = "Chrome · ?render=canvas",
+            on = { classroot.mode == 1 },
+            pick() { classroot.mode = 1 }
+            ],
+        sm: ShotCol [ src = "resources/desktop-mac.png", caption = "Mac host · no browser in the process",
+            on = { classroot.mode == 2 },
+            pick() { classroot.mode = 2 }
+            ]
+        ]
+    ]

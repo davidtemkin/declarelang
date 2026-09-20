@@ -21,7 +21,8 @@
 // only — children are not clipped (the recorded lean). A plain solid box
 // stays the single-fillRect fast path.
 
-import { colorToCss, radiusFit, radiusIsSquare, type Gradient, type Radius, type Shadow, type Stroke } from "./value.js";
+import { colorToCss, radiusFit, radiusIsSquare, strokeUniform, type BoxStroke, type Gradient, type Radius, type Shadow } from "./value.js";
+import { paintSides } from "./stroke-sides.js";
 
 /** The box's retained paint state — the shape both surfaces keep. The solid
  *  fill is pre-resolved to a canvas fillStyle at set time (the R1 fast
@@ -32,7 +33,7 @@ export interface BoxState {
   fill: string | null;
   gradient: Gradient | null;
   cornerRadius: Radius;
-  stroke: Stroke | null;
+  stroke: BoxStroke;
   shadow: Shadow | null;
 }
 
@@ -48,7 +49,10 @@ export function paintBox(
   const h = b.height;
   if (w <= 0 || h <= 0) return box;
   const r = b.cornerRadius;
-  const st = b.stroke;
+  // One stroke on all four sides (the overwhelmingly common case) keeps the
+  // single-ring path below; `undefined` means the sides genuinely differ and
+  // the per-side painter runs instead.
+  const st = strokeUniform(b.stroke);
   // NB: the drop shadow is NOT painted here — it is cast OUTSIDE the box and
   // must escape the view's own clip (as a CSS box-shadow escapes the element's
   // overflow:hidden), so the caller paints it BEFORE clipping (paintBoxShadow).
@@ -69,7 +73,9 @@ export function paintBox(
     ctx.fillStyle = b.fill;
     ctx.fill(box);
   }
-  if (st !== null && st.width > 0) {
+  if (st === undefined) {
+    paintSides(ctx, box, b.stroke, w, h);
+  } else if (st !== null && st.width > 0) {
     // An inside border: stroke the box path at double width, clipped to
     // the box — the inner half remains, following the rounded corners
     // exactly (the offset curve of a rounded rect).

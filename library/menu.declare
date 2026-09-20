@@ -505,13 +505,13 @@ class Menu extends View [
         stroke = { stroke(1, theme.line) },
         shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 10, 40, 0x00000038) },
 
-        body: View [ x = 0, y = 5, width = { parent.width },
+        body: View [ x = 0, y = 5, width = 100%,
             height = { parent.height - 10 },
             scrolls = y, clip = true,
             layout: SimpleLayout [ axis = y, spacing = 0 ],
             datapath = { classroot.data.value },
 
-            View [ datapath = :rows[], width = { parent.width },
+            View [ datapath = :rows[], width = 100%,
                 divider:  boolean = { !!:divider },
                 enabled:  boolean = { :enabled != false },
                 sub:      boolean = { !!:submenu },

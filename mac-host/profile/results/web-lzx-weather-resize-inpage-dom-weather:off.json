@@ -1,0 +1,153 @@
+{
+  "ms": 1600.9000000953674,
+  "target": "apps/lzx-weather/lzx-weather.declare",
+  "STIM": "resize",
+  "RENDER": "dom",
+  "LABEL": "weather:off",
+  "root": "/Users/temkin/Code/Declare",
+  "boot": {
+    "runs": 219,
+    "wired": 30,
+    "settleN": 6,
+    "settleMs": 1.000000238418579,
+    "settleMax": 0.5,
+    "settleRuns": 53,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 55,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 7.799999952316284,
+    "nfN": 37,
+    "nfMs": 0.3000001907348633,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 176,
+      "live": 176,
+      "wired": 40,
+      "ranInWindow": 166
+    }
+  },
+  "win": {
+    "runs": 0,
+    "wired": 0,
+    "settleN": 0,
+    "settleMs": 0,
+    "settleMax": 0,
+    "settleRuns": 0,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 0,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 176,
+      "live": 176,
+      "wired": 40,
+      "ranInWindow": 0
+    }
+  },
+  "gaps": {
+    "n": 96,
+    "p50": 16.699999999999818,
+    "p95": 16.800000000000182,
+    "max": 16.80000000000109,
+    "over20": 0,
+    "over33": 0
+  },
+  "bench": {
+    "n": 0,
+    "body": 0,
+    "run": 0,
+    "top": []
+  },
+  "byLabel": [],
+  "text": {
+    "measureCalls": 0,
+    "distinctPairs": 0,
+    "memoHits": 0,
+    "memoMisses": 0,
+    "memoClears": 0
+  },
+  "perf": {
+    "path": "slow",
+    "stages": [
+      {
+        "stage": "kernel-bytes",
+        "start": 300.6,
+        "dur": 11.5
+      },
+      {
+        "stage": "version",
+        "start": 304.9,
+        "dur": 12.4
+      },
+      {
+        "stage": "kernel-instantiate",
+        "start": 312.1,
+        "dur": 1
+      },
+      {
+        "stage": "cache-read",
+        "start": 317.5,
+        "dur": 30.6
+      },
+      {
+        "stage": "source-fetch",
+        "start": 348.1,
+        "dur": 2.4
+      },
+      {
+        "stage": "compile",
+        "start": 350.6,
+        "dur": 455.7
+      },
+      {
+        "stage": "render",
+        "start": 813.5,
+        "dur": 36.7
+      },
+      {
+        "stage": "mount-attach",
+        "start": 834.8,
+        "dur": 13.4
+      },
+      {
+        "stage": "mount-root",
+        "start": 848.2,
+        "dur": 0.7
+      },
+      {
+        "stage": "first-frame",
+        "start": 850.2,
+        "dur": 0.7
+      }
+    ],
+    "kernel": null
+  },
+  "drag": null,
+  "errors": [],
+  "swapped": 1
+}

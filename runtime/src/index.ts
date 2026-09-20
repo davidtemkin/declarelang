@@ -21,7 +21,7 @@ import { applyDeps } from "./deps.js";
 import { applyLinks, type SerializedLink } from "./links.js";
 import { Diag } from "./diagnostics.js";
 import { resolveIncludesHostless, NO_INCLUDES, type IncludeHost } from "./include.js";
-import { App } from "./view.js";
+import { App, withHostProvides } from "./view.js";
 import { fontsReady } from "./font-value.js";
 import type { RenderBackend } from "./backend.js";
 import { DeclareError, DeclareErrors } from "./errors.js";
@@ -47,6 +47,11 @@ export interface BuildOptions {
    *  each navigable instance is stamped `_navLink` for the static extractor.
    *  Absent → no links (navigation still works; only extraction is affected). */
   links?: readonly SerializedLink[];
+  /** The values the host provides this app from its first evaluation — read in
+   *  the program with `hostProvided(name, default)`. An island host passes
+   *  `islandProvisions(island)`; a page passes `boot({ provides })`. Later
+   *  changes go through `app.provide` (or the island link). */
+  provides?: Readonly<Record<string, unknown>>;
 }
 
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
@@ -68,7 +73,7 @@ export function build(source: string, opts: BuildOptions = {}): App {
   if (errors.length > 0) throw new DeclareErrors(errors);
   if (opts.deps !== undefined) applyDeps(program, opts.deps);
   if (opts.links !== undefined) applyLinks(program, opts.links);
-  const root = instantiate(program);
+  const root = withHostProvides(opts.provides, () => instantiate(program));
   if (!(root instanceof App)) {
     throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   }
@@ -94,8 +99,11 @@ export function render(source: string, host: HTMLElement, backend: RenderBackend
  *  `opts.assetBase` states THIS app's own directory, which an embedded child
  *  needs: its relative faces and bitmaps live beside its program, while the
  *  document they render into belongs to the host page (asset-base.ts). */
-export async function renderAsync(source: string, host: HTMLElement, backend: RenderBackend, opts: BuildOptions & { assetBase?: string | null } = {}): Promise<App> {
+export async function renderAsync(source: string, host: HTMLElement, backend: RenderBackend, opts: BuildOptions & { assetBase?: string | null; beforeMount?: (app: App) => void } = {}): Promise<App> {
   const app = build(source, opts);
+  // the host's chance to reach the app before its first settle — an island
+  // links its boundary here, so what the host provides is in the first frame
+  opts.beforeMount?.(app);
   if (opts.assetBase != null) {
     setAppAssetBase(app, opts.assetBase);
     // DELIBERATELY no per-app DATA base here: an island child's relative data
@@ -126,7 +134,7 @@ export type { HostServices } from "./boot.js";
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
 export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export { Node } from "./node.js";
-export { View, App, Island, DOMIsland, linkIslandTenant, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, Island, DOMIsland, linkIslandTenant, islandProvisions, withHostProvides, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
@@ -143,7 +151,7 @@ export type { StreamMessage, StreamFactories, StreamHandle, StreamCallbacks } fr
 export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
-export { settle, afterSettle, observe } from "./reactive.js";
+export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoaded, kernelStats } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";

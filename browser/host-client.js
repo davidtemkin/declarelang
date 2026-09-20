@@ -14,7 +14,7 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, fontsReady, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, mountEmbeddedApp } from "../runtime/dist/index.js";
+import { renderAsync, build, mountApp, fontsReady, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, islandProvisions, mountEmbeddedApp, kernelReady } from "../runtime/dist/index.js";
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -72,7 +72,20 @@ export async function bootHost(cfg) {
   // first paint (docs/system-design/location.md §2): a deep link is just an initial state, so
   // every constraint derives from it as if the user had already navigated there —
   // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
-  const app = build(cfg.source, { deps: cfg.deps });
+  await kernelReady();   // the reactive core (kernel.md), once per page
+  // THE PAGE AS THE TOPMOST HOST (islands.md): values the program reads with
+  // `hostProvided("name", …)`, there from its very first evaluation — from a
+  // no-script page's `data-declare-provide='{…}'` on the host element, then
+  // `boot({ provides })`, which wins. Later changes come through
+  // `el.__declareApp.provide(name, value)`.
+  const provideAttr = host.getAttribute?.("data-declare-provide");
+  let pageProvides = {};
+  if (provideAttr) {
+    try { pageProvides = JSON.parse(provideAttr); }
+    catch { console.error("[Declare] data-declare-provide is not valid JSON — nothing provided: " + provideAttr.slice(0, 80)); }
+  }
+  pageProvides = { ...pageProvides, ...(cfg.provides ?? {}) };
+  const app = build(cfg.source, { deps: cfg.deps, provides: pageProvides });
   host.__declareApp = app;                            // the per-box handle (an embedder's way in)
   // The MAIN app's own directories (boot-uniform passes the program's dir):
   // ASSETS — everything asset-base.ts resolves: bitmaps, media, web font
@@ -352,7 +365,7 @@ export async function bootHost(cfg) {
     },
   });
 
-  const runIsland = (demo) => host.querySelector('[data-declare-slot^="run:' + demo + '"]');   // ^= : the slot may carry an env segment
+  const runIsland = (demo) => host.querySelector('[data-declare-slot^="run:' + demo + '"]');
 
   // Render an ALREADY-COMPILED program as an embedded child app inside <box>. The
   // box lives inside THIS app's marked tree, so the child auto-detects it is embedded
@@ -393,22 +406,25 @@ export async function bootHost(cfg) {
       // child's true program URL may set it instead, restoring the natives.
       const backend = new DomBackend();
       backend.linkBase = "";
-      const childApp = await renderAsync(compiled.source, box, backend,
-        { deps: compiled.deps, assetBase: childAssetBase(name || "") });
+      const childUndo = childUndoOf.get(box) ?? childUndoOf.set(box, []).get(box);
+      // THE ISLAND BOUNDARY (islands.md): what the island `provides` goes
+      // down, what the tenant `exposes` comes up, and the post/onPost verbs.
+      // Built WITH what the island provides, so its first evaluation already
+      // sees it, and linked before its first settle to keep it live. A link failure leaves the tenant mounted
+      // but unlinked, said loudly — a broken link must not take the render.
+      const islView = islandViewOf.get(box);
+      const childApp = await renderAsync(compiled.source, box, backend, {
+        deps: compiled.deps, assetBase: childAssetBase(name || ""),
+        provides: islView && typeof islView.post === "function" ? islandProvisions(islView) : undefined,
+        beforeMount: (app) => {
+          if (!islView || typeof islView.post !== "function") return;
+          try { childUndo.push(linkIslandTenant(islView, app)); }
+          catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
+        },
+      });
       box.__childApp = childApp;
       if (childApp) {
         childApp.demoSources = seeds;                     // populate a nested copy's own editors
-        const childUndo = childUndoOf.get(box) ?? childUndoOf.set(box, []).get(box);
-        // THE ISLAND BRIDGE (islands design): pair the island's `external`
-        // surface with the tenant's — the type handshake at link time, then
-        // facts both ways per settle and post/onPost verbs. A link error
-        // (type disagreement) leaves the tenant mounted but unbridged, said
-        // loudly — a broken bridge must not take the render with it.
-        const islView = islandViewOf.get(box);
-        if (islView && typeof islView.post === "function") {
-          try { childUndo.push(linkIslandTenant(islView, childApp)); }
-          catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
-        }
         // The child's own wiring, by observation (its lifetime is known HERE):
         //  • verbs — a child's navigate()/openWindow() were serviced by nobody
         //    before (every such link was dead); page-level nav is the right
@@ -466,40 +482,13 @@ export async function bootHost(cfg) {
   // duplicate compiles, and only set `wired` once we actually have output. A null keeps
   // the box eligible so the next rAF tick retries — the preview mounts the moment the
   // compiler is ready, whether the editor was opened before or after it loaded.
-  // The slot marker's ENV segment: after the program path, `|k=v&k2=v2` is the
-  // embedding environment — parsed here, coerced (true/false/numeric), and
-  // written WHOLESALE to the child app's reactive `app.env`, at mount and on
-  // every later change (the invoker's slot is a constraint, so a host flipping
-  // dark mode re-marks the slot and the child re-derives — the clean
-  // pass-through).
-  const parseEnv = (q) => {
-    const env = {};
-    for (const pair of (q || "").split("&")) {
-      if (!pair) continue;
-      const eq = pair.indexOf("=");
-      const k = eq < 0 ? pair : pair.slice(0, eq);
-      const v = eq < 0 ? "true" : pair.slice(eq + 1);
-      env[k] = v === "true" || v === "1" ? true : v === "false" || v === "0" ? false
-        : v !== "" && !isNaN(Number(v)) ? Number(v) : v;
-    }
-    return env;
-  };
-
   // Wire ONE island box (called per slot event, never per frame — see the
-  // registration below). Idempotent: a wired box only re-syncs env.
+  // registration below). Idempotent: a wired box is left alone — what the
+  // host provides reaches the tenant through the island link, not the slot.
   async function mountPreview(box) {
     if (stopped || !box.dataset.declareSlot?.startsWith("run:")) return;
     if (!box.isConnected) { deferPreview({ el: box }); return; }   // mid-attach — retry lands it
-    const spec = box.dataset.declareSlot.split(":").slice(1).join(":").split("|");
-    const name = spec[0];
-    const env = parseEnv(spec[1]);
-    const ejson = JSON.stringify(env);
-    // live env sync for an already-mounted child (an env change arrives as a
-    // slot RE-MARK — the invoker's slot is a constraint — so this runs then)
-    if (box.__childApp && box.dataset.envJson !== ejson) {
-      box.dataset.envJson = ejson;
-      box.__childApp.env = env;
-    }
+    const name = box.dataset.declareSlot.slice(4);
     if (box.dataset.wired || box.dataset.wiring) return;
     box.dataset.wiring = "1";                              // in-flight: one compile at a time
     const { compiled, unseeded } = await resolveCompiled(name);
@@ -507,9 +496,7 @@ export async function bootHost(cfg) {
     if (unseeded) return;
     if (!compiled || !compiled.source) { deferPreview({ el: box }); return; }  // compiler not warm / fetch missed — retry when it lands
     box.dataset.wired = "1";                               // committed: don't remount
-    renderChild(box, compiled, name).then(() => {
-      if (box.__childApp) { box.dataset.envJson = ejson; box.__childApp.env = env; }
-    });
+    renderChild(box, compiled, name);
   }
 
   // Resolve a slot name to its compiled program — the SAME ladder for a DOM
@@ -541,7 +528,7 @@ export async function bootHost(cfg) {
   // root surface becomes a child of the island's surface (mountEmbeddedApp,
   // the mac backend's own pattern) and the page's paint and hit walks reach
   // it like any subtree. Then the same bridge as everywhere: link the
-  // `external` surfaces, wire the verbs, hand the child the nav services.
+  // boundary (provides down, exposes up), wire the verbs, hand the child the nav services.
   // island element → its VIEW, fed by the discovery events below — the
   // sanctioned successor to reading a backend-planted expando off the box
   // (the scrub, islands design: the event carries the view; nothing needs
@@ -552,10 +539,8 @@ export async function bootHost(cfg) {
   const canvasWiring = new WeakSet();
   async function mountCanvasPreview(view, slotStr) {
     if (stopped || !slotStr.startsWith("run:")) return;
-    const spec = slotStr.split(":").slice(1).join(":").split("|");
-    const name = spec[0];
-    const env = parseEnv(spec[1]);
-    if (view.__childApp) { view.__childApp.env = env; return; }   // re-mark = env sync
+    const name = slotStr.slice(4);
+    if (view.__childApp) return;                                  // already mounted: the link carries changes
     if (canvasWiring.has(view)) return;
     canvasWiring.add(view);
     const { compiled, unseeded } = await resolveCompiled(name);
@@ -564,7 +549,9 @@ export async function bootHost(cfg) {
     if (!compiled || !compiled.source) { deferPreview({ view, slot: slotStr }); return; }
     if (view.__childApp || view.surface == null) return;          // raced a re-mark / detached
     try {
-      const childApp = build(compiled.source, { deps: compiled.deps });
+      await kernelReady();
+      const childApp = build(compiled.source, { deps: compiled.deps,
+        provides: typeof view.post === "function" ? islandProvisions(view) : undefined });
       const base = childAssetBase(name || "");
       // ASSET base only — deliberately no per-app DATA base: an island child's
       // relative data urls resolve through the PAGE's transport, its host's
@@ -575,15 +562,15 @@ export async function bootHost(cfg) {
       // in the twin code path, presenting as "no code in the viewer" on
       // ?render=canvas.
       if (base) setAppAssetBase(childApp, base);
-      mountEmbeddedApp(childApp, view);
-      childApp.env = env;
-      childApp.demoSources = seeds;
-      provideHostServices(childApp, navServices);
-      view.__childApp = childApp;
+      // the boundary first, so the tenant's first settle sees what the host provides
       if (typeof view.post === "function") {
         try { childApp.__unlink = linkIslandTenant(view, childApp); }
         catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
       }
+      mountEmbeddedApp(childApp, view);
+      childApp.demoSources = seeds;
+      provideHostServices(childApp, navServices);
+      view.__childApp = childApp;
     } catch (e) {
       console.error("[Declare] canvas island '" + (name || "?") + "' failed to mount", e);
     }

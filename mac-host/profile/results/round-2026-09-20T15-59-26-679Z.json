@@ -1,0 +1,611 @@
+{
+  "stamp": "2026-09-20T15-59-26-679Z",
+  "targets": [
+    "chrome-canvas"
+  ],
+  "trees": {
+    "before": "/Users/temkin/Code/Declare-Before",
+    "after": "/Users/temkin/Code/Declare-After"
+  },
+  "rows": [
+    {
+      "target": "chrome-canvas",
+      "case": "desktop:drag",
+      "before": {
+        "case": "desktop:drag",
+        "ms": 3427.2000000476837,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 373,
+            "ms": 149,
+            "max": 2
+          },
+          "evals": {
+            "n": 5629,
+            "js": 5629,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 3,
+            "full": 3,
+            "ms": 2.6,
+            "area": 1
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 5629,
+          "wired": 3736,
+          "settleN": 373,
+          "settleMs": 149.79999899864197,
+          "settleMax": 2,
+          "settleRuns": 5629,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1384,
+            "live": 1267,
+            "wired": 610,
+            "ranInWindow": 44
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 206,
+          "p50": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "max": 16.800000000000182,
+          "over20": 0,
+          "over33": 0
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "tree": "Declare-Before",
+        "render": "canvas",
+        "errors": []
+      },
+      "after": {
+        "case": "desktop:drag",
+        "ms": 3437.600000143051,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 375,
+            "ms": 79.1,
+            "max": 1.6
+          },
+          "evals": {
+            "n": 5659,
+            "js": 5456,
+            "notInJs": 203
+          },
+          "paint": {
+            "n": 3,
+            "full": 0,
+            "ms": 0.9,
+            "area": 0.001
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 5456,
+          "wired": 3562,
+          "settleN": 375,
+          "settleMs": 79.29999995231628,
+          "settleMax": 1.7000000476837158,
+          "settleRuns": 5456,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1412,
+            "live": 1295,
+            "wired": 787,
+            "ranInWindow": 40
+          }
+        },
+        "paint": {
+          "n": 3,
+          "ms": 0.9999997615814209,
+          "full": 0,
+          "partial": 3,
+          "area": 0.002335258152173913
+        },
+        "gaps": {
+          "n": 207,
+          "p50": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "max": 16.800000000000182,
+          "over20": 0,
+          "over33": 0
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "tree": "Declare-After",
+        "render": "canvas",
+        "errors": []
+      }
+    },
+    {
+      "target": "chrome-canvas",
+      "case": "desktop:hover",
+      "before": {
+        "case": "desktop:hover",
+        "ms": 4421.099999904633,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 498,
+            "ms": 224.3,
+            "max": 4.2
+          },
+          "evals": {
+            "n": 10623,
+            "js": 10623,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 34,
+            "full": 34,
+            "ms": 18.6,
+            "area": 1
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:enter": 11,
+            "hover:leave": 11
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 10623,
+          "wired": 4485,
+          "settleN": 498,
+          "settleMs": 225.10000133514404,
+          "settleMax": 4.200000047683716,
+          "settleRuns": 10623,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1384,
+            "live": 1267,
+            "wired": 610,
+            "ranInWindow": 161
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 265,
+          "p50": 16.699999999999818,
+          "p95": 16.799999999999727,
+          "max": 33.30000000000018,
+          "over20": 1,
+          "over33": 1
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "tree": "Declare-Before",
+        "render": "canvas",
+        "errors": []
+      },
+      "after": {
+        "case": "desktop:hover",
+        "ms": 4432,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 500,
+            "ms": 117.6,
+            "max": 2.1
+          },
+          "evals": {
+            "n": 12278,
+            "js": 7293,
+            "notInJs": 4985
+          },
+          "paint": {
+            "n": 34,
+            "full": 0,
+            "ms": 15.7,
+            "area": 0.092
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:enter": 12,
+            "hover:leave": 12
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 7293,
+          "wired": 3496,
+          "settleN": 500,
+          "settleMs": 118.5000011920929,
+          "settleMax": 2.1000001430511475,
+          "settleRuns": 7293,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1412,
+            "live": 1295,
+            "wired": 787,
+            "ranInWindow": 85
+          }
+        },
+        "paint": {
+          "n": 34,
+          "ms": 26.700000047683716,
+          "full": 0,
+          "partial": 34,
+          "area": 3.132752113526569
+        },
+        "gaps": {
+          "n": 266,
+          "p50": 16.699999999999818,
+          "p95": 16.700000000000728,
+          "max": 16.800000000000182,
+          "over20": 0,
+          "over33": 0
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "tree": "Declare-After",
+        "render": "canvas",
+        "errors": []
+      }
+    },
+    {
+      "target": "chrome-canvas",
+      "case": "marketmap:slider",
+      "before": {
+        "case": "marketmap:slider",
+        "ms": 6125.700000047684,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 317,
+            "ms": 2741.3,
+            "max": 38.5
+          },
+          "evals": {
+            "n": 1164151,
+            "js": 1164151,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 167,
+            "full": 167,
+            "ms": 407.3,
+            "area": 1
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "marketmap:scrub": 151
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 1164151,
+          "wired": 428576,
+          "settleN": 317,
+          "settleMs": 2741.699998855591,
+          "settleMax": 38.5,
+          "settleRuns": 1164151,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 14180,
+            "live": 12985,
+            "wired": 3352,
+            "ranInWindow": 8699
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 239,
+          "p50": 16.699999999999818,
+          "p95": 33.30000000000018,
+          "max": 50.099999999999454,
+          "over20": 37,
+          "over33": 37
+        },
+        "ramp": {
+          "steps": 150,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": {
+          "n": 150,
+          "mean": 64.5565323632324
+        },
+        "tree": "Declare-Before",
+        "render": "canvas",
+        "errors": []
+      },
+      "after": {
+        "case": "marketmap:slider",
+        "ms": 5509.799999952316,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 320,
+            "ms": 1555.2,
+            "max": 17.5
+          },
+          "evals": {
+            "n": 1185439,
+            "js": 932980,
+            "notInJs": 252459
+          },
+          "paint": {
+            "n": 170,
+            "full": 170,
+            "ms": 437.7,
+            "area": 1
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "marketmap:scrub": 151
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 932980,
+          "wired": 383333,
+          "settleN": 320,
+          "settleMs": 1555.3999984264374,
+          "settleMax": 17.5,
+          "settleRuns": 932980,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 14180,
+            "live": 12985,
+            "wired": 4901,
+            "ranInWindow": 6852
+          }
+        },
+        "paint": {
+          "n": 170,
+          "ms": 667.200001001358,
+          "full": 170,
+          "partial": 0,
+          "area": 170
+        },
+        "gaps": {
+          "n": 240,
+          "p50": 16.699999999999818,
+          "p95": 16.799999999999272,
+          "max": 16.80000000000109,
+          "over20": 0,
+          "over33": 0
+        },
+        "ramp": {
+          "steps": 150,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": {
+          "n": 150,
+          "mean": 77.62671861980897
+        },
+        "tree": "Declare-After",
+        "render": "canvas",
+        "errors": []
+      }
+    }
+  ],
+  "voided": [
+    {
+      "target": "chrome-canvas",
+      "case": "desktop:drag",
+      "tree": "before",
+      "problems": [
+        "landmark desktop:dragMove: expected >0, recorded 0"
+      ]
+    },
+    {
+      "target": "chrome-canvas",
+      "case": "desktop:drag",
+      "tree": "after",
+      "problems": [
+        "landmark desktop:dragMove: expected >0, recorded 0"
+      ]
+    }
+  ],
+  "skipped": []
+}

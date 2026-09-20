@@ -90,6 +90,41 @@ export function parseFilter(css: string): FilterSpec {
   return out;
 }
 
+import { FILTER_WASM_B64 } from "./filter-wasm.js";
+
+// ── THE WEBASSEMBLY LOOPS (kernel/filter/filter.c) ───────────────────────────
+// The blur and the colour matrix below, bit-identical (filtercheck.mjs) and ~6×
+// faster for the blur — compiled only when this engine turns out to need the
+// fallback (the probe says no, or a fallback call arrives), and SYNCHRONOUSLY:
+// the first rasters that need it are a boot's (a blurred wallpaper), and a
+// background compile would arrive after them. 6.5 KB compiles in about a
+// millisecond, which every engine allows on the main thread. An engine that
+// cannot compile it (no SIMD128: Safari before 16.4) keeps the JavaScript loops. This module is the only
+// importer of filter-wasm.ts, and declarec stubs this module out of every build
+// that cannot filter in software, so the bytes ride only where they can run.
+interface FilterWasm { blur: (d: number, w: number, h: number, r: number, a: number, b: number, s: number) => void; matrix: (d: number, len: number, p: number) => void; mem: WebAssembly.Memory; heap: number }
+let fx: FilterWasm | null = null;
+let fxStarted = false;
+function filterWasm(): FilterWasm | null {
+  if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareNoWasmFilter?: boolean }).__declareNoWasmFilter === true) return null;
+  if (fx !== null || fxStarted) return fx;
+  fxStarted = true;
+  if (typeof WebAssembly === "undefined" || typeof atob !== "function") return null;
+  try {
+    const bin = atob(FILTER_WASM_B64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const x = new WebAssembly.Instance(new WebAssembly.Module(bytes), {}).exports as unknown as { filter_blur: FilterWasm["blur"]; filter_matrix: FilterWasm["matrix"]; memory: WebAssembly.Memory; __heap_base: WebAssembly.Global };
+    fx = { blur: x.filter_blur, matrix: x.filter_matrix, mem: x.memory, heap: ((x.__heap_base.value as number) + 15) & ~15 };
+  } catch { /* no SIMD128 here: the JavaScript loops stay */ }
+  return fx;
+}
+const align16 = (n: number): number => (n + 15) & ~15;
+/** Room for `bytes` past the heap base, growing the module's memory if needed. */
+function room(f: FilterWasm, bytes: number): void {
+  const need = f.heap + bytes - f.mem.buffer.byteLength;
+  if (need > 0) f.mem.grow(Math.ceil(need / 65536));
+}
+
 export function isIdentity(f: FilterSpec): boolean {
   return f.blur === 0 && f.saturate === 1 && f.brightness === 1 && f.contrast === 1 && f.grayscale === 0 && f.invert === 0
     && f.sepia === 0 && f.hue === 0 && f.shadows.length === 0;
@@ -105,6 +140,10 @@ export function ctxFilterSupported(): boolean {
   // paths can be diffed against each other on one machine
   if ((globalThis as { __declareForceFilterFallback?: boolean }).__declareForceFilterFallback === true) return false;
   if (supported !== null) return supported;
+  // NOT DEFERRED (tried 2026-09-18): answering "no" until first paint sends
+  // every boot-time raster with a shadow down the software-blur fallback, which
+  // on Chrome cost the desktop ~170 ms against the ~10 ms this probe costs. The
+  // probe stays on the boot path; the cheaper answer would be a cheaper probe.
   // no DOM and no OffscreenCanvas (a Node rung) — there is no canvas to test
   // and nothing will paint, so claim support and take the direct path. In the
   // raster WORKER there is no document but there is an OffscreenCanvas, and
@@ -135,7 +174,9 @@ export function ctxFilterSupported(): boolean {
       const v = g.getImageData(x, 10, 1, 1).data[0];
       if (v > 20 && v < 235) mid++;
     }
-    return (supported = mid >= 3);
+    supported = mid >= 3;
+    if (!supported) filterWasm();   // this engine filters in software: have the fast loops ready
+    return supported;
   } catch {
     return (supported = false);
   }
@@ -179,6 +220,24 @@ function adjustInPlace(c: HTMLCanvasElement, f: FilterSpec): void {
   const img = g.getImageData(0, 0, c.width, c.height);
   const d = img.data;
   const { saturate: s, brightness: b, contrast: k, grayscale: gs, invert: iv, sepia: sp, hue } = f;
+  const fw = filterWasm();
+  if (fw !== null) {
+    // the same parameters the loop below derives, computed here (Math.cos/sin:
+    // the module is freestanding) — the matrix itself runs in the module
+    const hr0 = (hue * Math.PI) / 180, c0 = Math.cos(hr0), s0 = Math.sin(hr0);
+    const params = [s, b, k, gs, iv, sp, (1 - k) * 127.5, hue,
+      0.213 + c0 * 0.787 - s0 * 0.213, 0.715 - c0 * 0.715 - s0 * 0.715, 0.072 - c0 * 0.072 + s0 * 0.928,
+      0.213 - c0 * 0.213 + s0 * 0.143, 0.715 + c0 * 0.285 + s0 * 0.140, 0.072 - c0 * 0.072 - s0 * 0.283,
+      0.213 - c0 * 0.213 - s0 * 0.787, 0.715 - c0 * 0.715 + s0 * 0.715, 0.072 + c0 * 0.928 + s0 * 0.072];
+    const pD = fw.heap, pP = align16(pD + d.length);
+    room(fw, pP + params.length * 8 - fw.heap);
+    new Uint8Array(fw.mem.buffer, pD, d.length).set(d);
+    new Float64Array(fw.mem.buffer, pP, params.length).set(params);
+    fw.matrix(pD, d.length, pP);
+    d.set(new Uint8Array(fw.mem.buffer, pD, d.length));
+    g.putImageData(img, 0, 0);
+    return;
+  }
   // luma coefficients CSS's saturate matrix is built from
   const LR = 0.2126, LG = 0.7152, LB = 0.0722;
   const cOff = (1 - k) * 127.5;
@@ -230,6 +289,10 @@ function adjustInPlace(c: HTMLCanvasElement, f: FilterSpec): void {
  *  Runs on PREMULTIPLIED values. Blurring straight RGBA drags the colour of
  *  fully transparent pixels into the edge — a mark on a transparent ground
  *  develops a dark halo — and every mark this path filters is on one. */
+// Scratch buffers, kept between calls: a blur allocated two Float32 copies of
+// its image every call (a 480×300 wallpaper buffer is 2.3 MB of them), and the
+// wallpaper alone blurs five times at boot.
+let blurA = new Float32Array(0), blurB = new Float32Array(0), blurSums = new Float64Array(0);
 function boxBlur(d: Uint8ClampedArray, w: number, h: number, sigma: number): void {
   if (sigma < 0.3) return;
   // n box passes of width w give sigma² = n(w²−1)/12; at n = 3 that is
@@ -237,36 +300,65 @@ function boxBlur(d: Uint8ClampedArray, w: number, h: number, sigma: number): voi
   // (Solving for w and then halving it is not the same thing — doing that
   // under-blurred by a factor of two, measured 9.9 against a native 19.7.)
   const r = Math.max(1, Math.round((Math.sqrt(4 * sigma * sigma + 1) - 1) / 2));
-  const n = w * h;
-  const src = new Float32Array(n * 4);
-  for (let i = 0; i < n; i++) {
-    const a = d[i * 4 + 3] / 255;
-    src[i * 4] = d[i * 4] * a;
-    src[i * 4 + 1] = d[i * 4 + 1] * a;
-    src[i * 4 + 2] = d[i * 4 + 2] * a;
-    src[i * 4 + 3] = d[i * 4 + 3];
+  const f = filterWasm();
+  if (f !== null) {
+    const N4 = w * h * 4, pD = f.heap, pA = align16(pD + N4), pB = align16(pA + N4 * 4), pS = align16(pB + N4 * 4);
+    room(f, pS + w * 4 * 8 - f.heap);
+    new Uint8Array(f.mem.buffer, pD, N4).set(d);
+    f.blur(pD, w, h, r, pA, pB, pS);
+    d.set(new Uint8Array(f.mem.buffer, pD, N4));
+    return;
   }
-  let a = src, b = new Float32Array(n * 4);
-  const pass = (horiz: boolean): void => {
-    const outer = horiz ? h : w, inner = horiz ? w : h;
-    const step = horiz ? 4 : w * 4;
-    for (let o = 0; o < outer; o++) {
-      const base = horiz ? o * w * 4 : o * 4;
-      for (let c = 0; c < 4; c++) {
-        let sum = 0;
-        // seed the window with edge clamping, then slide it — O(pixels), not
-        // O(pixels · radius), which is what makes a wide blur affordable at all
-        for (let k = -r; k <= r; k++) sum += a[base + Math.min(inner - 1, Math.max(0, k)) * step + c];
-        for (let i = 0; i < inner; i++) {
-          b[base + i * step + c] = sum / (2 * r + 1);
-          const add = Math.min(inner - 1, i + r + 1), sub = Math.max(0, i - r);
-          sum += a[base + add * step + c] - a[base + sub * step + c];
-        }
+  const n = w * h, N = n * 4, div = 2 * r + 1, W4 = w * 4;
+  if (blurA.length < N) { blurA = new Float32Array(N); blurB = new Float32Array(N); }
+  if (blurSums.length < W4) blurSums = new Float64Array(W4);
+  let a = blurA, b = blurB;
+  const sums = blurSums;
+  for (let i = 0; i < n; i++) {
+    const al = d[i * 4 + 3] / 255;
+    a[i * 4] = d[i * 4] * al;
+    a[i * 4 + 1] = d[i * 4 + 1] * al;
+    a[i * 4 + 2] = d[i * 4 + 2] * al;
+    a[i * 4 + 3] = d[i * 4 + 3];
+  }
+  // THE SAME ARITHMETIC AS THE PLAIN FORM, RESTRUCTURED (2026-09-18: 1.7–1.8×,
+  // bit-identical on 168 cases — mac-host/profile/blurcheck.mjs keeps the plain
+  // form and checks): a pixel's four channels slide together instead of in four
+  // strided walks, the vertical pass runs row by row over per-column running
+  // sums (the same additions in the same order per column, read contiguously
+  // instead of a row apart), and edges clamp without a call per sample. The
+  // window is seeded with edge clamping, then slid — O(pixels), not
+  // O(pixels · radius), which is what makes a wide blur affordable at all. Sums
+  // stay doubles and the division stays a division: either change would alter
+  // the output, and this form is pinned to be exact.
+  const hpass = (): void => {
+    const last = w - 1;
+    for (let o = 0; o < h; o++) {
+      const base = o * W4;
+      let s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+      for (let k = -r; k <= r; k++) { const x = base + (k < 0 ? 0 : k > last ? last : k) * 4; s0 += a[x]; s1 += a[x + 1]; s2 += a[x + 2]; s3 += a[x + 3]; }
+      for (let i = 0; i < w; i++) {
+        const o4 = base + i * 4;
+        b[o4] = s0 / div; b[o4 + 1] = s1 / div; b[o4 + 2] = s2 / div; b[o4 + 3] = s3 / div;
+        const ai = i + r + 1, si = i - r;
+        const ad = base + (ai > last ? last : ai) * 4, sb = base + (si < 0 ? 0 : si) * 4;
+        s0 += a[ad] - a[sb]; s1 += a[ad + 1] - a[sb + 1]; s2 += a[ad + 2] - a[sb + 2]; s3 += a[ad + 3] - a[sb + 3];
       }
     }
     const t = a; a = b; b = t;
   };
-  for (let i = 0; i < 3; i++) { pass(true); pass(false); }
+  const vpass = (): void => {
+    const last = h - 1;
+    sums.fill(0, 0, W4);
+    for (let k = -r; k <= r; k++) { const row = (k < 0 ? 0 : k > last ? last : k) * W4; for (let c = 0; c < W4; c++) sums[c] += a[row + c]; }
+    for (let i = 0; i < h; i++) {
+      const row = i * W4, ai = i + r + 1, si = i - r;
+      const addRow = (ai > last ? last : ai) * W4, subRow = (si < 0 ? 0 : si) * W4;
+      for (let c = 0; c < W4; c++) { b[row + c] = sums[c] / div; sums[c] += a[addRow + c] - a[subRow + c]; }
+    }
+    const t = a; a = b; b = t;
+  };
+  for (let i = 0; i < 3; i++) { hpass(); vpass(); }
   for (let i = 0; i < n; i++) {
     const al = a[i * 4 + 3];
     const inv = al > 0.5 ? 255 / al : 0;
@@ -286,8 +378,13 @@ function boxBlur(d: Uint8ClampedArray, w: number, h: number, sigma: number): voi
  *  falls with the square of the factor, and the resampling either side is itself
  *  part of the blur, so its contribution is subtracted from the box passes
  *  rather than ignored. The colour matrix rides the same small buffer. */
-export function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec, approximate = false): HTMLCanvasElement {
-  const out = applyFilterCore(src, spec, approximate);
+/** A rectangle of the source canvas, device pixels. */
+export interface FilterRegion { x: number; y: number; w: number; h: number }
+
+export function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec, approximate = false, region: FilterRegion | null = null): HTMLCanvasElement {
+  // a region is honoured only without drop-shadows (their offsets reach outside
+  // it; the caller never asks, but the rule belongs here)
+  const out = applyFilterCore(src, spec, approximate, spec.shadows.length === 0 ? region : null);
   if (spec.shadows.length === 0) return out;
   // drop-shadow(s): a shadow of the result's own ALPHA, then the result over
   // it — the canvas shadow machinery follows alpha natively on every engine
@@ -306,9 +403,16 @@ export function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec, ap
   return shadowed;
 }
 
-function applyFilterCore(src: HTMLCanvasElement, spec: FilterSpec, approximate = false): HTMLCanvasElement {
+function applyFilterCore(src: HTMLCanvasElement, spec: FilterSpec, approximate = false, region: FilterRegion | null = null): HTMLCanvasElement {
   reportUnsupported(spec.unsupported);
-  const w = src.width, h = src.height;
+  // THE REGION (2026-09-19): only this rectangle of the source is filtered, and
+  // the result is the rectangle's size. A filtered drawing op on the canvas
+  // renderer used to be processed over the WHOLE shared canvas — a 150×110
+  // swatch read back and blurred 3.8 M pixels, and a filter testbed's first
+  // frame took 2.4 s in Safari's fallback. The caller bounds the region by what
+  // the op can reach (draw.ts replayFiltered).
+  const rx = region?.x ?? 0, ry = region?.y ?? 0;
+  const w = region?.w ?? src.width, h = region?.h ?? src.height;
   const colour = !isIdentity({ ...spec, blur: 0 });
   // THE APPROXIMATE PATH — blur by resampling only: drawImage down and up, no
   // readback, no colour. The calibrated path below reads the small buffer back
@@ -328,7 +432,7 @@ function applyFilterCore(src: HTMLCanvasElement, spec: FilterSpec, approximate =
     const small = take(sw, sh);
     const sg = small.getContext("2d")!;
     sg.imageSmoothingEnabled = true; sg.imageSmoothingQuality = "high";
-    sg.drawImage(src, 0, 0, w, h, 0, 0, sw, sh);
+    sg.drawImage(src, rx, ry, w, h, 0, 0, sw, sh);
     // a second, quarter-size bounce widens the kernel without any readback
     const tiny = take(Math.max(1, sw >> 1), Math.max(1, sh >> 1));
     const tg = tiny.getContext("2d")!;
@@ -346,7 +450,7 @@ function applyFilterCore(src: HTMLCanvasElement, spec: FilterSpec, approximate =
   }
   if (spec.blur <= 0.5) {
     const flat = take(w, h);
-    flat.getContext("2d")!.drawImage(src, 0, 0);
+    flat.getContext("2d")!.drawImage(src, rx, ry, w, h, 0, 0, w, h);
     if (colour) adjustInPlace(flat, spec);
     return flat;
   }
@@ -362,7 +466,7 @@ function applyFilterCore(src: HTMLCanvasElement, spec: FilterSpec, approximate =
   const sg = small.getContext("2d", { willReadFrequently: true })!;
   sg.imageSmoothingEnabled = true;
   sg.imageSmoothingQuality = "high";
-  sg.drawImage(src, 0, 0, w, h, 0, 0, sw, sh);
+  sg.drawImage(src, rx, ry, w, h, 0, 0, sw, sh);
 
   // a box average over `f` pixels has sigma f/sqrt(12); it happens twice, going
   // down and coming back up, and variances add

@@ -316,7 +316,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
     login: View [ width = 100%, height = 100%, fill = #80807E,
         visible = { !app.signedIn },
 
-        panel: View [ x = { (parent.width - this.width) / 2 },
+        panel: View [ x = center,
             y = { app.height / 3 - this.height / 2 },
             width = 290, height = 100,
             shadow = shadow(3, 5, 9, #00000066),

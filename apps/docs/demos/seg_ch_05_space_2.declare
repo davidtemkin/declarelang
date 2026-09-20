@@ -1,10 +1,12 @@
-App [ fill = white, textColor = black, minWidth = 300,
-    bar: View [ x = 20, y = 20, width = { app.width - 40 },
-        layout: ResponsiveLayout [ plan = { [
-            ({ from: 480, flow: "row", share: ({ menu: 30, body: 70 }) }),
-            ({ from: 0, flow: "stack" }),
-        ] } ],
-        menu: View [ height = 60, fill = gainsboro ],
-        body: View [ height = 60, fill = whitesmoke ]
+App [ fill = #F4F6FA, textColor = black,
+    panel: View [ x = 20, y = 20, width = 260, fill = white, cornerRadius = 10,
+        stroke = { stroke(1, 0xDBE1E9) },
+        padding = 16,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ fontWeight = semibold, text = "Storage" ],
+        Text [ width = 100%, wrap = true, textColor = slategray,
+            text = "No height: the panel takes the one its content needs, both insets counted in." ],
+        Divider [ ],
+        Button [ label = "Manage" ]
         ]
     ]

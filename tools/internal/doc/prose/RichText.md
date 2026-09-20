@@ -147,9 +147,26 @@ colours — headings, links, code — have their own slots below, so setting thi
 the prose without touching them. `bodyColor` overrides the running text alone when the
 flow should differ from what it provides onward.
 
+## fontScale
+A multiplier on every type size in the flow — the body, the headings, the code
+— for a reader-facing zoom. It changes the TYPE, not the box: the sizes are
+scaled into the runs, so the flow re-wraps at its new size and the view's
+measured height is what it paints.
+
+This is deliberately not `scale`. A view's `scale` is a transform, honoured
+alike by paint, the hit walk, `rootTransform` and auto-extent; a flow set 10%
+smaller is not a transformed view, and saying so would put a box on screen that
+does not match the one every reader of the geometry measures. A rich text that
+really is transformed sets `scale`, like any view.
+
+```declare-fragment
+Markdown [ fontScale = { app.readerZoom }, text = { app.doc } ]
+```
+
 ## fontSize
 The body size for the flow, defaulting to the provided value. The house
-structure sizes — headings, code — are derived from it and scaled by `scale`.
+structure sizes — headings, code — are derived from it and scaled by
+`fontScale`.
 
 ## fontFamily
 The face the prose renders in — a family string, a `Font`, or a list of them

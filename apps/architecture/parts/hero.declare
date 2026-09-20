@@ -1,0 +1,163 @@
+/*
+# Fig. 1 — what it looks like, and what it is
+
+One sprung scalar, `k`, runs 0 → 1. At 0 the stack is the model most readers
+arrive with: a file, a framework, and a browser that does the real work. At 1
+it is what actually runs. Every band's y and height, and every chip's place,
+is a constraint mixing the two ends by `k` — so the responsibilities physically
+travel out of the browser and into the runtime. Nothing here is a transition;
+it is one number moving and everything reading it.
+*/
+
+// a responsibility — sits in the browser band at k = 0, in the runtime band at k = 1
+
+class Chip extends View [ height = 30, cornerRadius = 7,
+    idx: number = 0,
+    label: string = "",
+    k: number = 0,
+    stagger: number = { unit((this.k - this.idx * 0.035) / 0.72) },
+    fill = { this.stagger > 0.5 ? provided("theme").runSoft : provided("theme").hostSoft },
+    stroke = { stroke(1, this.stagger > 0.5 ? provided("theme").run : provided("theme").hostLine) },
+    t: Label [ x = 10, y = center, fontSize = 13.5, fontWeight = medium, text = { classroot.label } ]
+    ]
+
+
+// one band of the stack: a name on the left, a note on the right, both of
+// which can say two things (the assumption, the reality) crossfaded by k
+
+class Band extends View [ cornerRadius = 9,
+    hue: Color = gray,
+    soft: Color = gray,
+    nameA: string = "",
+    nameB: string = "",
+    noteA: string = "",
+    noteB: string = "",
+    kk: number = 0,
+    fill = { this.soft },
+    stroke = { stroke(1, this.hue) },
+    a: Label [ x = 16, y = 12, fontSize = 16, opacity = { 1 - classroot.kk }, text = { classroot.nameA } ],
+    b: Label [ x = 16, y = 12, fontSize = 16, opacity = { classroot.kk }, text = { classroot.nameB } ],
+    na: Note [ y = 14, wrap = false, x = { parent.width - this.width - 16 }, opacity = { 1 - classroot.kk },
+        visible = { parent.width > 520 }, text = { classroot.noteA } ],
+    nb: Note [ y = 14, wrap = false, x = { parent.width - this.width - 16 }, opacity = { classroot.kk },
+        visible = { parent.width > 520 }, text = { classroot.noteB } ]
+    ]
+
+
+class HostBox extends View [ cornerRadius = 6,
+    label: string = "",
+    sub: string = "",
+    fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").hostLine) },
+    col: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+        Label [ fontSize = 14, text = { classroot.label } ],
+        Note [ fontSize = 12.5, wrap = false, visible = { classroot.height > 52 && classroot.width > 150 },
+            text = { classroot.sub } ]
+        ]
+    ]
+
+
+class HeroStage extends View [ height = { this.H },
+    k: number = 0,
+
+    // one height for both states: the taller of the two, so the page below
+    // never moves while the figure changes; the host band takes what is left
+
+    runH1: number = { 136 + 40 * Math.ceil(8 / this.cols - 2) },
+    H: number = { Math.max(452, 116 + this.runH1 + 70 + 90) },
+    inset: number = 20,
+    bw: number = { this.width - 2 * this.inset },
+    cols: number = { this.width < 620 ? 2 : 4 },
+    chipW: number = { (this.bw - 32 - (this.cols - 1) * 10) / this.cols },
+
+    chipX(i: number) -> number { return this.inset + 16 + (i % this.cols) * (this.chipW + 10) },
+    chipY(i: number, end: number) -> number {
+        const row = Math.floor(i / this.cols)
+        const top = end == 0 ? 208 : 162
+        return top + row * 40
+        },
+
+    // assumed → actual geometry, one line per band
+
+    appB: Band [ x = { classroot.inset }, width = { classroot.bw },
+        y = 20, height = { mix(52, 40, classroot.k) }, kk = { classroot.k },
+        hue = { provided("theme").app }, soft = { provided("theme").appSoft },
+        nameA = "Your .declare file", nameB = "App program",
+        noteA = "the part you write", noteB = "compiled: resolved, typed, dependencies extracted" ],
+    lib: Band [ x = { classroot.inset }, width = { classroot.bw },
+        y = { mix(84, 68, classroot.k) }, height = { mix(52, 40, classroot.k) }, kk = { classroot.k },
+        hue = { classroot.k > 0.5 ? provided("theme").lib : provided("theme").hostLine },
+        soft = { classroot.k > 0.5 ? provided("theme").libSoft : provided("theme").hostSoft },
+        nameA = "A framework", nameB = "Library — written in Declare",
+        noteA = "components, a store, re-rendering", noteB = "Button, Slider, SimpleLayout: the same kind of code as yours" ],
+    run: Band [ x = { classroot.inset }, width = { classroot.bw },
+        y = { mix(148, 116, classroot.k) }, height = { mix(0, classroot.runH1, classroot.k) },
+        opacity = { unit(classroot.k * 3) }, kk = 1,
+        hue = { provided("theme").run }, soft = { provided("theme").runSoft0 },
+        nameA = "", nameB = "Runtime",
+        noteA = "", noteB = "decides everything below: ~79 KB gz" ],
+    ker: Band [ x = { classroot.inset }, width = { classroot.bw },
+        y = { classroot.run.y + classroot.run.height + 8 }, height = { mix(0, 38, classroot.k) },
+        opacity = { unit(classroot.k * 2 - 0.6) }, kk = 1,
+        hue = { provided("theme").ker }, soft = { provided("theme").kerSoft },
+        nameA = "", nameB = "Kernel — C, as WebAssembly or linked natively",
+        noteA = "", noteB = "the settle and the geometry rules: 11.5 KB gzipped, as shipped" ],
+
+    // the render seam — a dashed rule that exists only in the real picture
+
+    seam: View [ x = { classroot.inset }, width = { classroot.bw }, height = 12,
+        y = { classroot.ker.y + classroot.ker.height + 6 },
+        opacity = { unit(classroot.k * 2 - 1) },
+        draw(d: Draw) {
+            d.strokeStyle = provided("theme").muted
+            d.lineWidth = 1
+            d.setLineDash([4, 4])
+            d.beginPath()
+            d.moveTo(0, 6)
+            d.lineTo(d.w, 6)
+            d.stroke()
+            },
+
+        // the tag's width is its inset, not arithmetic over its label: a padded
+        // view has an inside, and its automatic extent counts the inset back in
+
+        tagBg: View [ x = { parent.width - this.width - 24 }, y = -2, height = 16,
+            padding = [1, 8, 1, 8], fill = { provided("theme").panel },
+            t: Mono [ fontSize = 11, textColor = { provided("theme").muted },
+                text = "render seam · one interface, 58 methods" ]
+            ]
+        ],
+
+    host: Band [ x = { classroot.inset }, width = { classroot.bw },
+        y = { mix(148, classroot.seam.y + 18, classroot.k) },
+        height = { classroot.H - 20 - this.y }, kk = { classroot.k },
+        hue = { provided("theme").hostLine }, soft = { provided("theme").hostSoft },
+        nameA = "The browser", nameB = "Host",
+        noteA = "does the real work", noteB = "",
+
+        // the three realizations, arriving only as the band settles
+
+        boxes: View [ x = { classroot.bw < 560 ? 12 : 100 }, y = { classroot.bw < 560 ? 40 : 12 },
+            width = { parent.width - this.x - 12 }, height = { Math.max(26, parent.height - this.y - 12) },
+            opacity = { unit(classroot.k * 4 - 3) },
+            layout: ResponsiveLayout [ plan = { [({ from: 0, flow: "row", gap: 8, share: ({ b1: 33, b2: 33, b3: 33 }) })] } ],
+            b1: HostBox [ height = 100%, label = "DOM", sub = "a <div> per view, geometry as inline style" ],
+            b2: HostBox [ height = 100%, label = "Canvas", sub = "one <canvas>, its own compositor" ],
+            b3: HostBox [ height = 100%, label = "Mac", sub = "a CALayer tree in a 7.8 MB app" ]
+            ]
+        ],
+
+    chipData: Dataset { { "rows": [
+        { "i": 0, "label": "Layout" }, { "i": 1, "label": "Styling" },
+        { "i": 2, "label": "Hit-testing" }, { "i": 3, "label": "Hover & press" },
+        { "i": 4, "label": "Click vs. drag" }, { "i": 5, "label": "Gesture claims" },
+        { "i": 6, "label": "Focus & Tab order" }, { "i": 7, "label": "Text measurement" } ] } },
+
+    // the responsibilities, declared last so they paint over the bands
+
+    chips: View [ width = 100%, height = 100%, datapath = { classroot.chipData.value },
+        Chip [ datapath = :rows[], idx = :i, label = :label, k = { classroot.k }, width = { classroot.chipW },
+            x = { classroot.chipX(:i) },
+            y = { mix(classroot.chipY(:i, 0), classroot.chipY(:i, 1), this.stagger) } ]
+        ]
+    ]

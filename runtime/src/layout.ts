@@ -55,17 +55,32 @@
 // authored literal or class default instead of stranding the arrangement's
 // last write. When a child ALSO owns a slot the strategy arranges — an
 // authored `width = { … }` meeting a sizing place(), or a direct write to a
-// laid slot — that is a layout↔author conflict, and it surfaces at three
-// sites with ONE wording (layoutConflictMessage, errors.ts): the layout's own
-// claim on a rearm (reportConflict — CONTAINED and reported once, the author
-// keeps the slot, never a settle-aborting throw; until 2026-09-02 it stormed,
-// a market-map field report named it), the general one-owner guard when the
-// author binding installs over a layout claim at boot (attributes.ts own() —
-// a throw, fail-fast on a static mistake), and a direct write to a laid slot
-// (the setter — a throw). Each names the layout, the child+slot, position-vs-
-// size, and the fix; `ignoreLayout = true` remains the blessed way for a
-// child to own its own geometry. Layout claims carry `arrangedBy` so the two
-// attributes.ts sites recognize a layout owner (message-only).
+// laid slot — that is a layout↔author conflict, and it surfaces at FOUR sites
+// with ONE wording (layoutConflictMessage / discardedValueMessage, errors.ts):
+// the layout's own claim on a rearm (reportConflict — CONTAINED and reported
+// once, the author keeps the slot, never a settle-aborting throw; until
+// 2026-09-02 it stormed, a market-map field report named it), the general
+// one-owner guard when the author binding installs over a layout claim at boot
+// (attributes.ts own() — a throw, fail-fast on a static mistake), a direct
+// write to a laid slot (the setter — a throw), and an author LITERAL on a
+// claimed slot (reportDiscarded — the layout takes the slot as it always has,
+// and now says so). Each names the layout, the child+slot, position-vs-size,
+// the author's line, and the fix; `ignoreLayout = true` remains the blessed
+// way for a child to own its own geometry. Layout claims carry `arrangedBy`
+// (TweenLayout's too) so the attributes.ts sites recognize a layout owner.
+//
+// THE ANSWER DOES NOT DEPEND ON THE SPELLING. `width = { 120 }` and
+// `width = 120` on a slot the arrangement allocates are one intent, and until
+// 2026-09-19 they got opposite answers: a boot failure, and silence. A literal
+// installs no owner, so the one-owner guard never saw it — `isSet` is the
+// question that does, and it is asked at exactly the same point in install().
+//
+// AND THE ARRANGEMENT NEVER ADVANCES BY A NUMBER IT DID NOT WRITE. A refused
+// SIZE claim used to leave the strategy laying the neighbours from the width
+// it *meant* to allocate — a live hole (116px, measured) that no rung could
+// see. A child whose size the author owns now leaves the arrangement whole
+// (`authorSized`), so the run packs around it and every number the layout
+// writes describes the picture it produced.
 //
 // Pay-per-use: a view with no layout carries nothing (the slot's default is
 // null on the prototype); an idle laid tree is inert constraint data — zero
@@ -73,9 +88,9 @@
 
 import { Node } from "./node.js";
 import { Constraint, afterSettle } from "./reactive.js";
-import { cellsOf, defineAttributes, isSet, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
+import { cellsOf, defineAttributes, isSet, markPercent, own, ownerOf, release, setBound, setPosOf, useSiteSet } from "./attributes.js";
 import type { Cell } from "./reactive.js";
-import { DeclareError, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
+import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { isWindowedBlock, View, type LayoutStrategy } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
@@ -83,9 +98,13 @@ import { motionToken } from "./animate.js";
 /** The geometry a layout places one child in: any subset of position, size,
  *  and visibility. `w`/`h` name the sizes so a box is a plain record, distinct
  *  from the child's live `width`/`height` slots the layout writes. A strategy
- *  OWNS exactly the slots its boxes carry (uniform across children, probed at
- *  install): a box without `h` leaves heights to the children; `vis: false`
- *  hides — the zero-size-is-hidden idiom made explicit. */
+ *  OWNS exactly the slots its boxes carry — PER CHILD, probed at install: a box
+ *  without `h` leaves that child's height to the child, and the shape may
+ *  differ from box to box (a ResponsiveLayout carries a width for a child its
+ *  plan gives a `share` and none for a child it does not; a Spacer carries its
+ *  flexed size where its siblings carry only a position). It may also differ
+ *  from install to install, which is what the shape watcher exists for.
+ *  `vis: false` hides — the zero-size-is-hidden idiom made explicit. */
 export interface Box {
   x?: number;
   y?: number;
@@ -218,16 +237,70 @@ export abstract class Layout extends Node implements LayoutStrategy {
     const v = this.view;
     if (v === null) return [];
     return v.children.filter(
-      (c): c is View => c instanceof View && (c as { ignoreLayout?: boolean }).ignoreLayout !== true
+      (c): c is View =>
+        c instanceof View &&
+        (c as { ignoreLayout?: boolean }).ignoreLayout !== true &&
+        !this.authorSized.has(c)
     );
   }
+
+  /** Children this arrangement WANTED to size and cannot, because the author
+   *  owns that size already (install below). They are out of the arrangement
+   *  entirely — not merely missing one slot — because a strategy that
+   *  allocates a size lays its neighbours FROM that size: place() computes the
+   *  next child's position by advancing over the width it meant to write, and
+   *  if that width never lands, every position after it is a number describing
+   *  a picture that does not exist (the measured 116px hole of a plan whose
+   *  wide tier shares a width the child's own `{ … }` already owns). Dropping
+   *  the child is the honest resolution and the one the message already names:
+   *  the author owns this child's geometry, so the layout stops pretending to
+   *  place it, and its siblings pack as if it were `ignoreLayout`.
+   *
+   *  A refused POSITION is different and stays put: no place() derives a box
+   *  from a position it writes, so one child sitting where its author put it
+   *  costs its siblings nothing. Re-derived from scratch at every install —
+   *  ownership can change with the tier, and a rearm is when we may look. */
+  private readonly authorSized = new Set<View>();
 
   /** Pure geometry — one Box per laid child, from this strategy's own
    *  attributes and `this.view`'s box. No time, no side effects. THE seam: a
    *  strategy IS its place(); everything else is shared machinery. The boxes'
    *  shape declares ownership — carry exactly the slots this strategy manages
-   *  (uniform across children; a box without `h` leaves heights alone). */
-  protected abstract place(): Box[];
+   *  for THAT child (per box, not per strategy: a box without `h` leaves that
+   *  child's height alone, and its neighbour's box may well carry one). */
+  place(): Box[] {
+    throw new DeclareError(
+      `${this.constructor.name} declares no place() — a layout strategy IS its place(): ` +
+      `declare it and return one box per child of laid(), aligned by index`
+    );
+  }
+
+  /** THE ROOM THIS ARRANGEMENT HAS: the arranged view's CONTENT BOX on `size`
+   *  — its extent less its own `padding` on that axis, never below 0 (view.ts
+   *  `contentBox`). A strategy that needs the view's measurement — a flow
+   *  deciding where to wrap, a plan dividing the width into shares, a run
+   *  sizing its spacers — reads this and not `this.view.width`, and then a
+   *  padded view costs it nothing to honor.
+   *
+   *  THE PADDING IS THE VIEW'S, not this strategy's (RULED 2026-09-19, moving
+   *  it off the base): a layout simply arranges inside the room it is given,
+   *  and a `place()` returning `{ x: 0 }` puts a child at the content origin
+   *  because that is what `x = 0` means for every child — nothing in the
+   *  kernel offsets a box. Two paddings, one on the view and one on whatever
+   *  arranges it, would have been a genuine confusion.
+   *
+   *  Unlike `viewExtent` it is the plain measurement: it does not ask whether
+   *  the view derives that extent from these very children. A strategy that
+   *  needs the cycle-safe answer (an alignment band) wants `viewExtent`. */
+  contentExtent(size: "width" | "height"): number {
+    const v = this.view;
+    // Floored for the arrangement's sake — a `place()` dividing a negative
+    // room would hand out negative slots. `View.contentBox` itself does not
+    // floor an UNPADDED box (a degenerate width stays what the author wrote,
+    // so `padding = 0` is indistinguishable from no padding everywhere it is
+    // read); this is the strategy-facing promise, and it says "never below 0".
+    return v === null ? 0 : Math.max(0, v.contentBox(size));
+  }
 
   /** Claim `slot` on `child` for constraint `k`: capture the authored base
    *  (first claim only — rearm must not capture the arrangement's own writes),
@@ -253,11 +326,95 @@ export abstract class Layout extends Node implements LayoutStrategy {
    *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
    *  survivable, never a settle-aborting throw. */
   private reportConflict(child: View, slot: string, arranger: string): void {
+    if (this.firstReport(child, slot)) {
+      console.error(
+        "[Declare] " +
+          layoutConflictMessage(child.constructor.name, slot, arranger, null, ownerOf(child, slot)?.sourcePos)
+      );
+    }
+  }
+
+  /** A LITERAL on a slot this strategy claims — `Spacer [ height = 40 ]` in a
+   *  run that flexes its spacers, a `width = 120` on a child the plan gives a
+   *  share. The one-owner guard never sees these: a literal installs no owner,
+   *  so `ownerOf` is null and the claim goes through, overwriting the number
+   *  the author wrote. Until now that was the language's ONLY silent answer to
+   *  "may I set my own geometry here?" — the same value spelled `{ 120 }` is a
+   *  boot failure — so it is reported here, in the same words, at the same
+   *  moment, once per (child, slot).
+   *
+   *  The layout still takes the slot: it is the arrangement's, the picture is
+   *  unchanged, and only the silence goes away. (Handing a literal the slot
+   *  instead would break every tree that carries a leftover `x = 0`, and would
+   *  make the *value* decide the owner.)
+   *
+   *  ── KNOWN DEFECT, not yet fixed (2026-09-20) ──────────────────────────
+   *  THIS REPORT IS NOT DETERMINISTIC ACROSS VIEWPORTS, and it should be.
+   *
+   *  install() derives ownership from ONE call to place(), and for a strategy
+   *  whose arrangement answers to the room it is given, the slots that call
+   *  writes are not the slots another width would write. ResponsiveLayout is
+   *  the case in the corpus: its box is `stack ? { y } : { x }`, so a row tier
+   *  claims x and leaves y to the author, and a stack tier does the reverse.
+   *  The report is emitted at install and remembered for the life of the
+   *  layout (`discarded`), so a program that first settles narrow is told its
+   *  `y = 15` is discarded — and the moment the page widens, that y is live
+   *  and wanted. First settle wide and the same source is never reported at
+   *  all. Same program, same author, advice decided by the viewport at boot.
+   *
+   *  Measured, three times over, on apps/homepage and apps/architecture: a
+   *  reader who follows the advice and deletes the line MOVES THE PAGE (1px,
+   *  8px, 10px and 15px in the cases seen). The report's cost is therefore
+   *  asymmetric — a wrong deletion is a visible regression, silence is only a
+   *  missed hint — which is the shape of the fix, whatever form it takes:
+   *  either the report waits for a moment the arrangement is stable and is
+   *  then made against what is true then, or its condition narrows to
+   *  something a viewport cannot change.
+   *
+   *  The fix belongs ENTIRELY HERE. "Which slot is claimed" is runtime
+   *  bookkeeping, derived automatically; it is not a Declare concept and an
+   *  author must never have to think about it, so no hook, flag or answer-back
+   *  may appear on the Layout surface to carry this. (A first sketch did
+   *  exactly that and was rejected on those grounds.) The message wants
+   *  rewriting in author vocabulary too: it currently says "the arrangement
+   *  writes that slot", and "slot" is not a word the language asks anyone to
+   *  know. */
+  protected reportDiscarded(child: View, slot: string, arranger: string): void {
+    if (!useSiteSet(child, slot)) return; // nothing written here — the ordinary case
+    // Deduped by CLASS and slot, not by child: one authored line builds 30
+    // replicated rows, and it is one line that wants fixing, not thirty.
+    const key = `${child.constructor.name}.${slot}`;
+    if (this.discarded.has(key)) return;
+    this.discarded.add(key);
+    const v = (child as unknown as Record<string, unknown>)[slot];
+    const shown = typeof v === "number" || typeof v === "boolean" ? String(v) : null;
+    // WARNING, not a refusal. The bound case throws because two standing
+    // computations would fight over one slot and no answer is determinate; a
+    // literal has a determinate answer (the arrangement takes the slot, as it
+    // always has) and what is wrong is that a value the author wrote can never
+    // take effect. Declare already has that family — an Animator nothing
+    // starts, a `shows` no location can reach, a { } over a stopped clock —
+    // and every one of them is a warning. Two further reasons it may not
+    // throw: install() runs mid-settle on a rearm, where a throw is the
+    // settle-aborting storm contained here on 2026-09-02; and a refusal would
+    // stop three shipped apps on six dead numbers.
+    console.warn(
+      "[Declare] " +
+        discardedValueMessage(child.constructor.name, slot, shown, arranger, setPosOf(child, slot))
+    );
+  }
+
+  /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
+  private readonly discarded = new Set<string>();
+
+  /** Is this the first thing said about (child, slot)? A conflict report is
+   *  once-only per child — a rearm storm re-hits the same slot every wave. */
+  private firstReport(child: View, slot: string): boolean {
     let seen = this.reported.get(child);
     if (seen === undefined) this.reported.set(child, (seen = new Set()));
-    if (seen.has(slot)) return;
+    if (seen.has(slot)) return false;
     seen.add(slot);
-    console.error("[Declare] " + layoutConflictMessage(child.constructor.name, slot, arranger, null));
+    return true;
   }
 
   /** A strategy's own CONTAINED refusals — the same once-per-(child, key)
@@ -322,15 +479,23 @@ export abstract class Layout extends Node implements LayoutStrategy {
       // Unset and unowned: auto-extent measures these very children the moment
       // it installs, and attach order is not ours to assume.
       if (!isSet(v, size)) return 0;
+    } else if (owner.isAutoExtent && owner.isNative) {
+      // The view's own AUTO-EXTENT owns it, as a KERNEL rule: it measures these
+      // very children by definition, and its edges live in the kernel's slot
+      // blocks, where `readsAny` cannot see them (reactive.ts isAutoExtent).
+      // The JavaScript form needs no special case — its reads ARE cells.
+      return 0;
     } else {
-      // Owned — by auto-extent, by `{ this.contentWidth + 16 }`, by a percent,
+      // Owned — by `{ this.contentWidth + 16 }`, by a percent,
       // by the grandparent's own layout, by `{ parent.width }`. Only the ones
       // that READ a laid child close the loop; ask the constraint itself.
       const cells = new Set<Cell>();
       for (const c of this.laid()) for (const cell of cellsOf(c)) cells.add(cell);
       if (owner.readsAny(cells)) return 0;
     }
-    return (v as unknown as Record<string, number>)[size] ?? 0;
+    // The band is the CONTENT box: a padded column centres its children in the
+    // room left between its insets, not in the whole view.
+    return this.contentExtent(size);
   }
 
   private stackReported = false;
@@ -394,40 +559,70 @@ export abstract class Layout extends Node implements LayoutStrategy {
    *  read at install (tree mutation is R8's rearm). TweenLayout overrides
    *  this with its interpolating write path over the same place(). */
   protected install(_view: View): () => void {
-    const kids = this.laid();
-    if (kids.length === 0) return () => {};
     const label = this.label();
     const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
-    const probe = this.place();
-    if (probe.length !== kids.length) {
-      throw new DeclareError(
-        `${label}.place() returned ${probe.length} boxes for ${kids.length} laid children — one box per child, by index`
-      );
-    }
+    // Ownership is re-derived from scratch here: a rearm is the one moment the
+    // answer may change (a tier flip, a created child, a swapped binding), so
+    // a child dropped by the LAST install gets a fresh hearing at this one.
+    this.authorSized.clear();
+    let kids: View[] = [];
+    let probe: Box[] = [];
     const passClaims: { child: View; slot: string; key: keyof Box; i: number }[] = [];
     const sizeClaims: { child: View; slot: string; key: keyof Box; i: number }[] = [];
-    kids.forEach((child, i) => {
-      const box = probe[i] ?? {};
-      for (const [key, slot] of BOX_SLOTS) {
-        if (box[key] === undefined) continue;
-        // CONFLICT CONTAINMENT (field report 2026-09-02): a place() that
-        // returns a slot the CHILD ITSELF authored (`width = { … }`) cannot
-        // claim it — the one-owner rule holds, and `ignoreLayout = true` is
-        // the blessed way for a child to own its own geometry. Discovered
-        // mid-settle on a shape-driven rearm, throwing here aborted the whole
-        // settle (or, caught upstream, re-fired every wave — the 365-error
-        // storm). Instead: report ONCE per (child, slot), leave the slot to
-        // its author, and install everything else. A yielding prior
-        // (auto-size) is NOT a conflict — the layout displaces it, as ever.
-        const prior = ownerOf(child, slot);
-        if (prior !== null && !prior.yielding) {
-          this.reportConflict(child, slot, arranger);
-          continue;
-        }
-        if (key === "w" || key === "h") sizeClaims.push({ child, slot, key, i });
-        else passClaims.push({ child, slot, key, i });
+    const discards: [View, string][] = [];
+    // One pass per child at worst: each re-probe drops at least one child from
+    // the arrangement, and a dropped child is never reconsidered.
+    for (;;) {
+      kids = this.laid();
+      if (kids.length === 0) return () => {};
+      probe = this.place();
+      if (probe.length !== kids.length) {
+        throw new DeclareError(
+          `${label}.place() returned ${probe.length} boxes for ${kids.length} laid children — one box per child, by index`
+        );
       }
-    });
+      passClaims.length = 0;
+      sizeClaims.length = 0;
+      discards.length = 0;
+      let dropped = false;
+      kids.forEach((child, i) => {
+        const box = probe[i] ?? {};
+        for (const [key, slot] of BOX_SLOTS) {
+          if (box[key] === undefined) continue;
+          // CONFLICT CONTAINMENT (field report 2026-09-02): a place() that
+          // returns a slot the CHILD ITSELF authored (`width = { … }`) cannot
+          // claim it — the one-owner rule holds, and `ignoreLayout = true` is
+          // the blessed way for a child to own its own geometry. Discovered
+          // mid-settle on a shape-driven rearm, throwing here aborted the whole
+          // settle (or, caught upstream, re-fired every wave — the 365-error
+          // storm). Instead: report ONCE per (child, slot), leave the slot to
+          // its author, and install everything else. A yielding prior
+          // (auto-size) is NOT a conflict — the layout displaces it, as ever.
+          const prior = ownerOf(child, slot);
+          if (prior !== null && !prior.yielding) {
+            this.reportConflict(child, slot, arranger);
+            // A SIZE this arrangement allocates and cannot write makes every
+            // position derived from it a fiction — so the child leaves the
+            // arrangement and we place the rest again without it, rather than
+            // advancing the run by a number nothing wrote (`authorSized`).
+            if ((key === "w" || key === "h") && !this.authorSized.has(child)) {
+              this.authorSized.add(child);
+              dropped = true;
+            }
+            continue;
+          }
+          // A literal on a claimed slot: the layout takes it, as it always
+          // has, and now says so instead of discarding it in silence. HELD
+          // until the claim set is final — a child dropped by a later refusal
+          // on this same pass keeps its literal, and must not be told it lost it.
+          if (prior === null) discards.push([child, slot]);
+          if (key === "w" || key === "h") sizeClaims.push({ child, slot, key, i });
+          else passClaims.push({ child, slot, key, i });
+        }
+      });
+      if (!dropped) break;
+    }
+    for (const [child, slot] of discards) this.reportDiscarded(child, slot, arranger);
     const installed: { child: View; slot: string; k: Constraint }[] = [];
     const detach = () => {
       const seen = new Set<Constraint>();
@@ -487,6 +682,14 @@ export abstract class Layout extends Node implements LayoutStrategy {
   }
 }
 
+// The base declares NO attributes of its own. `padding` lived here until
+// 2026-09-19 and moved to the view (view.ts): the content box is the view's,
+// a layout arranges inside the room it is given, and two paddings — one on the
+// view and one on whatever arranges it — would have been a genuine confusion.
+// A strategy still reads the room through `contentExtent(size)`, which now
+// simply asks the arranged view for its content box; nothing in place() or the
+// kernel names an inset.
+
 /** TweenLayout — the animated-reflow engine (the calendar's gridslider idiom,
  *  generalized and shed of its Flash-era scaffolding). The layout owns every
  *  laid child's x/y/width/height/visible and glides them between two WHOLE
@@ -529,7 +732,7 @@ export abstract class TweenLayout extends Layout {
    *  own state (its attributes) and `this.view`'s box. No time, no side
    *  effects — the tween is the interpolation between two calls of this.
    *  (laid() is the base's — the one definition of the managed children.) */
-  protected abstract place(): FullBox[];
+  abstract place(): FullBox[];
 
   /** Stand up one lerp constraint per laid child per geometry slot (owning it,
    *  the one-owner model), snapshot the initial layout, and evaluate. Re-run
@@ -544,7 +747,26 @@ export abstract class TweenLayout extends Layout {
       this.tween = a;
     }
     const kids = this.laid();
+    const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
     const owned: { child: View; slot: string; k: Constraint }[] = [];
+    // This strategy claims all four geometry slots plus visibility on every
+    // laid child, unconditionally — the one arrangement in which a child
+    // cannot keep its own size and stay placed — so an author binding on any
+    // of them is a refusal, and the sentence has to SAY all of that. It called
+    // own() bare until 2026-09-19 and got the generic `View.width is already
+    // bound (by Grid[0].width)`: no layout named, no position, and no
+    // `ignoreLayout` offered, which is exactly the message that most needed to
+    // offer it. (A throw, not the base's contained report: this install owns
+    // every slot as a unit — `from`/`to` are per-child FullBoxes — so there is
+    // no coherent half-arrangement to fall back to.)
+    const refuseIfOwned = (child: View, slot: string): void => {
+      const prior = ownerOf(child, slot);
+      if (prior !== null && !prior.yielding) {
+        throw new DeclareError(
+          layoutConflictMessage(child.constructor.name, slot, arranger, null, prior.sourcePos)
+        );
+      }
+    };
     const SLOTS: readonly (readonly [string, keyof Box])[] = [
       ["x", "x"],
       ["y", "y"],
@@ -573,6 +795,15 @@ export abstract class TweenLayout extends Layout {
             },
             (v) => setBound(child, slot, v)
           );
+          // The claim carries its arranger like every kernel claim, so a
+          // conflict on it gets the layout↔author sentence — which names the
+          // strategy and offers `ignoreLayout` — instead of the generic
+          // "already bound (by Grid[0].width)", which named neither. This is
+          // the one strategy that claims all four geometry slots on every
+          // child, so it is the one whose message most needs to say so.
+          k.arrangedBy = arranger;
+          refuseIfOwned(child, slot);
+          this.reportDiscarded(child, slot, arranger);
           own(child, slot, k);
           owned.push({ child, slot, k });
         }
@@ -591,6 +822,9 @@ export abstract class TweenLayout extends Layout {
           },
           (v) => setBound(child, "visible", v)
         );
+        kv.arrangedBy = arranger;
+        refuseIfOwned(child, "visible");
+        this.reportDiscarded(child, "visible", arranger);
         own(child, "visible", kv);
         owned.push({ child, slot: "visible", k: kv });
       });
@@ -616,7 +850,7 @@ export abstract class TweenLayout extends Layout {
   retarget(animate: boolean): void {
     const kids = this.laid();
     this.from = kids.map((c) => ({ x: c.x, y: c.y, w: c.width, h: c.height, vis: c.visible }));
-    this.to = this.place();
+    this.to = this.place() as FullBox[];
     if (animate && this.tween !== null) {
       this.t = 0; // constraints settle children at `from` (= current) — no flash
       this.tween.duration = this.duration;

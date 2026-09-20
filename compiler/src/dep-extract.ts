@@ -378,7 +378,8 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
   const roots = extraRoots ?? EMPTY_ROOTS;
 
   const isReactiveRootId = (n: ts.Node): boolean =>
-    (ts.isIdentifier(n) && (SCOPE_ROOTS.has(n.text) || roots.has(n.text)) && !locals.has(n.text)) || n.kind === ts.SyntaxKind.ThisKeyword;
+    // `$base` (the resolved `super`) roots a chain too: `$base.size()` is a call on this instance's base body
+    (ts.isIdentifier(n) && (SCOPE_ROOTS.has(n.text) || roots.has(n.text) || n.text === "$base") && !locals.has(n.text)) || n.kind === ts.SyntaxKind.ThisKeyword;
 
   // ── the alias/closure door (see DYNAMIC above): which LOCALS may carry
   // cells. Two ways a cell-bearing value lands in a local the chain classifier
@@ -611,6 +612,23 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             const a0 = s.arguments[0];
             if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`this.$provided(${JSON.stringify(a0.text)})`);
             else errors.push(new DepError(`provided(<expr>) — the provided value's name must be a literal string so its dependency can be wired; write provided("name")`, s.getStart()));
+          } else if (m === "$hostProvided" && recv.kind === ts.SyntaxKind.ThisKeyword) {
+            // `hostProvided("name", …)` compiled to `this.$hostProvided("name", …)`:
+            // a read of a value the program's HOST provides (islands.md). The
+            // value lives on the running App, so the edge is the call itself —
+            // the probe re-executes it under tracking and wires the host
+            // value's cell. The name must be a literal: it is what the host
+            // must list, and what this program's reads are known by.
+            const a0 = s.arguments[0];
+            if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`this.$hostProvided(${JSON.stringify(a0.text)})`);
+            else errors.push(new DepError(`hostProvided(<expr>) — the name must be a literal string (it is what the host lists in its island's provides); write hostProvided("name", default)`, s.getStart()));
+          } else if (m === "exposed") {
+            // `island.exposed("name", …)` (islands.md): the host's read of a
+            // value the hosted side exposes. Recorded as the call on its
+            // receiver; the probe wires the island's exposed-value cell.
+            const a0 = s.arguments[0];
+            if (a0 !== undefined && ts.isStringLiteral(a0)) reads.add(`${pathTextOf(recv)}.exposed(${JSON.stringify(a0.text)})`);
+            else errors.push(new DepError(`exposed(<expr>) — the name must be a literal string (it is what the hosted side exposes); write exposed("name", default)`, s.getStart()));
           } else if (m === "$providedTextStyle" && recv.kind === ts.SyntaxKind.ThisKeyword) {
             // `providedTextStyle(…)` compiled to `this.$providedTextStyle(…)`:
             // it reads the FIVE provided face names, so it wires to exactly the
@@ -622,7 +640,9 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             if (recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
           } else if (PURE_METHODS.has(m)) { /* pure projection */ }
           else if (USER_METHODS.has(m)) {
-            const rt = pathTextOf(recv);
+            // the extractor reads the AUTHORED body, where a super call is still
+            // spelled `super.` (the `$base` rewrite is an edit on the emitted text)
+            const rt = recv.kind === ts.SyntaxKind.SuperKeyword ? "$base" : pathTextOf(recv);
             calls.push({ kind: "method", name: m, receiver: rt === "$base" ? "this" : rt, viaBase: rt === "$base" || undefined, args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
           }
           else if (LANGUAGE_METHOD_EFFECTS.has(m)) {

@@ -11,7 +11,7 @@
 // the full state once — literals cost no reactive machinery at all.
 import { Node, onDiscard, runRetire, authoredName, provideCursorRead } from "./node.js";
 import { DeclareError, diag } from "./errors.js";
-import { backdropEqual, fillEqual, filterList, filtersEqual, isMaskGradient, shadowEqual, strokeEqual } from "./value.js";
+import { backdropEqual, fillEqual, filterList, filtersEqual, insetIsZero, insetLead, insetSides, isMaskGradient, shadowEqual, strokeEqual } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
 import { Tip } from "./tip.js";
 let viewCreator = null;
@@ -28,13 +28,13 @@ export function inlineViewHost(v) {
 }
 import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
-import { Constraint, Cell, afterSettle } from "./reactive.js";
+import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded } from "./reactive.js";
 import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
-import { bindDerived, declarationsOf, defineAttributes, disposeBindings, isSet, localProvision, ownerOf, percentOwned, setBound } from "./attributes.js";
-import { declaredType } from "./value.js";
+import { bindDerived, blockOf, declarationsOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
+import {} from "./value.js";
 import { observe } from "./reactive.js";
 import { handlerName } from "./schema.js";
 import { splitPath } from "./datapath.js";
@@ -93,6 +93,145 @@ const EVICTING = new WeakSet();
 const RETIRED = new WeakSet();
 export function markEvicting(v) {
     EVICTING.add(v);
+}
+/** A retired subtree RECYCLED onto a new member (replicate.ts departure
+ *  recycling) can retire again when that membership ends. */
+export function clearRetiredTree(v) {
+    RETIRED.delete(v);
+    for (const c of v.children)
+        if (c instanceof View)
+            clearRetiredTree(c);
+}
+/** The values an App constructed during one build starts with (build's
+ *  `provides`): set around that instantiate by withHostProvides. */
+let SEED_PROVIDES = null;
+/** Run `fn` (a build) with `values` as the host values its root App starts
+ *  with. What makes a hosted program's first evaluation see what its host
+ *  provides — a DataSource url or anything else evaluated at instantiate
+ *  runs before any link could deliver them. */
+export function withHostProvides(values, fn) {
+    if (values === undefined)
+        return fn();
+    const prev = SEED_PROVIDES;
+    SEED_PROVIDES = { ...values };
+    try {
+        return fn();
+    }
+    finally {
+        SEED_PROVIDES = prev;
+    }
+}
+function seededHostValues() {
+    const bv = new BoundaryValues("hostProvided");
+    // every App constructed inside the one build reads the seed (not consumed:
+    // instantiate may construct a throwaway App before the root; a program has
+    // only one real App, and a tenant is always its own, later, build)
+    if (SEED_PROVIDES !== null)
+        for (const [k, v] of Object.entries(SEED_PROVIDES))
+            if (v !== undefined)
+                bv.write(k, v);
+    return bv;
+}
+/** A set of named reactive values crossing a boundary — what a host provides
+ *  to an app (App.hostValues), what a hosted side exposes to its island
+ *  (Island.exposedValues). Each name owns a cell, created on first read, so a
+ *  write wakes exactly its readers; a write from outside a settle schedules
+ *  one (reactive.ts touchCell), which is how a page or foreign code drives it. */
+class BoundaryValues {
+    what;
+    m = new Map();
+    warned = new Set();
+    constructor(what) {
+        this.what = what;
+    }
+    entry(name) {
+        let e = this.m.get(name);
+        if (e === undefined) {
+            e = { has: false, v: undefined, cell: new Cell() };
+            this.m.set(name, e);
+        }
+        return e;
+    }
+    write(name, v) {
+        const e = this.entry(name);
+        if (e.has && Object.is(e.v, v))
+            return;
+        e.has = true;
+        e.v = v;
+        e.cell.changed();
+    }
+    clear(name) {
+        const e = this.m.get(name);
+        if (e === undefined || !e.has)
+            return;
+        e.has = false;
+        e.v = undefined;
+        e.cell.changed();
+    }
+    names() { return [...this.m].filter(([, e]) => e.has).map(([n]) => n); }
+    /** The tracked read. With a default: an absent value, or one of a different
+     *  kind than the default, answers the default (the latter with a warning,
+     *  once per name). With none: an absent value throws, naming it. */
+    read(name, hasDefault, dflt) {
+        const e = this.entry(name);
+        e.cell.track();
+        if (!e.has) {
+            if (hasDefault)
+                return dflt;
+            throw new DeclareError(`${this.what}("${name}"): nothing provides '${name}' here, and this read declares no default — give the read a default, or have the ${this.what === "hostProvided" ? "host list it in its island's `provides`" : "hosted side expose it"}`);
+        }
+        if (hasDefault && !sameKind(e.v, dflt)) {
+            if (!this.warned.has(name)) {
+                this.warned.add(name);
+                console.warn(`[Declare] ${this.what}("${name}"): the value arriving is ${kindOf(e.v)}, but this read's default is ${kindOf(dflt)} — using the default`);
+            }
+            return dflt;
+        }
+        return e.v;
+    }
+}
+/** The kind a boundary read compares — the default's kind is the read's type. */
+function kindOf(v) {
+    if (v === null)
+        return "null";
+    if (Array.isArray(v))
+        return "an array";
+    return typeof v === "object" ? "a record" : `a ${typeof v}`;
+}
+function sameKind(v, dflt) {
+    if (dflt === null || dflt === undefined)
+        return true; // a null default accepts any value
+    return kindOf(v) === kindOf(dflt);
+}
+/** The value an island provides under `name` — the `provided("name")` read AT
+ *  the island: its own provision or declared slot first, then its ancestors.
+ *  Undefined when nothing provides it. Tracked (the readers of a provision
+ *  wake on change), so an observe over it follows the host. */
+export function islandProvision(island, name) {
+    const own = localProvision(island, name);
+    if (own !== undefined)
+        return own;
+    const decls = declarationsOf(island);
+    if (decls[name] !== undefined)
+        return island[name];
+    return island.$provided(name, undefined);
+}
+/** Everything an island provides right now, by name — what a host passes as
+ *  build's `provides` for the tenant it is about to build, so the tenant's
+ *  first evaluation sees it; linkIslandTenant keeps it live from there. */
+export function islandProvisions(island) {
+    const out = {};
+    for (const n of providesOf(island)) {
+        const v = islandProvision(island, n);
+        if (v !== undefined)
+            out[n] = v;
+    }
+    return out;
+}
+/** The names an island provides, as a clean string list. */
+function providesOf(island) {
+    const p = island.provides;
+    return Array.isArray(p) ? p.filter((n) => typeof n === "string") : [];
 }
 export function fireRetireTree(v) {
     if (RETIRED.has(v))
@@ -254,8 +393,37 @@ export class View extends Node {
             for (const size of ["width", "height"]) {
                 const d = derives[size];
                 // The ownership check skips a derive an author write displaced.
-                if (d !== undefined && ownerOf(this, size) === d)
-                    d.run();
+                if (d !== undefined && ownerOf(this, size) === d) {
+                    if (d.isNative && !isSettling()) {
+                        // outside a settle (a handler's insert, a test): re-list and
+                        // re-derive now, as the JS derive does
+                        kernel().extentRewire(d.id, this.extentWords());
+                        d.run();
+                    }
+                    else if (d.isNative) {
+                        // inside a settle (a reconcile re-links every row): re-list ONCE
+                        // per settle, at the close, where the run's write folds into the
+                        // same settle — the extent is exact before anything paints
+                        if (!this.extentRelistQueued) {
+                            this.extentRelistQueued = true;
+                            afterSettle(() => {
+                                this.extentRelistQueued = false;
+                                const dd = EXTENT.get(this);
+                                if (dd === undefined)
+                                    return;
+                                for (const sz of ["width", "height"]) {
+                                    const r = dd[sz];
+                                    if (r !== undefined && r.isNative && ownerOf(this, sz) === r && r.id >= 0) {
+                                        kernel().extentRewire(r.id, this.extentWords());
+                                        r.run();
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    else
+                        d.run();
+                }
             }
         }
     }
@@ -279,8 +447,68 @@ export class View extends Node {
                 continue;
             if (derives === undefined)
                 EXTENT.set(this, (derives = {}));
-            derives[size] = bindDerived(this, size, () => this.extentOf(size));
+            derives[size] = this.installKernelExtent(size) ?? markExtent(bindDerived(this, size, () => this.extentOf(size)));
         }
+    }
+    extentRelistQueued = false;
+    /** THE KERNEL'S AUTO-EXTENT (kernel.md, the layout-pass item): the same
+     *  max over the children's footprints as extentOf, evaluated natively over
+     *  the table — a container with many children re-derived per frame was half
+     *  the calendar's settle on the interpreter. The rule's edges are the
+     *  children's geometry cells plus the child-list cell; childrenMutated
+     *  re-lists them. Null (the JS derive) when the view measures its own
+     *  content (Image) or a child is out of the plane; a child turning 3D
+     *  later DECLINES the rule and the JS derive takes over then. */
+    installKernelExtent(size) {
+        // PADDING IS PART OF THE EXTENT (extentOf): the kernel's rule is a max over
+        // the children's boxes and knows nothing of the insets, so a padded view
+        // keeps the JavaScript derive. Teaching the rule the inset totals is the
+        // way to take this back (kernel.md); a padded container is common enough
+        // (every Card) that guessing here would be wrong in the visible direction.
+        if (!insetIsZero(this.padding))
+            return null;
+        if (!kernelLoaded() || !viewLayoutReady())
+            return null;
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareNoKernelExtent === true)
+            return null; // the A/B switch (profiling builds only)
+        if (this.contentExtent !== View.prototype.contentExtent)
+            return null;
+        for (const c of this.children)
+            if (c instanceof View && c.is3D())
+                return null;
+        const target = slotCellOf(this, size);
+        if (target < 0)
+            return null;
+        const K = kernel();
+        const words = this.extentWords();
+        if (words.length > 1000)
+            return null; // the scratch's reach; a JS derive walks any count
+        const rule = K.extentAdd(size === "width" ? 0 : 1, target, words);
+        if (rule < 0)
+            return null;
+        const k = new Constraint(`${this.constructor.name}.${size} (runtime derive)`, () => undefined, () => { }, 0, true);
+        k.isAutoExtent = true;
+        k.adoptRule(rule);
+        k.onDecline = () => {
+            const d = EXTENT.get(this);
+            if (d === undefined || d[size] !== k)
+                return;
+            k.dispose();
+            release(this, size, k);
+            d[size] = markExtent(bindDerived(this, size, () => this.extentOf(size)));
+        };
+        own(this, size, k);
+        K.run(rule);
+        return k;
+    }
+    /** The kernel auto-extent's word list: the child-list cell, then each View
+     *  child's numeric block base (the rule reads its slots by base). */
+    extentWords() {
+        const words = [this.structureCellId()];
+        for (const c of this.children)
+            if (c instanceof View)
+                words.push(blockOf(c));
+        return words;
     }
     extentOf(size) {
         // The child-LIST is a dependency too: a container populated by
@@ -307,7 +535,95 @@ export class View extends Node {
             if (extent > max)
                 max = extent;
         }
-        return max;
+        // PADDING IS PART OF THE EXTENT, both insets. Every child's box above was
+        // measured from the CONTENT origin, so nothing in `max` carries either
+        // half: the leading inset is the room before the first child, the trailing
+        // one the room that must still exist beyond the last of them for the box
+        // to read as padded. `this.contentExtent(size)` — an Image's bitmap, a
+        // Text's measured run — is content too, and sits inside the same box.
+        //
+        // This is also the SCROLLER's rule (RULED 2026-09-19, against CSS's decade
+        // of getting it wrong): a padded scroller must stop the full bottom inset
+        // after its last child, not flush against it.
+        //
+        // A tracked read: writing `padding` re-derives every container that sizes
+        // itself. 0 for a view that was never given any — the common case, and the
+        // arithmetic is one addition of two literal zeroes.
+        const [top, right, bottom, left] = insetSides(this.padding);
+        return max + (size === "width" ? left + right : top + bottom);
+    }
+    /** THIS VIEW'S CONTENT ORIGIN, in its own coordinates: the leading insets of
+     *  `padding`. Every child's `x`/`y` is measured from here — laid,
+     *  self-placing and `ignoreLayout` alike — which is what makes the content
+     *  box a property of the view rather than of whatever arranges it. */
+    contentOrigin() {
+        const [top, , , left] = insetSides(this.padding);
+        return { x: left, y: top };
+    }
+    /** THE ROOM INSIDE: this view's extent on `size` less both of `padding`'s
+     *  insets on that axis, never below 0. It is what `100%` and every other
+     *  percent resolves against (bind.ts bindPercent), what a layout divides
+     *  (`Layout.contentExtent` is this, through the arranged view), and what a
+     *  component spanning its parent's content reads (library Divider).
+     *  `{ parent.width }` deliberately still answers the parent's literal box —
+     *  "the space I am given" versus "the parent's own width". */
+    contentBox(size) {
+        const raw = size === "width" ? this.width : this.height;
+        const p = this.padding;
+        if (p === 0)
+            return raw; // identity, clamp included: see below
+        const [top, right, bottom, left] = insetSides(p);
+        const pair = size === "width" ? left + right : top + bottom;
+        // The floor guards the INSET, not the author: an inset deeper than the box
+        // would otherwise hand a layout a negative room to divide. An unpadded
+        // view answers with its extent EXACTLY as written — a degenerate negative
+        // width stays negative, because clamping it here would make `padding = 0`
+        // observably different from no padding (a `x = center` child of a
+        // collapsed, invisible row was the one place in the corpus that saw it).
+        return pair === 0 ? raw : Math.max(0, raw - pair);
+    }
+    /** The kernel's view id and its visibility rule (−1 = none): the ancestor
+     *  walk runs in the kernel over the table, and `visGeneric`/`visWake`
+     *  become small wired rules over the vis* output cells. */
+    visElem = -1;
+    visRule = -1;
+    /** @internal This view as the kernel knows it (its block + parent link),
+     *  registering the ancestors on the way up. */
+    kernelElem() {
+        if (this.visElem >= 0)
+            return this.visElem;
+        const base = blockOf(this);
+        const p = this.parent instanceof View ? this.parent.kernelElem() : -1;
+        this.visElem = kernel().viewAdd(base, p);
+        return this.visElem;
+    }
+    /** A (re)attach may have moved this view under a new parent: refresh the
+     *  kernel's link and the rule's edges, and land the facts again. */
+    relinkKernelVis() {
+        const K = kernel();
+        const p = this.parent instanceof View ? this.parent.kernelElem() : -1;
+        K.viewParent(this.visElem, p);
+        K.visRewire(this.visRule);
+        K.run(this.visRule);
+    }
+    /** @internal THE ORIGIN SHIFT, at the seam: what this view's own `x`/`y` is
+     *  measured from in the coordinates its SURFACE lives in — its position
+     *  host's content origin on that axis. The host is the parent, or the
+     *  scroller this view travels with (travelWith re-hosts the surface, and the
+     *  position slots then mean that scroller's content coordinates).
+     *
+     *  One number, not a point, and an early literal 0 for the unpadded case:
+     *  this runs on every position push, which is every frame of every animated
+     *  or laid-out view in the tree. */
+    positionLead(axis) {
+        const t = this.travelHost;
+        const host = t === undefined || t === null ? this.parent : t;
+        if (!(host instanceof View))
+            return 0;
+        const p = host.padding;
+        if (p === 0)
+            return 0;
+        return insetLead(p, axis);
     }
     /** The bounding-box extent of this view's visible children on each axis — the
      *  same value auto-extent derives into an *unset* size slot (`extentOf`),
@@ -470,6 +786,15 @@ export class View extends Node {
             undoLayout();
         }
         disposeBindings(this);
+        freeCells(this);
+        if (this.visRule >= 0) {
+            kernel().dispose(this.visRule);
+            this.visRule = -1;
+        }
+        if (this.visElem >= 0) {
+            kernel().viewRemove(this.visElem);
+            this.visElem = -1;
+        }
         // the visibility feed dies with the view — the backend watch, the generic
         // computer, and any at-rest flush still pending
         this.visUnwatch?.();
@@ -511,10 +836,18 @@ export class View extends Node {
         // an armed visibility feed follows the view onto its (re)attached surface
         if (this.visArmed)
             this.startVisibility();
-        s.setX(this.x);
-        s.setY(this.y);
+        // The position lands in the parent's CONTENT coordinates — x/y plus the
+        // parent's leading inset, the one place the origin shift reaches paint
+        // (the pushers below do the same for every later change). Everything past
+        // the seam then sees ordinary surface geometry: the canvas compositor's
+        // walk, its hit test, the native host's ops and the browser's own
+        // scrollable overflow all honour padding without knowing it exists.
+        s.setX(this.x + this.positionLead("x"));
+        s.setY(this.y + this.positionLead("y"));
         s.setWidth(this.width);
         s.setHeight(this.height);
+        if (!insetIsZero(this.padding))
+            s.setPadding?.(this.padding);
         s.setFill(this.fill);
         // Decoration beyond the flat fill is pay-per-use at the seam too: an
         // undecorated box exercises exactly the calls it always did (pushers
@@ -659,6 +992,60 @@ export class View extends Node {
         this.visArmed = true;
         this.startVisibility();
     }
+    /** THE KERNEL PATH. The kernel's rule walks this view's parent chain in the
+       *  slot table — rootTransform ∘ boxThrough ∩ the root's frame, scale × dpr,
+       *  the arithmetic of readVisibility term for term — and writes the vis*
+       *  cells; a wired JS rule over those cells delivers (or wakes). A 3D
+       *  transform anywhere on the chain is beyond the affine walk: the rule
+       *  writes visMode = 0 and the JS walk takes over (visFallbackToJS). Returns
+       *  false when the kernel path is not available (no kernel; 3D at arm). */
+    installKernelVis() {
+        if (this.visRule >= 0)
+            return true;
+        if (!kernelLoaded() || !viewLayoutReady())
+            return false;
+        for (let v = this; v !== null; v = v.parent instanceof View ? v.parent : null)
+            if (v.rotateX !== 0 || v.rotateY !== 0 || v.translateZ !== 0)
+                return false;
+        const K = kernel();
+        const root = (this.root ?? this);
+        const rule = K.visAdd(this.kernelElem(), root.kernelElem());
+        if (rule < 0)
+            return false;
+        this.visRule = rule;
+        K.run(rule);
+        return true;
+    }
+    /** The delivery rule: wired over the seven output cells. */
+    visOutputRule(label, land) {
+        const c = new Constraint(label, () => [this.visMode, this.visOn, this.visScale, this.visX, this.visY, this.visW, this.visH], (v) => {
+            const [mode, on, scale, x, y, w, h] = v;
+            if (mode === 0) {
+                this.visFallbackToJS();
+                return;
+            }
+            land(on, on ? { x, y, width: w, height: h } : null, scale);
+        });
+        c.wire(() => { void this.visMode; void this.visOn; void this.visScale; void this.visX; void this.visY; void this.visW; void this.visH; });
+        return c;
+    }
+    /** The chain grew a 3D transform: retire the kernel rule and run the JS
+       *  walk as a tracking constraint from here on (this life). */
+    visFallbackToJS() {
+        if (this.visRule < 0)
+            return;
+        kernel().dispose(this.visRule);
+        this.visRule = -1;
+        if (this.visGeneric !== null) {
+            this.visGeneric.dispose();
+            this.visGeneric = null;
+        }
+        if (this.visWake !== null) {
+            this.visWake.dispose();
+            this.visWake = null;
+        }
+        this.startVisibility();
+    }
     /** The model's own answer — the ancestor walk, with TRACKED reads: the
      *  visible chain, rootTransform, rootFrameBox. The generic feed delivers
      *  this value; the DOM feed runs the same reads purely as a WAKE (below),
@@ -711,20 +1098,37 @@ export class View extends Node {
             // rest, at the glide's end otherwise. The computed value is discarded:
             // the model cannot see the page context, the observer can.
             if (this.visWake === null) {
-                this.visWake = new Constraint(`${this.constructor.name}.visibilityWake`, () => this.readVisibility(), () => {
+                // THE KERNEL PATH first: the chain walk runs over the slot table and a
+                // small wired rule over its outputs does the waking (installKernelVis).
+                const wake = () => {
                     if (sharedClock.busy) {
                         this.visStale = true;
                         this.scheduleVisFlush();
                         return;
                     }
                     this.surface?.refreshVisibility?.();
-                });
-                this.visWake.run();
+                };
+                if (this.installKernelVis()) {
+                    this.visWake = this.visOutputRule(`${this.constructor.name}.visibilityWake`, () => wake());
+                }
+                else {
+                    this.visWake = new Constraint(`${this.constructor.name}.visibilityWake`, () => this.readVisibility(), wake);
+                    this.visWake.run();
+                }
             }
+            else if (this.visRule >= 0)
+                this.relinkKernelVis();
             return;
         }
-        if (this.visGeneric !== null)
-            return; // already computing
+        if (this.visGeneric !== null) {
+            if (this.visRule >= 0)
+                this.relinkKernelVis();
+            return;
+        } // already computing
+        if (this.installKernelVis()) {
+            this.visGeneric = this.visOutputRule(`${this.constructor.name}.visibility`, (on, rect, scale) => this.deliverVisibility(on, rect, scale));
+            return;
+        }
         this.visGeneric = new Constraint(`${this.constructor.name}.visibility`, () => this.readVisibility(), (v) => {
             const r = v;
             this.deliverVisibility(r.on, r.rect, r.scale);
@@ -833,12 +1237,28 @@ export class View extends Node {
         const home = scroller === null || scroller === this.parent;
         if (home) {
             s.travelWith(null);
+            this.repushPosition();
             return false;
         }
         if (scroller.surface === null)
             return false;
         s.travelWith(scroller.surface);
+        // The position host changed, so the content origin this view's x/y is
+        // measured from did too (positionLead). Nothing wrote x or y, so only an
+        // explicit re-push lands it.
+        this.repushPosition();
         return true;
+    }
+    /** @internal Re-send x/y through the seam against the CURRENT position host
+     *  — the one case where the realized position changes without either slot
+     *  moving (a padding write on the host, a travelWith that re-hosts the
+     *  surface). */
+    repushPosition() {
+        const s = this.surface;
+        if (s === null)
+            return;
+        s.setX(this.x + this.positionLead("x"));
+        s.setY(this.y + this.positionLead("y"));
     }
     /** Scroll this view to the top of its nearest scrolling ancestor — the
      *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
@@ -1086,6 +1506,7 @@ const pushTransform = (v) => {
  *  (`"y"` — the App's scroller is the page; the backend realizes the root's
  *  regime as the browser's own scroll). */
 const pushScrolls = (v, ax) => {
+    setBound(v, "scrollsOn", ax !== "none"); // the kernel's numeric mirror (native visibility rule)
     // optional-called: a minimal host/mock surface may omit the scroll seam
     const scrolling = (a) => { v.scrolling = a; };
     v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; }, scrolling);
@@ -1099,10 +1520,47 @@ const pushScrolls = (v, ax) => {
 const EMPTY_RECT = Object.freeze({ x: 0, y: 0, width: 0, height: 0 });
 const rectEqual = (a, b) => a === b || (a != null && b != null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
 defineAttributes(View, {
-    x: { def: 0, push: (v, n) => v.surface?.setX(n) },
-    y: { def: 0, push: (v, n) => v.surface?.setY(n) },
+    // Position is authored in the parent's CONTENT coordinates and realized in
+    // its box coordinates: the leading inset is added here, once, on the way to
+    // the seam (positionLead; flush does the same at attach). Writing the
+    // parent's `padding` re-pushes every child through the same call.
+    x: { def: 0, push: (v, n) => v.surface?.setX(n + v.positionLead("x")) },
+    y: { def: 0, push: (v, n) => v.surface?.setY(n + v.positionLead("y")) },
     width: { def: 0, push: (v, n) => v.surface?.setWidth(n) },
     height: { def: 0, push: (v, n) => v.surface?.setHeight(n) },
+    // THE CONTENT BOX (declared above). Three consequences, and the reactive
+    // graph carries two of them by itself: every constraint that reads the
+    // content box — a percent, a layout's place(), auto-extent — tracked this
+    // slot and re-runs. What it cannot carry is the REALIZED position of
+    // children whose own x/y did not change, so the pusher re-pushes them; and
+    // the backends' own scroll extents, which get the inset across the seam.
+    padding: { def: 0, push: (v, p) => {
+            // the kernel's auto-extent cannot carry an inset: re-derive this view's
+            // extents in JavaScript the moment it is padded (installKernelExtent), and
+            // let them go back to the kernel if the padding ever returns to zero
+            rebindExtents(v);
+            // the axis totals, for the kernel's content-box reads (declared above)
+            const [t, r, b, l] = insetSides(p);
+            v.insetX = l + r;
+            v.insetY = t + b;
+            for (const c of v.children)
+                if (c instanceof View)
+                    c.repushPosition();
+            v.surface?.setPadding?.(p);
+        } },
+    // the names this app exposes to its host (islands.md); a program sets a
+    // literal list, and the host reads each through `exposed(name)`
+    exposes: { def: Object.freeze([]) },
+    insetX: { def: 0 },
+    insetY: { def: 0 },
+    // KERNEL-FACING MIRRORS AND OUTPUTS (kernel.md; the native visibility rule):
+    // `scrollsOn` mirrors `scrolls !== "none"` as a number the kernel can read;
+    // the vis* cells are the rule's outputs, delivered to the public facts by
+    // the JS delivery rule (at-rest buffering intact). Not language surface.
+    scrollsOn: { def: false },
+    visOn: { def: true }, visScale: { def: 1 }, visX: { def: 0 }, visY: { def: 0 }, visW: { def: 0 }, visH: { def: 0 },
+    /** 1 = the kernel computed the facts; 0 = a 3D transform on the chain: the JS walk owns them. */
+    visMode: { def: 1 },
     fill: { def: null, push: (v, f) => v.surface?.setFill(f), equal: fillEqual },
     cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r) },
     stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
@@ -1274,6 +1732,26 @@ export function setFocusDiscardHook(fn) {
 /** A node's address for an error message: its authored-name path up the tree
  *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
  *  a handler has already thrown. */
+/** Re-derive a view's auto-extents after something the kernel rule cannot
+ *  express changed (today: padding). Each side is dropped and bound again, so
+ *  installKernelExtent gets to decide afresh — kernel rule or JS derive. */
+function rebindExtents(v) {
+    const derives = EXTENT.get(v);
+    if (derives === undefined)
+        return;
+    for (const size of ["width", "height"]) {
+        const d = derives[size];
+        if (d === undefined || ownerOf(v, size) !== d)
+            continue;
+        d.dispose();
+        release(v, size, d);
+        delete derives[size];
+    }
+    EXTENT.delete(v);
+    v.bindExtent();
+}
+/** The auto-extent, marked (reactive.ts isAutoExtent). */
+function markExtent(k) { k.isAutoExtent = true; return k; }
 export function nodeLabel(n) {
     const parts = [];
     let cur = n;
@@ -1388,6 +1866,30 @@ function findAnchor(root, name) {
 /** The application root — the single visible tree at the top (OpenLaszlo's
  *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
  *  carries the app's reactive environment (host extent, scroll, pointer). */
+/** Tell the kernel where View's slots sit (once, at the first arm — the
+ *  kernel loads asynchronously, after this module) and give it the dpr cell. */
+let viewLayoutSent = false;
+function viewLayoutReady() {
+    if (viewLayoutSent)
+        return true;
+    if (!kernelLoaded())
+        return false;
+    const K = kernel();
+    const layout = {};
+    for (const f of ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY",
+        "scrollX", "scrollY", "ignoreScroll", "scrollsOn", "rotateX", "rotateY", "translateZ", "visOn", "visScale", "visX", "visY", "visW", "visH", "visMode", "ignoreClip"]) {
+        const i = slotIndex(View, f);
+        if (i < 0)
+            return false; // a slot is not numeric on this build: the kernel path stays off
+        layout[f] = i;
+    }
+    K.viewLayout(layout);
+    const dpr = K.addCell(0, false);
+    K.table[dpr] = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
+    K.viewDprCell(dpr);
+    viewLayoutSent = true;
+    return true;
+}
 export class App extends View {
     /** onReady — the boot transaction's close, DELIVERED (schema.ts App
      *  events): boot is the one settle with no app handler anywhere in it, so
@@ -1669,6 +2171,39 @@ export class App extends View {
         walk(this);
         return found ?? this;
     }
+    /** @internal the values the host provides, by name (Node.$hostProvided reads).
+     *  Seeded from build's `provides` when there are any, so the app's very
+     *  first evaluation — at instantiate, before any settle or link — reads them. */
+    hostValues = seededHostValues();
+    /** The HOST's write: make `value` available to this app under `name` — what
+     *  a `hostProvided("name", …)` read in the program returns. Called by the
+     *  island bridge for each name the island `provides`, by a page embedding
+     *  this app (`el.__declareApp.provide(…)`, or `boot({ provides })`), and by
+     *  the native host for its launch parameters. Equality-gated; a change
+     *  re-derives every reader. `undefined` withdraws the value (readers fall to
+     *  their defaults). Data only — a host never hands over a node. */
+    provide(name, value) {
+        if (value === undefined)
+            this.hostValues.clear(name);
+        else
+            this.hostValues.write(name, value);
+    }
+    /** The value this app exposes under `name` — one of its `exposes` names — or
+     *  undefined when it exposes no such name. The page's read (an island reads
+     *  through its own `exposed`); tracked, so an `observe` over it follows. */
+    exposed(name) {
+        const list = this.exposes;
+        if (!Array.isArray(list) || !list.includes(name))
+            return undefined;
+        return this[name];
+    }
+    /** A page's standing watch over one exposed value: `cb` runs now with the
+     *  current value and again at the close of every settle that changed it.
+     *  Returns the unwatch. */
+    watchExposed(name, cb) {
+        cb(this.exposed(name));
+        return observe(() => this.exposed(name), cb, `exposed:${name}`);
+    }
     /** The DEFAULT landing, exposed — what the platform does with an arrival
      *  when no `onArrive` is declared: scroll the target into view, honoring
      *  `revealInset` (the App itself starts at its top). A document app that
@@ -1903,50 +2438,23 @@ defineAttributes(App, {
     // the app's human name (page title etc.) — author-settable, "" = host default
     appName: { def: "" },
 });
-/** Validate a FOREIGN push against a declared type name — the trust-edge
- *  check (Declare tenants skip it; their own compiler governed the write and
- *  the handshake matched the types). Returns the refusal, or null. */
-function boundaryCheck(typeName, v) {
-    if (typeName.endsWith("[]") || typeName === "array")
-        return Array.isArray(v) ? null : `expected an array (${typeName})`;
-    switch (typeName) {
-        case "number":
-        case "Length":
-        case "Color":
-            return typeof v === "number" && Number.isFinite(v) ? null : `expected a number (${typeName})`;
-        case "string": return typeof v === "string" ? null : "expected a string";
-        case "boolean": return typeof v === "boolean" ? null : "expected a boolean";
-        case "object": return typeof v === "object" && v !== null && !Array.isArray(v) ? null : "expected a plain object";
-        default: {
-            const t = declaredType(typeName);
-            if (t !== null && t.kind === "enum") {
-                const vals = t.values ?? [];
-                return typeof v === "string" && vals.includes(v) ? null : `expected one of ${vals.join(", ")} (${typeName})`;
-            }
-            return null; // an unrecognized name got past the checker — let it through rather than invent a second checker
-        }
-    }
-}
-/** The external declarations of an instance — its half of a bridge. */
-function externalsOf(node) {
-    const out = {};
-    const all = declarationsOf(node);
-    for (const k of Object.keys(all))
-        if (all[k].external === true)
-            out[k] = all[k];
-    return out;
-}
 /** Island — the abstract boundary box. Concrete kinds decide what the tenant
  *  IS (DOMIsland: foreign DOM; AppIsland: a Declare program); this base owns
  *  the bridge — the external-fact surface and the message verbs. */
 export class Island extends View {
     /** @internal the linked tenant's delivery sink (null = nothing linked). */
     tenantSink = null;
-    /** @internal per-name echo guard: which side a delivery is currently
-     *  crossing FROM, so the far observer skips reflecting it back (identity-
-     *  fresh computed values would otherwise ping-pong; equality gates alone
-     *  cannot stop a constraint that mints a new array per run). */
-    crossing = new Map();
+    /** @internal the values the hosted side exposes, by name (`exposed` reads). */
+    exposedValues = new BoundaryValues("exposed");
+    /** The host's read of a value the hosted side EXPOSES — a Declare tenant's
+     *  `exposes` name, or foreign content's `expose(name, value)`. Tracked like
+     *  any attribute read, so a constraint over it re-derives when the hosted
+     *  side changes it. The default types the read: an absent value, or one of a
+     *  different kind, answers the default (the latter with a warning). With no
+     *  default an absent value throws, naming it. */
+    exposed(name, ...dflt) {
+        return this.exposedValues.read(name, dflt.length > 0, dflt[0]);
+    }
     /** The message verb, host → tenant (`post`, in the postMessage lineage —
      *  `message` is the stream family's event). Dropped with a console note
      *  when no tenant is linked — a verb has no meaning without a receiver. */
@@ -1962,48 +2470,20 @@ export class Island extends View {
     receiveMessage(topic, payload) {
         fireEvent(this, "post", { topic, payload });
     }
-    /** @internal a tenant value push (validated when foreign). Ownership
-     *  referees direction: a non-readonly slot the host BOUND refuses the push
-     *  with the constraint named — the loud, structural answer. A `readonly
-     *  external` slot is tenant-owned by declaration, so it lands via the
-     *  runtime write path. */
-    receiveValue(name, v, foreign) {
-        const decl = externalsOf(this)[name];
-        if (decl === undefined) {
-            console.error(`[Declare] tenant push to '${name}': not an external attribute of this island (its externals: ${Object.keys(externalsOf(this)).join(", ") || "none"})`);
-            return;
+    /** The value this island provides under `name`, if `name` is on its
+     *  `provides` list — else undefined, with a warning (the host did not offer
+     *  it). What a hosted side's read resolves to. */
+    providedValue(name) {
+        if (!providesOf(this).includes(name)) {
+            console.warn(`[Declare] hostProvided("${name}"): this island does not list '${name}' in its provides (${providesOf(this).join(", ") || "none"})`);
+            return undefined;
         }
-        if (foreign && decl.type !== undefined) {
-            const bad = boundaryCheck(decl.type, v);
-            if (bad !== null) {
-                console.error(`[Declare] tenant push to '${name}': ${bad}; got ${JSON.stringify(v)?.slice(0, 80)}`);
-                return;
-            }
-        }
-        this.crossing.set(name, "toIsland");
-        try {
-            if (decl.readOnly === true)
-                setBound(this, name, v);
-            else
-                this[name] = v;
-        }
-        catch (e) {
-            // The ownership referee spoke (a host-bound slot refuses a push, naming
-            // its constraint). Loud, attributed — but never fatal to the settle the
-            // observer fired in: a tenant cannot be allowed to crash its host.
-            console.error(`[Declare] tenant push to '${name}' refused: ${e.message}`);
-        }
-        finally {
-            // the guard clears when the island-side observer consumes it; clear
-            // here too for the no-observer case (nothing host-side reads the slot)
-            queueMicrotask(() => { if (this.crossing.get(name) === "toIsland")
-                this.crossing.delete(name); });
-        }
+        return islandProvision(this, name);
     }
-    /** The foreign tenant's handle — built once, attached to the island's
+    /** The foreign content's handle — built once, attached to the island's
      *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
-     *  surface for non-Declare content; everything it does rides the same
-     *  bridge a Declare tenant uses. */
+     *  surface for non-Declare content, in the same words a Declare tenant
+     *  uses: read what the host provides, expose values up, and the verbs. */
     handle = null;
     foreignHandle() {
         if (this.handle !== null)
@@ -2011,83 +2491,85 @@ export class Island extends View {
         const island = this;
         const messageCbs = [];
         this.tenantSink ??= {
-            value: () => { }, // a foreign tenant has no value inbox; it observes instead
             message: (topic, payload) => { for (const cb of messageCbs)
                 cb({ topic, payload }); },
         };
         this.handle = {
-            /** current value of an external */
-            get: (name) => island[name],
-            /** push a value in — boundary-validated */
-            set: (name, v) => island.receiveValue(name, v, true),
-            /** per-settle change notifications for an external (returns unobserve) */
-            observe: (name, cb) => observe(() => island[name], (v) => cb(v), `island:${name}`),
+            /** the current value the host provides under `name` (plain data), or
+             *  undefined when the island does not list it */
+            hostProvided: (name) => island.providedValue(name),
+            /** a standing watch over a provided value: cb(value) now, then at the
+             *  close of each settle that changed it; returns the unwatch */
+            watchProvided: (name, cb) => {
+                cb(island.providedValue(name));
+                return observe(() => (providesOf(island).includes(name) ? islandProvision(island, name) : undefined), (v) => cb(v), `island:${name}`);
+            },
+            /** expose a value up to the host — read there with `exposed(name, default)`,
+             *  whose default's kind the value must match */
+            expose: (name, v) => {
+                if (v === undefined)
+                    island.exposedValues.clear(name);
+                else
+                    island.exposedValues.write(name, v);
+            },
             /** tenant → host message (fires the island's onPost) */
             post: (topic, payload) => island.receiveMessage(topic, payload),
             /** host → tenant messages (island.post lands here); cb({ topic, payload }) */
             onPost: (cb) => { messageCbs.push(cb); return () => { const i = messageCbs.indexOf(cb); if (i >= 0)
                 messageCbs.splice(i, 1); }; },
-            /** the declared surface, for discovery */
-            externals: () => { const e = externalsOf(island); return Object.keys(e).map((n) => ({ name: n, type: e[n].type ?? "unknown", readonly: e[n].readOnly === true })); },
+            /** the names the host provides here, for discovery */
+            provides: () => providesOf(island),
         };
         return this.handle;
     }
 }
-/** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
- *  island service, the mac runner). Pairs the two `external` surfaces by name
- *  with a TYPE HANDSHAKE — the link error, at link time — then bridges both
- *  directions with per-settle observers, echo-guarded. Initial values: the
- *  host's side wins for host-writable slots, the tenant's for `readonly
- *  external` (tenant-owned) ones. Returns the unlink. */
-export function linkIslandTenant(island, tenant) {
-    const hostExt = externalsOf(island);
-    const tenantExt = externalsOf(tenant);
-    const paired = [];
-    for (const name of Object.keys(hostExt)) {
-        const t = tenantExt[name];
-        if (t === undefined) {
-            if (Object.keys(tenantExt).length > 0)
-                console.warn(`[Declare] island external '${name}' has no matching external on the tenant app — not bridged`);
-            continue;
-        }
-        if (hostExt[name].type !== undefined && t.type !== undefined && hostExt[name].type !== t.type) {
-            throw new DeclareError(`island link: '${name}' is declared 'external ${hostExt[name].type}' here and 'external ${t.type}' in the tenant — the island could not be linked`);
-        }
-        paired.push(name);
-    }
-    const undo = [];
-    const deliver = (from, to, name, dir) => {
-        const v = from[name];
-        island.crossing.set(name, dir);
-        setBound(to, name, v);
+/** A standing sync of a NAMED SET of values: `read()` returns the current
+ *  { name → value } (tracked), and each settle that changes it delivers the
+ *  names whose value changed, and the names that left. Shared by both
+ *  directions of the island link. */
+function syncNamed(read, put, drop, label) {
+    let last = {};
+    const apply = (next) => {
+        for (const n of Object.keys(next))
+            if (!(n in last) || !Object.is(last[n], next[n]))
+                put(n, next[n]);
+        for (const n of Object.keys(last))
+            if (!(n in next))
+                drop(n);
+        last = next;
     };
-    for (const name of paired) {
-        // initial sync — direction by the readonly mark (tenant-owned out-fact vs host-fed)
-        if (hostExt[name].readOnly === true)
-            deliver(tenant, island, name, "toIsland");
-        else
-            deliver(island, tenant, name, "toTenant");
-        // island → tenant
-        undo.push(observe(() => island[name], () => {
-            if (island.crossing.get(name) === "toIsland") {
-                island.crossing.delete(name);
-                return;
+    apply(read());
+    // observe coalesces equal results one level deep; a fresh record per run
+    // is compared here, name by name, so identical values deliver nothing
+    return observe(() => { const r = read(); return Object.keys(r).sort().flatMap((k) => [k, r[k]]); }, () => apply(read()), label);
+}
+/** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
+ *  island service, the mac runner). DOWN: every name on the island's
+ *  `provides` list, resolved at the island, is provided to the tenant (what
+ *  its `hostProvided` reads return) and kept live. UP: every name on the
+ *  tenant's `exposes` list is delivered into the island's exposed values
+ *  (what the host's `exposed` reads return) and kept live. The verbs link
+ *  both ways. Build the tenant with `provides: islandProvisions(island)` so
+ *  its first evaluation already sees what the host provides, and link it
+ *  before its first settle. Returns the unlink. */
+export function linkIslandTenant(island, tenant) {
+    const undo = [];
+    undo.push(syncNamed(() => islandProvisions(island), (n, v) => tenant.provide(n, v), (n) => tenant.provide(n, undefined), "link:provides"));
+    undo.push(syncNamed(() => {
+        const out = {};
+        const list = tenant.exposes;
+        if (Array.isArray(list))
+            for (const n of list) {
+                if (typeof n !== "string")
+                    continue;
+                const v = tenant[n];
+                if (v !== undefined)
+                    out[n] = v;
             }
-            deliver(island, tenant, name, "toTenant");
-        }, `link:${name}:out`));
-        // tenant → island
-        undo.push(observe(() => tenant[name], () => {
-            if (island.crossing.get(name) === "toTenant") {
-                island.crossing.delete(name);
-                return;
-            }
-            const v = tenant[name];
-            island.receiveValue(name, v, false);
-        }, `link:${name}:in`));
-    }
+        return out;
+    }, (n, v) => island.exposedValues.write(n, v), (n) => island.exposedValues.clear(n), "link:exposes"));
     // verbs, both directions
     island.tenantSink = {
-        value: (name, v) => setBound(tenant, name, v),
         message: (topic, payload) => fireEvent(tenant, "post", { topic, payload }),
     };
     tenant.hostSink = { message: (topic, payload) => island.receiveMessage(topic, payload) };
@@ -2104,8 +2586,9 @@ export function linkIslandTenant(island, tenant) {
  *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
  *  so the host can mount an iframe / textarea / any element into the Declare-sized
  *  box — its width/height follow this view's constraints with no coordinate
- *  sync. Carries the Island bridge: `external` declarations + send/onMessage,
- *  reachable from the tenant side through the element's `__declareIsland`. */
+ *  sync. Carries the Island boundary: `provides` down, `exposed` up, and the
+ *  post/onPost verbs, reachable from the foreign side through the element's
+ *  `__declareIsland`. */
 export class DOMIsland extends Island {
     flush(s) {
         super.flush(s);

@@ -7,15 +7,16 @@
 //   a click inside an app is observed back out into plain HTML.
 //
 //   Scenario II — one of those apps (crossings) hosts two FOREIGN JS tenants
-//   in DOMIslands: host-bound externals push down (hue), tenant-owned facts
-//   push up (count, speed), one fact crosses tenant→host→tenant by constraint
+//   in DOMIslands: provided values go down (hue), exposed values come up
+//   (count, speed), one fact crosses tenant→host→tenant by constraint
 //   (tally's count becomes orbit's dots), and verbs travel both ways (reset
-//   down; milestone/burst up). The ownership referee and the type boundary
-//   both refuse LOUDLY (console, never a throw) and the slot stands.
+//   down; milestone/burst up). A tenant has no way to write what the host
+//   provides, and a mistyped exposed value answers the host's default,
+//   loudly (console, never a throw).
 //
 // This is the corpus's standing proof that the whole embedder surface —
 // boot({host}), observe (the declare-boot export), el.__declareApp,
-// el.__declareIsland, external/post — composes on one page.
+// el.__declareIsland, provides/exposed/post — composes on one page.
 import assert from "node:assert/strict";
 import http from "node:http";
 import path from "node:path";
@@ -111,11 +112,11 @@ await test("scenario II: tenant facts flow up, and one crosses tenant→host→t
   const s = await page.evaluate(() => {
     const app = document.getElementById("cross-box").__declareApp;
     const orbitH = document.getElementById("cross-box").querySelector('[data-declare-slot="orbit"]').__declareIsland;
-    return { count: app.tally.count, gauge: app.gaugeFill.width, text: app.derived.text, dots: orbitH.get("dots"), log: app.log };
+    return { count: app.tally.exposed("count", 0), gauge: app.gaugeFill.width, text: app.derived.text, dots: orbitH.hostProvided("dots"), log: app.log };
   });
-  assert.equal(s.count, 10, "the tenant's pushes landed as a host fact");
+  assert.equal(s.count, 10, "the tenant's exposed count reads on the host");
   assert.ok(s.gauge > 0 && s.text.startsWith("10 taps"), "host constraints re-derived from it");
-  assert.equal(s.dots, 10, "…and a host constraint pushed it into the OTHER tenant");
+  assert.equal(s.dots, 10, "…and a host constraint provided it to the OTHER tenant");
   assert.ok(/milestone/.test(s.log), "the 10th tap's verb reached the island's onPost");
 });
 
@@ -127,7 +128,7 @@ await test("scenario II: a native control's fact reaches a host constraint", asy
   });
   await sleep(250);
   const s = await page.evaluate(() => ({
-    speed: document.getElementById("cross-box").__declareApp.orbit.speed,
+    speed: document.getElementById("cross-box").__declareApp.orbit.exposed("speed", 1),
     text: document.getElementById("cross-box").__declareApp.derived.text,
   }));
   assert.equal(s.speed, 2.5);
@@ -138,39 +139,42 @@ await test("scenario II: the reset verb reaches both tenants, which push back", 
   await page.evaluate(() => { document.getElementById("cross-box").__declareApp.reset.press(); });
   await sleep(300);
   const s = await page.evaluate(() => ({
-    count: document.getElementById("cross-box").__declareApp.tally.count,
-    speed: document.getElementById("cross-box").__declareApp.orbit.speed,
+    count: document.getElementById("cross-box").__declareApp.tally.exposed("count", 0),
+    speed: document.getElementById("cross-box").__declareApp.orbit.exposed("speed", 1),
   }));
-  assert.equal(s.count, 0, "tally applied the command and pushed the zero");
+  assert.equal(s.count, 0, "tally applied the command and exposed the zero");
   assert.equal(s.speed, 1, "orbit did the same");
 });
 
-await test("ownership referee: a foreign push to a host-BOUND slot is refused loudly, value stands", async () => {
+await test("direction: a tenant cannot write what the host provides", async () => {
   await page.evaluate(() => { document.getElementById("cross-box").__declareApp.masterHue = 300; });
   await sleep(150);
-  const before = errors.length;
-  const stood = await page.evaluate(() => {
+  const s = await page.evaluate(() => {
     const h = document.getElementById("cross-box").querySelector('[data-declare-slot="tally"]').__declareIsland;
-    h.set("hue", 0);              // never throws — a tenant cannot crash its host
-    return h.get("hue");
+    h.expose("hue", 0);           // an exposed value of the same name is a different value
+    return { provided: h.hostProvided("hue"), host: document.getElementById("cross-box").__declareApp.tally.hue };
   });
-  await sleep(100);
-  const msg = errors.slice(before).find((e) => /refused/.test(e)) ?? "(silent)";
-  assert.ok(/refused/.test(msg) && /constraint/.test(msg), `refusal names the owning constraint (got: ${msg})`);
-  assert.equal(stood, 300, "the host's value stands");
+  assert.equal(s.provided, 300, "the provided value stands");
+  assert.equal(s.host, 300, "…and so does the host's own");
 });
 
-await test("type boundary: a mistyped foreign push is refused with the type named, slot stands", async () => {
-  const before = errors.length;
-  const stood = await page.evaluate(() => {
-    const h = document.getElementById("cross-box").querySelector('[data-declare-slot="tally"]').__declareIsland;
-    h.set("count", "twelve");
-    return h.get("count");
+await test("type boundary: a mistyped exposed value answers the host's default, loudly", async () => {
+  const warns = [];
+  const onWarn = (m) => { if (m.type() === "warn" || m.type() === "warning") warns.push(m.text()); };
+  page.on("console", onWarn);
+  const read = await page.evaluate(async () => {
+    const box = document.getElementById("cross-box");
+    const h = box.querySelector('[data-declare-slot="tally"]').__declareIsland;
+    h.expose("count", "twelve");
+    await new Promise((r) => setTimeout(r, 100));
+    const v = box.__declareApp.tally.exposed("count", 0);
+    h.expose("count", 0);
+    return v;
   });
   await sleep(100);
-  const msg = errors.slice(before).find((e) => /expected a number/.test(e)) ?? "(silent)";
-  assert.ok(/expected a number/.test(msg), `boundary validation speaks (got: ${msg})`);
-  assert.equal(stood, 0, "the slot stands");
+  page.off("console", onWarn);
+  assert.equal(read, 0, "the host's default answers");
+  assert.ok(warns.some((w) => /count/.test(w) && /string/.test(w)), `the mismatch speaks (got: )`);
 });
 
 await test("a tenant verb from real input: double-click on the canvas posts up", async () => {
@@ -188,8 +192,8 @@ await test("a tenant verb from real input: double-click on the canvas posts up",
   assert.ok(/burst/.test(log), `the burst verb reached the host's log (got: ${log})`);
 });
 
-await test("no page errors beyond the two deliberate refusals", async () => {
-  const unexpected = errors.filter((e) => !/refused|expected a number/.test(e));
+await test("no page errors", async () => {
+  const unexpected = errors;
   assert.deepEqual(unexpected, []);
 });
 

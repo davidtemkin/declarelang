@@ -101,6 +101,11 @@ type Length = number | Percent;
 /** A corner rounding: one number for all four corners, or
  *  \`[topLeft, topRight, bottomRight, bottomLeft]\` to round only some. */
 type Radius = number | readonly [number, number, number, number];
+/** A room-inside: one number insets all four sides, or
+ *  \`[top, right, bottom, left]\` to inset only some. The same literal shape as a
+ *  \`Radius\` and a different meaning — a radius rounds corners and counts from the
+ *  top-LEFT, an inset holds edges away and counts from the TOP. */
+type Inset = number | readonly [number, number, number, number];
 /** A color as \`0xRRGGBB\`, or with alpha as the runtime's own encoding (see
  *  \`colorWithAlpha\`). \`null\` means NO color — an unfilled view, an unstroked box —
  *  which is why it is part of the type rather than a sentinel. In a bare slot the
@@ -119,6 +124,13 @@ type Fill = Color | Gradient;
 /** A border, built by \`stroke(width, color)\`. It is drawn INSIDE the box, so a
  *  stroke never changes a view's size — there is no \`borderWidth\` to add to a layout. */
 interface Stroke { width: number; color: Color }
+/** What the \`stroke\` slot holds: ONE Stroke on all four sides, or four —
+ *  \`[top, right, bottom, left]\`, clockwise from the top, \`null\` for a bare side.
+ *  The one-or-four shape is the house pattern for anything said per side (see
+ *  \`Radius\`), and the slot reads back what was written, so a body that reaches
+ *  into a stroke asks which form it has first: \`Array.isArray(v.stroke)\`, or
+ *  \`v.stroke && "width" in v.stroke\`. \`null\` is no border at all. */
+type BoxStroke = Stroke | readonly [Stroke | null, Stroke | null, Stroke | null, Stroke | null] | null;
 /** A ring drawn OUTSIDE the box, built by \`outline(width, color)\` — the focus
  *  silhouette's shape. Unlike a stroke it does not eat into the content box; unlike
  *  CSS's \`outline\` it is a value, not a property with its own cascade. */
@@ -240,6 +252,15 @@ interface TextMeasure { readonly width: number; readonly height: number; readonl
  *  one line, or wrapped at \`width\`. Called in a constraint or a drawing, it re-runs
  *  when anything it measured with changes, a font's faces included. */
 declare function measureText(text: string, style: TextStyle, width?: number): TextMeasure;
+/** A value this program's HOST provides — the program that embeds it lists the
+ *  name in its island's \`provides\`; a page embedding it calls \`app.provide\`.
+ *  The default stands in when nothing is provided (the program running on its
+ *  own, or the host not listing the name) and states the type: a value of a
+ *  different kind is refused at the read, with a warning. The name must be a
+ *  literal. Reactive: when the host's value changes, everything that read it
+ *  re-derives. \`theme = { hostProvided("theme", app.dark ? SanFranciscoDark : SanFrancisco) }\`. */
+declare function hostProvided<T>(name: string, fallback: T): T;
+declare function hostProvided(name: string): any;
 /** The \`TextStyle\` in force where you write this — the provided text face
  *  (\`textColor\`, \`fontSize\`, \`fontFamily\`, \`fontWeight\`, \`letterSpacing\`), each
  *  falling to the same default a \`Text\` would, with \`overrides\` replacing any of
@@ -494,6 +515,7 @@ export function tsType(t) {
     switch (t.kind) {
         case "length": return "Length";
         case "radius": return "Radius";
+        case "inset": return "Inset";
         case "number": return "number";
         case "boolean": return "boolean";
         case "string": return "string";
@@ -512,7 +534,7 @@ export function tsType(t) {
         case "slotref": return "string"; // a bare slot name, a string at runtime
         case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a component slot) / Theme-class token record
         case "fill": return "Fill";
-        case "stroke": return "Stroke | null";
+        case "stroke": return "BoxStroke"; // one Stroke, four clockwise from the top, or null
         case "outline": return "Outline | null";
         case "shadow": return "Shadow | null";
         case "filter": return "Filter | readonly Filter[] | null";
@@ -786,7 +808,14 @@ export const LANGUAGE_API = {
     Socket: [`  send(text: string): void;`],
     // the island bridge's host-side verb: this island → its linked tenant's
     // onPost. The state channel is the instance's `external` declarations.
-    DOMIsland: [`  post(topic: string, payload?: unknown): void;`],
+    // the island's host-side verb (this island → what it hosts: onPost), and
+    // the host's read of a value the hosted side EXPOSES — typed by the default,
+    // like hostProvided on the other side (the hosted side compiles separately).
+    DOMIsland: [
+        `  post(topic: string, payload?: unknown): void;`,
+        `  exposed<T>(name: string, dflt: T): T;`,
+        `  exposed(name: string): any;`,
+    ],
     // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
     // attrs (readable state), but committing/reverting the draft are calls.
     Editor: [`  commit(): void;`, `  revert(): void;`],
@@ -801,7 +830,7 @@ export const LANGUAGE_API = {
     State: [`  apply(): void;`, `  remove(): void;`, `  toggle(): void;`],
     // viewExtent: the alignment BAND — the arranged view's own extent on an
     // axis, or 0 when that extent is measured from the laid children (layout.ts).
-    Layout: [`  view: View;`, `  laid(): View[];`, `  refuseBaseline(child: View): void;`, `  refuseStackBaseline(): void;`, `  viewExtent(size: "width" | "height"): number;`], // view: runtime `View | null`, non-null by the time any body runs
+    Layout: [`  view: View;`, `  laid(): View[];`, `  refuseBaseline(child: View): void;`, `  refuseStackBaseline(): void;`, `  contentExtent(size: "width" | "height"): number;`, `  viewExtent(size: "width" | "height"): number;`], // view: runtime `View | null`, non-null by the time any body runs
     TweenLayout: [`  laid(): View[];`, `  retarget(animate: boolean): void;`],
 };
 /** One attribute member. A length-typed slot is the read/write ASYMMETRY the
@@ -889,6 +918,11 @@ function emitClass(s, decl, rootType, extras, isComponent) {
         // checker provably can't type — so static typing comes from binding it into
         // a typed slot (`t: Theme = provided("theme", …)`), never from the call.
         lines.push(`  $provided(name: string, dflt?: any): any;`);
+        // `hostProvided("name", default)` → `this.$hostProvided(…)`: typed BY THE
+        // DEFAULT — the host is compiled separately, so the default is the one
+        // statement of the type this program relies on (checked again at the read).
+        lines.push(`  $hostProvided<T>(name: string, dflt: T): T;`);
+        lines.push(`  $hostProvided(name: string): any;`);
         // `providedTextStyle(overrides?)` → `this.$providedTextStyle(…)`. Unlike
         // `$provided` this one IS typed: its shape is known (the provided face as a
         // `TextStyle`), so a misspelled override field is caught at the call.
@@ -963,7 +997,12 @@ const PLUMBING = new Map();
  *  (a user layout's `attachTo`/`rearm` are protocol the strategy overrides,
  *  not verbs a body calls, so the check block never lists them). */
 const PROSE_DOCUMENTED = {
-    Layout: ["attachTo", "rearm"],
+    Layout: ["place", "attachTo", "rearm"],
+    // The PAGE's side of the island boundary (islands.md). These are documented
+    // API — the reference carries prose for each — but they are called from page
+    // SCRIPT rather than from a `{ }` body, so they are not in LANGUAGE_API and
+    // would otherwise be classified as plumbing and warned on override.
+    App: ["provide", "exposed", "watchExposed"],
 };
 /** Generate the scaffold for a program: the fixed prelude, the enum type
  *  aliases every schema references, and one `declare class` per schema (built-in

@@ -43,8 +43,8 @@ export declare class Text extends View {
     /** The effective font's descent below the baseline — ascent + descent is
      *  the natural line box. */
     get descent(): number;
-    /** The capital ink band above the baseline (probed from "H" — what
-     *  `y = center` optically centers). */
+    /** The capital ink band above the baseline (probed from "H") — the band a
+     *  LABEL centers on (TextLabel), as against `y = center`, which centers the box. */
     get capHeight(): number;
     /** The lowercase ink band above the baseline (probed from "x"). */
     get xHeight(): number;

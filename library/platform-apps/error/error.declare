@@ -28,8 +28,8 @@ App [ minWidth = 360,
     // the two env values the host passes; both guarded, so an unhosted open
     // (a person double-clicking this file) still renders a sensible page
 
-    errors: string = { "" + (app.env.errors || "No diagnostics were passed.") },
-    subject: string = { "" + (app.env.subject || "") },
+    errors: string = { hostProvided("errors", "") || "No diagnostics were passed." },
+    subject: string = { hostProvided("subject", "") },
 
     // HTML-escape a diagnostic so its own `<`/`&` render literally, then one
     // paragraph per line in the monospace style — a wrapped, selectable list.
@@ -38,10 +38,17 @@ App [ minWidth = 360,
     listHtml: string = { app.errors.split("\n").filter(l => l.trim() !== "").map(l => "<p><span class='err'>" + app.esc(l) + "</span></p>").join("") },
 
     body: View [ x = 0, y = 0, width = { app.width }, height = { app.height }, scrolls = y, clip = true,
-        col: View [ x = 24, y = 24, width = { app.width - 48 },
+
+        // the page margin is the scroller's own content box — and because a
+        // scroller's extent counts its insets, the bottom one is the trailing
+        // room a long diagnostic list scrolls into
+
+        padding = [24, 24, 40, 24],
+
+        col: View [ width = 100%,
             layout: SimpleLayout [ axis = y, spacing = 12 ],
             head: Text [ fontSize = 15, fontWeight = semibold, textColor = #FF6B6B, text = "Could not load this program" ],
-            where: Text [ visible = { app.subject != "" }, width = { parent.width }, wrap = true, fontSize = 12, textColor = #8FA3B0, text = { app.subject } ],
+            where: Text [ visible = { app.subject != "" }, width = 100%, wrap = true, fontSize = 12, textColor = #8FA3B0, text = { app.subject } ],
 
             // Retry sits up top, before a possibly long list — the action is what
             // a person came back for after fixing the file. The library's real
@@ -54,10 +61,9 @@ App [ minWidth = 360,
             retry: Button [ visible = { app.subject != "" }, height = 34, fontSize = 13, label = "Retry", primary = true,
                 onClick() { app.navigate(app.subject) }
                 ],
-            list: HTMLText [ width = { parent.width }, fontSize = 13, lineHeight = 1.55, bodyColor = #E7EEF2, dark = true, selectable = true, html = { app.listHtml } ],
-            hint: Text [ width = { parent.width }, wrap = true, fontSize = 12, textColor = #8FA3B0,
-                text = "Open Location… is in the titlebar. If this program is served by the dev server, check that it is running: npm start  (or: PORT=8260 node server/index.mjs)" ],
-            pad: View [ width = 1, height = 40 ]
+            list: HTMLText [ width = 100%, fontSize = 13, lineHeight = 1.55, bodyColor = #E7EEF2, dark = true, selectable = true, html = { app.listHtml } ],
+            hint: Text [ width = 100%, wrap = true, fontSize = 12, textColor = #8FA3B0,
+                text = "Open Location… is in the titlebar. If this program is served by the dev server, check that it is running: npm start  (or: PORT=8260 node server/index.mjs)" ]
             ]
         ]
     ]

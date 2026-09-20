@@ -1,0 +1,4 @@
+App [ fill = white,
+    row: View [ x = 0, y = 20, width = 200, height = 44, fill = whitesmoke,
+        stroke = [stroke(1, #DBE1E9), null, stroke(1, #DBE1E9), null] ]
+    ]

@@ -339,7 +339,7 @@ Compare `set`: a set attribute's `{ }` owns a cell and refuses assignment.
   > says: expected a type or component name, got '='
   > probe: App [ other: = 1 ]
 - The type must be one the language knows; the message lists them.
-  > says: unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape, array, object, View, Theme
+  > says: unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape, Inset, array, object, View, Theme
   > probe: App [ x2: Widget = null ]
 - An attribute the component already has is set, not declared again.
   > says: App already has an attribute 'width' — a declaration introduces a new one; write 'width = …' to set the existing one
@@ -740,6 +740,7 @@ syntax:
     fill = gradient(#F8F8F8, #D8D8D8)          // bare: colors in the bare vocabulary
     fill = { gradient("180deg", 0xF8F8F8, 0xD8D8D8) }
     stroke = stroke(1, #B0B0B0)                // drawn inside the box
+    stroke = [ stroke(1, #B0B0B0), null, stroke(1, #B0B0B0), null ]   // per side, top first
     shadow = shadow(0, 4, 12, #00000033)       // dx, dy, blur, color
     backdrop = frost(26, 1.5)                  // blur, saturate
 usage: form-constructors
@@ -751,7 +752,12 @@ a `{ }` the same names are ordinary functions, with colors written as numbers.
 
 Their names are reserved: no member may be called `gradient`, `stroke`, `shadow`, `stop`,
 or `frost`. A stroke is drawn **inside** the box, so it never enlarges the layout; a shadow
-is cast outside it, escaping any clip, as a CSS box-shadow does.
+is cast outside it, escaping any clip, as a CSS box-shadow does. A `stroke` slot also takes
+**four** of them — `[top, right, bottom, left]`, clockwise from the top, `null` for a bare
+side — which is the one-or-four shape `cornerRadius` and `padding` share. All three take
+either form from a `{ }` binding as readily as from a literal, which is how a border in a
+theme token is written: `stroke = { [ stroke(1, provided("theme").line), null,
+stroke(1, provided("theme").line), null ] }` rules a row top and bottom.
 
 ### rules
 
@@ -759,7 +765,7 @@ is cast outside it, escaping any clip, as a CSS box-shadow does.
   > says: got 'plaid(…)' (not a fill constructor)
   > probe: App [ fill = plaid(1) ]
 - Each constructor has one arity; a short call is refused with the shape.
-  > says: App.stroke expects a Stroke (stroke(width, color) — drawn inside the box — or null), got 'stroke(…)'
+  > says: App.stroke expects a Stroke on all four sides (stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all, got 'stroke(…)'
   > probe: App [ stroke = stroke(1) ]
 
 ### related

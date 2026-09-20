@@ -149,6 +149,9 @@ if (flags.only !== null) {
 }
 const failing = out.diagnostics.filter((d) => d.severity === "error");
 const warnings = out.diagnostics.filter((d) => d.severity === "warning");
+// Hints are the third tier: the program is correct and the compiler knows a
+// shorter way to say it. Shown, never counted against the climb.
+const hints = out.diagnostics.filter((d) => d.severity === "hint");
 // The rung fails on EVERY error the compile found, shown or not: --only narrows
 // what is printed, never what is true (a program with a red sibling room
 // cannot boot, and saying R2 ✓ would be a lie the next rung exposes).
@@ -313,6 +316,7 @@ if (flags.json) {
   if (probeNote) console.log(`  note ${probeNote}`);
   if (onlyNote) console.log(`  note ${onlyNote}`);
   for (const w of warnings) console.log(`  warn ${show(w)}`);
+  for (const h of hints) console.log(`  hint ${show(h)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (failedRung === null) {
     // wired = rows with a non-empty dep set; an empty row is a constraint on

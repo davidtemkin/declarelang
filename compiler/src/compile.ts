@@ -54,6 +54,7 @@ import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
 import { serializeLinks, type SerializedLink } from "../../runtime/dist/links.js";
 import { annotateProgram } from "./dep-extract.js";
+import { annotateExprs } from "./expr-emit.js";
 import { schemaCheck } from "./schema-check.js";
 import { extractLinks, attachAuthoredLinks } from "./links.js";
 import { buildRegistry, checkReferences } from "./registry.js";
@@ -258,6 +259,11 @@ export interface Compiled {
   linkRegistry?: { destinations: readonly string[]; anchors: Readonly<Record<string, string>> };
   errors: DeclareError[];
   warnings: DeclareError[];
+  /** The third tier, below `warnings`: the program is correct and the compiler
+   *  knows a shorter way to say it. Kept out of `warnings` so a caller counting
+   *  warnings counts only what might be wrong. Absent on the early exits that
+   *  return before the idiom passes run. */
+  hints?: DeclareError[];
   diagnostics: Diagnostic[];
   /** The whole compile RENDERED (renderReport): a count summary + each
    *  diagnostic's `rendered`, one per line; "" when there is nothing to say.
@@ -315,13 +321,15 @@ function diagnose(
   errors: readonly DeclareError[],
   warnings: readonly DeclareError[],
   errPhase: DiagPhase,
-  warnPhase: DiagPhase = "name"
+  warnPhase: DiagPhase = "name",
+  hints: readonly DeclareError[] = []
 ): { diagnostics: Diagnostic[]; report: string } {
-  // Errors and warnings collapse SEPARATELY: the same sentence at one severity
-  // is one problem; across severities it is two different claims.
+  // Errors, warnings and hints collapse SEPARATELY: the same sentence at one
+  // severity is one problem; across severities it is two different claims.
   const diagnostics = [
     ...collapse(errors.map((e) => toDiagnostic(e, "error", errPhase))),
     ...collapse(warnings.map((w) => toDiagnostic(w, "warning", warnPhase))),
+    ...collapse(hints.map((h) => toDiagnostic(h, "hint", warnPhase))),
   ];
   return { diagnostics, report: renderReport(diagnostics) };
 }
@@ -402,6 +410,164 @@ function richTextTagShadowWarnings(program: Program): DeclareError[] {
   const flows = (el: Element): boolean => isRichText(el.tag) || el.children.some(flows);
   if (!flows(program.root) && !program.classes.some((c) => flows(c.body))) return [];
   return shadowed.map((c) => Diag.shadowsRichTextTag(c.name, c.pos));
+}
+
+// ── The idiom passes (DECLARE4011 hint, 4012 / 4013 warnings) ────────────────
+// Three precise misses: a program that says by hand what the language has a
+// word for, an animation nothing can ever run, and a control wired to the one
+// slot that does not answer the pointer. Each is decided structurally — an AST
+// shape or a schema chain — so no site needs a judgement call.
+
+/** Does this `{ }` body say, in arithmetic, exactly what `x = center` says?
+ *
+ *  `(parent.width - this.width) / 2` and the spellings that mean the same
+ *  thing: `* 0.5` in either order, `classroot` for `parent` where the class
+ *  root IS this box's parent, the bare `width` that resolves to `this.width`,
+ *  the distributed `parent.width / 2 - this.width / 2`, and any nesting of
+ *  parentheses.
+ *
+ *  Nothing looser, deliberately. An added term is a margin and not a centering;
+ *  `(parent.width - 18) / 2` halves a slack the compiler cannot know is this
+ *  box (datagrid's checkbox cell writes exactly that); and the same arithmetic
+ *  in any slot but `x`/`y` — a half-gap, a column's share — is arithmetic. */
+function centersByHand(src: string, axis: "x" | "y", classrootIsParent: boolean): boolean {
+  const sf = ts.createSourceFile("center.ts", src, ts.ScriptTarget.ESNext, true);
+  if (sf.statements.length !== 1) return false;
+  const st = sf.statements[0];
+  if (!ts.isExpressionStatement(st)) return false;
+  const dim = axis === "x" ? "width" : "height";
+  const peel = (e: ts.Expression): ts.Expression => (ts.isParenthesizedExpression(e) ? peel(e.expression) : e);
+  const num = (e: ts.Expression, v: number): boolean => {
+    const p = peel(e);
+    return ts.isNumericLiteral(p) && Number(p.text) === v;
+  };
+  /** The box's own extent — `this.width`, or the bare `width` that resolves to it. */
+  const own = (e: ts.Expression): boolean => {
+    const p = peel(e);
+    if (ts.isIdentifier(p)) return p.text === dim;
+    return ts.isPropertyAccessExpression(p) && p.name.text === dim && p.expression.kind === ts.SyntaxKind.ThisKeyword;
+  };
+  /** The extent it is centered IN — `parent.width`, and `classroot.width` only
+   *  where the class root is this box's own parent (one level down). */
+  const outer = (e: ts.Expression): boolean => {
+    const p = peel(e);
+    if (!ts.isPropertyAccessExpression(p) || p.name.text !== dim) return false;
+    if (!ts.isIdentifier(p.expression)) return false;
+    return p.expression.text === "parent" || (classrootIsParent && p.expression.text === "classroot");
+  };
+  const halved = (e: ts.Expression, of: (x: ts.Expression) => boolean): boolean => {
+    const p = peel(e);
+    if (!ts.isBinaryExpression(p)) return false;
+    if (p.operatorToken.kind === ts.SyntaxKind.SlashToken) return of(p.left) && num(p.right, 2);
+    if (p.operatorToken.kind === ts.SyntaxKind.AsteriskToken) {
+      return (of(p.left) && num(p.right, 0.5)) || (num(p.left, 0.5) && of(p.right));
+    }
+    return false;
+  };
+  const slack = (e: ts.Expression): boolean => {
+    const p = peel(e);
+    return ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.MinusToken && outer(p.left) && own(p.right);
+  };
+  const top = peel(st.expression);
+  if (halved(top, slack)) return true;
+  return ts.isBinaryExpression(top) && top.operatorToken.kind === ts.SyntaxKind.MinusToken
+    && halved(top.left, outer) && halved(top.right, own);
+}
+
+/** The three idiom findings, walked over every class body and the main tree.
+ *  `schemas` is the resolver's own map, so a program class answers the family
+ *  questions through the same chain a built-in tag does. */
+function idiomDiagnostics(
+  program: Program,
+  schemas: Record<string, ComponentSchema>
+): { warnings: DeclareError[]; hints: DeclareError[] } {
+  const warnings: DeclareError[] = [];
+  const hints: DeclareError[] = [];
+  const classByBody = new Map<Element, ClassDecl>(program.classes.map((c) => [c.body, c]));
+  const classByName = new Map<string, ClassDecl>(program.classes.map((c) => [c.name, c]));
+
+  // Every method body in the program — the search space for a start() call.
+  const bodies: string[] = [];
+  const collect = (el: Element): void => {
+    for (const m of el.methods) bodies.push(m.body);
+    for (const c of el.children) collect(c);
+  };
+  for (const c of program.classes) collect(c.body);
+  collect(program.root);
+  const allBodies = bodies.join("\n");
+  // A `.start(` whose receiver is not a plain name path — `(w as Anim).start()`,
+  // `rows[i].start()` — is a call this pass cannot attribute to a member, so one
+  // anywhere silences 4012 for the whole program. Under-reporting is the right
+  // way to be wrong here: a warning about an animator that IS started is worse
+  // than silence about one that is not.
+  const opaqueStart = /[)\]]\s*\.\s*start\s*\(/.test(allBodies);
+  /** The user-class chain above `tag`, nearest first — the bodies a use site
+   *  inherits `started` (and a start()-calling method) from. Empty for a
+   *  built-in tag. */
+  const chainBodies = (tag: string): Element[] => {
+    const out: Element[] = [];
+    const seen = new Set<string>();
+    for (let t: string = tag; !seen.has(t); ) {
+      seen.add(t);
+      const c = classByName.get(t);
+      if (c === undefined) break;
+      out.push(c.body);
+      t = c.base;
+    }
+    return out;
+  };
+
+  const walk = (el: Element, parent: Element | null, classRoot: Element | null): void => {
+    const decl = classByBody.get(el);
+
+    // 4011 — a hand-written centering on x/y. `classroot` means the parent only
+    // one level down from the class body root; at the root itself it is `this`.
+    for (const a of el.attrs) {
+      if ((a.name !== "x" && a.name !== "y") || a.value.kind !== "code") continue;
+      if (centersByHand(a.value.src, a.name, classRoot !== null && parent === classRoot)) {
+        hints.push(Diag.centersByHand(a.name, a.value.pos));
+      }
+    }
+
+    // 4013 — a press() override where the receiver descends from Button. A
+    // class BODY is judged by its base, so `class Button extends Control`
+    // declaring press() is the definition, not an override of itself, while
+    // `class Fancy extends Button` overriding it is caught like any use site.
+    const receiving = decl !== undefined ? schemas[decl.base] : schemas[el.tag];
+    if (receiving !== undefined && descendsFrom(receiving, "Button")) {
+      for (const m of el.methods) {
+        if (m.name === "press") warnings.push(Diag.buttonPressOverride(decl !== undefined ? decl.name : el.tag, m.pos));
+      }
+    }
+
+    // 4012 — an Animator (or AnimatorGroup) nothing can start. A class body is
+    // a definition and is skipped: the use site is where `started` is set.
+    if (decl === undefined) {
+      const s = schemas[el.tag] as ComponentSchema | undefined;
+      // A Spring is excluded by design — it is never start()-triggered (it
+      // wakes on its reactive `to`), so "never started" is its normal life.
+      const family = s === undefined || descendsFrom(s, "Spring") ? null
+        : descendsFrom(s, "Animator") || descendsFrom(s, "AnimatorGroup") ? s : null;
+      if (family !== null) {
+        const parentSchema = parent === null ? undefined : (schemas[parent.tag] as ComponentSchema | undefined);
+        // a member of a group is driven by the group; its own `started` is ignored
+        const grouped = parentSchema !== undefined && descendsFrom(parentSchema, "AnimatorGroup");
+        const levels = [el, ...chainBodies(el.tag)];
+        const setsStarted = levels.some((b) =>
+          b.attrs.some((a) => a.name === "started") || b.decls.some((d) => d.name === "started"));
+        const ownStart = levels.some((b) => b.methods.some((m) => /\bstart\s*\(/.test(m.body)));
+        const byName = el.name !== null && new RegExp(`\\b${el.name}\\s*\\.\\s*start\\s*\\(`).test(allBodies);
+        if (!grouped && !setsStarted && !ownStart && !opaqueStart && !byName) {
+          warnings.push(Diag.animatorNeverStarts(el.tag, el.name, el.pos));
+        }
+      }
+    }
+
+    for (const c of el.children) walk(c, el, classRoot);
+  };
+  for (const c of program.classes) walk(c.body, null, c.body);
+  walk(program.root, null, null);
+  return { warnings, hints };
 }
 
 /** Names bound in every body without being members: the scope-noun arguments of
@@ -816,12 +982,16 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   r.warnings.push(...smallFieldWarnings(program, preludeLen));
   r.warnings.push(...richTextTagShadowWarnings(program));
   r.warnings.push(...coldLoadWarnings);
+  const idiom = idiomDiagnostics(program, r.schemas);
+  r.warnings.push(...idiom.warnings);
   const byPos = (a: DeclareError, b: DeclareError) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
   r.errors.sort(byPos);
   r.warnings.sort(byPos);
+  idiom.hints.sort(byPos);
+  const hs = (): DeclareError[] => rbAll(idiom.hints);
   if (r.errors.length > 0) {
-    const es = rbAll(r.errors), ws = rbAll(r.warnings);
-    return { source: null, errors: es, warnings: ws, ...diagnose(es, ws, "name") };
+    const es = rbAll(r.errors), ws = rbAll(r.warnings), ht = hs();
+    return { source: null, errors: es, warnings: ws, hints: ht, ...diagnose(es, ws, "name", "name", ht) };
   }
   // Splice highest-offset first so earlier offsets stay valid. Identifier
   // spans never overlap, so order within a body is immaterial beyond that.
@@ -841,8 +1011,8 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     typeOracle = tc.oracle;
     const typeErrors = rbAll(tc.errors);
     if (typeErrors.length > 0) {
-      const ws = rbAll(r.warnings);
-      return { source: null, errors: typeErrors, warnings: ws, ...diagnose(typeErrors, ws, "typecheck") };
+      const ws = rbAll(r.warnings), ht = hs();
+      return { source: null, errors: typeErrors, warnings: ws, hints: ht, ...diagnose(typeErrors, ws, "typecheck", "name", ht) };
     }
   }
 
@@ -967,7 +1137,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   try {
     depProgram = parseProgram(out);
   } catch (e) {
-    if (e instanceof DeclareError) { const es = rbAll([e]), ws = rbAll(r.warnings); return { source: null, errors: es, warnings: ws, ...diagnose(es, ws, "syntax") }; }
+    if (e instanceof DeclareError) { const es = rbAll([e]), ws = rbAll(r.warnings), ht = hs(); return { source: null, errors: es, warnings: ws, hints: ht, ...diagnose(es, ws, "syntax", "name", ht) }; }
     throw e;
   }
   // Static `:path` checking against declared schemas (B4, language §9) —
@@ -978,17 +1148,19 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   {
     const schemaErrors = rbAll(schemaCheck(depProgram));
     if (schemaErrors.length > 0) {
-      const ws = rbAll(r.warnings);
-      return { source: null, errors: schemaErrors, warnings: ws, ...diagnose(schemaErrors, ws, "structure") };
+      const ws = rbAll(r.warnings), ht = hs();
+      return { source: null, errors: schemaErrors, warnings: ws, hints: ht, ...diagnose(schemaErrors, ws, "structure", "name", ht) };
     }
   }
   const residue = annotateProgram(depProgram, typeOracle).errors;
+  // the kernel's EXPR bytecode for the pure-numeric bodies, riding in each body's deps (expr-emit.ts)
+  if (residue.length === 0) annotateExprs(depProgram);
   if (residue.length > 0) {
     const errs = rbAll(residue
       .sort((a, b) => a.offset - b.offset)
       .map((e) => Diag.residue(e.message, posOf(out, e.offset))));
-    const ws = rbAll(r.warnings);
-    return { source: null, errors: errs, warnings: ws, ...diagnose(errs, ws, "constraint") };
+    const ws = rbAll(r.warnings), ht = hs();
+    return { source: null, errors: errs, warnings: ws, hints: ht, ...diagnose(errs, ws, "constraint", "name", ht) };
   }
   // The navigation relation (capabilities.md §6): AUTHORED `link` attributes
   // are the ground truth (attachAuthoredLinks — a literal slot becomes {href}
@@ -997,7 +1169,8 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   attachAuthoredLinks(depProgram);
   extractLinks(depProgram);
   const okWarnings = rbAll([...r.warnings, ...regWarnings]);
-  return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, ...diagnose([], okWarnings, "name") };
+  const okHints = hs();
+  return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, hints: okHints, ...diagnose([], okWarnings, "name", "name", okHints) };
 }
 
 /** Rebase positions from the MERGED source onto the author's own file.
@@ -1152,7 +1325,9 @@ class Resolver {
   readonly errors: DeclareError[] = [];
   readonly warnings: DeclareError[] = [];
   readonly edits: Edit[] = [];
-  private readonly schemas: Record<string, ComponentSchema>;
+  /** Public so the idiom passes below (DECLARE4011–4013) can ask the same
+   *  schema chain the resolver asks, without rebuilding it. */
+  readonly schemas: Record<string, ComponentSchema>;
   /** Per-class inherited method/named-child members (attributes already ride
    *  the schema chain) and the user-declared name set, both accumulated
    *  through user bases — bases precede subclasses, so one pass suffices. */
@@ -1506,6 +1681,18 @@ class Resolver {
           start: bodyStart + id.start,
           end: bodyStart + id.end,
           text: "this.$provided",
+        });
+        continue;
+      }
+      if (id.name === "hostProvided" && id.callee) {
+        // `hostProvided("name", default)` (islands.md) — a value this program's
+        // HOST provides (an island's `provides`, a page's `app.provide`). Same
+        // rewrite as `provided`: `this` must be the reading node, whose running
+        // App holds the host's values (Node.$hostProvided).
+        this.edits.push({
+          start: bodyStart + id.start,
+          end: bodyStart + id.end,
+          text: "this.$hostProvided",
         });
         continue;
       }

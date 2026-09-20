@@ -106,9 +106,12 @@ initial, however far into a round the user had got. A
 deliberately has no hook: a waypoint can never arrive from outside your app, so
 every restored value is one your own code wrote earlier. Your parser is the gate —
 an unrecognized step degrades wherever your parsing sends it, same as an
-unrecognized fragment. Traversals also land at the scroll position the user left
-that entry at; an arrival lands at the top, and an `@name` reveals its anchor
-instead — that much *is* in the URL.
+unrecognized fragment. Traversals also land where the user left that entry: the
+**app's own** scroll position, stamped as they leave and restored once the
+arrival has settled. A scrolling pane *inside* the app keeps no per-entry memory
+— if a pane's position is part of the place, it belongs in the `location`. An
+arrival lands at the top, and an `@name` reveals its anchor instead — that much
+*is* in the URL.
 
 Only the entry you arrive on is rebuilt. The entries behind it keep their own
 coordinates, which is why Back after a reload still walks into the session the

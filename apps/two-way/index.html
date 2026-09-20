@@ -17,8 +17,8 @@
   Scenario II (bottom): the mirror image. ONE Declare app (crossings.declare)
                        hosts two foreign web apps (tally.js, orbit.js) in
                        DOMIsland boxes. There the wiring is CONSTRAINTS: the
-                       crossing facts are declared `external` on each island,
-                       typed and ownership-refereed, and the host's normal
+                       crossing values are named on each island — `provides`
+                       down, `exposed(...)` up, one owner each — and the host's normal
                        reactive machinery does everything this script does by
                        hand for Scenario I.
 
@@ -134,9 +134,9 @@
     <p class="how">
       One Declare app (<code>crossings.declare</code>) fills the box below, and
       the two inner panels are <b>foreign</b>: plain-JS apps this page mounts
-      into the app's two <code>DOMIsland</code> views. What crosses is declared
-      on each island as typed <code>external</code> facts — the master slider is
-      pushed <b>down</b> to both tenants, tally's tap count flows <b>up</b> into
+      into the app's two <code>DOMIsland</code> views. What crosses is named
+      on each island, with its direction — <code>provides</code> offers the master slider
+      <b>down</b> to both tenants, tally's tap count flows <b>up</b> into
       the host's gauge <i>and onward into orbit's dot count</i> (a constraint
       chain crossing two app boundaries), orbit's speed flows up into the
       caption — and commands cross as <code>post</code>/<code>onPost</code>
@@ -163,7 +163,7 @@ the traffic is the same in both: facts one way or the other, verbs for the rest.
   // marked elements; `observe` is the notification half of the embedder API —
   // it MUST come from this same bundle (a second runtime instance would track
   // its constraints in a graph these apps never notify).
-  import boot, { observe } from "../../bundles/declare-boot.js?v=c65be0749d41";
+  import boot, { observe } from "../../bundles/declare-boot.js?v=a1fd0babe83c";
   import { mountTally } from "./tally.js";
   import { mountOrbit } from "./orbit.js";
 

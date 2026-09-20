@@ -9,7 +9,7 @@ export declare function blocksHtml(blocks: readonly Block[]): string;
  *  (child order is paint order); `visible = false` subtrees are skipped; the
  *  content classes emit what their text MEANS; every other view is transparent
  *  structure (its children walk, it emits no wrapper). */
-export declare function staticHtml(root: View): string;
+export declare function staticHtml(root: View, tenants?: ReadonlyMap<unknown, string>): string;
 export interface ExtractOptions extends CompileOptions {
     env?: Environment;
 }

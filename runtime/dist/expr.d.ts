@@ -1,4 +1,9 @@
 export declare function setBodyServices(services: Record<string, unknown>): void;
+/** The names every body has in scope from the runtime (the prelude's list) —
+ *  what a build that precompiles bodies (declarec) must put in scope too. */
+export declare function bodyScopeNames(): string[];
+type PreMake = ($d: Record<string, unknown>, $s: Record<string, unknown>) => readonly unknown[];
+export declare function providePrecompiled(make: PreMake, scripts: readonly (() => unknown)[]): void;
 /** Run `build` with `scope` as the active script scope. */
 export declare function withScriptScope<T>(scope: Record<string, unknown>, build: () => T): T;
 /** Evaluate one compiled `script { … }` body, returning the bindings it
@@ -37,7 +42,6 @@ export declare function setBodySyntaxValidator(v: BodySyntaxValidator): void;
 /** Check `src` as an expression body — the injected TS validator when the
  *  compiler is present, else the JS gate. Returns the error fragment or null. */
 export declare function validateExpr(src: string): string | null;
-/** Check `src` as a statement body — same seam, statement-shaped. */
 export declare function validateBody(params: readonly string[], src: string): string | null;
 /** A compiled method body: `this` = the owning node, `parent` its view-tree
  *  parent, `classroot` its enclosing class instance, then the declared
@@ -59,3 +63,4 @@ export declare function compileBody(params: readonly string[], src: string): {
 } | {
     error: string;
 };
+export {};

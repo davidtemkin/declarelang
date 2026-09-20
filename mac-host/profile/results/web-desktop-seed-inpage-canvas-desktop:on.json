@@ -1,0 +1,227 @@
+{
+  "ms": 2202.5,
+  "target": "apps/desktop/desktop.declare",
+  "STIM": "seed",
+  "RENDER": "canvas",
+  "LABEL": "desktop:on",
+  "root": "/Users/temkin/Code/Declare",
+  "boot": {
+    "runs": 1382,
+    "wired": 645,
+    "settleN": 18,
+    "settleMs": 25.299999713897705,
+    "settleMax": 20.299999952316284,
+    "settleRuns": 911,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 919,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 23.200000047683716,
+    "nfN": 860,
+    "nfMs": 6.499999284744263,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 1412,
+      "live": 1295,
+      "wired": 787,
+      "ranInWindow": 785
+    }
+  },
+  "win": {
+    "runs": 5325,
+    "wired": 4970,
+    "settleN": 155,
+    "settleMs": 13.899998903274536,
+    "settleMax": 2.700000047683716,
+    "settleRuns": 5325,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 10765,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 2198,
+      "live": 2009,
+      "wired": 1249,
+      "ranInWindow": 62
+    }
+  },
+  "gaps": {
+    "n": 96,
+    "p50": 16.699999999999818,
+    "p95": 16.700000000000728,
+    "max": 16.800000000000182,
+    "over20": 0,
+    "over33": 0
+  },
+  "bench": {
+    "n": 62,
+    "body": 2.5548397264172955,
+    "run": 3.0774177505124,
+    "top": [
+      {
+        "label": "FilesWindow.scale",
+        "n": 3,
+        "wired": 0,
+        "runs": 260,
+        "bodyMs": 0.571,
+        "runMs": 0.839
+      },
+      {
+        "label": "View.visibility",
+        "n": 18,
+        "wired": 18,
+        "runs": 1610,
+        "bodyMs": 0.558,
+        "runMs": 0.587
+      },
+      {
+        "label": "FolderIcon.visibility",
+        "n": 18,
+        "wired": 18,
+        "runs": 1560,
+        "bodyMs": 0,
+        "runMs": 0.581
+      },
+      {
+        "label": "FileIcon.visibility",
+        "n": 18,
+        "wired": 18,
+        "runs": 1560,
+        "bodyMs": 1.119,
+        "runMs": 0.571
+      },
+      {
+        "label": "JotWindow.scale",
+        "n": 1,
+        "wired": 0,
+        "runs": 95,
+        "bodyMs": 0.306,
+        "runMs": 0.306
+      },
+      {
+        "label": "Spring.to",
+        "n": 4,
+        "wired": 4,
+        "runs": 240,
+        "bodyMs": 0,
+        "runMs": 0.194
+      }
+    ]
+  },
+  "byLabel": [
+    [
+      "View.visibility",
+      1610
+    ],
+    [
+      "FolderIcon.visibility",
+      1560
+    ],
+    [
+      "FileIcon.visibility",
+      1560
+    ],
+    [
+      "FilesWindow.scale",
+      260
+    ],
+    [
+      "Spring.to",
+      240
+    ],
+    [
+      "JotWindow.scale",
+      95
+    ]
+  ],
+  "text": {
+    "measureCalls": 0,
+    "distinctPairs": 0,
+    "memoHits": 202,
+    "memoMisses": 0,
+    "memoClears": 0
+  },
+  "perf": {
+    "path": "slow",
+    "stages": [
+      {
+        "stage": "kernel-bytes",
+        "start": 299.8,
+        "dur": 11.5
+      },
+      {
+        "stage": "version",
+        "start": 304.1,
+        "dur": 11.9
+      },
+      {
+        "stage": "kernel-instantiate",
+        "start": 311.3,
+        "dur": 1.1
+      },
+      {
+        "stage": "cache-read",
+        "start": 316.2,
+        "dur": 32.4
+      },
+      {
+        "stage": "source-fetch",
+        "start": 348.6,
+        "dur": 5.8
+      },
+      {
+        "stage": "compile",
+        "start": 354.4,
+        "dur": 1046.9
+      },
+      {
+        "stage": "render",
+        "start": 1407.8,
+        "dur": 83.4
+      },
+      {
+        "stage": "mount-attach",
+        "start": 1457.4,
+        "dur": 12
+      },
+      {
+        "stage": "mount-root",
+        "start": 1469.4,
+        "dur": 0.6
+      },
+      {
+        "stage": "first-frame",
+        "start": 1491.2,
+        "dur": 19.5
+      }
+    ],
+    "kernel": null
+  },
+  "drag": null,
+  "errors": [],
+  "swapped": 1
+}

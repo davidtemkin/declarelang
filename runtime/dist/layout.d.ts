@@ -4,9 +4,13 @@ import { View, type LayoutStrategy } from "./view.js";
 /** The geometry a layout places one child in: any subset of position, size,
  *  and visibility. `w`/`h` name the sizes so a box is a plain record, distinct
  *  from the child's live `width`/`height` slots the layout writes. A strategy
- *  OWNS exactly the slots its boxes carry (uniform across children, probed at
- *  install): a box without `h` leaves heights to the children; `vis: false`
- *  hides — the zero-size-is-hidden idiom made explicit. */
+ *  OWNS exactly the slots its boxes carry — PER CHILD, probed at install: a box
+ *  without `h` leaves that child's height to the child, and the shape may
+ *  differ from box to box (a ResponsiveLayout carries a width for a child its
+ *  plan gives a `share` and none for a child it does not; a Spacer carries its
+ *  flexed size where its siblings carry only a position). It may also differ
+ *  from install to install, which is what the shape watcher exists for.
+ *  `vis: false` hides — the zero-size-is-hidden idiom made explicit. */
 export interface Box {
     x?: number;
     y?: number;
@@ -79,12 +83,48 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  State) are never laid. In child order — order is the layout semantics —
      *  and `place()`'s boxes align with this array BY INDEX. */
     protected laid(): View[];
+    /** Children this arrangement WANTED to size and cannot, because the author
+     *  owns that size already (install below). They are out of the arrangement
+     *  entirely — not merely missing one slot — because a strategy that
+     *  allocates a size lays its neighbours FROM that size: place() computes the
+     *  next child's position by advancing over the width it meant to write, and
+     *  if that width never lands, every position after it is a number describing
+     *  a picture that does not exist (the measured 116px hole of a plan whose
+     *  wide tier shares a width the child's own `{ … }` already owns). Dropping
+     *  the child is the honest resolution and the one the message already names:
+     *  the author owns this child's geometry, so the layout stops pretending to
+     *  place it, and its siblings pack as if it were `ignoreLayout`.
+     *
+     *  A refused POSITION is different and stays put: no place() derives a box
+     *  from a position it writes, so one child sitting where its author put it
+     *  costs its siblings nothing. Re-derived from scratch at every install —
+     *  ownership can change with the tier, and a rearm is when we may look. */
+    private readonly authorSized;
     /** Pure geometry — one Box per laid child, from this strategy's own
      *  attributes and `this.view`'s box. No time, no side effects. THE seam: a
      *  strategy IS its place(); everything else is shared machinery. The boxes'
      *  shape declares ownership — carry exactly the slots this strategy manages
-     *  (uniform across children; a box without `h` leaves heights alone). */
-    protected abstract place(): Box[];
+     *  for THAT child (per box, not per strategy: a box without `h` leaves that
+     *  child's height alone, and its neighbour's box may well carry one). */
+    place(): Box[];
+    /** THE ROOM THIS ARRANGEMENT HAS: the arranged view's CONTENT BOX on `size`
+     *  — its extent less its own `padding` on that axis, never below 0 (view.ts
+     *  `contentBox`). A strategy that needs the view's measurement — a flow
+     *  deciding where to wrap, a plan dividing the width into shares, a run
+     *  sizing its spacers — reads this and not `this.view.width`, and then a
+     *  padded view costs it nothing to honor.
+     *
+     *  THE PADDING IS THE VIEW'S, not this strategy's (RULED 2026-09-19, moving
+     *  it off the base): a layout simply arranges inside the room it is given,
+     *  and a `place()` returning `{ x: 0 }` puts a child at the content origin
+     *  because that is what `x = 0` means for every child — nothing in the
+     *  kernel offsets a box. Two paddings, one on the view and one on whatever
+     *  arranges it, would have been a genuine confusion.
+     *
+     *  Unlike `viewExtent` it is the plain measurement: it does not ask whether
+     *  the view derives that extent from these very children. A strategy that
+     *  needs the cycle-safe answer (an alignment band) wants `viewExtent`. */
+    contentExtent(size: "width" | "height"): number;
     /** Claim `slot` on `child` for constraint `k`: capture the authored base
      *  (first claim only — rearm must not capture the arrangement's own writes),
      *  then take ownership. Errors loudly on a standing AUTHOR binding (two
@@ -108,6 +148,57 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
      *  survivable, never a settle-aborting throw. */
     private reportConflict;
+    /** A LITERAL on a slot this strategy claims — `Spacer [ height = 40 ]` in a
+     *  run that flexes its spacers, a `width = 120` on a child the plan gives a
+     *  share. The one-owner guard never sees these: a literal installs no owner,
+     *  so `ownerOf` is null and the claim goes through, overwriting the number
+     *  the author wrote. Until now that was the language's ONLY silent answer to
+     *  "may I set my own geometry here?" — the same value spelled `{ 120 }` is a
+     *  boot failure — so it is reported here, in the same words, at the same
+     *  moment, once per (child, slot).
+     *
+     *  The layout still takes the slot: it is the arrangement's, the picture is
+     *  unchanged, and only the silence goes away. (Handing a literal the slot
+     *  instead would break every tree that carries a leftover `x = 0`, and would
+     *  make the *value* decide the owner.)
+     *
+     *  ── KNOWN DEFECT, not yet fixed (2026-09-20) ──────────────────────────
+     *  THIS REPORT IS NOT DETERMINISTIC ACROSS VIEWPORTS, and it should be.
+     *
+     *  install() derives ownership from ONE call to place(), and for a strategy
+     *  whose arrangement answers to the room it is given, the slots that call
+     *  writes are not the slots another width would write. ResponsiveLayout is
+     *  the case in the corpus: its box is `stack ? { y } : { x }`, so a row tier
+     *  claims x and leaves y to the author, and a stack tier does the reverse.
+     *  The report is emitted at install and remembered for the life of the
+     *  layout (`discarded`), so a program that first settles narrow is told its
+     *  `y = 15` is discarded — and the moment the page widens, that y is live
+     *  and wanted. First settle wide and the same source is never reported at
+     *  all. Same program, same author, advice decided by the viewport at boot.
+     *
+     *  Measured, three times over, on apps/homepage and apps/architecture: a
+     *  reader who follows the advice and deletes the line MOVES THE PAGE (1px,
+     *  8px, 10px and 15px in the cases seen). The report's cost is therefore
+     *  asymmetric — a wrong deletion is a visible regression, silence is only a
+     *  missed hint — which is the shape of the fix, whatever form it takes:
+     *  either the report waits for a moment the arrangement is stable and is
+     *  then made against what is true then, or its condition narrows to
+     *  something a viewport cannot change.
+     *
+     *  The fix belongs ENTIRELY HERE. "Which slot is claimed" is runtime
+     *  bookkeeping, derived automatically; it is not a Declare concept and an
+     *  author must never have to think about it, so no hook, flag or answer-back
+     *  may appear on the Layout surface to carry this. (A first sketch did
+     *  exactly that and was rejected on those grounds.) The message wants
+     *  rewriting in author vocabulary too: it currently says "the arrangement
+     *  writes that slot", and "slot" is not a word the language asks anyone to
+     *  know. */
+    protected reportDiscarded(child: View, slot: string, arranger: string): void;
+    /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
+    private readonly discarded;
+    /** Is this the first thing said about (child, slot)? A conflict report is
+     *  once-only per child — a rearm storm re-hits the same slot every wave. */
+    private firstReport;
     /** A strategy's own CONTAINED refusals — the same once-per-(child, key)
      *  discipline as a conflict, callable from a `.declare` place(): the child is
      *  placed at the line's start, the arrangement stands, the message says why.
@@ -206,7 +297,7 @@ export declare abstract class TweenLayout extends Layout {
      *  own state (its attributes) and `this.view`'s box. No time, no side
      *  effects — the tween is the interpolation between two calls of this.
      *  (laid() is the base's — the one definition of the managed children.) */
-    protected abstract place(): FullBox[];
+    abstract place(): FullBox[];
     /** Stand up one lerp constraint per laid child per geometry slot (owning it,
      *  the one-owner model), snapshot the initial layout, and evaluate. Re-run
      *  wholesale by rearm when the child set changes (R8). */

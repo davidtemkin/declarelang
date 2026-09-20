@@ -13,6 +13,15 @@ each side centers the run).
 Written in Declare over the Layout kernel: the whole strategy is this one
 pure place() — one box per laid child, aligned by index.
 
+**Padding is the view's** (`View.padding`), and this stack obeys it without
+knowing it exists: it arranges inside the room the view gives it, so a run
+placed at `0` starts at the content origin, the cross-axis band `align` works
+in is the room *between* the insets, and a view that sizes itself from the
+stack grows by both. The inset reaches **every** child, on both axes,
+`align = none` included — a child placing its own `x = 0` sits on the content
+edge, not the view's, because the content box is the parent's and not this
+arrangement's.
+
 ```declare
 col: View [ x = 20, y = 20,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
@@ -33,9 +42,9 @@ cards or avatars is built.
 ## align
 The **cross axis** — `y` on a row, `x` on a stack. `none` (the default) leaves it to the
 children, who place themselves with the ordinary `y = center`. `start | center | end`
-aligns every child within the **band**: the view's own cross extent — so a column
-`width = 260` centres a `width = { parent.width - 32 }` child at 16, with the inset split
-evenly — falling back to the **line**, the tallest (widest) laid child's extent, on a view
+aligns every child within the **band**: the view's own cross **content** extent — so a
+column `width = 260` centres a `width = { parent.width - 32 }` child at 16, with the slack
+split evenly — falling back to the **line**, the tallest (widest) laid child's extent, on a view
 that derives its own cross size from these very children (reading an extent this
 arrangement feeds would be a cycle, and on such a view the line *is* that extent). A
 child wider than the band keeps the line, so it never hangs out both sides.
@@ -81,7 +90,7 @@ class SimpleLayout extends Layout [
                 visN = visN + 1
                 if (!flexing(c)) content = content + (c as any).footprint()[size]
             }
-            const extent = this.view == null ? 0 : (this.view as any)[size]
+            const extent = this.contentExtent(size)
             each = Math.max(0, (extent - content - this.spacing * Math.max(0, visN - 1)) / flexN)
         }
 

@@ -26,14 +26,28 @@
 import { Cell } from "./reactive.js";
 const CELLS = new Map();
 /** The family list as its individual names, lowercased — `"Roboto, Helvetica"`
- *  → `["roboto", "helvetica"]`. A quoted name keeps its spaces. */
+ *  → `["roboto", "helvetica"]`. A quoted name keeps its spaces.
+ *
+ *  MEMOIZED (2026-09-18): every text measures through fontString, which tracks
+ *  its families here on every run — the same few strings split, trimmed and
+ *  lowercased again each time (weather's city switch: the font-string path was
+ *  ~30% of all bytes allocated, `split` alone 32 MB). A pure function of a
+ *  handful of distinct strings; the tracking below still runs every call. */
+const NAMES = new Map();
 function names(family) {
+    const hit = NAMES.get(family);
+    if (hit !== undefined)
+        return hit;
     const out = [];
     for (const raw of family.split(",")) {
         const n = raw.trim().replace(/^["']|["']$/g, "").trim().toLowerCase();
         if (n !== "")
             out.push(n);
     }
+    if (NAMES.size > 4096)
+        NAMES.clear(); // bounded: family strings are authored, few; this is a guard, not a policy
+    NAMES.set(family, Object.freeze(out));
+    return out;
     return out;
 }
 /** Record that the running computation measured in `family` (a CSS family list;
@@ -75,6 +89,9 @@ let generation = 0;
 const ALL = new Cell();
 /** A number that changes whenever the face table changes — track it in a render
  *  key when the measuring happens somewhere reads are not tracked. */
+/** The same number without subscribing — for a cache that must drop its
+ *  entries when a face lands (measure.ts). */
+export function faceGenerationNow() { return generation; }
 export function faceGeneration() { ALL.track(); return generation; }
 const LOADED_FACES = [];
 const LOAD_LISTENERS = [];

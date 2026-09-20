@@ -1,5 +1,8 @@
 import { DeclareError, type Pos } from "./errors.js";
-export type Severity = "error" | "warning";
+/** `hint` is the third tier, below `warning`: the program is correct and the
+ *  compiler has a shorter way to say it. A hint never blocks and never counts
+ *  against a clean build — it is style, and the author may have a reason. */
+export type Severity = "error" | "warning" | "hint";
 /** The compile phase a diagnostic belongs to — derivable from its code's
  *  leading digit, so a Diagnostic is self-classifying. */
 export type DiagPhase = "syntax" | "structure" | "type" | "name" | "module" | "typecheck" | "constraint";
@@ -69,6 +72,9 @@ export declare const Diag: {
     showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos) => DeclareError;
     overridesPlumbing: (owner: string, name: string, base: string, pos: Pos) => DeclareError;
     shadowsRichTextTag: (name: string, pos: Pos) => DeclareError;
+    centersByHand: (axis: "x" | "y", pos: Pos) => DeclareError;
+    animatorNeverStarts: (tag: string, name: string | null, pos: Pos) => DeclareError;
+    buttonPressOverride: (owner: string, pos: Pos) => DeclareError;
     scriptWrite: (name: string, pos: Pos) => DeclareError;
     classrootOutsideClass: (where: string, pos: Pos) => DeclareError;
     namedColorInExpr: (name: string, hex: string, pos: Pos) => DeclareError;
@@ -89,9 +95,10 @@ export declare const Diag: {
  *  still lands with a valid code and phase. */
 export declare function toDiagnostic(e: DeclareError, severity: Severity, fallbackPhase: DiagPhase): Diagnostic;
 /** The one renderer: "message [CODE] (line L, col C)", with an indented hint
- *  line when present; a warning carries a `warning: ` prefix (an unmarked
- *  diagnostic reads as an error, the compiler convention). Deterministic plain
- *  text — ANSI color is a caller-side decoration, never a second format. */
+ *  line when present; a warning carries a `warning: ` prefix and a hint a
+ *  `hint: ` one (an unmarked diagnostic reads as an error, the compiler
+ *  convention). Deterministic plain text — ANSI color is a caller-side
+ *  decoration, never a second format. */
 export declare function formatDiagnostic(d: Omit<Diagnostic, "rendered">): string;
 /** The whole compile's rendered form — what a CLI prints verbatim. A one-line
  *  count summary, then each diagnostic's `rendered`. Empty string when there is

@@ -44,7 +44,8 @@ const shot = () => page.evaluate(`(() => {
 
 // PROMOTE: the drawing reads `app.tick`, so a tick RE-RECORDS it (a new list —
 // never a stable key). A repaint that touches nothing the draw reads keeps the
-// list, and the second paint of the same key promotes it — off the main thread
+// list, and the second paint of the same key promotes it (the caption overlaps
+// the drawing's box, so a dirty-region frame repaints the drawing as well) — off the main thread
 // where the engine can (raster-worker.ts), the bitmap landing a frame or two
 // later and the frame that shows it booked by its arrival.
 await page.evaluate(`window.__app.cap.x = 41`);

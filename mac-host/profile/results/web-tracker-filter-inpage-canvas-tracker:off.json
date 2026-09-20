@@ -1,0 +1,315 @@
+{
+  "ms": 4056.5,
+  "target": "apps/tracker/tracker.declare",
+  "STIM": "filter",
+  "RENDER": "canvas",
+  "LABEL": "tracker:off",
+  "root": "/Users/temkin/Code/Declare",
+  "boot": {
+    "runs": 19085,
+    "wired": 6955,
+    "settleN": 77,
+    "settleMs": 172.9000015258789,
+    "settleMax": 151.5,
+    "settleRuns": 17770,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 7577,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 46.40000009536743,
+    "nfN": 990,
+    "nfMs": 15.3000009059906,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 14754,
+      "live": 13724,
+      "wired": 7016,
+      "ranInWindow": 11897
+    }
+  },
+  "win": {
+    "runs": 22816,
+    "wired": 5523,
+    "settleN": 265,
+    "settleMs": 618.9000000953674,
+    "settleMax": 33.09999990463257,
+    "settleRuns": 22816,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 23794,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 16868,
+      "live": 13733,
+      "wired": 7021,
+      "ranInWindow": 1910
+    }
+  },
+  "gaps": {
+    "n": 242,
+    "p50": 16.69999999999891,
+    "p95": 16.799999999999272,
+    "max": 33.400000000000546,
+    "over20": 2,
+    "over33": 2
+  },
+  "bench": {
+    "n": 1898,
+    "body": 160.71612994132482,
+    "run": 253.85806192890303,
+    "top": [
+      {
+        "label": "Dataset.contents",
+        "n": 1,
+        "wired": 0,
+        "runs": 24,
+        "bodyMs": 144,
+        "runMs": 230.4
+      },
+      {
+        "label": "Roll.text",
+        "n": 1,
+        "wired": 1,
+        "runs": 241,
+        "bodyMs": 1.555,
+        "runMs": 2.332
+      },
+      {
+        "label": "Text.height",
+        "n": 105,
+        "wired": 0,
+        "runs": 941,
+        "bodyMs": 2.11,
+        "runMs": 2.303
+      },
+      {
+        "label": "View.visible",
+        "n": 161,
+        "wired": 51,
+        "runs": 2336,
+        "bodyMs": 1.168,
+        "runMs": 2.097
+      },
+      {
+        "label": "Text.text",
+        "n": 165,
+        "wired": 21,
+        "runs": 2041,
+        "bodyMs": 1.332,
+        "runMs": 1.971
+      },
+      {
+        "label": "Table's replication",
+        "n": 1,
+        "wired": 0,
+        "runs": 41,
+        "bodyMs": 0.132,
+        "runMs": 1.323
+      },
+      {
+        "label": "View's replication",
+        "n": 35,
+        "wired": 0,
+        "runs": 481,
+        "bodyMs": 0.403,
+        "runMs": 1.261
+      },
+      {
+        "label": "Text.width",
+        "n": 100,
+        "wired": 26,
+        "runs": 723,
+        "bodyMs": 0.961,
+        "runMs": 1.235
+      }
+    ]
+  },
+  "byLabel": [
+    [
+      "View.visible",
+      2336
+    ],
+    [
+      "Text.text",
+      2208
+    ],
+    [
+      "Text.visible",
+      1769
+    ],
+    [
+      "View.fill",
+      1353
+    ],
+    [
+      "Text.height",
+      1281
+    ],
+    [
+      "Text.width",
+      1069
+    ],
+    [
+      "IssueRow.fill",
+      1024
+    ],
+    [
+      "StatusIcon.s",
+      962
+    ],
+    [
+      "Roll.n",
+      505
+    ],
+    [
+      "Spring.to",
+      505
+    ],
+    [
+      "View.width",
+      486
+    ],
+    [
+      "View's replication",
+      481
+    ],
+    [
+      "ChevronIcon.dir",
+      481
+    ],
+    [
+      "StatusIcon.visible",
+      481
+    ],
+    [
+      "PrioIcon.visible",
+      481
+    ],
+    [
+      "PrioIcon.p",
+      481
+    ],
+    [
+      "Avatar.visible",
+      481
+    ],
+    [
+      "Avatar.name",
+      481
+    ],
+    [
+      "EditorCard.visible",
+      481
+    ],
+    [
+      "IssueRow.stroke",
+      414
+    ],
+    [
+      "Tag.t",
+      400
+    ],
+    [
+      "View's SimpleLayout[x]",
+      394
+    ],
+    [
+      "Text.textStyle",
+      370
+    ],
+    [
+      "View.stroke",
+      302
+    ]
+  ],
+  "text": {
+    "measureCalls": 34928,
+    "distinctPairs": 505,
+    "memoHits": 0,
+    "memoMisses": 0,
+    "memoClears": 0
+  },
+  "perf": {
+    "path": "slow",
+    "stages": [
+      {
+        "stage": "kernel-bytes",
+        "start": 314.7,
+        "dur": 11.5
+      },
+      {
+        "stage": "version",
+        "start": 318.9,
+        "dur": 11.6
+      },
+      {
+        "stage": "kernel-instantiate",
+        "start": 326.2,
+        "dur": 1
+      },
+      {
+        "stage": "cache-read",
+        "start": 330.8,
+        "dur": 32.9
+      },
+      {
+        "stage": "source-fetch",
+        "start": 363.7,
+        "dur": 4.2
+      },
+      {
+        "stage": "compile",
+        "start": 367.9,
+        "dur": 1102.1
+      },
+      {
+        "stage": "render",
+        "start": 1476.5,
+        "dur": 99.5
+      },
+      {
+        "stage": "mount-attach",
+        "start": 1548.1,
+        "dur": 21.6
+      },
+      {
+        "stage": "mount-root",
+        "start": 1569.7,
+        "dur": 0.8
+      },
+      {
+        "stage": "first-frame",
+        "start": 1576,
+        "dur": 6.1
+      }
+    ],
+    "kernel": null
+  },
+  "drag": null,
+  "errors": [],
+  "swapped": 1
+}

@@ -120,6 +120,8 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     "type Color = number | null;",
     "type Shape = string | null;",
     "type Fill = Color | Gradient;",
+    "type Radius = number | readonly [number, number, number, number];",
+    "type BoxStroke = Stroke | readonly [Stroke | null, Stroke | null, Stroke | null, Stroke | null] | null;",
     // `any`, not `unknown` — a record's keys are open by design (no schema
     // construct yet); `unknown` would flag every correct read of a theme token.
     "type Theme = Readonly<Record<string, any>>;",
@@ -168,7 +170,10 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   assert.ok(view.includes("visible: boolean;"), "boolean → boolean");
   assert.ok(view.includes("clip: Shape;"), "shape → Shape");
   assert.ok(view.includes("fill: Fill;"), "fill → Fill");
-  assert.ok(view.includes("stroke: Stroke | null;"), "stroke → Stroke | null");
+  // The THIRD one-or-four slot, beside cornerRadius and padding: one Stroke on
+  // all four sides, four of them, or null. Symmetric — the slot reads back what
+  // was written, so a body that reaches into it narrows first.
+  assert.ok(view.includes("stroke: BoxStroke;"), "stroke → BoxStroke (one, four, or null)");
   assert.ok(view.includes("shadow: Shadow | null;"), "shadow → Shadow | null");
   assert.ok(view.includes("layout: Layout | null;"), "component → <of> | null");
   // The text FACE kinds moved OFF View onto the text leaves (provided values):

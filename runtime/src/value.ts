@@ -7,12 +7,13 @@
 // a type and its diagnostics are one thing and cannot drift apart.
 
 import type { Literal, ShapeField } from "./parser.js";
-import { diag } from "./errors.js";
+import { diag, strokeShapeMessage } from "./errors.js";
 import { CSS_COLORS } from "./css-colors.js";
 import { validatePathData } from "./shape.js";
 import { motionToken, MOTION_TOKENS, type Motion } from "./animate.js";
 import { faceSourceLiteral, faceWeightLiteral } from "./face-literal.js";
 import { coerceFilter, coerceRadialConic } from "./effects.js";
+import { coerceStrokeSides, sidesEqual, sidesUniform } from "./stroke-sides.js";
 
 /** A color as one number, or `null` for "no color".
  *
@@ -89,6 +90,28 @@ export function isGradient(f: Fill): f is Gradient {
 export interface Stroke {
   readonly width: number;
   readonly color: Color;
+}
+
+/** What `View.stroke` holds: ONE Stroke on all four sides, or FOUR — top,
+ *  right, bottom, left, clockwise from the top, as CSS orders the edges of a
+ *  box. A `null` in a side's place leaves that side bare, which is how a
+ *  single rule is written (`[ stroke(1, line), null, null, null ]` is a top
+ *  rule and nothing else). The whole slot `null` is no border at all.
+ *
+ *  The one-value-or-four-clockwise shape is the house pattern for anything
+ *  said per side or per corner — `cornerRadius` (a Radius), `padding` (an
+ *  Inset), and this. Whichever one you are reading, the single value is the
+ *  uniform case and the list starts at the top and goes round. */
+export type BoxStroke = Stroke | readonly (Stroke | null)[] | null;
+
+/** The uniform Stroke this value is on all four sides, or null when it is
+ *  bare on all four — and `undefined` when the sides genuinely differ, which
+ *  is the signal to take a painter's per-side path. Keeps the overwhelmingly
+ *  common uniform case on the one-ring fast path in both backends; the FOUR-side
+ *  arm lives in stroke-sides.ts, one module for everything four sides mean. */
+export function strokeUniform(s: BoxStroke): Stroke | null | undefined {
+  if (s === null || !Array.isArray(s)) return s as Stroke | null;
+  return sidesUniform(s as readonly (Stroke | null)[]);
 }
 
 /** A glyph OUTLINE (`outline` on text) — a stroke traced along each letterform's
@@ -255,8 +278,12 @@ export function shadowEqual(a: Shadow | null, b: Shadow | null): boolean {
     a.dx === b.dx && a.dy === b.dy && a.blur === b.blur && a.color === b.color;
 }
 
-export function strokeEqual(a: Stroke | null, b: Stroke | null): boolean {
-  return a !== null && b !== null && a.width === b.width && a.color === b.color;
+export function strokeEqual(a: BoxStroke, b: BoxStroke): boolean {
+  if (a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) return sidesEqual(a, b);
+  const s = a as Stroke;
+  const t = b as Stroke;
+  return s.width === t.width && s.color === t.color;
 }
 
 export function outlineEqual(a: Outline | null, b: Outline | null): boolean {
@@ -348,6 +375,44 @@ export function radiusMax(r: Radius): number {
  *  two adjacent radii would overlap along an edge, EVERY radius shrinks by the
  *  same factor, so the shape stays a scaled copy of the one asked for. A uniform
  *  radius past half the box lands at half the box — a pill — exactly as before. */
+/** An inset from a box's four edges — `View.padding` today. ONE number
+ *  insets every side; FOUR are top, right, bottom, left, clockwise from the
+ *  top, the order CSS writes its box edges in. `0` (the default everywhere) is
+ *  no inset.
+ *
+ *  This is the HOUSE PATTERN for anything said per side or per corner: one
+ *  value for all of them, or a list of four starting at the top and going
+ *  clockwise. `cornerRadius` (a Radius — top-left first, since a corner list
+ *  starts at the first corner), `stroke` (a BoxStroke — top first), and this
+ *  all read the same way, so knowing one is knowing all three. A list of any
+ *  other length is a mistake, never a shorthand. */
+export type Inset = number | readonly [number, number, number, number];
+
+/** The four sides of an Inset — top, right, bottom, left. Negative values are
+ *  clamped to 0: an inset that grew the box would make a layout place children
+ *  outside the view it arranges. */
+export function insetSides(i: Inset): [number, number, number, number] {
+  const n = (v: number): number => (Number.isFinite(v) && v > 0 ? v : 0);
+  return typeof i === "number" ? [n(i), n(i), n(i), n(i)] : [n(i[0]), n(i[1]), n(i[2]), n(i[3])];
+}
+
+/** ONE side of an Inset, without materializing the other three — the hot pair:
+ *  every child's position push and every descent of the hit walk asks for the
+ *  LEADING inset (left on x, top on y), and the answer is almost always the
+ *  literal 0 an unpadded view carries. Same clamp as insetSides. */
+export function insetLead(i: Inset, axis: "x" | "y"): number {
+  if (typeof i === "number") return Number.isFinite(i) && i > 0 ? i : 0;
+  const v = axis === "x" ? i[3] : i[0];
+  return Number.isFinite(v) && v > 0 ? v : 0;
+}
+
+/** True when this inset takes nothing off any side — the zero-cost path a
+ *  layout takes when nobody asked for padding. */
+export function insetIsZero(i: Inset): boolean {
+  const [t, r, b, l] = insetSides(i);
+  return t === 0 && r === 0 && b === 0 && l === 0;
+}
+
 export function radiusFit(r: Radius, w: number, h: number): [number, number, number, number] {
   const c = radiusCorners(r).map((v) => Math.max(0, v)) as [number, number, number, number];
   const [tl, tr, br, bl] = c;
@@ -359,7 +424,7 @@ export function radiusFit(r: Radius, w: number, h: number): [number, number, num
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | { readonly arrayRoot: true; readonly fields: readonly ShapeField[] };
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | readonly (Stroke | null)[] | readonly number[] | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | { readonly arrayRoot: true; readonly fields: readonly ShapeField[] };
 
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
@@ -374,7 +439,13 @@ export function isPercent(v: AttrValue): v is Percent {
  *  written as the member `layout: SimpleLayout [ … ]` (the checker routes
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType =
-  | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" }
+  // `inset` and `radius` are the same LITERAL shape — one number, or four
+  // clockwise — and every path that admits one admits the other. They are two
+  // kinds rather than one because the four numbers START SOMEWHERE DIFFERENT
+  // (a radius at the top-left corner, an inset at the top edge), and the kind
+  // is what carries that as far as the scaffold, whose `Radius` on a padding
+  // slot told authors and agents that padding rounds corners.
+  | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset" }
   // A data-shape (B4, language §9's optional `schema` — the "shape" kind
   // above is the SVG clip path, unrelated): the slot holds parsed ShapeField
   // declarations, literal-only (`[ city: string, rows[]: [ … ] ]`).
@@ -466,6 +537,13 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
   Length: { kind: "length" },
   Radius: { kind: "radius" },
   Shape: { kind: "shape" },
+  // An Inset (`View.padding`) is the same LITERAL shape as a Radius — one
+  // number, or four clockwise — and rides the same routes: the coercer and the
+  // bare-four-item-list path are the ones a Radius already has. It is its OWN
+  // KIND because the names mean different things to a reader (corners vs edges,
+  // and an Inset's four start at the TOP), and only a kind carries that to the
+  // scaffold and from there to the reference.
+  Inset: { kind: "inset" },
   // The records door (planes.md §4 — components arrange records): a slot
   // holding an ARRAY of records (`items`), a plain OBJECT record, or a VIEW
   // reference (`opener`). Literal defaults are null-only — structured values
@@ -549,10 +627,18 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       }
       return fail(diag`a number`);
     case "radius":
-      // the list form `[tl, tr, br, bl]` never reaches coerce — a bare list is
-      // routed around it (check.ts / instantiate.ts), as every list slot is
+    case "inset":
+      // One value, or four clockwise — the house pattern (a Radius's four are
+      // corners from the top-left, an Inset's edges from the top). On a view's
+      // own attribute a bare list is routed around coercion like every list
+      // slot (check.ts / instantiate.ts); inside a component-valued member —
+      // `layout: SimpleLayout [ padding = [ 8, 12, 16, 20 ] ]` — this IS the
+      // path, so the four-item form is admitted here too.
       if (lit.kind === "number") return ok(lit.value);
-      return fail(diag`a Radius (a number rounds all four corners; [topLeft, topRight, bottomRight, bottomLeft] rounds each)`);
+      if (lit.kind === "list" && lit.items.length === 4 && lit.items.every((it) => it.kind === "number")) {
+        return ok(Object.freeze(lit.items.map((it) => (it.kind === "number" ? it.value : 0))));
+      }
+      return fail(diag`a number for all four, or a list of four numbers — clockwise from the top (a Radius's corners start at the top-left; an Inset's edges at the top)`);
     case "boolean":
       if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) {
         return ok(lit.name === "true");
@@ -728,7 +814,7 @@ function coerceColor(lit: Literal): Coerced {
 // scope), so one vocabulary serves both lexical homes.
 
 export const FILL = diag`a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
-const STROKE = diag`a Stroke (stroke(width, color) — drawn inside the box — or null)`;
+const STROKE = strokeShapeMessage(); // errors.ts — one sentence, shared with the typecheck's report of the same mistake made inside a { }
 const SHADOW = diag`a Shadow (shadow(dx, dy, blur, color), or null)`;
 
 /** A constructor argument as a plain color number (no null). */
@@ -808,6 +894,14 @@ function coerceFill(lit: Literal): Coerced {
 }
 
 function coerceStroke(lit: Literal): Coerced {
+  // The per-side form: four, clockwise from the top, `null` for a bare side.
+  // A list reaches coercion whole (like a filter list); stroke-sides.ts owns
+  // the shape check, so the type and its diagnostic stay one thing.
+  if (lit.kind === "list") return coerceStrokeSides(lit, oneStroke, STROKE);
+  return oneStroke(lit);
+}
+
+function oneStroke(lit: Literal): Coerced {
   if (lit.kind === "ident" && lit.name === "null") return ok(null);
   if (lit.kind !== "call" || lit.name !== "stroke") return fail(STROKE);
   const width = lit.args.length === 2 ? argNumber(lit.args[0]) : null;

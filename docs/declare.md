@@ -21,7 +21,7 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design.*
 | [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `node tools/declare-help.mjs <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included; a true miss exits 1 and says what it searched, so silence is trustworthy | you need a name, a type, a signature, or what a code means |
 | [`declare-model.json`](declare-model.json) | what `declare-help` reads: every component, attribute, type, method, event and diagnostic, generated from source; a class's page carries its ancestors' members too, so everything reachable on it is on one page | you want to browse the whole surface rather than ask one question |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
-| `apps/` | complete programs; `apps/README.md` maps the whole corpus — `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->840<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
+| `apps/` | complete programs; `apps/README.md` maps the whole corpus — `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->830<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
 | [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter; its [glossary](guide/23-glossary.md) is one word per idea | you want the reasoning, or you are learning rather than looking up — or a term used a specific way |
 | [`docs/operational/`](operational/) | install, dev server, build, deploy | you are running or shipping rather than writing |
 
@@ -295,6 +295,15 @@ reactive slot, it can be swapped, derived, or animated.
 layout: SimpleLayout   [ axis = y, spacing = 10 ],
 layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ]
 ```
+
+The inset is the **view's**, not the arrangement's: `padding` — one number, or `[top,
+right, bottom, left]` clockwise from the top — gives a view a **content box**, and `x = 0`
+and `width = 100%` mean that box for every child, whether a layout placed it or it placed
+itself. `{ parent.width }` is the escape hatch that still names the parent's literal box,
+and paint never moves: `fill`, `stroke` and `cornerRadius` stay on it. A view's `stroke`
+takes that same
+one-or-four shape, with `null` for a bare side, which is how a single rule under a row is
+drawn.
 
 **Stacking order is declaration order**; later siblings paint on top. There is no `z-index`, so
 chrome that must float above everything is declared last.

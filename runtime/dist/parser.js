@@ -531,30 +531,17 @@ class Parser {
     parseMembers(el) {
         while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
             let name = this.expect("ident", "a member name");
-            // Contextual declaration modifiers (`readonly` / `external`) — recognized
-            // only when a declaration head follows, so a member actually named one of
-            // these still parses everywhere else.
+            // The contextual declaration modifier `readonly`: recognized ONLY when a
+            // declaration head follows (`readonly name :`), so a member actually
+            // NAMED `readonly` still parses everywhere else. A value that cascades
+            // to a subtree is a `provided(…)` read.
             let readOnly = false;
-            let external = false;
             const declPos = name.pos;
-            // Contextual declaration modifiers (`readonly` / `external`): recognized
-            // ONLY when a declaration head follows — either directly (`name :`) or
-            // through one more modifier (`external readonly name :`) — so a member
-            // actually NAMED one of these still parses everywhere else. `external`
-            // combines with `readonly` (an island out-fact the host provably never
-            // writes). A value that cascades to a subtree is a `provided(…)` read.
-            const isMod = (t) => t === "readonly" || t === "external";
-            while (isMod(name.text)) {
+            while (name.text === "readonly") {
                 const nxt = this.peek();
-                const headNext = nxt.kind === "ident" && this.peekAt(1).kind === "colon";
-                const modThenHead = nxt.kind === "ident" && isMod(nxt.text) &&
-                    this.peekAt(1).kind === "ident" && this.peekAt(2).kind === "colon";
-                if (!headNext && !modThenHead)
+                if (!(nxt.kind === "ident" && this.peekAt(1).kind === "colon"))
                     break;
-                if (name.text === "readonly")
-                    readOnly = true;
-                else
-                    external = true;
+                readOnly = true;
                 name = this.next();
             }
             // E-4: `t.opacity = …` — a dotted member, the reach-into-a-child instinct
@@ -627,8 +614,8 @@ class Parser {
                 }
                 const type = this.parseTypeRef("a type or component name");
                 if (this.peek().kind === "lbracket") {
-                    if (readOnly || external) {
-                        throw new DeclareError(`${external ? "external" : "readonly"} marks an attribute declaration — a child instance cannot carry it`, declPos);
+                    if (readOnly) {
+                        throw new DeclareError(`readonly marks an attribute declaration — a child instance cannot carry it`, declPos);
                     }
                     const child = { tag: type.text, name: name.text, attrs: [], decls: [], methods: [], children: [], pos: name.pos };
                     this.next();
@@ -647,8 +634,8 @@ class Parser {
                     // `events: Dataset { …json… }` — a named child with an embedded raw
                     // body (language §9). Pure syntax here; the checker owns whether
                     // the tag admits one and whether the text is valid JSON.
-                    if (readOnly || external) {
-                        throw new DeclareError(`'${external ? "external" : "readonly"}' marks an attribute declaration — a child instance cannot carry it`, declPos);
+                    if (readOnly) {
+                        throw new DeclareError(`'readonly' marks an attribute declaration — a child instance cannot carry it`, declPos);
                     }
                     const body = this.next();
                     el.children.push({
@@ -662,7 +649,7 @@ class Parser {
                         this.next();
                         def = this.parseLiteral();
                     }
-                    el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, readOnly, external, pos: declPos });
+                    el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, readOnly, pos: declPos });
                 }
             }
             else if (this.peek().kind === "lparen") {

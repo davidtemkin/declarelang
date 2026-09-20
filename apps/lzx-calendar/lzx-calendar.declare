@@ -23,7 +23,7 @@ and the title. `TimeEvent`, below, is the same event on the open timeline.
 */
 
 class EventBar extends View [
-    width = { parent.width }, height = 22,
+    width = 100%, height = 22,
     clip = true,
 
     category: string = "",
@@ -147,7 +147,7 @@ class AccordionSection extends View [
     width = 197,
     y = { 90 + this.idx * 20 + (this.idx > app.openTab ? 330 : 0) },
 
-    hdr: View [ width = { parent.width }, height = 20,
+    hdr: View [ width = 100%, height = 20,
         fill = { app.openTab == classroot.idx ? 0xE2E4DF : 0xEEF0EB },
         draw(d: Draw) {
             d.fillStyle = 0xFDFFFF; d.fillRect(0, 0, width, 1)
@@ -299,7 +299,7 @@ class DayCell extends View [
 
         // Closed form: the sorted event list (hidden the moment the cell opens).
 
-        list: View [ width = { parent.width }, visible = { !classroot.open },
+        list: View [ width = 100%, visible = { !classroot.open },
             layout: SimpleLayout [ axis = y ],
             EventBar [ datapath = :events[], category = :category,
                 dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ]
@@ -315,7 +315,7 @@ class DayCell extends View [
             // when empty (SPEC §12-F — the original computed this then never
             // applied it); clamped so it can't scroll past the day's end.
 
-            tl: View [ width = { parent.width }, height = 611,
+            tl: View [ width = 100%, height = 611,
                 y = { 0 - Math.max(0, Math.min(:firstStart * 22 / 60 - 11,
                           Math.max(0, 611 - parent.height))) },
                 draw(d: Draw) {
@@ -337,7 +337,7 @@ class DayCell extends View [
             // 238-line bitmap widget): a track down the right edge with a thumb
             // sized by viewport/content and placed by the current scroll.
 
-            bar: View [ x = { parent.width - 10 }, width = 10, height = { parent.height },
+            bar: View [ x = { parent.width - 10 }, width = 10, height = 100%,
                 visible = { 611 > parent.height },
                 draw(d: Draw) {
                     d.fillStyle = 0x46606F
@@ -361,7 +361,7 @@ class DayCell extends View [
 
 class DayName extends View [
     t: Text [ fontSize = 10, fontWeight = bold, textColor = #B7BEC1,
-        x = { (parent.width - this.width) / 2 }, text = :label ]
+        x = center, text = :label ]
     ]
 
 
@@ -447,7 +447,7 @@ class CalButton extends View [
     stroke = stroke(1, #143B45),
 
     caption: Text [ fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
-        x = { (parent.width - this.width) / 2 }, y = 3,
+        x = center, y = 3,
         textShadow = shadow(0, -1, 0, #33555577),
         text = { label } ]
 
@@ -967,9 +967,9 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
         weekbar: View [ y = 26, width = 808, height = 26, fill = #354D5B,
             datapath = { app.cal.value },
-            rule: View [ y = 25, width = { parent.width }, height = 1, fill = #708A94 ],
+            rule: View [ y = 25, width = 100%, height = 1, fill = #708A94 ],
 
-            names: View [ y = 11, width = { parent.width }, height = 12,
+            names: View [ y = 11, width = 100%, height = 12,
                 DayName [ datapath = :cols[], x = :x, width = :w, height = 12, visible = :vis ]
                 ]
             ],
@@ -1101,7 +1101,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
             Animator [ attribute = opacity, to = 0 ]
             ],
 
-        bar: View [ width = { parent.width }, height = 18, fill = #384852,
+        bar: View [ width = 100%, height = 18, fill = #384852,
             cap: Text [ x = 8, y = 3, fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
                 text = "Event Info" ],
             xbtn: View [ x = { parent.width - 15 }, y = 4, width = 11, height = 11,

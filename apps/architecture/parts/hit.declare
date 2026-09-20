@@ -1,0 +1,213 @@
+/*
+# §4 figures — who computes geometry, and who decides what you hit
+
+Fig. 5 is a table drawn as a figure: each source of geometry, and the layer
+that computes it, in the layer code.
+
+Fig. 6 is a live hit-test scene. Its readout is not computed by this page:
+every scene view's `hovered` is the runtime's own hit chain (the topmost
+visible view under the pointer, and its ancestors), so the panel reports
+exactly what a press would reach. The scene holds the cases that make hit
+testing interesting: a rotated card, an invisible view that still takes
+presses, a child clipped by its pane, and a decoration that lets presses
+through.
+*/
+
+// ── Fig. 5 ────────────────────────────────────────────────────────────────
+
+class WhoRow extends View [
+    src: string = "",
+    who: string = "",
+    how: string = "",
+    hue: Color = gray,
+    soft: Color = gray,
+    layout: ResponsiveLayout [ plan = { [({ from: 680, flow: "row", gap: 16, share: ({ s: 26, w: 16, h: 58 }) }),
+        ({ from: 0, flow: "stack", gap: 8, share: ({ s: 100, w: 100, h: 100 }) })] } ],
+    s: HTMLText [ fontSize = 13, lineHeight = 1.4, fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"],
+        bodyColor = { provided("theme").ink }, html = { classroot.src } ],
+    w: View [
+        pill: View [ height = 24, cornerRadius = 12, padding = [0, 10, 0, 10], fill = { classroot.soft },
+            stroke = { stroke(1, classroot.hue) },
+            t: TextLabel [ fontSize = 13, fontWeight = semibold,
+                fontFamily = ["Avenir Next Condensed", "Avenir Next", "Arial Narrow", "sans-serif"], text = { classroot.who } ]
+            ]
+        ],
+    h: Text [ fontSize = 14, lineHeight = 1.45, textColor = { provided("theme").body }, text = { classroot.how } ]
+    ]
+
+
+class WhoFig extends Plate [ gap = 14,
+    WhoRow [ src = "x = { parent.width - 40 }", who = "Kernel", hue = { provided("theme").ker }, soft = { provided("theme").kerSoft },
+        how = "Arithmetic over slots runs as bytecode. Anything else is your compiled body, called back from the settle." ],
+    Hair [ ],
+    WhoRow [ src = "layout: SimpleLayout [ … ]", who = "Library", hue = { provided("theme").lib }, soft = { provided("theme").libSoft },
+        how = "A layout is a Declare class with one method, place(), which returns a box per child. The runtime’s layout pass applies it." ],
+    Hair [ ],
+    WhoRow [ src = "width unset", who = "Kernel", hue = { provided("theme").ker }, soft = { provided("theme").kerSoft },
+        how = "Auto-extent: the bounding box of the visible children, kept current as a built-in rule over the geometry table." ],
+    Hair [ ],
+    WhoRow [ src = "Text [ text = … ]", who = "Runtime + host", hue = { provided("theme").run }, soft = { provided("theme").runSoft },
+        how = "The runtime wraps and sizes the run; the host only measures glyph widths (canvas measureText, or Core Text on the Mac)." ],
+    Hair [ ],
+    WhoRow [ src = "CSS", who = "Nowhere", hue = { provided("theme").hostLine }, soft = { provided("theme").hostSoft },
+        how = "No flexbox, grid or flow. In the DOM, every view arrives as an absolutely positioned element with the box already decided." ]
+    ]
+
+
+// ── Fig. 6 ────────────────────────────────────────────────────────────────
+
+// A card in the scene — the plain rectangle the walk has to choose between,
+// named `SceneCard` and not `Card` because the library already has a `Card`
+// and this page's whole argument is that a library class is an ordinary
+// Declare class: shadowing one here would make the demonstration a lie. The
+// figure still calls it a card, because that is what the reader sees.
+
+class SceneCard extends View [ cornerRadius = 12,
+    title: string = "",
+    sub: string = "",
+    hue: Color = gray,
+    soft: Color = gray,
+    fill = { this.hovered ? this.hue : this.soft },
+    stroke = { stroke(this.hovered ? 2 : 1, this.hue) },
+    shadow = { shadow(0, 6, 18, 0x0000001A) },
+    t: Label [ x = 14, y = 12, fontSize = 15, text = { classroot.title },
+        textColor = { classroot.hovered ? provided("theme").panel : provided("theme").ink } ],
+    s: Note [ x = 14, y = 34, fontSize = 12.5, width = { classroot.width - 28 }, text = { classroot.sub },
+        textColor = { classroot.hovered ? provided("theme").panel : provided("theme").muted } ]
+    ]
+
+
+// a row of the readout: a label, and the runtime's answer
+
+class Read extends View [
+    what: string = "",
+    ans: string = "",
+    layout: Run [ spacing = 6 ],
+    Eyebrow [ text = { classroot.what } ],
+    a: Text [ fontSize = 15, lineHeight = 1.4, fontWeight = medium,
+        textColor = { provided("theme").ink }, text = { classroot.ans } ]
+    ]
+
+
+class HitFig extends Plate [
+    row: View [
+        layout: ResponsiveLayout [ plan = { [({ from: 820, flow: "row", gap: 32, share: ({ scene: 52, panel: 48 }) }),
+            ({ from: 0, flow: "stack", gap: 22, share: ({ scene: 100, panel: 100 }) })] } ],
+
+        // Every view in this scene declares an empty `onClick()`, and each one is
+        // load-bearing. Interest in the pointer derives from what a view
+        // declares: a handler, a `tip`, a `link` or `scrolls`. Reading `hovered`
+        // is not a declaration, so a view styled only by `this.hovered` is never
+        // wired, stays transparent to input, and its `hovered` stays false. The
+        // empty handler is how a view here says "I am one of the things the walk
+        // may stop at", which is the subject of the figure.
+
+        scene: View [ height = { 380 * this.k }, cornerRadius = 10, fill = { provided("theme").sunk }, clip = true,
+            k: number = { Math.min(1, this.width / 490) },
+            onClick() { },
+
+            // the composition, scaled as one to fit — the walk hits through the scale too
+
+            world: View [ width = 490, height = 380, scale = { parent.k }, pivotX = 0, pivotY = 0,
+
+                base: SceneCard [ x = 26, y = 30, width = 250, height = 190, title = "Card", sub = "Plain. Declares onClick.",
+                    hue = { provided("theme").app }, soft = { provided("theme").appSoft },
+                    onClick() { }
+                    ],
+                turned: SceneCard [ x = 170, y = 130, width = 230, height = 130, rotation = -9, title = "Rotated card",
+                    sub = "Hit through its own transform, not its box.",
+                    hue = { provided("theme").lib }, soft = { provided("theme").libSoft },
+                    onClick() { }
+                    ],
+                pane: View [ x = 40, y = 236, width = 200, height = 104, cornerRadius = 10, clip = true,
+                    fill = { this.hovered ? provided("theme").run : provided("theme").runSoft },
+                    stroke = { stroke(this.hovered ? 2 : 1, provided("theme").run) },
+                    onClick() { },
+                    Label [ x = 12, y = 10, fontSize = 14, text = "Clipped pane",
+                        textColor = { parent.hovered && !parent.inner.hovered ? provided("theme").panel : provided("theme").ink } ],
+                    inner: View [ x = 100, y = 44, width = 170, height = 90, cornerRadius = 8,
+                        fill = { this.hovered ? provided("theme").ker : provided("theme").kerSoft },
+                        stroke = { stroke(this.hovered ? 2 : 1, provided("theme").ker) },
+                        onClick() { },
+                        Label [ x = 10, y = 8, fontSize = 13, text = "Child",
+                            textColor = { parent.hovered ? provided("theme").panel : provided("theme").ink } ]
+                        ]
+                    ],
+
+                // the part of the child the pane clips away: drawn as a ghost, takes nothing
+
+                ghost: View [ x = 140, y = 280, width = 170, height = 90, pointerEvents = "none",
+                    draw(d: Draw) {
+                        d.strokeStyle = provided("theme").ker
+                        d.globalAlpha = 0.55
+                        d.setLineDash([4, 4])
+                        d.lineWidth = 1
+                        d.beginPath()
+                        d.roundRect(0.5, 0.5, d.w - 1, d.h - 1, 8)
+                        d.stroke()
+                        }
+                    ],
+
+                // present but fully transparent: still on the hit path
+
+                glass: View [ x = 300, y = 24, width = 150, height = 96, cornerRadius = 10, opacity = 0,
+                    onClick() { }
+                    ],
+                glassMark: View [ x = 300, y = 24, width = 150, height = 96, pointerEvents = "none",
+                    draw(d: Draw) {
+                        d.strokeStyle = provided("theme").muted
+                        d.setLineDash([5, 4])
+                        d.lineWidth = 1.2
+                        d.beginPath()
+                        d.roundRect(0.5, 0.5, d.w - 1, d.h - 1, 10)
+                        d.stroke()
+                        },
+                    Note [ x = 12, y = 12, width = 126, fontSize = 12.5,
+                        text = { classroot.row.scene.world.glass.hovered ? "Hit: opacity 0, still present" : "Invisible glass (opacity 0)" },
+                        textColor = { classroot.row.scene.world.glass.hovered ? provided("theme").ink : provided("theme").muted } ]
+                    ],
+
+                // seen, never touched
+
+                badge: View [ x = 290, y = 214, width = 140, height = 34, cornerRadius = 17, pointerEvents = "none",
+                    fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").hostLine) },
+                    Note [ x = center, y = center, fontSize = 12, text = "a label: clicks pass through" ]
+                    ]
+                ]
+            ],
+
+        // what the runtime says is under the pointer, deepest first
+
+        hit: string = { this.scene.world.pane.inner.hovered ? "Child"
+            : this.scene.world.pane.hovered ? "Clipped pane"
+            : this.scene.world.glass.hovered ? "Invisible glass"
+            : this.scene.world.turned.hovered ? "Rotated card"
+            : this.scene.world.base.hovered ? "Card"
+            : this.scene.hovered ? "Scene"
+            : "" },
+        chain: string = { this.hit == "" ? "—"
+            : this.hit == "Child" ? "Child → Clipped pane → Scene → … → App"
+            : this.hit == "Scene" ? "Scene → … → App"
+            : this.hit + " → Scene → … → App" },
+        why: string = { this.hit == "" ? "Move the pointer over the scene."
+            : this.hit == "Child" ? "Inside the pane’s clip. Past the pane’s edge the same child is neither drawn nor hit."
+            : this.hit == "Clipped pane" ? "The child’s clipped-away part is not there to be hit; the press falls to the pane."
+            : this.hit == "Invisible glass" ? "Opacity is paint. The view is fully present, so it takes the press over the card beneath it."
+            : this.hit == "Rotated card" ? "Hit through its rotation: the corners of its unrotated box do not count. The white label on it is pointerEvents none, so the walk skips it and finds the card."
+            : this.hit == "Card" ? "The topmost view here, and it declares onClick, so it takes the press."
+            : "Only the scene: nothing drawn above it is under the pointer." },
+
+        // 8px down, so the readout's first eyebrow sits level with the top of
+        // the scene beside it. The narrow plan is a stack and owns `y`, which
+        // is why the runtime calls this value discarded — it is, at that width
+
+        panel: View [ y = 8,
+            layout: Run [ spacing = 18 ],
+            Read [ what = "topmost view under the pointer", ans = { classroot.row.hit == "" ? "—" : classroot.row.hit } ],
+            Read [ what = "hover chain", ans = { classroot.row.chain } ],
+            Read [ what = "why", ans = { classroot.row.why } ],
+            Note [ fontSize = 12.5,
+                text = { !app.touchDevice ? "These answers are the scene views’ own hovered facts, read live: the same walk that routes a press." : "On a touch screen there is no hover; press and hold to see the chain." } ]
+            ]
+        ]
+    ]

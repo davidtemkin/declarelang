@@ -179,6 +179,26 @@ Their gap has a two-space minimum and no maximum — at or above the floor, your
 preserved exactly. Aligning trailing comments across neighboring lines is yours to do.
 This is the one exception to the rule below.
 
+### What a comment says
+
+A comment explains what the code **does**, and why it is shaped that way. It never
+explains what the code used to be.
+
+Your program is read by someone who cannot tell a current form from a former one, so a
+sentence about the previous shape hands them a second candidate answer and no way to
+choose. That reader is often an LLM, which will weigh both. Refactors are where this
+creeps in, because the reason for the change is fresh and feels like the explanation:
+
+```declare-fragment
+// four copies of the same three springs, one class now       ← no
+// its label, top and height each ride a spring, so a band    ← yes
+// that changes size travels there rather than jumping
+```
+
+Keep the measurement or the constraint that justifies the shape, and put it in the
+present: "a document-tall backdrop would allocate 96 megapixels", not "measured: 1091 ms
+blocked". Write the reason, not the repair.
+
 ## No row-to-row alignment
 
 Values are single-spaced, and columns are never padded into a table across sibling rows.

@@ -501,8 +501,13 @@ FAQ and the language reference, with no JSON wrapper and no generated copy to dr
 Markdown streaming in token by token renders as it arrives.
 
 Three tuning attributes carry across both: `lineHeight` (a leading multiplier),
-`bodyColor` (the running-text color), and `scale` (a font-size zoom a reader control can
+`bodyColor` (the running-text color), and `fontScale` (a type zoom a reader control can
 drive). Body size and weight follow the provided text face, exactly like a `Text`.
+
+`fontScale` multiplies the type, not the box: the sizes are scaled into the runs, the
+flow re-wraps, and the view's measured height is what it paints. That is why it is not
+`scale` — a view's `scale` is a transform, and paint, the hit walk and auto-extent all
+honour it, so a flow set 10% smaller would otherwise measure as a box it does not fill.
 
 Links are the one thing rich text will not decide for you. **It raises the href rather
 than navigating** — `onLink(href)` — because whether a link scrolls, switches an in-app

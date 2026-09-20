@@ -1,0 +1,311 @@
+/*
+# Fig. 3 — what ships, by weight
+
+The same stack as Fig. 1, drawn to scale: each block's AREA is its share of
+the gzipped production bundle. The layer bands keep Fig. 1's order (app,
+library, runtime, kernel) with heights proportional to bytes; the runtime band
+is subdivided into its subsystems as a squarified treemap.
+
+The arrangement is a `TweenLayout`. The build on screen is one value on the
+figure, read down the tree by everything that shows it — the blocks, the
+caption, the dimension column, and the layout itself. A tween is the one
+arrangement that does not re-place on its own, so the only imperative step is
+the re-snapshot: the arranged view tracks the build and asks for a
+`retarget(true)` once the settle has landed, and every block glides from where
+it is to where the new numbers put it.
+
+Figures: measured 2026-09-18 from `declarec` production builds, gzip default
+level; per-subsystem bytes attributed through source maps (two methods agree
+within ~1 KB per group).
+*/
+
+script {
+    // gz KB per block, per build. The app/library split of the program literal
+    // is by class name; `boot` folds in the 0.3 KB seam module.
+    const SIZES: Record<string, Record<string, number>> = {
+        hello: { app: 0.1, lib: 0, core: 34.4, view: 7.7, backend: 10.4, input: 4.2, draw: 1.0,
+            anim: 3.5, text: 3.4, boot: 2.5, layout: 1.8, themes: 0, ker: 11.5 },
+        calDom: { app: 11.1, lib: 7.0, core: 34.9, view: 7.8, backend: 10.5, input: 7.1, draw: 5.7,
+            anim: 3.5, text: 3.4, boot: 2.5, layout: 1.8, themes: 1.7, ker: 11.5 },
+        calCanvas: { app: 11.1, lib: 7.0, core: 34.9, view: 7.8, backend: 14.2, input: 9.6, draw: 8.4,
+            anim: 3.5, text: 3.6, boot: 2.5, layout: 1.8, themes: 1.7, ker: 11.5 }
+        }
+    const TOTALS: Record<string, number> = { hello: 80.6, calDom: 108.4, calCanvas: 117.7 }
+
+    function sizeOf(build: string, key: string): number {
+        const b = SIZES[build]
+        return b == null || b[key] == null ? 0 : b[key]
+        }
+
+    function totalOf(build: string): number {
+        return TOTALS[build] == null ? 0 : TOTALS[build]
+        }
+
+    // the four layer bands for a build, top to bottom — used by the layout
+    // (to place blocks) and by the dimension column (to label them)
+    const LAYER_PARTS: Record<string, string[]> = {
+        app: ["app"], lib: ["lib"], ker: ["ker"],
+        run: ["core", "view", "backend", "input", "draw", "anim", "text", "boot", "layout", "themes"]
+        }
+    function bandsOf(build: string, H: number, gap: number): object[] {
+        const order = ["app", "lib", "run", "ker"]
+        const kb = order.map((L) => LAYER_PARTS[L].reduce((s, k) => s + sizeOf(build, k), 0))
+        const all = kb.reduce((a, b) => a + b, 0)
+        const usable = H - gap * 3
+        let y = 0
+        return order.map((L, i) => {
+            const h = all <= 0 ? 0 : usable * kb[i] / all
+            const band = { layer: L, y: y, h: h, kb: kb[i] }
+            y = y + h + gap
+            return band
+            })
+        }
+
+    // squarified treemap (Bruls, Huizing, van Wijk) over a rectangle —
+    // values in, one rect per value out, in the input order
+    function squarify(values: number[], x: number, y: number, w: number, h: number): object[] {
+        const out: any[] = values.map(() => ({ x: x, y: y, w: 0, h: 0 }))
+        const idx = values.map((v, i) => i).filter((i) => values[i] > 0).sort((a, b) => values[b] - values[a])
+        const total = idx.reduce((s, i) => s + values[i], 0)
+        if (total <= 0 || w <= 0 || h <= 0) return out
+        const scale = (w * h) / total
+        let rx = x, ry = y, rw = w, rh = h
+        let row: number[] = []
+        const worst = (r: number[], side: number) => {
+            const areas = r.map((i) => values[i] * scale)
+            const s = areas.reduce((a, b) => a + b, 0)
+            const mx = Math.max(...areas), mn = Math.min(...areas)
+            return Math.max((side * side * mx) / (s * s), (s * s) / (side * side * mn))
+            }
+        const lay = (r: number[]) => {
+            const s = r.reduce((a, i) => a + values[i] * scale, 0)
+            if (rw >= rh) {
+                const cw = s / rh
+                let cy = ry
+                for (const i of r) { const ch = (values[i] * scale) / cw; out[i] = { x: rx, y: cy, w: cw, h: ch }; cy += ch }
+                rx += cw; rw -= cw
+                }
+            else {
+                const ch = s / rw
+                let cx = rx
+                for (const i of r) { const cw = (values[i] * scale) / ch; out[i] = { x: cx, y: ry, w: cw, h: ch }; cx += cw }
+                ry += ch; rh -= ch
+                }
+            }
+        for (const i of idx) {
+            const side = Math.min(rw, rh)
+            if (row.length == 0 || worst(row.concat([i]), side) <= worst(row, side)) row.push(i)
+            else { lay(row); row = [i] }
+            }
+        if (row.length > 0) lay(row)
+        return out
+        }
+    }
+
+// the arrangement: layer bands by bytes, the runtime band as a treemap
+
+class Floorplan extends TweenLayout [
+    gap: number = 3,
+    place() {
+        // the room this arrangement has — the arranged view's content box, not
+        // its box: a strategy that reads `this.view.width` lays out at the
+        // wrong number the moment anyone pads that view
+        const W = this.contentExtent("width")
+        const H = this.contentExtent("height")
+        // which build is on screen is the arranged view's own attribute, so
+        // there is one copy of it and no handler pushes it down here
+        const build = (this.view as any).build as string
+        const kids = this.laid()
+        const keys = kids.map((c) => (c as Block).part)
+        const layerOf = kids.map((c) => (c as Block).layer)
+        const vals = keys.map((k) => sizeOf(build, k))
+        const g = this.gap
+        const bands = bandsOf(build, H, g) as any[]
+        const boxes = kids.map(() => ({ x: 0, y: 0, w: W, h: 0, vis: true }))
+        for (const b of bands) {
+            const members = kids.map((c, i) => i).filter((i) => layerOf[i] == b.layer)
+            if (b.layer == "run") {
+                const rects = squarify(members.map((i) => vals[i]), 0, b.y, W, b.h + g)
+                members.forEach((i, j) => {
+                    const r = rects[j] as any
+                    boxes[i] = { x: r.x, y: r.y, w: Math.max(0, r.w - g), h: Math.max(0, r.h - g), vis: true }
+                    })
+                }
+            else {
+                for (const i of members) boxes[i] = { x: 0, y: b.y, w: W - g, h: Math.max(1, b.h), vis: true }
+                }
+            }
+        return boxes
+        }
+    ]
+
+
+class Block extends View [ cornerRadius = 5, clip = true,
+    part: string = "",
+    layer: string = "run",
+    name: string = "",
+    build: string = "calDom",
+    kb: number = { sizeOf(this.build, this.part) },
+    hue: Color = { this.layer == "app" ? provided("theme").app : this.layer == "lib" ? provided("theme").lib : this.layer == "ker" ? provided("theme").ker : provided("theme").run },
+    fill = { this.hovered ? provided("theme").sunk : this.layer == "app" ? provided("theme").appSoft : this.layer == "lib" ? provided("theme").libSoft : this.layer == "ker" ? provided("theme").kerSoft : provided("theme").runSoft },
+    stroke = { stroke(1, this.hue) },
+    flat: boolean = { this.height < 58 && this.width > 280 },
+    roomy: boolean = { !this.flat && this.width > 50 && this.height > 52 },
+    n: Label [ x = 10, y = { classroot.flat ? (classroot.height - this.height) / 2 : 8 },
+        fontSize = { classroot.width > 160 ? 14 : 12 }, visible = { (classroot.roomy || classroot.flat) && classroot.height > 16 },
+        width = { classroot.flat ? this.contentWidth : classroot.width - 16 }, wrap = { !classroot.flat },
+        text = { classroot.name } ],
+    v: Mono [ fontSize = 12, visible = { classroot.flat ? classroot.height > 16 : classroot.roomy && classroot.height > 58 },
+        x = { classroot.flat ? classroot.width - this.width - 12 : 10 },
+        y = { classroot.flat ? (classroot.height - this.height) / 2 : classroot.height - 22 },
+        textColor = { provided("theme").lead },
+        text = { classroot.kb.toFixed(1) + " KB" } ]
+    ]
+
+
+// the dimension column: one bracket per layer band, its name and its total
+
+class Dim extends View [ width = 100%,
+    name: string = "",
+    kb: number = 0,
+    hue: Color = gray,
+    ty: number = 0,
+    draw(d: Draw) {
+        d.strokeStyle = this.hue
+        d.lineWidth = 1.5
+        d.beginPath()
+        d.moveTo(0, 1)
+        d.lineTo(6, 1)
+        d.moveTo(6, 1)
+        d.lineTo(6, Math.max(1, d.h - 1))
+        d.moveTo(0, Math.max(1, d.h - 1))
+        d.lineTo(6, Math.max(1, d.h - 1))
+        d.stroke()
+        },
+
+    // the label sits where the column's collision pass put it (ty, in the
+    // column's coordinates), so a thin band's label never lands on its neighbour's
+
+    t: View [ x = 16, y = { classroot.ty - classroot.y },
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Label [ fontSize = 13, textColor = { classroot.hue }, text = { classroot.name } ],
+        Mono [ fontSize = 11.5, textColor = { provided("theme").muted }, text = { classroot.kb.toFixed(1) + " KB" } ]
+        ]
+    ]
+
+
+// A band of the dimension column, following its band in the floorplan. Its
+// label, its top and its height each ride a spring, so a band that changes
+// size travels there rather than jumping; the floor under the height keeps a
+// thin band legible.
+
+class DimBand extends Dim [
+    toTy: number = 0,
+    toY: number = 0,
+    toH: number = 0,
+    Spring [ attribute = ty, to = { classroot.toTy }, stiffness = 120, damping = 20 ],
+    Spring [ attribute = y, to = { classroot.toY }, stiffness = 120, damping = 20 ],
+    Spring [ attribute = height, to = { Math.max(12, classroot.toH) }, stiffness = 120, damping = 20 ]
+    ]
+
+
+class ShipsFig extends View [
+    build: string = "calDom",
+    shown: number = 108.4,
+    layout: Run [ spacing = 14 ],
+
+    head: View [
+        Segmented [ x = center, width = { Math.min(420, parent.width) }, height = 32, value = { classroot.build },
+            choices = { [ ({ id: "hello", label: "Hello world" }), ({ id: "calDom", label: "Calendar · DOM" }),
+                ({ id: "calCanvas", label: "Calendar · canvas" }) ] },
+            input(v: object) { classroot.build = "" + v }
+            ]
+        ],
+    Spring [ attribute = shown, to = { totalOf(classroot.build) }, stiffness = 90, damping = 18 ],
+
+    planH: number = { Math.max(300, Math.min(440, this.width * 0.46)) },
+    bands: object[] = { bandsOf(this.build, this.planH, 3) },
+    bandAt(i: number, f: string) -> number { const b = this.bands[i] as any; return b == null ? 0 : b[f] },
+
+    // label tops for the dimension column: each at its band's centre, pushed
+    // down past the one above, then back up from the bottom edge
+
+    labelTops() -> number[] {
+        const L = 34
+        const c = [0, 1, 2, 3].map((i) => this.bandAt(i, "y") + this.bandAt(i, "h") / 2 - L / 2)
+        c[0] = Math.max(0, c[0])
+        for (let i = 1; i < 4; i++) c[i] = Math.max(c[i], c[i - 1] + L)
+        c[3] = Math.min(c[3], this.planH - L)
+        for (let i = 2; i >= 0; i--) c[i] = Math.min(c[i], c[i + 1] - L)
+        c[0] = Math.max(0, c[0])
+        return c
+        },
+    labelAt(i: number) -> number { return this.labelTops()[i] },
+
+    stage: View [ height = { classroot.planH },
+        // the floorplan centred on the figure, its dimension labels to the right:
+        // an empty column on the left balances the label column on the right
+
+        layout: ResponsiveLayout [ plan = { [({ from: 700, flow: "row", gap: 12, share: ({ balance: 11, plan: 78, dimcol: 11 }) }),
+            ({ from: 0, flow: "row", gap: 0, share: ({ balance: 0, plan: 100, dimcol: 0 }) })] } ],
+
+        balance: View [ height = 1 ],
+
+        plan: View [ height = { classroot.planH },
+            layout: Floorplan [ duration = 520 ],
+
+            // The build the floorplan draws, as a plain constraint down the
+            // tree — the layout reads it off this view, so it is one value with
+            // one owner and no handler carries a copy of it anywhere.
+            //
+            // A TweenLayout samples place() only when it is retargeted, which is
+            // the one thing a constraint cannot do for it, so the re-snapshot is
+            // asked for here: after the settle that changed something place()
+            // reads. A new build glides to its new arrangement; a new size is
+            // simply a new snapshot, taken without animation.
+
+            build: string = { classroot.build },
+            trackChanges = ["width", "height", "build"],
+            onChange(e: ChangeEvent) { this.layout.retarget(e.changed.some((c) => c.name == "build")) },
+
+            Block [ part = "app", layer = "app", build = { classroot.build }, name = "Your program",
+                tip = "The compiled program: tree, attributes, dependency lists, kernel code." ],
+            Block [ part = "lib", layer = "lib", build = { classroot.build }, name = "Library classes it uses",
+                tip = "Library components compiled into the same program JSON as yours." ],
+            Block [ part = "core", layer = "run", build = { classroot.build }, name = "Reactive core, instantiation & data",
+                tip = "reactive, attributes, bind, instantiate, replicate, data, value, schema — the graph and the tree." ],
+            Block [ part = "backend", layer = "run", build = { classroot.build },
+                name = { classroot.build == "calCanvas" ? "Canvas backend & compositor" : "DOM backend" },
+                tip = "The renderer: one of two ships, chosen at build time." ],
+            Block [ part = "view", layer = "run", build = { classroot.build }, name = "View",
+                tip = "view.ts — the element every visual thing extends." ],
+            Block [ part = "input", layer = "run", build = { classroot.build }, name = "Input, focus, gestures, scrolling",
+                tip = "Click resolution, hover chain, focus & keys, gesture claims; scroll physics on canvas." ],
+            Block [ part = "draw", layer = "run", build = { classroot.build }, name = "Draw & compositing",
+                tip = "Display lists, box paint, filters, the compositing pipeline." ],
+            Block [ part = "anim", layer = "run", build = { classroot.build }, name = "Springs & animators",
+                tip = "Spring, Animator, the frame clock." ],
+            Block [ part = "text", layer = "run", build = { classroot.build }, name = "Text & fonts",
+                tip = "Measurement, wrapping, font loading." ],
+            Block [ part = "boot", layer = "run", build = { classroot.build }, name = "Boot",
+                tip = "Entry, host wiring, the render seam's interface." ],
+            Block [ part = "layout", layer = "run", build = { classroot.build }, name = "Layout",
+                tip = "1.8 KB: the strategies themselves are Declare, in the library." ],
+            Block [ part = "themes", layer = "run", build = { classroot.build }, name = "Themes",
+                tip = "Preset token records, when a program uses library widgets." ],
+            Block [ part = "ker", layer = "ker", build = { classroot.build }, name = "Kernel — WebAssembly + loader",
+                tip = "kernel.wasm (17 KB raw) inlined as base64, plus its 2.3 KB loader." ]
+            ],
+
+        dimcol: View [ height = { classroot.planH },
+            DimBand [ name = "App", hue = { provided("theme").app }, kb = { classroot.bandAt(0, "kb") },
+                toTy = { classroot.labelAt(0) }, toY = { classroot.bandAt(0, "y") }, toH = { classroot.bandAt(0, "h") } ],
+            DimBand [ name = "Library", hue = { provided("theme").lib }, kb = { classroot.bandAt(1, "kb") },
+                toTy = { classroot.labelAt(1) }, toY = { classroot.bandAt(1, "y") }, toH = { classroot.bandAt(1, "h") } ],
+            DimBand [ name = "Runtime", hue = { provided("theme").run }, kb = { classroot.bandAt(2, "kb") },
+                toTy = { classroot.labelAt(2) }, toY = { classroot.bandAt(2, "y") }, toH = { classroot.bandAt(2, "h") } ],
+            DimBand [ name = "Kernel", hue = { provided("theme").ker }, kb = { classroot.bandAt(3, "kb") },
+                toTy = { classroot.labelAt(3) }, toY = { classroot.bandAt(3, "y") }, toH = { classroot.bandAt(3, "h") } ]
+            ]
+        ]
+    ]

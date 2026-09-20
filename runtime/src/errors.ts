@@ -20,8 +20,25 @@ export interface Pos {
  *  `(rooms/pulse.declare:118:23)` in an included one — the editor-clickable
  *  shape, because an author with five files edited by five hands asks "is
  *  this mine?" before anything else. */
-export function describePos(pos: Pos): string {
+export function describePos(pos: Where): string {
   return pos.file !== undefined ? `(${pos.file}:${pos.line}:${pos.col})` : `(line ${pos.line}, col ${pos.col})`;
+}
+
+/** Just the part of a Pos a message renders — line, column, and the file when
+ *  it is not the author's own. A RUNTIME diagnostic (a layout conflict) knows
+ *  where the author wrote the offending value but not its byte offset, so it
+ *  carries this and not the full `Pos`. `Pos` satisfies it. */
+export interface Where {
+  line: number;
+  col: number;
+  file?: string;
+}
+
+/** ` (line 5, col 22)`, or nothing when the position is unknown — a compiled
+ *  artifact carries no positions (declarec strips them), so every message that
+ *  offers one must read exactly as it did without one. */
+export function at(where: Where | null | undefined): string {
+  return where == null ? "" : " " + describePos(where);
 }
 
 /** Extra metadata a diagnostic carries beyond message + position: a stable
@@ -80,12 +97,52 @@ export class DeclareErrors extends DeclareError {
  *  take the child out of the arrangement. `by` names who else set the slot
  *  when that helps (a direct write); null when the child obviously authored
  *  it. */
-export function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null): string {
-  const size = slot === "width" || slot === "height";
-  const owned = size ? "sizes" : "positions";
-  const escape = diag`let the layout ${size ? "size" : "place"} it (drop the child's own ${slot}), or set 'ignoreLayout = true' on the child to take it out of the arrangement`;
+export function layoutConflictMessage(
+  childClass: string,
+  slot: string,
+  arranger: string,
+  by: string | null,
+  where?: Where | null
+): string {
+  const escape = layoutEscape(slot);
   const who = by !== null ? ` (set by ${by})` : "";
-  return diag`${childClass}.${slot}${who} — ${arranger} ${owned} its children, so this child cannot also own its ${slot}; ${escape}.`;
+  return diag`${childClass}.${slot}${who}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child cannot also own its ${slot}; ${escape}.`;
+}
+
+/** What a strategy DOES to the slot it claims — the verb the two messages
+ *  share, so "sizes"/"positions" is decided once. */
+function arranges(slot: string): string {
+  return slot === "width" || slot === "height" ? "sizes" : "positions";
+}
+
+/** The two ways out, in the one wording: hand the slot to the layout, or hand
+ *  the whole child to the author. Every layout↔author message ends with it. */
+function layoutEscape(slot: string): string {
+  const verb = slot === "width" || slot === "height" ? "size" : "place";
+  return diag`let the layout ${verb} it (drop the child's own ${slot}), or set 'ignoreLayout = true' on the child to take it out of the arrangement`;
+}
+
+/** A LITERAL (or a direct write) on a slot a layout claims. Same conflict as
+ *  the bound case, spelled differently — and until now the only spelling the
+ *  language answered in silence: a literal installs no owner, so the one-owner
+ *  guard never saw it and the arrangement simply overwrote the number. The
+ *  answer to "may I set my own geometry here?" must not depend on whether the
+ *  value was written `40` or `{ 40 }`, so this says the same thing the bound
+ *  case says, names the value that is being dropped, and points at the line
+ *  that wrote it. */
+export function discardedValueMessage(
+  childClass: string,
+  slot: string,
+  value: string | null,
+  arranger: string,
+  where?: Where | null
+): string {
+  const wrote = value === null ? "" : ` = ${value}`;
+  return diag`${childClass}.${slot}${wrote}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child cannot also own its ${slot}: the arrangement writes that slot, and this value is discarded. ${capitalize(layoutEscape(slot))}.`;
+}
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** The diagnostic tag — an identity join, and the third constructor the
@@ -129,4 +186,35 @@ export function noBaselineMessage(childClass: string, arranger: string): string 
  *  to sit on — its cross axis is x, where a baseline means nothing. */
 export function stackBaselineMessage(arranger: string): string {
   return diag`${arranger} [ axis = y, align = baseline ] — baseline aligns a ROW; a stack has no line, so its cross axis (x) takes start | center | end.`;
+}
+
+/** A malformed four-list on an Inset or Radius slot, named for the attribute it
+ *  was written on: `padding` counts clockwise from the top, `cornerRadius` from
+ *  the top-left corner, and both take one number for all four. The two share a
+ *  kind, so the message keys off the NAME — a padding mistake told in corner
+ *  words sends the author looking in the wrong place. */
+export function insetOrRadiusMessage(owner: string, attr: string): string {
+  return `${owner}.${attr}: ${insetOrRadiusShape(attr)}`;
+}
+
+/** The shape alone, unowned — for the typecheck's report of the SAME mistake
+ *  made inside a `{ }` (`cornerRadius = { [8, 8, 0] }`), where the sentence
+ *  already names the slot and tsc would otherwise offer only its type name.
+ *  Split out so the literal and the computed form say one thing. */
+export function insetOrRadiusShape(attr: string): string {
+  return attr === "padding"
+    ? `an inset is four numbers — [top, right, bottom, left], clockwise from the top; one number insets all four sides`
+    : `a per-corner radius is four numbers — [topLeft, topRight, bottomRight, bottomLeft], clockwise from the top-left; one number rounds all four corners`;
+}
+
+/** The `stroke` slot's shape — the sibling of `insetOrRadiusMessage` for the
+ *  third one-or-four slot, and the one whose sides hold VALUES rather than
+ *  numbers. Said in ONE place because TWO paths reach the same mistake and
+ *  must say the same sentence: a literal list of the wrong shape, refused at
+ *  coercion (value.ts's `STROKE`, via stroke-sides.ts), and a `{ }` body that
+ *  computes one, refused by the typecheck at the slot seam (the compiler's
+ *  typecheck.ts, which would otherwise report the scaffold's `BoxStroke` type
+ *  name and nothing an author can act on). */
+export function strokeShapeMessage(): string {
+  return diag`a Stroke on all four sides (stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all`;
 }

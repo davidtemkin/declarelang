@@ -18,8 +18,4 @@ export declare function featureTags(style: {
  *  A name that is already quoted, a generic keyword, or a valid identifier
  *  sequence passes through untouched, so no existing font string changes. */
 export declare function cssFamilyName(name: string): string;
-/** The family list a style should MEASURE AND PAINT in — the authored list when
- *  it asks for no features, and the derived-then-plain list when it does. Every
- *  name leaves CSS-safe (cssFamilyName), and a list that needs no quoting comes
- *  back as the very string that went in. */
 export declare function featureFamily(family: string, tags: readonly string[]): string;

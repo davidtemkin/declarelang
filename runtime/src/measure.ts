@@ -7,8 +7,9 @@
 // baseline) — so both backends place identical glyph geometry and differ
 // only in the rasterizer that inks it.
 
+import { phasesOn, phased } from "./phase-timer.js";
 import type { Color, Fill, Shadow, Outline } from "./value.js";
-import { trackFamilies } from "./face-table.js";
+import { trackFamilies, faceGenerationNow } from "./face-table.js";
 import { familyOf } from "./font-value.js";
 import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
 
@@ -81,6 +82,61 @@ function measurer(): CanvasRenderingContext2D {
   return (measureCtx ??= document.createElement("canvas").getContext("2d")!);
 }
 
+// ── THE MEASURE MEMO ─────────────────────────────────────────────────────────
+// A measurement is a pure function of (font, text, tracking[, width]) for as
+// long as the faces behind the font do not change — and every derive that
+// measures (Text.height, Text.width, a flow) re-runs whenever ANY of its inputs
+// moves, re-measuring text that did not (5,883 Text.height runs in one weather
+// city animation; `ctx.font` parsing + measureText were 40% of that settle).
+// The memo answers repeats; it is dropped whole when the face table's
+// generation moves (a declared face landed — face-table.ts), when the browser
+// finishes loading any font (a system or CSS face the table does not see), and
+// when a different measurer is provided. Reactivity is untouched: fontString
+// still tracks the families, so a landing face still re-runs every measurer.
+let memoGen = -1;
+let memoEpoch = 0;
+let memoSeen = -1;
+/** THE MEMO IS KEYED BY OBJECT, NOT BY A BUILT STRING. One bucket per font
+ *  string, found with the font string itself (no concatenation); inside it,
+ *  maps by the numeric parts (letter spacing, width) and finally by the text.
+ *
+ *  Why: a marketmap drag does ~463k lookups, and the old flat key —
+ *  `font + "\0" + letterSpacing + "\0" + text` — built and hashed a ~60-char
+ *  string for every one of them. Measured (profile/keybench.mjs): 274 ns per
+ *  lookup flat, 53 ns keyed by the font string alone; ~100 ms of a 2 s drag.
+ *  The hit rate was already 99.3%, so the lookups WERE the cost. */
+interface FontBucket {
+  widths: Map<number, Map<string, number>>;                       // letterSpacing → text → px
+  wraps: Map<string, Map<number, Map<number, Map<string, readonly string[]>>>>;   // rule → width → ls → text
+  metrics: { ascent: number; descent: number } | null;
+  probes: Map<string, number>;                                     // which → px
+}
+const BUCKETS = new Map<string, FontBucket>();
+let memoEntries = 0;
+const MEMO_CAP = 50000;
+function bucketOf(font: string): FontBucket {
+  let b = BUCKETS.get(font);
+  if (b === undefined) { b = { widths: new Map(), wraps: new Map(), metrics: null, probes: new Map() }; BUCKETS.set(font, b); }
+  return b;
+}
+if (typeof document !== "undefined") {
+  const fonts = (document as { fonts?: { addEventListener?: (t: string, f: () => void) => void } }).fonts;
+  fonts?.addEventListener?.("loadingdone", () => { memoEpoch++; });
+}
+/** Counters, for the profile rig (never read by the runtime). */
+export const measureMemoStats = { hits: 0, misses: 0, clears: 0 };
+// the counters are read by the profiling rigs only, so only those builds publish them
+if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) (globalThis as { __declareMeasureMemo?: typeof measureMemoStats }).__declareMeasureMemo = measureMemoStats;
+function memoFresh(): void {
+  const g = faceGenerationNow();
+  if (g === memoGen && memoEpoch === memoSeen && memoEntries < MEMO_CAP) return;
+  measureMemoStats.clears++;
+  memoGen = g; memoSeen = memoEpoch;
+  BUCKETS.clear(); memoEntries = 0;
+}
+/** Measure live, bypassing the memo (tests; the A/B switch). */
+const NO_MEMO = typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareNoMeasureMemo?: boolean }).__declareNoMeasureMemo === true;
+
 /** Inject the measuring context for a DOM-less host — the environment
  *  contract's text-metrics seam (docs/system-design/capabilities.md §3, verify §2.8).
  *  Headless execution (static extraction, verify rung 4) passes a real 2D
@@ -89,6 +145,7 @@ function measurer(): CanvasRenderingContext2D {
  *  lazily-created off-screen context above measures as always. */
 export function provideMeasurer(ctx: CanvasRenderingContext2D): void {
   measureCtx = ctx;
+  memoEpoch++;   // a different measurer measures differently
 }
 
 /** A style as a canvas font string — the one font encoding the measurer and
@@ -140,6 +197,21 @@ export function transformText(text: string, transform: TextTransform | undefined
 /** The advance width of `text` in `font`, in px (fractional), including
  *  `letterSpacing` tracking (canvas-native; the shared measurer is reset). */
 export function textWidth(text: string, font: string, letterSpacing = 0): number {
+  if (!NO_MEMO) {
+    memoFresh();
+    const b = bucketOf(font);
+    let byText = b.widths.get(letterSpacing);
+    if (byText === undefined) { byText = new Map(); b.widths.set(letterSpacing, byText); }
+    const hit = byText.get(text);
+    if (hit !== undefined) { measureMemoStats.hits++; return hit; }
+    measureMemoStats.misses++;
+    const w = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("text measure", () => textWidthLive(text, font, letterSpacing)) : textWidthLive(text, font, letterSpacing));
+    byText.set(text, w); memoEntries++;
+    return w;
+  }
+  return (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("text measure", () => textWidthLive(text, font, letterSpacing)) : textWidthLive(text, font, letterSpacing));
+}
+function textWidthLive(text: string, font: string, letterSpacing: number): number {
   const m = measurer();
   m.font = font;
   const ls = m as unknown as { letterSpacing: string };
@@ -154,6 +226,18 @@ export function textWidth(text: string, font: string, letterSpacing = 0): number
  *  line height; a baseline at `ascent` renders identically as DOM text (with
  *  line-height = ascent+descent) and as fillText. */
 export function fontMetrics(font: string): { ascent: number; descent: number } {
+  if (!NO_MEMO) {
+    memoFresh();
+    const b = bucketOf(font);
+    if (b.metrics !== null) { measureMemoStats.hits++; return b.metrics; }
+    measureMemoStats.misses++;
+    const r = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("text measure", () => fontMetricsLive(font)) : fontMetricsLive(font));
+    b.metrics = r; memoEntries++;
+    return r;
+  }
+  return (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("text measure", () => fontMetricsLive(font)) : fontMetricsLive(font));
+}
+function fontMetricsLive(font: string): { ascent: number; descent: number } {
   const m = measurer();
   m.font = font;
   const t = m.measureText("");
@@ -166,6 +250,19 @@ export function fontMetrics(font: string): { ascent: number; descent: number } {
  *  that reports no actualBoundingBoxAscent (the deterministic headless stub
  *  predates the field) falls back to the classic 0.7em approximation. */
 export function capHeight(font: string): number {
+  return probe("H", font, capHeightLive);
+}
+function probe(which: string, font: string, live: (font: string) => number): number {
+  if (NO_MEMO) return live(font);
+  memoFresh();
+  const b = bucketOf(font);
+  const hit = b.probes.get(which);
+  if (hit !== undefined) return hit;
+  const v = live(font);
+  b.probes.set(which, v); memoEntries++;
+  return v;
+}
+function capHeightLive(font: string): number {
   const m = measurer();
   m.font = font;
   const t = m.measureText("H") as TextMetrics & { actualBoundingBoxAscent?: number };
@@ -181,6 +278,9 @@ export function capHeight(font: string): number {
  *  measurer reports what THIS engine will actually render). The classic
  *  0.5em approximation carries the deterministic headless stub. */
 export function xHeight(font: string): number {
+  return probe("x", font, xHeightLive);
+}
+function xHeightLive(font: string): number {
   const m = measurer();
   m.font = font;
   const t = m.measureText("x") as TextMetrics & { actualBoundingBoxAscent?: number };
@@ -253,6 +353,28 @@ export function ellipsize(text: string, font: string, width: number, letterSpaci
 }
 
 export function wrapLines(text: string, font: string, width: number, letterSpacing = 0): string[] {
+  return wrapMemo("L", text, font, width, letterSpacing, () => (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("text measure", () => wrapLinesLive(text, font, width, letterSpacing)) : wrapLinesLive(text, font, width, letterSpacing)));
+}
+/** The memoized breaker: the returned array is FROZEN — callers read it (and
+ *  clampLines slices before it edits), so one array can answer every repeat. */
+function wrapMemo(rule: string, text: string, font: string, width: number, letterSpacing: number, live: () => string[]): string[] {
+  if (NO_MEMO) return live();
+  memoFresh();
+  const b = bucketOf(font);
+  let byWidth = b.wraps.get(rule);
+  if (byWidth === undefined) { byWidth = new Map(); b.wraps.set(rule, byWidth); }
+  let byLs = byWidth.get(width);
+  if (byLs === undefined) { byLs = new Map(); byWidth.set(width, byLs); }
+  let byText = byLs.get(letterSpacing);
+  if (byText === undefined) { byText = new Map(); byLs.set(letterSpacing, byText); }
+  const hit = byText.get(text);
+  if (hit !== undefined) { measureMemoStats.hits++; return hit as string[]; }
+  measureMemoStats.misses++;
+  const lines = Object.freeze(live());
+  byText.set(text, lines); memoEntries++;
+  return lines as string[];
+}
+function wrapLinesLive(text: string, font: string, width: number, letterSpacing: number): string[] {
   // A box of text (`white-space: pre-wrap` on the DOM, the same rule on canvas)
   // COUNTS a line's own leading spaces and overflows an over-long token on its own
   // line (`overflow-wrap: normal`). Measuring with `countIndent: true` is what makes
@@ -266,6 +388,9 @@ export function wrapLines(text: string, font: string, width: number, letterSpaci
  *  TextInput's auto-height: a field that sizes to its own content has to
  *  measure the way the element it becomes will lay out. */
 export function wrapEditable(text: string, font: string, width: number, letterSpacing = 0): string[] {
+  return wrapMemo("E", text, font, width, letterSpacing, () => wrapEditableLive(text, font, width, letterSpacing));
+}
+function wrapEditableLive(text: string, font: string, width: number, letterSpacing: number): string[] {
   return wrapBy(text, font, width, letterSpacing, { countIndent: true, breakWord: true });
 }
 

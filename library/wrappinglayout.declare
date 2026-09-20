@@ -18,6 +18,11 @@ ResponsiveLayout's.
 
 Written in Declare over the Layout kernel — the whole strategy is place().
 
+**Padding is the view's** (`View.padding`), and a flow answers to it on
+both axes: rows **wrap at the content width** — the room between the left and
+right insets, never the view's own width — and a view that sizes itself from
+the flow grows by the vertical pair, so no row runs under the inset.
+
 ```declare
 box: View [ x = 20, y = 20, width = 260,
     layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
@@ -79,7 +84,8 @@ class WrappingLayout extends Layout [
     hangingIndent: number = 0,
 
     place() {
-        const w = this.view == null ? 0 : this.view.width
+        // the room to wrap in — the view's content box, its width less its own padding
+        const w = this.contentExtent("width")
         const sp = this.spacing
         const ls = this.lineSpacing < 0 ? sp : this.lineSpacing
         const jf = this.justify

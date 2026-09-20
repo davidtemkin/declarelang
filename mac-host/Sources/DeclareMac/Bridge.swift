@@ -366,9 +366,23 @@ final class Bridge {
             DispatchQueue.main.async { self?.onInspector?(open) }
         } as @convention(block) (Bool) -> Void, forKeyedSubscript: "inspectorState")
 
+        // A load is beginning (browser/mac-boot.js `__declareBoot`): retire the
+        // previous verdict. Every in-process navigation comes through here,
+        // including a rig's own `eval __declareBoot(…)`, which is why the
+        // announcement lives in the JS rather than in whichever Swift called it.
+        host.setObject({ (url: String) in
+            DispatchQueue.main.async {
+                if !url.contains("library/platform-apps/error/") { ControlChannel.clearLoadFailure() }
+            }
+        } as @convention(block) (String) -> Void, forKeyedSubscript: "loadStarting")
+
         host.setObject({ [weak self] (msg: String) in
             DispatchQueue.main.async {
                 self?.lastError = msg
+                // Publish it where a harness sees it without having to ask
+                // (Control.swift's sidecar): an automated caller is shown
+                // nothing, so this is the only signal it gets.
+                ControlChannel.noteLoadFailure(msg)
                 // settleBoot FIRST: it is what puts the window on screen, and
                 // `onBootFailed` runs a modal for a person — which would otherwise
                 // sit over an invisible window and block the run loop before it

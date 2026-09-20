@@ -14,8 +14,8 @@
 // shipping it costs nothing beyond its own lines.
 
 import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
-import { DeclareError, diag, type Pos } from "./errors.js";
-import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, descendsFrom, type ComponentSchema } from "./schema.js";
+import { DeclareError, diag, insetOrRadiusMessage, type Pos } from "./errors.js";
+import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, type ComponentSchema } from "./schema.js";
 import { coerce, declaredType, describeLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
 
 /** The default (no schemas declared) — one shared frozen set. */
@@ -211,10 +211,31 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
 
 /** Coerce a theme-record token to its runtime value (checkThemeRecord vetted
  *  the shapes): numbers and strings pass through, hex/named colors ground as
- *  Color, `true`/`false`/`null` as themselves, and a constructor call as the
- *  first of fill/stroke/shadow that admits it. */
+ *  Color, `true`/`false`/`null` as themselves, a constructor call as the first
+ *  of fill/stroke/shadow that admits it, and a LIST of any of those.
+ *
+ *  A list is a token because the rule the record actually keeps is "a token is
+ *  bounded, plain data" — spreadable, comparable, serializable, inspectable
+ *  without asking what kind of object it is — and a frozen array of literals is
+ *  all of those. Excluding it did not keep lists out; it denied them a type, so
+ *  the one the corpus needed most, a font stack, was written as a comma-joined
+ *  string and parsed back into a list at the other end. ONE LEVEL: a list of
+ *  lists is refused, which keeps "bounded" a fact rather than a hope. */
 export function coerceToken(lit: Literal): unknown {
   switch (lit.kind) {
+    case "list": {
+      const out: unknown[] = [];
+      for (const item of lit.items) {
+        // one level: a nested list is not a token, and neither is anything else
+        // coerceToken refuses — the whole list fails so the record's error names
+        // the token, and checkThemeRecord says which item was wrong.
+        if (item.kind === "list") return undefined;
+        const v = coerceToken(item);
+        if (v === undefined) return undefined;
+        out.push(v);
+      }
+      return Object.freeze(out);
+    }
     case "number":
       return lit.value;
     case "string":
@@ -346,29 +367,6 @@ export function checkDecl(
       d.typePos
     );
   }
-  // ── `external` (islands.md): an island BOUNDARY slot ──────────────────────
-  if (d.external) {
-    // Where it may live: an Island's declarations (the host's half of the
-    // bridge) or an App's (a tenant's exports). Anywhere else there is no
-    // boundary for it to cross.
-    if (!descendsFrom(schema, "App") && !descendsFrom(schema, "DOMIsland")) {
-      return err(
-        diag`'external ${d.name}' — an external attribute is an island-boundary slot: declare it on an Island (the host's half of the bridge) or on an App (a tenant's export). ${schema.name} has no boundary to cross`,
-        d.pos
-      );
-    }
-    // Data types only: the other side is a SEPARATE program (someday a
-    // separate realm) — a component or view is an identity in THIS program's
-    // graph and cannot cross; a function cannot be serialized across. This is
-    // the same ruling data.ts made for itself: the boundary carries JSON-shaped
-    // values (plus the platform value kinds, which are data).
-    if (type.kind === "component" || type.kind === "view" || type.kind === "fn") {
-      return err(
-        diag`'external ${d.name}: ${d.type}' — an external attribute carries DATA across the island boundary (number, string, boolean, array, object, Color, Length, an enum); a ${type.kind === "fn" ? "function" : "component instance"} is an identity in this program's graph and cannot cross. For behavior, use the message channel (island.send / onMessage)`,
-        d.typePos
-      );
-    }
-  }
   if (d.def === null) return { ok: true, type, value: undefined };
   if (d.def.kind === "code") {
     // A default BINDING (the ruled R6 unlock): a live
@@ -397,9 +395,9 @@ export function checkDecl(
   // static seed as a standing relationship.
   // A bare `[tl, tr, br, bl]` default on a Radius slot — four numbers, top-left
   // clockwise; the same list form the view path admits (check.ts).
-  if (type.kind === "radius" && d.def.kind === "list") {
+  if ((type.kind === "radius" || type.kind === "inset") && d.def.kind === "list") {
     if (d.def.items.length !== 4 || d.def.items.some((it) => it.kind !== "number")) {
-      return err(diag`${owner}.${d.name}: a per-corner radius is four numbers — [topLeft, topRight, bottomRight, bottomLeft], clockwise from the top-left; one number rounds all four`, d.def.pos);
+      return err(insetOrRadiusMessage(owner, d.name), d.def.pos);
     }
     return { ok: true, type, value: Object.freeze(d.def.items.map((it) => (it.kind === "number" ? it.value : 0))) as never };
   }

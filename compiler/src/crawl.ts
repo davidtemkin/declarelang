@@ -29,7 +29,7 @@
 // fixed measurer, same data bytes — so the browser and Node crawls are byte-identical,
 // extending the oracle discipline to the whole document.
 
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
+import { build, settle, App, HeadlessBackend, linkIslandTenant, islandProvisions, type Island, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 import { approximateMeasurer, DEFAULT_ENV, type Environment } from "./headless.js";
 import { staticHtml } from "./static-html.js";
 
@@ -37,6 +37,9 @@ export interface CrawlOptions {
   deps?: unknown;
   links?: unknown;
   env?: Environment;
+  /** The values a host provides the app from its first evaluation (its
+   *  `hostProvided` reads) — an island tenant's, from its island. */
+  provides?: Record<string, unknown>;
   /** url → JSON data, highest precedence — a test's canned model, or a snapshot. */
   fixtures?: Record<string, unknown>;
   /** Resolve a RELATIVE url (the app's own material — the build-time data rule) to
@@ -69,7 +72,24 @@ export interface CrawlOptions {
    *  §9 exists to keep out of the index. */
   warm?: boolean;
   verifyWarm?: number;
+  /** ISLAND TENANTS (composed pages): resolve an `AppIsland`'s program name —
+   *  the `run:<name>` its slot carries — to that program, compiled. The host
+   *  mounts a tenant only in a live browser, so without this the crawl sees an
+   *  empty box; with it, every VISIBLE island's tenant is booted headlessly,
+   *  extracted, and inlined where the island sits, so a page composed of
+   *  programs is indexed as the page a reader sees. Callers resolve the name
+   *  exactly as the host does (`<name>.declare` in the host program's `demos/`
+   *  folder). Absent: islands stay empty, the pre-island behavior. A name that
+   *  does not resolve or compile FAILS the crawl (the loud-failure rule). */
+  islands?: (name: string) => Promise<IslandProgram | null> | IslandProgram | null;
 }
+
+/** A resolved island tenant: its compiled source (null = the compile failed,
+ *  with `report` saying why), as `build` takes it. */
+export interface IslandProgram { source: string | null; deps?: unknown; links?: unknown; report?: string }
+
+/** How deep tenants-within-tenants are followed. */
+const ISLAND_DEPTH = 2;
 
 /** One crawled location: its canonical KEY (anchor stripped, default canonicalized
  *  — also the section id in the assembled document), a representative LOCATION that
@@ -131,7 +151,8 @@ async function drainAsync(): Promise<void> {
  *  quiescence: wait out every in-flight transport request (a landed batch may settle
  *  into code that fetches MORE — loop until none remain), then serialize. The caller
  *  serializes then `app.discard()`s. */
-async function bootAt(source: string, opts: CrawlOptions, location: string, refusals: Map<string, string>): Promise<App> {
+async function bootAt(source: string, opts: CrawlOptions, location: string, refusals: Map<string, string>,
+    beforeSettle?: (app: App) => void): Promise<App> {
   const env = { ...DEFAULT_ENV, ...opts.env };
   if (typeof document === "undefined") provideMeasurer(approximateMeasurer());
   const pending = new Set<Promise<unknown>>();
@@ -147,11 +168,14 @@ async function bootAt(source: string, opts: CrawlOptions, location: string, refu
   };
   const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
   try {
-    const app = build(source, { deps: opts.deps, links: opts.links } as never);
+    const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides } as never);
     app.attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
     app.dark = env.dark;
+    // an island tenant: built with what its island provides and linked before
+    // its first settle, exactly as the live hosts do it
+    beforeSettle?.(app);
     // "" = the declared default (seed nothing). A seeded location routes
     // through FOLLOW when the app declares an onFollow (location.md §0.8.3):
     // the crawl sees the same redirects users do — the hook runs at t=0
@@ -162,10 +186,13 @@ async function bootAt(source: string, opts: CrawlOptions, location: string, refu
     }
     settle();
     await drainAsync();
+    let spins = 0;
     while (pending.size > 0) {
       await Promise.allSettled([...pending]);
       settle();
       await drainAsync();
+      // DIAGNOSTIC (Declare-Optimize): a wait that never empties is a spin, not a wait
+      if (++spins > 2000) throw new Error(`crawl: the transport wait spun ${spins} times with ${pending.size} request(s) still pending at #${location}`);
     }
     settle();
     return app;
@@ -173,6 +200,79 @@ async function bootAt(source: string, opts: CrawlOptions, location: string, refu
     provideTransport(prev);
     provideStreams(prevStreams);
   }
+}
+
+/** Extract every VISIBLE island tenant under a settled app (CrawlOptions.islands):
+ *  each `run:<name>` slot's program is booted headlessly, linked to its island,
+ *  settled to data quiescence, and serialized — its own islands followed to
+ *  ISLAND_DEPTH. Returns island view → tenant HTML, for staticHtml to inline.
+ *  Names starting "__" are the live-edit channels (no program on disk) and stay
+ *  empty. Tenant data resolves through the HOST's resolver, as the live page
+ *  routes a tenant's relative urls through the page's own transport. */
+async function tenantsOf(app: App, opts: CrawlOptions, refusals: Map<string, string>, depth: number): Promise<Map<unknown, string>> {
+  const out = new Map<unknown, string>();
+  if (opts.islands === undefined || depth >= ISLAND_DEPTH) return out;
+  const found: { view: Island; name: string }[] = [];
+  const scan = (v: { visible?: unknown; slot?: unknown; children?: unknown[] }): void => {
+    if (v.visible === false) return;
+    if (typeof v.slot === "string" && v.slot.startsWith("run:")) {
+      found.push({ view: v as unknown as Island, name: v.slot.slice(4) });
+      return;
+    }
+    for (const c of v.children ?? []) if (c !== null && typeof c === "object") scan(c as never);
+  };
+  scan(app as never);
+  for (const { view, name } of found) {
+    if (name === "" || name.startsWith("__")) continue;
+    const prog = await opts.islands(name);
+    if (prog === null) {
+      throw new Error(`crawl: the island program '${name}' was not found — an AppIsland's program must resolve ` +
+        `as the host resolves it (<name>.declare in the host program's demos/ folder)`);
+    }
+    if (prog.source === null) {
+      throw new Error(`crawl: the island program '${name}' did not compile:\n${prog.report ?? ""}`);
+    }
+    let unlink = (): void => {};
+    const tenant = await bootAt(prog.source, { ...opts, deps: prog.deps, links: prog.links, registry: undefined, provides: islandProvisions(view) }, "", refusals,
+      (t) => { unlink = linkIslandTenant(view, t); });
+    try {
+      const inner = await tenantsOf(tenant, opts, refusals, depth + 1);
+      out.set(view, rebaseTenant(staticHtml(tenant, inner), name));
+    } finally {
+      unlink();
+      tenant.discard();
+    }
+  }
+  return out;
+}
+
+/** A tenant's media resolve BESIDE ITS OWN PROGRAM at run time (host-client
+ *  childAssetBase: the island's program path, from the host's `demos/`), but
+ *  its serialized HTML is inlined into the HOST's document — so a relative
+ *  `src`/`poster` is rewritten to the same place, relative to the host's
+ *  directory (`resources/a.png` in "../../architecture/architecture" becomes
+ *  `../architecture/resources/a.png`). Absolute, root-relative, data: and
+ *  fragment URLs pass through; hrefs are never touched (navigation targets are
+ *  authored against the deploy root, not a directory). */
+function rebaseTenant(html: string, name: string): string {
+  const parts: string[] = [];
+  for (const seg of ("demos/" + name).split("/").slice(0, -1)) {
+    if (seg === "..") { if (parts.length > 0 && parts[parts.length - 1] !== "..") parts.pop(); else parts.push(".."); }
+    else if (seg !== "." && seg !== "") parts.push(seg);
+  }
+  if (parts.length === 0) return html;
+  const prefix = parts.join("/") + "/";
+  return html.replace(/\b(src|poster)="([^"]*)"/g, (m, attr: string, url: string) =>
+    /^([a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(url) ? m : `${attr}="${prefix}${url}"`);
+}
+
+/** Serialize a settled app for the crawl: the document HTML (island tenants
+ *  inlined) and the HOST-ONLY HTML the location links are discovered from — a
+ *  tenant's own fragment links name the TENANT's locations, never the host's. */
+async function serialize(app: App, opts: CrawlOptions, refusals: Map<string, string>): Promise<{ html: string; linkHtml: string }> {
+  const linkHtml = staticHtml(app);
+  const tenants = await tenantsOf(app, opts, refusals, 0);
+  return { html: tenants.size === 0 ? linkHtml : staticHtml(app, tenants), linkHtml };
 }
 
 /** A WARM crawl session (CrawlOptions.warm): the same boot bootAt performs,
@@ -193,7 +293,7 @@ async function warmSession(source: string, opts: CrawlOptions, refusals: Map<str
     throw new Error(`crawl refused stream connection — ${url} (streams are never indexed)`);
   };
   const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
-  const app = build(source, { deps: opts.deps, links: opts.links } as never);
+  const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides } as never);
   app.attach(new HeadlessBackend(), null);
   app.hostWidth = env.hostWidth;
   app.hostHeight = env.hostHeight;
@@ -201,10 +301,13 @@ async function warmSession(source: string, opts: CrawlOptions, refusals: Map<str
   const quiesce = async (): Promise<void> => {
     settle();
     await drainAsync();
+    let spins = 0;
     while (pending.size > 0) {
       await Promise.allSettled([...pending]);
       settle();
       await drainAsync();
+      if (++spins % 200 === 0) console.error(`crawl(warm): still waiting after ${spins} rounds, ${pending.size} pending`);
+      if (spins > 2000) throw new Error(`crawl(warm): the transport wait spun ${spins} times with ${pending.size} request(s) pending`);
     }
     settle();
   };
@@ -319,15 +422,15 @@ async function crawlAll(source: string, opts: CrawlOptions = {}): Promise<{ docs
     }
 
     let html: string;
+    let linkHtml: string;
     if (session !== null) {
       await session.flip(key === "" ? defaultLoc : location);
-      html = staticHtml(session.app);
+      ({ html, linkHtml } = await serialize(session.app, opts, refusals));
     } else {
       const app = await bootAt(source, opts, key === "" ? "" : location, refusals);
-      html = staticHtml(app);
-      app.discard();
+      try { ({ html, linkHtml } = await serialize(app, opts, refusals)); } finally { app.discard(); }
     }
-    const links = fragmentHrefs(html);
+    const links = fragmentHrefs(linkHtml);
 
     // Rule 3: identical serialized bytes → one document (an output-hash alias).
     const h = hashOf(html);
@@ -355,8 +458,8 @@ async function crawlAll(source: string, opts: CrawlOptions = {}): Promise<{ docs
     for (const k of picks) {
       const doc = byKey.get(k)!;
       const app = await bootAt(source, opts, doc.location, refusals);
-      const coldHtml = staticHtml(app);
-      app.discard();
+      let coldHtml: string;
+      try { coldHtml = (await serialize(app, opts, refusals)).html; } finally { app.discard(); }
       if (coldHtml !== doc.html) {
         throw new Error(
           `warm crawl diverged from a cold boot at '#${k}' (${doc.html.length} vs ${coldHtml.length} bytes) — ` +

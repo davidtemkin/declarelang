@@ -151,78 +151,95 @@ This is not a corner feature. The desktop demo's windows, the homepage's
 live previews, and this documentation's own runnable examples are all
 `AppIsland` — the page you are reading is an app hosting apps.
 
-## The bridge: `external` attributes and `post`
+## The boundary: `provides`, `exposed`, and `post`
 
-What crosses the boundary is **declared** — a typed surface, not an open door.
-An island's `external` attribute declarations are the host's half of a bridge;
-a tenant app's `external` declarations are its exports. The runtime pairs the
-two by name when the tenant mounts, and **checks the declared types agree** —
-two separately compiled programs can't share a static proof, so agreement is
-verified the way a linker resolves `extern` symbols: at link time, loudly
-("`pos` is `external number` here and `external string` in the tenant — the
-island could not be linked").
+What crosses the boundary is **named** — and each name says its direction.
+Nothing crosses that neither side named, and no value has two owners.
+
+**Down, from host to tenant.** The island lists the names it offers in
+`provides`, and each resolves *at the island* the way `provided()` does: the
+island's own attribute of that name first, then whatever its ancestors
+provide. The tenant reads one with `hostProvided(name, default)`.
+
+**Up, from tenant to host.** The tenant's App lists the names it offers in
+`exposes`; the host reads one with `island.exposed(name, default)`.
 
 ```declare-fragment
 player: AppIsland [ program = "player",
-    external volume: number = { app.masterVolume },   // host-fed: the tenant follows it
-    external readonly pos: number = 0,                // tenant-owned: the host reads, never writes
+    provides = ["volume"],
+    volume: number = { app.masterVolume },            // offered down: the tenant follows it
     onPost(m: IslandPost) { app.log(m.topic) }        // the tenant's messages arrive here
     ],
-scrubber: View [ x = { app.player.pos * trackWidth } ]  // full machinery over tenant facts
+scrubber: View [ x = { app.player.exposed("pos", 0) * trackWidth } ]   // full machinery over what it exposes
 ```
 
-The tenant's side is plain Declare — it declares the same names and uses them
-as ordinary attributes:
+The tenant's side is plain Declare — a read of what the host provides, and a
+list of what it offers back:
 
 ```declare-fragment
-App [ external volume: number = 0,     // arrives from the host, constraints re-derive
-    external pos: number = 3,          // this app writes it; the host reads it
+App [ exposes = ["pos"],
+    volume: number = { hostProvided("volume", 0) },   // the host's value; 0 when nothing hosts it
+    pos: number = 3,                                   // this app writes it; the host reads it
     onPost(m: IslandPost) { app.pos = app.pos + 1; app.post("ack", m.topic) },
     ]
 ```
 
-Facts vs. verbs is the load-bearing distinction. An `external` attribute is a
-**fact** — continuous, typed, meaningful whenever read; direction is
-arbitrated by ownership (a slot the host *binds* refuses tenant writes,
-naming the constraint; `external readonly` declares a tenant-owned out-fact
-the host provably can't write). `post(topic, payload)` / `onPost(m)` are
-**verbs** — consumed once, ordered, never re-readable: "do this", never
-"this is so". Data only crosses: an `external` must carry a data type
-(number, string, boolean, array, object, Color, an enum) — a component is an
-identity in one program's graph and cannot cross.
+Both reads are reactive — a constraint over one re-derives when the other
+side changes it — and both are present from the tenant's first frame. **The
+default does real work.** It is what an unhosted run sees (the same program
+runs standalone, reading its defaults), and it types the read: a value of
+another kind answers the default instead, with a console warning naming it —
+two separately compiled programs can't share a static proof, so the check
+happens where the value arrives, the way a DataSource checks arriving bytes.
+With no default, a read of a value nothing provides is an error that names
+it.
 
-**Foreign tenants speak the same bridge.** A raw-JS tenant in a `DOMIsland`
-reaches it through the island element's one sanctioned handle:
+Values vs. verbs is the load-bearing distinction. A provided or exposed value
+is continuous — meaningful whenever read, and owned by exactly one side: the
+tenant cannot write what the host provides, and the host cannot write what
+the tenant exposes. `post(topic, payload)` / `onPost(m)` are **verbs** —
+consumed once, ordered, never re-readable: "do this", never "this is so".
+Only data crosses: numbers, strings, booleans, arrays, plain objects. A
+component is an identity in one program's graph and cannot cross.
+
+**The page is the topmost host.** A top-level app reads what its *page*
+provides with the same `hostProvided`: pass `boot({ …, provides: { dark: true } })`,
+put JSON on the element (`<div data-declare-embed data-declare-provide='{"dark":true}'>`),
+or call `el.__declareApp.provide("dark", false)` any time later. Reading back
+out is `app.exposed(name)` and `app.watchExposed(name, cb)`, over the names
+the App's `exposes` lists.
+
+**Foreign tenants speak the same words.** A raw-JS tenant in a `DOMIsland`
+reaches the boundary through the island element's one sanctioned handle:
 
 ```js
 const h = box.__declareIsland;         // the island's element, after mount
-h.externals();                         // [{ name, type, readonly }] — discovery
-h.get("volume"); h.observe("volume", v => audio.volume = v);
-h.set("pos", 12.5);                    // validated at the boundary against the declared type
+h.provides();                          // ["volume"] — what the host provides here
+h.hostProvided("volume");              // read it now
+h.watchProvided("volume", v => audio.volume = v);   // now, then on every change
+h.expose("pos", 12.5);                 // up — the host reads exposed("pos", 0)
 h.post("clicked", id);                 // → the island's onPost
 h.onPost(m => { … });                  // ← the island's post()
 ```
 
-A mistyped foreign push is refused with the type named — the same trust-edge
-rule a DataSource applies to arriving bytes.
-
 Three handles are sanctioned, and only three: `el.__declareApp` (the app an
 embedding page booted into this element), `el.__declareIsland` (the foreign
-tenant's bridge, above), and `__childApp` on an island's element — or, on
+tenant's handle, above), and `__childApp` on an island's element — or, on
 canvas, its view — (the Declare tenant an island mounted). Everything else a
-renderer or host plants is internal and may vanish without notice.
+backend or host plants is internal and may vanish without notice. None of
+them is a global: a page's own scripts share no names with Declare.
 
 ## A tenant that loads itself
 
 An island's interior is not Declare's to ship — that is the whole point of the
 boundary, and it has a consequence worth stating outright: **a heavy foreign
 dependency never has to enter your artifact at all.** Mount a small loader in
-the slot, declare what the app knows, and let the loader act on it.
+the slot, provide what the app knows, and let the loader act on it.
 
 ```declare-fragment
 signin: DOMIsland [ slot = "auth", width = 320, height = 420,
-    external wanted: boolean = { app.destinationOf(app.location) == "signin" },
-    external readonly ready: boolean = false,
+    provides = ["wanted"],
+    wanted: boolean = { app.destinationOf(app.location) == "signin" },
     onPost(m: IslandPost) { app.signedIn = true }
     ]
 ```
@@ -230,21 +247,22 @@ signin: DOMIsland [ slot = "auth", width = 320, height = 420,
 ```js
 const h = box.__declareIsland;
 let started = false;
-h.observe("wanted", async (want) => {                    // the constraint is the cue
+h.watchProvided("wanted", async (want) => {              // the constraint IS the cue
   if (!want || started) return;
   started = true;
   const sdk = await import("https://cdn.example/auth.js");   // fetched now, not at boot
   sdk.mount(box, { onToken: (t) => h.post("token", t) });
-  h.set("ready", true);
+  h.expose("ready", true);
 });
 ```
 
 Nothing in the Declare program names the SDK, so nothing in the build can
-bundle it. The app states a **fact** — *this screen is showing* — and the
+bundle it. The app states a **value** — *this screen is showing* — and the
 tenant decides what that costs; the answer comes back the same way, as a
-declared out-fact the loader `set`s or a verb it `post`s. Use `post()` for the
-outbound cue instead when it is genuinely an event rather than a state
-("re-authenticate now") — the facts-vs-verbs rule above, applied to loading.
+value the loader `expose`s (`app.signin.exposed("ready", false)`) or a verb
+it `post`s. Use `post()` for the outbound cue instead when it is genuinely an
+event rather than a state ("re-authenticate now") — the values-vs-verbs rule
+above, applied to loading.
 
 This is the shape to reach for whenever a dependency is large and only some
 screens need it. A `script { }` block can also `import()` on demand, which is
@@ -261,7 +279,7 @@ and keeps the rest; Declare gives a page a sized island and keeps the rest;
 an app gives another app its box and neither reads the other's tree. When
 you find yourself wanting to reach across a boundary — a constraint on the
 tenant's internals, a DOM query into an island — the design is telling you
-the boundary is in the wrong place: declare the fact as `external`, send the
-command as `post`, or move the border.
+the boundary is in the wrong place: name the value in `provides` or `exposes`,
+send the command as `post`, or move the border.
 
 [Next: **Run it, check it, ship it** →](declare-docs:guide:run-check-ship)

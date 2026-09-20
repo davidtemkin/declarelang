@@ -1,5 +1,5 @@
 import { Node } from "./node.js";
-import { type Backdrop, type Fill, type FilterValue, type Mask, type Radius, type Shadow, type Stroke } from "./value.js";
+import { type Backdrop, type BoxStroke, type Fill, type FilterValue, type Inset, type Mask, type Radius, type Shadow } from "./value.js";
 import { type RenderBackend, type Surface } from "./backend.js";
 type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
 export declare function provideViewCreator(fn: ViewCreator): void;
@@ -62,6 +62,42 @@ export declare function isWindowedBlock(v: View): boolean;
 export declare function readVirtualized(v: View): boolean;
 export declare function markWindowedBlock(v: View, on: boolean): void;
 export declare function markEvicting(v: View): void;
+/** A retired subtree RECYCLED onto a new member (replicate.ts departure
+ *  recycling) can retire again when that membership ends. */
+export declare function clearRetiredTree(v: View): void;
+/** Run `fn` (a build) with `values` as the host values its root App starts
+ *  with. What makes a hosted program's first evaluation see what its host
+ *  provides — a DataSource url or anything else evaluated at instantiate
+ *  runs before any link could deliver them. */
+export declare function withHostProvides<T>(values: Readonly<Record<string, unknown>> | undefined, fn: () => T): T;
+/** A set of named reactive values crossing a boundary — what a host provides
+ *  to an app (App.hostValues), what a hosted side exposes to its island
+ *  (Island.exposedValues). Each name owns a cell, created on first read, so a
+ *  write wakes exactly its readers; a write from outside a settle schedules
+ *  one (reactive.ts touchCell), which is how a page or foreign code drives it. */
+declare class BoundaryValues {
+    private readonly what;
+    private readonly m;
+    private readonly warned;
+    constructor(what: "hostProvided" | "exposed");
+    private entry;
+    write(name: string, v: unknown): void;
+    clear(name: string): void;
+    names(): string[];
+    /** The tracked read. With a default: an absent value, or one of a different
+     *  kind than the default, answers the default (the latter with a warning,
+     *  once per name). With none: an absent value throws, naming it. */
+    read(name: string, hasDefault: boolean, dflt: unknown): unknown;
+}
+/** The value an island provides under `name` — the `provided("name")` read AT
+ *  the island: its own provision or declared slot first, then its ancestors.
+ *  Undefined when nothing provides it. Tracked (the readers of a provision
+ *  wake on change), so an observe over it follows the host. */
+export declare function islandProvision(island: Island, name: string): unknown;
+/** Everything an island provides right now, by name — what a host passes as
+ *  build's `provides` for the tenant it is about to build, so the tenant's
+ *  first evaluation sees it; linkIslandTenant keeps it live from there. */
+export declare function islandProvisions(island: Island): Record<string, unknown>;
 export declare function fireRetireTree(v: View): void;
 /** Fire the membership-anchored `init` down an EXISTING subtree — the
  *  RECYCLED-instance arrival (replicate.ts): a live row re-pointed at a
@@ -79,14 +115,59 @@ export declare class View extends Node {
     y: number;
     width: number;
     height: number;
+    /** THE CONTENT BOX — the inset between this view's own box and the room its
+     *  children live in. One number insets all four sides; four are
+     *  [top, right, bottom, left], clockwise from the top (the Inset house
+     *  shape, value.ts). 0 by default, and a view that never names it is
+     *  byte-identical to one that could not.
+     *
+     *  A VIEW WITH PADDING HAS AN INSIDE, and `x = 0` / `y = 0` mean that
+     *  inside's origin — for EVERY child: one a layout laid, one that placed
+     *  itself, one with `ignoreLayout = true`. There is no CSS-style split where
+     *  an absolutely-positioned child ignores the inset (RULED 2026-09-19); the
+     *  content origin is a property of the parent, and a child's position is
+     *  measured in it. `100%` (and every percent) resolves against the content
+     *  box too; `{ parent.width }` is the deliberate escape hatch that still
+     *  means the parent's literal box, and an edge-to-edge child pairs it with a
+     *  negative `x`.
+     *
+     *  PAINT DOES NOT MOVE. `fill`, `stroke` (per side included), `cornerRadius`
+     *  and `draw()` are all this view's OWN box — a card's background still
+     *  covers its padding — and the inset lives in this view's own coordinate
+     *  space, so it scales and rotates with the box like any other geometry.
+     *
+     *  It is NOT the layout's: a layout arranges within the room it is given
+     *  (`Layout.contentExtent`), and a padded view with no layout at all still
+     *  has an inside. */
+    /** @internal kernel-facing (the native visibility rule): a numeric mirror of scrolls, and the rule's outputs. */
+    scrollsOn: boolean;
+    visOn: boolean;
+    visScale: number;
+    visX: number;
+    visY: number;
+    visW: number;
+    visH: number;
+    visMode: number;
+    /** The names this app EXPOSES to whatever hosts it — its own attributes,
+     *  read by a host island's `exposed(…)` or a page's `app.exposed(…)`. */
+    exposes: readonly string[];
+    padding: Inset;
+    /** @internal The inset TOTALS, one per axis (left+right, top+bottom) — the
+     *  content box as two numeric slots, so a kernel expression can read it the
+     *  way it reads any other slot (`parent.insetX`). Maintained by `padding`'s
+     *  push below; authored nowhere. */
+    insetX: number;
+    insetY: number;
     /** What paints this view's box: a solid Color (null = paint nothing) or a
      *  Gradient — the ruled `fill` slot, subsuming the retired backgroundColor. */
     fill: Fill;
     /** The painted box's corner radius (0 = square). Shapes the PAINT only —
      *  clipping stays the explicit `clip` attribute (the recorded lean). */
     cornerRadius: Radius;
-    /** A border drawn INSIDE the box (never layout); null = none. */
-    stroke: Stroke | null;
+    /** A border drawn INSIDE the box (never layout); null = none. One Stroke
+     *  borders all four sides; four — [top, right, bottom, left], clockwise from
+     *  the top, `null` for a bare side — border them one at a time. */
+    stroke: BoxStroke;
     /** The box's drop shadow (cast by the border box, CSS semantics — never
      *  painted under the box itself); null = none. */
     shadow: Shadow | null;
@@ -292,7 +373,57 @@ export declare class View extends Node {
      *  zero-cost default; Dataset children are not geometry). Protected so the
      *  App can retarget it from content to its host. */
     protected bindExtent(): void;
+    private extentRelistQueued;
+    /** THE KERNEL'S AUTO-EXTENT (kernel.md, the layout-pass item): the same
+     *  max over the children's footprints as extentOf, evaluated natively over
+     *  the table — a container with many children re-derived per frame was half
+     *  the calendar's settle on the interpreter. The rule's edges are the
+     *  children's geometry cells plus the child-list cell; childrenMutated
+     *  re-lists them. Null (the JS derive) when the view measures its own
+     *  content (Image) or a child is out of the plane; a child turning 3D
+     *  later DECLINES the rule and the JS derive takes over then. */
+    private installKernelExtent;
+    /** The kernel auto-extent's word list: the child-list cell, then each View
+     *  child's numeric block base (the rule reads its slots by base). */
+    private extentWords;
     private extentOf;
+    /** THIS VIEW'S CONTENT ORIGIN, in its own coordinates: the leading insets of
+     *  `padding`. Every child's `x`/`y` is measured from here — laid,
+     *  self-placing and `ignoreLayout` alike — which is what makes the content
+     *  box a property of the view rather than of whatever arranges it. */
+    contentOrigin(): {
+        x: number;
+        y: number;
+    };
+    /** THE ROOM INSIDE: this view's extent on `size` less both of `padding`'s
+     *  insets on that axis, never below 0. It is what `100%` and every other
+     *  percent resolves against (bind.ts bindPercent), what a layout divides
+     *  (`Layout.contentExtent` is this, through the arranged view), and what a
+     *  component spanning its parent's content reads (library Divider).
+     *  `{ parent.width }` deliberately still answers the parent's literal box —
+     *  "the space I am given" versus "the parent's own width". */
+    contentBox(size: "width" | "height"): number;
+    /** The kernel's view id and its visibility rule (−1 = none): the ancestor
+     *  walk runs in the kernel over the table, and `visGeneric`/`visWake`
+     *  become small wired rules over the vis* output cells. */
+    private visElem;
+    private visRule;
+    /** @internal This view as the kernel knows it (its block + parent link),
+     *  registering the ancestors on the way up. */
+    kernelElem(): number;
+    /** A (re)attach may have moved this view under a new parent: refresh the
+     *  kernel's link and the rule's edges, and land the facts again. */
+    private relinkKernelVis;
+    /** @internal THE ORIGIN SHIFT, at the seam: what this view's own `x`/`y` is
+     *  measured from in the coordinates its SURFACE lives in — its position
+     *  host's content origin on that axis. The host is the parent, or the
+     *  scroller this view travels with (travelWith re-hosts the surface, and the
+     *  position slots then mean that scroller's content coordinates).
+     *
+     *  One number, not a point, and an early literal 0 for the unpadded case:
+     *  this runs on every position push, which is every frame of every animated
+     *  or laid-out view in the tree. */
+    positionLead(axis: "x" | "y"): number;
     /** The bounding-box extent of this view's visible children on each axis — the
      *  same value auto-extent derives into an *unset* size slot (`extentOf`),
      *  surfaced as read-only reactive attributes (schema.ts marks them readOnly,
@@ -518,6 +649,19 @@ export declare class View extends Node {
     private visFlushTimer;
     /** @internal the attribute table's onTrack calls this (first tracked read). */
     armVisibility(): void;
+    /** THE KERNEL PATH. The kernel's rule walks this view's parent chain in the
+       *  slot table — rootTransform ∘ boxThrough ∩ the root's frame, scale × dpr,
+       *  the arithmetic of readVisibility term for term — and writes the vis*
+       *  cells; a wired JS rule over those cells delivers (or wakes). A 3D
+       *  transform anywhere on the chain is beyond the affine walk: the rule
+       *  writes visMode = 0 and the JS walk takes over (visFallbackToJS). Returns
+       *  false when the kernel path is not available (no kernel; 3D at arm). */
+    private installKernelVis;
+    /** The delivery rule: wired over the seven output cells. */
+    private visOutputRule;
+    /** The chain grew a 3D transform: retire the kernel rule and run the JS
+       *  walk as a tracking constraint from here on (this life). */
+    private visFallbackToJS;
     /** The model's own answer — the ancestor walk, with TRACKED reads: the
      *  visible chain, rootTransform, rootFrameBox. The generic feed delivers
      *  this value; the DOM feed runs the same reads purely as a WAKE (below),
@@ -574,6 +718,11 @@ export declare class View extends Node {
      *  reads (see attach). */
     private travelHost;
     private applyTravel;
+    /** @internal Re-send x/y through the seam against the CURRENT position host
+     *  — the one case where the realized position changes without either slot
+     *  moving (a padding write on the host, a travelWith that re-hosts the
+     *  surface). */
+    repushPosition(): void;
     /** Scroll this view to the top of its nearest scrolling ancestor — the
      *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
      *  handler calls it to jump to a target). Both backends do the work in their
@@ -680,14 +829,8 @@ export declare function withCursorDefining<T>(view: View, fn: () => T): T;
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export declare function inheritedCursor(node: Node | null): Cursor | null;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
-/** A node's address for an error message: its authored-name path up the tree
- *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
- *  a handler has already thrown. */
 export declare function nodeLabel(n: Node): string;
 export declare function fireEvent(view: Node, event: string, ...args: unknown[]): void;
-/** The application root — the single visible tree at the top (OpenLaszlo's
- *  `<canvas>`). R0 treats it as the root View; it fills its host by default and
- *  carries the app's reactive environment (host extent, scroll, pointer). */
 export declare class App extends View {
     /** onReady — the boot transaction's close, DELIVERED (schema.ts App
      *  events): boot is the one settle with no app handler anywhere in it, so
@@ -922,6 +1065,26 @@ export declare class App extends View {
      *  it (a computed-location family, or the bare ""). Resolved at dispatch
      *  time, off the settled tree. */
     private destinationView;
+    /** @internal the values the host provides, by name (Node.$hostProvided reads).
+     *  Seeded from build's `provides` when there are any, so the app's very
+     *  first evaluation — at instantiate, before any settle or link — reads them. */
+    readonly hostValues: BoundaryValues;
+    /** The HOST's write: make `value` available to this app under `name` — what
+     *  a `hostProvided("name", …)` read in the program returns. Called by the
+     *  island bridge for each name the island `provides`, by a page embedding
+     *  this app (`el.__declareApp.provide(…)`, or `boot({ provides })`), and by
+     *  the native host for its launch parameters. Equality-gated; a change
+     *  re-derives every reader. `undefined` withdraws the value (readers fall to
+     *  their defaults). Data only — a host never hands over a node. */
+    provide(name: string, value: unknown): void;
+    /** The value this app exposes under `name` — one of its `exposes` names — or
+     *  undefined when it exposes no such name. The page's read (an island reads
+     *  through its own `exposed`); tracked, so an `observe` over it follows. */
+    exposed(name: string): unknown;
+    /** A page's standing watch over one exposed value: `cb` runs now with the
+     *  current value and again at the close of every settle that changed it.
+     *  Returns the unwatch. */
+    watchExposed(name: string, cb: (value: unknown) => void): () => void;
     /** The DEFAULT landing, exposed — what the platform does with an arrival
      *  when no `onArrive` is declared: scroll the target into view, honoring
      *  `revealInset` (the App itself starts at its top). A document app that
@@ -1016,20 +1179,24 @@ export declare class App extends View {
 }
 /** A tenant's connection, installed by linkIslandTenant / the foreign handle. */
 interface TenantSink {
-    value(name: string, v: unknown): void;
     message(topic: string, payload: unknown): void;
 }
 /** Island — the abstract boundary box. Concrete kinds decide what the tenant
  *  IS (DOMIsland: foreign DOM; AppIsland: a Declare program); this base owns
  *  the bridge — the external-fact surface and the message verbs. */
 export declare class Island extends View {
+    provides: readonly string[];
     /** @internal the linked tenant's delivery sink (null = nothing linked). */
     tenantSink: TenantSink | null;
-    /** @internal per-name echo guard: which side a delivery is currently
-     *  crossing FROM, so the far observer skips reflecting it back (identity-
-     *  fresh computed values would otherwise ping-pong; equality gates alone
-     *  cannot stop a constraint that mints a new array per run). */
-    crossing: Map<string, "toTenant" | "toIsland">;
+    /** @internal the values the hosted side exposes, by name (`exposed` reads). */
+    readonly exposedValues: BoundaryValues;
+    /** The host's read of a value the hosted side EXPOSES — a Declare tenant's
+     *  `exposes` name, or foreign content's `expose(name, value)`. Tracked like
+     *  any attribute read, so a constraint over it re-derives when the hosted
+     *  side changes it. The default types the read: an absent value, or one of a
+     *  different kind, answers the default (the latter with a warning). With no
+     *  default an absent value throws, naming it. */
+    exposed(name: string, ...dflt: unknown[]): unknown;
     /** The message verb, host → tenant (`post`, in the postMessage lineage —
      *  `message` is the stream family's event). Dropped with a console note
      *  when no tenant is linked — a verb has no meaning without a receiver. */
@@ -1037,33 +1204,35 @@ export declare class Island extends View {
     /** @internal tenant → host verb arrival: fire the declared onPost with the
      *  one-record payload `{ topic, payload }` (IslandPost). */
     receiveMessage(topic: string, payload: unknown): void;
-    /** @internal a tenant value push (validated when foreign). Ownership
-     *  referees direction: a non-readonly slot the host BOUND refuses the push
-     *  with the constraint named — the loud, structural answer. A `readonly
-     *  external` slot is tenant-owned by declaration, so it lands via the
-     *  runtime write path. */
-    receiveValue(name: string, v: unknown, foreign: boolean): void;
-    /** The foreign tenant's handle — built once, attached to the island's
+    /** The value this island provides under `name`, if `name` is on its
+     *  `provides` list — else undefined, with a warning (the host did not offer
+     *  it). What a hosted side's read resolves to. */
+    providedValue(name: string): unknown;
+    /** The foreign content's handle — built once, attached to the island's
      *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
-     *  surface for non-Declare content; everything it does rides the same
-     *  bridge a Declare tenant uses. */
+     *  surface for non-Declare content, in the same words a Declare tenant
+     *  uses: read what the host provides, expose values up, and the verbs. */
     private handle;
     foreignHandle(): Record<string, unknown>;
 }
 /** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
- *  island service, the mac runner). Pairs the two `external` surfaces by name
- *  with a TYPE HANDSHAKE — the link error, at link time — then bridges both
- *  directions with per-settle observers, echo-guarded. Initial values: the
- *  host's side wins for host-writable slots, the tenant's for `readonly
- *  external` (tenant-owned) ones. Returns the unlink. */
+ *  island service, the mac runner). DOWN: every name on the island's
+ *  `provides` list, resolved at the island, is provided to the tenant (what
+ *  its `hostProvided` reads return) and kept live. UP: every name on the
+ *  tenant's `exposes` list is delivered into the island's exposed values
+ *  (what the host's `exposed` reads return) and kept live. The verbs link
+ *  both ways. Build the tenant with `provides: islandProvisions(island)` so
+ *  its first evaluation already sees what the host provides, and link it
+ *  before its first settle. Returns the unlink. */
 export declare function linkIslandTenant(island: Island, tenant: App): () => void;
 /** DOMIsland — the FOREIGN-CONTENT island (design: the `DOMIsland [ … ]` view). A leaf
  *  whose box Declare lays out and constrains normally, but whose interior is
  *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
  *  so the host can mount an iframe / textarea / any element into the Declare-sized
  *  box — its width/height follow this view's constraints with no coordinate
- *  sync. Carries the Island bridge: `external` declarations + send/onMessage,
- *  reachable from the tenant side through the element's `__declareIsland`. */
+ *  sync. Carries the Island boundary: `provides` down, `exposed` up, and the
+ *  post/onPost verbs, reachable from the foreign side through the element's
+ *  `__declareIsland`. */
 export declare class DOMIsland extends Island {
     slot: string;
     childName: string;

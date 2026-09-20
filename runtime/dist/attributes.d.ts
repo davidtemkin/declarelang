@@ -1,4 +1,5 @@
 import { Cell, Constraint } from "./reactive.js";
+import { type Where } from "./errors.js";
 /** One attribute's class-level declaration: its default, the Surface push a
  *  change makes (absent for purely model-side attributes), and an optional
  *  value-equality predicate (decoration values gate on shallow structural
@@ -12,6 +13,14 @@ export interface AttrSpec<S, V> {
      *  instance, whenever the slot is unset — the chain's rank-1 end. Never
      *  installed, so it can never contend with a direct write. */
     defBinding?: (this: unknown, parent: unknown, classroot: unknown) => unknown;
+    /** The `{ }` default of a NUMERIC declared slot (`bodyW: number = { … }`)
+     *  is served by a STANDING yielding rule installed at construction
+     *  (instantiate.ts → bind.ts bindDeclDefault), not by the live fallback:
+     *  the slot lives in the kernel table (a cell the EXPR bodies read; one
+     *  evaluation per input change instead of one per read — declare.md's
+     *  rule for a `{ }`). `defBinding` stays as the fallback for an instance
+     *  whose slot left the table (escape). */
+    defRule?: boolean;
     /** The default binding's classroot: an inline (use-site) declaration binds
      *  outward, a class-body declaration binds the instance itself (R6's
      *  member-origin rule, applied to declarations). */
@@ -42,6 +51,21 @@ export interface AttrSpec<S, V> {
      *  no carrier of this hook follows or defBinds. */
     tracked?: (self: S, v: V) => V;
 }
+/** The kernel cell of `self.name` when it is a table slot of this instance
+ *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
+ *  The EXPR binder resolves its read paths and its target through this. */
+export declare function slotCellOf(self: object, name: string): number;
+/** Is `self.name` a boolean slot (a kernel-written 0/1 lands as true/false)? */
+export declare function slotIsBoolean(self: object, name: string): boolean;
+/** A node has moved to a different parent: its subtree's chains changed, and
+ *  nothing else's did, so clear those memos and leave every other node's
+ *  standing. Called from Node's linking verbs — NOT from a re-link that puts a
+ *  child back under the same parent (replication does that to every row of a
+ *  block on any change, and flushing there would empty the memo exactly where
+ *  the reads are hottest). */
+export declare function providedChainMoved(root: {
+    children?: readonly unknown[];
+}): void;
 /** Set a provision on a node — the value a descendant's `provided("name")`
  *  reads when this node is the nearest provider. Equality-gated, and wakes the
  *  readers below. Both a literal provision and a bound one (whose `{ }`
@@ -51,6 +75,28 @@ export interface AttrSpec<S, V> {
  *  container that provides `selectable = true` becomes a selection region so a
  *  gap press between its leaves anchors on it. */
 export declare function localProvision(self: object, name: string): unknown;
+/** Remember that the USE SITE wrote a geometry literal here, and where
+ *  (instantiate.ts, at the one site that assigns a checked literal).
+ *
+ *  THE USE SITE ONLY, deliberately. A literal in a CLASS BODY — `class Spacer
+ *  extends View [ width = 0 ]`, `class Pane extends View [ x = 40, … ]` — is
+ *  how the language spells a class default for an inherited slot: it is
+ *  written without knowing where an instance will live, and the class may be
+ *  used in five places of which one has a sizing layout. A literal at the use
+ *  site is written INTO the very tree whose arrangement is visible on the line
+ *  above it. Only the second is a statement about this arrangement, and only it
+ *  is worth a word. (Measured: reporting class bodies too fires on the
+ *  library's own Spacer in every flow that sizes one.)
+ *
+ *  `where` is absent on a compiled artifact — declarec strips positions — so
+ *  the entry still lands, valueless: the report is worth making without a line,
+ *  and every reader degrades. */
+export declare function noteUseSiteSet(self: object, name: string, where: Where | undefined): void;
+/** Did the USE SITE write a literal into this geometry slot? */
+export declare function useSiteSet(self: object, name: string): boolean;
+/** Where that literal was written, or null (not a use-site literal, or a
+ *  positionless artifact). */
+export declare function setPosOf(self: object, name: string): Where | null;
 export declare function provideWrite(self: object, name: string, value: unknown): void;
 /** Declare a class's reactive attributes: defaults + pushes, installed as
  *  prototype accessors. Call once per class, at module load, right under the
@@ -59,6 +105,12 @@ export declare function provideWrite(self: object, name: string, value: unknown)
 export declare function defineAttributes<S extends object>(ctor: abstract new () => S, specs: {
     [K in keyof S & string]?: AttrSpec<S, S[K]>;
 }): void;
+/** A class's slot index for a numeric attribute (−1 if it is not one) — the
+ *  kernel's view layout is built from these (view.ts). */
+export declare function slotIndex(ctor: object, name: string): number;
+/** The instance's numeric block (allocating it), for kernel rules that read
+ *  the view's slots directly. */
+export declare function blockOf(self: object): number;
 /** The read behind `provided("name")` — a value an ancestor makes available
  *  under `name`, read explicitly by a descendant. Resolved by NAME: the walk
  *  climbs the parent chain, nearest first, and the first ancestor that either
@@ -102,6 +154,11 @@ export declare function providedRead(self: object, name: string, hasDefault: boo
  *  Same store/push/wake as the setter, but it neither marks the slot as
  *  author-set nor consults ownership (the caller *is* the owner). */
 export declare function setBound(self: object, name: string, v: unknown): void;
+/** The rule's OWN apply: the table write without the displacement check. */
+export declare function writeOwned(self: object, name: string, v: unknown): void;
+/** Is the slot set directly or owned by a constraint — the rank-1 fallback's
+ *  "unset" test (a declared default rule installs only on an unset slot). */
+export declare function isSetOrOwned(self: object, name: string): boolean;
 /** A runtime-side ADDITIVE write: land `current + delta` on a numeric slot —
  *  the animation additive core (animation.md §4.2, LaszloAnimation.lzs:444–448:
  *  `target.setAttribute(attr, targ[attr] + (value − currentValue))`). Two
@@ -134,6 +191,9 @@ export declare function disposeBindings(self: object): void;
  *  override leaving a formerly-unowned slot has already retired its own driver
  *  and now reverts the slot to a plain stored value — the caller restores it). */
 export declare function disown(self: object, name: string): void;
+/** Return a retiring node's kernel cells (view.ts teardown): a freed cell
+ *  drops its subscribers, so nothing can ever wake work for a dead view. */
+export declare function freeCells(self: object): void;
 /** The constraint (if any) that owns this slot's value. */
 export declare function ownerOf(self: object, name: string): Constraint | null;
 export interface DeclRecord {
@@ -145,8 +205,7 @@ export interface DeclRecord {
     } | null;
     /** The compiler's extracted read-paths for the default, when they rode along. */
     deps: readonly string[] | null;
-    /** The declared TYPE name, verbatim ("number", "array", …) — what the
-     *  island link handshake compares across programs. */
+    /** The declared TYPE name, verbatim ("number", "array", …). */
     type?: string;
     /** Declared `external` — an island-boundary slot (parser.ts AttrDecl). The
      *  bridge enumerates an instance's boundary via these records. */

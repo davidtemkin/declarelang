@@ -1,6 +1,6 @@
 import { type MaskSpec, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type SlotBox, type Stretch, type Surface } from "./backend.js";
 import { type Affine } from "./affine.js";
-import { type Fill, type Radius, type Shadow, type Stroke, type Filter } from "./value.js";
+import { type BoxStroke, type Fill, type Inset, type Radius, type Shadow, type Filter } from "./value.js";
 import { type TextStyle } from "./measure.js";
 import { type DisplayList } from "./draw.js";
 /** Client point → el's view-local (pre-transform layout) coordinates.
@@ -99,7 +99,7 @@ export declare class DomSurface implements Surface {
     private applyScrollScheme;
     setFill(f: Fill): void;
     setCornerRadius(r: Radius): void;
-    setStroke(st: Stroke | null): void;
+    setStroke(st: BoxStroke): void;
     setShadow(sh: Shadow | null): void;
     /** Box decoration — pure CSS, ALWAYS (fill/gradient = background, cornerRadius
      *  = border-radius, shadow + inset ring = box-shadow). A rounded box is a
@@ -190,6 +190,20 @@ export declare class DomSurface implements Surface {
     private get clipBox();
     setIgnoreClip(on: boolean): void;
     setBoxClip(on: boolean): void;
+    /** The content inset (`View.padding`), realized as the element's own CSS
+     *  padding — for the scroll extent and for nothing else.
+     *
+     *  The origin shift is NOT this: every child is absolutely positioned, and
+     *  an abs child's containing block is the PADDING BOX, so `left: 0` would
+     *  sit outside the inset — exactly the CSS-style split the language refuses.
+     *  view.ts shifts each child's own x/y on its way to `setX`/`setY` instead,
+     *  which is why this call can be about the one thing CSS does get right
+     *  here: with `box-sizing: border-box` the element's size is unchanged, the
+     *  background still covers the padding box (paint does not move), and the
+     *  scrollable overflow area of a scroll container is expanded by its
+     *  END-SIDE padding — so a padded scroller stops a full bottom inset past
+     *  its last child instead of flush against it. */
+    setPadding(inset: Inset): void;
     /** ROOT only (backend.ts): the App's reactive content extent. The page
      *  realization sizes the root ELEMENT to max(frame, extent) along each
      *  declared scroll axis — the box itself is the scroll range and the
@@ -395,7 +409,16 @@ export declare class DomSurface implements Surface {
      *  OBLIGATORY (retained-mode — the canvas IS the content), so the entry cap
      *  is honoured by CLAMPING density back to dpr, never by refusing to draw:
      *  a scaled drawing past the cap is soft, which is what it was before. */
+    private blankCheckedAt;
+    /** The largest raster this surface has painted non-blank, and the page's
+     *  canvas total when it did (the blank check's proof — rasterize). */
+    private provenBytes;
+    private provenTotal;
+    private blankTimer;
+    private lastRaster;
+    private blankDeferred;
     private rasterize;
+    private checkBlank;
     /** The at-rest composed scale, from the view's visibility feed (backend.ts).
      *  A change re-rasterizes at the new density; the same value is a no-op. */
     setRasterScale(scale: number): void;

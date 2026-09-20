@@ -112,7 +112,7 @@ export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, m
   const q = new URLSearchParams(location.search);
   boot({ main: ${JSON.stringify(main)} ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined${demos === null ? "" : `, demos: ${JSON.stringify(demos)}`} });
 </script>`;
-  return shell({ name, staticBlock, iconBase, title, script });
+  return shell({ name, staticBlock, iconBase, title, script, bootUrl });
 }
 
 /**
@@ -144,13 +144,13 @@ export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, demos =
     navigator.serviceWorker.ready.then(() => location.reload());
   boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined${demos === null ? "" : `, demos: ${JSON.stringify(demos)}`} });
 </script>`;
-  return shell({ name, staticBlock: "", iconBase, title: "", script });
+  return shell({ name, staticBlock: "", iconBase, title: "", script, bootUrl });
 }
 
 /** The one HTML shell both page kinds share — parameterized ONLY by the script block,
  *  so the stub and the run page cannot drift in shape (the serve-parity oracle locks
  *  this: identical head, identical host element, script differences documented above). */
-function shell({ name, staticBlock, iconBase, title, script }) {
+function shell({ name, staticBlock, iconBase, title, script, bootUrl }) {
   const icons = iconBase
     ? `<link rel="icon" type="image/svg+xml" href="${escapeHtml(iconBase + "favicon.svg")}">\n` +
       `<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconBase + "favicon.png")}">\n`

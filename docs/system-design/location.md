@@ -514,8 +514,15 @@ anchor selects the **viewpoint within it** — which view is brought into sight.
   existing primitive.
 - Collision rules (stated once, boring on purpose): views before slugs,
   preorder-first, duplicate slugs get deterministic `-2` suffixes.
-- Honest v1 limitation: back/forward restores *locations*, not pixel scroll
-  offsets — a restored location lands at its top or its anchor.
+- Scroll on traversal (this fence was later crossed on purpose, §11.4): the
+  host stamps the APP's scroll offset into the outgoing history entry and
+  restores it after the arrival settles, on the web and on the Mac alike. It is
+  the host's job rather than the browser's because the browser's own restoration
+  fires before the traversal has settled and so measures the wrong extent. The
+  limitation that remains: only the app's own scroll is stamped. A scrolling
+  pane inside the app has no per-entry memory, so a reading column lands at its
+  top or its anchor. If a pane's position is part of the place, it belongs in
+  the location.
 
 ## 7. Extraction: the crawler model
 
@@ -696,7 +703,9 @@ prewarm regenerated. Phase-specific acceptance on top:
 
 IN: everything above. OUT — explicitly, even where adjacent: the replace-form
 history spelling (§10.1); a `location` declaration modifier (§1, rejected);
-scroll restoration beyond top-or-anchor (§10.2); any parser/diagnostics work
+scroll restoration beyond top-or-anchor (§10.2) — **later built anyway**, for
+the app's own scroll only: the hosts stamp and restore it per entry, see §6;
+what stays out is a per-entry memory for panes INSIDE the app; any parser/diagnostics work
 (the concurrent track owns parser.ts/check.ts — do not touch them, overlap is
 the merge's enemy); any docs-content work beyond §11.2's list.
 

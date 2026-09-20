@@ -26,7 +26,7 @@ import { compactValue, ELIDE_FALSE } from "../tools/declarec.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // the corpus: every apps/<dir>/<dir>.declare (the directory-program rule)
-const APPS = ["calendar", "controls", "desktop", "docs", "homepage", "inspector",
+const APPS = ["calendar", "desktop", "docs", "homepage", "inspector",
   "lzx-calendar", "lzx-weather", "sampler", "tracker", "viewer"]
   .map((d) => ({ name: d, file: path.join(ROOT, "apps", d, d + ".declare") }))
   .filter((a) => existsSync(a.file));

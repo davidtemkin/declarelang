@@ -99,6 +99,20 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+
+  // `View.padding` (2026-09-19). The ORIGIN SHIFT does not come through here:
+  // view.ts adds the parent's leading inset to each child's own setX/setY, so
+  // every backend's paint, hit walk and compositor honour the content box
+  // without a line of new code. What this member carries is the TRAILING
+  // inset, which only a scroller can show — a padded scroller must stop the
+  // full bottom (right) inset past its last child. DOM sets the element's own
+  // CSS padding (border-box, so the size is unchanged, and the scrollable
+  // overflow area is expanded by the end-side padding); canvas and mac fold it
+  // into the extents they compute themselves.
+  setPadding: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
   // One affine matrix at the seam (graphics-pass.md §5) — scale, per-axis
   // scale, skew, rotation about the pivot. Backends that take it never see
   // setScale/setRotation; the pair stays for one that does not.
@@ -372,7 +386,8 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 30,   // +setRichClamp (2026-09-13, the truncation round): maxLines on a flow — DOM/mac clamp in the host, canvas spends the budget model-side
+  assert.equal(members.length, 31,   // +setPadding (2026-09-19, padding moves to the view): the TRAILING inset a padded scroller must still show — the origin shift rides the children's own setX/setY and needs no row
+                                     // +setRichClamp (2026-09-13, the truncation round): maxLines on a flow — DOM/mac clamp in the host, canvas spends the budget model-side
                                      // +setFilter/setMask/setTransform/setTransform3D/setPerspective/setImageAlign (2026-09-12, the graphics pass) — all three implement
                                      // +setSelection (2026-08-30): the caret write half, TextInput.select — all three implement
                                      // +setRasterScale (2026-08-26): the at-rest composed scale, for a backend that holds pixels — DOM implements, canvas/mac replay/describe

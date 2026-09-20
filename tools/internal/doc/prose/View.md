@@ -38,6 +38,56 @@ The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Tex
 left unsized takes its natural measured height, so you usually set `height` only to
 clip or to drive a layout.
 
+## padding
+**The view's content box** — the inset between this box and the room its children live in.
+One number insets all four sides; four are `[top, right, bottom, left]`, clockwise from the
+top, the one-or-four house pattern `cornerRadius` and `stroke` share. A negative number is
+clamped to 0. This is the slot a fixed inset wants — not a wrapper view, and not the
+layout.
+
+**A padded view has an *inside*, and `x = 0` / `y = 0` mean that inside's origin — for
+every child.** One a layout arranged, one that placed itself at `x = center`, one with
+`ignoreLayout = true`: they all start at the content origin, because a position in this
+view is *by definition* measured from the content box. There is no CSS-style split where
+an absolutely-positioned child escapes the inset. A layout is not involved — it simply
+arranges within the room it is given (`Layout.contentExtent`), so a view with no `layout:`
+at all is padded just the same, a `place()` you write yourself honors the inset without
+naming it, and **replacing a `layout:` member does not replace the padding** (`padding = 0`
+is what takes it away).
+
+**`100%` means the content box; `{ parent.width }` still means the parent's box.** A
+percent — and `x = center` and `x = end` with it — resolves against the room you are given,
+so `width = 100%` in a `padding = 16` card is the card's width less 32, and a centered child
+is centered between the insets. `{ parent.width }` is the deliberate escape hatch — the
+parent's literal width, padding and all — and an edge-to-edge child inside a padded box is
+that paired with a negative `x`: `x = -16, width = { parent.width }`, the divider that runs
+wall to wall across a card. The asymmetry is the point: "the space I am given" and "the
+parent's own width" are different questions, and the spelling says which one you asked.
+
+**Paint does not move.** `fill`, `stroke`, `cornerRadius` and `draw()` are all this view's
+own box, so a card's background still covers its padding and a border still runs around the
+outside of it — nothing about the inset changes what the view looks like, only where its
+children begin. The inset lives in this view's own coordinate space, so it scales and
+rotates with the box like any other geometry. Hit-testing walks the same content box a
+layout places into, so a press finds a child exactly where it is drawn.
+
+**Both insets count toward size.** A view with an unset width or height grows by the pair on
+that axis, so a padded panel sizing to `contentHeight` reserves the room under its last
+child as well as above its first. A *scrolling* view's extent includes them on all four
+sides too: a padded scroller stops a full inset past its last child rather than flush
+against it.
+
+```declare
+App [ fill = white, textColor = black,
+    card: View [ x = 20, y = 20, width = 260, fill = whitesmoke, cornerRadius = 10,
+        padding = 16,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ fontWeight = semibold, text = "Storage" ],
+        Text [ textColor = slategray, text = "39.2 GB of 128 GB used" ]
+        ]
+    ]
+```
+
 ## fill
 What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a
 plain background color. `null` (the default) paints **nothing** — an unfilled box is
@@ -55,7 +105,11 @@ Rounds the **painted** box (default `0`, square). One number rounds all four cor
 four — `[topLeft, topRight, bottomRight, bottomLeft]`, clockwise from the top-left as
 CSS orders them — round each on its own, and a corner given `0` stays square:
 `cornerRadius = [0, 8, 0, 8]` rounds only the top-right and bottom-left, `[8, 8, 0, 0]`
-is a tab that joins the pane below it. Radii that would overlap along an edge shrink
+is a tab that joins the pane below it. **One value, or four clockwise, is the house
+pattern** for anything said per corner or per side: `stroke` and `padding`
+read exactly the same way, each list starting at its own first edge — the top for those
+two, the top-left corner for this one, because corners are what it names. A list of any
+other length is a mistake, never a shorthand. Radii that would overlap along an edge shrink
 together, so a radius past half the box is a pill, never a fold. It shapes fill, border,
 and shadow — but not hit-testing or clipping: the box stays a rectangle for layout and
 clicks. To clip children to the rounded shape, set `clip = true` as well. A `Spring` on
@@ -65,6 +119,22 @@ this slot animates the number form.
 A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the
 layout rectangle — the box stays the one geometry fact. `null` by default. Unlike
 CSS's `border`, a bordered view and an unbordered one occupy the same space.
+
+One `stroke(…)` borders all four sides; **four border them one at a time** — `[top,
+right, bottom, left]`, clockwise from the top, the same one-or-four shape as
+`cornerRadius`, with `null` in a side's place leaving that side bare. A single rule
+under a row is `[ null, null, stroke(1, #DBE1E9), null ]`; a pair of rails is the top
+and bottom entries filled and the sides `null`. Widths may differ per side. Where the
+box is rounded a side's band **follows the corner arc and tapers into it** rather than
+mitring against its neighbour, so adjacent sides overlap along the curve instead of
+meeting on a diagonal seam — the reason the form is written for rules and rails rather
+than for a decorative frame.
+```declare
+App [ fill = white,
+    row: View [ x = 0, y = 20, width = 200, height = 44, fill = whitesmoke,
+        stroke = [ stroke(1, #DBE1E9), null, stroke(1, #DBE1E9), null ] ]
+    ]
+```
 
 ## shadow
 A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape

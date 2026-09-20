@@ -154,13 +154,24 @@ declared heading level — a content page styles its headline large and bold, it
 does not write `# `. So the serializer INFERS the level from the rendered type
 of the settled tree: a `Text` set LARGER than the body copy AND at a heading
 WEIGHT (semibold+) is a heading, its level by the rank of its size among the
-page's heading sizes (largest = h1). Two signals, no more — bigger and bolder;
-the weight gate leaves a large-but-light LEAD a paragraph. The body size is the
-size carrying the most characters (body copy dominates), which anchors the
-comparison. Deliberately IMPERFECT and not special-cased: a big bold display
-figure (a gradient "46 KB", a stat "479") reads as a heading, and a two-line
-hero reads as two headings — accepted, because chasing a clean outline with
-per-shape rules trades a predictable proxy for a pile of exceptions. This
+page's heading sizes (largest = h1). Two signals decide a candidate, no more —
+bigger and bolder; the weight gate leaves a large-but-light LEAD a paragraph.
+The body size is the size carrying the most characters (body copy dominates),
+which anchors the comparison — and a `Markdown`'s or `HTMLText`'s words count
+toward it, because on a page whose prose is a rich-text flow they ARE the body
+copy. Without that the body size is drawn from nav and footer chrome, and a
+15px wordmark becomes the largest thing in the document.
+
+Still a PROXY and still imperfect: a display SENTENCE set large and bold reads
+as a heading, because nothing in the settled tree separates it from a section
+title. Three things it no longer does, all of them cases where the outline was
+carrying something that was never prose: a bare figure or glyph (a stat "479", a
+sequence badge "1", a decorative "→") is not a heading; neither is a number with
+a short unit ("112 KB"); and a headline split across two views to carry two
+treatments yields one `h1` and an `h2`, not two `h1`s. These are not
+per-shape polish — the size census shares the candidate predicate, so each
+non-prose node also consumed a rank and pushed every real heading below it down
+a level. This
 reverses the earlier "no font-size inference, ever" line: it is a deliberate
 PROXY, not a contract — undeclared, not controllable from Declare source, so it
 lives inside the extractor and never touches the language surface

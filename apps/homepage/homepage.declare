@@ -9,16 +9,13 @@ the blueprint grid, the sticky header, the pointer dot — sits absolutely
 around the centered column.
 
 `{ }` bodies are TypeScript, so colors there are `0x…`; `[ ]` literal slots
-take `#…`. Every color on the page has a name in the App's `theme` record —
-the palette lives there, once. The one repeat is `g`, the brand gradient as a
-run style for prose: a `style` bundle holds literals by rule, so it spells
-the two stops itself.
+take `#…`. Every color on the page has a name in one of the two `theme`
+records below — the palette lives there, once, and nowhere else.
 */
 
-// The brand gradient a `<span class='g'>` in prose wears — the hero's
-// sentence, the footer's "Built in Declare"; a view takes `theme.brand`.
+// what the site's programs share — the text faces, for now
 
-style g [ textFill = gradient("90deg", #4C8DFF, #37E0C8) ]
+include [ "fonts.declare" ]
 
 /*
 ## The figures under an app card
@@ -29,21 +26,21 @@ page decides how to *say* a figure — never what it is. A missing value yields
 "", so a card that outruns the stats file degrades to no figures rather than to
 "undefined".
 
-Each figure arrives as its own argument, because a script helper's arguments
-are its reactive wiring. Hand it the whole record instead and the reads happen
-inside the body, where the dependency extractor cannot see them — the compiler
-refuses that (DECLARE7001), and it is right to: the line would render once
-against an unloaded DataSource and never update again.
+Each figure arrives as its OWN argument, because a helper's arguments are its
+reactive wiring. Hand it the whole record instead and the reads happen inside
+the body, where the dependency extractor cannot see them — the compiler refuses
+that (DECLARE7001), and it is right to: the line would render once against an
+unloaded DataSource and never update again.
 */
 
 script {
-    function hpLines(total: object, code: object, comment: object): string {
+    function hpLines(total: number, code: number, comment: number): string {
         if (total == null) return ""
         return total + " lines — " + code + " code, " + comment + " comment"
         }
 
-    function hpWire(wire: object): string {
-        return wire == null ? "" : " · " + Math.round((wire as any) / 1024) + " KB over the wire"
+    function hpWire(wire: number): string {
+        return wire == null ? "" : " · " + Math.round(wire / 1024) + " KB over the wire"
         }
     }
 
@@ -53,23 +50,31 @@ script {
 Every text style on the page is one of these classes — headings semibold with
 tracking that scales with the size, eyebrows mono and wide-tracked, lead and
 body in the muted tone — so the page's whole typography reskins from here.
+
+None of them declares `selectable`. It is a PROVIDED value: the three content
+columns (the front page, the Why article, a DocView) each say once that they
+are copy, and every text leaf beneath reads the nearest provision. A class
+that repeated it said the same thing five times — and said it about the
+wordmark and a tuner label too, which are chrome. What is NOT copy says so at
+the control: `selectable = false` on a link, a button, a panel chip.
 */
 
-class Heading extends Text [ fontWeight = semibold, textColor = { provided("theme").text },
-    letterSpacing = { -0.02 * fontSize }, selectable = true
+class Heading extends Text [ fontWeight = { app.headWeight }, textColor = { provided("theme").text },
+    letterSpacing = { app.headTrack * fontSize }
     ]
 
 
-// A section fades in as it scrolls into view: one spring recipe, declared
-// once, that each section carries as `reveal: Reveal [ ]`.
+// The same treatment, worn by things that are NOT headings — a sequence
+// numeral, a stat figure, the wordmark. Identical to `Heading` in every pixel;
+// what it carries is intent. `Heading` sets weight, colour and tracking but no
+// size, so on its own it says "display type" rather than "a heading", and the
+// static extractor reads a document outline off the settled type. Saying which
+// of the two a piece of text is keeps the outline honest at the source.
 
-class Reveal extends Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
-    to = { app.scrollY + app.height > parent.parent.y + parent.y + 90 ? 1 : 0 }
-    ]
+class Display extends Heading [ ]
 
-
-class Eyebrow extends Text [ fontFamily = { app.mono }, fontSize = 13,
-    fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").muted }, selectable = true
+class Eyebrow extends Text [ fontFamily = ["ui-monospace", "monospace"], fontSize = 13,
+    fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").muted }
     ]
 
 
@@ -77,35 +82,55 @@ class Eyebrow extends Text [ fontFamily = { app.mono }, fontSize = 13,
 
 class Marker extends Eyebrow [ textColor = { provided("theme").accent } ]
 
-// footer text in the page's sans face, not the mono eyebrow
+// footer text in the Declare typeface (App Sans), not the mono eyebrow
 
-class FootLabel extends Text [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").muted }, selectable = true ]
+class FootLabel extends Text [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").muted } ]
 
-class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { provided("theme").lead }, selectable = true ]
+class Lead extends Text [ fontSize = 19, fontWeight = normal, textColor = { provided("theme").lead } ]
 
-class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { provided("theme").muted }, selectable = true ]
+class Body extends Text [ fontSize = 17, fontWeight = normal, textColor = { provided("theme").muted } ]
 
-// an article paragraph (the "Why" view) — HTML flow, so its `"""` source wraps
-// at the writer’s margin and the line breaks collapse away in the rendering
+// The CENTERED band treatment — the two closing sections (the feedback loop
+// and the closer) are statements addressed to the whole column rather than
+// copy running down its left edge, so each line is centered on its own
+// measure. `measure` is the only thing that differs between the four of them,
+// and `x = center` with `textAlign = center` is one idea, so it is one class
+// rather than two attributes to keep in step at every use site.
 
-class Para extends HTMLText [ fontSize = 18, lineHeight = 1.2, width = { parent.width },
-    bodyColor = { provided("theme").lead }, selectable = true
+class BannerHead extends Heading [ measure: number = 880,
+    width = { Math.min(this.measure, parent.width) }, x = center, textAlign = center
     ]
+
+
+class BannerLead extends Lead [ measure: number = 620,
+    width = { Math.min(this.measure, parent.width) }, x = center, textAlign = center
+    ]
+
+
+// the short accent rule the closer wears above and below its line
+
+class BandRule extends View [ x = center, width = 140, height = 2, fill = { provided("theme").accent } ]
+
+// The site's prose lives beside this program, not inside it: why.md, the
+// getting-started guide, the FAQ and the language document are all fetched as
+// text and flowed by the Markdown component, so every article on the site is
+// one rendition with one set of numbers.
 
 
 /*
 ## The header pills
 
-A nav link is a padded pill: it fills with `pillHover` on hover (a rounded rect
+A nav link is a padded pill: it fills with surface-2 on hover (a rounded rect
 behind the text, not just a color change), and `pressed` deepens the pill and
 lights the label — the tap feedback a touch device gets in place of hover.
-Width auto-fits the label plus 12px of padding each side.
+The 12px each side is the view's own `padding`, so the label starts at the
+content origin and the pill's width is simply what it holds.
 */
 
-class NavLink extends View [ height = 33, cornerRadius = 8,
+class NavLink extends View [ height = 33, cornerRadius = 8, padding = [0, 12, 0, 12],
     label:   string = "",
 
-    // a pill with children opens the dropdown instead of following a link —
+    // a pill WITH children opens the dropdown instead of following a link —
     // the wide rendition of the sheet's group rows. The anchor is snapshotted
     // at the gesture (rootOrigin, converted to viewport space), the sanctioned
     // overlay pattern (Menu.openAt).
@@ -119,17 +144,20 @@ class NavLink extends View [ height = 33, cornerRadius = 8,
         app.appsOpen = !app.appsOpen
         },
 
-    // One reference string does the routing: "#why" is a destination, "#apps"
-    // a bare anchor (the runtime derives its location and reveals it), a URL
-    // leaves the app. The follow, the real <a> (hover preview, ⌘-click,
-    // copy-link), the keyboard stop, and the crawler's edge all come from the
-    // `link` the use site sets.
+    // ONE reference does all three jobs (location.md §0.3): "#why" is a
+    // destination, "#apps" a bare anchor (the runtime derives its location and
+    // reveals it), a URL leaves the app. The follow,
+    // the real <a> (hover preview, ⌘-click, copy-link), the keyboard stop,
+    // and the crawler's edge all come from the `link` the use site sets.
+
+    // pressed deepens the pill + lights the label — the tap feedback a touch
+    // device gets in place of hover (mouseDown/Up fire on a tap, hover does not).
 
     fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
-    lbl: Text [ x = 12, y = 8, fontSize = 14,
+    lbl: Text [ y = 8, fontFamily = { app.uiFace }, fontSize = 14,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? provided("theme").text : provided("theme").muted } ],
-    width = { this.lbl.width + 24 }
+    width = { this.contentWidth }
     ]
 
 
@@ -140,7 +168,7 @@ At phone width the pill row would ride the wordmark, so it collapses to a kebab
 (the page's dot motif) that opens this sheet: a thumb-height row per destination,
 drawn from the same `navItems` as the pills. Same press feedback as a pill.
 
-The sheet is the one surface that can afford structure. The pill row is bounded
+The sheet is the one surface that can afford STRUCTURE. The pill row is bounded
 by the window's width, so a destination with children shows there as a single
 pill; the sheet is already open by the time it is read and vertical space is
 free, so the children get their own rows under the parent — no second tap to
@@ -148,24 +176,24 @@ reach the thing you came for. One `navItems` list, two renditions, which is
 what these two surfaces already were.
 */
 
-class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerRadius = 8,
+class MobileNavRow extends View [ width = 100%, height = 44, cornerRadius = 8,
     label:   string = "",
 
     // a child row: same type size and the same thumb height as its parent —
     // these are destinations, not annotations, and shrinking them would say
-    // otherwise. The indent alone carries the hierarchy, with the quieter
+    // otherwise. The INDENT alone carries the hierarchy, with the quieter
     // tone behind it.
 
     sub:     boolean = false,
 
     fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
 
-    // the handler runs — closing the sheet — then the follow. Navigation
-    // itself is the `link`.
+    // the coexistence rule (location.md §0.4): the handler runs — closing the
+    // sheet — then the follow. Navigation itself is the `link`.
 
     onClick()     { app.menuOpen = false; app.appsOpen = false },
 
-    lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center,
+    lbl: Text [ x = { classroot.sub ? 30 : 14 }, y = center, fontFamily = { app.uiFace },
         fontSize = 16, fontWeight = medium,
         text = { classroot.label },
         textColor = { classroot.hovered || classroot.pressed ? provided("theme").text : classroot.sub ? provided("theme").muted : provided("theme").lead } ]
@@ -177,14 +205,11 @@ class MobileNavRow extends View [ width = { parent.width }, height = 44, cornerR
 // so a childless destination is simply its own row — there is no branch here
 // and no second rendition to keep in step.
 
-class MobileNavGroup extends View [ width = { parent.width },
+class MobileNavGroup extends View [ width = 100%,
     height = { this.contentHeight },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
     MobileNavRow [ label = { :label }, link = { :link } ],
-    kids: View [ width = { parent.width }, height = { this.contentHeight },
-        layout: SimpleLayout [ axis = y, spacing = 0 ],
-        MobileNavRow [ datapath = :children[], sub = true, label = { :label }, link = { :link } ]
-        ]
+    MobileNavRow [ datapath = :children[], sub = true, label = { :label }, link = { :link } ]
     ]
 
 
@@ -192,26 +217,26 @@ class MobileNavGroup extends View [ width = { parent.width },
 ## Section furniture
 
 The repeated shapes the numbered sections are built from: an `AppCard` (§01 —
-a shot of a real application over its one-line description), a `Point` with
-its accent top-rule, a gradient `MiniMetric`, and the footer’s separator
-`Dot`.
+a shot of a real application over its one-line description), a `MiniMetric`
+figure, a `Point` with its accent top-rule, and the footer’s separator `Dot`.
 */
 
 /*
 ### A screenshot frame
 
 A clipped, rounded plate holding one app’s picture. Its height derives from its
-own width at the shots’ 1.6 aspect, so whatever sizes it — a responsive share,
+OWN width at the shots’ 1.6 aspect, so whatever sizes it — a responsive share,
 a layout, a card — gets the right box with no second number to keep in sync.
-Clicking runs the app; the stroke lifts to the accent rule on hover so the
+The use site declares the `link` that runs the app — View's own attribute, so
+the plate gets a real anchor (hover preview, ⌘-click, copy-link) and the
+crawler gets the edge; the stroke lifts to the accent rule on hover so the
 plate reads as a door rather than a picture.
 */
 
 class Shot extends View [
     src: string = "",
-    url: string = "",
 
-    // An optional moving version. `clip` is taken — it is View's own attribute —
+    // An optional MOVING version. `clip` is taken — it is View's own attribute —
     // so the moving source is `motion`, and the still becomes its poster:
     // `pic` shows until the clip has a frame, which is the composition a
     // `poster` attribute would have hard-coded. `live` gates playback, so a
@@ -228,31 +253,38 @@ class Shot extends View [
     cornerRadius = 12, clip = true, fill = { provided("theme").stage },
     height = { this.width / 1.6 },
 
-    // A glow, not a drop shadow. On a near-black ground a black shadow has
+    // A GLOW, not a drop shadow. On a near-black ground a black shadow has
     // nothing to darken — it reads as almost nothing. A light halo does the
     // same job in the other direction: zero offset so it sits evenly around the
     // plate, and a low alpha so it separates the shot from the page without
-    // announcing itself. The 1px stroke is still the crisp edge; this is the
-    // separation behind it.
+    // announcing itself. The crisp edge is the `edge` overlay below; this is
+    // the separation behind it.
 
-    stroke = { stroke(1, hovered || hot ? provided("theme").pointRule : provided("theme").line) },
-
-    // colors here are RRGGBBAA (the theme's own spelling — `scrim` is
-    // 0x0B141BB3), so the alpha is the low byte: a cool off-white at 0x4D
+    // colours here are RRGGBBAA (the theme's own spelling — `scrim` is
+    // 0x0B141BB3), so the alpha is the LOW byte: a cool off-white at 0x4D
     // resting, 0x8C when the card is hot.
 
-    shadow = { shadow(0, 0, 26, hovered || hot ? 0xBFD8EA8C : 0xBFD8EA4D) },
+    shadow = { app.isDark ? shadow(0, 0, 26, hovered || hot ? 0xBFD8EA8C : 0xBFD8EA4D) : shadow(0, hovered || hot ? 12 : 6, hovered || hot ? 30 : 20, hovered || hot ? 0x14202A40 : 0x14202A2E) },
 
-    onClick() { if (classroot.url != "") app.navigate(classroot.url) },
-
-    pic: Image [ width = { parent.width }, height = { parent.height },
+    pic: Image [ width = 100%, height = 100%,
         stretches = both, source = { classroot.src },
-        visible = { classroot.motion == "" || !classroot.reel.loaded } ],
+        visible = { classroot.motion == "" || !this.parent.reel.loaded } ],
 
     reel: Video [ visible = { classroot.motion != "" },
-        width = { parent.width }, height = { parent.height }, stretches = both,
+        width = 100%, height = 100%, stretches = both,
         loop = true, source = { classroot.motion },
-        playing = { classroot.live && classroot.motion != "" } ]
+        playing = { classroot.live && classroot.motion != "" } ],
+
+    // THE EDGE, drawn OVER the picture — a stroke on the plate itself sits
+    // under its children, so the screenshot or video painted over it and the
+    // rule showed only where a picture left the edge bare. Translucent ink
+    // (`plateEdge`) reads on a light picture and a dark one alike; the accent
+    // rule on hover says "this is a door". It takes no pointer, so hovering
+    // and pressing still land on the plate.
+
+    edge: View [ width = 100%, height = 100%, cornerRadius = 12,
+        pointerEvents = "none",
+        stroke = { stroke(1, classroot.hovered || classroot.hot ? provided("theme").pointRule : provided("theme").plateEdge) } ]
     ]
 
 
@@ -261,22 +293,23 @@ class Shot extends View [
 
 The page’s quiet link rendition — the accent, brightening on hover and flashing
 at the press, the same direction every other text link here answers a tap. Not
-selectable: it is a control, not copy.
+selectable: it is a control, not copy. Where it goes is View's own `link`, set
+at the use site, so it is a real anchor and a crawlable edge.
 */
 
-class SmallLink extends Text [
+class SmallLink extends Text [ fontFamily = { app.uiFace },
     fontSize = 14, fontWeight = medium, wrap = false, selectable = false,
-    url: string = "",
-    textColor = { pressed ? provided("theme").linkPress : hovered ? provided("theme").linkHover : provided("theme").accent },
-    onClick() { app.navigate(classroot.url) }
+    textColor = { pressed ? provided("theme").linkPress : hovered ? provided("theme").linkHover : provided("theme").accent }
     ]
 
 
 /*
 ### A compact figure
 
-A gradient number over a small note, sized to stay three-up in a half-column
-at every width — a full-width figure there would stack the three into a tower.
+A number over its note, sized to stay three-up in the space it is given — the
+calendar's row of figures sits inside a half-column, where a band-width figure
+that goes full-width on a narrow page would stack the three into a tower. The
+40 is the two 20px gaps its row's layout puts between them.
 */
 
 class MiniMetric extends View [
@@ -284,9 +317,9 @@ class MiniMetric extends View [
     note:  string = "",
     width = { (parent.width - 40) / 3 },
     layout: SimpleLayout [ axis = y, spacing = 4 ],
-    Heading [ fontSize = 34, width = { parent.width }, textFill = { provided("theme").brand },
+    Display [ fontSize = 34, width = 100%, textFill = { provided("theme").brand },
         text = { classroot.value } ],
-    Body [ fontSize = 12, width = { parent.width }, text = { classroot.note } ]
+    Body [ fontSize = 12, width = 100%, text = { classroot.note } ]
     ]
 
 
@@ -295,44 +328,43 @@ class MiniMetric extends View [
 
 The three applications are the page’s one enumerated set, and the layout around
 them is busy enough that the set reads as three unrelated rows. A number pins
-each title to the sequence: the ordinal at the title’s own size — a `Heading`,
+each title to the sequence: the ordinal AT THE TITLE’S OWN SIZE — a `Heading`,
 so font, weight and tracking are the title’s exactly, and the baselines match
 by construction (same metrics, boxes top-aligned in the same row) — in the
-page’s ink on a white disc. White, not accent: the discs must read as counters
-against the noise, not as three more accent-colored controls.
+page’s ink on a plain disc, white on the dark page and dark on paper. Plain,
+not accent: the discs must read as counters against the noise, not as three
+more accent-colored controls.
 */
 
 class AppNum extends View [ width = 30,
     n: string = "",
-    url: string = "",
 
     // the row's hover fact, bound in by the use site — the disc answers the
-    // same state the title answers, so the pair lights as one target
+    // SAME state the title answers, so the pair lights as one target
 
     hot: boolean = false,
     visible = { n != "" },
-    onClick() { if (classroot.url != "") app.navigate(classroot.url) },
 
-    // Baseline by construction: the numeral is a `Heading` at the title's own
-    // size, so it shares the title's font, weight and tracking exactly — and
-    // this box's height is the numeral's line box, top-aligned in the head row
-    // beside the title's. Same metrics, same box top, same baseline, no font
-    // constants.
+    // BASELINE BY CONSTRUCTION, because there is no metrics read to do it by
+    // arithmetic: the numeral is a `Heading` at the title's own size, so it
+    // shares the title's font, weight and tracking exactly — and this box's
+    // height IS the numeral's line box, top-aligned in the head row beside the
+    // title's. Same metrics, same box top, same baseline, no font constants.
 
     height = { this.num.height },
 
     // the disc paints first (under the digit): white at rest, the accent while
     // the row is hot or the badge itself is pressed — the title's own change,
-    // answered in fill rather than ink. The numeral stays ink in every state:
+    // answered in fill rather than ink. The NUMERAL stays ink in every state:
     // ink-on-accent is already the page's text-on-accent pairing (Button).
     // Centered on the line box — a disc has no baseline of its own, so the box
     // center is the honest anchor.
 
     disc: View [ width = 30, height = 30, cornerRadius = 15,
         fill = { classroot.hot || classroot.pressed ? provided("theme").accent : provided("theme").badge },
-        y = { (parent.height - this.height) / 2 } ],
-    num: Heading [ fontSize = 22, wrap = false, selectable = false, textColor = { provided("theme").ink },
-        x = { (parent.width - this.width) / 2 },
+        y = center ],
+    num: Display [ fontSize = 22, wrap = false, selectable = false, textColor = { provided("theme").ink },
+        x = center,
         text = { classroot.n } ]
     ]
 
@@ -346,6 +378,40 @@ and the name run the app; the source link opens the reader — and because event
 do not bubble, that link answers its own click without the card also firing.
 */
 
+/*
+### An application's title row
+
+The badge, the name and (where there is one) the arrow, all three linked to the
+same place and all three answering one hover fact. Both application rows wear it, and
+because it is a class each part reads the row's hover state as `classroot.hot`
+— the depth it sits at is not part of the arithmetic.
+*/
+
+class CardHead extends View [ width = 100%, height = { this.contentHeight },
+    num:   string = "",
+    title: string = "",
+    url:   string = "",
+    hot:   boolean = false,
+    arrow: boolean = false,
+    layout: SimpleLayout [ axis = x, spacing = 10 ],
+
+    seq: AppNum [ n = { classroot.num }, hot = { classroot.hot }, link = { classroot.url } ],
+    name: Heading [ fontSize = 22, wrap = false, selectable = false,
+        textColor = { classroot.hot ? provided("theme").accent : provided("theme").text },
+        text = { classroot.title },
+        link = { classroot.url } ],
+
+    // the arrow carries the reference only when it is shown: a hidden view with
+    // a `link` is still a real anchor, and a row that has no arrow should not
+    // leave a focusable, crawlable one behind it
+
+    arr: Text [ visible = { classroot.arrow }, y = 3, fontSize = 16, fontWeight = semibold,
+        wrap = false, selectable = false,
+        textColor = { classroot.hot ? provided("theme").accent : provided("theme").dim }, text = "→",
+        link = { classroot.arrow ? classroot.url : "" } ]
+    ]
+
+
 class AppCard extends View [
     title:   string = "",
     num:     string = "",
@@ -356,56 +422,48 @@ class AppCard extends View [
     srcUrl:  string = "",
     layout: SimpleLayout [ axis = y, spacing = 16 ],
 
-    // Two hover facts, not one. `titleHot` is the words; `hot` is the words or
+    // TWO hover facts, not one. `titleHot` is the words; `hot` is the words or
     // the plate. The plate reads `titleHot` and the words read `hot`, so a
-    // pointer anywhere on either lights both — and there is no cycle, because
+    // pointer anywhere on either lights BOTH — and there is no cycle, because
     // each derives from the raw `hovered` of the other, never from its styling.
 
-    titleHot: boolean = { this.head.seq.hovered || this.head.name.hovered || this.head.arrow.hovered },
+    titleHot: boolean = { this.head.seq.hovered || this.head.name.hovered || this.head.arr.hovered },
     hot: boolean = { this.frame.hovered || this.titleHot },
 
-    // the name leads: you read what the thing is, then look at it. The plate
+    // the name LEADS: you read what the thing is, then look at it. The plate
     // under a title also gives the row a left edge to hang from, which three
     // pictures of different interiors do not.
 
-    head: View [ width = { parent.width }, height = { this.contentHeight },
-        layout: SimpleLayout [ axis = x, spacing = 10 ],
+    head: CardHead [ arrow = true, num = { classroot.num }, title = { classroot.title },
+        url = { classroot.url }, hot = { classroot.hot } ],
 
-        seq: AppNum [ n = { classroot.num }, hot = { classroot.hot }, url = { classroot.url } ],
-        name: Heading [ fontSize = 22, wrap = false, selectable = false,
-            textColor = { classroot.hot ? provided("theme").accent : provided("theme").text },
-            text = { classroot.title },
-            onClick() { app.navigate(classroot.url) }
-            ],
-        arrow: Text [ y = 3, fontSize = 16, fontWeight = semibold, wrap = false,
-            textColor = { classroot.hot ? provided("theme").accent : provided("theme").dim }, text = "→",
-            onClick() { app.navigate(classroot.url) }
-            ]
-        ],
-
-    frame: Shot [ width = { parent.width }, src = { classroot.shot }, url = { classroot.url },
+    frame: Shot [ width = 100%, src = { classroot.shot }, link = { classroot.url },
         hot = { classroot.titleHot } ],
 
-    copy: View [ width = { parent.width },
+    copy: View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        say: Body [ fontSize = 15, width = { parent.width }, text = { classroot.blurb } ],
-        fig: Body [ fontSize = 13, width = { parent.width }, textColor = { provided("theme").dim },
+        say: Body [ fontSize = 15, width = 100%, text = { classroot.blurb } ],
+        fig: Body [ fontSize = 13, width = 100%, textColor = { provided("theme").dim },
             text = { classroot.figures } ],
-        src: SmallLink [ text = "View & edit source →", url = { classroot.srcUrl } ]
+        src: SmallLink [ text = "View & edit source →", link = { classroot.srcUrl } ]
         ]
     ]
 
 
+// The accent rule is the box's own TOP BORDER — one side of a four-sided
+// `stroke`. A stroke is drawn inside the box and takes no room, so the 18px
+// above the title is the box's own `padding`, and the title and body are
+// simply the two things a Point holds. (A per-side stroke tapers into a
+// rounded corner rather than mitring; this box has square corners.)
+
 class Point extends View [ width = { Math.min(357, parent.width) },
     ptitle: string = "",
     body:   string = "",
-    layout: SimpleLayout [ axis = y, spacing = 16 ],
-    rule: View [ width = { parent.width }, height = 2, fill = { provided("theme").pointRule } ],
-    txt: View [ width = { parent.width },
-        layout: SimpleLayout [ axis = y, spacing = 8 ],
-        Heading [ fontSize = 17, text = { classroot.ptitle } ],
-        Body    [ fontSize = 15, width = { parent.width }, text = { classroot.body } ]
-        ]
+    stroke = { [ stroke(2, provided("theme").pointRule), null, null, null ] },
+    padding = [18, 0, 0, 0],
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Heading [ fontSize = 17, text = { classroot.ptitle } ],
+    Body    [ fontSize = 15, width = 100%, text = { classroot.body } ]
     ]
 
 
@@ -414,16 +472,25 @@ class Dot extends Body [ fontSize = 14, textColor = { provided("theme").faint },
 /*
 ## Buttons
 
-The library `Button` in the page's proportions: primary, since every button
-here is a door in; 46 tall at a 9 radius; the label at the page's 15. The
-accent brightens on hover and deepens at the press — the tap feedback a touch
-device sees in place of hover — read from the control's own `hot` and `down`.
-The library's ink on the accent is `theme.accentText`, the page's ink.
+The site's two calls to action. They extend the library's `Button`, so focus,
+the focus ring, Space and Enter arrive with the control — the way to get a
+particular look is to subclass the control, not to rebuild it.
+
+The subclass restates only the page's own skin: the taller box, the softer
+corner, and the interaction shades. The library's primary fill is flat by house
+style; every other target on this page brightens on hover and deepens at the
+press, and the main call to action should not be the one exception.
 */
 
-class HpButton extends Button [ height = 46, cornerRadius = 9, fontSize = 15,
-    primary = true,
-    fill = { down ? theme.accentPress : hot ? theme.accentHover : theme.accent }
+class SiteButton extends Button [ height = 46, cornerRadius = 9,
+    fill = { primary ? (down ? provided("theme").accentPress : hot ? provided("theme").accentHover : provided("theme").accent)
+                     : (down ? provided("theme").press       : hot ? provided("theme").hover       : provided("theme").surface) },
+    stroke = { primary ? null : stroke(1, down ? provided("theme").accentSecondary : provided("theme").line) },
+
+    // the one ink decision, the library's own seam: the page's ground colour
+    // reads on the accent, the ordinary text colour on the quiet fill
+
+    inkColor = { primary ? provided("theme").ink : provided("theme").text }
     ]
 
 
@@ -431,21 +498,19 @@ class HpButton extends Button [ height = 46, cornerRadius = 9, fontSize = 15,
 ## The site footer
 
 One line, shared by every page of the site — the scrolling front page and the
-in-app Why / Language views alike: provenance left, legal right.
+in-app Why / Language / Get Started / FAQ views alike.
 
 A `FootLink` is the footer’s link rendition: the eyebrow treatment with the
-teal hover and the brighter pressed tap feedback, navigating on click.
+teal hover and the brighter pressed tap feedback, over View's own `link`.
 */
 
 class FootLink extends FootLabel [
-    to: string = "",
 
-    // A navigating link is a control, not copy — FootLabel's `selectable`
-    // is for the static footer text and must not ride along here.
+    // A navigating link is a control, not copy — the content column's
+    // provision is for the static footer text and stops at this one.
 
     selectable = false,
-    textColor = { pressed ? provided("theme").accentSecondaryPress : hovered ? provided("theme").accentSecondary : provided("theme").muted },
-    onClick()     { app.navigate(to) }
+    textColor = { pressed ? provided("theme").accentSecondaryPress : hovered ? provided("theme").accentSecondary : provided("theme").muted }
     ]
 
 
@@ -454,38 +519,37 @@ class FootLink extends FootLabel [
 
 class FootSep extends FootLabel [ text = "·", textColor = { provided("theme").faint }, visible = { parent.width >= 620 } ]
 
-class Footer extends View [ width = { parent.width },
-    // its own bottom margin — the page has no trailing spacer, because the
-    // flow's section spacing applied to that too and left a large dead band
+// One centered flow — every item on a line, dot-separated at full width. As the
+// width narrows the separator dots drop out and the items wrap to centered rows
+// (the wider spacing keeps them legible), so provenance and legal never collide
+// the way a left/right split does. Dropping the dots on wrap is what avoids a
+// stranded separator at a line's end.
+//
+// The bottom margin is the footer's own `padding`, not a trailing spacer in the
+// page flow: a spacer would take the flow's section spacing above it too, and
+// that left a large dead band. With the inset counted into the unset height,
+// the box is exactly the row plus the air under it.
 
-    height = { this.contentHeight + 36 },
-    layout: SimpleLayout [ axis = y, spacing = 16 ],
+class Footer extends View [ width = 100%,
+    padding = [0, 0, 36, 0],
+    layout: WrappingLayout [ justify = center, spacing = { parent.width >= 620 ? 10 : 18 }, lineSpacing = 10 ],
 
-    // one centered flow — every item on a line, dot-separated at full width. As
-    // the width narrows the separator dots drop out and the items wrap to centered
-    // rows (the wider spacing keeps them legible), so provenance and legal never
-    // collide the way a left/right split does. Dropping the dots on wrap is what
-    // avoids a stranded separator at a line's end.
+    // "Built in Declare" is one text RUN (HTMLText carries the brand accent
+    // inline), so it keeps a word space, not a gap
 
-    row: View [ width = { parent.width }, height = { this.contentHeight },
-        layout: WrappingLayout [ justify = center, spacing = { parent.width >= 620 ? 10 : 18 }, lineSpacing = 10 ],
-
-        // "Built in Declare" is one text run (HTMLText carries the brand
-        // gradient inline, the `g` style), so it keeps a word space, not a gap
-
-        built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { provided("theme").muted },
-            html = "Built in <span class='g'>Declare</span>" ],
-        FootSep [ ],
-        FootLink [ to = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
-        FootSep [ ],
-        FootLink [ to = "apps/docs/docs.declare", text = "Docs" ],
-        FootSep [ ],
-        FootLink [ to = "https://github.com/davidtemkin/declarelang", text = "GitHub" ],
-        FootSep [ ],
-        lic: FootLink [ to = "https://github.com/davidtemkin/declarelang/blob/main/LICENSE", text = "MIT License" ],
-        FootSep [ ],
-        FootLabel [ text = "© 2026 David Temkin" ]
-        ]
+    built: HTMLText [ width = 108, fontSize = 13, fontWeight = semibold, bodyColor = { provided("theme").muted },
+        textStyles = { { g: { textFill: provided("theme").brand } } },
+        html = "Built in <span class='g'>Declare</span>" ],
+    FootSep [ ],
+    FootLink [ link = "apps/homepage/homepage.declare?viewer", text = "View Source" ],
+    FootSep [ ],
+    FootLink [ link = "apps/docs/docs.declare", text = "Docs" ],
+    FootSep [ ],
+    FootLink [ link = "https://github.com/davidtemkin/declarelang", text = "GitHub" ],
+    FootSep [ ],
+    lic: FootLink [ link = "https://github.com/davidtemkin/declarelang/blob/main/LICENSE", text = "MIT License" ],
+    FootSep [ ],
+    FootLabel [ text = "© 2026 David Temkin" ]
     ]
 
 
@@ -502,7 +566,7 @@ iframe — so the preview can’t drift from the source.
 */
 
 class CodeField extends TextInput [ multiline = true, spellcheck = false,
-    fontFamily = { app.mono }, fontSize = 11, textColor = { provided("theme").lead },
+    fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").lead },
     editName: string = "",
     src: string = "",
     initial = { src },
@@ -521,6 +585,13 @@ class SourcePanel extends View [
     src: string = "",
     fill = { provided("theme").panel }, cornerRadius = 12, stroke = { stroke(1, provided("theme").panelLine) },
 
+    // A control surface inside the copy column, so the column's provision
+    // stops at this box: the chip, the Revert label and the compile report are
+    // furniture, and the code itself is a native editable field whose
+    // selection is the platform's, not this flag's.
+
+    selectable = false,
+
     // the panel is its field, plus the chip row above it and a margin below —
     // and, while a broken edit has a report, that report's band: it lands
     // UNDER the code (its own y is parent.height − its height), never over the
@@ -528,45 +599,95 @@ class SourcePanel extends View [
 
     height = { this.field.y + this.field.height + 8 + (this.err.visible ? this.err.height : 0) },
 
-    // the affordance chip: this code runs, and you can type in it
+    // the affordance chip: this code runs, and you can type in it. Both chips
+    // are a label in a `padding` — the label sits at the content origin and the
+    // chip's width is simply what it holds, so the inset is stated once.
 
     live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { provided("theme").accent },
-        width = { this.t.width + 14 },
-        t: Text [ x = 7, y = 4, fontSize = 9, fontWeight = bold,
+        padding = [4, 7, 4, 7],
+        width = { this.contentWidth },
+        t: Text [ fontFamily = { app.uiFace }, fontSize = 9, fontWeight = bold,
             letterSpacing = 0.8, wrap = false, textColor = { provided("theme").ink }, text = "LIVE · EDITABLE" ]
         ],
     revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").revertLine) },
+        padding = [3, 8, 3, 8],
         x = { parent.width - this.width - 10 },
-        width = { this.rlbl.width + 16 },
+        width = { this.contentWidth },
         fill = { hovered ? provided("theme").hover : null },
         onClick() { classroot.field.text = classroot.src
                     app.liveCard = classroot.editName
                     app.liveSource = classroot.src },
-        rlbl: Text [ x = 8, y = 3, fontSize = 11, fontWeight = semibold,
+        rlbl: Text [ fontFamily = { app.uiFace }, fontSize = 11, fontWeight = semibold,
             textColor = { parent.hovered ? provided("theme").text : provided("theme").lead }, text = "Revert" ]
         ],
-    hairline: View [ y = 31, width = { parent.width }, height = 1, fill = { provided("theme").panelLine } ],
+
+    // The panel itself takes no `padding`: the hairline and the error band are
+    // deliberately full-bleed — a rule that stopped short of the panel's edge
+    // would read as a mistake — so an inset here would have to be undone by
+    // both of them. The two children that ARE inset say so themselves.
+
+    hairline: Divider [ y = 31, color = { provided("theme").panelLine } ],
     field: CodeField [ x = 12, y = 40, width = { parent.width - 24 },
         editName = { classroot.editName }, src = { classroot.src } ],
 
     // the compile report, at the panel — a broken edit shows its error right here
     // (the last good preview keeps running beside it); host feeds app.liveReport
 
-    err: View [ width = { parent.width }, fill = { provided("theme").errBg },
+    err: View [ width = 100%, fill = { provided("theme").errBg },
         visible = { app.liveCard == classroot.editName && app.liveReport != "" },
         y = { parent.height - this.height },
         height = { this.msg.height + 16 },
-        bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { provided("theme").errBar } ],
+        bar: View [ width = 3, height = 100%, fill = { provided("theme").errBar } ],
         msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
-            fontFamily = { app.mono }, fontSize = 11, textColor = { provided("theme").errText },
+            fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").errText },
             text = { app.liveReport } ]
         ]
     ]
 
 
-class PreviewFrame extends View [
+// the running demo is transparent: it sits on the stage colour, which follows
+// the page, and draws only in colours that read on either ground
+
+class PreviewFrame extends View [ cornerRadius = 12, clip = true, fill = { provided("theme").stage },
+    stroke = { stroke(1, provided("theme").line) },
     runName: string = "",
-    run: AppIsland [ width = { parent.width }, height = { parent.height }, program = { classroot.runName } ]
+    run: AppIsland [ width = 100%, height = 100%, program = { classroot.runName } ]
+    ]
+
+
+/*
+### A live demo section
+
+Sections 02–04 share one shape — a `SectionHead`, a caption, and a live
+`SourcePanel` + `PreviewFrame` pair running the demo for real — so they are one
+class, named for that role, and the three use sites are the words that differ.
+`demo` is the demo's name in `app.demoSources`, the host→app seed channel: it
+picks the source the editor starts from AND the program the island runs, which
+is exactly the pairing that must never drift.
+
+The two panels share the row 58/42 and stack below 760; the preview takes the
+source panel's height, so the code is never a scrolling listing and the picture
+beside it is always the same size as the code that makes it.
+*/
+
+class DemoSection extends View [ width = 100%,
+    num:     string = "",
+    head:    string = "",
+    lead:    string = "",
+    caption: string = "",
+    demo:    string = "",
+    layout: SimpleLayout [ axis = y, spacing = 36 ],
+    SectionHead [ num = { classroot.num }, head = { classroot.head }, lead = { classroot.lead } ],
+    demoBody: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Body [ fontSize = 15, width = 100%, text = { classroot.caption } ],
+        cards: View [ width = 100%,
+            layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
+            src: SourcePanel [ editName = { classroot.demo },
+                src = { app.demoSources[classroot.demo] || "" } ],
+            prev: PreviewFrame [ runName = { classroot.demo }, height = { parent.src.height } ]
+            ]
+        ]
     ]
 
 
@@ -578,32 +699,46 @@ number · heading · lead rhythm every numbered section opens with.
 */
 
 /*
-The blueprint backdrop is viewport-sized and follows the scroll, never
-document-sized.
+The blueprint backdrop is VIEWPORT-sized and pinned, never document-sized.
 
-`draw()` rasterizes into a canvas the size of the view's bounds at device pixel
+`draw()` rasterises into a canvas the size of the view's bounds at device pixel
 ratio, so a backdrop stretched over a whole document would allocate a backing
-store for the whole document — tens of megapixels for the language view at 2x,
-reallocated every time the view is shown or hidden, and past a browser's
-maximum canvas dimension. One viewport costs one screen.
+store for the whole document: the language view is 16,711px tall, which at 2x
+is a 2882 x 33,422 canvas — 96 megapixels, ~385 MB, reallocated every time the
+view is shown or hidden, and about a second of blocked main thread each way.
+It would also exceed Chrome's 32,767px maximum canvas dimension. Viewport-sized
+and pinned, the same two moments measure 57 ms and 21 ms.
 
 A uniform 32px lattice looks the same pinned as it does scrolling, so this
-costs nothing visually — it is the same paper, drawn once. The view follows
-the scroll rather than spanning the document: `ignoreScroll` would lift it out
-of paint order and composite it over the content, while as an ordinary child
-it stays behind. Its y snaps to the 32px lattice so the lines land where a
-document-tall paper's would, and it is clamped to the content's own bottom
-(`bottom`, the use site's extent): unclamped, the backdrop's bottom would be
-scrollY plus a viewport, which feeds the scroller's auto-extent — every trip
-to the bottom would grow the page another 32px. Reading the content's extent
-is not a cycle: the content never reads the backdrop.
+costs nothing visually — it is the same paper, drawn once.
+
+Every view on the site that wears the paper wears the SAME paper, so the
+geometry is the class's and a use site says only one thing: `bottom`, the
+content's own extent it must not run past. It follows the scroll rather than
+spanning the document — `ignoreScroll` would lift it out of paint order and
+composite it OVER the content; as an ordinary child it stays behind. Snapped to
+the 32px lattice so the paper is pixel-identical to the document-tall version —
+the same lines in the same places — while only one viewport is ever rasterised.
+
+The clamp is the part that has to be right. Unclamped, the backdrop's bottom is
+`scrollY` + a viewport, which feeds the scroller's auto-extent — so every trip
+to the bottom grew the page another 32px and left dead space under the footer
+(measured: 5243 → 5412 over six trips). Reading the content's extent is what the
+document-tall version did too, and it is not a cycle: the content never reads
+the backdrop.
 */
 
 class GridBg extends View [
+
+    // the bottom of the content this paper backs, in the same space as this
+    // view's own y — the one number a use site supplies
+
     bottom: number = 0,
-    x = 0, width = { app.width },
-    y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32, bottom - height)) },
+
+    width = 100%,
     height = { app.height + 32 },
+    y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32, this.bottom - this.height)) },
+
     draw(d: Draw) {
         d.fillStyle = provided("theme").grid
         for (let gx = 0; gx <= width;  gx += 32) d.fillRect(gx, 0, 1, height)
@@ -612,7 +747,7 @@ class GridBg extends View [
     ]
 
 
-class SectionHead extends View [ width = { parent.width },
+class SectionHead extends View [ width = 100%,
     num:  string = "",
     head: string = "",
     lead: string = "",
@@ -620,6 +755,163 @@ class SectionHead extends View [ width = { parent.width },
     Marker  [ text = { classroot.num } ],
     Heading [ fontSize = 40, width = { Math.min(900, parent.width) }, text = { classroot.head } ],
     Lead    [ width = { Math.min(760, parent.width) }, text = { classroot.lead } ]
+    ]
+
+
+/*
+### A band that fades in as it arrives
+
+The reveal is a reactive TARGET, not a schedule: the spring's `to` is 1 once
+the viewport's bottom edge has passed 90px into the band, and 0 before — so it
+plays on the way down, unplays on the way back up, and is interruptible in
+both directions, with nothing to start or cancel.
+
+`classroot.parent.y + classroot.y` is the band's top in the SCROLLER's space —
+its own y inside the content column, plus the column's own y — which is the
+space `app.scrollY` is measured in. Reading it from `classroot` rather than
+counting `parent` hops upward from inside the Spring is what lets one class
+serve every use site: the arithmetic no longer depends on how deep the spring
+happens to sit.
+*/
+
+class ScrollReveal extends View [ width = 100%, opacity = 0,
+    reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
+        to = { app.scrollY + app.height > classroot.parent.y + classroot.y + 90 ? 1 : 0 } ]
+    ]
+
+
+/*
+### A rendered document view
+
+The Language doc, the getting-started guide and the FAQ are ONE view with three
+sources: the site's paper, the centered 720 measure, an eyebrow, and a
+`Markdown` fed from a `DataSource` — with loading and failure as states the view
+derives from, never a blank. A use site says which document, in which words; the
+shape lives here once, so the three cannot drift apart.
+
+Each lifecycle fact arrives as its OWN argument, the same discipline the stats
+helpers at the top of this file follow: an argument is a helper's reactive
+wiring, and a `DataSource` handed over whole would move the reads inside a body
+where the dependency extractor cannot see them.
+
+The air under the footer is the column's own bottom `padding` rather than a tail
+view in the flow: an unset height counts both insets, so the column is exactly
+its content plus the room under it, and the page's scroll extent follows.
+*/
+
+class DocView extends View [ width = { app.width }, fill = { provided("theme").ink },
+    eyebrow: string = "",
+    waiting: string = "",
+    trouble: string = "",
+    loading: boolean = false,
+    failed:  boolean = false,
+    loaded:  boolean = false,
+    reason:  string = "",
+    markdown: string = "",
+
+    grid: GridBg [ bottom = { parent.body.y + parent.body.height } ],
+    body: View [ y = 56, width = { app.width }, selectable = true,
+        col: View [ width = { Math.min(720, app.width - 48) }, x = center, y = 52,
+            padding = [0, 0, 62, 0],
+            layout: SimpleLayout [ axis = y, spacing = 22 ],
+            Marker [ text = { classroot.eyebrow } ],
+            wait: Text [ visible = { classroot.loading }, fontSize = 15,
+                textColor = { provided("theme").faint }, text = { classroot.waiting } ],
+            oops: Text [ visible = { classroot.failed }, fontSize = 15,
+                textColor = { provided("theme").faint }, wrap = true, width = 100%,
+                text = { classroot.trouble + classroot.reason } ],
+            doc: Markdown [ visible = { classroot.loaded }, width = 100%, lineHeight = 1.35,
+                bodyColor = { provided("theme").lead }, dark = { app.isDark },
+                text = { classroot.markdown } ],
+
+            // the air between the document and the footer is the footer's own, at
+            // this use site only: 86 is the 64 the design asks for plus the
+            // column's own 22 of stack spacing, which lands above it either way
+
+            Footer [ padding = [86, 0, 36, 0] ]
+            ]
+        ]
+    ]
+
+
+/*
+## The palette
+
+Two `theme` records — the language's own notation for a token set, so the
+tokens are declarations rather than a JavaScript object a `{ }` body happens to
+hold. The App spreads one of them over a library preset (below), which is what
+lets the few library widgets on the page — a `Card`, a `Segmented`, a
+`Tooltip` — find every token they read without a second record bolted onto
+their subtree.
+
+`Ink` is the dark page, `Paper` the light one: the same roles re-chosen for
+paper rather than inverted.
+*/
+
+theme Ink [
+    // text, brightest to faintest
+
+    text = #E7EEF2, lead = #9DB0BC, muted = #8A9BA6, dim = #6A7C89, faint = #556673,
+
+    // the blue accent and its interaction shades; links brighten past accent
+    // (hover), then flash brighter still at the press — the same direction
+    // FootLink's teal takes, so every text link answers a tap the same way
+
+    accent = #4C8DFF, accentHover = #63A0FF, accentPress = #3D7BE0, linkHover = #7FB0FF, linkPress = #B2CFFF,
+
+    // the teal second accent; the brand gradient runs accent → accentSecondary
+
+    accentSecondary = #37E0C8, accentSecondaryPress = #9BF2E4,
+    brand = gradient("90deg", #4C8DFF, #37E0C8),
+
+    // the sequence badges' disc — true white, not the off-white text tone:
+    // a solid counter can take full white where text-on-dark cannot
+
+    badge = #FFFFFF,
+
+    // grounds, darkest to lightest, and their interaction shades — `ink`
+    // (both records) is also the page colour index.html paints before mount
+
+    ink = #0B141B, panel = #0C1620, press = #0C1922, surfaceDeep = #0D1922,
+    surface = #101E28, hover = #162A36, pillHover = #1C2D39, pillPress = #24384A,
+
+    // rules and strokes. The rule drawn over a screenshot's edge is
+    // translucent (#RRGGBBAA — the alpha is the low byte), so it reads on
+    // light and dark pictures alike
+
+    plateEdge = #FFFFFF2E,
+    line = #263D4C, panelLine = #1E313C, revertLine = #26414F, pointRule = #345B84,
+    grid = #172A38,
+
+    // the error strip, the demo stage, and the overlay grounds
+
+    errBg = #2A1518, errBar = #E0525E, errText = #F2A0A6,
+    stage = #151A22, scrim = #0B141BB3, shade = #00000066
+    ]
+
+
+theme Paper [
+    text = #14202A, lead = #3A4A57, muted = #5A6B78, dim = #72838F, faint = #8A99A4,
+    accent = #2F6BDE, accentHover = #1F58C4, accentPress = #1A4AA6, linkHover = #1F58C4, linkPress = #173F8C,
+    accentSecondary = #0FA38E, accentSecondaryPress = #0B7F6F,
+    brand = gradient("90deg", #2F6BDE, #0FA38E),
+
+    // the sequence discs invert on paper: a dark disc under a light digit
+
+    badge = #14202A,
+    ink = #F6F9FC, panel = #FFFFFF, press = #E9EEF2, surfaceDeep = #EEF2F5,
+    surface = #FFFFFF, hover = #EEF3F7, pillHover = #E8EEF3, pillPress = #DCE4EB,
+    plateEdge = #14202A2E,
+    line = #D6DEE5, panelLine = #E1E7EC, revertLine = #D0D9E0, pointRule = #9DB6D6,
+
+    // blueprint lines: a pale drafting blue, the light page's own paper
+
+    grid = #D5E3F5,
+    errBg = #FCEDEE, errBar = #D9434F, errText = #A42A34,
+
+    // the demo stage is paper too: the demos read the page's appearance
+
+    stage = #EDF1F5, scrim = #0B141B66, shade = #00000033
     ]
 
 
@@ -633,67 +925,58 @@ content natively; the chrome further down (header, cursor) are its
 **siblings**, not its children, so they never move.
 */
 
-// The headline lives here, once. The hero reads it, and `appName` carries it
-// into `document.title` at boot, which is also what the crawl extraction
-// reports as the page's title and what the bake stamps into index.html's
-// <title> and social cards — so the visitor, the crawler and an LLM reading
-// the static document all see one string, and none can drift.
+// THE HEADLINE LIVES HERE, ONCE. The hero reads it, and `appName` carries it
+// into `document.title` at boot (runtime/src/boot.ts — "the ONE place that
+// mapping lives"), which is also what the crawl extraction reports as the
+// page's title and what the bake stamps into index.html's <title> and social
+// cards. Stating it anywhere else would be a copy that only crawlers and LLMs
+// ever read — the runtime overwrites document.title at boot, so a visitor
+// would never see it drift. Exactly the readers this page is for.
 
 App [ tagline: string = "a UI language for you and your AI",
-
-    // the one monospace face this page uses, named once
-
-    mono: Font [ family = "ui-monospace, monospace" ],
-
     edges = cover,
     revealInset = 80,
     appName = { "Declare — " + app.tagline },
-    theme = { {
-        // text, brightest to faintest
-        text: 0xE7EEF2, lead: 0x9DB0BC, muted: 0x8A9BA6, dim: 0x6A7C89, faint: 0x556673,
-        // the blue accent and its interaction shades; links brighten past accent
-        // (hover), then flash brighter still at the press — the same direction
-        // FootLink's teal takes, so every text link answers a tap the same way
-        accent: 0x4C8DFF, accentHover: 0x63A0FF, accentPress: 0x3D7BE0, linkHover: 0x7FB0FF, linkPress: 0xB2CFFF,
-        // text on the accent — the library Button's primary ink, in the page's own ink
-        accentText: 0x0B141B,
-        // the teal second accent; the brand gradient runs accent → accentSecondary
-        accentSecondary: 0x37E0C8, accentSecondaryPress: 0x9BF2E4,
-        brand: gradient("90deg", 0x4C8DFF, 0x37E0C8),
-        // the sequence badges' disc — true white, not the off-white text tone:
-        // a solid counter can take full white where text-on-dark cannot
-        badge: 0xFFFFFF,
-        // grounds, darkest to lightest, and their interaction shades
-        ink: 0x0B141B, panel: 0x0C1620, press: 0x0C1922,
-        surface: 0x101E28, hover: 0x162A36, pillHover: 0x1C2D39, pillPress: 0x24384A,
-        // rules and strokes
-        line: 0x263D4C, panelLine: 0x1E313C, revertLine: 0x26414F, pointRule: 0x345B84,
-        grid: 0x172A38,
-        // the error strip, the demo stage, and the overlay grounds
-        errBg: 0x2A1518, errBar: 0xE0525E, errText: 0xF2A0A6,
-        stage: 0x151A22, scrim: 0x0B141BB3, shade: 0x00000066 } },
+
+    // THIS PAGE IS DARK, whatever the machine is set to (DT, 2026-09-20). The
+    // site's own presentation is dark — the shots, the video, the blueprint
+    // grid and the plate shadows are all composed for it — so a light system
+    // no longer decides how a first-time reader sees it. The header's switch
+    // still flips to light and from then on the choice holds. Every colour
+    // below reads the theme, so the whole page (and the hosted Architecture
+    // article, through its island) follows.
+
+    appearance: string = "dark",
+    isDark: boolean = { app.appearance == "dark" },
+
+    // the page's own record spread over the library preset in the same mode:
+    // the page's tokens win, and the widgets the page borrows find the rest
+
+    theme = { app.isDark ? ({ ...SanFranciscoDark, ...Ink }) : ({ ...SanFrancisco, ...Paper }) },
     fill = { provided("theme").ink },
-    fontFamily = ["system-ui", "sans-serif"], fontSize = 17, fontWeight = normal,
+    fontFamily = { app.uiFace }, fontSize = 17, fontWeight = normal,
     textColor = { provided("theme").text },
 
     // in-app location: "home" (the scrolling page), "why" (the mini-article),
-    // "language" (the one-file core doc, rendered in-app), "getstarted" (the
-    // quick-start guide, rendered the same way), or "faq" — the app’s slice of
-    // the URL. `location` is a built-in App attribute; setting it here declares
-    // the initial, which is the default: the host shows a clean URL at "home"
-    // and `#why`/`#language` elsewhere, seeds it from a deep link before first
-    // paint, and walks it on back/forward — no hash wiring in app code. Every
-    // `shows` below declares a view for one of them; the header pills link to
-    // them.
+    // "language" (the one-file core doc, rendered in-app), or "getstarted" (the
+    // quick-start guide, rendered the same way) — the app’s slice of the
+    // URL (docs/system-design/location.md). `location` is a BUILT-IN App attribute;
+    // setting it here declares the INITIAL, which is the default: the host shows a
+    // clean URL at "home" and `#why`/`#language` elsewhere, seeds it from a deep
+    // link before first paint, and walks it on back/forward — no hash wiring in app
+    // code. Every `shows` below derives from it; the header pills write it.
+    // Nothing here returns the page to the top on a destination change either:
+    // an anchorless follow lands its destination at the start, and an anchored
+    // one is measured-reveal'd — both the runtime's, neither the app's.
 
     location = "home",
 
-    /* No link-routing code. Every href in the rendered Markdown below — the
-       FAQ's, the guide's, the language doc's — routes through the runtime's
-       own default: a "#name" follows in-app (destination or anchor alike,
-       measured-reveal and all), anything else leaves through `navigate`. */
-
-    // the page’s textual material, fetched directly as text (format = "text"):
+    /* No link-routing code, and none is wanted. Every href in the rendered
+       Markdown below — the FAQ's, the guide's, the language doc's — routes
+       through the runtime's own default: a "#name" follows in-app (destination
+       or anchor alike, measured-reveal and all), anything else leaves through
+       `navigate` (location.md §0.5). */
+    // the page’s textual material, fetched DIRECTLY as text (format = "text"):
     // the core doc itself (docs/declare.md — up the tree, but still the
     // deployed repo’s own material), the getting-started guide, and the FAQ.
     // The authored .md files carry assembler markers as HTML comments, which
@@ -706,35 +989,45 @@ App [ tagline: string = "a UI language for you and your AI",
     stats: DataSource [ url = "stats.json" ],
     guide: DataSource [ url = "getstarted.md", format = "text" ],
     faq: DataSource [ url = "declare-faq.md", format = "text" ],
-    onInit() { this.lang.fetch(); this.stats.fetch(); this.guide.fetch(); this.faq.fetch() },
+
+    // the Why article and the note that follows it — two documents because they
+    // are two registers, and beside this file rather than inside it, like every
+    // other piece of prose the site serves
+
+    why: DataSource [ url = "why.md", format = "text" ],
+    story: DataSource [ url = "why-story.md", format = "text" ],
+    onInit() { this.lang.fetch(); this.stats.fetch(); this.guide.fetch(); this.faq.fetch()
+               this.why.fetch(); this.story.fetch() },
 
     // `liveCard`/`liveSource` name the demo an inline editor is republishing
-    // and its current text — the host recompiles that pair live.
+    // and its current text — the host recompiles that pair live. Editing the
+    // whole page is `?viewer=edit`, which is the viewer's job, not this one's.
 
     liveCard: string = "",
     liveSource: string = "",
 
-    // the site nav — one list of destinations, shared by the header pills (wide)
+    // the site nav — ONE list of destinations, shared by the header pills (wide)
     // and the mobile sheet (narrow), so a link added here appears in both and the
-    // two can never drift. Each item's `link` is one reference: a fragment for an
-    // in-app location or anchor, a path or URL for a target outside the app.
-    // `navSource` is the datapath wrapper both surfaces replicate from; `menuOpen`
-    // is the sheet's toggle.
+    // two can never drift. An entry is a `label`, a `link` — "#name" follows
+    // in-app, anything else leaves through `navigate`, and the runtime decides
+    // which from the reference itself — and its `children`. `navSource` is the
+    // Dataset both surfaces replicate from; `menuOpen` is the sheet's toggle.
 
-    // The three applications ride under one `Apps` entry. Standing alone in a
-    // nav row, "Calendar", "Desktop" and "Tracker" name nothing a first-time
-    // reader can act on — and beside a GitHub link two of them read as
-    // something else entirely (a desktop build; an issue tracker). The parent
-    // supplies the category the labels can't, and lands on §01, which is the
-    // page that actually answers what they are: three shots, each with its
-    // line count and wire size. The children keep their direct doors in the
-    // sheet, where there is room for both.
+    // The applications ride under one `Apps` entry. Standing alone in a nav row,
+    // "Calendar", "Desktop" and "Tracker" name nothing a first-time reader can
+    // act on — and beside a GitHub link two of them read as something else
+    // entirely (a desktop build; an issue tracker). The parent supplies the
+    // category the labels can't, and lands on §01, which is the page that
+    // actually answers what they are: three shots, each with its line count and
+    // wire size. The children keep their direct doors in the sheet, where there
+    // is room for both.
 
     navItems: array = { [
         ({ label: "Getting Started", link: "#getstarted", children: [] }),
         ({ label: "Why Declare",     link: "#why",        children: [] }),
         ({ label: "FAQ",             link: "#faq",        children: [] }),
-        // "#apps" is a bare anchor (§01's section carries `anchor = "apps"`):
+        ({ label: "Architecture",    link: "#architecture", children: [] }),
+        // "#apps" is a BARE ANCHOR (§01's section carries `anchor = "apps"`):
         // the runtime derives its destination and lands on it — no section
         // machinery here, and the reference survives the section moving.
         ({ label: "Apps", link: "#apps", children: [
@@ -742,6 +1035,7 @@ App [ tagline: string = "a UI language for you and your AI",
             ({ label: "Desktop",  link: "apps/desktop/desktop.declare",  children: [] }),
             ({ label: "Tracker",  link: "apps/tracker/tracker.declare",  children: [] }),
             ({ label: "Weather",  link: "apps/weather/weather.declare",  children: [] }),
+            ({ label: "Market Map", link: "apps/marketmap/marketmap.declare", children: [] }),
             ({ label: "Birds",    link: "apps/birds/birds.declare",      children: [] }),
             ] }),
         ({ label: "Docs",     link: "apps/docs/docs.declare", children: [] }),
@@ -754,7 +1048,7 @@ App [ tagline: string = "a UI language for you and your AI",
     menuOpen: boolean = false,
 
     // the Apps dropdown (wide rendition): open state + the gesture-time anchor,
-    // and its rows derived from the one navItems list (no second list to drift)
+    // and its rows DERIVED from the one navItems list (no second list to drift)
 
     appsOpen: boolean = false,
     appsX: number = 0,
@@ -768,49 +1062,69 @@ App [ tagline: string = "a UI language for you and your AI",
     gutter: number = { Math.max(24, (app.width - app.measure) / 2) },
     heroFont: number = { app.width < 700 ? 44 : 60 },
 
-    // the front page's content — carried by the page's own scroll (the App
+    // the site's heading weight — every Heading here, and the hosted
+    // Architecture article's titles through the island bridge. Avenir Next runs
+    // Regular 400, Medium 500, Demi Bold 600, Bold 700, Heavy 900; heavier
+    // weights want looser tracking, so the tracking derives from the weight
+
+    headWeight: number = 600,
+    headTrack: number = { app.headWeight >= 900 ? -0.006 : app.headWeight >= 700 ? -0.014 : -0.02 },
+
+    // the UI face — the site's Helvetica (fonts.declare), switchable to Avenir
+    // from the type tuner while that is assessed
+
+    faceName: string = "helvetica",
+    uiFace: string[] = { app.faceName == "avenir" ? Faces.avenir : Faces.helvetica },
+
+    // the front page's content — carried by the PAGE's own scroll (the App
     // scrolls by default, and its scroller is the browser's): taller than the
     // window, so the document scrolls, with the full native gesture tier
 
     scroller: View [ width = { app.width }, shows = "home",
 
-        // the full-bleed blueprint behind the column, clamped to the column's
-        // bottom so the paper runs to the very end of the scroll range and no
-        // further
+        // full-bleed blueprint behind the column, clamped to the page's full
+        // extent (page.y + page.height), so the paper runs to the very bottom
+        // of the scroll range and no further — sizing to height alone left a
+        // 96px paperless band at the bottom. Reading the page keeps this out of
+        // the page's own auto-extent, so no cycle.
 
         grid: GridBg [ bottom = { parent.page.y + parent.page.height } ],
 
-        // the centered content column: a fixed measure, and a vertical flow of
-        // sections — each auto-sizes, the page stacks them
+        // the centered content column: a fixed measure, and a VERTICAL FLOW of
+        // sections — each auto-sizes, the page stacks them.
+        //
+        // `selectable` once, here, the way the Why and DocView columns say it:
+        // this column is COPY, so every text leaf under it reads the provision
+        // and the column is one selection surface (a drag can cross from a
+        // heading into the paragraph under it). The controls inside it — a
+        // Button's caption, a SourcePanel's chip and Revert, the links — each
+        // say `selectable = false` where they stand.
 
-        page: View [ width = { Math.min(app.measure, app.width - 48) },
+        page: View [ width = { Math.min(app.measure, app.width - 48) }, selectable = true,
             x = { app.gutter }, y = 96,
             layout: SimpleLayout [ axis = y, spacing = { parent.width < 660 ? 72 : 112 } ],
 
             /* ### Hero — the name, the claim, and the two doors in
                (GitHub, or edit this page’s own source) */
 
-            hero: View [ width = { parent.width },
+            hero: View [ width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 24 ],
-                top: View [ width = { parent.width },
+                top: View [ width = 100%,
                     layout: SimpleLayout [ axis = y, spacing = 26 ],
 
                     // the title: product name in the blue→teal gradient, the claim on the
                     // next line. One rendition at every width — no wide/narrow split to keep in sync.
 
-                    titleGroup: View [ width = { parent.width },
-                        layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        headline: View [ width = { parent.width },
-                            layout: SimpleLayout [ axis = y, spacing = 2 ],
-                            Heading [ fontSize = { app.heroFont },
-                                textFill = { provided("theme").brand }, text = "Declare" ],
-                            Heading [ fontSize = { app.heroFont }, width = { parent.width },
-                                text = { "is " + app.tagline + "." } ]
-                            ]
+                    headline: View [ width = 100%,
+                        layout: SimpleLayout [ axis = y, spacing = 2 ],
+                        Heading [ fontSize = { app.heroFont },
+                            textFill = { provided("theme").brand }, text = "Declare" ],
+                        Heading [ fontSize = { app.heroFont }, width = 100%,
+                            text = { "is " + app.tagline + "." } ]
                         ],
-                    paras: View [ width = { parent.width },
+                    paras: View [ width = 100%,
                         layout: SimpleLayout [ axis = y, spacing = 12 ],
-                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { provided("theme").lead }, selectable = true,
+                        HTMLText [ width = { Math.min(680, parent.width) }, fontSize = 19, lineHeight = 1.2, bodyColor = { provided("theme").lead },
                             html = "Just as SQL is a domain-specific language for database queries, <span class='g'>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window." ],
 
                         // The page's most arresting fact, and the only claim on it a
@@ -825,15 +1139,19 @@ App [ tagline: string = "a UI language for you and your AI",
 
                 // the two doors in, side by side with a quiet dot between
 
-                learn: View [ width = { parent.width },
+                learn: View [ width = 100%,
                     layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
-                    why: Text [ fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "Why a new language, now? →",
-                        link = "#why" ],
+                    why: SmallLink [ fontSize = 15, text = "Why a new language, now? →", link = "#why" ],
+
+                    // the dot's own 1px of optical alignment against the two
+                    // links. A ResponsiveLayout writes `x` in row flow and both
+                    // in stack flow, so this survives beside the links and is
+                    // ignored once they stack — which is the reading in each
+                    // case. (The runtime warns that the slot is the layout's;
+                    // measured, it is not, on this axis in this flow.)
+
                     Dot [ y = 1, visible = { parent.width >= 600 } ],
-                    onefile: Text [ fontSize = 15, fontWeight = medium, wrap = false,
-                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "The whole language, in one file →",
-                        link = "#language" ]
+                    onefile: SmallLink [ fontSize = 15, text = "The whole language, in one file →", link = "#language" ]
                     ]
                 ],
 
@@ -841,16 +1159,15 @@ App [ tagline: string = "a UI language for you and your AI",
                tracker and the desktop share the row beneath, and stack on a
                phone. Each numbered section fades in on a Spring the moment it
                scrolls into view — a reveal declared as a reactive target, not
-               scheduled: `parent` is the section, `parent.parent` the column
-               that places it. Every figure below is read from
-               `stats.json`, which the prewarm pass regenerates from the real
-               production builds, so no number here can drift from the tree. */
+               scheduled. Every figure below is read from `stats.json`, which the
+               prewarm pass regenerates from the real production builds, so no
+               number here can drift from the tree. */
 
-            // `anchor = "apps"` — the §01 section is the `#apps` reference's
-            // target; App.revealInset clears the fixed header
+            // `anchor = "apps"` — the §01 section IS the `#apps` reference's
+            // target, so the reference survives the section moving; and
+            // App.revealInset clears the fixed header on arrival
 
-            apps: View [ anchor = "apps", width = { parent.width }, opacity = 0,
-                reveal: Reveal [ ],
+            apps: ScrollReveal [ anchor = "apps",
 
                 // 72, not the page's usual 40: the three applications are three
                 // separate things, and the calendar's own caption sits inside its
@@ -872,105 +1189,111 @@ App [ tagline: string = "a UI language for you and your AI",
                    `hovered`, never from its styling — so they answer together with
                    no cycle. */
 
-                cal: View [ width = { parent.width },
+                cal: View [ width = 100%,
                     hot: boolean = { this.plate.hovered || this.tell.head.name.hovered || this.tell.head.seq.hovered },
                     layout: ResponsiveLayout [ plan = { [({ from: 860, flow: "row", gap: 40, share: ({ tell: 50, plate: 50 }) }),
                                                          ({ from: 0, flow: "stack", gap: 26, share: ({ tell: 100, plate: 100 }) })] } ],
 
                     tell: View [ layout: SimpleLayout [ axis = y, spacing = 18 ],
 
-                        head: View [ width = { parent.width }, height = { this.contentHeight },
-                            layout: SimpleLayout [ axis = x, spacing = 10 ],
-                            seq: AppNum [ n = "1", url = "apps/calendar/calendar.declare",
-                                hot = { parent.parent.parent.hot } ],
-                            name: Heading [ fontSize = 22, wrap = false, selectable = false,
-                                textColor = { parent.parent.parent.hot ? provided("theme").accent : provided("theme").text },
-                                text = "Declare Calendar",
-                                onClick() { app.navigate("apps/calendar/calendar.declare") }
-                                ]
-                            ],
+                        // the row's hover fact, handed in ONCE at the use site —
+                        // the badge and the name read it as `classroot.hot`
+                        // rather than each climbing three parents to find it
 
-                        Lead [ fontSize = 17, width = { parent.width },
+                        head: CardHead [ num = "1", title = "Declare Calendar",
+                            url = "apps/calendar/calendar.declare",
+                            hot = { parent.parent.hot } ],
+
+                        Lead [ fontSize = 17, width = 100%,
                             text = "It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible." ],
 
                         // The clip beside this shows a detail panel opening and an
                         // event being dragged to another day — operations, not
-                        // motion. Nothing else in this column claimed that, so the
-                        // strongest beat of the clip was going unnamed. It answers
-                        // the doubt a video invites — is this the thing, or a
-                        // recording of it — with what the drag actually commits.
+                        // motion. This line names that, because it is the clip's
+                        // strongest beat and nothing else in the column claims it:
+                        // it answers the doubt a video invites — is this the thing,
+                        // or a recording of it — with what the drag commits.
 
-                        Lead [ fontSize = 17, width = { parent.width },
+                        Lead [ fontSize = 17, width = 100%,
                             text = "It runs on real data: open an event, drag it to another day, and it’s moved." ],
 
                         // computed, not claimed — stats.json, regenerated from the
                         // real production build on every prewarm
 
-                        stat: View [ width = { parent.width }, height = { this.contentHeight },
+                        stat: View [ width = 100%, height = { this.contentHeight },
                             layout: SimpleLayout [ axis = x, spacing = 20 ],
 
-                            // Code lines, and the note says so. The file is longer
-                            // than this — open it and you count the comments too —
-                            // so a bare "lines of Declare" reads as caught out
-                            // rather than modest. Naming the comment lines is what
-                            // makes the smaller number legible as the honest one.
-                            // Each figure is its own read: a helper taking the
-                            // record would put the reads inside a body the
-                            // extractor cannot see.
+                            // CODE lines, and the note says so. The file is longer
+                            // than this — open it and you count ~800 — so a bare
+                            // "lines of Declare" reads as caught out rather than
+                            // modest. Naming the comment lines is what makes the
+                            // smaller number legible as the honest one. Each figure
+                            // is its own read: a helper taking the record would put
+                            // the reads inside a body the extractor cannot see.
 
                             MiniMetric [ value = { "" + (app.stats.read(["calendar", "code"]) ?? "—") },
                                 note = { "lines of code, plus "
                                     + (app.stats.read(["calendar", "comment"]) ?? "—")
                                     + " of comments — four views, zoom, drag and edit" } ],
                             MiniMetric [ value = { app.stats.read(["calendar", "wireGzip"]) ? Math.round(app.stats.read(["calendar", "wireGzip"]) / 1024) + " KB" : "—" },
-                                note = "over the wire, gzipped — app and runtime" ],
+                                note = "over the wire, gzipped — app (structure, logic, styling) and runtime" ],
                             MiniMetric [ value = "0",
                                 note = "lines written by hand — an LLM wrote it" ]
                             ],
 
-                        actions: View [ width = { parent.width },
+                        actions: View [ width = 100%,
                             layout: ResponsiveLayout [ plan = { [({ from: 420, flow: "row", gap: 18 }), ({ from: 0, flow: "stack", gap: 14 })] } ],
-                            HpButton [ width = 240, label = "Run Declare Calendar →",
-                                onClick() { app.navigate("apps/calendar/calendar.declare") }
-                                ],
+
+                            // PRIMARY: the accent fill. This is the page's one
+                            // call to action — running the thing the section has
+                            // just described — and it reads as the button it is
+                            // rather than as another quiet surface.
+
+                            SiteButton [ width = 240, primary = true, label = "Run Declare Calendar →",
+                                link = "apps/calendar/calendar.declare" ],
+
+                            // centred against the 46px button beside it, and
+                            // ignored once the pair stacks — the same split as
+                            // the hero's dot above
+
                             SmallLink [ y = 15, text = "View & edit source →",
-                                url = "apps/calendar/calendar.declare?viewer" ]
+                                link = "apps/calendar/calendar.declare?viewer" ]
                             ]
                         ],
 
-                    // the one claim a still cannot make: four views that become each
+                    // the one claim a still cannot make: four views that BECOME each
                     // other. It runs once the section has revealed — `parent.parent`
                     // is the apps band, whose opacity is that reveal — so a visitor
                     // who never scrolls here never decodes a frame.
 
-                    plate: Shot [ src = "shots/calendar.webp", url = "apps/calendar/calendar.declare",
-                        // Its last frame is its first, so the loop has no seam to
-                        // notice. What it shows is the app being used — a detail
+                    plate: Shot [ src = { app.isDark ? "shots/calendar-dark.webp" : "shots/calendar-light.webp" }, link = "apps/calendar/calendar.declare",
+                        // Its last frame IS its first, so the loop has no seam to
+                        // notice. What it shows is the app being USED — a detail
                         // panel opening on a real record, an event dragged to
                         // another day — not a view transforming for its own sake.
                         // shots/video/ holds the clip and the script that cuts it
 
-                        motion = "shots/video/calendar.mp4",
+                        motion = { app.isDark ? "shots/video/calendar-dark.mp4" : "shots/video/calendar-light.mp4" },
                         live = { parent.parent.opacity > 0.9 },
-                        hot = { parent.tell.head.name.hovered } ]
+                        hot = { this.parent.tell.head.name.hovered } ]
                     ],
 
                 // the pair, with a wider gutter than the calendar row's — two
                 // whole applications side by side need more air between them than
                 // a picture needs from its own caption
 
-                pair: View [ width = { parent.width },
+                pair: View [ width = 100%,
                     layout: ResponsiveLayout [ plan = { [({ from: 720, flow: "row", gap: 56, share: ({ trk: 50, dsk: 50 }) }),
                                                          ({ from: 0, flow: "stack", gap: 56, share: ({ trk: 100, dsk: 100 }) })] } ],
 
                     trk: AppCard [ title = "Declare Tracker", num = "2",
-                        shot   = "shots/tracker.webp",
+                        shot   = { app.isDark ? "shots/tracker-dark.webp" : "shots/tracker-light.webp" },
                         url    = "apps/tracker/tracker.declare",
                         srcUrl = "apps/tracker/tracker.declare?viewer",
                         blurb = "1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code",
 
-                        // the wire figure is the production build — app, runtime and
-                        // library slices. The tracker's issues.json is fetched by a
+                        // the wire figure is the production BUILD — app, runtime and
+                        // library slices. The tracker's 3 MB issues.json is fetched by a
                         // DataSource at run time and is not in it, so the line says so:
                         // "before its data" is the difference between a small app and a
                         // small download.
@@ -980,7 +1303,7 @@ App [ tagline: string = "a UI language for you and your AI",
                               + " · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies" } ],
 
                     dsk: AppCard [ title = "Declare Desktop", num = "3",
-                        shot   = "shots/desktop.webp",
+                        shot   = { app.isDark ? "shots/desktop-dark.webp" : "shots/desktop-light.webp" },
                         url    = "apps/desktop/desktop.declare",
                         srcUrl = "apps/desktop/desktop.declare?viewer",
                         blurb = "Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them",
@@ -989,84 +1312,40 @@ App [ tagline: string = "a UI language for you and your AI",
                     ]
                 ],
 
-            /* ### 02 — Declare it. It runs. It stays true.
-               Sections 02–04 share one shape: a SectionHead, a caption, and a
-               live SourcePanel + PreviewFrame pair running the demo for real.
-               These three are the language's genuinely new ideas — a constraint,
-               replication over data, and a spring — one each, nothing else. */
+            /* ### 02–04 — one `DemoSection` each. These three are the language's
+               genuinely new ideas — a constraint, replication over data, and a
+               spring — one each, nothing else. */
 
-            s3: View [ width = { parent.width },
-                layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "02", head = "Declare it. It runs. It stays true.",
-                    lead = "A binding isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change." ],
-                demo3: View [ width = { parent.width },
-                    layout: SimpleLayout [ axis = y, spacing = 14 ],
-                    caption: Body [ fontSize = 15, width = { parent.width },
-                        text = "Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark." ],
-                    cards: View [ width = { parent.width },
-                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
-                        src: SourcePanel [ editName = "reactivity",
-                            src = { app.demoSources.reactivity || "" } ],
-                        prev: PreviewFrame [ runName = "reactivity", height = { parent.src.height } ]
-                        ]
-                    ]
-                ],
+            s3: DemoSection [ num = "02", head = "Declare it. It runs. It stays true.",
+                lead = "A binding isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change.",
+                caption = "Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark.",
+                demo = "reactivity" ],
 
-            /* ### 03 — Declare the shape, not the loop. */
+            s4: DemoSection [ num = "03", head = "Declare the shape, not the loop.",
+                lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says.",
+                caption = "One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it.",
+                demo = "components" ],
 
-            s4: View [ width = { parent.width },
-                layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "03", head = "Declare the shape, not the loop.",
-                    lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says." ],
-                demo4: View [ width = { parent.width },
-                    layout: SimpleLayout [ axis = y, spacing = 14 ],
-                    caption: Body [ fontSize = 15, width = { parent.width },
-                        text = "One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it." ],
-                    cards: View [ width = { parent.width },
-                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
-                        src: SourcePanel [ editName = "components",
-                            src = { app.demoSources.components || "" } ],
-                        prev: PreviewFrame [ runName = "components", height = { parent.src.height } ]
-                        ]
-                    ]
-                ],
+            s5: DemoSection [ num = "04", head = "Motion you declare, not schedule.",
+                lead = "You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence.",
+                caption = "Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand.",
+                demo = "spring" ],
 
-            /* ### 04 — Motion you declare, not schedule. */
-
-            s5: View [ width = { parent.width },
-                layout: SimpleLayout [ axis = y, spacing = 36 ],
-                SectionHead [ num = "04", head = "Motion you declare, not schedule.",
-                    lead = "You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence." ],
-                demo5: View [ width = { parent.width },
-                    layout: SimpleLayout [ axis = y, spacing = 14 ],
-                    caption: Body [ fontSize = 15, width = { parent.width },
-                        text = "Click to toggle the ball’s target between two positions. The Spring follows and settles by physics — no timeline, no frames driven by hand." ],
-                    cards: View [ width = { parent.width },
-                        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
-                        src: SourcePanel [ editName = "spring",
-                            src = { app.demoSources.spring || "" } ],
-                        prev: PreviewFrame [ runName = "spring", height = { parent.src.height } ]
-                        ]
-                    ]
-                ],
-
-            /* ### The feedback loop — the page's argument for why the language is
+            /* ### The feedback loop — the page's argument for WHY the language is
                shaped this way, placed where it can land: after three tiny programs
                the reader has just read, not before.
 
                Four beats of one loop — context, correction, inspection, proof —
-               each a `Point`, the accent-ruled title/body. */
+               each a `Point`, the accent-ruled title and body. This is the only
+               place on the page that wears it. */
 
-            loop: View [ width = { parent.width }, opacity = 0,
-                reveal: Reveal [ ],
+            loop: ScrollReveal [
                 layout: SimpleLayout [ axis = y, spacing = 36 ],
 
-                head: View [ width = { parent.width },
+                head: View [ width = 100%,
                     layout: SimpleLayout [ axis = y, spacing = 20 ],
 
-                    Heading [ fontSize = { app.width < 700 ? 24 : 30 },
-                        width = { Math.min(880, parent.width) }, x = { (parent.width - Math.min(880, parent.width)) / 2 },
-                        textAlign = center,
+                    BannerHead [ fontSize = { app.width < 700 ? 24 : 30 }, measure = 880,
                         text = "Your AI can write the code. Can it tell when it’s wrong?" ],
 
                     // The answer to the head's question, and the bridge to the four
@@ -1074,17 +1353,16 @@ App [ tagline: string = "a UI language for you and your AI",
                     // grid previewed without being listed, and "finish" last, where
                     // the sentence's weight falls. The context beat is "started".
 
-                    Lead [ fontSize = 17, width = { Math.min(620, parent.width) },
-                        x = { (parent.width - Math.min(620, parent.width)) / 2 }, textAlign = center,
+                    BannerLead [ fontSize = 17, measure = 620,
                         text = "In Declare, yes. A small language gets it started; these four tools let it catch its mistakes, fix them, and finish." ]
                     ],
 
-                // Sized to the text rather than to the page, and centered: at the
+                // Sized to the TEXT rather than to the page, and centered: at the
                 // full 1120 measure two 50% shares strand a dead gutter between
                 // columns whose text runs far shorter, and the pair stop reading
                 // as one block.
                 //
-                // Paired rows, not two columns. The four are one ordered loop, so
+                // Paired ROWS, not two columns. The four are one ordered loop, so
                 // they read across in the order they happen — and a pair per row
                 // is what keeps two accent rules on one line. Sliced into columns
                 // instead, unequal text staggers the rules and the grid reads
@@ -1095,28 +1373,27 @@ App [ tagline: string = "a UI language for you and your AI",
                 // (R4 says so, by name). The cell takes the share; the Point
                 // fills the cell.
 
-                beats: View [ width = { Math.min(880, parent.width) },
-                    x = { (parent.width - Math.min(880, parent.width)) / 2 },
+                beats: View [ width = { Math.min(880, parent.width) }, x = center,
                     layout: SimpleLayout [ axis = y, spacing = 32 ],
 
-                    first: View [ width = { parent.width },
+                    first: View [ width = 100%,
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
                                                              ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
-                        a: View [ Point [ width = { parent.width }, ptitle = "Start with context",
+                        a: View [ Point [ width = 100%, ptitle = "Start with context",
                                 body = "One installable skill: the language, the library, the conventions, the working loop — nothing to reconstruct from a repository. And declare-help answers any name or error code on demand." ]
                             ],
-                        b: View [ Point [ width = { parent.width }, ptitle = "Correct, don’t guess",
+                        b: View [ Point [ width = 100%, ptitle = "Correct, don’t guess",
                                 body = "Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the first panel above and read what comes back." ]
                             ]
                         ],
 
-                    second: View [ width = { parent.width },
+                    second: View [ width = 100%,
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
                                                              ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
-                        a: View [ Point [ width = { parent.width }, ptitle = "Question the result",
+                        a: View [ Point [ width = 100%, ptitle = "Question the result",
                                 body = "The Inspector can tell you or an agent why a live value is what it is, what it depends on, and what happens if you change it — live, in the running program, not guessed from source." ]
                             ],
-                        b: View [ Point [ width = { parent.width }, ptitle = "Prove the change",
+                        b: View [ Point [ width = 100%, ptitle = "Prove the change",
                                 body = "A formal six-rung ladder, from parse to pixels, is how an app is shown to be correct. Your AI climbs it one rung at a time, and every rung reports what it proved — and what it cannot see." ]
                             ]
                         ]
@@ -1126,25 +1403,22 @@ App [ tagline: string = "a UI language for you and your AI",
                 // "0 lines written by hand" — not a restatement of the four beats.
                 // No door: the FAQ is one click away in the header on every view.
 
-                close: Lead [ fontSize = 17, width = { Math.min(760, parent.width) },
-                    x = { (parent.width - Math.min(760, parent.width)) / 2 }, textAlign = center,
+                close: BannerLead [ fontSize = 17, measure = 760,
                     text = "The calendar above was built this way: a person directed, an AI wrote every line, and the compiler kept it honest." ]
                 ],
 
             /* ### The closing line — centered between two accent rules. Two
                beats, one per half of the headline: the language you can know
-               whole, and the toolchain that makes what comes back trustworthy —
-               the loop section it follows, not a second line about size. */
+               whole, and the toolchain that makes what comes back trustworthy.
+               The second beat answers the loop section above it, which is why
+               the line is not about size twice. */
 
-            closer: View [ width = { parent.width }, opacity = 0,
-                reveal: Reveal [ ],
+            closer: ScrollReveal [
                 layout: SimpleLayout [ axis = y, spacing = 30 ],
-                ruleTop: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { provided("theme").accent } ],
-                Heading [ fontSize = { app.width < 700 ? 26 : 38 },
-                    width = { Math.min(900, parent.width) }, x = { (parent.width - Math.min(900, parent.width)) / 2 },
-                    textAlign = center,
+                ruleTop: BandRule [ ],
+                BannerHead [ fontSize = { app.width < 700 ? 26 : 38 }, measure = 900,
                     text = "Small enough to know. Strict enough to trust." ],
-                ruleBot: View [ x = { (parent.width - 140) / 2 }, width = 140, height = 2, fill = { provided("theme").accent } ]
+                ruleBot: BandRule [ ]
                 ],
 
             /* ### The closing call to action — the primary blue button that
@@ -1155,17 +1429,17 @@ App [ tagline: string = "a UI language for you and your AI",
                clip) and the zero-height container lets the footer follow
                closer: ~88px above, ~90px below instead of 112/112 */
 
-            cta: View [ width = { parent.width }, height = 0,
-                HpButton [ width = 260, x = center, y = -24, label = "Get Started →", link = "#getstarted" ]
+            cta: View [ width = 100%, height = 0,
+                SiteButton [ width = 260, x = center, y = -24, label = "Get Started →", link = "#getstarted" ]
                 ],
 
             /* ### Footer */
 
-            // No trailing spacer: the page flow's 112px spacing applies BEFORE it
-            // too, so a 28px tail cost 140px of dead space under the footer. The
-            // footer carries its own bottom margin instead.
+            // The footer carries its own bottom margin. A spacer view here would
+            // also take the page flow's 112px spacing above it, which is 140px of
+            // dead band under the footer for 28px of wanted air.
 
-            footer: Footer [ width = { parent.width } ]
+            footer: Footer [ ]
             ]
         ],
 
@@ -1173,7 +1447,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
        An in-app view (`app.location == "why"`) wearing the same skin as the page —
        theme, graph-paper grid, and the header renders here too. The host mirrors
-       `app.location` to the URL fragment (#why), so it deep-links and honors the
+       `app.location` to the URL fragment (#why), so it deep-links and honours the
        back button — for free, from the one built-in binding. The article itself is
        prose in `"""` blocks: HTML collapses the line breaks, so the source wraps
        and the page flows. */
@@ -1181,138 +1455,43 @@ App [ tagline: string = "a UI language for you and your AI",
     whyView: View [ shows = "why", width = { app.width }, fill = { provided("theme").ink },
         grid: GridBg [ bottom = { parent.body.y + parent.body.height } ],
         body: View [ y = 56, width = { app.width }, selectable = true,
-            col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
+            col: View [ width = { Math.min(720, app.width - 48) }, x = center, y = 52,
+
+                // the air under the footer is the column's own bottom inset —
+                // an unset height counts it in, so the page's scroll range ends
+                // where the paper does. (A tail view in the flow took the
+                // layout's own 22 above it as well; 62 is that pair.)
+
+                padding = [0, 0, 62, 0],
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
-                Marker  [ text = "WHY DECLARE" ],
-                Heading [ fontSize = { app.width < 700 ? 32 : 42 }, width = { parent.width },
-                    text = "Why a new language, now?" ],
-                Para [ html = """
-                    Start with the obvious objection. LLMs write code now, and they’re
-                    best at the languages they’ve seen the most — so the winning move is
-                    to use whatever has the biggest corpus and let the model figure it
-                    out. By that logic the era of new programming languages is over.
-                    """ ],
-                Para [ html = """
-                    That argument gets its facts right and its conclusion backwards.
-                    Producing code is now nearly free; trusting it costs what it always
-                    did. An LLM writing React verifies its work by resemblance — this
-                    looks like the billion lines it trained on — and resemblance is not
-                    correctness. Meanwhile, less and less of the code passes under human
-                    eyes, which leaves the language and its compiler as the one reviewer
-                    that is always present. Handing the writing to a machine doesn’t make
-                    the language irrelevant. It makes it load-bearing.
-                    """ ],
-                Heading [ fontSize = 24, width = { parent.width }, text = "Two kinds of leverage" ],
-                Para [ html = """
-                    What an LLM gets from a mainstream stack is corpus leverage: fluency
-                    by imitation — broad, shallow, self-contradictory, unverifiable. The
-                    other kind is comprehension leverage: a language small enough to hand
-                    to a model whole, regular enough that its programs can be analyzed
-                    rather than pattern-matched, and backed by a compiler that turns each
-                    mistake into a precise correction. Corpus leverage arrives free with
-                    popularity. Comprehension leverage has to be designed in — and it is
-                    the only kind a new language can compete on.
-                    """ ],
-                Para [ html = """
-                    This is a measured bet, not a hunch. LLMs can learn a language they
-                    never trained on from a spec in context — in recent studies, a small
-                    language purpose-designed for LLM use, with zero training exposure,
-                    beat the same model writing Python, its best-trained language. And
-                    what bounds a model’s ability to repair its own mistakes is the
-                    quality of the feedback: a compiler that explains beats one that
-                    merely rejects, by a double-digit margin.
-                    """ ],
-                sources: View [ width = { parent.width },
-                    layout: ResponsiveLayout [ plan = { [({ from: 560, flow: "row", gap: 20 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
-                    lbl: Text [ fontSize = 14, wrap = false, textColor = { provided("theme").faint }, text = "The studies:" ],
-                    s1: Text [ fontSize = 14, wrap = false, selectable = false,
-                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "a zero-corpus DSL vs. Python →",
-                        onClick()     { app.navigate("https://arxiv.org/abs/2512.23214") }
-                        ],
-                    s2: Text [ fontSize = 14, wrap = false, selectable = false,
-                        textColor = { this.pressed ? provided("theme").linkPress : this.hovered ? provided("theme").linkHover : provided("theme").accent }, text = "feedback quality vs. repair →",
-                        onClick()     { app.navigate("https://arxiv.org/abs/2504.06939") }
-                        ]
-                    ],
-                Heading [ fontSize = 24, width = { parent.width }, text = "Designed in, not bolted on" ],
-                Para [ html = """
-                    Declare’s declarative layer is small — the whole language fits in a
-                    model’s context window with room left for your app — and everything
-                    inside a { } is ordinary TypeScript, so the hard part of generation
-                    rides the largest corpus there is. Where Declare looks familiar, it
-                    behaves the way a model — or you — will assume: assignment is
-                    assignment, and there is no bypass to forget. Where it’s genuinely
-                    new, it looks new — brackets for structure, :path for data — a
-                    visible cue to consult the spec instead of autocompleting from memory.
-                    """ ],
-                Para [ html = """
-                    And because a UI’s real structure — components, state, data, what
-                    reacts to what — is expressed in the language, the compiler can see
-                    all of it: it extracts every binding’s dependencies statically,
-                    checks the shape of the tree, and types the seams. What a model
-                    reasons about is exactly what the compiler verifies, and its errors
-                    are written for that loop — each one states the rule and names the
-                    rewrite that fixes it, because the primary reader of a compiler
-                    message, now, is an LLM deciding what to do next.
-                    """ ],
-                Para [ html = """
-                    Indexable content is there from the start: the compiler runs your
-                    program at build time and serializes what it renders, so what a
-                    visitor sees and what a crawler sees can never drift. No server-side
-                    rendering, no hydration. That’s why this page works on a static host
-                    like GitHub Pages.
-                    """ ],
-                Heading [ fontSize = 24, width = { parent.width }, text = "What it’s actually for" ],
-                Para [ html = """
-                    All of that is the floor, not the point. The point is what a language
-                    makes sayable. The most prized layer of modern UI — the continuity
-                    you feel in the best native software, where a view doesn’t switch so
-                    much as become the next one, where motion carries meaning and
-                    everything stays interruptible — has always been bespoke: specialist
-                    craft, one interaction at a time, locked to a platform. It is also
-                    the least machine-writable code there is; the corpus is thin, custom,
-                    and wrong in ways nothing catches.
-                    """ ],
-                Para [ html = """
-                    Declare makes continuity the grain, not the garnish. Motion is a
-                    Spring on an attribute; layout is a reactive slot; a mode is a
-                    reversible state — so the continuous version of an interface is often
-                    less code than the discrete one. The reference app is a calendar
-                    whose four views are one surface seen through a moving, zooming
-                    rectangle — normally a bespoke project of its own, here a few hundred
-                    lines of declarations, readable end to end, written with an LLM. The
-                    whole category moves into the declarative, analyzable layer: the
-                    hardest part of ambitious UX becomes the part a model is best at.
-                    """ ],
-                Para [ html = """
-                    And that is the forward-looking wager. There is another generation of
-                    experiences beyond the hand-crafted best-in-class interfaces of
-                    today — built on a foundation with continuity at its core, enabled
-                    at the language level, deployed as universally as a URL, and iterated
-                    by imaginative designer-developers working with an LLM at their side.
-                    Declare is built to find that out.
-                    """ ],
-                Para [ html = """
-                    None of this trades away the human. What makes code legible to a
-                    model is what makes it fast for you to read — and you are still the
-                    reader who decides. You don’t teach an LLM Declare with a million
-                    examples. You hand it the language and let the compiler keep it
-                    honest. The corpus will come; the language doesn’t need it first.
-                    """ ],
+                Marker [ text = "WHY DECLARE" ],
+
+                // The essay is a document, so it arrives as one: why.md, fetched
+                // as text and flowed by the Markdown component — the same
+                // pipeline the FAQ, the guide and the language doc use.
+
+                essay: Markdown [ visible = { app.why.loaded }, width = 100%, lineHeight = 1.35,
+                    bodyColor = { provided("theme").lead }, dark = { app.isDark },
+                    linkColor = { provided("theme").accent },
+                    text = { app.why.value || "" } ],
+                wait: Text [ visible = { app.why.loading }, fontSize = 15,
+                    textColor = { provided("theme").faint }, text = "Loading…" ],
+                oops: Text [ visible = { app.why.failed }, fontSize = 15, wrap = true, width = 100%,
+                    textColor = { provided("theme").faint },
+                    text = { "The essay did not load — " + (app.why.error || "") } ],
 
                 /* ### Where this came from
 
-                   A second movement, not a postscript: the essay above answers "why a
-                   new language, now?", and this answers "where did this one come
-                   from?" — a different question, in the first person. Marked as its
-                   own section (breath, hairline, eyebrow) rather than run on from the
-                   last paragraph, so the essay's closing line still reads as an
-                   ending. Set a step smaller and in the muted tone: quieter than the
-                   argument it follows, without the fatigue of a long italic run.
+                   A second movement, not a postscript: the essay above answers
+                   "why a new language, now?", and this answers "where did this
+                   one come from?" — a different question, in the first person.
+                   Marked as its own section (breath, hairline, eyebrow) rather
+                   than run on from the last paragraph, so the essay's closing
+                   line still reads as an ending.
 
-                   One `Para` per paragraph, the way the essay does it — the column's
-                   22px `SimpleLayout` spacing IS the paragraph rule, so there is no
-                   block markup to keep consistent with the prose above. */
+                   Its own Markdown instance, a step smaller and in the muted
+                   tone: quieter than the argument it follows. One document
+                   carries one register, so this is two documents. */
 
                 breath: View [ width = 8, height = 18 ],
 
@@ -1320,63 +1499,22 @@ App [ tagline: string = "a UI language for you and your AI",
                 // (the FAQ's cross-reference), the destination derived, the
                 // landing measured-reveal'd, the header cleared by revealInset
 
-                rule:   View [ anchor = "story", width = { parent.width }, height = 1, fill = { provided("theme").line } ],
+                rule:   Divider [ anchor = "story" ],
                 Marker [ text = "WHERE THIS CAME FROM" ],
-                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
-                    I co-founded Laszlo Systems and led the team behind OpenLaszlo — a
-                    declarative UI language, first shipped in 2002, that pushed right to
-                    the edge of what that era’s web browsers could handle.
-                    """ ],
 
-                // the note's one outbound link. `link` is a RichText event, so the href
-                // routes through the app rather than the document — same `navigate`
-                // service action every other off-site link on the page uses — and
-                // `linkColor` puts it on the page's own accent instead of the rich
-                // flow's built-in blue.
+                story: Markdown [ visible = { app.story.loaded }, width = 100%,
+                    fontSize = 16, lineHeight = 1.35,
+                    bodyColor = { provided("theme").muted }, dark = { app.isDark },
+                    linkColor = { provided("theme").accent },
+                    text = { app.story.value || "" } ],
 
-                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, linkColor = { provided("theme").accent },
-                    html = """
-                    What brought me back to UI development was
-                    <a href="https://davidtemkin.com/about-mesa/">Mesa</a>, a zoomable
-                    canvas app I built without using a browser framework, toolkit, or
-                    higher-level language. Mesa renders a thousand live objects at a
-                    60fps floor, even on a phone. It’s been positively amazing to see how
-                    fast today’s browsers have become — and how powerful and flexible
-                    today’s web platform is.
-                    """ ],
-                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
-                    And yet the web as it actually stands is still, mostly, slow and
-                    clunky. Even brand-new sites. How can that be?
-                    """ ],
-                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
-                    It turns out the browser isn’t what makes the web feel worse than a
-                    good native app. It’s what we’ve built on top of it. A lot of
-                    accumulated code — and a lot of accumulated habits — take their toll,
-                    and the interfaces that do escape them are hand-crafted, one at a
-                    time, by specialists.
-                    """ ],
-                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
-                    In June I handed the original OpenLaszlo compiler to an LLM and got
-                    back a modern port that compiles any OpenLaszlo program perfectly,
-                    byte-for-byte.
-                    """ ],
-                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
-                    Seeing those programs again through fresh eyes — and seeing how small
-                    and how fast the sites built with them are — I decided the language
-                    deserved to be modernized. Declare is what came out of that: a direct
-                    descendant of OpenLaszlo, with the core ideas intact, built on an
-                    entirely new foundation, and shaped to be written with an LLM.
-                    """ ],
-                Para [ fontSize = 16, bodyColor = { provided("theme").muted }, html = """
-                    Enjoy!
-                    """ ],
-                sig: Para [ fontSize = 16, bodyColor = { provided("theme").dim }, html = """
-                    <em>— David Temkin</em>
-                    """ ],
+                // the signature keeps its own quieter tone, a step below the
+                // note's — one line of chrome, not a paragraph of it
 
-                gap: View [ width = 8, height = 64 ],
-                Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ]
+                sig: Text [ fontSize = 16, italic = true, width = 100%,
+                    textColor = { provided("theme").dim }, text = "— David Temkin" ],
+
+                Footer [ padding = [86, 0, 36, 0] ]
                 ]
             ]
         ],
@@ -1391,68 +1529,68 @@ App [ tagline: string = "a UI language for you and your AI",
        loading and failure are lifecycle states the view derives from, never
        a blank. */
 
-    languageView: View [ shows = "language", width = { app.width }, fill = { provided("theme").ink },
-        grid: GridBg [ bottom = { parent.body.y + parent.body.height } ],
-        body: View [ y = 56, width = { app.width }, selectable = true,
-            col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
-                layout: SimpleLayout [ axis = y, spacing = 22 ],
-                Marker [ text = "THE LANGUAGE" ],
-                loading: Text [ visible = { app.lang.loading }, fontSize = 15, textColor = { provided("theme").faint }, text = "Loading the language…" ],
-                failed:  Text [ visible = { app.lang.failed }, fontSize = 15, textColor = { provided("theme").faint }, wrap = true, width = { parent.width },
-                    text = { "The language file did not load — " + (app.lang.error || "") } ],
-                doc: Markdown [ visible = { app.lang.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { provided("theme").lead }, dark = true,
-                    text = { app.lang.value || "" } ],
-                gap: View [ width = 8, height = 64 ],
-                Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ]
-                ]
-            ]
-        ],
+    languageView: DocView [ shows = "language", eyebrow = "THE LANGUAGE",
+        waiting = "Loading the language…",
+        trouble = "The language file did not load — ",
+        loading = { app.lang.loading }, failed = { app.lang.failed }, loaded = { app.lang.loaded },
+        reason = { app.lang.error || "" }, markdown = { app.lang.value || "" } ],
 
     /* ## The "Get Started" view
 
        The getting-started guide (app.location == "getstarted"), rendered in-app
        with the same skin and Markdown pipeline as the Language view: the copy is
        getstarted.md itself (an authored page, its command blocks generated), so
-       it deep-links (#getstarted), honors the back button, and is crawled into
+       it deep-links (#getstarted), honours the back button, and is crawled into
        the static document like any other reachable location. Loading and failure
        are lifecycle states the view derives from, never a blank. */
 
-    getStartedView: View [ shows = "getstarted", width = { app.width }, fill = { provided("theme").ink },
-        grid: GridBg [ bottom = { parent.body.y + parent.body.height } ],
-        body: View [ y = 56, width = { app.width }, selectable = true,
-            col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
-                layout: SimpleLayout [ axis = y, spacing = 22 ],
-                Marker [ text = "GETTING STARTED" ],
-                loading: Text [ visible = { app.guide.loading }, fontSize = 15, textColor = { provided("theme").faint }, text = "Loading the guide…" ],
-                failed:  Text [ visible = { app.guide.failed }, fontSize = 15, textColor = { provided("theme").faint }, wrap = true, width = { parent.width },
-                    text = { "The guide did not load — " + (app.guide.error || "") } ],
-                doc: Markdown [ visible = { app.guide.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { provided("theme").lead }, dark = true,
-                    text = { app.guide.value || "" } ],
-                gap: View [ width = 8, height = 64 ],
-                Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ]
-                ]
-            ]
-        ],
+    getStartedView: DocView [ shows = "getstarted", eyebrow = "GETTING STARTED",
+        waiting = "Loading the guide…",
+        trouble = "The guide did not load — ",
+        loading = { app.guide.loading }, failed = { app.guide.failed }, loaded = { app.guide.loaded },
+        reason = { app.guide.error || "" }, markdown = { app.guide.value || "" } ],
 
     /* ## The FAQ view — the Get Started pattern at #faq */
 
-    faqView: View [ shows = "faq", width = { app.width }, fill = { provided("theme").ink },
-        grid: GridBg [ bottom = { parent.body.y + parent.body.height } ],
-        body: View [ y = 56, width = { app.width }, selectable = true,
-            col: View [ width = { Math.min(720, app.width - 48) }, x = { Math.max(24, (app.width - 720) / 2) }, y = 52,
-                layout: SimpleLayout [ axis = y, spacing = 22 ],
-                Marker [ text = "FAQ" ],
-                loading: Text [ visible = { app.faq.loading }, fontSize = 15, textColor = { provided("theme").faint }, text = "Loading…" ],
-                failed:  Text [ visible = { app.faq.failed }, fontSize = 15, textColor = { provided("theme").faint }, wrap = true, width = { parent.width },
-                    text = { "The FAQ did not load — " + (app.faq.error || "") } ],
-                doc: Markdown [ visible = { app.faq.loaded }, width = { parent.width }, lineHeight = 1.35, bodyColor = { provided("theme").lead }, dark = true,
-                    text = { app.faq.value || "" } ],
-                gap: View [ width = 8, height = 64 ],
-                Footer [ width = { parent.width } ],
-                tail: View [ width = 8, height = 40 ]
-                ]
+    faqView: DocView [ shows = "faq", eyebrow = "FAQ",
+        waiting = "Loading…",
+        trouble = "The FAQ did not load — ",
+        loading = { app.faq.loading }, failed = { app.faq.failed }, loaded = { app.faq.loaded },
+        reason = { app.faq.error || "" }, markdown = { app.faq.value || "" } ],
+
+    /* ## The Architecture view — a whole program, hosted
+
+       Not an article in this file: a separate Declare program
+       (apps/architecture), mounted by an AppIsland under the header. The
+       tenant exposes its height and the island takes it, so the homepage's page lengthens and its own scroll carries
+       the article. The program is attached only while this view shows —
+       `program = ""` detaches it — so the homepage pays nothing for it until
+       someone opens it. The island provides it the site's appearance and type. */
+
+    architectureView: View [ shows = "architecture", width = { app.width },
+        fill = { provided("theme").ink },
+
+        // the same paper as Why and the FAQ, behind a tenant that paints no
+        // ground of its own — following the scroll, clamped to the island
+
+        grid: GridBg [ bottom = { parent.island.y + parent.island.height } ],
+
+        island: AppIsland [ y = { 56 + app.safeTop }, width = { app.width },
+            program = { app.location == "architecture" ? "../../architecture/architecture" : "" },
+
+            // the site's appearance and type, provided to the tenant by name —
+            // it reads each with hostProvided(name, default)
+
+            provides = ["hosted", "dark", "face", "headWeight"],
+            hosted: boolean = true,
+            dark: boolean = { app.isDark },
+            face: string = { app.faceName },
+            headWeight: number = { app.headWeight },
+
+            // the tenant's own full height, as it exposes it: the island takes it, so the homepage's page grows to hold the whole
+            // article and its own scroll carries it, as with Why and the FAQ
+
+            height = { Math.max(this.exposed("docH", 0), app.height - 56 - app.safeTop) }
             ]
         ],
 
@@ -1460,26 +1598,33 @@ App [ tagline: string = "a UI language for you and your AI",
 
        `ignoreScroll` — the scroll carries everyone but these; they ride the
        window while the page's own scroll carries the content: the top bar, the
-       pointer dot, the mobile nav sheet, and the Apps dropdown. */
+       type tuner, the pointer dot, the mobile nav sheet and the Apps dropdown. */
 
-    // the bar is always present, stuck to the top: a first-time visitor sees
-    // the whole map
+    // the bar is ALWAYS present, stuck to the top: a first-time visitor sees
+    // the whole map without having to scroll for it
 
-    header: View [ ignoreScroll = true, width = { app.width }, height = { 56 + app.safeTop }, y = 0, fill = { provided("theme").surface },
-        hairline: View [ y = { 55 + app.safeTop }, width = { app.width }, height = 1, fill = { provided("theme").line } ],
+    header: View [ ignoreScroll = true, width = { app.width }, height = { 56 + app.safeTop }, fill = { provided("theme").surface },
 
-        /* The header row, gutter to gutter. One ResponsiveLayout decides whether
-           the pill row fits, and `share: 0` is the hiding — so there is no width
+        // the rule under the header is the header's own bottom border — one
+        // side of a four-sided stroke, not a hairline child to keep in step
+
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+
+        /* The header row, gutter to gutter. ONE ResponsiveLayout decides whether
+           the pill row fits, and `share: 0` IS the hiding — so there is no width
            test written by hand and no `visible` to keep in step with a number.
            Above the threshold the plan drops the kebab; below it the plan drops
            the pills and the kebab takes over, the whole list moving to the sheet.
            Nothing is ever dropped from the list itself, unlike a progressively
            trimmed pill row.
 
-           The threshold is the row's own width, not the window's (a plan watches
-           its view), and it is measured: the wordmark runs 53 and the pills 477,
-           so 593 leaves 63 between them. It is also the one number that moves
+           The threshold is the row's OWN width, not the window's (a plan watches
+           its view), and it is measured: the wordmark runs 53, the pill run 570
+           and the appearance switch 34 — 657 in all, so 740 leaves 83 of air
+           between the wordmark and the run. It is also the one number that moves
            when `navItems` gains an entry — which is why it is stated once.
+           (Folding the three applications under a single `Apps` pill took 179
+           out of the row; the Architecture entry has since put some back.)
 
            The Spacer is what right-aligns the run: it absorbs the slack between
            the wordmark and whatever follows. Shares fill; naturals align. */
@@ -1487,7 +1632,7 @@ App [ tagline: string = "a UI language for you and your AI",
         bar: View [ x = { app.gutter }, y = { app.safeTop }, height = 56,
             width = { app.width - app.gutter * 2 },
             layout: ResponsiveLayout [ gap = 0, plan = { [
-                ({ from: 593, flow: "row", share: ({ kebab: 0 }) }),
+                ({ from: 740, flow: "row", share: ({ kebab: 0 }) }),
                 ({ from: 0,   flow: "row", share: ({ nav: 0 }) })] } ],
 
             // wordmark — the product name in the brand gradient, in the hero's typeface
@@ -1495,7 +1640,7 @@ App [ tagline: string = "a UI language for you and your AI",
             brand: View [ y = 18, height = 22,
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
                 link = "#home",
-                Heading [ fontSize = 15, textFill = { provided("theme").brand }, text = "Declare" ]
+                Display [ fontSize = 15, textFill = { provided("theme").brand }, text = "Declare" ]
                 ],
 
             Spacer [ ],
@@ -1508,6 +1653,20 @@ App [ tagline: string = "a UI language for you and your AI",
                 datapath = { app.navSource.value },
                 NavLink [ datapath = :items[], label = { :label }, menu = { :children.length > 0 },
                     link = { :children.length > 0 ? "" : :link } ]
+                ],
+
+            // the appearance switch — one icon, two states: it shows the mode
+            // you are in, and a press flips to the other. Until pressed, the
+            // page tracks the system; after, it keeps what you chose.
+
+            modeBtn: View [ y = 11, width = 34, height = 33, cornerRadius = 8,
+                fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
+                tip = { app.isDark ? "Switch to light" : "Switch to dark" },
+                onClick() { app.appearance = app.isDark ? "light" : "dark" },
+                SunIcon [ x = center, y = center, iconSize = 16, visible = { !app.isDark },
+                    ink = { parent.hovered ? provided("theme").text : provided("theme").muted } ],
+                MoonIcon [ x = center, y = center, iconSize = 16, visible = { app.isDark },
+                    ink = { parent.hovered ? provided("theme").text : provided("theme").muted } ]
                 ],
 
             // the kebab — three stacked dots (the page's dot motif), the pill's own
@@ -1523,7 +1682,40 @@ App [ tagline: string = "a UI language for you and your AI",
             ]
         ],
 
-    // pointer dot — a 10px teal dot in viewport space that springs after the
+    // ── type tuner (experiment) ─────────────────────────────────────
+    // a floating panel for assessing the face and the heading weight live;
+    // it rides the viewport, bottom right, above everything else. Hidden while
+    // the page is set in Helvetica — flip `showTuner` to bring it back.
+
+    showTuner: boolean = false,
+
+    // It is a `Card`: the library's themed surface, so the fill, the hairline and
+    // the inset that stacks its contents all come from the preset below instead
+    // of being spelled out here. The card takes the height its content needs,
+    // padding counted in, so there is no arithmetic to keep in step.
+
+    tuner: Card [ ignoreScroll = true, width = 300, x = { app.width - 320 }, y = { app.height - this.height - 20 },
+        visible = { app.showTuner },
+
+        // no theme of its own: the App's record already carries the library
+        // preset, so the Card and its Segmenteds find every token they read
+
+        cornerRadius = 12, padding = 14, shadow = { shadow(0, 10, 30, 0x00000040) },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Eyebrow [ fontSize = 11, textColor = { provided("theme").textMuted }, text = "type tuner · headings and face" ],
+        Segmented [ width = 100%, height = 30,
+            value = { "" + app.headWeight },
+            choices = { [ ({ id: "600", label: "Demi 600" }), ({ id: "700", label: "Bold 700" }), ({ id: "900", label: "Heavy 900" }) ] },
+            input(v: object) { app.headWeight = Number(v) }
+            ],
+        Segmented [ width = 100%, height = 30,
+            value = { app.faceName },
+            choices = { [ ({ id: "helvetica", label: "Helvetica" }), ({ id: "avenir", label: "Avenir Next" }) ] },
+            input(v: object) { app.faceName = "" + v }
+            ]
+        ],
+
+    // pointer dot — a 10px accent-2 dot in VIEWPORT space that SPRINGS after the
     // pointer (loose + low-mass = the slower, longer trail). Two position
     // Springs; the native cursor stays visible and leads, the dot follows.
 
@@ -1531,13 +1723,13 @@ App [ tagline: string = "a UI language for you and your AI",
         shadow = { shadow(0, 0, 12, provided("theme").accentSecondary) },
 
         // Decoration, not a target: the dot settles exactly under a resting
-        // cursor, and the hit chain is occlusion-correct — without this line
-        // the dot would swallow every hover and press the moment the mouse
-        // stops.
+        // cursor and the hit chain is occlusion-correct, so without this line the
+        // dot takes every hover and press the moment the mouse stops — a click
+        // still resolves, but `hovered` and `pressed` styling go dead at rest.
 
         pointerEvents = "none",
 
-        // Only for a hovering pointer (mouse / trackpad) — `app.hovering` is false
+        // Only for a HOVERING pointer (mouse / trackpad) — `app.hovering` is false
         // for touch, so the dot never appears on a phone, yet an iPad trackpad
         // (which reports a "mouse" pointer) still gets it. Also yields to the
         // native I-beam when the pointer is over an editable field.
@@ -1552,26 +1744,27 @@ App [ tagline: string = "a UI language for you and your AI",
     // the mobile nav sheet — the kebab's menu, above everything. A dim scrim below
     // the header catches an outside tap (and leaves the header + kebab lit, so the
     // kebab still toggles it shut); the top-right panel lists every destination as
-    // a thumb-height row, replicated from the same navSource as the pills. Auto-hides
+    // a thumb-height row, replicated from the SAME navSource as the pills. Auto-hides
     // if the window is widened back past the breakpoint.
 
     navSheet: View [ ignoreScroll = true, visible = { app.menuOpen && app.header.bar.kebab.visible }, width = { app.width }, height = { app.height },
-        scrim: View [ y = { 56 + app.safeTop }, width = { parent.width }, height = { parent.height - 56 - app.safeTop }, fill = { provided("theme").scrim },
+        scrim: View [ y = { 56 + app.safeTop }, width = 100%, height = { parent.height - 56 - app.safeTop }, fill = { provided("theme").scrim },
             onClick() { app.menuOpen = false }
             ],
-        panel: View [ x = { app.width - app.gutter - this.width }, y = { 62 + app.safeTop }, width = 236, cornerRadius = 12,
+
+        // The 6px all round is the panel's own `padding`, so the rows it holds
+        // are its direct children and there is no inner view to carry the inset.
+        // Its height is DERIVED and unwritten: both insets count toward an unset
+        // height, so the panel is exactly its rows plus the air around them —
+        // and rows and group children are no longer one uniform height, so
+        // `navItems.length * 44` stated a relationship this sheet stopped having.
+
+        panel: View [ x = { app.width - app.gutter - this.width }, y = { 62 + app.safeTop }, width = 236,
+            cornerRadius = 12, padding = 6,
             fill = { provided("theme").surface }, shadow = { shadow(0, 12, 40, provided("theme").shade) },
-
-            // derived from the list, not counted: rows and group children are
-            // not one uniform height, so a row count times a height would state
-            // a relationship the sheet does not have
-
-            height = { this.list.contentHeight + 12 },
-            list: View [ x = 6, y = 6, width = { parent.width - 12 }, height = { this.contentHeight },
-                layout: SimpleLayout [ axis = y, spacing = 0 ],
-                datapath = { app.navSource.value },
-                MobileNavGroup [ datapath = :items[] ]
-                ]
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            datapath = { app.navSource.value },
+            MobileNavGroup [ datapath = :items[] ]
             ]
         ],
 
@@ -1582,17 +1775,15 @@ App [ tagline: string = "a UI language for you and your AI",
 
     appsMenu: View [ ignoreScroll = true, visible = { app.appsOpen && !app.header.bar.kebab.visible },
         width = { app.width }, height = { app.height },
-        catcher: View [ width = { parent.width }, height = { parent.height },
+        catcher: View [ width = 100%, height = 100%,
             onClick() { app.appsOpen = false }
             ],
-        panel: View [ x = { app.appsX }, y = { app.appsY }, width = 190, cornerRadius = 12,
+        panel: View [ x = { app.appsX }, y = { app.appsY }, width = 190,
+            cornerRadius = 12, padding = 6,
             fill = { provided("theme").surface }, shadow = { shadow(0, 12, 40, provided("theme").shade) },
-            height = { this.list.contentHeight + 12 },
-            list: View [ x = 6, y = 6, width = { parent.width - 12 }, height = { this.contentHeight },
-                layout: SimpleLayout [ axis = y, spacing = 0 ],
-                datapath = { app.appsSource.value },
-                MobileNavRow [ datapath = :items[], label = { :label }, link = { :link } ]
-                ]
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            datapath = { app.appsSource.value },
+            MobileNavRow [ datapath = :items[], label = { :label }, link = { :link } ]
             ]
         ]
     ]

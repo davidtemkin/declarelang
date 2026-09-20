@@ -1,4 +1,5 @@
 import { type Affine } from "./affine.js";
+import { type Inset } from "./value.js";
 /** The geometry surface the chain walk reads — structurally, any View. */
 export interface InteractionView {
     x: number;
@@ -24,6 +25,12 @@ export interface InteractionView {
     scrollX: number;
     scrollY: number;
     ignoreScroll: boolean;
+    /** The CONTENT INSET (`View.padding`): a padded view's children are
+     *  positioned from its content origin, so the parent→child transform
+     *  carries the leading inset as a translate — exactly like the scroll
+     *  offset above, and for the same reason. Optional on the structural type:
+     *  a minimal test view may omit it, and 0 is the answer then. */
+    padding?: Inset;
     parent: unknown;
     root: unknown;
     children: readonly unknown[];

@@ -20,21 +20,28 @@
 // only, minus `constructor` and `$`-names) and fails on any drift.
 import { SCHEMAS, RichTextSchema } from "./schema.js";
 export const RUNTIME_METHODS = {
-    Node: ["watchChildList", "childListChanged", "appendChild", "insertChild", "removeChild", "discard", "teardown", "childrenMutated"],
-    View: ["is3D", "localTransform", "applyMask", "attach", "contentExtent", "bindExtent", "extentOf", "bounds", "footprint", "tabDefault", "focusChanged", "alignBand", "flush", "viewAt", "containsPoint", "rootBounds", "armVisibility", "readVisibility", "startVisibility", "scheduleVisFlush", "deliverVisibility", "rootTransform", "rootOrigin", "travelWith", "applyTravel", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "inputSink", "rewireInput", "inputWants", "bindDraw", "invalidateDraw", "applyClip"],
-    App: ["post", "navigate", "destinationOf", "follow", "destinationOfAnchor", "inspect", "openWindow", "resolveReveal", "hasArrive", "destinationView", "reveal", "rearmReveal", "hookPumpRetire", "scheduleReveal", "cancelReveal", "bindPageScroll"],
+    Node: ["watchChildList", "childListChanged", "appendChild", "insertChild", "removeChild", "discard", "teardown", "childrenMutated", "chainMoved", "structureCellId"],
+    View: ["is3D", "localTransform", "applyMask", "attach", "contentExtent", "bindExtent", "extentOf", "contentOrigin", "contentBox", "positionLead", "bounds", "footprint", "tabDefault", "focusChanged", "alignBand", "flush", "viewAt", "containsPoint", "rootBounds", "armVisibility", "readVisibility", "startVisibility", "scheduleVisFlush", "deliverVisibility", "rootTransform", "rootOrigin", "travelWith", "applyTravel", "repushPosition", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "inputSink", "rewireInput", "inputWants", "bindDraw", "invalidateDraw", "applyClip",
+        // THE KERNEL's view wiring (kernel.md): the native auto-extent rule and
+        // its word list, the view's kernel identity, and the native visibility rule
+        // with its output plumbing and its fallback.
+        "installKernelExtent", "extentWords", "kernelElem", "relinkKernelVis", "installKernelVis", "visOutputRule", "visFallbackToJS"],
+    App: ["post", "navigate", "destinationOf", "follow", "destinationOfAnchor", "inspect", "openWindow", "resolveReveal", "hasArrive", "destinationView", "reveal", "rearmReveal", "hookPumpRetire", "scheduleReveal", "cancelReveal", "bindPageScroll", "provide", "exposed", "watchExposed"],
     Text: ["lineAdvance"],
     Image: ["load"],
     Media: ["metadataArrived", "sourceCleared", "load", "syncPlaying", "seek"],
     Video: ["makeElement"],
     Audio: ["makeElement"],
-    DOMIsland: ["post", "receiveMessage", "receiveValue", "foreignHandle"],
+    // THE BOUNDARY lives on the base Island, which is not itself a schema
+    // (islands.md): the provides list going down, the exposed values coming up,
+    // and the verbs both ways — so they are listed on the concrete island.
+    DOMIsland: ["exposed", "post", "receiveMessage", "providedValue", "foreignHandle"], // `flush` is View's, overridden here
     Editor: ["commit", "revert"],
     TextInput: ["draftSlot", "editStyle", "syncEditable", "onNativeInput", "select", "applySelection"],
     RichText: ["policy", "stylesOf", "isDark", "dispatchLink", "relayout", "claimBaseline", "rebuild"],
     Markdown: ["sourceKey", "parseSource"],
     HTMLText: ["sourceKey", "parseSource"],
-    Layout: ["attachTo", "rearm", "laid", "reportConflict", "refuseBaseline", "viewExtent", "refuseStackBaseline", "claim", "unclaim", "label", "install"],
+    Layout: ["attachTo", "rearm", "laid", "place", "contentExtent", "reportConflict", "reportDiscarded", "firstReport", "refuseBaseline", "viewExtent", "refuseStackBaseline", "claim", "unclaim", "label", "install"],
     TweenLayout: ["retarget"],
     Dataset: ["cursorAt", "read", "set", "insert", "removeAt", "move", "declaredField", "writeError", "segs", "locate", "array", "wakeChain", "adopt"],
     DataSource: ["maybeAuto", "requestInit", "fetch", "clear"],

@@ -80,12 +80,24 @@ export function cssFamilyName(name: string): string {
  *  it asks for no features, and the derived-then-plain list when it does. Every
  *  name leaves CSS-safe (cssFamilyName), and a list that needs no quoting comes
  *  back as the very string that went in. */
+const PLAIN = new Map<string, string>();
 export function featureFamily(family: string, tags: readonly string[]): string {
+  // THE PLAIN CASE IS MEMOIZED (2026-09-18): every text asks this on every
+  // measure — the same family string split, trimmed and quote-checked (a regex
+  // per name) each time. It is a pure function of the string. The feature case
+  // below is not memoized: it registers derived faces as it goes.
+  if (tags.length === 0) {
+    const hit = PLAIN.get(family);
+    if (hit !== undefined) return hit;
+  }
   if (family === "") return family;
   const names = family.split(",").map((raw) => raw.trim()).filter((n) => n !== "");
   if (tags.length === 0) {
     const safe = names.map(cssFamilyName);
-    return safe.every((n, i) => n === names[i]) ? family : safe.join(", ");
+    const r = safe.every((n, i) => n === names[i]) ? family : safe.join(", ");
+    if (PLAIN.size > 4096) PLAIN.clear();
+    PLAIN.set(family, r);
+    return r;
   }
   const out: string[] = [];
   for (const name of names) {

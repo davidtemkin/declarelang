@@ -26,6 +26,7 @@
 // its own TS parse and ships them through; the runtime is where they become
 // calls). `$` is outside the language's identifier grammar, so `$data` can
 // never collide with a member.
+import { phasesOn, phased } from "./phase-timer.js"; // dependency-free: the measurement timer, dev builds only
 import { rewriteDatapaths } from "./datapath.js";
 import { diag } from "./errors.js";
 import { colorWithAlpha, gradient, outline, shadow, stop, stroke } from "./value.js";
@@ -53,6 +54,27 @@ export function setBodyServices(services) {
     SCOPE = { ...DECOR, ...LOWERED, ...services };
     PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 }
+/** The names every body has in scope from the runtime (the prelude's list) —
+ *  what a build that precompiles bodies (declarec) must put in scope too. */
+export function bodyScopeNames() { return Object.keys(SCOPE); }
+let PRE_MAKE = null;
+let PRE_SCRIPTS = [];
+const PRE_BUILT = new WeakMap();
+export function providePrecompiled(make, scripts) {
+    PRE_MAKE = make;
+    PRE_SCRIPTS = scripts;
+}
+/** The function a token names, or null when `src` is ordinary text. */
+function precompiled(src) {
+    if (PRE_MAKE === null || src.charCodeAt(0) !== 0)
+        return null;
+    let fns = PRE_BUILT.get(SCRIPT_SCOPE);
+    if (fns === undefined) {
+        fns = PRE_MAKE(SCOPE, SCRIPT_SCOPE);
+        PRE_BUILT.set(SCRIPT_SCOPE, fns);
+    }
+    return fns[parseInt(src.slice(1), 10)] ?? null;
+}
 // A program's `script { … }` helpers, in body scope as `$s`. Unlike SCOPE —
 // which is process-wide, because services are — script bindings belong to ONE
 // program: an AppIsland tenant has its own, and must not see its host's. Body
@@ -78,7 +100,8 @@ export function withScriptScope(scope, build) {
  *  declares. The compiler appended the `return { … }` that makes this possible
  *  (there is no way to enumerate a function's scope from outside it). */
 export function evalScript(js) {
-    const fn = new Function(`"use strict"; ${js}`);
+    const pre = PRE_MAKE !== null && js.charCodeAt(0) === 0 ? PRE_SCRIPTS[parseInt(js.slice(1), 10)] : undefined;
+    const fn = pre ?? new Function(`"use strict"; ${js}`);
     const out = fn();
     return out !== null && typeof out === "object" ? out : {};
 }
@@ -119,7 +142,88 @@ export const FILTER_FN_NAMES = ["blur", "brightness", "contrast", "saturate", "g
 // source and the scope's KEY SET, while the values ride in at call time.
 const EXPR_MEMO = new WeakMap();
 const BODY_MEMO = new WeakMap();
+/** THE RUNTIME'S OWN PATHS, WALKED — not compiled. Beyond the author's bodies,
+ *  the runtime compiles small expressions of its own: the receivers a kernel
+ *  rule reads through (`this.root.dock`), dependency probes (`classroot`,
+ *  `this.$provided("theme")`). With the bodies precompiled these were the last
+ *  text-to-code calls at boot (9–33 per app, 2026-09-19) — the ones a strict
+ *  Content-Security-Policy would still refuse. A root (`this` / `parent` /
+ *  `classroot`), then names, then at most one call per step whose arguments
+ *  are JSON literals: walked exactly as the expression would evaluate (a call
+ *  runs as a method of what it hangs from). Anything else returns null and
+ *  compiles as before. */
+const PATH_ROOT = /^\s*([A-Za-z_$][\w$]*)/;
+const PATH_STEP = /^\.([A-Za-z_$][\w$]*)(\(([^()]*)\))?/;
+// words that are never a free name — a literal, or an operator that makes the
+// text something other than a path (it compiles as before)
+const NOT_A_NAME = new Set(["true", "false", "null", "new", "typeof", "void", "delete", "in", "instanceof", "await", "yield", "function", "class", "super", "import", "let", "const", "var", "if", "else", "return", "throw", "try", "catch", "finally", "switch", "case", "default", "for", "while", "do", "break", "continue", "with", "debugger", "export", "extends", "enum", "static", "arguments", "eval"]);
+function pathFn(src) {
+    // a lone JSON literal (true / false / null / a number / a quoted string)
+    const t = src.trim();
+    if (t === "true" || t === "false" || t === "null" || /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(t) || /^"(?:[^"\\]|\\.)*"$/.test(t)) {
+        let v;
+        try {
+            v = JSON.parse(t);
+        }
+        catch {
+            return null;
+        }
+        return () => v;
+    }
+    const r = PATH_ROOT.exec(src);
+    if (r === null)
+        return null;
+    const root = r[1];
+    if (NOT_A_NAME.has(root))
+        return null;
+    // any other root name resolves as a compiled body's free name would: the
+    // runtime's helpers, then the program's script names (the prelude's two
+    // lists, captured now as compileExpr captures the script scope), then the
+    // global scope — or the ReferenceError that code would throw
+    const scripts = SCRIPT_SCOPE;
+    const lookup = root === "this" || root === "parent" || root === "classroot" ? null : () => {
+        if (Object.hasOwn(SCOPE, root))
+            return SCOPE[root];
+        if (Object.hasOwn(scripts, root))
+            return scripts[root];
+        if (root in globalThis)
+            return globalThis[root];
+        throw new ReferenceError(`${root} is not defined`);
+    };
+    const steps = [];
+    let rest = src.slice(r[0].length).trimEnd();
+    while (rest.length > 0) {
+        const m = PATH_STEP.exec(rest);
+        if (m === null)
+            return null;
+        let args = null;
+        if (m[2] !== undefined) {
+            try {
+                args = JSON.parse("[" + m[3] + "]");
+            }
+            catch {
+                return null;
+            }
+        }
+        steps.push({ name: m[1], args });
+        rest = rest.slice(m[0].length);
+    }
+    return function (parent, classroot) {
+        let cur = lookup !== null ? lookup() : root === "this" ? this : root === "parent" ? parent : classroot;
+        for (const st of steps) {
+            const v = cur[st.name];
+            cur = st.args === null ? v : v.apply(cur, st.args);
+        }
+        return cur;
+    };
+}
 export function compileExpr(src) {
+    const pre = precompiled(src);
+    if (pre !== null)
+        return { fn: pre };
+    const path = pathFn(src);
+    if (path !== null)
+        return { fn: path };
     // The script scope is captured HERE, at compile time — the body is bound to
     // the program being built, not to whatever is current when it later runs.
     const scripts = SCRIPT_SCOPE;
@@ -134,7 +238,8 @@ export function compileExpr(src) {
         if ("error" in r)
             return r;
         try {
-            const raw = new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
+            const build = () => new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
+            const raw = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("compile bodies", build) : build());
             return {
                 fn: function (parent, classroot) {
                     return raw.call(this, SCOPE, scripts, parent, classroot);
@@ -227,7 +332,19 @@ export function validateExpr(src) {
     return e === null ? null : refineBodyError(src, e, true);
 }
 /** Check `src` as a statement body — same seam, statement-shaped. */
+const VALIDATED = new Map();
 export function validateBody(params, src) {
+    const key = params.join(",") + "\0" + src;
+    const memo = VALIDATED.get(key);
+    if (memo !== undefined)
+        return memo;
+    const out = validateBodyUncached(params, src);
+    if (VALIDATED.size > 20000)
+        VALIDATED.clear();
+    VALIDATED.set(key, out);
+    return out;
+}
+function validateBodyUncached(params, src) {
     let e;
     if (syntaxValidator !== null) {
         const r = rewriteDatapaths(src);
@@ -249,6 +366,9 @@ export function validateBody(params, src) {
  *  Scope rules and the replacement plan are compileExpr's, unchanged. The
  *  error fragment matches the compileExpr pattern for callers to prefix. */
 export function compileBody(params, src) {
+    const pre = precompiled(src);
+    if (pre !== null)
+        return { fn: pre };
     const scripts = SCRIPT_SCOPE;
     let memo = BODY_MEMO.get(scripts);
     if (memo === undefined)

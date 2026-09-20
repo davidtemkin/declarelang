@@ -6,6 +6,8 @@
 // point of a precompiled build. A source with only explicit-path bodies never
 // needs the parser at runtime; declarec parses + checks at build time and ships
 // the instantiated program, so this module is the runtime's true floor.
+import { phasesStart, phasesStop } from "./phase-timer.js";
+import { armFirstFrame } from "./boot-deferrals.js";
 import { instantiate } from "./instantiate.js";
 import { App, View } from "./view.js";
 import { fontsReady } from "./font-value.js";
@@ -16,7 +18,7 @@ import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
 import { bridgeFor } from "./inspect.js";
 import { localPoint } from "./dom-backend.js";
-import { observe } from "./reactive.js";
+import { kernelReady, observe } from "./reactive.js";
 /** Is this mount host EMBEDDED inside another Declare app? A top-level app roots on
  *  a bare host (document.body's child); an embedded app is rendered into an
  *  `HTML []` island's box, which lives inside the outer app's marked tree
@@ -397,8 +399,30 @@ export function mountEmbeddedApp(app, island) {
     return app;
 }
 export function mountApp(app, host, backend, opts = {}) {
+    // wall-clock marks (dev/profiling builds only): the detached tree build vs its insertion + first layout
+    const perf = typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && typeof performance !== "undefined" && typeof performance.mark === "function";
+    if (perf)
+        performance.mark("declare:mount-attach:start");
+    if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+        phasesStart();
     app.attach(backend, null);
+    if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+        phasesStop();
+    if (perf) {
+        try {
+            performance.measure("declare:mount-attach", "declare:mount-attach:start");
+        }
+        catch { /* none */ }
+        performance.mark("declare:mount-root:start");
+    }
     backend.attachRoot(host, app.surface);
+    armFirstFrame(); // deferred boot work (boot-deferrals.ts) runs once this is on screen
+    if (perf) {
+        try {
+            performance.measure("declare:mount-root", "declare:mount-root:start");
+        }
+        catch { /* none */ }
+    }
     applyDeclaredScroll(app);
     wireInput(app, host, opts.chrome === true);
     // The cold-arrival reveal seed: a location carrying `@name` may have been
@@ -490,15 +514,37 @@ export function renderProgram(program, host, backend) {
  *  `assetBase` states the program's own directory when the page is served from
  *  elsewhere — its relative bitmaps and faces resolve there (image.ts). */
 export async function renderProgramAsync(program, host, backend, assetBase) {
+    // Wall-clock marks for the boot's parts (dev/profiling builds only; a shipped
+    // build folds them out): kernel-wait, instantiate, fonts, mount.
+    const perf = typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && typeof performance !== "undefined" && typeof performance.mark === "function";
+    const mark = (n) => { if (perf)
+        performance.mark(`declare:${n}:start`); };
+    const done = (n) => { if (perf) {
+        try {
+            performance.measure(`declare:${n}`, `declare:${n}:start`);
+        }
+        catch { /* no mark */ }
+    } };
+    mark("kernel-wait");
+    await kernelReady(); // the reactive core (kernel.md): loaded once per host, before anything instantiates
+    done("kernel-wait");
+    mark("instantiate");
+    if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+        phasesStart("construct, other");
     const root = instantiate(program);
+    done("instantiate");
     if (!(root instanceof App))
         throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
     if (assetBase != null) {
         setAppAssetBase(root, assetBase);
         setAppDataBase(root, assetBase); // data rides the same sibling rule, per app
     }
+    mark("fonts");
     await fontsReady(root);
+    done("fonts");
+    mark("mount");
     mountApp(root, host, backend);
+    done("mount");
     startTitleMirror(root, host);
     return root;
 }

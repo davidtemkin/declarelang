@@ -134,8 +134,9 @@ The effective font's **descent** below the baseline — `ascent`'s partner, same
 measured-and-reactive contract.
 
 ## capHeight
-The **capital ink band** above the baseline (probed from "H") — the band `y = center`
-optically centers. Read-only, reactive, measured.
+The **capital ink band** above the baseline (probed from "H") — the band a *label* centers
+on, which is not what `y = center` does: that centers the box, leading ink a hair low. The
+metric `TextLabel` reads to sit its letterforms optically centered. Read-only, reactive, measured.
 
 ## xHeight
 The **lowercase ink band** above the baseline (probed from "x"). Read-only, reactive,

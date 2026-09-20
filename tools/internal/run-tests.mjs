@@ -36,6 +36,9 @@ const SUITE = [
   "test/datasource-failure.test.mjs",
   "test/table.test.mjs",
   "test/components.test.mjs",
+  "test/layout-padding.test.mjs", // padding on the Layout base, per-side stroke on both backends, Card + Divider
+  "test/layout-claims.test.mjs",  // a claim meeting an author value: the literal is reported, a refused size drops the child, every message is positioned and names the strategy
+  "test/responsive-share.test.mjs", // what a ResponsiveLayout share divides (naturals first), "auto", and the two refusals
   "test/tracker.test.mjs",
   "test/streams.test.mjs",
   "test/runtime-errors.test.mjs",
@@ -82,6 +85,18 @@ const SUITE = [
   "test/island-browser.test.mjs",
   "test/two-way.test.mjs",         // the apps/two-way showcase: the whole embedder surface on one page
   "test/verify-apps.test.mjs",
+  // THE KERNEL and the precompiled bodies (the native-partition arc): the two
+  // kernels against one written contract (C→wasm vs kernel-js.ts), the kernel's
+  // own expression / extent / visibility rules, the Mac geometry binary, a boot
+  // with no text-to-code under a CSP that forbids eval, and the runtime parity
+  // check against a second tree when one is present.
+  "test/kernel-conformance.test.mjs",
+  "test/kernel-expr.test.mjs",
+  "test/kernel-extent.test.mjs",
+  "test/kernel-vis.test.mjs",
+  "test/mac-geom-binary.test.mjs",
+  "test/precompiled.test.mjs",
+  "test/runtime-parity.test.mjs",
   "test/eval-references.test.mjs",
 ];
 

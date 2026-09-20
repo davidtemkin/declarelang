@@ -9,18 +9,30 @@ width/height driving the tenant's size and no coordinate sync to maintain.
 preview: DOMIsland [ width = { parent.width }, height = 300, slot = "run:demo" ]
 ```
 
-**The bridge's fact surface.** Islands carry a typed bridge: attributes declared with the
-`external` modifier cross the boundary to the tenant, paired by name. On the island's side
-each is the host's half of one fact — bind it (`external volume: number = { app.masterVolume }`)
-and it flows to the tenant; declare it `readonly external` and it is *tenant-owned*: the
-tenant writes, the host reads and constrains, and a host write is a compile error. A Declare
-tenant declares the same names `external` on its App; the runtime links them at mount **with
-a type handshake** — a disagreement is a link error, named at the moment the pairing forms,
-never a mid-session surprise. Data types only (number, string, boolean, array, object,
-Color, an enum): a component is an identity in one program's graph and cannot cross.
-A foreign (raw-JS) tenant reaches the same facts through the element's one sanctioned
-handle, `el.__declareIsland` — `get`/`set`/`observe`/`externals()`, with `set` validated
-against the declared type at the boundary, like a DataSource validates arriving bytes.
+**What crosses, and which way.** Each name says its direction. DOWN: the island lists
+names in `provides = ["volume"]`, and each resolves *at the island* the way `provided()`
+does — the island's own attribute of that name first (`volume: number = { app.masterVolume }`),
+then its ancestors' provisions. A Declare tenant reads one with
+`hostProvided("volume", 0)`. UP: the tenant lists names in its App's `exposes`, and the
+host reads them with `island.exposed("pos", 0)`. Each value has one owner — the tenant
+cannot write what the island provides, the host cannot write what the tenant exposes —
+and only data crosses (numbers, strings, booleans, arrays, plain objects): a component is
+an identity in one program's graph and cannot cross. A foreign (raw-JS) tenant speaks
+the same words through the element's one sanctioned handle, `el.__declareIsland` —
+`provides()`, `hostProvided(name)`, `watchProvided(name, cb)`, `expose(name, value)`,
+`post`, `onPost`.
+
+## provides
+The names this island offers DOWN to its tenant — `provides = ["dark", "base"]`. Each
+resolves at the island: its own attribute of that name if it has one, else the nearest
+ancestor provision (the same walk as `provided()`). A name not on the list is never
+offered, however the island is declared. `[]` (the default) offers nothing.
+
+## exposed()
+The host's read of a value the tenant EXPOSES — `island.exposed("docH", 0)`: a Declare
+tenant's `exposes` name, or foreign content's `expose(name, value)`. Reactive like any
+attribute read. The default types it: an absent value, or one of another kind (with a
+console warning), answers the default. With no default an absent value throws, naming it.
 
 ## slot
 The host key — reflected onto the element as `data-declare-slot`, so the host can locate this box
@@ -38,7 +50,7 @@ The bridge's verb, host → tenant: `post(topic, payload)` delivers to the tenan
 `onPost({ topic, payload })` — a Declare tenant's App handler, or a foreign tenant's
 `__declareIsland.onPost(cb)`. Data-shaped payloads. Dropped with a console note when no
 tenant is linked. Verbs are consumed once and never re-readable — "do this", never
-"this is so"; continuous state belongs on the `external` facts.
+"this is so"; continuous state belongs on the provided/exposed facts.
 
 ## onPost
 The verb's inbound half: the tenant's `post(topic, payload)` (a Declare tenant's

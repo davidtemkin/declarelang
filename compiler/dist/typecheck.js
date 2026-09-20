@@ -65,7 +65,7 @@ import { fillDatapaths } from "../../runtime/dist/datapath.js";
  *  not a fix (there is no slot to add to a `number`). */
 const PRIMITIVE_TYPES = new Set(["number", "string", "boolean", "any[]", "Length", "Color"]);
 import { Diag } from "../../runtime/dist/diagnostics.js";
-import { DeclareError } from "../../runtime/dist/errors.js";
+import { DeclareError, insetOrRadiusShape, strokeShapeMessage } from "../../runtime/dist/errors.js";
 /** Typecheck every resolved `{ }` body in `resolved` (compile()'s output — a
  *  self-contained program whose bare names are already paths). Returns coded
  *  DECLARE6001 diagnostics (empty when clean). Never throws on TS internals: a
@@ -263,7 +263,19 @@ function explainTs(d, u, synthTags) {
                     // says "string" without saying WHICH string).
                     : u.slot === "fontFamily" || u.slot === "codeFamily"
                         ? ` — a Font (fontFamily = { app.brand }), a family string like "Helvetica, sans-serif", or a list of them`
-                        : ` — make the expression yield a ${m[2]}`;
+                        // The one-or-four stroke: `BoxStroke` is a scaffold type NAME, not
+                        // something an author has ever written, so the bare "yield a
+                        // BoxStroke" tells them nothing. Say the shape instead — the same
+                        // sentence the literal form's coercion says (errors.ts).
+                        : m[2] === "BoxStroke"
+                            ? ` — ${strokeShapeMessage()}`
+                            // The other two one-or-four slots. `Radius` is the KIND both
+                            // `cornerRadius` and `padding` carry, so the bare type name
+                            // tells a padding mistake in corner words — the very thing
+                            // insetOrRadiusShape exists to prevent on the literal path.
+                            : m[2] === "Radius"
+                                ? ` — ${insetOrRadiusShape(u.slot)}`
+                                : ` — make the expression yield a ${m[2]}`;
                 return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${canon}`;
             }
             return msg;
@@ -288,6 +300,15 @@ function explainTs(d, u, synthTags) {
                     const t = quoteType(m[2]);
                     return `a two-way ':path' WRITES the enclosing view's data, and ${t} is not a view. Reading a path here is fine; ` +
                         `an edit belongs to the leaf that owns it (a TextInput, an Editor) — bind the path there, and read it from here.`;
+                }
+                // Reading INTO a stroke. The slot holds one Stroke or four, so `width`
+                // and `color` are there only in the uniform form; TypeScript prints the
+                // union expanded, which names no fix. The narrowing is the fix, and it
+                // is a property test — `Array.isArray` does NOT narrow the other arm out
+                // of a readonly tuple union, so the corpus idiom is `"width" in …`.
+                if (/readonly \[Stroke \| null/.test(m[2])) {
+                    return `'${m[1]}' is not a member of a stroke — the slot holds one Stroke on all four sides OR four of them, ` +
+                        `so ask which before reading into it: { v.stroke && "width" in v.stroke ? v.stroke.width : 0 }`;
                 }
                 // "declare it" is only advice on a COMPONENT, where a declaration is
                 // the fix. On a primitive (a typed parameter's `number`, a `string`)

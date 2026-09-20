@@ -33,10 +33,11 @@ territory.
 | [desktop](desktop/) | a Mac-style desktop, windows and dock and menus | the widest integration proof; runtime-created views |
 | [birds](birds/) | a field guide with a quiz | `location` + `waypoint`: URL, history, back button |
 | [homepage](homepage/) | the project site itself | document flow, theming, live compiled examples |
+| [architecture](architecture/) | what's under the hood, as a live article | long-form structure; figures that are views, not pictures |
 | [docs](docs/) | the reference, self-hosted | data-driven UI over a doc model; Markdown component |
 | [two-way](two-way/) | HTML ⇄ Declare embedding, both directions live | putting Declare into an existing page, or a page into Declare |
-| [controls](controls/) | every Tier 1 control, three use forms | the component contract at a glance |
 | [sampler](sampler/) | the library under four switchable stylings | theming as data |
+| [textsampler](textsampler/) | every way text is set, on one sheet | rich text, named styles, a view inside a sentence |
 | [lzx-weather](lzx-weather/) | the OpenLaszlo weather app, rebuilt | a small, complete port; drawn chrome |
 | [lzx-calendar](lzx-calendar/) | the Laszlo calendar, rebuilt from a spec | spec-driven reimplementation |
 | [lzx-dashboard](lzx-dashboard/) | a 2003 web desktop with five windows | multi-file programs; media; the ancestry |
@@ -120,6 +121,20 @@ record on the App. The live examples on the page genuinely compile in the
 browser. Figures on the app cards come from `stats.json`, generated from real
 production builds, so the page decides how to *say* a number, never what it is.
 
+### architecture — the explanation is the program
+
+An article about what a program compiles to, what ships, and which code runs
+where, written as the thing it describes. Nine figures, and every one is a live
+view rather than a picture: the hit-testing figure computes nothing and simply
+reports each view's own `hovered` fact, the build figure redraws to scale when
+you switch builds, and the click figure replays one settle about a thousandfold
+slowed. It is also the corpus's **long-form document**: one centred column at a
+reading measure, a wider measure that figures break out to, progressive detail
+that opens on a spring, and a type kit whose every color is a theme token. The
+homepage mounts the whole article in an `AppIsland`, at which point it stops
+scrolling itself and hands its height up to the host. Open it with
+`?render=canvas` and it is the same article, painted into one element.
+
 ### docs — the reference, self-hosted
 
 The class reference rendered as a Declare app: it loads the doc extractor's
@@ -151,20 +166,21 @@ seam, not the apps.
 
 ## The component library
 
-### controls — the contract
-
-Every Tier 1 control in its three use forms: **standalone** (the control owns
-its state), **app-bound** (derive down with a constraint, deliver up through
-`input`), and under a **partial theme override** (one role swapped by object
-spread; everything beneath follows). The smallest app here, and the quickest
-answer to "how do I use a Slider."
-
 ### sampler — stylings are data
 
 Every library component under four switchable stylings — San Francisco,
 Mountain View, Cupertino, Redmond — plus light/dark, accent tints, and focus
 flourish, all from the appearance menu. One machinery, four token records:
 **the stylings are data, never code paths.**
+
+### textsampler — every way text is set
+
+Four pages of specimens — Text, Rich Text, Effects, Markdown — each one beside
+the exact source that produced it. Named `style` bundles declared once and worn
+by a `<span class>`, `HTMLText` parsed against its whitelist, `Markdown` with
+tables and fenced code, and the newest of them: a self-closing tag naming one
+of your own classes puts a **real view inside a sentence**, keeping its own
+state, hovering, and re-flowing the line when it changes width.
 
 ## The OpenLaszlo ports
 

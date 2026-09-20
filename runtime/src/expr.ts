@@ -27,6 +27,7 @@
 // calls). `$` is outside the language's identifier grammar, so `$data` can
 // never collide with a member.
 
+import { phasesOn, phased } from "./phase-timer.js";   // dependency-free: the measurement timer, dev builds only
 import { rewriteDatapaths } from "./datapath.js";
 import { diag } from "./errors.js";
 import { colorWithAlpha, gradient, outline, shadow, stop, stroke } from "./value.js";
@@ -57,6 +58,42 @@ export function setBodyServices(services: Record<string, unknown>): void {
   SCOPE = { ...DECOR, ...LOWERED, ...services };
   PRELUDE = `const { ${Object.keys(SCOPE).join(", ")} } = $d;`;
 }
+/** The names every body has in scope from the runtime (the prelude's list) —
+ *  what a build that precompiles bodies (declarec) must put in scope too. */
+export function bodyScopeNames(): string[] { return Object.keys(SCOPE); }
+
+// ── PRECOMPILED BODIES ──────────────────────────────────────────────────────
+// A production build (declarec) ships every `{ }` body, method body and script
+// block as a FUNCTION in the bundle instead of text compiled here at startup:
+// `new Function` per body cost 12–29 ms of boot on V8 (2026-09-19), and a page
+// that forbids eval (a strict Content-Security-Policy) or an engine that cannot
+// eval (Hermes' precompiled mode) could not run a Declare program at all. The
+// program's text is replaced by a TOKEN naming the function's slot — "\u0000"
+// then the index (a script block's token also carries the bindings marker, so
+// instantiate still evaluates it alone). Every path that compiles a body runs
+// through compileExpr / compileBody / evalScript, so the token is all that
+// needs recognizing; a string body (the dev server, live edits, a child program
+// loaded at runtime) compiles exactly as before.
+//
+// The factory takes the runtime's helper scope and the PROGRAM's script scope —
+// the two things a string body's prelude unpacks per call — and unpacks each
+// once, returning the bodies in slot order. It is called once per script scope
+// (one per program), on the first token asked for.
+type PreMake = ($d: Record<string, unknown>, $s: Record<string, unknown>) => readonly unknown[];
+let PRE_MAKE: PreMake | null = null;
+let PRE_SCRIPTS: readonly (() => unknown)[] = [];
+const PRE_BUILT = new WeakMap<object, readonly unknown[]>();
+export function providePrecompiled(make: PreMake, scripts: readonly (() => unknown)[]): void {
+  PRE_MAKE = make;
+  PRE_SCRIPTS = scripts;
+}
+/** The function a token names, or null when `src` is ordinary text. */
+function precompiled(src: string): unknown {
+  if (PRE_MAKE === null || src.charCodeAt(0) !== 0) return null;
+  let fns = PRE_BUILT.get(SCRIPT_SCOPE);
+  if (fns === undefined) { fns = PRE_MAKE(SCOPE, SCRIPT_SCOPE); PRE_BUILT.set(SCRIPT_SCOPE, fns); }
+  return fns[parseInt(src.slice(1), 10)] ?? null;
+}
 
 // A program's `script { … }` helpers, in body scope as `$s`. Unlike SCOPE —
 // which is process-wide, because services are — script bindings belong to ONE
@@ -81,7 +118,8 @@ export function withScriptScope<T>(scope: Record<string, unknown>, build: () => 
  *  declares. The compiler appended the `return { … }` that makes this possible
  *  (there is no way to enumerate a function's scope from outside it). */
 export function evalScript(js: string): Record<string, unknown> {
-  const fn = new Function(`"use strict"; ${js}`) as () => unknown;
+  const pre = PRE_MAKE !== null && js.charCodeAt(0) === 0 ? PRE_SCRIPTS[parseInt(js.slice(1), 10)] : undefined;
+  const fn = pre ?? (new Function(`"use strict"; ${js}`) as () => unknown);
   const out = fn();
   return out !== null && typeof out === "object" ? out as Record<string, unknown> : {};
 }
@@ -131,7 +169,71 @@ export type ExprFn = (this: unknown, parent: unknown, classroot: unknown) => unk
 const EXPR_MEMO = new WeakMap<object, Map<string, { fn: ExprFn } | { error: string }>>();
 const BODY_MEMO = new WeakMap<object, Map<string, { fn: BodyFn } | { error: string }>>();
 
+/** THE RUNTIME'S OWN PATHS, WALKED — not compiled. Beyond the author's bodies,
+ *  the runtime compiles small expressions of its own: the receivers a kernel
+ *  rule reads through (`this.root.dock`), dependency probes (`classroot`,
+ *  `this.$provided("theme")`). With the bodies precompiled these were the last
+ *  text-to-code calls at boot (9–33 per app, 2026-09-19) — the ones a strict
+ *  Content-Security-Policy would still refuse. A root (`this` / `parent` /
+ *  `classroot`), then names, then at most one call per step whose arguments
+ *  are JSON literals: walked exactly as the expression would evaluate (a call
+ *  runs as a method of what it hangs from). Anything else returns null and
+ *  compiles as before. */
+const PATH_ROOT = /^\s*([A-Za-z_$][\w$]*)/;
+const PATH_STEP = /^\.([A-Za-z_$][\w$]*)(\(([^()]*)\))?/;
+// words that are never a free name — a literal, or an operator that makes the
+// text something other than a path (it compiles as before)
+const NOT_A_NAME = new Set(["true", "false", "null", "new", "typeof", "void", "delete", "in", "instanceof", "await", "yield", "function", "class", "super", "import", "let", "const", "var", "if", "else", "return", "throw", "try", "catch", "finally", "switch", "case", "default", "for", "while", "do", "break", "continue", "with", "debugger", "export", "extends", "enum", "static", "arguments", "eval"]);
+function pathFn(src: string): ExprFn | null {
+  // a lone JSON literal (true / false / null / a number / a quoted string)
+  const t = src.trim();
+  if (t === "true" || t === "false" || t === "null" || /^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(t) || /^"(?:[^"\\]|\\.)*"$/.test(t)) {
+    let v: unknown;
+    try { v = JSON.parse(t); } catch { return null; }
+    return () => v;
+  }
+  const r = PATH_ROOT.exec(src);
+  if (r === null) return null;
+  const root = r[1];
+  if (NOT_A_NAME.has(root)) return null;
+  // any other root name resolves as a compiled body's free name would: the
+  // runtime's helpers, then the program's script names (the prelude's two
+  // lists, captured now as compileExpr captures the script scope), then the
+  // global scope — or the ReferenceError that code would throw
+  const scripts = SCRIPT_SCOPE;
+  const lookup = root === "this" || root === "parent" || root === "classroot" ? null : (): unknown => {
+    if (Object.hasOwn(SCOPE, root)) return SCOPE[root];
+    if (Object.hasOwn(scripts, root)) return scripts[root];
+    if (root in globalThis) return (globalThis as Record<string, unknown>)[root];
+    throw new ReferenceError(`${root} is not defined`);
+  };
+  const steps: Array<{ name: string; args: unknown[] | null }> = [];
+  let rest = src.slice(r[0].length).trimEnd();
+  while (rest.length > 0) {
+    const m = PATH_STEP.exec(rest);
+    if (m === null) return null;
+    let args: unknown[] | null = null;
+    if (m[2] !== undefined) {
+      try { args = JSON.parse("[" + m[3] + "]") as unknown[]; } catch { return null; }
+    }
+    steps.push({ name: m[1], args });
+    rest = rest.slice(m[0].length);
+  }
+  return function (this: unknown, parent: unknown, classroot: unknown): unknown {
+    let cur: unknown = lookup !== null ? lookup() : root === "this" ? this : root === "parent" ? parent : classroot;
+    for (const st of steps) {
+      const v = (cur as Record<string, unknown>)[st.name];
+      cur = st.args === null ? v : (v as (...a: unknown[]) => unknown).apply(cur, st.args);
+    }
+    return cur;
+  };
+}
+
 export function compileExpr(src: string): { fn: ExprFn } | { error: string } {
+  const pre = precompiled(src);
+  if (pre !== null) return { fn: pre as ExprFn };
+  const path = pathFn(src);
+  if (path !== null) return { fn: path };
   // The script scope is captured HERE, at compile time — the body is bound to
   // the program being built, not to whatever is current when it later runs.
   const scripts = SCRIPT_SCOPE;
@@ -143,7 +245,8 @@ export function compileExpr(src: string): { fn: ExprFn } | { error: string } {
     const r = rewriteDatapaths(src);
     if ("error" in r) return r;
     try {
-      const raw = new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
+      const build = (): Function => new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
+      const raw = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("compile bodies", build) : build());
       return {
         fn: function (this: unknown, parent: unknown, classroot: unknown): unknown {
           return raw.call(this, SCOPE, scripts, parent, classroot);
@@ -246,7 +349,17 @@ export function validateExpr(src: string): string | null {
 }
 
 /** Check `src` as a statement body — same seam, statement-shaped. */
+const VALIDATED = new Map<string, string | null>();
 export function validateBody(params: readonly string[], src: string): string | null {
+  const key = params.join(",") + "\0" + src;
+  const memo = VALIDATED.get(key);
+  if (memo !== undefined) return memo;
+  const out = validateBodyUncached(params, src);
+  if (VALIDATED.size > 20000) VALIDATED.clear();
+  VALIDATED.set(key, out);
+  return out;
+}
+function validateBodyUncached(params: readonly string[], src: string): string | null {
   let e: string | null;
   if (syntaxValidator !== null) {
     const r = rewriteDatapaths(src);
@@ -276,6 +389,8 @@ export type BodyFn = (this: unknown, parent: unknown, classroot: unknown, base: 
  *  Scope rules and the replacement plan are compileExpr's, unchanged. The
  *  error fragment matches the compileExpr pattern for callers to prefix. */
 export function compileBody(params: readonly string[], src: string): { fn: BodyFn } | { error: string } {
+  const pre = precompiled(src);
+  if (pre !== null) return { fn: pre as BodyFn };
   const scripts = SCRIPT_SCOPE;
   let memo = BODY_MEMO.get(scripts);
   if (memo === undefined) BODY_MEMO.set(scripts, (memo = new Map()));

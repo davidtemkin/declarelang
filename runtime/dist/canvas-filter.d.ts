@@ -37,4 +37,11 @@ export declare function forceFilterFallback(on: boolean): void;
  *  falls with the square of the factor, and the resampling either side is itself
  *  part of the blur, so its contribution is subtracted from the box passes
  *  rather than ignored. The colour matrix rides the same small buffer. */
-export declare function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec, approximate?: boolean): HTMLCanvasElement;
+/** A rectangle of the source canvas, device pixels. */
+export interface FilterRegion {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+export declare function applyFilterFallback(src: HTMLCanvasElement, spec: FilterSpec, approximate?: boolean, region?: FilterRegion | null): HTMLCanvasElement;

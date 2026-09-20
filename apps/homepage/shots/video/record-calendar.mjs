@@ -1,10 +1,32 @@
 #!/usr/bin/env node
 /*
-record-calendar.mjs — re-cut calendar.mp4, the clip on the homepage's calendar row.
+record-calendar.mjs — re-cut the calendar clip on the homepage's calendar row,
+in either appearance.
 
-    node record-calendar.mjs                 # dev server on :8300, writes ./calendar.mp4
+    node record-calendar.mjs                 # dev server on :8300, dark, writes ./calendar-dark.mp4
+    node record-calendar.mjs --theme light   # writes ./calendar-light.mp4
     node record-calendar.mjs --port 8200
     node record-calendar.mjs --out /tmp/try.mp4 --keep-frames
+    node record-calendar.mjs --today 2026-08-02T14:53   # the pinned "now" (the default)
+
+## Appearance (--theme light|dark)
+
+The calendar's appearance is its own `themeMode` ("light" / "auto" / "dark";
+the bar's Segmented writes it). `isDark` derives from it: an explicit
+"light"/"dark" wins outright, and only "auto" consults the environment
+(`hostProvided("dark", …)` from a host, else the OS scheme via
+`app.dark`). So the stage writes `themeMode` directly — the same cell the
+switch writes — and neither the host nor headless Chrome's color scheme can
+leak in. (The original clip clicked the switch's Dark segment at (273, 29);
+same state, same frame.)
+
+## The pinned "now" (--today)
+
+`CAL_BOOT = new Date()` decides the month the app opens on and the today tint.
+The clip was cut on Sun Aug 2 2026 — the stage pages one month on, to
+September, where no day carries the today tint. Recording on any other day
+would open elsewhere and page to a different month, so the page's clock is
+shifted (it still ticks) to that moment unless --today says otherwise.
 
 Records the real app in headless Chrome, trims to a seamless loop, and encodes.
 The dev server must already be serving this tree (`node server/dev.mjs 8300`).
@@ -55,7 +77,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const arg = (name, fallback) => { const i = argv.indexOf("--" + name); return i < 0 ? fallback : argv[i + 1]; };
 const PORT = arg("port", "8300");
-const OUT = arg("out", join(HERE, "calendar.mp4"));
+const THEME = arg("theme", "dark");
+if (THEME !== "light" && THEME !== "dark") { console.error("--theme must be light or dark"); process.exit(2); }
+const OUT = arg("out", join(HERE, `calendar-${THEME}.mp4`));
+const TODAY = arg("today", "2026-08-02T14:53:00");
 const KEEP = argv.includes("--keep-frames");
 
 // Chrome: puppeteer's own cached download. Override with CHROME=... if yours
@@ -79,6 +104,14 @@ const b = await pp.launch({ executablePath: CHROME, headless: "new", userDataDir
   args: ["--no-sandbox", "--force-device-scale-factor=1", "--window-size=" + W + "," + H] });
 const p = await b.newPage();
 await p.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
+// shift the page clock to TODAY (it keeps ticking) before any app code runs
+await p.evaluateOnNewDocument((t) => {
+  const R = Date, off = new R(t).getTime() - R.now();
+  function D(...a) { if (!new.target) return new R(R.now() + off).toString(); return a.length === 0 ? new R(R.now() + off) : new R(...a); }
+  D.prototype = R.prototype; D.now = () => R.now() + off; D.UTC = R.UTC; D.parse = R.parse;
+  Object.defineProperty(R.prototype, "constructor", { value: D, writable: true, configurable: true });
+  window.Date = D;
+}, TODAY);
 await p.goto(`http://localhost:${PORT}/apps/calendar/calendar.declare`, { waitUntil: "domcontentloaded" });
 await sleep(7000);
 
@@ -99,14 +132,22 @@ let n = 0;
 const frame = async () => { await p.screenshot({ path: join(FRAMES, `f${String(n++).padStart(4, "0")}.png`) }); };
 const roll  = async (frames) => { for (let i = 0; i < frames; i++) { await frame(); await sleep(1000 / FPS); } };
 
-// ── the stage: dark theme, September ─────────────────────────────────────────
-await p.mouse.click(273, 29);
+// ── the stage: the chosen theme, September ───────────────────────────────────
+await p.evaluate((m) => window.__declare.evaluate("app", "themeMode = " + JSON.stringify(m)), THEME);
 await sleep(1600);
+console.log("theme:", await rd("themeMode"), "| isDark:", await rd("isDark"), "| month:", await rd("month"));
 await p.evaluate(() => window.__declare.evaluate("app", "step(1)"));
 await sleep(2200);
 
 const navKey0 = (await rd("navKey")).replace(/^"|"$/g, "");   // the current-day marker, to put back
-const tabs = { w: mid(await box("app.bar.tabs.w")), m: mid(await box("app.bar.tabs.m")), yt: mid(await box("app.bar.tabs.yt")) };
+// The view tabs are a Segmented: its items are unnamed (index paths), so each
+// is found by its label rather than by a path that shifts with the furniture.
+const tabBox = (label) => p.evaluate((l) => {
+  const t = window.__declare.inspect("app.bar.tabs");
+  const it = t.children.find((c) => c.children.some((g) => g.name === "t" && g.text === l));
+  return it && { x: it.rootX, y: it.rootY, w: it.width, h: it.height };
+}, label);
+const tabs = { w: mid(await tabBox("Week")), m: mid(await tabBox("Month")), yt: mid(await tabBox("Year")) };
 const c7 = await box("app.board.grid.7");
 const dayPoint = [Math.round(c7.x + c7.w * 0.5), Math.round(c7.y + 12)];
 console.log("navKey at rest:", navKey0, "| day cell:", dayPoint);

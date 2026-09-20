@@ -26,7 +26,7 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 import { CSS_COLORS } from "./css-colors.js";
-import { DeclareError, noBaselineMessage, stackBaselineMessage } from "./errors.js";
+import { DeclareError, insetOrRadiusMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
 import { runtimeMethodsOf } from "./runtime-methods.js";
@@ -363,7 +363,22 @@ export function checkThemeRecord(where, rec) {
         seen.set(a.name, a.pos);
         const t = coerceToken(a.value);
         if (t === undefined) {
-            errors.push(new DeclareError(`${where}.${a.name}: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got ${describeLiteral(a.value)}`, a.value.pos));
+            // A LIST names the item that failed, not the list: "got a list" tells an
+            // author nothing when nine of ten faces are strings and the tenth is a
+            // path. A nested list is its own sentence — the one-level rule is what
+            // keeps a token bounded.
+            const bad = a.value.kind === "list"
+                ? a.value.items.find((i) => i.kind === "list" || coerceToken(i) === undefined)
+                : undefined;
+            if (bad !== undefined && bad.kind === "list") {
+                errors.push(new DeclareError(`${where}.${a.name}: a token's list holds values, not more lists — flatten it`, bad.pos));
+            }
+            else if (bad !== undefined) {
+                errors.push(new DeclareError(`${where}.${a.name}: every value in a token's list is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got ${describeLiteral(bad)}`, bad.pos));
+            }
+            else {
+                errors.push(new DeclareError(`${where}.${a.name}: a token is a number, string, boolean, color, a value constructor (gradient/stroke/shadow/frost), or a list of them — got ${describeLiteral(a.value)}`, a.value.pos));
+            }
         }
     }
     return errors;
@@ -588,9 +603,10 @@ classRoot = false) {
             // A bare `[tl, tr, br, bl]` on a radius slot: four numbers, clockwise from
             // the top-left. Routed around coerce() like every list, and refused here
             // by shape — a two-item list is not a shorthand, it is a mistake.
-            if (attrType(eff, attr.name)?.kind === "radius" && attr.value.kind === "list") {
+            const k0 = attrType(eff, attr.name)?.kind;
+            if ((k0 === "radius" || k0 === "inset") && attr.value.kind === "list") {
                 if (attr.value.items.length !== 4 || attr.value.items.some((it) => it.kind !== "number")) {
-                    errors.push(new DeclareError(`${eff.name}.${attr.name}: a per-corner radius is four numbers — [topLeft, topRight, bottomRight, bottomLeft], clockwise from the top-left; one number rounds all four`, attr.value.pos));
+                    errors.push(new DeclareError(insetOrRadiusMessage(eff.name, attr.name), attr.value.pos));
                 }
                 continue;
             }
@@ -985,7 +1001,7 @@ function checkTargetSlot(animSchema, slot, parentSchema, pos, errors) {
         errors.push(new DeclareError(`${animSchema.name}.attribute = ${slot}: ${parentSchema.name} has no slot '${slot}' to animate`, pos));
         return;
     }
-    if (t.kind !== "length" && t.kind !== "number" && t.kind !== "radius") {
+    if (t.kind !== "length" && t.kind !== "number" && t.kind !== "radius" && t.kind !== "inset") {
         errors.push(new DeclareError(`${animSchema.name}.attribute = ${slot}: only numeric slots animate — ${parentSchema.name}.${slot} is not a number`, pos));
     }
 }

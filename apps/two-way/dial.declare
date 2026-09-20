@@ -1,20 +1,20 @@
-// dial.declare — "the dial", a Declare app written to live inside an
+// dial.declare — "the dial", a Declare app written to live INSIDE an ordinary
 // HTML page (Scenario I of the two-way demo — see index.html beside this file).
 //
-// The whole conversation with the page happens through two channels, and
+// The whole conversation with the page happens through TWO channels, and
 // neither of them appears in this file as plumbing — that is the point:
 //
 //   page → app   the page holds the boot handle (also el.__declareApp) and
-//                simply writes `app.hue = v`. A declared attribute is a fact;
+//                simply WRITES `app.hue = v`. A declared attribute is a fact;
 //                assigning it re-derives every constraint below, exactly as if
 //                the slider here had moved. No API on this side, no event.
 //
-//   app → page   the page watches `observe(() => app.hue, cb)` — one callback
+//   app → page   the page WATCHES `observe(() => app.hue, cb)` — one callback
 //                per settle in which the value actually changed. This app never
 //                calls out; it just keeps its facts true, and the page listens.
 //
 // Compare crossings.declare (Scenario II): there the same two directions are
-// spelled as `external` declarations and the host's constraints do the wiring.
+// named on the islands (`provides` down, `exposed` up) and the HOST'S CONSTRAINTS do the wiring.
 // Here the host is plain JS, so the wiring lives in the page script instead.
 
 App [ width = 340, height = 220, fill = #14181D,
@@ -40,7 +40,7 @@ App [ width = 340, height = 220, fill = #14181D,
     tag: Text [ x = 12, y = 10, textColor = #6C7683, fontSize = 11,
         text = "DECLARE APP · THE DIAL" ],
 
-    // The swatch is the fact, made visible: its fill re-derives from `hue`
+    // The swatch IS the fact, made visible: its fill re-derives from `hue`
     // whether the write came from the slider below or from the page outside.
     // Nothing here can tell the difference — which is what makes the page's
     // writes first-class.
@@ -53,9 +53,9 @@ App [ width = 340, height = 220, fill = #14181D,
         textColor = #E7EEF2, fontSize = 15, fontWeight = medium,
         text = { "hue " + Math.round(app.hue) + "°" } ],
 
-    // The value pattern (guide ch. 8): the slider follows the fact — so a
+    // The value pattern (guide ch. 8): the slider FOLLOWS the fact — so a
     // write from the page moves this handle too — and its `input` override
-    // delivers drags back to the same fact rather than keeping them private.
+    // DELIVERS drags back to the same fact rather than keeping them private.
 
     dial: Slider [ x = { (parent.width - width) / 2 }, y = 172, width = 260,
         min = 0, max = 360, step = 1,

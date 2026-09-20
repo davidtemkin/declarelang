@@ -81,12 +81,8 @@ shapes is the main way it goes wrong. These are the judgments that keep it idiom
   style — integrated with the view; use it freely but measure frame rate as drawn
   surfaces grow large or change every frame. (ch. 11)
 
-**Indications you're on the wrong track.** Long `script` blocks (they are meant to hold
-pure functions and foreign glue — many programs have none). Script that positions views
-or computes motion timing — those are constraints and springs. Anything that runs every
-frame (unless it is a physics or game loop). Imperatively adding or removing views —
-lifecycle is driven from data. An intermediate slot whose only job is to force a
-re-derivation.
+The shapes that mean you have drifted back toward another framework are listed as the
+last thing in this file — the **drift check**. Read it immediately before you write code.
 
 Chapter 1 makes the case behind every point here — the fastest way to internalize the
 shift rather than pattern-match it.
@@ -173,3 +169,25 @@ See `docs/operational/introspection.md`.
 Then close the loop: check the program back against the restatement. The checker proves it
 is correct and introspection proves it behaves; neither can tell you it is the program the
 brief asked for.
+
+## Drift check — read this immediately before writing code
+
+Each of these means you have slipped back toward another framework's shape:
+
+- **Long `script` blocks.** They are meant to hold pure functions and foreign glue — many
+  programs have none.
+- **Script that positions views or computes motion timing.** These should be constraints
+  and springs.
+- **Anything that runs every frame**, unless it is a physics or game loop.
+- **Hand-building what data should replicate** — a list assembled by a loop where a
+  `datapath` ending in `[]` would have made it. (Creating a view on command is fine:
+  `createView` is a sanctioned verb, and the desktop opens its windows with it.)
+- **An intermediate slot whose only job is to force a re-derivation.**
+- **Placing everything by hand.** A few `x`/`y` values place a diagram's scene or an
+  overlay, and that is what `x`/`y` are for; a page's cards, rows and insets are a
+  layout's job — stack them with `SimpleLayout`, express the narrow case as a
+  `ResponsiveLayout` plan (`share: 0` drops a child) rather than a `narrow ? … : …`
+  branch, and write a `Layout` subclass when the arrangement is your own. Two tells that
+  you are already there: a container whose height is arithmetic over its children
+  (`{ Math.max(a.height, b.height) + 44 }` — a container sizes itself from its content),
+  and `x = { (parent.width - this.width) / 2 }`, which is `x = center`.

@@ -3,11 +3,11 @@
 // the other way around:
 //
 //   page → app   the page writes `app.hue` (it forwards the dial's hue, so
-//                the two Declare apps stay in step through the page — in
+//                the two Declare apps stay in step THROUGH the page — in
 //                Scenario I the HTML page is the bus, and the wiring between
 //                apps is imperative JS in the page script).
 //
-//   app → page   this app owns `beats` — every click in here bumps it — and
+//   app → page   this app OWNS `beats` — every click in here bumps it — and
 //                the page observes it out into an ordinary <output> element.
 //                The app never notifies anyone; it just writes its own fact.
 

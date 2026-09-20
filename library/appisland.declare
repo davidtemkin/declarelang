@@ -15,14 +15,16 @@ identical on the dev server and a static host — and renders the child.
 `childName` (inherited from `DOMIsland`) is the reverse channel: the running child's
 `appName` reflected back up, so a host can title itself by what it shows.
 
-### The bridge
+### The boundary
 
-An AppIsland carries the **island bridge** (guide ch. 18): declare `external`
-attributes on the instance and they pair, by name and with a type handshake,
-against the tenant program's own `external` declarations — typed facts both
-ways, per settle. `post(topic, payload)` / `onPost(m: IslandPost)` carry the
-verbs. `env` and `childName` below are untyped channels beside the bridge;
-declare `external` attributes wherever the type matters.
+What crosses an island says its direction (guide ch. 18). DOWN: list names in
+`provides = ["dark", "base"]`, and the tenant reads each with
+`hostProvided("dark", false)` — a value resolves at the island as `provided()`
+does, the island's own attribute first, then its ancestors' provisions. UP: the
+tenant lists names in its App's `exposes = ["docH"]`, and the host reads them
+with `island.exposed("docH", 0)`. Both are reactive, per settle, with no
+handshake to write. `post(topic, payload)` / `onPost(m: IslandPost)` carry the
+verbs.
 
 The window frame, activation, and titling belong to the caller — a desktop window
 adds an `onPointerDown` that raises itself and reads `childName` for its title; the
@@ -36,22 +38,15 @@ changes. **`""` detaches the island** and nothing mounts, which is how a closed 
 stops paying for its tenant — and what bounds the recursion when a program embeds a
 view of itself.
 
-## env
-The embedding environment in query form (`"dark=1&base=../x/"`), delivered to the
-child's reactive `app.env` at mount **and on every change**. Empty sends none, so the
-child keeps its own defaults — leave it alone unless the host genuinely overrides
-something, or you will pin the child's appearance against the system's.
-
 ## slot
-The host's slot marker, derived from `program` and `env` — `run:<program>|<env>` — which is what the island host wires. Nothing to set by hand.
+The host's slot marker, derived from `program` — `run:<program>` — which is what the island host wires. Nothing to set by hand.
 */
 
 class AppIsland extends DOMIsland [
     program: string = "",
-    env: string = "",
 
-    // the host mount key: `run:<program>`, with the env query after `|`. No
-    // program → empty slot → the island stays detached (DOMIsland unmounts it).
+    // the host mount key: `run:<program>`. No program → empty slot → the
+    // island stays detached (DOMIsland unmounts it).
 
-    slot = { program == "" ? "" : "run:" + program + (env == "" ? "" : "|" + env) }
+    slot = { program == "" ? "" : "run:" + program }
     ]

@@ -24,8 +24,8 @@ import { test, summarize } from "./harness.mjs";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Every app dir under apps/ that ships a `tests/` folder — the folder pairs
- *  with the .declare named after its dir (apps/controls/tests/ ↔
- *  apps/controls/controls.declare), so an app with sibling includes
+ *  with the .declare named after its dir (apps/sampler/tests/ ↔
+ *  apps/sampler/sampler.declare), so an app with sibling includes
  *  (viewer/tour.declare) still has exactly one ladder subject. */
 function discover() {
   const found = [];

@@ -38,7 +38,7 @@ await test("crawl: homepage emits the #why and #language documents, linked from 
   const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links, registry: r.linkRegistry,
     data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   const keys = docs.map((d) => d.key).sort();
-  assert.deepEqual(keys, ["", "faq", "getstarted", "language", "why"], "the default page, the FAQ, the get-started guide, the language doc, and the why article");
+  assert.deepEqual(keys, ["", "architecture", "faq", "getstarted", "language", "why"], "the default page, the architecture article, the FAQ, the get-started guide, the language doc, and the why article");
   const front = docs.find((d) => d.key === "");
   assert.ok(front.html.includes('href="#why"'), "the front page LINKS to #why (discoverable = linked)");
   assert.ok(front.html.includes('href="#language"'), "the front page LINKS to #language");
@@ -130,6 +130,58 @@ await test("crawl: deterministic — byte-identical across runs (the browser↔N
   const b = await crawlLocations(r.source, opts);
   const key = (docs) => JSON.stringify(docs.map((d) => [d.key, d.html]));
   assert.equal(key(a), key(b), "the same source + fixtures crawl to the same document set, byte for byte");
+});
+
+// ISLANDS (CrawlOptions.islands): a page composed of programs is indexed as the
+// page a reader sees — a visible AppIsland's tenant is extracted where the
+// island sits; a hidden one is not; the tenant's own fragment links are its
+// locations, never the host's; an unresolvable tenant fails loudly; and with no
+// resolver the crawl is exactly what it was.
+await test("crawl: an AppIsland's tenant program is extracted where the island sits", async () => {
+  const host = `App [ location = "home",
+    home: View [ shows = "home",
+        Text [ text = "the host's own words" ],
+        Text [ text = "to the article", link = "#article" ]
+        ],
+    article: View [ shows = "article",
+        AppIsland [ width = 400, height = 300, program = { app.location == "article" ? "tenant" : "" },
+            provides = ["dark"], dark: boolean = true ]
+        ],
+    hidden: AppIsland [ visible = false, width = 10, height = 10, program = "ghost" ]
+    ]`;
+  const tenant = `App [ location = "main",
+    main: View [ shows = "main",
+        Text [ text = { hostProvided("dark", false) ? "tenant, dark" : "tenant, light" } ],
+        Text [ text = "an internal link", link = "#tenant-only" ],
+        Image [ source = "pic.png" ]
+        ],
+    other: View [ shows = "tenant-only", Text [ text = "the tenant's other place" ] ]
+    ]`;
+  const r = await compile(host, { originDir: ROOT });
+  assert.equal(r.source !== null, true, r.report);
+  const resolved = [];
+  const islands = async (name) => {
+    resolved.push(name);
+    if (name !== "tenant") return null;
+    const c = await compile(tenant, { originDir: ROOT, typecheck: false });
+    return { source: c.source, deps: c.deps, links: c.links, report: c.report };
+  };
+  const base = { deps: r.deps, links: r.links, registry: r.linkRegistry };
+  const docs = await crawlLocations(r.source, { ...base, islands });
+  const article = docs.find((d) => d.key === "article");
+  assert.ok(article !== undefined, "the host's #article location is crawled");
+  assert.ok(article.html.includes("tenant, dark"), "the tenant's content is inlined, with the values its island provides");
+  assert.ok(article.html.includes('src="demos/pic.png"'), "a tenant's image is rebased to where it lives beside its own program");
+  assert.ok(!docs.some((d) => d.key === "tenant-only"), "the tenant's own fragment link is not crawled as a host location");
+  assert.ok(!resolved.includes("ghost"), "an invisible island's tenant is never resolved");
+
+  const plain = await crawlLocations(r.source, base);
+  assert.ok(!plain.find((d) => d.key === "article").html.includes("tenant"), "no resolver: the island stays an empty box, as before");
+
+  await assert.rejects(
+    crawlLocations(r.source, { ...base, islands: async () => null }),
+    /island program 'tenant' was not found/,
+    "a tenant that does not resolve fails the crawl loudly");
 });
 
 summarize("crawl");

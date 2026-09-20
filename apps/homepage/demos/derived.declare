@@ -1,7 +1,6 @@
-App [ textColor = whitesmoke, fill = 0x151A22,
-    warm: Color = 0xFF9F4A,
+App [ warm: Color = 0xFF9F4A,
     cool: Color = 0x59C2FF,
-    trackBg: Color = 0x232B36,
+    trackBg: Color = 0x8E99A640,
     hintText: Color = 0x8A97A6,
 
     level: number = 3,

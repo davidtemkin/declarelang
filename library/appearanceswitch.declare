@@ -1,0 +1,83 @@
+/*
+# AppearanceSwitch
+
+The light/dark control: one icon that shows the appearance you are in — a sun in
+light, a moon in dark — and a press flips to the other. Two states, not three.
+
+The third state other switches carry, "follow the system", is not a choice here but
+the **default**: an app derives its appearance from its environment (the OS, or the
+host it is embedded in) until the reader presses the switch, and from then on keeps
+what the reader chose. That is the rule the platform's own apps follow, and it is
+why the control needs no Auto button: nobody has to choose to follow the system,
+because until they choose anything else, they already are.
+
+```declare-fragment
+App [ themeMode: string = "auto",                     // "auto" until the reader chooses
+    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+    theme = { app.isDark ? SanFranciscoDark : SanFrancisco },
+    AppearanceSwitch [ dark = { app.isDark },
+        input(v: boolean) { app.themeMode = v ? "dark" : "light" } ]
+    ]
+```
+
+## dark
+The appearance the switch shows: `true` shows the moon, `false` the sun. Bind it to
+the app's effective appearance (`dark = { app.isDark }`) — the value the page is
+actually wearing, whether that came from the environment or from the reader.
+
+## input()
+Where a press delivers the new appearance — the flipped value of `dark`. The default
+writes `dark`; override it to record the reader's choice in the app
+(`input(v: boolean) { app.themeMode = v ? "dark" : "light" }`), after which the
+environment no longer decides. `press()` never writes `dark` directly, so a bound
+switch never fights its constraint.
+
+## press()
+Flips the appearance, by delivering `!dark` through `input`. Called by a click and by
+Space/Enter.
+
+## onClick
+Fires on click when the switch is enabled. `press()` is the activation path; prefer
+overriding `input` if what you want is the value.
+
+## tip
+Says what a press will do — "Switch to dark" or "Switch to light" — rather than
+naming the current state, which the icon already shows.
+
+## width
+A square: the theme's `buttonHeight` when it states one, else 32.
+
+## height
+The same as the width.
+
+## cornerRadius
+The theme's control radius, capped at half the height.
+
+## fill
+Nothing at rest — the icon stands on the surface beneath it — the control's hover
+tint under the pointer, and its pressed tint while held.
+*/
+
+include [ "control.declare" ]
+
+include [ "icons/appearance.declare" ]
+
+class AppearanceSwitch extends Control [
+    width  = { typeof theme.buttonHeight == "number" ? theme.buttonHeight : 32 },
+    height = { this.width },
+    cornerRadius = { Math.min(theme.controlRadius, height / 2) },
+    dark: boolean = false,
+
+    input(v: boolean) { dark = v },
+
+    press()   { input(!dark) },
+    onClick() { if (!disabled) press() },
+
+    tip  = { dark ? "Switch to light" : "Switch to dark" },
+    fill = { down ? theme.controlPressed : hot ? theme.controlHover : null },
+
+    sun:  SunIcon  [ x = center, y = center, iconSize = 16, visible = { !classroot.dark },
+        ink = { classroot.hot ? classroot.theme.text : classroot.theme.textMuted } ],
+    moon: MoonIcon [ x = center, y = center, iconSize = 16, visible = { classroot.dark },
+        ink = { classroot.hot ? classroot.theme.text : classroot.theme.textMuted } ]
+    ]

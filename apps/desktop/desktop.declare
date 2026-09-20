@@ -420,7 +420,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     lightsHover: boolean = false,
 
-    bar: View [ width = { parent.width }, height = { classroot.barH }, visible = { classroot.chrome },
+    bar: View [ width = 100%, height = { classroot.barH }, visible = { classroot.chrome },
 
         // The active window's bar carries a subtle vertical gradient; an
         // inactive one drops to the flat background tone.
@@ -475,7 +475,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
         // the separator under the title bar — present active or not
 
-        sep: View [ x = 0, y = { classroot.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ]
+        sep: View [ x = 0, y = { classroot.barH - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ]
         ],
 
     // The resize halo — one ignoreClip child instead of eight strips: a ring
@@ -599,7 +599,7 @@ class Window extends View [ width = 560, height = 400, clip = true,
 
     veil: View [ visible = { !classroot.active && app.firstClickActivatesOnly },
         x = 0, y = { classroot.barH },
-        width = { parent.width }, height = { parent.height - classroot.barH },
+        width = 100%, height = { parent.height - classroot.barH },
         onPointerDown() { classroot.activateOnPress() },
         onClick()       { classroot.activate() },
         onHold()        { classroot.activate() }
@@ -752,7 +752,7 @@ class AppGlyph extends View [ width = { this.edge }, height = { this.edge },
         fontSize = { classroot.edge * classroot.ap!.gsize },
         visible = { !classroot.ap!.drawn && classroot.ap!.glyph != "" },
         text = { classroot.ap!.glyph } ],
-    art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
+    art: View [ x = 0, y = 0, width = 100%, height = 100%,
         visible = { classroot.ap!.drawn },
         draw(d: Draw) {
             d.scale(this.width / 48, this.width / 48)
@@ -810,7 +810,7 @@ while focused), which a wrapper drawing the box itself would have displaced.
 */
 
 class HelpSearch extends View [ height = 40,
-    width = { parent.width },
+    width = 100%,
 
     // The capsule is a view, and the field sits inside it: a leading glyph
     // needs its inset horizontally only, which is a position, not a padding —
@@ -830,11 +830,11 @@ class HelpSearch extends View [ height = 40,
 
         // chrome off: the capsule draws it. The x **is** the glyph's room.
 
-        sf: TextInput [ x = 28, y = 0, width = { parent.width - 36 }, height = { parent.height },
+        sf: TextInput [ x = 28, y = 0, width = { parent.width - 36 }, height = 100%,
             padding = 0, fill = null, stroke = null, cornerRadius = 0,
             placeholder = "Search" ],
 
-        mag: View [ x = 10, y = { (parent.height - 14) / 2 },
+        mag: View [ x = 10, y = center,
             width = 14, height = 14, pointerEvents = "none",
             draw(d: Draw) {
                 d.strokeStyle = provided("theme").textFaint
@@ -866,8 +866,9 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
 
     aname: string = { this.forApp != null ? this.forApp.title : "" },
 
-    body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
-        col: View [ x = 24, y = 22, width = { parent.width - 48 },
+    body: View [ x = 0, y = { classroot.barH }, width = 100%, height = { parent.height - classroot.barH },
+        padding = [22, 24, 22, 24],
+        col: View [ width = 100%,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
 
             // the app's own mark at About size — the one renderer (AppGlyph),
@@ -880,7 +881,7 @@ class AboutWindow extends Window [ width = 280, height = 380, plain = true,
             ver: Text [ x = center, fontSize = 11, textColor = { provided("theme").textMuted },
                 text = "Version pre-1.0" ],
             gap: View [ width = 4, height = 2 ],
-            bl: Text [ fontSize = 11, wrap = true, width = { parent.width }, textAlign = center,
+            bl: Text [ fontSize = 11, wrap = true, width = 100%, textAlign = center,
                 textColor = { provided("theme").textMuted }, text = { classroot.forApp != null ? classroot.forApp.blurb : "" } ],
             gap2: View [ width = 4, height = 8 ],
             cp: Text [ x = center, fontSize = 10, textColor = { provided("theme").textFaint },
@@ -1052,7 +1053,7 @@ class FilesWindow extends Window [
         else app.launcher.openFolderWindow("" + this.selPath, this)
         },
 
-    body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
+    body: View [ x = 0, y = { classroot.barH }, width = 100%, height = { parent.height - classroot.barH },
         fill = { provided("theme").bg },
 
         // the column strip: a horizontal row as wide as the open columns need,
@@ -1060,7 +1061,7 @@ class FilesWindow extends Window [
         // trackpad's horizontal delta drives it, and the runtime swallows that
         // gesture so it never becomes Safari's back-swipe.
 
-        strip: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = x,
+        strip: View [ x = 0, y = 0, width = 100%, height = 100%, scrolls = x,
             datapath = { classroot.cols.value },
 
             // the strip's own reveal: a column that finds itself occluded asks
@@ -1074,7 +1075,7 @@ class FilesWindow extends Window [
             // The offset is a platform fact, not a slot, and the glide is the
             // platform's own motion.
 
-            row: View [ x = 0, y = 0, height = { parent.height },
+            row: View [ x = 0, y = 0, height = 100%,
                 width = { (classroot.cols.value.list || []).reduce((s, c) => s + (classroot.widths[c.depth] != null ? classroot.widths[c.depth] : classroot.colW), 0) },
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
 
@@ -1088,7 +1089,7 @@ class FilesWindow extends Window [
                 // scroller, and only a genuinely new (deeper) column runs its
                 // reveal.
 
-                View [ datapath = :list[], key = :depth, height = { parent.height }, clip = true, fill = { provided("theme").bg },
+                View [ datapath = :list[], key = :depth, height = 100%, clip = true, fill = { provided("theme").bg },
                     width = { classroot.widths[:depth] != null ? classroot.widths[:depth] : classroot.colW },
 
                     // a freshly-opened column reveals itself — if the window's
@@ -1120,7 +1121,7 @@ class FilesWindow extends Window [
 
                     // a list column — this level's nodes as selectable rows
 
-                    lst: View [ visible = { :items != null }, x = 0, y = 0, width = { parent.width }, height = { parent.height }, scrolls = y,
+                    lst: View [ visible = { :items != null }, x = 0, y = 0, width = 100%, height = 100%, scrolls = y,
 
                         // a second click that lands on dead space (the reveal slide moved
                         // the rows out from under the pointer) still completes a pointer-
@@ -1128,9 +1129,9 @@ class FilesWindow extends Window [
                         // when no row took the hit
 
                         onClick() { classroot.secondClick(this) },
-                        inner: View [ x = 0, y = 6, width = { parent.width }, height = { this.contentHeight + 12 },
+                        inner: View [ x = 0, y = 6, width = 100%, height = { this.contentHeight + 12 },
                             layout: SimpleLayout [ axis = y, spacing = 1 ],
-                            View [ datapath = :items[], width = { parent.width }, height = { classroot.rowH },
+                            View [ datapath = :items[], width = 100%, height = { classroot.rowH },
                                 on: boolean = { classroot.selPath != "" && (("" + classroot.selPath) + "\n").indexOf(("" + :at) + "\n") == 0 },
                                 onClick() {
                                     classroot.activate()
@@ -1156,18 +1157,18 @@ class FilesWindow extends Window [
                                     textColor = { parent.on ? provided("theme").accentText : provided("theme").textFaint }, text = "›" ]
                                 ]
                             ],
-                        edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { provided("theme").line } ]
+                        edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = 100%, fill = { provided("theme").line } ]
                         ],
 
                     // the leaf detail column — name, kind, a preview, and Open
 
                     det: View [ visible = { :leaf != null }, x = 18, y = 20, width = { parent.width - 36 },
                         layout: SimpleLayout [ axis = y, spacing = 11 ],
-                        dn: Text [ fontSize = 14, fontWeight = semibold, wrap = true, width = { parent.width },
+                        dn: Text [ fontSize = 14, fontWeight = semibold, wrap = true, width = 100%,
                             textColor = { provided("theme").text }, text = { "" + :leaf.name } ],
                         dk: Text [ fontSize = 11, wrap = false, textColor = { provided("theme").textFaint },
                             text = { "" + :leaf.label } ],
-                        dp: Text [ fontSize = 12, wrap = true, width = { parent.width },
+                        dp: Text [ fontSize = 12, wrap = true, width = 100%,
                             textColor = { provided("theme").text }, text = { "" + :leaf.preview } ],
                         Button [ width = 92, label = "Open", primary = true, visible = { :leaf.path != "" || :leaf.doc != "" },
                             onClick() { classroot.openLeaf(:leaf, this) }
@@ -1176,7 +1177,7 @@ class FilesWindow extends Window [
 
                     // drag any seam to resize the columns (fixed width, Finder-style)
 
-                    grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = { parent.height }, cursor = "col-resize",
+                    grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = 100%, cursor = "col-resize",
                         onPointerDown() { classroot.activateOnPress(); classroot.cwk = :depth; classroot.cw0 = parent.width; classroot.cpx0 = app.pointerX },
                         onPointerMove() { if (classroot.cwk == :depth) { const nw = Math.max(150, Math.min(460, classroot.cw0 + app.pointerX - classroot.cpx0)); const a = [...classroot.widths]; a[:depth] = nw; classroot.widths = a } },
                         onPointerUp() { classroot.cwk = -1 }
@@ -1196,12 +1197,13 @@ Give the island a `program` and it mounts that app as its own child: its own
 reactive graph, input router, sized to the island's box. The path is relative,
 so `"../../calendar/calendar"` reaches the real calendar app: no copy, no shim.
 The window adds only what a window owns — the title (taken from the running
-child's own name, `island.childName`), activation, and the `dark` + `extraEnv`
+child's own name, `island.childName`), activation, and the values it provides the
 environment it hands the island.
 */
 
 class AppWindow extends Window [ width = 880, height = 560,
-    extraEnv: string = "",                       // appended env parameters ("program=…")
+    base: string = "",                           // provided: the hosted app's home, in this app's transport
+    subject: string = "",                        // provided: the program a viewer window shows
 
     // the window's name is the hosted app's name, reflected up from the embedded
     // child (`island.childName`): the viewer titles by the file it shows and
@@ -1219,23 +1221,21 @@ class AppWindow extends Window [ width = 880, height = 560,
     // embedded presses to the island — dom-backend), so clicking the child's
     // content raises this window exactly as clicking any window body does
 
-    island: AppIsland [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
+    island: AppIsland [ x = 0, y = { classroot.barH }, width = 100%, height = { parent.height - classroot.barH },
         onPointerDown() { classroot.activateOnPress() },
         onClick()       { classroot.activate() },
         onHold()        { classroot.activate() },
         program = { classroot.appPath },
 
-        // The typed half of the dark channel: a tenant that declares
-        // `external darkOverride: string` gets this as a checked fact,
-        // handshake and all. Tri-state by sentinel — "dark" / "light",
-        // "" = the host has no opinion (an unlinked tenant's default, so its
-        // Auto mode falls through to its own app.dark). The desktop always
-        // has an opinion. `env.dark` below is the untyped ancestor, for a
-        // tenant that reads only `app.env`.
+        // what the window provides its tenant, each read there with
+        // hostProvided(name, default): the desktop's appearance (a tenant's
+        // Auto mode follows it; toggling re-derives the hosted app), and the
+        // app's own base and subject. A tenant that never asks ignores them.
 
-        external darkOverride: string = { app.darkMode ? "dark" : "light" },
-        env = { "dark=" + (app.darkMode ? "1" : "0")
-            + (classroot.extraEnv != "" ? "&" + classroot.extraEnv : "") }
+        provides = ["dark", "base", "subject"],
+        dark: boolean = { app.darkMode },
+        base: string = { classroot.base },
+        subject: string = { classroot.subject }
         ]
     ]
 
@@ -1275,36 +1275,37 @@ class ViewerWindow extends Window [ width = 640, height = 460,
         super.onInit()
         },
 
-    body: View [ x = 0, y = { classroot.barH }, width = { parent.width }, height = { parent.height - classroot.barH },
+    body: View [ x = 0, y = { classroot.barH }, width = 100%, height = { parent.height - classroot.barH },
         scrolls = y, selectable = true,
 
         // The docs reading treatment, carried over whole (docs.declare is the
-        // reference): 48px side margins and 40 above (the pad's explicit height
-        // adds the same 40 below, so the scroll extent ends with breathing room);
-        // prose wraps at the 560 reading measure while code fills the column;
-        // 1.6 leading; the docs body ink; and every code block gets the tinted
-        // box with the teal left bar. The chip tints are the docs values on the
+        // reference): the reading margins are the scroller's own content box —
+        // 48 each side, 40 above and below, and a padded scroller carries its
+        // insets in its extent, so the scroll ends with the same breathing room
+        // it starts with, with no spacer view and no height arithmetic. Prose
+        // wraps at the 560 reading measure while code fills the column; 1.6
+        // leading; the docs body ink; and every code block gets the tinted box
+        // with the teal left bar. The chip tints are the docs values on the
         // shared white surface, and a neutral step-up of the same relationship
         // on Cupertino's dark surface (the docs dark chip is tuned to its own
         // blue-black page, not to 0x2C2C2E).
 
-        pad: View [ x = 48, y = 40, width = { parent.width - 96 },
-            height = { this.doc.height + 40 },
-            loading: Text [ fontSize = 13, textColor = { provided("theme").textFaint },
-                visible = { classroot.inlineDoc == "" && classroot.src.loading }, text = "Loading…" ],
-            failed: Text [ fontSize = 13, textColor = { provided("theme").textFaint }, wrap = true, width = { parent.width },
-                visible = { classroot.inlineDoc == "" && classroot.src.failed },
-                text = { "Could not load — " + (classroot.src.error || "") } ],
-            doc: Markdown [ width = { parent.width },
-                visible = { classroot.inlineDoc != "" || classroot.src.loaded },
-                richTextLayout = { { default: { maxWidth: 560 }, code: { maxWidth: 0 } } },
-                lineHeight = 1.6,
-                bodyColor = { app.darkMode ? 0xC4CFD8 : 0x2E3B46 },
-                codeBackground = { app.darkMode ? 0x35393F : 0xE9EFF4 },
-                codeRule = { app.darkMode ? 0x37E0C8 : 0x12A08D },
-                dark = { app.darkMode },
-                text = { classroot.inlineDoc != "" ? classroot.inlineDoc : (classroot.src.value || "") } ]
-            ]
+        padding = [40, 48, 40, 48],
+
+        loading: Text [ fontSize = 13, textColor = { provided("theme").textFaint },
+            visible = { classroot.inlineDoc == "" && classroot.src.loading }, text = "Loading…" ],
+        failed: Text [ fontSize = 13, textColor = { provided("theme").textFaint }, wrap = true, width = 100%,
+            visible = { classroot.inlineDoc == "" && classroot.src.failed },
+            text = { "Could not load — " + (classroot.src.error || "") } ],
+        doc: Markdown [ width = 100%,
+            visible = { classroot.inlineDoc != "" || classroot.src.loaded },
+            richTextLayout = { { default: { maxWidth: 560 }, code: { maxWidth: 0 } } },
+            lineHeight = 1.6,
+            bodyColor = { app.darkMode ? 0xC4CFD8 : 0x2E3B46 },
+            codeBackground = { app.darkMode ? 0x35393F : 0xE9EFF4 },
+            codeRule = { app.darkMode ? 0x37E0C8 : 0x12A08D },
+            dark = { app.darkMode },
+            text = { classroot.inlineDoc != "" ? classroot.inlineDoc : (classroot.src.value || "") } ]
         ]
     ]
 
@@ -1335,7 +1336,7 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false,
     inkLo = #00000038,
     shadow = { app.wm.frontWin == this ? shadow(0, 10, 26, this.inkHi) : shadow(0, 3, 9, this.inkLo) },
 
-    strip: View [ x = 0, y = 0, width = { parent.width }, height = { classroot.barH },
+    strip: View [ x = 0, y = 0, width = 100%, height = { classroot.barH },
         fill = { classroot.active ? 0xFEEA3D : 0xFEF49C },
         onPointerDown() { classroot.beginDrag() },
         onPointerMove() { classroot.dragTo() },
@@ -1383,8 +1384,8 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false,
 
     pad: View [ x = 12, y = { classroot.barH + 6 }, clip = true,
         width = { parent.width - 24 }, height = { parent.height - classroot.barH - 16 },
-        md: Markdown [ width = { parent.width }, dark = false,
-            bodyColor = 0x1D1D1F, scale = 0.82, lineHeight = 1.45,
+        md: Markdown [ width = 100%, dark = false,
+            bodyColor = 0x1D1D1F, fontScale = 0.82, lineHeight = 1.45,
             text = { classroot.note } ]
         ]
     ]
@@ -1586,7 +1587,7 @@ class DockIcon extends View [
 
         // Drawn app art, authored in a 48-unit box and scaled to fill the plate.
 
-        art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
+        art: View [ x = 0, y = 0, width = 100%, height = 100%,
             visible = { classroot.ap!.drawn },
 
             // the illustration is drawn at the plate's size — a canvas scale
@@ -1606,7 +1607,7 @@ class DockIcon extends View [
         // magnifies). A 1px white highlight, brightest along the top and fading
         // down, like the sheen a glossy rounded tile catches from above.
 
-        rim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
+        rim: View [ x = 0, y = 0, width = 100%, height = 100%,
             draw(d: Draw) {
                 const w = this.width
                 const h = this.height
@@ -1634,7 +1635,7 @@ class DockIcon extends View [
     // under a dark theme, so it always reads against the shelf.
 
     dot: View [ width = 4, height = 4, cornerRadius = 2,
-        x = { (parent.width - 4) / 2 }, y = { parent.height + 6 + this.parent.hopY },
+        x = center, y = { parent.height + 6 + this.parent.hopY },
         visible = { running }, fill = { provided("theme").text } ],
 
     // The label pill — the dock's own tooltip: a frosted chip with a downward
@@ -1727,7 +1728,8 @@ class DesktopApp extends Node [
 
 class HostedApp extends DesktopApp [             // a foreign program — the same citizen
     prog: string = "",                           // the program the window's island mounts
-    env: string = "",                            // its embedding environment segment
+    base: string = "",                           // provided to it: its home, relative to this app
+    subject: string = "",                        // provided to it: the program it shows (the viewer)
     place: string = "",                          // window placement policy ("clearDock")
     launch(v: View?) { app.launcher.openHosted(this, v, "") }
     ]
@@ -1770,14 +1772,14 @@ class MarkdownApp extends DesktopApp [ id = "markdown", label = "Markdown", titl
 class ViewerApp extends HostedApp [ id = "declareviewer", label = "Declare Viewer", title = "Declare Viewer",
     blurb = "Reader, source, and live editor over any Declare program — here, hosted as an embedded app.",
     glyph = "[  ]", hue1 = #2E6FE0, hue2 = #12A594,
-    prog = "../../../library/platform-apps/viewer/viewer", env = "program=desktop.declare", src = "../../library/platform-apps/viewer/viewer.declare"
+    prog = "../../../library/platform-apps/viewer/viewer", subject = "desktop.declare", src = "../../library/platform-apps/viewer/viewer.declare"
     ]
 
 
 class CalendarApp extends HostedApp [ id = "calendar", label = "Calendar", title = "Declare Calendar",
     blurb = "The actual apps/calendar, running as an embedded child app in this window's island.",
     hue1 = #FFFFFF, hue2 = #EFEFF2, drawn = true, canOpen = false,
-    prog = "../../calendar/calendar", env = "base=../calendar/", src = "../calendar/calendar.declare",
+    prog = "../../calendar/calendar", base = "../calendar/", src = "../calendar/calendar.declare",
     place = "clearDock",
     face(d: Draw) {
         d.fillStyle = 0xFFFFFF
@@ -1823,7 +1825,7 @@ class JotsApp extends DesktopApp [ id = "jots", label = "Jots", title = "Jots",
 class BirdsApp extends HostedApp [ id = "birds", label = "50 Birds", title = "50 Birds",
     blurb = "The actual apps/birds — Audubon's plates as a field guide — hosted as an embedded app.",
     hue1 = #66C95F, hue2 = #2C9243, drawn = true,
-    prog = "../../birds/birds", env = "base=../birds/", src = "../birds/birds.declare",
+    prog = "../../birds/birds", base = "../birds/", src = "../birds/birds.declare",
     face(d: Draw) {
         // the bird: a perched songbird facing right — one white
         // silhouette (beak, crown, back, tail, breast), with the eye and
@@ -1936,7 +1938,7 @@ the application instance (by id) and the origin view (the launcher's
 `takeBorn` side channel — a node reference never enters data-shaped state).
 */
 
-class WinSlot extends View [ width = { parent.width }, height = { parent.height },
+class WinSlot extends View [ width = 100%, height = 100%,
     recId: string = { "" + (:id ?? "") },
     win: Window = null,
     onInit() {
@@ -2300,7 +2302,7 @@ class Launcher extends Node [
     // program's ?segments and ?file artifacts — reader mode by default.
 
     openSource(a: DesktopApp) {
-        this.openHosted(this.viewer, null, "program=" + a.src)
+        this.openHosted(this.viewer, null, "" + a.src)
         },
     openAbout(a: DesktopApp) {
         const n = app.wm.spawn()
@@ -2387,13 +2389,13 @@ class Launcher extends Node [
 
     // a full Declare app in a window — a hosted application: the AppWindow's
     // island mounts `a.prog` ("../../calendar/calendar" runs the real
-    // calendar; the path is demos/-relative, the slot convention). `envExtra`
-    // overrides the app's own env segment when the caller names a different
-    // subject (View & Edit Source's "program=…"); "" takes the app's own.
+    // calendar; the path is demos/-relative, the slot convention). `subject`
+    // overrides the app's own when the caller names a different one (View &
+    // Edit Source's program); "" takes the app's own.
     // Hosted apps count separately (running dots + Quit are per application),
     // and each launch-bounces on its first open — the shared gate.
 
-    openHosted(a: HostedApp, v: View?, envExtra: string) {
+    openHosted(a: HostedApp, v: View?, subject: string) {
         this.gated(a, () => {
             this.dismissAbouts()
             const n = app.wm.spawn()
@@ -2416,7 +2418,7 @@ class Launcher extends Node [
             this.openWin(app.wm.mintId(), "AppWindow", a,
                 ({ appPath: "" + a.prog, appTitle: "" + a.title, wx: wx, wy: wy,
                     width: ww, height: wh,
-                    extraEnv: envExtra != "" ? envExtra : "" + a.env,
+                    base: "" + a.base, subject: subject != "" ? subject : "" + a.subject,
                     bornX: o != null ? o.x - wx : -1, bornY: o != null ? o.y - wy - app.menuBarH : -1 }), v)
             })
         },
@@ -2668,7 +2670,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         refW: number = 1920,
         refH: number = 1200,
         width = { this.refW }, height = { this.refH },
-        x = { (app.width - this.refW) / 2 }, y = { (app.height - this.refH) / 2 },
+        x = center, y = center,
         pivotX = { this.refW / 2 }, pivotY = { this.refH / 2 },
         scale = { Math.max(app.width / this.refW, app.height / this.refH) },
         draw(d: Draw) {
@@ -2842,7 +2844,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
         dismissMenus() { this.mb.menu.rootClose() },
 
-        mb: MenuBar [ x = 10, height = { parent.height }, menus = { app.bar.menus }, ink = { parent.menuInk },
+        mb: MenuBar [ x = 10, height = 100%, menus = { app.bar.menus }, ink = { parent.menuInk },
             picked(id: string) { app.command(id) }
             ],
         clock: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 13,
@@ -2971,7 +2973,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             },
 
         width = { this.plate.width },
-        x = { (app.width - this.width) / 2 },
+        x = center,
         y = { app.height - 155.5 },           // the 88px plate sits 5.5px off the bottom edge
 
         // The enter/exit envelope the icons scale by, sprung fast (~100ms), so
@@ -3034,7 +3036,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
                 d.stroke()
                 }
             ],
-        row: View [ x = 16, y = 0, height = { parent.height },
+        row: View [ x = 16, y = 0, height = 100%,
             datapath = { app.launcher.data.value },
             layout: SimpleLayout [ axis = x, spacing = 16 ],
 
@@ -3062,7 +3064,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // one motion with no seam.
 
         minis: View [ visible = { app.dock.miniSpan > 0.5 },
-            x = { parent.row.x + parent.row.width + 16 }, y = 0, height = { parent.height },
+            x = { parent.row.x + parent.row.width + 16 }, y = 0, height = 100%,
             div: View [ x = 0, y = { parent.height - 77 }, width = 1, height = 65,
                 opacity = { Math.min(1, app.dock.miniSpan / 26) },
                 fill = { app.darkMode ? 0xFFFFFF48 : 0x00000042 } ],
@@ -3070,7 +3072,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             // one tile per parked record (wm.miniData), keyed by window id —
             // add a park and a tile exists, close it from anywhere and it goes
 
-            rowM: View [ x = 0, y = 0, height = { parent.height },
+            rowM: View [ x = 0, y = 0, height = 100%,
                 datapath = { app.wm.miniData.value },
                 MiniTile [ datapath = :minis[], key = :id ]
                 ]
@@ -3094,7 +3096,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         x = 0, y = 0, width = { app.width }, height = { app.height },
         onPointerDown() { },                           // modal: presses on the scrim do nothing
 
-        scrim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height }, fill = #00000026 ],
+        scrim: View [ x = 0, y = 0, width = 100%, height = 100%, fill = #00000026 ],
 
         panel: View [ width = 300, height = 422,
             // The panel sits slightly above center — the top gap is about a

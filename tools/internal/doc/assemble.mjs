@@ -724,7 +724,7 @@ const TYPE_GROUPS = [
   ["Enums", ["Axis", "Backface", "Blend", "Claim", "Credentials", "CrossAlign", "DataStatus", "Edges",
              "FitAlign", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
              "Process", "Scrolls", "StreamStatus", "Stretch", "TextAlign", "TextTransform", "Tick"]],
-  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Shape", "Stroke", "Outline",
+  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "Shape", "Stroke", "BoxStroke", "Outline",
               "Shadow", "Filter", "Backdrop", "Theme", "MotionCurve", "Cursor", "TextMeasure", "IslandPost"]],
   ["Text", ["TextStyle", "TextStyles", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",

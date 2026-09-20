@@ -1,0 +1,25 @@
+import http from "node:http"; import path from "node:path"; import puppeteer from "puppeteer-core";
+const ROOT = "/Users/temkin/Code/Declare-Optimize";
+const { createDeclareServer } = await import(path.join(ROOT, "server/create.mjs"));
+const server = createDeclareServer({ mountSpecs: [{ prefix: "/", dir: ROOT }, { prefix: "/declare/", dir: ROOT, platform: true }], mode: "distro" });
+const hs = http.createServer(server.handler).on("upgrade", server.upgrade);
+await new Promise((r) => hs.listen(0, "127.0.0.1", r));
+const B = `http://127.0.0.1:${hs.address().port}`;
+const b = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-sandbox"] });
+const pg = await b.newPage(); const reqs = [], errs = [];
+pg.on("request", (r) => reqs.push(new URL(r.url()).pathname));
+pg.on("pageerror", (e) => errs.push("pageerror: " + String(e).split("\n")[0].slice(0, 200)));
+pg.on("console", (m) => errs.push(m.type() + ": " + m.text().slice(0, 200)));
+pg.on("requestfailed", (r) => errs.push("failed: " + r.url().slice(-60) + " " + (r.failure()?.errorText ?? "")));
+await pg.goto(`${B}/apps/calendar/calendar.declare?render=dom`, { waitUntil: "networkidle2" });
+let mounted = true;
+try { await pg.waitForFunction("window.__app != null", { timeout: 25000 }); } catch { mounted = false; }
+const nodes = await pg.evaluate("document.querySelectorAll('*').length");
+const kind = await pg.evaluate("globalThis.__declareKernelKind ?? '(not published — dev switches are stripped)'");
+console.log("dev server (distro, the shipped boot bundle)");
+console.log("  mounted:", mounted, "· nodes:", nodes, "· kernel:", kind);
+console.log("  kernel module requested:", reqs.filter((r) => /declare-kernel/.test(r)).join(", ") || "(NO)");
+console.log("  requests:", reqs.length);
+for (const e of errs.slice(0, 6)) console.log("  " + e);
+console.log("  body:", (await pg.evaluate("document.body.innerText.slice(0,300)")).replace(/\n/g, " | "));
+await b.close(); hs.close();

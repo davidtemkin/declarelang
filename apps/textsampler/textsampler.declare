@@ -8,10 +8,9 @@
 // shows the live text and, below it, the exact Declare fragment that draws it —
 // static illustrative source, not a live editor. Styled to sit beside sampler
 // and viewer: the San Francisco theme, bordered cards on a quiet ground. Each
-// specimen is a `Card`, whose inset column stacks the label, the live example,
-// and the snippet as siblings, so it auto-sizes to fit.
-
-use [ SunIcon, AutoIcon, MoonIcon ]
+// specimen is a `Specimen` — the library's `Card` in this sheet's proportions —
+// whose padded inside stacks the label, the live example and the snippet as
+// siblings, so it auto-sizes to fit.
 
 // Named text styles, defined once and referenced by <span class> in the Rich
 // Text page — a `style` bundle is the run vehicle for prose (a run is not a node
@@ -74,11 +73,11 @@ class Pill extends View [ label: string = "",
 // in its card's inset column.
 
 class Snippet extends View [ code: string = "",
-    width = { parent.width - 32 },
-    height = { this.body.height + 18 },
+    width = 100%,
     cornerRadius = 7,
     fill = { provided("theme").bg },
-    body: Text [ x = 12, y = 9, width = { parent.width - 24 },
+    padding = [9, 12, 9, 12],
+    body: Text [ width = 100%,
         fontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize = 11.5, lineHeight = 1.5,
         textColor = { provided("theme").textMuted }, text = { classroot.code }, wrap = true ]
     ]
@@ -92,20 +91,18 @@ class Label extends Text [
     ]
 
 
-// A specimen card: a bordered surface whose inset column stacks the label,
-// then whatever the use site declares — the live example, its snippet —
-// 11 apart, and wraps its height around them. The column is 16 in from
-// each edge: every child is 32 narrower than the card and centered.
+// A specimen card: the library's `Card` — its surface, hairline edge and
+// inset — in this sheet's proportions, stacking the label and then whatever
+// the use site declares (the live example, its snippet) 11 apart. The inset is
+// the card's own padding, so every specimen inside is written `width = 100%`
+// and the card wraps its height around what it holds.
 
-class Card extends View [ width = { parent.width },
+class Specimen extends Card [ width = 100%,
     label: string = "",
     cornerRadius = 12,
-    fill = { provided("theme").surface },
-    stroke = { stroke(1, provided("theme").line) },
-    height = { this.contentHeight + 14 },
+    padding = [13, 16, 14, 16],
     layout: SimpleLayout [ axis = y, spacing = 11, align = center ],
-    top: View [ width = 8, height = 2 ],          // with the spacing, lands the label 13 down
-    hd: Label [ width = { parent.width - 32 }, text = { label } ]
+    hd: Label [ width = 100%, text = { label } ]
     ]
 
 
@@ -129,7 +126,12 @@ App [ minWidth = 340,
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, ignoreScroll = true,
         fill = { provided("theme").surface },
-        edge: View [ x = 0, y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
+
+        // the rule under the bar is the bar's own bottom edge — a per-side
+        // stroke, not a child view. (The cast is the slot's TS type, `Stroke`,
+        // not yet admitting the four-sided list a { } constraint may hand it.)
+
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
 
         // The family brand: the "Declare" wordmark (gradient, the way home) then
         // the app word, which yields first when the bar gets tight — like sampler,
@@ -159,13 +161,12 @@ App [ minWidth = 340,
         // the theme switch — light · follow the system · dark: the house
         // control with the house marks, each choice naming its icon in data
 
-        themeSwitch: Segmented [ y = 11, x = { app.width - 96 - 14 },
-            height = 30, width = 96, iconSize = 15,
-            value = { app.themeMode },
-            input(v: object) { app.themeMode = "" + v },
-            choices = { [ ({ id: "light", icon: "SunIcon" }),
-                          ({ id: "auto",  icon: "AutoIcon" }),
-                          ({ id: "dark",  icon: "MoonIcon" }) ] }
+        // light / dark: shows the appearance in force, a press flips it; until
+        // then `themeMode` stays "auto" and the OS decides
+
+        themeSwitch: AppearanceSwitch [ y = { (app.barH - this.height) / 2 }, x = { app.width - this.width - 14 },
+            dark = { app.darkUI },
+            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
         ],
 
@@ -178,20 +179,20 @@ App [ minWidth = 340,
 
             // ════════════════ TEXT ════════════════
 
-            text: View [ visible = { app.page == "text" }, width = { parent.width },
+            text: View [ visible = { app.page == "text" }, width = 100%,
                 layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
 
                 tL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                    Card [ label = "PLAIN TEXT",
-                        Text [ width = { parent.width - 32 }, wrap = true, fontSize = 16, textColor = { provided("theme").text },
+                    Specimen [ label = "PLAIN TEXT",
+                        Text [ width = 100%, wrap = true, fontSize = 16, textColor = { provided("theme").text },
                             text = "The quick brown fox jumps over the lazy dog." ],
                         Snippet [ code = "Text [ text = \"The quick brown fox jumps\n    over the lazy dog.\" ]" ]
                         ],
 
-                    Card [ label = "SIZE & WEIGHT",
-                        row: View [ width = { parent.width - 32 }, height = { this.contentHeight },
+                    Specimen [ label = "SIZE & WEIGHT",
+                        row: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 6 ],
                             Text [ fontSize = 26, fontWeight = bold, textColor = { provided("theme").text }, text = "Bold 26", wrap = false ],
                             Text [ fontSize = 18, fontWeight = semibold, textColor = { provided("theme").text }, text = "Semibold 18", wrap = false ],
@@ -200,8 +201,8 @@ App [ minWidth = 340,
                         Snippet [ code = "Text [ fontSize = 26, fontWeight = bold, text = \"Bold 26\" ]\nText [ fontSize = 18, fontWeight = semibold, text = \"Semibold 18\" ]\nText [ fontSize = 14, text = \"Regular 14\" ]" ]
                         ],
 
-                    Card [ label = "ITALIC & FAMILY",
-                        row: View [ width = { parent.width - 32 }, height = { this.contentHeight },
+                    Specimen [ label = "ITALIC & FAMILY",
+                        row: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 6 ],
                             Text [ fontSize = 20, italic = true, textColor = { provided("theme").text }, text = "Italic, the same face", wrap = false ],
                             Text [ fontSize = 20, fontFamily = "Georgia, 'Times New Roman', serif", textColor = { provided("theme").text }, text = "A serif family", wrap = false ]
@@ -213,8 +214,8 @@ App [ minWidth = 340,
                 tR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                    Card [ label = "COLOR & GRADIENT",
-                        row: View [ width = { parent.width - 32 }, height = { this.contentHeight },
+                    Specimen [ label = "COLOR & GRADIENT",
+                        row: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 8 ],
                             Text [ fontSize = 24, fontWeight = bold, textColor = { provided("theme").accent }, text = "A themed accent", wrap = false ],
                             Text [ fontSize = 30, fontWeight = bold, wrap = false, text = "Gradient fill", textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
@@ -222,20 +223,20 @@ App [ minWidth = 340,
                         Snippet [ code = "Text [ fontWeight = bold, textColor = { theme.accent },\n    text = \"A themed accent\" ]\nText [ fontWeight = bold, text = \"Gradient fill\",\n    textFill = gradient(\"90deg\", #4C8DFF, #37E0C8) ]" ]
                         ],
 
-                    Card [ label = "SHADOW",
-                        Text [ width = { parent.width - 32 }, fontSize = 32, fontWeight = bold, wrap = false, text = "Lifted off the page",
+                    Specimen [ label = "SHADOW",
+                        Text [ width = 100%, fontSize = 32, fontWeight = bold, wrap = false, text = "Lifted off the page",
                             textColor = { provided("theme").text }, textShadow = { shadow(0, 3, 10, 0x00000055) } ],
                         Snippet [ code = "Text [ fontSize = 32, fontWeight = bold,\n    text = \"Lifted off the page\",\n    textShadow = shadow(0, 3, 10, #00000055) ]" ]
                         ],
 
-                    Card [ label = "TRACKING",
-                        Text [ width = { parent.width - 32 }, fontSize = 15, fontWeight = semibold, letterSpacing = 4, wrap = false,
+                    Specimen [ label = "TRACKING",
+                        Text [ width = 100%, fontSize = 15, fontWeight = semibold, letterSpacing = 4, wrap = false,
                             textColor = { provided("theme").textMuted }, text = "W I D E   S E T" ],
                         Snippet [ code = "Text [ letterSpacing = 4, fontWeight = semibold,\n    text = \"W I D E   S E T\" ]" ]
                         ],
 
-                    Card [ label = "A LINK",
-                        Text [ width = { parent.width - 32 }, fontSize = 17, fontWeight = medium, wrap = false, text = "Declare on GitHub →",
+                    Specimen [ label = "A LINK",
+                        Text [ width = 100%, fontSize = 17, fontWeight = medium, wrap = false, text = "Declare on GitHub →",
                             textColor = { provided("theme").accent }, link = "https://github.com/davidtemkin/declarelang" ],
                         Snippet [ code = "Text [ link = \"https://github.com/davidtemkin/declarelang\",\n    textColor = { theme.accent }, text = \"Declare on GitHub →\" ]" ]
                         ]
@@ -244,30 +245,30 @@ App [ minWidth = 340,
 
             // ════════════════ RICH TEXT (HTMLText) ════════════════
 
-            rich: View [ visible = { app.page == "rich" }, width = { parent.width },
+            rich: View [ visible = { app.page == "rich" }, width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                cols: View [ width = { parent.width },
+                cols: View [ width = 100%,
                     layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
 
                     rL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                         layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                        Card [ label = "INLINE STYLES",
-                            HTMLText [ width = { parent.width - 32 }, fontSize = 16, bodyColor = { provided("theme").text },
+                        Specimen [ label = "INLINE STYLES",
+                            HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "One line with <b>bold</b>, <i>italic</i>, and <code>inline code</code> sharing a baseline." ],
                             Snippet [ code = "HTMLText [ html = \"One line with <b>bold</b>,\n    <i>italic</i>, and <code>inline code</code>\n    sharing a baseline.\" ]" ]
                             ],
 
-                        Card [ label = "AN INLINE LINK",
-                            HTMLText [ width = { parent.width - 32 }, fontSize = 16, bodyColor = { provided("theme").text },
+                        Specimen [ label = "AN INLINE LINK",
+                            HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 linkColor = { provided("theme").accent }, linkUnderline = true,
                                 html = "Read the <a href='#space'>space chapter</a> for how this flows." ],
                             Snippet [ code = "HTMLText [ linkColor = { theme.accent }, linkUnderline = true,\n    html = \"Read the <a href='#space'>space chapter</a>\n    for how this flows.\" ]" ]
                             ],
 
-                        Card [ label = "SYNTAX-COLORED SPANS",
-                            HTMLText [ width = { parent.width - 32 }, fontSize = 14, bodyColor = { provided("theme").text },
+                        Specimen [ label = "SYNTAX-COLORED SPANS",
+                            HTMLText [ width = 100%, fontSize = 14, bodyColor = { provided("theme").text },
                                 html = "<pre><span class='kw'>class</span> <span class='ty'>Board</span> [\n    name = <span class='st'>\"demo\"</span>,\n    ]</pre>" ],
                             Snippet [ code = "style kw [ textColor = #C678DD ]\nstyle ty [ textColor = #E5C07B ]\nstyle st [ textColor = #98C379 ]\n\nHTMLText [ html = \"<pre><span class='kw'>class</span>\n    <span class='ty'>Board</span> [ … ]</pre>\" ]" ]
                             ]
@@ -276,14 +277,14 @@ App [ minWidth = 340,
                     rR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                         layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                        Card [ label = "NAMED STYLE",
-                            HTMLText [ width = { parent.width - 32 }, fontSize = 17, bodyColor = { provided("theme").text },
+                        Specimen [ label = "NAMED STYLE",
+                            HTMLText [ width = 100%, fontSize = 17, bodyColor = { provided("theme").text },
                                 html = "Built with <span class='brand'>Declare</span>, styled by name." ],
                             Snippet [ code = "style brand [ fontWeight = bold,\n    textFill = gradient(\"90deg\", #4C8DFF, #37E0C8) ]\n\nHTMLText [ html = \"Built with\n    <span class='brand'>Declare</span>, styled by name.\" ]" ]
                             ],
 
-                        Card [ label = "VARIABLE SIZE, ONE BASELINE",
-                            HTMLText [ width = { parent.width - 32 }, fontSize = 16, bodyColor = { provided("theme").text },
+                        Specimen [ label = "VARIABLE SIZE, ONE BASELINE",
+                            HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "A <span class='big'>headline</span> word sits big and still on the line." ],
                             Snippet [ code = "style big [ fontSize = 40,\n    textFill = gradient(\"90deg\", #4C8DFF, #37E0C8) ]\n\nHTMLText [ html = \"A <span class='big'>headline</span>\n    word sits big and still on the line.\" ]" ]
                             ],
@@ -291,8 +292,8 @@ App [ minWidth = 340,
                         // A tag naming a class this file declares is one real view of
                         // that class, placed in the line as a box the words flow around.
 
-                        Card [ label = "A VIEW IN A SENTENCE",
-                            HTMLText [ width = { parent.width - 32 }, fontSize = 16, bodyColor = { provided("theme").text },
+                        Specimen [ label = "A VIEW IN A SENTENCE",
+                            HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> this morning." ],
                             Snippet [ code = "class Chip extends View [ label: string = \"\",\n    height = 19, width = { this.t.width + 18 }, cornerRadius = 9,\n    t: TextLabel [ x = 9, y = center, fontSize = 11.5,\n        text = { classroot.label } ]\n    ]\n\nHTMLText [ html = \"Filed under <Chip label='docs'/>\n    and <Chip label='runtime'/> this morning.\" ]" ]
                             ],
@@ -300,8 +301,8 @@ App [ minWidth = 340,
                         // …and because it is a real view it has state: hover one,
                         // click it, and the line re-flows around its new width.
 
-                        Card [ label = "A VIEW, NOT A RUN",
-                            HTMLText [ width = { parent.width - 32 }, fontSize = 16, bodyColor = { provided("theme").text },
+                        Specimen [ label = "A VIEW, NOT A RUN",
+                            HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "Click <Pill label='either'/> or <Pill label='this one'/> — each keeps its own state, and the line re-flows." ],
                             Snippet [ code = "class Pill extends View [ label: string = \"\",\n    picked: boolean = false,\n    fill = { picked ? theme.accent : (hovered ? theme.line : theme.bg) },\n    onClick() { picked = !picked },\n    t: TextLabel [ text = { classroot.picked ? classroot.label + \" ✓\"\n        : classroot.label } ]\n    ]" ]
                             ]
@@ -312,8 +313,8 @@ App [ minWidth = 340,
                 // the bottom: a heading, several paragraphs, a quote and a list,
                 // carrying a dozen named styles — the render, then the exact html.
 
-                Card [ label = "A STYLED DOCUMENT",
-                    HTMLText [ width = { parent.width - 32 }, fontSize = 16, bodyColor = { provided("theme").text },
+                Specimen [ label = "A STYLED DOCUMENT",
+                    HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                         linkColor = { provided("theme").accent }, linkUnderline = true,
                         html = """
 <h3>The <span class='brand'>shape</span> of a sentence</h3>
@@ -333,26 +334,26 @@ App [ minWidth = 340,
 
             // ════════════════ EFFECTS ════════════════
 
-            effects: View [ visible = { app.page == "effects" }, width = { parent.width },
+            effects: View [ visible = { app.page == "effects" }, width = 100%,
                 layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
 
                 eL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                    Card [ label = "SHADOW",
-                        HTMLText [ width = { parent.width - 32 }, fontSize = 26, bodyColor = { provided("theme").text },
+                    Specimen [ label = "SHADOW",
+                        HTMLText [ width = 100%, fontSize = 26, bodyColor = { provided("theme").text },
                             html = "A <span class='shad'>lifted</span> word" ],
                         Snippet [ code = "style shad [ textShadow = shadow(0, 2, 7, #00000055) ]\n\nHTMLText [ html = \"A <span class='shad'>lifted</span> word\" ]" ]
                         ],
 
-                    Card [ label = "OUTLINE",
-                        HTMLText [ width = { parent.width - 32 }, fontSize = 26, bodyColor = { provided("theme").text },
+                    Specimen [ label = "OUTLINE",
+                        HTMLText [ width = 100%, fontSize = 26, bodyColor = { provided("theme").text },
                             html = "An <span class='ring'>outlined</span> word" ],
                         Snippet [ code = "style ring [ outline = outline(1, #C0392B),\n    textColor = #FFFFFF, fontWeight = bold ]\n\nHTMLText [ html = \"An <span class='ring'>outlined</span> word\" ]" ]
                         ],
 
-                    Card [ label = "SMALL CAPS",
-                        HTMLText [ width = { parent.width - 32 }, fontSize = 26, bodyColor = { provided("theme").text },
+                    Specimen [ label = "SMALL CAPS",
+                        HTMLText [ width = 100%, fontSize = 26, bodyColor = { provided("theme").text },
                             html = "In <span class='caps'>Small Capitals</span> here" ],
                         Snippet [ code = "style caps [ smallCaps = true, letterSpacing = 0.5 ]\n\nHTMLText [ html = \"In <span class='caps'>Small Capitals</span> here\" ]" ]
                         ]
@@ -361,20 +362,20 @@ App [ minWidth = 340,
                 eR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                    Card [ label = "TRANSFORM",
-                        HTMLText [ width = { parent.width - 32 }, fontSize = 26, bodyColor = { provided("theme").text },
+                    Specimen [ label = "TRANSFORM",
+                        HTMLText [ width = 100%, fontSize = 26, bodyColor = { provided("theme").text },
                             html = "The <span class='upper'>quiet</span> label" ],
                         Snippet [ code = "style upper [ textTransform = uppercase,\n    letterSpacing = 2, fontWeight = semibold ]\n\nHTMLText [ html = \"The <span class='upper'>quiet</span> label\" ]" ]
                         ],
 
-                    Card [ label = "UNDERLINE",
-                        HTMLText [ width = { parent.width - 32 }, fontSize = 26, bodyColor = { provided("theme").text },
+                    Specimen [ label = "UNDERLINE",
+                        HTMLText [ width = 100%, fontSize = 26, bodyColor = { provided("theme").text },
                             html = "A <span class='mark'>marked</span> phrase" ],
                         Snippet [ code = "style mark [ underline = true, textColor = #1A7F37 ]\n\nHTMLText [ html = \"A <span class='mark'>marked</span> phrase\" ]" ]
                         ],
 
-                    Card [ label = "STRIKE",
-                        HTMLText [ width = { parent.width - 32 }, fontSize = 26, bodyColor = { provided("theme").text },
+                    Specimen [ label = "STRIKE",
+                        HTMLText [ width = 100%, fontSize = 26, bodyColor = { provided("theme").text },
                             html = "A <span class='gone'>retracted</span> line" ],
                         Snippet [ code = "style gone [ strike = true, textColor = #9AA4AE ]\n\nHTMLText [ html = \"A <span class='gone'>retracted</span> line\" ]" ]
                         ]
@@ -383,14 +384,14 @@ App [ minWidth = 340,
 
             // ════════════════ MARKDOWN ════════════════
 
-            markdown: View [ visible = { app.page == "markdown" }, width = { parent.width },
+            markdown: View [ visible = { app.page == "markdown" }, width = 100%,
                 layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
 
                 mL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                    Card [ label = "A DOCUMENT",
-                        Markdown [ width = { parent.width - 32 }, scale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI }, selectable = true,
+                    Specimen [ label = "A DOCUMENT",
+                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI }, selectable = true,
                             text = """
 ## Reading well
 
@@ -410,8 +411,8 @@ scale. It carries **bold**, *italic*, `code`, and a
                 mR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-                    Card [ label = "A TABLE",
-                        Markdown [ width = { parent.width - 32 }, scale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI },
+                    Specimen [ label = "A TABLE",
+                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI },
                             text = """
 | City | People |
 | :-- | --: |
@@ -422,8 +423,8 @@ scale. It carries **bold**, *italic*, `code`, and a
                         Snippet [ code = "| City | People |\n| :-- | --: |\n| San Francisco | 808,000 |\n| Cupertino | 57,000 |\n| Redmond | 78,000 |" ]
                         ],
 
-                    Card [ label = "A CODE BLOCK",
-                        Markdown [ width = { parent.width - 32 }, scale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI },
+                    Specimen [ label = "A CODE BLOCK",
+                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI },
                             text = """
 ```
 App [ width = 480,
@@ -437,7 +438,7 @@ Text [ text = "hello" ] ]
 
             // A little breathing room under the last card on every page.
 
-            foot: View [ width = { parent.width }, height = 40 ]
+            foot: View [ width = 100%, height = 40 ]
             ]
         ]
     ]

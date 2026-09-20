@@ -1,0 +1,195 @@
+{
+  "stamp": "2026-09-20T17-00-21-168Z",
+  "targets": [
+    "mac"
+  ],
+  "trees": {
+    "before": "/Users/temkin/Code/Declare-Before",
+    "after": "/Users/temkin/Code/Declare-After"
+  },
+  "rows": [
+    {
+      "target": "mac",
+      "case": "desktop:menus",
+      "before": {
+        "case": "desktop:menus",
+        "ms": 7323,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 241,
+            "ms": 5032.7,
+            "max": 403.91
+          },
+          "evals": {
+            "n": 41468,
+            "js": 40912,
+            "notInJs": 556
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 81,
+            "ms": 41.12,
+            "stringifyMs": 12.43,
+            "bytes": 282793,
+            "ops": 7125
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:leave": 6,
+            "desktop:menuOpen": 12,
+            "hover:enter": 8
+          },
+          "spans": {}
+        },
+        "hostStats": "commits=9726 over 811616435.13s (0.0/s)  linkTicks=91295 (0.0 Hz)  pumps=90334\n  commit ms  p50=0.97 p95=21.21 max=567.90  avgBytes=14043\n  gap ms     p50=8.13 p95=108.34 max=206840.35  (display budget 8.33) over=1424\n  MOTION gap ms p50=16.08 p95=108.58 max=206840.35  over=4149  (n=7955)\n  RESIZE path n=0  total=0.0ms  avg=0.00 max=0.00   of which __declareResize=0.0ms  __declareSettle=0.0ms  pump+apply=0.0ms\n  first commits:\n    \n  ticks:   worstGapAtCommit=9/9726\n  rasters=0  rasterMs total=0.0 avg=0.00 (0% of commit) overlayMs total=0.0 (0% of commit)   ops: \n  CATransaction.commit total=0ms (0% of commit)  of which CPU=0ms, WAITING=0ms\n  TextLayer.draw n=0 total=0ms (0% of commit) lineBuilds=0\n  RichOverlay.redraw n=0 0.0 Mpx 0ms\n  richLayout n=0 0ms 0 KB\n  rich bitmaps HELD: n=0  0.0 MB\n    parse=0ms  build=0ms (n=0)  layout=0ms\n  opMs: \n  redrawn: \n  rasterMs by node: \n    LAYERS: described=8128  rasterized=406\n    hidden: skipped=0  paid back on reveal=0 (0ms)  still owed=34\n    (top node is 0% of all raster time; 0 nodes rastered)",
+        "resizeKind": "host"
+      },
+      "after": {
+        "case": "desktop:menus",
+        "ms": 6993,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 286,
+            "ms": 2589.21,
+            "max": 61.58
+          },
+          "evals": {
+            "n": 47014,
+            "js": 46149,
+            "notInJs": 865
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 78,
+            "ms": 42.94,
+            "stringifyMs": 10.12,
+            "bytes": 275395,
+            "ops": 6782
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:menuOpen": 12,
+            "hover:enter": 8
+          },
+          "spans": {}
+        },
+        "hostStats": "commits=12619 over 811616451.66s (0.0/s)  linkTicks=94830 (0.0 Hz)  pumps=94467\n  commit ms  p50=1.34 p95=17.07 max=465.37  avgBytes=9248\n  gap ms     p50=7.64 p95=91.73 max=23043.25  (display budget 8.33) over=781\n  MOTION gap ms p50=30.12 p95=108.67 max=46878.71  over=6002  (n=10784)\n  RESIZE path n=0  total=0.0ms  avg=0.00 max=0.00   of which __declareResize=0.0ms  __declareSettle=0.0ms  pump+apply=0.0ms\n  first commits:\n    \n  ticks:   worstGapAtCommit=8/12619\n  rasters=0  rasterMs total=0.0 avg=0.00 (0% of commit) overlayMs total=0.0 (0% of commit)   ops: \n  CATransaction.commit total=0ms (0% of commit)  of which CPU=0ms, WAITING=0ms\n  TextLayer.draw n=0 total=0ms (0% of commit) lineBuilds=0\n  RichOverlay.redraw n=0 0.0 Mpx 0ms\n  richLayout n=0 0ms 0 KB\n  rich bitmaps HELD: n=0  0.0 MB\n    parse=0ms  build=0ms (n=0)  layout=0ms\n  opMs: \n  redrawn: \n  rasterMs by node: \n    LAYERS: described=13197  rasterized=526\n    hidden: skipped=0  paid back on reveal=0 (0ms)  still owed=34\n    (top node is 0% of all raster time; 0 nodes rastered)",
+        "resizeKind": "host"
+      }
+    },
+    {
+      "target": "mac",
+      "case": "desktop:hover",
+      "before": {
+        "case": "desktop:hover",
+        "ms": 17140,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 329,
+            "ms": 15623.89,
+            "max": 575.27
+          },
+          "evals": {
+            "n": 121870,
+            "js": 121870,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 135,
+            "ms": 146.61,
+            "stringifyMs": 24.53,
+            "bytes": 1703672,
+            "ops": 28029
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:leave": 174,
+            "hover:enter": 174
+          },
+          "spans": {}
+        },
+        "hostStats": "commits=9870 over 811616473.59s (0.0/s)  linkTicks=94071 (0.0 Hz)  pumps=92793\n  commit ms  p50=0.97 p95=21.21 max=567.90  avgBytes=14022\n  gap ms     p50=8.13 p95=108.34 max=206840.35  (display budget 8.33) over=1424\n  MOTION gap ms p50=18.35 p95=108.73 max=206840.35  over=4285  (n=8091)\n  RESIZE path n=0  total=0.0ms  avg=0.00 max=0.00   of which __declareResize=0.0ms  __declareSettle=0.0ms  pump+apply=0.0ms\n  first commits:\n    \n  ticks:   worstGapAtCommit=9/9870\n  rasters=0  rasterMs total=0.0 avg=0.00 (0% of commit) overlayMs total=0.0 (0% of commit)   ops: \n  CATransaction.commit total=0ms (0% of commit)  of which CPU=0ms, WAITING=0ms\n  TextLayer.draw n=0 total=0ms (0% of commit) lineBuilds=0\n  RichOverlay.redraw n=0 0.0 Mpx 0ms\n  richLayout n=0 0ms 0 KB\n  rich bitmaps HELD: n=0  0.0 MB\n    parse=0ms  build=0ms (n=0)  layout=0ms\n  opMs: \n  redrawn: \n  rasterMs by node: \n    LAYERS: described=8186  rasterized=412\n    hidden: skipped=0  paid back on reveal=0 (0ms)  still owed=23\n    (top node is 0% of all raster time; 0 nodes rastered)",
+        "resizeKind": "host"
+      },
+      "after": {
+        "case": "desktop:hover",
+        "ms": 9664,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 367,
+            "ms": 6360.01,
+            "max": 171.26
+          },
+          "evals": {
+            "n": 171242,
+            "js": 97330,
+            "notInJs": 73912
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 143,
+            "ms": 201.73,
+            "stringifyMs": 27.15,
+            "bytes": 2270634,
+            "ops": 36945
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:leave": 174,
+            "hover:enter": 174
+          },
+          "spans": {}
+        },
+        "hostStats": "commits=12767 over 811616486.31s (0.0/s)  linkTicks=97981 (0.0 Hz)  pumps=97401\n  commit ms  p50=1.34 p95=17.07 max=465.37  avgBytes=9327\n  gap ms     p50=7.64 p95=91.73 max=23043.25  (display budget 8.33) over=781\n  MOTION gap ms p50=30.99 p95=108.66 max=46878.71  over=6146  (n=10928)\n  RESIZE path n=0  total=0.0ms  avg=0.00 max=0.00   of which __declareResize=0.0ms  __declareSettle=0.0ms  pump+apply=0.0ms\n  first commits:\n    \n  ticks:   worstGapAtCommit=8/12767\n  rasters=0  rasterMs total=0.0 avg=0.00 (0% of commit) overlayMs total=0.0 (0% of commit)   ops: \n  CATransaction.commit total=0ms (0% of commit)  of which CPU=0ms, WAITING=0ms\n  TextLayer.draw n=0 total=0ms (0% of commit) lineBuilds=0\n  RichOverlay.redraw n=0 0.0 Mpx 0ms\n  richLayout n=0 0ms 0 KB\n  rich bitmaps HELD: n=0  0.0 MB\n    parse=0ms  build=0ms (n=0)  layout=0ms\n  opMs: \n  redrawn: \n  rasterMs by node: \n    LAYERS: described=13263  rasterized=532\n    hidden: skipped=0  paid back on reveal=0 (0ms)  still owed=23\n    (top node is 0% of all raster time; 0 nodes rastered)",
+        "resizeKind": "host"
+      }
+    }
+  ],
+  "voided": [],
+  "skipped": []
+}

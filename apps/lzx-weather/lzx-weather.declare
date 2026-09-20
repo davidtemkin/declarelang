@@ -87,11 +87,11 @@ class WeatherTab extends View [ width = 100%,
         selected = on
         },
 
-    header: View [ width = { parent.width },
+    header: View [ width = 100%,
 
         onClick() { classroot.parent.select(classroot) },
 
-        bg: BeveledBar [ width = { parent.width }, height = 25,
+        bg: BeveledBar [ width = 100%, height = 25,
             fill = #6F79A7, highlight = #BCC4E2, lowlight = #1A2452,
             opacity = { selected ? 0.33 : 1 } ],
         icon: Image [ source = "resources/slider_icon2.png", x = 2, y = 3 ],

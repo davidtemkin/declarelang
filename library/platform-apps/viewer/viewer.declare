@@ -24,8 +24,6 @@
 
 // the appearance switch names its icons in data, so the build keeps the classes
 
-use [ SunIcon, AutoIcon, MoonIcon ]
-
 // one segment: prose (Markdown) or code (colored, monospace <pre>). Exactly one
 // child is visible, so the segment's auto-height is that child's height. Prose is
 // inset (a narrower reading column); code spans the full width, so the two read as
@@ -37,7 +35,7 @@ class Block extends View [ kind: string = "",
     nested: boolean = false,                     // born inside a declaration's body: an aside, not a section break
     joinBelow: boolean = false,                  // the next segment is a nested aside: this card's bottom-left squares
 
-    width = { parent.width },
+    width = 100%,
 
     // prose reads like a book: left-aligned to the shared spine, capped at the
     // reading measure, with space above it that becomes the section break.
@@ -49,7 +47,7 @@ class Block extends View [ kind: string = "",
     prose: Markdown [ visible = { classroot.kind == "prose" }, x = { classroot.nested ? 20 : 0 },
         y = { classroot.nested ? 8 : app.proseTopPad },
         width = { Math.min(parent.width - (classroot.nested ? 20 : 0), app.proseMeasure * app.fontScale) },
-        text = { classroot.md }, scale = { app.fontScale }, lineHeight = 1.6,
+        text = { classroot.md }, fontScale = { app.fontScale }, lineHeight = 1.6,
         bodyColor = { provided("theme").text }, dark = { app.isDark }, selectable = true ],
 
     // the thread: the code spine, continued through the aside — unbroken and at
@@ -71,9 +69,15 @@ class Block extends View [ kind: string = "",
     // above it, running the full width with a teal spine on the shared left edge.
     // The <pre> never wraps — long constraint lines scroll horizontally.
 
-    code: View [ visible = { classroot.kind == "code" }, width = { parent.width },
+    code: View [ visible = { classroot.kind == "code" }, width = 100%,
         height = { this.body.height + 32 },
         clip = true,                             // the card contains its code: long lines clip at the box (the DOM's pre scrolls natively; the sealed surface must say so)
+
+        // the card's text gutter is the card's own content box. The spine is
+        // drawn, not a child, so nothing here has to opt out of the inset —
+        // and `draw()` below still addresses the outer box, where the shape is.
+
+        padding = [16, 20, 16, 20],
 
         // the card's own shape, stated exactly: rounded everywhere except the
         // corner an aside joins — the card above an aside squares its
@@ -93,9 +97,9 @@ class Block extends View [ kind: string = "",
             d.fillStyle = provided("theme").accentSecondary
             d.fillRect(0, 0, 2, this.height)
             },
-        body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrolls = x, height = { this.contentHeight },
-            HTMLText [ x = 0, y = 0, width = { parent.width },
-                html = { classroot.html }, scale = { app.fontScale },
+        body: View [ width = 100%, scrolls = x, height = { this.contentHeight },
+            HTMLText [ x = 0, y = 0, width = 100%,
+                html = { classroot.html }, fontScale = { app.fontScale },
                 textStyles = { app.codeTextStyles() }, bodyColor = { app.codeFg() }, selectable = true,
 
                 // file links read as links: the conventional blue, underlined
@@ -156,10 +160,14 @@ App [ fill = { provided("theme").bg },
     // followed file when the location names one, nothing when the seeds serve
 
     srcUrl(q: string) -> string {
-        if (app.env.program) return "" + app.env.program + q
+        if (app.hostProgram != "") return app.hostProgram + q
         if (app.fileRel == "") return ""
         return "/" + app.fileRel + q
         },
+
+    // the program a host names as the subject (the desktop's viewer window); "" standalone
+
+    hostProgram: string = { hostProvided("subject", "") },
 
     barH: number = 52,
     topM: number = 40,    // reader top margin (foot matches it at the bottom)
@@ -192,18 +200,12 @@ App [ fill = { provided("theme").bg },
     liveCard: string = "",      // the edit tab republishes each keystroke on this pair …
     liveSource: string = "",    // … and the host recompiles it, feeding app.liveReport back
 
-    // auto follows the host's appearance, three tiers: the island bridge's
-    // typed fact first (`external darkOverride` — "" = the host said nothing,
-    // which is what an unlinked standalone run reads), then the env ancestor
-    // (a host passing env.dark), then the system preference. Light/Dark stay
-    // explicit overrides.
-
-    external darkOverride: string = "",
+    // auto follows the HOST's appearance when a host provides one, else the
+    // system preference. The bar's AppearanceSwitch sets "light" or "dark",
+    // and from then on that holds.
 
     isDark: boolean = { app.themeMode == "auto"
-        ? (app.darkOverride != ""
-            ? app.darkOverride == "dark"
-            : (app.env.dark != null ? app.env.dark == true : app.dark))
+        ? hostProvided("dark", app.dark)
         : app.themeMode == "dark" },
 
     // The house preset, plus this app's two domain names — and no private
@@ -315,7 +317,7 @@ App [ fill = { provided("theme").bg },
     // the file's tree-relative path, split so the header can bold the filename:
     // the opened program's, or the followed file's resolved against it
 
-    seededPath() -> string { return (app.demoSources && app.demoSources["__path__"]) || (app.env.program ? "" + app.env.program : "source") },
+    seededPath() -> string { return (app.demoSources && app.demoSources["__path__"]) || (app.hostProgram != "" ? app.hostProgram : "source") },
 
     // the viewed file's served path: the followed file's own, else the opened program's
 
@@ -458,7 +460,7 @@ App [ fill = { provided("theme").bg },
 
             // a blue→teal thread of the brand accent, the origin of the code spine
 
-            rule: View [ y = { 34 * app.fontScale }, width = { parent.width }, height = 2, cornerRadius = 1,
+            rule: View [ y = { 34 * app.fontScale }, width = 100%, height = 2, cornerRadius = 1,
                 opacity = { app.isDark ? 0.72 : 1 },
                 fill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) } ]
             ],
@@ -478,14 +480,14 @@ App [ fill = { provided("theme").bg },
             x = { Math.max(24, (parent.width - this.width) / 2) },
             fill = { provided("theme").codeBg }, cornerRadius = 8, clip = true,
             height = { this.body.height + 32 },
-            spine: View [ x = 0, y = 0, width = 2, height = { parent.height }, fill = { provided("theme").accentSecondary } ],
+            spine: View [ x = 0, y = 0, width = 2, height = 100%, fill = { provided("theme").accentSecondary } ],
 
             // verbatim source at the house code rendition — the same face and size
             // as the reader's highlighted code, so the two views read identically.
 
             body: View [ x = 20, y = 16, width = { parent.width - 40 }, scrolls = x, height = { this.contentHeight },
-                HTMLText [ x = 0, y = 0, width = { parent.width }, html = { app.plainHtml() },
-                    scale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ]
+                HTMLText [ x = 0, y = 0, width = 100%, html = { app.plainHtml() },
+                    fontScale = { app.fontScale }, bodyColor = { app.codeFg() }, selectable = true ]
                 ]
             ],
 
@@ -552,7 +554,7 @@ App [ fill = { provided("theme").bg },
         editorH: number = { split > 0 ? split : Math.floor(height * 0.42) },
         edited: boolean = false,    // an edit exists (arms Revert; onInput sets it)
 
-        editor: TextInput [ x = 0, y = 0, width = { parent.width }, height = { parent.editorH },
+        editor: TextInput [ x = 0, y = 0, width = 100%, height = { parent.editorH },
             multiline = true, spellcheck = false, wrap = false, padding = 14,
 
             // the A stepper drives every pane, this one included
@@ -591,7 +593,7 @@ App [ fill = { provided("theme").bg },
         // grip is what's moving); the shield (the last child) merely blocks
         // the browser's native text selection in the editor beneath.
 
-        grip: View [ x = 0, y = { parent.editorH }, width = { parent.width }, height = 6,
+        grip: View [ x = 0, y = { parent.editorH }, width = 100%, height = 6,
             dragging: boolean = false,
             fill = { dragging || hovered ? provided("theme").accentSecondary : provided("theme").line },
             drag(y: number) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
@@ -605,10 +607,10 @@ App [ fill = { provided("theme").bg },
         // report reads past its "1 error" summary line
 
         report: View [ visible = { app.liveReport != "" }, x = 0, y = { parent.editorH + 6 },
-            width = { parent.width }, clip = true,
+            width = 100%, clip = true,
             height = { Math.min(200, this.msg.height + 20) },
             fill = { app.isDark ? 0x2A1517 : 0xFDECEC },
-            bar: View [ x = 0, y = 0, width = 3, height = { parent.height }, fill = { app.isDark ? 0xE0525E : 0xC93B47 } ],
+            bar: View [ x = 0, y = 0, width = 3, height = 100%, fill = { app.isDark ? 0xE0525E : 0xC93B47 } ],
             msg: Text [ x = 14, y = 10, width = { parent.width - 28 }, wrap = true,
                 fontFamily = ["ui-monospace", "monospace"], fontSize = 11,
                 textColor = { app.isDark ? 0xFF8B8B : 0xB42318 }, text = { app.liveReport } ]
@@ -618,7 +620,7 @@ App [ fill = { provided("theme").bg },
         // to each clean recompile (renderChild); a floor-declaring app pans here
 
         run: AppIsland [ x = 0, y = { parent.editorH + 6 + (app.liveReport != "" ? parent.report.height : 0) },
-            width = { parent.width },
+            width = 100%,
             height = { parent.height - this.y },
             program = { app.mode == "edit" ? "__raw__" : "" } ],
 
@@ -628,7 +630,7 @@ App [ fill = { provided("theme").bg },
         // editor's textarea underneath cannot rubber-band a text selection.
 
         shield: View [ visible = { parent.grip.dragging }, x = 0, y = 0,
-            width = { parent.width }, height = { parent.height } ]
+            width = 100%, height = 100% ]
         ],
 
     // top bar: the brand (left) · Reader / Source / Edit (centre) · type-size
@@ -637,7 +639,7 @@ App [ fill = { provided("theme").bg },
 
     bar: View [ x = 0, y = 0, width = { app.hostWidth }, height = { app.barH }, fill = { provided("theme").bg },
 
-        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
+        hair: View [ x = 0, y = { app.barH - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
 
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
@@ -695,13 +697,9 @@ App [ fill = { provided("theme").bg },
             SizeBtn [ glyph = 19, delta = 0.1 ]
             ],
 
-        themeSwitch: Segmented [ y = { (app.barH - 30) / 2 }, x = { app.hostWidth - 94 - 16 },
-            height = 30, width = 94, iconSize = 15,
-            value = { app.themeMode },
-            input(v: object) { app.themeMode = "" + v },
-            choices = { [ ({ id: "light", icon: "SunIcon" }),
-                          ({ id: "auto",  icon: "AutoIcon" }),
-                          ({ id: "dark",  icon: "MoonIcon" }) ] }
+        themeSwitch: AppearanceSwitch [ y = { (app.barH - this.height) / 2 }, x = { app.hostWidth - this.width - 16 },
+            dark = { app.isDark },
+            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
         ]
     ]

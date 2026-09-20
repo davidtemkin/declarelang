@@ -38,7 +38,7 @@ registered elsewhere.
 
 ### SATOR-6 — Small, and fast where it counts
 A full application ships small — the flagship calendar, application *and* runtime,
-at roughly <!--stat:calendar.wireKB-->89<!--/stat--> KB gzipped (machine-stamped from
+at roughly <!--stat:calendar.wireKB-->112<!--/stat--> KB gzipped (machine-stamped from
 the measured artifact): a compact runtime, practical on a phone over a slow network.
 Input latency is low — there is no virtual-DOM pass between gesture and pixels — and
 animation runs at the display's full rate. The homepage reports the live size figures,

@@ -1,16 +1,16 @@
 // orbit.js — the second FOREIGN tenant: a <canvas> animation with its own
 // requestAnimationFrame clock, its own native <input type=range>, no Declare
-// in the file. It rides the same bridge as tally.js (box.__declareIsland),
+// in the file. It rides the same handle as tally.js (box.__declareIsland),
 // and its surface shows the full triangle of the demo:
 //
-//   hue    host-owned   (bound to the master slider) — recolors the dots
-//   dots   host-owned   — but bound to `app.tally.count`, the OTHER tenant's
+//   hue    provided     (the master slider's value) — recolors the dots
+//   dots   provided     — but bound to tally's exposed count, the OTHER tenant's
 //                        fact: a value that left one foreign app, crossed into
 //                        Declare, and arrives here pushed by a constraint.
 //                        This file cannot tell and does not care — it just
 //                        follows a number.
-//   speed  tenant-owned (`external readonly` host-side) — our range input
-//                        pushes it up; the host's caption derives from it.
+//   speed  exposed      — ours: our range input exposes it up, and the
+//                        host's caption derives from it.
 //
 // Verbs: "reset" arrives from the host's button (speed back to 1); a
 // double-click on the canvas posts "burst" up, which the host writes into its
@@ -21,8 +21,7 @@ export function mountOrbit(box) {
 
   // ---- our world: a canvas and a native control -------------------------
 
-  let hue = h.get("hue");     // initial values by get(); changes by observe()
-  let dots = h.get("dots");
+  let hue = 0, dots = 0;       // set by the watches below, immediately
   let speed = 1;
   let angle = 0;
 
@@ -50,23 +49,24 @@ export function mountOrbit(box) {
   box.append(root);
 
   // ---- facts IN ---------------------------------------------------------
-  // Both hue and dots are host-bound; we follow them. Note that a change to
+  // Both hue and dots are provided by the host; we follow them. Note that a change to
   // dots is REALLY a tap in tally.js next door — two app boundaries away.
 
-  h.observe("hue", (v) => { hue = v; });
-  h.observe("dots", (v) => { dots = v; });
+  h.watchProvided("hue", (v) => { hue = v; });
+  h.watchProvided("dots", (v) => { dots = v; });
 
   // ---- a fact OUT -------------------------------------------------------
   // The range input is this app's own control; each input event pushes the
-  // tenant-owned `speed` up to the host, where it is an ordinary reactive
-  // value (`app.orbit.speed` in a Text constraint).
+  // tenant-owned `speed` up to the host (read there as `exposed("speed", 1)`), where it is an ordinary reactive
+  // value in a Text constraint.
 
   const showSpeed = () => { out.textContent = speed.toFixed(1) + "×"; };
   showSpeed();
+  h.expose("speed", speed);
   range.addEventListener("input", () => {
     speed = Number(range.value);
     showSpeed();
-    h.set("speed", speed);
+    h.expose("speed", speed);
   });
 
   // ---- verbs, both ways -------------------------------------------------
@@ -76,7 +76,7 @@ export function mountOrbit(box) {
       speed = 1;
       range.value = "1";
       showSpeed();
-      h.set("speed", 1);
+      h.expose("speed", 1);
     }
   });
   canvas.addEventListener("dblclick", () => h.post("burst", dots));

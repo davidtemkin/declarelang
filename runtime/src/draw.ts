@@ -880,6 +880,41 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
   ctx.restore();
 }
 
+/** The device-pixel rectangle a filtered op can change: its recorded extent
+ *  through the context's transform, grown by the filter's reach (a blur's
+ *  kernel support plus the resampling around it; a colour function is
+ *  per-pixel and reaches nothing), then clipped to the visible region and the
+ *  canvas. `null` = process the whole canvas (no extent recorded, a
+ *  drop-shadow, or a region so large the bookkeeping saves nothing);
+ *  `undefined` = the op reaches nothing visible, so there is nothing to draw. */
+function filterRegion(e: Bounds | null, cull: Bounds | null, m: DOMMatrix, spec: FilterSpec, W: number, H: number): { x: number; y: number; w: number; h: number } | null | undefined {
+  if (e === null || spec.shadows.length > 0) return null;
+  // the A/B lever (profiling and marks builds): the whole canvas, as before
+  if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareNoFilterRegion?: boolean }).__declareNoFilterRegion === true) return null;
+  let b: Bounds = e;
+  if (cull !== null) {
+    const x0 = Math.max(b.x, cull.x), y0 = Math.max(b.y, cull.y), x1 = Math.min(b.x + b.w, cull.x + cull.w), y1 = Math.min(b.y + b.h, cull.y + cull.h);
+    // the blur reaches past the visible edge INTO it too: keep the op's pixels
+    // beyond the cull within the blur's reach (grown below, in device space)
+    if (spec.blur <= 0.5) { if (x1 <= x0 || y1 <= y0) return undefined; b = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }; }
+  }
+  const xs = [b.x, b.x + b.w, b.x, b.x + b.w], ys = [b.y, b.y, b.y + b.h, b.y + b.h];
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (let i = 0; i < 4; i++) {
+    const X = m.a * xs[i] + m.c * ys[i] + m.e, Y = m.b * xs[i] + m.d * ys[i] + m.f;
+    if (X < minX) minX = X; if (X > maxX) maxX = X; if (Y < minY) minY = Y; if (Y > maxY) maxY = Y;
+  }
+  // three box passes of radius ≈ σ reach 3σ; the downsample either side adds a
+  // few source pixels; +2 for rounding and the antialiased edge of the op
+  const f = Math.max(1, Math.min(8, Math.round(spec.blur / 6)));
+  const reach = spec.blur > 0.5 ? Math.ceil(3.5 * spec.blur) + 2 * f + 2 : 2;
+  const x0 = Math.max(0, Math.floor(minX) - reach), y0 = Math.max(0, Math.floor(minY) - reach);
+  const x1 = Math.min(W, Math.ceil(maxX) + reach), y1 = Math.min(H, Math.ceil(maxY) + reach);
+  if (x1 <= x0 || y1 <= y0) return undefined;
+  if ((x1 - x0) * (y1 - y0) > 0.6 * W * H) return null;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 /** Replay with `filter` INTERPRETED — for engines that accept the property and
  *  ignore it.
  *
@@ -916,6 +951,8 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
   /** Draw one mark through the filter: onto the scratch at full opacity and
    *  source-over (alpha and blend belong to the composite), filter it, lay it
    *  down under the target's own transform-free identity, then wipe. */
+  // the op being replayed — its extent bounds what a filter has to process
+  let opIndex = -1;
   const filtered = (paint: (c: CanvasRenderingContext2D) => void): void => {
     sx.save();
     sx.globalAlpha = 1;
@@ -933,11 +970,16 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
     // (Frost is the opposite case and keeps its own scaling: a backdrop blur is
     // stated in VIEW units, and CSS backdrop-filter scales with the element's
     // transform, so paintFrost multiplies by the magnitude on purpose.)
-    const out = applyFilterFallback(scratch as HTMLCanvasElement, spec!);   // an OffscreenCanvas in the worker: the same 2D surface
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.drawImage(out, 0, 0);
-    ctx.restore();
+    // only what this op can reach: its extent in device pixels, grown by the
+    // filter's own reach, within the visible region — null = the whole canvas
+    const region = filterRegion(list.extents?.[opIndex] ?? null, cull, ctx.getTransform(), spec!, W, H);
+    if (region !== undefined) {
+      const out = applyFilterFallback(scratch as HTMLCanvasElement, spec!, false, region);   // an OffscreenCanvas in the worker: the same 2D surface
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(out, region?.x ?? 0, region?.y ?? 0);
+      ctx.restore();
+    }
     sx.save();
     sx.setTransform(1, 0, 0, 1, 0, 0);
     sx.clearRect(0, 0, W, H);
@@ -952,6 +994,7 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
   for (let i = 0; i < list.ops.length; i++) {
     const o = list.ops[i];
     if (culled(list, i, cull)) continue;
+    opIndex = i;
     switch (o.op) {
       case "fillStyle": both((c) => { c.fillStyle = o.grad ? buildGradient(c, o.grad) : o.v!; }); break;
       case "strokeStyle": both((c) => { c.strokeStyle = o.grad ? buildGradient(c, o.grad) : o.v!; }); break;

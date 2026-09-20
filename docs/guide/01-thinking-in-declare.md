@@ -18,8 +18,8 @@ This chapter makes the case and shows you the idea running. The rest of the guid
 teaches you to think in it — and "think in it" is the right phrase, because the
 language asks for one genuine shift in how you picture an interface, and then pays
 that shift back everywhere. By the end you will open a real calendar application —
-four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->502<!--/stat--> lines of code, about
-<!--stat:calendar.total-->841<!--/stat--> with its detailed comments — and understand all of it. That is the promise
+four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->494<!--/stat--> lines of code, about
+<!--stat:calendar.total-->826<!--/stat--> with its detailed comments — and understand all of it. That is the promise
 this guide is structured around; hold it to it.
 
 ## Sixty seconds of proof

@@ -419,7 +419,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         width = { app.selRect != null ? app.selRect.width : 0 },
         height = { app.selRect != null ? app.selRect.height : 0 },
         stroke = { stroke(1, app.c.accent) },
-        tag: View [ x = 0, y = { parent.height }, height = 16, cornerRadius = 3,
+        tag: View [ x = 0, y = 100%, height = 16, cornerRadius = 3,
             width = { this.t.width + 12 }, fill = { app.c.accent },
             t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
                 textColor = 0xFFFFFF, text = { app.selKind + "  " + Math.round(parent.parent.width) + "×" + Math.round(parent.parent.height) } ]
@@ -460,7 +460,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
         // title bar — drag handle
 
-        bar: View [ width = { parent.width }, height = 34, fill = { app.c.bar },
+        bar: View [ width = 100%, height = 34, fill = { app.c.bar },
             onPointerDown() { app.beginDrag() },
             onPointerMove() { app.moveDrag() },
             onPointerUp() { app.endDrag() },
@@ -470,12 +470,12 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
             sub: Text [ x = { parent.width - this.width - 14 }, y = center, fontSize = 11,
                 fontFamily = ["ui-monospace", "monospace"], textColor = { app.c.faint },
                 text = { Inspect.ready() ? (Inspect.stats().nodes + " nodes · " + Inspect.stats().ownedSlots + " slots") : "no subject" } ],
-            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ]
+            rule: View [ x = 0, y = 33, width = 100%, height = 1, fill = { app.c.line } ]
             ],
 
         // toolbar
 
-        tools: View [ x = 0, y = 34, width = { parent.width }, height = 34,
+        tools: View [ x = 0, y = 34, width = 100%, height = 34,
             row: View [ x = 10, y = 6,
                 layout: SimpleLayout [ axis = x, spacing = 6 ],
 
@@ -505,7 +505,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 ],
             crumbBox: View [ x = { parent.row.x + parent.row.width + 18 }, y = 0,
                 width = { Math.max(0, parent.width - this.x - (parent.dataBadge.visible ? 96 : 16)) },
-                height = { parent.height }, clip = true,
+                height = 100%, clip = true,
                 crumb: Text [ x = 0, y = center, fontSize = 11, fontFamily = ["ui-monospace", "monospace"],
                     wrap = false, textColor = { app.c.muted },
                     text = { app.sel.split(".").join(" › ") } ]
@@ -517,12 +517,12 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 t: Text [ x = 6, y = center, fontSize = 10, fontWeight = medium, wrap = false,
                     textColor = { app.c.accentSecondary }, text = "has data" ]
                 ],
-            rule: View [ x = 0, y = 33, width = { parent.width }, height = 1, fill = { app.c.line } ]
+            rule: View [ x = 0, y = 33, width = 100%, height = 1, fill = { app.c.line } ]
             ],
 
         // ── the three panes ──────────────────────────────────────────────────
 
-        panes: View [ x = 0, y = 68, width = { parent.width },
+        panes: View [ x = 0, y = 68, width = 100%,
             height = { parent.height - 68 - app.consoleH },
 
             colA: number = { Math.min(app.colA, parent.width - 340) },
@@ -530,16 +530,16 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
             // TREE ------------------------------------------------------------
 
-            treeCol: View [ x = 0, y = 0, width = { parent.colA }, height = { parent.height },
+            treeCol: View [ x = 0, y = 0, width = { parent.colA }, height = 100%,
                 clip = true, fill = { app.c.panel },
                 head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
                     letterSpacing = 0.8, textColor = { app.c.faint }, text = "TREE" ],
-                body: View [ x = 0, y = 26, width = { parent.width }, height = { parent.height - 26 },
-                    scrolls = y,
-                    list: View [ x = 0, y = 2, width = { parent.width }, height = { this.contentHeight + 8 },
+                body: View [ x = 0, y = 26, width = 100%, height = { parent.height - 26 },
+                    scrolls = y, padding = [2, 0, 8, 0],
+                    list: View [ width = 100%, height = { this.contentHeight },
                         datapath = { app.tree.value },
                         layout: SimpleLayout [ axis = y, spacing = 0 ],
-                        View [ datapath = :rows[], width = { parent.width }, height = 19,
+                        View [ datapath = :rows[], width = 100%, height = 19,
                             rp: string = { "" + :path },
                             on: boolean = { app.sel == this.rp },
                             fill = { this.on ? app.c.accent : (this.hovered ? app.c.hover : null) },
@@ -568,24 +568,31 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             ]
                         ]
                     ],
-                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ]
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = 100%, fill = { app.c.line } ]
                 ],
 
             // OBJECT ----------------------------------------------------------
 
-            objCol: View [ x = { parent.colA }, y = 0, width = { parent.colB }, height = { parent.height },
+            objCol: View [ x = { parent.colA }, y = 0, width = { parent.colB }, height = 100%,
                 clip = true, fill = { app.c.raised },
                 head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
                     letterSpacing = 0.8, textColor = { app.c.faint }, text = "OBJECT" ],
                 sig: Text [ x = 12, y = 24, fontSize = 11.5, fontFamily = ["ui-monospace", "monospace"], wrap = false,
                     textColor = { app.c.accentSecondary },
                     text = { app.selKind + " [" } ],
-                body: View [ x = 0, y = 42, width = { parent.width }, height = { parent.height - 60 },
+                body: View [ x = 0, y = 42, width = 100%, height = { parent.height - 60 },
                     scrolls = y,
-                    list: View [ x = 0, y = 0, width = { parent.width }, height = { this.contentHeight + 6 },
+
+                    // the 6 stays on the list rather than becoming the
+                    // scroller's bottom padding: `close` below reads this
+                    // height to find where the slot list ends, so the gap
+                    // before the closing bracket and the scroll room are one
+                    // fact here, not two
+
+                    list: View [ x = 0, y = 0, width = 100%, height = { this.contentHeight + 6 },
                         datapath = { app.slots.value },
                         layout: SimpleLayout [ axis = y, spacing = 0 ],
-                        View [ datapath = :rows[], width = { parent.width }, height = 18,
+                        View [ datapath = :rows[], width = 100%, height = 18,
                             k: string = { "" + :key },
                             on: boolean = { app.selAttr == this.k },
                             fill = { this.on ? app.c.selBg : (this.hovered ? app.c.hover : null) },
@@ -647,13 +654,13 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                     x = 12, y = { 46 + this.parent.body.list.height },
                     fontSize = 11.5,
                     fontFamily = ["ui-monospace", "monospace"], textColor = { app.c.accentSecondary }, text = "]" ],
-                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = { parent.height }, fill = { app.c.line } ]
+                edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = 100%, fill = { app.c.line } ]
                 ],
 
             // WHY -------------------------------------------------------------
 
             whyCol: View [ x = { parent.colA + parent.colB }, y = 0,
-                width = { parent.width - parent.colA - parent.colB }, height = { parent.height },
+                width = { parent.width - parent.colA - parent.colB }, height = 100%,
                 clip = true, fill = { app.c.panel },
                 head: Label [ x = 12, y = 8, fontSize = 10, fontWeight = semibold,
                     letterSpacing = 0.8, textColor = { app.c.faint }, text = "WHY" ],
@@ -663,21 +670,27 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                     text = "Select a slot to see what produced its value." ],
 
                 pane: View [ visible = { app.selAttr != "" }, x = 0, y = 26,
-                    width = { parent.width }, height = { parent.height - 26 }, scrolls = y,
-                    inner: View [ x = 12, y = 4, width = { parent.width - 24 },
-                        height = { this.contentHeight + 12 },
+                    width = 100%, height = { parent.height - 26 }, scrolls = y,
+
+                    // the reading inset is the scroller's own content box, so
+                    // the flow stops a full inset past its last line instead of
+                    // flush against the bottom
+
+                    padding = [4, 12, 12, 12],
+                    inner: View [ width = 100%,
+                        height = { this.contentHeight },
                         layout: SimpleLayout [ axis = y, spacing = 8 ],
 
-                        lead: Text [ width = { parent.width }, wrap = true, fontSize = 13,
+                        lead: Text [ width = 100%, wrap = true, fontSize = 13,
                             fontFamily = ["ui-monospace", "monospace"], textColor = { app.c.text },
                             text = { app.selAttr + " = " + app.whyValue } ],
 
-                        origin: Text [ width = { parent.width }, wrap = true, fontSize = 10.5,
+                        origin: Text [ width = 100%, wrap = true, fontSize = 10.5,
                             textColor = { app.whyLive ? app.c.amber : (app.whyStatic ? app.c.accentSecondary : app.c.muted) },
                             text = { app.whyOrigin + (app.whyLabel != "" ? "  ·  " + app.whyLabel : "")
                                 + (app.whyHow != "" ? "  ·  " + app.whyHow : "") } ],
 
-                        srcBox: View [ visible = { app.whySource != "" }, width = { parent.width },
+                        srcBox: View [ visible = { app.whySource != "" }, width = 100%,
                             height = { this.t.height + 18 }, cornerRadius = 6,
                             fill = { app.c.field }, stroke = { stroke(1, app.c.line) },
                             t: Text [ x = 9, y = 9, width = { parent.width - 18 }, wrap = true,
@@ -685,27 +698,27 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                 textColor = { app.c.str }, text = { app.whySource } ]
                             ],
 
-                        where: Text [ visible = { app.whyLine != "" && !app.whyLive }, width = { parent.width }, wrap = false,
+                        where: Text [ visible = { app.whyLine != "" && !app.whyLive }, width = 100%, wrap = false,
                             fontSize = 10.5, fontFamily = ["ui-monospace", "monospace"],
                             textColor = { app.c.faint }, text = { app.whyLine } ],
 
-                        spring: Text [ visible = { app.whySpring != "" }, width = { parent.width }, wrap = true,
+                        spring: Text [ visible = { app.whySpring != "" }, width = 100%, wrap = true,
                             fontSize = 10.5, fontFamily = ["ui-monospace", "monospace"],
                             textColor = { app.c.amber }, text = { app.whySpring } ],
 
-                        depHead: Text [ visible = { app.whyLabel != "" && app.depCount > 0 }, width = { parent.width },
+                        depHead: Text [ visible = { app.whyLabel != "" && app.depCount > 0 }, width = 100%,
                             fontSize = 10, fontWeight = semibold, letterSpacing = 0.8,
                             textColor = { app.c.faint }, text = "DEPENDS ON" ],
 
                         noDeps: Text [ visible = { app.whyLabel != "" && app.depCount == 0 },
-                            width = { parent.width }, wrap = true, fontSize = 10.5,
+                            width = 100%, wrap = true, fontSize = 10.5,
                             textColor = { app.c.faint },
                             text = "No static edges — this one re-tracks its reads on every run (a derived extent, or a read through data)." ],
 
-                        depList: View [ width = { parent.width }, height = { this.contentHeight },
+                        depList: View [ width = 100%, height = { this.contentHeight },
                             datapath = { app.deps.value },
                             layout: SimpleLayout [ axis = y, spacing = 0 ],
-                            View [ datapath = :rows[], width = { parent.width }, height = 18,
+                            View [ datapath = :rows[], width = 100%, height = 18,
                                 rp: string = { "" + :path },
                                 fill = { this.hovered ? app.c.hover : null },
                                 onPointerOver() { app.depHover = Inspect.depTargetPath(app.sel, this.rp) },
@@ -726,32 +739,33 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
             // The seams come last so no column paints over them — a divider a
             // later sibling covers is a divider you cannot grab.
 
-            seamA: Seam [ x = { parent.colA - 4 }, height = { parent.height }, which = "a" ],
-            seamB: Seam [ x = { parent.colA + parent.colB - 4 }, height = { parent.height }, which = "b" ]
+            seamA: Seam [ x = { parent.colA - 4 }, height = 100%, which = "a" ],
+            seamB: Seam [ x = { parent.colA + parent.colB - 4 }, height = 100%, which = "b" ]
             ],
 
         // ── transcript + evaluate strip ──────────────────────────────────────
 
-        console: View [ x = 0, y = { parent.height - app.consoleH }, width = { parent.width },
+        console: View [ x = 0, y = { parent.height - app.consoleH }, width = 100%,
             height = { app.consoleH },
             fill = { app.c.bg },
-            rule: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { app.c.line } ],
+            rule: View [ x = 0, y = 0, width = 100%, height = 1, fill = { app.c.line } ],
 
             // inside the console's own box — an overlapping strip would sit on
             // top of the pane content above it while being dragged
 
-            seamC: View [ x = 0, y = 0, width = { parent.width }, height = 7, cursor = "row-resize",
+            seamC: View [ x = 0, y = 0, width = 100%, height = 7, cursor = "row-resize",
                 fill = { this.hovered || app.seam == "c" ? app.c.seamOn : null },
                 onPointerDown() { app.beginSeam("c") },
                 onPointerMove() { app.moveSeam() },
                 onPointerUp() { app.endSeam() }
                 ],
 
-            scroll: View [ x = 0, y = 4, width = { parent.width }, height = { parent.height - 42 }, scrolls = y,
-                list: View [ x = 10, y = 0, width = { parent.width - 20 }, height = { this.contentHeight + 4 },
+            scroll: View [ x = 0, y = 4, width = 100%, height = { parent.height - 42 }, scrolls = y,
+                padding = [0, 10, 4, 10],
+                list: View [ width = 100%, height = { this.contentHeight },
                     datapath = { app.log.value },
                     layout: SimpleLayout [ axis = y, spacing = 1 ],
-                    View [ datapath = :rows[], width = { parent.width },
+                    View [ datapath = :rows[], width = 100%,
                         height = { this.msg.height + 14 },
                         inp: Text [ x = 0, y = 0, fontSize = 10.5, wrap = false,
                             fontFamily = ["ui-monospace", "monospace"], textColor = { app.c.faint },
@@ -784,7 +798,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 ],
 
             prompt: View [ x = 10, y = { parent.height - 34 }, width = { parent.width - 20 }, height = 26,
-                field: TextInput [ x = 0, y = 0, width = { parent.width }, height = 26,
+                field: TextInput [ x = 0, y = 0, width = 100%, height = 26,
                     cornerRadius = 6, fill = { app.c.field }, stroke = { stroke(1, app.c.line) },
                     padding = 9,
                     fontSize = 12, fontFamily = ["ui-monospace", "monospace"],

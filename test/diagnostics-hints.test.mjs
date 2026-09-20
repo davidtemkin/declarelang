@@ -57,10 +57,13 @@ await test("unknown attribute: a typo for nothing gets no guess", async () => {
 });
 
 // ── the hint tables outrank edit distance ────────────────────────────────────
-// They know INTENT; edit distance only knows letters. `padding` is not a typo
-// for anything — it is a concept that does not exist here.
+// They know INTENT; edit distance only knows letters. A hinted name that is
+// ALSO a real Declare name answers as itself (the collision is supported —
+// surfaces.mjs — and `padding` on a View IS the attribute, not a hint); the
+// hint still catches the same instinct arriving at the wrong door — which for
+// `padding` is the layout, the one place a CSS reader expects the inset to sit.
 await test("an exact CSS name gets the concept, not a spelling", async () => {
-  await says(`App [ View [ padding = 4 ] ]`, "there is no padding");
+  await says(`App [ View [ layout: SimpleLayout [ axis = y, padding = 4 ] ] ]`, "padding is the view's, not the layout's");
   await says(`App [ View [ backgroundColor = red ] ]`, "the paint slot is 'fill'");
   await says(`App [ View [ zIndex = 1 ] ]`, "stacking is source order");
 });
@@ -353,6 +356,184 @@ await test("a class named like a whitelisted rich-text tag warns ONCE, and only 
   const unrelated = await compile(`class Issue extends View [ width = 60, height = 20, fill = navy ]
     App [ width = 400, height = 100, HTMLText [ width = 380, html = "see <Issue/>" ] ]`, { originDir: process.cwd() });
   assert.equal((unrelated.warnings ?? []).filter((x) => x.code === "DECLARE4010").length, 0, "Issue shadows no tag");
+});
+
+// ── the idiom passes: a hint and two warnings that name the word ────────────
+// Each is decided STRUCTURALLY — an AST shape, a schema chain — so the negative
+// cases below are the whole test: an idiom diagnostic that fires on a program
+// doing something legitimate is worse than one that never fires at all.
+
+const idiom = async (src) => {
+  const r = await compile(src, { originDir: process.cwd() });
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("\n"));
+  return r;
+};
+const codes = (r, code) => (r.diagnostics ?? []).filter((d) => d.code === code);
+
+await test("DECLARE4011: a hand-written centering is a HINT naming x = center — every spelling of it, and nothing looser", async () => {
+  const box = (attrs) => `App [ width = 400, height = 300, View [ width = 50, height = 20, ${attrs} ] ]`;
+  const one = async (attrs) => {
+    const r = await idiom(box(attrs));
+    const h = codes(r, "DECLARE4011");
+    assert.equal(h.length, 1, `expected one hint for ${attrs}, got ` + JSON.stringify((r.diagnostics ?? []).map((d) => d.rendered)));
+    return h[0];
+  };
+  // the canonical shape, and the exact code / phase / severity it carries
+  const d = await one(`x = { (parent.width - this.width) / 2 }`);
+  assert.equal(d.code, "DECLARE4011");
+  assert.equal(d.phase, "name");
+  assert.equal(d.severity, "hint", "style is a hint — the author may have a reason, so it never blocks");
+  assert.match(d.message, /this is x = center/, "the fix is the message");
+  assert.match(d.message, /re-resolves when either width changes/, "…and why the word beats the arithmetic");
+  assert.ok(d.rendered.startsWith("hint: "), "a hint renders marked, like a warning: " + d.rendered);
+  // the variants
+  assert.match((await one(`y = { (parent.height - this.height) / 2 }`)).message, /this is y = center/);
+  await one(`x = { (parent.width - this.width) * 0.5 }`);
+  await one(`x = { 0.5 * (parent.width - this.width) }`);          // the operands commuted
+  await one(`x = { ((parent.width - this.width)) / 2 }`);          // an extra pair of parentheses
+  await one(`x = { ((parent.width) - (this.width)) / 2 }`);
+  await one(`x = { (parent.width - width) / 2 }`);                 // the bare name that resolves to this.width
+  await one(`x = { parent.width / 2 - this.width / 2 }`);          // the distributed spelling
+
+  // `classroot` counts as the parent exactly where it IS the parent
+  const asParent = await idiom(`class Card extends View [ width = 200, height = 100,
+      dot: View [ width = 10, height = 10, x = { (classroot.width - this.width) / 2 } ] ]
+    App [ width = 400, height = 300, Card [ ] ]`);
+  assert.equal(codes(asParent, "DECLARE4011").length, 1, "classroot IS the parent one level down");
+  const notParent = await idiom(`class Card extends View [ width = 200, height = 100,
+      row: View [ width = 100, height = 50,
+        dot: View [ width = 10, height = 10, x = { (classroot.width - this.width) / 2 } ] ] ]
+    App [ width = 400, height = 300, Card [ ] ]`);
+  assert.equal(codes(notParent, "DECLARE4011").length, 0, "two levels down, classroot is not the parent — that is not a centering");
+
+  // …and a hint never enters `warnings`, so a caller counting warnings counts
+  // only what might be wrong
+  const r = await idiom(box(`x = { (parent.width - this.width) / 2 }`));
+  assert.deepEqual(r.warnings, [], "a hint is not a warning");
+  assert.equal(r.hints.length, 1);
+  assert.match(r.report, /1 hint/, "the report counts hints on their own line");
+});
+
+await test("DECLARE4011: the near misses stay silent — the same arithmetic in another slot, a literal slack, a margin", async () => {
+  const box = (attrs) => `App [ width = 400, height = 300, View [ width = 50, height = 20, ${attrs} ] ]`;
+  const quiet = async (attrs, why) => {
+    const r = await idiom(box(attrs));
+    assert.equal(codes(r, "DECLARE4011").length, 0, why + ": " + JSON.stringify((r.diagnostics ?? []).map((d) => d.rendered)));
+  };
+  // A HALF-GAP: the identical expression, in a slot that is not a position.
+  // Only x/y are judged, because only x/y have `center` to offer.
+  await quiet(`cornerRadius = { (parent.width - this.width) / 2 }`, "a half-gap is arithmetic");
+  await quiet(`x = { (parent.width - 18) / 2 }`, "a literal slack is not provably this box");
+  await quiet(`x = { (parent.width - this.width) / 2 + 10 }`, "a term added to it is a margin");
+  await quiet(`x = { (parent.width - this.width) / 3 }`, "a third is not a half");
+  await quiet(`x = { (this.width - parent.width) / 2 }`, "the subtraction the other way round is not a centering");
+  await quiet(`x = { (parent.width - this.height) / 2 }`, "the cross axis is a different measurement");
+  await quiet(`x = { (parent.width + this.width) / 2 }`, "a sum is not the slack");
+});
+
+await test("DECLARE4012: an Animator nothing can start warns; the legitimate never-started shapes do not", async () => {
+  const anim = (extra, method = "") => `App [ width = 400, height = 300,
+    View [ width = 100, height = 100${method},
+      pulse: Animator [ attribute = opacity, to = 0.2, duration = 200${extra} ] ] ]`;
+
+  const dead = await idiom(anim(""));
+  const w = codes(dead, "DECLARE4012");
+  assert.equal(w.length, 1, JSON.stringify((dead.diagnostics ?? []).map((d) => d.rendered)));
+  assert.equal(w[0].code, "DECLARE4012");
+  assert.equal(w[0].phase, "name");
+  assert.equal(w[0].severity, "warning");
+  assert.match(w[0].message, /nothing starts this Animator/);
+  assert.match(w[0].message, /no body calls pulse\.start\(\)/, "names what it looked for");
+  assert.match(w[0].message, /started = true/, "names the fix");
+  assert.match(w[0].message, /A Spring needs neither/, "names the one shape that is exempt");
+
+  const silent = async (src, why) => {
+    const r = await idiom(src);
+    assert.equal(codes(r, "DECLARE4012").length, 0, why + ": " + JSON.stringify((r.diagnostics ?? []).map((d) => d.rendered)));
+  };
+  await silent(anim(", started = true"), "started = true is the request");
+  await silent(anim(", started = false"), "an explicit started = false is a decision, not an oversight");
+  await silent(`App [ width = 400, height = 300, open: boolean = false,
+    View [ width = 100, height = 100,
+      pulse: Animator [ attribute = opacity, to = 0.2, duration = 200, started = { app.open } ] ] ]`,
+    "a bound started is driven by the fact it reads");
+  await silent(anim("", `, onClick() { this.pulse.start() }`), "a handler starts it by name");
+  await silent(`class Card extends View [ width = 100, height = 100,
+      onInit() { classroot.pulse.start() },
+      pulse: Animator [ attribute = opacity, to = 0.2, duration = 200 ] ]
+    App [ width = 400, height = 300, Card [ ] ]`, "…through any path that names it");
+  // A SPRING is never start()-triggered — it wakes on its reactive `to`, so
+  // "never started" is its normal life and warning there would be wrong.
+  await silent(`App [ width = 400, height = 300, open: boolean = false,
+    View [ width = 100, height = 100,
+      slide: Spring [ attribute = height, to = { app.open ? 200 : 100 }, stiffness = 220, damping = 26 ] ] ]`,
+    "a Spring follows its to");
+  // A GROUP drives its members: a member's own `started` is ignored, so the
+  // members must not be judged on it.
+  await silent(`App [ width = 400, height = 300,
+    View [ width = 100, height = 100,
+      g: AnimatorGroup [ attribute = opacity, started = true, process = sequential,
+        Animator [ to = 1, duration = 100 ],
+        Animator [ to = 0, duration = 100 ] ] ] ]`, "a grouped member is driven by its group");
+  // The class BODY is a definition; the use site is where `started` is set.
+  await silent(`class Pulse extends Animator [ attribute = opacity, to = 0.2, duration = 200 ]
+    App [ width = 400, height = 300, View [ width = 100, height = 100, p: Pulse [ started = true ] ] ]`,
+    "a class body declares the motion; the use site requests it");
+  await silent(`class Pulse extends Animator [ attribute = opacity, to = 0.2, duration = 200, started = true ]
+    App [ width = 400, height = 300, View [ width = 100, height = 100, p: Pulse [ ] ] ]`,
+    "…and a started inherited from the class counts");
+  // An unattributable start() call silences the pass program-wide: under-
+  // reporting is the right way to be wrong about a warning like this.
+  await silent(`App [ width = 400, height = 300,
+    View [ width = 100, height = 100,
+      onClick() { (this.parent as any).start() },
+      pulse: Animator [ attribute = opacity, to = 0.2, duration = 200 ] ] ]`,
+    "a start() this pass cannot attribute keeps it quiet");
+  // …and a group nobody starts is the same miss, named for what it is
+  const group = await idiom(`App [ width = 400, height = 300,
+    View [ width = 100, height = 100,
+      g: AnimatorGroup [ attribute = opacity, process = sequential,
+        Animator [ to = 1, duration = 100 ] ] ] ]`);
+  const gw = codes(group, "DECLARE4012");
+  assert.equal(gw.length, 1, "the group itself is the one nothing starts");
+  assert.match(gw[0].message, /nothing starts this AnimatorGroup/);
+});
+
+await test("DECLARE4013: a press() override on a Button warns and names onClick; the same override on a Control is correct and silent", async () => {
+  const r = await idiom(`App [ width = 400, height = 300, n: number = 0,
+    Button [ label = "Go", press() { app.n = app.n + 1 } ] ]`);
+  const w = codes(r, "DECLARE4013");
+  assert.equal(w.length, 1, JSON.stringify((r.diagnostics ?? []).map((d) => d.rendered)));
+  assert.equal(w[0].code, "DECLARE4013");
+  assert.equal(w[0].phase, "name");
+  assert.equal(w[0].severity, "warning");
+  assert.match(w[0].message, /press\(\) on Button replaces Button's activation path/);
+  assert.match(w[0].message, /answers Space and Enter/, "names the behaviour the author gets");
+  assert.match(w[0].message, /Put the action in onClick\(\)/, "names the fix");
+
+  // The test is the SCHEMA CHAIN, never the tag's spelling — a subclass of
+  // Button inherits the inversion and the trap with it.
+  const sub = await idiom(`class Fancy extends Button [ cornerRadius = 4 ]
+    App [ width = 400, height = 300, n: number = 0, Fancy [ label = "Go", press() { app.n = app.n + 1 } ] ]`);
+  assert.equal(codes(sub, "DECLARE4013").length, 1, "a Button subclass is a Button");
+  const inClass = await idiom(`class Fancy extends Button [ press() { classroot.label = "x" } ]
+    App [ width = 400, height = 300, Fancy [ label = "Go" ] ]`);
+  assert.equal(codes(inClass, "DECLARE4013").length, 1, "…and a class body that overrides it is judged by its base");
+  assert.match(codes(inClass, "DECLARE4013")[0].message, /press\(\) on Fancy/);
+
+  // Chapter 11 teaches press() overriding on a Control, and it is correct
+  // there: every other control routes the pointer through press().
+  const control = await idiom(`App [ width = 400, height = 300, n: number = 0,
+    Control [ width = 80, height = 30, press() { app.n = app.n + 1 }, onClick() { if (!this.disabled) this.press() } ] ]`);
+  assert.equal(codes(control, "DECLARE4013").length, 0, "press() on a Control is the documented shape");
+  const ownClass = await idiom(`class Tab extends Control [ width = 80, height = 30, press() { classroot.parent.width = 10 } ]
+    App [ width = 400, height = 300, Tab [ ] ]`);
+  assert.equal(codes(ownClass, "DECLARE4013").length, 0, "a Control subclass is still a Control");
+  // …and the library's own Button, which DECLARES press() rather than
+  // overriding it, is never the author's mistake
+  const plain = await idiom(`App [ width = 400, height = 300, n: number = 0,
+    Button [ label = "Go", onClick() { app.n = app.n + 1 } ] ]`);
+  assert.equal(codes(plain, "DECLARE4013").length, 0, "the library's Button.press() is the definition, not an override");
 });
 
 summarize("diagnostics-hints");

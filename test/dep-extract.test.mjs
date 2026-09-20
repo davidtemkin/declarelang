@@ -30,8 +30,8 @@ function test(name, fn) {
 function section(title) { chain = chain.then(() => console.log(title)); }
 
 // compile a source to its RESOLVED program, then extract. Returns the constraint list.
-async function extract(src) {
-  const r = await compile(src, {});
+async function extract(src, originDir = undefined) {
+  const r = await compile(src, originDir === undefined ? {} : { originDir });
   if (!r.source) throw new Error("compile failed: " + r.errors.map((e) => e.message).join("; "));
   return extractProgram(parseProgram(r.source));
 }
@@ -355,7 +355,7 @@ test("all five apps: 700 constraints, 0 residue errors", async () => {
   const apps = ["calendar/calendar", "lzx-calendar/lzx-calendar", "lzx-weather/lzx-weather", "homepage/homepage", "docs/docs"];
   let tot = 0, errs = 0;
   for (const a of apps) {
-    const r = await extract(readFileSync(resolve(HERE, `../apps/${a}.declare`), "utf8"));
+    const r = await extract(readFileSync(resolve(HERE, `../apps/${a}.declare`), "utf8"), dirname(resolve(HERE, `../apps/${a}.declare`)));
     tot += r.length; errs += r.flatMap((c) => c.errors).length;
   }
   assert.equal(errs, 0, `${errs} residue errors across the corpus`);

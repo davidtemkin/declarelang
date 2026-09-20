@@ -47,9 +47,6 @@ function inlineHtml(runs: readonly Inline[]): string {
       case "link": out += `<a href="${escAttr(r.href)}">${inlineHtml(r.inline)}</a>`; break;
       case "br": out += "<br>"; break;
       case "styled": out += `<span>${inlineHtml(r.inline)}</span>`; break; // named style — content only
-      // An inline view is UI, not content — the static extraction emits nothing
-      // for it, exactly as it emits nothing for a TextInput's draft state.
-      case "view": break;
     }
   }
   return out;
@@ -104,9 +101,9 @@ export function blocksHtml(blocks: readonly Block[]): string {
  *  (child order is paint order); `visible = false` subtrees are skipped; the
  *  content classes emit what their text MEANS; every other view is transparent
  *  structure (its children walk, it emits no wrapper). */
-export function staticHtml(root: View): string {
+export function staticHtml(root: View, tenants?: ReadonlyMap<unknown, string>): string {
   const out: string[] = [];
-  walk(root, out, classifyHeadings(root));
+  walk(root, out, classifyHeadings(root), tenants);
   return out.join("\n");
 }
 
@@ -120,19 +117,40 @@ export function staticHtml(root: View): string {
  *  Declare source — so it stays inside the extractor, off the language surface.
  *
  *  The BODY size is the size carrying the most text (length-weighted mode): body
- *  copy dominates, so it anchors the comparison robustly. Two typographic signals,
+ *  copy dominates, so it anchors the comparison robustly — and a Markdown's or
+ *  HTMLText's words count toward it, because on a page whose prose is a rich-text
+ *  flow they ARE the body copy. Two typographic signals decide a candidate,
  *  no more — bigger and bolder; a large-but-light LEAD paragraph stays a `<p>`.
- *  Deliberately unpolished: it WILL call a big bold display figure ("46 KB") a
- *  heading, and a two-line hero two headings — the proxy is imperfect on purpose,
- *  not special-cased into correctness. Markdown/HTMLText carry their OWN `#`
- *  headings, untouched. Byte-identical on every host: size and weight are SET
- *  attributes, never measured geometry. */
+ *
+ *  Still a proxy, and still imperfect: a display SENTENCE set large and bold
+ *  reads as a heading, because nothing in the settled tree separates it from a
+ *  section title. What the proxy no longer does is call a bare figure or a glyph
+ *  a heading (isHeadingNode), or hand out a second h1 to a headline split across
+ *  two views. Those were not imperfect readings of prose — they put non-prose
+ *  into the outline, and because the size census shares this predicate, each one
+ *  also pushed every real heading below it down a level.
+ *
+ *  Markdown/HTMLText carry their OWN `#` headings, untouched. Byte-identical on
+ *  every host: size and weight are SET attributes, never measured geometry. */
 function classifyHeadings(root: View): (t: Text) => number | null {
   const charsBySize = new Map<number, number>();
   const headingSizeSet = new Set<number>();
   const scan = (v: View): void => {
     if (v.visible === false) return;
-    if (v instanceof Markdown || v instanceof HTMLText || v instanceof TextInput || v instanceof Image) return;
+    // PROSE COUNTS TOWARD THE BODY SIZE (R1). A rich-text flow carries its own
+    // `#` headings and is not a heading candidate — but its words are still the
+    // document's body copy, and the census is what decides which size "body"
+    // means. Skipping it entirely made a page whose prose is a Markdown or an
+    // HTMLText report a body size drawn from nav and footer chrome, so a 15px
+    // wordmark became the largest thing in the document and took the h1. Count
+    // the flow's text at the flow's own size, then stop: its children are not
+    // Text views to rank.
+    if (v instanceof Markdown || v instanceof HTMLText) {
+      const words = v instanceof Markdown ? v.text : plainTextOfHtml(v.html);
+      if (words !== "") charsBySize.set(v.fontSize, (charsBySize.get(v.fontSize) ?? 0) + words.length);
+      return;
+    }
+    if (v instanceof TextInput || v instanceof Image) return;
     if (v instanceof Text) {
       if (v.text !== "") {
         charsBySize.set(v.fontSize, (charsBySize.get(v.fontSize) ?? 0) + v.text.length);
@@ -149,13 +167,58 @@ function classifyHeadings(root: View): (t: Text) => number | null {
   const headingSizes = [...headingSizeSet].filter((s) => s > bodySize).sort((a, b) => b - a);
   const levelOf = new Map<number, number>();
   headingSizes.forEach((size, i) => levelOf.set(size, Math.min(6, i + 1)));
-  return (t: Text) => (isHeadingNode(t) ? levelOf.get(t.fontSize) ?? null : null);
+  // ONE h1 PER DOCUMENT (R4). Levels are keyed by SIZE, so a headline split
+  // across two views to carry two treatments — the common case, a line with a
+  // gradient over a line without — resolved to two h1s. The walk is strict
+  // document order and asks exactly once per Text, so demoting every level-1
+  // after the first is deterministic and host-independent. A demotion, never a
+  // suppression: the text stays a heading and no level is skipped.
+  let usedH1 = false;
+  return (t: Text) => {
+    if (!isHeadingNode(t)) return null;
+    const level = levelOf.get(t.fontSize) ?? null;
+    if (level !== 1) return level;
+    if (usedH1) return 2;
+    usedH1 = true;
+    return 1;
+  };
 }
 
-/** A heading carries a heading WEIGHT (semibold+). That plus "larger than body"
- *  is the whole rule — no length or shape gate; a big bold figure reads as a
- *  heading, and that is an accepted imperfection, not a bug to special-case. */
-const isHeadingNode = (t: Text): boolean => weightNum(t) >= 600;
+/** A heading carries a heading WEIGHT (semibold+) and SAYS SOMETHING: at least
+ *  one letter (R2), and not a bare figure with an optional unit (R3).
+ *
+ *  The weight-and-size proxy stands — the level still comes from the rendered
+ *  type, and nothing here is controllable from Declare source. What these two
+ *  gates remove is the class of node that was never prose at all: a sequence
+ *  badge's "1", a stat's "494" or "112 KB", a decorative "→". They belong in
+ *  `isHeadingNode` rather than at the emit site because the census reads the
+ *  same predicate — a suppressed node that still joined the size ranking would
+ *  push every real heading below it down a level, which is how a section title
+ *  ended up an h5. A display figure IS still typographically a heading; it is
+ *  excluded because a document outline made of numbers tells a reader nothing.
+ *
+ *  Known and accepted: a heading that is genuinely just a year ("2026") or a
+ *  section mark ("§5") reads as a paragraph. So does a display sentence set
+ *  large and bold, which remains indistinguishable from a section title in the
+ *  settled tree — the proxy is still a proxy. */
+const isHeadingNode = (t: Text): boolean =>
+  weightNum(t) >= 600 && HAS_LETTER.test(t.text) && !BARE_FIGURE.test(t.text.trim());
+
+/** The words an HTMLText shows, for the body-size census ONLY — tags dropped,
+ *  entities left as written. It feeds a length, never the output, so an exact
+ *  decode would change no decision; what matters is that it is deterministic on
+ *  every host, which a regex over a SET attribute is. */
+function plainTextOfHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+/** Any letter in any script — CJK, Cyrillic and Greek count, so this is not a
+ *  Latin-only gate. */
+const HAS_LETTER = /\p{L}/u;
+/** A number, optionally with a short unit: "494", "0", "112 KB", "99%", "3.2x",
+ *  "1,000,000". Anchored at both ends and the unit capped at three letters, so
+ *  a heading carrying real words never matches. */
+const BARE_FIGURE = /^[\p{Nd}][\p{Nd}.,\s]*(?:[%×x]|\p{L}{1,3})?$/u;
 const weightNum = (t: Text): number => parseInt(cssWeight(t.fontWeight), 10) || 400;
 
 /** The navigable target of an instance, or null. The compiler's link relation
@@ -183,21 +246,25 @@ function navHref(v: View): string | null {
   return typeof val === "string" && val !== "" ? val : null;
 }
 
-function walk(v: View, out: string[], headingOf: (t: Text) => number | null): void {
+function walk(v: View, out: string[], headingOf: (t: Text) => number | null, tenants?: ReadonlyMap<unknown, string>): void {
   if (v.visible === false) return;
+  // an island whose tenant program the crawl extracted (crawl.ts tenantsOf):
+  // the tenant's content stands where the island stands
+  const tenant = tenants?.get(v);
+  if (tenant !== undefined) { if (tenant !== "") out.push(tenant); return; }
   const href = navHref(v);
-  if (href === null) { emit(v, out, headingOf); return; }
+  if (href === null) { emit(v, out, headingOf, tenants); return; }
   // A navigable subtree: wrap its content in a real <a href>. Skip an empty
   // one — an anchor with no text is noise in the static extraction.
   const inner: string[] = [];
-  emit(v, inner, headingOf);
+  emit(v, inner, headingOf, tenants);
   if (inner.length === 0) return;
   out.push(`<a href="${escAttr(href)}">${inner.join("\n")}</a>`);
 }
 
 /** The class-semantics emission for one node (its content, or its children
  *  walked) — separated from `walk` so the anchor wrapping composes over it. */
-function emit(v: View, out: string[], headingOf: (t: Text) => number | null): void {
+function emit(v: View, out: string[], headingOf: (t: Text) => number | null, tenants?: ReadonlyMap<unknown, string>): void {
   if (v instanceof Markdown) { if (v.text !== "") out.push(blocksHtml(parseMd(v.text))); return; }
   if (v instanceof HTMLText) { if (v.html !== "") out.push(blocksHtml(parseHtml(v.html, v.unsupported))); return; }
   if (v instanceof TextInput) return; // draft UI state, not content
@@ -209,7 +276,7 @@ function emit(v: View, out: string[], headingOf: (t: Text) => number | null): vo
     return;
   }
   if (v instanceof Image) { if (v.source !== "") out.push(`<img src="${escAttr(v.source)}">`); return; }
-  for (const c of v.children) if (c instanceof View) walk(c, out, headingOf);
+  for (const c of v.children) if (c instanceof View) walk(c, out, headingOf, tenants);
 }
 
 // ── the extraction API ──────────────────────────────────────────────────────

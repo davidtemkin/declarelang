@@ -284,16 +284,22 @@ class Dialog extends View [
         stroke = { stroke(1, theme.line) },
         shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 12, 48, 0x00000040) },
 
-        col: View [ x = 20, y = 20, width = { parent.width - 40 },
+        // the 20pt margin is the panel's own content box, so the column
+        // below starts at the content origin and spans the room it is given;
+        // the fill, the edge and the shadow stay on the outer box
+
+        padding = 20,
+
+        col: View [ width = 100%,
             layout: SimpleLayout [ axis = y, spacing = 12 ],
 
-            ttl: Text [ fontWeight = bold, wrap = true, width = { parent.width },
+            ttl: Text [ fontWeight = bold, wrap = true, width = 100%,
                 fontSize = { typeof theme.dialogTitleSize == "number" ? theme.dialogTitleSize : 15 },
                 textAlign = { classroot.centered ? "center" : "left" },
                 textColor = { classroot.tone == "error" ? (theme.errorColor != null ? theme.errorColor : 0xC93429) : theme.text },
                 text = { classroot.title } ],
 
-            msg: Text [ wrap = true, width = { parent.width },
+            msg: Text [ wrap = true, width = 100%,
                 fontSize = { typeof theme.dialogBodySize == "number" ? theme.dialogBodySize : 13 },
                 textAlign = { classroot.centered ? "center" : "left" },
                 visible = { classroot.message != "" },
@@ -301,7 +307,7 @@ class Dialog extends View [
 
             gap: View [ width = 4, height = 4 ],
 
-            btns: View [ width = { parent.width },
+            btns: View [ width = 100%,
                 height = { classroot.arrangement == "stack" ? this.stackInner.height : this.rowInner.height },
 
                 // two arrangements, one visible — layout attributes are
@@ -323,11 +329,11 @@ class Dialog extends View [
                     ],
 
                 stackInner: View [ visible = { classroot.arrangement == "stack" },
-                    height = { this.contentHeight }, width = { parent.width },
+                    height = { this.contentHeight }, width = 100%,
                     layout: SimpleLayout [ axis = y, spacing = 8 ],
                     datapath = { classroot.data.value },
                     Button [ datapath = :b[], label = { "" + :label },
-                        width = { this.parent.width },
+                        width = 100%,
                         primary = { !!:default },
                         onClick() { classroot.pick("" + :id) }
                         ]

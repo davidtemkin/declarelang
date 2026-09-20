@@ -20,7 +20,7 @@ import { applyDeps } from "./deps.js";
 import { applyLinks } from "./links.js";
 import { Diag } from "./diagnostics.js";
 import { resolveIncludesHostless, NO_INCLUDES } from "./include.js";
-import { App } from "./view.js";
+import { App, withHostProvides } from "./view.js";
 import { fontsReady } from "./font-value.js";
 import { DeclareError, DeclareErrors } from "./errors.js";
 // The render/wire/font glue lives in boot.ts (compiler-free) so the precompiled
@@ -48,7 +48,7 @@ export function build(source, opts = {}) {
         applyDeps(program, opts.deps);
     if (opts.links !== undefined)
         applyLinks(program, opts.links);
-    const root = instantiate(program);
+    const root = withHostProvides(opts.provides, () => instantiate(program));
     if (!(root instanceof App)) {
         throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
     }
@@ -73,6 +73,9 @@ export function render(source, host, backend, opts = {}) {
  *  document they render into belongs to the host page (asset-base.ts). */
 export async function renderAsync(source, host, backend, opts = {}) {
     const app = build(source, opts);
+    // the host's chance to reach the app before its first settle — an island
+    // links its boundary here, so what the host provides is in the first frame
+    opts.beforeMount?.(app);
     if (opts.assetBase != null) {
         setAppAssetBase(app, opts.assetBase);
         // DELIBERATELY no per-app DATA base here: an island child's relative data
@@ -100,7 +103,7 @@ export { renderProgram, renderProgramAsync, mountApp, mountEmbeddedApp, disposeA
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
 export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export { Node } from "./node.js";
-export { View, App, Island, DOMIsland, linkIslandTenant, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, Island, DOMIsland, linkIslandTenant, islandProvisions, withHostProvides, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
@@ -115,7 +118,7 @@ export { Media } from "./media.js";
 export { provideStreams } from "./stream-seam.js";
 export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
-export { settle, afterSettle, observe } from "./reactive.js";
+export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoaded, kernelStats } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";
 export { Font, Face, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";

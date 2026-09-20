@@ -31,8 +31,8 @@
 // pointer capture, hover, keyboard, host sizing — and only the drawing is
 // native.
 
-import { build, mountApp, settle, observe, provideTransport, provideMeasurer, fontsReady, bridgeFor,
-         Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, setAppAssetBase } from "../runtime/dist/index.js";
+import { build, mountApp, settle, observe, provideTransport, provideMeasurer, fontsReady, bridgeFor, kernelReadySync,
+         Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, islandProvisions, setAppAssetBase } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScrollFacts, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, islandViewById, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
@@ -252,19 +252,18 @@ export async function macBoot(url) {
   // The program URL itself, for `POST /compile?main=` — the web passes its page's
   // program the same way, and it is what resolves a live edit's includes.
   globalThis.__declareMain = base;
-  const app = build(source, { deps });
-  // THE BOOT URL'S QUERY IS THE APP'S ENV. On the web a top-level app is reached
-  // by a URL and an EMBEDDED one is handed `env` by its host (host-client's
-  // parseEnv); natively there is no embedder, so the query is the only channel a
-  // window has for "run this program WITH these parameters".
+  kernelReadySync();   // the reactive core, synchronous under JavaScriptCore (kernel.md)
+  // THE BOOT URL'S QUERY IS WHAT THE NATIVE HOST PROVIDES (islands.md). On the
+  // web a page provides values to its top-level app (`boot({ provides })`) and
+  // an island to what it hosts; natively the window IS the host, and its launch
+  // URL's query is its one channel for "run this program WITH these
+  // parameters" — each one provided, read in the program with
+  // `hostProvided("name", …)`, from the program's first evaluation.
   //
   // Source mode is what needed it: the window boots
-  // `library/platform-apps/viewer/viewer.declare?program=<the program>`, and the Viewer reads
-  // `app.env.program` to know what to read. Without this it came up with its
-  // chrome and an empty document — the program it was pointed at simply never
-  // reached it.
-  const env = envFrom(base);
-  if (env !== null) app.env = env;       // REPLACE, never mutate (view.ts EMPTY_ENV)
+  // `library/platform-apps/viewer/viewer.declare?subject=<the program>`, and the
+  // Viewer reads `hostProvided("subject", "")` to know what to read.
+  const app = build(source, { deps, provides: launchParams(base) });
   currentApp = app;
   globalThis.__app = app;
   liveApps.set(app, null);       // the root app can publish live edits too
@@ -421,7 +420,7 @@ function hostStub() {
  *    · the REQUEST TYPES (`viewer`, `file`, `segments`, `extract`, `build`,
  *      `program`) name a representation, and where one is showing, the titlebar
  *      already says so — the lit "View Source" chip is that statement;
- *    · anything else is the program's own `env`, and a program that wants the
+ *    · anything else is a launch parameter the host provides, and a program that wants the
  *      title to reflect it has `appName`, which is reactive, formatted, and
  *      preferred over this.
  *
@@ -436,26 +435,23 @@ const programName = (u) => {
   return name;
 };
 
-/** The boot URL's query as an `env` record, or null when there is no query.
- *
- *  Same coercions as the web's island env (host-client.js parseEnv) so that
- *  `env.dark` is a boolean and `env.scale` a number in both places — a program
- *  written against one host must not have to re-parse for the other. The
- *  RENDER control (`?render=mac`) is dropped: it addresses the host, not the
- *  program, and every gate URL carries it. */
-function envFrom(url) {
+/** The boot URL's query as the values the native host provides, by name —
+ *  `{}` when there is no query. Coerced (true/false/1/0 → booleans, numerics →
+ *  numbers) so `hostProvided("dark", false)` reads a boolean and a scale a
+ *  number, as they would from a page's `boot({ provides })`. The RENDER
+ *  control (`?render=mac`) is dropped: it addresses the host, not the program,
+ *  and every gate URL carries it. */
+function launchParams(url) {
   const q = url.indexOf("?");
-  if (q < 0) return null;
-  const env = {};
-  let any = false;
+  const out = {};
+  if (q < 0) return out;
   for (const [k, raw] of new URLSearchParams(url.slice(q + 1))) {
     if (k === "render") continue;
-    any = true;
-    env[k] = raw === "true" || raw === "1" ? true
+    out[k] = raw === "true" || raw === "1" ? true
            : raw === "false" || raw === "0" ? false
            : raw !== "" && !isNaN(Number(raw)) ? Number(raw) : raw;
   }
-  return any ? env : null;
+  return out;
 }
 
 /** Per-frame work the native host drives: settle-driven title, and the embed
@@ -574,7 +570,7 @@ async function toggleInspector(subject, slot = "") {
     // came up with a populated tree and "no subject" in its header, because
     // different constraints happened to run on different sides of the call.
     setInspectionTarget(target, origin);
-    inspectorApp = mountCompiled(ov.id, compiled, {});
+    inspectorApp = mountCompiled(ov.id, compiled);
     if (inspectorApp === null) { closeInspector(); return; }
     settle(); flushOps(); H.needFrame();
     H.inspectorState && H.inspectorState(true);
@@ -694,12 +690,10 @@ function wireEmbeds() {
     if (prev === slot) continue;
     wiredEmbeds.set(id, slot);
     if (!slot || !slot.startsWith("run:")) continue;
-    const spec = slot.slice(4).split("|");
-    const name = spec[0];
-    const env = parseEnv(spec[1] || "");
+    const name = slot.slice(4);
     if (!name || name.startsWith("__")) continue;      // live-edit channels: not on this path yet
-    log("island mount: " + name + " env=" + JSON.stringify(env) + " slot=" + slot);
-    mountChild(id, name, env).catch((e) => log("island " + name + ": " + e.message));
+    log("island mount: " + name);
+    mountChild(id, name).catch((e) => log("island " + name + ": " + e.message));
   }
 }
 
@@ -747,7 +741,7 @@ function watchLive(app, scopeBox) {
   if (id < 0) return;
   liveSigs.set(app, sig);
   compileLive(body).then((r) => {
-    if (r && r.source) { app.liveReport = ""; mountCompiled(id, r, null); }
+    if (r && r.source) { app.liveReport = ""; mountCompiled(id, r); }
     else if (r && r.report != null) app.liveReport = String(r.report);
     else liveSigs.delete(app);                   // compiler not warm — retry
   }).catch(() => liveSigs.delete(app));
@@ -787,20 +781,7 @@ function liveTick() {
   for (const [app, box] of liveApps) watchLive(app, box);
 }
 
-function parseEnv(q) {
-  const env = {};
-  for (const pair of q.split("&")) {
-    if (!pair) continue;
-    const i = pair.indexOf("=");
-    const k = i < 0 ? pair : pair.slice(0, i);
-    const v = i < 0 ? "true" : pair.slice(i + 1);
-    env[k] = v === "true" || v === "1" ? true : v === "false" || v === "0" ? false
-      : v !== "" && !isNaN(Number(v)) ? Number(v) : v;
-  }
-  return env;
-}
-
-async function mountChild(surfaceId, name, env) {
+async function mountChild(surfaceId, name) {
   const box = surfaceById(surfaceId);
   if (!box) return;
   // `program` is a name or a relative path, resolved from the host program's
@@ -808,7 +789,7 @@ async function mountChild(surfaceId, name, env) {
   const base = globalThis.__declareBase || "";
   const url = new URL(name.endsWith(".declare") ? name : name + ".declare", new URL("demos/", base)).href;
   const { source, deps } = await resolveProgram(url);
-  mountCompiled(surfaceId, { source, deps }, env, url);
+  mountCompiled(surfaceId, { source, deps }, url);
   log("island: " + name + " mounted");
 }
 
@@ -817,7 +798,7 @@ async function mountChild(surfaceId, name, env) {
  *  `assetUrl` is the child's own program URL — the base its relative assets
  *  resolve against (host-client's childAssetBase rule); the live-edit channel
  *  has no program URL and leaves it unset. */
-function mountCompiled(surfaceId, compiled, env, assetUrl) {
+function mountCompiled(surfaceId, compiled, assetUrl) {
   const box = surfaceById(surfaceId);
   if (!box) return null;
   // One island, one tenant: evict whatever is mounted before mounting again,
@@ -828,7 +809,20 @@ function mountCompiled(surfaceId, compiled, env, assetUrl) {
   const priorUnlink = embedUnlinks.get(surfaceId);
   if (priorUnlink) { embedUnlinks.delete(surfaceId); try { priorUnlink(); } catch {} }
   clearEmbed(surfaceId);
-  const child = build(compiled.source, { deps: compiled.deps ?? {} });
+  kernelReadySync();
+  const islView = islandViewById(surfaceId);
+  const linkable = islView && typeof islView.post === "function";
+  const child = build(compiled.source, { deps: compiled.deps ?? {}, provides: linkable ? islandProvisions(islView) : undefined });
+  // THE ISLAND BOUNDARY (islands.md) — the native runner is a full peer of the
+  // web hosts: what the island `provides` goes down, what the tenant
+  // `exposes` comes up, and the post/onPost verbs. Built WITH what the island
+  // provides (its first evaluation sees it) and linked before its first settle. A
+  // link failure leaves the tenant mounted, unlinked, and said loudly — same
+  // rule as host-client's renderChild.
+  if (linkable) {
+    try { embedUnlinks.set(surfaceId, linkIslandTenant(islView, child)); }
+    catch (e) { log("island link: " + e.message); }
+  }
   child.attach(backend, null);
   // The child's RELATIVE assets live in its own program's directory, never the
   // host's (host-client's childAssetBase). Without this, birds-in-a-desktop-
@@ -849,24 +843,13 @@ function mountCompiled(surfaceId, compiled, env, assetUrl) {
   if (box.setScroll) {
     box.setScroll(true, (y) => { /* island pan — no model attribute to mirror */ });
   }
-  if (env && Object.keys(env).length) child.env = env;
   // The OS colour scheme, as `mountApp`'s wireColorScheme gives the root app. A
   // child is ATTACHED, not mounted, so nothing wires it — and the live-edit
   // pane's nested desktop came up LIGHT against the DOM's dark. (Distinct from
-  // `env.dark`, which is a host→child message the Viewer reads.)
+  // a host's own appearance, which it PROVIDES to the child as a value.)
   child.dark = H.appearance() === "dark";
   liveApps.set(child, box);          // a child can itself publish live edits
   childIslands.set(child, surfaceId);
-  // THE ISLAND BRIDGE (islands design, 2026-08-20) — the native runner is a
-  // full peer of the web hosts: pair the island's `external` surface with the
-  // tenant's (type handshake at link time), then facts both ways per settle
-  // and post/onPost verbs. A link error leaves the tenant mounted, unbridged,
-  // and said loudly — same rule as host-client's renderChild.
-  const islView = islandViewById(surfaceId);
-  if (islView && typeof islView.post === "function") {
-    try { embedUnlinks.set(surfaceId, linkIslandTenant(islView, child)); }
-    catch (e) { log("island link: " + e.message); }
-  }
   // The sanctioned handle (guide 18): with no element anywhere, `__childApp`
   // rides the island VIEW — the canvas convention, kept native.
   if (islView) islView.__childApp = child;
@@ -905,14 +888,23 @@ function mountCompiled(surfaceId, compiled, env, assetUrl) {
 
 // ── host → JS entry points ──────────────────────────────────────────────────
 
-globalThis.__declareBoot = (url) => macBoot(url).catch((e) => {
+globalThis.__declareBoot = (url) => {
+  // A LOAD IS STARTING. The host publishes load failures where an automated
+  // caller can see them without asking (Control.swift's sidecar), and the
+  // verdict has to be retired when a new attempt begins. Announced HERE rather
+  // than in the Swift that happens to call this, because a rig navigates by
+  // evaluating `__declareBoot` directly and would otherwise leave a stale
+  // failure standing over a program that loaded perfectly well.
+  H.loadStarting?.(String(url));
+  return macBoot(url).catch((e) => {
   // MESSAGE FIRST, then the stack. A compile failure throws with the compiler's
   // whole rendered report as its message — naming the file, line and fix — and
   // logging `e.stack` alone threw that away, leaving a bundle offset
   // ("fromClient@…declare-mac.js:18168:37") as the entire diagnosis.
   H.log("error", "boot failed: " + ((e && e.message) || e) + (e && e.stack ? "\n  at " + e.stack : ""));
   H.bootFailed(String(e && e.message || e));
-});
+  });
+};
 // The wheel a CLAIMANT hears (gestures.md's desktop contract): the host's own
 // walk found an onWheel view nearest under the point and delivers the stream
 // here — `pinch` true for a trackpad magnify or ctrl+wheel. Scrolling itself

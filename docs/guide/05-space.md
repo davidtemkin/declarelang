@@ -88,7 +88,7 @@ you can read in `library/`:
 | `Spacer` | `flexes` | not a layout — a child that absorbs a run's slack |
 
 Two more are built in rather than shipped in `library/`, and you meet them only when
-writing your own: **`Layout`** is the base every arrangement extends, and
+writing your own: **`Layout`** is the base every arrangement extends — and
 **`TweenLayout`** is the animated-reflow base — extend it and your layout *glides*
 children to their new places instead of snapping, which is how a re-arrangement becomes
 motion for free.
@@ -108,6 +108,76 @@ counting toward the parent's content size — the idiom for frame chrome that st
 the frame, like a window's resize border living just outside the box it resizes.
 The family has a third member, `ignoreScroll` — it belongs to the scrolling story
 below.
+
+## Padding, and the card it makes
+
+An inset is not arithmetic you repeat on every child. `padding` is an attribute of the
+**view** — one number for all four sides, or `[top, right, bottom, left]` clockwise from
+the top. A padded view has an *inside*, and `x = 0` and `y = 0` mean that inside's origin
+for **every** child: one a layout arranged, one that placed itself, one that opted out
+with `ignoreLayout`. A layout is not involved — it simply arranges within the room it is
+given, so a view with no `layout:` at all is padded just the same, and a `place()` you
+write yourself obeys the inset without ever mentioning it:
+
+```declare
+App [ fill = #F4F6FA, textColor = black,
+    panel: View [ x = 20, y = 20, width = 260, fill = white, cornerRadius = 10,
+        stroke = { stroke(1, 0xDBE1E9) },
+        padding = 16,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ fontWeight = semibold, text = "Storage" ],
+        Text [ width = 100%, wrap = true, textColor = slategray,
+            text = "No height: the panel takes the one its content needs, both insets counted in." ],
+        Divider [ ],
+        Button [ label = "Manage" ]
+        ]
+    ]
+```
+
+The panel has no `height`, and that still holds with padding in play: an unset size
+auto-derives from `contentHeight`, which counts the top inset (the children are placed
+below it) and the bottom one (the room that must exist under the last child). So the box
+grows and shrinks with what it holds, insets included, and nothing is kept in step by
+hand. Clamp it the way this chapter opened — `height = { Math.min(contentHeight, 240) }`
+— and the padding is inside the clamp. The same arithmetic is what makes a padded
+scroller stop a full bottom inset past its last row rather than flush against it.
+
+**`100%` means the room you are given; `{ parent.width }` means the parent's own box.**
+That `width = 100%` above is 260 less both insets — a percent resolves against the content
+box, and so do `x = center` and `x = end`, which is what makes `100%` the right spelling
+for "as wide as there is room for". `{ parent.width }` is the deliberate other answer, the
+escape hatch for a child that means to span the inset: pair it with a negative `x`
+(`x = -16, width = { parent.width }`) for a band that runs edge to edge inside a padded
+card. Ask for the room you are given, or ask for the parent's own width — they are
+different questions, and the spelling says which one you mean.
+
+Paint never moves either way. `fill`, `stroke`, `cornerRadius` and a `draw()` member are
+all the view's own box, so the panel's background still covers its padding and its hairline
+edge still runs around the outside of it. The inset lives in the panel's own coordinate
+space too, so it scales and rotates with the box like any other geometry.
+
+That whole panel is common enough that the library ships it: **`Card`** is a view whose
+fill, corner radius, hairline edge, `padding` and stacking layout are already the theme's,
+so the children are a plain list. **`Divider`** is the rule between them — a painted view, not
+a border, spanning the parent's *content* width, so it stops where the padding does:
+
+```declare
+App [ fill = #F4F6FA,
+    Card [ x = 20, y = 20, width = 280,
+        Text [ fontSize = 15, fontWeight = semibold, text = "Storage" ],
+        Text [ width = 100%, wrap = true,
+            text = "Cards size themselves to what they hold, padding included." ],
+        Divider [ ],
+        Button [ label = "Manage" ]
+        ]
+    ]
+```
+
+Both are ordinary defaults: `stroke = null` drops the card's edge, and naming your own
+`layout:` replaces the stack — though not the inset, which is the view's and not the
+arrangement's (`padding = 0` is what takes that away). Note the children are `Text`, not
+`TextLabel` — a `TextLabel` owns its own `y` to cap-center itself, which is exactly the
+slot the card's layout places, and one slot has one owner.
 
 ## The transform, in two and three dimensions
 

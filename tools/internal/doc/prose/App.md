@@ -62,7 +62,10 @@ hover-at-a-distance: a `Spring` following `app.pointerX` trails the cursor.
 ## hovering
 **Read-only.** Whether a **hovering** pointer is present — true for mouse/trackpad,
 **false for touch**. Gate hover-only chrome (a cursor dot, a rollover) on it so a phone
-never shows it, yet an iPad trackpad — which reports a mouse pointer — still does.
+never shows it, yet an iPad trackpad — which reports a mouse pointer — still does. It
+reports the pointer, not the machine: it is `false` until a pointer first moves, so a
+mouse-driven page that nobody has touched yet starts out `false` — for "what kind of
+device is this?" read `touchDevice`, which is a standing answer.
 
 ## pointerOverText
 **Read-only.** True while the pointer is over an editable or selectable text field. Yield
@@ -301,12 +304,27 @@ insets both edges: `x = { app.safeLeft }`,
 **Read-only.** The right-side counterpart of `safeLeft` — see it for the landscape story
 and the full-width idiom.
 
-## env
-**Read-only.** Whatever the host passed in, as a record — the clean pass-through for a
-desktop hosting a child app and pushing appearance or configuration down. `{}` when
-top-level or when the host passes nothing, so a read never null-crashes. It is the host's
-channel (the host writes it live through the island's `env` string), and `app.dark` is the
-ready-made one most apps want.
+## exposes
+The names this app offers UP to whatever hosts it — `exposes = ["docH"]`. Each names
+one of the app's own attributes; the host reads it with `island.exposed("docH", 0)`
+(an island hosting this app) or `app.exposed("docH")` (a page). Nothing unlisted is
+readable from outside. The down direction is `hostProvided(name, default)`, which reads
+what the host provides.
+
+## provide()
+The PAGE's side of the down direction, for a top-level app: `app.provide(name, value)`
+sets the value this app's `hostProvided(name, …)` reads return, and every constraint over
+them re-derives; `undefined` withdraws it. `boot({ provides })` and a
+`data-declare-provide` JSON attribute on the host element do the same at boot. An
+island-hosted app gets its values from the island's `provides` instead.
+
+## exposed()
+The PAGE's read of a value this app exposes: `app.exposed("docH")` — `undefined` for a
+name the `exposes` list does not carry.
+
+## watchExposed()
+A standing watch over an exposed value, for page script: `app.watchExposed(name, cb)` calls
+`cb(value)` now, then at the close of each settle that changed it; returns the unwatch.
 
 ## appName
 What this app calls itself — the host reflects it into the window or document title. An
@@ -327,20 +345,18 @@ pass `declarec --debug`.
 The island bridge's tenant-side verb: when this app runs **embedded as an island's
 tenant**, `app.post(topic, payload)` delivers to the host island's `onPost({ topic,
 payload })`. Not linked (a top-level app), it drops with a console note — a verb has no
-meaning without a receiver. The state channel is the app's `external` declarations;
-post is for commands and occurrences, never continuous values.
+meaning without a receiver. Continuous values cross as the app's `exposes` names (up)
+and `hostProvided` reads (down); post is for commands and occurrences, never state.
 
 ## onPost
 The inbound half, an event: a host island's `post(topic, payload)` arrives on its
 embedded tenant as `onPost(m: IslandPost)` — `m.topic`, `m.payload`. Fires only on a
-linked tenant. The state channel is the `external` declaration modifier: on a tenant
-App, `external name: Type = default` declares an **export** — the app's half of its
-island's typed bridge. The host island declares the same name `external`; the runtime
-pairs them at mount with a type handshake (a mismatch is a link error). The slot then
-behaves as an ordinary attribute on both sides: this app writes it and the host's
-constraints re-derive; the host feeds it and this app's constraints re-derive.
-Ownership arbitrates direction — a slot the host *binds* refuses this app's writes,
-loudly.
+linked tenant. Continuous values cross by name, each saying its direction: this app
+lists what it offers UP in `exposes`, and the host reads one with the island's
+`exposed(name, default)`; the host lists what it offers DOWN in the island's
+`provides`, and this app reads one with `hostProvided(name, default)`. Both reads are
+reactive — constraints over them re-derive when the other side changes the value — and
+each value has exactly one owner, so neither side can write what the other offers.
 
 ## revealInset
 How much room to leave above a view the platform scrolls into place —

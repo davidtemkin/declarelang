@@ -15,14 +15,22 @@ the group's direct children; each names itself (`name`, defaulting to its
 `label`) and derives `open` from the group. Content is authored as the Pane's
 ordinary children — the Pane stacks its header then the content, and clips.
 
+The pane stacks them **flush**, header against content, because the header is
+edge-to-edge and an inset that reached it would break that. So the breathing
+room around a pane's content is the content's own `padding`:
+
 ```declare
 Accordion [ x = 20, y = 20, width = 260,
     Pane [ label = "Account", initial = true,
-        Text [ x = 12, y = 8, width = 230, wrap = true,
-            text = "Panes slide on a spring; the content rides the whole way." ]
+        View [ width = 100%, padding = 12,
+            Text [ width = 100%, wrap = true,
+                text = "Panes slide on a spring; the content rides the whole way." ]
+            ]
         ],
     Pane [ label = "Privacy",
-        Text [ x = 12, y = 8, width = 230, text = "One pane open at a time." ]
+        View [ width = 100%, padding = 12,
+            Text [ width = 100%, text = "One pane open at a time." ]
+            ]
         ]
     ]
 ```
@@ -103,7 +111,7 @@ class Accordion extends View [
     ]
 
 
-class Pane extends Control [ width = { parent.width }, clip = true,
+class Pane extends Control [ width = 100%, clip = true,
     label: string = "",
     name:  string = { label },
     initial: boolean = false,                     // seed the open pane: first Pane sets initial = true
@@ -149,7 +157,7 @@ class Pane extends Control [ width = { parent.width }, clip = true,
     Spring [ attribute = twist, to = { classroot.open ? 0 : -Math.PI / 2 },
         stiffness = 220, damping = 26, epsilon = 0.004 ],
 
-    header: View [ width = { parent.width }, height = 34,
+    header: View [ width = 100%, height = 34,
         cornerRadius = { theme.controlRadius },
         fill = { classroot.open || classroot.hot || classroot.down ? theme.controlSelected : theme.control },
         stroke = { classroot.focusVisible ? stroke(1, theme.textMuted) : null },

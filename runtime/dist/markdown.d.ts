@@ -51,7 +51,7 @@ export declare abstract class RichText extends View {
     truncated: boolean;
     bodyColor: number | null;
     linkUnderline: boolean;
-    scale: number;
+    fontScale: number;
     /** Color-scheme override (null = follow the App's OS `dark`). */
     dark: boolean | null;
     /** The y of the first line's baseline in this box — what `align = baseline`
@@ -79,29 +79,14 @@ export declare abstract class RichText extends View {
      *  defaults to the nearest provided one (defineAttributes below). */
     textStyles: Record<string, RunStyle>;
     protected stylesOf(): Record<string, RunStyle>;
-    /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
-     *  paint transform it means on a plain View — so mask the base flush()'s scale
-     *  push. Without this, a `scale` constraint that evaluates before the surface
-     *  attaches bakes a CSS transform ON TOP of the scaled fonts (double-scaling),
-     *  and the view's measured height no longer matches its painted height. */
-    protected flush(s: Surface): void;
-    /** …and mask the GEOMETRY meaning too. The glyphs are already scaled into
-     *  the runs, so this view's measured width/height ARE its on-screen box —
-     *  but footprint() (auto-extent, layout, bounds) multiplies by `scale`,
-     *  shrinking the box a second time. Measured: at the reader's default 0.9
-     *  every code block stood 1/0.9 taller on screen than in the model — the
-     *  desktop's 7,000px Window block bled ~760px of pixels past its measured
-     *  extent, and the next segments were laid over its tail ("the prose
-     *  overlaps the code blocks", 2026-08-20). Identity here completes the
-     *  rule flush() started: to the geometry system a RichText is untransformed.
-     *  (Rotation is honored via the base walk with scale forced to 1 — a
-     *  rotated RichText keeps its swept box.) */
-    footprint(): {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-    };
+    /** A rich text's type size is `fontScale`, its own attribute, and it never
+     *  touches the geometry `scale` every other view means by that name. The
+     *  glyphs are scaled into the runs, so the measured box IS the painted box
+     *  and `scale` stays 1 — which is what lets paint, the hit walk's inverse,
+     *  `rootTransform` and both auto-extent paths (the JavaScript derive and the
+     *  kernel's native rule) read one geometry and agree, with nothing to mask.
+     *  A rich text that IS transformed says so with `scale`, like any view, and
+     *  every reader honours it. */
     attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** The color scheme for the house rich-element palette: the explicit `dark`
      *  override if set (an app whose own theme selector differs from the OS), else

@@ -57,8 +57,16 @@ export declare function programSchemas(classes: readonly ClassDecl[], shapes?: R
 };
 /** Coerce a theme-record token to its runtime value (checkThemeRecord vetted
  *  the shapes): numbers and strings pass through, hex/named colors ground as
- *  Color, `true`/`false`/`null` as themselves, and a constructor call as the
- *  first of fill/stroke/shadow that admits it. */
+ *  Color, `true`/`false`/`null` as themselves, a constructor call as the first
+ *  of fill/stroke/shadow that admits it, and a LIST of any of those.
+ *
+ *  A list is a token because the rule the record actually keeps is "a token is
+ *  bounded, plain data" — spreadable, comparable, serializable, inspectable
+ *  without asking what kind of object it is — and a frozen array of literals is
+ *  all of those. Excluding it did not keep lists out; it denied them a type, so
+ *  the one the corpus needed most, a font stack, was written as a comma-joined
+ *  string and parsed back into a list at the other end. ONE LEVEL: a list of
+ *  lists is refused, which keeps "bounded" a fact rather than a hope. */
 export declare function coerceToken(lit: Literal): unknown;
 /** One checked attribute declaration: its resolved type and coerced default
  *  — or a default BINDING (`labelColor: Color =

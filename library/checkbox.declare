@@ -89,7 +89,7 @@ class Checkbox extends Control [
     width   = { this.box.width + (label == "" ? 0 : 8 + this.cap.width) },
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
-    box: View [ y = { (parent.height - this.height) / 2 },
+    box: View [ y = center,
         width  = { classroot.size > 0 ? classroot.size : typeof theme.checkboxSize == "number" ? theme.checkboxSize : 20 },
         height = { this.width },
         cornerRadius = { typeof theme.checkboxRadius == "number" ? theme.checkboxRadius : Math.min(8, Math.max(3, theme.controlRadius - 2)) },

@@ -29,11 +29,18 @@ class ChatPanel extends View [
         height = { parent.height - 34 },
         fill = #FFFFFF, cornerRadius = 11, clip = true, scrolls = y,
 
-        rows: View [ x = 6, y = 4, width = { parent.width - 12 },
+        // the transcript's margin is its own content box. The bottom stays 0:
+        // the original's list runs to the bottom edge, and a scroller counts
+        // its insets into the extent, so a bottom inset here would add room
+        // the port does not have.
+
+        padding = [4, 6, 0, 6],
+
+        rows: View [ width = 100%,
             datapath = { app.chatLog.value },
             layout: SimpleLayout [ axis = y, spacing = 2 ],
             Text [ datapath = :messages[],
-                width = { parent.width }, wrap = true,
+                width = 100%, wrap = true,
                 fontFamily = { app.veraRoman }, fontSize = 11,
                 textColor = { :self ? 0x0000FF : 0xCC0000 },
                 text = :text ]
@@ -65,7 +72,7 @@ another. A row flashes white when that person comes online.
 */
 
 class ContactRow extends View [
-    width = { parent.width },
+    width = 100%,
     open: boolean = false,
     height = { open ? 224 : 34 },
     slide: Animator [ attribute = height, duration = 333, motion = laszloBoth ],
@@ -260,7 +267,7 @@ class ContactsPanel extends View [
 
         onWheel(e: WheelEvent) { classroot.scrollList(e.deltaY) },
 
-        rows: View [ x = 0, y = { -classroot.scrollPos }, width = { parent.width },
+        rows: View [ x = 0, y = { -classroot.scrollPos }, width = 100%,
             datapath = { app.contactsData.value },
             layout: SimpleLayout [ axis = y ],
             ContactRow [ datapath = :contacts[] ]
@@ -541,7 +548,7 @@ class MusicPanel extends View [
 
     grid: View [ y = 106, width = 100%, height = { parent.height - 106 },
         fill = #FFFFFF, clip = true, scrolls = y,
-        cells: View [ width = { parent.width },
+        cells: View [ width = 100%,
             datapath = { app.musicData.value },
             layout: WrappingLayout [ spacing = 8, lineSpacing = 0 ],
             TrackCell [ datapath = :tracks[], kind = "audio" ]
@@ -561,7 +568,7 @@ class VideoPanel extends View [
         playing = { app.nowPlayingKind === "video" && app.mediaWants },
         height = { parent.height - 74 - 65 },
         width = { this.height * 240 / 135 },
-        x = { (parent.width - this.width) / 2 },
+        x = center,
         stretches = both,
         onEnded() { position = 0; app.mediaWants = false }
         ],
@@ -575,7 +582,7 @@ class VideoPanel extends View [
 
     strip: View [ y = { parent.height - 65 }, width = 100%, height = 65,
         fill = #F8EEF8, clip = true,
-        cells: View [ width = { parent.width },
+        cells: View [ width = 100%,
             datapath = { app.videosData.value },
             layout: WrappingLayout [ spacing = 8, lineSpacing = 0 ],
             TrackCell [ datapath = :tracks[], kind = "video" ]

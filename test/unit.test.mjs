@@ -2859,13 +2859,32 @@ await test("axis is structural: changing it re-installs, releasing the old axis"
   assert.throws(() => { app.children[1].x = 0; }, /View\.x — App's SimpleLayout positions its children, so this child cannot also own its x/);
 });
 
-await test("the layout owns laid positions: a direct write errors naming it; a literal is overridden", async () => {
-  const app = await buildL(`App [ width=100, height=200,
-    layout: SimpleLayout [ axis = y ],
-    View [ width=10, height=10 ], View [ width=10, height=10, y=99 ] ]`);
+await test("the layout owns laid positions: a direct write errors naming it; a literal is overridden — and reported", async () => {
+  const warned = [];
+  const origWarn = console.warn;
+  console.warn = (...a) => warned.push(a.join(" "));
+  let app;
+  try {
+    app = await buildL(`App [ width=100, height=200,
+      layout: SimpleLayout [ axis = y ],
+      View [ width=10, height=10 ], View [ width=10, height=10, y=99 ] ]`);
+  } finally {
+    console.warn = origWarn;
+  }
   // The Appendix-A-compatible rule: a laid-axis literal simply loses to the
   // arrangement (it was applied in pass one; the layout owns from pass two).
   assert.equal(app.children[1].y, 10, "the literal y=99 yielded to the arrangement");
+  // …and SAYS so, as of 2026-09-19. Losing in silence was the language's only
+  // silent answer to "may I set my own geometry here?" — the same value spelled
+  // `y = { 99 }` has always been a boot failure, and one intent may not get two
+  // answers because of how it was spelled. The outcome is unchanged; only the
+  // silence is gone (the reasons it is a warning and not a refusal are in
+  // layout.ts reportDiscarded; the family is pinned in layout-claims.test.mjs).
+  const said = warned.filter((w) => /cannot also own its y/.test(w));
+  assert.equal(said.length, 1, "reported once: " + JSON.stringify(warned));
+  assert.match(said[0], /View\.y = 99/, "names the value that was dropped");
+  assert.match(said[0], /App's SimpleLayout positions its children/, "names the strategy");
+  assert.match(said[0], /ignoreLayout = true/, "and both ways out");
   assert.throws(
     () => { app.children[1].y = 99; },
     (e) => {
@@ -2879,12 +2898,15 @@ await test("the layout owns laid positions: a direct write errors naming it; a l
 });
 
 await test("a laid axis with its own author binding is a hard conflict — two owners, one slot", async () => {
-  for (const bound of ["y={ parent.height - 10 }", "y=50%"]) {
+  // The message carries the AUTHOR'S POSITION as of 2026-09-19 (O4): the losing
+  // value's own line, taken off the incoming binding's `sourcePos`, which every
+  // author binding now has — a `{ }`, a percent, and a position literal alike.
+  for (const bound of ["y={ parent.height - 10 }", "y=50%", "y=center"]) {
     await assert.rejects(
       async () => await buildL(`App [ width=100, height=200,
         layout: SimpleLayout [ axis = y ],
         View [ width=10, height=10, ${bound} ] ]`),
-      /View\.y — App's SimpleLayout positions its children, so this child cannot also own its y/,
+      /View\.y \(line \d+, col \d+\) — App's SimpleLayout positions its children, so this child cannot also own its y/,
       bound
     );
   }
@@ -2923,12 +2945,18 @@ await test("a size-claiming layout displaces the yielding auto-derive (issue #16
   console.error = (...a) => errs.push(a.join(" "));
   try {
     const b = await buildL(`App [ width=100, height=80,
-      View [ width = { parent.width / 2 }, height=10 ] ]`);
+      View [ width = { parent.width / 2 }, height=10 ], View [ height=10 ] ]`);
     b.layout = new Halves();
     settle();
     settle(); // a second wave must NOT re-report (dedupe)
     assert.equal(b.children[0].width, 50, "the author's binding holds — 100/2");
-    assert.equal(b.children[0].x, 0, "…and the layout still arranged the non-contested slots (x)");
+    // A refused SIZE now takes that child OUT of the arrangement whole
+    // (2026-09-19): a strategy that allocates a size lays the next child FROM
+    // it, so a run that keeps placing a child whose size it never wrote is
+    // advancing by a number that describes no picture — the measured hole.
+    // The sibling is therefore laid alone, and gets the whole width.
+    assert.equal(b.children[1].x, 0, "the run does not advance over a child it does not lay");
+    assert.equal(b.children[1].width, 100, "…and the child it does lay gets the room");
   } finally {
     console.error = orig;
   }
@@ -4330,12 +4358,24 @@ await test("constructors are in scope inside { } bodies; bare `stroke` is still 
 });
 
 await test("compile(): constructor names resolve as constructors in call position only", async () => {
+  // The read narrows first: `stroke` is typed `BoxStroke` — one Stroke on all
+  // four sides or four of them — so reaching for `.width` asks which form it
+  // has. (`Array.isArray` does not narrow a readonly-tuple arm out of the
+  // union; the property test does, which is why the corpus idiom is `in`.)
   const r = await compile(`App [
     box: View [ fill = { gradient(0xFFFFFF, 0xF0F0F0) },
-                width = { stroke ? stroke.width : 10 } ] ]`);
+                width = { stroke && "width" in stroke ? stroke.width : 10 } ] ]`);
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
   assert.match(r.source, /gradient\(0xFFFFFF/, "callee position: left for the runtime constructor");
-  assert.match(r.source, /this\.stroke \? this\.stroke\.width : 10/, "bare stroke is the slot");
+  assert.match(r.source, /this\.stroke && "width" in this\.stroke \? this\.stroke\.width : 10/,
+    "bare stroke is the slot — in the guard and in the read");
+});
+
+await test("stroke: a body that reaches INTO a stroke is told to ask which form it holds", async () => {
+  const r = await compile(`App [ box: View [ width = { stroke ? stroke.width : 10 } ] ]`);
+  assert.equal(r.errors.length, 1);
+  assert.match(r.errors[0].message, /'width' is not a member of a stroke/);
+  assert.match(r.errors[0].message, /one Stroke on all four sides OR four of them/);
 });
 
 await test("gradient/stop are reserved member names (unreachable in call position otherwise)", () => {
@@ -4420,9 +4460,20 @@ App [ ]`);
 
 await test("check: a theme is a token record; a class-keyed entry has no home", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
-  // A theme's tokens are literals or value constructors — nothing else.
+  // A theme's tokens are literals, value constructors, or a list of those —
+  // nothing else.
   assert.match(errs(`theme S [ t = card(1) ] App [ ]`)[0],
-    /theme S\.t: a token is a number, string, boolean, color, or a value constructor/);
+    /theme S\.t: a token is a number, string, boolean, color, a value constructor .*, or a list of them/);
+  // A LIST is a token (a font stack is the case that wanted it), one level deep:
+  // a list of lists is refused in its own words, and a bad ITEM is named at the
+  // item rather than at the list.
+  assert.equal(errs(`theme S [ faces = ["Helvetica Neue", "Arial", "sans-serif"] ] App [ ]`).length, 0);
+  assert.equal(errs(`theme S [ hues = [#FF0000, blue, true] ] App [ ]`).length, 0);
+  assert.equal(errs(`theme S [ scale = [12, 14, 17] ] App [ ]`).length, 0);
+  assert.match(errs(`theme S [ n = [ ["a"], ["b"] ] ] App [ ]`)[0],
+    /theme S\.n: a token's list holds values, not more lists — flatten it/);
+  assert.match(errs(`theme S [ f = ["Helvetica", :somepath] ] App [ ]`)[0],
+    /theme S\.f: every value in a token's list is a number, string, boolean, color, or a value constructor/);
   // A name collides across the declaration namespaces.
   assert.match(errs(`theme S [ ] theme S [ ] App [ ]`)[0],
     /already a component, theme, style, or font named 'S'/);
@@ -7443,10 +7494,14 @@ App [
 
 await test("extractStatic: heading level inferred from settled type — bigger + bolder than body becomes <hN>", async () => {
   // Revising §5's no-inference rule (2026-07-14): a Text has no declared heading
-  // level, so infer it from the rendered type. Two signals, no more — LARGER than
-  // the body copy AND a heading weight (semibold+); level by size rank. The weight
-  // gate keeps a big light LEAD a <p>. Deliberately imperfect: a big bold FIGURE
-  // ("42") reads as a heading — accepted, not special-cased away.
+  // level, so infer it from the rendered type. Two signals decide a CANDIDATE —
+  // LARGER than the body copy AND a heading weight (semibold+); level by size
+  // rank. The weight gate keeps a big light LEAD a <p>.
+  //
+  // A candidate must also SAY SOMETHING: a bare figure is not a heading, however
+  // it is set. That is not shape polish — the size census shares this predicate,
+  // so a 64px "42" left in it would take h1 and push the real heading to h2,
+  // which is what it used to do here.
   const src = `App [
   fill = 0xffffff,
   fig: Text [ fontSize = 64, fontWeight = bold, text = "42" ],
@@ -7457,10 +7512,31 @@ await test("extractStatic: heading level inferred from settled type — bigger +
   const out = await extractStatic(src);
   assert.equal(out.report, "");
   assert.equal(out.html,
-    '<h1>42</h1>\n' +             // biggest size → h1, even a bare figure (accepted imperfection)
-    '<h2>The Heading</h2>\n' +    // next size → h2
+    '<p>42</p>\n' +               // a bare figure is not a heading, and takes no rank
+    '<h1>The Heading</h1>\n' +    // so the real heading is the document's h1
     '<p>Large but light — a lead, not a heading.</p>\n' + // same 40px but light → weight gate → <p>
     '<p>Body copy that carries the most characters on the page by a clear margin overall.</p>');
+});
+
+await test("extractStatic: a headline split across two views is one h1 and an h2, and prose counts as body", async () => {
+  // Two failures that shared one cause: levels are keyed by SIZE, so a headline
+  // split to carry two treatments resolved to two h1s; and a page whose prose is
+  // a rich-text flow had no body copy in the census at all, so chrome set the
+  // body size and anything a pixel larger became a heading.
+  const src = `App [
+  fill = 0xffffff,
+  l1: Text [ fontSize = 48, fontWeight = bold, text = "Declare" ],
+  l2: Text [ y = 60, fontSize = 48, fontWeight = bold, text = "is a language." ],
+  mark: Text [ y = 130, fontSize = 15, fontWeight = semibold, text = "Wordmark" ],
+  prose: Markdown [ y = 160, fontSize = 17, text = "Body copy carried by a rich-text flow, which is the page's real body and must anchor the comparison." ],
+  ]`;
+  const out = await extractStatic(src);
+  assert.equal(out.report, "");
+  // one h1, then a demotion — never a suppression
+  assert.ok(out.html.startsWith('<h1>Declare</h1>\n<h2>is a language.</h2>'), out.html);
+  // the flow IS the body at 17px, so the 15px semibold wordmark is chrome. Drop
+  // the flow from the census and it becomes the largest thing on the page.
+  assert.ok(out.html.includes('<p>Wordmark</p>'), out.html);
 });
 
 await test("navigate is a service action, not an attribute — `app.navigate = url` is a type error", async () => {

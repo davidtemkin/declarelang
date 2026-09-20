@@ -1,7 +1,7 @@
-// Island-bridge probe, HOST side (test/island-browser.test.mjs): an AppIsland
-// with a typed external surface — `volume` host-bound (the strict input),
-// `pos` tenant-owned (`readonly external`) — plus the verb pair. Runs the
-// same on the DOM backend and on canvas (surface composition).
+// Island-boundary probe, HOST side (test/island-browser.test.mjs): an AppIsland
+// that provides `volume` down and reads the tenant's exposed `pos` up — plus
+// the verb pair. Runs the same on the DOM backend and on canvas (surface
+// composition).
 
 App [ width = 400, height = 300, fill = #101820,
     vol: number = 0.7,
@@ -9,20 +9,21 @@ App [ width = 400, height = 300, fill = #101820,
 
     player: AppIsland [ x = 10, y = 10, width = 200, height = 120,
         program = "../bridge-tenant",
-        external volume: number = { app.vol },
-        external readonly pos: number = 0,
+        provides = ["volume"],
+        volume: number = { app.vol },
         onPost(m: IslandPost) { app.log = app.log + m.topic + ";" }
         ],
 
     posOut: Text [ x = 10, y = 150, textColor = whitesmoke,
-        text = { "pos=" + app.player.pos } ],
+        text = { "pos=" + app.player.exposed("pos", 0) } ],
 
     // a FOREIGN island beside the Declare one: raw JS mounts here and speaks
     // through el.__declareIsland (the sanctioned handle) — the DOM run pins it
 
     note: DOMIsland [ x = 10, y = 180, width = 200, height = 40, slot = "note",
-        external readonly txt: string = "",
+        provides = ["volume"],
+        volume: number = { app.vol },
         onPost(m: IslandPost) { app.log = app.log + "note:" + m.topic + ";" }
         ],
-    noteOut: Text [ x = 10, y = 230, textColor = #9CB2C5, text = { app.note.txt } ]
+    noteOut: Text [ x = 10, y = 230, textColor = #9CB2C5, text = { app.note.exposed("txt", "") } ]
     ]

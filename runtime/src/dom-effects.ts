@@ -83,7 +83,8 @@ export function applyDomMask(s: DomSurface): void {
     set("", "", "");
     return;
   }
-  set(m.url, `${m.w}px ${m.h}px`, `${stencil.x + m.x}px ${stencil.y + m.y}px`);
+  set(m.url, `${m.w}px ${m.h}px`,
+    `${stencil.x + stencil.positionLead("x") + m.x}px ${stencil.y + stencil.positionLead("y") + m.y}px`);
 }
 
 /** A surface's paint as a mask bitmap, in its own coordinates: an Image's

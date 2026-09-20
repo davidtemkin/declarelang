@@ -977,29 +977,33 @@ App [ fill = #101216, appName = "Market Map",
     // ── the console ──
 
     top: View [ width = 100%, fill = #16191F,
-        height = { this.chips.y + this.chips.height + 20 },
+
+        // the console has an inside: every control is written against it, and
+        // the panel is as tall as what it holds plus the inset under it
+
+        padding = [0, 24, 20, 24],
 
         // the span reads off the data itself, so a different file retitles the app
 
-        title: Text [ x = 24, y = 12, fontSize = 10, letterSpacing = 3, fontWeight = bold,
+        title: Text [ y = 12, fontSize = 10, letterSpacing = 3, fontWeight = bold,
             textColor = #98A2B3, visible = { !app.narrow },
             text = { "MARKET MAP — S&P 500" + (app.market.ready
                 ? ", " + fmtMonthYear(app.market.dateAt(0)) + " → " + fmtMonthYear(app.market.dateAt(app.nDays - 1))
                 : "") } ],
-        date: Text [ x = { parent.width - this.width - 24 }, y = 10,
+        date: Text [ x = end, y = 10,
             fontSize = { app.narrow ? 13 : 17 }, fontWeight = bold,
             letterSpacing = 1, textColor = #FFFFFF,
             text = { fmtDateLong(app.market.dateAt(app.day)) } ],
 
         // min = 1: day zero has no prior close, so no day-over-day color
 
-        scrubber: Slider [ x = 24, y = 40, width = { parent.width - 48 },
+        scrubber: Slider [ y = 40, width = 100%,
             min = 1, max = { app.nDays - 1 },
             value = { app.day },
             input(v: number) { app.scrub(v) }
             ],
 
-        chips: View [ x = 24, y = 72, width = { parent.width - 48 },
+        chips: View [ y = 72, width = 100%,
             layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
 
             // editorial, anchored to this file's span — the crash/bottom dates

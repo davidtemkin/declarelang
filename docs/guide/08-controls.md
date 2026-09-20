@@ -28,8 +28,16 @@ nothing below is "a control and a component."
 | `Segmented [ choices, value ]` | `value` matching a choice's `id` | one-of-N shown all at once — **set `width`**: it divides evenly and does not self-size to its labels |
 | `Combobox [ items, value ]` | the chosen **member** | filter-as-you-type over a collection |
 | `TextInput [ text, placeholder ]` | `text: string` | the one editor — see [chapter 9](declare-docs:guide:data) |
+| `AppearanceSwitch [ dark ]` | `dark: boolean` | light/dark, as one icon — sun in light, moon in dark |
 
 Every control also takes `disabled` (inert and unfocusable — constrain it).
+
+`AppearanceSwitch` is worth a note, because it is the one control whose *absence* of a
+third state is the design. "Follow the system" is not a choice on it — it is the
+default: an app derives its appearance from its environment until the reader presses
+the switch, and keeps what they chose from then on. Nobody has to choose to follow the
+system, because until they choose anything else they already are, which is why there
+is no Auto button to press.
 
 **Not every library component is a control**, and the difference is exactly the one
 above: a control has a value and a place in the focus order. The rest of what ships,

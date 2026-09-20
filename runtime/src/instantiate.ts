@@ -69,7 +69,7 @@ import { THEME_PRESETS } from "./themes.js";
 import type { Theme } from "./value.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign, type AttrType, type AttrValue } from "./value.js";
-import { defineAttributes, recordDeclarations, setBound, provideWrite, type AttrSpec, type DeclRecord } from "./attributes.js";
+import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, type AttrSpec, type DeclRecord } from "./attributes.js";
 import { bindConstraint, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator, type VirtualizePolicy } from "./replicate.js";
@@ -466,9 +466,13 @@ function orderProvisions(provisions: readonly ProvisionPending[]): ProvisionPend
     // "x")` — `\bprovided` sits on the `$`↔`p` boundary either way. A spurious
     // match inside a string only adds a harmless edge; `byName` keeps it to this
     // node's own provisions.
+    // The compiler's DEPS are read too: a precompiled program (declarec) ships a
+    // token where the text was, and its reads survive only there (2026-09-19 —
+    // tracker installed `textColor = { provided("theme")… }` before `theme`).
     const readsOf = (p: ProvisionPending): string[] => {
       const names: string[] = [];
-      for (const m of p.provideCode.matchAll(/\bprovided\(\s*"([^"]+)"/g)) {
+      const deps = p.attr.value.kind === "code" ? (p.attr.value as { deps?: readonly string[] }).deps ?? [] : [];
+      for (const m of (p.provideCode + " " + deps.join(" ")).matchAll(/\bprovided\(\s*"([^"]+)"/g)) {
         if (m[1] !== p.attr.name && byName.has(m[1])) names.push(m[1]);
       }
       return names;
@@ -688,7 +692,6 @@ function synthesize(
         pos: at != null && typeof (at as { line?: number }).line === "number" ? { line: (at as { line: number }).line, col: (at as { col?: number }).col ?? 0 } : null,
         deps: d.def?.kind === "code" ? ((d.def as { deps?: readonly string[] }).deps ?? null) : null,
         type: d.type,
-        external: d.external || undefined,
         readOnly: d.readOnly || undefined,
       };
     }
@@ -843,9 +846,13 @@ function runtimeMember(node: object, name: string): RuntimeMember {
  *  — so a derived body overrides its base's and the instance overrides the
  *  class's; only the winner installs, so a class-body `{ }` binding and an
  *  instance literal on one slot never fight over ownership. */
-function mergeAttrs(sources: readonly MemberSource[]): Map<string, { attr: Attr; croot: View | null }> {
-  const attrs = new Map<string, { attr: Attr; croot: View | null }>();
-  for (const s of sources) for (const a of s.el.attrs) attrs.set(a.name, { attr: a, croot: s.croot });
+function mergeAttrs(sources: readonly MemberSource[]): Map<string, { attr: Attr; croot: View | null; useSite: boolean }> {
+  const attrs = new Map<string, { attr: Attr; croot: View | null; useSite: boolean }>();
+  const last = sources.length - 1; // memberSources puts the USE SITE last
+  for (let i = 0; i < sources.length; i++) {
+    const s = sources[i];
+    for (const a of s.el.attrs) attrs.set(a.name, { attr: a, croot: s.croot, useSite: i === last });
+  }
   return attrs;
 }
 
@@ -1021,10 +1028,10 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   // Methods first (installMethods: the super rule, the runtime-member guard),
   // then the attribute channels.
   installMethods(view, sources, eff, ctx);
-  for (const { attr, croot: acroot } of attrs.values()) {
+  for (const { attr, croot: acroot, useSite } of attrs.values()) {
     const t0 = attrType(eff, attr.name);
     // A bare `[tl, tr, br, bl]` on a radius slot — check.ts vetted the shape.
-    if (t0?.kind === "radius" && attr.value.kind === "list") {
+    if ((t0?.kind === "radius" || t0?.kind === "inset") && attr.value.kind === "list") {
       (view as unknown as Record<string, unknown>)[attr.name] =
         Object.freeze(attr.value.items.map((it) => (it.kind === "number" ? it.value : 0)));
       continue;
@@ -1114,6 +1121,10 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
       // checkAttr guarantees the value matches the field's declared type, so
       // this dynamic assignment (the parse-path bridge) is sound.
       (view as unknown as Record<string, unknown>)[attr.name] = r.value;
+      // A literal installs no Constraint, so there is nowhere else to hang the
+      // line that wrote it — and a geometry literal is exactly the value a
+      // layout's claim can discard (layout.ts). Kept for those five slots only.
+      if (useSite) noteUseSiteSet(view, attr.name, attr.value.pos);
     }
   }
   // Children: the class bodies' (they belong to every instance, scoped to

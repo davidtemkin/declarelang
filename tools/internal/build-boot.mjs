@@ -26,7 +26,7 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { mkdirSync, copyFileSync, statSync, readFileSync } from "node:fs";
+import { mkdirSync, copyFileSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
 
@@ -39,6 +39,15 @@ mkdirSync(OUT_DIR, { recursive: true });
 
 await build({
   entryPoints: [path.join(ROOT, "browser/boot-uniform.js")],
+  // BUILD FLAGS (runtime/src/build-flags.d.ts): no runtime-development switches in
+  // a shipped bundle, and no native-kernel binding in a browser.
+  define: {
+    __DECLARE_DEV_SWITCHES__: "false", __DECLARE_NATIVE_KERNEL__: "false",
+    // the kernel's bytes ride INSIDE the bundle (base64): one request, nothing
+    // before first paint waits on a second fetch (see declarec.mjs for the
+    // measurement that decided it)
+    __DECLARE_INLINE_KERNEL__: "true",
+  },
   bundle: true,
   format: "esm",
   platform: "browser",
@@ -60,7 +69,11 @@ await build({
   legalComments: "none",
   outfile: OUT,
   // The compiler bundle is fetched lazily on the slow path — never inlined here.
-  external: ["*declare-compiler.js"],
+  // The JAVASCRIPT KERNEL likewise: it is imported dynamically (reactive.ts
+  // loadJsKernel) and rides beside the bundle, so a page pays nothing for it and
+  // anyone debugging can switch onto it — breakpoints in `settle`, named frames
+  // in the profiler — by setting `__declareKernelJS` and reloading.
+  external: ["*declare-compiler.js", "*kernel-js.js"],
 });
 
 // The worker rides ALONGSIDE the bundle (see header).
@@ -81,6 +94,15 @@ await build({
   keepNames: true,
   legalComments: "none",
   outfile: RASTER_OUT,
+});
+
+// THE JAVASCRIPT KERNEL, beside the bundle and UNMINIFIED: it exists to be read
+// and stepped through, so minifying it would defeat the one thing it is for.
+await build({
+  entryPoints: [path.join(ROOT, "runtime/dist/kernel-js.js")],
+  bundle: true, format: "esm", platform: "browser", target: "es2022",
+  minify: false, keepNames: true, legalComments: "none",
+  outfile: path.join(OUT_DIR, "kernel-js.js"),
 });
 
 const raw = statSync(OUT).size;

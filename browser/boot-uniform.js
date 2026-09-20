@@ -525,6 +525,7 @@ export default async function boot(cfg) {
       source: program, deps, backend: cfg.backend,
       host: cfg.host,                                              // an explicit mount element — several apps per page, each in its own marked div
       location: cfg.location,
+      provides: cfg.provides,                                      // the page as the topmost host: values the app reads with hostProvided("name", …)
       mainAssetBase: mainDir.href,                                 // per-app asset AND data base — N tenants, each its own program dir
       pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
       seeds, demoBase, compile: liveCompile, prewarm: prewarmChild,
@@ -551,7 +552,14 @@ export default async function boot(cfg) {
   // host. Under the dev server, live edits compile on the server (serverCompile),
   // so pulling the compiler bundle here would defeat the whole point.
   //
-  // `?warm=0` turns it off, so the cost can be MEASURED rather than argued about.
+  // OFF BY DEFAULT (DT, 2026-09-17: "It really should happen on demand. the
+  // homepage itself uses the compiler — if the user edits the samples. Otherwise
+  // the pre-compiled versions load and that's it."). `?warm=1` asks for it.
+  //
+  // Nothing is lost by waiting: the live-edit path loads the compiler ITSELF
+  // (liveCompile → loadCompiler().then(ensureLibrary) below, awaited by
+  // host-client's watchLive), so a first edit still compiles — it pays the fetch
+  // then, which is the moment the bytes are actually wanted.
   // What it costs is real and was not visible until it was instrumented: the
   // fetch starts at the first frame (measured on the live site: first-frame and
   // compiler-worker both at 628 ms on the homepage, 319 ms on the calendar), so it
@@ -564,7 +572,7 @@ export default async function boot(cfg) {
   // was measurable before. It is a boot knob, not a compile modifier: it changes
   // WHEN the compiler is fetched, never what a compile produces.
   const warm = new URLSearchParams(location.search).get("warm");
-  if (!window.__declareServer && warm !== "0" && warm !== "false") {
+  if (!window.__declareServer && (warm === "1" || warm === "true")) {
     loadCompiler().then(ensureLibrary).catch(() => {});
   }
   return app;
@@ -573,8 +581,9 @@ export default async function boot(cfg) {
 // THE ERROR PAGE IS A PROGRAM. The same library/platform-apps/error/error.declare the Mac host
 // opens into its window — ONE error page for both hosts — booted through this
 // very entry with the failed boot's own hosting settings, the diagnostics and
-// the failed address riding `app.env` (the mac's `?errors=&subject=` contract,
-// so `error.declare` reads both the same way). Only if IT cannot come up — the
+// the failed address PROVIDED to it as its host (`hostProvided("errors", …)` —
+// the mac's `?errors=&subject=` contract arrives the same way, so
+// `error.declare` reads both identically). Only if IT cannot come up — the
 // platform itself is broken, not the program — does the hand-built panel below
 // render: the last resort that needs no compiler. `showingErrorPage` keeps a
 // failing error page from recursing into itself, and `panelShown` keeps the
@@ -587,8 +596,9 @@ async function showError(msg, subject) {
     showingErrorPage = true;
     try {
       if (host) host.textContent = "";                 // a half-mounted failed boot leaves nothing behind
-      const app = await boot({ ...currentCfg, main: new URL("../library/platform-apps/error/error.declare", import.meta.url).href, launcher: false });
-      if (app) { app.env = { errors: String(msg), subject: subject ?? "" }; return app; }
+      const app = await boot({ ...currentCfg, main: new URL("../library/platform-apps/error/error.declare", import.meta.url).href, launcher: false,
+        provides: { errors: String(msg), subject: subject ?? "" } });
+      if (app) return app;
     } catch (e) {
       console.error("[Declare] the error page itself failed — falling back to the plain panel:", e);
     }

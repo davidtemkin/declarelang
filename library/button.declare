@@ -164,7 +164,7 @@ class Button extends Control [
 
     stroke  = { !primary && theme.buttonBorder != null ? stroke(1, theme.buttonBorder) : null },
 
-    run: View [ height = { parent.height }, x = center,
+    run: View [ height = 100%, x = center,
         width = { this.contentWidth },
         layout: SimpleLayout [ axis = x, spacing = { classroot.gap } ],
 

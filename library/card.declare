@@ -1,0 +1,86 @@
+/*
+# Card — a themed surface with its content inset
+
+The box everything else sits on: the theme's `surface` fill, its corner radius, a
+hairline edge in its `line` token, and — the part that saves the wrapper view — a
+**default layout that stacks and pads**, so a Card's children are written as a plain
+list and arrive inset from every edge.
+
+```declare
+Card [ x = 20, y = 20, width = 280,
+    Text [ fontSize = 15, fontWeight = semibold, text = "Storage" ],
+    Text [ width = 100%, wrap = true,
+        text = "Cards size themselves to what they hold, padding included." ],
+    Divider [ ],
+    Button [ label = "Manage" ]
+    ]
+```
+
+**Use `Text`, not `TextLabel`, as a direct child.** A `TextLabel` positions itself
+vertically — that cap-centering `y` is the whole of what it adds — and the card's layout
+places the children it holds, so the two would own the same slot. `TextLabel` belongs
+inside a control or a row that leaves `y` alone; a card's own lines are `Text`.
+
+**Give it a width, not a height.** A Card has no height of its own: it takes the one its
+content needs, `padding` counted in — so the box grows and shrinks with what is inside it,
+and nothing has to be kept in step by hand. Set `height` only to cap it (with `clip = true`
+if the content may exceed the cap).
+
+**The inset is the card's own `padding` = 16**, a `View` attribute: the card has an
+*inside*, and every child — stacked by the default layout, placing itself at `x = center`,
+or opted out with `ignoreLayout` — is positioned from it. The **default arrangement** is
+`SimpleLayout [ axis = y, spacing = 8 ]`, which simply stacks inside that room, 8 apart.
+
+**Replacing the layout does not replace the padding.** Naming your own `layout:` member —
+a `WrappingLayout`, a row, a stack with different numbers — overrides the arrangement
+only; the card is still inset, because the inset was never the arrangement's. Write
+`padding = 0` to take it away, or `padding = 24` for more. `fill`, `cornerRadius` and
+`stroke` are ordinary defaults a use site may write over the same way.
+
+## fill
+The theme's `surface` — the token that means "the plane content sits on", one step off
+the window's own `bg` in every preset, light and dark. Write over it for a card that
+should sink into the page rather than rise off it (`fill = { theme.bg }`), and pair that
+with a kept `stroke` so the shape still reads.
+
+## cornerRadius
+The theme's `controlRadius`, so a card's corners match the buttons and fields inside it
+— 7 in the house look, 4 in `Redmond` and `MountainView`. Set a number to break with the
+preset; the box still clips nothing unless you also say `clip = true`.
+
+## theme
+The provided design-token record the card styles off. Reads `surface` for the fill, `line`
+for the edge, and `controlRadius` for the corners — the tokens every preset carries, so a
+card is the theme's surface in all four, light and dark. See `Control.theme`.
+
+## stroke
+A one-pixel edge in the theme's `line`. **`stroke = null` removes it** — the right move
+for a card that already stands off the page by fill alone, or one nested inside another.
+Per-side works here as anywhere: `stroke = [ null, null, stroke(1, #DBE1E9), null ]` turns
+a card into a row with a rule under it.
+*/
+
+include [ "control.declare" ]
+
+class Card extends View [
+    // the design-token record, a provided value: the app provides it once and
+    // this widget reads it. Default = the house look.
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+
+    fill = { theme.surface },
+    cornerRadius = { theme.controlRadius },
+    stroke = { stroke(1, theme.line) },
+
+    // The inset that saves the wrapper view: the card's own content box, so
+    // every child's x/y is measured from inside it — the stacked ones, and a
+    // child that places itself across the card alike. The inset is the view's,
+    // not the arrangement's, which is what lets a child ignore the layout and
+    // still sit inside the padding.
+
+    padding = 16,
+
+    // The default arrangement — a plain stack, inside the room above.
+
+    layout: SimpleLayout [ axis = y, spacing = 8 ]
+    ]

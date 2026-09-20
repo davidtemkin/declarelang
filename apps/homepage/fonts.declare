@@ -1,0 +1,33 @@
+/*
+# The site's faces
+
+The type the homepage and the pages it hosts are set in, named once. A face is a
+**stack** — the families in order of preference, exactly as `fontFamily` itself
+takes them — so it is a theme token like any other, and a program reads one
+with `Faces.helvetica`.
+
+```declare-fragment
+App [ fontFamily = { Faces.helvetica }, … ]
+```
+
+A list is a token because a token is bounded, plain data, and an ordered list of
+family names is that. Writing the stack as one comma-joined string would work
+too, but then the fallback order is a convention inside a string rather than
+something the checker can see.
+
+Two faces, because the homepage offers a type tuner: Helvetica is the site's,
+Avenir the alternative under assessment.
+*/
+
+theme Faces [
+    // The conventional Helvetica stack: the real face on Apple devices, Arial on
+    // Windows; on Linux, fontconfig maps both names to its metric-compatible
+    // lookalikes, and anything else falls to the system sans.
+
+    helvetica = ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
+
+    // Avenir Next ships only on Apple platforms; elsewhere this falls to the
+    // system face.
+
+    avenir = ["Avenir Next", "Avenir", "system-ui", "sans-serif"]
+    ]

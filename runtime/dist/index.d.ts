@@ -19,6 +19,11 @@ export interface BuildOptions {
      *  each navigable instance is stamped `_navLink` for the static extractor.
      *  Absent → no links (navigation still works; only extraction is affected). */
     links?: readonly SerializedLink[];
+    /** The values the host provides this app from its first evaluation — read in
+     *  the program with `hostProvided(name, default)`. An island host passes
+     *  `islandProvisions(island)`; a page passes `boot({ provides })`. Later
+     *  changes go through `app.provide` (or the island link). */
+    provides?: Readonly<Record<string, unknown>>;
 }
 /** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
  *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at
@@ -37,6 +42,7 @@ export declare function render(source: string, host: HTMLElement, backend: Rende
  *  document they render into belongs to the host page (asset-base.ts). */
 export declare function renderAsync(source: string, host: HTMLElement, backend: RenderBackend, opts?: BuildOptions & {
     assetBase?: string | null;
+    beforeMount?: (app: App) => void;
 }): Promise<App>;
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
@@ -52,7 +58,7 @@ export type { HostServices } from "./boot.js";
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
 export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export { Node } from "./node.js";
-export { View, App, Island, DOMIsland, linkIslandTenant, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, Island, DOMIsland, linkIslandTenant, islandProvisions, withHostProvides, inheritedCursor, onDiscard } from "./view.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
 export { TextInput } from "./text-input.js";
@@ -67,7 +73,7 @@ export type { StreamMessage, StreamFactories, StreamHandle, StreamCallbacks } fr
 export { Tip } from "./tip.js";
 export { Animator, AnimatorGroup } from "./animator.js";
 export type { Cursor } from "./data.js";
-export { settle, afterSettle, observe } from "./reactive.js";
+export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoaded, kernelStats } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";

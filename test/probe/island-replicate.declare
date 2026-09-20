@@ -1,6 +1,6 @@
 // Islands under DATA REPLICATION (the runtime-creation question, 2026-08-20):
 // one AppIsland per dataset match, each with its own tenant, its own bridge,
-// and a data-fed external. The dataset is a plain attribute so a probe can
+// and a data-fed provided value. The dataset is a plain attribute so a probe can
 // grow and shrink it at runtime and watch islands come and go.
 
 App [ width = 900, height = 500, fill = #101820,
@@ -20,17 +20,17 @@ App [ width = 900, height = 500, fill = #101820,
 
 
 // each match carries its OWN island: the tenant arrives through the same
-// discovery path as a static slot, and the bridge links per instance —
-// `volume` fed from THIS row's data, `pos` read back from THIS tenant
+// discovery path as a static slot, and the boundary links per instance —
+// `volume` provided from THIS row's data, `pos` read back from THIS tenant
 
 class Cell extends View [ width = { parent.width }, height = 130,
     rowId: string = { "" + (:id ?? "") },
     isle: AppIsland [ x = 0, y = 0, width = 200, height = 120,
         program = "../bridge-tenant",
-        external volume: number = { Number(:vol ?? 0) },
-        external readonly pos: number = 0,
+        provides = ["volume"],
+        volume: number = { Number(:vol ?? 0) },
         onPost(m: IslandPost) { app.log = app.log + classroot.rowId + ":" + m.topic + ";" }
         ],
     out: Text [ x = 220, y = 10, textColor = whitesmoke,
-        text = { classroot.rowId + " pos=" + classroot.isle.pos } ]
+        text = { classroot.rowId + " pos=" + classroot.isle.exposed("pos", 0) } ]
     ]

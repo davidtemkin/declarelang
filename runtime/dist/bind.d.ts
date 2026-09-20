@@ -18,12 +18,25 @@ import type { AttrType } from "./value.js";
  *  so a descendant's `provided("theme")` re-derives when the { } does. No slot
  *  owner (there is no slot); teardown rides onDiscard. */
 export declare function provideBind(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[]): void;
+/** How many bodies bound as kernel EXPR rules, and how many fell back — tooling. */
+export declare const exprStats: {
+    kernel: number;
+    fallback: number;
+    disabled: boolean;
+};
+export declare const dataCellStats: {
+    cells: number;
+    escaped: number;
+};
 export declare function bindConstraint(view: Node, name: string, src: string, pos: Pos, classroot: View | null, 
 /** The compiler's extracted dependency read-paths (docs/system-design/constraints.md §5).
  *  When present, the constraint is wired on the static path — edges fixed once,
  *  no per-run re-tracking. Absent (dev re-parse, or an un-annotated program) →
  *  the runtime-tracking fallback, unchanged. */
-deps?: readonly string[]): void;
+deps?: readonly string[], 
+/** A DECLARED default (bindDeclDefault): yields to an author write or a
+ *  newer owner, as the live fallback it replaces did. */
+yielding?: boolean): void;
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an
@@ -42,16 +55,7 @@ export declare function bindDatapath(view: View, path: string | readonly string[
  *  (`datapath = { :detail }`) resolves against the INHERITED cursor, never
  *  the slot this constraint defines — the same rule bindDatapath states. */
 export declare function bindCursor(view: View, src: string, pos: Pos, classroot: View | null): void;
-/** The axis `name` resolves a percent against, or null when it has none — the
- *  one reading of the table above, so a caller that must REFUSE a percent
- *  before binding it (rich text's inline views: a tag attribute is refused
- *  through the component's `unsupported` policy, never thrown mid-render) asks
- *  the same question bindPercent answers. */
 export declare function percentAxis(name: string): "width" | "height" | null;
-/** Bind `name = p%` as the runtime constraint described above. The root has
- *  no parent to resolve against — that is an instantiation-context fact, not
- *  a source fact (the same fragment could be checked for embedding
- *  elsewhere), which is why it surfaces here and not in check(). */
 export declare function bindPercent(view: View, name: string, percent: number, pos: Pos): void;
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).
  *  Symbolic like a percent, resolved as a standing constraint over the
@@ -62,3 +66,10 @@ export declare function bindPercent(view: View, name: string, percent: number, p
  *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
  *  spelling: only the named literal invokes the optics. */
 export declare function bindAlign(view: View, name: "x" | "y", align: "center" | "end", pos: Pos): void;
+/** A DECLARED slot's `{ }` default as a standing rule (attributes.ts
+ *  AttrSpec.defRule): installed at construction on a slot no attribute channel
+ *  set, YIELDING — an author write, a newer owner, or a runtime write retires
+ *  it, so the rank-1 fallback the language rules (R6) keeps its rank. A slot
+ *  already set or owned (a use-site literal landed, a two-way binding) gets no
+ *  rule: the default never applied to it. */
+export declare function bindDeclDefault(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[]): void;

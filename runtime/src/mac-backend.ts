@@ -28,7 +28,7 @@ import type { MaskSpec,
 } from "./backend.js";
 import type { DisplayList } from "./draw.js";
 import { effectiveFamily, type TextStyle } from "./measure.js";
-import { colorToCss, isGradient, type Fill, type Gradient, type Radius, type Shadow, type Stroke, type Filter } from "./value.js";
+import { colorToCss, insetSides, isGradient, strokeUniform, type BoxStroke, type Fill, type Filter, type Gradient, type Inset, type Radius, type Shadow } from "./value.js";
 import { routeInput, type HitTarget } from "./input.js";
 
 // ── the wire ────────────────────────────────────────────────────────────────
@@ -100,6 +100,10 @@ type Glide = { duration?: number; motion?: string };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
   /** Apply one settle's ops (a JSON array of arrays) inside one CATransaction. */
+  /** The same, with the GEOMETRY ops as binary records (flushOps): `geoms`
+   *  holds `n` records of [seq, id, x, y, width, height], `seq` being the JSON
+   *  op index the record precedes — the host applies both in that one order. */
+  commitGeom?(json: string, geoms: Float64Array, n: number): void;
   commit(json: string): void;
   /** Measure text: returns [width, ascent, descent, capAscent]. Cold path. */
   measure(text: string, font: string, letterSpacing: number): number[];
@@ -127,6 +131,11 @@ let flushScheduled = false;
 
 function emit(op: number, id: number, ...args: unknown[]): void {
   ops.push([op, id, ...args]);
+  scheduleFlush();
+}
+
+/** One flush per displayed frame, however many ops it carries. */
+function scheduleFlush(): void {
   if (!flushScheduled) {
     flushScheduled = true;
     // The frame pump: rAF is the display link on the native side, so a flush
@@ -138,7 +147,7 @@ function emit(op: number, id: number, ...args: unknown[]): void {
 }
 
 /** How many ops the current (unflushed) settle produced — benchmarks only. */
-export function countOps(): number { return ops.length; }
+export function countOps(): number { return ops.length + geomN; }
 /** The serialized size of the pending buffer, for measuring the crossing. */
 export function peekOps(): number { return JSON.stringify(ops).length; }
 
@@ -150,7 +159,35 @@ export function flushOps(): void {
   reclampScrollers();
   const json = JSON.stringify(ops);
   ops.length = 0;
-  host().commit(json);
+  commitOps(json);
+}
+
+// ── GEOMETRY, BINARY ─────────────────────────────────────────────────────────
+// GEOM is 97% of the op stream under motion (calendar mode: 147K of 151K ops,
+// 8.4 MB of JSON for one window — serialized here, parsed back into NSNumbers
+// on the host). It rides a Float64Array instead: six numbers per op, copied
+// out whole by the host (Bridge.swift commitGeom). `seq` keeps the one order —
+// the record applies right before the JSON op at that index. A host without
+// commitGeom, or `__declareJsonGeom`, keeps everything in JSON.
+const GEOM_REC = 6;
+let geomBuf = new Float64Array(GEOM_REC * 4096);
+let geomN = 0;
+let binaryGeom: boolean | null = null;
+function emitGeom(id: number, x: number, y: number, w: number, h: number): void {
+  if (binaryGeom === null) binaryGeom = typeof host().commitGeom === "function" && (globalThis as { __declareJsonGeom?: boolean }).__declareJsonGeom !== true;
+  if (!binaryGeom) { emit(OP.GEOM, id, x, y, w, h); return; }
+  if ((geomN + 1) * GEOM_REC > geomBuf.length) { const b = new Float64Array(geomBuf.length * 2); b.set(geomBuf); geomBuf = b; }
+  const o = geomN * GEOM_REC;
+  geomBuf[o] = ops.length; geomBuf[o + 1] = id; geomBuf[o + 2] = x; geomBuf[o + 3] = y; geomBuf[o + 4] = w; geomBuf[o + 5] = h;
+  geomN++;
+  scheduleFlush();
+}
+
+function commitOps(json: string): void {
+  const n = geomN;
+  geomN = 0;
+  if (n > 0) host().commitGeom!(json, geomBuf, n);
+  else host().commit(json);
 }
 
 /** Every live scrolling surface, so the post-settle sweep can find them
@@ -272,7 +309,7 @@ class MacSurface implements Surface {
   setY(v: number): void { this.y = v; this.geom(); }
   setWidth(v: number): void { this.frameW = v; this.realizeSize(); }
   setHeight(v: number): void { this.frameH = v; this.realizeSize(); }
-  private geom(): void { emit(OP.GEOM, this.id, this.x, this.y, this.width, this.height); }
+  private geom(): void { emitGeom(this.id, this.x, this.y, this.width, this.height); }
 
   /** The MODEL frame, kept apart from the realized box: an EMBEDDED app root
    *  realizes LARGER than its frame along a declared scroll axis — the DOM's
@@ -316,8 +353,15 @@ class MacSurface implements Surface {
     if (typeof r === "number") emit(OP.RADIUS, this.id, r);
     else emit(OP.RADIUS, this.id, r[0], r[1], r[2], r[3]);
   }
-  setStroke(s: Stroke | null): void {
-    emit(OP.STROKE, this.id, s === null ? null : s.width, s === null ? null : colorToCss(s.color));
+  /** The border. The host paints ONE ring, so a per-side stroke (BoxStroke,
+   *  four sides) crosses only when every side agrees; a genuinely per-side
+   *  border is a capability this host does not have (rendering-gaps.md), and
+   *  it paints none rather than a wrong one — silently, because the slot is
+   *  legal, the renderer simply cannot realize it. */
+  setStroke(s: BoxStroke): void {
+    const uni = strokeUniform(s);
+    if (uni === undefined) { emit(OP.STROKE, this.id, null, null); return; }
+    emit(OP.STROKE, this.id, uni === null ? null : uni.width, uni === null ? null : colorToCss(uni.color));
   }
   setShadow(sh: Shadow | null): void {
     if (sh === null) emit(OP.SHADOW, this.id, null);
@@ -359,7 +403,8 @@ class MacSurface implements Surface {
     }
     const st = spec.stencil.surface as MacSurface | null;
     if (st === null) return;
-    emit(OP.MASK, this.id, "view", st.id, spec.stencil.x, spec.stencil.y, spec.stencil.width, spec.stencil.height);
+    emit(OP.MASK, this.id, "view", st.id, spec.stencil.x + spec.stencil.positionLead("x"),
+      spec.stencil.y + spec.stencil.positionLead("y"), spec.stencil.width, spec.stencil.height);
   }
   setCursor(c: string): void { this.cursorStyle = c; emit(OP.CURSOR, this.id, c); }
   /** No CSS pointer-events natively: the hit walk is ours, so an inert
@@ -434,6 +479,19 @@ class MacSurface implements Surface {
   setBoxClip(on: boolean): void {
     this.boxClip = on;
     emit(OP.BOXCLIP, this.id, on ? 1 : 0);
+  }
+  /** The content inset (`View.padding`). Nothing crosses to the host: the
+   *  leading half already rode over in the children's own POS ops (view.ts
+   *  shifts the position on its way to the seam), and the trailing half is
+   *  consumed HERE, in the extent this side computes and sends with every
+   *  SCROLLPOS — a padded scroller stops the full bottom inset past its last
+   *  child. */
+  private padBottom = 0;
+  private padRight = 0;
+  setPadding(inset: Inset): void {
+    const [, right, bottom] = insetSides(inset);
+    this.padRight = right;
+    this.padBottom = bottom;
   }
   setIgnoreClip(on: boolean): void {
     this.ignoresClip = on;
@@ -565,7 +623,7 @@ class MacSurface implements Surface {
       if (!c.boxClip && c.clipData === null && !c.scrollsX) cw = Math.max(cw, c.contentExtentX());
       w = Math.max(w, c.x + cw);
     }
-    return w;
+    return w === 0 ? 0 : w + this.padRight;   // the right inset, contentExtent's twin
   }
 
   /** Reveal this surface within its nearest HORIZONTALLY scrolling ancestor. */
@@ -909,6 +967,9 @@ class MacSurface implements Surface {
       const b = c.y + ch;
       if (b > max) max = b;
     }
+    // the bottom inset is room, not slack: a padded scroller stops past its
+    // last child, not against it (setPadding)
+    if (max > 0) max += this.padBottom;
     return this.virtualExtent !== null ? Math.max(max, this.virtualExtent) : max;
   }
 

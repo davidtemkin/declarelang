@@ -28,9 +28,11 @@
 // read as "indexed" when it isn't. Deterministic by construction — fixed env vector,
 // fixed measurer, same data bytes — so the browser and Node crawls are byte-identical,
 // extending the oracle discipline to the whole document.
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
+import { build, settle, App, HeadlessBackend, linkIslandTenant, islandProvisions, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 import { approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 import { staticHtml } from "./static-html.js";
+/** How deep tenants-within-tenants are followed. */
+const ISLAND_DEPTH = 2;
 /** A url with a scheme (or protocol-relative) — the NETWORK, never crawled. A bare
  *  relative path is the app's own material. */
 const isAbsoluteUrl = (url) => /^[a-z][a-z0-9+.-]*:/i.test(url) || url.startsWith("//");
@@ -86,7 +88,7 @@ async function drainAsync() {
  *  quiescence: wait out every in-flight transport request (a landed batch may settle
  *  into code that fetches MORE — loop until none remain), then serialize. The caller
  *  serializes then `app.discard()`s. */
-async function bootAt(source, opts, location, refusals) {
+async function bootAt(source, opts, location, refusals, beforeSettle) {
     const env = { ...DEFAULT_ENV, ...opts.env };
     if (typeof document === "undefined")
         provideMeasurer(approximateMeasurer());
@@ -103,11 +105,14 @@ async function bootAt(source, opts, location, refusals) {
     };
     const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
     try {
-        const app = build(source, { deps: opts.deps, links: opts.links });
+        const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides });
         app.attach(new HeadlessBackend(), null);
         app.hostWidth = env.hostWidth;
         app.hostHeight = env.hostHeight;
         app.dark = env.dark;
+        // an island tenant: built with what its island provides and linked before
+        // its first settle, exactly as the live hosts do it
+        beforeSettle?.(app);
         // "" = the declared default (seed nothing). A seeded location routes
         // through FOLLOW when the app declares an onFollow (location.md §0.8.3):
         // the crawl sees the same redirects users do — the hook runs at t=0
@@ -120,10 +125,14 @@ async function bootAt(source, opts, location, refusals) {
         }
         settle();
         await drainAsync();
+        let spins = 0;
         while (pending.size > 0) {
             await Promise.allSettled([...pending]);
             settle();
             await drainAsync();
+            // DIAGNOSTIC (Declare-Optimize): a wait that never empties is a spin, not a wait
+            if (++spins > 2000)
+                throw new Error(`crawl: the transport wait spun ${spins} times with ${pending.size} request(s) still pending at #${location}`);
         }
         settle();
         return app;
@@ -132,6 +141,87 @@ async function bootAt(source, opts, location, refusals) {
         provideTransport(prev);
         provideStreams(prevStreams);
     }
+}
+/** Extract every VISIBLE island tenant under a settled app (CrawlOptions.islands):
+ *  each `run:<name>` slot's program is booted headlessly, linked to its island,
+ *  settled to data quiescence, and serialized — its own islands followed to
+ *  ISLAND_DEPTH. Returns island view → tenant HTML, for staticHtml to inline.
+ *  Names starting "__" are the live-edit channels (no program on disk) and stay
+ *  empty. Tenant data resolves through the HOST's resolver, as the live page
+ *  routes a tenant's relative urls through the page's own transport. */
+async function tenantsOf(app, opts, refusals, depth) {
+    const out = new Map();
+    if (opts.islands === undefined || depth >= ISLAND_DEPTH)
+        return out;
+    const found = [];
+    const scan = (v) => {
+        if (v.visible === false)
+            return;
+        if (typeof v.slot === "string" && v.slot.startsWith("run:")) {
+            found.push({ view: v, name: v.slot.slice(4) });
+            return;
+        }
+        for (const c of v.children ?? [])
+            if (c !== null && typeof c === "object")
+                scan(c);
+    };
+    scan(app);
+    for (const { view, name } of found) {
+        if (name === "" || name.startsWith("__"))
+            continue;
+        const prog = await opts.islands(name);
+        if (prog === null) {
+            throw new Error(`crawl: the island program '${name}' was not found — an AppIsland's program must resolve ` +
+                `as the host resolves it (<name>.declare in the host program's demos/ folder)`);
+        }
+        if (prog.source === null) {
+            throw new Error(`crawl: the island program '${name}' did not compile:\n${prog.report ?? ""}`);
+        }
+        let unlink = () => { };
+        const tenant = await bootAt(prog.source, { ...opts, deps: prog.deps, links: prog.links, registry: undefined, provides: islandProvisions(view) }, "", refusals, (t) => { unlink = linkIslandTenant(view, t); });
+        try {
+            const inner = await tenantsOf(tenant, opts, refusals, depth + 1);
+            out.set(view, rebaseTenant(staticHtml(tenant, inner), name));
+        }
+        finally {
+            unlink();
+            tenant.discard();
+        }
+    }
+    return out;
+}
+/** A tenant's media resolve BESIDE ITS OWN PROGRAM at run time (host-client
+ *  childAssetBase: the island's program path, from the host's `demos/`), but
+ *  its serialized HTML is inlined into the HOST's document — so a relative
+ *  `src`/`poster` is rewritten to the same place, relative to the host's
+ *  directory (`resources/a.png` in "../../architecture/architecture" becomes
+ *  `../architecture/resources/a.png`). Absolute, root-relative, data: and
+ *  fragment URLs pass through; hrefs are never touched (navigation targets are
+ *  authored against the deploy root, not a directory). */
+function rebaseTenant(html, name) {
+    const parts = [];
+    for (const seg of ("demos/" + name).split("/").slice(0, -1)) {
+        if (seg === "..") {
+            if (parts.length > 0 && parts[parts.length - 1] !== "..")
+                parts.pop();
+            else
+                parts.push("..");
+        }
+        else if (seg !== "." && seg !== "")
+            parts.push(seg);
+    }
+    if (parts.length === 0)
+        return html;
+    const prefix = parts.join("/") + "/";
+    return html.replace(/\b(src|poster)="([^"]*)"/g, (m, attr, url) => /^([a-z][a-z0-9+.-]*:|\/\/|\/|#)/i.test(url) ? m : `${attr}="${prefix}${url}"`);
+}
+/** Serialize a settled app for the crawl: the document HTML (island tenants
+ *  inlined) and the HOST-ONLY HTML the location links are discovered from — a
+ *  tenant's own fragment links name the TENANT's locations, never the host's. */
+async function serialize(app, opts, refusals) {
+    const linkHtml = staticHtml(app);
+    const tenants = await tenantsOf(app, opts, refusals, 0);
+    return { html: tenants.size === 0 ? linkHtml : staticHtml(app, tenants), linkHtml };
 }
 /** A WARM crawl session (CrawlOptions.warm): the same boot bootAt performs,
  *  but the transport/stream providers stay installed for the session's whole
@@ -150,7 +240,7 @@ async function warmSession(source, opts, refusals) {
         throw new Error(`crawl refused stream connection — ${url} (streams are never indexed)`);
     };
     const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
-    const app = build(source, { deps: opts.deps, links: opts.links });
+    const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides });
     app.attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
@@ -158,10 +248,15 @@ async function warmSession(source, opts, refusals) {
     const quiesce = async () => {
         settle();
         await drainAsync();
+        let spins = 0;
         while (pending.size > 0) {
             await Promise.allSettled([...pending]);
             settle();
             await drainAsync();
+            if (++spins % 200 === 0)
+                console.error(`crawl(warm): still waiting after ${spins} rounds, ${pending.size} pending`);
+            if (spins > 2000)
+                throw new Error(`crawl(warm): the transport wait spun ${spins} times with ${pending.size} request(s) pending`);
         }
         settle();
     };
@@ -278,16 +373,21 @@ async function crawlAll(source, opts = {}) {
                     (queue.length > 11 ? ` … and ${queue.length - 11} more` : ""));
             }
             let html;
+            let linkHtml;
             if (session !== null) {
                 await session.flip(key === "" ? defaultLoc : location);
-                html = staticHtml(session.app);
+                ({ html, linkHtml } = await serialize(session.app, opts, refusals));
             }
             else {
                 const app = await bootAt(source, opts, key === "" ? "" : location, refusals);
-                html = staticHtml(app);
-                app.discard();
+                try {
+                    ({ html, linkHtml } = await serialize(app, opts, refusals));
+                }
+                finally {
+                    app.discard();
+                }
             }
-            const links = fragmentHrefs(html);
+            const links = fragmentHrefs(linkHtml);
             // Rule 3: identical serialized bytes → one document (an output-hash alias).
             const h = hashOf(html);
             const owner = byHash.get(h);
@@ -319,8 +419,13 @@ async function crawlAll(source, opts = {}) {
             for (const k of picks) {
                 const doc = byKey.get(k);
                 const app = await bootAt(source, opts, doc.location, refusals);
-                const coldHtml = staticHtml(app);
-                app.discard();
+                let coldHtml;
+                try {
+                    coldHtml = (await serialize(app, opts, refusals)).html;
+                }
+                finally {
+                    app.discard();
+                }
                 if (coldHtml !== doc.html) {
                     throw new Error(`warm crawl diverged from a cold boot at '#${k}' (${doc.html.length} vs ${coldHtml.length} bytes) — ` +
                         `this app's rendering depends on how a location is arrived at, which the index must not ` +

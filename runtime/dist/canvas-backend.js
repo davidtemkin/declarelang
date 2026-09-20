@@ -33,9 +33,89 @@ import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, fromParts as affineF
 import { inAnimationFrame, sample, motionToken, DEFAULT_MOTION } from "./animate.js";
 import { ScrollPhysics } from "./scroll-physics.js";
 const MICROTASK_PAINT = -1;
+const EMPTY_BOX = Object.freeze({ x0: 0, y0: 0, x1: 0, y1: 0 });
+const boxEmpty = (b) => !(b.x1 > b.x0 && b.y1 > b.y0);
+const boxUnion = (a, b) => boxEmpty(a) ? b : boxEmpty(b) ? a
+    : { x0: Math.min(a.x0, b.x0), y0: Math.min(a.y0, b.y0), x1: Math.max(a.x1, b.x1), y1: Math.max(a.y1, b.y1) };
+const boxHit = (a, b) => !boxEmpty(a) && !boxEmpty(b) && a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+/** the damage the current partial frame repaints — a few disjoint device
+ *  rectangles; null during a full paint */
+let DAMAGE_CULL = null;
+/** did the drawing just painted come from a memo raster (vs vector replay)? */
+let DREW_RASTER = false;
+const hitsAny = (a, list) => { for (const r of list)
+    if (boxHit(a, r))
+        return true; return false; };
+const boxArea = (b) => boxEmpty(b) ? 0 : (b.x1 - b.x0) * (b.y1 - b.y0);
+/** At most this many damage rectangles: past it, the pair whose merge wastes
+ *  least is merged (a clip of a few rects costs nothing; of hundreds, it does). */
+const MAX_DAMAGE_RECTS = 8;
+/** Past this share of the canvas, a plain full repaint is simpler and no
+ *  slower — the clip, the clear and the cull walk stop paying for themselves.
+ *  MEASURED on an iPhone 15 Pro (2026-09-19), where a phone-sized canvas makes
+ *  a desktop window cover most of the screen: at 0.5 the fallback fired on most
+ *  drag and open/close frames and cost more than it saved; 0.8 keeps those
+ *  partial (minimize's frames over 20 ms: 102 → 69) and 0.98 costs again
+ *  (drag's paint JS 245 → 293 ms), a clip over nearly everything. */
+const DAMAGE_MAX = 0.8;
+/** Add `b` to a small set of pixel-aligned rects: aligned outward with a
+ *  pixel of antialiasing slack and clipped to the canvas; merged with a
+ *  neighbour when their bounding box wastes little (repeatedly — a merge can
+ *  make another cheap); and past the cap, the least wasteful pair merged. */
+function addDamageRect(list, b, w, h) {
+    if (boxEmpty(b))
+        return;
+    const r = { x0: Math.max(0, Math.floor(b.x0) - 1), y0: Math.max(0, Math.floor(b.y0) - 1), x1: Math.min(w, Math.ceil(b.x1) + 1), y1: Math.min(h, Math.ceil(b.y1) + 1) };
+    if (r.x1 > r.x0 && r.y1 > r.y0)
+        insertDamageRect(list, r);
+}
+function insertDamageRect(list, rect) {
+    let r = rect;
+    // merge into a neighbour only when the bounding box wastes little (a row
+    // and a tall scroll-bar strip overlap, yet their union is the whole list);
+    // rects may overlap — the clip is their union, the clear is idempotent
+    for (let i = 0; i < list.length;) {
+        const q = list[i], u = boxUnion(q, r);
+        const contained = q.x0 <= r.x0 && q.y0 <= r.y0 && q.x1 >= r.x1 && q.y1 >= r.y1;
+        if (contained)
+            return;
+        if (boxArea(u) <= 1.25 * (boxArea(q) + boxArea(r))) {
+            r = u;
+            list.splice(i, 1);
+            i = 0;
+        }
+        else
+            i++;
+    }
+    list.push(r);
+    while (list.length > MAX_DAMAGE_RECTS) {
+        let bi = 0, bj = 1, best = Infinity;
+        for (let i = 0; i < list.length; i++)
+            for (let j = i + 1; j < list.length; j++) {
+                const waste = boxArea(boxUnion(list[i], list[j])) - boxArea(list[i]) - boxArea(list[j]);
+                if (waste < best) {
+                    best = waste;
+                    bi = i;
+                    bj = j;
+                }
+            }
+        const m = boxUnion(list[bi], list[bj]);
+        list.splice(bj, 1);
+        list.splice(bi, 1);
+        insertDamageRect(list, m); // the merged box may now touch another
+    }
+}
+/** > 0 while painting inside a changed surface: nothing under it is skipped */
+let DAMAGE_FORCE = 0;
+/** the device offset of the group layer being painted into (its children's CTM is shifted by it) */
+let LAYER_DX = 0, LAYER_DY = 0;
+/** > 0 inside a 3D surface: boxes recorded there are unknown */
+let PAINT_UNKNOWN = 0;
+const damageDisabled = () => typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareNoDamage === true;
+const damageChecking = () => typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareDamageCheck !== undefined;
 import { notifyIslandSlot } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, isGradient, radiusFit, radiusIsSquare, filterCss, filterBlur, filterBleed } from "./value.js";
+import { colorToCss, insetSides, isGradient, radiusFit, radiusIsSquare, filterCss, filterBlur, filterBleed } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
@@ -75,6 +155,70 @@ const BLEND_OPS = {
  *  (and the Node-importable surface) never creates it. */
 let scratch = null;
 const hitCtx = () => (scratch ??= document.createElement("canvas").getContext("2d"));
+/** Does a box stroke put ink on the canvas? A per-side stroke (BoxStroke) does
+ *  when any side has a width. */
+function strokeInks(st) {
+    if (st === null || st === undefined)
+        return false;
+    if (Array.isArray(st)) {
+        for (const side of st)
+            if (side != null && side.width > 0)
+                return true;
+        return false;
+    }
+    return st.width > 0;
+}
+/** SCRATCH POOL. A group layer, a mask, a tint pass and a frost snapshot
+ *  each need a canvas for one paint — the same sizes frame after frame while
+ *  something moves (a dragged window's layer, the menu bar's frost). Taking
+ *  them from a pool keyed by exact size spares the allocation and the backing
+ *  store each time; a canvas unused for a second is let go, and the pool never
+ *  holds more than POOL_MAX_PX. take() hands back a cleared canvas with its
+ *  context state saved; give() restores that state and returns it. */
+const POOL = new Map();
+let poolPx = 0;
+const POOL_MAX_PX = 6_000_000;
+const POOL_IDLE_MS = 1000;
+function takeScratch(w, h) {
+    const e = POOL.get(w + "x" + h)?.pop();
+    if (e !== undefined) {
+        poolPx -= w * h;
+        const g = e.c.getContext("2d");
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.clearRect(0, 0, w, h);
+        g.save();
+        return { c: e.c, g };
+    }
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const g = c.getContext("2d");
+    g.save();
+    return { c, g };
+}
+function giveScratch(c) {
+    c.getContext("2d").restore();
+    const now = performance.now();
+    for (const [k, list] of POOL) { // let go of what went quiet
+        for (let i = list.length - 1; i >= 0; i--) {
+            if (now - list[i].at > POOL_IDLE_MS) {
+                poolPx -= list[i].c.width * list[i].c.height;
+                list.splice(i, 1);
+            }
+        }
+        if (list.length === 0)
+            POOL.delete(k);
+    }
+    const px = c.width * c.height;
+    if (px === 0 || poolPx + px > POOL_MAX_PX)
+        return;
+    const k = c.width + "x" + c.height;
+    let list = POOL.get(k);
+    if (list === undefined)
+        POOL.set(k, list = []);
+    list.push({ c, at: now });
+    poolPx += px;
+}
 export class CanvasBackend {
     compositor = new Compositor();
     createSurface() {
@@ -182,6 +326,10 @@ class ScrollLoop {
     constructor(comp) {
         this.comp = comp;
     }
+    /** An offset moved: a fact to report after paint, and damage of the
+     *  scroller's box (DIRTY REGIONS) — without booking a frame, since the
+     *  loop only moves offsets inside one (or right before invalidating). */
+    mark(s) { this.moved.add(s); this.comp.mark(s); }
     begin(s) {
         const q = this.quiet.get(s);
         if (q !== undefined) {
@@ -213,7 +361,7 @@ class ScrollLoop {
             this.pending.set(s, { dx, dy });
         this.tweens.delete(s); // a gesture cancels a glide
         this.begin(s);
-        this.comp.invalidate();
+        this.comp.invalidate(s);
     }
     /** A request with a glide: a tween on the provider's own loop. */
     glide(s, axis, to, g) {
@@ -223,7 +371,7 @@ class ScrollLoop {
         list.push({ axis, from, to, start: performance.now(), duration: Math.max(1, g.duration ?? 260), curve });
         this.tweens.set(s, list);
         this.begin(s);
-        this.comp.invalidate();
+        this.comp.invalidate(s);
     }
     cancelGlides(s) {
         if (!this.tweens.delete(s))
@@ -253,7 +401,7 @@ class ScrollLoop {
         }
         ts.last = t;
         this.apply(ts.s, ts.physics.handleFingerEvent({ type: "move", x, y, time: t }));
-        this.comp.invalidate();
+        this.comp.invalidate(ts.s);
         return true;
     }
     touchUp(x, y, t, cancel = false) {
@@ -265,7 +413,7 @@ class ScrollLoop {
             return;
         } // a tap — nothing scrolled
         this.apply(ts.s, ts.physics.handleFingerEvent({ type: cancel ? "cancel" : "up", x, y, time: t }));
-        this.comp.invalidate(); // momentum / spring from here
+        this.comp.invalidate(ts.s); // momentum / spring from here
     }
     apply(s, st) {
         // the FACT stays clamped; the rubber band lives in the visual offset only
@@ -277,7 +425,7 @@ class ScrollLoop {
             const y = Math.min(maxY, Math.max(0, st.contentOffsetY));
             if (y !== s.scrollOffset) {
                 s.scrollOffset = y;
-                this.moved.add(s);
+                this.mark(s);
             }
         }
         if (s.scrollsX) {
@@ -285,7 +433,7 @@ class ScrollLoop {
             const x = Math.min(maxX, Math.max(0, st.contentOffsetX));
             if (x !== s.scrollXOffset) {
                 s.scrollXOffset = x;
-                this.moved.add(s);
+                this.mark(s);
             }
         }
     }
@@ -297,14 +445,14 @@ class ScrollLoop {
                 const nx = Math.min(Math.max(0, s.contentExtentX() - s.width), Math.max(0, s.scrollXOffset + p.dx));
                 if (nx !== s.scrollXOffset) {
                     s.scrollXOffset = nx;
-                    this.moved.add(s);
+                    this.mark(s);
                 }
             }
             if (s.scrolls && p.dy !== 0) {
                 const ny = Math.min(Math.max(0, s.contentExtent() - s.height), Math.max(0, s.scrollOffset + p.dy));
                 if (ny !== s.scrollOffset) {
                     s.scrollOffset = ny;
-                    this.moved.add(s);
+                    this.mark(s);
                 }
             }
             // a wheel stream ends when it goes quiet
@@ -323,12 +471,12 @@ class ScrollLoop {
                 if (t.axis === "y") {
                     if (v !== s.scrollOffset) {
                         s.scrollOffset = v;
-                        this.moved.add(s);
+                        this.mark(s);
                     }
                 }
                 else if (v !== s.scrollXOffset) {
                     s.scrollXOffset = v;
-                    this.moved.add(s);
+                    this.mark(s);
                 }
                 if (p < 1)
                     keep.push(t);
@@ -353,7 +501,7 @@ class ScrollLoop {
             else {
                 ts.s.scrollVisualY = null;
                 ts.s.scrollVisualX = null;
-                this.moved.add(ts.s);
+                this.mark(ts.s);
                 this.touch = null;
                 if (this.idle(ts.s))
                     this.settle(ts.s);
@@ -681,12 +829,16 @@ class Compositor {
         const setHover = (sf) => {
             if (barHover === sf)
                 return;
+            const was = barHover;
             if (barHover !== null && barDrag === null)
                 barHover.barWide = false;
             barHover = sf;
             if (sf !== null)
                 sf.barWide = true;
-            this.invalidate();
+            if (was !== null)
+                this.invalidateBar(was);
+            if (sf !== null)
+                this.invalidateBar(sf);
         };
         const dragMove = (e) => {
             const p = toLocal(e);
@@ -701,6 +853,10 @@ class Compositor {
             }
         };
         const dragEnd = () => {
+            if (barDrag !== null)
+                this.invalidate(barDrag.s);
+            if (barHold !== null)
+                this.invalidate(barHold.s);
             if (barDrag !== null) {
                 if (barDrag.s !== barHover)
                     barDrag.s.barWide = false;
@@ -714,7 +870,6 @@ class Compositor {
             window.removeEventListener("pointermove", dragMove, true);
             window.removeEventListener("pointerup", dragEnd, true);
             window.removeEventListener("pointercancel", dragEnd, true);
-            this.invalidate();
         };
         const armWindow = () => {
             window.addEventListener("pointermove", dragMove, true);
@@ -756,7 +911,7 @@ class Compositor {
                 e.stopPropagation();
                 e.preventDefault();
                 armWindow();
-                this.invalidate();
+                this.invalidate(f.s);
             }
             else {
                 // touch: only the THUMB arms, and only a HOLD engages (no hover on
@@ -767,7 +922,7 @@ class Compositor {
                 hold.timer = window.setTimeout(() => {
                     hold.engaged = true;
                     hold.s.barWide = true;
-                    this.invalidate();
+                    this.invalidate(hold.s);
                 }, 250);
                 barHold = hold;
                 armWindow();
@@ -788,11 +943,65 @@ class Compositor {
         if (this.canvas !== null && s === this.root)
             this.canvas.style.touchAction = s.rootTouchAction(this.embeddedRoot);
     }
-    /** Request a repaint. Every change since the last frame coalesces into one
-     *  scheduled requestAnimationFrame; with a paint already pending — or before
-     *  attach, whose first paint covers everything — this is a no-op, so an
-     *  idle or unattached tree costs nothing. */
-    invalidate() {
+    /** The surfaces changed since the last frame (dirty regions, above); `full`
+     *  = repaint everything (the first frame, or a change with no surface). */
+    dirty = new Set();
+    full = true;
+    /** boxes to repaint that belong to no live surface: a removed or moved subtree's old place */
+    extra = [];
+    /** frosted surfaces — damage within a frost's blur reach repaints the frost */
+    frosts = new Set();
+    /** A repaint of the old place of a subtree that left it (removed, or moved). */
+    damageBox(b) {
+        if (b === null)
+            this.full = true;
+        else if (!boxEmpty(b))
+            this.extra.push(b);
+        this.schedule();
+    }
+    /** Request a repaint — of `s`'s subtree when a surface is named (dirty
+     *  regions), of everything when not. Every change since the last frame
+     *  coalesces into one scheduled requestAnimationFrame; with a paint already
+     *  pending — or before attach, whose first paint covers everything — the
+     *  scheduling is a no-op, so an idle or unattached tree costs nothing. */
+    invalidate(s) {
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && s !== undefined && globalThis.__declareDamageWho !== undefined)
+            devNoteWho(s);
+        if (s === undefined)
+            this.full = true;
+        else if (!this.full) {
+            s.damaged = true;
+            this.dirty.add(s);
+        }
+        this.schedule();
+    }
+    /** Repaint only `s`'s scroll bar strip — its thumb follows the content
+     *  extent, and hover widens it; the content itself did not change. */
+    bars = new Set();
+    invalidateBar(s) {
+        if (!this.full)
+            this.bars.add(s);
+        this.schedule();
+    }
+    /** The device strip a scroller's bar paints in (null: unknowable, 3D). */
+    barStrip(s, dpr) {
+        const pm = this.parentMatrix(s, dpr);
+        if (pm === null)
+            return null;
+        let m = pm.translate(s.x, s.y);
+        if (!affineIsIdentity(s.xform))
+            m = m.multiply(new DOMMatrix([s.xform[0], s.xform[1], s.xform[2], s.xform[3], s.xform[4], s.xform[5]]));
+        return CanvasSurface.mapBox(m, s.width - 14, 0, s.width, s.height);
+    }
+    /** Damage `s` without scheduling (a change made inside the frame, before
+     *  its paint). */
+    mark(s) {
+        if (!this.full) {
+            s.damaged = true;
+            this.dirty.add(s);
+        }
+    }
+    schedule() {
         if (this.frame !== 0 || this.ctx === null)
             return;
         // Inside an animation frame, paint into THIS frame — a microtask, so it runs
@@ -825,7 +1034,8 @@ class Compositor {
      *  destroying any other surface just repaints the scene without it. */
     destroyed(surface) {
         if (surface !== this.root) {
-            this.invalidate();
+            this.dirty.delete(surface);
+            this.damageBox(surface.painted);
             return;
         }
         if (this.frame !== 0)
@@ -848,10 +1058,144 @@ class Compositor {
     inMotion = false;
     frostRestTimer = 0;
     /** A frost painted approximately asks for its exact frame at rest. */
-    frostWantsRest() {
+    frostsResting = new Set();
+    frostWantsRest(f) {
+        this.frostsResting.add(f);
         if (this.frostRestTimer !== 0)
             clearTimeout(this.frostRestTimer);
-        this.frostRestTimer = setTimeout(() => { this.frostRestTimer = 0; this.invalidate(); }, RASTER_GRACE_MS + 15);
+        this.frostRestTimer = setTimeout(() => {
+            this.frostRestTimer = 0;
+            for (const s of this.frostsResting)
+                this.invalidate(s);
+            this.frostsResting.clear();
+        }, RASTER_GRACE_MS + 15);
+    }
+    sized = -1;
+    dpr = 0;
+    /** This frame's damage (DIRTY REGIONS), or null to repaint everything. */
+    collectDamage(w, h, dpr) {
+        const list = [];
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) {
+            DEV_BIG = "";
+            DEV_BIG_AREA = 0;
+        }
+        for (const b of this.extra)
+            addDamageRect(list, b, w, h);
+        // bars: asked for, and every scroller whose content changed (a child's
+        // move or resize changes the extent, so the thumb)
+        const bars = new Set(this.bars);
+        for (const s of this.dirty)
+            if (s.parent !== null && s.parent.scrolls && !s.ignoresScroll)
+                bars.add(s.parent);
+        for (const s of bars) {
+            if (!this.rooted(s) || !s.scrolls)
+                continue;
+            const b = this.barStrip(s, dpr);
+            if (b === null) {
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                    DEV_WHY = "3D ancestor";
+                return null;
+            }
+            addDamageRect(list, b, w, h);
+        }
+        for (const s of this.dirty) {
+            if (!this.rooted(s))
+                continue; // gone: its old box arrived as `extra`
+            if (s.painted === null) {
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                    DEV_WHY = "a changed surface painted under 3D";
+                return null;
+            }
+            const m = this.parentMatrix(s, dpr);
+            if (m === null) {
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                    DEV_WHY = "3D ancestor";
+                return null;
+            }
+            const now = CanvasSurface.subtreeBoxNow(s, m); // where it is
+            if (now === null) {
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                    DEV_WHY = "3D in the changed subtree";
+                return null;
+            }
+            addDamageRect(list, s.painted, w, h); // where it was
+            addDamageRect(list, now, w, h);
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                devNoteBig(s, s.painted, now);
+        }
+        if (list.length === 0)
+            return list;
+        // frost paints a blur of what lies under it: damage within its reach
+        // repaints the whole frosted box (which may reach another frost)
+        for (let grew = true; grew;) {
+            grew = false;
+            for (const f of this.frosts) {
+                const fb = f.painted;
+                // never painted: not on screen (under a hidden ancestor), so nothing of
+                // it depends on a backdrop — and a change that shows it is damage itself
+                if (fb === null || boxEmpty(fb))
+                    continue;
+                const r = f.frostReach(dpr);
+                if (!hitsAny({ x0: fb.x0 - r, y0: fb.y0 - r, x1: fb.x1 + r, y1: fb.y1 + r }, list))
+                    continue;
+                // covered already? (against the part on the canvas — what adding it adds)
+                const c0 = Math.max(0, fb.x0), c1 = Math.max(0, fb.y0), c2 = Math.min(w, fb.x1), c3 = Math.min(h, fb.y1);
+                if (c2 <= c0 || c3 <= c1)
+                    continue;
+                if (list.some((q) => q.x0 <= c0 && q.y0 <= c1 && q.x1 >= c2 && q.y1 >= c3))
+                    continue;
+                addDamageRect(list, fb, w, h);
+                grew = true;
+            }
+        }
+        let area = 0;
+        for (const q of list)
+            area += boxArea(q);
+        let lim = DAMAGE_MAX;
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) {
+            const v = globalThis.__declareDamageMax;
+            if (v !== undefined)
+                lim = +v;
+        }
+        if (area > lim * w * h) {
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                DEV_WHY = "damage over half the canvas" + (DEV_BIG ? " — largest: " + DEV_BIG + (this.extra.length ? ` (+${this.extra.length} removed/moved boxes)` : "") : "");
+            return null;
+        } // a full repaint is simpler and no slower
+        return list;
+    }
+    /** Is `s` in this compositor's live tree? */
+    rooted(s) {
+        let p = s;
+        while (p !== null && p !== this.root)
+            p = p.parent;
+        return p === this.root;
+    }
+    /** The device matrix `s`'s own translate/transform composes onto — the paint
+     *  walk's, rebuilt from the ancestors: dpr, then each ancestor's offset and
+     *  affine, and a scrolling ancestor's offset for content it scrolls. Null
+     *  under a 3D ancestor (its projection is not an affine). */
+    parentMatrix(s, dpr) {
+        const chain = [];
+        for (let p = s.parent; p !== null; p = p.parent)
+            chain.push(p);
+        let m = new DOMMatrix([dpr, 0, 0, dpr, 0, 0]);
+        let child = s;
+        for (let i = chain.length - 1; i >= 0; i--) {
+            const a = chain[i];
+            const next = i > 0 ? chain[i - 1] : s;
+            if (a.spec3D !== null)
+                return null;
+            m = m.translate(a.x, a.y);
+            if (!affineIsIdentity(a.xform))
+                m = m.multiply(new DOMMatrix([a.xform[0], a.xform[1], a.xform[2], a.xform[3], a.xform[4], a.xform[5]]));
+            if ((a.scrolls || a.scrollsX) && !next.ignoresScroll) {
+                m = m.translate(a.scrollsX ? -(a.scrollVisualX ?? a.scrollXOffset) : 0, a.scrolls ? -(a.scrollVisualY ?? a.scrollOffset) : 0);
+            }
+            child = next;
+        }
+        void child;
+        return m;
     }
     paint = () => {
         this.frame = 0;
@@ -876,10 +1220,68 @@ class Compositor {
             canvas.style.width = root.width + "px";
             canvas.style.height = root.height + "px";
         }
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        root.paint(ctx);
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+            DEV_T0 = performance.now();
+        // what changed: rectangles, or null for everything (see DIRTY REGIONS above)
+        let whole = this.full || this.sized !== w * 65536 + h || this.dpr !== dpr || root.painted === null;
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && damageDisabled())
+            whole = true;
+        const damage = whole ? null : this.collectDamage(w, h, dpr);
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && damage === null) {
+            devNoteFull(this.full ? "invalidated without a surface" : this.sized !== w * 65536 + h ? "size" : this.dpr !== dpr ? "dpr"
+                : root.painted === null ? "root box unknown" : whole ? "switched off" : DEV_WHY);
+        }
+        this.sized = w * 65536 + h;
+        this.dpr = dpr;
+        // this frame's changes are taken NOW: a request made DURING the paint (a
+        // playing video asks for its next frame from paintContent) belongs to the
+        // next frame and must survive this one's reset
+        const changed = this.dirty;
+        this.dirty = new Set();
+        this.extra = [];
+        this.bars.clear();
+        this.full = false;
+        if (damage === null) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.clearRect(0, 0, w, h);
+            ctx.save();
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            try {
+                root.paint(ctx);
+            }
+            finally {
+                ctx.restore();
+            }
+        }
+        else if (damage.length > 0) {
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.save();
+            ctx.beginPath();
+            for (const q of damage)
+                ctx.rect(q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0);
+            ctx.clip();
+            for (const q of damage)
+                ctx.clearRect(q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            DAMAGE_CULL = damage;
+            try {
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && damageChecking())
+                    devPaintCounted(ctx, root);
+                else
+                    root.paint(ctx);
+            }
+            finally {
+                DAMAGE_CULL = null;
+            }
+            ctx.restore();
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && damageChecking())
+                devCheckDamage(ctx, root, damage, w, h, dpr);
+        }
+        for (const s of changed)
+            if (!this.dirty.has(s))
+                s.damaged = false;
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+            devPaintEnd(damage, w, h);
         // The page realization's STRUT tracks the content extent — the document's
         // scroll range is exactly the scrolling content's reach (visible children
         // that didn't opt out), never more.
@@ -895,6 +1297,13 @@ class Compositor {
  *  paint walk reads everything back. */
 class CanvasSurface {
     compositor;
+    /** The device box this subtree last PAINTED (DIRTY REGIONS); null = unknown
+     *  (painted under 3D). EMPTY when it painted nothing — including never: a
+     *  surface not yet painted was not on screen, and whatever first paints it
+     *  (its insertion, an ancestor shown or scrolled) is damage of its own. */
+    painted = EMPTY_BOX;
+    /** In the compositor's changed set this frame. */
+    damaged = false;
     x = 0;
     y = 0;
     width = 0;
@@ -945,14 +1354,14 @@ class CanvasSurface {
         this.pivotY = py;
         this.scaleK = affineScaleOf(m);
         this.rotationDeg = (affineRotationOf(m) * 180) / Math.PI;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** The third dimension (graphics-pass.md §6): the subtree paints into a
      *  local-space layer and lands through its homography in horizontal
      *  strips (each strip an affine — exact along rows for rotateX, close for
      *  the rest); the hit walk unprojects the same homography. */
     spec3D = null;
-    setTransform3D(spec) { this.spec3D = spec; this.compositor.invalidate(); }
+    setTransform3D(spec) { this.spec3D = spec; this.compositor.invalidate(this); }
     setPerspective(_px) { }
     homography3D() {
         const d = this.spec3D;
@@ -996,7 +1405,7 @@ class CanvasSurface {
             return;
         this.scrollOffset = next;
         this.onScrollCb?.(next);
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     onScrollCb = null;
     onScrollXCb = null;
@@ -1083,7 +1492,7 @@ class CanvasSurface {
     image = null;
     alignX = "center";
     alignY = "center";
-    setImageAlign(ax, ay) { this.alignX = ax; this.alignY = ay; this.compositor.invalidate(); }
+    setImageAlign(ax, ay) { this.alignX = ax; this.alignY = ay; this.compositor.invalidate(this); }
     stretch = "none";
     /** The view's input route; null = transparent to the pointer (hit walk). */
     sink = null;
@@ -1096,14 +1505,14 @@ class CanvasSurface {
     constructor(compositor) {
         this.compositor = compositor;
     }
-    setX(v) { this.x = v; this.compositor.invalidate(); }
-    setY(v) { this.y = v; this.compositor.invalidate(); }
+    setX(v) { this.x = v; this.compositor.invalidate(this); }
+    setY(v) { this.y = v; this.compositor.invalidate(this); }
     setWidth(v) { this.width = v; this.box = null; this.textLines = null; if (this.boxClip)
-        this.clipPath = null; this.compositor.invalidate(); }
+        this.clipPath = null; this.compositor.invalidate(this); }
     setHeight(v) { this.height = v; this.box = null; if (this.boxClip)
-        this.clipPath = null; this.compositor.invalidate(); }
-    setVisible(v) { this.visible = v; this.compositor.invalidate(); }
-    setOpacity(o) { this.opacity = o; this.compositor.invalidate(); }
+        this.clipPath = null; this.compositor.invalidate(this); }
+    setVisible(v) { this.visible = v; this.compositor.invalidate(this); }
+    setOpacity(o) { this.opacity = o; this.compositor.invalidate(this); }
     /** Add `delta` to the blending count of `from` and every ancestor above it
      *  — the incremental half of the `blends` field's contract. */
     static addBlends(from, delta) {
@@ -1120,7 +1529,7 @@ class CanvasSurface {
     filter = null;
     setFilter(list) {
         this.filter = list;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** The soft mask (graphics-pass.md §2): a `destination-in` pass over the
      *  group layer — a gradient's alpha over the box, or a stencil surface's
@@ -1129,11 +1538,19 @@ class CanvasSurface {
     mask = null;
     setMask(spec) {
         this.mask = spec;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setBackdrop(spec) {
         this.backdrop = spec;
-        this.compositor.invalidate();
+        if (spec !== null)
+            this.compositor.frosts.add(this);
+        else
+            this.compositor.frosts.delete(this);
+        this.compositor.invalidate(this);
+    }
+    /** How far outside its box a frost's backdrop sample reaches, device px. */
+    frostReach(dpr) {
+        return this.backdrop === null ? 0 : Math.ceil(3.5 * filterBlur(this.backdrop) * dpr) + 4;
     }
     setBlend(mode) {
         // The schema's camelCase token → the canvas operator. The single-surface
@@ -1150,7 +1567,7 @@ class CanvasSurface {
         this.blendMode = op;
         if (now !== was)
             CanvasSurface.addBlends(this, now - was);
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     // pointer-events is a DOM compositing concept; the canvas paints its own
     // display list and hit-tests it, so there is nothing to yield to here.
@@ -1165,14 +1582,14 @@ class CanvasSurface {
         this.pivotX = px;
         this.pivotY = py;
         this.rebuildXform();
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setRotation(deg, px, py) {
         this.rotationDeg = deg;
         this.pivotX = px;
         this.pivotY = py;
         this.rebuildXform();
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** Invert this surface's paint transform (scale, then rotation, about the
      *  shared pivot) — the hit walk's transform term, so a transformed view
@@ -1200,32 +1617,48 @@ class CanvasSurface {
             this.gradient = null;
             this.fill = f === null ? null : colorToCss(f);
         }
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setCornerRadius(r) {
         this.cornerRadius = r;
         this.box = null;
         if (this.boxClip)
             this.clipPath = null;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setStroke(st) {
         this.stroke = st;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
+    }
+    /** The content inset (`View.padding`). The LEADING half is already in the
+     *  children's own x/y — view.ts shifts the position on its way here, so the
+     *  compositor walk, the raster extents and the hit test need nothing. What
+     *  this is for is the TRAILING half, which only a scroller can show: the
+     *  extents below add it, so a padded scroller stops the full bottom (right)
+     *  inset past its last child. */
+    padBottom = 0;
+    padRight = 0;
+    setPadding(inset) {
+        const [, right, bottom] = insetSides(inset);
+        if (right === this.padRight && bottom === this.padBottom)
+            return;
+        this.padRight = right;
+        this.padBottom = bottom;
+        this.compositor.invalidate(this);
     }
     setShadow(sh) {
         this.shadow = sh;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setClip(d) {
         this.clipData = d;
         this.clipPath = null;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setBoxClip(on) {
         this.boxClip = on;
         this.clipPath = null;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setDrawing(list) {
         this.drawing = list;
@@ -1237,7 +1670,7 @@ class CanvasSurface {
             clearTimeout(this.rasterRestTimer);
             this.rasterRestTimer = 0;
         }
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** @internal the raster memo's per-surface state (module functions manage the pool) */
     rasterEntry = null;
@@ -1248,8 +1681,20 @@ class CanvasSurface {
     rasterScalePending = null;
     rasterRestTimer = 0;
     /** Paint this view's recording: vectors, or the memoized raster when the
-     *  (list, scale) pair is stable — see the module header above. */
+     *  (list, scale) pair is stable. DIRTY REGIONS: the two differ slightly
+     *  (sub-pixel phase, and the known blur hole), so a partial frame that
+     *  SWITCHES this drawing between them — a promotion, a fall back to vectors —
+     *  shows the switch only inside the damage, a seam across the drawing. Such a
+     *  frame books the whole drawing for the next one. */
     paintDrawing(ctx) {
+        DREW_RASTER = false;
+        this.paintDrawingInner(ctx);
+        if (DAMAGE_CULL !== null && DAMAGE_FORCE === 0 && DREW_RASTER !== this.drewRaster)
+            this.compositor.invalidate(this);
+        this.drewRaster = DREW_RASTER;
+    }
+    drewRaster = false;
+    paintDrawingInner(ctx) {
         const list = this.drawing;
         const b = list.bounds;
         if (b === null)
@@ -1298,6 +1743,7 @@ class CanvasSurface {
             e.hits++;
             ctx.save();
             ctx.setTransform(1, 0, 0, 1, 0, 0);
+            DREW_RASTER = true;
             ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by);
             ctx.restore();
             return;
@@ -1320,11 +1766,12 @@ class CanvasSurface {
                 e.seen = memoGeneration;
                 ctx.save();
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
+                DREW_RASTER = true;
                 ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by, e.canvas.width * (sx / e.sx), e.canvas.height * (sy / e.sy));
                 ctx.restore();
                 if (this.rasterRestTimer !== 0)
                     clearTimeout(this.rasterRestTimer);
-                this.rasterRestTimer = setTimeout(() => { this.rasterRestTimer = 0; this.compositor.invalidate(); }, RASTER_GRACE_MS + 15);
+                this.rasterRestTimer = setTimeout(() => { this.rasterRestTimer = 0; this.compositor.invalidate(this); }, RASTER_GRACE_MS + 15);
                 return;
             }
             this.rasterScalePending = null; // quiet for the beat: fall through to the exact raster
@@ -1376,7 +1823,7 @@ class CanvasSurface {
                     } // superseded: a newer recording or scale
                     this.rasterPending = null;
                     if (r === null) {
-                        this.compositor.invalidate();
+                        this.compositor.invalidate(this);
                         return;
                     } // the worker could not: the next paint rasters in place
                     if (r.blank) {
@@ -1396,7 +1843,7 @@ class CanvasSurface {
                     this.rasterEntry = { list, sx, sy, canvas: r.bitmap, bytes, bx, by, stamp: ++memoStamp, seen: memoGeneration, rasterMs: r.rasterMs, hits: 0 };
                     memoBytes += bytes;
                     memoHolders.add(this);
-                    this.compositor.invalidate(); // the frame that shows the bitmap
+                    this.compositor.invalidate(this); // the frame that shows the bitmap
                 });
             }
             if (e !== null && e.list === list) {
@@ -1405,6 +1852,7 @@ class CanvasSurface {
                 e.seen = memoGeneration;
                 ctx.save();
                 ctx.setTransform(1, 0, 0, 1, 0, 0);
+                DREW_RASTER = true;
                 ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by, e.canvas.width * (sx / e.sx), e.canvas.height * (sy / e.sy));
                 ctx.restore();
             }
@@ -1428,7 +1876,7 @@ class CanvasSurface {
             rasterMs = performance.now() - t0;
             // the platform may silently drop a raster later (GPU process restart);
             // a lost context releases the entry and the next paint re-derives
-            cv.addEventListener?.("contextlost", () => { releaseRaster(this); this.compositor.invalidate(); });
+            cv.addEventListener?.("contextlost", () => { releaseRaster(this); this.compositor.invalidate(this); });
             if (bytes > BLANK_CHECK_BYTES && rasterLooksBlank(cv, list, sx, sy, bx, by))
                 throw new Error("raster came back blank");
         }
@@ -1444,13 +1892,14 @@ class CanvasSurface {
         memoHolders.add(this);
         ctx.save();
         ctx.setTransform(1, 0, 0, 1, 0, 0);
+        DREW_RASTER = true;
         ctx.drawImage(cv, m.e + m.a * bx, m.f + m.d * by);
         ctx.restore();
     }
     setText(text) {
         this.text = text;
         this.textLines = null;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setTextStyle(st) {
         this.font = fontString(st);
@@ -1480,12 +1929,12 @@ class CanvasSurface {
             this.wrap = true;
         this.align = st.align ?? "left";
         this.textLines = null;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setImage(image) {
         this.image = image;
         this.tinted = null;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** Tint (compositing.md §3.4): a `source-in` fill over the drawn bitmap in
      *  an offscreen — result color = tint, alpha = the bitmap's — cached at
@@ -1496,7 +1945,7 @@ class CanvasSurface {
     setImageTint(color) {
         this.tintColor = color;
         this.tinted = null;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     tintedBitmap(natW, natH) {
         if (this.tintColor === null || this.image === null)
@@ -1530,7 +1979,7 @@ class CanvasSurface {
     }
     setImageStretch(stretch) {
         this.stretch = stretch;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     setInput(sink, wants) {
         this.sink = sink; // input state changes no pixels — no invalidate
@@ -1543,7 +1992,7 @@ class CanvasSurface {
     ignoresScroll = false;
     setIgnoreScroll(on) {
         this.ignoresScroll = on;
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** ROOT only (backend.ts): the App's reactive page-scrollability fact —
      *  keys the shared element's gesture default (rootTouchAction). */
@@ -1555,7 +2004,7 @@ class CanvasSurface {
         this.extentW = w;
         this.extentH = h;
         this.compositor.refreshRootTouchAction(this);
-        this.compositor.invalidate(); // the strut tracks the extent per paint
+        this.compositor.invalidate(this); // the strut tracks the extent per paint
     }
     /** This surface is THE PAGE: the root whose scroll regime the browser owns
      *  (Compositor.attach converts the root's pane scroll into this — the
@@ -1990,7 +2439,7 @@ class CanvasSurface {
         if (v === this.virtualExtent)
             return;
         this.virtualExtent = v;
-        this.compositor.invalidate();
+        this.compositor.invalidateBar(this);
     }
     /** Content extent along y — the real children floor'd by the virtual one. */
     contentExtent() {
@@ -1998,7 +2447,9 @@ class CanvasSurface {
         for (const c of this.children)
             if (c.visible && !c.ignoresScroll)
                 extent = Math.max(extent, c.y + c.height);
-        return extent;
+        // the TRAILING inset (setPadding): a padded scroller stops a full inset
+        // after its last child, not flush against it
+        return extent === 0 ? 0 : extent + this.padBottom;
     }
     /** The horizontal scroll regime — the exact twin of setScroll: clip to the
      *  box, translate the content by the offset, mirror the user's pan into
@@ -2016,7 +2467,7 @@ class CanvasSurface {
             this.scrollXOffset = 0;
             this.scrollVisualX = null;
         }
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** Content extent along x — the widest a child reaches (contentExtent's twin;
      *  no virtual floor: windowing is vertical). */
@@ -2025,7 +2476,7 @@ class CanvasSurface {
         for (const c of this.children)
             if (c.visible && !c.ignoresScroll)
                 extent = Math.max(extent, c.x + c.width);
-        return extent;
+        return extent === 0 ? 0 : extent + this.padRight;
     }
     /** A request on x (`scrollToX`) — clamped exactly as a wheel would be; with a
      *  glide it tweens on the scroll loop, and a gesture in flight owns the offset
@@ -2048,7 +2499,7 @@ class CanvasSurface {
         loop.cancelGlides(this);
         this.scrollXOffset = next;
         this.onScrollXCb?.(next);
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     // Native rich-text flow is a DOM affordance; on canvas the RichText component lays
     // the runs out as child views itself. -1 signals "not handled, fall back".
@@ -2085,7 +2536,7 @@ class CanvasSurface {
         loop.cancelGlides(this);
         this.scrollOffset = next;
         this.onScrollCb?.(next);
-        this.compositor.invalidate();
+        this.compositor.invalidate(this);
     }
     /** Scroll this surface to the top of its nearest scrolling ancestor — the
      *  canvas twin of DOM's native scrollIntoView. Sums local offsets up to the
@@ -2120,7 +2571,7 @@ class CanvasSurface {
                 if (nextX !== scx.scrollXOffset) {
                     scx.scrollXOffset = nextX;
                     scx.onScrollXCb?.(nextX);
-                    this.compositor.invalidate();
+                    this.compositor.invalidate(this);
                 }
             }
         }
@@ -2153,7 +2604,7 @@ class CanvasSurface {
             }
             sc.scrollOffset = next;
             sc.onScrollCb?.(next);
-            this.compositor.invalidate();
+            this.compositor.invalidate(sc);
         }
     }
     /** Two island realizations, split by the slot's PROTOCOL:
@@ -2313,6 +2764,10 @@ class CanvasSurface {
     isTraveling() { return this.travelHomeSurface !== null; }
     insertChild(child, before) {
         const c = child;
+        // a surface arriving from a painted place (a reorder, a re-home) leaves a
+        // hole there: repaint its old box
+        if (c.painted !== null && !boxEmpty(c.painted))
+            this.compositor.damageBox(c.painted);
         const existing = this.children.indexOf(c);
         if (existing >= 0)
             this.children.splice(existing, 1); // a re-insert is a move
@@ -2325,7 +2780,31 @@ class CanvasSurface {
         c.parent = this;
         const at = before === null ? -1 : this.children.indexOf(before);
         this.children.splice(at < 0 ? this.children.length : at, 0, c);
-        this.compositor.invalidate();
+        // THE ANCESTORS' PAINTED BOXES NO LONGER BOUND THEIR CHILDREN. `painted` is
+        // "where this surface and its subtree last landed", and it is what a partial
+        // frame culls against — so a container that last painted while it was EMPTY
+        // carries an empty box, misses the damage its own new child just booked, and
+        // returns before reaching that child. The child is never drawn, and nothing
+        // marks damage again: the content stays blank until something forces a full
+        // repaint.
+        //
+        // Measured on marketmap at a PHONE viewport (2026-09-20): the treemap paints
+        // its tiles after the first frame, the container was recorded empty by that
+        // frame, and the map never appeared — 35% of the canvas drawn against 92%
+        // with damage off, fixed permanently by a one-pixel resize. Desktop widths
+        // lay the tiles out before that first frame, which is why every gate — the
+        // damage checker included — ran green over it.
+        //
+        // Clearing the record says "unknown", which is what it now is: the cull
+        // keeps a surface whose box is unknown, it repaints and recomputes. This is
+        // the same signal paint() already propagates upward for a child whose box it
+        // could not know, applied at the moment the subtree changes shape.
+        for (let a = this; a !== null && a.painted !== null; a = a.parent)
+            a.painted = null;
+        // what changed is the child's place and its stacking among siblings — all
+        // within its own box (its old box went in above). A blending child can
+        // turn the parent's content into a group: then the parent is the change.
+        this.compositor.invalidate(c.blends > 0 ? this : c);
     }
     destroy() {
         releaseRaster(this); // the memo pool must not outlive the surface
@@ -2340,6 +2819,7 @@ class CanvasSurface {
         this.embedEl = null;
         this.pendingEmbed = null;
         this.compositor.unregisterEditable(this);
+        this.compositor.frosts.delete(this);
         if (this.parent !== null) {
             if (this.blends > 0)
                 CanvasSurface.addBlends(this.parent, -this.blends);
@@ -2356,6 +2836,151 @@ class CanvasSurface {
      *  semantics. An invisible or fully transparent surface prunes its
      *  subtree. */
     paint(ctx) {
+        if (!this.visible || this.opacity <= 0) {
+            this.painted = EMPTY_BOX;
+            return;
+        }
+        // a partial frame skips a subtree whose last paint missed the damage —
+        // unless it (or an ancestor) changed, when where it WAS says nothing
+        if (DAMAGE_CULL !== null && DAMAGE_FORCE === 0 && !this.damaged && this.painted !== null && !hitsAny(this.painted, DAMAGE_CULL))
+            return;
+        const forced = this.damaged;
+        const three = this.spec3D !== null;
+        if (forced)
+            DAMAGE_FORCE++;
+        if (three)
+            PAINT_UNKNOWN++;
+        // this surface's own device matrix, for the record below (a group layer's
+        // children paint shifted by its offset: add it back)
+        let m = null;
+        if (PAINT_UNKNOWN === 0) {
+            m = ctx.getTransform().translate(this.x, this.y);
+            if (!affineIsIdentity(this.xform))
+                m = m.multiply(new DOMMatrix([this.xform[0], this.xform[1], this.xform[2], this.xform[3], this.xform[4], this.xform[5]]));
+            m.e += LAYER_DX;
+            m.f += LAYER_DY;
+        }
+        try {
+            this.paintSelf(ctx);
+        }
+        finally {
+            if (forced)
+                DAMAGE_FORCE--;
+            if (three)
+                PAINT_UNKNOWN--;
+        }
+        if (m === null) {
+            this.painted = null;
+            return;
+        }
+        // own ink, then the children's — a clipping surface's cut to its box (its
+        // box bounds them; a transparent full-window container must not count as
+        // ink, or every change inside it damages the window)
+        let b = CanvasSurface.inkOf(this, m);
+        const clips = this.boxClip || this.scrolls || this.scrollsX || this.clipData !== null;
+        const cut = clips ? CanvasSurface.mapBox(m, 0, 0, this.width, this.height) : null;
+        for (const c of this.children) {
+            if (c.painted === null) {
+                this.painted = null;
+                return;
+            }
+            if (boxEmpty(c.painted))
+                continue;
+            if (cut === null || c.ignoresClip)
+                b = boxUnion(b, c.painted);
+            else {
+                const x0 = Math.max(cut.x0, c.painted.x0), y0 = Math.max(cut.y0, c.painted.y0), x1 = Math.min(cut.x1, c.painted.x1), y1 = Math.min(cut.y1, c.painted.y1);
+                if (x1 > x0 && y1 > y0)
+                    b = boxUnion(b, { x0, y0, x1, y1 });
+            }
+        }
+        this.painted = b;
+    }
+    /** Does this surface itself put anything on the canvas (children aside)?
+     *  A plain container — no fill, stroke, shadow, text, image, drawing, frost,
+     *  scroll bars, filter or mask — does not. */
+    ownsInk() {
+        return this.fill !== null || this.gradient !== null || strokeInks(this.stroke) || this.shadow !== null
+            || this.backdrop !== null || this.image !== null || this.drawing !== null || (this.text !== "" && this.font !== "")
+            || this.scrolls || this.scrollsX || this.filter !== null || this.mask !== null || this.spec3D !== null;
+    }
+    /** One surface's OWN ink in device space: its box, grown by what paints past
+     *  a box — a filter's bleed, a box shadow, glyphs over a tight line box, a
+     *  text shadow or outline — and its drawing's bounds with the raster pad.
+     *  The same measure a group layer sizes itself by. */
+    static inkOf(s, m) {
+        if (!s.ownsInk())
+            return EMPTY_BOX;
+        let bleed = s.filter === null ? 0 : filterBleed(s.filter);
+        if (s.shadow !== null)
+            bleed = Math.max(bleed, Math.abs(s.shadow.dx) + s.shadow.blur, Math.abs(s.shadow.dy) + s.shadow.blur);
+        if (s.ascent > 0)
+            bleed = Math.max(bleed, s.ascent);
+        if (s.textShadow !== null)
+            bleed = Math.max(bleed, Math.abs(s.textShadow.dx) + s.textShadow.blur, Math.abs(s.textShadow.dy) + s.textShadow.blur);
+        if (s.textOutline !== null)
+            bleed = Math.max(bleed, s.textOutline.width);
+        let b = CanvasSurface.mapBox(m, -bleed, -bleed, s.width + bleed, s.height + bleed);
+        const d = s.drawing;
+        if (d !== null && d.bounds !== null) {
+            const p = rasterPad(d) + bleed;
+            b = boxUnion(b, CanvasSurface.mapBox(m, d.bounds.x - p, d.bounds.y - p, d.bounds.x + d.bounds.w + p, d.bounds.y + d.bounds.h + p));
+        }
+        return b;
+    }
+    static mapBox(m, ax, ay, bx, by) {
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+        for (let i = 0; i < 4; i++) {
+            const px = i & 1 ? bx : ax, py = i & 2 ? by : ay;
+            const X = m.a * px + m.c * py + m.e, Y = m.b * px + m.d * py + m.f;
+            if (X < x0)
+                x0 = X;
+            if (X > x1)
+                x1 = X;
+            if (Y < y0)
+                y0 = Y;
+            if (Y > y1)
+                y1 = Y;
+        }
+        return { x0, y0, x1, y1 };
+    }
+    /** Where `s`'s subtree paints NOW, given the matrix its own offset composes
+     *  onto; null when unknowable (3D). An invisible subtree paints nothing. */
+    static subtreeBoxNow(s, parent) {
+        if (!s.visible || s.opacity <= 0)
+            return EMPTY_BOX;
+        if (s.spec3D !== null)
+            return null;
+        let m = parent.translate(s.x, s.y);
+        if (!affineIsIdentity(s.xform))
+            m = m.multiply(new DOMMatrix([s.xform[0], s.xform[1], s.xform[2], s.xform[3], s.xform[4], s.xform[5]]));
+        let b = CanvasSurface.inkOf(s, m);
+        const clips = s.boxClip || s.scrolls || s.scrollsX || s.clipData !== null;
+        const cut = clips ? CanvasSurface.mapBox(m, 0, 0, s.width, s.height) : null;
+        let inside = EMPTY_BOX; // the clipped children's union, cut below
+        for (const c of s.children) {
+            const clipped = cut !== null && !c.ignoresClip;
+            // the clipped union already fills the box: no child can add to it
+            if (clipped && cut !== null && inside.x0 <= cut.x0 && inside.y0 <= cut.y0 && inside.x1 >= cut.x1 && inside.y1 >= cut.y1)
+                continue;
+            const cm = (s.scrolls || s.scrollsX) && !c.ignoresScroll
+                ? m.translate(s.scrollsX ? -(s.scrollVisualX ?? s.scrollXOffset) : 0, s.scrolls ? -(s.scrollVisualY ?? s.scrollOffset) : 0) : m;
+            const cb = CanvasSurface.subtreeBoxNow(c, cm);
+            if (cb === null)
+                return null;
+            if (clipped)
+                inside = boxUnion(inside, cb);
+            else
+                b = boxUnion(b, cb);
+        }
+        if (cut !== null && !boxEmpty(inside)) {
+            const x0 = Math.max(cut.x0, inside.x0), y0 = Math.max(cut.y0, inside.y0), x1 = Math.min(cut.x1, inside.x1), y1 = Math.min(cut.y1, inside.y1);
+            if (x1 > x0 && y1 > y0)
+                b = boxUnion(b, { x0, y0, x1, y1 });
+        }
+        return b;
+    }
+    paintSelf(ctx) {
         if (!this.visible || this.opacity <= 0)
             return;
         if (this.spec3D !== null) {
@@ -2539,10 +3164,15 @@ class CanvasSurface {
         // The extent is knowable (groupDeviceBox), so take it; when it is not, or
         // when it saves nothing, fall back to exactly what this did before.
         const box = this.groupDeviceBox(ctx);
-        const layer = document.createElement("canvas");
-        layer.width = box === null ? target.width : box.w;
-        layer.height = box === null ? target.height : box.h;
-        const lctx = layer.getContext("2d");
+        const { c: layer, g: lctx } = takeScratch(box === null ? target.width : box.w, box === null ? target.height : box.h);
+        try {
+            this.paintLayerInto(ctx, layer, lctx, box);
+        }
+        finally {
+            giveScratch(layer);
+        }
+    }
+    paintLayerInto(ctx, layer, lctx, box) {
         const m = ctx.getTransform();
         // the same CTM, moved so the layer's own origin is the box's corner — the
         // landing below puts it back, still integer-aligned, still no resampling
@@ -2550,7 +3180,16 @@ class CanvasSurface {
             lctx.setTransform(m);
         else
             lctx.setTransform(m.a, m.b, m.c, m.d, m.e - box.x, m.f - box.y);
-        this.paintContent(lctx);
+        const ldx = box === null ? 0 : box.x, ldy = box === null ? 0 : box.y;
+        LAYER_DX += ldx;
+        LAYER_DY += ldy;
+        try {
+            this.paintContent(lctx);
+        }
+        finally {
+            LAYER_DX -= ldx;
+            LAYER_DY -= ldy;
+        }
         if (this.mask !== null)
             this.applyMaskTo(layer, lctx);
         ctx.save();
@@ -2568,11 +3207,10 @@ class CanvasSurface {
             const mag = Math.hypot(m.a, m.b) || 1;
             let src = layer;
             const tint = this.filter.find((f) => f.fn === "tint");
+            let tinted = null;
             if (tint !== undefined && tint.fn === "tint") {
-                const t = document.createElement("canvas");
-                t.width = layer.width;
-                t.height = layer.height;
-                const tg = t.getContext("2d");
+                const { c: t, g: tg } = takeScratch(layer.width, layer.height);
+                tinted = t;
                 tg.drawImage(layer, 0, 0);
                 tg.globalCompositeOperation = "source-in";
                 tg.fillStyle = colorToCss(tint.color);
@@ -2590,6 +3228,8 @@ class CanvasSurface {
             }
             else
                 ctx.drawImage(applyFilterFallback(src, parseFilter(css), this.compositor.inMotion), lx, ly);
+            if (tinted !== null)
+                giveScratch(tinted);
         }
         ctx.restore();
     }
@@ -2696,10 +3336,16 @@ class CanvasSurface {
      *  layer in turn), then landed with `destination-in`. */
     applyMaskTo(layer, lctx) {
         const spec = this.mask;
-        const m = document.createElement("canvas");
-        m.width = layer.width;
-        m.height = layer.height;
-        const mctx = m.getContext("2d");
+        const { c: m, g: mctx } = takeScratch(layer.width, layer.height);
+        try {
+            this.maskInto(m, mctx, layer, lctx, spec);
+        }
+        finally {
+            giveScratch(m);
+        }
+    }
+    maskInto(m, mctx, layer, lctx, spec) {
+        void layer;
         mctx.setTransform(lctx.getTransform()); // the masked view's own frame
         if (spec.kind === "gradient") {
             mctx.fillStyle = realizeGradient(mctx, spec.gradient, this.width, this.height);
@@ -2750,10 +3396,16 @@ class CanvasSurface {
         const dw = dx1 - dx0, dh = dy1 - dy0;
         if (dw <= 0 || dh <= 0)
             return;
-        const snap = document.createElement("canvas");
-        snap.width = dw;
-        snap.height = dh;
-        snap.getContext("2d").drawImage(ctx.canvas, dx0, dy0, dw, dh, 0, 0, dw, dh);
+        const { c: snap, g: sg } = takeScratch(dw, dh);
+        try {
+            sg.drawImage(ctx.canvas, dx0, dy0, dw, dh, 0, 0, dw, dh);
+            this.frostFrom(ctx, snap, b, scaleMag, dx0, dy0);
+        }
+        finally {
+            giveScratch(snap);
+        }
+    }
+    frostFrom(ctx, snap, b, scaleMag, dx0, dy0) {
         ctx.save();
         // clip to the view's own painted shape (rounded box; an explicit shape
         // clip from paint()'s bracket composes by intersection)
@@ -2778,7 +3430,7 @@ class CanvasSurface {
             const out = applyFilterFallback(snap, parseFilter(spec), approx);
             ctx.drawImage(out, dx0, dy0);
             if (approx)
-                this.compositor.frostWantsRest();
+                this.compositor.frostWantsRest(this);
         }
         ctx.restore();
     }
@@ -2825,7 +3477,7 @@ class CanvasSurface {
             // a running video changes pixels with no write to the graph: ask for the
             // next frame here, or the picture would freeze on its first one
             if (this.videoRunning())
-                this.compositor.invalidate();
+                this.compositor.invalidate(this);
         }
         if (this.drawing !== null)
             this.paintDrawing(ctx);
@@ -3011,6 +3663,156 @@ class CanvasSurface {
      *  and the returned Path2D is the lazily-rebuilt box cache. */
     paintBox(ctx) {
         this.box = paintBox(ctx, this, this.box);
+    }
+}
+// ─── DEV ONLY (profiling builds) ────────────────────────────────────────────
+// Everything below is reached only from sites guarded by the build flag named
+// in place, so a production build folds the calls away and drops these.
+/** why the last paint was full (the reason meter) */
+let DEV_WHY = "";
+let DEV_BIG = "", DEV_BIG_AREA = 0, DEV_T0 = 0;
+function devNoteFull(why) {
+    const st = (globalThis.__declarePaintWhy ??= {});
+    st[why] = (st[why] ?? 0) + 1;
+}
+/** The paint meter: paints, their JS time, how many were partial, and the
+ *  share of the canvas they covered. */
+function devPaintEnd(damage, w, h) {
+    const st = (globalThis.__declarePaintStats ??= { n: 0, ms: 0, full: 0, partial: 0, area: 0 });
+    st.n++;
+    st.ms += performance.now() - DEV_T0;
+    if (damage === null) {
+        st.full++;
+        st.area += 1;
+    }
+    else {
+        st.partial++;
+        let a = 0;
+        for (const q of damage)
+            a += boxArea(q);
+        st.area += a / Math.max(1, w * h);
+    }
+}
+/** The largest single contribution to a frame's damage, for the reason meter. */
+function devNoteBig(s, was, now) {
+    const u = boxUnion(was, now), area = boxArea(u);
+    if (area <= DEV_BIG_AREA)
+        return;
+    DEV_BIG_AREA = area;
+    const text = s.text;
+    DEV_BIG = `${Math.round(s.width)}x${Math.round(s.height)} ${s.children.length}ch${text ? " '" + text.slice(0, 10) + "'" : ""} was ${Math.round(was.x1 - was.x0)}x${Math.round(was.y1 - was.y0)} now ${Math.round(now.x1 - now.x0)}x${Math.round(now.y1 - now.y0)}`;
+}
+/** A partial frame painted with save/restore counted: a restore() below the
+ *  clip's level would drop the clip mid-frame and paint outside the damage. */
+function devPaintCounted(ctx, root) {
+    let depth = 0, escaped = null;
+    const save0 = ctx.save, restore0 = ctx.restore;
+    ctx.save = function () { depth++; save0.call(this); };
+    ctx.restore = function () { depth--; if (depth < 0 && escaped === null)
+        escaped = String(new Error().stack).split("\n").slice(2, 7).join(" < "); restore0.call(this); };
+    try {
+        root.paint(ctx);
+    }
+    finally {
+        ctx.save = save0;
+        ctx.restore = restore0;
+    }
+    if (escaped !== null || depth !== 0) {
+        const g = globalThis;
+        (g.__declareDamageEscape ??= []).push({ depth, escaped });
+    }
+}
+/** Who invalidates large containers (a surface with at least
+ *  __declareDamageWhoMin children), by call site. */
+function devNoteWho(s) {
+    if (s.children.length < +(globalThis.__declareDamageWhoMin ?? 9))
+        return;
+    const g = globalThis;
+    if (typeof g.__declareDamageWho !== "object")
+        g.__declareDamageWho = {};
+    const k = `${Math.round(s.width)}x${Math.round(s.height)} ${s.children.length}ch < ` + String(new Error().stack).split("\n").slice(2, 5).map((l) => l.trim().replace(/\(.*\//, "(")).join(" < ");
+    g.__declareDamageWho[k] = (g.__declareDamageWho[k] ?? 0) + 1;
+}
+/** THE CHECKING MODE: after a partial frame, repaint everything offscreen and
+ *  compare with what the partial frame left on the canvas. Run it with GPU
+ *  canvas off (the rig passes --disable-accelerated-2d-canvas): Chrome picks
+ *  GPU or software per canvas, and the two antialias differently. */
+function devCheckDamage(screen, root, damage, w, h, dpr) {
+    const within = (x, y) => { for (const q of damage)
+        if (x >= q.x0 && x < q.x1 && y >= q.y0 && y < q.y1)
+            return true; return false; };
+    // Two references, one per region. INSIDE the damage: everything repainted
+    // under the SAME clip with no culling — exact, so any difference is a
+    // subtree the cull wrongly skipped. (Not the unclipped repaint: Chrome's
+    // software raster antialiases a curve differently near a clip or canvas
+    // edge — measured up to 9 rows in, 18/255; its GPU raster doesn't — and
+    // the check pins software.) OUTSIDE: the full unclipped repaint, past a
+    // tolerance for that same edge noise left by earlier partial frames — a
+    // missed invalidation (content moved or changed, never repainted) shows
+    // far above it.
+    const canvas = screen.canvas;
+    if (w === 0 || h === 0)
+        return;
+    const ref = (clip) => {
+        const off = document.createElement("canvas");
+        off.width = w;
+        off.height = h;
+        const c = off.getContext("2d", { willReadFrequently: true });
+        if (clip) {
+            c.beginPath();
+            for (const q of damage)
+                c.rect(q.x0, q.y0, q.x1 - q.x0, q.y1 - q.y0);
+            c.clip();
+        }
+        c.setTransform(dpr, 0, 0, dpr, 0, 0);
+        root.paint(c);
+        return c.getImageData(0, 0, w, h).data;
+    };
+    const a = screen.getImageData(0, 0, w, h).data, full = ref(false), clipped = ref(true);
+    const OUTSIDE_NOISE = 24;
+    let n = 0, nin = 0, worst = 0, pxIn = 0, pxOut = 0;
+    const cells = new Map();
+    const px = [];
+    for (let i = 0; i < a.length; i += 4) {
+        const p = i >> 2, x = p % w, y = (p / w) | 0;
+        const inside = within(x, y);
+        const b = inside ? clipped : full, tol = inside ? 3 : OUTSIDE_NOISE;
+        const d = Math.max(Math.abs(a[i] - b[i]), Math.abs(a[i + 1] - b[i + 1]), Math.abs(a[i + 2] - b[i + 2]), Math.abs(a[i + 3] - b[i + 3]));
+        if (d <= tol)
+            continue;
+        n++;
+        if (d > worst)
+            worst = d;
+        if (inside)
+            nin++;
+        if ((inside ? pxIn++ : pxOut++) < 4)
+            px.push([x, y, a[i], a[i + 1], a[i + 2], a[i + 3], b[i], b[i + 1], b[i + 2], b[i + 3]]);
+        const key = (inside ? "in " : "out ") + ((x >> 6) << 6) + "," + ((y >> 6) << 6);
+        cells.set(key, (cells.get(key) ?? 0) + 1);
+    }
+    const g = globalThis;
+    if (typeof g.__declareDamageCheck !== "object" || g.__declareDamageCheck === null)
+        g.__declareDamageCheck = { partials: 0, mismatches: [] };
+    const rec = g.__declareDamageCheck;
+    rec.partials++;
+    if (n > 0 && rec.mismatches.length < 50) {
+        const suspects = [];
+        const q = px.find((p) => !within(p[0], p[1])) ?? px[0], pt = { x0: q[0] - 3, y0: q[1] - 3, x1: q[0] + 4, y1: q[1] + 4 };
+        const walk = (x, depth) => {
+            if (suspects.length >= 8)
+                return;
+            const any = x;
+            if (x.painted !== null && boxHit(x.painted, pt) && x.visible)
+                suspects.push({ depth, n: x.children.length, w: +x.width.toFixed(2), h: +x.height.toFixed(2), text: String(any.text ?? "").slice(0, 12), painted: [x.painted.x0, x.painted.y0, x.painted.x1, x.painted.y1].map((v) => +v.toFixed(2)), drawing: any.drawing !== null, fill: any.fill, hitsDamage: hitsAny(x.painted, damage) });
+            for (const c of x.children)
+                walk(c, depth + 1);
+        };
+        walk(root, 0);
+        const gs = globalThis;
+        if (n > 100 && gs.__declareDamageShots === undefined)
+            gs.__declareDamageShots = [canvas.toDataURL()];
+        const top = [...cells].sort((p, q2) => q2[1] - p[1]).slice(0, 8).map(([k, v]) => k + ":" + v);
+        rec.mismatches.push({ pixels: n, inside: nin, worst, frame: rec.partials, damage, top, px, suspects });
     }
 }
 //# sourceMappingURL=canvas-backend.js.map

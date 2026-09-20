@@ -8,11 +8,22 @@
 // what lets those land without reshaping the base.
 import { Cell, isTracking } from "./reactive.js";
 import { trackNode, untrackNode } from "./change-event.js";
-import { providedRead, defineAttributes, PROVIDED_FACE } from "./attributes.js";
+import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE } from "./attributes.js";
 let readCursor = null;
 export function provideCursorRead(fn) { readCursor = fn; }
 export class Node {
     parent = null;
+    /** The parent a removeChild just unlinked from — a re-link back to the SAME
+     *  parent (what replication does to every row of a block on any change) is
+     *  not a move, and must not invalidate the provider memos. */
+    exParent = null;
+    /** Landing under a DIFFERENT parent changes this subtree's ancestor chain,
+     *  and only this subtree's: clear its provider memos (attributes.ts). */
+    chainMoved(child) {
+        if (child.parent === this || child.exParent === this)
+            return;
+        providedChainMoved(child);
+    }
     /** Read `path` against the nearest enclosing cursor — what a `:path` island
      *  lowers to (compile.ts resolveBody). On a view that is its own inherited
      *  cursor; on a non-view member it is the nearest view above that has one.
@@ -33,6 +44,26 @@ export class Node {
      *  node reads provided values too. */
     $provided(name, ...dflt) {
         return providedRead(this, name, dflt.length > 0, dflt[0]);
+    }
+    /** The read behind `hostProvided("name", default)` — a value this program's
+     *  HOST makes available: an island's `provides` name, a page's
+     *  `app.provide(…)`, the native host's launch parameters. The compiler
+     *  rewrites the callee to `this.$hostProvided`; the value lives on the
+     *  running App (its host values), so every node in the program reads the
+     *  same one. The default types the read and stands in when nothing is
+     *  provided (running standalone, or the host did not list the name); with
+     *  no default an absent value throws, naming it. */
+    $hostProvided(name, ...dflt) {
+        let top = this;
+        while (top.parent !== null)
+            top = top.parent;
+        const hv = top.hostValues;
+        if (hv === undefined) {
+            if (dflt.length > 0)
+                return dflt[0];
+            throw new Error(`hostProvided("${name}"): this node is not in a running app`);
+        }
+        return hv.read(name, dflt.length > 0, dflt[0]);
     }
     /** The read behind `providedTextStyle(overrides?)` — the `TextStyle` in force
      *  at THIS node: the five provided face names, each falling to the same default
@@ -79,6 +110,15 @@ export class Node {
     childListChanged() {
         this.structure?.changed();
     }
+    /** The child-list cell's kernel id (created on first need) — a native
+     *  rule's edge on "the SET of children changed" (the auto-extent rule). */
+    structureCellId() {
+        if (this.structure === null) {
+            this.structure = new Cell();
+            this.structure.structural = true;
+        }
+        return this.structure.cellId();
+    }
     /** The scope noun (R6) for members declared in THIS node's body — the
      *  enclosing class instance, set at construction. It lives here, on Node, not
      *  on View: a node's members have a scope whether or not the node is visual
@@ -97,6 +137,7 @@ export class Node {
     /** Link `child` beneath this node. The tree is the single source of
      *  structure; the render backend mirrors it (see View.attach). */
     appendChild(child) {
+        this.chainMoved(child);
         child.parent = this;
         this.children.push(child);
         this.childListChanged();
@@ -104,6 +145,7 @@ export class Node {
     /** Link `child` at `index` — child order is semantic (tree order is paint
      *  order, and replicated children take their data's order, R8). */
     insertChild(child, index) {
+        this.chainMoved(child);
         child.parent = this;
         this.children.splice(index, 0, child);
         this.childListChanged();
@@ -111,6 +153,7 @@ export class Node {
     /** Unlink `child`. Model structure only — a live view's surface and
      *  standing computations are the caller's to retire (View.discard). */
     removeChild(child) {
+        child.exParent = this; // so a re-link back here is not a move
         const i = this.children.indexOf(child);
         if (i >= 0) {
             this.children.splice(i, 1);
@@ -146,6 +189,7 @@ export class Node {
         for (const child of this.children)
             child.teardown();
         runRetire(this);
+        this.structure?.free();
     }
     /** Children were inserted/removed/reordered as a unit — the notification
      *  seam the tree verbs speak (discard above; the replicator, once per

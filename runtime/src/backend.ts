@@ -9,7 +9,7 @@
 // names a substrate (APPROACH §4) — the property that lets a later optimizing
 // runtime choose a backend per view / per hierarchy.
 
-import type { Backdrop, Color, Fill, Filter, Gradient, Radius, Shadow, Stroke, Outline } from "./value.js";
+import type { Backdrop, BoxStroke, Color, Fill, Filter, Gradient, Inset, Radius, Shadow, Outline } from "./value.js";
 import type { Affine } from "./affine.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
@@ -74,8 +74,15 @@ export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; li
 export interface ScrollGlide { duration?: number; motion?: string }
 
 /** The stencil half of a mask: a live view — its surface (null until it
- *  attaches) and its box, read at paint time. */
-export interface MaskStencil { readonly surface: Surface | null; readonly x: number; readonly y: number; readonly width: number; readonly height: number }
+ *  attaches) and its box, read at paint time. `x`/`y` are the stencil's own
+ *  slots, which are CONTENT coordinates in the masked view (View.padding), so
+ *  a reader placing the bitmap adds `positionLead` exactly as the seam does
+ *  for the stencil's own surface. */
+export interface MaskStencil {
+  readonly surface: Surface | null;
+  readonly x: number; readonly y: number; readonly width: number; readonly height: number;
+  positionLead(axis: "x" | "y"): number;
+}
 export type MaskSpec = { readonly kind: "gradient"; readonly gradient: Gradient } | { readonly kind: "view"; readonly stencil: MaskStencil };
 
 /** How an Image scales its bitmap into the view box — the language's
@@ -214,7 +221,7 @@ export interface Surface {
    *  the cross-backend suite. */
   setFill(fill: Fill): void;
   setCornerRadius(r: Radius): void;
-  setStroke(stroke: Stroke | null): void;
+  setStroke(stroke: BoxStroke): void;
   setShadow(shadow: Shadow | null): void;
 
   setVisible(visible: boolean): void;
@@ -311,6 +318,16 @@ export interface Surface {
    *  — or declare `clip = true` on the App itself to pin every interaction
    *  in-window — without the browser growing a scroll extent. */
   setBoxClip(on: boolean): void;
+  /** This surface's CONTENT INSET (`View.padding`) — and the only part of the
+   *  content box the seam is told about. The origin shift is already in the
+   *  children's own `setX`/`setY` (view.ts positionLead), so paint, hit and
+   *  the compositor walks need nothing; what they cannot derive is the
+   *  TRAILING inset, which is real room only a scroller can show. A padded
+   *  scroller must stop the full bottom (and right) inset after its last
+   *  child rather than flush against it — the thing CSS got wrong for a
+   *  decade — so each backend folds this into its own scroll-extent answer.
+   *  Optional: a backend that realizes no scrolling has nothing to do with it. */
+  setPadding?(inset: Inset): void;
   /** Mark this surface as exempt from its PARENT's box-clip (`ignoreClip`):
    *  outside the parent's clip it still paints AND still hits — frame chrome
    *  that straddles the frame (a window's resize halo, a badge poking out of a

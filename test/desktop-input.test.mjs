@@ -163,7 +163,7 @@ try {
     // independent of `docs/declare.md`'s content: the file it renders is edited
     // often, and a geometric guess silently became a drag across blank space.
     const d = await page.evaluate((top, bottom) => {
-      const root = globalThis.__w.body.pad.doc.surface.element;
+      const root = globalThis.__w.body.doc.surface.element;
       const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       const runs = [];
       for (let n = walk.nextNode(); n && runs.length < 2; n = walk.nextNode()) {

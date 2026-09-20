@@ -250,10 +250,9 @@
         "carousel",
         "skeleton",
         "badge",
-        "card",
         "avatar"
       ],
-      "answer": "No dedicated component — the library is deliberately small, and these are compositions: a card is a `View` (`cornerRadius`, `shadow`, `fill`); a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
+      "answer": "No dedicated component — the library is deliberately small, and these are compositions: a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
     },
     {
       "terms": [

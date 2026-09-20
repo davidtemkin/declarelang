@@ -41,6 +41,54 @@ final class ControlChannel {
 
     init(target: @escaping () -> ProgramWindow?) { self.target = target }
 
+    // ── THE FAILURE SIDECAR ────────────────────────────────────────────────
+    //
+    // A load that fails is a thing on SCREEN: the error page comes up, a person
+    // sees it, and an automated caller sees a perfectly healthy control channel
+    // answering every command. It cost a measurement round — the rig drove a
+    // host that had never loaded its program, and one that had loaded the ERROR
+    // PAGE instead (which is itself a Declare program, so "is an app mounted?"
+    // said yes). `lasterror` always carried the message, but only a caller who
+    // thought to ask ever saw it, and the callers who most need it are exactly
+    // the ones that did not think to.
+    //
+    // So the state is published OUT OF BAND, in a file beside the pipe: present
+    // means the last load attempt failed, and its contents are the message.
+    // Out of band rather than in the replies because the replies are parsed —
+    // `windows` counts its own lines, `newwindow` answers `ok windows=N`, the
+    // gate reads `layers=N` — and a prefix or an extra line would break every
+    // one of those readers to fix a problem none of them have.
+    private static var errPath: String {
+        let p = (Bundle.main.infoDictionary?["DeclareCtlPipe"] as? String) ?? "/tmp/declare-ctl.in"
+        return (p.hasSuffix(".in") ? String(p.dropLast(3)) : p) + ".err"
+    }
+    /// A load or compile failed: publish it. Called whether or not anything was
+    /// shown, so a headless or automated host reports the same as a visible one.
+    static func noteLoadFailure(_ msg: String) {
+        outstanding = msg
+        try? msg.write(toFile: errPath, atomically: true, encoding: .utf8)
+    }
+    /// The failure standing over this host right now, or nil. Held in memory as
+    /// well as on disk so the refusal below costs nothing per command.
+    private(set) static var outstanding: String?
+    /// A new load has begun: the previous verdict no longer describes the host.
+    /// Cleared on the ATTEMPT rather than on success, because the success
+    /// signal a caller could use — a commit — is one the error page produces
+    /// too, and clearing on that would report a failed load as healthy.
+    static func clearLoadFailure() {
+        outstanding = nil
+        try? FileManager.default.removeItem(atPath: errPath)
+    }
+
+    /// Verbs that still answer while a load is outstanding: the ones ABOUT the
+    /// host rather than about a program, and `eval` — which is how a caller
+    /// navigates AWAY from a failure. Blocking that would make the state
+    /// unrecoverable through the channel that reports it.
+    private static let whileFailed: Set<String> = [
+        "ping", "lasterror", "windows", "newwindow", "closewindow", "activate",
+        "menukey", "jit", "compilecache", "occlusion", "eval", "platform",
+    ]
+
     func start() {
         try? "".write(toFile: inPath, atomically: true, encoding: .utf8)
         let t = Timer(timeInterval: 0.03, repeats: true) { [weak self] _ in self?.poll() }
@@ -93,6 +141,16 @@ final class ControlChannel {
         let windowless = ["ping", "windows", "newwindow", "closewindow", "menukey", "activate", "jit",
                           "compilecache", "occlusion"]
         guard target() != nil || windowless.contains(verb) else { return "no window" }
+        // A LOAD FAILED AND NOTHING HAS LOADED SINCE. Every verb below this line
+        // answers ABOUT A PROGRAM, and the program on screen is the error page —
+        // so a geometry, a hit walk or a click would answer truthfully about the
+        // wrong thing, which is the worst kind of answer a harness can get. The
+        // sidecar (above) lets a caller notice without asking; this makes the
+        // caller who never asks fail LOUDLY at the point of use instead of
+        // collecting plausible numbers about an error page.
+        if let e = Self.outstanding, !Self.whileFailed.contains(verb) {
+            return "!! load failed: " + e
+        }
         func num(_ i: Int) -> Double { i < a.count ? (Double(a[i]) ?? 0) : 0 }
 
         switch verb {
@@ -261,7 +319,39 @@ final class ControlChannel {
             // of ⌘W must first put the app where a person pressing ⌘W would
             // have it. Ask for that explicitly rather than making every rig
             // reach for System Events and accessibility permission.
+            //
+            // AND THEN WAIT FOR IT. `activate` only REQUESTS the foreground; the
+            // key window is established a runloop turn or two later, and under
+            // load it is later still. A rig that sent `activate` and then
+            // `menukey w cmd` in the same breath got "handled" and no close —
+            // the menu matched, the nil-target action found no key window, and
+            // the whole thing looked like broken ⌘W wiring rather than a race.
+            // So "ok" now MEANS there is somewhere for a key equivalent to go;
+            // "no key window" says plainly that there is not, instead of
+            // handing back a promise the next command cannot rely on.
+            // AND THEN WAIT FOR IT, because `activate` only REQUESTS the
+            // foreground. The key window arrives a runloop turn or more later,
+            // and a rig that sent `activate` and `menukey w cmd` in the same
+            // breath got "handled" and no close: the menu matched, the
+            // nil-target action found no key window, and a race read as broken
+            // ⌘W wiring. Two requesters because they fail in different
+            // conditions — NSApp's own call is the historical one, and
+            // NSRunningApplication's is the one that still lands when the app
+            // was spawned from a terminal rather than through LaunchServices.
             NSApp.activate(ignoringOtherApps: true)
+            NSRunningApplication.current.activate(options: [.activateAllWindows])
+            let deadline = Date().addingTimeInterval(2.0)
+            while NSApp.keyWindow == nil && Date() < deadline {
+                RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+            }
+            // ⚠ "ok" IS STILL NOT A PROMISE OF THE FOREGROUND. The system can
+            // withhold it outright — measured 2026-09-19 on this machine, where
+            // neither requester moved `NSApp.isActive` off false and no key
+            // window ever arrived, through LaunchServices as well as a spawn —
+            // and a key equivalent sent then reports "handled" and does nothing.
+            // The wait above buys the race; it cannot buy a policy decision. A
+            // rig that needs the close ITSELF, rather than the menu wiring,
+            // should use `closewindow`, which does not go through the menu.
             return "ok"
         case "menukey":
             // `menukey w cmd` — dispatch a key equivalent through the REAL menu,

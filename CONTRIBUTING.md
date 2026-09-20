@@ -126,12 +126,20 @@ A reader has no way to tell a current form from a former one, so one sentence ab
 previous design introduces a second candidate answer and no way to choose between them.
 
 **User-facing** — the reference prose under [`tools/internal/doc/prose/`](tools/internal/doc/prose),
-a component's own `/* # Name … */` header, the guide, `docs/declare.md`, the tenets, the
-operational pages, every diagnostic message: no former designs, renames or migrations; no
-implementation history; no dates or "ruled" notes; no citations into `docs/system-design/`;
-no prior-art framing. Mid-sentence ALL-CAPS is not emphasis here either — `**bold**` once
-or twice, or a better sentence. The prose rule, with examples, is
-[`prose/STYLE.md`](tools/internal/doc/prose/STYLE.md#one-version-of-the-truth).
+the guide, `docs/declare.md`, the tenets, the operational pages, every diagnostic message,
+**and every line of `apps/` and `library/`, code and comments alike**: no former designs,
+renames or migrations; no implementation history; no dates or "ruled" notes; no citations
+into `docs/system-design/`; no prior-art framing. Mid-sentence ALL-CAPS is not emphasis
+here either — `**bold**` once or twice, or a better sentence. The prose rule, with
+examples, is [`prose/STYLE.md`](tools/internal/doc/prose/STYLE.md#one-version-of-the-truth);
+what a *comment* may say is [the house-style chapter](docs/guide/22-house-style.md#what-a-comment-says).
+
+The corpus is the reason `apps/` is on that list. Every program under it is read to learn
+the language from, by people and by agents, so an ordinary `// ` comment in an app carries
+the same obligation as published prose: say what the code does and why it is shaped that
+way, never what it was. A refactor is where this slips — the reason for the change is
+fresh and feels like the explanation — so the comment describes the shape that is there,
+not the one it replaced.
 
 **Internal** — comments inside `runtime/`, `compiler/`, `tools/` and `test/`, and the
 design record in `docs/system-design/`: history is *welcome*. A comment saying why a
@@ -141,9 +149,11 @@ read by people changing the code, who need the reasoning; the surface is read by
 using it, who need one answer.
 
 **The line is the audience, not the directory.** The trap is the file that looks internal
-and is not: a library component's doc header lives in `library/*.declare` beside its code
-and is *published* as that component's reference entry, so it follows the user-facing
-rule even though everything around it does not.
+and is not. A library component's doc header lives in `library/*.declare` beside its code
+and is *published* as that component's reference entry. The code around that header is
+read too — a component is the worked example of the thing it implements — and so is every
+app in the corpus. Source that ships as teaching material is user-facing however much it
+looks like implementation.
 
 ## Diagnostics in the runtime
 

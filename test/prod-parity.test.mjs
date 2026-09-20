@@ -42,7 +42,6 @@ function findChrome() {
 // programs cannot satisfy.
 const APPS = [
   { name: "calendar", dir: "apps/calendar", main: "calendar.declare" },
-  { name: "controls", dir: "apps/controls", main: "controls.declare" },
   { name: "lzx-calendar", dir: "apps/lzx-calendar", main: "lzx-calendar.declare" },
   { name: "settings-panel", dir: "test/probe/settings-panel", main: "settings-panel.declare" },
 ];

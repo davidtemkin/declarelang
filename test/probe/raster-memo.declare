@@ -20,5 +20,10 @@ App [ width = 600, height = 400, fill = #FFFFFF,
             d.fill()
             }
         ],
-    cap: Text [ x = 40, y = 300, text = { "hue " + app.hue } ]
+
+    // the caption sits INSIDE the drawing's box (below its ink): moving it
+    // damages the drawing's region, so the canvas renderer's dirty regions
+    // repaint the drawing too — the stable second paint that promotes it
+
+    cap: Text [ x = 40, y = 262, text = { "hue " + app.hue } ]
     ]

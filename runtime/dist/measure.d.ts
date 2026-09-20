@@ -44,6 +44,12 @@ export interface TextStyle {
     readonly numeralWidth?: NumeralWidth;
     readonly slashedZero?: boolean;
 }
+/** Counters, for the profile rig (never read by the runtime). */
+export declare const measureMemoStats: {
+    hits: number;
+    misses: number;
+    clears: number;
+};
 /** Inject the measuring context for a DOM-less host — the environment
  *  contract's text-metrics seam (docs/system-design/capabilities.md §3, verify §2.8).
  *  Headless execution (static extraction, verify rung 4) passes a real 2D

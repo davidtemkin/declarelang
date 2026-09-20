@@ -1,3 +1,18 @@
+/** For the refusal above: the concrete members an abstract base's would-be
+ *  subclass should extend instead. */
+export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
+  Media: "Video, Audio",
+  Editor: "TextInput",
+  Stream: "EventStream, Socket",
+};
+/** The schemas NO runtime class implements — the abstract family bases. They
+ *  are in SCHEMAS so the reference documents each once and its concrete
+ *  members inherit checkably, but nothing constructs one: not as a tag, and
+ *  not as a class's base (`class X extends Stream` is refused, naming the
+ *  concrete members). Every other schema is a base a program class may
+ *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
+ *  so it cannot drift when a component joins either table. */
+export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Editor", "Stream"]);
 // Component schemas — the typed-attribute declarations of the built-in
 // components, shared by the checker (check.ts) and the runtime bridge
 // (instantiate.ts). A schema is pure data: the component's name, its base
@@ -34,18 +49,6 @@ export interface ComponentSchema {
    *  compile error, not a silent no-op). Inherited events come from the
    *  `base` chain; absent = declares none of its own. */
   readonly events?: readonly string[];
-  /** Which of this schema's OWN attrs are INTERNAL — machinery a program cannot
-   *  usefully name, kept off the reference and out of `declare-help`.
-   *
-   *  It exists so that SILENCE IS NOT A SIGNAL. The extractor used to compute
-   *  "public" as "somebody wrote prose for it", which meant an attribute nobody
-   *  documented was quietly reclassified as internal and dropped from its own
-   *  class page — 37 of them, including `scrollStartX`, whose documented twin's
-   *  prose names it ("`scrollStartX` for the other axis"). Nobody decided that.
-   *  Now every attribute is PUBLIC and owes prose, and hiding one is a decision
-   *  written here, where a reviewer sees it. Absent = none of its own, which is
-   *  the expected state. */
-  readonly internal?: readonly string[];
 }
 
 // View's literal attributes (the language reference's View header, §6):
@@ -97,6 +100,13 @@ const ViewSchema: ComponentSchema = {
     width: { kind: "length" },
     height: { kind: "length" },
     fill: { kind: "fill" },
+    // THE CONTENT BOX (view.ts `padding`). An Inset: one number insets all four
+    // sides, four are [top, right, bottom, left] clockwise from the top (CSS's
+    // box-edge order). The same one-value-or-four shape as cornerRadius — hence
+    // the same kind, which is what carries the bare four-item list through the
+    // checker and instantiate. Every child's x/y is measured from inside it;
+    // paint is not (the box a fill covers is the view's own).
+    padding: { kind: "inset" },
     cornerRadius: { kind: "radius" },
     // pointer-interaction intrinsics (interaction.ts) — read-only (readOnly below):
     // on the live hit chain (hovered) / on the chain captured at pointer-down (pressed)
@@ -435,14 +445,10 @@ const AppSchema: ComponentSchema = {
     // summons it back instead of reaching the app. Fed by the runtime
     // (boot.ts): `hostHeight` minus the layout viewport, never negative.
     underlapBottom: { kind: "number" },
-    // The EMBEDDING ENVIRONMENT's parameters — a record the HOST provides and
-    // keeps live (an island's slot marker carries `|k=v&k2=v2` after the
-    // program path; host-client parses, coerces, and writes the whole record).
-    // A hosted app reads them REACTIVELY (`app.env.dark`) exactly as it reads
-    // `app.dark` — the clean pass-through for a desktop hosting a child app
-    // and pushing its appearance (or anything else) down. `{}` when top-level
-    // or when the host passes nothing, so reads never null-crash.
-    env: { kind: "object" },
+    // The names this app EXPOSES to whatever hosts it (islands.md) — its own
+    // attributes, read UP by a host island's `exposed("name", default)` or a
+    // page's `app.exposed("name")`. The down direction is `hostProvided(…)`.
+    exposes: { kind: "array", of: "string" },
     // `location` — the app's slice of the URL, the FRAGMENT (docs/system-design/location.md).
     // A two-way built-in the host wires with `TextInput.text`'s echo discipline:
     // seeded from the URL fragment BEFORE first settle (a deep link is just an
@@ -507,11 +513,10 @@ const AppSchema: ComponentSchema = {
   // The host-fed environment is read-only to user code (the runtime feeds it;
   // a set is a compile error) — like View's contentWidth/contentHeight. That
   // includes the page scroll offset and the free-pointer facts (boot.ts writes
-  // them), and `env` (the HOST's record, delivered live — a program that wrote
-  // it would be arguing with its host). `scrollY` here is App's OWN spec
-  // (view.ts) — a dead write before this listing: App's spec shadows View's
-  // pusher, so assigning it never moved the page anyway.
-  readOnly: ["hostWidth", "hostHeight", "dark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText", "env"],
+  // them). `scrollY` here is App's OWN spec (view.ts) — a dead write before
+  // this listing: App's spec shadows View's pusher, so assigning it never
+  // moved the page anyway.
+  readOnly: ["hostWidth", "hostHeight", "dark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText"],
   // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
   // follow() applies it ONCE to every arrival — a linked view, a prose href, a
   // cold URL, back/forward — before routing. Return the reference to proceed
@@ -590,7 +595,7 @@ const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
  *  so it is never a bare unknown name. */
 export const BUILTIN_PROVIDED: ReadonlySet<string> = new Set([
   ...Object.keys(FACE_ATTRS), ...Object.keys(RICH_ATTRS),
-  "selectable", "iconSize", "theme", "lineHeight", "bodyColor", "scale",
+  "selectable", "iconSize", "theme", "lineHeight", "bodyColor", "fontScale",
 ]);
 
 // Text (R3): a text run sized by native browser metrics when width/height
@@ -765,7 +770,14 @@ const DOMIslandSchema: ComponentSchema = {
   base: ViewSchema,
   attrs: {
     slot: { kind: "string" },
-    // the reverse of `env` (host→child): the mounted child app's `appName`,
+    // The names of the values this island offers what it HOSTS (islands.md):
+    // each resolves as `provided("name")` would at the island — its own value
+    // first, then its ancestors — and the hosted side reads it with
+    // `hostProvided("name", default)` (a Declare program) or the handle's
+    // `hostProvided` / `watchProvided` (foreign content). Values only; a name
+    // not listed here never crosses.
+    provides: { kind: "array", of: "string" },
+    // the mounted child app's `appName`,
     // reflected UP by the host so a hosting window can title itself by the
     // child (the viewer names its window by the file it is showing). Host-fed,
     // like the read-only environment channels; "" until a child is up.
@@ -774,10 +786,10 @@ const DOMIslandSchema: ComponentSchema = {
   // The host mirrors the child's name up (dom-backend name-mirror); a program
   // write would be overwritten at the child's next settle.
   readOnly: ["childName"],
-  // `post` — the island bridge's inbound verb: a tenant's post(topic,
+  // `post` — the island's inbound verb: the hosted side's post(topic,
   // payload) lands here as onPost({ topic, payload }). The outbound half is
-  // the island's own post() method; the state channel is the instance's
-  // `external` attribute declarations.
+  // the island's own post() method; standing values cross as `provides`
+  // (down) and `exposed(…)` (up).
   events: ["post"],
 };
 
@@ -1317,23 +1329,6 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   Socket: SocketSchema,
   State: StateSchema,
   Node: NodeSchema,
-};
-
-/** The schemas NO runtime class implements — the abstract family bases. They
- *  are in SCHEMAS so the reference documents each once and its concrete
- *  members inherit checkably, but nothing constructs one: not as a tag, and
- *  not as a class's base (`class X extends Stream` is refused, naming the
- *  concrete members). Every other schema is a base a program class may
- *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
- *  so it cannot drift when a component joins either table. */
-export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Editor", "Stream"]);
-
-/** For the refusal above: the concrete members an abstract base's would-be
- *  subclass should extend instead. */
-export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
-  Media: "Video, Audio",
-  Editor: "TextInput",
-  Stream: "EventStream, Socket",
 };
 
 /** Does `schema`'s inheritance chain pass through a component named

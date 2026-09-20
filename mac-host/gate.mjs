@@ -67,7 +67,6 @@ const CORPUS = [
   "test/probe/text.declare",
   "apps/calendar/calendar.declare",
   "apps/lzx-weather/lzx-weather.declare",
-  "apps/controls/controls.declare",
   "apps/desktop/desktop.declare",
   "apps/lzx-dashboard/lzx-dashboard.declare",
 ];

@@ -10,6 +10,9 @@ export declare function trackFamilies(family: string): void;
 export declare function familyChanged(family: string): void;
 /** A number that changes whenever the face table changes — track it in a render
  *  key when the measuring happens somewhere reads are not tracked. */
+/** The same number without subscribing — for a cache that must drop its
+ *  entries when a face lands (measure.ts). */
+export declare function faceGenerationNow(): number;
 export declare function faceGeneration(): number;
 /** A face the page has loaded, as a second realm can load it identically. */
 export interface LoadedFace {

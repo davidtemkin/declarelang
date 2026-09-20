@@ -220,7 +220,7 @@ class Combobox extends Control [
 
     disc: View [ width = 22,
         x = { classroot.width - this.width - 2 },
-        y = { (classroot.height - this.height) / 2 },
+        y = center,
         height = { classroot.height - 4 },
         onClick() { classroot.toggle() },
 

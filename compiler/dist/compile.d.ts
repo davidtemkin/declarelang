@@ -32,6 +32,11 @@ export interface Compiled {
     };
     errors: DeclareError[];
     warnings: DeclareError[];
+    /** The third tier, below `warnings`: the program is correct and the compiler
+     *  knows a shorter way to say it. Kept out of `warnings` so a caller counting
+     *  warnings counts only what might be wrong. Absent on the early exits that
+     *  return before the idiom passes run. */
+    hints?: DeclareError[];
     diagnostics: Diagnostic[];
     /** The whole compile RENDERED (renderReport): a count summary + each
      *  diagnostic's `rendered`, one per line; "" when there is nothing to say.

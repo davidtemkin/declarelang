@@ -68,7 +68,7 @@ const COLORS_LIGHT = {
     rule: 0xd3dce4, link: 0x2f6fe0, quoteRule: 0xc4d0da, quoteColor: 0x5a6874,
 };
 let C = COLORS_DARK; // active set; set at the top of each rebuild
-let SCALE = 1; // font-size multiplier (the `scale` attr), set per rebuild
+let SCALE = 1; // font-size multiplier (the `fontScale` attr), set per rebuild
 // THE LINE BUDGET for one build (`RichText.maxLines`). Lines are counted across
 // the WHOLE document, in order, and spent while it is BUILT (layoutBlocks and
 // the structural builders) — never while a flow renders, because a flow renders
@@ -512,7 +512,7 @@ function base(size, weight, color, tracking = 0) {
 }
 /** Apply a named `RunStyle` (Text's own attribute names) onto the ambient
  *  style. Each field maps to its internal Style twin; a size is SCALE-multiplied
- *  like every prose size so the `scale` attr still governs. */
+ *  like every prose size so the `fontScale` attr still governs. */
 function applyStyle(style, rs) {
     const s = { ...style };
     if (rs.fontSize !== undefined)
@@ -2088,7 +2088,7 @@ function buildQuote(b, width, ctx) {
 // or `HTMLText`, which differ ONLY in how they parse their source into the block
 // tree. The rendering engine is shared here (reactive TextFlow containers — see
 // layoutBlocks); the base owns the reactive render, each concrete class supplies a
-// parser. Shared attributes (lineHeight/bodyColor/scale) and the `link` event
+// parser. Shared attributes (lineHeight/bodyColor/fontScale) and the `link` event
 // live on the base, so both formats inherit them.
 export class RichText extends View {
     built = [];
@@ -2098,63 +2098,26 @@ export class RichText extends View {
      *  done there — it stays the text it was written as. */
     policy() { return "strip"; }
     stylesOf() { return this.textStyles ?? EMPTY_STYLES; }
-    /** RichText's `scale` is a FONT-SIZE multiplier consumed by rebuild(), not the
-     *  paint transform it means on a plain View — so mask the base flush()'s scale
-     *  push. Without this, a `scale` constraint that evaluates before the surface
-     *  attaches bakes a CSS transform ON TOP of the scaled fonts (double-scaling),
-     *  and the view's measured height no longer matches its painted height. */
-    flush(s) {
-        super.flush(s);
-        if (this.scale !== 1)
-            s.setScale(1, this.pivotX, this.pivotY);
-    }
-    /** …and mask the GEOMETRY meaning too. The glyphs are already scaled into
-     *  the runs, so this view's measured width/height ARE its on-screen box —
-     *  but footprint() (auto-extent, layout, bounds) multiplies by `scale`,
-     *  shrinking the box a second time. Measured: at the reader's default 0.9
-     *  every code block stood 1/0.9 taller on screen than in the model — the
-     *  desktop's 7,000px Window block bled ~760px of pixels past its measured
-     *  extent, and the next segments were laid over its tail ("the prose
-     *  overlaps the code blocks", 2026-08-20). Identity here completes the
-     *  rule flush() started: to the geometry system a RichText is untransformed.
-     *  (Rotation is honored via the base walk with scale forced to 1 — a
-     *  rotated RichText keeps its swept box.) */
-    footprint() {
-        if (this.rotation === 0)
-            return { x: 0, y: 0, width: this.width, height: this.height };
-        // the base corner walk with scale pinned to 1 (rotation still honored)
-        const w = this.width, h = this.height;
-        const px = this.pivotX, py = this.pivotY;
-        const a = (this.rotation * Math.PI) / 180;
-        const ca = Math.cos(a), sa = Math.sin(a);
-        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        for (const [cx, cy] of [[0, 0], [w, 0], [0, h], [w, h]]) {
-            const dx = cx - px, dy = cy - py;
-            const fx = px + (dx * ca - dy * sa);
-            const fy = py + (dx * sa + dy * ca);
-            if (fx < minX)
-                minX = fx;
-            if (fx > maxX)
-                maxX = fx;
-            if (fy < minY)
-                minY = fy;
-            if (fy > maxY)
-                maxY = fy;
-        }
-        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-    }
+    /** A rich text's type size is `fontScale`, its own attribute, and it never
+     *  touches the geometry `scale` every other view means by that name. The
+     *  glyphs are scaled into the runs, so the measured box IS the painted box
+     *  and `scale` stays 1 — which is what lets paint, the hit walk's inverse,
+     *  `rootTransform` and both auto-extent paths (the JavaScript derive and the
+     *  kernel's native rule) read one geometry and agree, with nothing to mask.
+     *  A rich text that IS transformed says so with `scale`, like any view, and
+     *  every reader honours it. */
     attach(backend, parentSurface, before = null) {
         super.attach(backend, parentSurface, before);
         // Reactive render: re-parse and rebuild whenever the source OR `width` changes
-        // (a resize re-flows, not only an edit); `dark`/`scale` in the key so a theme
+        // (a resize re-flows, not only an edit); `dark`/`fontScale` in the key so a theme
         // flip or font-size change re-renders.
-        // STRUCTURE — the source and everything baked into the runs (palette, scale,
+        // STRUCTURE — the source and everything baked into the runs (palette, fontScale,
         // sizes). These genuinely need a re-parse and a rebuild.
         // `faceGeneration()` is in the key because the flow MEASURES inside rebuild,
         // which is the apply — where reads are not tracked (face-table.ts). Without
         // it a face that lands after this flow was built leaves every run placed by
         // the fallback's widths, and paints the real face over those positions.
-        const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.isDark()} ${this.scale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.rebuild(), 0);
+        const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.isDark()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.rebuild(), 0);
         c.run();
         onDiscard(this, () => c.dispose());
         // WIDTH — nothing structural depends on it, so re-width in place. Separate
@@ -2242,7 +2205,7 @@ export class RichText extends View {
         C = this.isDark() ? COLORS_DARK : COLORS_LIGHT; // pick the palette for this render
         BUDGET = this.maxLines > 0 ? this.maxLines : Infinity; // the flow clamp, for this render
         TRUNCATED = false;
-        SCALE = this.scale || 1; // font-size multiplier for this render
+        SCALE = this.fontScale || 1; // font-size multiplier for this render
         STYLES = this.stylesOf(); // named styles for this render
         for (const v of this.built) {
             this.removeChild(v);
@@ -2377,7 +2340,7 @@ defineAttributes(RichText, {
     codeBackground: { def: null, defBinding: providedDefault("codeBackground", null) },
     codeRule: { def: null, defBinding: providedDefault("codeRule", null) },
     richTextLayout: { def: null, defBinding: providedDefault("richTextLayout", null) },
-    lineHeight: { def: 1 }, bodyColor: { def: null }, scale: { def: 1 }, dark: { def: null }, baseline: { def: null },
+    lineHeight: { def: 1 }, bodyColor: { def: null }, fontScale: { def: 1 }, dark: { def: null }, baseline: { def: null },
     maxLines: { def: 0 }, truncated: { def: false },
 });
 defineAttributes(Markdown, {

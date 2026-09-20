@@ -299,7 +299,7 @@ class Segmented extends View [
 class SegmentedItem extends Control [
     isSegment: boolean = true,
 
-    height = { parent.height },
+    height = 100%,
     width  = { (parent as Segmented).segW },
     x      = { 2 + :i * (parent as Segmented).segW },
 

@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { gzipSync } from "node:zlib";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 let pass = 0, fail = 0;
@@ -197,7 +198,64 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // and so stubbed for a program that names none. It had shipped to every app,
   // because a method on DomSurface is unreachable to a tree shaker. Measured
   // 89.0; the calendar names no rich text and pays nothing for it.
-  assert.ok(gz > 20 * 1024 && gz < 90 * 1024, `unexpected gzip size ${(gz / 1024).toFixed(1)} KB`);
+  // 90 → 91 KB (measured 90.3). Three features landed together and a tenth
+  // module, stroke-sides.js, joined the gated set — the four-side arm of
+  // `stroke`, riding only where a program writes a stroke LIST. Each was then
+  // priced by deleting it from the runtime and rebuilding: per-side stroke 213 B
+  // gzip, Layout.padding 179 B, the layout claim diagnostics 153 B — 545 B for
+  // all three. Removing every one of them leaves 92,164 B against a 92,160 B
+  // ceiling, so the corpus was already at the band before they landed; the
+  // claim diagnostics are not gateable at all, since a layout-versus-author
+  // conflict is reachable from any program. The new headroom is 688 B.
+  // 91 → 92 KB. stroke-sides.js lost its gate rather than keeping a fact that
+  // could miss: a computed `stroke = { [ … ] }` and a method-body assignment are
+  // both invisible to a tree scan, and a fact that misses stubs the module out
+  // from under a running program. It ships unconditionally now, 255 B, which
+  // left 27 B of headroom — close enough that an ordinary edit would red the
+  // gate for no reason.
+  // stroke-sides.js then LEFT the gated set and rides every build: its fact read
+  // a four-element list LITERAL out of the tree, which was exact only while the
+  // slot's body-facing type foreclosed every other way of making a list. Widened
+  // to `BoxStroke`, a `{ }` constraint computes one — the themed border form —
+  // and no tree walk can see it, so the fact could MISS and stub the module out
+  // from under a program that runs. 213 B of the 688 B headroom, spent on not
+  // shipping that. Measured 90.5 here.
+  // ── WHAT THIS NUMBER IS (DT, 2026-09-17) ──────────────────────────────────
+  // THE FIRST-TIME DOWNLOAD FOR AN APP: every file a browser must have before
+  // the program runs, gzipped, summed — every file, so a byte moved into a
+  // sibling file is not a byte saved (and a file moved back in is not a byte
+  // spent twice).
+  //
+  // Measured 2026-09-17, the kernel round: app 98.0 + kernel 7.3 + page 0.3 =
+  // 105.6 KB, against main's 89.8 for the same program. The +15.8 buys the
+  // 54–90% settle-time reductions in mac-host/profile/REPORT.md (round 3).
+  // 2026-09-18: the kernel moved INSIDE the bundle (one request; see above).
+  // DT'S TARGET IS 100 KB — this band is the drift guard, not the goal.
+  // 110 → 111 (2026-09-19, the island boundary: `provides`/`hostProvided` and
+  // `exposes`/`exposed` replaced `external` and `App.env`): measured 110.54.
+  // Not isolated — no pre-change build of this tree was kept to diff against,
+  // so how much of the overage is this change and how much earlier drift is
+  // unmeasured. The warning prose is already stripped (error-codes).
+  // 111 → 112 (2026-09-19, the MERGE INTO MAIN): measured 111.77 — the union of
+  // the two trees, so it carries main's post-branch surface (per-side stroke
+  // 213 B, Layout.padding 179 B, the claim diagnostics 153 B, each priced by
+  // deletion when it landed) on top of the optimize tree's 110.54. Priced here,
+  // by removing the blob and re-gzipping: THE KERNEL IS 10.9 KB OF THIS NUMBER —
+  // 9.45 KB the inline wasm base64, the rest its decode and binding — leaving
+  // 100.7 for the runtime proper against main's 90.5 before the arc, the
+  // difference being the kernel's JS side (cells, the EXPR machine, the extent
+  // and visibility rules) and the island boundary.
+  // ⚠ THIS IS 11.8 OVER DT'S 100 KB TARGET and the kernel is what put it there.
+  // The band is the drift guard; closing that gap is a ruling DT has to make
+  // (gate the kernel to the programs it pays for, or take the request back).
+  const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
+  assert.ok(wire > 20 * 1024 && wire < 112 * 1024,
+    `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
+    out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
+
+  // THE MERGE (2026-09-19): main's ceiling was 92 KB on the app module alone; the
+  // arc's kernel rides inside that module now, so the number this guards is the
+  // FIRST-LOAD sum above, and the band is the arc's own measured one.
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

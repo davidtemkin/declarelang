@@ -1,0 +1,2594 @@
+{
+  "stamp": "2026-09-20T18:36:28.144Z",
+  "runtime": "ios",
+  "render": "dom",
+  "trees": {
+    "before": "/Users/temkin/Code/Declare-Before",
+    "after": "/Users/temkin/Code/Declare-After"
+  },
+  "rows": [
+    {
+      "case": "desktop:seed",
+      "before": {
+        "case": "desktop:seed",
+        "ms": 2215,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 149,
+            "ms": 179,
+            "max": 15
+          },
+          "evals": {
+            "n": 5726,
+            "js": 5726,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:newFiles": 2
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 5726,
+          "wired": 888,
+          "settleN": 149,
+          "settleMs": 178.99999999999272,
+          "settleMax": 15,
+          "settleRuns": 5726,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 2002,
+            "live": 1879,
+            "wired": 944,
+            "ranInWindow": 70
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 96,
+          "p50": 17,
+          "p95": 17,
+          "max": 35,
+          "over20": 1,
+          "over33": 1
+        },
+        "ramp": {
+          "steps": 60,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "desktop:seed",
+        "ms": 2209,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 150,
+            "ms": 22,
+            "max": 1
+          },
+          "evals": {
+            "n": 10810,
+            "js": 5350,
+            "notInJs": 5460
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:newFiles": 2
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 5350,
+          "wired": 5000,
+          "settleN": 150,
+          "settleMs": 22.99999999999818,
+          "settleMax": 1.0000000000009095,
+          "settleRuns": 5350,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 2066,
+            "live": 1943,
+            "wired": 1249,
+            "ranInWindow": 62
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 96,
+          "p50": 17,
+          "p95": 17,
+          "max": 22,
+          "over20": 1,
+          "over33": 0
+        },
+        "ramp": {
+          "steps": 60,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "desktop:openclose",
+      "before": {
+        "case": "desktop:openclose",
+        "ms": 7257,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 119,
+            "ms": 315,
+            "max": 43
+          },
+          "evals": {
+            "n": 2825,
+            "js": 2645,
+            "notInJs": 180
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:newFiles": 4,
+            "desktop:closeWin": 4
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 3481,
+          "wired": 377,
+          "settleN": 119,
+          "settleMs": 315.00000000000455,
+          "settleMax": 42.99999999999909,
+          "settleRuns": 3481,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 2752,
+            "live": 1209,
+            "wired": 610,
+            "ranInWindow": 55
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 427,
+          "p50": 17,
+          "p95": 17,
+          "max": 60,
+          "over20": 5,
+          "over33": 3
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "desktop:openclose",
+        "ms": 7218,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 118,
+            "ms": 201,
+            "max": 46
+          },
+          "evals": {
+            "n": 4584,
+            "js": 3440,
+            "notInJs": 1144
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:newFiles": 4,
+            "desktop:closeWin": 4
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 3440,
+          "wired": 2497,
+          "settleN": 118,
+          "settleMs": 201.0000000000041,
+          "settleMax": 46,
+          "settleRuns": 3440,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 2852,
+            "live": 1237,
+            "wired": 787,
+            "ranInWindow": 55
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 426,
+          "p50": 17,
+          "p95": 17,
+          "max": 57,
+          "over20": 4,
+          "over33": 3
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "desktop:minimize",
+      "before": {
+        "case": "desktop:minimize",
+        "ms": 10427,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 332,
+            "ms": 504,
+            "max": 26
+          },
+          "evals": {
+            "n": 21736,
+            "js": 21610,
+            "notInJs": 126
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:minimize": 6
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 21923,
+          "wired": 4079,
+          "settleN": 332,
+          "settleMs": 503.9999999999991,
+          "settleMax": 26,
+          "settleRuns": 21923,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 66,
+          "nfMs": 3,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 4007,
+            "live": 3492,
+            "wired": 1453,
+            "ranInWindow": 125
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 506,
+          "p50": 17,
+          "p95": 17,
+          "max": 40,
+          "over20": 11,
+          "over33": 2
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "desktop:minimize",
+        "ms": 10396,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 332,
+            "ms": 278,
+            "max": 18
+          },
+          "evals": {
+            "n": 23349,
+            "js": 13456,
+            "notInJs": 9893
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:minimize": 6
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 13456,
+          "wired": 4208,
+          "settleN": 332,
+          "settleMs": 278.9999999999982,
+          "settleMax": 18,
+          "settleRuns": 13456,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 22,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 4122,
+            "live": 3607,
+            "wired": 1782,
+            "ranInWindow": 90
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 506,
+          "p50": 17,
+          "p95": 17,
+          "max": 35,
+          "over20": 12,
+          "over33": 1
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "desktop:drag",
+      "before": {
+        "case": "desktop:drag",
+        "ms": 2396,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 120,
+            "ms": 132,
+            "max": 5
+          },
+          "evals": {
+            "n": 2160,
+            "js": 2160,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 2160,
+          "wired": 0,
+          "settleN": 120,
+          "settleMs": 133,
+          "settleMax": 5,
+          "settleRuns": 2160,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1252,
+            "live": 1201,
+            "wired": 610,
+            "ranInWindow": 18
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 143,
+          "p50": 17,
+          "p95": 17,
+          "max": 23,
+          "over20": 1,
+          "over33": 0
+        },
+        "ramp": {
+          "steps": 120,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "desktop:drag",
+        "ms": 2400.000000000001,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 120,
+            "ms": 9,
+            "max": 1
+          },
+          "evals": {
+            "n": 2171,
+            "js": 251,
+            "notInJs": 1920
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 251,
+          "wired": 11,
+          "settleN": 120,
+          "settleMs": 8.999999999999545,
+          "settleMax": 1,
+          "settleRuns": 251,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1280,
+            "live": 1229,
+            "wired": 787,
+            "ranInWindow": 3
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 143,
+          "p50": 17,
+          "p95": 17,
+          "max": 27,
+          "over20": 1,
+          "over33": 0
+        },
+        "ramp": {
+          "steps": 120,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "desktop:menus",
+      "before": {
+        "case": "desktop:menus",
+        "ms": 5167,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 227,
+            "ms": 436,
+            "max": 36
+          },
+          "evals": {
+            "n": 4224,
+            "js": 3668,
+            "notInJs": 556
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:menuOpen": 12
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 5146,
+          "wired": 1415,
+          "settleN": 227,
+          "settleMs": 435.99999999999727,
+          "settleMax": 36,
+          "settleRuns": 5146,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 53,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 3518,
+            "live": 1359,
+            "wired": 658,
+            "ranInWindow": 180
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 299,
+          "p50": 17,
+          "p95": 17,
+          "max": 49,
+          "over20": 11,
+          "over33": 9
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "desktop:menus",
+        "ms": 5149.999999999999,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 237,
+            "ms": 351,
+            "max": 32
+          },
+          "evals": {
+            "n": 4324,
+            "js": 4732,
+            "notInJs": -408
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "desktop:menuOpen": 12
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 4732,
+          "wired": 1493,
+          "settleN": 237,
+          "settleMs": 350.9999999999991,
+          "settleMax": 32,
+          "settleRuns": 4732,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 42,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 3546,
+            "live": 1387,
+            "wired": 848,
+            "ranInWindow": 169
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 299,
+          "p50": 17,
+          "p95": 17,
+          "max": 46,
+          "over20": 12,
+          "over33": 6
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "desktop:hover",
+      "before": {
+        "case": "desktop:hover",
+        "ms": 2405,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 254,
+            "ms": 319,
+            "max": 17
+          },
+          "evals": {
+            "n": 7222,
+            "js": 7222,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:enter": 11,
+            "hover:leave": 11
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 7222,
+          "wired": 3016,
+          "settleN": 254,
+          "settleMs": 319.99999999997954,
+          "settleMax": 17.00000000000091,
+          "settleRuns": 7222,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1252,
+            "live": 1201,
+            "wired": 610,
+            "ranInWindow": 164
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 143,
+          "p50": 17,
+          "p95": 17,
+          "max": 46,
+          "over20": 1,
+          "over33": 1
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "desktop:hover",
+        "ms": 2403,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 253,
+            "ms": 177,
+            "max": 8
+          },
+          "evals": {
+            "n": 8719,
+            "js": 4481,
+            "notInJs": 4238
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:enter": 12,
+            "hover:leave": 12
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 4481,
+          "wired": 2216,
+          "settleN": 253,
+          "settleMs": 177.99999999999363,
+          "settleMax": 8,
+          "settleRuns": 4481,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 1280,
+            "live": 1229,
+            "wired": 787,
+            "ranInWindow": 85
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 143,
+          "p50": 17,
+          "p95": 17,
+          "max": 38,
+          "over20": 2,
+          "over33": 1
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "tracker:filter",
+      "before": {
+        "case": "tracker:filter",
+        "ms": 4501.000000000002,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 250,
+            "ms": 1190,
+            "max": 127
+          },
+          "evals": {
+            "n": 22712,
+            "js": 20018,
+            "notInJs": 2694
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "tracker:project": 25
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 32057,
+          "wired": 3729,
+          "settleN": 250,
+          "settleMs": 1190.0000000000045,
+          "settleMax": 127,
+          "settleRuns": 32057,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 34303,
+            "live": 8606,
+            "wired": 4463,
+            "ranInWindow": 2975
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 226,
+          "p50": 17,
+          "p95": 48,
+          "max": 137,
+          "over20": 24,
+          "over33": 14
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "tracker:filter",
+        "ms": 4266,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 250,
+            "ms": 932,
+            "max": 63
+          },
+          "evals": {
+            "n": 18506,
+            "js": 17300,
+            "notInJs": 1206
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "tracker:project": 25
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 17300,
+          "wired": 4313,
+          "settleN": 250,
+          "settleMs": 931.9999999999964,
+          "settleMax": 63,
+          "settleRuns": 17300,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 13609,
+            "live": 10970,
+            "wired": 6569,
+            "ranInWindow": 1396
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 226,
+          "p50": 17,
+          "p95": 42,
+          "max": 67,
+          "over20": 26,
+          "over33": 19
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "tracker:hover",
+      "before": {
+        "case": "tracker:hover",
+        "ms": 2380,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 120,
+            "ms": 403,
+            "max": 11
+          },
+          "evals": {
+            "n": 141,
+            "js": 141,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:enter": 11,
+            "hover:leave": 10
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 141,
+          "wired": 8,
+          "settleN": 120,
+          "settleMs": 402.99999999999545,
+          "settleMax": 11,
+          "settleRuns": 141,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 12124,
+            "live": 11234,
+            "wired": 5929,
+            "ranInWindow": 12
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 143,
+          "p50": 17,
+          "p95": 17,
+          "max": 28,
+          "over20": 2,
+          "over33": 0
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "tracker:hover",
+        "ms": 2390.9999999999995,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 120,
+            "ms": 277,
+            "max": 8
+          },
+          "evals": {
+            "n": 149,
+            "js": 149,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "hover:enter": 11,
+            "hover:leave": 10
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 149,
+          "wired": 12,
+          "settleN": 120,
+          "settleMs": 276.9999999999882,
+          "settleMax": 7.999999999999545,
+          "settleRuns": 149,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 11818,
+            "live": 10988,
+            "wired": 6579,
+            "ranInWindow": 16
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 143,
+          "p50": 17,
+          "p95": 17,
+          "max": 17,
+          "over20": 0,
+          "over33": 0
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "calendar:mode",
+      "before": {
+        "case": "calendar:mode",
+        "ms": 5484,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 334,
+            "ms": 851,
+            "max": 15
+          },
+          "evals": {
+            "n": 103006,
+            "js": 103006,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "calendar:mode": 6
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 103007,
+          "wired": 70359,
+          "settleN": 334,
+          "settleMs": 851.0000000000095,
+          "settleMax": 14.99999999999909,
+          "settleRuns": 103007,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 2223,
+            "live": 2189,
+            "wired": 760,
+            "ranInWindow": 414
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 328,
+          "p50": 17,
+          "p95": 17,
+          "max": 25,
+          "over20": 2,
+          "over33": 0
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "calendar:mode",
+        "ms": 5490,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 334,
+            "ms": 720,
+            "max": 6
+          },
+          "evals": {
+            "n": 103147,
+            "js": 51809,
+            "notInJs": 51338
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "calendar:mode": 6
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 51809,
+          "wired": 19829,
+          "settleN": 334,
+          "settleMs": 720,
+          "settleMax": 6.000000000000455,
+          "settleRuns": 51809,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 2311,
+            "live": 2277,
+            "wired": 906,
+            "ranInWindow": 234
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 328,
+          "p50": 17,
+          "p95": 17,
+          "max": 27,
+          "over20": 1,
+          "over33": 0
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "weather:city",
+      "before": {
+        "case": "weather:city",
+        "ms": 11351,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 222,
+            "ms": 2144,
+            "max": 55
+          },
+          "evals": {
+            "n": 68213,
+            "js": 68196,
+            "notInJs": 17
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "weather:openRow": 6,
+            "weather:closeCity": 6
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 68999,
+          "wired": 21944,
+          "settleN": 222,
+          "settleMs": 2145.000000000014,
+          "settleMax": 54.99999999999909,
+          "settleRuns": 68999,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 3970,
+            "live": 3474,
+            "wired": 948,
+            "ranInWindow": 1639
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 558,
+          "p50": 17,
+          "p95": 34,
+          "max": 85,
+          "over20": 138,
+          "over33": 32
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "weather:city",
+        "ms": 11216,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 268,
+            "ms": 1340,
+            "max": 51
+          },
+          "evals": {
+            "n": 93539,
+            "js": 47163,
+            "notInJs": 46376
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "weather:openRow": 6,
+            "weather:closeCity": 6
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 47163,
+          "wired": 19346,
+          "settleN": 268,
+          "settleMs": 1340.0000000000146,
+          "settleMax": 50.99999999999909,
+          "settleRuns": 47163,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 4015,
+            "live": 3498,
+            "wired": 1676,
+            "ranInWindow": 1164
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 599,
+          "p50": 17,
+          "p95": 28,
+          "max": 84,
+          "over20": 102,
+          "over33": 15
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "weather:resize",
+      "before": {
+        "case": "weather:resize",
+        "ms": 3023,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 86,
+            "ms": 1519,
+            "max": 125
+          },
+          "evals": {
+            "n": 55553,
+            "js": 55457,
+            "notInJs": 96
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 57192,
+          "wired": 22324,
+          "settleN": 86,
+          "settleMs": 1519.0000000000005,
+          "settleMax": 125,
+          "settleRuns": 57192,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 5271,
+            "live": 3926,
+            "wired": 1177,
+            "ranInWindow": 2362
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 96,
+          "p50": 35,
+          "p95": 45,
+          "max": 182,
+          "over20": 61,
+          "over33": 54
+        },
+        "ramp": null,
+        "resizeKind": "model",
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "weather:resize",
+        "ms": 2292,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 80,
+            "ms": 673,
+            "max": 104
+          },
+          "evals": {
+            "n": 61932,
+            "js": 24730,
+            "notInJs": 37202
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 24730,
+          "wired": 8323,
+          "settleN": 80,
+          "settleMs": 673.0000000000014,
+          "settleMax": 104,
+          "settleRuns": 24730,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 5295,
+            "live": 3950,
+            "wired": 1917,
+            "ranInWindow": 1618
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 96,
+          "p50": 24,
+          "p95": 31,
+          "max": 149,
+          "over20": 61,
+          "over33": 3
+        },
+        "ramp": null,
+        "resizeKind": "model",
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "marketmap:slider",
+      "before": {
+        "case": "marketmap:slider",
+        "ms": 10143,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 307,
+            "ms": 6962,
+            "max": 61
+          },
+          "evals": {
+            "n": 947717,
+            "js": 947717,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "marketmap:scrub": 151
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 947717,
+          "wired": 314190,
+          "settleN": 307,
+          "settleMs": 6962.999999999992,
+          "settleMax": 61,
+          "settleRuns": 947717,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 14180,
+            "live": 12985,
+            "wired": 3352,
+            "ranInWindow": 8093
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 230,
+          "p50": 43,
+          "p95": 58,
+          "max": 64,
+          "over20": 157,
+          "over33": 154
+        },
+        "ramp": {
+          "steps": 150,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": {
+          "n": 150,
+          "mean": 31.493122227079425
+        },
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "marketmap:slider",
+        "ms": 6442,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 316,
+            "ms": 3007,
+            "max": 43
+          },
+          "evals": {
+            "n": 981693,
+            "js": 797949,
+            "notInJs": 183744
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {
+            "marketmap:scrub": 151
+          },
+          "spans": {}
+        },
+        "prof": {
+          "runs": 797949,
+          "wired": 282841,
+          "settleN": 316,
+          "settleMs": 3006.9999999999936,
+          "settleMax": 43,
+          "settleRuns": 797949,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 14180,
+            "live": 12985,
+            "wired": 4901,
+            "ranInWindow": 6252
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 238,
+          "p50": 21,
+          "p95": 26,
+          "max": 54,
+          "over20": 141,
+          "over33": 2
+        },
+        "ramp": {
+          "steps": 150,
+          "ms": null
+        },
+        "resizeKind": null,
+        "track": {
+          "n": 150,
+          "mean": 59.15279182352472
+        },
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    },
+    {
+      "case": "probe:memo",
+      "before": {
+        "case": "probe:memo",
+        "ms": 9098.000000000002,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 30,
+            "ms": 1569,
+            "max": 94
+          },
+          "evals": {
+            "n": 66,
+            "js": 66,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 66,
+          "wired": 12,
+          "settleN": 30,
+          "settleMs": 1570.0000000000027,
+          "settleMax": 94,
+          "settleRuns": 66,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 10,
+            "live": 10,
+            "wired": 1,
+            "ranInWindow": 5
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 481,
+          "p50": 17,
+          "p95": 17,
+          "max": 107,
+          "over20": 19,
+          "over33": 18
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "before"
+      },
+      "after": {
+        "case": "probe:memo",
+        "ms": 9120,
+        "failure": null,
+        "meters": {
+          "settle": {
+            "n": 30,
+            "ms": 531,
+            "max": 31
+          },
+          "evals": {
+            "n": 66,
+            "js": 66,
+            "notInJs": 0
+          },
+          "paint": {
+            "n": 0,
+            "full": 0,
+            "ms": 0,
+            "area": null
+          },
+          "commit": {
+            "n": 0,
+            "ms": 0,
+            "stringifyMs": 0,
+            "bytes": 0,
+            "ops": 0
+          },
+          "boot": {
+            "instN": 0,
+            "instMs": 0,
+            "nfN": 0,
+            "nfMs": 0
+          },
+          "marks": {},
+          "spans": {}
+        },
+        "prof": {
+          "runs": 66,
+          "wired": 12,
+          "settleN": 30,
+          "settleMs": 531.9999999999932,
+          "settleMax": 31,
+          "settleRuns": 66,
+          "settleEmpty": 0,
+          "settleEmptyMs": 0,
+          "kruns": 0,
+          "settleKernelOnly": 0,
+          "settleKernelOnlyRuns": 0,
+          "settleKernelOnlyMs": 0,
+          "stringifyN": 0,
+          "stringifyMs": 0,
+          "bytes": 0,
+          "opsN": 0,
+          "commitMs": 0,
+          "instN": 0,
+          "instMs": 0,
+          "nfN": 0,
+          "nfMs": 0,
+          "afterN": 0,
+          "afterMs": 0,
+          "changesMs": 0,
+          "constraints": {
+            "total": 10,
+            "live": 10,
+            "wired": 2,
+            "ranInWindow": 5
+          }
+        },
+        "paint": {
+          "n": 0,
+          "ms": 0,
+          "full": 0,
+          "partial": 0,
+          "area": 0
+        },
+        "gaps": {
+          "n": 545,
+          "p50": 17,
+          "p95": 17,
+          "max": 46,
+          "over20": 18,
+          "over33": 13
+        },
+        "ramp": null,
+        "resizeKind": null,
+        "track": null,
+        "ua": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.1 Mobile/15E148 Safari/604.1",
+        "dpr": 3,
+        "viewport": [
+          393,
+          641
+        ],
+        "tree": "after"
+      }
+    }
+  ],
+  "voided": [],
+  "missing": []
+}

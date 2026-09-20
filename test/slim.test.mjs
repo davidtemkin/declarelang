@@ -346,6 +346,46 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
     await renders(sub);
   });
 
+  // The PER-SIDE stroke (stroke-sides.js — the split, the uniform test, the
+  // list's equality and coercion, and both painters) is NOT gated, and this is
+  // the test that says why it may not be. It rode behind a fact that read a
+  // four-element list LITERAL out of the parse tree, which was exact only while
+  // `stroke`'s body-facing type was `Stroke | null` — a type that foreclosed
+  // every other way of producing a list. The type is `BoxStroke` now, so a
+  // `{ }` constraint computes the four sides (the themed-border form, which is
+  // how a real app writes one) and a method body may assign them. Neither is a
+  // literal; neither is visible to a tree walk. A fact that can MISS would stub
+  // the module out from under a program that runs, so the module ships to every
+  // build — 213 B gzipped, priced in declarec.test.mjs's band comment.
+  //
+  // The COMPUTED case is the one to hold onto: it is the form the fact could
+  // not have seen, so it is the proof that nothing is gating this any more.
+  await test("the per-side stroke is aboard every build — including the computed form no fact could see", async () => {
+    const uniform = `App [ width = 200, fill = white,
+      a: View [ width = 40, height = 40, stroke = stroke(1, #DBE1E9) ],
+      b: View [ y = 50, width = 40, height = 40, stroke = { stroke(1, 0xDBE1E9) } ] ]`;
+    assert.ok(modsOf(await buildProduction(uniform, {}))["stroke-sides.js"] > STUBBED,
+      "no stroke list anywhere — the module rides anyway, because a fact could not prove it unreachable");
+    await renders(uniform);
+    const sides = `App [ width = 200, fill = white,
+      rules: View [ width = 100, height = 40, fill = white,
+        stroke = [ stroke(1, #DBE1E9), null, stroke(2, #99A0AA), null ] ] ]`;
+    assert.ok(modsOf(await buildProduction(sides, {}))["stroke-sides.js"] > STUBBED,
+      "the literal four-element form");
+    await renders(sides);
+    // The case the retired fact would have MISSED, end to end: a themed border
+    // whose only per-side stroke is computed in a `{ }`. It must build, the
+    // module must be aboard, and it must paint — under the stub this threw
+    // `notAboard` at the first paint.
+    const computed = `theme Brand [ line = #DBE1E9 ]
+      App [ width = 200, fill = white, theme = Brand,
+        card: View [ width = 100, height = 40, fill = white,
+          stroke = { [ stroke(1, provided("theme").line), null, stroke(1, provided("theme").line), null ] } ] ]`;
+    assert.ok(modsOf(await buildProduction(computed, {}))["stroke-sides.js"] > STUBBED,
+      "a computed four-side stroke keeps the module — the whole reason the gate is gone");
+    await renders(computed);
+  });
+
   // THE FAILURE THE WORD MATCH HAD. A slimming decision may only drop a module
   // the program CANNOT reach. A filter or a paint that arrives from a remote
   // `DataSource` is named nowhere in the source, so a match over the program's

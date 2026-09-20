@@ -1,12 +1,12 @@
-// The island bridge END TO END, in a real browser, on BOTH backends
+// The island boundary END TO END, in a real browser, on BOTH backends
 // (test/probe/bridge-host.declare + bridge-tenant.declare). The DOM run mounts
 // the tenant into the island's box; the CANVAS run mounts it by SURFACE
 // COMPOSITION (mountEmbeddedApp — no element anywhere). Same program, same
-// bridge, same pins:
-//   - the tenant mounts and the link forms (handshake clean);
-//   - tenant→host: the tenant's `pos` export crossed at link, host text shows it;
-//   - host→tenant: writing the host's `vol` re-derives the tenant's binding;
-//   - verbs round-trip: host post → tenant onPost bumps its export and acks →
+// boundary, same pins:
+//   - the tenant mounts and the link forms;
+//   - tenant→host: the tenant's exposed `pos` crossed at link, host text shows it;
+//   - host→tenant: writing the host's `vol` re-derives the tenant's hostProvided read;
+//   - verbs round-trip: host post → tenant onPost bumps what it exposes and acks →
 //     host sees both the new pos and the ack.
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -49,18 +49,18 @@ async function run(label, url, tenantOf) {
   await page.waitForFunction(tenantOf + " != null", { timeout: 30000 });
   await sleep(200);
 
-  await test(`${label}: the tenant mounted and its export crossed at link`, async () => {
+  await test(`${label}: the tenant mounted and its exposed value crossed at link`, async () => {
     const s = await page.evaluate(`({
-      pos: window.__app.player.pos,
+      pos: window.__app.player.exposed("pos", 0),
       hostText: window.__declare.evaluate("app.posOut", "text").value ?? window.__app.posOut.text,
       tenantVol: ${tenantOf}.volume,
     })`);
-    assert.equal(s.pos, 3, "tenant's initial pos crossed (readonly external = tenant-owned)");
+    assert.equal(s.pos, 3, "tenant's initial pos crossed (exposes)");
     assert.equal(s.hostText, "pos=3", "…and the host's reader re-derived");
     assert.equal(s.tenantVol, 0.7, "the host's volume crossed the other way");
   });
 
-  await test(`${label}: a host write re-derives the tenant's binding`, async () => {
+  await test(`${label}: a host write re-derives the tenant's hostProvided read`, async () => {
     await page.evaluate(`window.__app.vol = 0.2`);
     await sleep(100);
     const v = await page.evaluate(`${tenantOf}.volume`);
@@ -69,11 +69,11 @@ async function run(label, url, tenantOf) {
     assert.equal(t, "v0.2", "the tenant's own constraint saw it");
   });
 
-  await test(`${label}: verbs round-trip — post bumps the export, the ack comes home`, async () => {
+  await test(`${label}: verbs round-trip — post bumps the exposed value, the ack comes home`, async () => {
     await page.evaluate(`window.__app.player.post("go", 1)`);
     await sleep(150);
-    const s = await page.evaluate(`({ pos: window.__app.player.pos, log: window.__app.log })`);
-    assert.equal(s.pos, 4, "tenant's onPost bumped its export and the bump crossed");
+    const s = await page.evaluate(`({ pos: window.__app.player.exposed("pos", 0), log: window.__app.log })`);
+    assert.equal(s.pos, 4, "tenant's onPost bumped its exposed value and the bump crossed");
     assert.equal(s.log, "ack;", "…and the tenant's post landed on the island's onPost");
   });
 
@@ -89,11 +89,11 @@ await run("dom", `${B}/test/probe/bridge-host.declare`,
 
 // The FOREIGN handle (BOTH backends — on the DOM the island IS an element;
 // on canvas it realizes as a positioned overlay over the sealed surface, the
-// editable field's own mechanism): discovery, a validated push that host
-// constraints re-derive from, and the verb into the island's onPost. A page
+// editable field's own mechanism): discovery, the provided value read and
+// watched, an exposed value that host constraints re-derive from, and the verb into the island's onPost. A page
 // script finds the box the same way on either backend: by data-declare-slot.
 async function foreignRun(label, url) {
-  await test(`${label}: a foreign tenant works the same bridge through __declareIsland`, async () => {
+  await test(`${label}: a foreign tenant works the same boundary through __declareIsland`, async () => {
   const page = await browser.newPage();
   const cdp = await page.createCDPSession();
   await cdp.send("Network.setBypassServiceWorker", { bypass: true });
@@ -101,16 +101,22 @@ async function foreignRun(label, url) {
   await page.waitForFunction(`document.querySelector('[data-declare-slot="note"]')?.__declareIsland != null`, { timeout: 30000 });
   const s = await page.evaluate(`(() => {
     const h = document.querySelector('[data-declare-slot="note"]').__declareIsland;
-    const names = h.externals().map((e) => e.name);
-    h.set("txt", "from raw JS");
+    const seen = [];
+    window.__watched = seen;
+    h.watchProvided("volume", (v) => seen.push(v));
+    h.expose("txt", "from raw JS");
     h.post("hello", null);
-    return { names, txt: h.get("txt") };
+    return { names: h.provides(), vol: h.hostProvided("volume"), missing: h.hostProvided("nope") };
   })()`);
-  assert.deepEqual(s.names, ["txt"], "discovery lists the declared surface");
-  assert.equal(s.txt, "from raw JS", "the validated push landed");
+  assert.deepEqual(s.names, ["volume"], "discovery lists what the host provides");
+  assert.equal(s.vol, 0.7, "the provided value reads");
+  assert.equal(s.missing, undefined, "a name the island does not provide reads undefined");
   await sleep(120);
-  const after = await page.evaluate(`({ out: window.__app.noteOut.text, log: window.__app.log })`);
-  assert.equal(after.out, "from raw JS", "host constraints re-derived from the foreign push");
+  await page.evaluate(`window.__app.vol = 0.4`);
+  await sleep(120);
+  const after = await page.evaluate(`({ out: window.__app.noteOut.text, log: window.__app.log, seen: window.__watched })`);
+  assert.deepEqual(after.seen, [0.7, 0.4], "watchProvided: the value now, then each change");
+  assert.equal(after.out, "from raw JS", "host constraints re-derived from the foreign expose");
   assert.ok(after.log.includes("note:hello;"), "the foreign post fired the island's onPost");
   await page.close();
   });

@@ -44,8 +44,16 @@ stay the children's own (a child centers itself across a row with the
 ordinary `y = center`) — until the strategy's `align` claims the cross axis,
 when its boxes carry that slot too and own it the same way. Invisible children keep their slot in the array (skip
 them inside `place()`), so a re-shown child needs no special case. Read the
-view's extent through `this.view` — a strategy that answers its own view's
-size (as `ResponsiveLayout` does) participates in the same reactive pass.
+room to divide through `contentExtent` — the arranged view's **content box**,
+its extent less its own `View.padding` — and a strategy that answers its own
+view's size (as `ResponsiveLayout` does) participates in the same reactive pass.
+
+**Padding is not a layout's business.** The content box belongs to the view
+(`View.padding`): `x = 0` in a box you return means the view's *content*
+origin, exactly as it does for a child that places itself, so an arrangement
+written before padding existed honours it by doing nothing at all. Divide
+`contentExtent(size)`, never `this.view.width`, and the inset costs you
+nothing to respect.
 
 Assign a strategy to a view's `layout` slot as a member (`layout: Rail [ gap
 = 12 ]`). The runtime re-runs `place()` whenever anything it read changes —
@@ -63,6 +71,21 @@ the geometry; neither needs to know the other exists.
 
 For animated reflow, extend `TweenLayout` instead — the same `place()`
 contract, interpolated through its scalar `t`.
+
+## place()
+**The method a strategy is.** Declare it in your subclass and the runtime calls it
+whenever anything it read changes: return one box per child of `laid()`, aligned by index,
+computed from your own attributes, the children's sizes, and the room `contentExtent(size)`
+reports. Nothing else — no time, no side effects, no writing a child's slots by hand.
+
+**A box says only what you decide.** Give it `x`, `y`, `w`, `h`, or any subset, and the
+slots you name are the slots this strategy owns for that child: a box of `{ y }` alone
+positions a stack and leaves every width to the children, which is how a child sizes itself
+inside an arrangement. What you omit stays the author's.
+
+The base takes your boxes from there and installs them as claims, so `place()` never
+mentions ownership — and never mentions padding either, since the coordinates it returns
+are already the view's content coordinates.
 
 ## laid()
 The children this layout manages, in order — **the one definition of what a strategy is
@@ -107,9 +130,21 @@ names the child's class and the rewrite (declare `baseline: number = { … }`, o
 line to sit on. A strategy calls this once from `place()` and falls back to `start`; the
 kernel reports it once per layout. The checker refuses the literal form outright.
 
+## contentExtent()
+**The room this arrangement has**, and what a `place()` divides: the arranged view's
+**content box** on `size` — its extent less its own `View.padding` on that axis, never
+below 0. The number is the view's, not this layout's; a layout simply arranges inside the
+room it is given. **Read this, not `this.view.width`** — a strategy that reads the view's
+own extent wraps, shares or spaces at the wrong number the moment anyone pads that view,
+and one that reads `contentExtent` honors it for free. It is the plain measurement: unlike
+`viewExtent` it does not ask whether the view derives that extent from these very children,
+so an *alignment band* wants `viewExtent` (which is the content box too). From a `.declare`
+`place()` reach it as `(this as any).contentExtent("width")`, the same cast the library's
+own strategies use.
+
 ## viewExtent()
-The **band an alignment places children in**: the arranged view's own extent on `size`
-(`"width"` or `"height"`) — or **0 when that extent is measured from the very children this
+The **band an alignment places children in**: the arranged view's own content extent on
+`size` (`"width"` or `"height"`) — or **0 when that extent is measured from the very children this
 strategy lays**, where reading it would close the one-pass discipline's forbidden cycle.
 Fold it in with `Math.max(line, this.viewExtent(size))`: on a view that sizes itself from
 its children the answer is 0 and the line stands (and the two agree anyway — an aligned

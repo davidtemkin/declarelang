@@ -63,15 +63,33 @@ to name the same thing, the one here is the one the platform means.
   text styled by name is not one. → [Style](declare-docs:guide:style)
 - **island** — a leaf view whose interior is foreign: a `DOMIsland` holds host-managed DOM,
   an `AppIsland` holds another Declare program (the **tenant**). The **island bridge** is
-  the typed handshake between host and tenant: `external` attributes, `post`, `onPost`.
+  the handshake between host and tenant, each name saying its direction: `provides`
+  and `hostProvided` going down, `exposes` and `exposed` coming up, `post`/`onPost` across.
   → [Embedding](declare-docs:guide:embedding)
 
 ## Space and motion
 
-- **extent** — the bounding box of a view's visible children, which an unset width or
-  height auto-sizes to. `contentWidth` and `contentHeight` surface it.
+- **extent** — the bounding box of a view's visible children plus the view's own `padding`
+  on all four sides, which an unset width or height auto-sizes to. `contentWidth` and
+  `contentHeight` surface it, and a padded scroller scrolls to that number — a full bottom
+  inset past its last row.
 - **bounds / footprint** — a view's transformed box in its parent's coordinates, and that
   box minus the position. What a layout packs.
+- **padding** — an attribute of the **view**, not of its layout: the inset between its box
+  and the room its children live in. Every child's `x`/`y` is measured from the content
+  origin — laid, self-placing, or `ignoreLayout` alike — and paint stays on the view's own
+  box, so a card's fill still covers its inset. → [Space](declare-docs:guide:space)
+- **content box** — what is left of a view's box after its own padding, and the frame every
+  child is positioned and sized in: the origin `x = 0` means, what a percent and `x = center`
+  resolve against, the extent a strategy divides (`contentExtent`), and the span a `Divider`
+  takes. `{ parent.width }` is the escape hatch that names the parent's literal box instead.
+- **one value, or four clockwise** — the house pattern for anything said per side or per
+  corner: one value for all of them, or a list of four starting at the first edge and going
+  round. `padding` and `stroke` start at the top, `cornerRadius` at the top-left corner. Any
+  other length is a mistake, not a shorthand.
+- **per-side stroke** — a `stroke` written as those four, with `null` for a bare side —
+  `[ stroke(1, line), null, stroke(1, line), null ]` is a pair of rails. Where the box is
+  rounded, a side tapers into the corner arc rather than mitring.
 - **one-geometry rule** — paint, hit-testing, auto-size and layout all read the same
   transformed geometry, so a scaled or rotated view is the same size to every reader.
 - **scroller** — the view whose `scrolls` axis carries its content. For an `App` the
@@ -125,6 +143,13 @@ to name the same thing, the one here is the one the platform means.
   writing state: `input`, `picked`, `sortInput`. Override it at the use site.
 - **records, not children** — what a component arranges, it takes as data: a menu's items,
   a dialog's buttons, a segmented control's choices. The author never composes those rows.
+- **card** — the themed surface with its content inset: `Card`, a view whose fill, radius,
+  hairline edge, `padding` and stacking layout are the theme's, so its children are written
+  as a plain list. It has no height of its own, and naming your own `layout:` replaces the
+  stack but not the inset. → [Space](declare-docs:guide:space)
+- **rule** — a painted line between things, not a border: `Divider`, a view a layout spaces
+  like any other child, spanning its parent's content box. `inset` shortens it from the
+  leading edge — the list-separator convention.
 - **light-dismiss** — an overlay closes on a press outside it, and that press is swallowed.
 - **backdrop** — the full-app layer under a menu that catches the outside press. A
   dialog's equivalent is its **scrim**, which swallows the press without dismissing.

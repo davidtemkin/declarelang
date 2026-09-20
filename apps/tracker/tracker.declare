@@ -38,7 +38,7 @@ kept in sync by hand (the seed and the pools are the contract). Every
 millisecond the rail reports is measured in this file, not asserted.
 */
 
-use [ SunIcon, AutoIcon, MoonIcon, PersonIcon ]   // the menus name their icons in data
+use [ PersonIcon ]   // the menus name their icons in data
 
 // ── script land: plain TypeScript helpers, zero reactive machinery ────────
 //
@@ -96,7 +96,7 @@ class Avatar extends View [ width = 22, height = 22, cornerRadius = 11,
     fill = { name == "" ? null : trkHue(name) },
     stroke = { name == "" ? stroke(1, provided("theme").line) : null },
     cap: TextLabel [ x = 0, textAlign = center, fontWeight = semibold, wrap = false,
-        width = { parent.width },
+        width = 100%,
         fontSize = { classroot.capSize },
         letterSpacing = 0.3,
         textColor = { classroot.name == "" ? provided("theme").textFaint : trkWhite() },
@@ -180,7 +180,7 @@ class IssueRow extends TableRow [
 
     // ── the group header face ─────────────────────────────────────────────
 
-    hdrRow: View [ visible = { parent.isHdr }, x = 0, y = 12, width = { parent.width }, height = 24,
+    hdrRow: View [ visible = { parent.isHdr }, x = 0, y = 12, width = 100%, height = 24,
         // collapsed points right, open points down — one class, turned: the
         // same chevron the rest of the chrome discloses with
 
@@ -394,35 +394,40 @@ class EditTag extends View [ height = 22, cornerRadius = 7,
 class EditorCard extends View [
     datapath = { app.draft.value },
 
-    col: View [ x = 16, y = 12, width = { parent.width - 32 },
+    // the card's own content box — the column is simply the room inside it
+
+    padding = [12, 16, 12, 16],
+
+    col: View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
 
-        titleF: TextInput [ width = { parent.width }, height = 36, fontSize = 16, fontWeight = semibold,
+        titleF: TextInput [ width = 100%, height = 36, fontSize = 16, fontWeight = semibold,
             text <-> :it.title,
             placeholder = "Issue title" ],
 
-        facets: View [ width = { parent.width }, height = 28,
+        facets: View [ width = 100%, height = 28,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
             st: Facet [ field = "status", value = { trkStatusLabel("" + (:it.status ?? "open")) }, tint = { trkStatusColor("" + (:it.status ?? "open")) } ],
             pr: Facet [ field = "priority", value = { "" + (:it.priority ?? "P2") }, tint = { trkPrioColor("" + (:it.priority ?? "P2")) } ],
             as: Facet [ field = "assignee", value = { (:it.assignee ?? "Unassigned") + "" } ]
             ],
 
-        labels: View [ width = { parent.width }, height = { Math.max(22, this.row.contentHeight) },
-            row: View [ x = 0, y = 0, width = { parent.width },
-                layout: WrappingLayout [ spacing = 6 ],
-                EditTag [ datapath = :it.labels[], t = { "" + this.$data("") } ],
-                add: Control [ height = 22, cornerRadius = 7, width = 26,
-                    fill = { hot ? theme.control : null },
-                    stroke = { stroke(1, theme.line) },
-                    t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
-                    press() { app.openAddLabel(this) },
-                    onClick() { if (!disabled) press() }
-                    ]
+        // the tags wrap; the band is as tall as they make it — a container
+        // sizes itself from its content, so there is no height to state
+
+        labels: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 6 ],
+            EditTag [ datapath = :it.labels[], t = { "" + this.$data("") } ],
+            add: Control [ height = 22, cornerRadius = 7, width = 26,
+                fill = { hot ? theme.control : null },
+                stroke = { stroke(1, theme.line) },
+                t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
+                press() { app.openAddLabel(this) },
+                onClick() { if (!disabled) press() }
                 ]
             ],
 
-        descF: TextInput [ width = { parent.width }, height = 84, fontSize = 16, multiline = true, wrap = true,
+        descF: TextInput [ width = 100%, height = 84, fontSize = 16, multiline = true, wrap = true,
             text <-> :it.description,
             placeholder = "Add a description…" ],
 
@@ -431,7 +436,7 @@ class EditorCard extends View [
         // by construction; only the small meta line needs the cap-difference
         // correction that `trkBaselineNudge` names.
 
-        foot: View [ width = { parent.width }, height = { app.footRowH },
+        foot: View [ width = 100%, height = { app.footRowH },
             layout: SimpleLayout [ axis = x, spacing = 10 ],
             save: Button [ width = 96, height = { app.footRowH }, label = { app.creating ? "Create" : "Save" }, primary = true,
                 disabled = { !app.draftDirty },
@@ -1038,15 +1043,6 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         m.openFor(anchor)
         },
 
-    appearanceMenu: Menu [
-        items = { [
-            ({ id: "light", label: "Light", icon: "SunIcon", checked: app.themeMode == "light" }),
-            ({ id: "auto", label: "System", icon: "AutoIcon", checked: app.themeMode == "auto" }),
-            ({ id: "dark", label: "Dark", icon: "MoonIcon", checked: app.themeMode == "dark" }),
-        ] },
-        picked(id: string) { app.themeMode = id }
-        ],
-
     // ⌘K claims the omnibox from anywhere; Escape backs out by layers
 
     keys: Keys [
@@ -1078,7 +1074,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     // ── the bar — brand · search · scale · appearance ─────────────────────
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").surface },
-        hair: View [ x = 0, y = { app.barH - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
+        hair: View [ x = 0, y = { app.barH - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
 
         brand: View [ x = 24, y = 17, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
@@ -1118,16 +1114,12 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             choices = { [ ({ id: "10k", label: "10K" }), ({ id: "100k", label: "100K" }), ({ id: "1M", label: "1M" }) ] }
             ],
 
-        appear: Control [ y = 12, height = 32, width = 54, cornerRadius = 8, tip = "Appearance",
-            x = { app.width - this.width - 14 },
-            fill = { hot || down ? theme.control : null },
-            stroke = { stroke(1, theme.line) },
-            g: IconHost [ x = 9, y = center, iconSize = 15,
-                kind = { app.themeMode == "light" ? "SunIcon" : app.themeMode == "dark" ? "MoonIcon" : "AutoIcon" } ],
-            arrow: ChevronIcon [ iconSize = 12, ink = { theme.textMuted },
-                x = { parent.width - 18 }, y = { (parent.height - this.height) / 2 } ],
-            press() { app.appearanceMenu.openFor(this) },
-            onClick() { if (!disabled) press() }
+        // light / dark: shows the appearance in force, a press flips it; until
+        // then `themeMode` stays "auto" and the OS decides
+
+        appear: AppearanceSwitch [ y = 12, x = { app.width - this.width - 14 },
+            dark = { app.darkUI },
+            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
         ],
 
@@ -1145,7 +1137,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         wrap: boolean = { app.compact
             || this.chips.contentWidth + this.acts.contentWidth + 64 > app.width },
         height = { this.wrap ? 96 : 56 }, fill = { provided("theme").bg },
-        hairB: View [ x = 0, y = { parent.height - 1 }, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
+        hairB: View [ x = 0, y = { parent.height - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
 
         // wrapped, the strip keeps every filter reachable by scrolling sideways
         // (the phone chip-row idiom) instead of spilling off-screen
@@ -1187,7 +1179,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             y = { parent.wrap ? 54 : 13 },
             x = { parent.wrap ? 16 : app.width - this.contentWidth - 24 },
             layout: SimpleLayout [ axis = x, spacing = 4 ],
-            groupCheck: Checkbox [ y = 3, height = 24, size = 15, fontSize = 12.5, x = 0,
+            groupCheck: Checkbox [ y = 3, height = 24, size = 15, fontSize = 12.5,
                 label = "Grouped",
                 textColor = { provided("theme").textMuted },
                 checked = { app.groupBy == "status" },
@@ -1206,7 +1198,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tip = "Toggle sort direction",
                 fill = { hot || down ? theme.control : null },
                 t: ArrowIcon [ iconSize = 13, ink = { theme.textMuted },
-                    x = { (parent.width - this.width) / 2 }, y = { (parent.height - this.height) / 2 },
+                    x = center, y = center,
                     dir = { app.sortDir == "desc" ? "down" : "up" } ],
                 press() { app.toggleSortDir() },
                 onClick() { if (!disabled) press() }
@@ -1290,7 +1282,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         col: View [ x = 20, y = 20, width = { parent.width - 40 },
             layout: SimpleLayout [ axis = y, spacing = 22 ],
 
-            hero: View [ width = { parent.width }, height = 66,
+            hero: View [ width = 100%, height = 66,
                 n: Roll [ x = 0, y = 0, fontSize = 38, fontWeight = bold, letterSpacing = -1,
                     textFill = { gradient("90deg", provided("theme").accent, trkTeal()) },
                     n = { app.shownTotal } ],
@@ -1300,12 +1292,12 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                         : "matching · of " + app.issuesOf().length.toLocaleString() + " issues" } ]
                 ],
 
-            byStatus: View [ width = { parent.width },
+            byStatus: View [ width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
                 cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
                     textColor = { provided("theme").textFaint }, text = "BY STATUS" ],
                 gap: View [ width = 1, height = 6 ],
-                dist: View [ width = { parent.width }, height = 6, cornerRadius = 3, clip = true,
+                dist: View [ width = 100%, height = 6, cornerRadius = 3, clip = true,
                     s1: View [ x = 0, y = 0, height = 6, fill = { trkStatusColor("open") },
                         width = { parent.width * ((app.counts as any).open ?? 0) / Math.max(1, app.issuesOf().length) } ],
                     s2: View [ y = 0, height = 6, fill = { trkStatusColor("in-progress") },
@@ -1319,35 +1311,35 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                         width = { Math.max(0, parent.width - this.parent.s3.x - this.parent.s3.width) } ]
                     ],
                 gap2: View [ width = 1, height = 8 ],
-                r1: RailStat [ width = { parent.width }, facet = "status", value = "open", cap = "Open",
+                r1: RailStat [ width = 100%, facet = "status", value = "open", cap = "Open",
                     n = { (app.counts as any).open ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("open") },
                     on = { app.fStatus == "open" },
                     ic: StatusIcon [ x = 8, y = 8, s = "open" ]
                     ],
-                r2: RailStat [ width = { parent.width }, facet = "status", value = "in-progress", cap = "In Progress",
+                r2: RailStat [ width = 100%, facet = "status", value = "in-progress", cap = "In Progress",
                     n = { (app.counts as any)["in-progress"] ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("in-progress") },
                     on = { app.fStatus == "in-progress" },
                     ic: StatusIcon [ x = 8, y = 8, s = "in-progress" ]
                     ],
-                r3: RailStat [ width = { parent.width }, facet = "status", value = "blocked", cap = "Blocked",
+                r3: RailStat [ width = 100%, facet = "status", value = "blocked", cap = "Blocked",
                     n = { (app.counts as any).blocked ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("blocked") },
                     on = { app.fStatus == "blocked" },
                     ic: StatusIcon [ x = 8, y = 8, s = "blocked" ]
                     ],
-                r4: RailStat [ width = { parent.width }, facet = "status", value = "closed", cap = "Closed",
+                r4: RailStat [ width = 100%, facet = "status", value = "closed", cap = "Closed",
                     n = { (app.counts as any).closed ?? 0 }, peak = { app.issuesOf().length }, tint = { trkStatusColor("closed") },
                     on = { app.fStatus == "closed" },
                     ic: StatusIcon [ x = 8, y = 8, s = "closed" ]
                     ]
                 ],
 
-            work: View [ width = { parent.width },
+            work: View [ width = 100%,
                 datapath = { app.workload.value },
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
                 cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
                     textColor = { provided("theme").textFaint }, text = "WORKLOAD · OPEN WORK" ],
                 gap: View [ width = 1, height = 6 ],
-                RailStat [ datapath = :rows[], width = { parent.width },
+                RailStat [ datapath = :rows[], width = 100%,
                     facet = "assignee",
                     value = { "" + (:name ?? "") },
                     cap = { ("" + (:name ?? "")) == "" ? "Unassigned" : "" + :name },
@@ -1359,17 +1351,17 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     ]
                 ],
 
-            closed14: View [ width = { parent.width },
+            closed14: View [ width = 100%,
                 datapath = { app.closedSeries.value },
                 cap: Text [ x = 0, y = 0, fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
                     textColor = { provided("theme").textFaint }, text = "CLOSED · LAST 14 DAYS" ],
-                bars: View [ x = 0, y = 22, width = { parent.width }, height = 40,
+                bars: View [ x = 0, y = 22, width = 100%, height = 40,
                     pk: number = { Math.max(1, (:peak ?? 1) + 0) },
                     layout: SimpleLayout [ axis = x, spacing = 3 ],
                     View [ datapath = :days[], width = { (this.parent.width - 39) / 14 },
                         height = 40,
                         b: View [ x = 0, cornerRadius = 1.5,
-                            width = { parent.width },
+                            width = 100%,
                             y = { 40 - Math.max(2, 38 * ((this.$data("") as any) + 0) / this.parent.parent.pk) },
                             height = { Math.max(2, 38 * ((this.$data("") as any) + 0) / this.parent.parent.pk) },
                             fill = { trkStatusColor("closed") } ]
@@ -1377,44 +1369,44 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     ]
                 ],
 
-            perf: View [ width = { parent.width },
+            perf: View [ width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 8 ],
                 cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
                     textColor = { provided("theme").textFaint }, text = "PERFORMANCE" ],
-                l1: View [ width = { parent.width }, height = 16,
+                l1: View [ width = 100%, height = 16,
                     a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Initial load" ],
                     b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
                         textColor = { provided("theme").text }, text = { app.loadMs + " ms" } ]
                     ],
-                l2: View [ width = { parent.width }, height = 16,
+                l2: View [ width = 100%, height = 16,
                     a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Ingest" ],
                     b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
                         textColor = { provided("theme").text }, text = { app.adoptMs + " ms" } ]
                     ],
-                l3: View [ width = { parent.width }, height = 16, visible = { app.query != "" },
+                l3: View [ width = 100%, height = 16, visible = { app.query != "" },
                     a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Last search" ],
                     b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
                         textColor = { provided("theme").text }, text = { (app.shown.value.searchMs ?? 0) + " ms" } ]
                     ]
                 ],
 
-            keys: View [ width = { parent.width },
+            keys: View [ width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 6 ],
                 cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
                     textColor = { provided("theme").textFaint }, text = "KEYBOARD" ],
-                k1: View [ width = { parent.width }, height = 18,
+                k1: View [ width = 100%, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "⌘K" ],
                     v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Search" ]
                     ],
-                k2: View [ width = { parent.width }, height = 18,
+                k2: View [ width = 100%, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "↵" ],
                     v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Open selected row" ]
                     ],
-                k3: View [ width = { parent.width }, height = 18,
+                k3: View [ width = 100%, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "⌫" ],
                     v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Delete selection" ]
                     ],
-                k4: View [ width = { parent.width }, height = 18,
+                k4: View [ width = 100%, height = 18,
                     k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "esc" ],
                     v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Close · clear" ]
                     ],
@@ -1430,7 +1422,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         fill = { provided("theme").surface }, cornerRadius = 10,
         stroke = { stroke(1, provided("theme").line) },
         shadow = { shadow(0, 4, 16, 0x00000018) },
-        card: EditorCard [ x = 0, y = 0, width = { parent.width } ]
+        card: EditorCard [ x = 0, y = 0, width = 100% ]
         ],
 
     // ── the footer — the quiet ledger line: how many, how many shown ──────
@@ -1438,7 +1430,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     foot: View [ x = 0, width = { app.width }, height = 32,
         y = { app.height - 32 },
         fill = { provided("theme").surface },
-        hair: View [ x = 0, y = 0, width = { parent.width }, height = 1, fill = { provided("theme").line } ],
+        hair: View [ x = 0, y = 0, width = 100%, height = 1, fill = { provided("theme").line } ],
         stats: Text [ x = 24, y = center, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint },
             text = { app.issuesOf().length.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
         perf: Text [ y = center, fontSize = 10.5, wrap = false, visible = { app.booted && !app.railOn },
@@ -1454,7 +1446,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         opacity = { this.pop },
         y = { app.contentY + 120 + (1 - this.pop) * 14 },
         layout: SimpleLayout [ axis = y, spacing = 12 ],
-        ring: View [ x = 122, width = 36, height = 36, cornerRadius = 18,
+        ring: View [ x = center, width = 36, height = 36, cornerRadius = 18,
             stroke = { stroke(2, provided("theme").line) },
             g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { provided("theme").textFaint }, text = "?" ]
             ],
@@ -1464,7 +1456,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             text = { app.issuesOf().length == 0
                 ? "Create the first one — New issue is waiting."
                 : "Try a different search, or clear the filters." } ],
-        clear: Control [ x = 90, height = 30, cornerRadius = 8, width = 100,
+        clear: Control [ x = center, height = 30, cornerRadius = 8, width = 100,
             visible = { app.issuesOf().length > 0 },
             fill = { hot || down ? theme.control : null },
             stroke = { stroke(1, theme.line) },
@@ -1525,14 +1517,14 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             ]
         ],
 
-    toast: Toast [ x = { (app.width - this.width) / 2 },
+    toast: Toast [ x = center,
         y = { app.height - 84 + (1 - this.lift) * 20 } ],
 
     // the entry screen — honest states for the one fetch
 
     entry: View [ visible = { !app.booted }, x = 0, y = 0, width = { app.width }, height = { app.height },
         fill = { provided("theme").bg },
-        col: View [ x = { (app.width - 220) / 2 }, y = { app.height * 0.38 }, width = 220,
+        col: View [ x = center, y = { app.height * 0.38 }, width = 220,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
             Text [ fontSize = 22, fontWeight = semibold, textAlign = center, width = 220,
                 textFill = { gradient("90deg", provided("theme").accent, trkTeal()) }, text = "Tracker" ],

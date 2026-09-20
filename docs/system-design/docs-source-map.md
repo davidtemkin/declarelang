@@ -63,7 +63,7 @@ The guide's ordering and its "don't do this" moments should be *evidence-driven*
   examples that show the payoff.
 - **`apps/homepage/`** (the literate `.declare` source) — a real app whose source is
   meant to be read; good for the composition/prevailing/theming story.
-- **`apps/controls/`** — every standard-library control in its three use forms (the
+- **`apps/sampler/`** — every standard-library control in its three use forms (the
   components chapter's natural example bank; also the verify reference user).
 
 ## 5. Currency caveats

@@ -12,7 +12,7 @@
 // headless path (the lesson of the unit suite's hand-listed mock).
 
 import type { InputSink, RenderBackend, RichBlock, Stretch, Surface, EditableSpec } from "./backend.js";
-import type { Fill, Radius, Stroke, Shadow } from "./value.js";
+import type { BoxStroke, Fill, Radius, Shadow } from "./value.js";
 import type { TextStyle } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 
@@ -23,7 +23,7 @@ class HeadlessSurface implements Surface {
   setHeight(_v: number): void {}
   setFill(_fill: Fill): void {}
   setCornerRadius(_r: Radius): void {}
-  setStroke(_stroke: Stroke | null): void {}
+  setStroke(_stroke: BoxStroke): void {}
   setShadow(_shadow: Shadow | null): void {}
   setVisible(_visible: boolean): void {}
   setOpacity(_opacity: number): void {}

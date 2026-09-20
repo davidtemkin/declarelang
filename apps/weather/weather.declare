@@ -180,6 +180,8 @@ class HourStrip extends Card [ height = 196,
 // the drawn bar.
 
 class DayRow extends View [ height = 42,
+    stroke = [null, null, stroke(1, #FFFFFF22), null],   // the separator is the row's own bottom edge
+
     lo10: number = 0,
     hi10: number = 0,
     todayTemp: number = -1000,
@@ -193,10 +195,9 @@ class DayRow extends View [ height = 42,
         lo = { :lo }, hi = { :hi },
         min = { parent.lo10 }, max = { parent.hi10 },
         now = { :day == "Today" ? parent.todayTemp : -1000 } ],
-    hi: Text [ x = { parent.width - 48 }, y = center, width = 48, fontSize = 17,
+    hi: Text [ x = end, y = center, width = 48, fontSize = 17,
         fontWeight = medium, textColor = white, textAlign = right, wrap = false,
-        text = { fmtTemp(:hi) } ],
-    rule: View [ x = 0, y = { parent.height - 1 }, width = 100%, height = 1, fill = #FFFFFF22 ]
+        text = { fmtTemp(:hi) } ]
     ]
 
 
@@ -212,7 +213,7 @@ class TenDay extends Card [
     height = { 36 + 42 * 10 + 8 },
     list: View [ x = 16, y = 34, width = { parent.width - 32 },
         layout: SimpleLayout [ axis = y, spacing = 0 ],
-        DayRow [ width = { parent.width },
+        DayRow [ width = 100%,
             lo10 = { classroot.lo10 }, hi10 = { classroot.hi10 },
             todayTemp = { classroot.todayTemp },
             datapath = :days[], key = :day ]
@@ -498,10 +499,10 @@ class CityCards extends View [
             sign = { classroot.city == null ? "" : classroot.city.avgSign },
             today = { classroot.city == null ? 0 : classroot.city.avgToday },
             avg = { classroot.city == null ? 0 : classroot.city.avgAvg } ],
-        foot: Text [ width = { parent.width }, y = 0, fontSize = 13, textAlign = center,
+        foot: Text [ width = 100%, fontSize = 13, textAlign = center,
             textColor = #FFFFFFA0,
             text = { classroot.city == null ? "" : "Weather for " + classroot.city.name } ],
-        tail: View [ width = { parent.width }, height = 40 ]
+        tail: View [ width = 100%, height = 40 ]
         ]
     ]
 
@@ -793,7 +794,7 @@ class CityView extends View [
 
     condensed: Text [ pointerEvents = "none", wrap = false, textColor = white,
         fontSize = 17, fontWeight = medium,
-        x = { (parent.width - this.width) / 2 },
+        x = center,
         y = { 58 + app.safeTop + classroot.hold },
         opacity = { classroot.open * fadeIn(classroot.condense, 0.42, 2.6) },
         text = { classroot.city == null ? ""
@@ -1407,10 +1408,15 @@ App [ textColor = whitesmoke, appName = "Weather",
         side: View [ x = 0, y = 0, width = { SIDEBAR_W }, height = 100%, scrolls = y,
             fill = #0A1422B8, backdrop = { frost(30, 1.2) },
 
+            // the sidebar has an inside: the field, the empty note and the list
+            // are all written against it, and the scroller's extent counts it
+
+            padding = 16,
+
             // The field is the pill: no wrapper view to sit over the native
             // input and take its clicks
 
-            find: TextInput [ x = 16, y = 16, width = { parent.width - 32 }, height = 36,
+            find: TextInput [ width = 100%, height = 36,
                 cornerRadius = 18, fill = #FFFFFF1A, padding = 14,
                 fontSize = 16, textColor = white, placeholder = "Search",
                 text = { app.query },
@@ -1423,14 +1429,14 @@ App [ textColor = whitesmoke, appName = "Weather",
                     onClick() { app.query = "" }
                     ]
                 ],
-            none: Text [ x = center, y = { (parent.height - this.height) / 2 },
-                width = { parent.width - 32 }, textAlign = center,
+            none: Text [ x = center, y = center,
+                width = 100%, textAlign = center,
                 fontSize = 16, textColor = #FFFFFFC4,
                 visible = { app.noMatch },
                 text = "No locations match" ],
-            list: View [ x = 16, y = 64, width = { parent.width - 32 },
+            list: View [ y = 48, width = 100%,
                 datapath = { app.sideRows },
-                CityRow [ width = { parent.width }, datapath = :rows[], key = :id ]
+                CityRow [ width = 100%, datapath = :rows[], key = :id ]
                 ]
             ],
 
@@ -1450,7 +1456,7 @@ App [ textColor = whitesmoke, appName = "Weather",
 
                 cards: View [ width = 100%, datapath = { app.deskSet.value },
                     CityCards [ datapath = :on[], key = :id,
-                        width = { parent.width }, cols = { app.cols }, city = { app.city } ]
+                        width = 100%, cols = { app.cols }, city = { app.city } ]
                     ],
                 tail: View [ width = 100%, height = 32 ]
                 ]

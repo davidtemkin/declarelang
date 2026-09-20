@@ -32,7 +32,10 @@
 
 import { DeclareError, describePos, type Pos } from "./errors.js";
 
-export type Severity = "error" | "warning";
+/** `hint` is the third tier, below `warning`: the program is correct and the
+ *  compiler has a shorter way to say it. A hint never blocks and never counts
+ *  against a clean build — it is style, and the author may have a reason. */
+export type Severity = "error" | "warning" | "hint";
 
 /** The compile phase a diagnostic belongs to — derivable from its code's
  *  leading digit, so a Diagnostic is self-classifying. */
@@ -278,6 +281,23 @@ export const Diag = {
   // error. Only raised when the program actually renders rich text.
   shadowsRichTextTag: (name: string, pos: Pos): DeclareError =>
     err(code4(4010), `class ${name} hides the rich-text tag <${name}> — inside Markdown or HTMLText content a tag is resolved against this program's own classes before the HTML whitelist, so every <${name}> in a document builds one ${name} view, not the tag. Rename the class if the content means the tag`, pos),
+  // A HINT: a constraint that centers a box by hand. `x = center` is the
+  // position literal for exactly this, and it re-resolves when either width
+  // changes. Style, not a defect — the author may want the arithmetic — so it
+  // rides the third severity tier and never blocks.
+  centersByHand: (axis: "x" | "y", pos: Pos): DeclareError =>
+    err(code4(4011), `this is ${axis} = center — the position literal centers the box inside its parent, and re-resolves when either ${axis === "x" ? "width" : "height"} changes`, pos),
+  // A WARNING: an Animator (or AnimatorGroup) the program never starts.
+  // `started` is the request and start() is the verb; with neither, the element
+  // declares a motion that never runs. A Spring is excluded — it follows a
+  // reactive `to` and is never start()-triggered.
+  animatorNeverStarts: (tag: string, name: string | null, pos: Pos): DeclareError =>
+    err(code4(4012), `nothing starts this ${tag} — 'started' is never set on it${name === null ? `, and an anonymous member has no name to call start() on` : `, and no body calls ${name}.start()`}, so it declares a motion that never runs. 'started' is the request: started = true runs it once the tree stands, and started = { … } binds it to the fact that should drive it; a handler runs it moment to moment with ${name === null ? `a name and name.start()` : `${name}.start()`}. A Spring needs neither — it follows its 'to'`, pos),
+  // A WARNING: a press() override on a Button. Every other control routes the
+  // pointer through press(); Button inverts that, so an override here is the
+  // keyboard's path only and the click lands in the untouched onClick.
+  buttonPressOverride: (owner: string, pos: Pos): DeclareError =>
+    err(code4(4013), `press() on ${owner} replaces Button's activation path — every other control routes the pointer through press(), and Button inverts that: its own press() delivers to onClick, which is the use site's action slot. An override here answers Space and Enter, and a click still runs the untouched onClick — so the action never fires from the pointer. Put the action in onClick()`, pos),
   scriptWrite: (name: string, pos: Pos): DeclareError =>
     err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
   // `classroot` reaches the root of the component (class) you are defining, so it
@@ -334,11 +354,12 @@ export function toDiagnostic(e: DeclareError, severity: Severity, fallbackPhase:
 }
 
 /** The one renderer: "message [CODE] (line L, col C)", with an indented hint
- *  line when present; a warning carries a `warning: ` prefix (an unmarked
- *  diagnostic reads as an error, the compiler convention). Deterministic plain
- *  text — ANSI color is a caller-side decoration, never a second format. */
+ *  line when present; a warning carries a `warning: ` prefix and a hint a
+ *  `hint: ` one (an unmarked diagnostic reads as an error, the compiler
+ *  convention). Deterministic plain text — ANSI color is a caller-side
+ *  decoration, never a second format. */
 export function formatDiagnostic(d: Omit<Diagnostic, "rendered">): string {
-  const sev = d.severity === "warning" ? "warning: " : "";
+  const sev = d.severity === "error" ? "" : `${d.severity}: `;
   const at = d.pos ? ` ${describePos(d.pos)}` : "";
   const hint = d.hint ? `\n  hint: ${d.hint}` : "";
   return `${sev}${d.message} [${d.code}]${at}${hint}`;
@@ -350,10 +371,12 @@ export function formatDiagnostic(d: Omit<Diagnostic, "rendered">): string {
 export function renderReport(diagnostics: readonly Diagnostic[]): string {
   if (diagnostics.length === 0) return "";
   const errs = diagnostics.filter((d) => d.severity === "error").length;
-  const warns = diagnostics.length - errs;
+  const warns = diagnostics.filter((d) => d.severity === "warning").length;
+  const hints = diagnostics.filter((d) => d.severity === "hint").length;
   const counts = [
     errs > 0 ? `${errs} error${errs === 1 ? "" : "s"}` : "",
     warns > 0 ? `${warns} warning${warns === 1 ? "" : "s"}` : "",
+    hints > 0 ? `${hints} hint${hints === 1 ? "" : "s"}` : "",
   ].filter((s) => s.length > 0).join(", ");
   return [counts, ...diagnostics.map((d) => d.rendered)].join("\n");
 }
@@ -385,6 +408,9 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4008), phase: "name", summary: "no 'shows' name matches the initial location — every screen starts hidden (warning)" },
   { code: code4(4009), phase: "name", summary: "a method replaces a built-in's runtime plumbing — no documented contract (warning)" },
   { code: code4(4010), phase: "name", summary: "a class is named like a rich-text tag — that tag builds this class inside content (warning)" },
+  { code: code4(4011), phase: "name", summary: "a constraint centers a box by hand — x = center says it (hint)" },
+  { code: code4(4012), phase: "name", summary: "an Animator nothing ever starts — no 'started', no start() call (warning)" },
+  { code: code4(4013), phase: "name", summary: "a press() override on a Button — the click runs onClick, not this (warning)" },
   { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
   { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
   { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

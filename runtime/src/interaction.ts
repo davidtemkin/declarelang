@@ -37,6 +37,16 @@ import { Cell, Constraint } from "./reactive.js";
 import { affineFit, childHomography, unprojectChild, type Homography, type View3D } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
 import { diag } from "./errors.js";
+import { insetLead, type Inset } from "./value.js";
+
+/** The parent's CONTENT ORIGIN on one axis — the leading inset every child's
+ *  `x`/`y` is measured from (view.ts `padding`). 0, cheaply, for the view that
+ *  never named one. */
+function contentLead(v: InteractionView, axis: "x" | "y"): number {
+  const p = v.padding;
+  if (p === undefined || p === 0) return 0;
+  return insetLead(p, axis);
+}
 
 /** The geometry surface the chain walk reads — structurally, any View. */
 export interface InteractionView {
@@ -63,6 +73,12 @@ export interface InteractionView {
   scrollX: number;
   scrollY: number;
   ignoreScroll: boolean;
+  /** The CONTENT INSET (`View.padding`): a padded view's children are
+   *  positioned from its content origin, so the parent→child transform
+   *  carries the leading inset as a translate — exactly like the scroll
+   *  offset above, and for the same reason. Optional on the structural type:
+   *  a minimal test view may omit it, and 0 is the answer then. */
+  padding?: Inset;
   parent: unknown;
   root: unknown;
   children: readonly unknown[];
@@ -179,6 +195,17 @@ function toChildLocal(v: InteractionView, c: InteractionView, lx: number, ly: nu
     lx += v.scrollX;
     ly += v.scrollY;
   }
+  // 1½. the parent's CONTENT ORIGIN — a padded view's children are positioned
+  //     from inside its insets, so `x = 0` is the inset and not the edge. It
+  //     sits here, after the scroll and before the child's own translate,
+  //     because that is where it sits in the forward direction too
+  //     (rootTransform below composes the two in the same order): the scroll
+  //     moves the content, the inset says where the content BEGINS. Unlike
+  //     the scroll term it applies to EVERY child — chrome, `ignoreLayout`,
+  //     self-placing — because the content box belongs to the parent, not to
+  //     whatever arranges it (RULED 2026-09-19).
+  lx -= contentLead(v, "x");
+  ly -= contentLead(v, "y");
   // a child that leaves its plane: unproject through the parent's eye
   // (projective.ts) — the homography carries the child's position too
   const h3 = homographyOf(v, c);
@@ -426,7 +453,14 @@ export function rootTransform(
       if (!affineIsIdentity(own)) m = composeAffine(own, m);
       m = composeAffine([1, 0, 0, 1, n.x, n.y], m);
     }
-    if (p === stopAt) break;   // content space: the boundary's own scroll is not crossed
+    if (p === stopAt) break;   // content space: the boundary's own scroll — and its own inset — are not crossed
+    // the parent's content origin, lifting n's box out of the content box and
+    // into the parent's own (toChildLocal's term 1½, run forwards)
+    if (p !== null) {
+      const lx = contentLead(p, "x");
+      const ly = contentLead(p, "y");
+      if (lx !== 0 || ly !== 0) m = composeAffine([1, 0, 0, 1, lx, ly], m);
+    }
     if (p !== null && p.scrolls !== "none" && !n.ignoreScroll) {
       m = composeAffine([1, 0, 0, 1, -p.scrollX, -p.scrollY], m);
     }

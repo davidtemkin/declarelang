@@ -21,12 +21,14 @@
 import { type MaskSpec, allowedRef, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type SlotBox, type Stretch, type Surface } from "./backend.js";
 import { domTransform3D, unproject, type Homography } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
-import { colorToCss, isGradient, radiusIsSquare, type Fill, type Radius, type Shadow, type Stroke, filterCss, gradientCss, type Filter } from "./value.js";
+import { colorToCss, insetSides, isGradient, radiusIsSquare, strokeUniform, type BoxStroke, type Fill, type Inset, type Radius, type Shadow, filterCss, gradientCss, type Filter } from "./value.js";
+import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
 import { richInlineSlots, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
 import { type BoxState } from "./boxpaint.js";
 import { effectiveFamily, fontMetrics, fontString, cssWeight, type TextStyle } from "./measure.js";
 import { replay, rasterEntryCap, rasterLooksBlank, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA, type DisplayList } from "./draw.js";
+import { deferral, firstFramePainted, afterFirstFrame } from "./boot-deferrals.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
 import { lockFocusZoom } from "./viewport-lock.js";
@@ -321,6 +323,11 @@ let domRasterBlank = 0;
   () => ({ bytes: domRasterBytes, clamped: domRasterClamped, blank: domRasterBlank });
 /** Past this a raster that came back blank is worth the one GPU sync it takes
  *  to notice — the same bar the canvas memo uses. */
+/** The blank check reads pixels back (getImageData: a GPU sync — 16% of the
+ *  main thread under a live resize, measured 2026-09-16). It runs at most this
+ *  often per surface; a raster inside the interval is checked when the
+ *  interval elapses, on whatever raster is current then. */
+const BLANK_CHECK_INTERVAL = 250;
 const DOM_BLANK_CHECK_BYTES = 8 << 20;
 let liveTransforms = 0;
 
@@ -961,7 +968,7 @@ export class DomSurface implements Surface {
     this.decorate();
   }
 
-  setStroke(st: Stroke | null): void {
+  setStroke(st: BoxStroke): void {
     this.box.stroke = st;
     this.decorate();
   }
@@ -992,8 +999,15 @@ export class DomSurface implements Surface {
     const parts: string[] = [];
     const sh = this.box.shadow;
     if (sh !== null) parts.push(`${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`);
-    const st = this.box.stroke;
-    if (st !== null) parts.push(`inset 0 0 0 ${st.width}px ${colorToCss(st.color)}`);
+    // The border: one inset ring when every side is the same, and one inset
+    // shadow PER SIDE when they are not (stroke-sides.ts `sideShadows`, which
+    // owns everything the four-element form means).
+    const uni = strokeUniform(this.box.stroke);
+    if (uni === undefined) {
+      for (const band of sideShadows(this.box.stroke)) parts.push(band);
+    } else if (uni !== null) {
+      parts.push(`inset 0 0 0 ${uni.width}px ${colorToCss(uni.color)}`);
+    }
     s.boxShadow = parts.join(", ");
   }
 
@@ -1302,6 +1316,25 @@ export class DomSurface implements Surface {
     // automatically — no per-resize re-derive.
     if (this.clipBox !== null) this.clipBox.style.overflow = on ? "clip" : "";
     else this.element.style.overflow = on ? "clip" : "";
+  }
+
+  /** The content inset (`View.padding`), realized as the element's own CSS
+   *  padding — for the scroll extent and for nothing else.
+   *
+   *  The origin shift is NOT this: every child is absolutely positioned, and
+   *  an abs child's containing block is the PADDING BOX, so `left: 0` would
+   *  sit outside the inset — exactly the CSS-style split the language refuses.
+   *  view.ts shifts each child's own x/y on its way to `setX`/`setY` instead,
+   *  which is why this call can be about the one thing CSS does get right
+   *  here: with `box-sizing: border-box` the element's size is unchanged, the
+   *  background still covers the padding box (paint does not move), and the
+   *  scrollable overflow area of a scroll container is expanded by its
+   *  END-SIDE padding — so a padded scroller stops a full bottom inset past
+   *  its last child instead of flush against it. */
+  setPadding(inset: Inset): void {
+    const [t, r, b, l] = insetSides(inset);
+    this.element.style.padding = t === 0 && r === 0 && b === 0 && l === 0
+      ? "0" : `${t}px ${r}px ${b}px ${l}px`;
   }
 
   /** ROOT only (backend.ts): the App's reactive content extent. The page
@@ -2349,6 +2382,15 @@ export class DomSurface implements Surface {
    *  OBLIGATORY (retained-mode — the canvas IS the content), so the entry cap
    *  is honoured by CLAMPING density back to dpr, never by refusing to draw:
    *  a scaled drawing past the cap is soft, which is what it was before. */
+  private blankCheckedAt = -Infinity;
+  /** The largest raster this surface has painted non-blank, and the page's
+   *  canvas total when it did (the blank check's proof — rasterize). */
+  private provenBytes = 0;
+  private provenTotal = 0;
+  private blankTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastRaster: { b: { x: number; y: number; w: number; h: number }; kk: number } | null = null;
+  private blankDeferred = false;
+
   private rasterize(k?: number): void {
     const c = this.drawEl!;
     // The canvas box is the recording's bounds PLUS the bleed pad: blur and
@@ -2393,10 +2435,63 @@ export class DomSurface implements Surface {
     // and try again, down to a quarter of dpr — soft, present, and counted. A
     // drawing too large to paint at a quarter of dpr stays blank and counted;
     // that is the one case with no honest recovery.
-    if (this.rasterBytes > DOM_BLANK_CHECK_BYTES && rasterLooksBlank(c, this.drawing!, kk, kk, b.x, b.y)) {
-      domRasterBlank++;
-      if (kk > dpr / 4) { this.maxK = kk / 2; this.rasterize(kk / 2); return; }
+    // ALREADY PROVEN: this surface painted a non-blank raster at least this big
+    // while the page held no more canvas bytes than now — a platform refusal is
+    // a function of allocation size (per canvas and in total), so the same or a
+    // smaller raster under the same total cannot newly fail. Weather's resize
+    // read pixels back 95 ms per window on rasters it had already proven.
+    // NOTE a raster no larger than one this device already drew, under a total no larger than
+    // one it already carried, skips the readback; a forced blank (the test hook) is synthetic,
+    // so it is never covered by that proof
+    const forced = ((globalThis as { __declareForceBlank?: number }).__declareForceBlank ?? 0) > 0;
+    if (this.rasterBytes > DOM_BLANK_CHECK_BYTES && (forced || !(this.rasterBytes <= this.provenBytes && domRasterBytes <= this.provenTotal))) {
+      // BEFORE FIRST PAINT the readback waits (boot-deferrals.ts): nothing is
+      // proven yet, so every first raster would be read back before anything
+      // is on screen. A blank that persists is caught the same way one frame
+      // later; a blank for one frame is invisible. The forced (test) blank is
+      // synthetic and never deferred.
+      if (!forced && !firstFramePainted && deferral("blank")) {
+        this.lastRaster = { b, kk };
+        if (!this.blankDeferred) {
+          this.blankDeferred = true;
+          afterFirstFrame(() => {
+            this.blankDeferred = false;
+            const last = this.lastRaster; this.lastRaster = null;
+            if (this.gone || last === null || this.drawEl === null || this.drawing === null) return;
+            this.blankCheckedAt = performance.now();
+            this.checkBlank(this.drawEl, last.kk, last.b);
+          });
+        }
+        return;
+      }
+      const now = performance.now();
+      if (now - this.blankCheckedAt >= BLANK_CHECK_INTERVAL) {
+        this.blankCheckedAt = now; this.lastRaster = null;
+        this.checkBlank(c, kk, b);
+      } else {
+        // mid-motion: defer — the check lands on the raster current when the
+        // interval elapses, so a resize costs one readback per interval, not
+        // one per frame; a blank is still caught within the interval
+        this.lastRaster = { b, kk };
+        if (this.blankTimer === null) this.blankTimer = setTimeout(() => {
+          this.blankTimer = null;
+          const last = this.lastRaster; this.lastRaster = null;
+          if (this.gone || last === null || this.drawEl === null || this.drawing === null) return;
+          this.blankCheckedAt = performance.now();
+          this.checkBlank(this.drawEl, last.kk, last.b);
+        }, BLANK_CHECK_INTERVAL);
+      }
     }
+  }
+
+  private checkBlank(c: HTMLCanvasElement, kk: number, b: { x: number; y: number }): void {
+    if (!rasterLooksBlank(c, this.drawing!, kk, kk, b.x, b.y)) {
+      if (this.rasterBytes > this.provenBytes || domRasterBytes > this.provenTotal) { this.provenBytes = Math.max(this.provenBytes, this.rasterBytes); this.provenTotal = Math.max(this.provenTotal, domRasterBytes); }
+      return;
+    }
+    domRasterBlank++;
+    const dpr = window.devicePixelRatio || 1;
+    if (kk > dpr / 4) { this.maxK = kk / 2; this.rasterize(kk / 2); return; }
   }
 
   /** The at-rest composed scale, from the view's visibility feed (backend.ts).

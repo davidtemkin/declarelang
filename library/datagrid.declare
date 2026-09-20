@@ -448,7 +448,7 @@ class DataGrid extends Table [
             colid: string = { "" + :id },
             x = { dragging && moved ? dragX : :x },
             width = { :width },
-            height = { parent.height },
+            height = 100%,
 
             // dragging lifts the header: an opaque ghost above its
             // neighbors (raise + surface fill + edge), tracking the pointer;
@@ -516,7 +516,7 @@ class DataGrid extends Table [
             // reachable; absent on the first column. Plain widths delivered
             // through resizeInput — nothing measures anything.
 
-            grip: View [ width = 10, height = { parent.height },
+            grip: View [ width = 10, height = 100%,
                 x = -5,
                 visible = { (:x ?? 0) > 0 },
                 cursor = "col-resize", claim = x,
@@ -550,7 +550,11 @@ class DataGrid extends Table [
             x = { (classroot as DataGrid).dropBarX((classroot as DataGrid).dropAt) - 1 },
             fill = { theme.accent } ],
 
-        rule: View [ x = 0, width = { parent.width }, height = 1,
+        // the hairline under the header. It stays a child view rather than
+        // the header's own bottom stroke: a per-side stroke is a bare list,
+        // and its colour here is a theme read.
+
+        rule: View [ x = 0, width = 100%, height = 1,
             y = { parent.height - 1 }, fill = { theme.line } ]
         ]
     ]
@@ -572,8 +576,8 @@ class GridRow extends TableRow [
     rec: object = { this.datapath != null ? this.$data("") : null },
 
     cells: View [ x = 0, y = 0,
-        width = { parent.width },
-        height = { parent.height },
+        width = 100%,
+        height = 100%,
         datapath = { (classroot.parent as DataGrid).isDataGrid === true ? (classroot.parent as DataGrid).colData.value : null },
 
         // One cell per column record; `kind` picks the presentation. Editors
@@ -584,7 +588,7 @@ class GridRow extends TableRow [
         View [ datapath = :cols[],
             x = { :x },
             width = { :width },
-            height = { parent.height },
+            height = 100%,
             clip = true,
             k: string = { "" + (:kind ?? "text") },
             fld: string = { "" + :field },
@@ -623,7 +627,7 @@ class GridRow extends TableRow [
                 width = { parent.width - 4 },
                 height = { parent.height - 4 },
                 cornerRadius = 5,
-                fill = { this.hot || this.down ? theme.control : null },
+                fill = { this.hot || this.down ? classroot.theme.control : null },
                 press() {
                     if ((classroot.parent as DataGrid).isDataGrid !== true) return
                     (classroot.parent as DataGrid).openSelect(classroot, this, "" + :field,
@@ -634,7 +638,7 @@ class GridRow extends TableRow [
                     text = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") } ],
                 arrow: ChevronIcon [ y = center, iconSize = 11,
                     x = { parent.width - this.width - 6 },
-                    ink = { theme.textMuted } ]
+                    ink = { classroot.theme.textMuted } ]
                 ]
             ]
         ]

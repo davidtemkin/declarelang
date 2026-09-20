@@ -1,0 +1,7 @@
+App [
+    Card [ x = 20, y = 20, width = 280,
+        Text [ text = "General" ],
+        Divider [ ],
+        Text [ text = "Advanced" ]
+        ]
+    ]

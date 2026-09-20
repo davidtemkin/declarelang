@@ -3,6 +3,9 @@ export interface CrawlOptions {
     deps?: unknown;
     links?: unknown;
     env?: Environment;
+    /** The values a host provides the app from its first evaluation (its
+     *  `hostProvided` reads) — an island tenant's, from its island. */
+    provides?: Record<string, unknown>;
     /** url → JSON data, highest precedence — a test's canned model, or a snapshot. */
     fixtures?: Record<string, unknown>;
     /** Resolve a RELATIVE url (the app's own material — the build-time data rule) to
@@ -38,6 +41,24 @@ export interface CrawlOptions {
      *  §9 exists to keep out of the index. */
     warm?: boolean;
     verifyWarm?: number;
+    /** ISLAND TENANTS (composed pages): resolve an `AppIsland`'s program name —
+     *  the `run:<name>` its slot carries — to that program, compiled. The host
+     *  mounts a tenant only in a live browser, so without this the crawl sees an
+     *  empty box; with it, every VISIBLE island's tenant is booted headlessly,
+     *  extracted, and inlined where the island sits, so a page composed of
+     *  programs is indexed as the page a reader sees. Callers resolve the name
+     *  exactly as the host does (`<name>.declare` in the host program's `demos/`
+     *  folder). Absent: islands stay empty, the pre-island behavior. A name that
+     *  does not resolve or compile FAILS the crawl (the loud-failure rule). */
+    islands?: (name: string) => Promise<IslandProgram | null> | IslandProgram | null;
+}
+/** A resolved island tenant: its compiled source (null = the compile failed,
+ *  with `report` saying why), as `build` takes it. */
+export interface IslandProgram {
+    source: string | null;
+    deps?: unknown;
+    links?: unknown;
+    report?: string;
 }
 /** One crawled location: its canonical KEY (anchor stripped, default canonicalized
  *  — also the section id in the assembled document), a representative LOCATION that

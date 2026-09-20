@@ -24,15 +24,114 @@
 // Ownership is the other half: an author `{ }` constraint owns its slot and a
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
-import { Cell, Constraint, isTracking } from "./reactive.js";
-import { DeclareError, layoutConflictMessage } from "./errors.js";
+import { ACTIVE, Cell, Constraint, S, isTracking, kernel, setPushHook, table, touchCell, trackCell, untracked, workPending } from "./reactive.js";
+import { DeclareError, at, layoutConflictMessage } from "./errors.js";
 // Class → its attribute tables. All are prototype-chained objects mirroring
 // the class hierarchy (Text's defaults chain to View's), so "nearest declared
 // wins" is a plain property lookup — the same shape schema.ts's chain walk
 // gives the checker, expressed in the runtime's own currency.
 const DEFAULTS = new WeakMap();
+/** Per class: the declared-default rules' live forms (AttrSpec.defRule), for
+ *  the refresh a displacement makes (own()). */
+const DEF_RULES = new WeakMap();
 const PUSHERS = new WeakMap();
 const EQUALS = new WeakMap();
+const LAYOUT = new WeakMap();
+/** Blocks returned by torn-down instances, per class, for reuse (cleared). */
+const FREE_BLOCKS = new WeakMap();
+/** Every block ever allocated, sorted by base, with the instance that holds it
+ *  now — cell → (instance, slot) for the push sweep. Bases only grow (the
+ *  kernel hands blocks out from its high-water mark), so appends stay sorted;
+ *  a reused block keeps its entry and changes hands. */
+const BLOCK_BASE = [];
+const BLOCK_VIEW = [];
+const BLOCK_AT = new Map(); // base → index in the arrays
+function blockIndexOf(cell) {
+    let lo = 0, hi = BLOCK_BASE.length - 1;
+    while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (BLOCK_BASE[mid] <= cell)
+            lo = mid + 1;
+        else
+            hi = mid - 1;
+    }
+    return hi; // the last base ≤ cell
+}
+/** The push sweep: after a settle, every cell a KERNEL rule wrote (an EXPR
+ *  body, the visibility rule) gets the Surface push its slot declares —
+ *  exactly what write() does for a JS write, deferred to the settle's end. */
+function pushKernelWrites(cells) {
+    for (let i = 0; i < cells.length; i++) {
+        const cell = cells[i];
+        const bi = blockIndexOf(cell);
+        if (bi < 0)
+            continue;
+        const view = BLOCK_VIEW[bi];
+        if (view === null)
+            continue;
+        const L = tableFor(LAYOUT, view.constructor);
+        const slot = cell - BLOCK_BASE[bi];
+        if (slot >= L.count)
+            continue;
+        const push = tableFor(PUSHERS, view.constructor)?.[L.names[slot]];
+        if (push === undefined)
+            continue;
+        const n = table[cell];
+        push(view, L.kinds[slot] === "b" ? n !== 0 : n);
+    }
+}
+setPushHook(pushKernelWrites);
+/** The kernel cell of `self.name` when it is a table slot of this instance
+ *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
+ *  The EXPR binder resolves its read paths and its target through this. */
+export function slotCellOf(self, name) {
+    const L = tableFor(LAYOUT, self.constructor);
+    const slot = L?.index[name];
+    if (slot === undefined || L === null)
+        return -1;
+    const c = self;
+    if (c.$base === -1 || (c.$esc !== undefined && c.$esc.has(name)))
+        return -1;
+    return ensureBase(c) + slot;
+}
+/** Is `self.name` a boolean slot (a kernel-written 0/1 lands as true/false)? */
+export function slotIsBoolean(self, name) {
+    const L = tableFor(LAYOUT, self.constructor);
+    const slot = L?.index[name];
+    return slot !== undefined && L !== null && L.kinds[slot] === "b";
+}
+/** Bumped when a node gains a provision NAME it did not have — the one event
+ *  that can change an answer without the tree moving. (A provision's VALUE
+ *  changing does not: the reader tracks its cell.) */
+let PROVIDE_GEN = 0;
+/** DEV ONLY (profiling builds): how the memo behaved — hits, walks, generation
+ *  bumps, subtree clears. A slow run with a bump spike is the memo being
+ *  invalidated; one without is the machine. */
+function devMemoTally(k, n = 1) {
+    const g = globalThis;
+    const t = (g.__declareProvidedMemo ??= { hit: 0, walk: 0, bump: 0, clear: 0 });
+    t[k] += n;
+}
+/** A node has moved to a different parent: its subtree's chains changed, and
+ *  nothing else's did, so clear those memos and leave every other node's
+ *  standing. Called from Node's linking verbs — NOT from a re-link that puts a
+ *  child back under the same parent (replication does that to every row of a
+ *  block on any change, and flushing there would empty the memo exactly where
+ *  the reads are hottest). */
+export function providedChainMoved(root) {
+    if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+        devMemoTally("clear");
+    const stack = [root];
+    while (stack.length > 0) {
+        const n = stack.pop();
+        if (n.$providedFrom !== undefined)
+            n.$providedFrom.clear();
+        const kids = n.children;
+        if (kids !== undefined)
+            for (const k of kids)
+                stack.push(k);
+    }
+}
 function provideCellFor(self, name) {
     const cells = (self.$provideCells ??= Object.create(null));
     return (cells[name] ??= new Cell());
@@ -48,9 +147,58 @@ function provideCellFor(self, name) {
 export function localProvision(self, name) {
     return self.$provides?.[name];
 }
+/** The slots a USE-SITE literal is worth remembering: the five a layout can
+ *  claim. A literal on one of them is the value an arrangement can discard, and
+ *  a literal — unlike a binding — installs no Constraint to hang `source`/
+ *  `sourcePos` on, so there would otherwise be nothing to report and nowhere to
+ *  point. Kept to these five so the record stays pay-per-use: a tree that
+ *  writes no geometry literals at a use site carries nothing. */
+const CLAIMABLE_SLOTS = new Set(["x", "y", "width", "height", "visible"]);
+/** Remember that the USE SITE wrote a geometry literal here, and where
+ *  (instantiate.ts, at the one site that assigns a checked literal).
+ *
+ *  THE USE SITE ONLY, deliberately. A literal in a CLASS BODY — `class Spacer
+ *  extends View [ width = 0 ]`, `class Pane extends View [ x = 40, … ]` — is
+ *  how the language spells a class default for an inherited slot: it is
+ *  written without knowing where an instance will live, and the class may be
+ *  used in five places of which one has a sizing layout. A literal at the use
+ *  site is written INTO the very tree whose arrangement is visible on the line
+ *  above it. Only the second is a statement about this arrangement, and only it
+ *  is worth a word. (Measured: reporting class bodies too fires on the
+ *  library's own Spacer in every flow that sizes one.)
+ *
+ *  `where` is absent on a compiled artifact — declarec strips positions — so
+ *  the entry still lands, valueless: the report is worth making without a line,
+ *  and every reader degrades. */
+export function noteUseSiteSet(self, name, where) {
+    if (!CLAIMABLE_SLOTS.has(name))
+        return;
+    const carrier = self;
+    const table = (carrier.$setAt ??= Object.create(null));
+    table[name] = where == null || typeof where.line !== "number"
+        ? null
+        : where.file !== undefined
+            ? { line: where.line, col: where.col, file: where.file }
+            : { line: where.line, col: where.col };
+}
+/** Did the USE SITE write a literal into this geometry slot? */
+export function useSiteSet(self, name) {
+    const table = self.$setAt;
+    return table !== undefined && table[name] !== undefined;
+}
+/** Where that literal was written, or null (not a use-site literal, or a
+ *  positionless artifact). */
+export function setPosOf(self, name) {
+    return self.$setAt?.[name] ?? null;
+}
 export function provideWrite(self, name, value) {
     const p = self;
     const store = (p.$provides ??= Object.create(null));
+    if (!(name in store)) {
+        PROVIDE_GEN++;
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+            devMemoTally("bump");
+    } // a NEW name above someone can change their answer
     if (name in store && store[name] === value)
         return;
     store[name] = value;
@@ -82,13 +230,49 @@ export function defineAttributes(ctor, specs) {
     const defaults = Object.create(tableFor(DEFAULTS, parent));
     const pushers = Object.create(tableFor(PUSHERS, parent));
     const equals = Object.create(tableFor(EQUALS, parent));
+    const parentLayout = tableFor(LAYOUT, parent);
+    const layout = {
+        index: Object.create(parentLayout?.index ?? null),
+        kinds: parentLayout ? [...parentLayout.kinds] : [],
+        names: parentLayout ? [...parentLayout.names] : [],
+        defaults: new Float64Array(0), count: parentLayout?.count ?? 0,
+    };
+    const layoutDefaults = parentLayout ? [...parentLayout.defaults] : [];
     for (const name of Object.keys(specs)) {
         const spec = specs[name];
         defaults[name] = spec.def;
         pushers[name] = spec.push;
         equals[name] = spec.equal;
+        const kind = (spec.defBinding === undefined || spec.defRule === true) && spec.live === undefined && spec.tracked === undefined && spec.equal === undefined
+            ? (typeof spec.def === "number" ? "n" : typeof spec.def === "boolean" ? "b" : undefined)
+            : undefined;
+        let slot = -1;
+        if (kind !== undefined) {
+            const inherited = layout.index[name];
+            slot = inherited !== undefined && layout.kinds[inherited] === kind ? inherited : layout.count++;
+            layout.index[name] = slot;
+            layout.kinds[slot] = kind;
+            layout.names[slot] = name;
+            layoutDefaults[slot] = kind === "b" ? (spec.def ? 1 : 0) : spec.def;
+        }
+        else if (layout.index[name] !== undefined) {
+            layout.index[name] = undefined; // redeclared as non-numeric here: this class's instances use the JS store
+        }
         const defBinding = spec.defBinding;
         const defOuter = spec.defOuter === true;
+        // A declared default standing as a rule (defRule): the TABLE is its value
+        // once the world is quiescent; an UNTRACKED read while writes are pending
+        // (a handler reading `app.selCount` right after it wrote the selection)
+        // evaluates the `{ }` live — the value main's live fallback gave, fresh
+        // through every derived input, since a pending settle has not landed it.
+        // Tracked readers and the kernel always read the table: they re-run.
+        const defRule = spec.defRule === true && defBinding !== undefined;
+        if (defRule) {
+            let t = DEF_RULES.get(ctor);
+            if (t === undefined)
+                DEF_RULES.set(ctor, (t = {}));
+            t[name] = { fn: defBinding, outer: defOuter };
+        }
         const readOnly = spec.readOnly === true;
         const onTrack = spec.onTrack;
         const trackedOnce = onTrack !== undefined ? new WeakSet() : null;
@@ -97,6 +281,39 @@ export function defineAttributes(ctor, specs) {
         Object.defineProperty(ctor.prototype, name, {
             get() {
                 const self = this;
+                if (slot >= 0) {
+                    let base = self.$base;
+                    if (base === undefined) {
+                        // untouched instance: an untracked read is the class default, no
+                        // allocation; a tracked read needs a cell to subscribe to
+                        if (S.collecting === null && ACTIVE[0] < 0)
+                            return defRule ? evalDefault(self, name, defBinding, defOuter) : defaults[name];
+                        base = ensureBase(self);
+                    }
+                    if (base >= 0 && (self.$esc === undefined || !self.$esc.has(name))) {
+                        const c = base + slot;
+                        if (S.collecting !== null || ACTIVE[0] >= 0) {
+                            trackCell(c);
+                            if (trackedOnce !== null && !trackedOnce.has(self)) {
+                                trackedOnce.add(self);
+                                onTrack(self);
+                            }
+                            // a TRACKED read of a declared default whose recompute is still
+                            // queued (or whose rule has not landed yet: the install batch)
+                            // takes the live value now and keeps the cell edge — a reader's
+                            // FIRST computed value (a spring's target it primes from) is the
+                            // value the live fallback gave; the landing re-runs it to the same
+                            if (defRule && declStale(self, name, true))
+                                return evalDefault(self, name, defBinding, defOuter);
+                        }
+                        else if (defRule && declStale(self, name, false)) {
+                            return evalDefault(self, name, defBinding, defOuter);
+                        }
+                        const n = table[c];
+                        return kind === "b" ? n !== 0 : n;
+                    }
+                    // retired (base −1) or escaped: the JS store below
+                }
                 if (isTracking()) {
                     cellFor(self, name).track();
                     if (trackedOnce !== null && !trackedOnce.has(self)) {
@@ -149,6 +366,43 @@ export function defineAttributes(ctor, specs) {
     DEFAULTS.set(ctor, defaults);
     PUSHERS.set(ctor, pushers);
     EQUALS.set(ctor, equals);
+    layout.defaults = Float64Array.from(layoutDefaults);
+    LAYOUT.set(ctor, layout);
+}
+/** A class's slot index for a numeric attribute (−1 if it is not one) — the
+ *  kernel's view layout is built from these (view.ts). */
+export function slotIndex(ctor, name) {
+    return tableFor(LAYOUT, ctor)?.index[name] ?? -1;
+}
+/** The instance's numeric block (allocating it), for kernel rules that read
+ *  the view's slots directly. */
+export function blockOf(self) {
+    const b = ensureBase(self);
+    return b;
+}
+/** This instance's block, allocated on first need with the class defaults —
+ *  a block a torn-down instance of the same class returned, when there is one. */
+function ensureBase(self) {
+    let base = self.$base;
+    if (base !== undefined)
+        return base;
+    const L = tableFor(LAYOUT, self.constructor);
+    const free = FREE_BLOCKS.get(self.constructor);
+    if (free !== undefined && free.length > 0) {
+        base = free.pop();
+        BLOCK_VIEW[BLOCK_AT.get(base)] = self;
+    }
+    else {
+        base = kernel().addCells(L.count);
+        if (base < 0)
+            throw new DeclareError("kernel: out of cells — the program exceeds the runtime's cell capacity");
+        BLOCK_AT.set(base, BLOCK_BASE.length);
+        BLOCK_BASE.push(base);
+        BLOCK_VIEW.push(self);
+    }
+    table.set(L.defaults, base);
+    self.$base = base;
+    return base;
 }
 /** Is this slot set LOCALLY — an author set (literal or direct write) or an
  *  owning binding? A slot that is not overrides nothing, so its declaration
@@ -231,6 +485,35 @@ export function faceSlots() {
         out[name] = { def, defBinding: providedDefault(name, def) };
     return out;
 }
+/** DEV ONLY (profiling builds): the provided-read census — how many reads, how
+ *  far each walks, and how often the ANSWER (which ancestor provides the name)
+ *  differs from the last read of the same slot. The last is the ceiling on what
+ *  caching the provider could remove. Switch: __declareProvidedCensus. */
+function devProvidedCensus(self, name, hops, provider, kind) {
+    const g = globalThis;
+    if (typeof g.__declareProvidedCensus !== "object" || g.__declareProvidedCensus === null) {
+        g.__declareProvidedCensus = { reads: 0, hops: 0, sameAnswer: 0, firstRead: 0, changed: 0, byHops: {}, byKind: {}, last: new WeakMap() };
+    }
+    const c = g.__declareProvidedCensus;
+    c.reads++;
+    c.hops += hops;
+    c.byHops[hops] = (c.byHops[hops] ?? 0) + 1;
+    c.byKind[kind] = (c.byKind[kind] ?? 0) + 1;
+    let m = c.last.get(self);
+    if (m === undefined)
+        c.last.set(self, m = new Map());
+    if (!m.has(name)) {
+        c.firstRead++;
+        m.set(name, provider);
+        return;
+    }
+    if (m.get(name) === provider)
+        c.sameAnswer++;
+    else {
+        c.changed++;
+        m.set(name, provider);
+    }
+}
 export function providedRead(self, name, hasDefault, dflt) {
     // A node that PROVIDES a value can also read it — `App [ theme = { … }, fill =
     // { provided("theme").bg } ]`. Its own provision is checked first (a provision
@@ -238,17 +521,64 @@ export function providedRead(self, name, hasDefault, dflt) {
     // resolves against ancestors). The walk below starts at the parent, so a
     // declared slot whose default IS a provided read still terminates.
     const s = self;
+    const memo = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareNoProvidedMemo === true) ? undefined : s.$providedFrom?.get(name);
+    if (memo !== undefined && memo.gen === PROVIDE_GEN) {
+        const from = memo.from;
+        if (from === null) { // nobody above provides it
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                devMemoTally("hit");
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
+                devProvidedCensus(self, name, 0, null, "memo: default");
+            if (hasDefault)
+                return dflt;
+        }
+        else {
+            const fc = from;
+            if (fc.$provides !== undefined && name in fc.$provides) {
+                if (isTracking())
+                    provideCellFor(fc, name).track();
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                    devMemoTally("hit");
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
+                    devProvidedCensus(self, name, 0, from, "memo: provision");
+                return fc.$provides[name];
+            }
+            // a declared slot of that ancestor: through the accessor, which tracks
+            // its cell and forwards on if the slot is itself a provided read
+            if (tableFor(DEFAULTS, from.constructor) !== null) {
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+                    devMemoTally("hit");
+                if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
+                    devProvidedCensus(self, name, 0, from, "memo: slot");
+                return from[name];
+            }
+        }
+        s.$providedFrom.delete(name); // the memo no longer describes the tree: walk
+    }
+    if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+        devMemoTally("walk");
+    const remember = (from) => {
+        (s.$providedFrom ??= new Map()).set(name, { gen: PROVIDE_GEN, from });
+    };
     if (s.$provides !== undefined && name in s.$provides) {
         if (isTracking())
             provideCellFor(s, name).track();
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
+            devProvidedCensus(self, name, 0, s, "own provision");
         return s.$provides[name];
     }
+    let devHops = 0;
     for (let p = self.parent; typeof p === "object" && p !== null; p = p.parent) {
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__)
+            devHops++;
         const pc = p;
         // A named provision (an undeclared set — `App [ accent = #E05252 ]`).
         if (pc.$provides !== undefined && name in pc.$provides) {
             if (isTracking())
                 provideCellFor(pc, name).track();
+            remember(pc);
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
+                devProvidedCensus(self, name, devHops, pc, "ancestor provision");
             return pc.$provides[name];
         }
         // A DECLARED slot of this ancestor's class (an instance-declared provision
@@ -262,17 +592,73 @@ export function providedRead(self, name, hasDefault, dflt) {
         // tracking paths alike.
         const pd = tableFor(DEFAULTS, p.constructor);
         if (pd !== null && name in pd) {
+            remember(p);
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
+                devProvidedCensus(self, name, devHops, p, "ancestor slot");
             return p[name];
         }
     }
-    if (hasDefault)
+    if (hasDefault) {
+        remember(null);
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
+            devProvidedCensus(self, name, devHops, null, "default (walked to the root)");
         return dflt;
+    }
     throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
 }
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */
 function write(self, name, v) {
     const carrier = self;
+    const L = tableFor(LAYOUT, self.constructor);
+    const slot = L?.index[name];
+    if (slot !== undefined && L !== null && carrier.$base !== -1 && (carrier.$esc === undefined || !carrier.$esc.has(name))) {
+        // A NUMERIC SLOT: gate on == in the table (a NaN write always propagates,
+        // as === did), store, append to the write ring (the kernel marks it dirty
+        // for the applier and wakes its subscribers when it next runs anything),
+        // and push the Surface call ourselves, on change only.
+        const kind = L.kinds[slot];
+        if (typeof v !== (kind === "n" ? "number" : "boolean")) {
+            // A union-typed slot (cornerRadius: a number OR a [tl, tr, br, bl]
+            // list) leaves the table for this instance: the value goes to the JS
+            // store from now on, and the kernel cell it may already have — with
+            // subscribers — becomes the slot's wake-only dependency node.
+            escape(carrier, name, slot, kind);
+            writeRef(carrier, name, v);
+            return;
+        }
+        const c = ensureBase(carrier) + slot;
+        const nv = kind === "b" ? (v ? 1 : 0) : v;
+        if (table[c] === nv)
+            return;
+        if (carrier.$changing?.has(name) === true) {
+            throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
+        }
+        table[c] = nv;
+        touchCell(c);
+        tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
+        return;
+    }
+    writeRef(carrier, name, v);
+}
+function escape(carrier, name, slot, kind) {
+    (carrier.$esc ??= new Set()).add(name);
+    const base = carrier.$base;
+    if (base !== undefined && base >= 0) {
+        // keep the block's cell as the dependency node (block-owned: never freed
+        // on its own); copy the value out first
+        const cells = (carrier.$cells ??= Object.create(null));
+        const cell = new Cell();
+        cell.id = base + slot;
+        cell.owned = true;
+        cells[name] = cell;
+        const n = table[base + slot];
+        (carrier.$attrs ??= Object.create(tableFor(DEFAULTS, carrier.constructor)))[name] = kind === "b" ? n !== 0 : n;
+    }
+}
+/** The JS-store write: equality-gate (=== or the slot's equal), store, push, wake. */
+function writeRef(carrier, name, v) {
+    const self = carrier;
     const defaults = tableFor(DEFAULTS, self.constructor);
     const cur = (carrier.$attrs ?? defaults)[name];
     if (cur === v)
@@ -296,8 +682,40 @@ function write(self, name, v) {
  *  Same store/push/wake as the setter, but it neither marks the slot as
  *  author-set nor consults ownership (the caller *is* the owner). */
 export function setBound(self, name, v) {
+    displaceDeclDefault(self, name);
     write(self, name, v);
 }
+/** A runtime write onto a slot a DECLARED default rule owns retires the rule
+ *  for good — storage wins, exactly as it won over the live fallback. */
+function displaceDeclDefault(self, name) {
+    const owners = self.$owners;
+    if (owners === undefined)
+        return;
+    const o = owners[name];
+    if (o !== undefined && o.declDefault) {
+        o.dispose();
+        delete owners[name];
+        (self.$displaced ??= new Set()).add(name);
+    }
+}
+/** Should a read of a declared-default slot evaluate the `{ }` live rather
+ *  than trust the table? Yes while its rule has not landed yet (the install
+ *  batch); for a TRACKED read, while the rule's own recompute is queued; for
+ *  an UNTRACKED one (a handler), while ANY work is pending — the table lags
+ *  the world until the settle. No once displaced or author-set: storage wins. */
+function declStale(self, name, tracked) {
+    const o = self.$owners?.[name];
+    if (o === undefined)
+        return !(self.$displaced?.has(name) ?? false) && !(self.$set?.has(name) ?? false);
+    if (!o.declDefault)
+        return false;
+    return tracked ? o.isQueued() : workPending();
+}
+/** The rule's OWN apply: the table write without the displacement check. */
+export function writeOwned(self, name, v) { write(self, name, v); }
+/** Is the slot set directly or owned by a constraint — the rank-1 fallback's
+ *  "unset" test (a declared default rule installs only on an unset slot). */
+export function isSetOrOwned(self, name) { return provided(self, name); }
 /** A runtime-side ADDITIVE write: land `current + delta` on a numeric slot —
  *  the animation additive core (animation.md §4.2, LaszloAnimation.lzs:444–448:
  *  `target.setAttribute(attr, targ[attr] + (value − currentValue))`). Two
@@ -308,6 +726,7 @@ export function setBound(self, name, v) {
 export function addBound(self, name, delta) {
     if (delta === 0)
         return;
+    displaceDeclDefault(self, name);
     const cur = self[name];
     write(self, name, (typeof cur === "number" ? cur : 0) + delta);
 }
@@ -354,6 +773,46 @@ export function disown(self, name) {
     if (owners !== undefined)
         delete owners[name];
 }
+/** Return a retiring node's kernel cells (view.ts teardown): a freed cell
+ *  drops its subscribers, so nothing can ever wake work for a dead view. */
+export function freeCells(self) {
+    const carrier = self;
+    const cells = carrier.$cells;
+    if (cells !== undefined)
+        for (const name of Object.keys(cells))
+            cells[name].free();
+    const base = carrier.$base;
+    if (base !== undefined && base >= 0) {
+        // a discarded view still ANSWERS its last values (a test, the Inspector,
+        // a handler holding a reference): copy them out, then clear the block
+        // and keep it for the next instance of this class
+        // — only the values that DIFFER from the class defaults: `$attrs` sits on
+        // the defaults, so a slot still at its default answers without a copy
+        // (a row torn down under churn has most of its 40-odd slots untouched;
+        // the full copy was 6.6% of a tracker filter change)
+        const L = tableFor(LAYOUT, self.constructor);
+        const defs = L.defaults;
+        let attrs = carrier.$attrs;
+        for (let slot = 0; slot < L.count; slot++) {
+            const v = table[base + slot];
+            if (v === defs[slot])
+                continue;
+            const name = L.names[slot];
+            if (carrier.$esc !== undefined && carrier.$esc.has(name))
+                continue;
+            if (attrs === undefined)
+                attrs = carrier.$attrs = Object.create(tableFor(DEFAULTS, self.constructor));
+            attrs[name] = L.kinds[slot] === "b" ? v !== 0 : v;
+        }
+        kernel().clearCells(base, L.count);
+        BLOCK_VIEW[BLOCK_AT.get(base)] = null;
+        let free = FREE_BLOCKS.get(self.constructor);
+        if (free === undefined)
+            FREE_BLOCKS.set(self.constructor, (free = []));
+        free.push(base);
+        carrier.$base = -1; // retired: reads fall through to $attrs from here on
+    }
+}
 /** The constraint (if any) that owns this slot's value. */
 export function ownerOf(self, name) {
     return self.$owners?.[name] ?? null;
@@ -386,6 +845,17 @@ export function ownValues(self) {
     if (own !== undefined)
         for (const k of Object.keys(own))
             out[k] = own[k];
+    const base = self.$base;
+    if (base !== undefined && base >= 0) {
+        const L = tableFor(LAYOUT, self.constructor);
+        const esc = self.$esc;
+        for (let slot = 0; slot < L.count; slot++) {
+            const name = L.names[slot];
+            if (esc !== undefined && esc.has(name))
+                continue;
+            out[name] = L.kinds[slot] === "b" ? table[base + slot] !== 0 : table[base + slot];
+        }
+    }
     return out;
 }
 export function ownedSlots(self) {
@@ -440,6 +910,7 @@ const PERCENTS = new WeakSet();
 /** Record that `c` is a percent binding (called by bindPercent). */
 export function markPercent(c) {
     PERCENTS.add(c);
+    c.percent = true; // the kernel's auto-extent reads the flag off the owning rule
 }
 /** Is `self.name` owned by a percent binding — a slot whose value resolves
  *  against the parent's extent on that axis? */
@@ -461,15 +932,43 @@ export function own(self, name, c) {
         // A yielding owner yields to ANY newcomer — an author binding as before,
         // and since B5 also a newer runtime derive (the windowed block's extent
         // derive displaces auto-extent exactly as an author write would).
+        // A DECLARED default's rule leaves the slot at the default's CURRENT
+        // value (evaluated live, through every pending input — what the newcomer
+        // read off the live fallback before): a rule displaced mid-flight, its
+        // recompute still queued, must not park the slot on a stale number.
+        if (prior.declDefault)
+            refreshDeclDefault(self, name);
         prior.dispose();
         delete owners[name];
     }
     else if (prior !== undefined) {
         throw new DeclareError(prior.arrangedBy !== null
-            ? layoutConflictMessage(self.constructor.name, name, prior.arrangedBy, null)
-            : `${self.constructor.name}.${name} is already bound (by ${prior.label})`);
+            // The INCOMING constraint is the author's (bind.ts records the source text
+            // and position on it before installing), so its `sourcePos` is the line
+            // that wrote the losing value — which is the line an author needs.
+            ? layoutConflictMessage(self.constructor.name, name, prior.arrangedBy, null, c.sourcePos)
+            : `${self.constructor.name}.${name} is already bound (by ${prior.label})${at(c.sourcePos)}`);
     }
     owners[name] = c;
+    // the kernel learns the owner too: its pull runs a queued owner for a
+    // reader's first value, and one-owner holds on both sides of the seam
+    const cell = slotCellOf(self, name);
+    if (cell >= 0)
+        c.ownCell(cell);
+}
+function refreshDeclDefault(self, name) {
+    const t = tableFor(DEF_RULES, self.constructor)?.[name];
+    if (t === undefined)
+        return;
+    let v;
+    try {
+        v = untracked(() => evalDefault(self, name, t.fn, t.outer));
+    }
+    catch {
+        return;
+    } // not evaluable yet: the table stands
+    if (typeof v === "number" || typeof v === "boolean")
+        write(self, name, v);
 }
 /** Release `c`'s ownership of `self.name` — the uninstall half of `own`,
  *  for owners that retire as a unit (a layout strategy detaching). Guarded on
@@ -478,6 +977,7 @@ export function release(self, name, c) {
     const owners = self.$owners;
     if (owners !== undefined && owners[name] === c) {
         delete owners[name];
+        c.releaseCell();
     }
 }
 /** Install a runtime-supplied, *yielding* derive (Text auto-size, View

@@ -32,6 +32,14 @@ import { holdsFamily, heldFamily, type FamilyValue } from "./font-value.js";
 const clampN = (n: number, max: number): number => (max > 0 ? Math.min(n, max) : n);
 import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
 import { Constraint } from "./reactive.js";
+import { faceGenerationNow } from "./face-table.js";
+
+/** Field-by-field identity of two style records built by the same code (same
+ *  keys, same order). */
+function sameRecord(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  for (const k in b) if (a[k] !== b[k]) return false;
+  return true;
+}
 
 export class Text extends View {
   // The FACE slots (off View — docs/system-design/style.md): each defaults to
@@ -90,8 +98,8 @@ export class Text extends View {
   /** The effective font's descent below the baseline — ascent + descent is
    *  the natural line box. */
   get descent(): number { return fontMetrics(fontString(this)).descent; }
-  /** The capital ink band above the baseline (probed from "H" — what
-   *  `y = center` optically centers). */
+  /** The capital ink band above the baseline (probed from "H") — the band a
+   *  LABEL centers on (TextLabel), as against `y = center`, which centers the box. */
   get capHeight(): number { return measureCapHeight(fontString(this)); }
   /** The lowercase ink band above the baseline (probed from "x"). */
   get xHeight(): number { return measureXHeight(fontString(this)); }
@@ -173,6 +181,9 @@ export class Text extends View {
     // push is a standing derive because the four slots read provided values:
     // the effective values can change with no write to THIS view (a provider
     // re-roots above), and the tracked reads here are what follow it.
+    let lastStyle: Record<string, unknown> | null = null;
+    let lastSurface: Surface | null = null;
+    let lastGen = -1;
     const style = new Constraint(
       `${this.constructor.name}.textStyle`,
       () => {
@@ -211,7 +222,27 @@ export class Text extends View {
       },
       // Constraint is deliberately untyped across compute→apply; this
       // apply's input is exactly its compute's output.
-      (st) => this.surface?.setTextStyle(st as never),
+      //
+      // ONLY A CHANGED STYLE IS PUSHED (2026-09-19). The record is rebuilt
+      // whenever anything it read moves — including `this.width`, read for one
+      // boolean — so a resize re-pushed an identical style every frame, and a
+      // push is real work in every backend (the DOM writes ~20 style
+      // properties, the canvas re-derives font and metrics, the Mac host
+      // serializes the payload over the bridge): weather's resize spent 81 ms
+      // here against 2 ms computing it. Skipped only when every field is the
+      // same value (identity — attribute values are replaced, not mutated), on
+      // the same surface, and NO FACE HAS LANDED since the last push: a landing
+      // face re-runs this with an identical record, and that push is the one
+      // that makes a backend re-measure in the real face (see fontString above).
+      (st) => {
+        const surface = this.surface;
+        if (surface === null) return;
+        const gen = faceGenerationNow();
+        const rec = st as Record<string, unknown>;
+        if (lastStyle !== null && lastSurface === surface && lastGen === gen && sameRecord(lastStyle, rec)) return;
+        lastStyle = rec; lastSurface = surface; lastGen = gen;
+        surface.setTextStyle(st as never);
+      },
       0
     );
     style.run();

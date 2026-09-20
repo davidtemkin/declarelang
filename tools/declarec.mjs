@@ -120,6 +120,76 @@ const gz = (s) => gzipSync(Buffer.from(s)).length;
  *  Returns { ok, errors, files: [{name, contents}], program, sizes }.
  *  `files` are the generated app files (index.html + app.<hash>.js); data
  *  assets are copied separately (CLI) or served from the source dir (server). */
+/** PRECOMPILE A PROGRAM'S BODIES (runtime/src/expr.ts, "PRECOMPILED BODIES").
+ *  Rewrites `program` in place — each `{ }` body's `src`, each method's `body`
+ *  and each script block's `src` becomes a token — and returns the module code
+ *  that defines the functions they name, or null to ship the program as text.
+ *
+ *  Each function is built exactly as the runtime would build it from the text:
+ *  the same datapath rewrite (datapath.js), the same parameters, the same
+ *  helper and script names in scope — unpacked ONCE by the factory instead of
+ *  once per call — and it must parse under the same prelude the runtime uses,
+ *  or that one body stays text. Identical bodies share one function, as the
+ *  runtime's per-text memo made them do. A program whose scripts import modules
+ *  compiles them into a bundled module with no name list, so its script names
+ *  are not knowable here: the whole program ships as text, as before. */
+async function precompileBodies(program) {
+  await import(join(RUNTIME, "services.js"));   // the body services, so the helper names are the runtime's full list
+  const { bodyScopeNames } = await import(join(RUNTIME, "expr.js"));
+  const { rewriteDatapaths } = await import(join(RUNTIME, "datapath.js"));
+  const helpers = bodyScopeNames();
+  const scripts = program.scripts ?? [];
+  const scriptNames = [];
+  for (const sc of scripts) {
+    if (sc.src.trim() === "") continue;   // an empty block defines nothing
+    const m = /\/\*\$b\*\/\s*return\s*\{([^}]*)\}\s*;?\s*$/.exec(sc.src);
+    if (m === null) return null;
+    for (const part of m[1].split(",")) {
+      const id = part.split(":")[0].trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(id)) scriptNames.push(id);
+    }
+  }
+  if (scriptNames.some((n) => helpers.includes(n))) return null;   // the runtime's prelude would reject it too
+  const prelude = `const { ${helpers.join(", ")} } = $d;` + (scriptNames.length > 0 ? ` const { ${scriptNames.join(", ")} } = $s;` : "");
+  const parses = (params, body) => { try { new Function("$d", "$s", ...params, `"use strict"; ${prelude} ${body}`); return true; } catch { return false; } };
+  for (const sc of scripts) { try { new Function(`"use strict"; ${sc.src}`); } catch { return null; } }
+
+  const fns = [];
+  const slots = new Map();
+  const slot = (key, fn) => { let i = slots.get(key); if (i === undefined) { i = fns.length; fns.push(fn); slots.set(key, i); } return i; };
+  const seen = new Set();
+  const walk = (v) => {
+    if (v === null || typeof v !== "object" || seen.has(v)) return;
+    seen.add(v);
+    if (Array.isArray(v)) { for (const x of v) walk(x); return; }
+    if (v.kind === "code" && typeof v.src === "string" && v.src.charCodeAt(0) !== 0) {
+      const r = rewriteDatapaths(v.src);
+      const body = "error" in r ? null : `return (${r.src}\n);`;
+      if (body !== null && parses(["parent", "classroot"], body)) v.src = "\u0000" + slot("e\u0000" + v.src, `function(parent, classroot) { ${body} }`);
+    }
+    if (Array.isArray(v.methods)) for (const m of v.methods) {
+      if (m === null || typeof m !== "object" || typeof m.body !== "string" || m.body.charCodeAt(0) === 0) continue;
+      const params = (m.params ?? []).map((q) => q.name);
+      const r = rewriteDatapaths(m.body);
+      const body = "error" in r ? null : `{ ${r.src}\n }`;
+      if (body !== null && parses(["parent", "classroot", "$base", ...params], body)) {
+        // a method that reaches `super` keeps "$base" in its token: instantiate
+        // decides whether to build the object `super.name(…)` reads by looking
+        // for it in the method's text (the runtime reads only the number)
+        m.body = "\u0000" + slot("m\u0000" + params.join("\u001f") + "\u0000" + m.body, `function(parent, classroot, $base${params.map((q) => ", " + q).join("")}) { ${body} }`) + (m.body.includes("$base") ? "$base" : "");
+      }
+    }
+    for (const k of Object.keys(v)) walk(v[k]);
+  };
+  walk(program);
+  const scriptFns = scripts.map((sc) => `function() { ${sc.src}\n }`);
+  scripts.forEach((sc, i) => { sc.src = "\u0000" + i + "/*$b*/"; });   // the marker keeps instantiate evaluating each block alone
+  return `function $makeBodies($d, $s) {\n${prelude}\nreturn [\n${fns.join(",\n")}\n];\n}\n` +
+    `const $scripts = [${scriptFns.join(",\n")}];\n` +
+    `providePrecompiled($makeBodies, $scripts);\n`;
+}
+
+
 export async function buildProduction(source, opts = {}) {
   const name = opts.name ?? "app";
   // The build's closure props: every flag that shapes the ARTIFACT (a change
@@ -179,7 +249,14 @@ export async function buildProduction(source, opts = {}) {
   // flags. The entry's hydrateProgram restores the structural fields at boot;
   // the boolean flags need no restoring (absence already reads as false).
   if (!opts.debug) await minifyBodies(built.program);
-  const programJson = JSON.stringify(built.program, opts.debug ? undefined : compactValue);
+  // PRECOMPILED BODIES (on by default; opts.precompile === false ships text):
+  // every `{ }` body, method body and script block leaves as a FUNCTION in the
+  // bundle, and the program carries a token naming it (runtime/src/expr.ts,
+  // "PRECOMPILED BODIES"). Done on a COPY — built.program stays the compiled
+  // program every other consumer of this result reads.
+  const shipped = opts.precompile === false ? built.program : JSON.parse(JSON.stringify(built.program));
+  const precompiled = opts.precompile === false ? null : await precompileBodies(shipped);
+  const programJson = JSON.stringify(shipped, opts.debug ? undefined : compactValue);
   // services.js, NOT index.js. The entry needs the `{ }`-body service wiring
   // (Focus/Keys/Themes/Inspect) and nothing else the barrel re-exports. esbuild
   // can only drop a re-export when the module behind it is side-effect-free,
@@ -191,6 +268,7 @@ export async function buildProduction(source, opts = {}) {
   const entry =
     `import ${JSON.stringify(join(RUNTIME, "services.js"))};\n` +
     `import { renderProgramAsync } from ${JSON.stringify(join(RUNTIME, "boot.js"))};\n` +
+    (precompiled === null ? "" : `import { providePrecompiled } from ${JSON.stringify(join(RUNTIME, "expr.js"))};\n${precompiled}`) +
     `import { hydrateProgram } from ${JSON.stringify(join(RUNTIME, "hydrate.js"))};\n` +
     `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +
     `const PROGRAM = hydrateProgram(JSON.parse(${JSON.stringify(programJson)}));\n` +
@@ -403,6 +481,23 @@ export const Inspect = new Proxy({ ready: () => false }, {
     const THREE_D = new Set(["rotateX", "rotateY", "translateZ", "perspective", "backface"]);
     const FEATURES = new Set(["numerals", "numeralWidth", "slashedZero"]);
 
+    // ── THE PER-SIDE STROKE IS NOT GATED, AND CANNOT BE ────────────────────
+    //
+    // stroke-sides.js (the split, the uniform test, the list's equality and
+    // coercion, and the two painters) rode behind a `usesStrokeSides` fact read
+    // from a LIST LITERAL in a stroke slot. That fact was exact only while the
+    // slot's body-facing type was `Stroke | null`, which foreclosed every other
+    // way of producing four sides. It is `BoxStroke` now (scaffold.ts): a `{ }`
+    // constraint may compute the list, and so may an imperative write in a
+    // method body. Neither is a literal, so neither can be read from the tree —
+    // a method body is TypeScript this build never parses, and `stroke = { … }`
+    // holds an expression whose value is only known at run time.
+    //
+    // A slimming decision may only drop a module the program CANNOT reach. The
+    // honest answer is therefore to ship it: 213 B gzipped, against 688 B of
+    // headroom at the band, versus a `notAboard` refusal at paint time on a
+    // program that ran in development. The alternative — matching `stroke(` in
+    // body text — is the word match this file already learned not to trust.
     let effects = false, domEffects = false, threeD = false, features = false;
     let filterSlotSet = false, filterSlotDynamic = false, maskOrTint = false, fillDynamic = false;
 
@@ -729,6 +824,20 @@ export function endChangeChain() {}
   const result = await esbuild.build({
     stdin: { contents: entry, resolveDir: RUNTIME, loader: "js", sourcefile: name + ".entry.js" },
     bundle: true, minify: true, format: "esm", target: "es2020",
+    external: ["*kernel-js.js"],
+    // no runtime-development switches, no native-kernel binding (build-flags.d.ts)
+    define: {
+      // `opts.marks` keeps the dev switches so the boot stamps wall-clock marks —
+      // a MEASUREMENT build (mac-host/profile/coldload.mjs), never a deploy
+      __DECLARE_DEV_SWITCHES__: opts.marks ? "true" : "false", __DECLARE_NATIVE_KERNEL__: "false",
+      // THE KERNEL RIDES INSIDE THE BUNDLE (base64). A sibling file saved ~3 KB
+      // gzipped but cost a request before first paint — one round trip on a real
+      // network (a real iPad over Wi-Fi, 2026-09-18: +50–150 ms on every app's
+      // startup, and Safari re-requested the file despite the page's preload).
+      // One file, one request; the decode is measured in the boot stages.
+      __DECLARE_INLINE_KERNEL__: "true",
+      __DECLARE_JS_KERNEL__: "false",   // a production build carries no debug kernel, not even its switch
+    },
     write: false, legalComments: "none", metafile: true,
     plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...factPlugins, ...(opts.debug ? [] : [errorCodePlugin])],
   });

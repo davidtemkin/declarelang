@@ -3,19 +3,18 @@
 // to its Declare host exclusively through the island element's one sanctioned
 // handle, `box.__declareIsland` (guide ch. 18):
 //
-//   h.externals()        discovery — the typed surface the HOST declared
-//   h.get(name)          read a fact's current value
-//   h.observe(name, cb)  change notifications, one per settle the fact moved
-//                        (changes only — read the initial value with get())
-//   h.set(name, value)   push a fact the TENANT owns; the value is VALIDATED
-//                        against the declared type, and a push to a slot the
-//                        host binds is refused with the constraint named
-//   h.post(topic, data)  a verb up to the island's onPost
-//   h.onPost(cb)         verbs down from the host's island.post(...)
+//   h.provides()              discovery — the names the host provides here
+//   h.hostProvided(name)      read a provided value now
+//   h.watchProvided(name, cb) cb(value) now, then once per settle it changes
+//   h.expose(name, value)     offer a value UP — the host reads it with
+//                             island.exposed(name, default)
+//   h.post(topic, data)       a verb up to the island's onPost
+//   h.onPost(cb)              verbs down from the host's island.post(...)
 //
-// This tenant IMPORTS `hue` (host-owned — it recolors everything here) and
-// OWNS `count` (declared `external readonly` on the host side: the host reads,
-// never writes). Every tap pushes the new count; the host's gauge, caption,
+// This tenant FOLLOWS `hue` (the host provides it — it recolors everything
+// here) and EXPOSES `count` (the host reads it, and cannot write it: a
+// provided value and an exposed one each have one owner). Every tap exposes
+// the new count; the host's gauge, caption,
 // and even the OTHER tenant's dots re-derive from it by constraint.
 
 export function mountTally(box) {
@@ -48,33 +47,32 @@ export function mountTally(box) {
   root.append(num, btn, note);
   box.append(root);
 
-  // ---- facts IN: the host owns `hue`, we follow it ----------------------
-  // observe() reports CHANGES (once per settle); the value at mount time is
-  // read with get(). Both together are the complete "follow a fact" idiom.
+  // ---- values IN: the host provides `hue`, we follow it -----------------
+  // watchProvided() calls back with the value now and on every change —
+  // the whole "follow a value" idiom in one call.
 
   const paint = (hue) => {
     btn.style.background = `hsl(${hue} 62% 45%)`;
     num.style.color = `hsl(${hue} 70% 70%)`;
   };
-  paint(h.get("hue"));
-  h.observe("hue", paint);
+  h.watchProvided("hue", paint);
 
-  // ---- facts OUT: we own `count`, the host derives from it --------------
-  // set() is a typed, validated push: the host declared `count: number`, so
-  // pushing a string here would be refused with the type named. And had the
-  // host BOUND the slot (as it binds `hue`), the push would be refused with
-  // the owning constraint named — try h.set("hue", 0) in the console.
+  // ---- values OUT: we own `count`, the host derives from it -------------
+  // expose() hands the value up; the host reads it with a typed default
+  // (`exposed("count", 0)`), so exposing a string here would be refused
+  // there with a warning and the default used.
 
   const show = () => { num.textContent = String(count); };
   const push = () => {
-    h.set("count", count);
+    h.expose("count", count);
     if (count > 0 && count % 10 === 0) {
       // a VERB, not a fact: "a milestone happened" is an event to consume
-      // once, so it crosses as post() rather than as another external.
+      // once, so it crosses as post() rather than as another exposed value.
       h.post("milestone", count);
     }
   };
   show();
+  h.expose("count", count);
 
   btn.addEventListener("click", () => {
     count += 1;
@@ -83,14 +81,14 @@ export function mountTally(box) {
   });
 
   // ---- verbs IN: the host's reset button posts down to us ---------------
-  // The host cannot write `count` (it declared it readonly for itself), so
+  // The host cannot write `count` (it only reads what we expose), so
   // "reset" arrives as a COMMAND and the tenant applies it to its own state.
 
   h.onPost((m) => {
     if (m.topic === "reset") {
       count = 0;
       show();
-      h.set("count", 0);
+      h.expose("count", 0);
     }
   });
 }

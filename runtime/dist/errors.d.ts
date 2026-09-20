@@ -14,7 +14,20 @@ export interface Pos {
  *  `(rooms/pulse.declare:118:23)` in an included one — the editor-clickable
  *  shape, because an author with five files edited by five hands asks "is
  *  this mine?" before anything else. */
-export declare function describePos(pos: Pos): string;
+export declare function describePos(pos: Where): string;
+/** Just the part of a Pos a message renders — line, column, and the file when
+ *  it is not the author's own. A RUNTIME diagnostic (a layout conflict) knows
+ *  where the author wrote the offending value but not its byte offset, so it
+ *  carries this and not the full `Pos`. `Pos` satisfies it. */
+export interface Where {
+    line: number;
+    col: number;
+    file?: string;
+}
+/** ` (line 5, col 22)`, or nothing when the position is unknown — a compiled
+ *  artifact carries no positions (declarec strips them), so every message that
+ *  offers one must read exactly as it did without one. */
+export declare function at(where: Where | null | undefined): string;
 /** Extra metadata a diagnostic carries beyond message + position: a stable
  *  catalog `code` (DECLARE####, diagnostics.ts) and an optional `hint` (a
  *  how-to-fix line). Both are ADDITIVE — they never change `.message`, so the
@@ -53,7 +66,16 @@ export declare class DeclareErrors extends DeclareError {
  *  take the child out of the arrangement. `by` names who else set the slot
  *  when that helps (a direct write); null when the child obviously authored
  *  it. */
-export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null): string;
+export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null, where?: Where | null): string;
+/** A LITERAL (or a direct write) on a slot a layout claims. Same conflict as
+ *  the bound case, spelled differently — and until now the only spelling the
+ *  language answered in silence: a literal installs no owner, so the one-owner
+ *  guard never saw it and the arrangement simply overwrote the number. The
+ *  answer to "may I set my own geometry here?" must not depend on whether the
+ *  value was written `40` or `{ 40 }`, so this says the same thing the bound
+ *  case says, names the value that is being dropped, and points at the line
+ *  that wrote it. */
+export declare function discardedValueMessage(childClass: string, slot: string, value: string | null, arranger: string, where?: Where | null): string;
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
  *  A sentence that reaches its reader through a helper — a builder's return,
@@ -78,3 +100,23 @@ export declare function noBaselineMessage(childClass: string, arranger: string):
 /** `align = baseline` on a STACK (a y-axis SimpleLayout): a stack has no line
  *  to sit on — its cross axis is x, where a baseline means nothing. */
 export declare function stackBaselineMessage(arranger: string): string;
+/** A malformed four-list on an Inset or Radius slot, named for the attribute it
+ *  was written on: `padding` counts clockwise from the top, `cornerRadius` from
+ *  the top-left corner, and both take one number for all four. The two share a
+ *  kind, so the message keys off the NAME — a padding mistake told in corner
+ *  words sends the author looking in the wrong place. */
+export declare function insetOrRadiusMessage(owner: string, attr: string): string;
+/** The shape alone, unowned — for the typecheck's report of the SAME mistake
+ *  made inside a `{ }` (`cornerRadius = { [8, 8, 0] }`), where the sentence
+ *  already names the slot and tsc would otherwise offer only its type name.
+ *  Split out so the literal and the computed form say one thing. */
+export declare function insetOrRadiusShape(attr: string): string;
+/** The `stroke` slot's shape — the sibling of `insetOrRadiusMessage` for the
+ *  third one-or-four slot, and the one whose sides hold VALUES rather than
+ *  numbers. Said in ONE place because TWO paths reach the same mistake and
+ *  must say the same sentence: a literal list of the wrong shape, refused at
+ *  coercion (value.ts's `STROKE`, via stroke-sides.ts), and a `{ }` body that
+ *  computes one, refused by the typecheck at the slot seam (the compiler's
+ *  typecheck.ts, which would otherwise report the scaffold's `BoxStroke` type
+ *  name and nothing an author can act on). */
+export declare function strokeShapeMessage(): string;

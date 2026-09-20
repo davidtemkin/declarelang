@@ -40,7 +40,7 @@
 import type { Element } from "./parser.js";
 import { diag } from "./errors.js";
 import { Node } from "./node.js";
-import { View, inheritedCursor, onDiscard, markWindowedBlock, markEvicting, fireRetireTree, fireInitTree, nodeLabel } from "./view.js";
+import { View, inheritedCursor, onDiscard, markWindowedBlock, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree, nodeLabel } from "./view.js";
 import { Constraint, Cell } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, armDivergence, nodeDiverged } from "./attributes.js";
 import { splitPath, isSelective, type PathSeg } from "./datapath.js";
@@ -832,7 +832,16 @@ export class Replicator {
         for (const e of q) {
           if (e.used || harvest.length >= misses.length) continue;
           const stillMember = !dataChanged || this.indexCache?.has(id) === true;
-          if (stillMember && !subtreeDiverged(e.view) && !focusedWithin(e.view)) {
+          if (!subtreeDiverged(e.view) && !focusedWithin(e.view)) {
+            // DEPARTURE RECYCLING (the tracker filter change: a narrowed
+            // projection sends most of the window's records away and brings
+            // as many new ones — a discard+construct round trip per row,
+            // ~55% of the change). A clean leaver whose record LEFT the data
+            // retires NOW — parented, cursored at its record, live: the
+            // hook's contract — and then serves an arriver like a window
+            // leaver does; its next departure fires again (clearRetiredTree).
+            // A touched leaver still retains, so user state never crosses.
+            if (!stillMember) { fireRetireTree(e.view); clearRetiredTree(e.view); }
             e.used = true;
             harvest.push(e.view);
           }

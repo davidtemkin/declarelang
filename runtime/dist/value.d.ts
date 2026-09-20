@@ -50,6 +50,23 @@ export interface Stroke {
     readonly width: number;
     readonly color: Color;
 }
+/** What `View.stroke` holds: ONE Stroke on all four sides, or FOUR — top,
+ *  right, bottom, left, clockwise from the top, as CSS orders the edges of a
+ *  box. A `null` in a side's place leaves that side bare, which is how a
+ *  single rule is written (`[ stroke(1, line), null, null, null ]` is a top
+ *  rule and nothing else). The whole slot `null` is no border at all.
+ *
+ *  The one-value-or-four-clockwise shape is the house pattern for anything
+ *  said per side or per corner — `cornerRadius` (a Radius), `padding` (an
+ *  Inset), and this. Whichever one you are reading, the single value is the
+ *  uniform case and the list starts at the top and goes round. */
+export type BoxStroke = Stroke | readonly (Stroke | null)[] | null;
+/** The uniform Stroke this value is on all four sides, or null when it is
+ *  bare on all four — and `undefined` when the sides genuinely differ, which
+ *  is the signal to take a painter's per-side path. Keeps the overwhelmingly
+ *  common uniform case on the one-ring fast path in both backends; the FOUR-side
+ *  arm lives in stroke-sides.ts, one module for everything four sides mean. */
+export declare function strokeUniform(s: BoxStroke): Stroke | null | undefined;
 /** A glyph OUTLINE (`outline` on text) — a stroke traced along each letterform's
  *  contour (CSS `-webkit-text-stroke` / canvas `strokeText`), NOT a box border
  *  (that is `stroke`). Same shape as Stroke; a distinct type so the two never
@@ -129,7 +146,7 @@ export declare function filterBleed(list: readonly Filter[]): number;
 /** The largest blur radius in a list — what a frost's sample over-scans by. */
 export declare function filterBlur(list: readonly Filter[]): number;
 export declare function shadowEqual(a: Shadow | null, b: Shadow | null): boolean;
-export declare function strokeEqual(a: Stroke | null, b: Stroke | null): boolean;
+export declare function strokeEqual(a: BoxStroke, b: BoxStroke): boolean;
 export declare function outlineEqual(a: Outline | null, b: Outline | null): boolean;
 export declare function filterEqual(a: Filter, b: Filter): boolean;
 /** Structural equality over a filter value in any written form (one, a list, null). */
@@ -177,11 +194,35 @@ export declare function radiusMax(r: Radius): number;
  *  two adjacent radii would overlap along an edge, EVERY radius shrinks by the
  *  same factor, so the shape stays a scaled copy of the one asked for. A uniform
  *  radius past half the box lands at half the box — a pill — exactly as before. */
+/** An inset from a box's four edges — `View.padding` today. ONE number
+ *  insets every side; FOUR are top, right, bottom, left, clockwise from the
+ *  top, the order CSS writes its box edges in. `0` (the default everywhere) is
+ *  no inset.
+ *
+ *  This is the HOUSE PATTERN for anything said per side or per corner: one
+ *  value for all of them, or a list of four starting at the top and going
+ *  clockwise. `cornerRadius` (a Radius — top-left first, since a corner list
+ *  starts at the first corner), `stroke` (a BoxStroke — top first), and this
+ *  all read the same way, so knowing one is knowing all three. A list of any
+ *  other length is a mistake, never a shorthand. */
+export type Inset = number | readonly [number, number, number, number];
+/** The four sides of an Inset — top, right, bottom, left. Negative values are
+ *  clamped to 0: an inset that grew the box would make a layout place children
+ *  outside the view it arranges. */
+export declare function insetSides(i: Inset): [number, number, number, number];
+/** ONE side of an Inset, without materializing the other three — the hot pair:
+ *  every child's position push and every descent of the hit walk asks for the
+ *  LEADING inset (left on x, top on y), and the answer is almost always the
+ *  literal 0 an unpadded view carries. Same clamp as insetSides. */
+export declare function insetLead(i: Inset, axis: "x" | "y"): number;
+/** True when this inset takes nothing off any side — the zero-cost path a
+ *  layout takes when nobody asked for padding. */
+export declare function insetIsZero(i: Inset): boolean;
 export declare function radiusFit(r: Radius, w: number, h: number): [number, number, number, number];
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | {
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | readonly (Stroke | null)[] | readonly number[] | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | {
     readonly arrayRoot: true;
     readonly fields: readonly ShapeField[];
 };
@@ -195,7 +236,7 @@ export declare function isPercent(v: AttrValue): v is Percent;
  *  written as the member `layout: SimpleLayout [ … ]` (the checker routes
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType = {
-    readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius";
+    readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset";
 } | {
     readonly kind: "dataschema";
 } | {

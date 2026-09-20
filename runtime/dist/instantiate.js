@@ -66,7 +66,7 @@ import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign } from "./value.js";
-import { defineAttributes, recordDeclarations, setBound, provideWrite } from "./attributes.js";
+import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite } from "./attributes.js";
 import { bindConstraint, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
@@ -425,9 +425,13 @@ function orderProvisions(provisions) {
         // "x")` — `\bprovided` sits on the `$`↔`p` boundary either way. A spurious
         // match inside a string only adds a harmless edge; `byName` keeps it to this
         // node's own provisions.
+        // The compiler's DEPS are read too: a precompiled program (declarec) ships a
+        // token where the text was, and its reads survive only there (2026-09-19 —
+        // tracker installed `textColor = { provided("theme")… }` before `theme`).
         const readsOf = (p) => {
             const names = [];
-            for (const m of p.provideCode.matchAll(/\bprovided\(\s*"([^"]+)"/g)) {
+            const deps = p.attr.value.kind === "code" ? p.attr.value.deps ?? [] : [];
+            for (const m of (p.provideCode + " " + deps.join(" ")).matchAll(/\bprovided\(\s*"([^"]+)"/g)) {
                 if (m[1] !== p.attr.name && byName.has(m[1]))
                     names.push(m[1]);
             }
@@ -653,7 +657,6 @@ isShapeType = () => false) {
                 pos: at != null && typeof at.line === "number" ? { line: at.line, col: at.col ?? 0 } : null,
                 deps: d.def?.kind === "code" ? (d.def.deps ?? null) : null,
                 type: d.type,
-                external: d.external || undefined,
                 readOnly: d.readOnly || undefined,
             };
         }
@@ -791,9 +794,12 @@ function runtimeMember(node, name) {
  *  instance literal on one slot never fight over ownership. */
 function mergeAttrs(sources) {
     const attrs = new Map();
-    for (const s of sources)
+    const last = sources.length - 1; // memberSources puts the USE SITE last
+    for (let i = 0; i < sources.length; i++) {
+        const s = sources[i];
         for (const a of s.el.attrs)
-            attrs.set(a.name, { attr: a, croot: s.croot });
+            attrs.set(a.name, { attr: a, croot: s.croot, useSite: i === last });
+    }
     return attrs;
 }
 /** A bare `[ … ]` literal on an array slot, materialized: plain values —
@@ -967,10 +973,10 @@ function construct(el, outer, ctx, parentSchema = null) {
     // Methods first (installMethods: the super rule, the runtime-member guard),
     // then the attribute channels.
     installMethods(view, sources, eff, ctx);
-    for (const { attr, croot: acroot } of attrs.values()) {
+    for (const { attr, croot: acroot, useSite } of attrs.values()) {
         const t0 = attrType(eff, attr.name);
         // A bare `[tl, tr, br, bl]` on a radius slot — check.ts vetted the shape.
-        if (t0?.kind === "radius" && attr.value.kind === "list") {
+        if ((t0?.kind === "radius" || t0?.kind === "inset") && attr.value.kind === "list") {
             view[attr.name] =
                 Object.freeze(attr.value.items.map((it) => (it.kind === "number" ? it.value : 0)));
             continue;
@@ -1062,6 +1068,11 @@ function construct(el, outer, ctx, parentSchema = null) {
             // checkAttr guarantees the value matches the field's declared type, so
             // this dynamic assignment (the parse-path bridge) is sound.
             view[attr.name] = r.value;
+            // A literal installs no Constraint, so there is nowhere else to hang the
+            // line that wrote it — and a geometry literal is exactly the value a
+            // layout's claim can discard (layout.ts). Kept for those five slots only.
+            if (useSite)
+                noteUseSiteSet(view, attr.name, attr.value.pos);
         }
     }
     // Children: the class bodies' (they belong to every instance, scoped to

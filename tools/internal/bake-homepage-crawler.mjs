@@ -56,9 +56,31 @@ if (compiled.source === null) {
 // crawlExtract, not crawlDocument: it returns the settled `appName` alongside
 // the fragment, which is the single source the <title> and the social cards are
 // stamped from. One boot, both answers.
+// ISLAND TENANTS. The homepage is a COMPOSED page: its Architecture destination
+// is not written in homepage.declare at all — it mounts `apps/architecture` in an
+// `AppIsland`, and the host builds that tenant only in a live browser. Without a
+// resolver the crawl sees the island's empty box, so the longest article on the
+// site indexed as its nav chrome and nothing else. Resolve the name exactly as
+// the host does (browser/host-client.js: `<name>.declare` against the host
+// program's `demos/` folder), and every visible tenant is booted headlessly and
+// inlined where its island sits. A name that does not resolve fails the crawl
+// loudly rather than baking a hole.
+const islands = async (name) => {
+  const file = path.resolve(path.dirname(HOMEPAGE), "demos", name + ".declare");
+  let tenantSrc;
+  try {
+    tenantSrc = readFileSync(file, "utf8");
+  } catch {
+    return null;
+  }
+  const t = await compile(tenantSrc, { originDir: path.dirname(file) });
+  return { source: t.source, deps: t.deps, links: t.links, report: t.report };
+};
+
 const ex = await crawlExtract(compiled.source, {
   deps: compiled.deps, links: compiled.links, registry: compiled.linkRegistry, warm: true,
   data: diskDataResolver(path.dirname(HOMEPAGE)),
+  islands,
 });
 const html = ex === null ? null : ex.html;
 const title = (ex && ex.title) || "Declare";
