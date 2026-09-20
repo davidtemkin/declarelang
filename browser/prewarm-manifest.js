@@ -47,6 +47,12 @@ export const PREWARMED = [
   // 2026-08-08 ruling: it is for the INDEXED surfaces.)
   { main: "apps/weather/weather.declare", props: { render: "dom" } },
   { main: "apps/birds/birds.declare", props: { render: "dom" } },
+  // Architecture is mounted as an AppIsland under the homepage's header — the
+  // SAME ladder any tenant resolves on (host-client.js resolveCompiled:
+  // precompiled → validated prewarm → compile) — and it was missing here, so
+  // every visitor who opened it paid a full fetch-source + client compile
+  // with nothing to fall back to (2026-09-21).
+  { main: "apps/architecture/architecture.declare", props: { render: "dom" } },
   // the homepage's live demo panels (index.html `demos: […]`): prewarmed, the
   // previews mount the moment the page paints — no compiler download on the path
   // at all. Islands always render on the DOM backend, so render:dom is the one key.
