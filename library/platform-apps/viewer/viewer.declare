@@ -228,8 +228,23 @@ App [ fill = { provided("theme").bg },
         // ?segments request wraps it ({ path, segments }) — accept either
         try { const p = JSON.parse(raw); segs = Array.isArray(p) ? p : (p && p.segments) || [] } catch (e) { segs = [] }
         // graceful floor: a host with no highlighter (a static host answers no
-        // ?segments) still reads — the raw file as one code block
-        if (segs.length == 0 && (app.rawSrc.value || "") != "") {
+        // ?segments) still reads — the raw file as one code block. GATED ON
+        // segSrc HAVING ACTUALLY SETTLED (loaded or failed), not merely being
+        // empty: `?file` is a plain passthrough and `?segments` asks the server
+        // to run highlight() over the same bytes, so on any real host the two
+        // race and `?file` always wins first. Flooring on "empty so far" fired
+        // this every time, on every host — one plain code block, replaced
+        // 80-100ms later by the real prose/code segments once ?segments
+        // landed, which is the narrative sections shoving the code down that
+        // this was mistaken for a hosting-mode difference (2026-09-21; it
+        // shows widest on desktop.declare hosted as an island, where the size
+        // of the file — 240 KB of segments — makes the highlight() gap long
+        // enough to see. It was never absent standalone: the server seeds
+        // __source__ synchronously there, so parseDoc never reaches this
+        // branch at all — not a difference in the race, a difference in
+        // whether the race runs).
+        if (segs.length == 0 && (app.rawSrc.value || "") != ""
+            && (app.segSrc.status == "loaded" || app.segSrc.status == "failed")) {
             const e = ("" + app.rawSrc.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             segs = [({ kind: "code", html: "<pre>" + e + "</pre>" })]
             }
