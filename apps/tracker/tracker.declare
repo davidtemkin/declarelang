@@ -544,13 +544,28 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         this.closeDetail()
         },
 
+    // Regenerating a million issues holds the main thread for seconds —
+    // generation, adoption, and the settle over every projection, none of it
+    // interruptible. So the press writes `generating` and returns, that settle
+    // paints the notice, and the work runs on the turn after the frame: a
+    // timeout queued from inside the frame callback lands after the paint.
+
+    generating: number = 0,
+
     regenerate(count: number) {
-        const t0 = trkNow()
-        const issues = trkGenerate(count)
-        const t1 = trkNow()
-        this.adopt(issues)
-        this.loadMs = Math.round(t1 - t0)
-        this.adoptMs = Math.round(trkNow() - t1)
+        if (this.generating > 0) return
+        this.generating = count
+        const work = () => {
+            const t0 = trkNow()
+            const issues = trkGenerate(count)
+            const t1 = trkNow()
+            this.adopt(issues)
+            this.loadMs = Math.round(t1 - t0)
+            this.adoptMs = Math.round(trkNow() - t1)
+            this.generating = 0
+            }
+        if (typeof requestAnimationFrame !== "undefined") requestAnimationFrame(() => setTimeout(work, 0))
+        else setTimeout(work, 0)
         },
 
     // ── the view facts ─────────────────────────────────────────────────────
@@ -1105,6 +1120,11 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             x = { parent.omni.x + parent.omni.width - this.width - 10 },
             textColor = { provided("theme").textFaint },
             text = { app.shownTotal + " match" + (app.shownTotal == 1 ? "" : "es") } ],
+
+        busy: Text [ y = center, fontSize = 11, wrap = false, visible = { app.generating > 0 },
+            x = { parent.views.x - this.width - 14 },
+            textColor = { provided("theme").textFaint },
+            text = { "generating " + app.generating.toLocaleString() + "…" } ],
 
         views: Segmented [ y = 12,
             x = { app.width - this.width - 100 },

@@ -3,25 +3,29 @@
 //
 // The one-owner-per-slot model is settled: a strategy owns exactly the slots
 // its place() boxes carry, per child, and `ignoreLayout = true` is how a child
-// takes its whole geometry back. What was not settled was the ANSWER'S SHAPE.
-// Measured before this file existed (layout-ownership study, 2026-09-19), one
-// intent got three answers depending only on how the value was spelled:
+// takes its whole geometry back. What this file pins is the ANSWER'S SHAPE,
+// which turns on one distinction (layout.ts header; DT's ruling, 2026-09-20):
 //
-//   width = { 120 } / 50% / center  on a claimed slot → a thrown boot failure
-//   width = 120                     on a claimed slot → SILENTLY discarded,
-//                                                       clean through R4
-//   a claim refused on a REARM      (a tier flip)     → one console line, and
-//                                                       then the arrangement
-//                                                       kept advancing by the
-//                                                       width it never wrote —
-//                                                       a live 116px hole, R4
-//                                                       and R5 both green
+//   A LITERAL IS A BASE.   `width = 120` on a claimed slot is the value the
+//                          slot holds when nothing arranges it — shadowed while
+//                          a regime claims it, restored by unclaim() when that
+//                          regime ends. Not a conflict; not reported.
+//   A BINDING IS A CLAIM.  `width = { 120 }` / `50%` / `center` on a claimed
+//                          slot is a second standing computation — two owners,
+//                          no determinate answer. A conflict: refused, reported
+//                          once, in words that name the strategy, the slot, the
+//                          author's line, and both ways out.
 //
-// This file pins the three answers as they now are: the literal is reported in
-// the same words as the throw, a refused SIZE takes the child out of the
-// arrangement rather than leaving a hole behind it, and every message carries
-// the author's position and names the strategy that claimed the slot —
-// TweenLayout's included, which until now degraded to "already bound (by
+// The literal report that stood from 2026-09-19 to 2026-09-20 ("this value is
+// discarded") is gone: it was false for any strategy whose claims vary by
+// regime (ResponsiveLayout writes y in one tier and not the other), and it was
+// decided by whichever width happened to be current at install. The test that
+// pins its absence also pins WHY — the base comes back when the claim lifts.
+//
+// The rest stands as measured on 2026-09-19: a refused SIZE takes the child
+// out of the arrangement rather than leaving a hole behind it, and every
+// conflict message carries the author's position and names the strategy —
+// TweenLayout's included, which until then degraded to "already bound (by
 // Grid[0].width)" and named neither the layout nor an escape.
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
@@ -41,10 +45,9 @@ async function boot(src) {
   return app;
 }
 
-/** Run `fn` with both report channels captured — the layout↔author family
- *  speaks on console.warn (a value that can never take effect) and
- *  console.error (a claim it could not install), and a test about the family
- *  wants both. */
+/** Run `fn` with both report channels captured — a refused claim speaks on
+ *  console.error; console.warn is captured too, so a test can assert that a
+ *  shadowed literal says nothing on either. */
 async function said(fn) {
   const lines = [];
   const warn = console.warn;
@@ -60,14 +63,13 @@ async function said(fn) {
 }
 
 const layoutLines = (lines) => lines.filter((l) => /cannot also own its/.test(l));
-/** The two halves of the family: a CLAIM the strategy could not install, and a
- *  VALUE the strategy overwrote. They share every other word. */
-const conflicts = (lines) => layoutLines(lines).filter((l) => !/is discarded/.test(l));
-const discards = (lines) => layoutLines(lines).filter((l) => /is discarded/.test(l));
+/** Every layout↔author line is a refused CLAIM — a shadowed literal says
+ *  nothing (header). Kept under its old name so the tests below read as before. */
+const conflicts = layoutLines;
 
-// ── 1 · A literal on a claimed slot is reported, in the thrown case's words ──
+// ── 1 · A literal on a claimed slot is a BASE: shadowed in silence ──────────
 
-await test("a use-site literal on a claimed slot is REPORTED, not silently discarded", async () => {
+await test("a use-site literal on a claimed slot is a base — shadowed in silence, the arrangement owns it", async () => {
   const { value: app, lines } = await said(() => boot(`App [ width = 400, height = 300,
     col: View [ width = 200, height = 200,
       layout: SimpleLayout [ axis = y, spacing = 4 ],
@@ -75,38 +77,36 @@ await test("a use-site literal on a claimed slot is REPORTED, not silently disca
       b: View [ width = 10, height = 10 ],
     ],
   ]`));
-  const said1 = layoutLines(lines);
-  assert.equal(said1.length, 1, "exactly one report: " + JSON.stringify(said1));
-  const m = said1[0];
-  // WHAT the value was, WHO claimed the slot, WHICH slot, and BOTH ways out —
-  // the same four things the thrown case has always carried.
-  assert.match(m, /View\.y = 40/, "names the slot and the value being dropped");
-  assert.match(m, /App's SimpleLayout|col's SimpleLayout|View's SimpleLayout/, "names the strategy that claimed it");
-  assert.match(m, /positions its children/);
-  assert.match(m, /this value is discarded/);
-  assert.match(m, /drop the child's own y/, "the first way out");
-  assert.match(m, /ignoreLayout = true/, "the second way out");
-  assert.match(m, /\(line \d+, col \d+\)/, "points at a line");
-  // …and the picture is exactly what it was: the arrangement still owns the slot.
-  assert.equal(app.col.a.y, 0, "the layout's value stands — only the silence went away");
+  assert.equal(layoutLines(lines).length, 0, "a literal is the base the claim shadows — nothing to report: " + JSON.stringify(lines));
+  assert.equal(app.col.a.y, 0, "the arrangement owns the slot");
   assert.equal(app.col.b.y, 14);
 });
 
-await test("the report is once per (class, slot) — one line, not one per instance", async () => {
-  // A replicated block builds one authored line thirty times. Deduping per
-  // CHILD (which is what a conflict does — a conflict is about that child's
-  // standing binding) would print it thirty times, and there is one line to
-  // fix. So this half of the family dedupes by class and slot.
-  const { lines } = await said(() => boot(`App [ width = 400, height = 300,
-    col: View [ width = 200, height = 200,
-      layout: SimpleLayout [ axis = y ],
-      Row [ y = 40 ], Row [ y = 40 ], Row [ y = 40 ], Row [ y = 40 ],
-    ],
-  ]
-  class Row extends View [ width = 10, height = 10 ]`));
-  const said1 = layoutLines(lines);
-  assert.equal(said1.length, 1, "four instances, one line: " + JSON.stringify(said1));
-  assert.match(said1[0], /Row\.y = 40/);
+await test("the base comes back when the claim lifts — a literal is live in the regime that does not write it", async () => {
+  // THE REASON a literal is not a conflict. A row tier writes x and leaves y
+  // to the author; a stack tier writes y. So `y = 15` is live at 800 wide,
+  // shadowed at 400 (the stack claims y), and live again at 800 — unclaim()
+  // hands the base back. The report this replaces called that value
+  // "discarded", and was decided by whichever width was current at install:
+  // true at neither.
+  const { value: app, lines } = await said(async () => {
+    const app = await boot(`App [ width = 800, height = 300,
+      row: View [ width = { app.width }, height = 100,
+        layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 10 }), ({ from: 0, flow: "stack", gap: 4 })] } ],
+        a: View [ width = 100, height = 20 ],
+        b: View [ width = 100, height = 20, y = 15 ],
+      ],
+    ]`);
+    assert.equal(app.row.b.y, 15, "wide: the row tier writes x only — the author's y is live");
+    assert.equal(app.row.b.x, 110, "…and the row placed it");
+    app.width = 400; settle();
+    assert.notEqual(app.row.b.y, 15, "narrow: the stack tier claims y and shadows the literal");
+    assert.ok(app.row.b.y > 0, "…with the stack's own placement");
+    app.width = 800; settle();
+    assert.equal(app.row.b.y, 15, "wide again: the claim lifted and the base came back — never discarded");
+    return app;
+  });
+  assert.equal(layoutLines(lines).length, 0, "and none of it is reported: " + JSON.stringify(lines));
 });
 
 await test("a CLASS-BODY literal is exempt — that is how a class states a default", async () => {
@@ -114,8 +114,9 @@ await test("a CLASS-BODY literal is exempt — that is how a class states a defa
   // way to give a class an initial size for an inherited slot; it is written
   // with no knowledge of where an instance will be used, and the same class
   // may sit in five trees of which one has a sizing layout. Reporting it puts
-  // a line an author cannot act on into every build. The use site is the line
-  // that is a statement about THIS arrangement, and only it is reported.
+  // a line an author cannot act on into every build. A literal is a base
+  // wherever it is written — use site or class body — and neither is reported;
+  // this pins the class-body half on its own.
   const { value: app, lines } = await said(() => boot(`App [ width = 400, height = 300,
     col: View [ width = 200, height = 200,
       layout: SimpleLayout [ axis = y ],
@@ -213,9 +214,9 @@ await test("a tier flip that cannot claim a width leaves NO HOLE, and reports", 
   assert.match(refused[0], /App's Tiers sizes its children/, "names the strategy that claimed it");
   assert.match(refused[0], /ignoreLayout = true/, "and the way out");
   assert.match(refused[0], /\(line \d+, col \d+\)/, "and the author's line");
-  // The sibling's own `width = 50` is the OTHER half of the family — a literal
-  // the wide tier overwrites — and it is reported in the same words.
-  assert.equal(discards(lines).length, 1, "and the sibling's literal, once");
+  // The sibling's own `width = 50` is a BASE the wide tier shadows — not a
+  // conflict, and not reported: the refused binding above is the whole report.
+  assert.equal(layoutLines(lines).length, 1, "one line, the binding's: " + JSON.stringify(lines));
 
   // THE GEOMETRY. The author owns logo.width, so the arrangement does not size
   // it — and therefore must not lay its neighbour from a width it never wrote.
@@ -285,7 +286,7 @@ await test("a TweenLayout conflict names the strategy and offers the escape", as
   );
 });
 
-await test("a TweenLayout reports a discarded literal like every other strategy", async () => {
+await test("a TweenLayout shadows a literal in silence, like every other strategy", async () => {
   const { value: app, lines } = await said(async () => {
     const app = await boot(`App [ width = 200, height = 100,
       a: View [ width = 33, height = 10 ],
@@ -295,9 +296,7 @@ await test("a TweenLayout reports a discarded literal like every other strategy"
     settle();
     return app;
   });
-  const said1 = layoutLines(lines);
-  assert.ok(said1.some((l) => /View\.width = 33/.test(l)), "the literal is named: " + JSON.stringify(said1));
-  assert.ok(said1.every((l) => /App's Pair/.test(l)), "every line names the strategy");
+  assert.equal(layoutLines(lines).length, 0, "a literal is a base here too: " + JSON.stringify(lines));
   assert.equal(app.a.width, 40, "the arrangement owns it, as it always did");
 });
 

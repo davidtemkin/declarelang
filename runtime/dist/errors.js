@@ -76,21 +76,6 @@ function layoutEscape(slot) {
     const verb = slot === "width" || slot === "height" ? "size" : "place";
     return diag `let the layout ${verb} it (drop the child's own ${slot}), or set 'ignoreLayout = true' on the child to take it out of the arrangement`;
 }
-/** A LITERAL (or a direct write) on a slot a layout claims. Same conflict as
- *  the bound case, spelled differently — and until now the only spelling the
- *  language answered in silence: a literal installs no owner, so the one-owner
- *  guard never saw it and the arrangement simply overwrote the number. The
- *  answer to "may I set my own geometry here?" must not depend on whether the
- *  value was written `40` or `{ 40 }`, so this says the same thing the bound
- *  case says, names the value that is being dropped, and points at the line
- *  that wrote it. */
-export function discardedValueMessage(childClass, slot, value, arranger, where) {
-    const wrote = value === null ? "" : ` = ${value}`;
-    return diag `${childClass}.${slot}${wrote}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child cannot also own its ${slot}: the arrangement writes that slot, and this value is discarded. ${capitalize(layoutEscape(slot))}.`;
-}
-function capitalize(s) {
-    return s.charAt(0).toUpperCase() + s.slice(1);
-}
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
  *  A sentence that reaches its reader through a helper — a builder's return,

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "dba0f5c9ad9f",
+  "buildId": "88d93b4c0815",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -3463,41 +3463,37 @@
     "message": "let the layout … it (drop the child's own …), or set 'ignoreLayout = true' on the child to take it out of the arrangement",
     "at": "errors.ts:122"
    },
-   "E86D33A": {
-    "message": "….……… — … … its children, so this child cannot also own its …: the arrangement writes that slot, and this value is discarded. ….",
-    "at": "errors.ts:141"
-   },
    "E930EEF": {
     "message": "…: the checker is not aboard this production build — the program was checked at compile time (declarec --debug keeps the checker)",
-    "at": "errors.ts:168"
+    "at": "errors.ts:146"
    },
    "E0EC00E": {
     "message": "…: the inspector is not aboard this production build (declarec --debug keeps it)",
-    "at": "errors.ts:169"
+    "at": "errors.ts:147"
    },
    "EC2B4AC": {
     "message": "…: the introspection bridge is not aboard this production build (declarec --debug keeps it)",
-    "at": "errors.ts:170"
+    "at": "errors.ts:148"
    },
    "E2769D5": {
     "message": "…: not aboard this production build — the program's source names it nowhere, so the build left it out (a name assembled at runtime is not seen — write it in the source)",
-    "at": "errors.ts:171"
+    "at": "errors.ts:149"
    },
    "E49F776": {
     "message": "…: path selectors are not aboard this build (the program declared none at compile time — rebuild)",
-    "at": "errors.ts:172"
+    "at": "errors.ts:150"
    },
    "E5530EA": {
     "message": "… declares no baseline — … [ align = baseline ] aligns children by the baseline each declares; declare 'baseline: number = { <label>.y + <label>.baseline }' on …, or align by start | center | end.",
-    "at": "errors.ts:182"
+    "at": "errors.ts:160"
    },
    "E2F094B": {
     "message": "… [ axis = y, align = baseline ] — baseline aligns a ROW; a stack has no line, so its cross axis (x) takes start | center | end.",
-    "at": "errors.ts:188"
+    "at": "errors.ts:166"
    },
    "E17A8DA": {
     "message": "a Stroke on all four sides (stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all",
-    "at": "errors.ts:219"
+    "at": "errors.ts:197"
    },
    "E6DB0D5": {
     "message": "… — inside { } a color is written …, not … (the #… and named-color forms work only in bare slots)",
@@ -3657,11 +3653,11 @@
    },
    "E957F6E": {
     "message": "this … already arranges a … — one strategy per view",
-    "at": "layout.ts:177"
+    "at": "layout.ts:191"
    },
    "E8702B7": {
     "message": "….place() returned … boxes for … laid children — one box per child, by index",
-    "at": "layout.ts:581"
+    "at": "layout.ts:521"
    },
    "E8BC335": {
     "message": "unterminated string in { } expression",
@@ -18938,7 +18934,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 174
+    "line": 188
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -18959,7 +18955,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 218
+    "line": 232
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -18980,7 +18976,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 271
+    "line": 285
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -19001,7 +18997,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 295
+    "line": 309
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -19022,7 +19018,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 426
+    "line": 367
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -19043,7 +19039,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 474
+    "line": 415
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -19064,7 +19060,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 502
+    "line": 443
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -19231,7 +19227,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 735
+    "line": 671
    },
    "parent": "TweenLayout",
    "seeAlso": [],
@@ -19256,7 +19252,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 850
+    "line": 784
    },
    "parent": "TweenLayout",
    "seeAlso": [],
@@ -45413,7 +45409,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 174
+      "line": 188
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -45434,7 +45430,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 218
+      "line": 232
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -45455,7 +45451,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 271
+      "line": 285
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -45476,7 +45472,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 295
+      "line": 309
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -45497,7 +45493,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 426
+      "line": 367
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -45518,7 +45514,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 474
+      "line": 415
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -45539,7 +45535,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 502
+      "line": 443
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -45680,7 +45676,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 850
+      "line": 784
      },
      "parent": "TweenLayout",
      "seeAlso": [],

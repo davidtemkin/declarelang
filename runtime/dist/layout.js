@@ -49,31 +49,45 @@
 // percent Lengths ride (a spacer's size IS parent-extent-derived).
 //
 // Ownership: a strategy owns exactly the slots its boxes carry, per child
-// (the ruled one-owner-per-slot model, attributes.ts). claim() captures each
-// slot's AUTHORED BASE at first touch; unclaim() restores it — so a vacated
-// slot (an axis flip, a plan regime change, a layout swap) reverts to the
-// authored literal or class default instead of stranding the arrangement's
-// last write. When a child ALSO owns a slot the strategy arranges — an
-// authored `width = { … }` meeting a sizing place(), or a direct write to a
-// laid slot — that is a layout↔author conflict, and it surfaces at FOUR sites
-// with ONE wording (layoutConflictMessage / discardedValueMessage, errors.ts):
-// the layout's own claim on a rearm (reportConflict — CONTAINED and reported
-// once, the author keeps the slot, never a settle-aborting throw; until
-// 2026-09-02 it stormed, a market-map field report named it), the general
-// one-owner guard when the author binding installs over a layout claim at boot
-// (attributes.ts own() — a throw, fail-fast on a static mistake), a direct
-// write to a laid slot (the setter — a throw), and an author LITERAL on a
-// claimed slot (reportDiscarded — the layout takes the slot as it always has,
-// and now says so). Each names the layout, the child+slot, position-vs-size,
-// the author's line, and the fix; `ignoreLayout = true` remains the blessed
-// way for a child to own its own geometry. Layout claims carry `arrangedBy`
-// (TweenLayout's too) so the attributes.ts sites recognize a layout owner.
+// (the ruled one-owner-per-slot model, attributes.ts). WHICH slots those are
+// is derived from place()'s output, never declared: the shape watcher
+// (attachTo) re-installs whenever the set of slots the boxes carry changes,
+// so a strategy whose arrangement answers to the room it is given
+// (ResponsiveLayout: a row tier writes x, a stack tier writes y) is re-owned
+// at every regime change, and an authored layout supplies place() and nothing
+// else. claim() captures each slot's AUTHORED BASE at first touch; unclaim()
+// restores it — so a vacated slot (an axis flip, a plan regime change, a
+// layout swap) reverts to the authored literal or class default instead of
+// stranding the arrangement's last write.
 //
-// THE ANSWER DOES NOT DEPEND ON THE SPELLING. `width = { 120 }` and
-// `width = 120` on a slot the arrangement allocates are one intent, and until
-// 2026-09-19 they got opposite answers: a boot failure, and silence. A literal
-// installs no owner, so the one-owner guard never saw it — `isSet` is the
-// question that does, and it is asked at exactly the same point in install().
+// A LITERAL IS A BASE; A BINDING IS A CLAIM (DT's ruling, 2026-09-20).
+// `y = 15` on a slot the arrangement writes is the value the slot HOLDS when
+// nothing arranges it: shadowed while a regime claims it, live again when
+// that regime ends — exactly what claim/unclaim above have always done. It is
+// not a conflict and it is not reported. `y = { 15 }` is a second standing
+// computation over the same slot — two owners, no determinate answer — and
+// that IS a conflict. From 2026-09-19 to 2026-09-20 the literal was reported
+// in the binding's words ("this value is discarded"), on the reasoning that
+// the answer must not depend on the spelling. It does not: the two spellings
+// mean different things, and the runtime already treated them differently
+// (it restores the one and cannot restore the other). That report was also
+// not deterministic — decided by ONE probe at install, so a page that first
+// settled narrow was told its row-flow `y` was dead and a page that first
+// settled wide never was; measured on the homepage and the architecture app,
+// deleting the "discarded" line moved the page (1, 8, 10 and 15 px).
+//
+// So a layout↔author CONFLICT is a binding, and it surfaces at THREE sites
+// with ONE wording (layoutConflictMessage, errors.ts): the layout's own claim
+// on a rearm (reportConflict — CONTAINED and reported once, the author keeps
+// the slot, never a settle-aborting throw; until 2026-09-02 it stormed, a
+// market-map field report named it), the general one-owner guard when the
+// author binding installs over a layout claim at boot (attributes.ts own() —
+// a throw, fail-fast on a static mistake), and a direct write to a laid slot
+// (the setter — a throw). Each names the layout, the child+slot,
+// position-vs-size, the author's line, and the fix; `ignoreLayout = true`
+// remains the blessed way for a child to own its own geometry. Layout claims
+// carry `arrangedBy` (TweenLayout's too) so the attributes.ts sites recognize
+// a layout owner.
 //
 // AND THE ARRANGEMENT NEVER ADVANCES BY A NUMBER IT DID NOT WRITE. A refused
 // SIZE claim used to leave the strategy laying the neighbours from the width
@@ -87,8 +101,8 @@
 // rAF, zero polling.
 import { Node } from "./node.js";
 import { Constraint, afterSettle } from "./reactive.js";
-import { cellsOf, defineAttributes, isSet, markPercent, own, ownerOf, release, setBound, setPosOf, useSiteSet } from "./attributes.js";
-import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
+import { cellsOf, defineAttributes, isSet, markPercent, own, ownerOf, release, setBound } from "./attributes.js";
+import { DeclareError, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { isWindowedBlock, View } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./animate.js";
@@ -288,77 +302,6 @@ export class Layout extends Node {
                 layoutConflictMessage(child.constructor.name, slot, arranger, null, ownerOf(child, slot)?.sourcePos));
         }
     }
-    /** A LITERAL on a slot this strategy claims — `Spacer [ height = 40 ]` in a
-     *  run that flexes its spacers, a `width = 120` on a child the plan gives a
-     *  share. The one-owner guard never sees these: a literal installs no owner,
-     *  so `ownerOf` is null and the claim goes through, overwriting the number
-     *  the author wrote. Until now that was the language's ONLY silent answer to
-     *  "may I set my own geometry here?" — the same value spelled `{ 120 }` is a
-     *  boot failure — so it is reported here, in the same words, at the same
-     *  moment, once per (child, slot).
-     *
-     *  The layout still takes the slot: it is the arrangement's, the picture is
-     *  unchanged, and only the silence goes away. (Handing a literal the slot
-     *  instead would break every tree that carries a leftover `x = 0`, and would
-     *  make the *value* decide the owner.)
-     *
-     *  ── KNOWN DEFECT, not yet fixed (2026-09-20) ──────────────────────────
-     *  THIS REPORT IS NOT DETERMINISTIC ACROSS VIEWPORTS, and it should be.
-     *
-     *  install() derives ownership from ONE call to place(), and for a strategy
-     *  whose arrangement answers to the room it is given, the slots that call
-     *  writes are not the slots another width would write. ResponsiveLayout is
-     *  the case in the corpus: its box is `stack ? { y } : { x }`, so a row tier
-     *  claims x and leaves y to the author, and a stack tier does the reverse.
-     *  The report is emitted at install and remembered for the life of the
-     *  layout (`discarded`), so a program that first settles narrow is told its
-     *  `y = 15` is discarded — and the moment the page widens, that y is live
-     *  and wanted. First settle wide and the same source is never reported at
-     *  all. Same program, same author, advice decided by the viewport at boot.
-     *
-     *  Measured, three times over, on apps/homepage and apps/architecture: a
-     *  reader who follows the advice and deletes the line MOVES THE PAGE (1px,
-     *  8px, 10px and 15px in the cases seen). The report's cost is therefore
-     *  asymmetric — a wrong deletion is a visible regression, silence is only a
-     *  missed hint — which is the shape of the fix, whatever form it takes:
-     *  either the report waits for a moment the arrangement is stable and is
-     *  then made against what is true then, or its condition narrows to
-     *  something a viewport cannot change.
-     *
-     *  The fix belongs ENTIRELY HERE. "Which slot is claimed" is runtime
-     *  bookkeeping, derived automatically; it is not a Declare concept and an
-     *  author must never have to think about it, so no hook, flag or answer-back
-     *  may appear on the Layout surface to carry this. (A first sketch did
-     *  exactly that and was rejected on those grounds.) The message wants
-     *  rewriting in author vocabulary too: it currently says "the arrangement
-     *  writes that slot", and "slot" is not a word the language asks anyone to
-     *  know. */
-    reportDiscarded(child, slot, arranger) {
-        if (!useSiteSet(child, slot))
-            return; // nothing written here — the ordinary case
-        // Deduped by CLASS and slot, not by child: one authored line builds 30
-        // replicated rows, and it is one line that wants fixing, not thirty.
-        const key = `${child.constructor.name}.${slot}`;
-        if (this.discarded.has(key))
-            return;
-        this.discarded.add(key);
-        const v = child[slot];
-        const shown = typeof v === "number" || typeof v === "boolean" ? String(v) : null;
-        // WARNING, not a refusal. The bound case throws because two standing
-        // computations would fight over one slot and no answer is determinate; a
-        // literal has a determinate answer (the arrangement takes the slot, as it
-        // always has) and what is wrong is that a value the author wrote can never
-        // take effect. Declare already has that family — an Animator nothing
-        // starts, a `shows` no location can reach, a { } over a stopped clock —
-        // and every one of them is a warning. Two further reasons it may not
-        // throw: install() runs mid-settle on a rearm, where a throw is the
-        // settle-aborting storm contained here on 2026-09-02; and a refusal would
-        // stop three shipped apps on six dead numbers.
-        console.warn("[Declare] " +
-            discardedValueMessage(child.constructor.name, slot, shown, arranger, setPosOf(child, slot)));
-    }
-    /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
-    discarded = new Set();
     /** Is this the first thing said about (child, slot)? A conflict report is
      *  once-only per child — a rearm storm re-hits the same slot every wave. */
     firstReport(child, slot) {
@@ -531,7 +474,6 @@ export class Layout extends Node {
         let probe = [];
         const passClaims = [];
         const sizeClaims = [];
-        const discards = [];
         // One pass per child at worst: each re-probe drops at least one child from
         // the arrangement, and a dropped child is never reconsidered.
         for (;;) {
@@ -544,7 +486,6 @@ export class Layout extends Node {
             }
             passClaims.length = 0;
             sizeClaims.length = 0;
-            discards.length = 0;
             let dropped = false;
             kids.forEach((child, i) => {
                 const box = probe[i] ?? {};
@@ -573,12 +514,9 @@ export class Layout extends Node {
                         }
                         continue;
                     }
-                    // A literal on a claimed slot: the layout takes it, as it always
-                    // has, and now says so instead of discarding it in silence. HELD
-                    // until the claim set is final — a child dropped by a later refusal
-                    // on this same pass keeps its literal, and must not be told it lost it.
-                    if (prior === null)
-                        discards.push([child, slot]);
+                    // No owner: the slot holds a literal or a class default — the BASE
+                    // this claim shadows and unclaim() restores (header: a literal is a
+                    // base, a binding is a claim). Nothing to report.
                     if (key === "w" || key === "h")
                         sizeClaims.push({ child, slot, key, i });
                     else
@@ -588,8 +526,6 @@ export class Layout extends Node {
             if (!dropped)
                 break;
         }
-        for (const [child, slot] of discards)
-            this.reportDiscarded(child, slot, arranger);
         const installed = [];
         const detach = () => {
             const seen = new Set();
@@ -740,7 +676,6 @@ export class TweenLayout extends Layout {
                     // child, so it is the one whose message most needs to say so.
                     k.arrangedBy = arranger;
                     refuseIfOwned(child, slot);
-                    this.reportDiscarded(child, slot, arranger);
                     own(child, slot, k);
                     owned.push({ child, slot, k });
                 }
@@ -758,7 +693,6 @@ export class TweenLayout extends Layout {
                 }, (v) => setBound(child, "visible", v));
                 kv.arrangedBy = arranger;
                 refuseIfOwned(child, "visible");
-                this.reportDiscarded(child, "visible", arranger);
                 own(child, "visible", kv);
                 owned.push({ child, slot: "visible", k: kv });
             });

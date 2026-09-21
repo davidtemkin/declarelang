@@ -148,54 +148,6 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
      *  survivable, never a settle-aborting throw. */
     private reportConflict;
-    /** A LITERAL on a slot this strategy claims — `Spacer [ height = 40 ]` in a
-     *  run that flexes its spacers, a `width = 120` on a child the plan gives a
-     *  share. The one-owner guard never sees these: a literal installs no owner,
-     *  so `ownerOf` is null and the claim goes through, overwriting the number
-     *  the author wrote. Until now that was the language's ONLY silent answer to
-     *  "may I set my own geometry here?" — the same value spelled `{ 120 }` is a
-     *  boot failure — so it is reported here, in the same words, at the same
-     *  moment, once per (child, slot).
-     *
-     *  The layout still takes the slot: it is the arrangement's, the picture is
-     *  unchanged, and only the silence goes away. (Handing a literal the slot
-     *  instead would break every tree that carries a leftover `x = 0`, and would
-     *  make the *value* decide the owner.)
-     *
-     *  ── KNOWN DEFECT, not yet fixed (2026-09-20) ──────────────────────────
-     *  THIS REPORT IS NOT DETERMINISTIC ACROSS VIEWPORTS, and it should be.
-     *
-     *  install() derives ownership from ONE call to place(), and for a strategy
-     *  whose arrangement answers to the room it is given, the slots that call
-     *  writes are not the slots another width would write. ResponsiveLayout is
-     *  the case in the corpus: its box is `stack ? { y } : { x }`, so a row tier
-     *  claims x and leaves y to the author, and a stack tier does the reverse.
-     *  The report is emitted at install and remembered for the life of the
-     *  layout (`discarded`), so a program that first settles narrow is told its
-     *  `y = 15` is discarded — and the moment the page widens, that y is live
-     *  and wanted. First settle wide and the same source is never reported at
-     *  all. Same program, same author, advice decided by the viewport at boot.
-     *
-     *  Measured, three times over, on apps/homepage and apps/architecture: a
-     *  reader who follows the advice and deletes the line MOVES THE PAGE (1px,
-     *  8px, 10px and 15px in the cases seen). The report's cost is therefore
-     *  asymmetric — a wrong deletion is a visible regression, silence is only a
-     *  missed hint — which is the shape of the fix, whatever form it takes:
-     *  either the report waits for a moment the arrangement is stable and is
-     *  then made against what is true then, or its condition narrows to
-     *  something a viewport cannot change.
-     *
-     *  The fix belongs ENTIRELY HERE. "Which slot is claimed" is runtime
-     *  bookkeeping, derived automatically; it is not a Declare concept and an
-     *  author must never have to think about it, so no hook, flag or answer-back
-     *  may appear on the Layout surface to carry this. (A first sketch did
-     *  exactly that and was rejected on those grounds.) The message wants
-     *  rewriting in author vocabulary too: it currently says "the arrangement
-     *  writes that slot", and "slot" is not a word the language asks anyone to
-     *  know. */
-    protected reportDiscarded(child: View, slot: string, arranger: string): void;
-    /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
-    private readonly discarded;
     /** Is this the first thing said about (child, slot)? A conflict report is
      *  once-only per child — a rearm storm re-hits the same slot every wave. */
     private firstReport;

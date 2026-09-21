@@ -67,15 +67,6 @@ export declare class DeclareErrors extends DeclareError {
  *  when that helps (a direct write); null when the child obviously authored
  *  it. */
 export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null, where?: Where | null): string;
-/** A LITERAL (or a direct write) on a slot a layout claims. Same conflict as
- *  the bound case, spelled differently — and until now the only spelling the
- *  language answered in silence: a literal installs no owner, so the one-owner
- *  guard never saw it and the arrangement simply overwrote the number. The
- *  answer to "may I set my own geometry here?" must not depend on whether the
- *  value was written `40` or `{ 40 }`, so this says the same thing the bound
- *  case says, names the value that is being dropped, and points at the line
- *  that wrote it. */
-export declare function discardedValueMessage(childClass: string, slot: string, value: string | null, arranger: string, where?: Where | null): string;
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
  *  A sentence that reaches its reader through a helper — a builder's return,
