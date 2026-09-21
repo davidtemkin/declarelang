@@ -1,55 +1,11 @@
 /*
-# Fig. 2 — one line through the compiler
+# The compiler's trace
 
-Three pieces. A strip of the compiler's five passes; the real trace of one
-line from the homepage's spring demo (source, resolved, read-paths, kernel
-code — copied verbatim from the compiled artifact); and a small stack machine
-that runs that kernel code one token at a time, so the reader can watch the
-arithmetic happen without JavaScript.
+One line from the homepage's spring demo, as the compiler leaves it: the
+source, the resolved form, the read-paths, and the kernel code — copied
+verbatim from the compiled artifact, not reconstructed. It sits inline in the
+reading column, as a specimen the prose points at.
 */
-
-// one pass of the compiler, drawn as a chevron segment of a single strip
-
-class Pass extends View [ height = 74,
-    step: string = "",
-    what: string = "",
-    tone: number = 0,
-    first: boolean = false,
-    down: boolean = false,
-    draw(d: Draw) {
-        const n = 12
-        d.fillStyle = provided("theme").appSoft
-        d.globalAlpha = 0.55 + 0.45 * this.tone
-        d.beginPath()
-        if (this.down) {
-            d.moveTo(0, 0)
-            d.lineTo(d.w / 2, this.first ? 0 : n)
-            d.lineTo(d.w, 0)
-            d.lineTo(d.w, d.h - n)
-            d.lineTo(d.w / 2, d.h)
-            d.lineTo(0, d.h - n)
-            }
-        else {
-            d.moveTo(0, 0)
-            d.lineTo(d.w - n, 0)
-            d.lineTo(d.w, d.h / 2)
-            d.lineTo(d.w - n, d.h)
-            d.lineTo(0, d.h)
-            if (!this.first) d.lineTo(n, d.h / 2)
-            }
-        d.closePath()
-        d.fill()
-        d.globalAlpha = 1
-        d.strokeStyle = provided("theme").app
-        d.lineWidth = 1
-        d.stroke()
-        },
-    s: Label [ x = { classroot.down ? 16 : (classroot.first ? 14 : 24) }, y = { classroot.down ? 12 : 14 },
-        fontSize = 15, text = { classroot.step } ],
-    w: Note [ x = { classroot.down ? 16 : (classroot.first ? 14 : 24) }, y = { classroot.down ? 34 : 36 },
-        width = { classroot.width - (classroot.down ? 32 : 44) }, fontSize = 12.5, text = { classroot.what } ]
-    ]
-
 
 // one row of the trace: what it is, and the text in a well
 
@@ -60,13 +16,7 @@ class TraceRow extends View [
     layout: ResponsiveLayout [ plan = { [({ from: 640, flow: "row", gap: 16, share: ({ tag: 20, code: 80 }) }),
         ({ from: 0, flow: "stack", gap: 8, share: ({ tag: 100, code: 100 }) })] } ],
 
-    // the tag drops 10px so it reads level with the code in the well beside
-    // it. Only the row regime honours that: a `stack` plan owns `y` and puts
-    // the tag above the well, which is what a narrow reader wants — so the
-    // runtime's "this value is discarded" note is true of the narrow plan and
-    // of nothing else
-
-    tag: Eyebrow [ y = 10, text = { classroot.what }, textColor = { classroot.hue } ],
+    tag: Eyebrow [ text = { classroot.what }, textColor = { classroot.hue } ],
     code: Well [
         HTMLText [ fontSize = 13, lineHeight = 1.45,
             fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"],
@@ -77,146 +27,13 @@ class TraceRow extends View [
     ]
 
 
-// a token of kernel code, lit while the machine is on it
-
-class Tok extends View [ width = 58, height = 58, cornerRadius = 8,
-    idx: number = 0,
-    op: string = "",
-    gloss: string = "",
-    at: number = 0,
-    done: boolean = { this.at > this.idx },
-    now: boolean = { this.at == this.idx + 1 },
-    fill = { this.now ? provided("theme").kerSoft : provided("theme").panel },
-    stroke = { stroke(this.now ? 2 : 1, this.now ? provided("theme").ker : provided("theme").line) },
-    opacity = { this.done || this.at == 0 ? 1 : 0.55 },
-    o: Mono [ x = center, y = 10, fontSize = 17, fontWeight = semibold, text = { classroot.op } ],
-    g: Note [ x = center, y = 35, fontSize = 11.5, wrap = false, text = { classroot.gloss } ]
-    ]
-
-
-class Cell extends View [ height = 34, cornerRadius = 6,
-    fill = { provided("theme").kerSoft }, stroke = { stroke(1, provided("theme").ker) },
-    v: Mono [ x = 12, y = center, fontSize = 14, text = :v ],
-    n: Note [ x = { parent.width - this.width - 10 }, y = center, fontSize = 11.5, wrap = false, text = :n ]
-    ]
-
-
-class CompileFig extends View [
-    narrow: boolean = { this.width < 760 },
-    layout: Run [ spacing = 26 ],
-
-    // ── the strip ──
-
-    strip: View [
-        layout: ResponsiveLayout [ plan = { [
-            // five equal passes across the run; the negative gap laps each arrow
-            // over its neighbour (the shares divide the run, so they total 100)
-            ({ from: 760, flow: "row", gap: -4, share: ({ p1: 20, p2: 20, p3: 20, p4: 20, p5: 20 }) }),
-            ({ from: 0, flow: "stack", gap: 4, share: ({ p1: 100, p2: 100, p3: 100, p4: 100, p5: 100 }) })] } ],
-        p1: Pass [ down = { classroot.narrow },
-            first = true, tone = 0, step = "Parse", what = "brackets into a tree" ],
-        p2: Pass [ down = { classroot.narrow },
-            tone = 0.25, step = "Resolve", what = "bare names to paths" ],
-        p3: Pass [ down = { classroot.narrow },
-            tone = 0.5, step = "Extract", what = "each { }’s read set" ],
-        p4: Pass [ down = { classroot.narrow },
-            tone = 0.75, step = "Type-check", what = "every body, as TypeScript" ],
-        p5: Pass [ down = { classroot.narrow },
-            tone = 1, step = "Emit", what = "program + graph + kernel code" ]
-        ],
-
-    // ── the trace: verbatim from the compiled artifact ──
-
-    trace: Plate [ gap = 14,
-        TraceRow [ what = "You wrote", hue = { provided("theme").muted },
-            html = "to = { on ? lane.width - ball.width : 0 }" ],
-        TraceRow [ what = "Resolved", hue = { provided("theme").muted },
-            html = "to = { <span class='p'>this.root.on</span> ? <span class='p'>parent.parent.parent.lane.width</span> - <span class='p'>parent.parent.ball.width</span> : 0 }" ],
-        TraceRow [ what = "Read-paths", hue = { provided("theme").muted },
-            html = "<span class='n'>0</span> <span class='p'>this.root.on</span><br><span class='n'>1</span> <span class='p'>parent.parent.parent.lane.width</span><br><span class='n'>2</span> <span class='p'>parent.parent.ball.width</span>" ],
-        TraceRow [ what = "Kernel code", hue = { provided("theme").ker },
-            html = "&quot;=E<span class='p'>L0</span> <span class='p'>L1</span> <span class='p'>L2</span> - K0 ?&quot; <span class='n'>— load 0, 1, 2 · subtract · push 0 · select</span>" ]
-        ],
-
-    // ── the machine ──
-
-    on: boolean = true,
-    laneW: number = 544,
-    ballW: number = 60,
-    at: number = 0,
-    toks: string[] = ["L0", "L1", "L2", "-", "K0", "?"],
-
-    // the stack after the first n tokens — the kernel's loop, in miniature
-
-    stackAt(n: number) -> object {
-        const s = []
-        const names = []
-        for (let i = 0; i < n; i++) {
-            const t = this.toks[i]
-            if (t == "L0") { s.push(this.on ? 1 : 0); names.push("on") }
-            else if (t == "L1") { s.push(this.laneW); names.push("lane.width") }
-            else if (t == "L2") { s.push(this.ballW); names.push("ball.width") }
-            else if (t == "K0") { s.push(0); names.push("const") }
-            else if (t == "-") {
-                const b = s.pop()
-                const a = s.pop()
-                names.pop()
-                names.pop()
-                s.push(a - b)
-                names.push("difference")
-                }
-            else if (t == "?") {
-                const f = s.pop()
-                const tv = s.pop()
-                const c = s.pop()
-                names.pop()
-                names.pop()
-                names.pop()
-                s.push(c != 0 ? tv : f)
-                names.push("result → to")
-                }
-            }
-        const out = []
-        for (let i = s.length - 1; i >= 0; i--) out.push({ id: "c" + i, v: "" + s[i], n: names[i] })
-        return { cells: out }
-        },
-    stack: Dataset [ contents = { classroot.stackAt(classroot.at) } ],
-
-    machine: Plate [
-        cols: View [
-            layout: ResponsiveLayout [ plan = { [({ from: 700, flow: "row", gap: 28, share: ({ left: 72, right: 28 }) }),
-                ({ from: 0, flow: "stack", gap: 20, share: ({ left: 100, right: 100 }) })] } ],
-            left: View [ layout: Run [ spacing = 16 ],
-                Note [ fontSize = 13.5, textColor = { provided("theme").lead },
-                    text = "Step through the kernel code. Each token pushes a value or combines the top of the stack; the last one leaves the spring’s target." ],
-                toks: View [
-                    layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
-                    Tok [ idx = 0, op = "L0", gloss = "on", at = { classroot.at } ],
-                    Tok [ idx = 1, op = "L1", gloss = "lane.w", at = { classroot.at } ],
-                    Tok [ idx = 2, op = "L2", gloss = "ball.w", at = { classroot.at } ],
-                    Tok [ idx = 3, op = "-", gloss = "subtract", at = { classroot.at } ],
-                    Tok [ idx = 4, op = "K0", gloss = "0", at = { classroot.at } ],
-                    Tok [ idx = 5, op = "?", gloss = "select", at = { classroot.at } ]
-                    ],
-                ctl: View [
-                    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
-                    Button [ label = { classroot.at >= 6 ? "Run again" : "Step" }, primary = true,
-                        onClick() { classroot.at = classroot.at >= 6 ? 0 : classroot.at + 1 }
-                        ],
-                    Switch [ checked = { classroot.on },
-                        input(v: boolean) { classroot.on = v }
-                        ],
-                    Note [ fontSize = 13, text = { "on = " + (classroot.on ? "true" : "false") } ]
-                    ]
-                ],
-            right: View [ layout: Run [ spacing = 6 ],
-                Eyebrow [ text = "stack" ],
-                cells: View [ datapath = { classroot.stack.value }, height = { Math.max(34, this.contentHeight) },
-                    layout: Run [ spacing = 6 ],
-                    Cell [ datapath = :cells[] ]
-                    ],
-                Note [ fontSize = 12.5, visible = { classroot.at == 0 }, text = "empty" ]
-                ]
-            ]
-        ]
+class Trace extends Plate [ width = 100%, gap = 14,
+    TraceRow [ what = "You wrote", hue = { provided("theme").muted },
+        html = "to = { on ? lane.width - ball.width : 0 }" ],
+    TraceRow [ what = "Resolved", hue = { provided("theme").muted },
+        html = "to = { <span class='p'>this.root.on</span> ? <span class='p'>parent.parent.parent.lane.width</span> - <span class='p'>parent.parent.ball.width</span> : 0 }" ],
+    TraceRow [ what = "Read-paths", hue = { provided("theme").muted },
+        html = "<span class='n'>0</span> <span class='p'>this.root.on</span><br><span class='n'>1</span> <span class='p'>parent.parent.parent.lane.width</span><br><span class='n'>2</span> <span class='p'>parent.parent.ball.width</span>" ],
+    TraceRow [ what = "Kernel code", hue = { provided("theme").ker },
+        html = "&quot;=E<span class='p'>L0</span> <span class='p'>L1</span> <span class='p'>L2</span> - K0 ?&quot; <span class='n'>— load 0, 1, 2 · subtract · push 0 · select</span>" ]
     ]

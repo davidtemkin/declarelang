@@ -2,21 +2,22 @@
 # What's under the hood
 
 An explanatory piece for readers who know front-end frameworks and have read
-Declare's homepage, the "Why" essay and the FAQ. Declare reads like a thin DSL
-over the browser; this page shows what actually compiles, what runs where,
-which code handles which job, and how one program runs unchanged in the DOM,
-on a single canvas, and as a native Mac window.
+Declare's homepage, the "Why" essay and the FAQ. Its premise: a Declare front
+end is one complete artifact, and the runtime is what has to be true underneath
+for that to hold. It follows one program from source to pixels: what the
+compiler produces, what a click does, who decides where things are, where the
+host begins, and how a Declare program meets code that isn't Declare.
 
 The page is itself a Declare program, and its figures are live views rather
 than pictures: morphs are sprung scalars, and the hit-testing figure reports
 the runtime's own answers. Open it with `?render=canvas` and it is the same
-page, painted into one element.
+page, drawn directly to pixels.
 
 Sizes quoted here were measured 2026-09-18 from real `declarec` production
 builds (gzip, default level).
 */
 
-include [ "../homepage/fonts.declare", "parts/kit.declare", "parts/hero.declare", "parts/compile.declare", "parts/ships.declare", "parts/click.declare", "parts/hit.declare", "parts/paint.declare", "parts/hosts.declare", "parts/honest.declare" ]
+include [ "../homepage/fonts.declare", "parts/kit.declare", "parts/hero.declare", "parts/compile.declare", "parts/ships.declare", "parts/click.declare", "parts/hit.declare" ]
 
 // The page's palette, light and dark. A token record is the language's own
 // notation for this, so the tokens are declarations rather than a JavaScript
@@ -116,18 +117,22 @@ App [ appName = "What's under the hood · Declare",
             layout: SimpleLayout [ axis = y, spacing = 18 ],
             Eyebrow [ text = "Declare · runtime architecture" ],
             Title [ fontSize = { app.width < 700 ? 40 : 54 }, text = "What’s under the hood" ],
-            Dek [ text = "Declare reads like a thin language over the browser. It isn’t. This is what a program compiles to, which code runs where, and how one unmodified program runs as a web page, on a single canvas, and in a native Mac window." ]
+            Dek [ text = "A Declare front end is one self-contained artifact — small enough to hold in your head, strict enough for a machine to verify, rich enough for an ambitious application. This is what Declare’s runtime does to make that true." ]
             ],
 
         // ── the lede ─────────────────────────────────────────────────
 
-        lede: Para [ html = "If you build for the web, you carry a picture of how every UI framework works. Your components produce a tree, the framework keeps that tree in step with your state, and the browser does the rest: layout, styling, hit-testing, scrolling, text, paint. Declare invites that picture. It has components and attributes, it runs in a browser tab, and in its default mode it leaves behind an ordinary DOM. But most of what the picture assigns to the browser has moved. This page follows one program from source file to pixels: what the compiler makes of it, what ships, what happens on a click, who decides where things are and what was touched, and how drawing works. It ends with the same file running as a web page, on a single canvas, and as a native Mac app with no browser in it. Figure 1 is the short version. Switch it from <i>What it looks like</i> to <i>What it is</i>, and watch eight jobs you would expect the browser to do move into Declare’s own runtime. Most of the figures below are live: click, drag and hover them." ],
+        lede: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 22 ],
+            Para [ html = "Declare asks you to believe something unusual about an application’s front end: that it’s complete. Everything the interface does is written in the one program — where each box goes, how a paragraph wraps, what a click landed on, how a view becomes the next one, how a list of a million rows scrolls on a phone. It can be written that way because the program states the <i>relationships</i> between its elements rather than the steps that maintain them — which is both easier to understand and substantially more compact. A machine can verify it whole. And because the compiler sees every relationship in advance, the runtime never has to discover anything while it runs — which is why it was possible to write its hot path once, in a few kilobytes of C." ],
+            Para [ html = "A promise like that puts a demand on what runs underneath. If the browser decided the layout, the program wouldn’t be complete. If a click were routed by the DOM, the same interface drawn directly to pixels would route it differently. So the runtime makes those decisions itself, once — and then hands the browser everything it is genuinely best at: real text, native fields, the page’s own scroll, links that behave like links. Declare isn’t a native framework running in a browser tab; it’s a language for interfaces with the feel of good native software that are also good citizens of the web — crawlable, selectable, responsive, touch-native. That the same program also runs drawn directly to pixels, and in a Mac application with no browser in it, is the proof that it really is complete: nothing about it was ever decided somewhere else. Figure 1 is that division of labor, before and after." ]
+            ],
 
         // ── Fig. 1 ───────────────────────────────────────────────────
 
         fig1: Figure [
-            Caption [ fig = "Fig. 1 — The stack you assume, and the one that runs",
-                text = "Eight jobs a web developer expects the browser to do. In Declare each of them is decided by the runtime, on every renderer; the host is left to realize the result. The same five colors mark the same layers in every figure below." ],
+            Caption [ fig = "Fig. 1 — Two pictures of one program",
+                text = "Left: the stack a web framework implies — your file, a framework, and a browser that decides layout, text, and what you touched. Right: what runs — the compiled program, the library (itself written in Declare), a runtime that owns every one of those decisions, a small C kernel beneath it, and a host on the far side of one interface that realizes the result. The same five colors mark the same layers throughout." ],
             top: View [
                 Segmented [ x = center, width = 300, height = 32,
                     value = { app.heroActual ? "is" : "looks" },
@@ -152,112 +157,72 @@ App [ appName = "What's under the hood · Declare",
                 ]
             ],
 
-        // ── 01 · Compile ─────────────────────────────────────────────
+        // ── 01 · The compiler ────────────────────────────────────────
 
-        compile: Section [ num = "01 · Compile", head = "The compiler reads your dependencies, so the runtime never has to",
-            Para [ html = "In React, dependencies are discovered at run time: by re-running a component, or from a dependency array you keep by hand. Declare’s compiler reads them off the source. It parses the brackets into a tree, resolves every bare name to an explicit path through the bracket nesting, extracts each <code>{ }</code> body’s read set, and type-checks every body as TypeScript against the real API of every component. What comes out is not JavaScript that builds a UI. It is a description of one: a tree, its attributes, and a wired graph of which value reads which." ],
-            Para [ html = "Follow one line through it. This is the spring target from the homepage’s bouncing-ball demo, as it appears in the compiled artifact:" ],
-            Figure [
-                Caption [ fig = "Fig. 2 — One line, through the compiler",
-                    text = "The trace is copied from the compiled program, not reconstructed. The numbers pair each read-path with the load that reads it (L0 is path 0). The stack machine runs the same six tokens the kernel runs." ],
-                CompileFig [ ]
-                ],
-            Para [ html = "The last line is the surprise. When a body is plain arithmetic over numeric slots, as most geometry is, the compiler also emits it as bytecode for a small stack machine, and the runtime hands it to the kernel. That body never runs as JavaScript at all. In the calendar, about 600 bodies take this path; the rest run as ordinary functions, called back from inside the same settle." ],
-            Detail [ label = "What else ships inside the program",
-                Para [ html = "<b>The library, compiled in.</b> Library components travel as Declare, alongside your own classes, and the compiler cannot tell them apart. The calendar’s production program carries 17 library classes; <code>SimpleLayout</code> arrives as its one method, <code>place()</code>. There is no component API underneath them to ship separately." ],
-                Para [ html = "<b>The compiler itself, in development only.</b> While you work, the compiler runs in the page, in a worker: 4.4 MB, three quarters of it the TypeScript compiler, which serves as both the expression parser and the type-checker. That is what lets any page here edit and re-run itself. A production build runs the compiler ahead of time and ships none of it." ]
-                ]
+        compile: Section [ num = "01", head = "The compiler",
+            Para [ html = "The compiler is where completeness is enforced. It parses the brackets into a tree, resolves every bare name to an explicit path, extracts the read set of every <code>{ }</code> body, and type-checks each one as TypeScript against the real interface of every component — so an attribute that doesn’t exist, or a relationship that reads something it can’t, is an error before anything runs. What it emits is not code that builds a UI. It is a description of one: the tree with its attributes, a graph of which value reads which, and — for every body that is plain arithmetic over numeric slots — bytecode for a small stack machine." ],
+            Para [ html = "One line from the homepage’s bouncing-ball demo, as it appears in the compiled artifact:" ],
+            Trace [ ],
+            Para [ html = "That last line never runs as JavaScript. In the calendar about 600 bodies take this path; the rest compile to ordinary functions the runtime calls back when their inputs change. A framework learns what depends on what while it runs — by re-running a component, or from a list you keep by hand. Here it is read off the source once, and the runtime never has to discover anything." ],
+            Para [ html = "Because the program is data, it can be questioned as data. The Inspector on any page here — ⌥⌘D — reads this same graph: click a value and it shows the body that produced it, every path that body read, and their live values. That is not a debugging layer added to the runtime. It is the compiler’s output, still present at run time, answering a query." ]
             ],
 
-        // ── 02 · Ship ────────────────────────────────────────────────
+        // ── 02 · What a click does ───────────────────────────────────
 
-        ships: Section [ num = "02 · Ship", head = "Your program is the small part",
-            Para [ html = "A production build is one file: the runtime, the kernel, and your program as data, in a single script. Here is what that file weighs, drawn to scale. Each block’s area is its share of the gzipped bundle, and the bands keep Fig. 1’s order." ],
-            f3: Figure [
-                Caption [ fig = "Fig. 3 — A production build, drawn to scale",
-                    text = { (parent.sf.build == "hello" ? "Hello world" : parent.sf.build == "calDom" ? "The calendar, DOM build" : "The calendar, canvas build") + ": " + parent.sf.shown.toFixed(1) + " KB gzipped, on the wire. Measured from real declarec builds; hover a block for what is in it. Switch builds and watch what moves: the canvas build trades the DOM backend for its own compositor and brings its own scroll physics, and a larger app mostly grows its own block." } ],
-                sf: ShipsFig [ ]
-                ],
-            Para [ html = "Three things stand out. The runtime is a floor, not a tax per feature: about 70 KB whether you ship a hello world or the calendar, because what it does (the graph, the tree, input, text) is used by every program. The <b>layout pass is 1.8 KB</b>, because the layouts themselves are Declare classes in the library, compiled into your program like anything else. And the renderer is a single block you can swap. The DOM and canvas builds differ by one backend and about 9 KB." ],
-            Detail [ label = "Sizes elsewhere: development, and the Mac",
-                Para [ html = "<b>In development</b> nothing is precompiled. The boot bundle carries the whole runtime with both backends, the checker and the inspector (186 KB gzipped), and the compiler loads in a worker (1.2 MB gzipped, three quarters of it TypeScript)." ],
-                Para [ html = "<b>On the Mac</b>, JavaScriptCore comes with the operating system, so nothing ships to run JavaScript. The host is a 1.6 MB Swift executable. Its largest parts are the layer tree and compositing (about a third), then window chrome and native controls, then the JavaScriptCore bridge. The C kernel is 36 KB of it, linked in directly rather than loaded as WebAssembly." ]
-                ]
-            ],
-
-        // ── 03 · Run ─────────────────────────────────────────────────
-
-        run: Section [ num = "03 · Run", head = "One click, end to end",
-            Para [ html = "There is no render function, so there is nothing to call again. A change travels through a graph the compiler already wired, in one indivisible step the language calls the <b>settle</b>: every write a handler makes lands together, every value that read one is recomputed once, in dependency order, and nothing paints until it has all finished." ],
-            Para [ html = "Here is a real one. The meter on the left is live: click it, and the swimlane replays what your click set in motion, slowed down about a thousandfold. In real time the whole trip takes about a millisecond." ],
+        run: Section [ num = "02", head = "What a click does",
+            Para [ html = "When a handler writes an attribute, nothing updates yet. The write is queued. When the handler returns, the runtime performs one update: it finds every value that read what changed, recomputes each exactly once, in dependency order, and only then tells the host what moved. Declare calls that update a <b>settle</b> — the graph, disturbed by a write, coming back to rest — and it is the whole of the update model. If you know React, it is the nearest thing to a commit, except that nothing was rendered to compare against: the graph already knows what depends on what. The whole trip takes about a millisecond." ],
             Figure [
-                Caption [ fig = "Fig. 4 — What a click sets in motion",
-                    text = "Lanes use the layer code. Steps 5 and 6 are the split the compiler arranged in advance: arithmetic runs in the kernel, and anything else runs as your compiled TypeScript, called back from inside the same settle." ],
+                Caption [ fig = "Fig. 2 — What a click sets in motion",
+                    text = "The meter is live; its button is a library Button. Raise the level, then step through what your click set in motion. Four lanes: host, runtime, your code, kernel. Steps 5 and 6 are the split the compiler arranged in advance — arithmetic runs in the kernel; a template string is not arithmetic, so the kernel calls back into your compiled TypeScript, inside the same settle." ],
                 ClickFig [ ]
                 ],
-            Para [ html = "Two things in that sequence belong to no framework you have used. Steps 2 and 3, deciding what was hit and whether it was a click, are the runtime’s, not the browser’s. That is why hover, press, click-versus-drag and gesture ownership behave identically on every renderer. And step 5 runs no JavaScript at all: the kernel owns the graph’s bookkeeping (the tables, the edges, the ordering) and evaluates the arithmetic itself, so a frame that only moves geometry, like most animation frames, can finish without entering JavaScript." ],
-            Detail [ label = "Where the kernel came from, and what it replaced",
-                Para [ html = "The kernel is one C file, about 940 lines, built two ways from the same source: WebAssembly for the browser (17 KB raw, inlined into the bundle) and a static library linked into the Mac host, called through JavaScriptCore’s C API. It replaced the parts of the JavaScript runtime that profiling showed were bookkeeping, not semantics: the tracking around each constraint, the per-frame geometry arithmetic, the settle’s ordering. Measured on the desktop demo, one settle dropped by more than 80%, in Chrome and on the Mac alike." ],
-                Para [ html = "Nothing in the language changed to allow it. The compiler already knew every element’s attribute set, every constraint’s read set and every type; the kernel is that knowledge held in tables instead of JavaScript objects." ]
-                ]
+            Para [ html = "Steps 2 and 3 are the ones a web framework leaves to the browser: which element is under the pointer, and whether this was a click or the start of a drag. Here the runtime answers both, so hover, press, click-versus-drag and gesture ownership are one implementation — the same under a finger as under a pointer, and the same on every renderer." ],
+            Para [ html = "Step 5 runs no JavaScript at all. Beneath the runtime sits a kernel: one C file, about 940 lines, that holds the graph’s tables — every attribute, every edge, the settle’s order — and evaluates the arithmetic the compiler turned into bytecode. In the browser it ships as WebAssembly, 11 KB gzipped inside the bundle; on the Mac the same source is linked in natively. It is unusual for a web framework to carry a C library, and it is only possible because the compiler left nothing for the runtime to work out: with every dependency and every arithmetic body known in advance, the bookkeeping of a settle is a fixed procedure over fixed tables, which is what C is for. A frame that only moves geometry — most animation frames — finishes inside it without entering JavaScript." ]
             ],
 
-        // ── 04 · Geometry and hit-testing ────────────────────────────
+        // ── 03 · Motion ──────────────────────────────────────────────
 
-        geometry: Section [ num = "04 · Place and hit", head = "Where things are, and what you touched, are the runtime’s decisions",
-            Para [ html = "Open a Declare page in the DOM inspector and you will find a tree of absolutely positioned <code>div</code>s with no layout CSS on them. That is not a shortcut. It is the division of labour: every box is decided before the browser hears about it, by one of three things, none of them CSS." ],
+        motion: Section [ num = "03", head = "Motion",
+            Para [ html = "Continuity — a view becoming the next one rather than being replaced by it — is the part of good native software that is usually bespoke. Here is what makes it ordinary at run time. A <code>Spring</code> is an attribute with a target; each frame it writes its next value, and that write is a settle like any other — the same graph, the same kernel, the same dependency order. Nothing about animation is special-cased. Because geometry arithmetic runs as bytecode, a frame that only moves things — most frames of most animations — completes inside the kernel, in WebAssembly, and never enters JavaScript. Because a settle is one indivisible step, a new target arriving mid-flight is simply the next write: the spring retargets from wherever it is, and every value that read it follows. Interruptibility isn’t a feature of the animation system; it is what a reactive graph does when you write to it. And a layout is re-derived in the same settle, so an arrangement can travel as one thing — the calendar’s four views are one surface under a moving rectangle, and each frame of that zoom is a settle over the same few hundred kernel bodies." ]
+            ],
+
+        // ── 04 · Layout and hit-testing ──────────────────────────────
+
+        geometry: Section [ num = "04", head = "Layout and hit-testing",
+            Para [ html = "Open a Declare page in the browser’s element inspector and every view is there — a <code>div</code> per component, nested to mirror the tree — with its position and size written on it as inline style and no layout CSS anywhere. That is not a shortcut. It is the division of labor: every box is decided before the host hears about it, by one of three things. Arithmetic over slots (<code>x = { parent.width - 40 }</code>) runs in the kernel. A layout is a library class with one method, <code>place()</code>, returning a box per child — 1.8 KB of runtime applies it. An unset width is the bounding box of the visible children, kept current as a rule over the geometry table. Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer." ],
+            Para [ html = "Because the runtime placed every box, it can answer the inverse question — what is under this point? — and that answer decides hover, press, whether a gesture was a click, and where a drag lands. The scene below computes none of it. Each view is reporting its own <code>hovered</code> fact, kept true by the same walk that routes a press." ],
             Figure [
-                Caption [ fig = "Fig. 5 — Who computes a view’s box",
-                    text = "Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer." ],
-                WhoFig [ ]
-                ],
-            Para [ html = "Because the runtime placed every box, it can also answer the inverse question: what is under this point? That answer decides hover, press, whether a gesture was a click, and which view a drag lands on. The figure below doesn’t compute any of it. Each view in the scene is reporting its own <code>hovered</code> fact, which the runtime keeps true with the same walk that routes a press." ],
-            Figure [
-                Caption [ fig = "Fig. 6 — Ask the runtime what is under the pointer",
+                Caption [ fig = "Fig. 3 — Ask the runtime what is under the pointer",
                     text = "Try the rotated card’s corners, the empty-looking glass, the badge, and the child where the pane’s clip cuts it off. The walk runs in reverse paint order and stops at the first view that has declared an interest in the pointer." ],
                 HitFig [ ]
                 ],
-            Para [ html = "On the canvas and in the Mac host there is no DOM to ask, so this walk is the whole of hit-testing: reverse child order, clip shapes subtracted, transforms inverted, scrollers corrected. In the DOM the browser finds the element and the runtime resolves it to the nearest view that declared a handler. Either way the decision about what counts, a click or a drag, the gesture yours or the page’s, is one implementation, shared. Your program can ask it directly with <code>app.viewAt(x, y)</code>, which is how drag and drop is written." ]
+            Para [ html = "Drawn to pixels, or on the Mac, there is no DOM to ask, so this walk is the whole of hit-testing: clips subtracted, transforms inverted, scrollers corrected. In the DOM the browser names the element and the runtime resolves it to the nearest view with a handler. Either way the decision is one implementation, and the same one that decides whether a touch is a tap, a scroll, or a drag the page should not claim. Your program can ask it directly — <code>app.viewAt(x, y)</code> — which is how drag and drop is written." ]
             ],
 
-        // ── 05 · Paint ───────────────────────────────────────────────
+        // ── 05 · Where the host begins ───────────────────────────────
 
-        paint: Section [ num = "05 · Paint", head = "One recording, three realizations",
-            Para [ html = "Most of what a view paints is attributes: a fill, a corner radius, a stroke, a shadow, text. Each renderer realizes those its own way. For the marks attributes can’t express, such as a gauge, a sparkline or an icon, a view defines <code>draw(d)</code>. It looks like canvas code, but it never touches a canvas. It <i>records</i>." ],
-            Figure [
-                Caption [ fig = "Fig. 7 — A drawing is data until a renderer consumes it",
-                    text = "The listing is derived from the same value the gauge reads, so it changes as you drag. draw() is an ordinary method called from a constraint: it re-runs when something it read changes, never per frame." ],
-                PaintFig [ ]
+        hosts: Section [ num = "05", head = "Where the host begins",
+            Para [ html = "Everything above happens on one side of a single interface. It is called <code>Surface</code>, it has 58 methods — <code>setX</code>, <code>setFill</code>, <code>setText</code>, <code>setDrawing</code> — the runtime calls them and a backend implements them, and a view never learns which backend it has. Below that interface a backend does one job: realize what it was told. The DOM backend keeps a <code>div</code> per view with its geometry as inline style, and hands the platform what the platform does best — real text that selects and finds, the page’s own scroll, links that ⌘-click, native form fields. The canvas backend draws the whole tree directly to pixels, with its own compositor and its own scroll physics, for surfaces that must be uniform or capturable. The Mac host is a Swift application with no web engine in it: it runs the same runtime bundle in JavaScriptCore, links the same kernel as C, and applies one batch of drawing operations per settle to a tree of Core Animation layers." ],
+            f4: Figure [
+                Caption [ fig = "Fig. 4 — One program, three hosts",
+                    text = "The calendar’s build, drawn to scale by gzipped bytes. Switch hosts and watch what moves: the program, the library and the rest of the runtime are the same bytes; one block is exchanged, and on the Mac the kernel leaves the bundle for the executable. Beneath, the same desktop program with the same four windows open, on each host." ],
+                sf: ShipsFig [ ]
                 ],
-            Para [ html = "That is why a drawing costs nothing when it sits still, and why the same library icons render on a Mac with no browser in the process. A recording is plain data, so it can be replayed into an element’s own canvas, into a shared surface, into a worker, or across a process boundary into Core Graphics. The perceptual test suite holds the DOM and canvas renderings of the same program within anti-aliasing tolerance of each other, pixel for pixel." ]
+            Para [ html = "Drawing crosses the interface the same way. A view that needs a mark attributes can’t express — a gauge, a sparkline, an icon — defines <code>draw(d)</code>. It looks like canvas code but it records; the recording is plain data that the DOM backend rasterizes into the view’s own element, the canvas backend replays during its composite, and the Mac replays through Core Graphics. A drawing that read nothing that changed costs nothing." ],
+            Para [ html = "Declare’s own model is single-threaded by construction: a settle is one step, and there is nothing in the language that runs concurrently with it. That is what lets hosts thread freely on their side of <code>Surface</code> — the canvas backend rasterizes drawings in a worker, and the Mac runs the runtime on a thread of its own and commits to the display on another. Your program never sees any of it." ]
             ],
 
-        // ── 06 · Host ────────────────────────────────────────────────
+        // ── 06 · Islands ─────────────────────────────────────────────
 
-        hosts: Section [ num = "06 · Host", head = "One program, three hosts",
-            Para [ html = "Everything so far happens above a single seam: an interface of 58 methods such as <code>setX</code>, <code>setFill</code>, <code>setText</code> and <code>setDrawing</code>, which the runtime calls and a backend implements. A view never learns which backend it has. That is the whole of what changes between a web page, a canvas and a native Mac window. Switch hosts below and watch what stays put." ],
-            Figure [
-                Caption [ fig = "Fig. 8 — Above the seam, nothing changes",
-                    text = "The same desktop program with the same four windows open, captured in Chrome with the DOM renderer, in Chrome with ?render=canvas, and in the native Mac host. Click a screenshot to switch the diagram." ],
-                HostsFig [ ]
-                ],
-            Para [ html = "The Mac column is the one that surprises people. The host is a Swift application with no web engine in it. It runs the runtime’s own JavaScript bundle in JavaScriptCore, on a thread of its own, links the kernel in as C, and receives one flat batch of drawing operations per settle, which it applies to a tree of Core Animation layers in a single transaction. Nothing is read back on the hot path. The host answers only two questions, how wide a run of text is and how big an image is. Hit-testing, scrolling decisions and focus stay in the runtime, so the Mac cannot disagree with the browser about where a press landed. There is only one implementation of the decision. And the whole application is small: 7.8 MB, compiler included, around a 1.6 MB executable, because the operating system already supplies JavaScriptCore, Core Animation and Core Text. The Electron apps on the machine this was written on each carry 113 to 503 MB of Electron framework before any code of their own. Electron does far more, but that is the size of shipping a browser." ],
-            Para [ html = "None of this makes the DOM renderer something other than a web page. It is the default because it hands the platform everything the platform does best: real text that selects and finds, the browser’s own scroll, links that ⌘-click, native form fields, and the accessibility the platform gives those elements for free — a baseline we have not yet deepened with roles and announcements. A reader would struggle to tell a Declare page from any other. The canvas renderer is the sealed one, on purpose: for surfaces that must be uniform, capturable, or constant-size however large the interface grows." ],
-            Detail [ label = "What the host is still missing",
-                Para [ html = "The Mac host runs the whole corpus at full fidelity, but it is a runtime environment, not yet a way to ship software: no per-app signing, installer, updates or file dialogs, the parts Electron exists to provide. Foreign web content cannot enter it either, since a <code>DOMIsland</code> needs a browser; an <code>AppIsland</code>, which hosts another Declare program, works natively, because a tenant needs only a place to put a view tree." ]
-                ]
+        islands: Section [ num = "06", head = "Interoperability",
+            Para [ html = "<code>Surface</code> is the boundary between the runtime and its host. There is a second boundary, between a Declare program and code that isn’t Declare, and it has the same shape in every direction. A page embeds a Declare app by marking a sized element as its host — one attribute, <code>data-declare-embed</code> — and the app runs in that box like any other element on the page. The interface between them is declared, not improvised: the page <i>provides</i> values the app reads with <code>hostProvided</code>, the app <i>exposes</i> values the page reads back, and either side can <code>post</code> a message the other receives in <code>onPost</code>. Inside a Declare program the same contract runs the other way. A <code>DOMIsland</code> is a box the tree sizes and positions, inside which a video player, an editor or a React widget owns its own DOM. An <code>AppIsland</code> hosts a second Declare program as a tenant with the same provides, exposes and post — this article is one, mounted inside the homepage, taking its theme and type from the page around it. Three directions, one boundary, one vocabulary." ]
             ],
 
-        // ── 07 · Proof ───────────────────────────────────────────────
+        // ── 07 · Why it still reads like a web page ──────────────────
 
-        proof: Section [ num = "07 · Proof", head = "How it stays one program",
-            Para [ html = "A claim like “the same program runs everywhere” decays unless something checks it. Three things do. A perceptual suite holds DOM and canvas renders of each program to the same pixels, within anti-aliasing tolerance. A Mac gate holds the native host to per-program baselines across a corpus of real apps. And before each release a conformance oracle puts the same behavioral questions to all three renderers and requires byte-identical answers." ],
-            Figure [
-                Caption [ fig = "Fig. 9 — Same question, three renderers, one answer",
-                    text = "The kinds of question the oracle asks. The answers are the runtime’s, so three hosts can only agree if one decision is being made in one place, which is the architecture this page has been describing." ],
-                OracleFig [ ]
-                ],
-            Para [ html = "That is also why the design holds even if you never leave the DOM. A language that owns its own semantics, with no stylesheet or browser layout engine to defer to, can be checked against a second realization of itself. The canvas keeps the DOM honest. And the discipline that makes a program portable is the same one that makes it mean exactly one thing." ],
+        why: Section [ num = "07", head = "What remains the browser’s",
+            Para [ html = "A Declare app in a browser is a web page, not an imitation of one. The behaviors that make a page a page stay the browser’s, and Declare does not simulate them: text is real text — it selects, it finds, it copies; fields are native fields, with native carets and input methods; scroll and overscroll are the page’s own; links are links, ⌘-click and all, and the Back button tells the truth; a crawler reads a static extraction from a plain host. The DOM renderer is the default because nothing about the program’s meaning is at stake in the browser, so all of that can be left to the browser without risk. A reader would struggle to tell a Declare page from any other." ],
+            Para [ html = "What keeps that description honest is the second rendering. A program that owns its own semantics — no stylesheet, no browser layout engine to defer to — can be checked against another realization of itself, and the platform’s test suite holds the DOM renderer and the pixel renderer to the same picture on every change. The discipline that makes a front end complete is the same one that makes it mean exactly one thing." ],
             links: View [ width = 100%,
                 layout: WrappingLayout [ spacing = 22, lineSpacing = 10 ],
                 Text [ fontSize = 15, fontWeight = medium, link = "apps/architecture/architecture.declare?render=canvas",

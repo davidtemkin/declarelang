@@ -75,8 +75,8 @@ class Mono extends Text [ fontFamily = ["SF Mono", "ui-monospace", "Menlo", "mon
 /*
 ## Section head
 
-A numbered section: the number is information (the sections are the program's
-own sequence — compile, ship, run, paint, host), the title, and a dek.
+A numbered section: the number is information (the sections follow the
+program from source to pixels), then the title.
 */
 
 class SectionHead extends View [ width = 100%,
@@ -186,19 +186,6 @@ class Plate extends View [ cornerRadius = 14,
 
 class Well extends Plate [ cornerRadius = 8, pad = 12, gap = 8, fill = { provided("theme").sunk }, stroke = null ]
 
-// A hairline between the rows of a table, taking its width from the `Run` it
-// sits in.
-//
-// Not the library's `Divider`, and the reason is worth recording on a page
-// about how the library works: a `Divider` derives its own `width` from the
-// parent's content box, and every rule this class stands in for sits inside a
-// `Run`, which claims `w` on each child it places. One slot has one owner, so
-// that pair is a refusal at boot, not a matter of taste. Where no arrangement
-// claims the width — a rule inside a plain view, or in a `SimpleLayout` stack
-// — `Divider` is the right class and this one is not needed.
-
-class Hair extends View [ height = 1, fill = { provided("theme").line } ]
-
 /*
 ## Layer chip — the legend's atom
 
@@ -215,45 +202,4 @@ class Key extends View [ height = 18,
 
     Swatch [ fill = { classroot.hue } ],
     Note [ fontSize = 13, textColor = { provided("theme").lead }, text = { classroot.label } ]
-    ]
-
-
-/*
-## Detail — progressive disclosure
-
-The main path is a headline, a figure, a paragraph. A `Detail` is the second
-layer for the reader who wants the mechanism: a quiet row that opens in place.
-Its body's height is one sprung scalar (`k`), so the reveal travels — the text
-below slides down to make room rather than jumping.
-*/
-
-class Detail extends View [ width = 100%, clip = true,
-    label: string = "",
-    open: boolean = false,
-    k: number = 0,
-    height = { this.row.height + this.k * Math.max(0, this.contentHeight - this.row.height + 10) },
-    layout: SimpleLayout [ axis = y, spacing = 14 ],
-    Spring [ attribute = k, to = { classroot.open ? 1 : 0 }, stiffness = 210, damping = 26 ],
-
-    row: View [ height = { this.lbl.height + 18 }, width = 100%,
-        onClick() { classroot.open = !classroot.open },
-        rule: View [ width = 100%, height = 1, fill = { provided("theme").line } ],
-        chev: View [ x = 0, y = 12, width = 16, height = 16, pivotX = 8, pivotY = 8,
-            rotation = { 90 * classroot.k },
-            draw(d: Draw) {
-                d.strokeStyle = provided("theme").accent
-                d.lineWidth = 1.8
-                d.lineCap = "round"
-                d.lineJoin = "round"
-                d.beginPath()
-                d.moveTo(6, 4)
-                d.lineTo(10.5, 8)
-                d.lineTo(6, 12)
-                d.stroke()
-                }
-            ],
-        lbl: Text [ x = 24, y = 9, width = { parent.width - 24 }, fontSize = 15, fontWeight = medium, lineHeight = 1.35,
-            textColor = { parent.hovered ? provided("theme").accentHover : provided("theme").accent },
-            text = { classroot.label } ]
-        ]
     ]

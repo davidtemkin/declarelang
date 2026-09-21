@@ -1,17 +1,14 @@
 /*
-# Fig. 4 — one click, end to end
+# Fig. 2 — one click, end to end
 
 Left, a live control: a level meter the reader clicks. Right, a swimlane of
-what that click set in motion, slowed down about a thousandfold. Four lanes
-in the layer code (host, runtime, your code, kernel); nine steps; a phase
-scalar `ph` that an Animator runs 0 → 9 on each click. Every node's lit state
-and the travelling dot derive from `ph`. At rest the diagram shows the whole
-sequence, fully drawn.
+what that click set in motion, read one step at a time. Four lanes in the
+layer code (host, runtime, your code, kernel); nine steps; a phase `ph` that
+the click resets to 1 and a button advances. Every node's lit state derives
+from `ph`. At rest the diagram shows the whole sequence, fully drawn.
 
-The nine steps are a `Dataset`, and every view that shows one is replicated
-from it — the discs on the lanes, and the two columns of the key below, each
-over its own slice of the same rows. Nothing here is a list written out nine
-times.
+The nine steps are a `Dataset`, and the discs on the lanes are replicated from
+it. Nothing here is a list written out nine times.
 */
 
 // one step: a numbered disc on its lane
@@ -24,7 +21,7 @@ class StepNode extends View [ width = 30, height = 30, cornerRadius = 15,
     lit: boolean = { this.ph >= this.idx + 0.5 },
     fill = { this.lit ? this.hue : provided("theme").panel },
     stroke = { stroke(1.5, this.hue) },
-    scale = { this.lit && this.ph < this.idx + 1.5 && this.ph < 8.99 ? 1.18 : 1 },
+    scale = { this.ph == this.idx + 1 && this.ph < 9 ? 1.18 : 1 },
     pivotX = 15, pivotY = 15,
     n: Mono [ x = center, y = center, fontSize = 12, fontWeight = semibold,
         textColor = { classroot.lit ? provided("theme").panel : classroot.hue }, text = { "" + (classroot.idx + 1) } ],
@@ -75,37 +72,11 @@ class Lanes extends View [ height = 330,
     Label [ x = 12, y = { classroot.laneY(2) + 7 }, fontSize = 13, textColor = { classroot.hueOf(2) }, text = "Your code" ],
     Label [ x = 12, y = { classroot.laneY(3) + 7 }, fontSize = 13, textColor = { classroot.hueOf(3) }, text = "Kernel" ],
 
-    // the travelling dot: between the step it has passed and the next
-
-    dot: View [ width = 12, height = 12, cornerRadius = 6, fill = { provided("theme").ink },
-        visible = { classroot.ph > 0.02 && classroot.ph < 8.98 },
-        seg: number = { Math.min(7, Math.floor(classroot.ph)) },
-        f: number = { unit(classroot.ph - this.seg) },
-        x = { mix(classroot.colX(this.seg), classroot.colX(this.seg + 1), this.f) + 9 },
-        y = { mix(classroot.laneY(classroot.laneOf(this.seg)), classroot.laneY(classroot.laneOf(this.seg + 1)), this.f) + 9 }
-        ],
-
-    // one disc per step, over the dot
+    // one disc per step
 
     StepNode [ datapath = :rows[], idx = :i, head = :head, ph = { classroot.ph },
         heads = { classroot.width > 620 }, hue = { classroot.hueOf(:lane) },
         x = { classroot.colX(:i) }, y = { classroot.laneY(:lane) } ]
-    ]
-
-
-// one line of the step key, lit with its node
-
-class StepLine extends View [
-    idx: number = 0,
-    gloss: string = "",
-    ph: number = 9,
-    lit: boolean = { this.ph >= this.idx + 0.5 },
-    opacity = { this.lit ? 1 : 0.45 },
-    layout: ResponsiveLayout [ plan = { [({ from: 0, flow: "row", gap: 10, share: ({ n: 4, g: 96 }) })] } ],
-    n: Mono [ y = 2, fontSize = 12, fontWeight = semibold, textColor = { provided("theme").muted },
-        text = { "" + (classroot.idx + 1) } ],
-    g: Text [ fontSize = 14, lineHeight = 1.45,
-        textColor = { provided("theme").body }, text = { classroot.gloss } ]
     ]
 
 
@@ -141,30 +112,21 @@ class Meter extends Plate [ pad = 18, gap = 14, cornerRadius = 12, fill = { prov
 
 class ClickFig extends View [
     ph: number = 9,
-    run: Animator [ attribute = ph, from = 0, to = 9, duration = 3200, motion = linear ],
+    traced: boolean = false,
     layout: Run [ spacing = 18 ],
 
-    // the nine steps: which lane, what happens, and the one-line gloss
+    // the nine steps: which lane, and what happens
 
     steps: Dataset { { "rows": [
-        { "i": 0, "lane": 0, "head": "Pointer arrives",
-          "gloss": "A pointerdown and pointerup from the host: a DOM event, or an NSEvent on the Mac." },
-        { "i": 1, "lane": 1, "head": "Hit walk",
-          "gloss": "Which view is under the point. The canvas and Mac walks are the runtime’s own; in the DOM the browser names the element and the runtime resolves it." },
-        { "i": 2, "lane": 1, "head": "It was a click",
-          "gloss": "Same view, pointer never wandered past the slop: the runtime resolves the gesture." },
-        { "i": 3, "lane": 2, "head": "onClick()",
-          "gloss": "Your handler runs: level = level + 1. The write is queued; nothing updates yet." },
-        { "i": 4, "lane": 3, "head": "Settle opens",
-          "gloss": "The kernel invalidates exactly the edges that read level, in dependency order." },
-        { "i": 5, "lane": 3, "head": "bar.width",
-          "gloss": "track.width × level ÷ 5: pure arithmetic, so it runs as kernel bytecode." },
-        { "i": 6, "lane": 2, "head": "label.text",
-          "gloss": "A template string is not arithmetic: the kernel calls back into the compiled JavaScript body." },
-        { "i": 7, "lane": 1, "head": "Surface calls",
-          "gloss": "What changed goes through the render seam: setWidth, setText. Only the views that moved." },
-        { "i": 8, "lane": 0, "head": "Pixels",
-          "gloss": "One element style, one canvas repaint, or one CATransaction per settle." } ] } },
+        { "i": 0, "lane": 0, "head": "Pointer arrives" },
+        { "i": 1, "lane": 1, "head": "Hit walk" },
+        { "i": 2, "lane": 1, "head": "It was a click" },
+        { "i": 3, "lane": 2, "head": "onClick()" },
+        { "i": 4, "lane": 3, "head": "Settle opens" },
+        { "i": 5, "lane": 3, "head": "bar.width" },
+        { "i": 6, "lane": 2, "head": "label.text" },
+        { "i": 7, "lane": 1, "head": "Surface calls" },
+        { "i": 8, "lane": 0, "head": "Pixels" } ] } },
 
     datapath = { classroot.steps.value },
 
@@ -175,23 +137,22 @@ class ClickFig extends View [
             meter: Meter [
                 raise() {
                     super.raise()
-                    classroot.run.start()
+                    classroot.ph = 1
+                    classroot.traced = true
                     }
                 ],
             lanes: Lanes [ ph = { classroot.ph }, steps = :rows ]
-            ]
-        ],
-
-    // the key, in two columns: each takes its own slice of the same rows
-
-    key: View [
-        layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 28, share: ({ k1: 50, k2: 50 }) }),
-            ({ from: 0, flow: "stack", gap: 8, share: ({ k1: 100, k2: 100 }) })] } ],
-        k1: View [ layout: Run [ spacing = 8 ],
-            StepLine [ datapath = :rows[0:5][], idx = :i, gloss = :gloss, ph = { classroot.ph } ]
             ],
-        k2: View [ layout: Run [ spacing = 8 ],
-            StepLine [ datapath = :rows[5:9][], idx = :i, gloss = :gloss, ph = { classroot.ph } ]
+
+        // the reader's pace: one step per press; once the trip is complete the
+        // same button replays it
+
+        ctl: View [ height = 36, visible = { classroot.traced },
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+            Button [ label = { classroot.ph < 9 ? "Next step" : "Run again" }, primary = true,
+                onClick() { classroot.ph = classroot.ph < 9 ? classroot.ph + 1 : 1 }
+                ],
+            Note [ fontSize = 13, text = { classroot.ph < 9 ? "step " + classroot.ph + " of 9" : "" } ]
             ]
         ]
     ]

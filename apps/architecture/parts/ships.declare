@@ -1,10 +1,13 @@
 /*
-# Fig. 3 — what ships, by weight
+# Fig. 4 — one program, three hosts
 
-The same stack as Fig. 1, drawn to scale: each block's AREA is its share of
-the gzipped production bundle. The layer bands keep Fig. 1's order (app,
-library, runtime, kernel) with heights proportional to bytes; the runtime band
-is subdivided into its subsystems as a squarified treemap.
+The stack of Fig. 1 drawn to scale: each block's AREA is its share of the
+gzipped production bundle. The layer bands keep Fig. 1's order (app, library,
+runtime, kernel) with heights proportional to bytes; the runtime band is
+subdivided into its subsystems as a squarified treemap. A switch exchanges the
+backend — the one block that differs between hosts — and every other block
+holds still; on the Mac the kernel also leaves the bundle, linked into the
+executable as C. Beneath, the same desktop program captured on all three hosts.
 
 The arrangement is a `TweenLayout`. The build on screen is one value on the
 figure, read down the tree by everything that shows it — the blocks, the
@@ -14,23 +17,28 @@ the re-snapshot: the arranged view tracks the build and asks for a
 `retarget(true)` once the settle has landed, and every block glides from where
 it is to where the new numbers put it.
 
-Figures: measured 2026-09-18 from `declarec` production builds, gzip default
-level; per-subsystem bytes attributed through source maps (two methods agree
-within ~1 KB per group).
+Figures: the DOM and canvas builds measured 2026-09-18 from `declarec`
+production builds, gzip default level; per-subsystem bytes attributed through
+source maps (two methods agree within ~1 KB per group). The Mac host loads a
+platform runtime bundle rather than a per-app build, so its column reuses the
+DOM build's attribution for the modules the two share and measures its own
+backend the same way — minified and gzipped alone (the DOM backend so measured
+lands within 0.2 KB of its attributed figure). Its kernel is native and not in
+the JavaScript at all.
 */
 
 script {
     // gz KB per block, per build. The app/library split of the program literal
     // is by class name; `boot` folds in the 0.3 KB seam module.
     const SIZES: Record<string, Record<string, number>> = {
-        hello: { app: 0.1, lib: 0, core: 34.4, view: 7.7, backend: 10.4, input: 4.2, draw: 1.0,
-            anim: 3.5, text: 3.4, boot: 2.5, layout: 1.8, themes: 0, ker: 11.5 },
         calDom: { app: 11.1, lib: 7.0, core: 34.9, view: 7.8, backend: 10.5, input: 7.1, draw: 5.7,
             anim: 3.5, text: 3.4, boot: 2.5, layout: 1.8, themes: 1.7, ker: 11.5 },
         calCanvas: { app: 11.1, lib: 7.0, core: 34.9, view: 7.8, backend: 14.2, input: 9.6, draw: 8.4,
-            anim: 3.5, text: 3.6, boot: 2.5, layout: 1.8, themes: 1.7, ker: 11.5 }
+            anim: 3.5, text: 3.6, boot: 2.5, layout: 1.8, themes: 1.7, ker: 11.5 },
+        calMac: { app: 11.1, lib: 7.0, core: 34.9, view: 7.8, backend: 7.0, input: 7.1, draw: 5.7,
+            anim: 3.5, text: 3.4, boot: 2.5, layout: 1.8, themes: 1.7, ker: 0 }
         }
-    const TOTALS: Record<string, number> = { hello: 80.6, calDom: 108.4, calCanvas: 117.7 }
+    const TOTALS: Record<string, number> = { calDom: 108.4, calCanvas: 117.7, calMac: 93.4 }
 
     function sizeOf(build: string, key: string): number {
         const b = SIZES[build]
@@ -150,9 +158,9 @@ class Block extends View [ cornerRadius = 5, clip = true,
     fill = { this.hovered ? provided("theme").sunk : this.layer == "app" ? provided("theme").appSoft : this.layer == "lib" ? provided("theme").libSoft : this.layer == "ker" ? provided("theme").kerSoft : provided("theme").runSoft },
     stroke = { stroke(1, this.hue) },
     flat: boolean = { this.height < 58 && this.width > 280 },
-    roomy: boolean = { !this.flat && this.width > 50 && this.height > 52 },
+    roomy: boolean = { !this.flat && this.width > 40 && this.height > 32 },
     n: Label [ x = 10, y = { classroot.flat ? (classroot.height - this.height) / 2 : 8 },
-        fontSize = { classroot.width > 160 ? 14 : 12 }, visible = { (classroot.roomy || classroot.flat) && classroot.height > 16 },
+        fontSize = { classroot.width > 160 ? 14 : classroot.width > 70 ? 12 : 11 }, visible = { (classroot.roomy || classroot.flat) && classroot.height > 16 },
         width = { classroot.flat ? this.contentWidth : classroot.width - 16 }, wrap = { !classroot.flat },
         text = { classroot.name } ],
     v: Mono [ fontSize = 12, visible = { classroot.flat ? classroot.height > 16 : classroot.roomy && classroot.height > 58 },
@@ -197,15 +205,38 @@ class Dim extends View [ width = 100%,
 // A band of the dimension column, following its band in the floorplan. Its
 // label, its top and its height each ride a spring, so a band that changes
 // size travels there rather than jumping; the floor under the height keeps a
-// thin band legible.
+// thin band legible, and a band held up by that floor is pulled up so its
+// bracket never reaches below the floorplan.
 
 class DimBand extends Dim [
     toTy: number = 0,
     toY: number = 0,
     toH: number = 0,
+    shownH: number = { Math.max(12, this.toH) },
     Spring [ attribute = ty, to = { classroot.toTy }, stiffness = 120, damping = 20 ],
-    Spring [ attribute = y, to = { classroot.toY }, stiffness = 120, damping = 20 ],
-    Spring [ attribute = height, to = { Math.max(12, classroot.toH) }, stiffness = 120, damping = 20 ]
+    Spring [ attribute = y, to = { Math.min(classroot.toY, classroot.parent.height - classroot.shownH) }, stiffness = 120, damping = 20 ],
+    Spring [ attribute = height, to = { classroot.shownH }, stiffness = 120, damping = 20 ]
+    ]
+
+
+// one screenshot above its caption
+
+class Shot extends View [ cornerRadius = 8, clip = true,
+    src: string = "",
+    aspect: number = 0.7067,
+    height = { this.width * this.aspect },
+    stroke = { stroke(1, provided("theme").line) },
+    shadow = { shadow(0, 4, 14, 0x00000024) },
+    Image [ width = 100%, height = 100%, stretches = both, source = { classroot.src } ]
+    ]
+
+
+class ShotCol extends View [
+    src: string = "",
+    caption: string = "",
+    layout: Run [ spacing = 8 ],
+    Shot [ src = { classroot.src } ],
+    Note [ fontSize = 13, text = { classroot.caption } ]
     ]
 
 
@@ -216,8 +247,7 @@ class ShipsFig extends View [
 
     head: View [
         Segmented [ x = center, width = { Math.min(420, parent.width) }, height = 32, value = { classroot.build },
-            choices = { [ ({ id: "hello", label: "Hello world" }), ({ id: "calDom", label: "Calendar · DOM" }),
-                ({ id: "calCanvas", label: "Calendar · canvas" }) ] },
+            choices = { [ ({ id: "calDom", label: "DOM" }), ({ id: "calCanvas", label: "Canvas" }), ({ id: "calMac", label: "Mac host" }) ] },
             input(v: object) { classroot.build = "" + v }
             ]
         ],
@@ -275,8 +305,8 @@ class ShipsFig extends View [
             Block [ part = "core", layer = "run", build = { classroot.build }, name = "Reactive core, instantiation & data",
                 tip = "reactive, attributes, bind, instantiate, replicate, data, value, schema — the graph and the tree." ],
             Block [ part = "backend", layer = "run", build = { classroot.build },
-                name = { classroot.build == "calCanvas" ? "Canvas backend & compositor" : "DOM backend" },
-                tip = "The renderer: one of two ships, chosen at build time." ],
+                name = { classroot.build == "calCanvas" ? "Canvas backend & compositor" : classroot.build == "calMac" ? "Mac backend — the bridge to the Swift host" : "DOM backend" },
+                tip = { classroot.build == "calMac" ? "Batches Surface calls into one op buffer per settle for the Swift host to apply." : "The renderer: one of two ships, chosen at build time." } ],
             Block [ part = "view", layer = "run", build = { classroot.build }, name = "View",
                 tip = "view.ts — the element every visual thing extends." ],
             Block [ part = "input", layer = "run", build = { classroot.build }, name = "Input, focus, gestures, scrolling",
@@ -288,13 +318,14 @@ class ShipsFig extends View [
             Block [ part = "text", layer = "run", build = { classroot.build }, name = "Text & fonts",
                 tip = "Measurement, wrapping, font loading." ],
             Block [ part = "boot", layer = "run", build = { classroot.build }, name = "Boot",
-                tip = "Entry, host wiring, the render seam's interface." ],
+                tip = "Entry, host wiring, the Surface interface." ],
             Block [ part = "layout", layer = "run", build = { classroot.build }, name = "Layout",
                 tip = "1.8 KB: the strategies themselves are Declare, in the library." ],
             Block [ part = "themes", layer = "run", build = { classroot.build }, name = "Themes",
                 tip = "Preset token records, when a program uses library widgets." ],
-            Block [ part = "ker", layer = "ker", build = { classroot.build }, name = "Kernel — WebAssembly + loader",
-                tip = "kernel.wasm (17 KB raw) inlined as base64, plus its 2.3 KB loader." ]
+            Block [ part = "ker", layer = "ker", build = { classroot.build },
+                name = { classroot.build == "calMac" ? "Kernel — linked into the host as C" : "Kernel — WebAssembly + loader" },
+                tip = { classroot.build == "calMac" ? "The same C source, compiled into the executable: 36 KB of native code, none of it JavaScript." : "kernel.wasm (17 KB raw) inlined as base64, plus its 2.3 KB loader." } ]
             ],
 
         dimcol: View [ height = { classroot.planH },
@@ -307,5 +338,18 @@ class ShipsFig extends View [
             DimBand [ name = "Kernel", hue = { provided("theme").ker }, kb = { classroot.bandAt(3, "kb") },
                 toTy = { classroot.labelAt(3) }, toY = { classroot.bandAt(3, "y") }, toH = { classroot.bandAt(3, "h") } ]
             ]
+        ],
+
+    // the same desktop, three hosts, window chrome and all — set off from the
+    // floorplan by a spacer, and from each other by the row's gap
+
+    View [ height = 14 ],
+
+    shots: View [
+        layout: ResponsiveLayout [ plan = { [({ from: 700, flow: "row", gap: 28, share: ({ sd: 33.33, sc: 33.33, sm: 33.33 }) }),
+            ({ from: 0, flow: "stack", gap: 22, share: ({ sd: 100, sc: 100, sm: 100 }) })] } ],
+        sd: ShotCol [ src = "resources/desktop-dom.png", caption = "Browser · DOM" ],
+        sc: ShotCol [ src = "resources/desktop-canvas.png", caption = "Browser · drawn to pixels (?render=canvas)" ],
+        sm: ShotCol [ src = "resources/desktop-mac.png", caption = "Mac host · no browser in the process" ]
         ]
     ]

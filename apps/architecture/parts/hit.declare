@@ -1,60 +1,13 @@
 /*
-# §4 figures — who computes geometry, and who decides what you hit
+# Fig. 3 — who decides what you hit
 
-Fig. 5 is a table drawn as a figure: each source of geometry, and the layer
-that computes it, in the layer code.
-
-Fig. 6 is a live hit-test scene. Its readout is not computed by this page:
-every scene view's `hovered` is the runtime's own hit chain (the topmost
-visible view under the pointer, and its ancestors), so the panel reports
-exactly what a press would reach. The scene holds the cases that make hit
-testing interesting: a rotated card, an invisible view that still takes
-presses, a child clipped by its pane, and a decoration that lets presses
-through.
+A live hit-test scene. Its readout is not computed by this page: every scene
+view's `hovered` is the runtime's own hit chain (the topmost visible view
+under the pointer, and its ancestors), so the panel reports exactly what a
+press would reach. The scene holds the cases that make hit testing
+interesting: a rotated card, an invisible view that still takes presses, a
+child clipped by its pane, and a decoration that lets presses through.
 */
-
-// ── Fig. 5 ────────────────────────────────────────────────────────────────
-
-class WhoRow extends View [
-    src: string = "",
-    who: string = "",
-    how: string = "",
-    hue: Color = gray,
-    soft: Color = gray,
-    layout: ResponsiveLayout [ plan = { [({ from: 680, flow: "row", gap: 16, share: ({ s: 26, w: 16, h: 58 }) }),
-        ({ from: 0, flow: "stack", gap: 8, share: ({ s: 100, w: 100, h: 100 }) })] } ],
-    s: HTMLText [ fontSize = 13, lineHeight = 1.4, fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"],
-        bodyColor = { provided("theme").ink }, html = { classroot.src } ],
-    w: View [
-        pill: View [ height = 24, cornerRadius = 12, padding = [0, 10, 0, 10], fill = { classroot.soft },
-            stroke = { stroke(1, classroot.hue) },
-            t: TextLabel [ fontSize = 13, fontWeight = semibold,
-                fontFamily = ["Avenir Next Condensed", "Avenir Next", "Arial Narrow", "sans-serif"], text = { classroot.who } ]
-            ]
-        ],
-    h: Text [ fontSize = 14, lineHeight = 1.45, textColor = { provided("theme").body }, text = { classroot.how } ]
-    ]
-
-
-class WhoFig extends Plate [ gap = 14,
-    WhoRow [ src = "x = { parent.width - 40 }", who = "Kernel", hue = { provided("theme").ker }, soft = { provided("theme").kerSoft },
-        how = "Arithmetic over slots runs as bytecode. Anything else is your compiled body, called back from the settle." ],
-    Hair [ ],
-    WhoRow [ src = "layout: SimpleLayout [ … ]", who = "Library", hue = { provided("theme").lib }, soft = { provided("theme").libSoft },
-        how = "A layout is a Declare class with one method, place(), which returns a box per child. The runtime’s layout pass applies it." ],
-    Hair [ ],
-    WhoRow [ src = "width unset", who = "Kernel", hue = { provided("theme").ker }, soft = { provided("theme").kerSoft },
-        how = "Auto-extent: the bounding box of the visible children, kept current as a built-in rule over the geometry table." ],
-    Hair [ ],
-    WhoRow [ src = "Text [ text = … ]", who = "Runtime + host", hue = { provided("theme").run }, soft = { provided("theme").runSoft },
-        how = "The runtime wraps and sizes the run; the host only measures glyph widths (canvas measureText, or Core Text on the Mac)." ],
-    Hair [ ],
-    WhoRow [ src = "CSS", who = "Nowhere", hue = { provided("theme").hostLine }, soft = { provided("theme").hostSoft },
-        how = "No flexbox, grid or flow. In the DOM, every view arrives as an absolutely positioned element with the box already decided." ]
-    ]
-
-
-// ── Fig. 6 ────────────────────────────────────────────────────────────────
 
 // A card in the scene — the plain rectangle the walk has to choose between,
 // named `SceneCard` and not `Card` because the library already has a `Card`
@@ -102,7 +55,15 @@ class HitFig extends Plate [
         // empty handler is how a view here says "I am one of the things the walk
         // may stop at", which is the subject of the figure.
 
+        // The scene's labels are not copy: a selectable run catches the pointer
+        // for the selection gesture. And a label inside a pointerEvents-none
+        // decoration still answers for itself, so the two labels that sit over
+        // OTHER views (the glass mark, the badge) are pointer-inert themselves —
+        // otherwise the walk stops at the label, whose ancestors are the mark and
+        // the scene, never the glass beneath.
+
         scene: View [ height = { 380 * this.k }, cornerRadius = 10, fill = { provided("theme").sunk }, clip = true,
+            selectable = false,
             k: number = { Math.min(1, this.width / 490) },
             onClick() { },
 
@@ -162,7 +123,7 @@ class HitFig extends Plate [
                         d.roundRect(0.5, 0.5, d.w - 1, d.h - 1, 10)
                         d.stroke()
                         },
-                    Note [ x = 12, y = 12, width = 126, fontSize = 12.5,
+                    Note [ x = 12, y = 12, width = 126, fontSize = 12.5, pointerEvents = "none",
                         text = { classroot.row.scene.world.glass.hovered ? "Hit: opacity 0, still present" : "Invisible glass (opacity 0)" },
                         textColor = { classroot.row.scene.world.glass.hovered ? provided("theme").ink : provided("theme").muted } ]
                     ],
@@ -171,7 +132,7 @@ class HitFig extends Plate [
 
                 badge: View [ x = 290, y = 214, width = 140, height = 34, cornerRadius = 17, pointerEvents = "none",
                     fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").hostLine) },
-                    Note [ x = center, y = center, fontSize = 12, text = "a label: clicks pass through" ]
+                    Note [ x = center, y = center, fontSize = 12, pointerEvents = "none", text = "a label: clicks pass through" ]
                     ]
                 ]
             ],
@@ -197,11 +158,7 @@ class HitFig extends Plate [
             : this.hit == "Card" ? "The topmost view here, and it declares onClick, so it takes the press."
             : "Only the scene: nothing drawn above it is under the pointer." },
 
-        // 8px down, so the readout's first eyebrow sits level with the top of
-        // the scene beside it. The narrow plan is a stack and owns `y`, which
-        // is why the runtime calls this value discarded — it is, at that width
-
-        panel: View [ y = 8,
+        panel: View [
             layout: Run [ spacing = 18 ],
             Read [ what = "topmost view under the pointer", ans = { classroot.row.hit == "" ? "—" : classroot.row.hit } ],
             Read [ what = "hover chain", ans = { classroot.row.chain } ],
