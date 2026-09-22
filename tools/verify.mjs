@@ -27,7 +27,7 @@ const RUNGS = [
   { n: 2, name: "resolution", phases: ["name"], what: "every bare name resolves" },
   { n: 3, name: "analysis", phases: ["constraint", "typecheck"], what: "constraint deps statically known; { } bodies typecheck" },
   { n: 4, name: "boot", phases: [], what: "headless instantiate + settle (synthetic text metrics)" },
-  { n: 5, name: "behavior", phases: [], what: "drive + assert (give --assert <script.mjs>)" },
+  { n: 5, name: "behavior", phases: [], what: "drive + assert (--assert <script.mjs>)" },
   { n: 6, name: "visual", phases: [], what: "named states vs baselines (give --states <states.mjs>)" },
 ];
 const BUILT_THROUGH = 6;
@@ -333,7 +333,7 @@ if (flags.json) {
     if (climbed <= 4) {
       console.log(`  note R1–R4 run in a synthetic backend — real fonts, layout, images and the`);
       console.log(`       browser's own module evaluation are not exercised. Drive it for real:`);
-      console.log(`       --assert <script.mjs> (R5) or open it in the dev server.`);
+      console.log(`       --assert <script.mjs> (R5), or open it in the dev server.`);
     }
   } else {
     console.log(`  verify: ${file} — FAILED at R${failedRung}`);

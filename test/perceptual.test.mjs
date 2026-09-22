@@ -2032,7 +2032,7 @@ try {
       const app = window.__app;
       const col = app.column;
       return {
-        status: [app.src.idle, app.src.loading, app.src.loaded, app.src.failed],
+        status: [app.src.loading, app.src.loaded, app.src.failed],
         children: col.children.length,
         ys: col.children.map((c) => c.y),
         labels: col.children.slice(0, -1).map((r) => r.cap.text),
@@ -2052,7 +2052,7 @@ try {
 
     await test(`${name}: R8 model — lifecycle, replication, data order`, async () => {
       const m = await r8Model(shot.page);
-      assert.deepEqual(m.status, [false, false, true, false], "the source is .loaded");
+      assert.deepEqual(m.status, [false, true, false], "the source is .loaded");
       assert.equal(m.children, 4, "three records + the static foot");
       assert.deepEqual(m.ys, [0, 22, 44, 66], "the arrangement re-armed over the replicated block");
       assert.deepEqual(m.labels, ["alpha", "beta", "gamma"], "instances take the data's order");

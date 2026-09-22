@@ -84,6 +84,9 @@ async function boot(app) {
   await page.setViewport({ width: 1280, height: 900 });
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)));
+  // what the program SAYS — a runtime warning is a defect; the browser's own
+  // resource reports ("Failed to load resource") are network events, not this
+  page.on("console", (m) => { if ((m.type() === "warning" || m.type() === "error") && !m.text().startsWith("Failed to load resource")) errors.push(m.type().toUpperCase() + " " + m.text().slice(0, 200)); });
   await page.goto(`${BASE}/apps/${app}/`, { waitUntil: "networkidle2" });
   // the in-browser path is fetch + compile + instantiate; give it room
   await new Promise((r) => setTimeout(r, 4000));

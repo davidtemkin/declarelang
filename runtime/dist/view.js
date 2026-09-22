@@ -10,7 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 import { Node, onDiscard, runRetire, authoredName, provideCursorRead } from "./node.js";
-import { DeclareError, diag } from "./errors.js";
+import { DeclareError, diag, negativeSizeMessage } from "./errors.js";
 import { backdropEqual, fillEqual, filterList, filtersEqual, insetIsZero, insetLead, insetSides, isMaskGradient, shadowEqual, strokeEqual } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
 import { Tip } from "./tip.js";
@@ -28,7 +28,7 @@ export function inlineViewHost(v) {
 }
 import { record } from "./draw.js";
 import { sharedClock } from "./animate.js";
-import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded } from "./reactive.js";
+import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteOrigin } from "./reactive.js";
 import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
@@ -1519,6 +1519,71 @@ const pushScrolls = (v, ax) => {
  *  slot never churns (rectEqual gates the writes besides). */
 const EMPTY_RECT = Object.freeze({ x: 0, y: 0, width: 0, height: 0 });
 const rectEqual = (a, b) => a === b || (a != null && b != null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
+/** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE is reported
+ *  (docs/system-design/layout-ownership.md §4). A child whose size is derived
+ *  from its parent's does not count toward the parent's content size, so when
+ *  that parent takes its size from its content the child's arithmetic runs from
+ *  nothing — `{ parent.contentWidth - 40 }` in a card with no width is −40 in
+ *  every state. That lands below zero, and it is a mistake that draws nothing
+ *  and says nothing, so it is said here. Ordinary arithmetic below zero is NOT
+ *  reported: a field sized `{ parent.height - 60 }` in an accordion section
+ *  closed to 46px is −14 while the section hides it, which is what the author
+ *  meant, and a negative size draws nothing, as it always has.
+ *
+ *  Judged only once the program HAS ITS ROOM. A program settles once before it
+ *  is attached, when its host has not yet said how big it is, and every size
+ *  computed from the App's is provisional then. So a size noted before the App
+ *  attaches waits, and is judged at the close of the first settle after it
+ *  does (App.attach — the join point `onReady` uses, on every render path);
+ *  one noted after is judged at its own settle's close. Once per class and axis
+ *  per program: one authored line builds every replicated row. */
+const NEGATIVE_PENDING = new Set();
+const NEGATIVE_SAID = new WeakMap();
+function rootOf(v) {
+    let root = v;
+    while (root.parent !== null)
+        root = root.parent;
+    return root;
+}
+function noteNegativeSize(v, size) {
+    if (!percentOwned(v, size) || NEGATIVE_PENDING.has(v))
+        return; // only a size derived from the parent's
+    NEGATIVE_PENDING.add(v);
+    // attached: judge at this settle's close; not yet: App.attach judges it
+    if (rootOf(v).surface != null)
+        afterSettle(judgeNegativeSizes);
+}
+/** Judge every pending size whose program is attached (see noteNegativeSize). */
+export function judgeNegativeSizes() {
+    for (const v of [...NEGATIVE_PENDING]) {
+        const root = rootOf(v);
+        if (root.surface == null)
+            continue; // not attached yet — its App will ask
+        NEGATIVE_PENDING.delete(v);
+        const p = v.parent instanceof View ? v.parent : null;
+        if (p === null)
+            continue;
+        for (const axis of ["width", "height"]) {
+            const value = v[axis];
+            if (!(value < 0) || !percentOwned(v, axis))
+                continue;
+            // the parent has no size to give on this axis: it takes it from its
+            // content (no size of its own, or its auto-extent owns it)
+            const pOwner = ownerOf(p, axis);
+            if (!(pOwner === null ? !isSet(p, axis) : pOwner.isAutoExtent))
+                continue;
+            let said = NEGATIVE_SAID.get(root);
+            if (said === undefined)
+                NEGATIVE_SAID.set(root, (said = new Set()));
+            const key = `${v.constructor.name}.${axis}`;
+            if (said.has(key))
+                continue;
+            said.add(key);
+            const onlyContent = !p.children.some((c) => c !== v && c instanceof View && c.visible && !percentOwned(c, axis));
+            console.error("[Declare] " + negativeSizeMessage(v.constructor.name, axis, value, p.constructor.name, onlyContent, ownerOf(v, axis)?.sourcePos));
+        }
+    }
+}
 defineAttributes(View, {
     // Position is authored in the parent's CONTENT coordinates and realized in
     // its box coordinates: the leading inset is added here, once, on the way to
@@ -1526,8 +1591,10 @@ defineAttributes(View, {
     // parent's `padding` re-pushes every child through the same call.
     x: { def: 0, push: (v, n) => v.surface?.setX(n + v.positionLead("x")) },
     y: { def: 0, push: (v, n) => v.surface?.setY(n + v.positionLead("y")) },
-    width: { def: 0, push: (v, n) => v.surface?.setWidth(n) },
-    height: { def: 0, push: (v, n) => v.surface?.setHeight(n) },
+    width: { def: 0, push: (v, n) => { if (n < 0)
+            noteNegativeSize(v, "width"); v.surface?.setWidth(n); } },
+    height: { def: 0, push: (v, n) => { if (n < 0)
+            noteNegativeSize(v, "height"); v.surface?.setHeight(n); } },
     // THE CONTENT BOX (declared above). Three consequences, and the reactive
     // graph carries two of them by itself: every constraint that reads the
     // content box — a percent, a layout's place(), auto-extent — tracked this
@@ -1780,6 +1847,7 @@ export function fireEvent(view, event, ...args) {
         // fired in must survive (field report 2026-08-21 — a throwing onInit
         // surfaced nothing across four console reads). The handler's name and the
         // node's address are the two facts the console was missing.
+        noteOrigin(`${handlerName(event)} on ${nodeLabel(view)}`, view);
         try {
             h.call(view, ...args);
         }
@@ -1836,17 +1904,28 @@ function findAnchor(root, name) {
     const inset = root.revealInset ?? 0;
     const views = [];
     const slugs = [];
+    // A target that is not SHOWN — itself or an ancestor `visible = false` —
+    // is not a landing: a section gated on data that has not arrived exists,
+    // attached, hidden, at a provisional y. Firing at it would "succeed" and
+    // consume the intent while the page is still empty. Hold instead; the
+    // intent fires when the gate opens, like a target awaiting its surface.
+    const shown = (v) => {
+        for (let n = v; n !== null; n = n.parent instanceof View ? n.parent : null)
+            if (!n.visible)
+                return false;
+        return true;
+    };
     const walk = (n) => {
         if (n instanceof View) {
             if (n.anchor !== "") {
                 const v = n;
-                views.push({ base: v.anchor, view: v, fire: () => { if (v.surface === null)
+                views.push({ base: v.anchor, view: v, fire: () => { if (v.surface === null || !shown(v))
                         return false; v.scrollIntoView("start", false, inset); return true; } });
             }
             const flow = n;
             if (typeof flow.anchorSlugs === "function" && typeof flow.revealAnchor === "function") {
                 for (const s of flow.anchorSlugs())
-                    slugs.push({ base: s, view: n, fire: () => flow.revealAnchor(s, inset) });
+                    slugs.push({ base: s, view: n, fire: () => shown(n) && flow.revealAnchor(s, inset) });
             }
         }
         for (const c of n.children)
@@ -1905,6 +1984,8 @@ export class App extends View {
         if (!this.readyDelivered) {
             this.readyDelivered = true;
             afterSettle(() => fireEvent(this, "ready"));
+            // the program has its room from here: sizes noted before it did are judged now
+            afterSettle(judgeNegativeSizes);
         }
     }
     /** app→host navigation channel: `navigate(to)` sets it when no host services
@@ -2338,7 +2419,6 @@ export class App extends View {
 // The interaction module's injected instance test (cycle-free): interaction.ts
 // types views structurally; this is the one brand check.
 initInteraction((n) => n instanceof View);
-const EMPTY_ENV = Object.freeze({});
 defineAttributes(App, {
     // An App SCROLLS BY DEFAULT, and its scroller is the page (ruled
     // 2026-07-29): the App is the outermost view, so its scroll regime is the
@@ -2411,10 +2491,6 @@ defineAttributes(App, {
     // `width = { app.width - app.safeLeft - app.safeRight }`.
     safeLeft: { def: 0 },
     safeRight: { def: 0 },
-    // the embedding environment's parameters (schema.ts): the HOST replaces the
-    // whole record on every change (never mutates), so the default may be one
-    // shared frozen empty object — reads like `app.env.dark` never null-crash
-    env: { def: EMPTY_ENV },
     pageWeight: { def: 0 },
     sourceLines: { def: 0 },
     // `location` — the app's URL fragment (docs/system-design/location.md). A stored reactive

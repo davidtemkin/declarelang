@@ -38,7 +38,7 @@
 // datapointer objects, and string-event plumbing are exactly what this
 // module's plain-JSON + region-cells design sheds (APPROACH §2/§6).
 import { Node, authoredName } from "./node.js";
-import { Cell, isTracking, settle } from "./reactive.js";
+import { Cell, isTracking, noteOrigin, settle } from "./reactive.js";
 import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { validateDoc, fieldValueError } from "./data-schema.js";
@@ -659,13 +659,11 @@ const FETCH_CREDENTIALS = {
     omit: "omit", sameOrigin: "same-origin", include: "include",
 };
 export class DataSource extends Dataset {
-    // Tracked reads of `status`, so a constraint on `.loaded` wakes exactly
-    // when the lifecycle moves (all four share the one status cell — they are
-    // four views of one fact and can never disagree).
-    get idle() { return this.status === "idle"; }
-    get loading() { return this.status === "loading"; }
-    get loaded() { return this.status === "loaded"; }
-    get failed() { return this.status === "failed"; }
+    /** A document is present. True from the first arrival on, through every
+     *  later fetch (a refetch never drops it — `value` keeps the last good
+     *  document until the new one lands), until `clear()`. A tracked read of
+     *  `value`, so a constraint on it wakes exactly when presence changes. */
+    get loaded() { return this.value != null; }
     autoUrl = "";
     maybeAuto() {
         if (!this.auto)
@@ -751,7 +749,8 @@ export class DataSource extends Dataset {
         // running several programs, relative means beside MY file, not the last
         // booted one's.
         const url = appResolve(this.root, this.url);
-        setBound(this, "status", "loading");
+        setBound(this, "loading", true);
+        setBound(this, "failed", false);
         setBound(this, "error", null);
         setBound(this, "statusCode", 0);
         setBound(this, "errorBody", null);
@@ -790,11 +789,12 @@ export class DataSource extends Dataset {
                 if (err !== null)
                     throw new Error(`the response does not match the schema — ${err}`);
             }
+            noteOrigin(`${sourceLabel(this)} arrived`, this);
             setBound(this, "value", value);
-            setBound(this, "status", "loaded");
-            // the arrival EVENT (`onLoad`), after value+status settle: the hook for
+            setBound(this, "loading", false);
+            // the arrival EVENT (`onLoad`), after value+flags settle: the hook for
             // work a constraint must not do — publish, chain a dependent fetch. The
-            // status booleans stay the constraint-facing surface.
+            // flags stay the constraint-facing surface.
             const h = this["onLoad"];
             // Its OWN catch: a throwing onLoad used to fall into the fetch's catch
             // below and mark the SOURCE as failed — the data had arrived; the
@@ -812,19 +812,28 @@ export class DataSource extends Dataset {
         catch (e) {
             if (seq !== this.seq)
                 return;
+            noteOrigin(`${sourceLabel(this)} failed`, this);
             setBound(this, "error", e instanceof Error ? e.message : String(e));
-            setBound(this, "status", "failed");
+            setBound(this, "failed", true);
+            setBound(this, "loading", false);
         }
     }
-    /** Reset to idle (the doc's "back to the entry screen — declaratively"). */
+    /** As if never fetched (the doc's "back to the entry screen —
+     *  declaratively"): no document, so `loaded` drops; no request, no failure. */
     clear() {
         this.seq++;
         setBound(this, "value", null);
         setBound(this, "error", null);
         setBound(this, "statusCode", 0);
         setBound(this, "errorBody", null);
-        setBound(this, "status", "idle");
+        setBound(this, "loading", false);
+        setBound(this, "failed", false);
     }
+}
+/** "DataSource 'weather'" — the source as a trace or a report names it. */
+function sourceLabel(d) {
+    const nm = authoredName(d);
+    return `${d.constructor.name}${nm !== null ? ` '${nm}'` : ""}`;
 }
 defineAttributes(DataSource, {
     // both pushes route through maybeAuto, so `auto = true` + a url that lands
@@ -835,7 +844,8 @@ defineAttributes(DataSource, {
     method: { def: "GET" },
     body: { def: null },
     headers: { def: null },
-    status: { def: "idle" },
+    loading: { def: false },
+    failed: { def: false },
     error: { def: null },
     // 0 = no reply yet (or none ever arrived) — distinct from every real HTTP
     // code, so a constraint can tell "not asked" from "asked and refused".

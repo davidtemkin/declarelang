@@ -162,6 +162,28 @@ class Chip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
     ]
 
 
+// a member's chip in the index under its section head: a link to the member's
+// own anchor on this page (`reference/View@width`)
+
+class MemberChip extends Chip [
+    label = { "" + :name },
+    cursor = "pointer",
+    fill = { hovered ? provided("theme").chipHov
+           : kind == "method" ? provided("theme").mchipBg
+           : kind == "event"  ? provided("theme").echipBg
+           : provided("theme").chipBg },
+    link = { "#" + app.page + "@" + :name }
+    ]
+
+
+// the index itself — every member of a section as a chip, when there is more
+// than one to choose between
+
+class MemberIndex extends View [ width = 100%,
+    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ]
+    ]
+
+
 /*
 ## Linked signatures
 
@@ -230,17 +252,19 @@ class Link extends View [
 
 
 // a section link in the row under the opener: the section's name, its count, and
-// the scroll — for the reader who came for a fact and will not scroll to reach it
+// a link to the section's anchor on this page — so the jump is an address
+// (`reference/View@attributes`), Back returns to where the reader was, and the
+// section can be linked to from anywhere
 
 class JumpLink extends View [
     baseline: number = { this.row.y + this.row.name.y + this.row.name.baseline },
     label: string = "",
     count: number = 0,
-    to: View = null,
+    to: string = "",                       // the section's anchor name
     height = { 28 * app.fontScale }, cornerRadius = 7, cursor = "pointer",
     width = { this.row.width + 24 },
     fill = { hovered ? provided("theme").chipHov : provided("theme").chipBg },
-    onClick() { if (to != null) to.scrollIntoView() },
+    link = { to != "" ? "#" + app.page + "@" + to : "" },
     row: View [ x = 12, y = { 5 * app.fontScale }, width = { this.contentWidth }, height = { 18 * app.fontScale },
         layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
         name: Text [ fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
@@ -284,7 +308,7 @@ class WrapChip extends View [
 
     run: View [ width = { classroot.long ? classroot.parent.width : 100000 }, pointerEvents = "none",
         datapath = { classroot.words.value },
-        layout: WrappingLayout [ spacing = 0, lineSpacing = 4, hangingIndent = 24 ],
+        layout: WrappingLayout [ spacing = 0, rowSpacing = 4, hangingIndent = 24 ],
         View [ datapath = :items[], height = { 24 * app.fontScale },
             first: boolean = { :i == 0 },
             last:  boolean = { :i == classroot.n - 1 },
@@ -328,6 +352,7 @@ class OverrideLine extends View [ width = 100%,
 
 
 class AttrRow extends View [ width = 100%,
+    anchor = { "" + :name },                // the member's address on its page
     live:  boolean = false,                 // page-active, threaded down to any inline island
 
     // a long or multi-line `{ … }` default leaves the signature line and sits on its
@@ -387,6 +412,7 @@ class AttrRow extends View [ width = 100%,
 // and sliced in TypeScript.
 
 class MethodRow extends View [ width = 100%,
+    anchor = { "" + :name },
     aname:    string = { :name },
     sigfull:  string = { :signature },
     tailtext: string = { this.sigfull.slice(this.aname.length) },   // "(path: …): void"
@@ -407,6 +433,7 @@ class MethodRow extends View [ width = 100%,
 
 
 class EventRow extends View [ width = 100%,
+    anchor = { "" + :name },
     live:  boolean = false,
     layout: SimpleLayout [ axis = y, spacing = 6 ],
 
@@ -449,11 +476,11 @@ class ReadStrip extends View [ width = 100%, cornerRadius = 10, visible = { :n >
         padding = [4, 16, 16, 16],
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         tokens: View [ width = 100%, visible = { :reads.theme.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]   // $data("") — the record is the string itself
             ],
         provided: View [ width = 100%, visible = { :reads.provided.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Chip [ datapath = :reads.provided[], kind = "token", label = { "" + this.$data("") } ]
             ]
         ]
@@ -486,15 +513,15 @@ class Strip extends View [ width = 100%, cornerRadius = 10,
         padding = [12, 16, 18, 16],
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         attrs: View [ width = 100%, visible = { :attributes.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6 ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
             WrapChip [ datapath = :attributes[], kind = "attribute", cls = { classroot.cname }, label = { "" + :label } ]
             ],
         methods: View [ width = 100%, visible = { :methods.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6 ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
             WrapChip [ datapath = :methods[], kind = "method", cls = { classroot.cname }, label = { "" + :label } ]
             ],
         events: View [ width = 100%, visible = { :events.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6 ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
             WrapChip [ datapath = :events[], kind = "event", cls = { classroot.cname }, label = { "" + :label } ]
             ]
         ]
@@ -773,27 +800,37 @@ class ClassDetail extends View [ width = 100%,
         Eyebrow [ text = { "REFERENCE · " + (:origin == "library" ? "STANDARD LIBRARY" : "BUILT-IN") + (:source != null ? " · " + :source : "") } ],
         Title [ fontSize = { 32 * app.fontScale }, text = { classroot.cname } ],
 
-        // the chain, every ancestor a link — and the class's siblings and subclasses
+        // the chain, every ancestor a link — and the class's subclasses
 
         // (re-rooted to the ancestry data, so its visibility reads the page's fact, not a path)
 
         chain: View [ width = 100%, visible = { classroot.hasBase },
             datapath = { classroot.ancestry.value },
-            layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = baseline ],
             Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, text = { "class " + classroot.cname + " extends" } ],
             Link [ datapath = :items[] ]
             ],
         base: Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { :extends == null },
             text = { "class " + classroot.cname + "  (base)" } ],
         subs: View [ width = 100%, visible = { :subclasses.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
-            Muted [ fontSize = { 13 * app.fontScale }, text = "subclasses:" ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
+            Muted [ fontSize = { 16 * app.fontScale }, text = "Subclasses:" ],
             Chip [ datapath = :subclasses[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]   // $data("") — the record is the name itself
             ],
-        sibs: View [ width = 100%, visible = { :siblings.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
-            Muted [ fontSize = { 13 * app.fontScale }, text = { "also extends " + :extends + ":" } ],
-            Chip [ datapath = :siblings[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]
+
+        // the page's sections, one line, before the narration: for the reader
+        // who came for a fact
+
+        Divider [ ],
+        jump: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = baseline ],
+            Muted [ fontSize = { 16 * app.fontScale }, text = "On this page:" ],
+            JumpLink [ label = "Usage",      visible = { :example.length > 0 },    count = { :example.length },    to = "usage" ],
+            JumpLink [ label = "Attributes", visible = { :attributes.length > 0 }, count = { :attributes.length }, to = "attributes" ],
+            JumpLink [ label = "Methods",    visible = { :methods.length > 0 },    count = { :methods.length },    to = "methods" ],
+            JumpLink [ label = "Events",     visible = { :events.length > 0 },     count = { :events.length },     to = "events" ],
+            JumpLink [ label = "Provided",   visible = { classroot.hasReads },     count = { :reads.theme.length + :reads.provided.length }, to = "provided" ],
+            JumpLink [ label = "Inherited",  visible = { :chain.length > 1 },      count = { :chain.length - 1 }, to = "inherited" ]
             ],
 
         // the class prose — dimmed, with any inline runnable examples woven in
@@ -802,62 +839,62 @@ class ClassDetail extends View [ width = 100%,
             live = { classroot.pageLive }, tone = { provided("theme").refDim }, lead = 1.6 ]
         ],
 
-    // the page's sections, one line: for the reader who came for a fact
-
-    jump: View [ width = 100%,
-        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
-        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page" ],
-        JumpLink [ label = "Usage",      visible = { :example.length > 0 },    count = { :example.length },    to = { classroot.usage } ],
-        JumpLink [ label = "Attributes", visible = { :attributes.length > 0 }, count = { :attributes.length }, to = { classroot.attrs } ],
-        JumpLink [ label = "Methods",    visible = { :methods.length > 0 },    count = { :methods.length },    to = { classroot.meths } ],
-        JumpLink [ label = "Events",     visible = { :events.length > 0 },     count = { :events.length },     to = { classroot.evts } ],
-        JumpLink [ label = "Provided",   visible = { classroot.hasReads },     count = { :reads.theme.length + :reads.provided.length }, to = { classroot.reads } ],
-        JumpLink [ label = "Inherited",  visible = { :chain.length > 1 },      count = { :chain.length - 1 }, to = { classroot.inh } ]
-        ],
-
     /* ### Usage — the class at work, live: each example runs, and its source is editable */
 
-    usage: View [ width = 100%, visible = { :example.length > 0 },
+    usage: View [ width = 100%, visible = { :example.length > 0 }, anchor = "usage",
         layout: SimpleLayout [ axis = y, spacing = 28 ],
         SectionHead [ head = "Usage", note = "The class as you would write it. Every example runs below its source, and the source is yours to edit." ],
         Example [ datapath = :example[], width = 100%, live = { classroot.pageLive } ]
         ],
 
-    /* ### The members, in three ruled sections — an override sits in its own
-           section, with the ancestor's slot linked under its signature */
+    /* ### The members, in three ruled sections — each headed by an index of its
+           members; an override sits in its own section, with the ancestor's
+           slot linked under its signature */
 
-    attrs: View [ width = 100%, visible = { :attributes.length > 0 },
+    attrs: View [ width = 100%, visible = { :attributes.length > 0 }, anchor = "attributes",
         layout: SimpleLayout [ axis = y, spacing = 22 ],
         SectionHead [ head = "Attributes",
-            note = { :attributes.length + " on " + classroot.cname + (app.hasOverrides(:attributes) ? " — its own first, then the inherited ones it gives a new default" : "") } ],
+            note = { :attributes.length + " on " + classroot.cname + (app.hasOverrides(:attributes) ? " — its own first, then the inherited ones it gives a new default" : "") },
+            MemberIndex [ visible = { :attributes.length > 1 },
+                MemberChip [ datapath = :attributes[], kind = "attribute" ]
+                ]
+            ],
         AttrRow [ datapath = :attributes[], width = 100%, live = { classroot.pageLive } ]
         ],
 
-    meths: View [ width = 100%, visible = { :methods.length > 0 },
+    meths: View [ width = 100%, visible = { :methods.length > 0 }, anchor = "methods",
         layout: SimpleLayout [ axis = y, spacing = 22 ],
-        SectionHead [ head = "Methods", note = { :methods.length + " on " + classroot.cname } ],
+        SectionHead [ head = "Methods", note = { :methods.length + " on " + classroot.cname },
+            MemberIndex [ visible = { :methods.length > 1 },
+                MemberChip [ datapath = :methods[], kind = "method" ]
+                ]
+            ],
         MethodRow [ datapath = :methods[], width = 100%, live = { classroot.pageLive } ]
         ],
 
-    evts: View [ width = 100%, visible = { :events.length > 0 },
+    evts: View [ width = 100%, visible = { :events.length > 0 }, anchor = "events",
         layout: SimpleLayout [ axis = y, spacing = 22 ],
-        SectionHead [ head = "Events", note = { :events.length + " on " + classroot.cname } ],
+        SectionHead [ head = "Events", note = { :events.length + " on " + classroot.cname },
+            MemberIndex [ visible = { :events.length > 1 },
+                MemberChip [ datapath = :events[], kind = "event" ]
+                ]
+            ],
         EventRow [ datapath = :events[], width = 100%, live = { classroot.pageLive } ]
         ],
 
     /* ### Provided — what the class READS from above: its contract with its container */
 
     hasReads: boolean = { :reads.theme.length + :reads.provided.length > 0 || app.ancestorsOf(classroot.cname).some((a) => a.n > 0) },
-    reads: View [ width = 100%, visible = { classroot.hasReads },
+    reads: View [ width = 100%, visible = { classroot.hasReads }, anchor = "provided",
         layout: SimpleLayout [ axis = y, spacing = 18 ],
         SectionHead [ head = "Provided",
             note = { "The values " + classroot.cname + " reads from above — its dependencies on whatever contains it. Change one on any ancestor and it follows. Its own body's reads; an ancestor that reads values of its own is folded beneath." } ],
         tokens: View [ width = 100%, visible = { :reads.theme.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]
             ],
         provided: View [ width = 100%, visible = { :reads.provided.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Chip [ datapath = :reads.provided[], kind = "token", label = { "" + this.$data("") } ]
             ],
         strips: View [ width = 100%, datapath = { classroot.ancestors.value },
@@ -868,7 +905,7 @@ class ClassDetail extends View [ width = 100%,
 
     /* ### Inherited — per ancestor, names only, folded */
 
-    inh: View [ width = 100%, visible = { :chain.length > 1 },
+    inh: View [ width = 100%, visible = { :chain.length > 1 }, anchor = "inherited",
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         SectionHead [ head = "Inherited",
             note = { "Everything else " + classroot.cname + " can do, by the class it comes from. Names only — each is a link to its own entry; the ancestor's documentation stays on the ancestor's page." } ],
@@ -1014,41 +1051,41 @@ class FormDetail extends View [ width = 100%,
         ],
 
     jump: View [ width = 100%,
-        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
-        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page" ],
-        JumpLink [ label = "Usage",   visible = { :example.length > 0 }, count = { :example.length }, to = { classroot.usage } ],
-        JumpLink [ label = "Rules",   visible = { :rules.length > 0 },   count = { :rules.length },   to = { classroot.rules } ],
-        JumpLink [ label = "Related", visible = { classroot.nRelated > 0 }, count = { classroot.nRelated }, to = { classroot.related } ]
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = baseline ],
+        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page:" ],
+        JumpLink [ label = "Usage",   visible = { :example.length > 0 }, count = { :example.length }, to = "usage" ],
+        JumpLink [ label = "Rules",   visible = { :rules.length > 0 },   count = { :rules.length },   to = "rules" ],
+        JumpLink [ label = "Related", visible = { classroot.nRelated > 0 }, count = { classroot.nRelated }, to = "related" ]
         ],
 
-    usage: View [ width = 100%, visible = { :example.length > 0 },
+    usage: View [ width = 100%, visible = { :example.length > 0 }, anchor = "usage",
         layout: SimpleLayout [ axis = y, spacing = 28 ],
         SectionHead [ head = "Usage", note = "The form as you would write it. Every example runs below its source, and the source is yours to edit." ],
         Example [ datapath = :example[], width = 100%, live = { classroot.pageLive } ]
         ],
 
-    rules: View [ width = 100%, visible = { :rules.length > 0 },
+    rules: View [ width = 100%, visible = { :rules.length > 0 }, anchor = "rules",
         layout: SimpleLayout [ axis = y, spacing = 22 ],
         SectionHead [ head = "Rules",
             note = "What the compiler enforces about this form. Each rule quotes the sentence the checker says at the site — the docs build re-runs every rule's probe, so the quote is always what the compiler says today." ],
         RuleRow [ datapath = :rules[] ]
         ],
 
-    related: View [ width = 100%, visible = { classroot.nRelated > 0 },
+    related: View [ width = 100%, visible = { classroot.nRelated > 0 }, anchor = "related",
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         SectionHead [ head = "Related", note = "Where this form leads: the forms it composes with, the classes it makes, and the guide chapters that teach it." ],
         forms: View [ width = 100%, visible = { :related.forms.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Muted [ fontSize = { 13 * app.fontScale }, text = "forms" ],
             FormChip [ datapath = :related.forms[], slug = { "" + this.$data("") }, label = { app.formName("" + this.$data("")) } ]
             ],
         classes: View [ width = 100%, visible = { :related.classes.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Muted [ fontSize = { 13 * app.fontScale }, text = "classes" ],
             Chip [ datapath = :related.classes[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]
             ],
         guide: View [ width = 100%, visible = { :related.guide.length > 0 },
-            layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+            layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Muted [ fontSize = { 13 * app.fontScale }, text = "guide" ],
             View [ datapath = :related.guide[], height = { 24 * app.fontScale }, cornerRadius = 6, cursor = "pointer",
                 baseline: number = { this.lbl.y + this.lbl.baseline },
@@ -1114,7 +1151,7 @@ class TypeGroup extends View [ width = 100%,
 // default that carries it. The chip is a link wherever the thing has a page.
 
 class UseRow extends View [ width = 100%,
-    layout: WrappingLayout [ spacing = 10, lineSpacing = 6, align = baseline ],
+    layout: WrappingLayout [ spacing = 10, rowSpacing = 6, align = baseline ],
     LocChip [ label = { "" + :label }, to = { "" + :loc } ],
     Muted [ fontSize = { 12 * app.fontScale }, wrap = false, text = { "" + :kind } ],
     Mono [ fontSize = { 13 * app.fontScale }, textColor = { provided("theme").sigDim },
@@ -1139,16 +1176,16 @@ class TypeDetail extends View [ width = 100%,
         ],
 
     jump: View [ width = 100%,
-        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = baseline ],
-        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page" ],
-        JumpLink [ label = "Tokens",  visible = { :nTokens > 0 }, count = { :nTokens }, to = { classroot.tokens } ],
-        JumpLink [ label = "Used by", visible = { :nUsed > 0 },   count = { :nUsed },   to = { classroot.uses } ]
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = baseline ],
+        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page:" ],
+        JumpLink [ label = "Tokens",  visible = { :nTokens > 0 }, count = { :nTokens }, to = "tokens" ],
+        JumpLink [ label = "Used by", visible = { :nUsed > 0 },   count = { :nUsed },   to = "used-by" ]
         ],
 
     // the vocabulary itself. A set built from directional suffixes comes grouped
     // by family (the easing curves); every other set is one flat run.
 
-    tokens: View [ width = 100%, visible = { :nTokens > 0 },
+    tokens: View [ width = 100%, visible = { :nTokens > 0 }, anchor = "tokens",
         layout: SimpleLayout [ axis = y, spacing = 18 ],
         SectionHead [ head = "Tokens",
             note = { :nTokens + " of them. Write the token itself — bare, unquoted, in the slot the type names." } ],
@@ -1158,14 +1195,14 @@ class TypeDetail extends View [ width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 6 ],
                 Muted [ fontSize = { 13 * app.fontScale }, visible = { ("" + :name) != "" }, text = { "" + :name } ],
                 row: View [ width = 100%,
-                    layout: WrappingLayout [ spacing = 6, lineSpacing = 6, align = baseline ],
+                    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
                     Chip [ datapath = :tokens[], kind = "token", label = { "" + :name } ]
                     ]
                 ]
             ]
         ],
 
-    uses: View [ width = 100%, visible = { :nUsed > 0 },
+    uses: View [ width = 100%, visible = { :nUsed > 0 }, anchor = "used-by",
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         SectionHead [ head = "Used by",
             note = "Everywhere the language names this type: the attributes that hold one, the events and methods whose signatures carry one, the types that are built from it, and the functions that take or return it. Each is a link to where it is documented." ],
@@ -1347,6 +1384,7 @@ left rail below it, and a scrolling detail pane, over the model.
 */
 
 App [ fill = { provided("theme").bg }, appName = "Declare Docs",
+    revealInset = { app.barH },                // an anchor lands clear of the fixed bar
 
     // the two faces, named once: the UI face is provided from here, so every
     // run below — the rail, the chrome, the prose — reads it unless it names
@@ -1677,7 +1715,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
        (gradient "Declare", solid "Docs"), the search pill centered, and the
        type-size stepper + theme switch on the right. */
 
-    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").rail },
+    bar: View [ ignoreScroll = true, x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").rail },
         hair: View [ x = 0, y = { app.barH - 1 }, width = 100%, height = 1, fill = { provided("theme").edge } ],
 
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
@@ -1762,10 +1800,11 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
         ],
 
     /* ## The left rail
-       Below the bar: the Guide/Reference switch, then the nav for the live
-       mode. */
+       Below the bar, fixed beside the page (`ignoreScroll`, like the bar) and
+       scrolling its own nav: the Guide/Reference switch, then the nav for the
+       live mode. */
 
-    rail: View [ x = 0, y = { app.barH }, width = { app.railW }, height = { app.height - app.barH }, scrolls = y, fill = { provided("theme").rail },
+    rail: View [ ignoreScroll = true, x = 0, y = { app.barH }, width = { app.railW }, height = { app.height - app.barH }, scrolls = y, fill = { provided("theme").rail },
         edge: View [ x = { app.railW - 1 }, y = 0, width = 1, height = 100%, fill = { provided("theme").edge } ],
         col: View [ x = 16, y = 16, width = { app.railW - 32 },
             layout: SimpleLayout [ axis = y, spacing = 4 ],
@@ -1839,14 +1878,17 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
             ]
         ],
 
-    /* ## The detail pane
-       Its own scroller. Guide chapters are light shells (each fetches and
-       builds its content only once visibility asks — ChapterDetail); the
-       reference is one page, re-rooted to the selection (refCol). So the
-       scroller only ever measures what is actually being read.
-       `selectable` (a provided value) opts the whole right pane into ordinary
-       browser text selection — prose, signatures, Markdown runs — while the
-       rail stays chrome.
+    /* ## The detail column
+       The page itself: the App scrolls, and this column is its extent — the
+       bar and the rail ride fixed beside it. So the browser's own instruments
+       apply to the reading — Back returns to the scroll position it left, an
+       `@anchor` lands under the bar by `revealInset`. Guide chapters are
+       light shells (each fetches and builds its content only once visibility
+       asks — ChapterDetail); the reference is one page, re-rooted to the
+       selection (refCol). So the page only ever measures what is actually
+       being read. `selectable` (a provided value) opts the whole column into
+       ordinary browser text selection — prose, signatures, Markdown runs —
+       while the rail stays chrome.
 
        Search replaces the content: while the query is non-empty the reading
        column hides and the results page takes the pane — same column, same
@@ -1855,7 +1897,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
        `visible` conceals, it never tears down. No matches (or the index still
        loading) says so in the middle of the pane. */
 
-    detail: View [ x = { app.railW }, y = { app.barH }, width = { app.width - app.railW }, height = { app.height - app.barH }, scrolls = y, selectable = true,
+    detail: View [ x = { app.railW }, y = { app.barH }, width = { app.width - app.railW }, selectable = true,
 
         // the reading margins are the pane's own content box, so every column
         // in it is simply the room it is given

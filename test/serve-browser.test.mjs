@@ -38,6 +38,14 @@ const browser = await puppeteer.launch({ executablePath: findChrome(), headless:
 const page = await browser.newPage();
 const errs = [];
 page.on("pageerror", (e) => errs.push(String(e).slice(0, 140)));
+// A runtime WARNING is a signal too — a layout reporting a claim it should not
+// be making reached a reader before any gate, because every gate listened for
+// thrown errors alone. The homepage is the one app this suite boots; a warning
+// here is a defect in the page or the runtime, and either fails.
+// The browser's own resource reports ("Failed to load resource: … 404") are
+// network events, not the program speaking — the requestfailed listener below
+// is the place for those; here only what the page's code says counts.
+page.on("console", (m) => { if ((m.type() === "warning" || m.type() === "error") && !m.text().startsWith("Failed to load resource")) errs.push(m.type().toUpperCase() + " " + m.text().slice(0, 160)); });
 page.on("requestfailed", (r) => {
   if (r.url().endsWith("favicon.ico")) return;
   // A browser ABORTS media requests as normal Range behaviour: it opens a probe

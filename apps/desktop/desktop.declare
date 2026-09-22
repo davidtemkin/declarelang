@@ -1212,10 +1212,9 @@ class AppWindow extends Window [ width = 880, height = 560,
     appTitle: string = "",
     title = { this.island.childName != "" ? this.island.childName : this.appTitle },
 
-    // the island's `env` is the embedding environment — the host parses it
-    // into the child's reactive `app.env`, at mount and on every change:
-    // toggling the desktop's appearance re-derives it and the hosted app
-    // follows (its Auto mode reads `app.env.dark`)
+    // the window provides its tenant the desktop's appearance (below), live:
+    // toggling it re-derives, and the hosted app follows (its Auto mode reads
+    // `hostProvided("dark", …)`)
 
     // a press anywhere in the hosted app also lands here (the router remaps
     // embedded presses to the island — dom-backend), so clicking the child's

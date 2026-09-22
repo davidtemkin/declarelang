@@ -14,7 +14,8 @@
 import { Node } from "./node.js";
 import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameBox } from "./interaction.js";
-import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf } from "./inspect.js";
+import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, pathOf } from "./inspect.js";
+import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
 import { compileExpr, validateExpr } from "./expr.js";
 import { scanDatapaths } from "./datapath.js";
 import { parseProgram } from "./parser.js";
@@ -490,6 +491,17 @@ export const Inspect = {
         return explainHit(needTarget(), x - o.x, y - o.y, pierce);
     },
     stats: () => stats(needTarget()),
+    /** The wake trace (wake-trace.ts), read against the SUBJECT: the Inspector
+     *  runs in the same runtime, so `onlyTree` drops its own settles' entries
+     *  and keeps the subject's. */
+    trace: {
+        start: (cap = 64) => startTrace(cap),
+        stop: stopTrace,
+        clear: clearTrace,
+        active: tracing,
+        read: () => readTrace(needTarget(), (n) => pathOf(needTarget(), n), { onlyTree: true }),
+        text: (settles) => traceText(settles ?? readTrace(needTarget(), (n) => pathOf(needTarget(), n), { onlyTree: true })),
+    },
     /** Is this view under a datapath? The Object pane badges it, and the
      *  evaluate strip's `:` support depends on it. */
     hasData: (path) => {

@@ -102,21 +102,31 @@ not TypeScript. A **`DataSource`** is a remote resource whose *lifecycle is reac
 state*:
 
 ```declare-fragment
-weather: DataSource [ url = { `/data/weather/${zip}.json` } ],
+weather: DataSource [ url = { `/data/weather/${zip}.json` }, auto = true ],
 
-splash: View [ visible = { !weather.loaded }, … ],   // entry screen — derived
-report: View [ visible = {  weather.loaded }, … ],   // report screen — derived
+splash:  View [ visible = { !weather.loaded }, … ],       // nothing has landed yet
+report:  View [ visible = {  weather.loaded }, … ],       // stays up while a refetch runs
+refresh: View [ visible = {  weather.loading }, … ],      // a request is in flight
+notice:  Text [ visible = {  weather.failed }, text = { weather.error } ],   // the last one failed
 ```
 
-The lifecycle is `.idle` → `.loading` → `.loaded` / `.failed`, with `.value` and
-`.error`, and two methods: **`.fetch()`** — explicit, always; nothing loads because
-it was declared — and `.clear()`. The screens above are the pattern to internalize:
-**screens derive from data state.** There is no `isLoading` flag you set, no timer
-polling `.loaded` (the constraint *is* the notification — [nothing
+A source has two kinds of state, and they answer different questions. **`loaded`** is
+about the *value*: it becomes true when the first document lands and stays true through
+every later fetch, until `.clear()` empties the source. **`loading`** and **`failed`**
+are about the *request*: whether one is in flight, whether the last one failed
+(`.error` says why; `.value` keeps the last good document). The two are independent —
+a source can be `loaded` and `loading` at once, which is what a refresh is: the old
+document showing, the new one on its way. Two methods move it: **`.fetch()`** —
+explicit, always; nothing loads because it was declared — and `.clear()`.
+
+The screens above are the pattern to internalize: **screens derive from data
+state.** There is no `isLoading` flag you set, no timer polling `.loaded` (the
+constraint *is* the notification — [nothing
 waits](declare-docs:guide:thinking-in-declare)), no navigation code that shows the
-report when the fetch callback lands — and `.clear()`
-"navigates" back to the splash because both screens re-derive. This is the
-fetch-then-setState choreography from your current stack, deleted rather than
+report when the fetch callback lands. `zip` changes, the URL re-derives, `auto`
+fetches, `loading` is true for the duration, and the report never leaves — and
+`.clear()` "navigates" back to the splash because both screens re-derive. This is
+the fetch-then-setState choreography from your current stack, deleted rather than
 abstracted.
 
 A real API usually wants a header — an API key, a bearer token — and that is an
@@ -337,7 +347,7 @@ concatenate; JSON messages don't). For the show-the-latest case you need no
 handler at all: `last` is the most recent message, reactive, so
 `text = { feed.last }` is a complete ticker.
 
-Connection state reads exactly like a `DataSource`'s: one read-only `status` fact
+Connection state is read-only lifecycle, as a `DataSource`'s is: one `status` fact
 (`"closed"` / `"connecting"` / `"open"` / `"retrying"` / `"failed"`), `open` as its
 boolean view, `error` as the last failure's reason. And when a connection drops,
 the policy is *declared, never invented for you*: SSE reconnects itself — the

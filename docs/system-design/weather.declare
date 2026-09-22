@@ -149,7 +149,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
 
     zip: string = "94403",
 
-    // The single source of truth — .idle/.loading/.loaded/.failed/.value/.error.
+    // The single source of truth — .loaded/.loading/.failed/.value/.error.
     // The URL reads `zip`, so the request is genuinely per-zip (the mock
     // endpoint returns the same San Francisco payload for now). `schema` is the
     // response's shape — a Schema value the compiler reads to type every :path

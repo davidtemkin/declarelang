@@ -50,7 +50,7 @@
 import { Node, onDiscard, authoredName } from "./node.js";
 import { sharedClock } from "./animate.js";
 import { defineAttributes, setBound } from "./attributes.js";
-import { observe } from "./reactive.js";
+import { noteOrigin, observe } from "./reactive.js";
 export const TICKS = ["frame", "second", "minute", "hour", "day"];
 const REAL_HOST = {
     now: () => Date.now(),
@@ -281,14 +281,15 @@ export class Time extends Node {
         // report 2026-08-21). Each throw is logged with the node named; three
         // CONSECUTIVE throws stop the Time — the author restarts it with
         // `running = true` after fixing the handler.
+        const name = authoredName(this);
+        const who = `Time${name !== null ? ` '${name}'` : ""}`;
+        noteOrigin(`onTick on ${who}`, this);
         try {
             fn.call(this, dt);
             this.#throws = 0;
         }
         catch (e) {
             this.#throws++;
-            const name = authoredName(this);
-            const who = `Time${name !== null ? ` '${name}'` : ""}`;
             console.error(`[Declare] onTick on ${who} threw: ${e?.message ?? e}`, e);
             if (this.#throws >= 3) {
                 console.error(`[Declare] ${who} stopped — onTick threw ${this.#throws} ticks in a row; set running = true to restart it`);

@@ -148,6 +148,36 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
      *  survivable, never a settle-aborting throw. */
     private reportConflict;
+    /** A LITERAL on an attribute this strategy places — `Spacer [ height = 40 ]`
+     *  in a run that flexes its spacers, `width = 120` on a child a plan shares.
+     *  The language's rule (docs/system-design/layout-ownership.md §1–§2): what a
+     *  layout places a child does not declare, in any spelling. The checker
+     *  refuses this at compile time wherever it can see what the layout places —
+     *  every library layout, and an author's layout whose place() returns literal
+     *  box keys — so what reaches here is what only exists at run time: a
+     *  layout whose place() builds its boxes with computed keys, a bound
+     *  `ignoreLayout`, a plan that is not plainly literal.
+     *
+     *  It is an ERROR, in the same words as a binding on the same attribute —
+     *  spelling never decides the answer — but a CONTAINED one: install() runs
+     *  mid-settle on a rearm, where a throw aborts the whole settle, so the
+     *  arrangement takes the attribute, the rest of the tree installs, and the
+     *  report is made once per class and attribute (one authored line builds
+     *  every replicated row).
+     *
+     *  Determinism is the residual to know about. install() learns what a
+     *  strategy places from one call to place(), so a strategy whose box keys
+     *  change with the room it is given is judged by the room it had then. The
+     *  library's layouts return the same position keys at every size (a
+     *  ResponsiveLayout places both axes in both flows since the rule landed,
+     *  2026-09-22 — before, its row tier left `y` alone and its stack tier did
+     *  not, so the verdict followed the viewport at boot); what still varies by
+     *  tier is a plan's share and drop, which the checker reads from a literal
+     *  plan. An author's layout is asked to keep the same discipline — the same
+     *  keys at every size — and one that does not is judged at boot. */
+    protected reportDiscarded(child: View, slot: string, arranger: string): void;
+    /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
+    private readonly discarded;
     /** Is this the first thing said about (child, slot)? A conflict report is
      *  once-only per child — a rearm storm re-hits the same slot every wave. */
     private firstReport;

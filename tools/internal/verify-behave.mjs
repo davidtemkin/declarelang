@@ -302,6 +302,11 @@ bootHost(cfg);
         async explain(path, name) {
           return page.evaluate((p, a) => window.__declare.explain(p, a), path, name);
         },
+        /** The wake trace: start recording, then read what each settle since
+         *  changed and what opened it — as data, or as lines. */
+        async traceStart(n = 64) { step("trace start"); await page.evaluate((k) => window.__declare.trace.start(k), n); },
+        async trace() { return page.evaluate(() => window.__declare.trace.read()); },
+        async traceText() { return page.evaluate(() => window.__declare.trace.text()); },
         fail,
       };
 

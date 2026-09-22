@@ -40,6 +40,12 @@ const EXEMPT = new Map([
   ["App.sourceLines", "same — measured by the host, never authored"],
   ["App.demoSources", "an interim host channel the docs app reads (schema.ts notes this)"],
   ["App.liveReport", "same — the last live recompile's rendered report"],
+  ["View.scrollsOn", "kernel-facing: a numeric mirror of `scrolls` for the native visibility rule; authored nowhere"],
+  ["View.visOn", "kernel-facing: an output of the native visibility rule, read by the runtime, authored nowhere"],
+  ["View.visMode", "same — the visibility rule's mode word, set by the runtime"],
+  ["View.insetX", "the content box's horizontal inset total, maintained by `padding`'s push for kernel reads; `padding` is the surface"],
+  ["View.insetY", "same — the vertical total"],
+  ["View.exposes", "declared on App, the only class a program may set it on (what a tenant offers up); the runtime stores it on View"],
 ]);
 
 const SRC = readdirSync("runtime/src").filter((f) => f.endsWith(".ts"))

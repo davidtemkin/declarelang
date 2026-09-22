@@ -139,8 +139,12 @@ export declare class DataSource extends Dataset {
      *  hand-written `fetch()` in a script block and re-declared the
      *  loading/loaded/failed lifecycle by hand, once per screen. */
     headers: Record<string, string> | null;
-    /** The lifecycle, as one fact; the four doc-named booleans derive below. */
-    status: "idle" | "loading" | "loaded" | "failed";
+    /** The request's two facts: one is in flight; the last one failed. Both
+     *  are about the REQUEST — `loaded` (below) is about the value, so a
+     *  source is `loaded && loading` for the whole of a refresh: the old
+     *  document showing, the new one on its way. */
+    loading: boolean;
+    failed: boolean;
     error: string | null;
     /** What the server ANSWERED, kept apart from whether it worked. `statusCode`
      *  is the HTTP status (0 before a reply, or when the request never reached
@@ -150,13 +154,14 @@ export declare class DataSource extends Dataset {
      *  decision can read the code without any of the three fighting. */
     statusCode: number;
     errorBody: unknown;
-    get idle(): boolean;
-    get loading(): boolean;
+    /** A document is present. True from the first arrival on, through every
+     *  later fetch (a refetch never drops it — `value` keeps the last good
+     *  document until the new one lands), until `clear()`. A tracked read of
+     *  `value`, so a constraint on it wakes exactly when presence changes. */
     get loaded(): boolean;
-    get failed(): boolean;
     /** `auto = true`: fetch whenever a NON-EMPTY url arrives or changes — the
      *  reactive-address case, where the url derives from late-landing state
-     *  (`url = { app.env.program ? … : "" }`) and no handler exists to call
+     *  (`url = { hostProvided("program", "") != "" ? … : "" }`) and no handler exists to call
      *  fetch() at the right moment. Push-driven off the url/auto slots; a
      *  re-derive to the SAME address never refetches. Resolves the recorded
      *  auto-fetch question: explicit fetch() stays the default, auto is opt-in. */
@@ -178,7 +183,8 @@ export declare class DataSource extends Dataset {
      *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
      *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
     fetch(): Promise<void>;
-    /** Reset to idle (the doc's "back to the entry screen — declaratively"). */
+    /** As if never fetched (the doc's "back to the entry screen —
+     *  declaratively"): no document, so `loaded` drops; no request, no failure. */
     clear(): void;
 }
 /** Turn a `datapath = { expr }` result into a place. The value must be a

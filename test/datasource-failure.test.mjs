@@ -42,7 +42,7 @@ await test("a refusal keeps its BODY — the part that says why", async () => {
   const prev = provideTransport(() => reply(422, { error: "invalid", field: "email" }));
   try {
     await a.ds.fetch();
-    assert.equal(a.ds.status, "failed");
+    assert.equal(a.ds.failed, true);
     assert.equal(a.ds.statusCode, 422, "the code is readable on its own");
     assert.deepEqual(a.ds.errorBody, { error: "invalid", field: "email" },
       "the parsed refusal body survives the throw");
@@ -148,7 +148,7 @@ await test("a transport that never reaches a server leaves statusCode 0", async 
   const prev = provideTransport(() => Promise.reject(new Error("network unreachable")));
   try {
     await a.ds.fetch();
-    assert.equal(a.ds.status, "failed");
+    assert.equal(a.ds.failed, true);
     assert.equal(a.ds.statusCode, 0);
     assert.match(a.ds.error, /network unreachable/);
   } finally { provideTransport(prev); }
@@ -162,15 +162,52 @@ await test("the lifecycle is DECLARED surface: readable, refused on assignment",
   // other class in the file: `readOnly` exists so a computed slot can be BOTH
   // declared and unsettable, exactly as View.hovered and Stream.status are.
   const errs = async (src) => ((await compile(src, {})).errors ?? []).map((e) => e.message).join("\n");
-  for (const slot of ["status", "loaded", "failed", "idle", "loading", "error", "statusCode", "errorBody"]) {
+  for (const slot of ["loaded", "failed", "loading", "error", "statusCode", "errorBody"]) {
     const m = await errs(`App [ width=1, height=1, d: DataSource [ url = "/x", ${slot} = 1 ] ]`);
     assert.match(m, new RegExp(`DataSource\\.${slot} is read-only`), `${slot} must refuse assignment`);
   }
   assert.match(await errs(`App [ width=1, height=1, s: Dataset [ value = 1 ] ]`), /Dataset\.value is read-only/);
   // …and every one of them still READS clean
   assert.deepEqual(await errs(`App [ width=1, height=1, d: DataSource [ url = "/x" ],
-      t: Text [ text = { "" + d.status + d.idle + d.loading + d.loaded + d.failed
+      t: Text [ text = { "" + d.loading + d.loaded + d.failed
                           + d.error + d.statusCode + JSON.stringify(d.errorBody) + JSON.stringify(d.value) } ] ]`), "");
+});
+
+await test("`loaded` is about the VALUE: it holds through a refetch and a failed refetch, and falls on clear()", async () => {
+  const a = await app();
+  let release = null;
+  const held = (body) => () => new Promise((r) => { release = () => r(reply(200, body)); });
+  const prev = provideTransport(held({ n: 1 }));
+  try {
+    assert.equal(a.ds.loaded, false, "nothing has landed");
+    const first = a.ds.fetch();
+    assert.equal(a.ds.loading, true);
+    release(); await first;
+    assert.equal(a.ds.loaded, true);
+    assert.equal(a.ds.loading, false);
+    // a refetch: the old document stays, and so does `loaded`
+    const second = a.ds.fetch();
+    assert.equal(a.ds.loaded, true, "a refetch does not drop loaded");
+    assert.equal(a.ds.loading, true, "…while the request is in flight");
+    assert.deepEqual(a.ds.value, { n: 1 }, "the last good document is still there");
+    release(); await second;
+    // a refetch that FAILS: still loaded, now also failed
+    provideTransport(() => reply(500, { error: "boom" }));
+    await a.ds.fetch();
+    assert.equal(a.ds.loaded, true);
+    assert.equal(a.ds.failed, true);
+    assert.deepEqual(a.ds.value, { n: 1 });
+    // the next request is not a failed one; clear() is never-fetched
+    provideTransport(held({ n: 2 }));
+    const third = a.ds.fetch();
+    assert.equal(a.ds.failed, false);
+    release(); await third;
+    assert.deepEqual(a.ds.value, { n: 2 });
+    a.ds.clear();
+    assert.equal(a.ds.loaded, false);
+    assert.equal(a.ds.loading, false);
+    assert.equal(a.ds.failed, false);
+  } finally { provideTransport(prev); }
 });
 
 summarize("datasource-failure");

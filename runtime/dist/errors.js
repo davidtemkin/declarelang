@@ -51,30 +51,73 @@ export class DeclareErrors extends DeclareError {
         this.errors = errors;
     }
 }
-/** The ONE wording for a layout↔author slot conflict, wherever it surfaces —
- *  the layout's own claim (layout.ts install), the general one-owner guard
- *  (an author binding installing over a layout claim), and a direct write to a
- *  layout-owned slot (attributes.ts). Named here so both modules share it
- *  without a cycle (layout imports attributes). It names the LAYOUT as the
- *  arranger, the child + slot, and the resolution — let the layout do it, or
- *  take the child out of the arrangement. `by` names who else set the slot
- *  when that helps (a direct write); null when the child obviously authored
- *  it. */
-export function layoutConflictMessage(childClass, slot, arranger, by, where) {
-    const escape = layoutEscape(slot);
+/** The ONE wording for a layout↔author conflict, wherever it surfaces — the
+ *  checker (a child declaring what its layout places, check.ts), the layout's
+ *  own install (layout.ts), the one-owner guard (an author binding installing
+ *  over a layout's), and a direct write to an attribute a layout places
+ *  (attributes.ts). Named here so every module shares it without a cycle. It
+ *  speaks the language's rule (docs/system-design/layout-ownership.md §1–§2):
+ *  a layout places its children, and what it places a child does not declare.
+ *  A DECLARATION — a literal, a percent, `center`, a `{ }` — is told it does
+ *  not belong there; a WRITE from a handler (`write = true`) is told the
+ *  attribute is the layout's while it arranges the child. Either way the
+ *  message names the layout, the child and attribute, the author's line, and
+ *  the two ways out. `by` names who else set it when that helps. */
+export function layoutConflictMessage(childClass, slot, arranger, by, where, write = false) {
     const who = by !== null ? ` (set by ${by})` : "";
-    return diag `${childClass}.${slot}${who}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child cannot also own its ${slot}; ${escape}.`;
+    const clause = write ? `cannot set its ${slot} while the layout arranges it` : `does not declare its ${slot}`;
+    return diag `${childClass}.${slot}${who}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child ${clause}; ${layoutEscape(slot)}.`;
 }
-/** What a strategy DOES to the slot it claims — the verb the two messages
- *  share, so "sizes"/"positions" is decided once. */
+/** What a layout DOES to the attribute — "sizes" or "places", decided once. */
 function arranges(slot) {
-    return slot === "width" || slot === "height" ? "sizes" : "positions";
+    return slot === "width" || slot === "height" ? "sizes" : slot === "visible" ? "shows and hides" : "places";
 }
-/** The two ways out, in the one wording: hand the slot to the layout, or hand
- *  the whole child to the author. Every layout↔author message ends with it. */
+/** The two ways out, in the one wording: leave it to the layout, or take the
+ *  whole child out of the arrangement. Every layout↔author message ends here. */
 function layoutEscape(slot) {
-    const verb = slot === "width" || slot === "height" ? "size" : "place";
-    return diag `let the layout ${verb} it (drop the child's own ${slot}), or set 'ignoreLayout = true' on the child to take it out of the arrangement`;
+    const verb = slot === "width" || slot === "height" ? "size" : slot === "visible" ? "show" : "place";
+    return diag `remove it and let the layout ${verb} the child, or set 'ignoreLayout = true' on the child to ${verb} it yourself`;
+}
+/** A LITERAL on an attribute a layout places — the same sentence as every other
+ *  spelling, with the value shown, because the answer never depends on how the
+ *  value was written: `y = 99` and `y = { 99 }` are one declaration. */
+export function discardedValueMessage(childClass, slot, value, arranger, where) {
+    const wrote = value === null ? "" : ` = ${value}`;
+    return diag `${childClass}.${slot}${wrote}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child does not declare its ${slot}; ${layoutEscape(slot)}.`;
+}
+/** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE (docs/system-design/
+ *  layout-ownership.md §4): the parent takes its size from its content, the
+ *  child does not count toward that content, so on this axis the child's
+ *  arithmetic runs from nothing — and lands below zero in every state, not
+ *  only a collapsed one. Names both views and how to give the parent a size. */
+export function negativeSizeMessage(childClass, size, value, parentClass, onlyContent, where) {
+    const shown = Number.isInteger(value) ? String(value) : value.toFixed(1);
+    const only = onlyContent ? diag `, and this child is the only content it has` : "";
+    return diag `${childClass}.${size} is ${shown}${at(where)} — it is sized from its parent (${parentClass}), which takes its ${size} from its content${only}; a child sized from its parent does not count toward that content, so on this axis the parent has no size to give. Give ${parentClass} a ${size}, or use its padding instead of arithmetic.`;
+}
+/** The checker's form: what the layout places is known from the source, so the
+ *  message can also say HOW the author gets what they meant. `kind` is why the
+ *  layout places this attribute — along its flow, across it by `align` (a
+ *  ResponsiveLayout's cross axis also takes a tier `offset`), because its
+ *  configuration is computed and may place either axis, a plan's `share`, a
+ *  plan's drop (`share: 0`), or an arrangement that places everything. */
+export function placedAttributeMessage(childClass, slot, arranger, kind, where) {
+    const head = diag `${childClass}.${slot}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child does not declare its ${slot}`;
+    const yourself = diag `set 'ignoreLayout = true' on the child to ${slot === "width" || slot === "height" ? "size" : "place"} it yourself`;
+    switch (kind) {
+        case "cross":
+            return diag `${head}. Across the flow, where a child sits is the layout's 'align'; to place this child yourself, ${yourself}.`;
+        case "cross-offset":
+            return diag `${head}. Across the flow, where a child sits is the layout's 'align', and a plan entry's 'offset' shifts one child from there; or ${yourself}.`;
+        case "computed":
+            return diag `${head} — its configuration is computed, so it may place either axis. Remove it, or ${yourself}.`;
+        case "share":
+            return diag `${head} — a plan gives it a share of the width. Remove it and let the plan size the child, or leave the child out of the share (or name it "auto") to keep its own width.`;
+        case "drop":
+            return diag `${head} — a plan drops it (share: 0). Remove it and let the plan show and hide the child, or take the child out of that share.`;
+        default:
+            return diag `${head}. Remove it and let the layout ${slot === "width" || slot === "height" ? "size" : "place"} the child, or ${yourself}.`;
+    }
 }
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.

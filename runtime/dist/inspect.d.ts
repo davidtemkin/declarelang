@@ -141,6 +141,8 @@ export declare const clock: {
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
 export declare function bridgeFor(root: Node): Record<string, unknown>;
+/** The dotted address of a live node under `root` — the inverse of find(). */
+export declare function pathOf(root: Node, n: Node): string;
 /** PICK the view under a point — what a press at that point would reach.
  *
  *  NOT the same coordinates as `View.viewAt`, and the two used to share a name,

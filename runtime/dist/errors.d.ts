@@ -57,16 +57,36 @@ export declare class DeclareErrors extends DeclareError {
     readonly errors: readonly DeclareError[];
     constructor(errors: readonly DeclareError[]);
 }
-/** The ONE wording for a layout↔author slot conflict, wherever it surfaces —
- *  the layout's own claim (layout.ts install), the general one-owner guard
- *  (an author binding installing over a layout claim), and a direct write to a
- *  layout-owned slot (attributes.ts). Named here so both modules share it
- *  without a cycle (layout imports attributes). It names the LAYOUT as the
- *  arranger, the child + slot, and the resolution — let the layout do it, or
- *  take the child out of the arrangement. `by` names who else set the slot
- *  when that helps (a direct write); null when the child obviously authored
- *  it. */
-export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null, where?: Where | null): string;
+/** The ONE wording for a layout↔author conflict, wherever it surfaces — the
+ *  checker (a child declaring what its layout places, check.ts), the layout's
+ *  own install (layout.ts), the one-owner guard (an author binding installing
+ *  over a layout's), and a direct write to an attribute a layout places
+ *  (attributes.ts). Named here so every module shares it without a cycle. It
+ *  speaks the language's rule (docs/system-design/layout-ownership.md §1–§2):
+ *  a layout places its children, and what it places a child does not declare.
+ *  A DECLARATION — a literal, a percent, `center`, a `{ }` — is told it does
+ *  not belong there; a WRITE from a handler (`write = true`) is told the
+ *  attribute is the layout's while it arranges the child. Either way the
+ *  message names the layout, the child and attribute, the author's line, and
+ *  the two ways out. `by` names who else set it when that helps. */
+export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null, where?: Where | null, write?: boolean): string;
+/** A LITERAL on an attribute a layout places — the same sentence as every other
+ *  spelling, with the value shown, because the answer never depends on how the
+ *  value was written: `y = 99` and `y = { 99 }` are one declaration. */
+export declare function discardedValueMessage(childClass: string, slot: string, value: string | null, arranger: string, where?: Where | null): string;
+/** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE (docs/system-design/
+ *  layout-ownership.md §4): the parent takes its size from its content, the
+ *  child does not count toward that content, so on this axis the child's
+ *  arithmetic runs from nothing — and lands below zero in every state, not
+ *  only a collapsed one. Names both views and how to give the parent a size. */
+export declare function negativeSizeMessage(childClass: string, size: "width" | "height", value: number, parentClass: string, onlyContent: boolean, where?: Where | null): string;
+/** The checker's form: what the layout places is known from the source, so the
+ *  message can also say HOW the author gets what they meant. `kind` is why the
+ *  layout places this attribute — along its flow, across it by `align` (a
+ *  ResponsiveLayout's cross axis also takes a tier `offset`), because its
+ *  configuration is computed and may place either axis, a plan's `share`, a
+ *  plan's drop (`share: 0`), or an arrangement that places everything. */
+export declare function placedAttributeMessage(childClass: string, slot: string, arranger: string, kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all", where?: Where | null): string;
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
  *  A sentence that reaches its reader through a helper — a builder's return,

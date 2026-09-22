@@ -1,4 +1,4 @@
-import { Cell, Constraint } from "./reactive.js";
+import { Constraint } from "./reactive.js";
 import { type Where } from "./errors.js";
 /** One attribute's class-level declaration: its default, the Surface push a
  *  change makes (absent for purely model-side attributes), and an optional
@@ -51,6 +51,14 @@ export interface AttrSpec<S, V> {
      *  no carrier of this hook follows or defBinds. */
     tracked?: (self: S, v: V) => V;
 }
+/** The instance and slot a kernel cell belongs to, when it is a numeric block
+ *  slot — the push sweep's lookup, exposed for tooling that names cells (the
+ *  wake trace). null for a cell that is no instance slot. */
+export declare function slotOfCell(cell: number): {
+    view: object;
+    name: string;
+    kind: "n" | "b";
+} | null;
 /** The kernel cell of `self.name` when it is a table slot of this instance
  *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
  *  The EXPR binder resolves its read paths and its target through this. */
@@ -171,14 +179,21 @@ export declare function addBound(self: object, name: string, delta: number): voi
  *  The R4 replacement for R3's 0-as-unset: auto-size asks this, so an
  *  explicit `width=0` now means zero, not "measure me". */
 export declare function isSet(self: object, name: string): boolean;
-/** The dependency nodes that exist for `self`'s slots — one per slot some
- *  computation has tracked a read of (pay-per-use: an unobserved slot owns
+/** The kernel cell ids of every slot of `self`'s a rule could have read: its
+ *  NUMERIC BLOCK (x, y, width, height, visible, scale… — the table slots,
+ *  allocated as one contiguous run) plus the JS cells of the rest, which exist
+ *  only once something tracked a read (pay-per-use; an unobserved one owns
  *  none). The one way to ask "does that constraint read anything of THIS
  *  object's?" without a reverse index: collect these, hand them to
  *  `Constraint.readsAny`. Used by a layout to tell a parent extent that
  *  measures its own laid children from one that does not (layout.ts
- *  `viewExtent`). */
-export declare function cellsOf(self: object): Cell[];
+ *  `viewExtent`).
+ *
+ *  Until 2026-09-21 this returned the JS cells alone — a rule the kernel arc
+ *  made hollow, since a child's geometry has no JS cell any more: an owner
+ *  like `{ this.contentWidth + 32 }` reads the children through the table,
+ *  and the answer was always "no", masked at boot by the `!isSet` window. */
+export declare function cellIdsOf(self: object): number[];
 /** The slot's class-level default — what a `:path` binding falls back to
  *  when the path is unresolved (the doc's rule, language §9). */
 export declare function defaultOf(self: object, name: string): unknown;

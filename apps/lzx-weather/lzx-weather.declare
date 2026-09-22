@@ -153,17 +153,18 @@ App [ width = 240, height = 320, fill = #EAEAEA,
     // The app's data source. The screens below switch on its .loading / .loaded /
     // .failed flags, and read the weather from its .value (or .error).
 
-    weatherData: DataSource [ url = "data/weather.json" ],
+    // The two slides that answer a fetch's outcome: the top bar comes down on
+    // arrival (the source's own event), the zip bar comes back on failure (a
+    // change event on its `failed` flag).
 
-    // The two slides that answer a fetch's outcome are a change event on the
-    // source's status: the top bar comes down on success, the zip bar comes
-    // back on failure.
+    weatherData: DataSource [ url = "data/weather.json",
+        onLoad() { app.report.topBar.slideDown.start() }
+        ],
 
-    fetchStatus: string = { weatherData.status },
-    trackChanges = ["fetchStatus"],
+    fetchFailed: boolean = { weatherData.failed },
+    trackChanges = ["fetchFailed"],
     onChange(e: ChangeEvent) {
-        if (weatherData.loaded) report.topBar.slideDown.start()
-        else if (weatherData.failed) splash.zipBtn.slideIn.start()
+        if (weatherData.failed) splash.zipBtn.slideIn.start()
         },
 
     bg: Image [ source = "resources/weather_bg.jpg" ],

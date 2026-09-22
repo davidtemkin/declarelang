@@ -95,7 +95,7 @@ await test("a throwing onLoad does NOT mark the source failed — the data arriv
   const prev = provideTransport(() => reply(200, { n: 7 }));
   try {
     const lines = await logged(() => a.ds.fetch());
-    assert.equal(a.ds.status, "loaded", "the response was good; the handler's bug is the handler's");
+    assert.equal(a.ds.failed, false, "the response was good; the handler's bug is the handler's");
     assert.equal(a.ds.value.n, 7);
     assert.ok(lines.some((l) => l.includes("[Declare] onLoad on DataSource")),
       `the throw is still loud and attributed: ${JSON.stringify(lines)}`);

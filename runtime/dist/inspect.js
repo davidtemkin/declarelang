@@ -17,6 +17,7 @@ import { materializationInfo } from "./replicate.js";
 import { sharedClock, browserScheduler } from "./animate.js";
 import { TAGS, LAYOUTS, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
 import { settle } from "./reactive.js";
+import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
 const isView = (n) => n instanceof View;
 /** The component name to SHOW for a node. A named user class carries its own
  *  (`FinderWindow`); an instance-declared anonymous subclass carries whatever
@@ -445,6 +446,18 @@ export function bridgeFor(root) {
          *  here said what existed; anyone who found __declare at all has found
          *  the one place this answer lands). */
         help: () => BRIDGE_HELP,
+        /** The wake trace (wake-trace.ts): what each settle changed and what
+         *  opened it — explain()'s other half. `start(n)` records the last n
+         *  settles; `read()` resolves them against the tree; `text()` renders
+         *  them for a reader; `stop()` / `clear()`. */
+        trace: {
+            start: (cap = 64) => startTrace(cap),
+            stop: stopTrace,
+            clear: clearTrace,
+            active: tracing,
+            read: () => readTrace(root, (n) => pathOf(root, n)),
+            text: () => traceText(readTrace(root, (n) => pathOf(root, n))),
+        },
         clock,
         /** The build stamp — filled by the host that compiled the page (the dev
          *  server's boot: when, from which files, by which server). Null where no
@@ -464,12 +477,13 @@ const BRIDGE_HELP = {
     explainHit: "explainHit(x, y, pierce?) — the hit walk's decisions in order: what took the point and what it stepped over",
     stats: "stats() — node/constraint counts for the whole tree",
     evaluate: "evaluate(path, src) — run Declare in the node's scope: read ('width'), compute ('1+2'), set ('width = 40'), bind ('width = { parent.width/2 }'). Returns {ok, text, value} synchronously once primed",
+    trace: "trace — the wake trace: start(n) records the last n settles; read() → [{ n, at, ms, origin, runs, triggers, changes }] with every changed slot named and the rule that wrote it; text() the same as lines; stop()/clear(). THE 'why did this settle happen, and what did it change' call — explain()'s other half",
     clock: "clock — the driven clock: manual()/auto()/step(ms)/settleMotion() for deterministic motion in tests",
     build: "build — what this page runs: compiled-at, the main file, every included file, and the dev server (pid, root) that built it. Null on a static host. Check this FIRST when an edit seems not to show",
     help: "help() — this table",
 };
 /** The dotted address of a live node under `root` — the inverse of find(). */
-function pathOf(root, n) {
+export function pathOf(root, n) {
     const parts = [];
     let cur = n;
     while (cur !== null && cur.parent !== null && cur !== root) {

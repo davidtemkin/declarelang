@@ -447,7 +447,23 @@ declare const Inspect: {
   dataPreview(path: string): string;
   evaluate(path: string, src: string): { ok: boolean; input: string; text: string; verb: string; temporary?: boolean };
   clock: { manual(): void; auto(): void; step(ms?: number): void; settleMotion(maxMs?: number): boolean; now(): number };
+  /** The wake trace: what each settle changed, and what opened it. */
+  trace: {
+    start(cap?: number): void; stop(): void; clear(): void; active(): boolean;
+    read(): TraceSettle[];
+    text(settles?: TraceSettle[]): string;
+  };
 };
+/** One attribute the wake trace saw change: the view it lives on (\`path\`) and
+ *  the attribute, its value before and after, and — for a change the settle
+ *  made — the rule that wrote it (\`by\`; null for a plain write). */
+interface TraceChange { path: string; attr: string; from?: number | boolean | string | null; to?: number | boolean | string | null; by: { rule: string; source: string | null; line?: number; file?: string } | null }
+/** One settle, as the wake trace recorded it: its number; when it opened (\`at\`,
+ *  ms since the trace started) and how long it ran (\`ms\`); the user code that
+ *  ran before it (\`origin\`); how many rules the kernel ran (\`runs\`); the writes
+ *  that opened it (\`triggers\`) and what it changed in response (\`changes\`); and
+ *  \`unnamed\`, cells that moved but belong to no addressable attribute. */
+interface TraceSettle { n: number; at: number; ms: number; origin: string[]; runs: number; triggers: TraceChange[]; changes: TraceChange[]; unnamed: number }
 /** Run \`step\` exactly once, at the close of the current settle — your
  *  handler's writes applied, views real, placed, and sized, nothing painted
  *  yet. What it writes lands in the same frame as the change itself. Reach

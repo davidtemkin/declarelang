@@ -13,6 +13,23 @@ export declare const S: {
  *  kernel drains the ring before it runs anything; outside a settle we arm
  *  the microtask ourselves, exactly as a kernel write would have. */
 export declare function touchCell(cell: number): void;
+/** The Constraint standing behind a kernel rule id (a cell's `owner`), for
+ *  tooling that names what wrote a value — the wake trace. */
+export declare function constraintOfRule(id: number): Constraint | null;
+export interface TraceHook {
+    touched(cell: number, inSettle: boolean): void;
+    /** A JS-store write landed (a slot holding no number: a string, a record). */
+    wrote(self: object, name: string, from: unknown, to: unknown, inSettle: boolean): void;
+    before(): void;
+    after(runs: number): void;
+    origin(label: string, node: object | null): void;
+}
+export declare function setTraceHook(h: TraceHook | null): void;
+export declare function noteWrite(self: object, name: string, from: unknown, to: unknown): void;
+/** Name the user code about to run — a handler, a tick, an arrival — so the
+ *  settle its writes open can say what opened it. `node` is whose code it is,
+ *  so a reader sharing the runtime with the subject can keep the subject's. */
+export declare function noteOrigin(label: string, node?: object | null): void;
 /** Is a settle running now (a rule body, a step, a change handler)? */
 export declare function isSettling(): boolean;
 /** Is there work the table does not yet reflect — a settle scheduled, writes
@@ -174,9 +191,10 @@ export declare class Constraint {
      *  rebuilt from scratch every run, so the answer is about the LAST run's
      *  reads — which is exactly what the cycle question needs ("would consuming
      *  this constraint's output close a loop back through those slots?"). The
-     *  kernel holds the edges as cell ids, so the set is mapped through the ids
-     *  the cells were allocated (a cell with no id was never read by anyone). */
-    readsAny(cells: ReadonlySet<Cell>): boolean;
+     *  kernel holds the edges as cell ids — table slots and JS cells alike — so
+     *  the question is asked in ids (attributes.ts `cellIdsOf` collects an
+     *  object's). */
+    readsAny(ids: ReadonlySet<number>): boolean;
     private flags;
     /** The rule, created on first use: DYNAMIC (edges rediscovered per run)
      *  unless wire() made it a BODY with fixed edges. */

@@ -248,8 +248,17 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // ⚠ THIS IS 11.8 OVER DT'S 100 KB TARGET and the kernel is what put it there.
   // The band is the drift guard; closing that gap is a ruling DT has to make
   // (gate the kernel to the programs it pays for, or take the request back).
+  // 112 → 113 (2026-09-22, the layout-ownership rule — DT's ruling to raise it,
+  // priced): measured 112.43. By deletion, the tree stood at 112.05 before this
+  // change — 0.05 over the band already, drift from other work landing in the
+  // same commit and not isolated here. The change itself is +0.38 KB, all of it
+  // runtime that every program can reach: the §4 marking (a size derived from
+  // the parent's does not count toward its content size) and the report of a
+  // child sized from a parent that has no size to give. The checker's placed-
+  // attribute check is compile-time only and ships nothing; ResponsiveLayout's
+  // align/offset is library code the calendar does not use.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 112 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 113 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 

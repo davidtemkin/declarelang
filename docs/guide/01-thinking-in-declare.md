@@ -86,7 +86,7 @@ such loop is waiting for something specific; ask what, and depend on that instea
 
 | the reflex | what it was waiting for | the Declare form |
 |---|---|---|
-| poll until a fetch lands | the request's state | `visible = { data.loaded }`, or `onLoad` |
+| poll until a fetch lands | the data's arrival | `visible = { data.loaded }`, or `onLoad` |
 | poll until a view exists, or has a size | the tree settling | `onInit`, `onReady`, `afterSettle`, `onArrive` |
 | poll a value until it changes | the value | a constraint on it |
 | poll until a condition flips, then act once | the crossing | `trackChanges` + `onChange` |
@@ -259,12 +259,13 @@ beautifully and that the keyboard cannot reach. Even then, the basics are yours 
 declare — a control with no hover and no pressed state reads as dead. [Controls and the
 value pattern](declare-docs:guide:controls) and [Make your own](declare-docs:guide:make-your-own).
 
-**Layouts are classes, and one owns what it places.** Any stack or flow is a layout, not
+**Layouts are classes, and each places its children.** Any stack or flow is a layout, not
 a ladder of hand-set `y` constants that each need a phone branch; and when the
 arrangement is genuinely yours — masonry, a radial dial, a camera — you write a layout
 class that re-arranges as its children and its space change. The one rule to hold: a
-layout owns the slots it sets, so a child cannot also set its own `width` there. Let the
-layout place it, or take the child out with `ignoreLayout`. [Space](declare-docs:guide:space)
+layout places its children, and what it places a child does not declare — the checker
+says so at the line, and says what to use instead. Let the layout place it, or take the
+child out with `ignoreLayout`. [Space](declare-docs:guide:space)
 and [Make your own](declare-docs:guide:make-your-own).
 
 **Continuity is the differentiator, and it is a value that moves.** You saw it above —

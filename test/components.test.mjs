@@ -491,9 +491,13 @@ class MarketLayout extends Layout [
     place() -> array {
         const kids = this.laid()
         const sized = app.sized
-        return kids.map((k, i) => (i == 1 && sized)
-            ? ({ x: 0, y: i * 22, w: 100, h: 20 })
-            : ({ x: 0, y: i * 22 }))
+        return kids.map((k, i) => {
+            const box = ({ x: 0, y: i * 22 }) as any
+            // the size keys are COMPUTED, so what this layout places cannot be
+            // read from its source: the runtime judges it (the case under test)
+            if (i == 1 && sized) for (const key of ["w", "h"]) box[key] = key == "w" ? 100 : 20
+            return box
+            })
         }
     ]
 App [ width = 300, height = 120, sized: boolean = false,
@@ -506,7 +510,7 @@ App [ width = 300, height = 120, sized: boolean = false,
   } finally {
     console.error = orig;
   }
-  const conflicts = errs.filter((e) => /cannot also own its width/.test(e));
+  const conflicts = errs.filter((e) => /does not declare its width/.test(e));
   assert.equal(conflicts.length, 1, "reported once across four rearms, not per wave: " + conflicts.length);
   assert.equal(app.col.children[1].width, 260, "the author's width (300-40) held throughout");
 });

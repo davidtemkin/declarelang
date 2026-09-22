@@ -1,5 +1,6 @@
 import { App } from "./view.js";
 import { type ValueSlice } from "./inspect.js";
+import { clearTrace, stopTrace, tracing, type TraceSettle } from "./wake-trace.js";
 /** The subject's root-space origin in the Inspector's coordinate space (the
  *  viewport — its overlay is position:fixed). Zero for a top-level app. For an
  *  app embedded in an island the two differ by the island's position, and every
@@ -113,6 +114,17 @@ export declare const Inspect: {
         nodes: number;
         ownedSlots: number;
         motionBusy: boolean;
+    };
+    /** The wake trace (wake-trace.ts), read against the SUBJECT: the Inspector
+     *  runs in the same runtime, so `onlyTree` drops its own settles' entries
+     *  and keeps the subject's. */
+    trace: {
+        start: (cap?: number) => void;
+        stop: typeof stopTrace;
+        clear: typeof clearTrace;
+        active: typeof tracing;
+        read: () => TraceSettle[];
+        text: (settles?: TraceSettle[]) => string;
     };
     /** Is this view under a datapath? The Object pane badges it, and the
      *  evaluate strip's `:` support depends on it. */

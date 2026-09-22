@@ -291,7 +291,7 @@ await test("SimpleLayout: a Spacer divides the content box, not the view", async
 await test("WrappingLayout: the flow wraps at the content width", async () => {
   const src = (pad) => `App [ width = 400, height = 300,
     box: View [ width = 200, height = 200${pad},
-      layout: WrappingLayout [ spacing = 10, lineSpacing = 10 ],
+      layout: WrappingLayout [ spacing = 10, rowSpacing = 10 ],
       a: View [ width = 90, height = 20 ],
       b: View [ width = 90, height = 20 ],
     ],
@@ -759,7 +759,7 @@ await test("Card: theme surface, theme radius, a hairline edge, and its own cont
 await test("Card: replacing the layout does NOT replace the padding", async () => {
   const app = await boot(`App [ width = 600, height = 400,
     c: Card [ x = 0, y = 0, width = 280,
-      layout: WrappingLayout [ spacing = 4, lineSpacing = 4 ],
+      layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
       a: View [ width = 100, height = 24 ],
     ],
   ]`);

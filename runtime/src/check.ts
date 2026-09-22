@@ -26,9 +26,9 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 
-import type { Element, Attr, Method, Program, TopDecl } from "./parser.js";
+import type { Element, Attr, Method, Program, TopDecl, ClassDecl } from "./parser.js";
 import { CSS_COLORS } from "./css-colors.js";
-import { DeclareError, insetOrRadiusMessage, type Pos, noBaselineMessage, stackBaselineMessage } from "./errors.js";
+import { DeclareError, insetOrRadiusMessage, type Pos, noBaselineMessage, stackBaselineMessage, placedAttributeMessage } from "./errors.js";
 import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ComponentSchema, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
 import { runtimeMethodsOf } from "./runtime-methods.js";
@@ -40,6 +40,9 @@ import { resolveShapes, shapeNames } from "./shape-resolve.js";
 // The program-under-check's declared schema names — set at check() entry
 // (checkElement recurses too deep to thread one more parameter through).
 let CHECK_SHAPES: ReadonlySet<string> = new Set();
+/** The program's class declarations by name — what the placed-attribute check
+ *  reads to learn what an author-written layout places (checkPlacedAttributes). */
+let CHECK_CLASSES: ReadonlyMap<string, ClassDecl> = new Map();
 /** Class name → every member its body declares (decls, methods, named children),
  *  base chain included. A use site that names a child the same thing is
  *  redeclaring a member of the component it is instantiating — refused below,
@@ -110,6 +113,7 @@ export function check(input: Element | Program): DeclareError[] {
   // report here. CHECK_SHAPES then answers type-position lookups below.
   const shapeResolution = resolveShapes(program);
   CHECK_SHAPES = shapeNames(program);
+  CHECK_CLASSES = new Map(program.classes.map((c) => [c.name, c]));
   const { infos, schemas, errors } = programSchemas(program.classes, CHECK_SHAPES);
   {
     const byName = new Map(program.classes.map((c) => [c.name, c]));
@@ -710,6 +714,7 @@ function checkElement(
         consumed.add(child);
         errors.push(...checkComponentValue(schemas, schema.name, child.name, declared.of, child));
         errors.push(...checkBaselineAlignment(schemas, child, el));
+        if (child.name === "layout") errors.push(...checkPlacedAttributes(schemas, child, el));
         continue;
       }
       // A named child is a member of THIS element (language §4: "reachable
@@ -1245,6 +1250,208 @@ function checkBaselineAlignment(
     errors.push(new DeclareError(noBaselineMessage(c.tag, layoutEl.tag), c.pos));
   }
   return errors;
+}
+
+/** Why a layout places an attribute — the message says how to get what the
+ *  author meant (errors.ts placedAttributeMessage). */
+type PlacedKind = "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all";
+
+/** THE RULE, AT COMPILE TIME (docs/system-design/layout-ownership.md §1–§3): a
+ *  layout places its children, and what it places a child does not declare.
+ *  What a layout places is KNOWN, never declared — from the library's own
+ *  table, read per instance from the layout's literal configuration (a
+ *  computed one answers the union), or, for a layout the author wrote, from
+ *  the box keys its `place()` returns. Where that cannot be told — a computed
+ *  box key, a layout reached through an unknown class — this says nothing and
+ *  the runtime holds the line, so an answer here is never wrong, only
+ *  sometimes absent. Every spelling of a declaration is the same declaration:
+ *  a literal, a percent, `center`, a `{ }`, a two-way path. */
+function checkPlacedAttributes(
+  schemas: Readonly<Record<string, ComponentSchema>>,
+  layoutEl: Element,
+  owner: Element
+): DeclareError[] {
+  const ls = Object.hasOwn(schemas, layoutEl.tag) ? schemas[layoutEl.tag] : null;
+  if (ls === null || !descendsFrom(ls, "Layout")) return [];
+  const known = layoutPlaces(layoutEl);
+  if (known === null) return [];
+  const errors: DeclareError[] = [...known.errors];
+  const arranger = `${owner.tag}'s ${layoutEl.tag}`;
+  const ownerSchema = Object.hasOwn(schemas, owner.tag) ? schemas[owner.tag] : null;
+  for (const c of owner.children) {
+    if (c === layoutEl || !Object.hasOwn(schemas, c.tag)) continue;
+    // a named member that is itself an attribute value (`reveal: Spring [ ]`)
+    // is not a tree child; nor is any non-View — a layout arranges views only
+    if (c.name !== null && ownerSchema !== null) {
+      const t = attrType(ownerSchema, c.name);
+      if (t !== null && t.kind === "component") continue;
+    }
+    if (!descendsFrom(schemas[c.tag], "View")) continue;
+    // `ignoreLayout` takes the child out of the arrangement — literally, or
+    // by a binding the checker cannot decide (the runtime decides that one)
+    const ig = c.attrs.find((a) => a.name === "ignoreLayout");
+    if (ig !== undefined && !(ig.value.kind === "ident" && ig.value.name === "false")) continue;
+    for (const a of c.attrs) {
+      const kind = known.placed.get(a.name) ?? (c.name !== null ? known.byName.get(c.name)?.get(a.name) : undefined);
+      if (kind === undefined) continue;
+      errors.push(new DeclareError(placedAttributeMessage(c.tag, a.name, arranger, kind, null), a.pos));
+    }
+  }
+  return errors;
+}
+
+/** What a layout places, from the source alone: `placed` for every laid
+ *  child, `byName` for what a plan allocates to a named child, and any error
+ *  in the configuration itself. null when it cannot be told statically. */
+function layoutPlaces(layoutEl: Element): {
+  placed: Map<string, PlacedKind>;
+  byName: Map<string, Map<string, PlacedKind>>;
+  errors: DeclareError[];
+} | null {
+  // Walk the class chain from the layout's tag to the library layout (or
+  // TweenLayout) it rests on, remembering the author classes passed through:
+  // their bodies can set configuration (`class Row extends SimpleLayout [ axis
+  // = x ]`) or supply their own place().
+  const chain: ClassDecl[] = [];
+  let name = layoutEl.tag;
+  for (;;) {
+    if (name === "Layout" || name === "SimpleLayout" || name === "WrappingLayout" || name === "ResponsiveLayout" || name === "TweenLayout") break;
+    const cd = CHECK_CLASSES.get(name);
+    if (cd === undefined || chain.includes(cd)) return null;   // an unknown chain
+    chain.push(cd);
+    name = cd.base;
+  }
+  const base = name;
+  const all = (kind: PlacedKind) => new Map<string, PlacedKind>([["x", kind], ["y", kind], ["width", kind], ["height", kind], ["visible", kind]]);
+  const result = (placed: Map<string, PlacedKind>) => ({ placed, byName: new Map<string, Map<string, PlacedKind>>(), errors: [] as DeclareError[] });
+  // a TweenLayout places every attribute of every child it arranges, whatever
+  // its place() returns — its install interpolates whole boxes
+  if (base === "TweenLayout") return result(all("all"));
+  // an author's own place() anywhere in the chain replaces the library's
+  const definer = chain.findIndex((cd) => cd.body.methods.some((m) => m.name === "place"));
+  if (definer >= 0) {
+    const scanned = scanPlaceKeys(chain.slice(0, definer + 1));
+    if (scanned === null) return null;
+    if (scanned.callsSuper) {
+      const inherited = libraryPlaces(base, layoutEl, chain);
+      for (const [k, v] of inherited.placed) if (!scanned.keys.has(k)) scanned.keys.set(k, v);
+    }
+    return result(scanned.keys);
+  }
+  // the bare base supplies no place() of its own — nothing to read
+  if (base === "Layout") return null;
+  return libraryPlaces(base, layoutEl, chain);
+}
+
+/** A configuration attribute as the source states it: a literal (an ident or
+ *  a string), computed, or absent — the use site first, then the author
+ *  classes in the chain, most derived first. */
+function configOf(layoutEl: Element, chain: readonly ClassDecl[], name: string): { lit: string } | "computed" | "absent" {
+  const a = layoutEl.attrs.find((x) => x.name === name) ?? chain.map((cd) => cd.body.attrs.find((x) => x.name === name)).find((x) => x !== undefined);
+  if (a === undefined) return "absent";
+  if (a.value.kind === "ident") return { lit: a.value.name };
+  if (a.value.kind === "string") return { lit: a.value.value };
+  return "computed";
+}
+
+/** The library's own table (layout-ownership.md §3). */
+function libraryPlaces(base: string, layoutEl: Element, chain: readonly ClassDecl[]): {
+  placed: Map<string, PlacedKind>;
+  byName: Map<string, Map<string, PlacedKind>>;
+  errors: DeclareError[];
+} {
+  const placed = new Map<string, PlacedKind>();
+  const byName = new Map<string, Map<string, PlacedKind>>();
+  const errors: DeclareError[] = [];
+  if (base === "SimpleLayout") {
+    const axis = configOf(layoutEl, chain, "axis");
+    const align = configOf(layoutEl, chain, "align");
+    if (axis === "computed") {
+      placed.set("x", "computed");
+      placed.set("y", "computed");
+    } else {
+      const flow = axis === "absent" ? "y" : axis.lit;
+      const cross = flow === "x" ? "y" : "x";
+      placed.set(flow, "flow");
+      if (align === "computed") placed.set(cross, "computed");
+      else if (align !== "absent" && align.lit !== "none") placed.set(cross, "cross");
+    }
+  } else if (base === "WrappingLayout") {
+    placed.set("x", "flow");
+    placed.set("y", "flow");
+  } else if (base === "ResponsiveLayout") {
+    placed.set("x", "cross-offset");
+    placed.set("y", "cross-offset");
+    const align = configOf(layoutEl, chain, "align");
+    const alignAttr = layoutEl.attrs.find((a) => a.name === "align");
+    if (align !== "computed" && align !== "absent" && align.lit === "none") {
+      errors.push(new DeclareError(
+        `ResponsiveLayout.align = none — a ResponsiveLayout places both axes of its children, so it always says where they sit across the flow: start, center, end or baseline`,
+        alignAttr?.pos ?? layoutEl.pos
+      ));
+    }
+    // what a LITERAL plan allocates by name: a numeric share sizes the child,
+    // a share of 0 drops it. A plan that is not plainly literal is the
+    // runtime's to read.
+    const plan = layoutEl.attrs.find((a) => a.name === "plan");
+    if (plan !== undefined && plan.value.kind === "code") {
+      const alloc = planAllocations(plan.value.src);
+      if (alloc !== null) {
+        for (const n of alloc.widths) (byName.get(n) ?? byName.set(n, new Map()).get(n)!).set("width", "share");
+        for (const n of alloc.drops) (byName.get(n) ?? byName.set(n, new Map()).get(n)!).set("visible", "drop");
+      }
+    }
+  }
+  return { placed, byName, errors };
+}
+
+/** The names a literal plan allocates: every `share: { name: n }` entry across
+ *  its tiers — a positive number sizes the child, 0 drops it, "auto" leaves it
+ *  alone. null unless every `share` in the plan is a plain object literal of
+ *  numbers and "auto". */
+function planAllocations(src: string): { widths: Set<string>; drops: Set<string> } | null {
+  const widths = new Set<string>();
+  const drops = new Set<string>();
+  const mentions = (src.match(/\bshare\s*:/g) ?? []).length;
+  const literal = [...src.matchAll(/\bshare\s*:\s*\(?\s*\{([^{}]*)\}/g)];
+  if (literal.length !== mentions) return null;
+  for (const m of literal) {
+    for (const entry of m[1].split(",")) {
+      if (entry.trim() === "") continue;
+      const e = /^\s*["']?([A-Za-z_$][\w$]*)["']?\s*:\s*(.+?)\s*$/.exec(entry);
+      if (e === null) return null;
+      const v = e[2];
+      if (/^["']auto["']$/.test(v)) continue;
+      if (!/^-?\d+(\.\d+)?$/.test(v)) return null;
+      if (Number(v) === 0) drops.add(e[1]); else widths.add(e[1]);
+    }
+  }
+  return { widths, drops };
+}
+
+/** What an author-written place() returns, read from its source: the box keys
+ *  of its object literals and assignments (`{ x: … }`, `box.w = …`), across
+ *  every method of the classes that define it (a helper may build the boxes).
+ *  Lexical, so it over-counts — a stray `{ x: 1 }` reads as a key, which only
+ *  ever makes the answer stricter. A COMPUTED key (`box[axis] = …`) cannot be
+ *  read at all, and then the answer is null: the runtime decides. */
+function scanPlaceKeys(classes: readonly ClassDecl[]): { keys: Map<string, PlacedKind>; callsSuper: boolean } | null {
+  const KEY: Record<string, string> = { x: "x", y: "y", w: "width", h: "height", vis: "visible" };
+  const keys = new Map<string, PlacedKind>();
+  let callsSuper = false;
+  for (const cd of classes) {
+    for (const m of cd.body.methods) {
+      const src = m.body
+        .replace(/\/\*[\s\S]*?\*\//g, " ")
+        .replace(/\/\/[^\n]*/g, " ")
+        .replace(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g, '""');
+      if (/[\w$)\]]\s*\[[^\]]+\]\s*=(?!=)/.test(src) || /[{,]\s*\[[^\]]+\]\s*:/.test(src)) return null;
+      if (/\bsuper\s*\.\s*place\s*\(/.test(src)) callsSuper = true;
+      for (const k of src.matchAll(/(?:^|[{,(])\s*(x|y|w|h|vis)\s*:/gm)) keys.set(KEY[k[1]], "flow");
+      for (const k of src.matchAll(/\.(x|y|w|h|vis)\s*=(?!=)/g)) keys.set(KEY[k[1]], "flow");
+    }
+  }
+  return keys.size === 0 && !callsSuper ? null : { keys, callsSuper };
 }
 
 /** Attributes, declarations, methods, and named children are ONE member

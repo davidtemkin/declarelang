@@ -45,6 +45,9 @@ async function bootUnderCsp(source, { name, dir = null, precompile = true }) {
   const pg = await browser.newPage();
   const errors = [];
   pg.on("pageerror", (e) => errors.push(String(e)));
+  // what the program SAYS — a runtime warning is a defect; the browser's own
+  // resource reports are network events (this stub serves the build alone)
+  pg.on("console", (m) => { if ((m.type() === "warning" || m.type() === "error") && !m.text().startsWith("Failed to load resource")) errors.push(m.type().toUpperCase() + " " + m.text().slice(0, 200)); });
   await pg.evaluateOnNewDocument(() => {
     globalThis.__cspViolations = [];
     document.addEventListener("securitypolicyviolation", (e) => globalThis.__cspViolations.push(e.violatedDirective + " " + (e.sample || "")));

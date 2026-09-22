@@ -244,7 +244,7 @@ App [ fill = { provided("theme").bg },
         // branch at all — not a difference in the race, a difference in
         // whether the race runs).
         if (segs.length == 0 && (app.rawSrc.value || "") != ""
-            && (app.segSrc.status == "loaded" || app.segSrc.status == "failed")) {
+            && (app.segSrc.loaded || app.segSrc.failed)) {
             const e = ("" + app.rawSrc.value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
             segs = [({ kind: "code", html: "<pre>" + e + "</pre>" })]
             }

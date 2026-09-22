@@ -550,7 +550,7 @@ class MusicPanel extends View [
         fill = #FFFFFF, clip = true, scrolls = y,
         cells: View [ width = 100%,
             datapath = { app.musicData.value },
-            layout: WrappingLayout [ spacing = 8, lineSpacing = 0 ],
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 0 ],
             TrackCell [ datapath = :tracks[], kind = "audio" ]
             ]
         ]
@@ -584,7 +584,7 @@ class VideoPanel extends View [
         fill = #F8EEF8, clip = true,
         cells: View [ width = 100%,
             datapath = { app.videosData.value },
-            layout: WrappingLayout [ spacing = 8, lineSpacing = 0 ],
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 0 ],
             TrackCell [ datapath = :tracks[], kind = "video" ]
             ]
         ]

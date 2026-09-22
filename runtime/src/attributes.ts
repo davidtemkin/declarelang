@@ -25,7 +25,7 @@
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
 
-import { ACTIVE, Cell, Constraint, S, isTracking, kernel, setPushHook, table, touchCell, trackCell, untracked, workPending } from "./reactive.js";
+import { ACTIVE, Cell, Constraint, S, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage, type Where } from "./errors.js";
 
 /** One attribute's class-level declaration: its default, the Surface push a
@@ -123,6 +123,20 @@ function blockIndexOf(cell: number): number {
   while (lo <= hi) { const mid = (lo + hi) >> 1; if (BLOCK_BASE[mid] <= cell) lo = mid + 1; else hi = mid - 1; }
   return hi;   // the last base ≤ cell
 }
+/** The instance and slot a kernel cell belongs to, when it is a numeric block
+ *  slot — the push sweep's lookup, exposed for tooling that names cells (the
+ *  wake trace). null for a cell that is no instance slot. */
+export function slotOfCell(cell: number): { view: object; name: string; kind: "n" | "b" } | null {
+  const bi = blockIndexOf(cell);
+  if (bi < 0) return null;
+  const view = BLOCK_VIEW[bi];
+  if (view === null) return null;
+  const L = tableFor(LAYOUT, view.constructor);
+  const slot = cell - BLOCK_BASE[bi];
+  if (L === null || slot >= L.count) return null;
+  return { view, name: L.names[slot], kind: L.kinds[slot] };
+}
+
 /** The push sweep: after a settle, every cell a KERNEL rule wrote (an EXPR
  *  body, the visibility rule) gets the Surface push its slot declares —
  *  exactly what write() does for a JS write, deferred to the settle's end. */
@@ -441,7 +455,7 @@ export function defineAttributes<S extends object>(
         if (owner !== undefined) {
           if (!owner.yielding) {
             throw new DeclareError(owner.arrangedBy !== null
-              ? layoutConflictMessage(this.constructor.name, name, owner.arrangedBy, null)
+              ? layoutConflictMessage(this.constructor.name, name, owner.arrangedBy, null, null, true)
               : `${this.constructor.name}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`
             );
           }
@@ -752,6 +766,7 @@ function writeRef(carrier: Carrier, name: string, v: unknown): void {
   (carrier.$attrs ??= Object.create(defaults) as Record<string, unknown>)[name] = v;
   tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
   carrier.$cells?.[name]?.changed();
+  noteWrite(self, name, cur, v);
 }
 
 /** A runtime-side write: a constraint's apply, auto-size, a load result.
@@ -807,16 +822,31 @@ export function isSet(self: object, name: string): boolean {
   return (self as Carrier).$set?.has(name) ?? false;
 }
 
-/** The dependency nodes that exist for `self`'s slots — one per slot some
- *  computation has tracked a read of (pay-per-use: an unobserved slot owns
+/** The kernel cell ids of every slot of `self`'s a rule could have read: its
+ *  NUMERIC BLOCK (x, y, width, height, visible, scale… — the table slots,
+ *  allocated as one contiguous run) plus the JS cells of the rest, which exist
+ *  only once something tracked a read (pay-per-use; an unobserved one owns
  *  none). The one way to ask "does that constraint read anything of THIS
  *  object's?" without a reverse index: collect these, hand them to
  *  `Constraint.readsAny`. Used by a layout to tell a parent extent that
  *  measures its own laid children from one that does not (layout.ts
- *  `viewExtent`). */
-export function cellsOf(self: object): Cell[] {
-  const cells = (self as Carrier).$cells;
-  return cells === undefined ? [] : Object.values(cells);
+ *  `viewExtent`).
+ *
+ *  Until 2026-09-21 this returned the JS cells alone — a rule the kernel arc
+ *  made hollow, since a child's geometry has no JS cell any more: an owner
+ *  like `{ this.contentWidth + 32 }` reads the children through the table,
+ *  and the answer was always "no", masked at boot by the `!isSet` window. */
+export function cellIdsOf(self: object): number[] {
+  const c = self as Carrier;
+  const ids: number[] = [];
+  const base = c.$base;
+  if (base !== undefined && base >= 0) {
+    const L = tableFor(LAYOUT, c.constructor);
+    if (L !== null) for (let slot = 0; slot < L.count; slot++) ids.push(base + slot);
+  }
+  const cells = c.$cells;
+  if (cells !== undefined) for (const cell of Object.values(cells)) if (cell.id >= 0) ids.push(cell.id);
+  return ids;
 }
 
 /** The slot's class-level default — what a `:path` binding falls back to

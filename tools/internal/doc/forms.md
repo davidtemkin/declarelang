@@ -1093,8 +1093,8 @@ syntax:
 usage: form-theme
 
 A theme is a **named record of tokens** — colours, sizes, decorations — declared at the top
-level like a class or a font. Token names are free; values are plain literals or value
-constructors. The library ships presets in scope by name (`SanFrancisco`, `Cupertino`,
+level like a class or a font. Token names are free; values are plain literals, value
+constructors, or lists of them. The library ships presets in scope by name (`SanFrancisco`, `Cupertino`,
 `MountainView`, `Redmond`, each with a `…Dark` companion), and `theme Brand [ … ]` declares
 your own.
 
@@ -1115,8 +1115,8 @@ preset rather than an empty record.
 - A token record holds tokens only — no children, methods, or declarations.
   > says: theme T: a token record has no children
   > probe: theme T [ View [ ] ]\nApp [ ]
-- A token is a plain value or a value constructor, never a datapath.
-  > says: theme T.accent: a token is a number, string, boolean, color, or a value constructor (gradient/stroke/shadow/frost) — got the datapath :x
+- A token is a plain value, a value constructor, or a list of them — never a datapath.
+  > says: theme T.accent: a token is a number, string, boolean, color, a value constructor (gradient/stroke/shadow/frost), or a list of them — got the datapath :x
   > probe: theme T [ accent = :x ]\nApp [ ]
 - Its name shares one namespace with classes, styles, and fonts.
   > says: there is already a component, theme, style, or font named 'T'

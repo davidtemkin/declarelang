@@ -836,9 +836,10 @@ export const RichTextSchema = {
         maxLines: { kind: "number" },
         truncated: { kind: "boolean" },
         bodyColor: { kind: "color" },
-        // `scale` multiplies the house structure sizes (headings, code) — a font-size
-        // zoom a reader control can drive; 1 = the natural sizes.
-        scale: { kind: "number" },
+        // `fontScale` multiplies every type size in the flow (body, headings, code) —
+        // a font-size zoom a reader control can drive; 1 = the natural sizes. Not
+        // `scale`, which on every view is a transform.
+        fontScale: { kind: "number" },
         // `dark` overrides which color scheme the house rich-element palette (the
         // inline-code chip, the fenced-code box, rules, quotes) is drawn from. Unset
         // (null) follows the root App's OS `dark`; set it to an app's OWN effective
@@ -988,14 +989,14 @@ const DataSourceSchema = {
         // through this component until it existed (field report, 2026-09-04).
         headers: { kind: "object" },
         // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
-        // One fact, four spellings: `status` is the state and the booleans derive
-        // from it, so they can never disagree. Constraints read these — an entry
-        // screen is `visible = { !data.loaded }`, not a flag someone remembers to
-        // flip.
-        status: enumType("DataStatus", "idle", "loading", "loaded", "failed"),
-        idle: { kind: "boolean" },
-        loading: { kind: "boolean" },
+        // Two kinds of fact. `loaded` is about the VALUE: a document is present,
+        // and stays present through a refetch. `loading` and `failed` are about
+        // the REQUEST: one in flight, the last one refused. Constraints read
+        // these — an entry screen is `visible = { !data.loaded }`, a refresh
+        // indicator `visible = { data.loading }`, not a flag someone remembers
+        // to flip.
         loaded: { kind: "boolean" },
+        loading: { kind: "boolean" },
         failed: { kind: "boolean" },
         // What went wrong as one line, and what the SERVER said, kept apart:
         // `statusCode` is 0 until a reply arrives (distinct from every real code),
@@ -1004,8 +1005,8 @@ const DataSourceSchema = {
         statusCode: { kind: "number" },
         errorBody: { kind: "object" },
     },
-    readOnly: ["status", "idle", "loading", "loaded", "failed", "error", "statusCode", "errorBody"],
-    // fired when a fetch lands, after value+status settle — the imperative
+    readOnly: ["loaded", "loading", "failed", "error", "statusCode", "errorBody"],
+    // fired when a fetch lands, after value+flags settle — the imperative
     // arrival hook (constraints keep deriving from .loaded)
     events: ["load"],
 };
@@ -1145,9 +1146,9 @@ const TipSchema = {
 // carries the whole shared surface, and sits in this table but NOT the tag
 // registry — documented, inheritable, uninstantiable, exactly the Editor
 // arrangement. `EventStream` is SSE; `Socket` is WebSocket plus send().
-// status/error/open/last are READ-ONLY lifecycle intrinsics (the
-// DataSource.status/.loaded design: one fact, boolean views, never in
-// disagreement) — computed for you, a compile error to assign. `retry` is
+// status/error/open/last are READ-ONLY lifecycle intrinsics, as a
+// DataSource's loaded/loading/failed are — computed for you, a compile
+// error to assign. `retry` is
 // the ruled reconnect policy: seconds between attempts after a loss the
 // platform won't repair itself, visible in the declaration; 0 = none.
 const StreamSchema = {

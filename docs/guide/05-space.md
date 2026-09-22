@@ -15,9 +15,20 @@ attribute. Everything else is arithmetic you can read:
 
 Each axis — width and height — is one of three things, chosen by what you write:
 
-- **unset** → the view auto-sizes to the bounding box of its visible children;
+- **unset** → the view takes its size from its **content**: its own — the run a `Text`
+  lays out, the image an `Image` shows — and the boxes of its visible children;
 - **a constant** (`width = 300`) → fixed;
 - **a constraint** (`width = { parent.width - 40 }`) → whatever the expression says.
+
+A child sized *from* its parent does not count toward the parent's content size on that
+axis, however it is written — `width = 100%`, `width = { parent.width }` and
+`width = { parent.contentWidth - 40 }` alike. Each axis runs one way: a card given a
+width hands it down to a wrapping `Text`, and the text's height comes back up to size
+the card. A child sized from a parent that takes its size from its content has nothing
+to follow on that axis — the parent has no size to give — and when its arithmetic lands
+below zero that is reported, naming both views. (Ordinary arithmetic that runs below zero
+is not: a field sized `{ parent.height - 60 }` in a section closed to 46 is simply
+hidden, and a negative size draws nothing.)
 
 Two read-only facts, `contentWidth` and `contentHeight`, expose what the content
 *wants* to be — so a clamp is not a `maxHeight` attribute but plain arithmetic:
@@ -64,7 +75,7 @@ along an axis; `WrappingLayout` flows onto new lines:
 ```declare
 App [ width = 260, height = 120, fill = white,
     tags: View [ x = 20, y = 20, width = 220,
-        layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
         View [ width = 70, height = 30, cornerRadius = 15, fill = gainsboro ],
         View [ width = 90, height = 30, cornerRadius = 15, fill = gainsboro ],
         View [ width = 60, height = 30, cornerRadius = 15, fill = gainsboro ],
@@ -83,8 +94,8 @@ you can read in `library/`:
 | layout | attributes | what it does |
 |---|---|---|
 | `SimpleLayout` | `axis`, `spacing`, `align` | stacks children along `x` or `y`; `align` places them across it — `center`, `end`, or a shared `baseline` |
-| `WrappingLayout` | `spacing`, `lineSpacing`, `justify`, `align`, `indent`, `hangingIndent` | flows onto new lines when the row runs out; `justify` sets a row along the flow (`start`, `center`, `end`, or `fill`), `align` places children within it, the indents inset the first row and the rest |
-| `ResponsiveLayout` | `plan`, `gap` | switches arrangement by available width |
+| `WrappingLayout` | `spacing`, `rowSpacing`, `justify`, `align`, `indent`, `hangingIndent` | flows onto new lines when the row runs out; `justify` sets a row along the flow (`start`, `center`, `end`, or `fill`), `align` places children within it, the indents inset the first row and the rest |
+| `ResponsiveLayout` | `plan`, `gap`, `align` | switches arrangement by available width; `align` places children across the flow, and a plan entry may override it and `offset` one child |
 | `Spacer` | `flexes` | not a layout — a child that absorbs a run's slack |
 
 Two more are built in rather than shipped in `library/`, and you meet them only when
@@ -98,6 +109,15 @@ motion for free.
 > declaration order, and "responsive" is not a media query but an ordinary constraint
 > reading `app.width`. Your spatial *intuitions* transfer; the negotiation machinery
 > stays behind.
+
+**A layout places its children, and what it places a child does not declare.** A row
+places each child's `x`; with `align` it places `y` too — so a child in a plain row
+still sets its own `y`, and a child in an aligned one does not. A `ResponsiveLayout`
+places both in every plan, since in one flow or the other it writes each. What a layout
+places is read from the layout itself, so a child that declares it anyway — in any
+spelling: a number, `center`, a `{ }` — is an error at that line before anything runs,
+and the error names what to use instead. A handler that writes it while the layout is
+arranging the child is refused the same way.
 
 A child can opt **out** of what its parent imposes, and the opt-out is declared on the child —
 the one who differs is the one who says so. `ignoreLayout = true` makes the parent's
@@ -358,10 +378,19 @@ Wide, it is a 30/70 row; narrow, a stack at natural widths — and the crossing 
 just the plan re-applying. When a row's children keep natural widths, the leftover
 space is placed with **structure**, not a knob: a `Spacer [ ]` child absorbs the
 slack (between two groups it pushes them apart; one on each side centers the run).
+Across the flow the plan places every child as well — `y` in a row, `x` in a stack — and
+where each one sits is `align`: `start` unless the layout says `align = center`, or one
+plan entry says `align: "center"` for its own tier. A plan entry's `offset` shifts a
+named child from there, so `offset: { icon: 2 }` sets an icon two pixels lower in the
+row — and only in the row, since the nudge belongs to that arrangement.
 
 Layout attributes are reactive like any others — `spacing = { app.width < 480 ? 6 : 12 }`
 is an ordinary constraint — and per-child constraints keying off `app.width` remain
-the direct form for gutters and type sizes. Swapping a whole *configuration* beyond
+the direct form for gutters and type sizes. The same goes for a row that becomes a
+column: `axis = { app.narrow ? "y" : "x" }` on a `SimpleLayout` is the whole story when only
+the direction changes. When the children's room changes too — two columns side by side,
+full width when stacked — that is a plan: its shares say each column's width, so no child
+restates the breakpoint in arithmetic of its own. Swapping a whole *configuration* beyond
 geometry is a job for a `State` gated on width, which arrives in
 [Motion & states](declare-docs:guide:motion-and-states). And often the cleanest answer is
 none of these: set the `minWidth` floor and let the stage pan, rather than reflowing

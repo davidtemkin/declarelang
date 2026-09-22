@@ -535,5 +535,4 @@ await test("DECLARE4013: a press() override on a Button warns and names onClick;
     Button [ label = "Go", onClick() { app.n = app.n + 1 } ] ]`);
   assert.equal(codes(plain, "DECLARE4013").length, 0, "the library's Button.press() is the definition, not an override");
 });
-
 summarize("diagnostics-hints");

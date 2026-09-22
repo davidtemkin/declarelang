@@ -532,7 +532,7 @@ class FootSep extends FootLabel [ text = "·", textColor = { provided("theme").f
 
 class Footer extends View [ width = 100%,
     padding = [0, 0, 36, 0],
-    layout: WrappingLayout [ justify = center, spacing = { parent.width >= 620 ? 10 : 18 }, lineSpacing = 10 ],
+    layout: WrappingLayout [ justify = center, spacing = { parent.width >= 620 ? 10 : 18 }, rowSpacing = 10 ],
 
     // "Built in Declare" is one text RUN (HTMLText carries the brand accent
     // inline), so it keeps a word space, not a gap
@@ -1137,20 +1137,11 @@ App [ tagline: string = "a UI language for you and your AI",
                         ]
                     ],
 
-                // the two doors in, side by side with a quiet dot between
+                // the two doors in, side by side with room between them
 
                 learn: View [ width = 100%,
-                    layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 16 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
+                    layout: ResponsiveLayout [ plan = { [({ from: 600, flow: "row", gap: 32 }), ({ from: 0, flow: "stack", gap: 8 })] } ],
                     why: SmallLink [ fontSize = 15, text = "Why a new language, now? →", link = "#why" ],
-
-                    // the dot's own 1px of optical alignment against the two
-                    // links. A ResponsiveLayout writes `x` in row flow and both
-                    // in stack flow, so this survives beside the links and is
-                    // ignored once they stack — which is the reading in each
-                    // case. (The runtime warns that the slot is the layout's;
-                    // measured, it is not, on this axis in this flow.)
-
-                    Dot [ y = 1, visible = { parent.width >= 600 } ],
                     onefile: SmallLink [ fontSize = 15, text = "The whole language, in one file →", link = "#language" ]
                     ]
                 ],
@@ -1242,7 +1233,7 @@ App [ tagline: string = "a UI language for you and your AI",
                             ],
 
                         actions: View [ width = 100%,
-                            layout: ResponsiveLayout [ plan = { [({ from: 420, flow: "row", gap: 18 }), ({ from: 0, flow: "stack", gap: 14 })] } ],
+                            layout: ResponsiveLayout [ plan = { [({ from: 420, flow: "row", gap: 18, align: "center" }), ({ from: 0, flow: "stack", gap: 14 })] } ],
 
                             // PRIMARY: the accent fill. This is the page's one
                             // call to action — running the thing the section has
@@ -1252,11 +1243,10 @@ App [ tagline: string = "a UI language for you and your AI",
                             SiteButton [ width = 240, primary = true, label = "Run Declare Calendar →",
                                 link = "apps/calendar/calendar.declare" ],
 
-                            // centred against the 46px button beside it, and
-                            // ignored once the pair stacks — the same split as
-                            // the hero's dot above
+                            // the quieter way in, centred on the button while
+                            // the two share a row (the row tier's align)
 
-                            SmallLink [ y = 15, text = "View & edit source →",
+                            SmallLink [ text = "View & edit source →",
                                 link = "apps/calendar/calendar.declare?viewer" ]
                             ]
                         ],
@@ -1627,17 +1617,20 @@ App [ tagline: string = "a UI language for you and your AI",
            out of the row; the Architecture entry has since put some back.)
 
            The Spacer is what right-aligns the run: it absorbs the slack between
-           the wordmark and whatever follows. Shares fill; naturals align. */
+           the wordmark and whatever follows. Shares fill; naturals align.
+
+           Every item is centred on the bar's height, and the wordmark sits one
+           pixel below centre, where its letters read level with the pills. */
 
         bar: View [ x = { app.gutter }, y = { app.safeTop }, height = 56,
             width = { app.width - app.gutter * 2 },
-            layout: ResponsiveLayout [ gap = 0, plan = { [
-                ({ from: 740, flow: "row", share: ({ kebab: 0 }) }),
-                ({ from: 0,   flow: "row", share: ({ nav: 0 }) })] } ],
+            layout: ResponsiveLayout [ gap = 0, align = center, plan = { [
+                ({ from: 740, flow: "row", share: ({ kebab: 0 }), offset: ({ brand: 1 }) }),
+                ({ from: 0,   flow: "row", share: ({ nav: 0 }),   offset: ({ brand: 1 }) })] } ],
 
             // wordmark — the product name in the brand gradient, in the hero's typeface
 
-            brand: View [ y = 18, height = 22,
+            brand: View [ height = 22,
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
                 link = "#home",
                 Display [ fontSize = 15, textFill = { provided("theme").brand }, text = "Declare" ]
@@ -1648,7 +1641,7 @@ App [ tagline: string = "a UI language for you and your AI",
             // primary nav — one NavLink per navItems entry; the padded pills carry
             // their own spacing
 
-            nav: View [ y = 11,
+            nav: View [
                 layout: SimpleLayout [ axis = x, spacing = 2 ],
                 datapath = { app.navSource.value },
                 NavLink [ datapath = :items[], label = { :label }, menu = { :children.length > 0 },
@@ -1659,7 +1652,7 @@ App [ tagline: string = "a UI language for you and your AI",
             // you are in, and a press flips to the other. Until pressed, the
             // page tracks the system; after, it keeps what you chose.
 
-            modeBtn: View [ y = 11, width = 34, height = 33, cornerRadius = 8,
+            modeBtn: View [ width = 34, height = 33, cornerRadius = 8,
                 fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
                 tip = { app.isDark ? "Switch to light" : "Switch to dark" },
                 onClick() { app.appearance = app.isDark ? "light" : "dark" },
@@ -1672,7 +1665,7 @@ App [ tagline: string = "a UI language for you and your AI",
             // the kebab — three stacked dots (the page's dot motif), the pill's own
             // press feedback, toggling the sheet
 
-            kebab: View [ y = 11, width = 34, height = 33, cornerRadius = 8,
+            kebab: View [ width = 34, height = 33, cornerRadius = 8,
                 fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
                 onClick()     { app.menuOpen = !app.menuOpen },
                 d1: View [ x = center, y = 8,  width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? provided("theme").text : provided("theme").muted } ],

@@ -621,6 +621,36 @@ plate: View [ draw(d: Draw) { d.fillText("class", 0, 20, { ...Keyword, textColor
 The same three renderers draw all of it: the treatments and the bundles render identically
 on DOM, canvas and the native Mac host.
 
+### A run is one thing
+
+A number and its unit, a word and its punctuation, a figure and the letters that qualify
+it: these are **one run of text**, and they are set as one. `"1h 24m"` is one `Text`. A
+run's glyphs are shaped to sit against each other — a `1` leaves room after it that an `h`
+tucks into — and the font does that spacing correctly for every pair, at every size, in
+every face. Assembling the same word out of four views and pushing them together with a
+negative spacing undoes it: one distance that is right for one pair is wrong for the rest.
+
+When the parts of a run want **different sizes** — a large figure with small unit letters —
+that is still one run, and the sizes are a named style on a span:
+
+```declare-fragment
+style Unit [ fontSize = 40, fontWeight = medium ]
+
+HTMLText [ fontSize = 96, fontWeight = bold,
+    html = "1<span class='Unit'>h</span> 24<span class='Unit'>m</span>" ]
+```
+
+The spans share the run's baseline and its spacing, and the run never breaks across a line.
+A row of separate views is for things that are separate: a figure beside the caption that
+names it, two figures with a rule between them.
+
+The other half of the same idea is **scale**. Every glyph starts a little inside its box,
+and that bearing grows with the size; at a heading's size it is a pixel and nobody sees it.
+Set a figure eight times the size of the label above it and the bearing is four pixels and
+the two no longer share a left edge — the flow is typographically correct, and at that ratio
+correct looks wrong. That is a reason to choose a ratio that reads, not a problem to solve
+after the fact.
+
 ## Views in a sentence
 
 Prose carries things that are not words. An issue with its status dot, a person with their

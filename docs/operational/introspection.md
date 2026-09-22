@@ -39,6 +39,7 @@ window.__declare.explain("app.dock.row.calIcon", "width")
 | `dependents(attr)` | every `(path, attr)` whose constraint reads that name |
 | `evaluate(path, src)` | evaluate Declare in a node's scope — read, set, bind, or add a view |
 | `stats()` | `{ nodes, ownedSlots, motionBusy }` — leak and perf canaries |
+| `trace` | **what changed, and why** — `start(n)`, `read()`, `text()`, `stop()`, `clear()`; see **The wake trace** |
 | `clock` | deterministic time — see **Motion** |
 
 **Addressing** is by dotted path from the root: named members where they exist, child
@@ -103,6 +104,41 @@ any instant is a coin flip.
 | `clock.settleMotion(maxMs)` | run in-flight motion to rest, frame-exact; `false` if it never settles |
 | `clock.auto()` | hand the clock back to the browser |
 
+### The wake trace — what changed, and why
+
+`explain()` is the provenance of a *value*. The trace is the provenance of a *change*:
+which user code ran, what its writes changed, and every slot the settle changed in
+response — each named by the rule that wrote it. It is the question a reactive program
+otherwise leaves you to infer from symptoms, since nothing here is on a stack.
+
+```js
+window.__declare.trace.start(64)        // keep the last 64 settles
+// … click, tick, arrive …
+window.__declare.trace.text()
+```
+
+```
+#12 +418.2ms (1.4ms, 3 runs) ← onTick on Time 'clock'  triggers: app.clock.elapsed 41 → 42
+    app.log.band.height 132 → 0 ← { liveSrc.loaded } (line 229)
+    app.log.col.height 612 → 480 ← SimpleLayout
+```
+
+| call | returns |
+|---|---|
+| `trace.start(n?)` | begin recording; the ring keeps the last `n` settles (default 64) |
+| `trace.read()` | `[{ n, at, ms, origin, runs, triggers, changes, unnamed }]` — see below |
+| `trace.text()` | the same, as lines |
+| `trace.stop()` · `trace.clear()` | stop recording (what was recorded stays readable) · forget it |
+
+Each settle: **`origin`** — the user code that ran before it (`"onClick on Button 'go'"`,
+`"onTick on Time 'clock'"`, `"DataSource 'live' arrived"`); **`triggers`** — the slots that
+code wrote, with values; **`changes`** — the slots the settle changed in response, each with
+`by: { rule, source, line }`; **`runs`** — how many rules the kernel ran (a settle can run
+hundreds and change nothing, which is itself an answer). A slot holding a number, a
+boolean, or a short string carries `from`/`to`; anything else is named and left to
+`explain()`. Off, the trace costs one null check per write; on, a copy of the value table
+per settle — a reading, never a debugger.
+
 ## Assert scripts — `verify` rung 5
 
 Rung 5 runs the compiled app **in a real browser**, drives it with real input, and
@@ -122,8 +158,9 @@ export default async ({ drive, expect }) => {
 ```
 
 **`drive`** — `click(path)` · `drag(path, dx, dy, steps?)` · `key(name)` · `type(text)` ·
-`tab(n?)` · `wait(ms)` · `settleMotion(maxMs?)` · `settleData()` · `page` (the raw
-puppeteer page, for what the vocabulary doesn't cover).
+`tab(n?)` · `wait(ms)` · `settleMotion(maxMs?)` · `settleData()` · `traceStart(n?)` ·
+`trace()` · `traceText()` (the wake trace, above — what the drive you just did changed, and
+why) · `page` (the raw puppeteer page, for what the vocabulary doesn't cover).
 
 Note `click(path)` computes the point from `inspect()` and dispatches a **real** press
 there — so it exercises the actual hit-test. It reaches what a user would reach, not

@@ -1004,7 +1004,7 @@ App [ fill = #101216, appName = "Market Map",
             ],
 
         chips: View [ y = 72, width = 100%,
-            layout: WrappingLayout [ spacing = 8, lineSpacing = 8 ],
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
 
             // editorial, anchored to this file's span — the crash/bottom dates
             // are the data's own drawdown troughs; revisit on a data swap

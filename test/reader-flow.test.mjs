@@ -96,12 +96,12 @@ await test("the viewer inside the CANVAS desktop gets its host's data", async ()
   await page.evaluate(`(() => { const L = window.__app.launcher ?? window.__app; L.openSource(L.desk ?? "desktop"); })()`);
   await page.waitForFunction(`(() => {
     const isl = window.__declare.find("app.wins").children.map((w) => (w.win ?? w).island).filter(Boolean).find((i) => i.__childApp);
-    return isl && isl.__childApp.segSrc.status !== "idle" && isl.__childApp.segSrc.status !== "loading";
+    return isl && (isl.__childApp.segSrc.loaded || isl.__childApp.segSrc.failed);
   })()`, { timeout: 30000 });
   const st = await page.evaluate(`(() => {
     const isl = window.__declare.find("app.wins").children.map((w) => (w.win ?? w).island).filter(Boolean).find((i) => i.__childApp);
     const t = isl.__childApp;
-    return { seg: t.segSrc.status, len: String(t.segSrc.value || "").length };
+    return { seg: t.segSrc.loaded ? "loaded" : t.segSrc.failed ? "failed" : "pending", len: String(t.segSrc.value || "").length };
   })()`);
   assert.equal(st.seg, "loaded", "segments resolved host-relative");
   assert.ok(st.len > 100000, `the whole source arrived (got ${st.len})`);

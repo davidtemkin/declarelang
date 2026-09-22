@@ -167,6 +167,12 @@ showNewest() {
     },
 ```
 
+Be precise about which reads need it. Inside the handler, a slot you wrote reads
+back as written — `app.count = 3` and then `app.count` is `3`, with no settle in
+between. What the handler cannot yet read is what *follows* from the write: a `{ }`
+that derives from it, and the geometry layout gives it. Those land when the settle
+closes, and they are what `afterSettle` is for — never the write itself.
+
 `afterSettle(step)` runs the step exactly once, when the settle your handler
 triggered has closed — and before that state reaches the screen, so anything the
 step writes lands in the same frame as the change itself; the user never sees the

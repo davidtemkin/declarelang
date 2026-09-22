@@ -102,13 +102,17 @@ export default [
 ```
 
 Three facts assert scripts learn the hard way, recorded here instead:
-**`drive.find(path).attr("name")` is the real read** for any attribute — including
-formula-valued ones (`inspect().attrs` carries only *written* slots, so a formula
-attribute reads as absent there); `evaluate()` returns an Inspector **transcript
-object** that serializes to `{}` — read values with `find(path).attr`, not by
-JSON-ing a transcript; and a `drive.page.evaluate` callback must **`return null`,
-never `undefined`** — an undefined return fails the rung as an anonymous page
-error indistinguishable from a crash.
+**`drive.attr(path, name, expected)` is the real check** for any attribute —
+including formula-valued ones. It reads `find(path)[name]` live inside the page
+and falls back to `explain()`, where `inspect().attrs` carries only *written*
+slots and reports a formula attribute as absent. To take a value **into** the
+script rather than assert one, go through the page yourself:
+`drive.page.evaluate((p, a) => window.__declare.find(p)[a], path, name)`.
+`evaluate()` returns an Inspector **transcript object** that serializes to `{}`,
+so read values that way too, never by JSON-ing a transcript; and a
+`drive.page.evaluate` callback must **`return null`, never `undefined`** — an
+undefined return fails the rung as an anonymous page error indistinguishable
+from a crash.
 
 ## Running the ladder across the corpus
 

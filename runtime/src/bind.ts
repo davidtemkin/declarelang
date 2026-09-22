@@ -267,6 +267,29 @@ function bindKernelExpr(view: Node, name: string, expr: { code: number[]; paths:
   return true;
 }
 
+/** SIZE AND THE CONTENT SIZE (docs/system-design/layout-ownership.md §4): on
+ *  each axis a view is given its size or takes it from its content, and a child
+ *  whose size is derived from its parent's size on that axis does not count
+ *  toward the parent's content size — however the derivation is written. A
+ *  percent is marked where it is bound (bindPercent); a `{ }` that reads the
+ *  parent's size on the same axis is marked here, and the mark is the one the
+ *  content size already honors (markPercent — auto-extent, in JavaScript and in
+ *  the kernel, skips a marked child). Decided from the compiler's read-paths,
+ *  which every build carries; a dev re-parse that carries none asks the source
+ *  text the same question, so the two can never answer differently. A read
+ *  reached through another attribute is not seen here: it is not a derivation
+ *  the source states, and if it collapses the size, the negative-size report
+ *  (view.ts) is what says so. */
+function sizeFromParent(name: string, deps: readonly string[] | undefined, src: string): boolean {
+  const same = name === "width" ? "width|contentWidth" : name === "height" ? "height|contentHeight" : null;
+  if (same === null) return false;
+  if (deps !== undefined) {
+    const path = new RegExp("^(?:this\\.)?parent\\.(?:" + same + ")$");
+    return deps.some((d) => path.test(d));
+  }
+  return new RegExp("(?:^|[^\\w$.])(?:this\\s*\\.\\s*)?parent\\s*\\.\\s*(?:" + same + ")\\b").test(src);
+}
+
 export function bindConstraint(
   view: Node,
   name: string,
@@ -282,9 +305,10 @@ export function bindConstraint(
    *  newer owner, as the live fallback it replaces did. */
   yielding = false
 ): void {
+  const derived = sizeFromParent(name, deps, src);
   const expr = exprStats.disabled ? null : exprOf(deps);
   if (expr !== null) {
-    if (bindKernelExpr(view, name, expr, classroot, `${view.constructor.name}.${name}`, src, pos, yielding, deps)) { exprStats.kernel++; return; }
+    if (bindKernelExpr(view, name, expr, classroot, `${view.constructor.name}.${name}`, src, pos, yielding, deps, derived)) { exprStats.kernel++; return; }
     exprStats.fallback++;
     deps = pathsOnly(deps!);
   } else if (deps !== undefined) deps = pathsOnly(deps);
@@ -308,6 +332,7 @@ export function bindConstraint(
   // Retain the authored text + position for the Inspector (inspect.ts explain()).
   k.source = src;
   k.sourcePos = sourceAt(pos);
+  if (derived) markPercent(k);
   own(view, name, k);
   // The static path prewires STABLE-slot edges (attribute cells, a Dataset's
   // `.value` slot — they outlive every recompute). A read of a DATA REGION

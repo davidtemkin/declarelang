@@ -234,9 +234,9 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     fill = { provided("theme").bg }, fontFamily = ["system-ui", "sans-serif"],
 
     /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
-       is Light / Dark / Auto — Auto follows the environment: the host's
-       `app.env.dark` when this app runs embedded (a desktop passing its
-       appearance through), else the OS through `app.dark`.
+       is Light / Dark / Auto — Auto follows the environment: what the host provides as `dark` when this
+       app runs embedded (a desktop passing its appearance through), else the OS
+       through `app.dark`.
 
        The record is the house preset extended, not replaced: the standard
        tokens underneath, this app's own values over them, and its domain names

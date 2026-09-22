@@ -79,8 +79,9 @@ it too (`el.__declareApp`), which is the embedder's way in:
 
 - **watch state out** — `observe(() => app.total, v => …)` (a runtime export)
   runs your callback once per settle in which the value changed;
-- **feed facts in** — write `app.env = {…}` and everything bound to it
-  re-derives; the page-visibility fact (`app.pageVisible`) arrives on its own;
+- **feed values in** — pass `boot({ provides: {…} })`, or call `app.provide(name, value)`
+  any time later, and everything reading it with `hostProvided` re-derives (below); the
+  page-visibility fact (`app.pageVisible`) arrives on its own;
 - **intercept the verbs** — replace the app's service table
   (`app.hostServices = { navigate: to => router.push(to) }`) and a link
   inside the widget routes through your SPA router instead of the browser.

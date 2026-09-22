@@ -225,7 +225,34 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         Inspect.clock.step(16.7)
         app.tick = app.tick + 1
         },
-    onInit() { app.darkUI = app.dark; app.open = ({ app: true }); app.vopen = ({ }); setInterval(() => { if (app.shown && app.running) app.tick = app.tick + 1 }, 110) },
+    onInit() { app.darkUI = app.dark; app.open = ({ app: true }); app.vopen = ({ }); setInterval(() => { if (app.shown && app.running) { app.tick = app.tick + 1; app.pollTrace() } }, 110) },
+
+    // ── the wake trace ───────────────────────────────────────────────────────
+    // The subject's settles, as they happen, into the console: what opened
+    // each one and what it changed, every change named by the rule that made
+    // it. The recording is the runtime's (Inspect.trace); the refresh tick
+    // brings settles not yet shown into the transcript.
+
+    tracing: boolean = false,
+    traceSeen: number = 0,
+    traceToggle() {
+        app.tracing = !app.tracing
+        if (app.tracing) { Inspect.trace.clear(); Inspect.trace.start(64); app.traceSeen = 0 }
+        else Inspect.trace.stop()
+        },
+    pollTrace() {
+        if (!app.tracing || !Inspect.ready()) return
+        for (const s of Inspect.trace.read()) {
+            if (s.n <= app.traceSeen) continue
+            app.traceSeen = s.n
+            const v = (c) => c.from === undefined ? "" : " " + JSON.stringify(c.from) + " → " + JSON.stringify(c.to)
+            const trig = s.triggers.map((c) => c.path + "." + c.attr + v(c)).join(" · ")
+            const body = Inspect.trace.text([s]).split("\n").slice(1).map((l) => l.trim()).join("\n")
+            app.say(({ input: "#" + s.n + " +" + s.at + "ms · " + s.runs + " runs" + (s.origin.length > 0 ? " ← " + s.origin.join("; ") : ""),
+                text: (trig != "" ? "triggers: " + trig + (body != "" ? "\n" : "") : "") + body,
+                verb: "trace", ok: true, temp: false, at: app.sel }))
+            }
+        },
 
     // ── selection helpers ────────────────────────────────────────────────────
 
@@ -501,6 +528,14 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 Tool [ glyph = { app.darkUI ? "☀ light" : "☾ dark" },
                     tip = "Switch the Inspector's own rendition",
                     onClick() { app.darkUI = !app.darkUI }
+                    ],
+
+                // the wake trace: the subject's settles into the console as
+                // they happen — what opened each, and what it changed
+
+                Tool [ glyph = "◔ trace", on = { app.tracing },
+                    tip = "Record the app's settles into the console: what opened each one, and what it changed",
+                    onClick() { app.traceToggle() }
                     ]
                 ],
             crumbBox: View [ x = { parent.row.x + parent.row.width + 18 }, y = 0,

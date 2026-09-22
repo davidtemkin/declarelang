@@ -216,7 +216,7 @@ several views read. → [Style is state](declare-docs:guide:style)
 | `setContext` / `getContext` | `provided("name")` |
 | `{#each items as item (item.id)}` | `datapath = :items[]` on the node — one instance per record, keyed by `id`, or `key = :field` |
 | `{#if …}` | `visible = { … }` — the subtree stays constructed and keeps its state |
-| `{#await promise}` | a `DataSource` and its own facts: `loading`, `loaded`, `failed`, `status` |
+| `{#await promise}` | a `DataSource` and its own facts: `loaded`, `loading`, `failed` |
 | `bind:value` | `<->`, on a leaf editor only: `TextInput [ text <-> :title ]` |
 | `on:click` | an `onClick()` handler on the view. Nothing bubbles and there is no dispatcher: a child tells its owner by calling a method on it |
 | `transition:fade`, `in:` / `out:` | a `Spring` on `opacity` — the view persists rather than being removed, so there is no outro to coordinate; `Animator` for a timed run, `State` for a bundle of overrides that snaps on and off together |

@@ -180,9 +180,11 @@ App [ minWidth = 340,
             // ════════════════ TEXT ════════════════
 
             text: View [ visible = { app.page == "text" }, width = 100%,
-                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
+                layout: ResponsiveLayout [ plan = { [
+                    ({ from: 844, flow: "row",   gap: 22, share: ({ tL: 50, tR: 50 }) }),
+                    ({ from: 0, flow: "stack", gap: 22, share: ({ tL: 100, tR: 100 }) })] } ],
 
-                tL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                tL: View [
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "PLAIN TEXT",
@@ -211,7 +213,7 @@ App [ minWidth = 340,
                         ]
                     ],
 
-                tR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                tR: View [
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "COLOR & GRADIENT",
@@ -249,9 +251,11 @@ App [ minWidth = 340,
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                 cols: View [ width = 100%,
-                    layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
+                    layout: ResponsiveLayout [ plan = { [
+                        ({ from: 844, flow: "row",   gap: 22, share: ({ rL: 50, rR: 50 }) }),
+                        ({ from: 0, flow: "stack", gap: 22, share: ({ rL: 100, rR: 100 }) })] } ],
 
-                    rL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    rL: View [
                         layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                         Specimen [ label = "INLINE STYLES",
@@ -274,7 +278,7 @@ App [ minWidth = 340,
                             ]
                         ],
 
-                    rR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                    rR: View [
                         layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                         Specimen [ label = "NAMED STYLE",
@@ -335,9 +339,11 @@ App [ minWidth = 340,
             // ════════════════ EFFECTS ════════════════
 
             effects: View [ visible = { app.page == "effects" }, width = 100%,
-                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
+                layout: ResponsiveLayout [ plan = { [
+                    ({ from: 844, flow: "row",   gap: 22, share: ({ eL: 50, eR: 50 }) }),
+                    ({ from: 0, flow: "stack", gap: 22, share: ({ eL: 100, eR: 100 }) })] } ],
 
-                eL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                eL: View [
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "SHADOW",
@@ -359,7 +365,7 @@ App [ minWidth = 340,
                         ]
                     ],
 
-                eR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                eR: View [
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "TRANSFORM",
@@ -385,9 +391,11 @@ App [ minWidth = 340,
             // ════════════════ MARKDOWN ════════════════
 
             markdown: View [ visible = { app.page == "markdown" }, width = 100%,
-                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 22 ],
+                layout: ResponsiveLayout [ plan = { [
+                    ({ from: 844, flow: "row",   gap: 22, share: ({ mL: 50, mR: 50 }) }),
+                    ({ from: 0, flow: "stack", gap: 22, share: ({ mL: 100, mR: 100 }) })] } ],
 
-                mL: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                mL: View [
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "A DOCUMENT",
@@ -408,7 +416,7 @@ scale. It carries **bold**, *italic*, `code`, and a
                         ]
                     ],
 
-                mR: View [ width = { app.narrow ? parent.width : (parent.width - 22) / 2 },
+                mR: View [
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "A TABLE",

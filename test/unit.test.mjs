@@ -1984,7 +1984,7 @@ await test("align: center / end / baseline on a row; center on a stack — the g
 
 await test("align: WrappingLayout rows align per row; justify is the renamed row justification", async () => {
   const r = await compile(`App [ width = 600, height = 300,
-      w: View [ width = 200, layout: WrappingLayout [ spacing = 8, lineSpacing = 6, align = baseline, justify = start ],
+      w: View [ width = 200, layout: WrappingLayout [ spacing = 8, rowSpacing = 6, align = baseline, justify = start ],
         a: Text [ fontSize = 24, text = "Big" ], b: Text [ fontSize = 12, text = "small" ],
         c: Text [ fontSize = 12, text = "a-second-row-wraps-here" ], d: Text [ fontSize = 30, text = "Huge" ] ],
       j: View [ width = 200, layout: WrappingLayout [ spacing = 0, justify = center ],
@@ -2115,7 +2115,7 @@ await test("align: WrappingLayout — one row aligns in the view, two or more al
         layout: WrappingLayout [ spacing = 8, align = end ],
         a: View [ width = 80, height = 30 ] ],
       many: View [ x = 0, y = 200, width = 180, height = 300,
-        layout: WrappingLayout [ spacing = 8, lineSpacing = 8, align = center ],
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = center ],
         a: View [ width = 100, height = 40 ], b: View [ width = 100, height = 20 ],
         c: View [ width = 60, height = 30 ] ],
     ]`, {});
@@ -2171,12 +2171,12 @@ await test("a layout written in a class body reads that class's instance as `cla
 
 await test("WrappingLayout: indent / hangingIndent inset the first row and the rest; justify end and fill", async () => {
   const r = await compile(`App [ width = 600, height = 400,
-      p: View [ width = 200, layout: WrappingLayout [ spacing = 10, lineSpacing = 0, indent = 30, hangingIndent = 12 ],
+      p: View [ width = 200, layout: WrappingLayout [ spacing = 10, rowSpacing = 0, indent = 30, hangingIndent = 12 ],
         a: View [ width = 80, height = 10 ], b: View [ width = 80, height = 10 ],
         c: View [ width = 80, height = 10 ], d: View [ width = 80, height = 10 ], e: View [ width = 80, height = 10 ] ],
       e: View [ width = 200, layout: WrappingLayout [ spacing = 0, justify = end ],
         a: View [ width = 50, height = 10 ], b: View [ width = 50, height = 10 ] ],
-      f: View [ width = 200, layout: WrappingLayout [ spacing = 10, lineSpacing = 0, justify = fill ],
+      f: View [ width = 200, layout: WrappingLayout [ spacing = 10, rowSpacing = 0, justify = fill ],
         a: View [ width = 50, height = 10 ], b: View [ width = 50, height = 10 ], c: View [ width = 50, height = 10 ],
         d: View [ width = 50, height = 10 ], e: View [ width = 50, height = 10 ] ],
     ]`, {});
@@ -2856,58 +2856,51 @@ await test("axis is structural: changing it re-installs, releasing the old axis"
   assert.deepEqual(app.children.map((c) => c.x), [0, 10], "now stacked on x");
   app.children[1].y = 77; // y is no longer owned…
   assert.equal(app.children[1].y, 77);
-  assert.throws(() => { app.children[1].x = 0; }, /View\.x — App's SimpleLayout positions its children, so this child cannot also own its x/);
+  assert.throws(() => { app.children[1].x = 0; }, /View\.x — App's SimpleLayout places its children, so this child cannot set its x while the layout arranges it/);
 });
 
-await test("the layout owns laid positions: a direct write errors naming it; a literal is overridden — and reported", async () => {
-  const warned = [];
-  const origWarn = console.warn;
-  console.warn = (...a) => warned.push(a.join(" "));
-  let app;
-  try {
-    app = await buildL(`App [ width=100, height=200,
+await test("a layout places laid positions: a declared one is refused at its line; a handler's write is refused while it arranges", async () => {
+  // THE RULE (docs/system-design/layout-ownership.md §1–§2): what a layout
+  // places a child does not declare, in any spelling. The checker knows what a
+  // SimpleLayout places from its literal axis, so the declaration is refused
+  // before anything runs — naming the child, the layout, and the ways out.
+  await assert.rejects(
+    async () => await buildL(`App [ width=100, height=200,
       layout: SimpleLayout [ axis = y ],
-      View [ width=10, height=10 ], View [ width=10, height=10, y=99 ] ]`);
-  } finally {
-    console.warn = origWarn;
-  }
-  // The Appendix-A-compatible rule: a laid-axis literal simply loses to the
-  // arrangement (it was applied in pass one; the layout owns from pass two).
-  assert.equal(app.children[1].y, 10, "the literal y=99 yielded to the arrangement");
-  // …and SAYS so, as of 2026-09-19. Losing in silence was the language's only
-  // silent answer to "may I set my own geometry here?" — the same value spelled
-  // `y = { 99 }` has always been a boot failure, and one intent may not get two
-  // answers because of how it was spelled. The outcome is unchanged; only the
-  // silence is gone (the reasons it is a warning and not a refusal are in
-  // layout.ts reportDiscarded; the family is pinned in layout-claims.test.mjs).
-  const said = warned.filter((w) => /cannot also own its y/.test(w));
-  assert.equal(said.length, 1, "reported once: " + JSON.stringify(warned));
-  assert.match(said[0], /View\.y = 99/, "names the value that was dropped");
-  assert.match(said[0], /App's SimpleLayout positions its children/, "names the strategy");
-  assert.match(said[0], /ignoreLayout = true/, "and both ways out");
+      View [ width=10, height=10 ], View [ width=10, height=10, y=99 ] ]`),
+    (e) => {
+      assert.match(e.message, /View\.y — App's SimpleLayout places its children, so this child does not declare its y/);
+      assert.match(e.message, /ignoreLayout = true/, "and the way out");
+      return true;
+    }
+  );
+  // A WRITE at run time is the momentary form of the same refusal (§2).
+  const app = await buildL(`App [ width=100, height=200,
+    layout: SimpleLayout [ axis = y ],
+    View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
+  assert.equal(app.children[1].y, 10, "the column placed it");
   assert.throws(
     () => { app.children[1].y = 99; },
     (e) => {
       assert.ok(e instanceof DeclareError);
-      assert.match(e.message, /View\.y — App's SimpleLayout positions its children, so this child cannot also own its y; .*ignoreLayout/);
+      assert.match(e.message, /View\.y — App's SimpleLayout places its children, so this child cannot set its y while the layout arranges it; .*ignoreLayout/);
       return true;
     }
   );
-  app.children[1].x = 5; // the cross axis stays the author's
+  app.children[1].x = 5; // a plain column leaves the cross axis to the child
   assert.equal(app.children[1].x, 5);
 });
 
-await test("a laid axis with its own author binding is a hard conflict — two owners, one slot", async () => {
-  // The message carries the AUTHOR'S POSITION as of 2026-09-19 (O4): the losing
-  // value's own line, taken off the incoming binding's `sourcePos`, which every
-  // author binding now has — a `{ }`, a percent, and a position literal alike.
-  for (const bound of ["y={ parent.height - 10 }", "y=50%", "y=center"]) {
+await test("a laid axis declared by the child is one refusal in every spelling — two owners, one slot", async () => {
+  // Spelling never decides the answer: a literal, a formula, a percent and
+  // `center` are the same declaration, refused in the same words, at the line.
+  for (const declared of ["y=99", "y={ parent.height - 10 }", "y=50%", "y=center"]) {
     await assert.rejects(
       async () => await buildL(`App [ width=100, height=200,
         layout: SimpleLayout [ axis = y ],
-        View [ width=10, height=10, ${bound} ] ]`),
-      /View\.y \(line \d+, col \d+\) — App's SimpleLayout positions its children, so this child cannot also own its y/,
-      bound
+        View [ width=10, height=10, ${declared} ] ]`),
+      /View\.y — App's SimpleLayout places its children, so this child does not declare its y[\s\S]*\(line \d+, col \d+\)/,
+      declared
     );
   }
 });
@@ -2960,7 +2953,7 @@ await test("a size-claiming layout displaces the yielding auto-derive (issue #16
   } finally {
     console.error = orig;
   }
-  const conflicts = errs.filter((e) => /cannot also own its width/.test(e));
+  const conflicts = errs.filter((e) => /does not declare its width/.test(e));
   assert.equal(conflicts.length, 1, "reported exactly once across two waves, not a storm: " + conflicts.length);
 });
 
@@ -3593,7 +3586,7 @@ await test('DataSource format = "text": the raw string lands in value (an .md fe
     src.url = "article.md";
     src.format = "text";
     await src.fetch();
-    assert.equal(src.status, "loaded");
+    assert.equal(src.loaded, true);
     assert.equal(src.value, md, "the bytes, as one string — no parsing, no wrapping");
   } finally {
     globalThis.fetch = realFetch;
@@ -3656,7 +3649,7 @@ await test("DataSource failure surfaces as .failed + .error; stale arrivals are 
     const src = new DataSource();
     src.url = "/gone.json";
     await src.fetch();
-    assert.equal(src.status, "failed");
+    assert.equal(src.failed, true);
     assert.match(src.error, /HTTP 404 for \/gone\.json/);
 
     // A slow first fetch superseded by clear(): its arrival must not land.
@@ -3666,7 +3659,7 @@ await test("DataSource failure surfaces as .failed + .error; stale arrivals are 
     src.clear();
     releaseSlow();
     await p;
-    assert.equal(src.status, "idle", "the superseded arrival was discarded");
+    assert.equal(src.loaded, false, "the superseded arrival was discarded");
     assert.equal(src.value, null);
   } finally {
     globalThis.fetch = realFetch;
@@ -3706,12 +3699,12 @@ await test("DataSource onLoad fires after value+status settle (the declared hand
     const app = build(`App [ width=10, height=10,
       seen: string = "",
       s: DataSource [ url = "/d.json",
-        onLoad() { parent.seen = \`\${this.status}:\${this.value.msg}\` },
+        onLoad() { parent.seen = \`\${this.loaded}:\${this.loading}:\${this.value.msg}\` },
         ],
       ]`);
     await app.s.fetch();
     settle();
-    assert.equal(app.seen, "loaded:hi", "the handler observes the settled arrival, not a half-state");
+    assert.equal(app.seen, "true:false:hi", "the handler observes the settled arrival, not a half-state");
     app.discard();
   } finally {
     globalThis.fetch = realFetch;
@@ -7724,9 +7717,9 @@ await test("settleHeadless: network is refused, never initiated — the source l
   ]`);
   const app = settleHeadless(r.source, { deps: r.deps });
   try {
-    assert.equal(app.src.status, "loading", "t=0 snapshot: honestly absent, still loading");
+    assert.equal(app.src.loading, true, "t=0 snapshot: honestly absent, still loading");
     await new Promise((resolve) => setTimeout(resolve, 0)); // let the refusal land
-    assert.equal(app.src.status, "failed", "the refusal lands as failed");
+    assert.equal(app.src.failed, true, "the refusal lands as failed");
     assert.match(app.src.error, /network unavailable headless/, "refused by the seam, not by the wire");
   } finally {
     app.discard();

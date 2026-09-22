@@ -64,6 +64,7 @@ let ringCap = 0;
  *  kernel drains the ring before it runs anything; outside a settle we arm
  *  the microtask ourselves, exactly as a kernel write would have. */
 export function touchCell(cell: number): void {
+  if (traceHook !== null) traceHook.touched(cell, inSettle);
   // NOBODY LISTENS, nothing to wake: outside a settle, a write to a cell no
   // rule subscribes to schedules nothing (it was an empty settle — ~400 of
   // 750 in a weather-city window). A rule that subscribes later reads the
@@ -85,6 +86,32 @@ const DEFAULT_CAPS: Required<KernelCaps> = { extra_elems: 1 << 18, extra_cells: 
 
 /** Every live Constraint by kernel rule id — the body callback's lookup. */
 const RULES: Array<Constraint | null> = [];
+/** The Constraint standing behind a kernel rule id (a cell's `owner`), for
+ *  tooling that names what wrote a value — the wake trace. */
+export function constraintOfRule(id: number): Constraint | null { return id >= 0 ? RULES[id] ?? null : null; }
+
+// ── the wake trace's seam ───────────────────────────────────────────────────
+// A recorder, installed only while someone is reading (wake-trace.ts): told
+// of every JS-side wake (touchCell), the open and close of every settle, and
+// the label of whatever ran user code last. One null check on each path when
+// nobody listens.
+export interface TraceHook {
+  touched(cell: number, inSettle: boolean): void;
+  /** A JS-store write landed (a slot holding no number: a string, a record). */
+  wrote(self: object, name: string, from: unknown, to: unknown, inSettle: boolean): void;
+  before(): void;
+  after(runs: number): void;
+  origin(label: string, node: object | null): void;
+}
+let traceHook: TraceHook | null = null;
+export function setTraceHook(h: TraceHook | null): void { traceHook = h; }
+export function noteWrite(self: object, name: string, from: unknown, to: unknown): void {
+  if (traceHook !== null) traceHook.wrote(self, name, from, to, inSettle);
+}
+/** Name the user code about to run — a handler, a tick, an arrival — so the
+ *  settle its writes open can say what opened it. `node` is whose code it is,
+ *  so a reader sharing the runtime with the subject can keep the subject's. */
+export function noteOrigin(label: string, node: object | null = null): void { if (traceHook !== null) traceHook.origin(label, node); }
 /** An exception raised inside a body or a step during a settle: the kernel is
  *  told to abort, the settle unwinds cleanly on its side, and this is thrown
  *  from settle() (or run()) on ours. */
@@ -642,13 +669,11 @@ export class Constraint {
    *  rebuilt from scratch every run, so the answer is about the LAST run's
    *  reads — which is exactly what the cycle question needs ("would consuming
    *  this constraint's output close a loop back through those slots?"). The
-   *  kernel holds the edges as cell ids, so the set is mapped through the ids
-   *  the cells were allocated (a cell with no id was never read by anyone). */
-  readsAny(cells: ReadonlySet<Cell>): boolean {
-    if (cells.size === 0 || this.id < 0) return false;
-    const ids = new Set<number>();
-    for (const c of cells) if (c.id >= 0) ids.add(c.id);
-    if (ids.size === 0) return false;
+   *  kernel holds the edges as cell ids — table slots and JS cells alike — so
+   *  the question is asked in ids (attributes.ts `cellIdsOf` collects an
+   *  object's). */
+  readsAny(ids: ReadonlySet<number>): boolean {
+    if (ids.size === 0 || this.id < 0) return false;
     for (const d of K!.deps(this.id)) if (ids.has(d)) return true;
     return false;
   }
@@ -826,11 +851,13 @@ export function settle(): void {
   if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareSettleTrace?: boolean }).__declareSettleTrace === true && ++settleCount % 5000 === 0) {
     console.error(`[settle storm] ${settleCount} settles\n` + (new Error().stack ?? "").split("\n").slice(2, 14).join("\n"));
   }
+  if (traceHook !== null) traceHook.before();
   inSettle = true;
   stepsRan = false;
   let r: number;
   try { r = K.settle(); }
   finally { inSettle = false; }
+  if (traceHook !== null) traceHook.after(r);
   if (r < 0 || pendingError !== null) {
     const e = pendingError ?? new DeclareError(`kernel: settle failed (${r})`);
     pendingError = null;

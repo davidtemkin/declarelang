@@ -36,7 +36,6 @@
 <p>Just as SQL is a domain-specific language for database queries, <span>Declare</span> is a DSL for user interfaces. Its whole surface fits in your head — and inside an LLM’s context window.</p>
 <h6>This page is written in it. By an LLM.</h6>
 <a href="#why"><p>Why a new language, now? →</p></a>
-<p>·</p>
 <a href="#language"><p>The whole language, in one file →</p></a>
 <p>01</p>
 <h2>Three applications, written in Declare.</h2>
@@ -59,14 +58,14 @@
 <a href="apps/tracker/tracker.declare"><p>→</p></a>
 <a href="apps/tracker/tracker.declare"><img src="apps/homepage/shots/tracker-dark.webp"></a>
 <p>1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code</p>
-<p>1535 lines — 1108 code, 217 comment · 128 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
+<p>1546 lines — 1114 code, 220 comment · 129 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
 <a href="apps/tracker/tracker.declare?viewer"><p>View &amp; edit source →</p></a>
 <a href="apps/desktop/desktop.declare"><p>3</p></a>
 <a href="apps/desktop/desktop.declare"><h5>Declare Desktop</h5></a>
 <a href="apps/desktop/desktop.declare"><p>→</p></a>
 <a href="apps/desktop/desktop.declare"><img src="apps/homepage/shots/desktop-dark.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3133 lines — 1699 code, 926 comment · 153 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3132 lines — 1699 code, 925 comment · 153 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -276,9 +275,9 @@ App [ width = 400, height = 100, fill = black,
     ]</code></pre>
 <p>A <strong>direct</strong> child of the class body can reach the same instance as <code>parent</code>, and that is legal — <code>parent</code> is the enclosing view, which for a direct child is the component itself. The difference shows up later: nest that child one level deeper and <code>parent</code> now means the new wrapper, while <code>classroot</code> still means the component. Reach for <code>classroot</code> when you mean the component, and keep <code>parent</code> for when you mean <em>whatever encloses me</em>.</p>
 <h3>Layout is an attribute</h3>
-<p>There is no <code>&lt;Stack&gt;</code>, no <code>&lt;Row&gt;</code>, no flexbox, and no grid. A view positions its children absolutely by <code>x</code>/<code>y</code> until you set a <code>layout:</code> member — and because that member is an ordinary reactive slot, it can be swapped, derived, or animated.</p>
+<p>There is no <code>&lt;Stack&gt;</code>, no <code>&lt;Row&gt;</code>, no flexbox, and no grid. A view positions its children absolutely by <code>x</code>/<code>y</code> until you set a <code>layout:</code> member — and because that member is an ordinary reactive slot, it can be swapped, derived, or animated. <strong>A layout places its children, and what it places a child does not declare</strong>: a row places <code>x</code>, <code>align</code> adds <code>y</code>, a <code>ResponsiveLayout</code> places both; a child that declares one anyway is refused at its line, in any spelling.</p>
 <pre><code class="language-declare-fragment">layout: SimpleLayout   [ axis = y, spacing = 10 ],
-layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ]</code></pre>
+layout: WrappingLayout [ spacing = 20, rowSpacing = 20 ]</code></pre>
 <p>The inset is the <strong>view's</strong>, not the arrangement's: <code>padding</code> — one number, or <code>[top,
 right, bottom, left]</code> clockwise from the top — gives a view a <strong>content box</strong>, and <code>x = 0</code> and <code>width = 100%</code> mean that box for every child, whether a layout placed it or it placed itself. <code>{ parent.width }</code> is the escape hatch that still names the parent's literal box, and paint never moves: <code>fill</code>, <code>stroke</code> and <code>cornerRadius</code> stay on it. A view's <code>stroke</code> takes that same one-or-four shape, with <code>null</code> for a bare side, which is how a single rule under a row is drawn.</p>
 <p><strong>Stacking order is declaration order</strong>; later siblings paint on top. There is no <code>z-index</code>, so chrome that must float above everything is declared last.</p>
@@ -313,7 +312,7 @@ showNewest() { app.frameOn(app.list.first) }      // the new row is real, placed
 <p>Only declared reactive attributes participate at all, so locals and plain objects in <code>script { }</code> cost nothing.</p>
 <p>You never have to guess what a constraint is wired to — <code>__declare.explain</code> answers it on the running program (§12).</p>
 <h2>6. Space</h2>
-<p>A view's size on each axis is one of three things: <strong>unset</strong> auto-sizes to the bounding box of its visible children, <strong>a constant</strong> is fixed, and <strong>a constraint</strong> is whatever it computes.</p>
+<p>A view's size on each axis is one of three things: <strong>unset</strong> takes it from its content — its own (a <code>Text</code>'s run) and its visible children's boxes — <strong>a constant</strong> is fixed, and <strong>a constraint</strong> is whatever it computes. A child sized <em>from</em> its parent does not count toward the parent's content size on that axis, however it is written.</p>
 <p>A view has no <code>minHeight</code>, <code>maxHeight</code>, or <code>overflow</code> attributes. Two read-only intrinsics, <code>contentWidth</code> and <code>contentHeight</code>, expose what the content wants, so any clamp is arithmetic.</p>
 <pre><code class="language-declare-fragment">height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
 clip   = true                                // hide whatever passes the cap</code></pre>
@@ -545,7 +544,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 112 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,535 lines: 1,108 of code and 217 of comments, and no dependencies. It ships at 128 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 112 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,546 lines: 1,114 of code and 220 of comments, and no dependencies. It ships at 129 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -812,7 +811,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=88d93b4c0815";
+  import boot from "./bundles/declare-boot.js?v=1e3a047cc45f";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

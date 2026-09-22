@@ -822,6 +822,8 @@ export declare class View extends Node {
      *    - false / null   → no clip. */
     applyClip(clip: string | boolean | null): void;
 }
+/** Judge every pending size whose program is attached (see noteNegativeSize). */
+export declare function judgeNegativeSizes(): void;
 export declare function withCursorDefining<T>(view: View, fn: () => T): T;
 /** The cursor in effect at `node`: the nearest ancestor-or-self datapath
  *  (language §9 — "descendants read fields relative to it"). Each level's
@@ -914,11 +916,6 @@ export declare class App extends View {
     underlapBottom: number;
     safeLeft: number;
     safeRight: number;
-    /** The embedding environment's parameters (see schema.ts `env`): a record
-     *  the host provides and keeps live; `{}` when top-level. Read reactively —
-     *  `theme = { app.env.dark ? SanFranciscoDark : SanFrancisco }` follows the
-     *  host's flips. */
-    env: Record<string, unknown>;
     /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
      *  source line count — provided by the host/build (see index.ts note), 0
      *  until set. Reactive reads: a stat bound to them settles when they land. */

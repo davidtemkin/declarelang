@@ -44,11 +44,11 @@ await test("validate-on-receipt: a bad response lands in .failed with the pointe
   const prev = provideTransport(() => jsonResponse({ city: "SF", rows: [{ id: "a" }] }));
   try {
     await app.ds.fetch();
-    assert.equal(app.ds.status, "loaded", "a conforming response loads");
+    assert.equal(app.ds.loaded, true, "a conforming response loads");
     assert.equal(app.ds.value.city, "SF");
     provideTransport(() => jsonResponse({ city: "SF", rows: [{ id: "a" }, { nope: 1 }] }));
     await app.ds.fetch();
-    assert.equal(app.ds.status, "failed", "a malformed response FAILS — never undefined three layers deep");
+    assert.equal(app.ds.failed, true, "a malformed response FAILS — never undefined three layers deep");
     assert.match(app.ds.error, /the response does not match the schema — \/rows\/1\/id is missing/);
     assert.equal(app.ds.value.rows.length, 1, "the previous good value is untouched");
   } finally {
@@ -287,10 +287,10 @@ await test("typed data: an array-root document (schema = Row[]) — validated ar
   const prev = provideTransport(() => jsonResponse([{ id: "a", label: "x" }]));
   try {
     await app.ds.fetch();
-    assert.equal(app.ds.status, "loaded");
+    assert.equal(app.ds.loaded, true);
     provideTransport(() => jsonResponse({ not: "an array" }));
     await app.ds.fetch();
-    assert.equal(app.ds.status, "failed");
+    assert.equal(app.ds.failed, true);
     assert.match(app.ds.error, /the document is an ARRAY of records/);
   } finally { provideTransport(prev); }
   // and the typed chain dies on a wrong member

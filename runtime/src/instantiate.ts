@@ -1020,11 +1020,6 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
       if (c.name !== null && attrType(eff, c.name)?.kind === "component") { layoutEl = c; layoutCroot = s.croot ?? croot; }
     }
   }
-  if (layoutEl !== null) {
-    const t = attrType(eff, layoutEl.name!);
-    if (t !== null && t.kind === "component") ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
-  }
-
   // Methods first (installMethods: the super rule, the runtime-member guard),
   // then the attribute channels.
   installMethods(view, sources, eff, ctx);
@@ -1126,6 +1121,23 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
       // layout's claim can discard (layout.ts). Kept for those five slots only.
       if (useSite) noteUseSiteSet(view, attr.name, attr.value.pos);
     }
+  }
+  // THE LAYOUT INSTALLS AFTER THE VIEW'S OWN GEOMETRY. A strategy's first
+  // probe decides which slots it claims — ResponsiveLayout picks its tier from
+  // the room it is given — and until 2026-09-21 this arm was pushed BEFORE the
+  // node's attribute channels, so a `width = 100%` view was probed at width 0:
+  // the `from: 0` stack tier matched, claimed y, and a child's `y = center`
+  // (the reference's own idiom for the cross axis of a row) was refused at
+  // boot against a claim the real tier never makes. A literal `y` survived
+  // only because the shape watcher rearmed once the width landed — which is
+  // how the homepage came to carry `y = 15` where `center` belonged. After the
+  // attrs, the probe reads what the author wrote. The children's own bindings
+  // still land after this (a probe reads their literals now, and the pass
+  // re-places on its tracked reads); only the ARRANGED view's geometry has to
+  // precede the claim.
+  if (layoutEl !== null) {
+    const t = attrType(eff, layoutEl.name!);
+    if (t !== null && t.kind === "component") ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
   }
   // Children: the class bodies' (they belong to every instance, scoped to
   // it), then the use site's — concatenated, never merged: tree order is

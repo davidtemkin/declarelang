@@ -1,0 +1,14 @@
+// A light/dark switch that shows where you are
+// One icon, two states: `dark` reads the app's appearance and chooses the icon, and a
+// press delivers the other one through `input` — the switch never owns the truth.
+
+App [ textColor = 0x172530, fontSize = 14,
+    night: boolean = false,
+    row: View [ x = 20, y = 20, height = 32, width = { this.contentWidth },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        AppearanceSwitch [ dark = { app.night },
+            input(v: boolean) { app.night = v }
+            ],
+        Text [ text = { app.night ? "Dark" : "Light" } ]
+        ]
+    ]

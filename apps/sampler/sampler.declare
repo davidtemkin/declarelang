@@ -313,9 +313,11 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             // ── Controls page: specimen cards, two balanced columns ────────
 
             grid: View [ visible = { app.page == "controls" }, width = 100%,
-                layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = { app.narrow ? 20 : 32 } ],
+                layout: ResponsiveLayout [ plan = { [
+                    ({ from: 876, flow: "row",   gap: 32, share: ({ left: 50, right: 50 }) }),
+                    ({ from: 0, flow: "stack", gap: 20, share: ({ left: 100, right: 100 }) })] } ],
 
-                left: View [ width = { app.narrow ? parent.width : (parent.width - 32) / 2 },
+                left: View [
                     layout: SimpleLayout [ axis = y, spacing = 20 ],
 
                     Specimen [ label = "Buttons",
@@ -378,7 +380,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                         ]
                     ],
 
-                right: View [ width = { app.narrow ? parent.width : (parent.width - 32) / 2 },
+                right: View [
                     layout: SimpleLayout [ axis = y, spacing = 20 ],
 
                     Specimen [ label = "Text input · Field",

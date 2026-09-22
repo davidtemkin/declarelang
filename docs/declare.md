@@ -289,11 +289,13 @@ component, and keep `parent` for when you mean *whatever encloses me*.
 
 There is no `<Stack>`, no `<Row>`, no flexbox, and no grid. A view positions its children
 absolutely by `x`/`y` until you set a `layout:` member — and because that member is an ordinary
-reactive slot, it can be swapped, derived, or animated.
+reactive slot, it can be swapped, derived, or animated. **A layout places its children, and what it
+places a child does not declare**: a row places `x`, `align` adds `y`, a `ResponsiveLayout` places
+both; a child that declares one anyway is refused at its line, in any spelling.
 
 ```declare-fragment
 layout: SimpleLayout   [ axis = y, spacing = 10 ],
-layout: WrappingLayout [ spacing = 20, lineSpacing = 20 ]
+layout: WrappingLayout [ spacing = 20, rowSpacing = 20 ]
 ```
 
 The inset is the **view's**, not the arrangement's: `padding` — one number, or `[top,
@@ -436,8 +438,10 @@ running program (§12).
 
 ## 6. Space
 
-A view's size on each axis is one of three things: **unset** auto-sizes to the bounding box of
-its visible children, **a constant** is fixed, and **a constraint** is whatever it computes.
+A view's size on each axis is one of three things: **unset** takes it from its content — its own
+(a `Text`'s run) and its visible children's boxes — **a constant** is fixed, and **a constraint** is
+whatever it computes. A child sized *from* its parent does not count toward the parent's content
+size on that axis, however it is written.
 
 A view has no `minHeight`, `maxHeight`, or `overflow` attributes. Two read-only intrinsics,
 `contentWidth` and `contentHeight`, expose what the content wants, so any clamp is arithmetic.

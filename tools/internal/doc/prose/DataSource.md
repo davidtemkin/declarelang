@@ -1,10 +1,11 @@
 A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to
 know: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a
 deliberate opt-in for reactive addresses, not the default). Call it when the data
-should load (typically `onInit`, or on a user action); value and status then settle
+should load (typically `onInit`, or on a user action); value and flags then settle
 *together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`
-never disagree. Read the lifecycle through bindings — `.loading`, `.loaded`, `.failed`,
-`.value`, `.error` — none are settable attributes; `clear()` returns it to idle. The
+never disagree. Read the lifecycle through bindings — `.loaded` for the value, `.loading`
+and `.failed` for the request, `.value`, `.error` — none are settable attributes;
+`clear()` returns it to never-fetched. The
 response is parsed JSON by default; `format = "text"` fetches textual material instead —
 a Markdown article, a source file — as one string (see `format`).
 
@@ -36,11 +37,12 @@ change a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL.
 `url` does not load on its own — fetching stays explicit unless you opt into `auto`.
 
 ## fetch()
-Loads (or reloads) the resource from the current `url`, then settles `value` and the status
+Loads (or reloads) the resource from the current `url`, then settles `value` and the
 flags **together**, a frame ahead. Loading is a verb you call, not something that happens
 to you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again
-re-fetches; change `url`'s dependencies first to fetch a new address. Returns a `Promise`
-you can `await`, but the reactive flags are the idiomatic path.
+re-fetches — `loading` for the duration, `loaded` and `value` untouched until the new
+document lands; change `url`'s dependencies first to fetch a new address. Returns a
+`Promise` you can `await`, but the reactive flags are the idiomatic path.
 
 ## auto
 Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.
@@ -58,7 +60,7 @@ detail: DataSource [ auto = true, url = { "/api/issue/" + app.selectedId } ]
 The HTTP verb — `"GET"` by default; one of `"GET" | "POST" | "PUT" | "PATCH" | "DELETE"`,
 checked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`"POST"`,
 `"PUT"`, `"PATCH"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands
-in `value` and the status flags exactly as a GET's would, so a POST that returns the created
+in `value` and the flags exactly as a GET's would, so a POST that returns the created
 record leaves you reading it like anything else.
 
 ## body
@@ -116,32 +118,28 @@ point. Reach for `onLoad` only when arrival must cause something a binding canno
 focusing the first result, chaining a follow-up fetch, announcing to a screen reader.
 
 ## clear()
-Returns the source to the idle state — drops `value`, `error`, and the loaded/failed flags,
-as if it had never fetched. For resetting a search field's results, or releasing a large
-response you no longer need.
-
-## status
-The lifecycle as one fact: `"idle"` before anything is asked, `"loading"` in flight, then
-`"loaded"` or `"failed"`. Read-only — `fetch()` and `clear()` move it. The four booleans
-below derive from it, so they can never disagree with it or with each other.
-
-## idle
-Nothing has been asked for yet, or `clear()` returned it here. `= { status == "idle" }`.
-
-## loading
-A request is in flight. `= { status == "loading" }` — the slot to hang a spinner on.
+Returns the source to never-fetched — drops `value` (so `loaded` falls), `error`, and the
+request flags. For resetting a search field's results, or releasing a large response you
+no longer need.
 
 ## loaded
-The *latest* fetch finished and validated. `= { status == "loaded" }`. It is about the
-request, not the value: a refetch (a changed `url` under `auto`, or `fetch()` again) drops
-it to `false` until the new response lands, while `value` still holds the previous one. So
-`visible = { data.loaded }` blinks on every refresh; a screen that should stay put while
-data refreshes guards on presence instead — `visible = { data.value != null }` — and keeps
-`loaded`/`loading` for what they name, the request's state.
+A document is present: `value` is not null. True from the first arrival on and **stays
+true through every later fetch** — a refetch (a changed `url` under `auto`, or `fetch()`
+again) keeps the last good document in `value` until the new one lands — until `clear()`
+empties the source. It is about the value, not the request: `visible = { data.loaded }`
+is the screen that shows once there is something to show, and it stays put while the
+data refreshes.
+
+## loading
+A request is in flight — the slot to hang a spinner on. Independent of `loaded`: a
+source is `loaded && loading` for the whole of a refresh, the old document showing and
+the new one on its way.
 
 ## failed
-The request, or the schema check, refused. `= { status == "failed" }`. Read `error` for
-the one-line reason, `statusCode` and `errorBody` for what the server actually said.
+The last request, or its schema check, refused. Read `error` for the one-line reason,
+`statusCode` and `errorBody` for what the server actually said. `value` is untouched, so
+a failed refresh leaves the source `loaded && failed` — the last good document still
+showing, with a reason beside it. The next `fetch()` clears it.
 
 ## error
 Why the last fetch failed, as one line — an HTTP status, a transport message, or the
