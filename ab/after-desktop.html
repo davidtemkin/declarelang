@@ -1,0 +1,13 @@
+<!-- TEMPORARY A/B page for cold-load measurement (2026-09-23) — delete ab/ after -->
+<!doctype html><meta charset="utf-8">
+<title>desktop · Declare</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<link rel="preload" href="../bundles/cache/51001e78447f1680.json" as="fetch" crossorigin>
+<style>html,body{margin:0;padding:0;background:#0B141B}</style>
+<div id="host"></div>
+<script type="module">
+  import boot from "../bundles/declare-boot.js?v=a115e45f3812";
+  const q = new URLSearchParams(location.search);
+  boot({ main: "../apps/desktop/desktop.declare" ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined, demos: [] });
+</script>
