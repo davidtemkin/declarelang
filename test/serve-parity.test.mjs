@@ -14,7 +14,7 @@ import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, summarize } from "./harness.mjs";
 import { requestType, REQ, runWrapper, programName, directoryProgram, stubPage, launchTarget, isEntryPage } from "../browser/serve-core.js";
-import { demoNames } from "../tools/internal/bake-app-stubs.mjs";
+import { demoNames, preloadsFor } from "../tools/internal/bake-app-stubs.mjs";
 
 const params = (q) => new URLSearchParams(q);
 
@@ -157,6 +157,20 @@ await test("stubPage shares the run shell exactly, modulo the script block", () 
   assert.equal(shellOf(stub), shellOf(run));                          // identical head + host element
 });
 
+// PRELOADS: what boot fetches before it can render leaves with the page. The links
+// sit in the head before the style, as fetch preloads boot's own fetch() consumes;
+// a page with none has no line, so the shell stays identical to the run page's.
+await test("stubPage preloads the prewarm artifact and the demo seeds, in the head", () => {
+  const preloads = preloadsFor("apps/homepage/homepage.declare", ["spring"], "../../");
+  assert.equal(preloads.length, 2, "the homepage is prewarmed and names a demo");
+  assert.match(preloads[0], /^\.\.\/\.\.\/bundles\/cache\/[0-9a-f]{16}\.json$/);
+  assert.equal(preloads[1], "../../apps/homepage/demos/spring.declare");
+  const stub = stubPage({ name: "homepage", bootUrl: "/b.js", serveCoreUrl: "/browser/serve-core.js", iconBase: "/assets/", preloads });
+  for (const h of preloads) assert.ok(stub.includes(`<link rel="preload" href="${h}" as="fetch" crossorigin>`), `preload for ${h}`);
+  assert.ok(stub.indexOf('rel="preload"') < stub.indexOf("<style>"), "preloads precede the style");
+  assert.deepEqual(preloadsFor("apps/sampler/sampler.declare", [], "../../"), [], "no build, no demos → nothing to preload");
+});
+
 await test("stubPage computes main at runtime and hands modifiers to the worker", () => {
   const stub = stubPage({ name: "calendar", bootUrl: "/b.js", serveCoreUrl: "/browser/serve-core.js" });
   assert.match(stub, /main: directoryProgram\(location\.pathname\) \?\? location\.pathname/);
@@ -184,6 +198,7 @@ await test("every committed app stub matches the current stubPage template", () 
       // through the SAME rule the baker used — the stub STATES its demo list, and a
       // test that recomputed it independently would be the drift it exists to catch
       demos: demoNames(join(ROOT, "apps", dir), basename(dir)),
+      preloads: preloadsFor(`apps/${dir}/${dir}.declare`, demoNames(join(ROOT, "apps", dir), basename(dir)), "../../"),
     });
     // committed = one generator marker line + the template (with a stamped ?v=)
     const body = committed.slice(committed.indexOf("\n") + 1);

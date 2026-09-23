@@ -25,6 +25,8 @@ import path from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { compile, crawlExtract, diskDataResolver } from "../../compiler/dist/compile-node.js";
+import { preloadLinks } from "../../browser/serve-core.js";
+import { demoNames, preloadsFor } from "./bake-app-stubs.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const HOMEPAGE = path.join(ROOT, "apps", "homepage", "homepage.declare");
@@ -40,6 +42,11 @@ const END = "<!--declare-static:end-->";
 // descriptions no longer embed the headline, so they cannot rot either.
 const HBEGIN = "<!--declare-head:begin-->";
 const HEND = "<!--declare-head:end-->";
+// The preloads — the homepage's prewarm artifact and its demo seeds, so boot's first
+// fetches leave with the HTML (serve-core preloadLinks). Derived from the same manifest
+// and key rule boot reads, through the one function the stub baker uses.
+const PBEGIN = "<!--declare-preload:begin-->";
+const PEND = "<!--declare-preload:end-->";
 const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 const src = readFileSync(HOMEPAGE, "utf8");
@@ -137,6 +144,16 @@ const head = HBEGIN
   + `<meta name="twitter:title" content="${esc(title)}">`
   + HEND;
 next = next.slice(0, hi) + head + next.slice(hj + HEND.length);
+
+const pi = next.indexOf(PBEGIN);
+const pj = next.indexOf(PEND);
+if (pi < 0 || pj < 0 || pj < pi) {
+  console.error(`bake-homepage-crawler: markers ${PBEGIN} … ${PEND} not found in index.html`);
+  process.exit(1);
+}
+const relMain = path.relative(ROOT, HOMEPAGE).split(path.sep).join("/");
+const preload = PBEGIN + "\n" + preloadLinks(preloadsFor(relMain, demoNames(path.dirname(HOMEPAGE)), "")) + PEND;
+next = next.slice(0, pi) + preload + next.slice(pj + PEND.length);
 if (next === idx) { console.log("bake-homepage-crawler: unchanged"); process.exit(0); }
 writeFileSync(INDEX, next);
 console.log(`bake-homepage-crawler: baked ${(html?.length ?? 0)} chars + title "${title}" into index.html`);

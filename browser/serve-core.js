@@ -106,13 +106,13 @@ export function programName(urlPath) {
  *                             //   including an empty one — is an answer, and boot asks nothing.
  * }}
  */
-export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, main = null, title = "", demos = null }) {
+export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, main = null, title = "", demos = null, preloads = [] }) {
   const script = `<script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   const q = new URLSearchParams(location.search);
   boot({ main: ${JSON.stringify(main)} ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined${demos === null ? "" : `, demos: ${JSON.stringify(demos)}`} });
 </script>`;
-  return shell({ name, staticBlock, iconBase, title, script, bootUrl });
+  return shell({ name, staticBlock, iconBase, title, script, bootUrl, preloads });
 }
 
 /**
@@ -133,9 +133,10 @@ export function runWrapper({ name, bootUrl, staticBlock = "", iconBase = null, m
  *    navigation is SW-served in the requested mode, and the stub is out of the loop.
  *
  * @param cfg {{ name: string, bootUrl: string, serveCoreUrl: string, iconBase?: string|null,
- *              demos?: string[]|null }}   // as runWrapper: the baker reads the directory, so it KNOWS
+ *              demos?: string[]|null,     // as runWrapper: the baker reads the directory, so it KNOWS
+ *              preloads?: string[] }}     // what boot will fetch before it can render (preloadLinks)
  */
-export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, demos = null }) {
+export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, demos = null, preloads = [] }) {
   const script = `<script type="module">
   import boot from ${JSON.stringify(bootUrl)};
   import { requestType, REQ, directoryProgram } from ${JSON.stringify(serveCoreUrl)};
@@ -144,17 +145,31 @@ export function stubPage({ name, bootUrl, serveCoreUrl, iconBase = null, demos =
     navigator.serviceWorker.ready.then(() => location.reload());
   boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined${demos === null ? "" : `, demos: ${JSON.stringify(demos)}`} });
 </script>`;
-  return shell({ name, staticBlock: "", iconBase, title: "", script, bootUrl });
+  return shell({ name, staticBlock: "", iconBase, title: "", script, bootUrl, preloads });
+}
+
+/** The `<link rel="preload">` lines for what boot fetches BEFORE it can render — the
+ *  prewarm artifact, the demo seeds — so those requests leave with the page instead
+ *  of after the boot bundle has arrived and run: on a static host that is one round
+ *  trip off the cold first frame. `as="fetch"` with `crossorigin` is what makes the
+ *  browser hand the response to boot's own same-origin `fetch()` — the mode and
+ *  credentials must match, or the preload is a second download, not a first. Only a
+ *  page whose producer KNOWS the program (the stub baker, the root page) carries
+ *  these; the answer is computed once, by tools/internal/bake-app-stubs.mjs
+ *  preloadsFor, from the same manifest and key rule boot reads. */
+export function preloadLinks(hrefs) {
+  return hrefs.map((h) => `<link rel="preload" href="${escapeHtml(h)}" as="fetch" crossorigin>\n`).join("");
 }
 
 /** The one HTML shell both page kinds share — parameterized ONLY by the script block,
  *  so the stub and the run page cannot drift in shape (the serve-parity oracle locks
  *  this: identical head, identical host element, script differences documented above). */
-function shell({ name, staticBlock, iconBase, title, script, bootUrl }) {
+function shell({ name, staticBlock, iconBase, title, script, bootUrl, preloads = [] }) {
   const icons = iconBase
     ? `<link rel="icon" type="image/svg+xml" href="${escapeHtml(iconBase + "favicon.svg")}">\n` +
       `<link rel="icon" type="image/png" sizes="256x256" href="${escapeHtml(iconBase + "favicon.png")}">\n`
     : "";
+  const preload = preloadLinks(preloads);
   // When a crawler block is baked in (the ?crawler flag), a SYNCHRONOUS classic script
   // immediately after the host removes it BEFORE the first paint — so a human never
   // flashes the bare extraction text while the async app module loads. This is NOT
@@ -176,7 +191,7 @@ function shell({ name, staticBlock, iconBase, title, script, bootUrl }) {
 <title>${escapeHtml(title || name + " · Declare")}</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
-${icons}<style>html,body{margin:0;padding:0;background:#0B141B}</style>
+${icons}${preload}<style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host">${staticBlock}</div>${clearStatic}
 ${script}`;
 }

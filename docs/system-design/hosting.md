@@ -139,11 +139,14 @@ asking *before* it asks anything:
 0. **Load a build.** A curated set ships precompiled under `bundles/cache/` — the
    parsed, checked program as an object (`programJson`), which the runtime
    instantiates with no parse — the one an island's program arrives in too.
-   an island's program arrives in.
    `browser/prewarm-manifest.js` — the one declared list, compiled into the boot
    bundle — says whether this program is one of them, so the answer costs no request.
    If it is, the artifact is fetched and rendered: no compiler, no compile, **and no
-   validation round trips**. Trust here is the deployment's assertion, kept true by
+   validation round trips**. The cold pages a static host serves — the committed
+   stubs, the root page — `preload` the artifact (and the demo seeds) in their head,
+   so that fetch leaves with the HTML rather than after the boot bundle has arrived
+   and run: one round trip off the cold first frame (measured on GitHub Pages: the
+   artifact took ~115 ms after the bundle; preloaded, it is already there). Trust here is the deployment's assertion, kept true by
    `derive` and by pre-push refusing a stale or uncommitted derive — not
    re-established by every reader on every load. Skipped entirely on the dev server,
    where the source on disk is the truth.

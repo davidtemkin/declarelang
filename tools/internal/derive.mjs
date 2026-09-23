@@ -179,6 +179,8 @@ const RULES = [
   {
     name: "bake-crawler",            // the root page's static extraction (runs the homepage itself)
     inputs: ["tools/internal/bake-homepage-crawler.mjs", "compiler/dist", "runtime/dist", "library",
+             // the page preloads its artifact and seeds (bake-app-stubs preloadsFor)
+             "tools/internal/bake-app-stubs.mjs", "browser/serve-core.js", "browser/prewarm-manifest.js", "browser/prewarm-cache.js",
              { dir: "apps/homepage", exclude: ["dist", "index.html"] }, "docs/declare.md",
              // the island TENANTS the page composes: their text is baked INTO
              // index.html now, so editing the article has to re-bake the artifact
@@ -191,6 +193,8 @@ const RULES = [
   {
     name: "bake-stubs",              // the cold-static stub page per program directory
     inputs: ["tools/internal/bake-app-stubs.mjs", "browser/serve-core.js",
+             // the stub preloads the program's artifact: which programs have one, and its key
+             "browser/prewarm-manifest.js", "browser/prewarm-cache.js",
              { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" }],
     outputs: [],
     stamps: ["apps/*/index.html"],

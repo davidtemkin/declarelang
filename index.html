@@ -3,6 +3,14 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
+<!--declare-preload:begin-->
+<link rel="preload" href="bundles/cache/8bd320428a6e6f32.json" as="fetch" crossorigin>
+<link rel="preload" href="apps/homepage/demos/components.declare" as="fetch" crossorigin>
+<link rel="preload" href="apps/homepage/demos/derived.declare" as="fetch" crossorigin>
+<link rel="preload" href="apps/homepage/demos/reactivity.declare" as="fetch" crossorigin>
+<link rel="preload" href="apps/homepage/demos/spring.declare" as="fetch" crossorigin>
+<link rel="preload" href="apps/homepage/demos/states.declare" as="fetch" crossorigin>
+<!--declare-preload:end-->
 <meta name="description" content="A declarative language for user interfaces — reactive by construction, compiled live in the browser. This whole page is written in it.">
 <!-- Real icon FILES (not a data: URI): link crawlers — iMessage/Slack/etc. — ignore
      data-URI SVG favicons and fall back to a cached domain icon, so ship actual files. -->
@@ -811,7 +819,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=a35063dacd18";
+  import boot from "./bundles/declare-boot.js?v=a115e45f3812";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().
