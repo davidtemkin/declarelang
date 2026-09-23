@@ -129,7 +129,8 @@ export { instantiate } from "./instantiate.js";
 export { forEachCodeValue, serializeDeps, applyDeps } from "./deps.js";
 export { forEachElement, serializeLinks, applyLinks, type SerializedLink } from "./links.js";
 // Precompiled production entry + render glue (compiler-free) — see boot.ts.
-export { renderProgram, renderProgramAsync, mountApp, mountEmbeddedApp, disposeApp, reflectAppName, isEmbedded, provideHostServices } from "./boot.js";
+export { renderProgram, renderProgramAsync, buildProgram, mountApp, mountEmbeddedApp, disposeApp, reflectAppName, isEmbedded, provideHostServices } from "./boot.js";
+export type { RenderProgramOptions } from "./boot.js";
 export type { HostServices } from "./boot.js";
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
 export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";

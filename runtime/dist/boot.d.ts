@@ -70,8 +70,30 @@ export declare function reflectAppName(app: App, served: string, reflected: stri
  *  the production entry point: importing it pulls the runtime's run-path only,
  *  never the parser or checker. */
 export declare function renderProgram(program: Program, host: HTMLElement, backend: RenderBackend): App;
+/** Instantiate a compiled PROGRAM (the parsed, checked, deps-applied shape a
+ *  build ships — declarec's artifact, a prewarmed `run` entry, the in-browser
+ *  compiler's compileProgram) into its App tree, with no parse and no check:
+ *  the program-object twin of index.ts `build(source)`, for a host that never
+ *  carries the parser. `deps` zips an extracted dependency list on when the
+ *  program does not carry one already; `provides` are the topmost host's
+ *  values, there from the first evaluation. */
+export declare function buildProgram(program: Program, opts?: {
+    deps?: readonly (readonly string[])[];
+    provides?: Readonly<Record<string, unknown>>;
+}): App;
+/** What renderProgramAsync takes beside the program: the program's own
+ *  directory for its relative bitmaps and faces (`assetBase`), the host's
+ *  provided values, a dependency list to zip on, and the host's chance to
+ *  reach the app before its first settle (`beforeMount` — an island links
+ *  its boundary there). A bare string is the assetBase alone. */
+export type RenderProgramOptions = string | null | undefined | {
+    assetBase?: string | null;
+    deps?: readonly (readonly string[])[];
+    provides?: Readonly<Record<string, unknown>>;
+    beforeMount?: (app: App) => void;
+};
 /** Like renderProgram(), but first loads the program's own web `font` faces so
  *  first paint measures against the real metrics (mirrors renderAsync).
  *  `assetBase` states the program's own directory when the page is served from
  *  elsewhere — its relative bitmaps and faces resolve there (image.ts). */
-export declare function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, assetBase?: string | null): Promise<App>;
+export declare function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, options?: RenderProgramOptions): Promise<App>;

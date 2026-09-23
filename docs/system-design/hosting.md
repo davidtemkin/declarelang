@@ -5,6 +5,40 @@ request, `declarec` precompiles ahead of time, and the browser compiles in-page.
 three share **one compiler** (the parser/checker/schema in `runtime/`) and **one flag
 model** (`compiler/src/flags.ts`, §Compile flags); only the surface differs.
 
+## The three models
+
+Every deployment is one of three arrangements, and the same page boot
+(`browser/boot-page.js` → `host-client.js`) runs the program in all of them — the
+URL and history mirror, islands, the title. What differs is what is on the page
+beside it, and where a program comes from.
+
+| | **1 — Production package** (`declarec`) | **2 — Developer** (dev server) | **2A — Developer, static host** |
+|---|---|---|---|
+| What is deployed | One folder per app: `index.html`, `app.<hash>.js`, data, its islands' artifacts | The repo, served by `npm start` | The repo, served as files (GitHub Pages) |
+| Runtime on the page | One file: run path + kernel + page host + program; slimmed to this app and its tenants; one backend | The uniform boot (`bundles/declare-boot.js`): full registry, both backends, page host, compiler loader, Inspector, live edit, SW registration, launcher | The same uniform boot, one file, cached across every page |
+| Where the program comes from | Inlined in `app.<hash>.js` | Compiled from source per request, server-side (`POST /compile`) | The artifact (`bundles/cache/<key>.json`) when one matches `(program, render)`; else compiled in-browser |
+| Body functions | Emitted at build time | `new Function` at boot | `new Function` at boot |
+| Compiler on the page | Never | On the server, always fresh | Lazy — first live edit, or first program with no artifact |
+| Parser / checker in the boot | None | None | None |
+| Sources on the host | None | All | All |
+| `AppIsland` tenants | Artifacts built ahead, loaded on demand; unbuilt → a reported error | Compiled from source on demand | Artifact if prewarmed; else lazy compile |
+| Live edit / editable demos | Absent | Present | Present |
+| Inspector, `?render=canvas`, browse-to-run | Absent | Present | Present (the service worker makes browse-to-run work) |
+| Service worker | None | None (the server's marker evicts one) | Registered by the boot: run pages, cache-busting |
+| Freshness | The build | The source on disk | `derive` + prewarm artifacts, closure-validated |
+| Error prose | Codes (`declare-help` decodes) | Full sentences | Full sentences |
+| The reported number | **This one**, measured on the package | — | — |
+
+**No host ever parses.** Every compile — the dev server's, the in-browser worker's,
+the build's — yields the *program object* (`compiler/src/program-build.ts`): parsed,
+checked, its dependencies applied, stamped trusted. The runtime instantiates it. So
+the boot bundle carries neither the parser nor the checker (the web host imports the
+runtime through `runtime/host-api.js`, and the build substitutes `check.js` with the
+same stand-in a production package ships — `test/boot-bundle.test.mjs` holds the line
+from the boot's own build options). The one host that reads Declare at run time — the
+Inspector's evaluate strip — takes the parser and the checker from the compiler bundle
+it loads to compile itself (`provideEvalParser`, `provideChecker`).
+
 ## Dynamic (dev server)
 
 `npm start` runs `server/index.mjs`. It serves the tree and compiles each example's
@@ -102,7 +136,10 @@ The model is **two requests, not one ladder** (`browser/boot-uniform.js`). Loadi
 build and resolving a source are different questions, and boot knows which it is
 asking *before* it asks anything:
 
-0. **Load a build.** A curated set ships precompiled under `bundles/cache/`.
+0. **Load a build.** A curated set ships precompiled under `bundles/cache/` — the
+   parsed, checked program as an object (`programJson`), which the runtime
+   instantiates with no parse — the one an island's program arrives in too.
+   an island's program arrives in.
    `browser/prewarm-manifest.js` — the one declared list, compiled into the boot
    bundle — says whether this program is one of them, so the answer costs no request.
    If it is, the artifact is fetched and rendered: no compiler, no compile, **and no

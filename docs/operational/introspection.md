@@ -37,7 +37,7 @@ window.__declare.explain("app.dock.row.calIcon", "width")
 | `expand(path, attr, trail?)` | one level of a record/array/`Dataset` value — lazy, for deep data |
 | `at(x, y)` | `{ path, kind }` of the topmost view at a point — the same coordinates `rootX`/`rootY` report, so `at(rootX, rootY)` names the node back |
 | `dependents(attr)` | every `(path, attr)` whose constraint reads that name |
-| `evaluate(path, src)` | evaluate Declare in a node's scope — read, set, bind, or add a view |
+| `evaluate(path, src)` | evaluate Declare in a node's scope — read, set, bind, or add a view (adding a view needs the parser, which rides the compiler bundle: open the Inspector first — `⌥⌘D`, or `?inspector`) |
 | `stats()` | `{ nodes, ownedSlots, motionBusy }` — leak and perf canaries |
 | `trace` | **what changed, and why** — `start(n)`, `read()`, `text()`, `stop()`, `clear()`; see **The wake trace** |
 | `clock` | deterministic time — see **Motion** |

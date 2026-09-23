@@ -52,22 +52,23 @@ async function run() {
     // dev server it resolves the viewer's SOURCE rather than serving a build an
     // edit to the viewer would not show up in.
     const VIEWER_MAIN = "library/platform-apps/viewer/viewer.declare", VIEWER_PROPS = { render: "dom" };
-    let source, deps;
+    let program = null;
     const wantBuild = !window.__declareServer && prewarmedEntry(VIEWER_MAIN, VIEWER_PROPS) !== null;
     const warm = wantBuild
       ? await loadBuild({ root: ROOT, relMain: VIEWER_MAIN, kind: "run", props: VIEWER_PROPS, fetchImpl: fetch })
       : null;
     if (warm) {
-      source = warm.program; deps = warm.deps;
+      // the artifact's program OBJECT: instantiated directly, no parse (host-client buildApp)
+      program = hydrateProgram(warm.programJson);
     } else {
       const viewerSrc = await fetch(new URL("library/platform-apps/viewer/viewer.declare", ROOT), { cache: "no-cache" })
         .then((r) => { if (!r.ok) throw new Error(r.status + " fetching the code viewer"); return r.text(); });
-      const out = await (await clientP).compile(viewerSrc);
-      if (!out.source) {
+      const out = await (await clientP).compileProgram(viewerSrc);
+      if (!out.program) {
         // The compile's own rendered report — the ONE renderer's output.
         return showError(host, out.report || "the code viewer failed to compile");
       }
-      source = out.source; deps = out.deps;
+      program = out.program;
     }
     // highlight() → the prose/code SEGMENTS the viewer renders — run DIRECTLY (the
     // dependency-free module above, the very code the compiler bundle re-exports);
@@ -79,7 +80,7 @@ async function run() {
     const viewedDir = new URL(".", target).href;    // the file's own directory — the island child's data/asset base
     document.title = (relPath.split("/").pop() || "source") + " — source";
     await bootHost({
-      source, deps,
+      program,
       // The `?viewer=reader|source|edit` request selects the opening tab; the host
       // translates it into the viewer's INITIAL location (docs/system-design/location.md §4).
       // A real URL fragment still wins, so a shared `…#source` deep link holds.
@@ -94,8 +95,8 @@ async function run() {
       // the live-edit mode's recompile seam — the warm-loading client above,
       // reporting failure as `{ report }` so the viewer's diagnostics pane fills
       compile: async (s) => {
-        const o = await (await clientP).compile(s);
-        return o.source ? { source: o.source, deps: o.deps } : { report: o.report || "compile failed" };
+        const o = await (await clientP).compileProgram(s);
+        return o.program ? { program: o.program } : { report: o.report || "compile failed" };
       },
     });
   } catch (e) {

@@ -84,6 +84,7 @@ export function createToolchain(platformDir) {
   return {
     compile: (source, opts) => call("compile", { source, opts }),
     compileTracked: (source, opts) => call("compileTracked", { source, opts }),
+    compileProgram: (source, opts) => call("compileProgram", { source, opts }),
     extract: (source, originDir, opts = {}) => call("extract", { source, originDir, ...opts }),
     production: (args) => call("production", { args }),
     fresh: (closure, props) => call("fresh", { closure, props }),

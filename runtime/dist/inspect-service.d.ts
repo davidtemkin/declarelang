@@ -1,3 +1,4 @@
+import type { Program } from "./parser.js";
 import { App } from "./view.js";
 import { type ValueSlice } from "./inspect.js";
 import { clearTrace, stopTrace, tracing, type TraceSettle } from "./wake-trace.js";
@@ -14,6 +15,7 @@ type Origin = () => {
     x: number;
     y: number;
 };
+export declare function provideEvalParser(parse: (src: string) => Program): void;
 export declare function setInspectionTarget(app: App | null, origin?: Origin): void;
 export declare function inspectionOrigin(): {
     x: number;

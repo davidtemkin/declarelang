@@ -159,7 +159,7 @@ await (async () => {
       const r = await fetch(`http://127.0.0.1:${port}/compile?main=${encodeURIComponent("/apps/lzx-weather/lzx-weather.declare")}`,
         { method: "POST", body: "App [ label: Text [ text = \"hi\" ] ]" });
       const j = await r.json();
-      assert.ok(j.source, "expected a compiled source back");
+      assert.ok(j.program && j.program.root, "expected a compiled PROGRAM back — the object form every host instantiates");
     });
     // ── identity: the server says who it is, everywhere a page or a tool can ask ──
     // (field report 2026-08-21: a page faithfully serving a different checkout's
@@ -186,7 +186,7 @@ await (async () => {
       const r = await fetch(`http://127.0.0.1:${port}/compile?main=${encodeURIComponent(main)}`,
         { method: "POST", body: "App [ label: Text [ text = \"stamped\" ] ]" });
       const j = await r.json();
-      assert.ok(j.source);
+      assert.ok(j.program && j.program.root, "the /compile answer is the program object");
       assert.ok(!Number.isNaN(Date.parse(j.build.at)));
       assert.equal(j.build.main, D("apps/lzx-weather/lzx-weather.declare"));
       assert.ok(Array.isArray(j.build.files) && j.build.files.every((f) => f !== j.build.main), "files are the OTHER files the compile read");

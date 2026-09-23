@@ -269,6 +269,13 @@ export interface Program {
      *  library, or a developer class alike (one declaration, all three backends).
      *  Additive to what the tree + body scan already discover. */
     uses: string[];
+    /** The `islands [ … ]` list: the PROGRAMS this one may mount as an
+     *  `AppIsland` whose `program` is computed (a name static analysis can't
+     *  read), in the same currency an `AppIsland.program` value speaks — a name
+     *  or a relative path under the program's `demos/`. A production build
+     *  compiles each ahead of time and ships it beside the app, so the island
+     *  mounts with no compiler; a literal `program = "x"` needs no entry. */
+    islands: string[];
     /** Top-level `script { … }` blocks, in source order. */
     scripts: ScriptBlock[];
     /** `script [ "file.ts" ]` directives — script from a FILE, spelled like
@@ -302,6 +309,8 @@ export interface Library {
     /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
      *  source-merge folds these into the program's `uses`. */
     uses: string[];
+    /** …and its own `islands [ … ]`, folded the same way. */
+    islands: string[];
     /** A library may declare its own `script { … }` helpers; the source-merge
      *  folds these into the program's blocks, in include order. */
     scripts: ScriptBlock[];

@@ -257,7 +257,9 @@ inline block refuses `export` — its top-level names are already visible to eve
 Imports resolve at the build toolchain's bundler; the in-browser compile refuses them by name. **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
 a component the build would otherwise drop, for when your code constructs it by name at runtime
-(`createView`, §7). **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
+(`createView`, §7). **`islands [ "name", … ]`** names the programs an `AppIsland` may mount when
+its `program` is computed — a production build compiles each ahead and ships it beside the app,
+so the island mounts with no compiler; a literal `program = "name"` needs no entry. **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
 literal values — a token record, and the style of a run of text with no view (§9).
 
 ### `classroot`

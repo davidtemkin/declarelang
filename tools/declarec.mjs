@@ -20,6 +20,7 @@ import { gzipSync } from "node:zlib";
 import { stripSource } from "./internal/error-codes.mjs";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
+import { CHECK_STUB_SRC } from "./internal/stubs.mjs";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { THEME_PRESET_NAMES } from "../runtime/dist/themes.js";
 
@@ -35,6 +36,7 @@ import { hashValidator } from "../compiler/dist/compile-node.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const RUNTIME = resolve(HERE, "../runtime/dist"); // the run-path lives here
+const BROWSER = resolve(HERE, "../browser");      // the web host (boot-uniform, host-client) a SITE module carries
 const TABLES = ["TAGS", "LAYOUTS", "LAYOUT_BASES", "DATA", "ANIMATORS", "ANIMATOR_GROUPS", "SOURCES", "STATES"];
 
 /** Generate a SLIM registry.js — the name→class tables carrying ONLY the
@@ -104,7 +106,7 @@ const ELIDE_EMPTY = new Set(["attrs", "decls", "methods", "children", "params",
 const ELIDE_FALSE = new Set(["hex", "many", "prevailing", "readOnly", "external", "entry"]);
 // Exported for test/hydrate.test.mjs — the round-trip invariant must exercise
 // THIS replacer, never a copy that could drift from it.
-export { compactValue, ELIDE_FALSE };
+export { compactValue, ELIDE_FALSE, minifyBodies };
 function compactValue(key, value) {
   if (value === false && ELIDE_FALSE.has(key)) return undefined;
   if (value === null && (key === "name" || key === "def")) return undefined;
@@ -115,6 +117,50 @@ function compactValue(key, value) {
 const shortHash = (buf) => createHash("sha256").update(buf).digest("hex").slice(0, 8);
 const kb = (n) => (n / 1024).toFixed(1) + " KB";
 const gz = (s) => gzipSync(Buffer.from(s)).length;
+
+/** THE ISLANDS — the programs this app can mount as an `AppIsland`, compiled
+ *  AHEAD and shipped beside it (hosting.md, model 1: a build runs what it was
+ *  built with, and carries no compiler). Two sources name them: an island
+ *  whose `program` is a LITERAL, found in the tree; and the top-level
+ *  `islands [ "name", … ]` list, for islands whose `program` is computed and
+ *  so unreadable to a build. Each name is spelled as `AppIsland.program`
+ *  spells it — a name or a relative path, resolved from the host program's
+ *  `demos/` folder (host-client sourceFor) — and compiles as its own file, so
+ *  its includes resolve beside it. Returns one entry per distinct name:
+ *  the compiled, compacted program and the components it needs. */
+async function buildIslands(program, originDir) {
+  const names = new Set(program.islands ?? []);
+  const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+  const isIsland = (tag) => {
+    const seen = new Set();
+    let t = tag;
+    while (t !== null && t !== undefined && !seen.has(t)) { if (t === "AppIsland") return true; seen.add(t); t = bases.get(t) ?? null; }
+    return false;
+  };
+  const walk = (el) => {
+    if (isIsland(el.tag)) {
+      const a = (el.attrs ?? []).find((x) => x.name === "program");
+      if (a !== undefined && a.value?.kind === "string" && a.value.value !== "" && !a.value.value.startsWith("__")) names.add(a.value.value);
+    }
+    for (const c of el.children ?? []) walk(c);
+  };
+  walk(program.root);
+  for (const c of program.classes) walk(c.body);
+  const out = [];
+  for (const name of names) {
+    if (originDir === undefined) throw new Error(`islands: this build has no source directory to resolve '${name}' against — build from a file (declarec <app.declare>)`);
+    const file = resolve(originDir, "demos", name + ".declare");
+    if (!existsSync(file)) throw new Error(`islands: '${name}' names no program — expected ${relative(originDir, file)} (a name or a relative path, from the program's demos/ folder, as AppIsland.program spells it)`);
+    const src = await readFile(file, "utf8");
+    const built = await compileProgram(src, { originDir: dirname(file), stripPos: true, mainId: file });
+    if (built.program === null) throw new Error(`islands: '${name}' did not compile:\n${built.report}`);
+    await minifyBodies(built.program);
+    const programJson = JSON.parse(JSON.stringify(built.program, compactValue));
+    const contents = JSON.stringify(programJson);
+    out.push({ name, key: shortHash(contents), contents, usedComponents: built.usedComponents });
+  }
+  return out;
+}
 
 /** Produce the deployable artifacts (in memory) for one app source.
  *  Returns { ok, errors, files: [{name, contents}], program, sizes }.
@@ -149,6 +195,12 @@ async function precompileBodies(program) {
       if (/^[A-Za-z_$][\w$]*$/.test(id)) scriptNames.push(id);
     }
   }
+  // A program's own `theme Name [ … ]` records and `style` bundles are in body
+  // scope BY NAME, through the same script scope (instantiate.ts installs
+  // each before any body compiles), so the prelude unpacks them as it does a
+  // script's bindings — a body reading `Faces.helvetica` resolves the theme.
+  for (const t of program.themes ?? []) if (!scriptNames.includes(t.name)) scriptNames.push(t.name);
+  for (const s of program.styles ?? []) if (!scriptNames.includes(s.name)) scriptNames.push(s.name);
   if (scriptNames.some((n) => helpers.includes(n))) return null;   // the runtime's prelude would reject it too
   const prelude = `const { ${helpers.join(", ")} } = $d;` + (scriptNames.length > 0 ? ` const { ${scriptNames.join(", ")} } = $s;` : "");
   const parses = (params, body) => { try { new Function("$d", "$s", ...params, `"use strict"; ${prelude} ${body}`); return true; } catch { return false; } };
@@ -248,6 +300,11 @@ export async function buildProduction(source, opts = {}) {
   // thousands of times — empty member arrays, null names/defaults, false
   // flags. The entry's hydrateProgram restores the structural fields at boot;
   // the boolean flags need no restoring (absence already reads as false).
+  // The islands' programs, compiled ahead (buildIslands): shipped beside the
+  // app as programs/<hash>.json, loaded when an island first names one.
+  const tenants = await buildIslands(built.program, opts.originDir);
+  const hosts = !!opts.hosts || tenants.length > 0;
+  const alsoUses = [...(opts.alsoUses ?? []), ...tenants.flatMap((t) => t.usedComponents)];
   if (!opts.debug) await minifyBodies(built.program);
   // PRECOMPILED BODIES (on by default; opts.precompile === false ships text):
   // every `{ }` body, method body and script block leaves as a FUNCTION in the
@@ -265,18 +322,27 @@ export async function buildProduction(source, opts = {}) {
   // shipped `image.js` and `text-input.js` to apps that name neither, undoing
   // slim-registry's correct exclusion through a second door. The dev path still
   // imports index.js, which imports services.js, so nothing there changes.
+  // THE BUILD IS A PAGE. The program in hand, booted through the page boot
+  // every host runs (browser/boot-page.js): the app-relative data and asset
+  // base, the host client — the location↔history mirror (Back, the URL),
+  // islands, the page title. A program that could not answer Back or mount an
+  // island would not be a smaller build; it would be a broken one. Nothing of
+  // the distro rides: no compiler, no compiler loader, no live edit, no
+  // service worker, no launcher — a package runs what it was built with
+  // (hosting.md, the three models). The module's default export IS the page
+  // boot with the program bound; the emitted page calls it as a site stub does.
   const entry =
-    `import ${JSON.stringify(join(RUNTIME, "services.js"))};\n` +
-    `import { renderProgramAsync } from ${JSON.stringify(join(RUNTIME, "boot.js"))};\n` +
-    (precompiled === null ? "" : `import { providePrecompiled } from ${JSON.stringify(join(RUNTIME, "expr.js"))};\n${precompiled}`) +
+    `import { bootPage } from ${JSON.stringify(join(BROWSER, "boot-page.js"))};\n` +
     `import { hydrateProgram } from ${JSON.stringify(join(RUNTIME, "hydrate.js"))};\n` +
-    `import { ${backend.cls} } from ${JSON.stringify(join(RUNTIME, backend.file))};\n` +
+    (precompiled === null ? "" : `import { providePrecompiled } from ${JSON.stringify(join(RUNTIME, "expr.js"))};\n${precompiled}`) +
     `const PROGRAM = hydrateProgram(JSON.parse(${JSON.stringify(programJson)}));\n` +
-    `const host = document.getElementById("host");\n` +
-    // The host is the app's element: clear it before mount, so a `--crawler`
-    // build's embedded static block (crawler content, capabilities.md §5)
-    // is replaced by the real app the moment it runs.
-    `if (host) { host.replaceChildren(); renderProgramAsync(PROGRAM, host, new ${backend.cls}()); }\n`;
+    (tenants.length === 0
+      ? `export default (cfg) => bootPage({ ...cfg, program: PROGRAM, path: "build" });\n`
+      // the islands' programs, by the name the island spells (host-client's slot
+      // name): fetched beside this module the first time an island names one
+      : `const ISLANDS = ${JSON.stringify(Object.fromEntries(tenants.map((t) => [t.name, "programs/" + t.key + ".json"])))};\n` +
+        `const island = async (u, name) => { const rel = ISLANDS[name]; if (rel === undefined) return null; const r = await fetch(new URL(rel, import.meta.url)); return r.ok ? { program: hydrateProgram(await r.json()) } : null; };\n` +
+        `export default (cfg) => bootPage({ ...cfg, program: PROGRAM, path: "build", prewarm: island });\n`);
 
   // Registry slimming (on by default; opts.slim === false keeps the full set):
   // substitute the runtime's registry.js with a subset carrying only the
@@ -288,7 +354,9 @@ export async function buildProduction(source, opts = {}) {
     name: "slim-registry",
     setup(build) {
       build.onLoad({ filter: /[/\\]registry\.js$/ }, () => ({
-        contents: slimRegistrySource(built.usedComponents),
+        // `alsoUses`: components the page must carry for programs it HOSTS —
+        // a site page's islands run in its runtime (prewarm.mjs unions them)
+        contents: slimRegistrySource([...new Set([...built.usedComponents, ...alsoUses])]),
         loader: "js",
         resolveDir: RUNTIME,
       }));
@@ -304,6 +372,7 @@ export async function buildProduction(source, opts = {}) {
 import { notAboard } from "./errors.js";
 const ZERO = { x: 0, y: 0 };
 export function setInspectionTarget() {}
+export function provideEvalParser() {}
 export function inspectionOrigin() { return ZERO; }
 export function inspectionTarget() { return null; }
 export function evaluateIn() { return { ok: false, error: notAboard("evaluateIn", "inspector").message }; }
@@ -366,7 +435,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const c of el.children ?? []) walkBodies(c, fn);
   };
   const programFacts = (() => {
-    let themes = false, draw = false, filter = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false;
+    let themes = false, draw = false, filter = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false, liveEdit = false;
     // A SELECTOR plan (any non-string segment — index/slice/wildcard) in an
     // attribute path or an emitted body plan keeps the evaluator aboard.
     const planful = (v) => v != null && v.kind === "path" && Array.isArray(v.plan) && v.plan.some((s) => typeof s !== "string");
@@ -382,6 +451,11 @@ export const Inspect = new Proxy({ ready: () => false }, {
       for (const c of el.children ?? []) walkSel(c);
     };
     const roots = [built.program.root, ...built.program.classes.map((c) => c.body)];
+    // LIVE EDITS are a feature of the programs that publish them (an app writing
+    // `liveSource`/`liveCard`, or hosting an Editor): only such a build carries
+    // the live-edit module; every other ships the no-op stand-in.
+    for (const root of roots) walkBodies(root, (src) => { if (/\bliveSource\b|\bliveCard\b/.test(src)) liveEdit = true; });
+    if (built.usedComponents.includes("Editor")) liveEdit = true;
     // Any component the program can construct whose RUNTIME class makes itself
     // a tab stop without the source saying so (text-input.ts sets `focusable`
     // at attach). Everything else declares focusability in source, which the
@@ -565,7 +639,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
       for (const c of el.children ?? []) walkChange(c);
     };
     for (const r of roots) walkChange(r);
-    return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
+    return { usesLiveEdit: liveEdit, usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
       usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces, usesChangeEvent: changeEvent,
       usesRichText: richText };
   })();
@@ -595,12 +669,8 @@ export const clock = {};
   // carries the schema half instantiate really needs — so production ships
   // throwing stand-ins. Every name any bundled module imports must exist
   // (esbuild resolves named imports and re-exports even when unused).
-  const checkStub = ["check", "checkAttr", "checkMethod", "checkDecl", "checkComponentValue",
-    "checkThemeRecord", "checkStyleDecls", "programSchemas", "withDecls",
-    "manyPathOf", "coerceToken", "cssAttributeHint"]
-    .map((n) => `export function ${n}() { throw notAboard("${n}", "checker"); }`)
-    .join("\n") + "\n";
-  const checkStubSrc = `import { notAboard } from "./errors.js";\n` + checkStub;
+  // the checker's stand-in is shared with the distro's boot build (stubs.mjs)
+  const checkStubSrc = CHECK_STUB_SRC;
   // The focus + keyboard services (focus.js, keys.js — ~5 KB minified together).
   // boot.ts wires them for EVERY app (Focus.setRoot, Keys.listen, deliverKeys),
   // which is why they shipped everywhere; an app with nothing focusable, no key
@@ -787,15 +857,33 @@ export function untrackNode() {}
 export function fireChanges() { return false; }
 export function endChangeChain() {}
 `;
+  // The Inspector's wiring (browser/inspector-boot.js: ⌥⌘D, ?inspector) is dev
+  // tooling — it compiles the Inspector app with the compiler bundle and reads
+  // its subject through the Inspect service, which a production build stubs. A
+  // keystroke that downloads a megabyte to throw on its first query is not a
+  // feature; --debug keeps it.
+  const inspectorBootStub = `export async function openInspector() {}
+export function closeInspector() {}
+export function originOfElement() { return undefined; }
+export function wireInspector() {}
+`;
+  const canvasBackendStub = `import { notAboard } from "./errors.js";
+export class CanvasBackend { constructor() { throw notAboard("CanvasBackend", "unused"); } }
+`;
   const stubFor = (name, filterRe, contents) => ({
     name,
     setup(build) {
       build.onLoad({ filter: filterRe }, () => ({ contents, loader: "js", resolveDir: RUNTIME }));
     },
   });
+  // A page that HOSTS other programs (opts.hosts — a site page with islands)
+  // keeps every fact-gated module: the facts below are this program's, and
+  // a child it mounts may need what this one never names. The checker and
+  // the bridge still go — a hosted program arrives checked, like the host.
   const factPlugins = opts.debug ? [] : [
     stubFor("slim-check", /[/\\]check\.js$/, checkStubSrc),
     stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub),
+    ...(hosts ? [] : [
     stubFor("slim-datapath", /[/\\]datapath\.js$/, datapathStub),
     ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
     ...(programFacts.usesDraw ? [] : [stubFor("slim-draw", /[/\\]draw\.js$/, drawStub)]),
@@ -819,12 +907,40 @@ export function endChangeChain() {}
     ...(programFacts.usesDrawText ? [] : [stubFor("slim-draw-text", /[/\\]draw-text\.js$/, drawTextStub)]),
     ...(programFacts.usesChangeEvent ? [] : [stubFor("slim-change-event", /[/\\]change-event\.js$/, changeEventStub)]),
     ...(programFacts.usesRichText ? [] : [stubFor("slim-dom-rich", /[/\\]dom-rich\.js$/, domRichStub)]),
+    ]),
+  ];
+  // The page host's two substitutions: the Inspector's wiring (above), and the
+  // backend the page does not render with — host-client names both, the build
+  // ships one. The host imports the runtime through runtime/host-api.js, so
+  // nothing pins the parser or the checker (test/boot-bundle.test.mjs).
+  // A PACKAGE NEVER COMPILES (hosting.md, model 1): the compiler client is a
+  // stand-in that says so, and the page boot turns "no artifact, no compiler"
+  // into a reported error rather than a retry. Live editing rides only a build
+  // whose program publishes edits (programFacts.usesLiveEdit).
+  const compilerClientStub = `export const COMPILER_ABOARD = false;
+const gone = () => Promise.reject(new Error("the compiler is not aboard a production build — a build runs what it was built with (an island's program is compiled ahead: islands [ … ])"));
+export function loadCompiler() { return gone(); }
+export function loadCompilerInline() { return gone(); }
+export function ensureLibrary(c) { return Promise.resolve(c); }
+export function loadLibraryOnce() { return Promise.resolve({}); }
+`;
+  const liveEditStub = `export function installLiveEdit() { return { watchAll() {}, watchChild() {} }; }\n`;
+  const browserStub = (name, filterRe, contents) => ({
+    name, setup(b) { b.onLoad({ filter: filterRe }, () => ({ contents, loader: "js", resolveDir: BROWSER })); },
+  });
+  const hostPlugins = [
+    browserStub("slim-compiler-client", /[/\\]browser[/\\]compiler-client\.js$/, compilerClientStub),
+    ...(programFacts.usesLiveEdit ? [] : [browserStub("slim-live-edit", /[/\\]browser[/\\]live-edit\.js$/, liveEditStub)]),
+    ...(opts.debug ? [] : [stubFor("slim-inspector-boot", /[/\\]browser[/\\]inspector-boot\.js$/, inspectorBootStub)]),
+    ...(canvas ? [] : [stubFor("slim-canvas-backend", /[/\\]canvas-backend\.js$/, canvasBackendStub)]),
   ];
 
   const result = await esbuild.build({
     stdin: { contents: entry, resolveDir: RUNTIME, loader: "js", sourcefile: name + ".entry.js" },
     bundle: true, minify: true, format: "esm", target: "es2020",
-    external: ["*kernel-js.js"],
+    // the compiler stays a lazy, external fetch (compiler-client) — a live edit's,
+    // never on the path to first paint
+    external: ["*kernel-js.js", "*declare-compiler.js"],
     // no runtime-development switches, no native-kernel binding (build-flags.d.ts)
     define: {
       // `opts.marks` keeps the dev switches so the boot stamps wall-clock marks —
@@ -839,7 +955,7 @@ export function endChangeChain() {}
       __DECLARE_JS_KERNEL__: "false",   // a production build carries no debug kernel, not even its switch
     },
     write: false, legalComments: "none", metafile: true,
-    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...factPlugins, ...(opts.debug ? [] : [errorCodePlugin])],
+    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...hostPlugins, ...factPlugins, ...(opts.debug ? [] : [errorCodePlugin])],
   });
   const appJs = result.outputFiles[0].text;
   const moduleName = `app.${shortHash(appJs)}.js`;
@@ -896,7 +1012,13 @@ export function endChangeChain() {}
     `<style>html,body{margin:0;padding:0;height:100%}</style>\n` +
     `<div id="host">${staticBlock}</div>\n` +
     clearStatic +
-    `<script type="module" src="./${moduleName}"></script>\n`;
+    // the page boots exactly as a site stub does (browser/serve-core.js): `main`
+    // names the program's own directory — its assets and data resolve beside
+    // it — and the module's boot() has the program in hand
+    `<script type="module">\n` +
+    `  import boot from "./${moduleName}";\n` +
+    `  boot({ main: "./${name}.declare"${canvas ? ', backend: "CanvasBackend"' : ""}, demos: [] });\n` +
+    `</script>\n`;
 
   const sizes = {
     programRaw: programJson.length,
@@ -915,7 +1037,9 @@ export function endChangeChain() {}
     // --debug, which keeps the sentences). `declare-help E42` reads the
     // committed catalog; this rides out for a caller that wants the build's own.
     errorCodes: errorCatalog,
-    files: [{ name: "index.html", contents: html }, { name: moduleName, contents: appJs }],
+    files: [{ name: "index.html", contents: html }, { name: moduleName, contents: appJs },
+            ...tenants.map((t) => ({ name: "programs/" + t.key + ".json", contents: t.contents }))],
+    islands: tenants.map((t) => ({ name: t.name, file: "programs/" + t.key + ".json", gzip: gz(t.contents) })),
   };
 }
 
@@ -951,7 +1075,7 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
-  for (const f of out.files) await writeFile(join(outDir, f.name), f.contents);
+  for (const f of out.files) { await mkdir(dirname(join(outDir, f.name)), { recursive: true }); await writeFile(join(outDir, f.name), f.contents); }
   const assets = srcDir ? await copyAssets(srcDir, outDir) : [];
   const moduleName = out.files.find((f) => f.name.startsWith("app."))?.name;
   if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets, metafile: out.metafile });

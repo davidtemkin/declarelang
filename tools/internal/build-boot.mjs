@@ -6,12 +6,22 @@
 // IMMUTABLE within a platform build (BUILD_ID gates it wholesale; nothing here
 // is ever probed for freshness). This bundles that fixed graph the way
 // build-compiler.mjs bundles the compiler: one committed, minified ES module —
-// bundles/declare-boot.js (~23 KB gz) — so a page makes ONE platform
-// request instead of fifty. Bundling is a TRANSPORT change only: the same
-// modules, same behavior; browser/*.js stay in the tree for unbundled use (the dev
-// server's pages, tests) and MUST be rebundled here after any runtime or web
-// client change (the same rhythm as the compiler bundle; the commit-hook stamp
-// hashes bundles, so a stale bundle can't ship silently).
+// bundles/declare-boot.js — so a page makes ONE platform request instead of
+// fifty. Bundling is a TRANSPORT change only: the same modules, same behavior;
+// browser/*.js stay in the tree for unbundled use (the dev server's pages, tests)
+// and MUST be rebundled here after any runtime or web client change (the same
+// rhythm as the compiler bundle; the commit-hook stamp hashes bundles, so a
+// stale bundle can't ship silently).
+//
+// WHAT IS NOT IN IT. The boot never compiles: every program it instantiates
+// arrives as a PROGRAM OBJECT — parsed, checked and stamped trusted by the
+// compiler (compiler/src/program-build.ts): a prewarmed artifact, the dev
+// server's /compile, the in-browser worker's compileProgram. So the parser,
+// the checker and the teaching text ride in the lazily fetched compiler bundle
+// and nowhere here — the host imports the runtime through runtime/host-api.js,
+// and the checker is the same stand-in a production build ships
+// (tools/internal/stubs.mjs). test/boot-bundle.test.mjs holds the line, from
+// this file's own build options.
 //
 // Two runtime-resolved references survive bundling by construction:
 //   • the compiler bundle stays LAZY (external) — the ~1 MB gz compiler is
@@ -25,87 +35,108 @@
 // writes bundles/declare-boot.js + bundles/compile-worker.js
 
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdirSync, copyFileSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
+import { CHECK_STUB_SRC } from "./stubs.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 const OUT_DIR = path.join(ROOT, "bundles");
 const OUT = path.join(OUT_DIR, "declare-boot.js");
+const RUNTIME = path.join(ROOT, "runtime/dist");
 
-mkdirSync(OUT_DIR, { recursive: true });
+/** The boot bundle's esbuild options — exported so the bundle test builds
+ *  with exactly these and reads the metafile, rather than a copy that could
+ *  drift. `overrides` layers on top (a test passes `write: false, metafile: true`). */
+export function bootBuildOptions(overrides = {}) {
+  return {
+    entryPoints: [path.join(ROOT, "browser/boot-uniform.js")],
+    // BUILD FLAGS (runtime/src/build-flags.d.ts): no runtime-development switches in
+    // a shipped bundle, and no native-kernel binding in a browser.
+    define: {
+      __DECLARE_DEV_SWITCHES__: "false", __DECLARE_NATIVE_KERNEL__: "false",
+      // the kernel's bytes ride INSIDE the bundle (base64): one request, nothing
+      // before first paint waits on a second fetch (see declarec.mjs for the
+      // measurement that decided it)
+      __DECLARE_INLINE_KERNEL__: "true",
+    },
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: "es2022",
+    minify: true,
+    // ⚠ KEEP CLASS NAMES. The runtime labels constraints and diagnostics with
+    // `this.constructor.name` (view.ts `.draw`, markdown.ts `.render`, state.ts's
+    // gated-state error, stylesheet.ts, editor.ts), and the Inspector shows that
+    // name as a node's type. Minified without this, every one of them collapses
+    // to an esbuild identifier: MEASURED on the calendar, the Inspector's root
+    // row read `n` and its first child `cn`. The tree's other type labels survive
+    // only because they come from parsed-program DATA rather than a JS
+    // identifier — so the degradation is silent and partial, which is worse than
+    // total. Costs ~10 KB. Nothing keys a lookup on a JS name (every `.name` in
+    // the runtime is a parsed-program field), so this buys legibility, not
+    // correctness. The mac bundle carries the same flag for the same reason.
+    keepNames: true,
+    sourcemap: process.env.BOOT_SOURCEMAP ? true : false,
+    legalComments: "none",
+    outfile: OUT,
+    // The compiler bundle is fetched lazily on the slow path — never inlined here.
+    // The JAVASCRIPT KERNEL likewise: it is imported dynamically (reactive.ts
+    // loadJsKernel) and rides beside the bundle, so a page pays nothing for it and
+    // anyone debugging can switch onto it — breakpoints in `settle`, named frames
+    // in the profiler — by setting `__declareKernelJS` and reloading.
+    external: ["*declare-compiler.js", "*kernel-js.js"],
+    // THE CHECKER IS NOT ABOARD (see the header): the same stand-in a
+    // production build ships, from the one shared text.
+    plugins: [{
+      name: "slim-check",
+      setup(b) {
+        b.onLoad({ filter: /[/\\]runtime[/\\]dist[/\\]check\.js$/ }, () => ({ contents: CHECK_STUB_SRC, loader: "js", resolveDir: RUNTIME }));
+      },
+    }],
+    ...overrides,
+  };
+}
 
-await build({
-  entryPoints: [path.join(ROOT, "browser/boot-uniform.js")],
-  // BUILD FLAGS (runtime/src/build-flags.d.ts): no runtime-development switches in
-  // a shipped bundle, and no native-kernel binding in a browser.
-  define: {
-    __DECLARE_DEV_SWITCHES__: "false", __DECLARE_NATIVE_KERNEL__: "false",
-    // the kernel's bytes ride INSIDE the bundle (base64): one request, nothing
-    // before first paint waits on a second fetch (see declarec.mjs for the
-    // measurement that decided it)
-    __DECLARE_INLINE_KERNEL__: "true",
-  },
-  bundle: true,
-  format: "esm",
-  platform: "browser",
-  target: "es2022",
-  minify: true,
-  // ⚠ KEEP CLASS NAMES. The runtime labels constraints and diagnostics with
-  // `this.constructor.name` (view.ts `.draw`, markdown.ts `.render`, state.ts's
-  // gated-state error, stylesheet.ts, editor.ts), and the Inspector shows that
-  // name as a node's type. Minified without this, every one of them collapses
-  // to an esbuild identifier: MEASURED on the calendar, the Inspector's root
-  // row read `n` and its first child `cn`. The tree's other type labels survive
-  // only because they come from parsed-program DATA rather than a JS
-  // identifier — so the degradation is silent and partial, which is worse than
-  // total. Costs ~10 KB. Nothing keys a lookup on a JS name (every `.name` in
-  // the runtime is a parsed-program field), so this buys legibility, not
-  // correctness. The mac bundle carries the same flag for the same reason.
-  keepNames: true,
-  sourcemap: process.env.BOOT_SOURCEMAP ? true : false,
-  legalComments: "none",
-  outfile: OUT,
-  // The compiler bundle is fetched lazily on the slow path — never inlined here.
-  // The JAVASCRIPT KERNEL likewise: it is imported dynamically (reactive.ts
-  // loadJsKernel) and rides beside the bundle, so a page pays nothing for it and
-  // anyone debugging can switch onto it — breakpoints in `settle`, named frames
-  // in the profiler — by setting `__declareKernelJS` and reloading.
-  external: ["*declare-compiler.js", "*kernel-js.js"],
-});
+async function main() {
+  mkdirSync(OUT_DIR, { recursive: true });
+  await build(bootBuildOptions());
 
-// The worker rides ALONGSIDE the bundle (see header).
-copyFileSync(path.join(ROOT, "browser/compile-worker.js"), path.join(OUT_DIR, "compile-worker.js"));
+  // The worker rides ALONGSIDE the bundle (see header).
+  copyFileSync(path.join(ROOT, "browser/compile-worker.js"), path.join(OUT_DIR, "compile-worker.js"));
 
-// The RASTER worker (runtime/src/raster-worker.ts) — the canvas backend's
-// off-main-thread rasterizer, spawned by raster-client.ts via
-// new URL("declare-raster-worker.js", import.meta.url) from the bundle's own
-// directory. Its own small bundle: draw.ts and what it imports, nothing else.
-const RASTER_OUT = path.join(OUT_DIR, "declare-raster-worker.js");
-await build({
-  entryPoints: [path.join(ROOT, "runtime/dist/raster-worker.js")],
-  bundle: true,
-  format: "esm",
-  platform: "browser",
-  target: "es2022",
-  minify: true,
-  keepNames: true,
-  legalComments: "none",
-  outfile: RASTER_OUT,
-});
+  // The RASTER worker (runtime/src/raster-worker.ts) — the canvas backend's
+  // off-main-thread rasterizer, spawned by raster-client.ts via
+  // new URL("declare-raster-worker.js", import.meta.url) from the bundle's own
+  // directory. Its own small bundle: draw.ts and what it imports, nothing else.
+  const RASTER_OUT = path.join(OUT_DIR, "declare-raster-worker.js");
+  await build({
+    entryPoints: [path.join(ROOT, "runtime/dist/raster-worker.js")],
+    bundle: true,
+    format: "esm",
+    platform: "browser",
+    target: "es2022",
+    minify: true,
+    keepNames: true,
+    legalComments: "none",
+    outfile: RASTER_OUT,
+  });
 
-// THE JAVASCRIPT KERNEL, beside the bundle and UNMINIFIED: it exists to be read
-// and stepped through, so minifying it would defeat the one thing it is for.
-await build({
-  entryPoints: [path.join(ROOT, "runtime/dist/kernel-js.js")],
-  bundle: true, format: "esm", platform: "browser", target: "es2022",
-  minify: false, keepNames: true, legalComments: "none",
-  outfile: path.join(OUT_DIR, "kernel-js.js"),
-});
+  // THE JAVASCRIPT KERNEL, beside the bundle and UNMINIFIED: it exists to be read
+  // and stepped through, so minifying it would defeat the one thing it is for.
+  await build({
+    entryPoints: [path.join(ROOT, "runtime/dist/kernel-js.js")],
+    bundle: true, format: "esm", platform: "browser", target: "es2022",
+    minify: false, keepNames: true, legalComments: "none",
+    outfile: path.join(OUT_DIR, "kernel-js.js"),
+  });
 
-const raw = statSync(OUT).size;
-const gz = gzipSync(readFileSync(OUT)).length;
-console.log(`build-boot: wrote bundles/declare-boot.js (+ compile-worker.js, declare-raster-worker.js ${(statSync(RASTER_OUT).size / 1024).toFixed(0)} KB)`);
-console.log(`  ${(raw / 1024).toFixed(0)} KB raw · ${(gz / 1024).toFixed(0)} KB gzipped`);
+  const raw = statSync(OUT).size;
+  const gz = gzipSync(readFileSync(OUT)).length;
+  console.log(`build-boot: wrote bundles/declare-boot.js (+ compile-worker.js, declare-raster-worker.js ${(statSync(RASTER_OUT).size / 1024).toFixed(0)} KB)`);
+  console.log(`  ${(raw / 1024).toFixed(0)} KB raw · ${(gz / 1024).toFixed(0)} KB gzipped`);
+}
+
+if (process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url) await main();

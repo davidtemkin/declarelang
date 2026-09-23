@@ -10,7 +10,8 @@
 import { phasesStart, phasesStop } from "./phase-timer.js";
 import { armFirstFrame } from "./boot-deferrals.js";
 import { instantiate } from "./instantiate.js";
-import { App, View } from "./view.js";
+import { App, View, withHostProvides } from "./view.js";
+import { applyDeps } from "./deps.js";
 import { fontsReady } from "./font-value.js";
 import { setAppAssetBase } from "./asset-base.js";
 import { setAppDataBase } from "./data.js";
@@ -504,11 +505,39 @@ export function renderProgram(program: Program, host: HTMLElement, backend: Rend
   return root;
 }
 
+/** Instantiate a compiled PROGRAM (the parsed, checked, deps-applied shape a
+ *  build ships — declarec's artifact, a prewarmed `run` entry, the in-browser
+ *  compiler's compileProgram) into its App tree, with no parse and no check:
+ *  the program-object twin of index.ts `build(source)`, for a host that never
+ *  carries the parser. `deps` zips an extracted dependency list on when the
+ *  program does not carry one already; `provides` are the topmost host's
+ *  values, there from the first evaluation. */
+export function buildProgram(program: Program, opts: { deps?: readonly (readonly string[])[]; provides?: Readonly<Record<string, unknown>> } = {}): App {
+  if (opts.deps !== undefined) applyDeps(program, opts.deps);
+  const root = withHostProvides(opts.provides, () => instantiate(program));
+  if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
+  return root;
+}
+
+/** What renderProgramAsync takes beside the program: the program's own
+ *  directory for its relative bitmaps and faces (`assetBase`), the host's
+ *  provided values, a dependency list to zip on, and the host's chance to
+ *  reach the app before its first settle (`beforeMount` — an island links
+ *  its boundary there). A bare string is the assetBase alone. */
+export type RenderProgramOptions = string | null | undefined | {
+  assetBase?: string | null;
+  deps?: readonly (readonly string[])[];
+  provides?: Readonly<Record<string, unknown>>;
+  beforeMount?: (app: App) => void;
+};
+
 /** Like renderProgram(), but first loads the program's own web `font` faces so
  *  first paint measures against the real metrics (mirrors renderAsync).
  *  `assetBase` states the program's own directory when the page is served from
  *  elsewhere — its relative bitmaps and faces resolve there (image.ts). */
-export async function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, assetBase?: string | null): Promise<App> {
+export async function renderProgramAsync(program: Program, host: HTMLElement, backend: RenderBackend, options?: RenderProgramOptions): Promise<App> {
+  const opts = typeof options === "object" && options !== null ? options : { assetBase: options ?? null };
+  const assetBase = opts.assetBase;
   // Wall-clock marks for the boot's parts (dev/profiling builds only; a shipped
   // build folds them out): kernel-wait, instantiate, fonts, mount.
   const perf = typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && typeof performance !== "undefined" && typeof performance.mark === "function";
@@ -518,9 +547,9 @@ export async function renderProgramAsync(program: Program, host: HTMLElement, ba
   await kernelReady();   // the reactive core (kernel.md): loaded once per host, before anything instantiates
   done("kernel-wait"); mark("instantiate");
   if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) phasesStart("construct, other");
-  const root = instantiate(program);
+  const root = buildProgram(program, { deps: opts.deps, provides: opts.provides });
   done("instantiate");
-  if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
+  opts.beforeMount?.(root);
   if (assetBase != null) {
     setAppAssetBase(root, assetBase);
     setAppDataBase(root, assetBase);   // data rides the same sibling rule, per app

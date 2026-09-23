@@ -141,6 +141,7 @@ export async function resolveIncludes(program, host, originDir) {
     // The keep-list folds across libraries too: a library declaring its own
     // `use [ … ]` contributes its dynamic deps to the merged program's list.
     const uses = [...program.uses];
+    const islands = [...program.islands];
     // A library's `script { … }` helpers travel with it, in include order — the
     // program's own blocks lead, then each library's, so a helper is defined
     // before anything that could reference it downstream.
@@ -229,6 +230,7 @@ export async function resolveIncludes(program, host, originDir) {
                 if (fold(f.name, f.pos, from))
                     fonts.push(f);
             uses.push(...lib.uses);
+            islands.push(...(lib.islands ?? []));
             scripts.push(...lib.scripts);
             // Its splice-ready source — script files spliced in and include
             // directives cut out, in ONE coordinate-safe pass — after its
@@ -239,7 +241,7 @@ export async function resolveIncludes(program, host, originDir) {
     };
     await walk(program.includes, originDir);
     return {
-        program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+        program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], islands: [...new Set(islands)], scripts, root: program.root },
         sources,
         sourceIds,
         errors,
@@ -326,6 +328,7 @@ export async function resolveAutoIncludes(program, root, host, visited) {
     // the keep-list folds here exactly as in resolveIncludes: an auto-pulled
     // library's `use [ … ]` (its by-name construction deps) joins the program's
     const uses = [...program.uses];
+    const islands = [...program.islands];
     const sources = [];
     const sourceIds = []; // parallel to `sources`, as in resolveIncludes
     // name → the file that declared it (main + explicit includes seed it). A
@@ -427,7 +430,7 @@ export async function resolveAutoIncludes(program, root, host, visited) {
         // `uses` is the FOLDED list — the root's plus every included library's
         // (returning the root's alone silently dropped a library's keep-list,
         // which broke by-name construction inside components).
-        program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+        program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], islands: [...new Set(islands)], scripts, root: program.root },
         sources,
         sourceIds,
         errors,

@@ -437,7 +437,7 @@ function analyze(tokens) {
     return body;
   }
 
-  // `include [ "a", … ]` / `use [ A, … ]` — entries are attr-like list items.
+  // `include [ "a", … ]` / `use [ A, … ]` / `islands [ "a", … ]` — entries are attr-like list items.
   function parseDirective(entry) {
     expect("ident", `'${entry}'`);
     tokens[idx()].role = "body";
@@ -468,6 +468,7 @@ function analyze(tokens) {
     for (;;) {
       if (at("include", "lb")) parseDirective("include");
       else if (at("use", "lb")) parseDirective("use");
+      else if (at("islands", "lb")) parseDirective("islands"); // `islands [ "name", … ]` — programs mounted as islands
       else if (at("class", "ident")) {
         p++;
         expect("ident", "the class's name");

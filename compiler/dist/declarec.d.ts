@@ -1,8 +1,6 @@
-import type { Closure } from "./closure.js";
 import type { CompileOptions } from "./compile.js";
-import { type Program } from "../../runtime/dist/parser.js";
-import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
-import type { DeclareError } from "../../runtime/dist/errors.js";
+import { type ProgramBuild } from "./program-build.js";
+export { usedComponentNames, stripPos, type ProgramBuild } from "./program-build.js";
 export interface DeclarecOptions extends CompileOptions {
     /** Drop `pos` source-offset fields from the shipped program. They exist only
      *  for error messages, which a precompiled (already-checked) app never emits
@@ -17,38 +15,6 @@ export interface DeclarecOptions extends CompileOptions {
      *  invalidates like a file change. */
     props?: Record<string, string>;
 }
-export interface ProgramBuild {
-    /** The instantiate-ready program, or null when the source did not compile. */
-    program: Program | null;
-    errors: readonly DeclareError[];
-    warnings: readonly DeclareError[];
-    /** The unified structured view + its rendered form, threaded VERBATIM from
-     *  the one compile() result (Compiled.diagnostics/report) — the CLI prints
-     *  `report`; nothing here re-renders. */
-    diagnostics: readonly Diagnostic[];
-    report: string;
-    /** The compile's dependency closure (closure.ts): the main file, every
-     *  include, every auto-included library file, plus the frozen build props —
-     *  THE freshness fact a cache checks (isUpToDate) to decide whether this
-     *  build is still current. Present even on failure (a failed compile's
-     *  closure says what to watch to retry). */
-    closure: Closure;
-    /** The built-in component NAMES this app can instantiate — the used-set a
-     *  production build keeps (∩ the runtime registry), dropping every other
-     *  component module (rich-text, etc.). Empty when the source did not compile. */
-    usedComponents: readonly string[];
-}
-/** The component NAMES a program may instantiate: its STATIC tree references
- *  (tags + class bases) ∪ any component a `{ }` body constructs BY NAME
- *  (`new Markdown()`, scanned via free-idents) ∪ the classes a LITERAL rich-text
- *  document names as inline-view tags ∪ the explicit `use [ … ]` keep-list.
- *  Sound because Declare has no reflective new-by-value: every construction path
- *  is a compile-time literal, so this set is complete (create-by-STRING — an
- *  `iconLeft = "TrashIcon"`, a fetched document — is what `use` covers). The
- *  scan vocabulary is the built-in registry plus the program's own class names,
- *  so only real component identifiers count — `Math`, `console`, locals, etc.
- *  are ignored, and a name shadowed by a local is (correctly) not free. */
-export declare function usedComponentNames(program: Program): string[];
 /** Compile a Declare source into a serializable, instantiate-ready program:
  *  resolve bare names + includes + typecheck (all the compiler's work), then
  *  parse the resolved source into the program the runtime's `renderProgram`

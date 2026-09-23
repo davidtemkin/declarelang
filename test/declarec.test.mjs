@@ -79,6 +79,64 @@ await test("a broken source reports errors and emits no program", async () => {
 });
 
 // ── full production build (calendar) ────────────────────────────────────────
+// THE BUILD IS A PAGE — the production build with the page host aboard, what
+// a deploy serves and what a site page's shell imports in place of the
+// uniform bundle. Its default export is the page boot with the program in
+// hand; the parser, the checker, the tooling, the distro's resolver and the
+// backend it does not render with are not aboard; the compiler stays an
+// external, lazy fetch for the page's live edits.
+await test("buildProduction carries the page host, the program, and no parser", async () => {
+  const src = readFileSync(resolve(HERE, "../apps/calendar/calendar.declare"), "utf8");
+  const out = await buildProduction(src, { name: "calendar", originDir: resolve(HERE, "../apps/calendar") });
+  assert.ok(out.ok, "build should succeed: " + (out.report ?? ""));
+  const js = out.files.find((f) => f.name.startsWith("app.")).contents;
+  assert.ok(!/parseProgram|programSchemas/.test(js), "compiler leaked into the production bundle");
+  assert.ok(/__declarePerf/.test(js), "the page boot (boot-page) is aboard");
+  assert.ok(!/serviceWorker/.test(js), "the distro's service-worker registration is not aboard a deploy build");
+  assert.ok(/pushState/.test(js), "the host client's history mirror is aboard");
+  assert.ok(/export\s*\{/.test(js), "the module exports boot()");
+  assert.ok(!/declare-raster-worker/.test(js), "the canvas backend is not aboard a DOM page");
+  assert.ok(!/declare-compiler\.js/.test(js) && !/compile-worker\.js/.test(js), "a package never compiles: no compiler bundle, no worker referenced");
+  // the page host reaches the runtime through host-api, never the barrel —
+  // test/boot-bundle.test.mjs holds the same line for the distro's boot
+  for (const file of ["boot-page.js", "host-client.js", "compiler-client.js"]) {
+    const text = readFileSync(resolve(HERE, "../browser", file), "utf8");
+    assert.ok(!/from "\.\.\/runtime\/dist\/index\.js"/.test(text), `browser/${file} imports the runtime barrel — use ../runtime/dist/host-api.js`);
+  }
+});
+
+// ISLANDS — a build compiles the programs its islands name and ships them
+// beside the app; a package never carries a compiler, and a computed name is
+// declared with `islands [ … ]`.
+await test("a build compiles its islands ahead into programs/ and carries no compiler", async () => {
+  const { mkdtempSync, mkdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(resolve(tmpdir(), "declarec-islands-"));
+  mkdirSync(resolve(dir, "demos"));
+  writeFileSync(resolve(dir, "demos", "tile.declare"), `App [ width = 80, height = 40, fill = tomato, Text [ x = 8, y = 8, text = "tile" ] ]`);
+  writeFileSync(resolve(dir, "demos", "note.declare"), `App [ width = 200, height = 120, m: Markdown [ width = 100%, text = "# note" ] ]`);
+  const src = `App [ width = 400, height = 300,
+    which: string = "note",
+    a: AppIsland [ x = 10, y = 10, width = 100, height = 60, program = "tile" ],
+    b: AppIsland [ x = 10, y = 90, width = 300, height = 160, program = { app.which } ],
+  ]`;
+  // the computed island is undeclared: the build refuses to guess
+  const out = await buildProduction("islands [ \"note\" ]\n" + src, { name: "host", originDir: dir });
+  assert.ok(out.ok, out.report);
+  const names = out.files.map((f) => f.name);
+  assert.equal(out.islands.length, 2, "one program per island name: the literal and the declared");
+  for (const i of out.islands) assert.ok(names.includes(i.file), `${i.name} ships as ${i.file}`);
+  const js = out.files.find((f) => f.name.startsWith("app.")).contents;
+  assert.ok(/programs\//.test(js), "the module knows its islands' files");
+  assert.ok(!/compile-worker\.js/.test(js) && !/declare-compiler\.js/.test(js), "no compiler client in a package");
+  // the tenant's components ride the host's registry: Markdown is the note's, not the host's
+  assert.ok(/class Markdown\b|Markdown/.test(js), "the union registry carries the tenant's Markdown");
+  assert.ok(!/watchChild\(childApp/.test(js) || /installLiveEdit\(\)\s*\{\s*return/.test(js), "no live-edit watcher in a build that publishes no edits");
+  // a name the build cannot find is a build error naming the fix
+  const bad = await buildProduction("islands [ \"nope\" ]\n" + src, { name: "host", originDir: dir }).catch((e) => e);
+  assert.ok(bad instanceof Error && /'nope' names no program/.test(bad.message), "an unknown island name fails the build with the reason");
+});
+
 await test("buildProduction emits a self-contained bundle in the expected size range", async () => {
   const src = readFileSync(resolve(HERE, "../apps/calendar/calendar.declare"), "utf8");
   const out = await buildProduction(src, { name: "calendar", originDir: resolve(HERE, "../apps/calendar") });
@@ -257,8 +315,17 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // child sized from a parent that has no size to give. The checker's placed-
   // attribute check is compile-time only and ships nothing; ResponsiveLayout's
   // align/offset is library code the calendar does not use.
+  //
+  // 113 → 121 KB (2026-09-22, the page host aboard): host-client (the URL and
+  // history mirror, islands, the title, the live-edit watch), boot-page (the
+  // data/asset base, the seeds, the live compile) and compiler-client (the lazy
+  // loader for the external compiler) — measured +4.4 KB gz, 13.9 KB raw, every
+  // module of it nameable. A build that could not answer Back or mount an
+  // island was never a smaller build; it was a broken one. The distro's
+  // resolver (boot-uniform, the service worker, the artifact ladder) stays out:
+  // a deployed app has nothing to resolve.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 113 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 121 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 
@@ -363,7 +430,9 @@ await test("--crawler embeds the extracted document in the host; the entry clear
   assert.ok(html.includes("<h1>Shipped</h1>"), "markdown serialized by class semantics");
   assert.ok(html.includes("<p>n = 2</p>"), "computed content EVALUATED at build time (headless settle)");
   const appJs = out.files.find((f) => f.name.startsWith("app.")).contents;
-  assert.ok(/replaceChildren/.test(appJs), "the boot entry clears the host before mount");
+  // the page boot (host-client bootHost) removes the block at mount, for any boot
+  // path that did not emit the pre-paint remover — belt and braces, in the bundle
+  assert.ok(/declare-static/.test(appJs), "the page boot clears the crawler block at mount");
   // The flag is frozen into the closure — a crawler flip invalidates a cached build.
   assert.equal(out.closure.props.crawler, "true");
   // And WITHOUT the flag, no block (the default page is unchanged).

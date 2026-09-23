@@ -38,6 +38,14 @@ changes. **`""` detaches the island** and nothing mounts, which is how a closed 
 stops paying for its tenant — and what bounds the recursion when a program embeds a
 view of itself.
 
+The tenant runs in the host page's runtime, as its own app. Where its compiled program
+comes from is the host's arrangement (hosting.md): on the distro, a prewarmed artifact or
+a compile; in a **production build**, an artifact `declarec` made ahead of time — for
+every island whose `program` is a literal, and for every name the program declares in a
+top-level `islands [ "name", … ]` when the value is computed. A build carries no
+compiler, so an island naming a program the build did not produce reports that, with the
+fix, rather than mounting nothing.
+
 ## slot
 The host's slot marker, derived from `program` — `run:<program>` — which is what the island host wires. Nothing to set by hand.
 */

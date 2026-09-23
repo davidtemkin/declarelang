@@ -12,8 +12,8 @@
 // inspected, which must stay fully usable while you inspect it.
 //
 // Relative imports, like every other boot module — subpath-portable.
-import { build, mountApp, fontsReady, settle, DomBackend, setInspectionTarget } from "../runtime/dist/index.js";
-import { loadCompiler, ensureLibrary } from "./compiler-client.js";
+import { buildProgram, mountApp, fontsReady, settle, DomBackend, setInspectionTarget, provideEvalParser, provideChecker } from "../runtime/dist/host-api.js";
+import { loadCompilerInline, ensureLibrary } from "./compiler-client.js";
 
 const ROOT = new URL("../", import.meta.url);
 
@@ -47,13 +47,16 @@ export async function openInspector(subject, origin = undefined) {
   // read the subject through the `Inspect` service on their very first run.
   setInspectionTarget(subject, origin);
 
+  // INLINE — the Inspector is the one host that needs the parser at run time
+  // (its evaluate strip reads view literals), and the inline client carries it;
+  // provided to the service before the Inspector's first evaluation.
   const [client, src] = await Promise.all([
-    loadCompiler().then(ensureLibrary),
+    loadCompilerInline().then(ensureLibrary).then((c) => { provideEvalParser(c.parseProgram); provideChecker(c.checker); return c; }),
     fetch(new URL("library/platform-apps/inspector/inspector.declare", ROOT), { cache: "no-cache" })
       .then((r) => { if (!r.ok) throw new Error(r.status + " fetching the Inspector"); return r.text(); }),
   ]);
-  const out = await client.compile(src);
-  if (!out.source) {
+  const out = await client.compileProgram(src);
+  if (!out.program) {
     host.style.pointerEvents = "auto";
     host.innerHTML =
       '<pre style="position:absolute;inset:24px;overflow:auto;background:#12161C;color:#FF8B8B;' +
@@ -62,7 +65,7 @@ export async function openInspector(subject, origin = undefined) {
       "</pre>";
     throw new Error("Inspector failed to compile");
   }
-  const app = build(out.source, { deps: out.deps });
+  const app = buildProgram(out.program);
   await fontsReady(app);
   mountApp(app, host, new DomBackend(), { chrome: true });
   settle();

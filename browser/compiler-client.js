@@ -24,6 +24,11 @@
 
 const DISTRO = new URL("..", import.meta.url); // browser/ → the distro root
 
+/** Is a compiler reachable from this page at all? True here; a production build
+ *  ships this module as a stand-in that says false (tools/declarec.mjs), and the
+ *  page boot turns that into "an island with no artifact is an error, not a retry". */
+export const COMPILER_ABOARD = true;
+
 // Stage instrumentation — the same `declare:<stage>` measures boot-uniform
 // writes, so the client's internals (worker spawn + bundle import; library
 // prefetch) land on the one performance-timeline waterfall.
@@ -119,6 +124,11 @@ function withOrigins(client) {
     ...client,
     compile: (source, opts) => client.compile(source, augment(opts)),
     compileTracked: (source, opts) => client.compileTracked(source, augment(opts)),
+    // the PROGRAM-shaped result: { program, diagnostics, report, closure } — the
+    // parsed, checked, deps-applied program the runtime instantiates with no
+    // parser aboard (compiler/src/program-build.ts); null program on failure
+    compileProgram: (source, opts) => client.compileProgram(source, augment(opts)),
+    ...(client.parseProgram ? { parseProgram: client.parseProgram, checker: client.checker } : {}),
   };
 }
 
@@ -156,6 +166,7 @@ function workerClient() {
       transport: "worker",
       compile: (source, opts) => call("compile", { source, opts }),
       compileTracked: (source, opts) => call("compileTracked", { source, opts }),
+      compileProgram: (source, opts) => call("compileProgram", { source, opts }),
       highlight: (src) => call("highlight", { src }),
       setDefaultLibrary: (lib) => worker.postMessage({ type: "library", lib }),
     };
@@ -163,6 +174,17 @@ function workerClient() {
     // protocol answers; only then does the client win over the inline fallback.
     call("ping", {}).then(() => resolve(client), reject);
   });
+}
+
+/** The compiler loaded INLINE — on the main thread, no worker — as a client that
+ *  also carries the parser (`parseProgram`, synchronous). The one host that
+ *  needs a parser at run time is the Inspector's evaluator (inspector-boot.js),
+ *  which loads the compiler to compile itself anyway; every other compile goes
+ *  through loadCompiler(), off the main thread. Memoized; shares the fetched
+ *  bytes with the worker's copy through the browser cache. */
+let inlinePromise = null;
+export function loadCompilerInline() {
+  return (inlinePromise ??= inlineClient().then(withOrigins).catch((e) => { inlinePromise = null; throw e; }));
 }
 
 async function inlineClient() {
@@ -175,6 +197,12 @@ async function inlineClient() {
       const r = await mod.compileTracked(source, opts ?? {});
       return { ...project(r), closure: r.closure };
     },
+    compileProgram: async (source, opts) => {
+      const r = await mod.compileProgram(source, opts ?? {});
+      return { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure, usedComponents: r.usedComponents };
+    },
+    parseProgram: (src) => mod.parseProgram(src),
+    checker: { checkAttr: mod.checkAttr, checkMethod: mod.checkMethod, checkComponentValue: mod.checkComponentValue },
     highlight: async (src) => mod.highlight(src),
     setDefaultLibrary: (lib) => mod.setDefaultLibrary(lib),
   };

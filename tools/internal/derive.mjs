@@ -158,7 +158,7 @@ const RULES = [
                                      // because the homepage crawl fetches the FAQ and docs/declare.md —
                                      // as one pass with stats, the cached crawl carried LAST round's
                                      // stamped figures (the buildId lag's third sibling; found by this graph)
-    inputs: ["tools/internal/prewarm.mjs", "browser/prewarm-manifest.js",   // the curated set, declared
+    inputs: ["tools/internal/prewarm.mjs", "tools/declarec.mjs", "browser/prewarm-manifest.js",   // the curated set, declared
              "compiler/dist", "runtime/dist", "library",
              { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" },
              "apps/homepage/demos", "apps/homepage/stats.json",
@@ -190,7 +190,8 @@ const RULES = [
   },
   {
     name: "bake-stubs",              // the cold-static stub page per program directory
-    inputs: ["tools/internal/bake-app-stubs.mjs", { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" }],
+    inputs: ["tools/internal/bake-app-stubs.mjs", "browser/serve-core.js",
+             { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" }],
     outputs: [],
     stamps: ["apps/*/index.html"],
     run: () => run("node", ["tools/internal/bake-app-stubs.mjs"]),

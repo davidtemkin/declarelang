@@ -43,6 +43,12 @@ bitmap is a certain music-video still, and it earns its keep.)
 
 use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, FilesWindow, ViewerWindow, AppWindow, AboutWindow, JotWindow, BrandMark, HelpSearch ]
 
+// The programs the dock can open — each an AppIsland whose `program` is
+// computed from the dock item — so a production build compiles them ahead
+// and ships them beside the desktop (hosting.md, model 1).
+
+islands [ "../../../library/platform-apps/viewer/viewer", "../../calendar/calendar", "../../birds/birds" ]
+
 /*
 ## Window — chrome once, contents per subclass
 

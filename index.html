@@ -46,7 +46,7 @@
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
 <p>494</p>
 <p>lines of code, plus 196 of comments — four views, zoom, drag and edit</p>
-<p>112 KB</p>
+<p>118 KB</p>
 <p>over the wire, gzipped — app (structure, logic, styling) and runtime</p>
 <p>0</p>
 <p>lines written by hand — an LLM wrote it</p>
@@ -58,14 +58,14 @@
 <a href="apps/tracker/tracker.declare"><p>→</p></a>
 <a href="apps/tracker/tracker.declare"><img src="apps/homepage/shots/tracker-dark.webp"></a>
 <p>1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code</p>
-<p>1546 lines — 1114 code, 220 comment · 129 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
+<p>1546 lines — 1114 code, 220 comment · 134 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
 <a href="apps/tracker/tracker.declare?viewer"><p>View &amp; edit source →</p></a>
 <a href="apps/desktop/desktop.declare"><p>3</p></a>
 <a href="apps/desktop/desktop.declare"><h5>Declare Desktop</h5></a>
 <a href="apps/desktop/desktop.declare"><p>→</p></a>
 <a href="apps/desktop/desktop.declare"><img src="apps/homepage/shots/desktop-dark.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3132 lines — 1699 code, 925 comment · 153 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3137 lines — 1700 code, 928 comment · 167 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -262,7 +262,7 @@ App [ width = 400, height = 100, fill = black,
     ]</code></pre>
 <p><strong><code>App</code> is the one root</strong>, one per program; with <code>width</code> and <code>height</code> unset it fills its host. <strong>Any instance may declare its own members</strong> — state, methods, handlers — with no class at all, because the compiler synthesizes an anonymous subclass, and the instance remains a subtype of its base. Promote a one-off to a named <code>class</code> when you instantiate it twice, or when you need to name its type.</p>
 <p>Besides <code>class</code>, the top level holds <code>script</code>, <code>include</code>, <code>use</code>, <code>theme</code>, and <code>style</code> — that is the complete set, <strong>in any order</strong>, before or after the root instance; <code>extends</code> may name a class declared later in the file. <strong><code>script { … }</code></strong> holds free TypeScript — helpers, models, whole libraries — and may <strong><code>import</code></strong> ES modules (a file, or an npm package by bare specifier; bundled at compile). <strong><code>script [ "file.ts" ]</code></strong> is the same block loaded from a file, spelled like <code>include</code> and tracked like one — edit the file and the program recompiles; a constraint may call into script, opaquely (§5). A program may hold <strong>any number of script blocks</strong>, inline and files mixed; they share <strong>one scope, in source order</strong> — a later block's function calls an earlier one's (or mutates its state) exactly as in a single module. The one spelling difference: a file is written module-style (<code>export</code> allowed, and optional), while an inline block refuses <code>export</code> — its top-level names are already visible to every <code>{ }</code>. Imports resolve at the build toolchain's bundler; the in-browser compile refuses them by name. <strong><code>include
-[ "path.declare" ]</code></strong> merges another file's top-level declarations, once. <strong><code>use [ Name ]</code></strong> keeps a component the build would otherwise drop, for when your code constructs it by name at runtime (<code>createView</code>, §7). <strong><code>theme Name [ … ]</code></strong> and <strong><code>style Name [ … ]</code></strong> are named records of literal values — a token record, and the style of a run of text with no view (§9).</p>
+[ "path.declare" ]</code></strong> merges another file's top-level declarations, once. <strong><code>use [ Name ]</code></strong> keeps a component the build would otherwise drop, for when your code constructs it by name at runtime (<code>createView</code>, §7). <strong><code>islands [ "name", … ]</code></strong> names the programs an <code>AppIsland</code> may mount when its <code>program</code> is computed — a production build compiles each ahead and ships it beside the app, so the island mounts with no compiler; a literal <code>program = "name"</code> needs no entry. <strong><code>theme Name [ … ]</code></strong> and <strong><code>style Name [ … ]</code></strong> are named records of literal values — a token record, and the style of a run of text with no view (§9).</p>
 <h3><code>classroot</code></h3>
 <p><strong><code>classroot</code> is legal only inside the body of a <code>class</code> you are defining, and nowhere else</strong> — if you are not writing <code>class Name extends Base [ … ]</code>, you do not want it. It names <strong>the component instance itself</strong>, from any depth inside the class: the reach for a handler or a deep subview acting on the component, and the explicit spelling when a nearer child shadows a bare name.</p>
 <pre><code class="language-declare-fragment">class WeatherTab extends View [ selected: boolean = false,
@@ -544,7 +544,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 112 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,546 lines: 1,114 of code and 220 of comments, and no dependencies. It ships at 129 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 118 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,546 lines: 1,114 of code and 220 of comments, and no dependencies. It ships at 134 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -802,8 +802,8 @@ npm start</code></pre>
   // The homepage IS a Declare app. On a static host (GitHub Pages) boot-uniform.js
   // installs the service worker (which turns every other .declare into a run page —
   // browse-to-run) and runs THIS page via the canonical ladder:
-  //   1. PREWARM — a committed precompiled artifact (bundles/cache/) that still
-  //      validates against the deployed source renders with NO compiler at all;
+  //   1. PREWARM — a committed precompiled artifact (bundles/cache/) renders with
+  //      NO compiler at all;
   //   2. FAST PATH — else a cached in-browser compile of the unchanged source;
   //   3. SLOW PATH — else download the in-browser compiler, compile homepage.declare,
   //      render, and cache the result.
@@ -811,7 +811,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=1e3a047cc45f";
+  import boot from "./bundles/declare-boot.js?v=24f611eceb27";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

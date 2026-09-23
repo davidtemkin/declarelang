@@ -27,7 +27,7 @@ function hydrateElement(el: Element): void {
  *  Idempotent; a never-compacted program passes through untouched. */
 export function hydrateProgram(program: Program): Program {
   const p = program as unknown as Record<string, unknown>;
-  for (const k of ["classes", "themes", "styles", "fonts", "includes", "includeSpans", "uses"]) {
+  for (const k of ["classes", "themes", "styles", "fonts", "includes", "includeSpans", "uses", "islands"]) {
     p[k] ??= [];
   }
   hydrateElement(program.root);

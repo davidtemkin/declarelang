@@ -131,6 +131,29 @@ await test("every manifest entry has both its committed artifacts", async () => 
   }
 });
 
+// THE ARTIFACT'S FORM — a run artifact carries the program OBJECT (parsed,
+// checked, deps applied), which any page's runtime instantiates with no parser:
+// the uniform boot for its own page, a desktop window for an island.
+await test("every run artifact carries the program object", () => {
+  for (const p of PREWARMED) {
+    const art = JSON.parse(readFileSync(artFile(p.main, "run", p.props), "utf8"));
+    assert.ok(art.programJson && typeof art.programJson === "object" && art.programJson.root, `${p.main}'s run artifact carries no programJson`);
+    assert.equal(art.program, undefined, `${p.main}'s run artifact still carries merged source text`);
+  }
+});
+// THE FIGURE — what the homepage prints for an app is its STANDALONE production
+// build (declarec's package), measured by the build itself; the number is pinned
+// to a build that runs (test/declarec.test.mjs), never to a hand-typed claim.
+await test("stats.json's over-the-wire figures are production builds of the cited apps", async () => {
+  const { buildProduction } = await import("../tools/declarec.mjs");
+  const stats = JSON.parse(readFileSync(join(ROOT, "apps/homepage/stats.json"), "utf8"));
+  for (const name of Object.keys(stats)) {
+    const src = readFileSync(join(ROOT, "apps", name, name + ".declare"), "utf8");
+    const out = await buildProduction(src, { name, originDir: join(ROOT, "apps", name) });
+    assert.ok(out.ok, `${name} does not build: ${out.report}`);
+    assert.equal(stats[name].wireGzip, out.sizes.totalGzip, `${name}: stats.json says ${stats[name].wireGzip} bytes; the production build is ${out.sizes.totalGzip} — run \`npm run derive\``);
+  }
+});
 await test("every committed artifact is named by the manifest", async () => {
   for (const f of readdirSync(CACHE_DIR).filter((n) => n.endsWith(".json"))) {
     const art = JSON.parse(readFileSync(join(CACHE_DIR, f), "utf8"));

@@ -59,7 +59,12 @@ import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED, RichTextSchema, T
 // (tools/declarec.mjs) and runs entirely on the trusted paths below — the
 // schema half is all it needs. The dev path takes the same code with
 // `trusted` false and validates every step, exactly as before.
-import { checkAttr, checkMethod, checkComponentValue } from "./check.js";
+import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkComponentValue as checkComponentValueAboard } from "./check.js";
+let CHECKER = { checkAttr: checkAttrAboard, checkMethod: checkMethodAboard, checkComponentValue: checkComponentValueAboard };
+export function provideChecker(c) { CHECKER = c; }
+const checkAttr = (schema, attr) => CHECKER.checkAttr(schema, attr);
+const checkMethod = (eff, m) => CHECKER.checkMethod(eff, m);
+const checkComponentValue = (...a) => CHECKER.checkComponentValue(...a);
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken } from "./program-schema.js";
 import { fontObjectHint, isFontNode } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
@@ -186,7 +191,7 @@ function resolveProvisionLiteral(attr, ctx) {
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
 export function instantiate(input) {
-    const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
+    const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], islands: [], scripts: [], root: input };
     // The compiler stamps `trusted` on a program it fully checked (declarec —
     // and only then), so instantiation runs on the fast paths; anything else
     // (a hand-built tree, a test fragment) validates step by step, as ever.

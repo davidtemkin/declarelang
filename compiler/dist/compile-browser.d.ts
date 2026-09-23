@@ -1,8 +1,12 @@
 import { type CompileOptions, type Compiled } from "./compile.js";
+import { type ProgramBuild } from "./program-build.js";
+export type { ProgramBuild } from "./program-build.js";
 import type { AutoIncludeHost } from "../../runtime/dist/include.js";
 import type { Closure, Validator } from "./closure.js";
 export { provideLib } from "./typecheck.js";
 export { highlight } from "./highlight.js";
+export { parseProgram } from "../../runtime/dist/parser.js";
+export { checkAttr, checkMethod, checkComponentValue } from "../../runtime/dist/check.js";
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
@@ -93,4 +97,11 @@ export declare function compileTracked(source: string, opts?: BrowserTrackedOpti
 /** FNV-1a 64-bit (16 hex) — the freshness tag hash, replicated from closure.ts
  *  so the browser can re-hash live source and compare to a baked artifact tag
  *  WITHOUT pulling the Node closure module. Pure, browser-safe. */
+/** The PROGRAM-shaped compile — compileTracked, then the shared program tail
+ *  (program-build.ts): the parsed, checked, deps-applied, trusted program the
+ *  runtime instantiates with no parser aboard. What a live edit on a static
+ *  host renders, and the same artifact a `declarec` deploy ships. */
+export declare function compileProgram(source: string, opts?: BrowserTrackedOptions & {
+    stripPos?: boolean;
+}): Promise<ProgramBuild>;
 export declare function fnv1a(s: string): string;

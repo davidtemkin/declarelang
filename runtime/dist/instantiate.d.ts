@@ -1,5 +1,12 @@
 import type { Element, Program } from "./parser.js";
 import { View } from "./view.js";
+import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkComponentValue as checkComponentValueAboard } from "./check.js";
+export interface Checker {
+    checkAttr: typeof checkAttrAboard;
+    checkMethod: typeof checkMethodAboard;
+    checkComponentValue: typeof checkComponentValueAboard;
+}
+export declare function provideChecker(c: Checker): void;
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
 export declare function instantiate(input: Element | Program): View;

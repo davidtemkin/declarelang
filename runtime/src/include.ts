@@ -170,6 +170,7 @@ export async function resolveIncludes(
   // The keep-list folds across libraries too: a library declaring its own
   // `use [ … ]` contributes its dynamic deps to the merged program's list.
   const uses: string[] = [...program.uses];
+  const islands: string[] = [...program.islands];
   // A library's `script { … }` helpers travel with it, in include order — the
   // program's own blocks lead, then each library's, so a helper is defined
   // before anything that could reference it downstream.
@@ -242,6 +243,7 @@ export async function resolveIncludes(
       for (const s of lib.styles) if (fold(s.name, s.pos, from)) styles.push(s);
       for (const f of lib.fonts) if (fold(f.name, f.pos, from)) fonts.push(f);
       uses.push(...lib.uses);
+      islands.push(...(lib.islands ?? []));
       scripts.push(...lib.scripts);
       // Its splice-ready source — script files spliced in and include
       // directives cut out, in ONE coordinate-safe pass — after its
@@ -253,7 +255,7 @@ export async function resolveIncludes(
   await walk(program.includes, originDir);
 
   return {
-    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], islands: [...new Set(islands)], scripts, root: program.root },
     sources,
     sourceIds,
     errors,
@@ -355,6 +357,7 @@ export async function resolveAutoIncludes(
   // the keep-list folds here exactly as in resolveIncludes: an auto-pulled
   // library's `use [ … ]` (its by-name construction deps) joins the program's
   const uses: string[] = [...program.uses];
+  const islands: string[] = [...program.islands];
   const sources: string[] = [];
   const sourceIds: string[] = [];                         // parallel to `sources`, as in resolveIncludes
 
@@ -429,7 +432,7 @@ export async function resolveAutoIncludes(
     // `uses` is the FOLDED list — the root's plus every included library's
     // (returning the root's alone silently dropped a library's keep-list,
     // which broke by-name construction inside components).
-    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], scripts, root: program.root },
+    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], islands: [...new Set(islands)], scripts, root: program.root },
     sources,
     sourceIds,
     errors,

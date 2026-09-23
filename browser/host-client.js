@@ -1,11 +1,12 @@
 // browser/host-client.js — the shared client that boots a Declare host page in EITHER
 // hosting mode from one code path:
 //
-//   • dynamic  — a Node dev server inlines the compiled program and delegates live
+//   • dynamic  — a Node dev server compiles the program and delegates live
 //                recompiles to POST /compile (cfg.compile fetches it);
-//   • static   — a committed precompiled artifact supplies the program and the
-//                demos' compiled output (cfg.precompiled); cfg.compile is the
-//                in-browser compiler (or a no-op until it's wired).
+//   • static   — a committed precompiled artifact supplies the program;
+//                cfg.compile is the in-browser compiler (or a no-op until it's wired).
+// Either way the program arrives as an OBJECT — parsed, checked, its
+// dependencies applied — and this module instantiates it; it never parses.
 //
 // The page passes a config; this module renders the app, seeds the Declare editors,
 // wires the live demo previews (embedded child apps — no iframe), the whole-page
@@ -14,7 +15,15 @@
 //
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
-import { renderAsync, build, mountApp, fontsReady, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, islandProvisions, mountEmbeddedApp, kernelReady } from "../runtime/dist/index.js";
+import { installLiveEdit } from "./live-edit.js";
+import { renderProgramAsync, buildProgram, mountApp, fontsReady, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, islandProvisions, mountEmbeddedApp, kernelReady } from "../runtime/dist/host-api.js";
+
+// A compiled program arrives as ONE thing: `program`, the parsed, checked,
+// deps-applied object every compile yields (compiler/src/program-build.ts) —
+// the page's own, a prewarmed island's, a live edit's. The host instantiates
+// it; nothing here parses, which is what keeps the parser out of every boot.
+const hasProgram = (c) => !!c && !!c.program;
+const buildApp = (c, opts) => buildProgram(c.program, opts);
 
 const BACKENDS = { DomBackend, CanvasBackend };
 
@@ -31,13 +40,13 @@ const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
 
 /**
  * @param cfg {{
- *   source: string,              // the compiled main program
+ *   program: object,             // the compiled main program — the OBJECT form (never text)
  *   backend?: "DomBackend"|"CanvasBackend",
  *   pageWeight?: number, sourceLines?: number,
  *   seeds?: Record<string,string>,        // { <demo>: editorSeedSource, __page__: rawPageSource }
  *   demoBase?: string,                    // abs URL of the demos dir; previews with no seed fetch <demoBase><name>.declare on demand
- *   precompiled?: Record<string,string>,  // { <demo>: compiledSource } — static initial previews
- *   compile?: (source: string) => Promise<{source:string, deps?:any}|null>,  // live recompile (server/in-browser); null = keep last
+ *   compile?: (source: string, name: string) => Promise<{program:object}|{report:string}|null>,  // live recompile (server/in-browser); null = keep last
+ *   canCompile?: boolean,        // false: no compiler on this host (a production build) — an island with no artifact is an error, not a retry
  *   location?: string,           // initial app.location when it is NOT in the URL fragment — the host's ?view= → initial-location translation (docs/system-design/location.md §4); a real fragment still wins
  *   dataBase?: string,           // abs/page-relative URL of the VIEWED program's directory: a source page's <base> points at the Viewer, so the island's relative DataSource urls (its data lives beside its file) are re-based here via the transport seam
  *   assetBase?: string,          // the same rule for the island child's BITMAPS and web FACES (asset-base.ts): a "__"-named live-edit island (the Viewer's edit pane) has no path of its own, so the host states the viewed program's directory. A named demo derives its own from demoBase.
@@ -85,7 +94,7 @@ export async function bootHost(cfg) {
     catch { console.error("[Declare] data-declare-provide is not valid JSON — nothing provided: " + provideAttr.slice(0, 80)); }
   }
   pageProvides = { ...pageProvides, ...(cfg.provides ?? {}) };
-  const app = build(cfg.source, { deps: cfg.deps, provides: pageProvides });
+  const app = buildApp({ program: cfg.program }, { provides: pageProvides });
   host.__declareApp = app;                            // the per-box handle (an embedder's way in)
   // The MAIN app's own directories (boot-uniform passes the program's dir):
   // ASSETS — everything asset-base.ts resolves: bitmaps, media, web font
@@ -146,7 +155,6 @@ export async function bootHost(cfg) {
 
   const seeds = cfg.seeds ?? {};
   app.demoSources = seeds;                 // host→Declare: seeds every editor by demo name (+ __page__)
-  const precompiled = cfg.precompiled ?? {};
 
   // `compile` is a live binding, not a captured const: on a static host it starts
   // as a stub (edits keep the last render) and is HOT-SWAPPED for the real
@@ -389,7 +397,7 @@ export async function bootHost(cfg) {
   };
 
   async function renderChild(box, compiled, name) {
-    if (!compiled || !compiled.source) return;           // keep the last good render
+    if (!hasProgram(compiled)) return;                   // keep the last good render
     if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
     for (const fn of childUndoOf.get(box)?.splice(0) ?? []) { try { fn(); } catch {} }
     box.innerHTML = "";
@@ -413,7 +421,7 @@ export async function bootHost(cfg) {
       // sees it, and linked before its first settle to keep it live. A link failure leaves the tenant mounted
       // but unlinked, said loudly — a broken link must not take the render.
       const islView = islandViewOf.get(box);
-      const childApp = await renderAsync(compiled.source, box, backend, {
+      const childOpts = {
         deps: compiled.deps, assetBase: childAssetBase(name || ""),
         provides: islView && typeof islView.post === "function" ? islandProvisions(islView) : undefined,
         beforeMount: (app) => {
@@ -421,7 +429,8 @@ export async function bootHost(cfg) {
           try { childUndo.push(linkIslandTenant(islView, app)); }
           catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
         },
-      });
+      };
+      const childApp = await renderProgramAsync(compiled.program, box, backend, childOpts);
       box.__childApp = childApp;
       if (childApp) {
         childApp.demoSources = seeds;                     // populate a nested copy's own editors
@@ -440,7 +449,7 @@ export async function bootHost(cfg) {
         }
         //  • live edits published on the child's own channels (an embedded
         //    Viewer's Edit tab) — same observation as the page app's.
-        childUndo.push(observe(() => [childApp.liveCard, childApp.liveSource], () => watchLive(childApp, box), "host:childLive"));
+        live.watchChild(childApp, box, childUndo);
       }
     } catch (e) {
       // The island is already marked wired, so a swallowed failure here is a
@@ -494,7 +503,7 @@ export async function bootHost(cfg) {
     const { compiled, unseeded } = await resolveCompiled(name);
     delete box.dataset.wiring;
     if (unseeded) return;
-    if (!compiled || !compiled.source) { deferPreview({ el: box }); return; }  // compiler not warm / fetch missed — retry when it lands
+    if (!hasProgram(compiled)) { deferPreview({ el: box }); return; }  // compiler not warm / fetch missed — retry when it lands
     box.dataset.wired = "1";                               // committed: don't remount
     renderChild(box, compiled, name);
   }
@@ -504,11 +513,9 @@ export async function bootHost(cfg) {
   // seed / on-demand fetch + compile. `unseeded` marks the "__"-named
   // LIVE-EDIT channels (__raw__, __page__) with nothing published yet — they
   // mount only when an edit arrives through watchLive, never by fetch.
+  const unbuilt = new Set();                             // islands reported once as not built
   async function resolveCompiled(name) {
-    // precompiled entries are a bare compiled-source string (the legacy static
-    // artifact channel); normalize to the `{ source }` result shape renderChild
-    // takes. A live compile already returns `{ source, deps }`.
-    let compiled = precompiled[name] != null ? { source: precompiled[name] } : null;
+    let compiled = null;
     // The VALIDATED prewarm tier, same as the page boot's (boot-uniform wires
     // it in): a slot whose program is on the committed prewarm list mounts
     // with no compiler and no compile; null (absent/stale) falls through.
@@ -517,6 +524,17 @@ export async function bootHost(cfg) {
     }
     if (compiled == null) {
       if (name.startsWith("__") && seeds[name] == null) return { compiled: null, unseeded: true };
+      // No artifact, and this host cannot compile (a production build carries
+      // no compiler — hosting.md, the three models): the island names a
+      // program the build did not produce. Said once, with the fix, and the
+      // box stays empty rather than retrying forever.
+      if (cfg.canCompile === false) {
+        if (!unbuilt.has(name)) {
+          unbuilt.add(name);
+          console.error(`[Declare] island '${name}' names a program this build did not compile — a build compiles the programs its islands name as literals; a computed name is declared at the top of the program: islands [ "${name}" ] — then rebuild`);
+        }
+        return { compiled: null, unseeded: true };
+      }
       const src = await sourceFor(name);                  // seed, or fetched on demand
       compiled = src == null ? null : await compile(src, name); // src null (fetch failed) ⇒ retry via defer; compiled AS the demo's own file (its includes resolve beside it)
     }
@@ -546,12 +564,11 @@ export async function bootHost(cfg) {
     const { compiled, unseeded } = await resolveCompiled(name);
     canvasWiring.delete(view);
     if (unseeded || stopped) return;
-    if (!compiled || !compiled.source) { deferPreview({ view, slot: slotStr }); return; }
+    if (!hasProgram(compiled)) { deferPreview({ view, slot: slotStr }); return; }
     if (view.__childApp || view.surface == null) return;          // raced a re-mark / detached
     try {
       await kernelReady();
-      const childApp = build(compiled.source, { deps: compiled.deps,
-        provides: typeof view.post === "function" ? islandProvisions(view) : undefined });
+      const childApp = buildApp(compiled, { provides: typeof view.post === "function" ? islandProvisions(view) : undefined });
       const base = childAssetBase(name || "");
       // ASSET base only — deliberately no per-app DATA base: an island child's
       // relative data urls resolve through the PAGE's transport, its host's
@@ -596,51 +613,14 @@ export async function bootHost(cfg) {
   // (Island DISCOVERY registration sits at the END of bootHost — everything
   // it can reach must be initialized before the replay fires.)
 
-  // Re-render a preview when its Declare editor publishes an edit (or a Revert): recompile
-  // the edited text and swap. Debounced; a compile failure keeps the last good render
-  // AND feeds the rendered report to `app.liveReport` (a delegate that reports failure
-  // returns `{ report }` instead of null), so an editing surface can show the error; a
-  // clean compile clears it. A null result (compiler not warm / network) changes nothing.
-  // Live edits are watched on EVERY app on the page — the page app AND each
-  // embedded child (an embedded Declare Viewer's Edit tab publishes
-  // liveCard/liveSource on ITS OWN app) — with the child's preview island
-  // scoped to the child's box so two hosted viewers never cross wires.
-  const liveSigs = new WeakMap(), liveTimers = new WeakMap();
-  const watchLive = (theApp, scope) => {
-    if (stopped || !theApp.liveCard) return;             // nothing published yet
-    const sig = theApp.liveCard + "\x00" + theApp.liveSource;
-    if (liveSigs.get(theApp) === sig) return;
-    const box = scope.querySelector('[data-declare-slot^="run:' + theApp.liveCard + '"]');
-    // the island may not be MOUNTED yet (the viewer's edit pane slots its
-    // island only in edit mode; the channel can publish first) — don't burn
-    // the signature; the island's own mark event (onIslandSlot above) re-runs
-    // this the moment the box appears
-    if (!box) return;
-    liveSigs.set(theApp, sig);
-    const body = theApp.liveSource;
-    const card = theApp.liveCard;                        // captured with the body: both name the edit this timer serves
-    clearTimeout(liveTimers.get(theApp));
-    liveTimers.set(theApp, setTimeout(async () => {
-      const r = await compile(body, card);          // a live edit compiles as the demo it edits
-      if (stopped) return;
-      if (r && r.source) { theApp.liveReport = ""; renderChild(box, r, card); }
-      else if (r && r.report != null) theApp.liveReport = String(r.report);
-      else { liveSigs.delete(theApp); watchLive(theApp, scope); }  // compiler not warm — re-arm (compile resolves only once it loaded)
-    }, 180));
-  };
-  // Watch every app on the page — the page app AND each mounted child — by
-  // OBSERVATION: the publish is a write to that app's liveCard/liveSource, so
-  // the runtime tells us at the settle that carried the edit (this replaced
-  // liveTick, a 60Hz page scan). watchChild is called from renderChild at
-  // child mount; watchLiveAll re-checks everyone after an island appears.
-  function watchLiveAll() {
-    watchLive(app, host);
-    host.querySelectorAll('[data-declare-slot^="run:"]').forEach((box) => {
-      if (box.__childApp) watchLive(box.__childApp, box);
-    });
-  }
-  undo.push(observe(() => [app.liveCard, app.liveSource], () => watchLive(app, host), "host:live"));
-  watchLive(app, host);
+  // LIVE EDITS — a feature of the programs that publish them (the docs'
+  // examples, the Viewer's edit tab), installed from browser/live-edit.js: the
+  // uniform boot carries it always; a production build carries it only when
+  // its program publishes edits, else the module is a no-op stand-in.
+  const live = installLiveEdit({
+    app, host, compile: () => compile, renderChild, hasProgram, observe, isStopped: () => stopped, undo,
+  });
+  const watchLiveAll = () => live.watchAll();
 
   // Island DISCOVERY is a registration, not a scan: the runtime calls this for
   // every slot at mark and re-mark (dom-backend setEmbed), replaying slots

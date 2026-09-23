@@ -300,14 +300,15 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
   }
 
   async function sourcePage(relPath, segments, rawSource, backendClass, mode = "") {
-    const r = await toolchain.compile(readFileSync(path.join(VIEWER_DIR, "viewer.declare"), "utf8"), { originDir: VIEWER_DIR });
-    if (r.source === null) {
+    // the PROGRAM form — the page instantiates it with no parser of its own
+    const r = await toolchain.compileProgram(readFileSync(path.join(VIEWER_DIR, "viewer.declare"), "utf8"), { originDir: VIEWER_DIR });
+    if (r.program === null) {
       return `<!doctype html><meta charset="utf-8"><title>viewer — compile errors</title>
 <pre style="color:#c33;font:13px/1.5 ui-monospace,monospace;padding:20px;white-space:pre-wrap">${esc(r.report)}</pre>`;
     }
     const title = relPath.split("/").pop();
     const cfg = {
-      backend: backendClass, source: r.source, deps: r.deps, location: mode,
+      backend: backendClass, program: r.program, location: mode,
       // the viewed program's own directory — the island's relative data urls
       // (e.g. the Tracker's issues.json) resolve here, not at the Viewer's <base>
       dataBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
@@ -334,7 +335,7 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
 import { bootHost } from "${platURL("browser/host-client.js")}";
 const cfg = ${JSON.stringify(cfg)};
 const MAIN = ${JSON.stringify(mainQuery)};
-cfg.compile = async (s) => { try { const r = await (await fetch("/compile?main=" + encodeURIComponent(MAIN), { method: "POST", body: s })).json(); return r.source ? { source: r.source, deps: r.deps } : { report: r.report || "compile failed" }; } catch (e) { return null; } };
+cfg.compile = async (s) => { try { const r = await (await fetch("/compile?main=" + encodeURIComponent(MAIN), { method: "POST", body: s })).json(); return r.program ? { program: r.program } : { report: r.report || "compile failed" }; } catch (e) { return null; } };
 bootHost(cfg);
 </script>`;
   }
@@ -650,7 +651,8 @@ bootHost(cfg);
         }
         if (out === null) {
           try {
-            const r = await toolchain.compileTracked(body, { ...(originDir ? { originDir } : {}), ...(mainAbs ? { mainId: mainAbs } : {}) });
+            // the PROGRAM form: the page instantiates it with no parser of its own
+            const r = await toolchain.compileProgram(body, { ...(originDir ? { originDir } : {}), ...(mainAbs ? { mainId: mainAbs } : {}) });
             // The BUILD STAMP: when this program was compiled, from which main
             // file, reading which other files, by which server. It rides with the
             // compile (a cache hit keeps its original stamp — that IS when the
@@ -663,15 +665,15 @@ bootHost(cfg);
               files: files.filter((f) => f !== mainAbs),
               server: { pid: identity.pid, root: identity.root, started: identity.started },
             };
-            out = { source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report, build };
+            out = { program: r.program, diagnostics: r.diagnostics, report: r.report, build };
             // Only a SUCCESSFUL compile is worth remembering: a failing one is the
             // state the author is actively fixing, and its closure is incomplete.
-            if (key !== null && r.source !== null && r.closure) {
+            if (key !== null && r.program !== null && r.closure) {
               if (COMPILE_CACHE.size >= COMPILE_CACHE_MAX) COMPILE_CACHE.clear();
               COMPILE_CACHE.set(key, { out, closure: r.closure });
             }
           } catch (e) {
-            out = { source: null, diagnostics: [], report: String((e && e.message) || e) };
+            out = { program: null, diagnostics: [], report: String((e && e.message) || e) };
           }
         }
         send(res, 200, JSON.stringify(out), "application/json");

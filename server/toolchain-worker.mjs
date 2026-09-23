@@ -22,6 +22,9 @@
 import { parentPort } from "node:worker_threads";
 import path from "node:path";
 import { compile, compileTracked, isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
+// the PROGRAM-shaped compile (compiler/src/declarec.ts: the Node front over the
+// shared program tail) — what /compile answers with, so a page never parses
+import { compileProgram } from "../compiler/dist/declarec.js";
 import { highlight, lineMetrics } from "../compiler/dist/highlight.js";
 import { writeProduction } from "../tools/declarec.mjs";
 
@@ -39,6 +42,13 @@ async function handle(m) {
       return project(await compile(m.source, m.opts ?? {}));
     case "compileTracked":
       return projectTracked(await compileTracked(m.source, m.opts ?? {}));
+    case "compileProgram": {
+      // the PROGRAM-shaped result (compiler/src/program-build.ts): the parsed,
+      // checked, deps-applied program the runtime instantiates with no parser
+      // aboard — what every host boots from now
+      const r = await compileProgram(m.source, m.opts ?? {});
+      return { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure };
+    }
     case "extract": {
       const compiled = await compile(m.source, { originDir: m.originDir });
       if (compiled.source === null) return { ok: false, report: compiled.report };

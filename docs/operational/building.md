@@ -10,12 +10,19 @@ node tools/declarec.mjs apps/calendar/calendar.declare -o dist
 
 ## What it emits, and why it's small
 
-The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, and your
-data assets copied alongside — deployable to any static host. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->112<!--/stat--> KB gzipped**. Four things keep it small:
+The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, your
+data assets copied alongside, and — when the app mounts other programs — a `programs/`
+folder with one compiled program per island (below). Deployable to any static host. On the flagship calendar it lands
+around **<!--stat:calendar.wireKB-->118<!--/stat--> KB gzipped** — and that is the figure the
+homepage prints, measured on the build its own calendar page ships. The module carries
+everything a page needs and nothing else: the runtime's run path, your program, and the web
+host — the URL and history mirror (`app.location` ↔ the fragment, Back and Forward), island
+mounting, the page title, and a live edit's compiler fetched lazily should the page ever ask
+for one. Five things keep it small:
 
 - **Precompile.** Parse, resolve, and typecheck happen once, now; the program ships as a JSON
-  string parsed at boot, with source positions stripped.
+  string parsed at boot, with source positions stripped, and every `{ }` body already a
+  function — no `new Function` at startup, and no `eval` needed at all.
 - **Run-path only.** esbuild bundles the runtime's render path and tree-shakes the rest — the
   parser, checker, and typechecker never ship.
 - **One backend.** DOM by default, or `--canvas` for the single-`<canvas>` renderer; only the
@@ -25,6 +32,32 @@ around **<!--stat:calendar.wireKB-->112<!--/stat--> KB gzipped**. Four things ke
   top-level `use [ Name ]` list, or slimming will drop it.
 - **Coded errors.** Error *prose* is developer text — you read it once while building. A
   production build ships the code instead (see below); the sentences stay in dev.
+
+### Apps inside the app
+
+An `AppIsland` mounts another Declare program inside yours — the desktop's windows, a
+player in a panel. The tenant runs in your app's runtime, as its own app, so the build
+carries two things for it: its compiled program, and any components it uses that yours
+doesn't. `declarec` does both for every island program it can name:
+
+- an island whose `program` is a **literal** — `AppIsland [ program = "player" ]` — is
+  found directly;
+- an island whose `program` is **computed** — `program = { app.current }` — is declared
+  at the top of the program, the way `use [ Name ]` declares a component a build can't see:
+
+  ```declare
+  islands [ "player", "queue", "../../settings/settings" ]
+  ```
+
+  Names are spelled as `AppIsland.program` spells them — a name or a relative path,
+  resolved from your program's `demos/` folder.
+
+Each is compiled ahead — the same compile, the same checks — and written as
+`programs/<hash>.json`, fetched the first time an island names it and instantiated in
+the running app. A build carries no compiler, so an island naming a program the build
+did not produce is a reported error at run time, naming the fix (`islands [ … ]`) —
+never a blank box. Live editing — the docs' examples, the Viewer's edit tab — ships only
+in a build whose program publishes edits; every other build carries none of it.
 
 ### Errors in a production build
 
@@ -72,11 +105,14 @@ prose that remains is one sentence — the `.error` an app may show.
 ## Two ways to deploy
 
 - **Host the distro** — serve the repo as-is; every app compiles on request (Node) or in the
-  browser (static host + service worker). This is what runs the docs and homepage.
+  browser (static host + service worker). This is what runs every program in the tree that
+  is not one of the site's pages.
 - **Ship a build** — run `declarec`, deploy the `dist/`. One app, no compiler at run time.
 
-**Prewarm** is a third, separate thing: a *validated* cache for curated apps, precompiled and
-checked against a closure hash so a warm start skips compilation without trusting a stale
-artifact. It keeps the compile-on-request model fast; it is not a `declarec` build. Keeping
-those two "precompiled" senses distinct avoids confusion. The concepts are
-[Ship it](declare-docs:guide:run-check-ship); this page is the commands.
+**Prewarm** is a third, separate thing: the distro's curated apps also ship *precompiled
+program artifacts* (`bundles/cache/`), which the distro's own pages and islands load into
+the platform runtime already on the page — no compiler, no parse. It keeps the
+compile-on-request model fast; it is not a `declarec` build, and the figure above is not
+measured on it. The three arrangements — the standalone build, the dev server, and the
+static distro — are laid out in [Running & hosting](../system-design/hosting.md). The
+concepts are [Ship it](declare-docs:guide:run-check-ship); this page is the commands.

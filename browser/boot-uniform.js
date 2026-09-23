@@ -36,49 +36,21 @@
 //     compile-time source, so it lives here — the same gate on both hosts.
 //
 // Relative imports resolve against THIS module's URL (…/browser/) → subpath-portable.
-import { bootHost } from "./host-client.js";
+import { bootPage, perfStage, perfDone, errorPanel } from "./boot-page.js";
+import { prewarmIsland } from "./prewarm-island.js";
 // The embedder's notification half (guide ch. 18): `observe(read, cb)` from the
 // SAME runtime instance the booted apps run on — a page that imported a second
 // runtime copy would register its constraints in a graph the apps never notify.
-export { observe } from "../runtime/dist/index.js";
+export { observe } from "../runtime/dist/host-api.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 import { loadBuild, relativize } from "./prewarm-cache.js";
 import { prewarmedEntry } from "./prewarm-manifest.js";
 import { isEntryPage, launchTarget } from "./serve-core.js";
 import { fnv1a, isUpToDate, lookupKey } from "../compiler/dist/closure.js";
-import { provideTransport, provideAssetBase } from "../runtime/dist/index.js";
+import { hydrateProgram } from "../runtime/dist/host-api.js";
 
 const ROOT = new URL("../", import.meta.url);
-
-// ── Stage instrumentation (always on — performance.mark/measure is ~free) ────
-// Every boot stage lands on the PERFORMANCE TIMELINE as a `declare:<stage>`
-// measure (startTime is relative to navigation start, so overlapping stages —
-// the compiler load and the source fetch run in parallel — read as a real
-// waterfall in devtools or from a harness). `window.__declarePerf` carries the
-// summary: { stages, path, completed } and a `done` promise that resolves at
-// the first PAINTED frame after render — the number everything leads to.
-const perfStage = (name) => {
-  const startMark = `declare:${name}:start`;
-  performance.mark(startMark);
-  return {
-    end() {
-      try { performance.measure(`declare:${name}`, startMark); } catch { /* timeline API absent */ }
-    },
-  };
-};
-const perfDone = (() => {
-  let signal;
-  const done = new Promise((r) => { signal = r; });
-  window.__declarePerf = { done, completed: false };
-  return (path) => {
-    const stages = performance.getEntriesByType("measure")
-      .filter((m) => m.name.startsWith("declare:"))
-      .map((m) => ({ stage: m.name.slice(8), start: +m.startTime.toFixed(1), dur: +m.duration.toFixed(1) }));
-    Object.assign(window.__declarePerf, { stages, path, completed: true });
-    signal(window.__declarePerf);
-  };
-})();
 
 // Platform version the commit hook stamps. Absent (un-stamped dev tree) → "dev":
 // the closure check alone still gates freshness. Salts the key + names the bucket.
@@ -283,8 +255,8 @@ async function launchTo(url) {
 // where .declare handling deliberately differs between the two hosts: same request
 // surface, only WHERE the compile runs. `?main=` names the program so the server
 // resolves its `include`s and bare-tag library files against the right directory.
-// The returned shape ({ source, deps, report }) is exactly what compileTracked
-// yields for `source`/`deps`, so callers are agnostic to which path produced it.
+// The returned shape ({ program, report }) is the PROGRAM form the in-browser
+// compileProgram yields too, so callers are agnostic to which path produced it.
 async function serverCompile(mainUrl, source) {
   const r = await fetch("/compile?main=" + encodeURIComponent(mainUrl.pathname),
     { method: "POST", body: source, headers: { "content-type": "text/plain" } });
@@ -298,6 +270,14 @@ async function serverCompile(mainUrl, source) {
  *   pageWeight?: number, sourceLines?: number,
  *   demos?: string[],              // (site) demo names under <main-dir>/demos/<name>.declare to seed
  *   launcher?: boolean,            // entry page: a bare-path query launches that program (see launchTarget)
+ *   program?: { program: object, deps?: any, source?: string },
+ *                                  // the program ALREADY IN HAND — a site module (tools/declarec.mjs, the
+ *                                  // production build of a prewarmed page) carries its own parsed, checked
+ *                                  // program, so the boot makes neither of its two requests: no build to
+ *                                  // load, no source to resolve. Everything after that point is this same
+ *                                  // boot, unchanged. `source` (the raw text) is absent for a site module:
+ *                                  // the page's own source is read by the Viewer (its own page, boot-source),
+ *                                  // never by a run page.
  * }}
  */
 // The cfg of the boot in progress — so `showError` can boot the error page
@@ -314,22 +294,6 @@ export default async function boot(cfg) {
 
   const mainUrl = new URL(cfg.main, location.href);
   const mainId = mainUrl.href;
-  const mainDir = new URL(".", mainUrl);                          // app-relative assets (demos) live here
-  // The app-relative data rule (docs/system-design/location.md §9), made true in the
-  // LIVE browser: a relative DataSource url resolves against the PROGRAM's directory
-  // — the same base diskDataResolver (Node crawl) and boot-extract (browser crawl)
-  // already use. The platform default (page-relative fetch) only agrees when the
-  // page IS the program URL; the root index.html boots this same app from the repo
-  // root, where "language.json" would otherwise resolve a level too high.
-  // Resolve relative data urls against the PROGRAM's directory — and pass
-  // `init` through: the transport contract is (url, init), and dropping the
-  // second argument silently degraded every DataSource POST/PUT to a bare
-  // GET (found 2026-07-30 by the network-browser transport tests).
-  provideTransport((url, init) => fetch(new URL(url, mainDir), init));
-  // The same correction for BITMAPS: an <img src> resolves against the
-  // document, so a relative `source` meant the entry page's directory while
-  // the app's DataSources already meant the program's. One base, both.
-  provideAssetBase(mainDir.href);
   const props = { render: cfg.backend === "CanvasBackend" ? "canvas" : "dom" };
   const sVersion = perfStage("version");
   const build = await platformBuild();
@@ -338,7 +302,11 @@ export default async function boot(cfg) {
   pruneBuckets(build);
   const key = lookupKey(mainId, props, build);
 
-  let program = null, deps = undefined, pageSource = null, path = "slow", toCache = null, stamp = null;
+  // The program OBJECT — parsed, checked, its dependencies applied — is the
+  // one currency every path below yields: an artifact's, a cached compile's,
+  // the server's, the in-browser worker's (compiler/src/program-build.ts).
+  // The boot never parses; the page instantiates (host-client buildApp).
+  let programObj = null, pageSource = null, path = "slow", toCache = null, stamp = null;
 
   // LOAD A BUILD — the first of the two requests this boot can make, and a
   // different question from the one below it (docs/system-design/hosting.md).
@@ -357,16 +325,14 @@ export default async function boot(cfg) {
     const sPrewarm = perfStage("prewarm");
     const warm = await loadBuild({ root: ROOT, relMain, kind: "run", props, fetchImpl: fetch });
     sPrewarm.end();
-    if (warm) {
-      program = warm.program;
-      deps = warm.deps;
-      pageSource = warm.source;
+    if (warm && warm.programJson) {
+      programObj = hydrateProgram(warm.programJson);
       path = "prewarm";
     }
   }
 
   // FAST PATH — a cached in-browser compile whose closure still validates.
-  if (program === null) {
+  if (programObj === null) {
     const sCache = perfStage("cache-read");
     const cached = await readCache(build, key);
     sCache.end();
@@ -374,9 +340,8 @@ export default async function boot(cfg) {
       const sClosure = perfStage("closure-check");
       const fresh = await closureFresh(cached.closure);
       sClosure.end();
-      if (fresh) {
-        program = cached.program;
-        deps = cached.deps;                                       // the compiler's static-constraint deps, cached alongside
+      if (fresh && cached.programJson) {
+        programObj = hydrateProgram(cached.programJson);           // deps already applied; hydrate restores the compaction
         pageSource = cached.source;
         path = "fast";
       }
@@ -398,7 +363,7 @@ export default async function boot(cfg) {
   //     referenced set); only the runtime/compiler bundle stays out, gated by
   //     BUILD_ID. The main entry carries the RESPONSE's validators (ETag /
   //     Last-Modified + content hash) for the cheap headers-only re-probe.
-  if (program === null) {
+  if (programObj === null) {
     const onServer = !!window.__declareServer;
     const sSource = perfStage("source-fetch");
     const sCompiler = onServer ? null : perfStage("compiler+library");
@@ -413,19 +378,20 @@ export default async function boot(cfg) {
     const sCompile = perfStage("compile");
     const out = onServer
       ? await serverCompile(mainUrl, source)
-      : await client.compileTracked(source, { mainId, mainValidator: validatorFromResponse(res, source), props });
+      : await client.compileProgram(source, { mainId, mainValidator: validatorFromResponse(res, source), props });
     sCompile.end();
-    if (!out.source) {
+    if (!out.program) {
       // The compile's own rendered report — the ONE renderer's output (code,
       // line/col, hint), identical bytes whether the CLI, the server, or the
       // in-browser worker produced it.
       return showError(out.report || "compile failed", mainUrl.href);
     }
-    program = out.source;
-    deps = out.deps;                                               // static-constraint deps ride in the ONE compile result
+    programObj = out.program;
     // Only the in-browser compile has a closure to cache; a server compile is
-    // re-run each reload, so there is nothing (and no reason) to persist.
-    if (!onServer) toCache = { program, deps, source, closure: out.closure };
+    // re-run each reload, so there is nothing (and no reason) to persist. The
+    // program is stored as it came — JSON, the object form — and hydrated on
+    // the fast path like an artifact.
+    if (!onServer) toCache = { programJson: out.program, source, closure: out.closure };
     // The BUILD STAMP (server/create.mjs): when, from which files, by which
     // server. One console line on every load, so "is this my edit?" is
     // answered by reading, not by clearing caches — and the same record is
@@ -438,114 +404,30 @@ export default async function boot(cfg) {
     }
   }
 
-  // Live-edit compile ("Edit this page" + demo previews). Warm-loaded in the
-  // background so it never gates first paint, whichever path we took above.
-  // The library default (ensureLibrary) makes a bare-tag preview (`Bar [ ]`)
-  // compile with no per-call ceremony — the old "MUST feed the library or
-  // previews render blank" obligation is gone by construction.
-  // A NAMED island (a demo under demos/) compiles as ITS OWN file — the origin its
-  // relative paths mean: an `include [ "…" ]` beside it resolves beside it, exactly
-  // as `verify` reads the same file on disk. Before this every island compiled as
-  // the page's program, so a demo's include looked in the page's directory and
-  // the island stayed silently blank (the include form's page, 2026-09-10). The
-  // "__"-named live-edit channels have no file and keep the page as their origin.
-  const liveCompile = async (src, name) => {
-    try {
-      const origin = name && !name.startsWith("__") ? new URL(name + ".declare", demoBase) : mainUrl;
-      // Under the dev server, live edits compile on the server too (no compiler in
-      // the browser at all); on a static host, in the in-browser worker.
-      const out = window.__declareServer
-        ? await serverCompile(origin, src)
-        : await loadCompiler().then(ensureLibrary).then((c) => c.compile(src, { mainId: origin.href }));  // idempotent; covers the fast path, where the slow-path registration never ran
-      // Success is source + static deps; a compile FAILURE hands back { report } so an
-      // editing surface can show the diagnostic (the contract host-client documents and
-      // the codeviewer host already honors). null stays "compiler not warm — no change".
-      return out.source ? { source: out.source, deps: out.deps }
-           : out.report != null ? { report: out.report } : null;
-    } catch { return null; }
-  };
-
-  // Seed only the demo editors the page NAMES up front (the site's few — whose editors
-  // read these seeds directly). Everything else is compiled ON DEMAND: the host fetches
-  // a preview's source from `demoBase` the first time that island goes live — the
-  // in-process echo of browse-to-run, no manifest, no bulk pre-seed. The docs name none
-  // (its ~50 inline examples' editors read their source from the doc model, and their
-  // previews are fetched on demand as the reader scrolls to each page).
-  const seeds = { __page__: pageSource };
-  // The page NAMES its demos when its producer could know them — the dev server and
-  // the stub baker both read the filesystem, so they always answer, and an EMPTY
-  // array is an answer: "this program has none to seed." Only a producer that
-  // genuinely cannot know omits the key — the SW's browse-to-run wrapper for a bare
-  // `<name>.declare` URL — and only then do we probe for the committed demos.json
-  // beside the program (bake-app-stubs writes it for exactly that case).
-  //
-  // Reading `!demos.length` as "unknown" was the bug: it conflated "none" with "not
-  // told", so every program without demo panels — every app in apps/, every program
-  // an author writes in my-apps/ — probed for a file that by design would never be
-  // there, and opened its console with a 404. Only apps/homepage has a demos.json.
-  let demos = Array.isArray(cfg.demos) ? cfg.demos : null;
-  if (demos === null) {
-    try { const j = await (await fetch(new URL("demos.json", mainDir), { cache: "no-cache" })).json(); demos = Array.isArray(j) ? j : []; } catch { demos = []; }
-  }
-  if (demos.length) {
-    const sDemos = perfStage("demo-seeds");
-    await Promise.all(demos.map(async (name) => {
-      try { seeds[name] = await (await fetch(new URL("demos/" + name + ".declare", mainDir), { cache: "no-cache" })).text(); } catch {}
-    }));
-    sDemos.end();
-  }
-  const demoBase = new URL("demos/", mainDir).href;              // where mountPreviews fetches unseeded previews
-
-  // LOAD A BUILD, for ISLANDS — the page boot's first request, offered to the
-  // host's preview mounts: a slot path naming a program that ships precompiled
-  // mounts with NO compiler and NO compile, so the app-in-a-window case (a
-  // desktop window hosting apps/calendar) opens instantly even on a cold static
-  // visit where the compiler bundle hasn't landed. The manifest answers "is
-  // there a build?" with no request, so a preview of an ordinary program — the
-  // common case — costs nothing here and goes straight to live-compile. Islands
-  // always render on the DOM backend (renderChild), so the key uses render:dom
-  // regardless of the page's own backend; on the dev server there is no build
-  // request at all, for the same reason the page boot makes none.
-  const ISLAND_PROPS = { render: "dom" };
-  const prewarmChild = async (name) => {
-    try {
-      const u = new URL(name + ".declare", demoBase);
-      const rel = relativize(u, ROOT);
-      if (!rel) return null;
-      if (window.__declareServer || prewarmedEntry(rel, ISLAND_PROPS) === null) return null;
-      const warm = await loadBuild({ root: ROOT, relMain: rel, kind: "run", props: ISLAND_PROPS, fetchImpl: fetch });
-      return warm ? { source: warm.program, deps: warm.deps } : null;
-    } catch { return null; }
-  };
-
-  const sRender = perfStage("render");
+  // THE PAGE — from here the boot is browser/boot-page.js, the one every host
+  // runs: the program is in hand, and this host adds what the DISTRO can offer
+  // a page: its own
+  // compile for a live edit on the dev server (the server's, not the browser's
+  // bundle), islands from the builds it ships, and the error PAGE — a program,
+  // booted through this same entry — in place of the bare panel.
   let app;
   try {
-    app = await bootHost({                                         // render first — nothing below delays first paint
-      source: program, deps, backend: cfg.backend,
-      host: cfg.host,                                              // an explicit mount element — several apps per page, each in its own marked div
-      location: cfg.location,
-      provides: cfg.provides,                                      // the page as the topmost host: values the app reads with hostProvided("name", …)
-      mainAssetBase: mainDir.href,                                 // per-app asset AND data base — N tenants, each its own program dir
-      pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
-      seeds, demoBase, compile: liveCompile, prewarm: prewarmChild,
+    app = await bootPage({
+      ...cfg,
+      program: programObj, pageSource, path,
+      compile: window.__declareServer ? (src, origin) => serverCompile(origin, src) : undefined,
+      // no build request on the dev server, for the same reason the page boot makes none
+      prewarm: window.__declareServer ? undefined : (u) => prewarmIsland(u, ROOT),
+      onError: (msg, subject) => showError(msg, subject),
     });
   } catch (e) {
-    // A RUNTIME boot failure gets the same banner a compile error does — a
-    // blank page with an empty console is the one outcome this page must
-    // never produce (field report 2026-08-21: all five builders saw it).
     console.error("[Declare] boot failed:", e);
     return showError("boot failed — the program compiled but did not come up:\n\n" + ((e && e.stack) || e), mainUrl.href);
   }
-  sRender.end();
+  if (app === null) return null;
   // The stamp lands on the bridge (runtime/src/inspect.ts declares the slot;
   // only a host that compiled can fill it).
   if (stamp !== null && window.__declare) window.__declare.build = stamp;
-  // The number every stage leads to: the first frame the compositor PAINTS
-  // after render (double-rAF — the second callback runs after the first
-  // frame's paint has been committed).
-  const sFrame = perfStage("first-frame");
-  requestAnimationFrame(() => requestAnimationFrame(() => { sFrame.end(); perfDone(path); }));
   if (toCache) await writeCache(build, key, toCache);              // durable before we signal readiness
   window.__declareBoot = { path, build, key };                     // freshness/debug signal (also aids the SW)
   // Warm the compiler + library for the first live edit — but ONLY on a static
@@ -588,7 +470,7 @@ export default async function boot(cfg) {
 // render: the last resort that needs no compiler. `showingErrorPage` keeps a
 // failing error page from recursing into itself, and `panelShown` keeps the
 // nested failure and the outer fallback from stacking two panels.
-let showingErrorPage = false, panelShown = false;
+let showingErrorPage = false;
 async function showError(msg, subject) {
   console.error("[Declare] " + msg);
   const host = document.getElementById("host");
@@ -603,16 +485,5 @@ async function showError(msg, subject) {
       console.error("[Declare] the error page itself failed — falling back to the plain panel:", e);
     }
   }
-  if (panelShown) return;
-  panelShown = true;
-  const p = document.createElement("div");
-  p.setAttribute("role", "alert");
-  p.style.cssText = "position:fixed;inset:0;margin:0;padding:24px;background:#0B141B;color:#E7EEF2;overflow:auto;box-sizing:border-box;font:13px/1.55 ui-monospace,Menlo,monospace";
-  const h = document.createElement("div");
-  h.textContent = "Declare — compile error";
-  h.style.cssText = "font:600 15px/1.4 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#FF6B6B;margin:0 0 12px";
-  const m = document.createElement("div");
-  m.style.whiteSpace = "pre-wrap"; m.textContent = String(msg);
-  p.appendChild(h); p.appendChild(m);
-  (host || document.body).appendChild(p);
+  errorPanel(msg);
 }

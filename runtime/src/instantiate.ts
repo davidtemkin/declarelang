@@ -61,7 +61,26 @@ import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED, RichTextSchema, T
 // (tools/declarec.mjs) and runs entirely on the trusted paths below — the
 // schema half is all it needs. The dev path takes the same code with
 // `trusted` false and validates every step, exactly as before.
-import { checkAttr, checkMethod, checkComponentValue, type CheckedAttr } from "./check.js";
+import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkComponentValue as checkComponentValueAboard, type CheckedAttr } from "./check.js";
+
+// THE CHECKER SEAM. A trusted program (compiler-checked and stamped) never
+// reaches these; an UNTRUSTED element does — the Inspector's live `Tag [ … ]`
+// evaluation, a text program handed to build(). The boot bundle and every
+// production build ship check.js as a stand-in (tools/internal/stubs.mjs), so
+// there the three refuse — unless a host that has loaded the compiler bundle
+// PROVIDES its checker (inspector-boot.js does, on open): the same three pure
+// functions over the same plain schema and attribute objects, from the copy
+// of the runtime the compiler carries.
+export interface Checker {
+  checkAttr: typeof checkAttrAboard;
+  checkMethod: typeof checkMethodAboard;
+  checkComponentValue: typeof checkComponentValueAboard;
+}
+let CHECKER: Checker = { checkAttr: checkAttrAboard, checkMethod: checkMethodAboard, checkComponentValue: checkComponentValueAboard };
+export function provideChecker(c: Checker): void { CHECKER = c; }
+const checkAttr: typeof checkAttrAboard = (schema, attr) => CHECKER.checkAttr(schema, attr);
+const checkMethod: typeof checkMethodAboard = (eff, m) => CHECKER.checkMethod(eff, m);
+const checkComponentValue: typeof checkComponentValueAboard = (...a) => CHECKER.checkComponentValue(...a);
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, type ClassInfo } from "./program-schema.js";
 import { fontObjectHint, isFontNode } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
@@ -252,7 +271,7 @@ type Pending =
  *  rendering). */
 export function instantiate(input: Element | Program): View {
   const program: Program =
-    "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
+    "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], islands: [], scripts: [], root: input };
   // The compiler stamps `trusted` on a program it fully checked (declarec —
   // and only then), so instantiation runs on the fast paths; anything else
   // (a hand-built tree, a test fragment) validates step by step, as ever.

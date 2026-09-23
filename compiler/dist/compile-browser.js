@@ -17,6 +17,7 @@
 // tools/internal/build-compiler.mjs bundles THIS module (with `typescript`) into
 // bundles/declare-compiler.js — the artifact the homepage warm-loads.
 import { compile as compileCore } from "./compile.js";
+import { programFromCompiled } from "./program-build.js";
 import { searchIncludePath } from "./include-search.js";
 // Re-exported so the BUNDLE INIT (tools/internal/build-compiler.mjs's generated entry)
 // can register the embedded lib.d.ts closure — which is what makes `typecheck`
@@ -26,6 +27,14 @@ export { provideLib } from "./typecheck.js";
 // (the same highlight() the dev server runs for `?view=reader` / `?segments`). It has
 // no dependencies, so it adds negligible weight — browser/boot-source.js reads it here.
 export { highlight } from "./highlight.js";
+// The parser, for a host that needs to READ a Declare snippet at run time —
+// the Inspector's evaluator (runtime/src/inspect-service.ts provideEvalParser)
+// takes it from here when the Inspector opens, so no boot bundle carries one.
+export { parseProgram } from "../../runtime/dist/parser.js";
+// …and the checker the evaluator validates a live element with (instantiate.ts
+// provideChecker): the boot ships check.js as a stand-in, so the Inspector hands
+// the runtime this copy's when it opens.
+export { checkAttr, checkMethod, checkComponentValue } from "../../runtime/dist/check.js";
 // Static extraction — the same block compile-node.ts exports (parity: the
 // browser compiler does everything the Node one can, as architecture and as
 // principle). browser/boot-extract.js composes these with compileTracked below for
@@ -256,6 +265,15 @@ export async function compileTracked(source, opts = {}) {
 /** FNV-1a 64-bit (16 hex) — the freshness tag hash, replicated from closure.ts
  *  so the browser can re-hash live source and compare to a baked artifact tag
  *  WITHOUT pulling the Node closure module. Pure, browser-safe. */
+/** The PROGRAM-shaped compile — compileTracked, then the shared program tail
+ *  (program-build.ts): the parsed, checked, deps-applied, trusted program the
+ *  runtime instantiates with no parser aboard. What a live edit on a static
+ *  host renders, and the same artifact a `declarec` deploy ships. */
+export async function compileProgram(source, opts = {}) {
+    const { stripPos, ...rest } = opts;
+    const c = await compileTracked(source, rest);
+    return programFromCompiled(c, { stripPos });
+}
 export function fnv1a(s) {
     let h = 0xcbf29ce484222325n;
     const prime = 0x100000001b3n, mask = 0xffffffffffffffffn;

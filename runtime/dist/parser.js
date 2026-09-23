@@ -1147,6 +1147,35 @@ class Parser {
         this.expect("rbracket", "']'");
         return names;
     }
+    /** `islands [` at the current position — the island program list (see
+     *  Program.islands). `islands` followed by anything else is an ordinary name. */
+    atIslands() {
+        const t = this.tokens[this.i];
+        const u = this.tokens[this.i + 1];
+        return t.kind === "ident" && t.text === "islands" && u.kind === "lbracket";
+    }
+    /** `'islands' '[' STRING ( ',' STRING )* ','? ']'` — program names, as an
+     *  `AppIsland.program` value would spell them (quoted: these are paths, not
+     *  types). A non-string entry is a positioned error. */
+    parseIslandsDirective() {
+        this.expect("ident", "'islands'");
+        this.expect("lbracket", "'['");
+        const names = [];
+        while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
+            const t = this.peek();
+            if (t.kind !== "string") {
+                throw new DeclareError("an islands entry is a program name in quotes — the same name an AppIsland's `program` takes", t.pos);
+            }
+            this.next();
+            names.push(t.text);
+            if (this.peek().kind === "comma")
+                this.next();
+            else
+                break;
+        }
+        this.expect("rbracket", "']'");
+        return names;
+    }
     /** `'include' '[' STRING ( ',' STRING )* ','? ']'` — a top-level directive
      *  whose body is Declare's list grammar restricted to quoted paths. Non-string
      *  entries are a positioned error (paths are quoted strings, no bare-token
@@ -1209,6 +1238,7 @@ function parseTopDecls(p) {
     const includes = [];
     const includeSpans = [];
     const uses = [];
+    const islands = [];
     const scripts = [];
     const scriptFiles = [];
     const scriptFileSpans = [];
@@ -1220,6 +1250,8 @@ function parseTopDecls(p) {
         }
         else if (p.atUse())
             uses.push(...p.parseUseDirective());
+        else if (p.atIslands())
+            islands.push(...p.parseIslandsDirective());
         else if (p.atScriptFiles()) {
             const { refs, span } = p.parseScriptFiles();
             scriptFiles.push(...refs);
@@ -1240,7 +1272,7 @@ function parseTopDecls(p) {
         else
             break;
     }
-    return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans };
+    return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, islands, scripts, scriptFiles, scriptFileSpans };
 }
 /** Parse a whole Declare source: `include`s and top-level declarations
  *  (classes, themes, style bundles), the root instance, and — ruled
@@ -1263,6 +1295,7 @@ export function parseProgram(source) {
     const includes = [...before.includes, ...after.includes];
     const includeSpans = [...before.includeSpans, ...after.includeSpans];
     const uses = [...before.uses, ...after.uses];
+    const islands = [...(before.islands ?? []), ...(after.islands ?? [])];
     const scripts = [...before.scripts, ...after.scripts];
     const scriptFiles = [...(before.scriptFiles ?? []), ...(after.scriptFiles ?? [])];
     const scriptFileSpans = [...(before.scriptFileSpans ?? []), ...(after.scriptFileSpans ?? [])];
@@ -1270,7 +1303,7 @@ export function parseProgram(source) {
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
         throw new DeclareErrors(p.errors);
-    return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, scripts, scriptFiles, scriptFileSpans, root };
+    return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, islands, scripts, scriptFiles, scriptFileSpans, root };
 }
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes, themes,

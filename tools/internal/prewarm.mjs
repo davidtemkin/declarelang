@@ -9,7 +9,9 @@
 //   node tools/internal/prewarm.mjs
 //
 // For each curated program it writes bundles/cache/<key>.json for two kinds:
-//   • run — the compiled program + static deps + source, plus the dependency CLOSURE
+//   • run — the compiled program as the parsed, checked, deps-applied program
+//     object (`programJson`, what every reader instantiates with no parser)
+//     + the source, plus the dependency CLOSURE
 //     rewritten for the browser: every FILE read becomes a DEPLOY-RELATIVE id with a
 //     CONTENT-HASH validator the browser re-derives by GET-and-hash. That is what
 //     makes the tier self-validating and drift-proof. (Library reads are KEPT — a
@@ -36,10 +38,11 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, unlink
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { compileTracked, lineMetrics, highlight } from "../../compiler/dist/compile-node.js";
+import { programFromCompiled } from "../../compiler/dist/program-build.js";
 import { fnv1a } from "../../compiler/dist/closure.js";
 import { prewarmKey } from "../../browser/prewarm-cache.js";
 import { PREWARMED } from "../../browser/prewarm-manifest.js";
-import { buildProduction } from "../declarec.mjs";
+import { buildProduction, compactValue, minifyBodies } from "../declarec.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -92,6 +95,51 @@ function writeArtifact(key, artifact) {
   return json.length;
 }
 
+// ── the compiles, once per program ─────────────────────────────────────────
+// Every curated program compiles ONCE per run, in both currencies at once: the
+// merged text (compileTracked — the closure, the viewer's text fallback) and
+// the PROGRAM object (compiler/src/program-build.ts — what the run artifact
+// carries as `programJson`, what a site module inlines, and what a hosting
+// page unions its registry over).
+const COMPILED = new Map();   // main → { src, absMain, tracked, pb }
+async function compileEntry(prog) {
+  const hit = COMPILED.get(prog.main);
+  if (hit !== undefined) return hit;
+  const absMain = path.join(ROOT, prog.main);
+  if (!existsSync(absMain)) throw new Error(`prewarm: ${prog.main} does not exist`);
+  const src = readFileSync(absMain, "utf8");
+  const tracked = await compileTracked(src, { originDir: path.dirname(absMain), mainId: absMain, props: prog.props });
+  if (tracked.source === null || tracked.errors?.length) {
+    throw new Error(`prewarm: ${prog.main} did not compile:\n` +
+      (tracked.errors ?? []).map((e) => "  " + (e.pos?.line != null ? `line ${e.pos.line}: ` : "") + e.message).join("\n"));
+  }
+  const pb = await programFromCompiled(tracked);
+  if (pb.program === null) throw new Error(`prewarm: ${prog.main} did not build as a program:\n${pb.report}`);
+  // the artifact's bodies are shipped bytes: whitespace-minified exactly as a
+  // production build's are (positions are already stripped; comments are the
+  // author's, and every diagnostic a body could raise was raised at compile)
+  await minifyBodies(pb.program);
+  const out = { src, absMain, tracked, pb };
+  COMPILED.set(prog.main, out);
+  return out;
+}
+
+/** A program's run artifact — the ONE compiled form of it on the distro: the
+ *  parsed, checked, deps-applied program object, compacted exactly as a
+ *  production build embeds it (hydrateProgram restores the elided fields at
+ *  load), plus the dependency closure the tier validates by. What a page's
+ *  module fetches for its own program, what an island's mount loads, what the
+ *  uniform boot renders. No source text: the Viewer reads a program's source
+ *  as its own page (boot-source), never a run page. */
+function runArtifact(prog) {
+  const { tracked, pb } = COMPILED.get(prog.main);
+  return {
+    main: prog.main, kind: "run", props: prog.props,
+    programJson: JSON.parse(JSON.stringify(pb.program, compactValue)),
+    closure: browserClosure(tracked.closure, prog.props),
+  };
+}
+
 // The homepage's figures, computed rather than claimed: line metrics for the
 // apps it cites, written beside it as its own material (stats.json — the same
 // pattern as language.json, so the live page, the dev server, and both crawls
@@ -103,11 +151,15 @@ for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.dec
                    "apps/tracker/tracker.declare", "apps/desktop/desktop.declare"]) {
   const src = readFileSync(path.join(ROOT, rel), "utf8");
   const name = path.basename(rel, ".declare");
-  // the "over the wire" figure is the PRODUCTION build (declarec: app + runtime
-  // + library slices, gzipped) — the number the homepage's caption promises,
-  // not this tool's program-only artifact
+  // the "over the wire" figure is the STANDALONE PRODUCTION BUILD — declarec's
+  // package for this one app (its page, its one file of runtime + program +
+  // page host, its islands' artifacts), gzipped: what a deploy of the app
+  // ships, which is the number the caption promises. The distro's own page
+  // for the same app downloads the uniform boot and this program's artifact
+  // instead — a different, capable arrangement (hosting.md), not the one
+  // measured here.
   const built = await buildProduction(src, { name, originDir: path.join(ROOT, path.dirname(rel)) });
-  if (!built.ok) throw new Error(`prewarm stats: ${rel} failed the production build`);
+  if (!built.ok) throw new Error(`prewarm stats: ${rel} failed the production build\n${built.report}`);
   stats[name] = { ...lineMetrics(src), wireGzip: built.sizes.totalGzip, programGzip: built.sizes.programGzip };
 }
 const statsFile = path.join(ROOT, "apps/homepage/stats.json");
@@ -116,7 +168,6 @@ if (!existsSync(statsFile) || readFileSync(statsFile, "utf8") !== statsJson) {
   writeFileSync(statsFile, statsJson);
   console.log(`prewarm: wrote apps/homepage/stats.json (${Object.entries(stats).map(([k, v]) => `${k} ${v.code} code · ${(v.wireGzip / 1024).toFixed(1)}KB gz`).join(", ")})`);
 }
-
 }
 
 // The two halves are SEPARATE derive rules, because they sit on opposite sides
@@ -130,6 +181,7 @@ if (!existsSync(statsFile) || readFileSync(statsFile, "utf8") !== statsJson) {
 if (process.argv.includes("--stats-only")) process.exit(0);
 
 console.log(`prewarm: generating committed cache for ${PROGRAMS.length} program(s) → bundles/cache/`);
+
 // `--timing`: a line per STEP as it happens, with its own cost. This script is the
 // slowest thing in the commit path — it recompiles every program and executes the
 // crawler pages to t=0 (in Node; no browser is involved) — and it printed only a
@@ -145,24 +197,12 @@ const step = (label) => {
 };
 
 for (const prog of PROGRAMS) {
-  const absMain = path.join(ROOT, prog.main);
-  if (!existsSync(absMain)) throw new Error(`prewarm: ${prog.main} does not exist`);
-  const src = readFileSync(absMain, "utf8");
-
-  const tracked = await compileTracked(src, { originDir: path.dirname(absMain), mainId: absMain, props: prog.props });
-  if (tracked.source === null || tracked.errors?.length) {
-    throw new Error(`prewarm: ${prog.main} did not compile:\n` +
-      (tracked.errors ?? []).map((e) => "  " + (e.pos?.line != null ? `line ${e.pos.line}: ` : "") + e.message).join("\n"));
-  }
-  const closureRun = browserClosure(tracked.closure, prog.props);
-
+  const { src } = await compileEntry(prog);
+  const artifact = runArtifact(prog);
+  const closureRun = artifact.closure;
   const sizes = [];
-  writeArtifact(prewarmKey(prog.main, "run", prog.props), {
-    main: prog.main, kind: "run", props: prog.props,
-    program: tracked.source, deps: tracked.deps, source: src,
-    closure: closureRun,
-  });
-  sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify({ program: tracked.source }))).length / 1024).toFixed(1)}KB gz`);
+  writeArtifact(prewarmKey(prog.main, "run", prog.props), artifact);
+  sizes.push(`run ${(gzipSync(Buffer.from(JSON.stringify(artifact))).length / 1024).toFixed(1)}KB gz`);
   step(`${prog.main} · compile + run artifact`);
   {
     // The VIEWER artifacts — every prebaked app ships its reader too: the
@@ -200,5 +240,4 @@ let pruned = 0;
 for (const f of readdirSync(CACHE_DIR)) {
   if (f.endsWith(".json") && !generated.has(f)) { unlinkSync(path.join(CACHE_DIR, f)); pruned++; }
 }
-
 console.log(`prewarm: ${wrote} written, ${skipped} unchanged${pruned ? `, ${pruned} pruned` : ""} · ${generated.size} artifact(s)`);

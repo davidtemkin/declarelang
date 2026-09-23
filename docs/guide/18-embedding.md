@@ -152,6 +152,21 @@ This is not a corner feature. The desktop demo's windows, the homepage's
 live previews, and this documentation's own runnable examples are all
 `AppIsland` — the page you are reading is an app hosting apps.
 
+When you ship a build (`declarec`), the tenants ship with it: every island whose
+`program` is a literal is compiled ahead and written beside the app, loaded the
+moment the island first names it — no compiler on the page. An island whose
+`program` is computed (`program = { app.current }`) can't be read by a build, so
+the program says what it may be, the way `use [ Name ]` says which components to
+keep:
+
+```declare-fragment
+islands [ "player", "queue", "../../settings/settings" ]
+```
+
+Names are spelled exactly as `program` spells them. A name the build did not
+produce is a reported error at run time, naming the fix — never a blank box.
+[Building for production](declare-docs:operational:building) has the layout.
+
 ## The boundary: `provides`, `exposed`, and `post`
 
 What crosses the boundary is **named** — and each name says its direction.

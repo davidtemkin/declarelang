@@ -13,13 +13,13 @@
 // with only the transport changing.
 
 import { Node } from "./node.js";
+import type { Program } from "./parser.js";
 import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameBox } from "./interaction.js";
 import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, pathOf, type ValueSlice } from "./inspect.js";
 import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing, type TraceSettle } from "./wake-trace.js";
 import { compileExpr, validateExpr } from "./expr.js";
 import { scanDatapaths } from "./datapath.js";
-import { parseProgram } from "./parser.js";
 import { bindConstraint } from "./bind.js";
 import { ownerOf, disown, ownedSlots } from "./attributes.js";
 import { createElementIn } from "./instantiate.js";
@@ -44,6 +44,15 @@ let ORIGIN: Origin = ZERO;
  *  falls back to the runtime's `new Function` gate otherwise. So a typo typed
  *  into the strip reads exactly as it would in source. */
 const VALIDATE = validateExpr;
+
+/** The parser the evaluator reads a view literal with. No boot bundle carries
+ *  a parser (every program a host instantiates is already an object), so the
+ *  one host that needs to read Declare at run time — the Inspector — provides
+ *  it from the compiler bundle it loads to compile itself (inspector-boot.js).
+ *  Until then, a view literal is refused with the reason; reads, sets and
+ *  bindings never need it. */
+let evalParser: ((src: string) => Program) | null = null;
+export function provideEvalParser(parse: (src: string) => Program): void { evalParser = parse; }
 
 export function setInspectionTarget(app: App | null, origin: Origin = ZERO): void {
   TARGET = app;
@@ -315,8 +324,9 @@ export function evaluateIn(app: App, path: string, src: string): EvalResult {
   // 1. a view literal → instantiate into the selected view
   if (isViewLiteral(trimmed)) {
     if (!(node instanceof View)) return fail("only a View can take a child");
+    if (evalParser === null) return fail("adding a view needs the parser, which rides the compiler — open the Inspector (⌥⌘D, or ?inspector) and try again");
     try {
-      const prog = parseProgram(`App [\n${trimmed}\n]`);
+      const prog = evalParser(`App [\n${trimmed}\n]`);
       const el = (prog.root as unknown as { children: unknown[] }).children[0];
       if (el === undefined) return fail("that parsed to no view");
       const made = createElementIn(app, el as never, node);
