@@ -17,7 +17,7 @@
 // results are byte-identical — the identical-output invariant, kept by
 // construction rather than by care.
 
-import { compile, compileTracked, setDefaultLibrary, highlight } from "../bundles/declare-compiler.js";
+import { compile, compileTracked, compileProgram, setDefaultLibrary, highlight } from "../bundles/declare-compiler.js";
 
 const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
 
@@ -39,6 +39,14 @@ self.onmessage = async (e) => {
       case "compileTracked": {
         const r = await compileTracked(m.source, m.opts ?? {});
         self.postMessage({ id: m.id, result: { ...project(r), closure: r.closure } });
+        return;
+      }
+      case "compileProgram": {
+        // the PROGRAM-shaped result (compiler/src/program-build.ts): the parsed,
+        // checked, deps-applied program the runtime instantiates with no parser —
+        // what a live edit on a static host renders, and what a deploy ships
+        const r = await compileProgram(m.source, m.opts ?? {});
+        self.postMessage({ id: m.id, result: { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure, usedComponents: r.usedComponents } });
         return;
       }
       case "highlight":

@@ -1747,12 +1747,14 @@ App [ tagline: string = "a UI language for you and your AI",
 
         // The 6px all round is the panel's own `padding`, so the rows it holds
         // are its direct children and there is no inner view to carry the inset.
-        // Its height is DERIVED and unwritten: both insets count toward an unset
-        // height, so the panel is exactly its rows plus the air around them —
-        // and rows and group children are no longer one uniform height, so
-        // `navItems.length * 44` stated a relationship this sheet stopped having.
+        // It is as tall as its rows plus that air — `contentHeight` counts both
+        // insets — and no taller than the screen below the header, clear of the
+        // home indicator: past that the rows scroll, by touch as by wheel, and a
+        // scroller stops the full bottom inset past its last row.
 
         panel: View [ x = { app.width - app.gutter - this.width }, y = { 62 + app.safeTop }, width = 236,
+            height = { Math.min(this.contentHeight, app.height - this.y - app.safeBottom - 12) },
+            scrolls = y, clip = true,
             cornerRadius = 12, padding = 6,
             fill = { provided("theme").surface }, shadow = { shadow(0, 12, 40, provided("theme").shade) },
             layout: SimpleLayout [ axis = y, spacing = 0 ],
