@@ -59,6 +59,24 @@ const artFile = (relMain, kind, props) => join(CACHE_DIR, prewarmKey(relMain, ki
 
 console.log("prewarm cache tier");
 
+// Every app the homepage's Apps menu links to is a front-door destination and
+// ships prewarmed. Read from the menu itself, so a new entry cannot land
+// without its build.
+await test("every app on the homepage's Apps menu is on the prewarm list", async () => {
+  const { PREWARMED } = await import("../browser/prewarm-manifest.js");
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "apps", "homepage", "homepage.declare"), "utf8");
+  const start = src.indexOf('label: "Apps"');
+  assert.ok(start >= 0, "the homepage has an Apps menu");
+  // the Apps entry's rows, up to the next top-level menu item (each row's own
+  // `children: []` is empty, so the first "]" is no boundary)
+  const next = src.indexOf("\n        ({ label:", start + 1);
+  const menu = src.slice(start, next < 0 ? undefined : next);
+  const links = [...menu.matchAll(/link: "(apps\/[^"]+\.declare)"/g)].map((m) => m[1]);
+  assert.ok(links.length >= 5, "found the menu's app links: " + links.join(", "));
+  const listed = new Set(PREWARMED.map((p) => p.main));
+  assert.deepEqual(links.filter((l) => !listed.has(l)), [], "Apps menu entries missing from browser/prewarm-manifest.js");
+});
+
 await test("prewarmKey is deterministic and separates main / kind / props", () => {
   assert.equal(prewarmKey("a", "run", { render: "dom" }), prewarmKey("a", "run", { render: "dom" }));
   assert.notEqual(prewarmKey("a", "run", { render: "dom" }), prewarmKey("a", "run", { render: "canvas" }));

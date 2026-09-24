@@ -63,7 +63,10 @@ class Market extends Node [
     nDays: number = 0,
     ready: boolean = false,
 
-    src: DataSource [ url = "marketmap-data.json", auto = true,
+    // beside this program on its own page; beside its home when a host (the
+    // desktop) mounts it as an island and provides that home as `base`
+
+    src: DataSource [ url = { hostProvided("base", "") + "marketmap-data.json" }, auto = true,
         onLoad() {
             const v = this.value as { days: string[], stocks: Stock[],
                 industries: object[], sectors: object[] }

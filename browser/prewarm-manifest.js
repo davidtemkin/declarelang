@@ -41,11 +41,12 @@ export const PREWARMED = [
   // every View Source / ?viewer= page boots the viewer — high-traffic on the
   // static deploy, so its first paint deserves the compiler-free path too
   { main: "library/platform-apps/viewer/viewer.declare", props: { render: "dom" } },
-  // Weather and Birds joined the homepage's Apps menu (2026-08-13), so they are
-  // front-door destinations now — same compiler-free first paint as the rest of
-  // the menu. (Prewarm only; the crawler bake stays homepage-only, per the
-  // 2026-08-08 ruling: it is for the INDEXED surfaces.)
+  // Every app on the homepage's Apps menu is a front-door destination, so each
+  // gets the compiler-free first paint (test/prewarm.test.mjs reads the menu and
+  // holds this list to it). Prewarm only; the crawler bake stays homepage-only:
+  // it is for the INDEXED surfaces.
   { main: "apps/weather/weather.declare", props: { render: "dom" } },
+  { main: "apps/marketmap/marketmap.declare", props: { render: "dom" } },
   { main: "apps/birds/birds.declare", props: { render: "dom" } },
   // Architecture is mounted as an AppIsland under the homepage's header — the
   // SAME ladder any tenant resolves on (host-client.js resolveCompiled:

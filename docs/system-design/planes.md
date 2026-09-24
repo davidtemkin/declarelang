@@ -310,6 +310,48 @@ only as each component demands it (no speculative machinery):
 > land, the ring should need NEITHER — making it the acceptance test for
 > whether those two doors are wide enough.
 
+> **The parked-window case (noted 2026-09-23, from the desktop; not yet
+> ruled — the app is left as it is):** a minimized window in
+> `apps/desktop` stays a live window — its hosted app keeps running — and
+> parks as a thumbnail in the dock. macOS paints it ON the dock's
+> translucent plate; here it paints BEHIND the plate, because the windows
+> layer (`app.wins`) precedes the dock in declaration order and the parked
+> window never leaves the windows layer. Over a white window the plate's
+> wash is nearly invisible; over a dark one (Market Map) it visibly dulls
+> the thumbnail. The badge and the click target already sit in the dock,
+> above the plate, so the wanted order is: free windows < plate < parked
+> window < badge.
+>
+> What does not solve it, and why:
+> - **A stacking number** — rejected outright; the no-z-index ruling stands.
+> - **`raise()`** — siblings only, and the windows are a replicated block:
+>   every insert, move, or removal re-links the block contiguously in record
+>   order (`replicate.ts`), so a plate raised into its middle is pushed back
+>   out by the next minimize, restore, or close.
+> - **Two window blocks (free, parked)** — a window crossing between them is
+>   a different replication, so it is rebuilt and its hosted app restarts.
+> - **Cutting holes in the plate where thumbnails sit** — works on paper;
+>   rejected as fragile (it couples the plate's drawing to the parking
+>   geometry, and to raster caching).
+> - **`travelWith()` into a dock stratum** — works on all three backends
+>   today and keeps the window in the model, but it is the scoped privilege
+>   the FocusRing canary above wants retired, and it makes the parked
+>   window's position mean dock coordinates while seated.
+>
+> What it actually asks: one view whose PAINT position changes between
+> strata at run time while its MODEL position stays put — a window, owned by
+> the windows layer, that paints inside the dock layer while parked. The
+> portal rule (§3) forbids exactly that for anything but `Floating`, and a
+> parked window is not transient chrome. The direction that fits this
+> document's own principle ("order is an ordinary slot"): layer membership
+> as a slot too — a declared default, **the parent's layer**, so every
+> existing program is unchanged — with declaration order plus `raise()`
+> still governing stacking within each layer. Additive, not a replacement:
+> the tree is still the picture everywhere a program does not say otherwise.
+> The open ruling is whether §3's portal door may widen to that one
+> declared, slot-valued case, and what the reader of the source sees when
+> it does.
+
 1. Light-dismiss delivery: swallow-and-dismiss (Mac menus) vs
    dismiss-and-deliver (most web).
 2. `raise()` scope: layer children only (the lean — content stays pure

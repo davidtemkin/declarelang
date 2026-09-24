@@ -47,7 +47,7 @@ use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, FilesWindow, ViewerWindow,
 // computed from the dock item, so a build cannot read the name from the tree:
 // a package compiles these ahead and ships them beside the desktop.
 
-ship [ islands = ["../../../library/platform-apps/viewer/viewer", "../../calendar/calendar", "../../birds/birds"] ]
+ship [ islands = ["../../../library/platform-apps/viewer/viewer", "../../calendar/calendar", "../../birds/birds", "../../marketmap/marketmap"] ]
 
 /*
 ## Window — chrome once, contents per subclass
@@ -168,7 +168,12 @@ class Window extends View [ width = 560, height = 400, clip = true,
     wx: number = 0,
     wy: number = 0,
     baseScale: number = 1,                       // the free-window scale — the zoom animators drive this
-    dockSlot: number = -1,                       // ≥0 = my slot in the dock's minimized section
+
+    // ≥0 = my slot in the dock's minimized section: my record's place among
+    // the parked records, derived — the record stays parked until I am home,
+    // so the slot holds for the whole journey back
+
+    dockSlot: number = { app.wm.minis().findIndex((r) => r.id == this.recId) },
     miniT: number = 0,                           // the park blend: 0 = free, 1 = docked (animated — the journey)
 
     // My slot comes from the shared mini layout (app.dock.miniLayout), left-anchored
@@ -1694,10 +1699,10 @@ update, no record ceremony), policy (`alwaysRunning`, `canOpen`, `place`),
 and the `launch` verb behind its dock icon and menu items.
 
 One taxonomy covers every citizen. A **built-in** app (Files, Jots) opens
-windows of this very program. A **hosted** app (Calendar, 50 Birds, Declare
-Viewer) is a foreign program carried the same way — hosting is a subclass with
+windows of this very program. A **hosted** app (Calendar, 50 Birds, Market Map,
+Declare Viewer) is a foreign program carried the same way — hosting is a subclass with
 a program path, not a different mechanism. An **inert** app (Write, Mail,
-Music, Terminal) owns a quip and raises the alert. Chrome never switches on an
+Music) owns a quip and raises the alert. Chrome never switches on an
 app id: the dock icon, the About box, the alert sheet, and a minimized
 window's badge all read the one instance, so the art, the name, and the
 running dot cannot disagree — and adding an application is one class plus one
@@ -1861,6 +1866,44 @@ class BirdsApp extends HostedApp [ id = "birds", label = "50 Birds", title = "50
     ]
 
 
+class MarketMapApp extends HostedApp [ id = "marketmap", label = "Market Map", title = "Market Map",
+    blurb = "The actual apps/marketmap — the S&P 500 as a treemap through the years — hosted as an embedded app.",
+    hue1 = #30343B, hue2 = #111316, drawn = true,
+    prog = "../../marketmap/marketmap", base = "../marketmap/", src = "../marketmap/marketmap.declare",
+    face(d: Draw) {
+        // the map itself: a treemap on the dark plate — one large cap and its
+        // neighbors, tiled edge to edge with a hairline gap, in the day's two
+        // colors (the system green and red, a deeper shade for smaller moves)
+        const up = 0x34C759, upLow = 0x1F8A3C, down = 0xFF453A, downLow = 0xB8302A
+        const tile = (c, x, y, w, h) => {
+            d.fillStyle = c
+            d.beginPath()
+            d.roundRect(x, y, w, h, 1.8)
+            d.fill()
+            }
+        tile(up, 8, 8, 17, 21)                   // the giant, top left
+        tile(downLow, 8, 30.5, 8, 9.5)
+        tile(upLow, 17.5, 30.5, 7.5, 9.5)
+        tile(up, 26.5, 8, 13.5, 11)
+        tile(down, 26.5, 20.5, 13.5, 8.5)
+        tile(upLow, 26.5, 30.5, 6, 9.5)
+        tile(downLow, 34, 30.5, 6, 9.5)
+        // the index over it: a white line climbing through the day, set on a
+        // dark keyline so it reads over green and red alike
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(9.5, 33.5); d.lineTo(16, 26.5); d.lineTo(21, 29.5); d.lineTo(28, 19.5); d.lineTo(32.5, 23); d.lineTo(38.5, 12.5)
+        d.strokeStyle = 0x111316
+        d.lineWidth = 4.4
+        d.stroke()
+        d.strokeStyle = 0xFFFFFF
+        d.lineWidth = 2.2
+        d.stroke()
+        }
+    ]
+
+
 class WriteApp extends InertApp [ id = "write", label = "Write", title = "Write",
     quip = "No.", hue1 = #F49B45, hue2 = #C96B1D, drawn = true,
     face(d: Draw) {
@@ -1900,20 +1943,22 @@ class MailApp extends InertApp [ id = "mail", label = "Mail", title = "Mail",
 
 
 class MusicApp extends InertApp [ id = "music", label = "Music", title = "Music",
-    quip = "Nah.", glyph = "♪", gsize = 0.52, hue1 = #FB5C74, hue2 = #FA233B
-    ]
-
-
-class TerminalApp extends InertApp [ id = "terminal", label = "Terminal", title = "Terminal",
-    quip = "Not.", hue1 = #3A3A40, hue2 = #17171B, drawn = true,
+    quip = "Nah.", hue1 = #FB5C74, hue2 = #FA233B, drawn = true,
     face(d: Draw) {
-        d.strokeStyle = 0xFFFFFF
-        d.lineWidth = 2.6
-        d.lineCap = "round"
+        // the eighth note, drawn rather than set as the ♪ glyph so it carries
+        // the weight of the other faces: a slanted head, a stem, and a flag
+        // that swells out and curls back down
+        d.fillStyle = 0xFFFFFF
         d.beginPath()
-        d.moveTo(14, 18.5); d.lineTo(20, 24); d.lineTo(14, 29.5)
-        d.moveTo(24, 30); d.lineTo(32.5, 30)
-        d.stroke()
+        d.ellipse(19.4, 34.2, 7, 5.3, -0.42, 0, Math.PI * 2)
+        d.fill()
+        d.fillRect(23.4, 10, 3.8, 23.6)          // the stem, rising from the head's right side
+        d.beginPath()                            // the flag
+        d.moveTo(27.2, 10)
+        d.bezierCurveTo(28.6, 15.5, 36.8, 16.8, 35.6, 27.5)
+        d.bezierCurveTo(35.2, 22.8, 31.2, 20.2, 27.2, 19.6)
+        d.closePath()
+        d.fill()
         }
     ]
 
@@ -2125,14 +2170,6 @@ class WinManager extends Node [
     startPark(w: Window) { w.miniBack.stop(); w.bornX = 0; w.bornY = 0; w.miniGo.start() },
     startUnpark(w: Window) { w.miniGo.stop(); w.miniBack.start() },
 
-    // renumber the parked windows' dockSlots to their band order — after
-    // every park, unpark, and close-of-parked
-
-    renumberMinis() {
-        const ms = this.minis()
-        for (let i = 0; i < ms.length; i++) { const w = this.winOf("" + ms[i].id); if (w != null) w.dockSlot = i }
-        },
-
     minimizeWin(w: Window) {
         if (w == null || this.isPlain(w) || this.isMin(w)) return
         // capture what the dock needs while the window is parked — label and
@@ -2140,7 +2177,6 @@ class WinManager extends Node [
         this.patchWin(w.recId, ({ mini: true, label: this.labelFor(w), appId: this.appOf(w).id, winW: w.width, winH: w.height }))
         const from = this.idxOf(w.recId)
         if (from >= 0) this.list.move(["wins"], from, this.recs().length - 1)   // to the very top: the band's newest
-        this.renumberMinis()
         if (frontId == w.recId) frontId = ""
         this.startPark(w)
         },
@@ -2164,9 +2200,7 @@ class WinManager extends Node [
         let to = rest.length
         for (let i = 0; i < rest.length; i++) if (rest[i].mini == true) { to = i; break }
         if (from >= 0) this.list.move(["wins"], from, to)
-        w.dockSlot = -1
         w.homing = false
-        this.renumberMinis()
         this.focusWin(w)
         },
 
@@ -2184,7 +2218,6 @@ class WinManager extends Node [
         if (!w.plain && w.forApp != null) w.forApp.count = w.forApp.count - 1
         if (frontId == w.recId) frontId = ""
         this.removeWin(w.recId)                  // the record goes; replication discards slot + window
-        this.renumberMinis()                     // a Quit can take a minimized window's tile with it
         },
 
     // seatedness for a tile's badge: the window's visual width equals the
@@ -2218,7 +2251,7 @@ back from the id (a node reference never enters data-shaped state).
 
 The surface:
 
-  facts   the instances (`files` … `terminal`, plus `desk`, the desktop
+  facts   the instances (`files` … `music`, plus `desk`, the desktop
           itself) · `roster` (the dock's order) · `data` (id + ix, for the
           datapath) · `byId`
   verbs   each app's own `launch(v)` · `gated` (the launch bounce, once) ·
@@ -2238,16 +2271,16 @@ class Launcher extends Node [
     calendar: CalendarApp [ ],
     jots:     JotsApp     [ ],
     birds:    BirdsApp    [ ],
+    marketmap: MarketMapApp [ ],
     write:    WriteApp    [ ],
     mail:     MailApp     [ ],
     music:    MusicApp    [ ],
-    terminal: TerminalApp [ ],
     desk:     DeskApp     [ ],
 
     // the dock's order, and the enumeration every by-id lookup walks
 
     roster: DesktopApp[] = { [this.files, this.markdown, this.viewer, this.calendar,
-        this.jots, this.birds, this.write, this.mail, this.music, this.terminal] },
+        this.jots, this.birds, this.marketmap, this.write, this.mail, this.music] },
 
     byId(id: string) -> DesktopApp { return this.roster.find((a) => a.id == id) ?? null },
 

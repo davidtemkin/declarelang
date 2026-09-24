@@ -24,11 +24,11 @@
     "programGzip": 15416
   },
   "desktop": {
-    "total": 3138,
-    "code": 1700,
-    "comment": 928,
+    "total": 3171,
+    "code": 1732,
+    "comment": 929,
     "blank": 510,
-    "wireGzip": 171098,
-    "programGzip": 17091
+    "wireGzip": 171363,
+    "programGzip": 17169
   }
 }
