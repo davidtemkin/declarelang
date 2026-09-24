@@ -76,6 +76,17 @@ not the OS — the host is the child's operating system. The docs app's seed
 threading (`demoSources`) is an ad-hoc third passenger that `AppIsland`
 regularizes (§7).
 
+**Addresses cross the same way.** A tenant's relative DATA urls resolve in its host's
+space, not its own folder (host-client: an island child gets its own ASSET base — its
+bitmaps and faces are beside it — but deliberately no data base). The host hands a
+tenant any address it should read, and a tenant that reads its OWN files asks for its
+home: the desktop's app windows provide `base`, and Calendar, Birds, and Market Map read
+`hostProvided("base", "") + "<file>"`. A production package honors the same contract —
+its URL map answers those host-space addresses with the tenant's packaged files
+(app-packaging.md §8). Island program NAMES resolve against the page program's `demos/`
+folder at every depth, a nested island included — unlike assets, which resolve per
+program; recorded as an open question (§8).
+
 This rule is what dissolves the embedded-examples dilemma raised during the
 theming discussion: the ~53 doc islands need NO per-example declaration to
 follow the viewer's theme, and are NOT condemned to pinned-light either — the
@@ -172,3 +183,7 @@ and the theming seam (§5) land aimed at it.
    own audit pass either way.
 4. Whether the house token pair is exactly the docs/homepage palette distilled
    or a third, neutral record.
+5. Whether an island NESTED in a tenant should resolve its program name against the
+   tenant's own `demos/` folder rather than the page's — per program, as assets
+   already are. No program nests named islands today; the build mirrors the run-time
+   rule until this is ruled (app-packaging.md §8).

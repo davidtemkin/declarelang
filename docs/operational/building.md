@@ -11,7 +11,8 @@ node tools/declarec.mjs apps/calendar/calendar.declare -o dist
 ## What it emits, and why it's small
 
 The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, your
-data assets copied alongside, and whatever the program's `ship` block names (below): a
+data assets copied alongside (a program's `tests/` folder stays behind — verify fixtures,
+never read by the running program), and whatever the program's `ship` block names (below): a
 `programs/` folder with one compiled program per island, a `files/` folder for what it reads
 from elsewhere, the compiler and the component library when it compiles at run time.
 Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
@@ -54,7 +55,7 @@ ship [
 | member | says | the build ships |
 |---|---|---|
 | `islands` | an `AppIsland` may mount these when its `program` is computed | `programs/<hash>.json` per name — compiled ahead, fetched when an island first names one |
-| `files` | the program reads these, and no literal names them or they live outside its folder | `files/<hash>.<ext>` per path; the entry maps each URL the program will ask for to its copy, so the program's own paths are untouched |
+| `files` | the program reads these, and no literal names them or they live outside its folder | `files/<hash>.<ext>` per path; the entry maps each URL the program will ask for to its copy, so the program's own paths are untouched. A `.declare` source also ships its highlighted reader segments, so a viewer asking `?segments` reads it as it would on the site |
 | `compiler = true` | the program compiles source at run time — live editing, programs typed in | `bundles/declare-compiler.js`, `bundles/compile-worker.js`, `library/` — the distro's layout inside the folder, fetched lazily on the first compile |
 | `inspector = true` | the program answers questions about itself in production | the Inspector as a compiled program, the `__declare` bridge, source positions, error prose. Not the compiler: the Inspector's evaluate strip says so when it needs one |
 
@@ -66,8 +67,9 @@ static site, which carry every source and a compiler, read none of this.
 
 An `AppIsland` mounts another Declare program inside yours — the desktop's windows, a
 player in a panel. The tenant runs in your app's runtime, as its own app, so the build
-carries two things for it: its compiled program, and any components it uses that yours
-doesn't. `declarec` does both for every island program it can name: a literal
+carries three things for it: its compiled program, any components it uses that yours
+doesn't, and everything it would carry if it were packaged on its own — its data and
+assets, and whatever its own `ship` block names. `declarec` does both for every island program it can name: a literal
 `program = "player"` is found in the tree; a computed one is in the `ship` block. Names are
 spelled as `AppIsland.program` spells them — a name or a relative path, resolved from your
 program's `demos/` folder. Each is compiled ahead — the same compile, the same checks — and
@@ -75,6 +77,19 @@ written as `programs/<hash>.json`, fetched the first time an island names it and
 instantiated in the running app. A build carries no compiler unless the block says so, so
 an island naming a program the build did not produce is a reported error at run time,
 naming the fix — never a blank box.
+
+**Transitively, once each.** A tenant's own islands come along too, with their data, so a
+window hosting a program that hosts another works in the package as it does on the site.
+Programs are keyed by file: one named by several hosts, or reached through a cycle — a
+program that embeds itself — is compiled and shipped once, and the walk ends. A tenant that
+compiles at run time (`compiler = true` in its block) puts the compiler aboard its host.
+
+**Where a tenant's data resolves.** An island's relative data urls resolve in its *host's*
+space, not its own folder — the desktop hands its viewer a path in the desktop's directory.
+A tenant that reads its own file asks its host for its home, `hostProvided("base", "")`, as
+Calendar, Birds, and Market Map do; the package maps that address to the copy it carries.
+Island program names resolve the same way at every depth: against the page program's
+`demos/` folder.
 
 ### Errors in a production build
 

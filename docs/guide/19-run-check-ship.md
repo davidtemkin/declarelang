@@ -121,43 +121,111 @@ Both the assert vocabulary and the bridge are documented in
 
 ## Ship it
 
-Three ways to run, one compiler, and the choice is only *where the compile happens*:
+### Three ways to run a program
 
-- **The dev server** compiles on request — `npm start`, browse to the program URL.
-  This is also how you host the whole distro, live.
-- **A static host + the service worker**: the compiler runs in the page; the program
-  URL is still the address, with no Node anywhere. Cache-aware, so revisits skip the
-  compiler entirely.
-- **A production build** moves the compile ahead of time: `declarec` (or `?build` on
-  any program URL) emits a self-contained artifact — the app and its runtime, about
-  <!--stat:calendar.wireKB-->118<!--/stat--> KB gzipped for the flagship calendar, the same
-  figure the homepage reports live from the deployed artifacts — deployable to any static host, no compiler
-  aboard. `--crawler` bakes the extracted document into the built page.
+There is one compiler, and the three ways to run a program differ only in *where the
+compile happens* and what sits on the host beside your app:
 
-A build collects what it can see in the source: the components the tree names, the data a
-literal `url` names beside the program, the island programs a literal `program` names.
-What it cannot see, the program states — in a `ship` block, each member a fact about the
-program, never a build option:
+- **The dev server** compiles each program when it is requested — `declarelang dev` (or
+  `npm start` in the distro), then browse to the program URL. Every source is on disk and
+  an edit shows on the next reload. This is how you work.
+- **A static site** is the same tree served as plain files — GitHub Pages, any bucket, no
+  Node anywhere. A service worker makes every program URL work, the curated pages load
+  from precompiled programs committed beside them, and anything else compiles in the
+  page on first visit, cached after.
+- **A package** is one app, built ahead of time into a folder you can put on any static
+  host and nothing else. This is what you ship to users, and what the rest of this
+  section is about.
+
+### What a package is
+
+```bash
+declarelang build apps/calendar/calendar.declare -o dist
+```
+
+The folder that comes out is self-contained. It needs nothing outside itself — no
+compiler, no component library, no server — and nothing beyond it is ever asked for:
+
+- **`index.html`**, which boots the app;
+- **`app.<hash>.js`**, one file carrying the runtime, the program with every `{ }` body
+  already a function, and the page host that runs it — the address bar and Back, islands,
+  the window title. It holds only the components your program can construct and one
+  renderer (DOM, or `--canvas`). For the flagship calendar it is about
+  <!--stat:calendar.wireKB-->118<!--/stat--> KB gzipped, the figure the homepage reports;
+- **your program's folder, swept in** — its data, images, fonts, anything beside the
+  `.declare` file — minus its sources and its `tests/` folder of verify fixtures;
+- **`BUILD.json`**, what the package was built from, so a committed build can say whether
+  it is current.
+
+On the dev server, `?build` on any program URL builds the same package and serves it,
+so you can try it before you deploy it. `--crawler` bakes the extracted document into
+`index.html`, for a page that should be indexed.
+
+### What your program says it needs: `ship`
+
+A build reads your source for everything a literal names: the components the tree uses,
+the data a `url` names beside the program, the programs an island's `program` names.
+What no literal says, your program states in one top-level block. The desktop's reads:
 
 ```declare-fragment
 ship [
-    islands = ["player", "queue"],        // mounted by a computed `program`
-    files = ["../../docs/model.json"],     // read from outside the folder
-    compiler = true,                         // compiles source at run time
-    inspector = true,                        // answers questions about itself in production
+    islands = ["../../../library/platform-apps/viewer/viewer", "../../calendar/calendar",
+               "../../birds/birds", "../../marketmap/marketmap"],
+    files = ["desktop.declare"]
 ]
 ```
 
-Each name is a fact the package acts on: island programs compiled ahead and shipped
-beside the app; files copied in and served from the folder; the compiler and the
-component library along for a program that edits or takes source at run time; the
-Inspector, the introspection bridge, positions, and error prose for one that must be
-questioned where it runs. A program that declares none of it ships as the smallest
-thing that runs it. The reference page [ship](declare-docs:language:ship) has the rules,
-and [Building for production](declare-docs:operational:building) the layout.
+Its dock opens those four programs from a computed `program`, so the build could not read
+them from the tree; and its Viewer window displays the desktop's own source, which is
+not otherwise part of the app. Each member is a fact about the program, never a build
+option:
 
-Islands — foreign DOM inside an app, and whole apps inside apps — are their own
-boundary story: the [Embedding](declare-docs:guide:embedding) chapter.
+| member | the program | the package carries |
+|---|---|---|
+| `islands` | mounts these by a computed `program` | each one compiled ahead, in `programs/` |
+| `files` | reads these, and no literal names them or they sit outside its folder | a copy of each in `files/`, answered at the address the program asks for — its own paths are untouched |
+| `compiler = true` | compiles source while it runs — live editing, programs typed in | the compiler and the component library, fetched on the first compile |
+| `inspector = true` | answers questions about itself where it runs | the Inspector, the `__declare` bridge, source positions, and error sentences |
+
+A `.declare` file in `files` arrives ready to read: the build adds its highlighted form,
+so the Viewer in the desktop's package shows its source exactly as it does on the site.
+A block may sit before or after the root, and a component can carry its own — a help
+panel that reads a docs model states that file where it lives — and the program's block
+is the union. The dev server and the static site hold every source and a compiler, so
+they read none of it. The reference page [ship](declare-docs:language:ship) has the rules.
+
+### Apps inside your app
+
+An `AppIsland` runs another whole program inside yours, in your runtime — the desktop's
+windows are the example. Each program your app can mount travels with everything it
+would carry if it were packaged alone: its compiled program, its folder's data and
+assets, its own `ship` block. That holds however deep the nesting goes, and each program
+ships once, however many hosts name it — a program that embeds itself included.
+
+A tenant reads its *own* files through its host. Its relative `url` resolves in its
+host's space, so it asks where home is — `hostProvided("base", "")` — and falls back to
+beside itself when it runs alone ([Embedding](declare-docs:guide:embedding) has the
+pattern). The desktop provides each app window's `base`; the package answers those same
+addresses from the copies it carries, so Calendar, Birds, and Market Map open with their
+data in the desktop's package as on the site.
+
+A package carries no compiler unless its program says so. An island that names a
+program the build never compiled is a reported error at the moment it mounts, naming the
+entry to add — never an empty box.
+
+### Checking a package
+
+Serve the folder alone, with any static file server, and use the app:
+
+```bash
+cd dist && python3 -m http.server 8000
+```
+
+A request that fails is the whole diagnosis: a 404 names a file the program reads that
+it did not declare — add it to `files`, or to `islands` if it is a program. Errors in a
+package carry a code in place of their sentence; `declare-help <code>` gives the sentence
+back. [Building for production](declare-docs:operational:building) is the reference for
+the build's flags and layout.
 
 ---
 

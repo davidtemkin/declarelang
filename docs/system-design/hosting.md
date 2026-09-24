@@ -20,8 +20,8 @@ beside it, and where a program comes from.
 | Body functions | Emitted at build time | `new Function` at boot | `new Function` at boot |
 | Compiler on the page | Only when the program declares it (`ship [ compiler = true ]`), with the library beside it | On the server, always fresh | Lazy — first live edit, or first program with no artifact |
 | Parser / checker in the boot | None | None | None |
-| Sources on the host | Only what `ship [ files = […] ]` names, copied in | All | All |
-| `AppIsland` tenants | Artifacts built ahead (a literal `program`, or `ship [ islands ]`), loaded on demand; unbuilt → a reported error | Compiled from source on demand | Artifact if prewarmed; else lazy compile |
+| Sources on the host | Only what `ship [ files = […] ]` names, copied in with its reader segments | All | All |
+| `AppIsland` tenants | Artifacts built ahead (a literal `program`, or `ship [ islands ]`), each with what it would carry alone, transitively; loaded on demand; unbuilt → a reported error | Compiled from source on demand | Artifact if prewarmed; else lazy compile |
 | Live edit / editable demos | Only with `ship [ compiler = true ]` | Present | Present |
 | Inspector, `?render=canvas`, browse-to-run | The Inspector with `ship [ inspector = true ]`, compiled ahead; the rest absent | Present | Present (the service worker makes browse-to-run work) |
 | Service worker | None | None (the server's marker evicts one) | Registered by the boot: run pages, cache-busting |

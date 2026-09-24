@@ -128,6 +128,16 @@ interface UserClass {
 }
 
 interface Ctx {
+  /** THIS program's script scope. Replicated instances compile their bodies
+   *  LAZILY (a row materializes during a settle long after build), and those
+   *  compilations must see the same `script { }` helpers the eager ones did —
+   *  the helpers of the program the row belongs to. It lives on the context,
+   *  which is one program's, because one page runs several: an island tenant
+   *  whose rows re-materialize after another program was instantiated would
+   *  otherwise compile against THAT program's helpers (a module-wide "last
+   *  program" scope did exactly this — Market Map's tiles, re-laid out after
+   *  the desktop opened the Viewer, lost `changeColor`). */
+  scripts: Record<string, unknown>;
   /** Every constructible class by name — the built-in tables merged, plus the
    *  program's synthesized classes (any family; a layout lives in layoutCtors). */
   tags: Record<string, ViewCtor>;
@@ -314,19 +324,11 @@ export function instantiate(input: Element | Program): View {
   } else if (program.scripts.length > 0) {
     Object.assign(scriptScope, evalScript(program.scripts.map((s) => s.src).join("\n;\n")));
   }
-  CURRENT_SCRIPTS = scriptScope;
-  return withScriptScope(scriptScope, () => buildTree(program, trusted));
+  return withScriptScope(scriptScope, () => buildTree(program, trusted, scriptScope));
 }
 
-/** The last program's script scope — replicated instances compile their
- *  bodies LAZILY (a row materializes during a settle long after build), and
- *  those compilations must see the same `script { }` helpers the eager ones
- *  did. The materializer re-enters the scope around each construct. (Found
- *  the day a replicated row called a script function: the eager bodies
- *  bound it; the first materialized instance threw ReferenceError.) */
-let CURRENT_SCRIPTS: Record<string, unknown> = {};
 
-function buildTree(program: Program, trusted: boolean): View {
+function buildTree(program: Program, trusted: boolean, scripts: Record<string, unknown>): View {
   const programShapes = shapeNames(program);
   const { infos, schemas, errors } = programSchemas(program.classes, programShapes);
   if (errors.length > 0) throw errors[0];
@@ -366,6 +368,7 @@ function buildTree(program: Program, trusted: boolean): View {
     }
   }
   const ctx: Ctx = {
+    scripts,
     tags,
     shapes: programShapes,
     layoutCtors,
@@ -1624,7 +1627,7 @@ function materializer(ctx: Ctx) {
     const saved = ctx.pending;
     ctx.pending = [];
     try {
-      const node = withScriptScope(CURRENT_SCRIPTS, () => construct(template, classroot, ctx));
+      const node = withScriptScope(ctx.scripts, () => construct(template, classroot, ctx));
       if (!(node instanceof View)) {
         throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
       }
@@ -1638,14 +1641,14 @@ function materializer(ctx: Ctx) {
       const provide = (): void => {
         if (provided) return;
         provided = true;
-        withScriptScope(CURRENT_SCRIPTS, () => installBatch(provisions, ctx));
+        withScriptScope(ctx.scripts, () => installBatch(provisions, ctx));
       };
       return {
         view: node,
         provide,
         finish: () => {
           provide();
-          withScriptScope(CURRENT_SCRIPTS, () => installBatch(rest, ctx));
+          withScriptScope(ctx.scripts, () => installBatch(rest, ctx));
           initTree(node);
         },
         // Membership-anchored init (the D5 ruling): the reconciler calls this

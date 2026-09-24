@@ -741,7 +741,7 @@ class Parser {
                     // Echo the signature back AS WRITTEN — `params` carries types now, so
                     // a bare join would print "[object Object]" into the author's face.
                     const sig = params.map((prm) => (prm.type === undefined ? prm.name : `${prm.name}: ${prm.type}`)).join(", ");
-                    throw new DeclareError(`'<-' subscriptions were removed — a runtime service is a component member now: write '${src} [ ${name.text}(${sig}) { … } ]' as a child, in place of '${name.text}(${sig}) <- ${src} { … }'`, arrow.pos);
+                    throw new DeclareError(`'<-' is not a Declare operator — a runtime service is a component member: write '${src} [ ${name.text}(${sig}) { … } ]' as a child, in place of '${name.text}(${sig}) <- ${src} { … }'`, arrow.pos);
                 }
                 const body = this.peek();
                 if (body.kind !== "code") {

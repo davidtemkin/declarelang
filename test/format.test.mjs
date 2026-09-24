@@ -330,7 +330,7 @@ await test("datapaths, two-way binds, source members, lists keep canon spacing",
 await test("the removed `<-` operator fails the formatter with the rewrite named", () => {
   let msg = "";
   try { fmt("App [\n    onKeyUp(e) <- Keys { go(e) }\n    ]\n"); } catch (e) { msg = e.message; }
-  if (!/subscriptions were removed/.test(msg)) throw new Error("expected the migration message, got: " + msg);
+  if (!/'<-' is not a Declare operator/.test(msg)) throw new Error("expected the migration message, got: " + msg);
 });
 
 await test("a one-line top-level declaration stays one line", () => {

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "02db1fe31e19",
+  "buildId": "33a9288d1da2",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -3076,8 +3076,8 @@
     "message": "there is already a component, theme, style, or font named '…'",
     "at": "check.ts:305"
    },
-   "E2CF1A8": {
-    "message": "'font … [ … ]' is no longer a top-level declaration — …. Move its body into the App as '…: Font [ … ]' (the same family and Face children)",
+   "E4318F7": {
+    "message": "'font … [ … ]' is not a top-level declaration — …. Its body goes in the App as '…: Font [ … ]' (the same family and Face children)",
     "at": "check.ts:324"
    },
    "E75430A": {
@@ -3594,123 +3594,123 @@
    },
    "E75F7A7": {
     "message": "….…: this precompiled program does not match its runtime (rebuild the artifact)",
-    "at": "instantiate.ts:182"
+    "at": "instantiate.ts:192"
    },
    "E1F2C20": {
     "message": "the root must be a view, not a …",
-    "at": "instantiate.ts:385"
+    "at": "instantiate.ts:388"
    },
    "ED99BD2": {
     "message": "style …: a bundle carries attribute sets only — a look, not a component",
-    "at": "instantiate.ts:592"
+    "at": "instantiate.ts:595"
    },
    "E99FB68": {
     "message": "….…: '…' is a built-in member of the runtime … — choose another name",
-    "at": "instantiate.ts:666"
+    "at": "instantiate.ts:669"
    },
    "E9CD504": {
     "message": "….…'s default = { … } …",
-    "at": "instantiate.ts:675"
+    "at": "instantiate.ts:678"
    },
    "E067112": {
     "message": "….…: '…' is a built-in field of the runtime …, not a method — a method may not take its name",
-    "at": "instantiate.ts:813"
+    "at": "instantiate.ts:816"
    },
    "E536F21": {
     "message": "….…: '…' is a member of every object — choose another name",
-    "at": "instantiate.ts:818"
+    "at": "instantiate.ts:821"
    },
    "ECBF1B8": {
     "message": "….…: '…' is runtime plumbing (a $-member) — choose another name",
-    "at": "instantiate.ts:821"
+    "at": "instantiate.ts:824"
    },
    "E7E2E60": {
     "message": "….…(…) …",
-    "at": "instantiate.ts:830"
+    "at": "instantiate.ts:833"
    },
    "ECE4353": {
     "message": "….… = :…: …",
-    "at": "instantiate.ts:926"
+    "at": "instantiate.ts:929"
    },
    "EB5CD6B": {
     "message": "….…: no axis to resolve a percent against",
-    "at": "instantiate.ts:929"
+    "at": "instantiate.ts:932"
    },
    "E0AC949": {
     "message": "unknown component '…'",
-    "at": "instantiate.ts:949"
+    "at": "instantiate.ts:952"
    },
    "ED46990": {
     "message": "':…[]' makes many instances — a replication belongs on a child element, not here",
-    "at": "instantiate.ts:1100"
+    "at": "instantiate.ts:1103"
    },
    "EA9624C": {
     "message": "datapath = :… — a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :…[]",
-    "at": "instantiate.ts:1109"
+    "at": "instantiate.ts:1112"
    },
    "E526053": {
     "message": "'… <-> :…' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it",
-    "at": "instantiate.ts:1122"
+    "at": "instantiate.ts:1125"
    },
    "E0CEFC8": {
     "message": "class … contains itself — a class may not appear inside its own body",
-    "at": "instantiate.ts:1168"
+    "at": "instantiate.ts:1171"
    },
    "E6D26FF": {
     "message": "a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'",
-    "at": "instantiate.ts:1203"
+    "at": "instantiate.ts:1206"
    },
    "EBDD8CF": {
     "message": "…: the embedded data does not match the schema — …",
-    "at": "instantiate.ts:1225"
+    "at": "instantiate.ts:1228"
    },
    "ECC636A": {
     "message": "a … overrides its enclosing view's slots, but '…' has no view to target here",
-    "at": "instantiate.ts:1386"
+    "at": "instantiate.ts:1389"
    },
    "EAC3FD7": {
     "message": "….…: a state override is a value or a { }, not a data read",
-    "at": "instantiate.ts:1400"
+    "at": "instantiate.ts:1403"
    },
    "E73D55D": {
     "message": "….…: a state override sets a declared slot of the view, not a provided value",
-    "at": "instantiate.ts:1402"
+    "at": "instantiate.ts:1405"
    },
    "E95A703": {
     "message": "….…: a layout attribute takes a literal or { }",
-    "at": "instantiate.ts:1452"
+    "at": "instantiate.ts:1455"
    },
    "EB3EBF7": {
     "message": "a replicated child cannot be named — ':…[]' makes one instance per record, and '…' can only name one; reach the instances through their data",
-    "at": "instantiate.ts:1513"
+    "at": "instantiate.ts:1516"
    },
    "E418372": {
     "message": "virtualize = { … } …",
-    "at": "instantiate.ts:1534"
+    "at": "instantiate.ts:1537"
    },
    "EF86534": {
     "message": "'…' is already a member of the running … — choose another name for this child",
-    "at": "instantiate.ts:1560"
+    "at": "instantiate.ts:1563"
    },
    "EEF1C34": {
     "message": "createView: this tree was not built from a program (no registry to resolve '…' against)",
-    "at": "instantiate.ts:1583"
+    "at": "instantiate.ts:1586"
    },
    "E0580F5": {
     "message": "— declare the class, include its library, or keep it with 'use [ … ]'",
-    "at": "instantiate.ts:1586"
+    "at": "instantiate.ts:1589"
    },
    "EE1ADC3": {
     "message": "createView: no component named '…'…",
-    "at": "instantiate.ts:1587"
+    "at": "instantiate.ts:1590"
    },
    "ED8CD97": {
     "message": "a … cannot replicate — it is not a view",
-    "at": "instantiate.ts:1629"
+    "at": "instantiate.ts:1632"
    },
    "E367A91": {
     "message": "evaluate: this tree was not built from a program (no registry to resolve against)",
-    "at": "instantiate.ts:1671"
+    "at": "instantiate.ts:1674"
    },
    "E78A7D6": {
     "message": "skipped — visible = false",
@@ -3800,8 +3800,8 @@
     "message": "'…' needs a return type name — write '…(…) -> number { … }', or drop the '…' for a method that returns nothing",
     "at": "parser.ts:961"
    },
-   "E58A880": {
-    "message": "'<-' subscriptions were removed — a runtime service is a component member now: write '… [ …(…) { … } ]' as a child, in place of '…(…) <- … { … }'",
+   "EA8D2AA": {
+    "message": "'<-' is not a Declare operator — a runtime service is a component member: write '… [ …(…) { … } ]' as a child, in place of '…(…) <- … { … }'",
     "at": "parser.ts:976"
    },
    "E6533D8": {
@@ -62617,7 +62617,7 @@
     "App": 5,
     "AppIsland": 4,
     "DOMIsland": 4,
-    "DataSource": 1,
+    "DataSource": 2,
     "View": 1
    }
   },
@@ -62628,6 +62628,7 @@
    "short": "Run, check, ship",
    "part": "Working",
    "teaches": {
+    "AppIsland": 1,
     "DataSource": 1,
     "Node": 1
    }
@@ -64840,10 +64841,10 @@
      "ship [ compiler = true, inspector = true ]"
     ],
     "syntaxText": "ship [ islands = [\"name\", \"../../other/other\"] ]\nship [ files = [\"../../docs/model.json\", \"app.declare\"] ]\nship [ compiler = true, inspector = true ]",
-    "lead": "States what a **self-contained package** of this program must carry beyond what its source\nnames. A production build (`declarec`) reads the block; the dev server and the static site,\nwhich carry every source and a compiler, read none of it. Each member is a fact about the\nprogram, never a build option:\n\n- `islands` — the programs an `AppIsland` may mount when its `program` is *computed*\n  (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and\n  shipped beside the app. A literal `program = \"name\"` needs no entry.\n- `files` — what the program reads that no literal names, or that lives outside its folder:\n  a docs model two levels up, its own source for a viewer. Each is copied into the package and\n  served from there; the program's paths are untouched. A literal `url = \"data.json\"` beside\n  the program needs no entry.\n- `compiler = true` — the program compiles source at run time (live editing, programs typed\n  in). The package carries the compiler and the component library; otherwise it carries\n  neither, and an island naming an unbuilt program is a reported error.\n- `inspector = true` — the program answers questions about itself in production: the\n  Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all\n  ship. It does not imply the compiler.\n\nThe block may appear before or after the root, and an included component may carry its own —\na help panel that reads the docs model says so where it lives — and the program's merged\nblock is the union.",
+    "lead": "States what a **self-contained package** of this program must carry beyond what its source\nnames. A production build (`declarec`) reads the block; the dev server and the static site,\nwhich carry every source and a compiler, read none of it. Each member is a fact about the\nprogram, never a build option:\n\n- `islands` — the programs an `AppIsland` may mount when its `program` is *computed*\n  (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and\n  shipped beside the app with everything it would carry alone — its data, its own islands,\n  its own `ship` block — once, however many hosts name it. A literal `program = \"name\"`\n  needs no entry.\n- `files` — what the program reads that no literal names, or that lives outside its folder:\n  a docs model two levels up, its own source for a viewer. Each is copied into the package and\n  served from there; the program's paths are untouched. A `.declare` source ships with its\n  highlighted reader form too, so a viewer in the package reads it as on the site. A literal `url = \"data.json\"` beside\n  the program needs no entry.\n- `compiler = true` — the program compiles source at run time (live editing, programs typed\n  in). The package carries the compiler and the component library; otherwise it carries\n  neither, and an island naming an unbuilt program is a reported error.\n- `inspector = true` — the program answers questions about itself in production: the\n  Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all\n  ship. It does not imply the compiler.\n\nThe block may appear before or after the root, and an included component may carry its own —\na help panel that reads the docs model says so where it lives — and the program's merged\nblock is the union.",
     "docSegs": [
      {
-      "md": "States what a **self-contained package** of this program must carry beyond what its source\nnames. A production build (`declarec`) reads the block; the dev server and the static site,\nwhich carry every source and a compiler, read none of it. Each member is a fact about the\nprogram, never a build option:\n\n- `islands` — the programs an `AppIsland` may mount when its `program` is *computed*\n  (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and\n  shipped beside the app. A literal `program = \"name\"` needs no entry.\n- `files` — what the program reads that no literal names, or that lives outside its folder:\n  a docs model two levels up, its own source for a viewer. Each is copied into the package and\n  served from there; the program's paths are untouched. A literal `url = \"data.json\"` beside\n  the program needs no entry.\n- `compiler = true` — the program compiles source at run time (live editing, programs typed\n  in). The package carries the compiler and the component library; otherwise it carries\n  neither, and an island naming an unbuilt program is a reported error.\n- `inspector = true` — the program answers questions about itself in production: the\n  Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all\n  ship. It does not imply the compiler.\n\nThe block may appear before or after the root, and an included component may carry its own —\na help panel that reads the docs model says so where it lives — and the program's merged\nblock is the union.",
+      "md": "States what a **self-contained package** of this program must carry beyond what its source\nnames. A production build (`declarec`) reads the block; the dev server and the static site,\nwhich carry every source and a compiler, read none of it. Each member is a fact about the\nprogram, never a build option:\n\n- `islands` — the programs an `AppIsland` may mount when its `program` is *computed*\n  (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and\n  shipped beside the app with everything it would carry alone — its data, its own islands,\n  its own `ship` block — once, however many hosts name it. A literal `program = \"name\"`\n  needs no entry.\n- `files` — what the program reads that no literal names, or that lives outside its folder:\n  a docs model two levels up, its own source for a viewer. Each is copied into the package and\n  served from there; the program's paths are untouched. A `.declare` source ships with its\n  highlighted reader form too, so a viewer in the package reads it as on the site. A literal `url = \"data.json\"` beside\n  the program needs no entry.\n- `compiler = true` — the program compiles source at run time (live editing, programs typed\n  in). The package carries the compiler and the component library; otherwise it carries\n  neither, and an island naming an unbuilt program is a reported error.\n- `inspector = true` — the program answers questions about itself in production: the\n  Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all\n  ship. It does not imply the compiler.\n\nThe block may appear before or after the root, and an included component may carry its own —\na help panel that reads the docs model says so where it lives — and the program's merged\nblock is the union.",
       "code": []
      }
     ],
@@ -65016,8 +65017,8 @@
     "gist": "A typeface is an **object in the tree**, not a top-level declaration: a `Font` with `Face` children, usually on the App, or a `Font [ family = \"…\" ]` with no faces for a system font.",
     "rules": [
      {
-      "rule": "`font Name [ … ]` at the top level is retired — a font is an object in the tree.",
-      "says": "'font Body [ … ]' is no longer a top-level declaration — a font is an object in the tree",
+      "rule": "`font Name [ … ]` is not a top-level declaration — a font is an object in the tree.",
+      "says": "'font Body [ … ]' is not a top-level declaration — a font is an object in the tree",
       "probe": "font Body [ family = \"Helvetica\" ]\nApp [ ]"
      },
      {
@@ -71142,7 +71143,7 @@
        "label": "Language form",
        "slug": "ship",
        "loc": "language/ship",
-       "doc": "# ship\n\n```declare-fragment\nship [ islands = [\"name\", \"../../other/other\"] ]\nship [ files = [\"../../docs/model.json\", \"app.declare\"] ]\nship [ compiler = true, inspector = true ]\n```\n\nStates what a **self-contained package** of this program must carry beyond what its source\nnames. A production build (`declarec`) reads the block; the dev server and the static site,\nwhich carry every source and a compiler, read none of it. Each member is a fact about the\nprogram, never a build option:\n\n- `islands` — the programs an `AppIsland` may mount when its `program` is *computed*\n  (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and\n  shipped beside the app. A literal `program = \"name\"` needs no entry.\n- `files` — what the program reads that no literal names, or that lives outside its folder:\n  a docs model two levels up, its own source for a viewer. Each is copied into the package and\n  served from there; the program's paths are untouched. A literal `url = \"data.json\"` beside\n  the program needs no entry.\n- `compiler = true` — the program compiles source at run time (live editing, programs typed\n  in). The package carries the compiler and the component library; otherwise it carries\n  neither, and an island naming an unbuilt program is a reported error.\n- `inspector = true` — the program answers questions about itself in production: the\n  Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all\n  ship. It does not imply the compiler.\n\nThe block may appear before or after the root, and an included component may carry its own —\na help panel that reads the docs model says so where it lives — and the program's merged\nblock is the union.",
+       "doc": "# ship\n\n```declare-fragment\nship [ islands = [\"name\", \"../../other/other\"] ]\nship [ files = [\"../../docs/model.json\", \"app.declare\"] ]\nship [ compiler = true, inspector = true ]\n```\n\nStates what a **self-contained package** of this program must carry beyond what its source\nnames. A production build (`declarec`) reads the block; the dev server and the static site,\nwhich carry every source and a compiler, read none of it. Each member is a fact about the\nprogram, never a build option:\n\n- `islands` — the programs an `AppIsland` may mount when its `program` is *computed*\n  (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and\n  shipped beside the app with everything it would carry alone — its data, its own islands,\n  its own `ship` block — once, however many hosts name it. A literal `program = \"name\"`\n  needs no entry.\n- `files` — what the program reads that no literal names, or that lives outside its folder:\n  a docs model two levels up, its own source for a viewer. Each is copied into the package and\n  served from there; the program's paths are untouched. A `.declare` source ships with its\n  highlighted reader form too, so a viewer in the package reads it as on the site. A literal `url = \"data.json\"` beside\n  the program needs no entry.\n- `compiler = true` — the program compiles source at run time (live editing, programs typed\n  in). The package carries the compiler and the component library; otherwise it carries\n  neither, and an island naming an unbuilt program is a reported error.\n- `inspector = true` — the program answers questions about itself in production: the\n  Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all\n  ship. It does not imply the compiler.\n\nThe block may appear before or after the root, and an included component may carry its own —\na help panel that reads the docs model says so where it lives — and the program's merged\nblock is the union.",
        "preview": "declare-fragment ship islands = \"name\", \"../../other/other\" ship files = \"../../docs/model.json\", \"app.declare\" ship compiler = true, inspector = true States what a self-contained package of this program must carry beyond what its source na…"
       },
       {
@@ -72205,7 +72206,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/system-design/app-packaging.md",
-     "preview": "Status: DESIGNED, NOT YET BUILT, 2026-08-18 (David's ruling: \"it's a file, unless there's an https in front of the source, and the files just are considered packaged; http sources — regardless of type, media, datasource, font — are not, eve…"
+     "preview": "Status: DESIGNED 2026-08-18; PARTLY BUILT 2026-09-23 — see §8, which records what was built and where it departs from this design. (David's ruling: \"it's a file, unless there's an https in front of the source, and the files just are conside…"
     },
     {
      "name": "What ships, and why it is not worth shrinking further",

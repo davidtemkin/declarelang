@@ -37,9 +37,19 @@ mkdirSync(path.join(srcDir, "demos"), { recursive: true });
 mkdirSync(path.join(root, "docs"));
 writeFileSync(path.join(root, "docs", "model.json"), JSON.stringify({ greeting: "from the docs model" }));
 writeFileSync(path.join(srcDir, "demos", "tile.declare"), `App [ width = 120, height = 40, fill = tomato, Text [ x = 8, y = 8, text = "tile mounted" ] ]`);
+// an island that lives in a SIBLING folder with its own data, and names itself
+// as an island (a cycle the build must terminate on, shipping it once). A
+// tenant's relative data resolves in its HOST's space, so it reads its own
+// file through the home its host provides — the desktop's convention.
+const otherDir = path.join(root, "apps", "other");
+mkdirSync(otherDir, { recursive: true });
+writeFileSync(path.join(otherDir, "other.json"), JSON.stringify({ word: "other's own data" }));
+writeFileSync(path.join(otherDir, "other.declare"), `ship [ islands = ["../../other/other"] ]
+App [ width = 160, height = 40, d: DataSource [ url = { hostProvided("base", "") + "other.json" }, auto = true ],
+    t: Text [ x = 4, y = 4, text = { app.d.loaded ? app.d.value.word : "waiting" } ] ]`);
 writeFileSync(path.join(srcDir, "demos", "late.declare"), `App [ width = 120, height = 40, fill = teal, Text [ x = 8, y = 8, text = "late compiled" ] ]`);
 writeFileSync(path.join(srcDir, "shipper.declare"), `ship [
-    islands = ["tile"],
+    islands = ["tile", "../../other/other"],
     files = ["../../docs/model.json", "demos/late.declare"],
     compiler = true,
     inspector = true,
@@ -51,6 +61,8 @@ App [ width = 400, height = 300,
     greeting: Text [ x = 10, y = 10, text = { app.model.loaded ? app.model.value.greeting : "loading" } ],
     a: AppIsland [ x = 10, y = 40, width = 140, height = 50, program = { app.which } ],
     b: AppIsland [ x = 10, y = 100, width = 140, height = 50, program = { app.late } ],
+    o: AppIsland [ x = 200, y = 40, width = 160, height = 50, program = { app.which == "tile" ? "../../other/other" : "" },
+        provides = ["base"], base: string = "../other/" ],
 ]`);
 
 const outDir = path.join(root, "dist");
@@ -80,8 +92,11 @@ const until = async (fn, ms = 15000) => { const t0 = Date.now(); for (;;) { if (
 await test("the build carried everything the block named", () => {
   assert.ok(out.ok, out.report);
   const names = out.files.map((f) => f.name);
-  assert.equal(out.islands.length, 1, "the declared island");
-  assert.equal(out.shipped.files.length, 2, "the two declared files");
+  assert.equal(out.islands.length, 2, "the declared islands, the self-naming one shipped once");
+  assert.ok(out.shipped.files.some((f) => f.path === "../other/other.json"), "the sibling island's own data rides along: " + out.shipped.files.map((f) => f.path).join(", "));
+  assert.ok(out.shipped.files.length >= 3, "the two declared files, plus the island's");
+  const seg = out.shipped.files.find((f) => f.path === "demos/late.declare?segments");
+  assert.ok(seg && /\.segments\.json$/.test(seg.file), "a shipped Declare source carries its reader segments, answering ?segments");
   assert.ok(out.shipped.inspector, "the Inspector's program");
   assert.ok(names.includes("bundles/declare-compiler.js") && names.includes("library/autoincludes.json"), "the compiler and the library");
 });
@@ -92,6 +107,8 @@ await test("served alone, the package boots, mounts its island, and reads its fi
   assert.ok(await until(() => page.evaluate(() => [...document.querySelectorAll('[data-declare-slot="run:tile"]')].some((b) => b.__childApp))), "the declared island mounted from programs/");
   assert.ok(requests.some((p) => /^\/files\/[0-9a-f]+\.json$/.test(p)), "the file came from files/, not from above the folder: " + requests.join(" "));
   assert.ok(requests.some((p) => /^\/programs\/[0-9a-f]+\.json$/.test(p)), "the island came from programs/");
+  assert.ok(await until(() => page.evaluate(() => [...document.querySelectorAll('[data-declare-slot="run:../../other/other"]')].some((b) => /other's own data/.test(b.textContent)))),
+    "the sibling-folder island read its own data from the package: " + errors.join(" | ") + " — requests: " + requests.join(" "));
 });
 
 await test("an island the build never saw compiles on the page — the package carries the compiler", async () => {

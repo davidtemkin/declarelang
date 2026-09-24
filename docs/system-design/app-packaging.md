@@ -1,6 +1,7 @@
 # App packaging — what travels with a built program
 
-**Status: DESIGNED, NOT YET BUILT, 2026-08-18** (David's ruling: "it's a file, unless
+**Status: DESIGNED 2026-08-18; PARTLY BUILT 2026-09-23 — see §8, which records what
+was built and where it departs from this design.** (David's ruling: "it's a file, unless
 there's an http[s] in front of the source, and the files just are considered packaged;
 http sources — regardless of type, media, datasource, font — are not, ever"). This is
 the design record for `declarec`'s asset collection. The operational page for building an
@@ -228,3 +229,43 @@ this whole mechanism.
   program and drops the compiler and library. It needs this mechanism, but it is a
   separate construct — see [`operational/mac-host.md`](../operational/mac-host.md) on why
   `declarec --render mac` currently refuses.
+
+## 8. As built (2026-09-23)
+
+What `declarec` does today, section by section against the design above. The mechanism
+is the `ship [ … ]` declaration (runtime/src/parser.ts `Ship`; the reference page *ship*;
+[building.md](../operational/building.md)), which arrived with the three hosting models
+([hosting.md](hosting.md)).
+
+- **§4, the sweep — built, with §4a's rule.** The program's own directory is copied minus
+  the skip-list, and `tests/` is now on it: verify fixtures never ship.
+- **§4(2), REACH — built as a declaration, not an analysis.** A file above the program's
+  directory travels when the program names it in `ship [ files = […] ]`. The literal
+  scan this section proposes (an `assets` side-list off the resolved program) is NOT
+  built; the declared list is the manual form of the same reach, and the scan remains
+  the answer-in-waiting should declaring prove a burden. Nothing a program has not named
+  ships from outside its folder — a deliberate property for SOURCE: `.declare` files
+  travel only when listed, never as a side effect of a setting (ruled 2026-09-23).
+- **§5, rewriting — replaced by a URL map, so the compiled program stays pristine.** An
+  out-of-folder file is copied to `files/<hash><ext>`, and the package's entry installs
+  a map (asset-base.ts `provideUrlMap`) from each address the program will ask for to its
+  copy. Every load passes through it last — a DataSource's url, an Image's source, a
+  face's src, the page host's own source fetch — so the program's strings are the
+  source's strings. The cost this section accepted is gone.
+- **A shipped Declare source answers what every host answers for one.** Listed in
+  `files`, a `.declare` file ships with its highlighted reader form beside it, and the
+  map answers `?segments` with it and `?file` with the bytes (requests.md) — so a viewer
+  in the package reads it as it does on the site. The desktop ships its own source this
+  way, for its Viewer window.
+- **Programs mounted as islands travel with everything they would carry alone** — their
+  compiled program, their folder's files by the same sweep, their own `ship` block —
+  transitively, keyed by resolved file, so a program named by several hosts or reached
+  through a cycle ships once. (Their data is addressed in the HOST's space: islands.md §4.)
+- **§6, the crawl as verifier — not built.** `test/package.test.mjs` plays that role for
+  the mechanism: it serves a package folder alone in a browser and fails on any request
+  that leaves it.
+- **§7, "apps that are views onto a tree cannot be packaged" — narrowed.** The desktop now
+  packages: its dock's programs, its data, its own source, all declared. What still cannot
+  travel is content chosen by arbitrary code walking a tree — the desktop's Files window
+  browsing the documentation model — unless the program lists it.
+

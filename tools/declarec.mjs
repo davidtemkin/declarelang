@@ -124,17 +124,10 @@ const gz = (s) => gzipSync(Buffer.from(s)).length;
 const NO_SHIP = { islands: [], files: [], compiler: false, inspector: false };
 const shipOf = (program) => ({ ...NO_SHIP, ...(program.ship ?? {}) });
 
-/** THE ISLANDS — the programs this app can mount as an `AppIsland`, compiled
- *  AHEAD and shipped beside it (hosting.md, model 1: a build runs what it was
- *  built with, and compiles nothing unless the program says so). Two sources
- *  name them: an island whose `program` is a LITERAL, found in the tree; and
- *  the program's `ship [ islands = […] ]`, for islands whose `program` is
- *  computed and so unreadable to a build. Each name is spelled as
- *  `AppIsland.program` spells it — a name or a relative path, resolved from
- *  the host program's `demos/` folder (host-client sourceFor) — and compiles
- *  as its own file, so its includes resolve beside it. Returns one entry per
- *  distinct name: the compiled, compacted program and the components it needs. */
-async function buildIslands(program, originDir, keepPos) {
+/** The island program names a program mounts: an island whose `program` is
+ *  a LITERAL, found in the tree, plus the program's `ship [ islands = [ … ] ]`
+ *  for islands whose `program` is computed and so unreadable to a build. */
+function islandNames(program) {
   const names = new Set(shipOf(program).islands);
   const bases = new Map(program.classes.map((c) => [c.name, c.base]));
   const isIsland = (tag) => {
@@ -152,14 +145,79 @@ async function buildIslands(program, originDir, keepPos) {
   };
   walk(program.root);
   for (const c of program.classes) walk(c.body);
+  return names;
+}
+
+/** The files a program would carry if it were packaged on its own: every
+ *  sibling of its source except sources, generated output, and dev/VCS cruft —
+ *  copyAssets' rule, as a list of absolute paths. */
+async function assetFilesOf(dir) {
   const out = [];
-  for (const name of names) {
-    if (originDir === undefined) throw new Error(`ship: this build has no source directory to resolve the island '${name}' against — build from a file (declarec <app.declare>)`);
-    const file = resolve(originDir, "demos", name + ".declare");
-    if (!existsSync(file)) throw new Error(`ship: the island '${name}' names no program — expected ${relative(originDir, file)} (a name or a relative path, from the program's demos/ folder, as AppIsland.program spells it)`);
-    out.push({ name, ...(await buildProgramFile(file, name, keepPos)) });
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const { name } = entry;
+    if (name.startsWith(".") || name.endsWith(".declare") || name.startsWith("app.")) continue;
+    if (entry.isDirectory() && SKIP_DIRS.has(name)) continue;
+    if (entry.isFile() && SKIP_FILES.has(name)) continue;
+    const abs = join(dir, name);
+    if (entry.isDirectory()) for (const rel of await walkFiles(abs)) out.push(join(abs, rel));
+    else out.push(abs);
   }
   return out;
+}
+
+/** THE ISLANDS — the programs this app can mount as an `AppIsland`, compiled
+ *  AHEAD and shipped beside it (hosting.md, model 1: a build runs what it was
+ *  built with, and compiles nothing unless the program says so), each with
+ *  everything it would carry if it were packaged alone. TRANSITIVE: an island
+ *  program's own islands, `ship` block, and data files come along too, so a
+ *  window that hosts a program that hosts another works in the package as it
+ *  does on the site. Keyed by resolved file: a program named by several hosts,
+ *  or reached through a cycle (a program embedding itself), compiles and ships
+ *  ONCE, and the walk terminates.
+ *
+ *  Names resolve as the page host resolves them at run time — every island,
+ *  at any depth, against the PAGE program's `demos/` folder (host-client
+ *  childAssetBase / sourceFor take the one page `demoBase`). An island's DATA
+ *  resolves against its own program's folder, which is where its files are
+ *  collected from and what their URL-map keys are relative to.
+ *
+ *  Returns the compiled tenants, the files they need (absolute path + the key
+ *  the package's URL map answers for), and the run-time facts their `ship`
+ *  blocks add to the package's own. */
+async function buildIslands(program, originDir, keepPos) {
+  const tenants = [], files = [];
+  let compiler = false, inspector = false;
+  const seen = new Set([originDir === undefined ? "" : resolve(originDir)]);   // the page's own folder ships physically
+  const queue = [...islandNames(program)];
+  const built = new Set();
+  const within = (abs) => originDir !== undefined && (abs === resolve(originDir) || abs.startsWith(resolve(originDir) + sep));
+  while (queue.length > 0) {
+    const name = queue.shift();
+    if (originDir === undefined) throw new Error(`ship: this build has no source directory to resolve the island '${name}' against — build from a file (declarec <app.declare>)`);
+    const file = resolve(originDir, "demos", name + ".declare");
+    if (built.has(file)) continue;
+    built.add(file);
+    if (!existsSync(file)) throw new Error(`ship: the island '${name}' names no program — expected ${relative(originDir, file)} (a name or a relative path, from the program's demos/ folder, as AppIsland.program spells it)`);
+    const t = await buildProgramFile(file, name, keepPos);
+    tenants.push({ name, ...t });
+    const own = shipOf(t.program);
+    compiler ||= own.compiler;
+    inspector ||= own.inspector;
+    for (const n of islandNames(t.program)) queue.push(n);
+    // what the island would have carried alone: its folder's data and assets,
+    // and the files its own ship block names (relative to ITS program) —
+    // unless the folder is the page's, which the package already holds
+    const dir = dirname(file);
+    const wanted = [];
+    if (!seen.has(dir) && !within(dir)) { seen.add(dir); wanted.push(...await assetFilesOf(dir)); }
+    for (const f of own.files) {
+      const abs = resolve(dir, f);
+      if (!existsSync(abs) || !statSync(abs).isFile()) throw new Error(`ship: the island '${name}' names the file '${f}', which is not there — expected ${abs}`);
+      wanted.push(abs);
+    }
+    for (const abs of wanted) if (!within(abs)) files.push(abs);
+  }
+  return { tenants, files, compiler, inspector };
 }
 
 /** One program compiled ahead as a PROGRAM OBJECT — an island's, or the
@@ -172,7 +230,7 @@ async function buildProgramFile(file, name, keepPos) {
   await minifyBodies(built.program);
   const programJson = JSON.parse(JSON.stringify(built.program, compactValue));
   const contents = JSON.stringify(programJson);
-  return { key: shortHash(contents), contents, usedComponents: built.usedComponents };
+  return { key: shortHash(contents), contents, usedComponents: built.usedComponents, program: built.program };
 }
 
 /** THE FILES — what the program declares it reads that no literal names, or
@@ -180,15 +238,33 @@ async function buildProgramFile(file, name, keepPos) {
  *  INTO the package as files/<hash><ext>, and the entry maps the URL the
  *  program will ask for to the copy (runtime asset-base provideUrlMap), so the
  *  program's own text is untouched and the folder is self-contained. */
-async function buildFiles(program, originDir) {
+async function buildFiles(program, originDir, alsoAbs = []) {
   const out = [];
+  const byAbs = new Set();
+  const add = async (path, abs) => {
+    if (byAbs.has(abs)) return;
+    byAbs.add(abs);
+    const contents = await readFile(abs);
+    out.push({ path, abs, file: "files/" + shortHash(contents) + extname(abs), contents });
+    // A shipped Declare SOURCE answers the two requests every host answers for
+    // one (compiler/src/reqtypes.ts): `?file`, the bytes (the entry above — the
+    // map drops a query it has no entry for), and `?segments`, the reader's
+    // highlighted form, computed here as the dev server and the prewarm tier
+    // compute it, since a package has no highlighter to ask
+    if (extname(abs) === ".declare") {
+      const seg = JSON.stringify({ path, segments: highlight(contents.toString("utf8")) });
+      out.push({ path: path + "?segments", abs, file: "files/" + shortHash(seg) + ".segments.json", contents: seg });
+    }
+  };
   for (const path of shipOf(program).files) {
     if (originDir === undefined) throw new Error(`ship: this build has no source directory to resolve the file '${path}' against — build from a file (declarec <app.declare>)`);
     const abs = resolve(originDir, path);
     if (!existsSync(abs) || !statSync(abs).isFile()) throw new Error(`ship: the file '${path}' is not there — expected ${abs} (a path relative to the program, as its url or source would spell it)`);
-    const contents = await readFile(abs);
-    out.push({ path, abs, file: "files/" + shortHash(contents) + extname(abs), contents });
+    await add(path, abs);
   }
+  // the islands' files (buildIslands): keyed by their path from THIS program,
+  // which is the URL an island's own relative request resolves to in the package
+  for (const abs of alsoAbs) await add(relative(originDir, abs).split(sep).join("/"), abs);
   return out;
 }
 
@@ -364,14 +440,19 @@ export async function buildProduction(source, opts = {}) {
   // the boolean flags need no restoring (absence already reads as false).
   // THE SHIP BLOCK (runtime/src/parser.ts Ship): what this package carries
   // beyond what the source names — each member a fact the program stated.
-  const ship = shipOf(built.program);
-  const keepPos = !!opts.debug || ship.inspector || (opts.stripPos === false);
-  if (!keepPos) stripPos(built.program);
+  const declared = shipOf(built.program);
+  const keepPos = !!opts.debug || declared.inspector || (opts.stripPos === false);
   // The islands' programs, compiled ahead (buildIslands): shipped beside the
-  // app as programs/<hash>.json, loaded when an island first names one. The
-  // Inspector, when declared, arrives the same way.
-  const tenants = await buildIslands(built.program, opts.originDir, keepPos);
-  const shippedFiles = await buildFiles(built.program, opts.originDir);
+  // app as programs/<hash>.json, loaded when an island first names one, each
+  // with the files it would carry alone. The Inspector, when declared,
+  // arrives the same way.
+  const isl = await buildIslands(built.program, opts.originDir, keepPos);
+  const tenants = isl.tenants;
+  const shippedFiles = await buildFiles(built.program, opts.originDir, isl.files);
+  // the package's run-time facts: this program's, OR any island's — a hosted
+  // program that compiles at run time needs the compiler aboard its host too
+  const ship = { ...declared, compiler: declared.compiler || isl.compiler, inspector: declared.inspector || isl.inspector };
+  if (!keepPos && !ship.inspector) stripPos(built.program);
   const inspector = ship.inspector ? await buildInspector(keepPos) : null;
   const hosts = !!opts.hosts || tenants.length > 0 || ship.inspector;
   const alsoUses = [...(opts.alsoUses ?? []), ...tenants.flatMap((t) => t.usedComponents), ...(inspector ? inspector.usedComponents : [])];
@@ -411,7 +492,7 @@ export async function buildProduction(source, opts = {}) {
       `import { provideUrlMap } from ${JSON.stringify(join(RUNTIME, "asset-base.js"))};\n` +
       `{ const here = new URL(".", import.meta.url); const FILES = ${JSON.stringify(Object.fromEntries(shippedFiles.map((f) => [f.path, f.file])))};\n` +
       `  const map = new Map(Object.entries(FILES).map(([k, v]) => [new URL(k, here).href, new URL(v, here).href]));\n` +
-      `  provideUrlMap((u) => { const q = u.indexOf("?"); return map.get(q < 0 ? u : u.slice(0, q)) ?? u; }); }\n`) +
+      `  provideUrlMap((u) => { const q = u.indexOf("?"); return map.get(u) ?? map.get(q < 0 ? u : u.slice(0, q)) ?? u; }); }\n`) +
     (!ship.compiler ? "" :
       `import { provideCompilerRoot } from ${JSON.stringify(join(BROWSER, "compiler-client.js"))};\n` +
       `provideCompilerRoot(new URL(".", import.meta.url));\n`) +
@@ -1145,7 +1226,9 @@ export function loadLibraryOnce() { return Promise.resolve({}); }
 // the generated files or bloat the deploy): the app source, the generated
 // files, dev host artifacts, VCS/OS cruft, and any dotdir (e.g. the server's
 // own `.prod-cache` output dir, which must not recurse into itself).
-const SKIP_DIRS = new Set(["dist", "prebuilt", "node_modules"]);
+// `tests/` holds a program's verify fixtures (baselines, assert scripts) —
+// read beside the source by `verify`, never by the running program.
+const SKIP_DIRS = new Set(["dist", "prebuilt", "node_modules", "tests"]);
 const SKIP_FILES = new Set(["index.html", ".DS_Store"]);
 
 /** Copy the runtime assets the app fetches by relative url (data/, fonts,

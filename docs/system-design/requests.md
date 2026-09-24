@@ -138,12 +138,18 @@ build time).
 | view=reader | ✗ *(interactive — no build-time browser)* | ✓ | ✓ |
 | view=source | ✗ | ✓ | ✓ |
 | view=edit | ✗ | ✓ | ✓ |
-| file | ✓ *(trivial — it's the input)* | ✓ | ✓ |
-| segments | ✓ `--highlight` | ✓ | gap → highlight in-browser |
+| file | ✓ *(trivial — it's the input; a package answers it for every source its `ship [ files ]` lists)* | ✓ | ✓ |
+| segments | ✓ `--highlight` *(and a package ships them beside every listed source)* | ✓ | gap → highlight in-browser |
 | extract | ✓ `--extract` | ✓ | ✓ (`boot-extract.js`, in-browser) |
 
 Blanks marked "gap" are implementation debt, not rules: the SW carries the full
 compiler, so it *can* build a bundle and emit segments — those are follow-ups.
+
+A built **package** is a fourth answerer for `file` and `segments`, and only for the
+sources its program names in `ship [ files = […] ]`: the build copies each and computes
+its segments, and the package's URL map serves `…/x.declare?segments` from the segments
+file and `…/x.declare?file` (any other query) from the bytes. A source the program did
+not list is not in the package, and the request 404s — by design (app-packaging.md §8).
 
 ## Transport notes
 

@@ -75,8 +75,8 @@ export function resolveAsset(source: string, root?: object | null): string {
 // always did — `../../docs/model.json` from an app two levels down. The
 // package's entry installs a map from each declared URL to its packaged copy,
 // and every load — a DataSource's url, an Image's source, a face's src —
-// passes its resolved URL through here last. A query string does not change
-// which file is meant, so the map is consulted without it.
+// passes its resolved URL through here last. The map answers a URL with its
+// query when it holds that entry (a shipped source's `?segments`), else without.
 let urlMap: ((url: string) => string) | null = null;
 
 /** Install the map (returns the previous one, the provideTransport contract). */

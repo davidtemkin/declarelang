@@ -43,11 +43,16 @@ bitmap is a certain music-video still, and it earns its keep.)
 
 use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, FilesWindow, ViewerWindow, AppWindow, AboutWindow, JotWindow, BrandMark, HelpSearch ]
 
-// The programs the dock can open — each an AppIsland whose `program` is
-// computed from the dock item, so a build cannot read the name from the tree:
-// a package compiles these ahead and ships them beside the desktop.
+// What a package of the desktop carries beyond what its source names: the
+// programs the dock can open — each an AppIsland whose `program` is computed
+// from the dock item, so a build cannot read the name from the tree — and this
+// file itself, which the Declare Viewer window displays.
 
-ship [ islands = ["../../../library/platform-apps/viewer/viewer", "../../calendar/calendar", "../../birds/birds", "../../marketmap/marketmap"] ]
+ship [
+    islands = ["../../../library/platform-apps/viewer/viewer", "../../calendar/calendar", "../../birds/birds", "../../marketmap/marketmap"],
+    files = ["desktop.declare"]
+    ]
+
 
 /*
 ## Window — chrome once, contents per subclass
@@ -1945,9 +1950,8 @@ class MailApp extends InertApp [ id = "mail", label = "Mail", title = "Mail",
 class MusicApp extends InertApp [ id = "music", label = "Music", title = "Music",
     quip = "Nah.", hue1 = #FB5C74, hue2 = #FA233B, drawn = true,
     face(d: Draw) {
-        // the eighth note, drawn rather than set as the ♪ glyph so it carries
-        // the weight of the other faces: a slanted head, a stem, and a flag
-        // that swells out and curls back down
+        // the eighth note, at the weight of the other faces: a slanted head,
+        // a stem, and a flag that swells out and curls back down
         d.fillStyle = 0xFFFFFF
         d.beginPath()
         d.ellipse(19.4, 34.2, 7, 5.3, -0.42, 0, Math.PI * 2)

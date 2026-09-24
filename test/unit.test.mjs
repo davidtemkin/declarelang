@@ -4541,7 +4541,7 @@ await test("font: a font's shape is checked — Face placement and children, fam
   assert.match(errs(`App [ Face [ src = "x.woff2" ] ]`)[0], /a Face belongs inside a Font/);
   assert.match(errs(`App [ f: Font [ family = "X", Face [ src = "x.woff2" ] ] ]`)[0], /'family' names a system font/);
   assert.match(errs(`App [ f: Font [ Face [ src = 12 ] ] ]`)[0], /a face source is a URL string/);
-  assert.match(errs(`font Body [ family = "Helvetica" ] App [ ]`)[0], /'font Body \[ … \]' is no longer a top-level declaration — .*body: Font \[ … \]/);
+  assert.match(errs(`font Body [ family = "Helvetica" ] App [ ]`)[0], /'font Body \[ … \]' is not a top-level declaration — .*body: Font \[ … \]/);
 });
 
 await test("font: a font NAME in a bare family slot or list names the object form, at the item", () => {
@@ -5807,6 +5807,31 @@ await test("include resolves a class declared in another file", async () => {
   assert.equal(app.children.length, 1, "the included class instantiated as a child");
   assert.ok(app.children[0] instanceof View, "Card instance is a View");
   assert.equal(app.children[0].constructor.name, "Card", "instantiated as the included class Card");
+});
+
+// A row that materializes late compiles against ITS OWN program's script
+// helpers — one page runs several programs (a host and its island tenants),
+// and a row re-laid out after another program was built must not see that
+// program's helpers instead.
+await test("a late-materialized row uses its own program's script helpers, not the last program built", async () => {
+  const a = await compile(`script { function tint(n: number): number { return n * 2 } }
+App [ width = 200, height = 80,
+    db: Dataset { { "rows": [{ "n": 1 }] } },
+    list: View [ datapath = { app.db.value }, View [ datapath = :rows[], width = { tint(Number(:n)) }, height = 5 ] ]
+]`, { originDir: process.cwd() });
+  const b = await compile(`script { function other(n: number): number { return n + 100 } }
+App [ width = 10, height = 10, v: View [ width = { other(1) }, height = 1 ] ]`, { originDir: process.cwd() });
+  assert.deepEqual([...a.errors, ...b.errors].map((e) => e.message), []);
+  const appA = settleHeadless(a.source, { deps: a.deps });
+  const appB = settleHeadless(b.source, { deps: b.deps });   // built second: the "last program"
+  try {
+    assert.equal(appB.v.width, 101);
+    assert.equal(appA.list.children.length, 1, "the first row built with its program");
+    appA.db.insert(["rows"], 1, { n: 5 }); settle();
+    const rows = appA.list.children;
+    assert.equal(rows.length, 2, "the new row materialized");
+    assert.equal(rows[1].width, 10, "and compiled against its own program's tint(), not the other program's helpers");
+  } finally { appA.destroy?.(); appB.destroy?.(); }
 });
 
 // THE SHIP BLOCK (parser.ts Ship): what a package must carry beyond what the
@@ -7096,7 +7121,7 @@ await test("sources: nothing subscribes for a handler nobody declared", async ()
 await test("sources: the `<-` operator is GONE, and the error names the rewrite", async () => {
   const bad = await compile(`App [ v: Node [ onKeyUp(e) <- Keys { } ] ]`, {});
   assert.equal(bad.source, null);
-  assert.match(bad.errors[0].message, /'<-' subscriptions were removed/);
+  assert.match(bad.errors[0].message, /'<-' is not a Declare operator/);
   assert.match(bad.errors[0].message, /Keys \[ onKeyUp\(e\) \{ … \} \]/, "names the exact replacement");
 });
 

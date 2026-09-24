@@ -238,17 +238,9 @@ export function instantiate(input) {
     else if (program.scripts.length > 0) {
         Object.assign(scriptScope, evalScript(program.scripts.map((s) => s.src).join("\n;\n")));
     }
-    CURRENT_SCRIPTS = scriptScope;
-    return withScriptScope(scriptScope, () => buildTree(program, trusted));
+    return withScriptScope(scriptScope, () => buildTree(program, trusted, scriptScope));
 }
-/** The last program's script scope — replicated instances compile their
- *  bodies LAZILY (a row materializes during a settle long after build), and
- *  those compilations must see the same `script { }` helpers the eager ones
- *  did. The materializer re-enters the scope around each construct. (Found
- *  the day a replicated row called a script function: the eager bodies
- *  bound it; the first materialized instance threw ReferenceError.) */
-let CURRENT_SCRIPTS = {};
-function buildTree(program, trusted) {
+function buildTree(program, trusted, scripts) {
     const programShapes = shapeNames(program);
     const { infos, schemas, errors } = programSchemas(program.classes, programShapes);
     if (errors.length > 0)
@@ -290,6 +282,7 @@ function buildTree(program, trusted) {
         }
     }
     const ctx = {
+        scripts,
         tags,
         shapes: programShapes,
         layoutCtors,
@@ -1535,7 +1528,7 @@ function materializer(ctx) {
         const saved = ctx.pending;
         ctx.pending = [];
         try {
-            const node = withScriptScope(CURRENT_SCRIPTS, () => construct(template, classroot, ctx));
+            const node = withScriptScope(ctx.scripts, () => construct(template, classroot, ctx));
             if (!(node instanceof View)) {
                 throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
             }
@@ -1550,14 +1543,14 @@ function materializer(ctx) {
                 if (provided)
                     return;
                 provided = true;
-                withScriptScope(CURRENT_SCRIPTS, () => installBatch(provisions, ctx));
+                withScriptScope(ctx.scripts, () => installBatch(provisions, ctx));
             };
             return {
                 view: node,
                 provide,
                 finish: () => {
                     provide();
-                    withScriptScope(CURRENT_SCRIPTS, () => installBatch(rest, ctx));
+                    withScriptScope(ctx.scripts, () => installBatch(rest, ctx));
                     initTree(node);
                 },
                 // Membership-anchored init (the D5 ruling): the reconciler calls this

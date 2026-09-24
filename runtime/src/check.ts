@@ -321,7 +321,7 @@ export function checkStyleDecls(
   for (const f of program.fonts) {
     const member = f.name.charAt(0).toLowerCase() + f.name.slice(1);
     errors.push(new DeclareError(
-      `'font ${f.name} [ … ]' is no longer a top-level declaration — ${fontObjectHint(f.name)}. Move its body into the App as '${member}: Font [ … ]' (the same family and Face children)`,
+      `'font ${f.name} [ … ]' is not a top-level declaration — ${fontObjectHint(f.name)}. Its body goes in the App as '${member}: Font [ … ]' (the same family and Face children)`,
       f.pos
     ));
   }

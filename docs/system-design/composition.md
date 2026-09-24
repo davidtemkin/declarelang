@@ -206,6 +206,13 @@ Declare-file-as-one-ES-module emission:
    declarations replaced by `declare const <name>: any` per binding — the
    imported surface types as `any`; the bundler makes it real.
 
+**The scope is one program's, for the program's whole life.** A program's script
+bindings are evaluated once at instantiation and carried on that program's build
+context (instantiate.ts `Ctx.scripts`), so a body compiled LATE — a replicated row
+materializing long after build — binds to its own program's helpers. One page runs
+several programs (a host and its island tenants), so the scope is never "whichever
+program was built last".
+
 **Where no bundler exists, the compiler refuses by name** — the in-browser
 compiler (a static host's live compile) says so and points at the dev server
 or a build. This supersedes the same-experience clause below for imports

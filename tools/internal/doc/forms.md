@@ -10,15 +10,14 @@ Fields, in order: `name` (how the form is displayed), `group` (its index section
 separated). Then the lead — one or two paragraphs. `### rules` lists what the compiler
 enforces: each `- ` rule carries `> says:` the checker's own sentence, quoted verbatim, and
 `> probe:` a one-line program that provokes it (the gate compiles the probe and checks the
-sentence, so a page can never quote a diagnostic the compiler no longer says). `### related`
+sentence, so a page quotes exactly what the compiler says). `### related`
 lists forms (by slug), classes, and guide chapters (`NN-slug · Title`).
 
 Not forms, and not here: `afterSettle` (a shared function — Types and functions),
 `onReady` (App's `ready` event — the App page), `draw()` (a method with a reserved name a
 view may define — the View page). The settle itself is a concept the guide teaches. And
-`<-` is no longer a form: the subscription arrow was removed when runtime services became
-ordinary component members (`Keys [ onKeyUp(e) { … } ]` in place of `onKeyUp(e) <- Keys`);
-the parser still recognizes it, only to name that rewrite.
+`<-` is not a form: a runtime service is an ordinary component member
+(`Keys [ onKeyUp(e) { … } ]`), and the parser recognizes `<-` only to name that spelling.
 
 ## app
 
@@ -962,10 +961,13 @@ program, never a build option:
 
 - `islands` — the programs an `AppIsland` may mount when its `program` is *computed*
   (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and
-  shipped beside the app. A literal `program = "name"` needs no entry.
+  shipped beside the app with everything it would carry alone — its data, its own islands,
+  its own `ship` block — once, however many hosts name it. A literal `program = "name"`
+  needs no entry.
 - `files` — what the program reads that no literal names, or that lives outside its folder:
   a docs model two levels up, its own source for a viewer. Each is copied into the package and
-  served from there; the program's paths are untouched. A literal `url = "data.json"` beside
+  served from there; the program's paths are untouched. A `.declare` source ships with its
+  highlighted reader form too, so a viewer in the package reads it as on the site. A literal `url = "data.json"` beside
   the program needs no entry.
 - `compiler = true` — the program compiles source at run time (live editing, programs typed
   in). The package carries the compiler and the component library; otherwise it carries
@@ -1071,8 +1073,8 @@ the `Font` and `Face` classes.
 
 ### rules
 
-- `font Name [ … ]` at the top level is retired — a font is an object in the tree.
-  > says: 'font Body [ … ]' is no longer a top-level declaration — a font is an object in the tree
+- `font Name [ … ]` is not a top-level declaration — a font is an object in the tree.
+  > says: 'font Body [ … ]' is not a top-level declaration — a font is an object in the tree
   > probe: font Body [ family = "Helvetica" ]\nApp [ ]
 - A font name where a family goes is not a family — name the object in a `{ }`.
   > says: 'Nope' is not a family — a font is an object in the tree

@@ -211,6 +211,20 @@ happens where the value arrives, the way a DataSource checks arriving bytes.
 With no default, a read of a value nothing provides is an error that names
 it.
 
+**A tenant's own files come through its host, too.** A tenant's relative
+`url` resolves in its host's space, not beside the tenant's own file, so a
+host can hand it any address to read. A tenant that reads its *own* data asks
+where home is, and falls back to beside itself when it runs alone:
+
+```declare-fragment
+data: DataSource [ auto = true, url = { hostProvided("base", "") + "data/events.json" } ]
+```
+
+That is how the desktop's Calendar, Birds, and Market Map find their data,
+with the desktop's windows providing each one's `base`. A package follows the
+same addresses, so a tenant written this way reads its data there exactly as
+on the site ([Ship it](declare-docs:guide:run-check-ship)).
+
 Values vs. verbs is the load-bearing distinction. A provided or exposed value
 is continuous — meaningful whenever read, and owned by exactly one side: the
 tenant cannot write what the host provides, and the host cannot write what
