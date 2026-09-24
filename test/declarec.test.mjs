@@ -105,9 +105,10 @@ await test("buildProduction carries the page host, the program, and no parser", 
   }
 });
 
-// ISLANDS — a build compiles the programs its islands name and ships them
-// beside the app; a package never carries a compiler, and a computed name is
-// declared with `islands [ … ]`.
+// THE SHIP BLOCK (runtime/src/parser.ts Ship) — what a package carries beyond
+// what its source names. Islands: a build compiles the programs its islands
+// name and ships them beside the app; a computed name is declared with
+// `ship [ islands = […] ]`, and a package carries no compiler unless told to.
 await test("a build compiles its islands ahead into programs/ and carries no compiler", async () => {
   const { mkdtempSync, mkdirSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
@@ -121,20 +122,78 @@ await test("a build compiles its islands ahead into programs/ and carries no com
     b: AppIsland [ x = 10, y = 90, width = 300, height = 160, program = { app.which } ],
   ]`;
   // the computed island is undeclared: the build refuses to guess
-  const out = await buildProduction("islands [ \"note\" ]\n" + src, { name: "host", originDir: dir });
+  const out = await buildProduction("ship [ islands = [ \"note\" ] ]\n" + src, { name: "host", originDir: dir });
   assert.ok(out.ok, out.report);
   const names = out.files.map((f) => f.name);
   assert.equal(out.islands.length, 2, "one program per island name: the literal and the declared");
   for (const i of out.islands) assert.ok(names.includes(i.file), `${i.name} ships as ${i.file}`);
   const js = out.files.find((f) => f.name.startsWith("app.")).contents;
   assert.ok(/programs\//.test(js), "the module knows its islands' files");
-  assert.ok(!/compile-worker\.js/.test(js) && !/declare-compiler\.js/.test(js), "no compiler client in a package");
+  assert.ok(!/compile-worker\.js/.test(js) && !/declare-compiler\.js/.test(js), "no compiler client in a package that did not ask for one");
+  assert.ok(!names.some((n) => n.startsWith("bundles/") || n.startsWith("library/")), "no compiler or library files either");
   // the tenant's components ride the host's registry: Markdown is the note's, not the host's
   assert.ok(/class Markdown\b|Markdown/.test(js), "the union registry carries the tenant's Markdown");
-  assert.ok(!/watchChild\(childApp/.test(js) || /installLiveEdit\(\)\s*\{\s*return/.test(js), "no live-edit watcher in a build that publishes no edits");
+  assert.ok(!/watchChild\(childApp/.test(js) || /installLiveEdit\(\)\s*\{\s*return/.test(js), "no live-edit watcher without the compiler");
   // a name the build cannot find is a build error naming the fix
-  const bad = await buildProduction("islands [ \"nope\" ]\n" + src, { name: "host", originDir: dir }).catch((e) => e);
-  assert.ok(bad instanceof Error && /'nope' names no program/.test(bad.message), "an unknown island name fails the build with the reason");
+  const bad = await buildProduction("ship [ islands = [ \"nope\" ] ]\n" + src, { name: "host", originDir: dir }).catch((e) => e);
+  assert.ok(bad instanceof Error && /the island 'nope' names no program/.test(bad.message), "an unknown island name fails the build with the reason");
+});
+
+// Files: what the program reads that no literal names, or that lives outside
+// its folder, copied INTO the package and mapped by URL — the program's text
+// is untouched and the folder is self-contained.
+await test("ship [ files ] copies each file into the package and maps its URL", async () => {
+  const { mkdtempSync, mkdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const root = mkdtempSync(resolve(tmpdir(), "declarec-files-"));
+  const dir = resolve(root, "apps", "a");
+  mkdirSync(dir, { recursive: true });
+  mkdirSync(resolve(root, "docs"));
+  writeFileSync(resolve(root, "docs", "model.json"), `{"n":1}`);
+  const src = `ship [ files = ["../../docs/model.json"] ]
+App [ width = 100, height = 100, m: DataSource [ url = "../../docs/model.json" ] ]`;
+  const out = await buildProduction(src, { name: "a", originDir: dir });
+  assert.ok(out.ok, out.report);
+  assert.equal(out.shipped.files.length, 1);
+  const f = out.shipped.files[0];
+  assert.match(f.file, /^files\/[0-9a-f]+\.json$/, "copied under files/, named by content");
+  assert.ok(out.files.some((x) => x.name === f.file && String(x.contents) === `{"n":1}`), "the bytes ride the package");
+  const js = out.files.find((x) => x.name.startsWith("app.")).contents;
+  assert.ok(js.includes("../../docs/model.json") && js.includes(f.file), "the entry maps the declared path to the copy");
+  // a file that is not there fails the build, naming the path
+  const bad = await buildProduction(`ship [ files = ["nope.json"] ]\nApp [ ]`, { name: "a", originDir: dir }).catch((e) => e);
+  assert.ok(bad instanceof Error && /the file 'nope.json' is not there/.test(bad.message), "a missing file fails the build with the reason");
+});
+
+// Compiler: a program that compiles at run time says so, and the package
+// mirrors the distro's compiler layout into its own folder.
+await test("ship [ compiler = true ] mirrors the compiler and the library into the package", async () => {
+  const out = await buildProduction(`ship [ compiler = true ]\nApp [ width = 100, height = 100 ]`, { name: "c" });
+  assert.ok(out.ok, out.report);
+  const names = out.files.map((f) => f.name);
+  for (const n of ["bundles/declare-compiler.js", "bundles/compile-worker.js", "library/autoincludes.json"]) assert.ok(names.includes(n), `${n} rides the package`);
+  assert.ok(names.filter((n) => n.startsWith("library/") && n.endsWith(".declare")).length > 20, "the whole component library rides");
+  assert.ok(!names.some((n) => /^library\/.*\/tests\//.test(n) || /\.png$/.test(n)), "no test fixtures or images from the library");
+  const js = out.files.find((f) => f.name.startsWith("app.")).contents;
+  assert.ok(/bundles\/compile-worker\.js/.test(js) && /bundles\/declare-compiler\.js/.test(js), "the entry names the package as the compiler's root");
+  assert.ok(/watchChild/.test(js), "live editing rides with the compiler");
+  assert.ok(!/is not aboard this package/.test(js), "the compiler client is the real one");
+});
+
+// Inspector: a program that answers questions about itself in production
+// carries the Inspector as a program object, the bridge, positions, and prose.
+await test("ship [ inspector = true ] carries the Inspector, the bridge, positions, and error prose", async () => {
+  const plain = await buildProduction(`App [ width = 100, height = 100, t: Text [ text = { "a" + app.width } ] ]`, { name: "p" });
+  const out = await buildProduction(`ship [ inspector = true ]\nApp [ width = 100, height = 100, t: Text [ text = { "a" + app.width } ] ]`, { name: "i" });
+  assert.ok(out.ok, out.report);
+  assert.ok(out.shipped.inspector && out.files.some((f) => f.name === out.shipped.inspector.file), "the Inspector ships as programs/<hash>.json");
+  const js = out.files.find((f) => f.name.startsWith("app.")).contents;
+  assert.ok(js.includes(out.shipped.inspector.file), "the entry provides it to the Inspector's boot");
+  assert.ok(/settleMotion/.test(js) && /dependents/.test(js), "the bridge is the real one (its query surface is aboard)");
+  assert.ok(!/"line":/.test(plain.files.find((f) => f.name.startsWith("app.")).contents), "a plain package strips positions");
+  assert.ok(/"line":/.test(js) || /line:/.test(js), "positions are kept");
+  assert.ok(Object.keys(out.errorCodes).length === 0 && Object.keys(plain.errorCodes).length > 0, "error prose is kept — nothing was coded");
+  assert.ok(!/declare-compiler\.js/.test(js), "the inspector does not imply the compiler");
 });
 
 await test("buildProduction emits a self-contained bundle in the expected size range", async () => {

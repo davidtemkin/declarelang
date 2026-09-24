@@ -156,16 +156,17 @@ When you ship a build (`declarec`), the tenants ship with it: every island whose
 `program` is a literal is compiled ahead and written beside the app, loaded the
 moment the island first names it — no compiler on the page. An island whose
 `program` is computed (`program = { app.current }`) can't be read by a build, so
-the program says what it may be, the way `use [ Name ]` says which components to
-keep:
+the program says what it may be, in its `ship` block — the declaration that
+states what a package carries beyond what the source names:
 
 ```declare-fragment
-islands [ "player", "queue", "../../settings/settings" ]
+ship [ islands = ["player", "queue", "../../settings/settings"] ]
 ```
 
 Names are spelled exactly as `program` spells them. A name the build did not
 produce is a reported error at run time, naming the fix — never a blank box.
-[Building for production](declare-docs:operational:building) has the layout.
+[Run, check, ship](declare-docs:guide:run-check-ship) has the whole block, and
+[Building for production](declare-docs:operational:building) the layout.
 
 ## The boundary: `provides`, `exposed`, and `post`
 

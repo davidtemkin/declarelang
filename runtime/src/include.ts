@@ -18,7 +18,7 @@
 // (the merged program stays instantiable). Within-file duplicates stay the
 // checker's job, so the main program seeds the origin table with no self-check.
 
-import { parseLibrary, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element, type ScriptBlock, type IncludeRef } from "./parser.js";
+import { parseLibrary, mergeShip, type Ship, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element, type ScriptBlock, type IncludeRef } from "./parser.js";
 import { DeclareError } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 
@@ -170,7 +170,9 @@ export async function resolveIncludes(
   // The keep-list folds across libraries too: a library declaring its own
   // `use [ … ]` contributes its dynamic deps to the merged program's list.
   const uses: string[] = [...program.uses];
-  const islands: string[] = [...program.islands];
+  // …and its `ship [ … ]`: a component that reads a file or mounts a program
+  // says so where it lives, and the merged program carries the union.
+  let ship: Ship | undefined = program.ship;
   // A library's `script { … }` helpers travel with it, in include order — the
   // program's own blocks lead, then each library's, so a helper is defined
   // before anything that could reference it downstream.
@@ -243,7 +245,7 @@ export async function resolveIncludes(
       for (const s of lib.styles) if (fold(s.name, s.pos, from)) styles.push(s);
       for (const f of lib.fonts) if (fold(f.name, f.pos, from)) fonts.push(f);
       uses.push(...lib.uses);
-      islands.push(...(lib.islands ?? []));
+      ship = mergeShip(ship, lib.ship);
       scripts.push(...lib.scripts);
       // Its splice-ready source — script files spliced in and include
       // directives cut out, in ONE coordinate-safe pass — after its
@@ -255,7 +257,7 @@ export async function resolveIncludes(
   await walk(program.includes, originDir);
 
   return {
-    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], islands: [...new Set(islands)], scripts, root: program.root },
+    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], ...(ship === undefined ? {} : { ship }), scripts, root: program.root },
     sources,
     sourceIds,
     errors,
@@ -357,7 +359,7 @@ export async function resolveAutoIncludes(
   // the keep-list folds here exactly as in resolveIncludes: an auto-pulled
   // library's `use [ … ]` (its by-name construction deps) joins the program's
   const uses: string[] = [...program.uses];
-  const islands: string[] = [...program.islands];
+  let ship: Ship | undefined = program.ship;
   const sources: string[] = [];
   const sourceIds: string[] = [];                         // parallel to `sources`, as in resolveIncludes
 
@@ -413,6 +415,7 @@ export async function resolveAutoIncludes(
     for (const f of lib.fonts) if (foldOne(f.name, f.pos, path)) fonts.push(f);
     scripts.push(...lib.scripts);
     uses.push(...lib.uses);
+    ship = mergeShip(ship, lib.ship);
     sources.push(await spliceScriptFiles(resolved.source, lib.scriptFiles, lib.scriptFileSpans, resolved.dir, host, errors, lib.includeSpans));
     sourceIds.push(resolved.canonical);
   };
@@ -432,7 +435,7 @@ export async function resolveAutoIncludes(
     // `uses` is the FOLDED list — the root's plus every included library's
     // (returning the root's alone silently dropped a library's keep-list,
     // which broke by-name construction inside components).
-    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], islands: [...new Set(islands)], scripts, root: program.root },
+    program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], ...(ship === undefined ? {} : { ship }), scripts, root: program.root },
     sources,
     sourceIds,
     errors,

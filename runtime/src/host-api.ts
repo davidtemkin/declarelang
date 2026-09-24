@@ -24,7 +24,7 @@ export { settle, afterSettle, observe, kernelReady } from "./reactive.js";
 export { DomBackend } from "./dom-backend.js";
 export { CanvasBackend } from "./canvas-backend.js";
 export { provideTransport, setAppDataBase } from "./data.js";
-export { provideAssetBase, setAppAssetBase } from "./asset-base.js";
+export { provideAssetBase, setAppAssetBase, provideUrlMap, mapUrl } from "./asset-base.js";
 export { onIslandSlot } from "./backend.js";
 export { islandProvisions, linkIslandTenant } from "./view.js";
 export { fontsReady } from "./font-value.js";

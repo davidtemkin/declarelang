@@ -5809,6 +5809,50 @@ await test("include resolves a class declared in another file", async () => {
   assert.equal(app.children[0].constructor.name, "Card", "instantiated as the included class Card");
 });
 
+// THE SHIP BLOCK (parser.ts Ship): what a package must carry beyond what the
+// source names — a closed set of members with fixed shapes, validated at parse
+// time with positions, merged across the root and across includes.
+await test("ship [ … ]: members parse as plain data, before or after the root, and merge", () => {
+  const p = parseProgram(`ship [ islands = ["player", "../../settings/settings"], compiler = true ]
+App [ width = 1 ]
+ship [ files = ["../../docs/model.json"], islands = ["player"], inspector = true ]`);
+  assert.deepEqual(p.ship, {
+    islands: ["player", "../../settings/settings"], files: ["../../docs/model.json"], compiler: true, inspector: true,
+  }, "lists union (deduped), facts OR");
+  assert.equal(parseProgram("App [ ]").ship, undefined, "a program that declares nothing carries no block");
+  assert.deepEqual(parseProgram("ship [ ]\nApp [ ]").ship, { islands: [], files: [], compiler: false, inspector: false }, "an empty block is the defaults");
+  // `ship` is only the declaration when a bracket follows it
+  assert.equal(parseProgram("App [ ship: View [ ] ]").root.children[0].name, "ship", "a member named ship is a member");
+});
+
+await test("ship [ … ]: a wrong member, shape, or entry is a positioned error naming the fix", () => {
+  const bad = (src, re) => {
+    let err = null;
+    try { parseProgram(src); } catch (e) { err = e; }
+    assert.ok(err !== null, "should refuse: " + src);
+    const text = err.errors ? err.errors.map((e) => e.message).join("\n") : err.message;
+    assert.match(text, re);
+  };
+  bad(`ship [ island = [ "x" ] ]\nApp [ ]`, /ship has no member 'island' — islands, files, compiler, or inspector/);
+  bad(`ship [ islands = "x" ]\nApp [ ]`, /ship's islands is a list of quoted paths/);
+  bad(`ship [ files = [ model ] ]\nApp [ ]`, /a ship files entry is a path in quotes/);
+  bad(`ship [ islands = [""] ]\nApp [ ]`, /a ship islands entry is a program name in quotes/);
+  bad(`ship [ compiler = yes ]\nApp [ ]`, /ship's compiler is true or false/);
+  bad(`ship [ compiler = true, compiler = false ]\nApp [ ]`, /ship names 'compiler' twice/);
+});
+
+await test("ship [ … ]: an included component's block folds into the program's", async () => {
+  const host = memHost({
+    "/help.declare": `ship [ files = ["../../docs/model.json"] ]\nclass Help extends View [ ]`,
+  });
+  const r = await compile('ship [ compiler = true ]\ninclude [ "help.declare" ]\nApp [ width=10, height=10, Help [ ] ]', { host, originDir: "/" });
+  assert.deepEqual(r.errors, []);
+  const { parseProgram: parse } = await import("../runtime/dist/parser.js");
+  const merged = parse(r.source);
+  assert.deepEqual(merged.ship, { islands: [], files: ["../../docs/model.json"], compiler: true, inspector: false },
+    "the component said what it reads; the program said it compiles; the merged program carries both");
+});
+
 // An error INSIDE an included file is positioned in that file, by name — not
 // at a line in the merged program labelled "included library source" (field
 // report 2026-08-21: five agents, five included rooms, every red run began

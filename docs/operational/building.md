@@ -11,8 +11,10 @@ node tools/declarec.mjs apps/calendar/calendar.declare -o dist
 ## What it emits, and why it's small
 
 The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, your
-data assets copied alongside, and — when the app mounts other programs — a `programs/`
-folder with one compiled program per island (below). Deployable to any static host. On the flagship calendar it lands
+data assets copied alongside, and whatever the program's `ship` block names (below): a
+`programs/` folder with one compiled program per island, a `files/` folder for what it reads
+from elsewhere, the compiler and the component library when it compiles at run time.
+Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
 around **<!--stat:calendar.wireKB-->118<!--/stat--> KB gzipped** — and that is the figure the
 homepage prints, measured on the build its own calendar page ships. The module carries
 everything a page needs and nothing else: the runtime's run path, your program, and the web
@@ -33,31 +35,46 @@ for one. Five things keep it small:
 - **Coded errors.** Error *prose* is developer text — you read it once while building. A
   production build ships the code instead (see below); the sentences stay in dev.
 
+## What the program says it needs: `ship`
+
+A build reads the source and collects what it can see: the components the tree names, the
+data a literal `url` names beside the program, the island programs a literal `program`
+names. What it cannot see, the program states, in one top-level block — each member a fact
+about the program, never a build option:
+
+```declare
+ship [
+    islands = ["player", "queue", "../../settings/settings"],
+    files = ["../../docs/model.json", "app.declare"],
+    compiler = true,
+    inspector = true,
+]
+```
+
+| member | says | the build ships |
+|---|---|---|
+| `islands` | an `AppIsland` may mount these when its `program` is computed | `programs/<hash>.json` per name — compiled ahead, fetched when an island first names one |
+| `files` | the program reads these, and no literal names them or they live outside its folder | `files/<hash>.<ext>` per path; the entry maps each URL the program will ask for to its copy, so the program's own paths are untouched |
+| `compiler = true` | the program compiles source at run time — live editing, programs typed in | `bundles/declare-compiler.js`, `bundles/compile-worker.js`, `library/` — the distro's layout inside the folder, fetched lazily on the first compile |
+| `inspector = true` | the program answers questions about itself in production | the Inspector as a compiled program, the `__declare` bridge, source positions, error prose. Not the compiler: the Inspector's evaluate strip says so when it needs one |
+
+An included component may carry its own block — a help panel that reads the docs model says
+so where it lives — and the program's merged block is the union. The dev server and the
+static site, which carry every source and a compiler, read none of this.
+
 ### Apps inside the app
 
 An `AppIsland` mounts another Declare program inside yours — the desktop's windows, a
 player in a panel. The tenant runs in your app's runtime, as its own app, so the build
 carries two things for it: its compiled program, and any components it uses that yours
-doesn't. `declarec` does both for every island program it can name:
-
-- an island whose `program` is a **literal** — `AppIsland [ program = "player" ]` — is
-  found directly;
-- an island whose `program` is **computed** — `program = { app.current }` — is declared
-  at the top of the program, the way `use [ Name ]` declares a component a build can't see:
-
-  ```declare
-  islands [ "player", "queue", "../../settings/settings" ]
-  ```
-
-  Names are spelled as `AppIsland.program` spells them — a name or a relative path,
-  resolved from your program's `demos/` folder.
-
-Each is compiled ahead — the same compile, the same checks — and written as
-`programs/<hash>.json`, fetched the first time an island names it and instantiated in
-the running app. A build carries no compiler, so an island naming a program the build
-did not produce is a reported error at run time, naming the fix (`islands [ … ]`) —
-never a blank box. Live editing — the docs' examples, the Viewer's edit tab — ships only
-in a build whose program publishes edits; every other build carries none of it.
+doesn't. `declarec` does both for every island program it can name: a literal
+`program = "player"` is found in the tree; a computed one is in the `ship` block. Names are
+spelled as `AppIsland.program` spells them — a name or a relative path, resolved from your
+program's `demos/` folder. Each is compiled ahead — the same compile, the same checks — and
+written as `programs/<hash>.json`, fetched the first time an island names it and
+instantiated in the running app. A build carries no compiler unless the block says so, so
+an island naming a program the build did not produce is a reported error at run time,
+naming the fix — never a blank box.
 
 ### Errors in a production build
 
@@ -99,7 +116,7 @@ prose that remains is one sentence — the `.error` an app may show.
 | `--canvas` | canvas backend instead of DOM |
 | `--crawler` | bake the extracted static document into `index.html` (crawlers read it; the client clears it at boot) |
 | `--extract` | also write the static document standalone as `<name>.extract.html` |
-| `--debug` | keep source positions and skip slimming (for debugging a build) |
+| `--debug` | a developer's build: the program verbatim, positions, prose, the Inspector, no slimming. For a program that needs some of that *in production*, declare it — `ship [ inspector = true ]` |
 | `--quiet` | suppress progress output |
 
 ## Two ways to deploy

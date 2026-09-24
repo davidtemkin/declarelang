@@ -942,6 +942,66 @@ forms: class, include
 classes: IconHost, Menu, View
 guide: 19-run-check-ship · Run, check, ship
 
+## ship
+
+name: ship
+group: Top level
+family: declaration
+spec: §4 Composition
+terms: ship, ship block, package, production build, self-contained, islands, files, compiler at run time, inspector in production, declarec
+syntax:
+    ship [ islands = ["name", "../../other/other"] ]
+    ship [ files = ["../../docs/model.json", "app.declare"] ]
+    ship [ compiler = true, inspector = true ]
+usage: form-ship
+
+States what a **self-contained package** of this program must carry beyond what its source
+names. A production build (`declarec`) reads the block; the dev server and the static site,
+which carry every source and a compiler, read none of it. Each member is a fact about the
+program, never a build option:
+
+- `islands` — the programs an `AppIsland` may mount when its `program` is *computed*
+  (`program = { app.current }`), spelled as `program` spells them. Each is compiled ahead and
+  shipped beside the app. A literal `program = "name"` needs no entry.
+- `files` — what the program reads that no literal names, or that lives outside its folder:
+  a docs model two levels up, its own source for a viewer. Each is copied into the package and
+  served from there; the program's paths are untouched. A literal `url = "data.json"` beside
+  the program needs no entry.
+- `compiler = true` — the program compiles source at run time (live editing, programs typed
+  in). The package carries the compiler and the component library; otherwise it carries
+  neither, and an island naming an unbuilt program is a reported error.
+- `inspector = true` — the program answers questions about itself in production: the
+  Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all
+  ship. It does not imply the compiler.
+
+The block may appear before or after the root, and an included component may carry its own —
+a help panel that reads the docs model says so where it lives — and the program's merged
+block is the union.
+
+### rules
+
+- A member is one of the four.
+  > says: ship has no member 'island' — islands, files, compiler, or inspector
+  > probe: ship [ island = [ "x" ] ]\nApp [ ]
+- `islands` and `files` are lists of quoted paths.
+  > says: ship's islands is a list of quoted paths
+  > probe: ship [ islands = "x" ]\nApp [ ]
+- An entry is a name in quotes, never bare.
+  > says: a ship files entry is a path in quotes, relative to the program
+  > probe: ship [ files = [ model ] ]\nApp [ ]
+- `compiler` and `inspector` are true or false.
+  > says: ship's compiler is true or false
+  > probe: ship [ compiler = yes ]\nApp [ ]
+- Each member is named once.
+  > says: ship names 'compiler' twice
+  > probe: ship [ compiler = true, compiler = false ]\nApp [ ]
+
+### related
+
+forms: use, include
+classes: AppIsland, DataSource
+guide: 18-embedding · Embedding, 19-run-check-ship · Run, check, ship
+
 ## script
 
 name: script

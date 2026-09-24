@@ -22,7 +22,20 @@
 // `report` the whole compile rendered — the same dual-form contract the Node
 // API, the dev server's POST /compile, and the CLI all speak.
 
-const DISTRO = new URL("..", import.meta.url); // browser/ → the distro root
+// WHERE THE COMPILER LIVES. On the distro these are fixed by this module's own
+// URL: the root one level up, the compiler in bundles/, the worker beside the
+// bundle that carries this client. A self-contained package (tools/declarec.mjs,
+// `ship [ compiler = true ]`) mirrors that layout inside its own folder —
+// bundles/declare-compiler.js, bundles/compile-worker.js, library/ — and its
+// entry names the folder once (provideCompilerRoot) before anything asks.
+let DISTRO = new URL("..", import.meta.url); // browser/ → the distro root
+let COMPILER_URL = new URL("../bundles/declare-compiler.js", import.meta.url);
+let WORKER_URL = new URL("compile-worker.js", import.meta.url);
+export function provideCompilerRoot(root) {
+  DISTRO = new URL(root);
+  COMPILER_URL = new URL("bundles/declare-compiler.js", DISTRO);
+  WORKER_URL = new URL("bundles/compile-worker.js", DISTRO);
+}
 
 /** Is a compiler reachable from this page at all? True here; a production build
  *  ships this module as a stand-in that says false (tools/declarec.mjs), and the
@@ -136,7 +149,7 @@ function workerClient() {
   return new Promise((resolve, reject) => {
     let worker;
     try {
-      worker = new Worker(new URL("compile-worker.js", import.meta.url), { type: "module" });
+      worker = new Worker(WORKER_URL, { type: "module" });
     } catch (e) {
       return reject(e);
     }
@@ -188,7 +201,7 @@ export function loadCompilerInline() {
 }
 
 async function inlineClient() {
-  const mod = await import("../bundles/declare-compiler.js");
+  const mod = await import(COMPILER_URL.href);
   const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
   return {
     transport: "inline",

@@ -16,7 +16,7 @@
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
 import { installLiveEdit } from "./live-edit.js";
-import { renderProgramAsync, buildProgram, mountApp, fontsReady, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, islandProvisions, mountEmbeddedApp, kernelReady } from "../runtime/dist/host-api.js";
+import { mapUrl, renderProgramAsync, buildProgram, mountApp, fontsReady, settle, afterSettle, disposeApp, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, onIslandSlot, setAppAssetBase, setAppDataBase, linkIslandTenant, islandProvisions, mountEmbeddedApp, kernelReady } from "../runtime/dist/host-api.js";
 
 // A compiled program arrives as ONE thing: `program`, the parsed, checked,
 // deps-applied object every compile yields (compiler/src/program-build.ts) —
@@ -68,7 +68,9 @@ export async function bootHost(cfg) {
   // the viewed program's directory; absolute urls pass through untouched.
   if (cfg.dataBase) {
     const dataBase = new URL(cfg.dataBase, document.baseURI);
-    provideTransport((url, init) => fetch(new URL(url, dataBase), init));
+    // …through the URL map last: a package serves what its program declared
+    // in `ship [ files = [ … ] ]` from its own folder, whatever the program asked for
+    provideTransport((url, init) => fetch(mapUrl(new URL(url, dataBase).href), init));
   }
   // The `?crawler` flag's embedded static document (docs/system-design/capabilities.md §5): content
   // for crawlers that never run any script. The page already removes #declare-static
@@ -472,7 +474,9 @@ export async function bootHost(cfg) {
     if (!cfg.demoBase) return "";
     try {
       const base = new URL(cfg.demoBase, document.baseURI);   // demoBase may be relative (dev <base>) or absolute (static host)
-      const res = await fetch(new URL(name + ".declare", base), { cache: "no-cache" });
+      // through the URL map: a package that ships a program's source as a file
+      // (ship [ files = […] ]) serves it from its own folder
+      const res = await fetch(mapUrl(new URL(name + ".declare", base).href), { cache: "no-cache" });
       if (res.ok) return (seeds[name] = await res.text());
     } catch {}
     return null;
@@ -531,7 +535,7 @@ export async function bootHost(cfg) {
       if (cfg.canCompile === false) {
         if (!unbuilt.has(name)) {
           unbuilt.add(name);
-          console.error(`[Declare] island '${name}' names a program this build did not compile — a build compiles the programs its islands name as literals; a computed name is declared at the top of the program: islands [ "${name}" ] — then rebuild`);
+          console.error(`[Declare] island '${name}' names a program this build did not compile — a build compiles the programs its islands name as literals; a computed name is declared at the top of the program: ship [ islands = ["${name}"] ] — then rebuild`);
         }
         return { compiled: null, unseeded: true };
       }

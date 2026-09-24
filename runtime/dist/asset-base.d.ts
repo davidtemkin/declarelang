@@ -12,3 +12,7 @@ export declare function assetBaseFor(root?: object | null): string | null;
 export declare function rebaseAsset(source: string, base: string | null): string;
 /** Resolve a source for the app `root` belongs to. */
 export declare function resolveAsset(source: string, root?: object | null): string;
+/** Install the map (returns the previous one, the provideTransport contract). */
+export declare function provideUrlMap(fn: ((url: string) => string) | null): ((url: string) => string) | null;
+/** A resolved URL, mapped. */
+export declare function mapUrl(url: string): string;

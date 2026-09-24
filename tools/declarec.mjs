@@ -13,13 +13,14 @@
 
 import { readFile, writeFile, mkdir, cp, rm, readdir } from "node:fs/promises";
 import { existsSync, statSync } from "node:fs";
-import { dirname, resolve, basename, join, relative, sep } from "node:path";
+import { dirname, resolve, basename, join, relative, sep, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { stripSource } from "./internal/error-codes.mjs";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
+import { stripPos } from "../compiler/dist/program-build.js";
 import { CHECK_STUB_SRC } from "./internal/stubs.mjs";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
 import { THEME_PRESET_NAMES } from "../runtime/dist/themes.js";
@@ -118,18 +119,23 @@ const shortHash = (buf) => createHash("sha256").update(buf).digest("hex").slice(
 const kb = (n) => (n / 1024).toFixed(1) + " KB";
 const gz = (s) => gzipSync(Buffer.from(s)).length;
 
+/** THE SHIP BLOCK, with its defaults — what the program declares a package
+ *  must carry beyond what its source names (runtime/src/parser.ts Ship). */
+const NO_SHIP = { islands: [], files: [], compiler: false, inspector: false };
+const shipOf = (program) => ({ ...NO_SHIP, ...(program.ship ?? {}) });
+
 /** THE ISLANDS — the programs this app can mount as an `AppIsland`, compiled
  *  AHEAD and shipped beside it (hosting.md, model 1: a build runs what it was
- *  built with, and carries no compiler). Two sources name them: an island
- *  whose `program` is a LITERAL, found in the tree; and the top-level
- *  `islands [ "name", … ]` list, for islands whose `program` is computed and
- *  so unreadable to a build. Each name is spelled as `AppIsland.program`
- *  spells it — a name or a relative path, resolved from the host program's
- *  `demos/` folder (host-client sourceFor) — and compiles as its own file, so
- *  its includes resolve beside it. Returns one entry per distinct name:
- *  the compiled, compacted program and the components it needs. */
-async function buildIslands(program, originDir) {
-  const names = new Set(program.islands ?? []);
+ *  built with, and compiles nothing unless the program says so). Two sources
+ *  name them: an island whose `program` is a LITERAL, found in the tree; and
+ *  the program's `ship [ islands = […] ]`, for islands whose `program` is
+ *  computed and so unreadable to a build. Each name is spelled as
+ *  `AppIsland.program` spells it — a name or a relative path, resolved from
+ *  the host program's `demos/` folder (host-client sourceFor) — and compiles
+ *  as its own file, so its includes resolve beside it. Returns one entry per
+ *  distinct name: the compiled, compacted program and the components it needs. */
+async function buildIslands(program, originDir, keepPos) {
+  const names = new Set(shipOf(program).islands);
   const bases = new Map(program.classes.map((c) => [c.name, c.base]));
   const isIsland = (tag) => {
     const seen = new Set();
@@ -148,16 +154,69 @@ async function buildIslands(program, originDir) {
   for (const c of program.classes) walk(c.body);
   const out = [];
   for (const name of names) {
-    if (originDir === undefined) throw new Error(`islands: this build has no source directory to resolve '${name}' against — build from a file (declarec <app.declare>)`);
+    if (originDir === undefined) throw new Error(`ship: this build has no source directory to resolve the island '${name}' against — build from a file (declarec <app.declare>)`);
     const file = resolve(originDir, "demos", name + ".declare");
-    if (!existsSync(file)) throw new Error(`islands: '${name}' names no program — expected ${relative(originDir, file)} (a name or a relative path, from the program's demos/ folder, as AppIsland.program spells it)`);
-    const src = await readFile(file, "utf8");
-    const built = await compileProgram(src, { originDir: dirname(file), stripPos: true, mainId: file });
-    if (built.program === null) throw new Error(`islands: '${name}' did not compile:\n${built.report}`);
-    await minifyBodies(built.program);
-    const programJson = JSON.parse(JSON.stringify(built.program, compactValue));
-    const contents = JSON.stringify(programJson);
-    out.push({ name, key: shortHash(contents), contents, usedComponents: built.usedComponents });
+    if (!existsSync(file)) throw new Error(`ship: the island '${name}' names no program — expected ${relative(originDir, file)} (a name or a relative path, from the program's demos/ folder, as AppIsland.program spells it)`);
+    out.push({ name, ...(await buildProgramFile(file, name, keepPos)) });
+  }
+  return out;
+}
+
+/** One program compiled ahead as a PROGRAM OBJECT — an island's, or the
+ *  Inspector's — in the form the runtime instantiates with no parser aboard:
+ *  bodies minified, the tree compacted, no source text. */
+async function buildProgramFile(file, name, keepPos) {
+  const src = await readFile(file, "utf8");
+  const built = await compileProgram(src, { originDir: dirname(file), stripPos: !keepPos, mainId: file });
+  if (built.program === null) throw new Error(`ship: '${name}' did not compile:\n${built.report}`);
+  await minifyBodies(built.program);
+  const programJson = JSON.parse(JSON.stringify(built.program, compactValue));
+  const contents = JSON.stringify(programJson);
+  return { key: shortHash(contents), contents, usedComponents: built.usedComponents };
+}
+
+/** THE FILES — what the program declares it reads that no literal names, or
+ *  that lives outside its folder (`ship [ files = […] ]`). Each is copied
+ *  INTO the package as files/<hash><ext>, and the entry maps the URL the
+ *  program will ask for to the copy (runtime asset-base provideUrlMap), so the
+ *  program's own text is untouched and the folder is self-contained. */
+async function buildFiles(program, originDir) {
+  const out = [];
+  for (const path of shipOf(program).files) {
+    if (originDir === undefined) throw new Error(`ship: this build has no source directory to resolve the file '${path}' against — build from a file (declarec <app.declare>)`);
+    const abs = resolve(originDir, path);
+    if (!existsSync(abs) || !statSync(abs).isFile()) throw new Error(`ship: the file '${path}' is not there — expected ${abs} (a path relative to the program, as its url or source would spell it)`);
+    const contents = await readFile(abs);
+    out.push({ path, abs, file: "files/" + shortHash(contents) + extname(abs), contents });
+  }
+  return out;
+}
+
+/** THE INSPECTOR, compiled ahead (`ship [ inspector = true ]`): the Inspector
+ *  is a Declare program, and a package that answers questions about itself
+ *  carries it as a program object the way it carries an island's — mounted by
+ *  browser/inspector-boot.js from the entry's provideInspectorProgram, with no
+ *  compiler on the page unless the program ships one too. */
+const INSPECTOR_SRC = resolve(HERE, "../library/platform-apps/inspector/inspector.declare");
+const buildInspector = (keepPos) => buildProgramFile(INSPECTOR_SRC, "the Inspector", keepPos);
+
+/** THE COMPILER, mirrored into the package (`ship [ compiler = true ]`): the
+ *  distro's layout — bundles/declare-compiler.js, bundles/compile-worker.js,
+ *  library/ (the auto-include manifest and every component it can reach) —
+ *  under the package root, which the entry names once (compiler-client
+ *  provideCompilerRoot). The whole library rides: what source typed at run
+ *  time will name is not knowable ahead. */
+async function compilerFiles() {
+  const out = [];
+  for (const rel of ["bundles/declare-compiler.js", "bundles/compile-worker.js"]) {
+    out.push({ name: rel, contents: await readFile(resolve(HERE, "..", rel)) });
+  }
+  const lib = resolve(HERE, "../library");
+  for (const rel of await walkFiles(lib)) {
+    // dotfiles, prose, and a platform app's own test fixtures stay behind
+    if (rel.split("/").some((seg) => seg.startsWith(".") || seg === "tests")) continue;
+    if (rel.endsWith(".md")) continue;
+    out.push({ name: "library/" + rel, contents: await readFile(join(lib, rel)) });
   }
   return out;
 }
@@ -280,7 +339,10 @@ export async function buildProduction(source, opts = {}) {
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
-  const built = await compileProgram(source, { originDir: opts.originDir, stripPos: opts.stripPos ?? true, mainId, props });
+  // Positions ride the compile and are stripped AFTER the program's own ship
+  // block is read: an inspectable package keeps them (the Inspector's "why"
+  // names a line; so does an error), a plain one does not.
+  const built = await compileProgram(source, { originDir: opts.originDir, stripPos: false, mainId, props });
   if (built.program === null) {
     return { ok: false, errors: built.errors, warnings: built.warnings, diagnostics: built.diagnostics, report: built.report, closure: built.closure, files: [], sizes: null };
   }
@@ -300,11 +362,19 @@ export async function buildProduction(source, opts = {}) {
   // thousands of times — empty member arrays, null names/defaults, false
   // flags. The entry's hydrateProgram restores the structural fields at boot;
   // the boolean flags need no restoring (absence already reads as false).
+  // THE SHIP BLOCK (runtime/src/parser.ts Ship): what this package carries
+  // beyond what the source names — each member a fact the program stated.
+  const ship = shipOf(built.program);
+  const keepPos = !!opts.debug || ship.inspector || (opts.stripPos === false);
+  if (!keepPos) stripPos(built.program);
   // The islands' programs, compiled ahead (buildIslands): shipped beside the
-  // app as programs/<hash>.json, loaded when an island first names one.
-  const tenants = await buildIslands(built.program, opts.originDir);
-  const hosts = !!opts.hosts || tenants.length > 0;
-  const alsoUses = [...(opts.alsoUses ?? []), ...tenants.flatMap((t) => t.usedComponents)];
+  // app as programs/<hash>.json, loaded when an island first names one. The
+  // Inspector, when declared, arrives the same way.
+  const tenants = await buildIslands(built.program, opts.originDir, keepPos);
+  const shippedFiles = await buildFiles(built.program, opts.originDir);
+  const inspector = ship.inspector ? await buildInspector(keepPos) : null;
+  const hosts = !!opts.hosts || tenants.length > 0 || ship.inspector;
+  const alsoUses = [...(opts.alsoUses ?? []), ...tenants.flatMap((t) => t.usedComponents), ...(inspector ? inspector.usedComponents : [])];
   if (!opts.debug) await minifyBodies(built.program);
   // PRECOMPILED BODIES (on by default; opts.precompile === false ships text):
   // every `{ }` body, method body and script block leaves as a FUNCTION in the
@@ -331,10 +401,28 @@ export async function buildProduction(source, opts = {}) {
   // service worker, no launcher — a package runs what it was built with
   // (hosting.md, the three models). The module's default export IS the page
   // boot with the program bound; the emitted page calls it as a site stub does.
+  // What the ship block adds to the entry, each a one-time statement to the
+  // seam it names: the files map (asset-base provideUrlMap), the compiler's
+  // whereabouts (compiler-client provideCompilerRoot), the Inspector's program
+  // (inspector-boot provideInspectorProgram). `here` is the package folder —
+  // the program's own directory, since the page boots `./<name>.declare`.
+  const shipEntry =
+    (shippedFiles.length === 0 ? "" :
+      `import { provideUrlMap } from ${JSON.stringify(join(RUNTIME, "asset-base.js"))};\n` +
+      `{ const here = new URL(".", import.meta.url); const FILES = ${JSON.stringify(Object.fromEntries(shippedFiles.map((f) => [f.path, f.file])))};\n` +
+      `  const map = new Map(Object.entries(FILES).map(([k, v]) => [new URL(k, here).href, new URL(v, here).href]));\n` +
+      `  provideUrlMap((u) => { const q = u.indexOf("?"); return map.get(q < 0 ? u : u.slice(0, q)) ?? u; }); }\n`) +
+    (!ship.compiler ? "" :
+      `import { provideCompilerRoot } from ${JSON.stringify(join(BROWSER, "compiler-client.js"))};\n` +
+      `provideCompilerRoot(new URL(".", import.meta.url));\n`) +
+    (inspector === null ? "" :
+      `import { provideInspectorProgram } from ${JSON.stringify(join(BROWSER, "inspector-boot.js"))};\n` +
+      `provideInspectorProgram(async () => hydrateProgram(await (await fetch(new URL(${JSON.stringify("programs/" + inspector.key + ".json")}, import.meta.url))).json()));\n`);
   const entry =
     `import { bootPage } from ${JSON.stringify(join(BROWSER, "boot-page.js"))};\n` +
     `import { hydrateProgram } from ${JSON.stringify(join(RUNTIME, "hydrate.js"))};\n` +
     (precompiled === null ? "" : `import { providePrecompiled } from ${JSON.stringify(join(RUNTIME, "expr.js"))};\n${precompiled}`) +
+    shipEntry +
     `const PROGRAM = hydrateProgram(JSON.parse(${JSON.stringify(programJson)}));\n` +
     (tenants.length === 0
       ? `export default (cfg) => bootPage({ ...cfg, program: PROGRAM, path: "build" });\n`
@@ -435,7 +523,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const c of el.children ?? []) walkBodies(c, fn);
   };
   const programFacts = (() => {
-    let themes = false, draw = false, filter = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false, liveEdit = false;
+    let themes = false, draw = false, filter = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false;
     // A SELECTOR plan (any non-string segment — index/slice/wildcard) in an
     // attribute path or an emitted body plan keeps the evaluator aboard.
     const planful = (v) => v != null && v.kind === "path" && Array.isArray(v.plan) && v.plan.some((s) => typeof s !== "string");
@@ -454,8 +542,6 @@ export const Inspect = new Proxy({ ready: () => false }, {
     // LIVE EDITS are a feature of the programs that publish them (an app writing
     // `liveSource`/`liveCard`, or hosting an Editor): only such a build carries
     // the live-edit module; every other ships the no-op stand-in.
-    for (const root of roots) walkBodies(root, (src) => { if (/\bliveSource\b|\bliveCard\b/.test(src)) liveEdit = true; });
-    if (built.usedComponents.includes("Editor")) liveEdit = true;
     // Any component the program can construct whose RUNTIME class makes itself
     // a tab stop without the source saying so (text-input.ts sets `focusable`
     // at attach). Everything else declares focusability in source, which the
@@ -639,7 +725,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
       for (const c of el.children ?? []) walkChange(c);
     };
     for (const r of roots) walkChange(r);
-    return { usesLiveEdit: liveEdit, usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
+    return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
       usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces, usesChangeEvent: changeEvent,
       usesRichText: richText };
   })();
@@ -863,6 +949,7 @@ export function endChangeChain() {}
   // keystroke that downloads a megabyte to throw on its first query is not a
   // feature; --debug keeps it.
   const inspectorBootStub = `export async function openInspector() {}
+export function provideInspectorProgram() {}
 export function closeInspector() {}
 export function originOfElement() { return undefined; }
 export function wireInspector() {}
@@ -882,7 +969,7 @@ export class CanvasBackend { constructor() { throw notAboard("CanvasBackend", "u
   // the bridge still go — a hosted program arrives checked, like the host.
   const factPlugins = opts.debug ? [] : [
     stubFor("slim-check", /[/\\]check\.js$/, checkStubSrc),
-    stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub),
+    ...(ship.inspector ? [] : [stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub)]),
     ...(hosts ? [] : [
     stubFor("slim-datapath", /[/\\]datapath\.js$/, datapathStub),
     ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
@@ -913,12 +1000,12 @@ export class CanvasBackend { constructor() { throw notAboard("CanvasBackend", "u
   // backend the page does not render with — host-client names both, the build
   // ships one. The host imports the runtime through runtime/host-api.js, so
   // nothing pins the parser or the checker (test/boot-bundle.test.mjs).
-  // A PACKAGE NEVER COMPILES (hosting.md, model 1): the compiler client is a
-  // stand-in that says so, and the page boot turns "no artifact, no compiler"
-  // into a reported error rather than a retry. Live editing rides only a build
-  // whose program publishes edits (programFacts.usesLiveEdit).
+  // A PACKAGE COMPILES ONLY WHEN ITS PROGRAM SAYS SO (hosting.md, model 1;
+  // `ship [ compiler = true ]`). Otherwise the compiler client is a stand-in
+  // that says so, and the page boot turns "no artifact, no compiler" into a
+  // reported error rather than a retry; live editing goes with the compiler.
   const compilerClientStub = `export const COMPILER_ABOARD = false;
-const gone = () => Promise.reject(new Error("the compiler is not aboard a production build — a build runs what it was built with (an island's program is compiled ahead: islands [ … ])"));
+const gone = () => Promise.reject(new Error("the compiler is not aboard this package — a build runs what it was built with (an island's program is compiled ahead: ship [ islands = […] ]; a program that compiles at run time declares ship [ compiler = true ])"));
 export function loadCompiler() { return gone(); }
 export function loadCompilerInline() { return gone(); }
 export function ensureLibrary(c) { return Promise.resolve(c); }
@@ -929,9 +1016,11 @@ export function loadLibraryOnce() { return Promise.resolve({}); }
     name, setup(b) { b.onLoad({ filter: filterRe }, () => ({ contents, loader: "js", resolveDir: BROWSER })); },
   });
   const hostPlugins = [
-    browserStub("slim-compiler-client", /[/\\]browser[/\\]compiler-client\.js$/, compilerClientStub),
-    ...(programFacts.usesLiveEdit ? [] : [browserStub("slim-live-edit", /[/\\]browser[/\\]live-edit\.js$/, liveEditStub)]),
-    ...(opts.debug ? [] : [stubFor("slim-inspector-boot", /[/\\]browser[/\\]inspector-boot\.js$/, inspectorBootStub)]),
+    ...(ship.compiler ? [] : [
+      browserStub("slim-compiler-client", /[/\\]browser[/\\]compiler-client\.js$/, compilerClientStub),
+      browserStub("slim-live-edit", /[/\\]browser[/\\]live-edit\.js$/, liveEditStub),
+    ]),
+    ...(opts.debug || ship.inspector ? [] : [stubFor("slim-inspector-boot", /[/\\]browser[/\\]inspector-boot\.js$/, inspectorBootStub)]),
     ...(canvas ? [] : [stubFor("slim-canvas-backend", /[/\\]canvas-backend\.js$/, canvasBackendStub)]),
   ];
 
@@ -955,7 +1044,7 @@ export function loadLibraryOnce() { return Promise.resolve({}); }
       __DECLARE_JS_KERNEL__: "false",   // a production build carries no debug kernel, not even its switch
     },
     write: false, legalComments: "none", metafile: true,
-    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...hostPlugins, ...factPlugins, ...(opts.debug ? [] : [errorCodePlugin])],
+    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug || ship.inspector ? [] : [inspectPlugin]), ...hostPlugins, ...factPlugins, ...(opts.debug || ship.inspector ? [] : [errorCodePlugin])],
   });
   const appJs = result.outputFiles[0].text;
   const moduleName = `app.${shortHash(appJs)}.js`;
@@ -1038,8 +1127,17 @@ export function loadLibraryOnce() { return Promise.resolve({}); }
     // committed catalog; this rides out for a caller that wants the build's own.
     errorCodes: errorCatalog,
     files: [{ name: "index.html", contents: html }, { name: moduleName, contents: appJs },
-            ...tenants.map((t) => ({ name: "programs/" + t.key + ".json", contents: t.contents }))],
+            ...tenants.map((t) => ({ name: "programs/" + t.key + ".json", contents: t.contents })),
+            ...(inspector === null ? [] : [{ name: "programs/" + inspector.key + ".json", contents: inspector.contents }]),
+            ...shippedFiles.map((f) => ({ name: f.file, contents: f.contents })),
+            ...(ship.compiler ? await compilerFiles() : [])],
     islands: tenants.map((t) => ({ name: t.name, file: "programs/" + t.key + ".json", gzip: gz(t.contents) })),
+    // what the ship block put in the folder, for the CLI's account and the closure
+    ship, shipped: {
+      files: shippedFiles.map((f) => ({ path: f.path, file: f.file, abs: f.abs, gzip: gz(f.contents) })),
+      inspector: inspector === null ? null : { file: "programs/" + inspector.key + ".json", gzip: gz(inspector.contents) },
+      compiler: ship.compiler,
+    },
   };
 }
 
@@ -1078,7 +1176,7 @@ export async function writeProduction({ source, name = "app", srcDir = null, out
   for (const f of out.files) { await mkdir(dirname(join(outDir, f.name)), { recursive: true }); await writeFile(join(outDir, f.name), f.contents); }
   const assets = srcDir ? await copyAssets(srcDir, outDir) : [];
   const moduleName = out.files.find((f) => f.name.startsWith("app."))?.name;
-  if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets, metafile: out.metafile });
+  if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets, metafile: out.metafile, shipped: out.shipped.files.map((f) => f.abs) });
   return { ...out, outDir, moduleName, assets };
 }
 
@@ -1114,7 +1212,7 @@ async function walkFiles(dir, base = "") {
   return out;
 }
 
-async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile }) {
+async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile, shipped = [] }) {
   if (!closure) return;
   const repoRoot = resolve(HERE, "..");
   const rel = (abs) => relative(repoRoot, abs).split(sep).join("/");
@@ -1134,6 +1232,8 @@ async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile }) 
       entries.push({ id: rel(abs), kind: "file", v: hashValidator(abs) });
     }
   }
+  // …and the files the program's ship block named, wherever they live
+  for (const abs of shipped) entries.push({ id: rel(abs), kind: "file", v: hashValidator(abs) });
   // …and the PLATFORM this bundle EMBEDS. `app.<hash>.js` is the runtime and the
   // program in one file, so the runtime is as much an input as the source is —
   // but the compile closure only ever knew about what the COMPILER read, and the
@@ -1330,6 +1430,10 @@ async function cli(argv) {
       console.log(`    registry: ${kept.length} of ${builtins.size} runtime components kept — ${kept.join(", ")}`);
     } else console.log(`    registry: FULL (slimming off)`);
     if (assets.length) console.log(`  assets: ${assets.join(", ")}`);
+    if (out.islands.length) console.log(`  islands: ${out.islands.map((i) => `${i.name} → ${i.file} (${kb(i.gzip)} gzip)`).join(", ")}`);
+    for (const f of out.shipped.files) console.log(`  ship files: ${f.path} → ${f.file} (${kb(f.gzip)} gzip)`);
+    if (out.shipped.inspector) console.log(`  ship inspector: ${out.shipped.inspector.file} (${kb(out.shipped.inspector.gzip)} gzip), positions and error prose kept`);
+    if (out.shipped.compiler) console.log(`  ship compiler: bundles/declare-compiler.js, bundles/compile-worker.js, library/ (fetched on the first compile)`);
     if (out.warnings.length) console.log(`  ${out.warnings.length} warning(s)`);
   }
 }

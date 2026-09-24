@@ -18,16 +18,27 @@ beside it, and where a program comes from.
 | Runtime on the page | One file: run path + kernel + page host + program; slimmed to this app and its tenants; one backend | The uniform boot (`bundles/declare-boot.js`): full registry, both backends, page host, compiler loader, Inspector, live edit, SW registration, launcher | The same uniform boot, one file, cached across every page |
 | Where the program comes from | Inlined in `app.<hash>.js` | Compiled from source per request, server-side (`POST /compile`) | The artifact (`bundles/cache/<key>.json`) when one matches `(program, render)`; else compiled in-browser |
 | Body functions | Emitted at build time | `new Function` at boot | `new Function` at boot |
-| Compiler on the page | Never | On the server, always fresh | Lazy — first live edit, or first program with no artifact |
+| Compiler on the page | Only when the program declares it (`ship [ compiler = true ]`), with the library beside it | On the server, always fresh | Lazy — first live edit, or first program with no artifact |
 | Parser / checker in the boot | None | None | None |
-| Sources on the host | None | All | All |
-| `AppIsland` tenants | Artifacts built ahead, loaded on demand; unbuilt → a reported error | Compiled from source on demand | Artifact if prewarmed; else lazy compile |
-| Live edit / editable demos | Absent | Present | Present |
-| Inspector, `?render=canvas`, browse-to-run | Absent | Present | Present (the service worker makes browse-to-run work) |
+| Sources on the host | Only what `ship [ files = […] ]` names, copied in | All | All |
+| `AppIsland` tenants | Artifacts built ahead (a literal `program`, or `ship [ islands ]`), loaded on demand; unbuilt → a reported error | Compiled from source on demand | Artifact if prewarmed; else lazy compile |
+| Live edit / editable demos | Only with `ship [ compiler = true ]` | Present | Present |
+| Inspector, `?render=canvas`, browse-to-run | The Inspector with `ship [ inspector = true ]`, compiled ahead; the rest absent | Present | Present (the service worker makes browse-to-run work) |
 | Service worker | None | None (the server's marker evicts one) | Registered by the boot: run pages, cache-busting |
 | Freshness | The build | The source on disk | `derive` + prewarm artifacts, closure-validated |
-| Error prose | Codes (`declare-help` decodes) | Full sentences | Full sentences |
+| Error prose | Codes (`declare-help` decodes); sentences with `ship [ inspector = true ]` | Full sentences | Full sentences |
 | The reported number | **This one**, measured on the package | — | — |
+
+**What a package carries is declared, never inferred.** A package is a folder that needs
+nothing outside itself, and the build reads two things to fill it: the source, for what a
+literal names (components, data beside the program, island programs), and the program's
+`ship [ … ]` block for what no literal can say — islands mounted by computed name, files
+read from elsewhere, whether it compiles at run time, whether it answers questions about
+itself in production (`runtime/src/parser.ts Ship`; the reference page *ship*). The block
+folds across includes, so a component states its own needs. The build never guesses: an
+island whose program it did not compile is a reported error at mount, and there is no scan
+for "this looks like it edits source". The other two arrangements carry every source and a
+compiler, and read none of it.
 
 **No host ever parses.** Every compile — the dev server's, the in-browser worker's,
 the build's — yields the *program object* (`compiler/src/program-build.ts`): parsed,

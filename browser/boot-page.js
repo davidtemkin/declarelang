@@ -14,7 +14,7 @@
 // Relative imports resolve against THIS module's URL (…/browser/) → subpath-portable.
 import { bootHost } from "./host-client.js";
 import { loadCompiler, ensureLibrary, COMPILER_ABOARD } from "./compiler-client.js";
-import { provideTransport, provideAssetBase } from "../runtime/dist/host-api.js";
+import { provideTransport, provideAssetBase, mapUrl } from "../runtime/dist/host-api.js";
 
 // ── Stage instrumentation (always on — performance.mark/measure is ~free) ────
 // Every boot stage lands on the PERFORMANCE TIMELINE as a `declare:<stage>`
@@ -81,7 +81,9 @@ export async function bootPage(cfg) {
   // `init` through: the transport contract is (url, init), and dropping the
   // second argument silently degraded every DataSource POST/PUT to a bare
   // GET (found 2026-07-30 by the network-browser transport tests).
-  provideTransport((url, init) => fetch(new URL(url, mainDir), init));
+  // …through the URL map last: a package serves what its program declared in
+  // `ship [ files = [ … ] ]` from its own folder, whatever address the program asked for
+  provideTransport((url, init) => fetch(mapUrl(new URL(url, mainDir).href), init));
   // The same correction for BITMAPS: an <img src> resolves against the
   // document, so a relative `source` meant the entry page's directory while
   // the app's DataSources already meant the program's. One base, both.

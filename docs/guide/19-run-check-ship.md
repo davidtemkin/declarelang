@@ -134,6 +134,28 @@ Three ways to run, one compiler, and the choice is only *where the compile happe
   figure the homepage reports live from the deployed artifacts — deployable to any static host, no compiler
   aboard. `--crawler` bakes the extracted document into the built page.
 
+A build collects what it can see in the source: the components the tree names, the data a
+literal `url` names beside the program, the island programs a literal `program` names.
+What it cannot see, the program states — in a `ship` block, each member a fact about the
+program, never a build option:
+
+```declare-fragment
+ship [
+    islands = ["player", "queue"],        // mounted by a computed `program`
+    files = ["../../docs/model.json"],     // read from outside the folder
+    compiler = true,                         // compiles source at run time
+    inspector = true,                        // answers questions about itself in production
+]
+```
+
+Each name is a fact the package acts on: island programs compiled ahead and shipped
+beside the app; files copied in and served from the folder; the compiler and the
+component library along for a program that edits or takes source at run time; the
+Inspector, the introspection bridge, positions, and error prose for one that must be
+questioned where it runs. A program that declares none of it ships as the smallest
+thing that runs it. The reference page [ship](declare-docs:language:ship) has the rules,
+and [Building for production](declare-docs:operational:building) the layout.
+
 Islands — foreign DOM inside an app, and whole apps inside apps — are their own
 boundary story: the [Embedding](declare-docs:guide:embedding) chapter.
 

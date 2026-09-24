@@ -19,6 +19,16 @@ const ROOT = new URL("../", import.meta.url);
 
 let mounted = null;
 
+// THE INSPECTOR'S PROGRAM, COMPILED AHEAD. On the distro the Inspector compiles
+// itself from source when it opens — the compiler is there, and the source with
+// it. A package that declares `ship [ inspector = true ]` carries neither
+// unless it also ships the compiler, so its entry provides the Inspector as a
+// program object built at build time (programs/<hash>.json), the way an island's
+// arrives. The evaluate strip still wants the parser: it comes along when the
+// compiler is aboard, and reports its absence otherwise (inspect-service).
+let provided = null;
+export function provideInspectorProgram(load) { provided = load; }
+
 /** Mount (or reveal) the Inspector over `subject`.
  *
  *  `origin` is the subject's root-space position on the PAGE — {0,0} for a
@@ -50,22 +60,31 @@ export async function openInspector(subject, origin = undefined) {
   // INLINE — the Inspector is the one host that needs the parser at run time
   // (its evaluate strip reads view literals), and the inline client carries it;
   // provided to the service before the Inspector's first evaluation.
-  const [client, src] = await Promise.all([
-    loadCompilerInline().then(ensureLibrary).then((c) => { provideEvalParser(c.parseProgram); provideChecker(c.checker); return c; }),
-    fetch(new URL("library/platform-apps/inspector/inspector.declare", ROOT), { cache: "no-cache" })
-      .then((r) => { if (!r.ok) throw new Error(r.status + " fetching the Inspector"); return r.text(); }),
-  ]);
-  const out = await client.compileProgram(src);
-  if (!out.program) {
-    host.style.pointerEvents = "auto";
-    host.innerHTML =
-      '<pre style="position:absolute;inset:24px;overflow:auto;background:#12161C;color:#FF8B8B;' +
-      'padding:20px;border-radius:10px;white-space:pre-wrap">' +
-      (out.report || "the Inspector failed to compile").replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;")) +
-      "</pre>";
-    throw new Error("Inspector failed to compile");
+  const parserReady = loadCompilerInline().then(ensureLibrary).then((c) => { provideEvalParser(c.parseProgram); provideChecker(c.checker); return c; });
+  let program;
+  if (provided !== null) {
+    // built ahead: the parser is a bonus when the compiler is aboard, not a need
+    parserReady.catch(() => {});
+    program = await provided();
+  } else {
+    const [client, src] = await Promise.all([
+      parserReady,
+      fetch(new URL("library/platform-apps/inspector/inspector.declare", ROOT), { cache: "no-cache" })
+        .then((r) => { if (!r.ok) throw new Error(r.status + " fetching the Inspector"); return r.text(); }),
+    ]);
+    const out = await client.compileProgram(src);
+    if (!out.program) {
+      host.style.pointerEvents = "auto";
+      host.innerHTML =
+        '<pre style="position:absolute;inset:24px;overflow:auto;background:#12161C;color:#FF8B8B;' +
+        'padding:20px;border-radius:10px;white-space:pre-wrap">' +
+        (out.report || "the Inspector failed to compile").replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;")) +
+        "</pre>";
+      throw new Error("Inspector failed to compile");
+    }
+    program = out.program;
   }
-  const app = buildProgram(out.program);
+  const app = buildProgram(program);
   await fontsReady(app);
   mountApp(app, host, new DomBackend(), { chrome: true });
   settle();

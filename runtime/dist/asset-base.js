@@ -67,6 +67,26 @@ export function rebaseAsset(source, base) {
 }
 /** Resolve a source for the app `root` belongs to. */
 export function resolveAsset(source, root) {
-    return rebaseAsset(source, assetBaseFor(root));
+    return mapUrl(rebaseAsset(source, assetBaseFor(root)));
+}
+// THE URL MAP — the last word on where a resolved URL is actually served
+// from. Identity by default. A self-contained package (tools/declarec.mjs)
+// carries the files its program declares in `ship [ files = […] ]` inside
+// its own folder, under `files/`, while the program keeps naming them as it
+// always did — `../../docs/model.json` from an app two levels down. The
+// package's entry installs a map from each declared URL to its packaged copy,
+// and every load — a DataSource's url, an Image's source, a face's src —
+// passes its resolved URL through here last. A query string does not change
+// which file is meant, so the map is consulted without it.
+let urlMap = null;
+/** Install the map (returns the previous one, the provideTransport contract). */
+export function provideUrlMap(fn) {
+    const prev = urlMap;
+    urlMap = fn;
+    return prev;
+}
+/** A resolved URL, mapped. */
+export function mapUrl(url) {
+    return urlMap === null ? url : urlMap(url);
 }
 //# sourceMappingURL=asset-base.js.map

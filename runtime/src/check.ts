@@ -107,7 +107,7 @@ function tagCandidates(schemas: Record<string, unknown>): string[] {
 
 export function check(input: Element | Program): DeclareError[] {
   const program: Program =
-    "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], islands: [], scripts: [], root: input };
+    "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
   // Schema resolution first (typed data): named `schema =` forms rewrite to
   // resolved shape literals, refs resolve, and collisions/unknown names
   // report here. CHECK_SHAPES then answers type-position lookups below.

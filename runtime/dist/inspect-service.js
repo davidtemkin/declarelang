@@ -326,7 +326,7 @@ export function evaluateIn(app, path, src) {
         if (!(node instanceof View))
             return fail("only a View can take a child");
         if (evalParser === null)
-            return fail("adding a view needs the parser, which rides the compiler — open the Inspector (⌥⌘D, or ?inspector) and try again");
+            return fail("adding a view needs the parser, which rides the compiler — open the Inspector (⌥⌘D, or ?inspector) and try again; a package has one only when its program declares ship [ compiler = true ]");
         try {
             const prog = evalParser(`App [\n${trimmed}\n]`);
             const el = prog.root.children[0];

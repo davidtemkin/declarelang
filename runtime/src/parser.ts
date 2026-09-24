@@ -304,13 +304,10 @@ export interface Program {
    *  library, or a developer class alike (one declaration, all three backends).
    *  Additive to what the tree + body scan already discover. */
   uses: string[];
-  /** The `islands [ … ]` list: the PROGRAMS this one may mount as an
-   *  `AppIsland` whose `program` is computed (a name static analysis can't
-   *  read), in the same currency an `AppIsland.program` value speaks — a name
-   *  or a relative path under the program's `demos/`. A production build
-   *  compiles each ahead of time and ships it beside the app, so the island
-   *  mounts with no compiler; a literal `program = "x"` needs no entry. */
-  islands: string[];
+  /** The `ship [ … ]` declaration: what a self-contained package of this
+   *  program must carry beyond what its source names (hosting.md, model 1).
+   *  Absent when the program declares nothing; merged across `include`s. */
+  ship?: Ship;
   /** Top-level `script { … }` blocks, in source order. */
   scripts: ScriptBlock[];
   /** `script [ "file.ts" ]` directives — script from a FILE, spelled like
@@ -327,6 +324,40 @@ export interface Program {
    *  parsing proves syntax, not types. */
   trusted?: boolean;
 }
+
+/** `ship [ … ]` — what a self-contained package of the program must carry
+ *  beyond what its source names, each member a FACT about the program (never
+ *  a build option): the programs it may mount as an `AppIsland` when the name
+ *  is computed (`islands`, spelled as `AppIsland.program` spells them); the
+ *  files it reads that no literal names, or that live outside its folder
+ *  (`files`, relative to the program); whether it compiles source at run time
+ *  (`compiler` — live editing, programs typed in); whether it answers
+ *  questions about itself in production (`inspector` — the Inspector, the
+ *  bridge, positions, error prose). A literal `program = "x"` or `url = "x"`
+ *  needs no entry. Read by `declarec` only; the hosts that carry sources and
+ *  a compiler need none of it. */
+export interface Ship {
+  islands: string[];
+  files: string[];
+  compiler: boolean;
+  inspector: boolean;
+}
+
+/** Two ship declarations as one — lists unioned, facts OR-ed. A program may
+ *  state its block before or after the root, and each included component may
+ *  bring its own. */
+export function mergeShip(a: Ship | undefined, b: Ship | undefined): Ship | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return {
+    islands: [...new Set([...a.islands, ...b.islands])],
+    files: [...new Set([...a.files, ...b.files])],
+    compiler: a.compiler || b.compiler,
+    inspector: a.inspector || b.inspector,
+  };
+}
+
+const SHIP_MEMBERS = new Set(["islands", "files", "compiler", "inspector"]);
 
 /** An included file (composition.md §1): a library of top-level declarations
  *  — classes, themes, styles, and its own `include`s — with NO root. It is
@@ -345,8 +376,9 @@ export interface Library {
   /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
    *  source-merge folds these into the program's `uses`. */
   uses: string[];
-  /** …and its own `islands [ … ]`, folded the same way. */
-  islands: string[];
+  /** …and its own `ship [ … ]`, folded the same way (a component that reads
+   *  a file or mounts a program says so where it lives). */
+  ship?: Ship;
   /** A library may declare its own `script { … }` helpers; the source-merge
    *  folds these into the program's blocks, in include order. */
   scripts: ScriptBlock[];
@@ -1351,33 +1383,55 @@ class Parser {
     return names;
   }
 
-  /** `islands [` at the current position — the island program list (see
-   *  Program.islands). `islands` followed by anything else is an ordinary name. */
-  atIslands(): boolean {
+  /** `ship [` at the current position — the ship declaration (see Ship).
+   *  `ship` followed by anything else is an ordinary name. */
+  atShip(): boolean {
     const t = this.tokens[this.i];
     const u = this.tokens[this.i + 1];
-    return t.kind === "ident" && t.text === "islands" && u.kind === "lbracket";
+    return t.kind === "ident" && t.text === "ship" && u.kind === "lbracket";
   }
 
-  /** `'islands' '[' STRING ( ',' STRING )* ','? ']'` — program names, as an
-   *  `AppIsland.program` value would spell them (quoted: these are paths, not
-   *  types). A non-string entry is a positioned error. */
-  parseIslandsDirective(): string[] {
-    this.expect("ident", "'islands'");
+  /** `'ship' '[' ( NAME '=' VALUE ),* ']'` — a closed set of members with
+   *  fixed shapes, validated HERE, positioned, so a build reads the result as
+   *  plain data: `islands = ["…"]`, `files = ["…"]` (lists of quoted
+   *  paths), `compiler = true`, `inspector = true`. */
+  parseShip(): Ship {
+    this.expect("ident", "'ship'");
     this.expect("lbracket", "'['");
-    const names: string[] = [];
+    const ship: Ship = { islands: [], files: [], compiler: false, inspector: false };
+    const seen = new Set<string>();
     while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
       const t = this.peek();
-      if (t.kind !== "string") {
-        throw new DeclareError("an islands entry is a program name in quotes — the same name an AppIsland's `program` takes", t.pos);
+      if (t.kind !== "ident" || !SHIP_MEMBERS.has(t.text)) {
+        throw new DeclareError(`ship has no member '${t.text}' — islands, files, compiler, or inspector`, t.pos);
       }
       this.next();
-      names.push(t.text);
+      const name = t.text as "islands" | "files" | "compiler" | "inspector";
+      if (seen.has(name)) throw new DeclareError(`ship names '${name}' twice — one entry per member`, t.pos);
+      seen.add(name);
+      this.expect("eq", "'='");
+      const v = this.parseLiteral();
+      if (name === "islands" || name === "files") {
+        if (v.kind !== "list") throw new DeclareError(`ship's ${name} is a list of quoted paths — ${name} = [ "…" ]`, v.pos);
+        for (const it of v.items) {
+          if (it.kind !== "string" || it.value === "") {
+            throw new DeclareError(name === "islands"
+              ? "a ship islands entry is a program name in quotes — the same name an AppIsland's `program` takes"
+              : "a ship files entry is a path in quotes, relative to the program", it.pos);
+          }
+          ship[name].push(it.value);
+        }
+      } else {
+        if (v.kind !== "ident" || (v.name !== "true" && v.name !== "false")) {
+          throw new DeclareError(`ship's ${name} is true or false`, v.pos);
+        }
+        ship[name] = v.name === "true";
+      }
       if (this.peek().kind === "comma") this.next();
       else break;
     }
     this.expect("rbracket", "']'");
-    return names;
+    return ship;
   }
 
   /** `'include' '[' STRING ( ',' STRING )* ','? ']'` — a top-level directive
@@ -1442,7 +1496,7 @@ function parseTopDecls(p: Parser): {
   includes: IncludeRef[];
   includeSpans: Span[];
   uses: string[];
-  islands: string[];
+  ship: Ship | undefined;
   scripts: ScriptBlock[];
   scriptFiles: IncludeRef[];
   scriptFileSpans: Span[];
@@ -1455,7 +1509,7 @@ function parseTopDecls(p: Parser): {
   const includes: IncludeRef[] = [];
   const includeSpans: Span[] = [];
   const uses: string[] = [];
-  const islands: string[] = [];
+  let ship: Ship | undefined;
   const scripts: ScriptBlock[] = [];
   const scriptFiles: IncludeRef[] = [];
   const scriptFileSpans: Span[] = [];
@@ -1466,7 +1520,7 @@ function parseTopDecls(p: Parser): {
       includeSpans.push(span);
     }
     else if (p.atUse()) uses.push(...p.parseUseDirective());
-    else if (p.atIslands()) islands.push(...p.parseIslandsDirective());
+    else if (p.atShip()) ship = mergeShip(ship, p.parseShip());
     else if (p.atScriptFiles()) {
       const { refs, span } = p.parseScriptFiles();
       scriptFiles.push(...refs);
@@ -1480,7 +1534,7 @@ function parseTopDecls(p: Parser): {
     else if (p.atTop("font")) fonts.push(p.parseTopDecl("font"));
     else break;
   }
-  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, islands, scripts, scriptFiles, scriptFileSpans };
+  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ship, scripts, scriptFiles, scriptFileSpans };
 }
 
 /** Parse a whole Declare source: `include`s and top-level declarations
@@ -1504,14 +1558,14 @@ export function parseProgram(source: string): Program {
   const includes = [...before.includes, ...after.includes];
   const includeSpans = [...before.includeSpans, ...after.includeSpans];
   const uses = [...before.uses, ...after.uses];
-  const islands = [...(before.islands ?? []), ...(after.islands ?? [])];
+  const ship = mergeShip(before.ship, after.ship);
   const scripts = [...before.scripts, ...after.scripts];
   const scriptFiles = [...(before.scriptFiles ?? []), ...(after.scriptFiles ?? [])];
   const scriptFileSpans = [...(before.scriptFileSpans ?? []), ...(after.scriptFileSpans ?? [])];
   const shapes = [...before.shapes, ...after.shapes];
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
-  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, islands, scripts, scriptFiles, scriptFileSpans, root };
+  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ...(ship === undefined ? {} : { ship }), scripts, scriptFiles, scriptFileSpans, root };
 }
 
 /** Parse an INCLUDED file (composition.md §1): the same top-level

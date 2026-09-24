@@ -271,7 +271,7 @@ type Pending =
  *  rendering). */
 export function instantiate(input: Element | Program): View {
   const program: Program =
-    "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], islands: [], scripts: [], root: input };
+    "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
   // The compiler stamps `trusted` on a program it fully checked (declarec —
   // and only then), so instantiation runs on the fast paths; anything else
   // (a hand-built tree, a test fragment) validates step by step, as ever.

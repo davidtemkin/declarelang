@@ -84,7 +84,7 @@ function tagCandidates(schemas) {
     return [...new Set([...Object.keys(schemas), ...autoIncludableNames()])];
 }
 export function check(input) {
-    const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], islands: [], scripts: [], root: input };
+    const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
     // Schema resolution first (typed data): named `schema =` forms rewrite to
     // resolved shape literals, refs resolve, and collisions/unknown names
     // report here. CHECK_SHAPES then answers type-position lookups below.

@@ -269,13 +269,10 @@ export interface Program {
      *  library, or a developer class alike (one declaration, all three backends).
      *  Additive to what the tree + body scan already discover. */
     uses: string[];
-    /** The `islands [ … ]` list: the PROGRAMS this one may mount as an
-     *  `AppIsland` whose `program` is computed (a name static analysis can't
-     *  read), in the same currency an `AppIsland.program` value speaks — a name
-     *  or a relative path under the program's `demos/`. A production build
-     *  compiles each ahead of time and ships it beside the app, so the island
-     *  mounts with no compiler; a literal `program = "x"` needs no entry. */
-    islands: string[];
+    /** The `ship [ … ]` declaration: what a self-contained package of this
+     *  program must carry beyond what its source names (hosting.md, model 1).
+     *  Absent when the program declares nothing; merged across `include`s. */
+    ship?: Ship;
     /** Top-level `script { … }` blocks, in source order. */
     scripts: ScriptBlock[];
     /** `script [ "file.ts" ]` directives — script from a FILE, spelled like
@@ -292,6 +289,27 @@ export interface Program {
      *  parsing proves syntax, not types. */
     trusted?: boolean;
 }
+/** `ship [ … ]` — what a self-contained package of the program must carry
+ *  beyond what its source names, each member a FACT about the program (never
+ *  a build option): the programs it may mount as an `AppIsland` when the name
+ *  is computed (`islands`, spelled as `AppIsland.program` spells them); the
+ *  files it reads that no literal names, or that live outside its folder
+ *  (`files`, relative to the program); whether it compiles source at run time
+ *  (`compiler` — live editing, programs typed in); whether it answers
+ *  questions about itself in production (`inspector` — the Inspector, the
+ *  bridge, positions, error prose). A literal `program = "x"` or `url = "x"`
+ *  needs no entry. Read by `declarec` only; the hosts that carry sources and
+ *  a compiler need none of it. */
+export interface Ship {
+    islands: string[];
+    files: string[];
+    compiler: boolean;
+    inspector: boolean;
+}
+/** Two ship declarations as one — lists unioned, facts OR-ed. A program may
+ *  state its block before or after the root, and each included component may
+ *  bring its own. */
+export declare function mergeShip(a: Ship | undefined, b: Ship | undefined): Ship | undefined;
 /** An included file (composition.md §1): a library of top-level declarations
  *  — classes, themes, styles, and its own `include`s — with NO root. It is
  *  not a Program: it never declares an App, so it has no `root`. */
@@ -309,8 +327,9 @@ export interface Library {
     /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
      *  source-merge folds these into the program's `uses`. */
     uses: string[];
-    /** …and its own `islands [ … ]`, folded the same way. */
-    islands: string[];
+    /** …and its own `ship [ … ]`, folded the same way (a component that reads
+     *  a file or mounts a program says so where it lives). */
+    ship?: Ship;
     /** A library may declare its own `script { … }` helpers; the source-merge
      *  folds these into the program's blocks, in include order. */
     scripts: ScriptBlock[];

@@ -191,7 +191,7 @@ function resolveProvisionLiteral(attr, ctx) {
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
 export function instantiate(input) {
-    const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], islands: [], scripts: [], root: input };
+    const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
     // The compiler stamps `trusted` on a program it fully checked (declarec —
     // and only then), so instantiation runs on the fast paths; anything else
     // (a hand-built tree, a test fragment) validates step by step, as ever.

@@ -37,6 +37,7 @@
 // read for intent only — what data binding feels like; its XML node model,
 // datapointer objects, and string-event plumbing are exactly what this
 // module's plain-JSON + region-cells design sheds (APPROACH §2/§6).
+import { mapUrl } from "./asset-base.js";
 import { Node, authoredName } from "./node.js";
 import { Cell, isTracking, noteOrigin, settle } from "./reactive.js";
 import { DeclareError } from "./errors.js";
@@ -638,12 +639,12 @@ export function setAppDataBase(root, base) {
 function appResolve(root, url) {
     const base = appDataBases.get(root);
     if (base === undefined)
-        return url;
+        return mapUrl(url);
     try {
-        return new URL(url, base).href;
+        return mapUrl(new URL(url, base).href);
     }
     catch {
-        return url;
+        return mapUrl(url);
     }
 }
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a

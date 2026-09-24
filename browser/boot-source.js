@@ -9,6 +9,7 @@
 // imports resolve against THIS module's URL (…/browser/), NOT the source page's location, so
 // the runtime + the compiler always load from the distro tree regardless of which program is viewed.
 import { bootHost } from "./host-client.js";
+import { hydrateProgram } from "../runtime/dist/host-api.js";
 import { registerServiceWorker } from "./register-sw.js";
 import { loadCompiler, ensureLibrary } from "./compiler-client.js";
 // highlight + lineMetrics are DEPENDENCY-FREE (no TS, no compiler bundle): the

@@ -38,6 +38,7 @@
 // datapointer objects, and string-event plumbing are exactly what this
 // module's plain-JSON + region-cells design sheds (APPROACH §2/§6).
 
+import { mapUrl } from "./asset-base.js";
 import { Node, authoredName } from "./node.js";
 import { Cell, isTracking, noteOrigin, settle } from "./reactive.js";
 import { DeclareError } from "./errors.js";
@@ -603,8 +604,8 @@ export function setAppDataBase(root: object, base: string | null): void {
 /** Resolve a source's url through its app's base (identity when none). */
 function appResolve(root: object, url: string): string {
   const base = appDataBases.get(root);
-  if (base === undefined) return url;
-  try { return new URL(url, base).href; } catch { return url; }
+  if (base === undefined) return mapUrl(url);
+  try { return mapUrl(new URL(url, base).href); } catch { return mapUrl(url); }
 }
 
 /** A DataSource is a Dataset whose value arrives over HTTP (language §9): a
