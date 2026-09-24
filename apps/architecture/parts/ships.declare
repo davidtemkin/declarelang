@@ -348,8 +348,8 @@ class ShipsFig extends View [
     shots: View [
         layout: ResponsiveLayout [ plan = { [({ from: 700, flow: "row", gap: 28, share: ({ sd: 33.33, sc: 33.33, sm: 33.33 }) }),
             ({ from: 0, flow: "stack", gap: 22, share: ({ sd: 100, sc: 100, sm: 100 }) })] } ],
-        sd: ShotCol [ src = "resources/desktop-dom.png", caption = "Browser · DOM" ],
-        sc: ShotCol [ src = "resources/desktop-canvas.png", caption = "Browser · drawn to pixels (?render=canvas)" ],
-        sm: ShotCol [ src = "resources/desktop-mac.png", caption = "Mac host · no browser in the process" ]
+        sd: ShotCol [ src = "resources/desktop-dom.webp", caption = "Browser · DOM" ],
+        sc: ShotCol [ src = "resources/desktop-canvas.webp", caption = "Browser · drawn to pixels (?render=canvas)" ],
+        sm: ShotCol [ src = "resources/desktop-mac.webp", caption = "Mac host · no browser in the process" ]
         ]
     ]

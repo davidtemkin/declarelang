@@ -116,10 +116,16 @@ const REL_BASE = path.relative(ROOT, path.dirname(HOMEPAGE)).split(path.sep).joi
 // apps/homepage/apps/calendar/… — checked, and it did.
 const rebase = (h) => h.replace(/\b(src|poster)="([^"]*)"/g, (m, attr, url) =>
   /^([a-z][a-z0-9+.-]*:|\/\/|\/|#|data:)/i.test(url) ? m : `${attr}="${REL_BASE}${url}"`);
+// …and the baked images load LAZILY. The block is hidden (a visitor sees the
+// live app), but a browser fetches every <img> it parses, hidden or not — the
+// article's screenshots, on every cold visit to the root page, for nobody. A
+// lazy image inside a hidden block never intersects the viewport, so it is
+// never requested; a crawler reads the tag's src regardless.
+const lazy = (h) => h.replace(/<img\b(?![^>]*\bloading=)/g, '<img loading="lazy"');
 
 const NOSCRIPT = "<noscript><style>#declare-static{display:block !important}</style></noscript>";
 const block = html
-  ? `${BEGIN}${NOSCRIPT}<div id="declare-static" style="display:none">\n${rebase(html)}\n</div>${END}`
+  ? `${BEGIN}${NOSCRIPT}<div id="declare-static" style="display:none">\n${lazy(rebase(html))}\n</div>${END}`
   : `${BEGIN}${END}`;
 
 const idx = readFileSync(INDEX, "utf8");
