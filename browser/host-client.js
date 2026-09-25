@@ -31,7 +31,9 @@ const BACKENDS = { DomBackend, CanvasBackend };
 // resolved against it, so a distro-relative link ("apps/calendar/") lands
 // correctly whether the distro is served from the origin root (dev server) or a
 // project subpath (GitHub Pages /<repo>/). Absolute URLs (https://…) pass through.
-const DISTRO_ROOT = new URL("../", import.meta.url);
+// A module inlined into a page has no URL of its own to resolve against; the
+// page's is the root then.
+const DISTRO_ROOT = (() => { try { return new URL("../", import.meta.url); } catch { return new URL(document.baseURI); } })();
 
 // The app's slice of the URL — the fragment minus its leading `#`, decoded
 // (docs/system-design/location.md §4). "" when there is no fragment. The one place the host

@@ -53,7 +53,6 @@ class Switch extends Control [
     input(v: boolean) { checked = v },
 
     press()   { input(!checked) },
-    onClick() { if (!disabled) press() },
 
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
     fill    = { checked ? theme.accent : hot || down ? theme.controlSelected : theme.control },

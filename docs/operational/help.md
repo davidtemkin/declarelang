@@ -4,7 +4,7 @@ One command answers name-shaped and concept-shaped questions from the documentat
 model, in the same register the compiler uses:
 
 ```bash
-npx declare-help <question> [--all] [--json]
+npx declare-help <question> [--example] [--all] [--json]
 ```
 
 No server, no index, no network — it reads `docs/declare-model.json` once and runs
@@ -23,6 +23,7 @@ cold in a fresh clone. Same question, same bytes, every time.
 | `scrolls`, `fontWeight tokens` | the enum's tokens, and who carries them |
 | `DECLARE7001` | the diagnostic's family and where its register lives |
 | `E3A14CE` | a **runtime** error code — what a production build throws in place of the sentence: the message, and where it is thrown |
+| `DataSource.method --example` | the guide's shortest working examples that use the name, each with the chapter and section it comes from — real, compiled code, instead of reading a whole app |
 
 ## Two contracts worth trusting
 
@@ -37,7 +38,8 @@ tool." If it should exist and does not, that absence is worth reporting.
 ## Where the answers come from
 
 The tool adds no truth of its own. Vocabularies and prose come from
-`docs/declare-model.json`; the hint tables and the
+`docs/declare-model.json`, and `--example` reads the guide's own code blocks, which the docs
+test compiles; the hint tables and the
 did-you-mean calibration are imported from the runtime's teach module
 (`runtime/src/teach.ts`) — the same code the checker's diagnostics run, so this
 tool and the compiler cannot learn different manners. The concept table is curated

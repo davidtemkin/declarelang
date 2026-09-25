@@ -3,6 +3,11 @@ and `HTMLText`. You never write `RichText [ ]` directly (like `Layout`, it names
 you write one of its two concrete formats, which differ *only* in how they parse their
 source. Everything else — how it flows, wraps, stacks, and styles — lives here.
 
+**Its width is the line length.** A width you set, or a layout assigns, is where lines wrap.
+With neither, the text wraps at a 640 px reading measure and the box then takes the width of
+the widest line laid out — a short line of rich text is as wide as its words, as a `Text` is.
+A document holding a list, table, quote or code keeps the full measure.
+
 **Styling follows the ordinary text properties.** A rich-text block's **body** reads the same
 face values a `Text` does — `fontSize`, `fontWeight`, `textColor`, `letterSpacing`,
 `lineHeight` — each a **provided value**, so prose takes the ambient face like any other run:

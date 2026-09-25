@@ -204,7 +204,7 @@ export function setRichContent(
       // open-in-tab — but a plain left click routes through `onLink` so the app,
       // not the browser, decides (scroll, in-app route, or app.navigate).
       const isLink = r.href !== undefined;
-      const el = doc.createElement(isLink ? "a" : r.chipBg !== undefined ? "code" : "span");
+      const el = doc.createElement(isLink ? "a" : "span");
       const rs = el.style;
       if (isLink) {
         (el as HTMLAnchorElement).href = r.href!;
@@ -253,10 +253,6 @@ export function setRichContent(
       }
       if (r.transform != null) rs.textTransform = r.transform;
       if (r.smallCaps) rs.fontVariant = "small-caps";
-      if (r.chipBg !== undefined) {
-        rs.backgroundColor = colorToCss(r.chipBg);
-        rs.borderRadius = "4px"; rs.padding = "1px 5px";
-      }
       el.textContent = r.text;
       be.appendChild(el);
     }

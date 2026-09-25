@@ -21,7 +21,7 @@
 // only — children are not clipped (the recorded lean). A plain solid box
 // stays the single-fillRect fast path.
 
-import { colorToCss, radiusFit, radiusIsSquare, strokeUniform, type BoxStroke, type Gradient, type Radius, type Shadow } from "./value.js";
+import { colorToCss, colorWithAlpha, radiusFit, radiusIsSquare, strokeUniform, type BoxStroke, type Color, type Gradient, type Radius, type Shadow } from "./value.js";
 import { paintSides } from "./stroke-sides.js";
 
 /** The box's retained paint state — the shape both surfaces keep. The solid
@@ -191,6 +191,59 @@ function resolveStopOffsets(g: Gradient): number[] {
   // CSS: a stop before its predecessor clamps up to it; canvas requires 0…1.
   let prev = 0;
   return offs.map((o) => (prev = Math.min(1, Math.max(prev, o!))));
+}
+
+/** The part of a gradient laid over `whole` that falls on `part` (both boxes in
+ *  one coordinate space), as a gradient of `part`'s own — so a run of text split
+ *  into several painted pieces shows ONE ramp across all of them, as the DOM's
+ *  span does, instead of the whole ramp again on every piece. Linear: each stop
+ *  re-projected onto the piece's own gradient line, clipped to 0…1 with the
+ *  colour interpolated at the cut. Radial and conic: the centre moved into the
+ *  piece's box, and the radial reach rescaled to its farthest corner. */
+export function sliceGradient(g: Gradient, whole: { x: number; y: number; w: number; h: number }, part: { x: number; y: number; w: number; h: number }): Gradient {
+  if (part.w <= 0 || part.h <= 0) return g;
+  const px = (g.cx ?? 0.5) * whole.w + whole.x - part.x;
+  const py = (g.cy ?? 0.5) * whole.h + whole.y - part.y;
+  if (g.kind === "conic") return { ...g, cx: px / part.w, cy: py / part.h };
+  if (g.kind === "radial") {
+    const far = (w: number, h: number, x: number, y: number) => Math.hypot(Math.max(x, w - x), Math.max(y, h - y));
+    const reach = far(whole.w, whole.h, (g.cx ?? 0.5) * whole.w, (g.cy ?? 0.5) * whole.h) * (g.r ?? 1);
+    return { ...g, cx: px / part.w, cy: py / part.h, r: reach / Math.max(0.001, far(part.w, part.h, px, py)) };
+  }
+  const rad = (g.angle * Math.PI) / 180;
+  const dx = Math.sin(rad), dy = -Math.cos(rad);
+  const L = Math.abs(whole.w * dx) + Math.abs(whole.h * dy);
+  const Lp = Math.abs(part.w * dx) + Math.abs(part.h * dy);
+  if (L <= 0 || Lp <= 0) return g;
+  const shift = (part.x + part.w / 2 - whole.x - whole.w / 2) * dx + (part.y + part.h / 2 - whole.y - whole.h / 2) * dy;
+  const offs = resolveStopOffsets(g);
+  const at = offs.map((t, i) => ({ t: ((t - 0.5) * L - shift) / Lp + 0.5, c: g.stops[i].color }));
+  const colorAt = (t: number): Color => {
+    if (t <= at[0].t) return at[0].c;
+    for (let i = 1; i < at.length; i++) {
+      if (t <= at[i].t) {
+        const span = at[i].t - at[i - 1].t;
+        return mixColor(at[i - 1].c, at[i].c, span <= 0 ? 1 : (t - at[i - 1].t) / span);
+      }
+    }
+    return at[at.length - 1].c;
+  };
+  const stops = [{ offset: 0, color: colorAt(0) }, ...at.filter((s) => s.t > 0 && s.t < 1).map((s) => ({ offset: s.t, color: s.c })), { offset: 1, color: colorAt(1) }];
+  return { ...g, stops };
+}
+
+/** Two colours mixed channel by channel, alpha included; null reads as clear. */
+function mixColor(a: Color, b: Color, k: number): Color {
+  const parts = (c: Color): [number, number, number, number] => {
+    if (c === null) return [0, 0, 0, 0];
+    const alpha = c >= 0x100000000;
+    const v = alpha ? c - 0x100000000 : c;
+    const rgb = alpha ? Math.floor(v / 0x100) : v;
+    return [(rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff, alpha ? v % 0x100 : 0xff];
+  };
+  const [p, q] = [parts(a), parts(b)];
+  const m = p.map((x, i) => Math.round(x + (q[i] - x) * k));
+  return colorWithAlpha((m[0] << 16) | (m[1] << 8) | m[2], m[3]);
 }
 
 /** The conservative pixel bounds of the box paint — the box plus its

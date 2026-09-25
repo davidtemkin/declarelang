@@ -42,31 +42,13 @@ host with no Node anywhere.
 
 ## Agents start here
 
-Declare is a language, and it is **not in your training data** — the surest way to be wrong is
-to assume a rule from React, CSS, or HTML carries over.
-
-- **The skill** — [skill/SKILL.md](skill/SKILL.md), the resident kernel and routing table. Claude
-  Code auto-discovers it from the copy in `.claude/skills/` (or invoke it directly with
-  `/declare`); it follows the [Agent Skills](https://agentskills.io) standard, so other agents
-  read the same file.
-- **The language** — [docs/declare.md](docs/declare.md), the whole of it in one file, terse and
-  complete. The best single thing to read before writing anything real.
-- **Starting from a brief, a mockup, or a port from another stack** —
-  [docs/operational/intake.md](docs/operational/intake.md), before you plan. What carries over
-  literally, what to re-derive, and what the brief could not think to ask for.
-- **A real program to read** — [apps/calendar/calendar.declare](apps/calendar/calendar.declare),
-  the reference app: four views, continuous zoom, drag and edit, written by a model.
-- **The loop** — write the whole program, check it with
-  [verify](docs/operational/verify.md), *ask the platform* with
-  [declare-help](docs/operational/help.md) — `npx declare-help <name>`, one exact
-  answer per question, cheaper than reading for it — then *ask the running program* with
-  [introspection](docs/operational/introspection.md). A clean compile is not a working app:
-  layout, fonts, paint, and input routing do not exist until it runs.
-- **Changing the platform itself** rather than writing a program in it —
-  [CONTRIBUTING.md](CONTRIBUTING.md): the tenets, the gates, how documentation is generated,
-  and the narrow rules for touching `docs/declare.md`.
-
-Write your own programs to `my-apps/` and browse to their URL.
+Declare is new and **not in your training data** — assume nothing carries over from React,
+CSS, or HTML. Load the skill, [skill/SKILL.md](skill/SKILL.md): it holds the model and routes
+you to everything else. Claude Code discovers it from the copy in `.claude/skills/` (or invoke
+it as `/declare`); it follows the [Agent Skills](https://agentskills.io) standard, so other
+agents read the same file. Write your own programs to `my-apps/` and browse to their URL. To
+change the platform itself rather than write a program in it, read
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -163,13 +145,6 @@ Start the dev server. It prints its address — http://127.0.0.1:8200/ unless th
 Write a program to my-apps/hello.declare and browse to it under the server's address — http://127.0.0.1:8200/my-apps/hello.declare on the default port. The program URL is the app's address.
 <!-- /generated:setup-commands -->
 
-## Where everything is
-
-- **[docs/declare.md](docs/declare.md)** — the whole language, in one file, for you and your LLM.
-- **[skill/](skill/SKILL.md)** — the agent skill: the resident kernel + routing table a model loads to write Declare (auto-discovered by Claude Code via a gated copy in `.claude/skills/`).
-- **[docs/](docs/README.md)** — the guide (start at [Core concepts](docs/guide/01-what-declare-is.md)), operational pages ([getting-started](docs/operational/getting-started.md) to run), and the machine model ([declare-model.json](docs/declare-model.json) — exact facts in its `spine`).
-- **[docs/system-design/](docs/system-design/)** — the internal design record (non-authoritative; the docs win).
-
 ## Explore & build
 
 ```sh
@@ -192,9 +167,10 @@ the hooks refuse is one page:
 | `runtime/` | the framework — parser, reactive core, layout, animation, DOM/Canvas backends (zero external deps) |
 | `compiler/` | the thin `.declare` → JS compiler; depends one-way on `runtime/` |
 | `library/` | components and theme records authored in `.declare` |
-| `apps/` | the complete applications — `calendar`, `tracker`, `desktop`, `birds`, `weather` and more; what each one teaches is mapped in [the guide's first chapter](docs/guide/01-what-declare-is.md#learning-from-the-apps) |
+| `apps/` | the complete applications — `calendar`, `tracker`, `desktop`, `birds`, `weather` and more |
 | `tools/` | the command-line tools (`declare-dev`, `declare-verify`, `declare-format`, `declare-help`, and `declarec` for production builds) and the internal doc/build pipeline |
-| `docs/` | the [guide](docs/guide/), [operational pages](docs/operational/), and the [design record](docs/system-design/) |
+| `docs/` | [`declare.md`](docs/declare.md) — the whole language in one file — the [guide](docs/guide/01-what-declare-is.md), [operational pages](docs/operational/), the machine model [`declare-model.json`](docs/declare-model.json), and the [design record](docs/system-design/) (non-authoritative; the docs win) |
+| `skill/` | the agent skill, [`SKILL.md`](skill/SKILL.md) |
 | `test/` | the suite `npm test` runs |
 
 **Source & hosting.** Each area co-locates `src/` and committed `dist/`, so the tree runs

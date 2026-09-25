@@ -21,7 +21,6 @@ export type RichRun = {
     color: number;
     tracking: number;
     fill?: Fill;
-    chipBg?: number;
     href?: string;
     underline?: boolean;
     shadow?: Shadow;
@@ -67,6 +66,8 @@ export interface RichBlock {
     gapBefore: number;
     lineHeight: number;
     fontSize: number;
+    family?: string;
+    weight?: FontWeight;
     align?: "left" | "center" | "right";
     pre?: boolean;
     anchor?: string;

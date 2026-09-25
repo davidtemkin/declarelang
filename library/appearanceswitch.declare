@@ -71,7 +71,6 @@ class AppearanceSwitch extends Control [
     input(v: boolean) { dark = v },
 
     press()   { input(!dark) },
-    onClick() { if (!disabled) press() },
 
     tip  = { dark ? "Switch to light" : "Switch to dark" },
     fill = { down ? theme.controlPressed : hot ? theme.controlHover : null },

@@ -3,7 +3,6 @@ schema Card [ id: number, col: 0 | 1 | 2, t: string ]
 class BCard extends Control [ width = 100%, height = 30, cornerRadius = 10,
     fill = { down ? 0x3E5C66 : hot ? 0x36525B : 0x2F4F4F },
     press() { app.advance(:id) },
-    onClick() { if (!disabled) press() },
     TextLabel [ x = 10, fontSize = 12, wrap = false, textColor = whitesmoke, text = :t ]
     ]
 

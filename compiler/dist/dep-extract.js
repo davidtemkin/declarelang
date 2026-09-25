@@ -479,9 +479,13 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
         // pass 2: iterator-closure parameters over a reactive (or aliased) chain
         const scan2 = (n) => {
             if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && ITER.has(n.expression.name.text)) {
-                const b = baseOfChain(n.expression.expression);
-                const overReactive = b.kind === ts.SyntaxKind.ThisKeyword
-                    || (ts.isIdentifier(b) && (SCOPE_ROOTS.has(b.text) || roots.has(b.text) || dynamicRoots.has(b.text)));
+                // Over whatever touches reactive state — a chain (`this.team`), an
+                // alias, or a value built from them (`[app.a, app.b]`, `Object.values(…)`):
+                // its elements may be nodes, and a read through the parameter is a cell.
+                const recv = n.expression.expression;
+                const b = baseOfChain(recv);
+                const overReactive = touchesReactive(recv)
+                    || (ts.isIdentifier(b) && dynamicRoots.has(b.text));
                 if (overReactive) {
                     for (const a of n.arguments) {
                         if ((ts.isArrowFunction(a) || ts.isFunctionExpression(a))) {
@@ -725,11 +729,18 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         for (const name of PROVIDED_FACE_NAMES)
                             reads.add(`this.$provided(${JSON.stringify(name)})`);
                     }
-                    else if (ITER.has(m)) {
-                        if (recvName && NODE_COLLECTIONS.has(recvName))
+                    else if (ITER.has(m) || PURE_METHODS.has(m)) {
+                        if (ITER.has(m) && recvName && NODE_COLLECTIONS.has(recvName))
                             errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
+                        // A builtin's name can also be a program's method: `app.m.find(id)`
+                        // on a model is not Array.prototype.find. Record the call as a method
+                        // too; follow1 resolves the receiver and follows the body only when a
+                        // node carrying that method is what the call reaches — an array or a
+                        // string contributes nothing, exactly as before.
+                        if (USER_METHODS.has(m) && recv.kind !== ts.SyntaxKind.SuperKeyword) {
+                            calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+                        }
                     }
-                    else if (PURE_METHODS.has(m)) { /* pure projection */ }
                     else if (USER_METHODS.has(m)) {
                         // the extractor reads the AUTHORED body, where a super call is still
                         // spelled `super.` (the `$base` rewrite is an edit on the emitted text)

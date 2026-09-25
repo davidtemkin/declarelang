@@ -1473,6 +1473,7 @@ class CanvasSurface {
     /** The natural line height (ascent+descent) — the wrapped-line stride, and
      *  what the DOM backend sets as `line-height`, so multi-line agrees. */
     lineHeight = 0;
+    halfLead = 0;
     textShadow = null;
     // Typographical treatments (the span/Text paint vocabulary) — mirrored from
     // the DOM's setRichContent/setTextStyle so canvas runs wear the same look.
@@ -1912,6 +1913,11 @@ class CanvasSurface {
         this.lineHeight = st.lineHeight != null && st.lineHeight > 0
             ? Math.round(st.fontSize * st.lineHeight)
             : fm.ascent + fm.descent;
+        // Half the difference between the declared line and the face's own box goes
+        // above each line and half below — the DOM's line-height, so a tight
+        // `lineHeight = 1` keeps its glyphs centered in the box rather than sitting
+        // on its floor.
+        this.halfLead = (this.lineHeight - (fm.ascent + fm.descent)) / 2;
         this.textShadow = st.shadow ?? null;
         // smallCaps rides `fontString(st)` above (the CSS variant slot), so the
         // painter and the shared measurer synthesize the same caps; the rest are
@@ -3565,7 +3571,7 @@ class CanvasSurface {
                         const lw = textWidth(line, this.font, this.letterSpacing);
                         x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
                     }
-                    paintLine(line, x, this.ascent + i * this.lineHeight);
+                    paintLine(line, x, this.halfLead + this.ascent + i * this.lineHeight);
                 }
             }
             else {
@@ -3586,7 +3592,7 @@ class CanvasSurface {
                         const lw = textWidth(line, this.font, this.letterSpacing);
                         x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
                     }
-                    paintLine(line, x, this.ascent + i * this.lineHeight);
+                    paintLine(line, x, this.halfLead + this.ascent + i * this.lineHeight);
                 }
             }
             if (restoreShadow)

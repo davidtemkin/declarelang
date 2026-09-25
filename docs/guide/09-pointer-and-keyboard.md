@@ -29,7 +29,6 @@ class Tile extends Control [ width = 90, height = 70, cornerRadius = 10,
     fill = { down ? 0xC9D6E8 : hot ? 0xDDE6F2 : 0xEEF2F7 },
     stroke = { picked ? stroke(2, 0x2E6FE0) : null },
     press() { app.choose(label) },
-    onClick() { if (!disabled) press() },
     Text [ x = center, y = center, text = { classroot.label } ]
     ]
 

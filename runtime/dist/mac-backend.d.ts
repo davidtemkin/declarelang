@@ -169,11 +169,9 @@ declare class MacSurface implements Surface {
     fillCss: string | null;
     setFill(fill: Fill): void;
     setCornerRadius(r: Radius): void;
-    /** The border. The host paints ONE ring, so a per-side stroke (BoxStroke,
-     *  four sides) crosses only when every side agrees; a genuinely per-side
-     *  border is a capability this host does not have (rendering-gaps.md), and
-     *  it paints none rather than a wrong one — silently, because the slot is
-     *  legal, the renderer simply cannot realize it. */
+    /** The border: one ring as (width, color), the layer's own border; four
+     *  sides that differ as eight args, top first, which the host paints as
+     *  bands the way stroke-sides.ts does for the other two renderers. */
     setStroke(s: BoxStroke): void;
     setShadow(sh: Shadow | null): void;
     setVisible(v: boolean): void;

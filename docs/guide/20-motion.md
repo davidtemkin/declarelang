@@ -67,6 +67,25 @@ mid-flight retarget clears it exactly as you would hope. (Arriving is distinct f
 settle* of [Constraints](declare-docs:guide:constraints@the-settle-when-writes-take-effect): a spring arrives across many
 settles.)
 
+**A figure that arrives with its data appears; it does not count up.** A number sprung
+toward a value from a `DataSource` starts at its declared value, so when the data lands it
+would roll up from zero — a change the reader never lived through. Take the first real
+value outright, and let every later one animate:
+
+```declare-fragment
+class Figure [
+    value: number = 0,                          // the truth
+    shown: number = 0,                          // what the screen reads
+    seeded: boolean = false,
+    Spring [ attribute = shown, to = { classroot.value } ],
+    trackChanges = ["value"],
+    onChange(e: ChangeEvent) { if (!seeded) { seeded = true; shown = value } }
+    ]
+```
+
+`weekCount: Figure [ value = { app.week.value.count } ]`, and a view reads
+`app.weekCount.shown`. Logging a session then rolls the count over; opening the app does not.
+
 > **From SwiftUI:** `withAnimation` animates the *transaction* — changes made inside
 > the block. A `Spring` here is a standing declaration on the attribute itself:
 > nothing is wrapped, and any write to the target, from anywhere, moves the ball.

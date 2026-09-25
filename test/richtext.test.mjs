@@ -6,6 +6,7 @@ import assert from "node:assert";
 import puppeteer from "puppeteer-core";
 import { existsSync } from "node:fs";
 import { buildProduction } from "../tools/declarec.mjs";
+import { inlineAppPage } from "./harness.mjs";
 
 let pass = 0, fail = 0;
 function test(name, fn) {
@@ -37,13 +38,12 @@ An intro paragraph of several words.
 async function render(mode) {
   const b = await buildProduction(DOC, { render: mode });
   assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-  const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
   try {
     const page = await browser.newPage();
     const errs = [];
     page.on("pageerror", (e) => errs.push(e.message));
-    await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+    await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
     await new Promise((r) => setTimeout(r, 400));
     const probe = await page.evaluate(() => {
       const texts = (sel) => Array.from(document.querySelectorAll(sel)).map((e) => e.textContent);
@@ -96,12 +96,11 @@ if (!CHROME) {
   const pre = await (async () => {
     const b = await buildProduction(preDoc, {});
     assert.ok(b.ok, "pre build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
-      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, 350));
       return { errs, probe: await page.evaluate(() => {
         const el = document.querySelector("pre");
@@ -142,12 +141,11 @@ Body with \`inline code\` here.
   const tok = await (async () => {
     const b = await buildProduction(tokensDoc, {});
     assert.ok(b.ok, "tokens build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
-      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, 350));
       return { errs, probe: await page.evaluate(() => {
         const leaf = (needle) => Array.from(document.querySelectorAll("#host *"))
@@ -195,7 +193,6 @@ Body with \`inline code\` here.
   const vb = await (async () => {
     const b = await buildProduction(varDoc, { render: "canvas" });
     assert.ok(b.ok, "var build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
@@ -204,7 +201,7 @@ Body with \`inline code\` here.
       // the body painted 0xc7d0d6 and the black probe found nothing). Pin it.
       await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
-      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, 450));
       return { errs, probe: await page.evaluate(() => {
         const cv = document.querySelector("canvas"); if (!cv) return { ok: false };

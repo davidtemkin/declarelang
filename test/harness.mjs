@@ -49,3 +49,15 @@ export function summarize(label) {
   console.log(`${label}: ${passed} passed, ${failed} failed`);
   if (failed > 0) process.exitCode = 1;
 }
+
+/** A page that runs a production build's app module inline. The module exports
+ *  its boot and the build's index.html calls it; the inline copy makes the same
+ *  call in place, with `main` absolute — an inline page has no URL to resolve a
+ *  relative one by. */
+export function inlineAppPage(build) {
+  const appJs = build.files.find((f) => f.name.startsWith("app.")).contents;
+  const cfg = build.files.find((f) => f.name === "index.html").contents.match(/boot\((\{[^\n]*\})\);/)[1]
+    .replace(/main: "[^"]*"/, 'main: "https://declare.test/app.declare"');
+  const booted = appJs.replace(/export\s*\{\s*(\w+) as default\s*\};?\s*$/, `$1(${cfg});`);
+  return `<!doctype html><div id=host></div><script type=module>${booted}</script>`;
+}

@@ -20,9 +20,9 @@ import { Image } from "./image.js";
 import type { RenderBackend, RichBlock, RichRun, SlotBox, Surface } from "./backend.js";
 import { Layout, type Box } from "./layout.js";
 import { Cell, Constraint } from "./reactive.js";
-import { defineAttributes, provideWrite, providedDefault, providedRead, setBound } from "./attributes.js";
+import { defineAttributes, isSet, ownerOf, provideWrite, providedDefault, providedRead, setBound } from "./attributes.js";
 import { DeclareError } from "./errors.js";
-import { coerce, isAlign, isAuthoredUnion, type AttrType } from "./value.js";
+import { coerce, isAlign, isAuthoredUnion, isGradient, type AttrType, type Gradient } from "./value.js";
 import { ellipsize, fontMetrics, fontString, textWidth, transformText, type FontWeight, type TextTransform } from "./measure.js";
 import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
 import { faceGeneration } from "./face-table.js";
@@ -35,6 +35,7 @@ import type { Fill, Shadow, Outline, Color } from "./value.js";
 import type { Attr, Literal } from "./parser.js";
 import { percentAxis } from "./bind.js";
 import { styleBundles, bundleRecord } from "./style-bundles.js";
+import { sliceGradient } from "./boxpaint.js";
 
 // ── prose style map ──────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
@@ -689,8 +690,11 @@ type ImageFor = (src: string) => ImageInfo;
  *  replaced boxes via `imageFor` (a persistent Image view per src); an image
  *  whose load has FAILED degrades to its `alt` text. */
 function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: string) => void, imageFor?: ImageFor,
-                        opts?: { measure?: boolean; keep?: number }): { views: View[]; height: number; anchors: Map<string, number>; firstBaseline: number | null; lines: number; slots: Record<string, SlotBox> } {
+                        opts?: { measure?: boolean; keep?: number }): { views: View[]; height: number; anchors: Map<string, number>; firstBaseline: number | null; lines: number; slots: Record<string, SlotBox>; widest: number } {
   const views: View[] = [];
+  // The right edge of the widest line laid out — what a rich text with no width
+  // of its own is as wide as (RichText.fitNatural).
+  let widest = 0;
   // The INLINE-VIEW GEOMETRY FACT this pass produces: slot → box, in flow
   // coordinates. Identical in shape to what the DOM path reads back off its
   // placeholders, which is what lets one Layout place views on either substrate.
@@ -720,7 +724,14 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     // first run anyway, so its geometry is unchanged.
     const textRuns = b.runs.filter((r): r is Extract<RichRun, { text: string }> => "text" in r);
     const lead = textRuns.length === 0 ? undefined : textRuns.reduce((best, r) => (r.text.length > best.text.length ? r : best));
-    const bm = fontMetrics(fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: lead?.weight ?? "normal" }));
+    // The STRUT is the block's own font, as CSS's root inline box is — not the
+    // lead run's. A line of figures with a longer caption in a small face
+    // ("55 sessions") otherwise hung a small face's box in a big line and
+    // pushed the descent past where the browser puts it. A block that names no
+    // font of its own falls back to the lead run.
+    const bm = b.family !== undefined
+      ? fontMetrics(fontString({ fontFamily: b.family, fontSize: b.fontSize, fontWeight: b.weight ?? "normal" }))
+      : fontMetrics(fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: lead?.weight ?? "normal" }));
     const lineH = Math.ceil(bm.ascent + bm.descent);              // glyph box (for half-leading)
     const adv = Math.round(b.fontSize * b.lineHeight);            // line box = round(fontSize × lineHeight), CSS-unitless — matches the DOM path
     const halfLead = Math.round((adv - lineH) / 2);              // centre the glyph box in the line box (half-leading)
@@ -881,7 +892,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     // A laid entry is either a VIEW this pass created (text, chip, rule), a
     // PERSISTENT child the flow keeps (an inline image), or a SLOT — a box with
     // no view of its own, published as the geometry fact instead of positioned.
-    const blockViews: { v: View | null; line: number; boff: number; persistent?: boolean; slot?: string; sx?: number; sy?: number; sw?: number; sh?: number }[] = [];
+    const blockViews: { v: View | null; line: number; boff: number; persistent?: boolean; slot?: string; sx?: number; sy?: number; sw?: number; sh?: number; run?: RichRun }[] = [];
     const lineRight = new Map<number, number>();
     let x = 0, line = 0, pending = false;
     // The block strut: `strutAbove` is the baseline's distance below the line top
@@ -913,8 +924,12 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       if (r.fill !== undefined) t.textFill = r.fill;
       applyRunTreatments(t, r);
       if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
-      // A plain run is the lead face, so its top sits `bm.ascent` above the baseline.
-      blockViews.push({ v: t, line: g.line, boff: -bm.ascent });
+      // A plain run is the lead face, which is not always the block's own (the
+      // strut's): it sits by its own ascent and grows the line like any run —
+      // a no-op for ordinary prose, where the lead face IS the block's.
+      const fm = fontMetrics(fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic }));
+      grow(g.line, fm.ascent, fm.descent, r.size);
+      blockViews.push({ v: t, line: g.line, boff: -fm.ascent, run: r });
     };
     for (const tok of broken) {
       if ("br" in tok) { flushGroup(); line++; x = 0; pending = false; continue; }
@@ -979,7 +994,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         // run in a different face would move every word after the first space.
         // Restricting it to the lead face keeps every position bit-identical —
         // which is what lets the DOM↔canvas perceptual gate stay green.
-        const plain = r.chipBg === undefined && !r.strike && rFont === spaceFont;
+        const plain = !r.strike && rFont === spaceFont;
         if (group !== null && (!plain || group.run !== r || group.line !== line)) flushGroup();
         if (plain) {
           if (group === null) group = { run: r, x0: x, line, parts: [], end: x };
@@ -994,14 +1009,13 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
           const fm = fontMetrics(rFont);
           grow(line, fm.ascent, fm.descent, r.size);
           const t = new Text();
-          if (r.chipBg !== undefined) { const c = rectView(Math.ceil(p.w) + 6, lineH, r.chipBg, 3); c.x = x - 3; blockViews.push({ v: c, line, boff: -bm.ascent }); }
           t.x = x; t.width = Math.ceil(p.w) + 2; t.wrap = false;
           t.fontSize = r.size; t.fontWeight = r.weight; t.italic = r.italic; t.fontFamily = r.family; t.textColor = r.color; t.text = p.text;
           if (r.tracking !== 0) t.letterSpacing = r.tracking;
           if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
           applyRunTreatments(t, r);
           if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
-          blockViews.push({ v: t, line, boff: -fm.ascent });
+          blockViews.push({ v: t, line, boff: -fm.ascent, run: r });
           // The strike rule, CENTER-anchored ~0.31·size ABOVE the baseline — the
           // same font-metric position the Text component and the DOM backend use,
           // so `~~struck~~` prose lines up across all three. (The old
@@ -1033,6 +1047,32 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         if (bv.v !== null) bv.v.x += d; else bv.sx = (bv.sx ?? 0) + d;
       }
     }
+    // ONE RAMP PER RUN. A run that is not the lead face is painted a word per
+    // view, and each view would lay the run's whole gradient over its own box —
+    // a ramp that restarts at every word. The DOM paints the span as one inline
+    // box, so each piece takes its slice of one ramp laid across the run's
+    // extent on the line.
+    const pieces = new Map<RichRun, Map<number, Text[]>>();
+    for (const bv of blockViews) {
+      if (bv.run === undefined || !(bv.v instanceof Text) || !("text" in bv.run) || bv.run.fill == null || !isGradient(bv.run.fill)) continue;
+      const lines = pieces.get(bv.run) ?? new Map<number, Text[]>();
+      pieces.set(bv.run, lines);
+      const on = lines.get(bv.line) ?? [];
+      lines.set(bv.line, on);
+      on.push(bv.v);
+    }
+    for (const [run, lines] of pieces) {
+      const r = run as Extract<RichRun, { text: string }>;
+      const g = r.fill as Gradient;
+      // every piece of one run is one face, so one line box tall
+      const fm = fontMetrics(fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic }));
+      const h = fm.ascent + fm.descent;
+      for (const on of lines.values()) {
+        if (on.length < 2) continue;
+        const x0 = Math.min(...on.map((t) => t.x)), x1 = Math.max(...on.map((t) => t.x + t.width));
+        for (const t of on) t.textFill = sliceGradient(g, { x: x0, y: 0, w: x1 - x0, h }, { x: t.x, y: 0, w: t.width, h });
+      }
+    }
     // THE CLAMP (RichText.maxLines). The lines exist here — every view carries
     // its line index — so spending the budget is: keep the lines that fit, drop
     // the views on the rest, end the last kept line with an ellipsis, and stop
@@ -1062,6 +1102,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       yy = keep > 0 ? lineTop[keep - 1] + (lineAbove[keep - 1] ?? strutAbove) + (lineBelow[keep - 1] ?? strutBelow) : lineTop[0] - b.gapBefore;
     }
     remaining -= lineCount;
+    for (const r of lineRight.values()) if (r > widest) widest = r;
     // Persistent (image) views are already children managed by the flow's image
     // cache — position them (done above) but do NOT hand them back to be inserted
     // and discarded with the per-pass text views.
@@ -1079,7 +1120,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     }
     y = yy;
   }
-  return { views, height: y, anchors, firstBaseline, lines, slots };
+  return { views, height: y, anchors, firstBaseline, lines, slots, widest };
 }
 
 /** TextFlow — the internal native-flow renderer (NOT a user component; see the
@@ -1135,6 +1176,13 @@ class TextFlow extends View {
       if (this.surface?.setRichWidth !== undefined) { this.surface.setRichWidth(w); return; }
     }
     this.render();
+  }
+
+  /** The right edge of this flow's widest line at its current width — the
+   *  manual flow's arithmetic, which the DOM↔canvas parity gate makes every
+   *  backend's number. */
+  widestLine(): number {
+    return flowRichCanvas(this.content, this.flowWidth, undefined, undefined, { measure: true }).widest;
   }
 
   onLink: ((href: string) => void) | null = null;
@@ -1486,9 +1534,9 @@ function inlineText(inline: Inline[]): string {
 function proseBlock(b: Extract<Block, { t: "paragraph" }> | Extract<Block, { t: "heading" }>, gapBefore: number, bodyColor: number, ctx: Ctx): RichBlock {
   if (b.t === "heading") {
     const size = PROSE.heading[b.level - 1];
-    return { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(size, HEADINGW, HEADINGC), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size), anchor: headingSlug(inlineText(b.inline)) || undefined };
+    return { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(size, HEADINGW, HEADINGC), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size), family: ctx.family, weight: HEADINGW, anchor: headingSlug(inlineText(b.inline)) || undefined };
   }
-  return { tag: "p", runs: richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size) };
+  return { tag: "p", runs: richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size), family: ctx.family, weight: BODY.weight };
 }
 
 /** Render a block sequence to a list of stacked child views: consecutive
@@ -1934,8 +1982,9 @@ export abstract class RichText extends View {
     onDiscard(this, () => c.dispose());
     // WIDTH — nothing structural depends on it, so re-width in place. Separate
     // constraint, and it must run AFTER the first build (c.run() above) so there
-    // is something to re-width.
-    const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => this.relayout(this.width > 0 ? this.width : 640), 0);
+    // is something to re-width. A width nobody gives is the text's own (the
+    // build fitted it), so there is nothing to re-width to.
+    const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => { if (!this.ownWidth()) this.relayout(this.width > 0 ? this.width : READING_MEASURE); }, 0);
     cw.run();
     onDiscard(this, () => cw.dispose());
   }
@@ -1991,6 +2040,33 @@ export abstract class RichText extends View {
     this.claimBaseline();
   }
 
+  /** True when no author and no layout gives this box its width: it is then the
+   *  width of the text itself (fitNatural). The auto-extent that reports that
+   *  width back is not a giver. */
+  private ownWidth(): boolean {
+    if (isSet(this, "width")) return false;
+    const owner = ownerOf(this, "width");
+    return owner === null || owner.isAutoExtent;
+  }
+
+  /** A rich text with no width of its own is AS WIDE AS ITS TEXT: laid out at
+   *  the reading measure, then re-flowed at its widest line (plus a 2px guard,
+   *  so a renderer measuring a hair wider cannot wrap a line early). The content
+   *  box — and so `x = center`, a row's spacing, a ring around it — is then the
+   *  text's. Only a document of running text fits; one holding a list, table,
+   *  quote or code keeps the measure. */
+  private fitNatural(): void {
+    if (!this.ownWidth()) return;
+    let natural = 0;
+    for (const e of this.laid) {
+      const f = e.view;
+      if (!(f instanceof TextFlow) || f.content.some((b) => b.pre === true)) return;
+      natural = Math.max(natural, f.widestLine() + 2 + e.geo.ml + e.geo.mr);
+    }
+    natural = Math.ceil(natural);
+    if (natural < READING_MEASURE) relayoutEntries(this.laid, natural);
+  }
+
   /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
    *  it is a prose flow its first line's baseline IS this box's. */
   private claimBaseline(): void {
@@ -2011,7 +2087,7 @@ export abstract class RichText extends View {
     STYLES = this.stylesOf();                         // named styles for this render
     for (const v of this.built) { this.removeChild(v); v.discard(); }
     this.built = [];
-    const width = this.width > 0 ? this.width : 640;
+    const width = this.ownWidth() || !(this.width > 0) ? READING_MEASURE : this.width;
     // The family a flow's value names now — held while a newly chosen font is
     // inside its wait, exactly as the render key above read it (font-value.ts).
     const family = heldFamily(this, "fontFamily", this.fontFamily) || FALLBACK_FAMILY;
@@ -2072,6 +2148,7 @@ export abstract class RichText extends View {
     // ever ran. Re-parent them at the end, in model order, now the flows are in.
     if (this.surface !== null) for (const v of host.views()) if (v.surface !== null) this.surface.insertChild(v.surface, null);
     this.laid = children;                 // kept so a width change can re-width
+    this.fitNatural();
     // Stack the block-views, PROSE.blockGap apart; their heights (a TextFlow's
     // measured at attach, a container's derived by auto-extent) drive the stack,
     // and auto-extent gives this box its height — so leave `height` unset. The
@@ -2086,6 +2163,9 @@ export abstract class RichText extends View {
     setBound(this, "truncated", TRUNCATED);
   }
 }
+
+/** Where a rich text with no width of its own wraps. */
+const READING_MEASURE = 640;
 
 /** Rich content authored in Markdown (`text`). */
 export class Markdown extends RichText {

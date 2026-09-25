@@ -158,8 +158,7 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
         n: Text [ y = 1, fontSize = 11, wrap = false, visible = { classroot.count >= 0 && !app.compact },
             textColor = { theme.textFaint }, text = { "" + Math.round(classroot.anim) } ]
         ],
-    press() { app.toggleFilter(facet, value) },
-    onClick() { if (!disabled) press() }
+    press() { app.toggleFilter(facet, value) }
     ]
 
 
@@ -339,8 +338,7 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
         x = { parent.width - 48 },
         textColor = { theme.textMuted },
         n = { classroot.n } ],
-    press() { app.toggleFilter(facet, value) },
-    onClick() { if (!disabled) press() }
+    press() { app.toggleFilter(facet, value) }
     ]
 
 
@@ -365,8 +363,7 @@ class Toast extends View [ visible = { shown || lift > 0.02 }, height = 40, corn
         fill = { hot || down ? theme.accent : null },
         t: Text [ x = 9, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
             textColor = { this.parent.hot || this.parent.down ? theme.accentText : theme.accent }, text = "Undo" ],
-        press() { app.undoDelete() },
-        onClick() { if (!disabled) press() }
+        press() { app.undoDelete() }
         ],
     show(m: string) {
         msg = m
@@ -435,8 +432,7 @@ class EditorCard extends View [
                 fill = { hot ? theme.control : null },
                 stroke = { stroke(1, theme.line) },
                 t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
-                press() { app.openAddLabel(this) },
-                onClick() { if (!disabled) press() }
+                press() { app.openAddLabel(this) }
                 ]
             ],
 
@@ -475,8 +471,7 @@ class EditorCard extends View [
                     fontSize = { app.footLabelPx },
                     textColor = { provided("theme").danger },
                     text = "Delete…" ],
-                press() { app.deleteSelection() },
-                onClick() { if (!disabled) press() }
+                press() { app.deleteSelection() }
                 ]
             ]
         ]
@@ -498,8 +493,7 @@ class Facet extends Control [ height = 28, cornerRadius = 7,
         x = { tint != 0 ? 22 : 10 },
         text = { value } ],
     arr: ChevronIcon [ y = center, iconSize = 11, x = { parent.width - 15 }, ink = { theme.textMuted } ],
-    press() { app.openFacet(this, field) },
-    onClick() { if (!disabled) press() }
+    press() { app.openFacet(this, field) }
     ]
 
 
@@ -1194,8 +1188,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     textColor = { app.fAssignee != "" ? theme.text : theme.textMuted },
                     text = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee" } ],
                 c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
-                press() { app.openAssigneeFilter(this) },
-                onClick() { if (!disabled) press() }
+                press() { app.openAssigneeFilter(this) }
                 ],
             labelBtn: Control [ height = 28, cornerRadius = 8,
                 width = { this.t.width + 36 },   // the label's padding plus the chevron's room
@@ -1205,8 +1198,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     textColor = { app.fLabel != "" ? theme.text : theme.textMuted },
                     text = { app.fLabel != "" ? app.fLabel : "Label" } ],
                 c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
-                press() { app.openLabelFilter(this) },
-                onClick() { if (!disabled) press() }
+                press() { app.openLabelFilter(this) }
                 ]
             ],
 
@@ -1227,16 +1219,14 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
                     text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) } ],
                 c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
-                press() { app.openSort(this) },
-                onClick() { if (!disabled) press() }
+                press() { app.openSort(this) }
                 ],
             dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tip = "Toggle sort direction",
                 fill = { hot || down ? theme.control : null },
                 t: ArrowIcon [ iconSize = 13, ink = { theme.textMuted },
                     x = center, y = center,
                     dir = { app.sortDir == "desc" ? "down" : "up" } ],
-                press() { app.toggleSortDir() },
-                onClick() { if (!disabled) press() }
+                press() { app.toggleSortDir() }
                 ],
             gapNew: View [ width = 16, height = 1 ],
             newBtn: Control [ height = 30, cornerRadius = 8,
@@ -1245,8 +1235,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 shadow = { shadow(0, 1, 3, 0x00000030) },
                 t: Text [ x = 15, y = center, fontSize = 12.5, fontWeight = semibold, wrap = false,
                     textColor = { theme.accentText }, text = "New issue" ],
-                press() { app.newIssue() },
-                onClick() { if (!disabled) press() }
+                press() { app.newIssue() }
                 ]
             ]
         ],
@@ -1495,8 +1484,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             fill = { hot || down ? theme.control : null },
             stroke = { stroke(1, theme.line) },
             t: TextLabel [ x = 0, width = 100, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted }, text = "Clear all" ],
-            press() { app.clearAll() },
-            onClick() { if (!disabled) press() }
+            press() { app.clearAll() }
             ]
         ],
 
@@ -1526,23 +1514,20 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 fill = { hot ? provided("theme").bulkHover : null },
                 t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
                     textColor = { theme.tooltipText }, text = "Set status ▾" ],
-                press() { app.openBulk(this) },
-                onClick() { if (!disabled) press() }
+                press() { app.openBulk(this) }
                 ],
             del: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
                 fill = { hot || down ? provided("theme").danger : null },
                 t: TextLabel [ x = 10, fontSize = 12.5, fontWeight = semibold, wrap = false,
                     textColor = { this.parent.hot || this.parent.down ? provided("theme").onFill : provided("theme").bulkDanger }, text = "Delete…" ],
-                press() { app.deleteSelection() },
-                onClick() { if (!disabled) press() }
+                press() { app.deleteSelection() }
                 ],
             div2: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
             clr: Control [ height = 28, cornerRadius = 7, width = 28,
                 fill = { hot ? provided("theme").bulkHover : null },
                 t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
                     textColor = { theme.tooltipText }, text = "×" ],
-                press() { app.takeSelection(null) },
-                onClick() { if (!disabled) press() }
+                press() { app.takeSelection(null) }
                 ]
             ]
         ],

@@ -25,6 +25,7 @@ import { applyH, frontFacing, homography, inFront, invertH } from "./projective.
 import { effectiveFamily } from "./measure.js";
 import { colorToCss, insetSides, isGradient, strokeUniform } from "./value.js";
 import { routeInput } from "./input.js";
+import { strokeSides } from "./stroke-sides.js";
 // ── the wire ────────────────────────────────────────────────────────────────
 /** A filter function as the Swift side reads it: `fn` plus its one argument
  *  (`v`), colours as CSS text — the SHADOW op's own convention. */
@@ -337,15 +338,13 @@ class MacSurface {
         else
             emit(OP.RADIUS, this.id, r[0], r[1], r[2], r[3]);
     }
-    /** The border. The host paints ONE ring, so a per-side stroke (BoxStroke,
-     *  four sides) crosses only when every side agrees; a genuinely per-side
-     *  border is a capability this host does not have (rendering-gaps.md), and
-     *  it paints none rather than a wrong one — silently, because the slot is
-     *  legal, the renderer simply cannot realize it. */
+    /** The border: one ring as (width, color), the layer's own border; four
+     *  sides that differ as eight args, top first, which the host paints as
+     *  bands the way stroke-sides.ts does for the other two renderers. */
     setStroke(s) {
         const uni = strokeUniform(s);
         if (uni === undefined) {
-            emit(OP.STROKE, this.id, null, null);
+            emit(OP.STROKE, this.id, ...strokeSides(s).flatMap((x) => x === null ? [null, null] : [x.width, colorToCss(x.color)]));
             return;
         }
         emit(OP.STROKE, this.id, uni === null ? null : uni.width, uni === null ? null : colorToCss(uni.color));
@@ -702,8 +701,8 @@ class MacSurface {
             align: style.align ?? "left", wrap: style.wrap === true,
             maxLines: style.maxLines ?? 0,
             letterSpacing: style.letterSpacing ?? 0,
-            // Leading as a fontSize multiplier (0 = natural). The host's TextEngine
-            // does not consume it yet — seam row in test/seam.test.mjs.
+            // Leading as a fontSize multiplier (0 = natural); TextLayer spaces the
+            // lines by it and splits the difference from the face's box above and below.
             lineHeight: style.lineHeight ?? 0,
             selectable: style.selectable === true,
             shadow: style.shadow == null ? null

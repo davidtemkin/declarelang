@@ -1,0 +1,24 @@
+// THE BOX-PAINT SEAM PROBE — box capabilities a renderer can drop without
+// moving a pixel of layout, each drawn LARGE enough that its absence alone
+// exceeds the gate's 0.75-point tolerance (a likeness gate cannot see a
+// feature that is simply not painted, and a thin one hides inside it): a
+// per-side stroke, per-side strokes on a rounded box, four different widths,
+// four distinct corner radii (their own fill path), a gradient under a
+// per-side stroke, and a shadowed card with a per-side stroke.
+
+App [ width = 1280, height = 800, fill = white,
+    left: View [ x = 20, y = 20, width = 290, height = 340, fill = #EEEEEE,
+        stroke = [null, null, null, stroke(44, #E4572E)] ],
+    rules: View [ x = 330, y = 20, width = 290, height = 340, cornerRadius = 48,
+        stroke = [stroke(32, #2E6FE0), null, stroke(44, #17A34A), null] ],
+    ladder: View [ x = 640, y = 20, width = 290, height = 340,
+        stroke = [stroke(8, black), stroke(18, black), stroke(30, black), stroke(44, black)] ],
+    corners: View [ x = 950, y = 20, width = 310, height = 340, fill = #2E6FE0,
+        cornerRadius = [0, 150, 170, 60], stroke = stroke(12, #E4572E) ],
+    ramp: View [ x = 20, y = 400, width = 600, height = 300, fill = gradient(90, #FDE68A, #E4572E),
+        stroke = [null, null, stroke(44, #111111), null] ],
+    card: View [ x = 660, y = 400, width = 600, height = 300, fill = white, cornerRadius = 32,
+        shadow = shadow(0, 14, 32, #00000066), stroke = [stroke(40, #2E6FE0), null, null, null] ],
+    key: Text [ x = 20, y = 740, fontSize = 15, textColor = #6A6A6A,
+        text = "left bar · top+bottom rules on a rounded box · 8/18/30/44 sides · four radii + ring · gradient under a bottom rule · shadowed card with a top rule" ]
+    ]

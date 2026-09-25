@@ -65,6 +65,11 @@ const CORPUS = [
   // the text round (2026-09-13/14): ONE row — leading, both clamps, a web face and
   // OpenType figures in a single frame, so the text features cost one live render
   "test/probe/text.declare",
+  // the capability pass (2026-09-25): box paint and text arms a renderer can drop
+  // without moving a pixel of layout — per-side strokes, four radii, run fills,
+  // a tight line in a tall face
+  "test/probe/seams-box.declare",
+  "test/probe/seams-text.declare",
   "apps/calendar/calendar.declare",
   "apps/lzx-weather/lzx-weather.declare",
   "apps/desktop/desktop.declare",

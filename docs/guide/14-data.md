@@ -292,8 +292,7 @@ Four facts make this work without choreography:
 
 - **`fetch()` settles first.** A handler that changes what the request is built from and
   then calls `fetch()` sends the new request, never the old one. That is how an update or
-  a delete addresses one record: `url = { "/api/tasks/" + app.editing }` with
-  `method = "PATCH"`, and a handler that sets `app.editing` and calls `fetch()`.
+  a delete addresses one record (below).
 - **`onLoad()` is what follows the reply.** It runs once the response has landed in the
   source's `value`. Refetch the list there, as above, or merge the reply into your own
   data. A `body` that is an object is sent as JSON.
@@ -305,6 +304,23 @@ Four facts make this work without choreography:
 - **A source's value is the server's.** Each successful `fetch()` replaces it. When the
   user edits what was loaded, copy it into a `Dataset` in `onLoad` and edit that — the
   working copy — so a refresh does not overwrite work in progress.
+
+**Writing to one record** takes a slot that says which record, and a source whose `url`
+reads it:
+
+```declare-fragment
+target: string = "",                     // the record the next write is aimed at
+finish: DataSource [ url = { "/api/tasks/" + app.target }, method = "PATCH",
+    body = { { done: true } },
+    onLoad() { app.tasks.fetch() }
+    ],
+remove: DataSource [ url = { "/api/tasks/" + app.target }, method = "DELETE",
+    onLoad() { app.tasks.fetch() }
+    ],
+```
+
+A row aims and sends in one handler — `onClick() { app.target = :id; app.remove.fetch() }`
+— and because `fetch()` settles first, the request carries this row's id.
 
 **Several sources, one screen.** A screen that needs two documents derives from both:
 `ready: boolean = { app.people.loaded && app.rooms.loaded }`. There is no join to write
@@ -432,7 +448,6 @@ schema Card [ id: number, col: 0 | 1 | 2, t: string ]
 class BCard extends Control [ width = 100%, height = 30, cornerRadius = 10,
     fill = { down ? 0x3E5C66 : hot ? 0x36525B : 0x2F4F4F },
     press() { app.advance(:id) },
-    onClick() { if (!disabled) press() },
     TextLabel [ x = 10, fontSize = 12, wrap = false, textColor = whitesmoke, text = :t ]
     ]
 

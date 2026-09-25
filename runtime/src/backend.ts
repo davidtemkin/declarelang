@@ -31,7 +31,7 @@ export function allowedRef(ref: string): boolean {
  *  RichText component bakes the effective font/color into each run so a backend
  *  just realizes what it is told (no palette knowledge across the seam). */
 export type RichRun =
-  | { text: string; size: number; weight: FontWeight; italic: boolean; family: string; strike: boolean; color: number; tracking: number; fill?: Fill; chipBg?: number; href?: string; underline?: boolean; shadow?: Shadow; outline?: Outline; transform?: "uppercase" | "lowercase" | "capitalize"; smallCaps?: boolean }
+  | { text: string; size: number; weight: FontWeight; italic: boolean; family: string; strike: boolean; color: number; tracking: number; fill?: Fill; href?: string; underline?: boolean; shadow?: Shadow; outline?: Outline; transform?: "uppercase" | "lowercase" | "capitalize"; smallCaps?: boolean }
   // An inline image (CommonMark `![alt](src)`) — an atomic replaced box in the
   // flow. `src` is the (asset-resolved) URL; `alt` shows if it cannot load and
   // is the mac fallback; `href` wraps it in a link when the image is itself a
@@ -62,7 +62,7 @@ export interface SlotBox { x: number; y: number; width: number; height: number }
  *  layout (Canvas) flows the runs and stacks the blocks. `align` shifts each
  *  finished line (a table cell's GFM column alignment); absent/`"left"` is the
  *  default, so a plain paragraph carries nothing. */
-export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number; align?: "left" | "center" | "right"; pre?: boolean; anchor?: string }
+export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number; family?: string; weight?: FontWeight; align?: "left" | "center" | "right"; pre?: boolean; anchor?: string }
 
 /** The optional GLIDE on a scroll request (`scrollTo(y, glide)` and kin): a
  *  hint the scroll PROVIDER executes in its own loop — the browser's smooth

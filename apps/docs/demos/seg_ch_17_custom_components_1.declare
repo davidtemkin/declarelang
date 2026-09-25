@@ -1,8 +1,7 @@
 class Stepper extends Control [ width = 96, height = 28,
     value: number = 0,
     input(v: number) { value = v },
-    press() { input(value + 1) },
-    onClick() { if (!disabled) press() }
+    press() { input(value + 1) }
     ]
 
 

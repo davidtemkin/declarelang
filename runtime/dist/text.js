@@ -67,11 +67,14 @@ export class Text extends View {
     get xHeight() { return measureXHeight(fontString(this)); }
     /** The y of the FIRST baseline inside this view — what cross-font,
      *  cross-size baseline alignment positions against:
-     *  `y = { title.y + title.baseline - this.baseline }`. Both renderers
-     *  place the first line's baseline at the font ascent (the natural-box
-     *  rule; a declared `lineHeight` changes the stride between lines, never
-     *  where the first baseline sits). */
-    get baseline() { return fontMetrics(fontString(this)).ascent; }
+     *  `y = { title.y + title.baseline - this.baseline }`. With the face's own
+     *  line box it is the ascent; a declared `lineHeight` puts half its
+     *  difference from that box above each line and half below, as the DOM's
+     *  line-height does, and every renderer places glyphs by the same rule. */
+    get baseline() {
+        const m = fontMetrics(fontString(this));
+        return m.ascent + (this.lineAdvance(m) - (m.ascent + m.descent)) / 2;
+    }
     attach(backend, parentSurface) {
         // A switch to a font still inside its wait keeps this run in the family it
         // had until the font settles (font-value.ts) — measure and paint alike.

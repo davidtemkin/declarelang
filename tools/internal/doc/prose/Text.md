@@ -30,7 +30,9 @@ document scale.
 Leading, as a **multiplier of `fontSize`** — the same convention as
 `RichText.lineHeight`: each line advances `round(fontSize × lineHeight)` pixels.
 `0` (the default) keeps the font's natural line box, so a single-line label is
-untouched. Wrapped height, `contentHeight`, and the `y = center` ink band all
+untouched. A declared line that differs from the face's own box splits the difference
+evenly above and below the line: at `lineHeight = 1` a tall face's glyphs stay centered in
+a box exactly `fontSize` tall, and `baseline` moves with them. Wrapped height, `contentHeight`, and the `y = center` ink band all
 follow the declared leading, on every renderer and in the measurer alike —
 `lineHeight = 1.5` on a wrapped paragraph is the measured-prose-density knob.
 

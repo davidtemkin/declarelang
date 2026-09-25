@@ -244,4 +244,16 @@ await test("no foreign-name hint denies a name the language actually has", () =>
   assert.match(help("zIndex").out, /is not a Declare name/);
 });
 
+await test("--example returns the guide's own code, labelled, and a miss exits 1", () => {
+  const r = help("DataSource.method", "--example");
+  assert.equal(r.code, 0);
+  assert.match(r.out, /docs\/guide\/\d\d-[a-z-]+\.md/, "names the chapter file it came from");
+  assert.match(r.out, /method = "POST"/, "a block that USES the attribute, not one that mentions it");
+  const j = JSON.parse(help("Spring", "--example", "--json").out);
+  assert.equal(j.kind, "examples");
+  assert.ok(j.examples.length >= 1 && j.examples.length <= 2, "two at most without --all");
+  assert.match(j.examples[0].section + j.examples[0].chapter, /spring|motion/i, "a section ABOUT the name leads");
+  assert.equal(help("noSuchNameAnywhere", "--example").code, 1);
+});
+
 summarize("declare-help");

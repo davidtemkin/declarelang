@@ -268,27 +268,6 @@ component library is small and growing, and there is no decade of answers online
 compensates is that the whole surface is small enough to know, and the compiler
 answers most of the questions a corpus would.
 
-## Learning from the apps
-
-The distro ships complete applications, each chosen to teach something. Open any of
-them by its directory — `…/apps/tracker/` runs the tracker — and add `?viewer` to read
-its source with the prose rendered.
-
-| To see | Read | Look at |
-|---|---|---|
-| One program that is a phone app and a desktop app | `apps/weather` | the `phone` and `cols` facts; a row becoming a page on one sprung value, `openT` |
-| Instruments drawn with `draw()` | `apps/weather` | `weather-art.declare`: the dials, the moon, the range bars |
-| Four views as one surface; springs; drag and drop | `apps/calendar` | the focus rectangle's four springs; a drop writing the dataset (read in full in [The calendar](declare-docs:guide:calendar)) |
-| Data at scale | `apps/tracker` | one `db` dataset, the derived `shown` projection, `virtualize = true`, an editor draft bound with `<->` |
-| A model class and a custom layout | `apps/marketmap` | `Market extends Node`; `MarketLayout`'s `place()`; the derived `stageRoster` |
-| Addresses, history and Back | `apps/birds` | `location` and `waypoint`; `link` on every tile; `onFollow` |
-| Views created at run time; windows as records | `apps/desktop` | `WinSlot`'s `createView`; the window list; a hosted app in its window |
-| Theming as data, over every library control | `apps/sampler` | four presets and their dark twins; an accent override spread over a preset |
-| Text: named styles, rich text, a view in a sentence | `apps/textsampler` | `style` bundles, `HTMLText`, `Markdown`, a tag naming a class |
-| A long document with live figures | `apps/architecture` | token records spread over a preset; the `Run` layout; `exposes` for its host |
-| Declare in a page, and a page in Declare | `apps/two-way` | `data-declare-embed` and `observe()`; a `DOMIsland` with `provides`, `exposed` and `post` |
-| A program split across files; audio and video | `apps/lzx-dashboard` | `include [ ]`; a media transport reading through its `player` |
-
 ## How to read this guide
 
 The guide is written to be read in order, and every chapter's examples are live. It

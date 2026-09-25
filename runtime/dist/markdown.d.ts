@@ -115,6 +115,17 @@ export declare abstract class RichText extends View {
      *  Falls back to a full rebuild if any block has no re-width registered, so an
      *  unconverted block type stays correct. */
     private relayout;
+    /** True when no author and no layout gives this box its width: it is then the
+     *  width of the text itself (fitNatural). The auto-extent that reports that
+     *  width back is not a giver. */
+    private ownWidth;
+    /** A rich text with no width of its own is AS WIDE AS ITS TEXT: laid out at
+     *  the reading measure, then re-flowed at its widest line (plus a 2px guard,
+     *  so a renderer measuring a hair wider cannot wrap a line early). The content
+     *  box — and so `x = center`, a row's spacing, a ring around it — is then the
+     *  text's. Only a document of running text fits; one holding a list, table,
+     *  quote or code keeps the measure. */
+    private fitNatural;
     /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
      *  it is a prose flow its first line's baseline IS this box's. */
     private claimBaseline;

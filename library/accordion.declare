@@ -155,7 +155,6 @@ class Pane extends Control [ width = 100%, clip = true,
     tabOrder() { return open ? this.tabDefault() : [] },
 
     press()   { (parent as Accordion).value = name },
-    onClick() { if (!disabled) press() },
 
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 

@@ -206,4 +206,55 @@ App [ width = 100, height = 100,
   assert.equal(app.out.text, "12", "the found node's cell is observed by tracking — live");
 });
 
+await test("a method named like a builtin (find, at, search) is still followed on a node", async () => {
+  // `find`, `at` and `search` are also Array/String methods. A call on a model
+  // node — `app.m.find(id)` — must follow the MODEL's body, not be taken for
+  // Array.prototype.find: a built-in attribute wired without the dataset read
+  // inside the body went stale after a write to that dataset.
+  const app = await boot(`
+class Model extends Node [ log: Dataset { { "items": [ { "id": "a", "v": 1 } ] } },
+    find(id: string) -> object { return this.log.value.items.find((o) => o.id == id) ?? null },
+    at(i: number) -> number { return this.log.value.items[i].v },
+    search(q: string) -> number { return this.log.value.items.filter((o) => o.id == q).length } ]
+App [ width = 100, height = 100,
+    m: Model [ ], k: number = 0, sel: string = "a",
+    viaFind: Text [ text = { "" + (app.m.find(app.sel)?.v ?? "-") } ],
+    viaAt: View [ width = { app.m.at(app.k) } ],
+    viaSearch: View [ height = { app.m.search(app.sel) } ],
+    ]`);
+  assert.equal(app.viaFind.text, "1");
+  assert.equal(app.viaAt.width, 1);
+  app.m.log.set(["items", 0, "v"], 20); settle();
+  assert.equal(app.viaFind.text, "20", "find(): the body's dataset read is wired");
+  assert.equal(app.viaAt.width, 20, "at(): the body's dataset read is wired");
+  app.m.log.insert(["items"], 1, { id: "a", v: 5 }); settle();
+  assert.equal(app.viaSearch.height, 2, "search(): the body's dataset read is wired");
+});
+
+await test("an array's own find is still the builtin — a user method named find is not walked", async () => {
+  const r = await compile(`
+class Model extends Node [ n: number = 7, find(id: string) -> number { return this.n } ]
+App [ width = 100, height = 100, m: Model [ ],
+    list: Dataset { { "items": [ { "id": "a", "v": 3 } ] } },
+    out: Text [ text = { "" + (app.list.value.items.find((o) => o.id == "a")?.v ?? "-") } ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  assert.ok(!JSON.stringify(r.deps).includes("this.root.n") && !JSON.stringify(r.deps).includes(".m.n"), "Model.find's read did not leak into an array find: " + JSON.stringify(r.deps));
+});
+
+await test("a callback's parameter over an array built from nodes is read live on a built-in attribute", async () => {
+  // `[app.a, app.b].map((v) => v.width)` iterates nodes the literal gathered;
+  // the read through `v` cannot be named, so the constraint tracks. Only a
+  // receiver rooted at `this`/`app` used to count, and the built-in `text`
+  // wired `app.a` alone and never saw a width change.
+  const app = await boot(`
+App [ width = 100, height = 100,
+    a: View [ width = 5 ], b: View [ width = 6 ],
+    out: Text [ text = { [app.a, app.b].map((v) => v.width).join(",") } ],
+    ]`);
+  assert.equal(app.out.text, "5,6");
+  app.a.width = 9; settle();
+  assert.equal(app.out.text, "9,6");
+});
+
 summarize("dep-typed");

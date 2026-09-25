@@ -2177,7 +2177,8 @@ export class DomSurface implements Surface {
     // backend's fillText(…, ascent) place identical glyph geometry. A declared
     // `lineHeight` (a fontSize multiplier, the Markdown convention) replaces
     // the natural box with the same round(fontSize × lineHeight) the model's
-    // measure math uses — both backends and the measurer stay in lockstep.
+    // measure math uses; line-height then puts half the difference above each
+    // line and half below, which is the rule the canvas and Mac painters follow.
     const m = fontMetrics(fontString(st));
     s.lineHeight = (st.lineHeight != null && st.lineHeight > 0
       ? Math.round(st.fontSize * st.lineHeight)

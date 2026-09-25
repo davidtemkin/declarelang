@@ -159,7 +159,12 @@ enum TextEngine {
         if let named = NSFont(name: name, size: f.size) {
             // Apply the requested weight via the font manager where possible.
             let fm = NSFontManager.shared
-            let w = max(0, min(15, Int((Double(f.weight) / 1000.0) * 15)))
+            // AppKit's 0–15 weight scale is not linear in CSS weight: 5 is
+            // regular, 6 medium, 8 demibold, 9 bold, 10 heavy. Scaling 700 by
+            // 15/1000 asks for 10 and gets a family's Heavy where the browser
+            // shows its Bold (and 400 got Medium).
+            let appKitWeight = [100: 2, 200: 3, 300: 4, 400: 5, 500: 6, 600: 8, 700: 9, 800: 10, 900: 11]
+            let w = appKitWeight[max(100, min(900, (f.weight + 50) / 100 * 100))] ?? 5
             if let converted = fm.font(withFamily: named.familyName ?? name,
                                        traits: f.italic ? .italicFontMask : [],
                                        weight: w, size: f.size) {
@@ -225,6 +230,22 @@ enum TextEngine {
     /// The canvas measureText contract: [width, fontAscent, fontDescent,
     /// actualAscent, actualDescent]. An empty string still answers font
     /// metrics — fontMetrics() depends on exactly that.
+    /// A face's ascent and descent as the browser reports them: Core Text's,
+    /// rounded (see `measure`), with one more rule the browsers share. WebKit
+    /// and Chromium raise the ascent of Times, Helvetica and Courier by 15% of
+    /// the line box, so they line up with the Microsoft faces the web grew up
+    /// on. `sans-serif` resolves to Helvetica and `serif` to Times, so without
+    /// this every such line box was shorter than the browser's — 64 against 74
+    /// at 64px — and every glyph sat that much higher in it.
+    static func webMetrics(_ f: NSFont) -> (ascent: CGFloat, descent: CGFloat) {
+        var ascent = f.ascender.rounded()
+        let descent = (-f.descender).rounded()
+        if let family = f.familyName, family == "Times" || family == "Helvetica" || family == "Courier" {
+            ascent += ((ascent + descent) * 0.15).rounded()
+        }
+        return (ascent, descent)
+    }
+
     static func measure(text: String, font: String, letterSpacing: Double, scale: CGFloat) -> [Double] {
         let key = "\(font)\u{1}\(letterSpacing)\u{1}\(text)"
         cacheLock.lock()
@@ -239,8 +260,8 @@ enum TextEngine {
         // the drift is visible. Measured across five faces, Chrome's numbers are
         // exactly round(CoreText): 12.568→13, 2.742→3, 10.635→11, 2.320→2,
         // 15.469→15, 3.375→3. Matching the rounding matches the layout.
-        let ascent = Double(f.ascender.rounded())
-        let descent = Double((-f.descender).rounded())
+        let (a, d) = webMetrics(f)
+        let ascent = Double(a), descent = Double(d)
         var width = 0.0
         var actualAscent = ascent
         var actualDescent = descent

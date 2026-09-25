@@ -42,7 +42,7 @@ enum RichImages {
     }
 }
 
-final class RichOverlay: NSObject, NSTextViewDelegate {
+final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
     private let id: Int
     private unowned let view: DeclareView
     private unowned let bridge: Bridge
@@ -77,6 +77,12 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     /// to a new band's coordinates before its pixels have arrived.
     private var displayedBandTop: CGFloat = 0
     private var displayedBandH: CGFloat = 0
+    /// How far glyphs reach past their line boxes (a `lineHeight` tighter than
+    /// a face — the DOM paints that ink outside the box). The band's bitmap
+    /// covers this much above and below, or a descender or a figure top is cut
+    /// at the flow's edge. Measured per content in `set`.
+    private(set) var inkBleed: CGFloat = 0
+    private var displayedBleed: CGFloat = 0
     /// The last box this flow was placed in — the band math needs it when a
     /// scroll asks for a new slice without a re-place.
     private var lastBox: CGSize = .zero
@@ -95,6 +101,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         text.textContainerInset = .zero
         text.textContainer?.lineFragmentPadding = 0
         text.delegate = self
+        text.layoutManager?.delegate = self
         text.linkTextAttributes = [.cursor: NSCursor.pointingHand]
         contentLayer.anchorPoint = .zero
         contentLayer.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull()]
@@ -194,6 +201,52 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     private var gradientRuns = 0
     /// The custom attribute marking a gradient-filled run (value: TextGradient).
     static let gradKey = NSAttributedString.Key("declareTextGradient")
+    /// The block's `lineHeight` multiplier, carried on each run so the line's
+    /// baseline can be placed the way the DOM and canvas flows place it.
+    static let leadKey = NSAttributedString.Key("declareLineHeightMultiple")
+    /// The block's own font as a line's floor — CSS's strut, the root inline
+    /// box: [its box above the baseline, its box below], carried on each run.
+    static let strutKey = NSAttributedString.Key("declareLineStrut")
+
+    /// EACH LINE'S BOX, THE WAY THE DOM AND CANVAS BUILD IT. With `lineHeight`
+    /// set, every run is a box `size × multiple` tall with the difference from
+    /// its face split evenly above and below (CSS half-leading), a run's
+    /// baseline sits `(size × multiple + ascent − descent) / 2` below its top,
+    /// and a line is as tall as its runs (and the block's own font) reach above
+    /// and below the shared baseline. TextKit instead gives every line of a
+    /// paragraph one fixed height and puts the whole difference at the top: at
+    /// `lineHeight = 1` in a face taller than its size figure tops ran out of
+    /// the box and were clipped, and a paragraph whose lines differ in size
+    /// (a `<br/>` between a small line and a big one) gave every line the
+    /// biggest one's height. Here both the baseline and the height are the line's own.
+    func layoutManager(_ lm: NSLayoutManager, shouldSetLineFragmentRect lineFragmentRect: UnsafeMutablePointer<NSRect>,
+                       lineFragmentUsedRect: UnsafeMutablePointer<NSRect>, baselineOffset: UnsafeMutablePointer<CGFloat>,
+                       in textContainer: NSTextContainer, forGlyphRange glyphRange: NSRange) -> Bool {
+        guard let storage = lm.textStorage else { return false }
+        var above: CGFloat = -.greatestFiniteMagnitude, below: CGFloat = -.greatestFiniteMagnitude
+        var fixed: CGFloat = 0
+        storage.enumerateAttributes(in: lm.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)) { a, _, _ in
+            guard let mult = (a[RichOverlay.leadKey] as? NSNumber)?.doubleValue, let f = a[.font] as? NSFont,
+                  let p = a[.paragraphStyle] as? NSParagraphStyle,
+                  p.maximumLineHeight > 0, p.maximumLineHeight == p.minimumLineHeight else { return }   // an image lifted the cap: TextKit's own line
+            fixed = p.maximumLineHeight
+            let box = f.pointSize * CGFloat(mult)
+            let m = TextEngine.webMetrics(f)
+            let up = (box + m.ascent - m.descent) / 2
+            above = max(above, up); below = max(below, box - up)
+            if let strut = a[RichOverlay.strutKey] as? [NSNumber], strut.count == 2 {
+                above = max(above, CGFloat(strut[0].doubleValue)); below = max(below, CGFloat(strut[1].doubleValue))
+            }
+        }
+        guard fixed > 0, above > -.greatestFiniteMagnitude else { return false }
+        // What TextKit put above the fixed line (a paragraph's space before) stays.
+        let before = max(0, lineFragmentRect.pointee.height - fixed)
+        let h = above + below
+        lineFragmentRect.pointee.size.height = before + h
+        lineFragmentUsedRect.pointee.size.height = max(0, lineFragmentUsedRect.pointee.height - fixed) + h
+        baselineOffset.pointee = before + above
+        return true
+    }
 
     // ── Off-thread band rasterization ────────────────────────────────────────
     // A tall flow re-slices a ~13 Mpx band every ~530px of scroll; on the main
@@ -215,7 +268,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     /// Everything needed to raster a band with no reference back to the model or
     /// the layout manager — safe to hand to a background queue.
     private struct BandSnapshot {
-        let pw: Int; let ph: Int; let scale: CGFloat; let h: CGFloat; let bandTop: CGFloat
+        let pw: Int; let ph: Int; let scale: CGFloat; let h: CGFloat; let bandTop: CGFloat; let bleed: CGFloat
         let lines: [BandLine]
         let selRects: [CGRect]
         let selColor: CGColor
@@ -290,6 +343,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         let __b0 = RichStats.on ? CFAbsoluteTimeGetCurrent() : 0
         let s = NSMutableAttributedString()
         gradientRuns = 0
+        inkBleed = 0
         for b in blocks {
             let gap = CGFloat((b["gapBefore"] as? NSNumber)?.doubleValue ?? 0)
             // `lineHeight` is a MULTIPLIER of the block's font size (the DOM
@@ -313,6 +367,18 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                       fontSize, mult, lineHeight, gap)
             }
             let align = b["align"] as? String
+            // the block's own font — the strut every line of it starts from
+            var strut: [NSNumber]? = nil
+            if mult > 0, let fam = b["family"] as? String {
+                let w: String = { if let n = b["weight"] as? NSNumber { return String(n.intValue) }
+                                  if let t = b["weight"] as? String { return Int(t) != nil ? t : (t == "bold" ? "700" : t == "semibold" ? "600" : t == "medium" ? "500" : t == "light" ? "300" : "400") }
+                                  return "400" }()
+                let bf = TextEngine.nsFont(TextEngine.parse("\(w) \(fontSize)px \(fam)"))
+                let box = fontSize * mult
+                let bm = TextEngine.webMetrics(bf)
+                let up = (box + bm.ascent - bm.descent) / 2
+                strut = [NSNumber(value: Double(up)), NSNumber(value: Double(box - up))]
+            }
             let para = NSMutableParagraphStyle()
             para.paragraphSpacingBefore = gap
             if lineHeight > 0 { para.minimumLineHeight = lineHeight; para.maximumLineHeight = lineHeight }
@@ -377,6 +443,14 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                     .font: TextEngine.nsFont(TextEngine.parse(css)),
                     .paragraphStyle: para,
                 ]
+                if lineHeight > 0 && para.maximumLineHeight > 0 {
+                    attrs[RichOverlay.leadKey] = Double(mult)
+                    if let strut { attrs[RichOverlay.strutKey] = strut }
+                    if let f = attrs[.font] as? NSFont {
+                        let m = TextEngine.webMetrics(f)
+                        inkBleed = max(inkBleed, ceil(max(0, (m.ascent + m.descent - CGFloat(size) * mult) / 2)) + 1)
+                    }
+                }
                 if let c = r["color"] as? NSNumber {
                     // declColor knows the alpha encoding; decoding the number raw
                     // shifted every channel of a translucent run and dropped alpha.
@@ -420,6 +494,8 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                     attrs[.foregroundColor] = NSColor.white
                     attrs[RichOverlay.gradKey] = grad
                     gradientRuns += 1
+                } else if let solid = r["fill"] as? NSNumber {
+                    attrs[.foregroundColor] = TextEngine.declColor(solid)   // a solid fill is just that colour
                 }
                 if let href = r["href"] as? String { attrs[.link] = href }
                 s.append(NSAttributedString(string: TextEngine.transform(t, r["transform"] as? String), attributes: attrs))
@@ -476,8 +552,8 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     private func placeBand(inBox box: CGSize) {
         // Position from the DISPLAYED band (what the bitmap shows), not the wanted
         // band — an in-flight async slice must not move the old bitmap early.
-        contentLayer.bounds = CGRect(x: 0, y: 0, width: flowWidth, height: displayedBandH)
-        contentLayer.position = CGPoint(x: 0, y: box.height - displayedBandTop - displayedBandH)
+        contentLayer.bounds = CGRect(x: 0, y: 0, width: flowWidth, height: displayedBandH + 2 * displayedBleed)
+        contentLayer.position = CGPoint(x: 0, y: box.height - displayedBandTop - displayedBandH - displayedBleed)
     }
 
     /// The whole flowed height, whatever slice is currently rastered.
@@ -623,6 +699,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                 // position and pixels update in one step, so nothing jumps.
                 self.displayedBandTop = snap.bandTop
                 self.displayedBandH = snap.h
+                self.displayedBleed = snap.bleed
                 self.contentLayer.contentsScale = snap.scale
                 self.contentLayer.contents = image
                 self.placeBand(inBox: self.lastBox)
@@ -640,11 +717,11 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
     private func buildSnapshot() -> BandSnapshot? {
         guard let lm = text.layoutManager, let tc = text.textContainer, let ts = text.textStorage else { return nil }
         if bandH <= 0 { bandTop = 0; bandH = max(1, min(lastHeight, RichOverlay.bandLimit)) }
-        let w = max(1, flowWidth), h = max(1, bandH)
-        let pw = Int(ceil(w * scale)), ph = Int(ceil(h * scale))
+        let w = max(1, flowWidth), h = max(1, bandH), bleed = inkBleed
+        let pw = Int(ceil(w * scale)), ph = Int(ceil((h + 2 * bleed) * scale))
         guard pw > 0, ph > 0, pw < 20000, ph < 20000 else { return nil }
         let top = bandTop
-        let bandRect = CGRect(x: 0, y: top, width: w, height: h)
+        let bandRect = CGRect(x: 0, y: top - bleed, width: w, height: h + 2 * bleed)
         let glyphs = lm.glyphRange(forBoundingRect: bandRect, in: tc)
         let fgKey = NSAttributedString.Key(kCTForegroundColorAttributeName as String)
         let ctFontKey = NSAttributedString.Key(kCTFontAttributeName as String)
@@ -685,7 +762,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                 grads.append(BandGradient(ramp: ramp, clip: clip, box: box, angle: g.angle))
             }
         }
-        return BandSnapshot(pw: pw, ph: ph, scale: scale, h: h, bandTop: top, lines: lines, selRects: selRects,
+        return BandSnapshot(pw: pw, ph: ph, scale: scale, h: h, bandTop: top, bleed: bleed, lines: lines, selRects: selRects,
                             selColor: NSColor.selectedTextBackgroundColor.cgColor, gradients: grads)
     }
 
@@ -699,8 +776,9 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                                  bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
         else { return nil }
         cg.scaleBy(x: s.scale, y: s.scale)
-        cg.translateBy(x: 0, y: s.h)
+        cg.translateBy(x: 0, y: s.h + 2 * s.bleed)
         cg.scaleBy(x: 1, y: -1)
+        cg.translateBy(x: 0, y: s.bleed)          // flow-y bandTop lands `bleed` below the bitmap's top
         cg.setShouldSmoothFonts(true); cg.setShouldSubpixelPositionFonts(true); cg.setShouldSubpixelQuantizeFonts(true)
         if !s.selRects.isEmpty {
             cg.setFillColor(s.selColor)
@@ -733,8 +811,8 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         // is a valid bitmap even for a document no single buffer could hold.
         // `ensureBand` refines it as soon as visibility is known.
         if bandH <= 0 { bandTop = 0; bandH = max(1, min(lastHeight, RichOverlay.bandLimit)) }
-        let w = max(1, flowWidth), h = max(1, bandH)
-        let pw = Int(ceil(w * scale)), ph = Int(ceil(h * scale))
+        let w = max(1, flowWidth), h = max(1, bandH), bleed = inkBleed
+        let pw = Int(ceil(w * scale)), ph = Int(ceil((h + 2 * bleed) * scale))
         guard pw > 0, ph > 0, pw < 20000, ph < 20000,
               let cs = CGColorSpace(name: CGColorSpace.sRGB),
               let cg = CGContext(data: nil, width: pw, height: ph, bitsPerComponent: 8, bytesPerRow: 0,
@@ -743,8 +821,9 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
                                      | CGBitmapInfo.byteOrder32Little.rawValue)
         else { return false }
         cg.scaleBy(x: scale, y: scale)
-        cg.translateBy(x: 0, y: h)
+        cg.translateBy(x: 0, y: h + 2 * bleed)
         cg.scaleBy(x: 1, y: -1)
+        cg.translateBy(x: 0, y: bleed)            // flow-y bandTop lands `bleed` below the bitmap's top
         let ns = NSGraphicsContext(cgContext: cg, flipped: true)
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = ns
@@ -752,7 +831,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         // lands on the bitmap's first row. Only the glyphs in the band are asked
         // for — drawing 2725 lines to clip 60 of them is the slow way to be right.
         let at = CGPoint(x: 0, y: -bandTop)
-        let bandRect = CGRect(x: 0, y: bandTop, width: w, height: h)
+        let bandRect = CGRect(x: 0, y: bandTop - bleed, width: w, height: h + 2 * bleed)
         let glyphs = lm.glyphRange(forBoundingRect: bandRect, in: tc)
         if selRange.length > 0 {
             NSColor.selectedTextBackgroundColor.setFill()
@@ -796,7 +875,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate {
         contentLayer.contentsScale = scale
         guard let image = cg.makeImage() else { return false }
         contentLayer.contents = image
-        displayedBandTop = bandTop; displayedBandH = bandH   // synchronous: bitmap and band advance together
+        displayedBandTop = bandTop; displayedBandH = bandH; displayedBleed = bleed   // synchronous: bitmap and band advance together
         if RichOverlay.statsOn { RichOverlay.redrawCount += 1; RichOverlay.redrawMP += Double(pw * ph) / 1_000_000 }
         return true
     }

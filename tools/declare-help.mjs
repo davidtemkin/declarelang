@@ -9,6 +9,7 @@
 //   node tools/declare-help.mjs rotation            # a concept: the entry that answers it
 //   node tools/declare-help.mjs scrolls             # an enum: its tokens
 //   node tools/declare-help.mjs DECLARE7001         # a diagnostic code
+//   node tools/declare-help.mjs DataSource --example # the guide's shortest examples using it
 //   … --json                                        # the same answer as data
 //   … --all                                         # lift the elision on a long table
 //
@@ -25,7 +26,7 @@
 // this tool adds NO new truth (the curated concepts table rides the model too,
 // via assemble.mjs).
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, hostGlobalHint, nearestName } from "../runtime/dist/teach.js";
@@ -41,12 +42,13 @@ const HANDLER_ONLY = new Set(["afterDelay"]);
 const args = process.argv.slice(2);
 const JSON_OUT = args.includes("--json");
 const ALL = args.includes("--all");
+const EXAMPLE = args.includes("--example");
 const query = args.filter((a) => !a.startsWith("--")).join(" ").trim();
 
 if (query === "" || args.includes("--help")) {
   console.log(`declare-help — ask the platform a question; it answers in the compiler's register.
 
-  usage: node tools/declare-help.mjs <name-or-question> [--all] [--json]
+  usage: node tools/declare-help.mjs <name-or-question> [--example] [--all] [--json]
 
   what you can ask                          what you get
     Slider.value                            the reference entry: type, default, prose
@@ -59,6 +61,8 @@ if (query === "" || args.includes("--help")) {
     DECLARE7001                             the diagnostic's family and register
 
   flags
+    --example  the guide's shortest working examples that use the name, with
+               the chapter and section each comes from — real code, not a whole app
     --all      lift the elision on a long answer (full member list, full prose)
     --json     the same answer as one line of JSON
     --help     this text
@@ -68,6 +72,64 @@ if (query === "" || args.includes("--help")) {
     1  a true miss: nothing anywhere answers; the output names what was searched
 
   More: docs/operational/help.md. The store is docs/declare-model.json.`);
+  process.exit(0);
+}
+
+// ── --example: the guide's own code, found by the names it uses ──────────────
+// Every example in the guide is live and compiled by the docs test, so it is
+// current by construction and idiomatic by design — the short, checked answer to
+// "show me this in real code", instead of reading a whole application.
+if (EXAMPLE) {
+  const dir = join(ROOT, "docs/guide");
+  const terms = query.split(".").filter((t) => t !== "");
+  const word = (t) => new RegExp(`(^|[^A-Za-z0-9_$])${t.replace(/[$]/g, "\\$")}([^A-Za-z0-9_]|$)`);
+  // USE, not mention: a tag, an attribute being set or declared, a call, a :path
+  const use = (t) => new RegExp(`(^|[^A-Za-z0-9_])${t.replace(/[$]/g, "\\$")}\\s*(\\[|=|:|\\()`, "m");
+  const found = [];
+  for (const f of readdirSync(dir).filter((n) => /^\d\d-.*\.md$/.test(n)).sort()) {
+    const lines = readFileSync(join(dir, f), "utf8").split("\n");
+    const title = (lines.find((l) => l.startsWith("# ")) ?? f).replace(/^# /, "");
+    let section = "", inBlock = null, buf = [], startLine = 0;
+    for (let n = 0; n < lines.length; n++) {
+      const l = lines[n];
+      if (inBlock === null) {
+        const h = /^#{2,3} (.*)/.exec(l);
+        if (h) section = h[1];
+        const open = /^```(declare|declare-fragment)\s*$/.exec(l);
+        if (open) { inBlock = open[1]; buf = []; startLine = n + 2; }
+        continue;
+      }
+      if (l.startsWith("```")) {
+        const code = buf.join("\n");
+        if (terms.length > 0 && terms.every((t) => word(t).test(code))) {
+          const last = terms[terms.length - 1].toLowerCase();
+          const used = use(terms[terms.length - 1]).test(code);
+          const about = (section + " " + title).toLowerCase().includes(last);   // the section is ABOUT it
+          found.push({ file: "docs/guide/" + f, from: startLine, to: startLine + buf.length - 1, chapter: title, section, kind: inBlock, code, lines: buf.length, used, about });
+        }
+        inBlock = null;
+        continue;
+      }
+      buf.push(l);
+    }
+  }
+  // a block that USES the name beats one that mentions it; then shorter first,
+  // but never a two-line scrap when a real example exists
+  found.sort((a, b) => (b.used - a.used) || (b.about - a.about) || ((a.lines < 3) - (b.lines < 3)) || (a.lines - b.lines));
+  const pick = found.slice(0, ALL ? 6 : 2);
+  if (pick.length === 0) {
+    if (JSON_OUT) console.log(JSON.stringify({ kind: "miss", query, searched: "the guide's examples" }));
+    else console.log(`no guide example uses '${query}' — try the class or attribute name alone, or declare-help ${query} for the reference entry.`);
+    process.exit(1);
+  }
+  if (JSON_OUT) console.log(JSON.stringify({ kind: "examples", query, examples: pick.map(({ used, about, ...e }) => e) }));
+  else {
+    for (const e of pick) {
+      console.log(`${e.file}:${e.from}-${e.to} — ${e.section === "" ? e.chapter : e.chapter + " › " + e.section}`);
+      console.log("```" + e.kind + "\n" + e.code + "\n```");
+    }
+    if (found.length > pick.length && !ALL) console.log(`…${found.length - pick.length} more in the guide — declare-help ${query} --example --all`);
+  }
   process.exit(0);
 }
 
@@ -454,8 +516,10 @@ function answer() {
     return true;
   }
   // a host global the prelude declares for script blocks (fetch, the timers)
-  // is refused in a body — answer as the compiler does, before the prelude hit
-  if (hostGlobalHint(query) !== null) return answerHostGlobal();
+  // is refused in a body — answer as the compiler does, before the prelude hit;
+  // a name that is itself a curated absence answers as that absence (below)
+  const curatedAbsence = CONCEPTS.negative.some((n) => n.terms.includes(query));
+  if (!curatedAbsence && hostGlobalHint(query) !== null) return answerHostGlobal();
   if (answerShared()) return true;
 
 

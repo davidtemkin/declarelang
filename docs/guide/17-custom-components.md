@@ -35,7 +35,6 @@ class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
 
     input(v: number) { value = v },
     press() { input(value + step) },
-    onClick() { if (!disabled) press() },
 
     fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
     t: Text [ x = center, y = center, fontSize = 13, textColor = { theme.text },
@@ -59,7 +58,8 @@ hover tracking, and the focus ring that travels to it was declared by nobody.
 - **[`hot`](declare-docs:Control.hot) and [`down`](declare-docs:Control.down)** are hover and press, already gated by `disabled`. Style from these,
   not from the raw [`hovered`](declare-docs:View.hovered) and [`pressed`](declare-docs:View.pressed) facts, so a disabled control never lights up.
 - **`press()`** is the one activation path: Space, Enter and a click all land there.
-  Override `press()` to change what activation *means*; handle `onClick` for ordinary use.
+  Override `press()` to say what activating your control does; override `onClick` only
+  when a click should mean something else.
 - **Focus**: the control is a tab stop, a click focuses it, and the app's focus ring finds
   it. Override `focusShape()` to ring only part of it, as a [`Radio`](declare-docs:Radio) rings its dot.
 - **`theme`**: `Control` declares an attribute named `theme` that reads the provided theme,
@@ -74,8 +74,7 @@ work, after it, or only on some paths:
 ```declare
 class Stepper extends Control [ width = 96, height = 28, value: number = 0,
     input(v: number) { value = v },
-    press() { input(value + 1) },
-    onClick() { if (!disabled) press() }
+    press() { input(value + 1) }
     ]
 
 class BoundedStepper extends Stepper [ max: number = 5,

@@ -57,7 +57,8 @@ so a capability that serves content-heavy interfaces counts as application value
 | inset shadow | absent | ✗ | ✗ | ✗ | P2 | Inset is how pressed states, wells, and inputs read as recessed. Same change as above, so they land together |
 | shadow spread | absent | ✗ | ✗ | ✗ | P2 | Third field of the same record; pointless to defer separately |
 | background images and tiling | absent | ✗ | ✗ | ✗ | P3 | Textures, noise, and repeating patterns. Needs a new Fill arm and a tiling rule on three renderers |
-| border style and per-side borders | absent | ✗ | ✗ | ✗ | P3 | Dashed and dotted rules appear in editors, tables and empty states. Today the workaround is a drawing |
+| per-side borders | done | ✓ | ✓ | ✓ | — | `stroke = [top, right, bottom, left]`; each side is the box minus a copy shifted in by its width (stroke-sides.ts), so on a rounded box a band tapers into the corner arc. The Mac paints the bands as shape layers under the content |
+| border style (dashed, dotted) | absent | ✗ | ✗ | ✗ | P3 | Dashed and dotted rules appear in editors, tables and empty states. Today the workaround is a drawing |
 | repeating gradients | absent | ✗ | ✗ | ✗ | P4 | Rare outside decorative work, and a drawing covers it |
 | border-image | absent | ✗ | ✗ | ✗ | P4 | Rare in application UI |
 
@@ -226,7 +227,7 @@ perceptual 129/0 after.
 | D4 | Image `stretches` of none, width, height and both were all aspect-fit on the Mac, because the code tested for a token the runtime never sends | each mode computes its drawn size the way the canvas renderer does, from the box's top-left |
 | D5 | a solid `textFill` did nothing on any renderer, though the schema has always documented it | all three treat a solid fill as overriding `textColor` |
 | D6 | Mac rich-text runs decoded a translucent colour raw, shifting every channel and dropping alpha | they decode through `declColor`, which knows the encoding |
-| D7 | Text `lineHeight` reached the Mac and was never read, so lines bunched inside a box sized for open leading | the layer spaces baselines by the declared pitch, the shared model: first baseline at the ascent, then `round(fontSize × multiplier)` |
+| D7 | Text `lineHeight` reached the Mac and was never read, so lines bunched inside a box sized for open leading | the layer spaces baselines by the declared pitch, `round(fontSize × multiplier)`, and splits the difference from the face's box evenly above and below each line, the DOM's line-height rule |
 
 **Found while proving D1, not yet fixed:** Chrome SYNTHESIZES small caps for a
 face that has no small-caps feature; Core Text does not, so the Mac draws that
@@ -419,6 +420,47 @@ Still open here:
 * Ordinals, fractions and superior/inferior figures are the same mechanism plus
   one row in `featureTags` — deliberately not added until something asks.
 
+## 11d · The capability pass (2026-09-25)
+
+A top-to-bottom check of what each renderer does with every value the seam
+carries, set off by a per-side stroke the Mac had never painted — silently,
+because the slot is legal, and invisibly to a likeness gate, which cannot see a
+feature that is simply absent.
+
+**Method.** The optional members of `Surface` were already held by
+`test/seam.test.mjs`, which fails when a backend's members and the declared
+table disagree. The gap below that is a value ARM dropped inside a member that
+exists, so each value type was read arm by arm against each consumer: box paint
+(fill and gradient kinds, radii, stroke, shadow), compositing (all 17 blend
+modes, all ten filter functions in both tiers, both mask kinds), images (all six
+stretch modes), text (every `TextStyle` field, every rich-run and rich-block
+field), and editables (every field). Then two probes joined the native gate,
+`seams-box` and `seams-text`, each drawn so that any one capability going missing
+changes more of the frame than the gate's 0.75-point tolerance. That was
+MEASURED, not assumed: each capability was removed from the probe in turn and
+the render diffed (1.5–4.7 % each).
+
+**Found and fixed:**
+
+| | defect | fix |
+|---|---|---|
+| E1 | Mac painted no per-side stroke at all | four bands as shape layers under the content, each the box minus a copy shifted in by that side's width (stroke-sides.ts's rule) |
+| E2 | Mac restack assigned `sublayers` from a list that left out the four-radii fill layer, so a box with four distinct radii lost its fill on the next restack | the fill and the side bands are in the list |
+| E3 | Mac mapped CSS weight to AppKit's 0–15 scale linearly, so 700 took a family's Heavy, 600 its Bold and 400 its Medium | the CSS→AppKit table (400 → 5, 500 → 6, 600 → 8, 700 → 9, 800 → 10) |
+| E4 | Mac lacked the browsers' ascent rule for Times, Helvetica and Courier (+15 % of the line box), so every `sans-serif` and `serif` line box was shorter than the browser's — 64 against 74 at 64px — with the glyphs that much higher | `TextEngine.webMetrics`, used by the measurer and by rich text |
+| E5 | Mac rich text gave each paragraph one fixed line height and put the whole difference at the top: a tight `lineHeight` clipped figure tops, and a paragraph whose lines differ in size gave every line the biggest one's height | a layout-manager delegate builds each line's box as CSS does (each run's half-leading box, the block's own font as the strut); the band rasters, and the flow clips, with the ink bleed a tight line throws past its box |
+| E6 | Mac rich text ignored a SOLID run fill | a solid fill is the run's colour |
+| E7 | canvas and Mac put a `Text`'s first baseline at the ascent whatever its `lineHeight`; the DOM splits the difference (ruled: the browser's rule) | canvas `halfLead`, Mac `TextLayer.overTop`, `Text.baseline` |
+| E8 | the canvas rich flow took each line's strut from the LONGEST run, so a line of big figures with a longer caption in a small face ("55 sessions") was laid out taller than the browser's | the block carries its own font (`RichBlock.family`/`weight`) and the strut is that |
+| E9 | a gradient run fill restarted at every word wherever the manual flow paints words separately (canvas; the DOM with inline views) | each piece takes its slice of one ramp across the run (`sliceGradient`) |
+| E10 | `RichRun.chipBg` was painted by two renderers and set by nothing | removed |
+
+Confirmed complete on every renderer: gradient kinds, the filter vocabulary, the
+blend table, stretch modes, the text style fields, the editable fields.
+
+**Not a defect:** Mac window captures are tagged Display P3, so an sRGB colour
+reads as different numbers (#2E6FE0 → 64,110,217) though it displays the same.
+
 ## 12 · Cross-runtime divergence register
 
 Things that render differently depending on which renderer runs the same program.
@@ -431,6 +473,7 @@ approximations.
 | Figures on an undeclared family | The features are applied through `local(base)`, which reaches that family's REGULAR face — a bold run in such a family gets synthetic bold on the web. A family the program DECLARES derives per face, so its weights stay exact. Mac has neither limit: it applies the tags to whatever it resolved |
 | Clamp truncation | Browser line-clamp, whole words, Core Text characters — the same three breakers as above, one step further in. All three now clamp to the SAME line count (§11b); what differs is which characters survive on the cut line: DOM and Core Text cut mid-word, the shared measurer drops to the word boundary |
 | Gradient text fill on Mac | Suppresses shadow, outline, underline and strike |
+| A gradient run that wraps | The DOM continues one ramp across the line break; canvas lays one ramp per line; the Mac lays one over the run's whole enclosing box |
 | 3D on canvas | Strip approximation; loses box shadow, backdrop and shape clip; cuts children to the box; drops `colorize`; skips projections over 16 megapixels |
 | Filter order | canvas applies the mask before the filter, against the stated pipeline; `colorize` is always applied first on canvas but in list order on Mac |
 | Filter `shadow(…)` | Any number, any position on the web; first only, always as the layer's shadow, on Mac |

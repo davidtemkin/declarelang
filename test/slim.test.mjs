@@ -16,6 +16,7 @@ import {
 import { compileProgram, usedComponentNames } from "../compiler/dist/declarec.js";
 import { buildProduction } from "../tools/declarec.mjs";
 import { parseFlags, parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
+import { inlineAppPage } from "./harness.mjs";
 
 let pass = 0, fail = 0;
 function test(name, fn) {
@@ -178,13 +179,12 @@ const CHROME = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", 
 async function renders(src) {
   const b = await buildProduction(src, {});
   assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-  const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
   try {
     const page = await browser.newPage();
     const errs = [];
     page.on("pageerror", (e) => errs.push(e.message));
-    await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+    await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
     await new Promise((r) => setTimeout(r, 350));
     const n = await page.evaluate(() => document.getElementById("host")?.querySelectorAll("*").length ?? -1);
     assert.equal(errs.length, 0, "page errors: " + errs.slice(0, 2).join(" | "));
@@ -431,13 +431,12 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
       t: Text [ x = 4, y = 4, text = { app.safe } ] ]`;
     const b = await buildProduction(src, {});
     assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = [];
       page.on("pageerror", (e) => errs.push(e.message));
-      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, 350));
       assert.equal(errs.length, 0, "page errors: " + errs.slice(0, 2).join(" | "));
       const text = await page.evaluate(() => document.getElementById("host")?.textContent ?? "");

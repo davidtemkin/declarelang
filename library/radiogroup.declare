@@ -121,7 +121,6 @@ class Radio extends Control [ height = 22,
     // cast informs the typecheck and is stripped for the runtime
 
     press()   { (parent as RadioGroup).pick(choice) },
-    onClick() { if (!disabled) press() },
 
     on: boolean = { (parent as RadioGroup).value == choice },
 

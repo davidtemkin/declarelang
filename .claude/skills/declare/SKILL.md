@@ -21,9 +21,9 @@ or an implementation in another stack, start at **Starting from a brief** — be
   children. `{ }` holds a TypeScript expression.
 - A `{ }` value is a **constraint**: the runtime re-evaluates it whenever anything it
   reads changes, and keeps doing so. `width = { parent.width - 40 }` stays true on its
-  own — you never subscribe, diff, or re-render. Handlers only assign attributes
-  (`onClick() { count = count + 1 }`), and every constraint that reads them follows. That
-  is the whole update model.
+  own — you never subscribe, diff, or re-render. A handler assigns the facts that
+  changed (`onClick() { count = count + 1 }`) and never their consequences; every
+  constraint that reads them follows. That is the whole update model.
 - `name = value` sets an attribute that already exists; `name: Type = value` declares a
   new reactive one.
 - The outside world enters as **members**, not host calls: data through `Dataset` and
@@ -36,75 +36,44 @@ the best single thing to read before writing anything real.
 
 ## Starting from a brief
 
-A brief, a mockup, or a working implementation in another stack is **testimony, not
-instructions** — it records what someone wants, in the vocabulary they had. Sort it before
-you plan:
-
-- **Ends** (what a person should experience), **tokens** (colors, type, copy, exact
-  values), and **constraints** ("no payment flow") carry over whole and literally.
-- **Means** — "modal", "route", "toast", "hover state", "breakpoint" — name solutions in
-  another stack. Demote them to evidence: recover the end, then choose the form here.
-- **Absences** are the part that matters. A brief says nothing about how a detail arrives
-  or how a month changes, because where it was written that work is expensive. Silence is
-  not a request for absence: for each change, ask what the user sees *travel*.
-
-Be **literal** where the brief is authoritative — values, copy, constraints, logic — and
-**free** where it is merely idiomatic — structure, behavior, motion. Left alone a model
-does the reverse, and that inversion is the whole failure.
-
-Then write the restatement, and derive in this order: **data → states → views**. Never
-screens-first; a brief is organized by screen because that is how people picture software,
-and starting there inherits the other stack's decomposition intact.
-
-`docs/operational/intake.md` is this in full — the vocabulary table, the per-modality
-first moves, and the checks.
+A brief, a mockup, or an implementation in another stack is **testimony, not
+instructions**. Take its **ends** (what a person should experience), **tokens** (values,
+copy, colors) and **constraints** literally; treat its **means** ("modal", "route",
+"hover state") as evidence of an end, and choose the form here; and treat its silences
+as questions — for each change, ask what the user sees *travel*. Then restate it and
+derive **data → states → views**, never screens first. `docs/operational/intake.md` is this
+in full — read it before you plan.
 
 ## Writing it well
 
-Idiomatic Declare looks unlike other frameworks, and drifting back toward their
-shapes is the main way it goes wrong. These are the judgments that keep it idiomatic:
+Idiomatic Declare looks unlike other frameworks; drifting back toward their shapes is the
+main way it goes wrong. Chapter 1 shows every one of these in a working app.
 
-- **Structure.** Subclass a component when a child grows too long to read, not only to
-  reuse it — a class named for its role makes the tree read as the design. Put a model,
-  a service, or any faceless coordinator in a `Node` subclass; don't hang everything
-  off `App`. Split a large program across files with `include`. (ch. 5)
-- **Data.** Records live in a `Dataset`, loaded and saved through a `DataSource` — its
-  `loading` / `failed` drive the screen, its `onLoad()` does what follows a reply. A
-  handler writes a record with `:field = v`. Summaries derived from the data (totals, a
-  streak) are **methods** on the node that holds it, fed to a derived `Dataset` with a
-  `schema`, so results arrive typed — no `as any`. (ch. 14)
-- **The look.** A color, size or font list the app repeats is a token in a `theme`, read
-  with `provided("theme")`; a repeated text voice is a `style` or a small class. Not
-  `script` constants, not the same hex in five places. (ch. 11, 12)
-- **Controls.** Use the library where appropriate; subclass `Control`, not `View`, for
-  a custom control — focus, keyboard activation, roles and the pressed/hovered facts
-  come with it; on bare `View` you rebuild them or ship without them. Don't forget
-  hover and pressed states in your custom components. (ch. 8, 17)
-- **Layouts are classes.** Use one for any stack or flow; write your own to arrange
-  children as they and the space change. A layout owns the slots it places — let it,
-  or set `ignoreLayout` on a child you place by hand. (ch. 6, 17)
-- **Visual continuity.** Draw on your knowledge of high-polish native app UX to inform
-  your interaction design in Declare. In the best native apps one view shifts or
-  expands in place to become another; the user sees, visually, where they came from and
-  where they're going. These idioms are easily implemented here with `Spring` and
-  `Animator`. A click that cuts to a wholly new screen with nothing moving between is a
-  sign you are underusing the language. (ch. 20, 22)
-- **Use `draw()` for custom visuals** — graphs, iconography, treatments the tree can't
-  style — integrated with the view; use it freely but measure frame rate as drawn
-  surfaces grow large or change every frame. (ch. 17)
+- **Structure.** Name a class for a part of the design, not only for reuse; put a model or
+  coordinator in a `Node` subclass rather than on `App`; split files with `include`. (ch. 5)
+- **Data.** Records live in a `Dataset`, loaded and saved through a `DataSource`; a handler
+  writes `:field = v`; summaries are **methods** on the node that holds the data, fed to a
+  derived `Dataset` with a `schema` — no `as any`. (ch. 14)
+- **The look.** A repeated color, size or font list is a `theme` token read with
+  `provided("theme")`; a repeated text voice is a `style` or a small class. (ch. 11, 12)
+- **Controls.** Use the library; for your own, subclass `Control`, not `View` — focus,
+  keyboard, hover and pressed come with it. (ch. 8, 17)
+- **Layout.** Stacks and flows are layout classes; a layout owns what it places, or the
+  child says `ignoreLayout`. (ch. 6, 17)
+- **Continuity.** One view should become the next — a `Spring` or `Animator` on the
+  attributes that change — not cut to a new screen. (ch. 20, 22)
+- **`draw()`** for graphs, icons and treatments the tree can't express; watch frame rate on
+  large surfaces. (ch. 17)
 
-The shapes that mean you have drifted back toward another framework are listed as the
-last thing in this file — the **drift check**. Read it immediately before you write code.
-
-Chapter 1 makes the case behind every point here — the fastest way to internalize the
-shift rather than pattern-match it.
+The shapes that mean you have drifted are the **drift check**, the last section of this file.
+Read it immediately before you write code.
 
 ## Going deeper — read what the task needs
 
 Read the documentation a piece at a time; fetch the part your task calls for.
 
-**The guide teaches the language**, one concept per chapter — read `docs/guide/` in order
-to learn it, or jump to the chapter your task needs:
+**The guide teaches the language**, one concept per chapter. Read chapter 1, then only the
+chapters your task touches — not the guide straight through, and not a whole app:
 
 | your task touches | read |
 |---|---|
@@ -139,25 +108,16 @@ to learn it, or jump to the chapter your task needs:
 (`docs/guide/` holds the full set; `26-with-an-llm.md` is written for an agent in
 particular, and `27-calendar.md` reads the flagship app end to end.)
 
-**For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,
-a standard-library component — ask the help tool:
+**For an exact fact** — a name, a type, an enum's tokens, a diagnostic code — ask; it is
+cheaper than reading, and a guessed name is a compile error:
 
 ```bash
-npx declare-help Slider.value     # any dotted name, class, attribute,
-npx declare-help rotation         # concept, enum, or diagnostic code
+npx declare-help Slider.value     # any dotted name, class, attribute, concept, enum, or code
 ```
 
-It answers in the compiler's register, did-you-mean included — and for a thing that
-deliberately does not exist it names the real door in one sentence (exit 0; a true
-miss exits 1 and says what was searched, so silence is trustworthy). Treat
-**capability claims** the same way as names: before asserting the platform cannot do
-something, or that two features do not compose, ask — a limitation you infer from
-resemblance to other frameworks is usually wrong here, and the absences that are real
-are curated answers, not guesses. Its store is
-`docs/declare-model.json` — the whole documentation corpus as one queryable structure,
-the single authority for these details, so nothing here restates them. For a shape
-the tool doesn't answer (bulk extraction, an unusual join), grep the model's `spine`
-and `reference` rather than reading it whole.
+A true miss exits 1, so silence is trustworthy. Ask before asserting the platform *can't* do
+something: the real absences are curated answers there, not guesses. To see a name in real,
+compiled code, add `--example` — the guide's shortest examples that use it, not a whole app.
 
 **For the intentions behind the shape** — why the language is the way it is, when a choice
 is a judgment call rather than a fact — `docs/tenets/`.

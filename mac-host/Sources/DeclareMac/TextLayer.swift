@@ -3,8 +3,10 @@
 //
 // CATextLayer lays text out with its own vertical rules; Declare's contract is
 // exact and shared with the other two renderers (dom-backend setTextStyle):
-// the line box is ascent+descent with NO half-leading, and the first baseline
-// sits at the font's ascent from the top of the view's box. Matching that is
+// with the face's own line box the first baseline sits at the ascent from the
+// top of the view's box, and a declared `lineHeight` puts half its difference
+// from that box above each line and half below (the DOM's line-height, the
+// canvas painter's halfLead). Matching that is
 // the whole difference between "text appears" and pixel fidelity, so this
 // layer draws the glyphs itself with Core Text at that baseline.
 //
@@ -35,6 +37,12 @@ final class TextLayer: CALayer {
     var lineHeight: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
     /// Baseline-to-baseline distance actually used.
     var pitch: CGFloat { lineHeight > 0 ? lineHeight : ascent + descent }
+    /// Half the declared line's difference from the face's own box: space above
+    /// each line when the line is open, ink past its top when it is tight.
+    private var halfLead: CGFloat { (pitch - (ascent + descent)) / 2 }
+    /// How far the layer reaches ABOVE the box, so a tight line's ink is inside
+    /// the backing store (set by fit).
+    private var overTop: CGFloat = 0
     /// `textFill` — a ramp clipped to the glyphs, overriding the solid colour.
     var fillGradient: TextGradient? = nil { didSet { version &+= 1; setNeedsDisplay() } }
 
@@ -50,21 +58,24 @@ final class TextLayer: CALayer {
     required init?(coder: NSCoder) { fatalError() }
 
     /// Size the layer to the view's box, then let the glyph rows overflow it
-    /// DOWNWARD when the box is tighter than the rows themselves (a `lineHeight`
-    /// under the font's ascent+descent — an odometer digit at 0.72 — which the
-    /// DOM paints past the box). A layer's backing store is its bounds, so a
-    /// glyph outside them is never painted, whatever masksToBounds says: the
-    /// bounds grow to the rows and the layer's top stays pinned to the box's.
+    /// when the box is tighter than the rows themselves (a `lineHeight` under
+    /// the font's ascent+descent — an odometer digit at 0.72 — which the DOM
+    /// paints past the box, above the first line and below the last). A layer's
+    /// backing store is its bounds, so a glyph outside them is never painted,
+    /// whatever masksToBounds says: the bounds grow to the ink on both sides.
     func fit(box: CGSize) {
         let w = max(box.width, 1), h = max(box.height, 1)
         if wrap, w != bounds.width { lines = nil }     // the breaks were taken at the old width
         bounds = CGRect(origin: .zero, size: CGSize(width: w, height: h))
         let ls = lines ?? buildLines()
         lines = ls
-        let need = ceil(CGFloat(ls.count) * pitch)
+        let n = CGFloat(max(ls.count, 1))
+        overTop = ceil(max(0, -halfLead))
+        let inkBottom = halfLead + (n - 1) * pitch + ascent + descent
+        let need = overTop + ceil(max(h, n * pitch, inkBottom))
         if need > h {
             bounds = CGRect(origin: .zero, size: CGSize(width: w, height: need))
-            position = CGPoint(x: 0, y: h - need)
+            position = CGPoint(x: 0, y: h + overTop - need)
         } else {
             position = .zero
         }
@@ -104,7 +115,7 @@ final class TextLayer: CALayer {
         if align == .center { x = (bounds.width - CGFloat(w)) / 2 }
         else if align == .right { x = bounds.width - CGFloat(w) }
         // Text is laid top-down from the box's top; the layer is bottom-up.
-        let baseline = ascent + CGFloat(i) * pitch
+        let baseline = overTop + halfLead + ascent + CGFloat(i) * pitch
         return CGPoint(x: x, y: bounds.height - baseline)
     }
 

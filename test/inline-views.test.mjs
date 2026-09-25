@@ -11,7 +11,7 @@
 // the DOM half runs in Chrome and is compared against the headless numbers.
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { test, summarize } from "./harness.mjs";
+import { test, summarize, inlineAppPage } from "./harness.mjs";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { buildProduction } from "../tools/declarec.mjs";
 import { instantiate } from "../runtime/dist/instantiate.js";
@@ -596,13 +596,12 @@ if (!CHROME) {
   const dom = await (async () => {
     const b = await buildProduction(DOC, { render: "dom" });
     assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = [];
       page.on("pageerror", (e) => errs.push(e.message));
-      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, 400));
       return { errs, probe: await page.evaluate(() => {
         const phs = Array.from(document.querySelectorAll("[data-rich-slot]"));
@@ -690,13 +689,12 @@ if (!CHROME) {
         ]`;
     const b = await buildProduction(src, { render: "canvas" });
     assert.ok(b.ok, "canvas build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = [];
       page.on("pageerror", (e) => errs.push(e.message));
-      await page.setContent(`<!doctype html><div id=host></div><script type=module>${appJs}</script>`, { waitUntil: "networkidle0" });
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
       await new Promise((r) => setTimeout(r, 400));
       return { errs, probe: await page.evaluate(() => {
         const cv = document.querySelector("canvas");

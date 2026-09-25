@@ -1,123 +1,148 @@
 {
   "arc": {
-    "differing": 0.02,
-    "structural": 0
+    "differing": 0.14,
+    "structural": 0,
+    "theme": "light"
   },
   "blend": {
-    "differing": 0.26,
-    "structural": 0
+    "differing": 0.04,
+    "structural": 0,
+    "theme": "light"
   },
   "blur": {
-    "differing": 2.75,
-    "structural": 0.27
+    "differing": 0.02,
+    "structural": 0,
+    "theme": "light"
   },
   "roundrect": {
-    "differing": 0.02,
-    "structural": 0
+    "differing": 0.14,
+    "structural": 0,
+    "theme": "light"
   },
   "vignette": {
-    "differing": 0.01,
-    "structural": 0.01
+    "differing": 0.13,
+    "structural": 0.01,
+    "theme": "light"
   },
   "calendar": {
-    "differing": 0.62,
-    "structural": 0.26,
-    "blessedIn": "2026-08"
+    "differing": 1.06,
+    "structural": 0.41,
+    "theme": "light",
+    "blessedIn": "2026-09"
   },
   "weather": {
     "differing": 0.05,
     "structural": 0.03
   },
   "desktop": {
-    "differing": 9.09,
-    "structural": 2.21
+    "differing": 2.19,
+    "structural": 1.59,
+    "theme": "light"
   },
   "richtext": {
-    "differing": 0.86,
-    "structural": 0.4
+    "differing": 0.76,
+    "structural": 0.23,
+    "theme": "light"
   },
   "editable": {
-    "differing": 0.26,
-    "structural": 0.18
+    "differing": 0.34,
+    "structural": 0.15,
+    "theme": "light"
   },
   "ignorescroll": {
-    "differing": 0.01,
+    "differing": 0.13,
     "structural": 0,
-    "note": "CLOSED 2026-08-05. This was the recorded hole: with no setIgnoreScroll on the native backend the probe pinned chrome scrolled away, and the figure WAS the size of that absence (1.18% differing / 1.17% structural). The seam landed and the number fell to agreement, which is the improvement this note predicted. Kept as the record of what the probe is FOR \u2014 it is the one program here whose diff is a capability check rather than a rasterization check, so a regression in it means the pin broke, not that text moved."
+    "theme": "light",
+    "note": "CLOSED 2026-08-05. This was the recorded hole: with no setIgnoreScroll on the native backend the probe pinned chrome scrolled away, and the figure WAS the size of that absence (1.18% differing / 1.17% structural). The seam landed and the number fell to agreement, which is the improvement this note predicted. Kept as the record of what the probe is FOR — it is the one program here whose diff is a capability check rather than a rasterization check, so a regression in it means the pin broke, not that text moved."
   },
   "lzx-weather": {
-    "differing": 0.05,
-    "structural": 0.03
+    "differing": 0.18,
+    "structural": 0.02,
+    "theme": "light"
   },
   "blendview": {
-    "differing": 0.56,
-    "structural": 0.55
+    "differing": 0.68,
+    "structural": 0.55,
+    "theme": "light"
   },
   "frost": {
-    "differing": 1.27,
-    "structural": 0
+    "differing": 2.64,
+    "structural": 0,
+    "theme": "light"
   },
   "rotation": {
-    "differing": 0.09,
-    "structural": 0.06
+    "differing": 0.18,
+    "structural": 0.01,
+    "theme": "light"
   },
   "lzx-dashboard": {
-    "differing": 1,
-    "structural": 0.3
+    "differing": 0.56,
+    "structural": 0.09,
+    "theme": "light"
   },
   "glowclip": {
-    "differing": 0.25,
-    "structural": 0.2,
+    "differing": 0.23,
+    "structural": 0.04,
     "theme": "light"
   },
   "gfx-filter": {
-    "differing": 2.08,
-    "structural": 0.87,
+    "differing": 8.1,
+    "structural": 0.62,
     "theme": "light"
   },
   "gfx-mask": {
-    "differing": 1.67,
-    "structural": 0.53,
+    "differing": 1.52,
+    "structural": 0.36,
     "theme": "light"
   },
   "gfx-gradients": {
-    "differing": 4.03,
-    "structural": 1.26,
+    "differing": 3.8,
+    "structural": 0.85,
     "theme": "light"
   },
   "gfx-fit": {
     "differing": 0.23,
-    "structural": 0.18,
+    "structural": 0.05,
     "theme": "light"
   },
   "gfx-affine": {
-    "differing": 0.43,
-    "structural": 0.29,
+    "differing": 0.36,
+    "structural": 0.09,
     "theme": "light"
   },
   "gfx-transform3d": {
-    "differing": 0.46,
-    "structural": 0.28,
+    "differing": 0.32,
+    "structural": 0.03,
     "theme": "light"
   },
   "gfx-drawimage": {
-    "differing": 0.99,
+    "differing": 1.11,
     "structural": 0.77,
     "theme": "light"
   },
   "gfx-tightline": {
-    "differing": 0.75,
-    "structural": 0.67,
+    "differing": 0.26,
+    "structural": 0.07,
     "theme": "light"
   },
   "textfixes": {
-    "differing": 1.05,
-    "structural": 0.85,
+    "differing": 0.85,
+    "structural": 0.52,
     "theme": "light"
   },
   "text": {
-    "differing": 4.27,
-    "structural": 3.43,
+    "differing": 2.23,
+    "structural": 1.34,
+    "theme": "light"
+  },
+  "seams-box": {
+    "differing": 0.47,
+    "structural": 0.18,
+    "theme": "light"
+  },
+  "seams-text": {
+    "differing": 1.59,
+    "structural": 1.02,
     "theme": "light"
   }
 }

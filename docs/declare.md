@@ -16,20 +16,14 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design.*
 
 ## The map
 
-| where | what is there | go when |
-|---|---|---|
-| [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `npx declare-help <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included; a true miss exits 1 and says what it searched, so silence is trustworthy | you need a name, a type, a signature, or what a code means |
-| [`declare-model.json`](declare-model.json) | what `declare-help` reads: every component, attribute, type, method, event and diagnostic, generated from source; a class's page carries its ancestors' members too, so everything reachable on it is on one page | you want to browse the whole surface rather than ask one question |
-| `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
-| `apps/` | complete programs; [Learning from the apps](guide/01-what-declare-is.md#learning-from-the-apps) maps what each teaches — `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->830<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
-| [`docs/guide/`](guide/01-what-declare-is.md) | a narrative course, chapter by chapter; its [glossary](guide/29-glossary.md) is one word per idea | you want the reasoning, or you are learning rather than looking up — or a term used a specific way |
-| [`docs/operational/`](operational/) | install, dev server, build, deploy | you are running or shipping rather than writing |
-
-**Those six carry everything you need to write Declare.** The language is closed and small, so
-when you need a name you do not have, **ask for it rather than invent it** — that is what
-`declare-help` is for: a guessed attribute is a compile error, and a hand-built widget is usually
-one the library already ships. (`docs/system-design/`
-also exists — it is the design record, including superseded decisions. Background, not truth.)
+**Ask for a name rather than invent it.** [`npx declare-help <name>`](operational/help.md)
+answers any class, attribute, concept, enum or diagnostic code in one exact reply, did-you-mean
+included; a true miss exits 1, so silence is trustworthy. A guessed attribute is a compile
+error, and a hand-built widget is usually one the library already ships. The standard
+components are in `library/`, complete programs in `apps/`, the narrative course in
+[`docs/guide/`](guide/01-what-declare-is.md), and running and shipping in
+[`docs/operational/`](operational/). (`docs/system-design/` is the design record, superseded
+decisions included — background, not truth.)
 
 One boundary makes the rest of this file readable. **Every capitalized tag is a component** —
 `View`, `Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. Components
@@ -69,9 +63,11 @@ applied to structure, space, data, style, and time.
    `0x4169E1`, not `royalblue` or `#4169E1`. (§2)
 2. **Assignment is the whole update model.** `count = count + 1` sets *and* notifies. There is
    no `setState`, no `setAttribute`, and no way to change a value without the cascade. (§5)
-3. **Dependencies are extracted statically, and what cannot be read is refused.** Nothing is
-   tracked at runtime, and an unanalyzable constraint is a blocking compile error rather than a
-   silent fallback. This is the sharpest break from every reactive system you know. (§5)
+3. **Dependencies are extracted by the compiler, and what it cannot follow is refused.** It
+   wires what it can name before the program runs, keeps a read it can see but not name on
+   runtime tracking, and makes a constraint it cannot follow at all a blocking compile error
+   rather than a silent fallback. This is the sharpest break from every reactive system you
+   know. (§5)
 4. **Children come from data, not from code.** The `[ ]` tree never generates children from an
    expression, so React's `{items.map(…)}` and `{cond && …}` have no equivalent there: a
    collection comes from *replication* over a datapath, and conditional presence is `visible`.
@@ -320,8 +316,11 @@ fill = { selected ? 0x4169E1 : 0x191970 },           // royalblue / midnightblue
 text = { data.failed ? data.error : "Loading…" }
 ```
 
-**Dependencies are extracted statically, by the compiler.** Nothing is tracked at runtime: the
-compiler reads your expression, reads *through* what it calls, and wires the result once.
+**Dependencies are extracted by the compiler.** It reads your expression, reads *through* what
+it calls, and wires what it can name once. A read it can see but not name — through a closure's
+parameter, a local alias, or a value a method hands back — keeps that constraint on runtime
+tracking, where each read is observed as it runs. What it cannot follow at all is a compile
+error (below).
 
 **A constraint stays live through everything Declare it reaches.** Call your own methods, chain
 array operations, read through a closure — every read inside all of it is a wired dependency,
@@ -399,8 +398,8 @@ sanctioned path, and why a state may override a `{ }`-owned slot at all.
 
 ### The one rule constraints must obey
 
-A constraint reads specific, named things, and the compiler must be able to name every one.
-When it cannot, that is a blocking compile error — `DECLARE7001`, the *residue*, meaning the part
+A constraint reads specific things, and the compiler must be able to follow every one. When it
+cannot, that is a blocking compile error — `DECLARE7001`, the *residue*, meaning the part
 of an expression no static reading can name — rather than a silent fallback. Do not try to hold the refusals in your head; the diagnostic names the exact
 read it could not follow and the rewrite that resolves it. Three instincts account for most of
 them:

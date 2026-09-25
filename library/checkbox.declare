@@ -84,7 +84,6 @@ class Checkbox extends Control [
     input(v: boolean) { checked = v },
 
     press()   { input(!checked) },
-    onClick() { if (!disabled) press() },
 
     width   = { this.box.width + (label == "" ? 0 : 8 + this.cap.width) },
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },

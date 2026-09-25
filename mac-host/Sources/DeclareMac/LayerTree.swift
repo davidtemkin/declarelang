@@ -66,6 +66,10 @@ final class Node {
     var fillColor: CGColor?
     var strokeW: CGFloat = 0
     var strokeColor: CGColor?
+    /// A PER-SIDE stroke — top, right, bottom, left — when the four differ
+    /// (nil when one ring, or none, serves). Painted by `sidesLayer`.
+    var strokeSides: [(width: CGFloat, color: CGColor?)]?
+    var sidesLayer: CALayer?
     var scrolls = false
     var scrollOffset: CGFloat = 0
     var scrollsX = false
@@ -519,9 +523,10 @@ final class LayerTree {
             // rule 3, which both web backends also honor. Re-rastering on
             // geometry made every magnifying dock icon redraw its art each
             // frame (measured: 151ms average commit, 457ms worst).
-            if n.clipPath != nil || n.boxClip { applyClip(n) }
+            if n.clipPath != nil || n.boxClip || n.rich != nil { applyClip(n) }
             if n.layer.shadowOpacity > 0 { applyShadowPath(n) }
             if n.shapeBg != nil { syncShape(n) }
+            if n.strokeSides != nil { syncSides(n) }
         case 32: // PAGEFILL — the page behind a TOP-LEVEL app wears the app's
             // own background (the DOM paints documentElement/body; the canvas
             // backend mirrors it). Natively "the page" is the hosting view and
@@ -550,15 +555,28 @@ final class LayerTree {
                 n.radii = r; n.radius = r.max() ?? 0
             } else { n.radii = nil; n.radius = num(a(0)) }
             applyRadius(n)
+            if n.strokeSides != nil { syncSides(n) }
             if n.frostLayer != nil { syncFrost(n) }
             if n.boxClip { applyClip(n) }
             if n.layer.shadowOpacity > 0 { applyShadowPath(n) }
-        case 9: // STROKE (inside the box, like the other renderers)
+        case 9: // STROKE (inside the box, like the other renderers): one ring as
+            // (width, color), or four sides as eight args, top first
             guard let n = nodes[id] else { return }
-            if a(0) == nil || a(0) is NSNull {
+            if a(7) != nil {
+                n.strokeW = 0; n.strokeColor = nil
+                n.layer.borderWidth = 0
+                n.strokeSides = (0..<4).map { i in
+                    (a(2 * i) is NSNull || a(2 * i) == nil)
+                        ? (0, nil)
+                        : (num(a(2 * i)), str(a(2 * i + 1)).flatMap { CSSColor.parse($0)?.cgColor })
+                }
+                syncSides(n)
+            } else if a(0) == nil || a(0) is NSNull {
+                n.strokeSides = nil; syncSides(n)
                 n.strokeW = 0; n.strokeColor = nil
                 n.layer.borderWidth = 0
             } else {
+                n.strokeSides = nil; syncSides(n)
                 n.strokeW = num(a(0)); n.strokeColor = str(a(1)).flatMap { CSSColor.parse($0)?.cgColor }
                 n.layer.borderWidth = n.strokeW
                 n.layer.borderColor = n.strokeColor
@@ -1063,7 +1081,9 @@ final class LayerTree {
     /// Re-establish paint order: gradient, drawing, image, text, then children.
     private func restack(_ n: Node) {
         var order: [CALayer] = []
+        if let sh = n.shapeBg { order.append(sh) }       // the fill, when four radii differ
         if let g = n.gradient { order.append(g) }
+        if let sd = n.sidesLayer { order.append(sd) }    // a per-side stroke: over the fill, under the content
         if let d = n.draw { order.append(d) }
         if let i = n.image { order.append(i) }
         if let p = n.player { order.append(p) }
@@ -1629,6 +1649,20 @@ final class LayerTree {
             m.fillRule = .nonZero
             target.mask = m
             target.masksToBounds = false
+        } else if let r = n.rich, !(n.isRoot || n.boxClip || n.scrolls || n.scrollsX || n.isEmbedHost),
+                  r.inkBleed > 0, n.box.height >= r.flowHeight - 0.5 {
+            // A flow its box shows WHOLE clips to the box plus the ink its glyphs
+            // reach past their line boxes (a tight `lineHeight`): the DOM paints
+            // that ink outside the element, a descender below the last line and
+            // a figure top above the first. A box SMALLER than its flow still
+            // clips at the box, below.
+            let m = CALayer()
+            m.anchorPoint = .zero
+            m.backgroundColor = CGColor(gray: 0, alpha: 1)
+            m.bounds = CGRect(x: 0, y: 0, width: n.box.width, height: n.box.height + 2 * r.inkBleed)
+            m.position = CGPoint(x: 0, y: -r.inkBleed)
+            target.mask = m
+            target.masksToBounds = false
         } else if n.isRoot || n.boxClip || n.scrolls || n.scrollsX || n.isEmbedHost || n.rich != nil {
             // A rich flow is clipped by its OWN box, as the element is on the
             // web. The flow layer is placed against the box's top and keeps its
@@ -1801,6 +1835,41 @@ final class LayerTree {
             m.bounds = sh.bounds; m.position = .zero; m.path = path
             g.mask = m
         }
+    }
+
+    /// THE PER-SIDE STROKE, the way the canvas and DOM painters draw it
+    /// (stroke-sides.ts): each side is the box outline minus a copy of itself
+    /// shifted in from that edge by the side's width. On a rounded box a band
+    /// follows the corner arc and tapers into it; sides never mitre. Over the
+    /// fill, under the content — where the DOM's inset box-shadow paints.
+    private func syncSides(_ n: Node) {
+        guard let sides = n.strokeSides, sides.contains(where: { $0.width > 0 && $0.color != nil }) else {
+            if n.sidesLayer != nil { n.sidesLayer?.removeFromSuperlayer(); n.sidesLayer = nil; restack(n) }
+            return
+        }
+        let host: CALayer
+        if let e = n.sidesLayer { host = e } else {
+            host = CALayer(); host.anchorPoint = .zero
+            host.actions = ["sublayers": NSNull(), "bounds": NSNull(), "position": NSNull()]
+            n.sidesLayer = host
+            restack(n)       // restack owns `sublayers`: a layer only added would drop on the next one
+        }
+        host.bounds = CGRect(origin: .zero, size: n.box.size); host.position = .zero
+        let box = cornerPath(n)
+        // top, right, bottom, left — shifted INTO the box, in the layer's y-up space
+        let shift: [(CGFloat, CGFloat)] = [(0, -1), (-1, 0), (0, 1), (1, 0)]
+        var bands: [CAShapeLayer] = []
+        for (i, side) in sides.enumerated() where side.width > 0 && side.color != nil {
+            var t = CGAffineTransform(translationX: shift[i].0 * side.width, y: shift[i].1 * side.width)
+            guard let moved = box.copy(using: &t) else { continue }
+            let band = CAShapeLayer(); band.anchorPoint = .zero
+            band.actions = ["path": NSNull(), "fillColor": NSNull(), "bounds": NSNull(), "position": NSNull()]
+            band.bounds = host.bounds; band.position = .zero
+            band.path = box.subtracting(moved)
+            band.fillColor = side.color
+            bands.append(band)
+        }
+        host.sublayers = bands
     }
 
     private func dropShape(_ n: Node) {
@@ -2640,6 +2709,7 @@ final class LayerTree {
         if statsOn { richParseMs += (CFAbsoluteTimeGetCurrent() - __p0) * 1000 }
         let h = n.rich?.set(blocks: blocks, selectable: selectable, width: width, style: n.textStyle, json: blocksJson) ?? 0
         n.rich?.place(inBox: n.box.size, scale: scale)
+        applyClip(n)                         // the content's ink bleed may have changed
         refreshBand(n)                       // paint it NOW if it is on screen
         if ProcessInfo.processInfo.environment["DECLARE_DEBUG_RICH"] != nil {
             NSLog("[rich] id=%d blocks=%d width=%.0f -> h=%.0f box=%@", id, blocks.count, width, h, NSStringFromRect(n.box))

@@ -33,6 +33,24 @@ export declare function paintBoxShadow(ctx: CanvasRenderingContext2D, box: Path2
  *  space evenly between their placed neighbors (first 0, last 1), offsets
  *  monotonic. */
 export declare function realizeGradient(ctx: CanvasRenderingContext2D, g: Gradient, w: number, h: number): CanvasGradient;
+/** The part of a gradient laid over `whole` that falls on `part` (both boxes in
+ *  one coordinate space), as a gradient of `part`'s own — so a run of text split
+ *  into several painted pieces shows ONE ramp across all of them, as the DOM's
+ *  span does, instead of the whole ramp again on every piece. Linear: each stop
+ *  re-projected onto the piece's own gradient line, clipped to 0…1 with the
+ *  colour interpolated at the cut. Radial and conic: the centre moved into the
+ *  piece's box, and the radial reach rescaled to its farthest corner. */
+export declare function sliceGradient(g: Gradient, whole: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}, part: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}): Gradient;
 /** The conservative pixel bounds of the box paint — the box plus its
  *  shadow's reach (offset + blur) — what sizes the DOM backend's per-view
  *  raster (the drawing-bounds discipline, applied to decoration). */

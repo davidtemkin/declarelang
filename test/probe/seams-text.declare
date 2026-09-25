@@ -1,0 +1,35 @@
+// THE TEXT SEAM PROBE — text capabilities a renderer can drop without a
+// layout error, each drawn LARGE enough that its absence alone exceeds the
+// gate's 0.75-point tolerance:
+//   top      a tall face at lineHeight 1 — glyphs centered in a box exactly
+//            fontSize tall (half-leading), not on its floor or clipped at its top
+//   middle   rich text mixing sizes at lineHeight 1 — the line box is the
+//            block font's; a solid slab sits at its measured bottom, so a line
+//            laid out taller moves the slab
+//   bottom   run fills, solid and gradient — one ramp across a run, not one per word
+
+style Small [ fontSize = 26, fontWeight = semibold, fontFamily = "system-ui, -apple-system, 'Helvetica Neue', sans-serif" ]
+
+style Solid [ textFill = #E4572E ]
+
+style Ramp [ fontSize = 96, textFill = gradient(90, #2E6FE0, #E4572E) ]
+
+App [ width = 1280, height = 800, fill = white, textColor = #1A1A1A,
+    tight: Text [ x = 20, y = 30, fontFamily = ["Avenir Next Condensed", "Arial Narrow", "sans-serif"], fontWeight = bold,
+        fontSize = 170, lineHeight = 1, text = "10:05:11" ],
+    tightTop: View [ x = 20, y = { app.tight.y }, width = { app.tight.width }, height = 2, fill = #2E6FE0 ],
+    tightBottom: View [ x = 20, y = { app.tight.y + app.tight.height }, width = { app.tight.width }, height = 2, fill = #2E6FE0 ],
+
+    mixed: HTMLText [ x = 720, y = 30, width = 540, lineHeight = 1, fontSize = 110, fontWeight = bold,
+        fontFamily = "'Avenir Next Condensed', 'Arial Narrow', sans-serif", textStyles = { { Small } },
+        html = "55<span class='Small'>&nbsp;sessions</span>" ],
+    slab: View [ x = 720, y = { app.mixed.y + app.mixed.height }, width = 540, height = 120, fill = #17A34A ],
+
+    fills: HTMLText [ x = 20, y = 300, width = 1240, fontSize = 64, fontWeight = bold,
+        textStyles = { { Solid, Ramp } },
+        html = "plain <span class='Solid'>solid fill</span><br/><span class='Ramp'>one ramp over words</span>" ],
+    textFillRamp: Text [ x = 20, y = 590, fontSize = 64, fontWeight = bold,
+        textFill = gradient(90, #2E6FE0, #E4572E), text = "Text gradient fill" ],
+    key: Text [ x = 20, y = 740, fontSize = 15, textColor = #6A6A6A,
+        text = "tall face at lineHeight 1 · mixed sizes at lineHeight 1 (slab at the measured bottom) · run fills solid and gradient · Text gradient fill" ]
+    ]

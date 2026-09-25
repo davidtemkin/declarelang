@@ -33,7 +33,6 @@ class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
     n: number = 0,
     fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
     press() { n = n + 1 },
-    onClick() { if (!disabled) press() },
     t: TextLabel [ x = center, fontSize = 13, text = { "" + classroot.n } ]
     ]
 
@@ -120,7 +119,8 @@ The seam a concrete control calls from its own `press()`.
 
 ## press()
 **The activation seam — override this, not the handlers.** Pointer and keyboard both
-land here, so one override serves a click, Space, and Enter. The base opens `menu` when
+land here — a click through `onClick`, Space and Enter through the keyboard — so one
+override serves all three. The base opens `menu` when
 there is one. A value control delivers through `input` from here and **never writes its
 own value slot directly**, which is what lets a constrained control avoid fighting its
 constraint.
@@ -149,6 +149,12 @@ menus open on **press**, not release, as the platform does. **An override must k
 
 ## onKeyDown
 Space and Enter run `press()`; ArrowDown opens `menu`. Ignores auto-repeat.
+
+## onClick
+A click runs `press()` unless the control is disabled — so a control that overrides
+`press()` is activated by pointer and keyboard alike without writing a handler. Override
+`onClick` only when a click means something other than activation; `Button` does, making
+it the use site's action slot.
 
 ## focusable
 A control takes focus unless it is disabled — one rule, so a disabled control drops out of the Tab order without saying so twice.
@@ -258,11 +264,10 @@ class Control extends View [
     onBlur()  { focused = false; focusVisible = false },
 
     // A click is also a focus claim — the keyboard picks up where the pointer
-    // left. A menu opens here, not from `onClick`: every other control routes
-    // the pointer through `press()` (`onClick() { if (!disabled) press() }`),
-    // but Button inverts that — its `onClick` is the use site's action slot —
-    // so a menu hung off `press()` alone would open from the keyboard and never
-    // from a click. Pointer-down is also what the platform does: menus open on
+    // left. A menu opens here, not from `onClick`: a control routes the
+    // pointer through `press()` (the `onClick` below), but Button inverts that —
+    // its `onClick` is the use site's action slot — so a menu hung off `press()`
+    // alone would open from the keyboard and never from a click. Pointer-down is also what the platform does: menus open on
     // press, not release. The keyboard keeps its own path through `press()`,
     // and the two cannot double-fire because a key press raises no pointer
     // event.
@@ -281,5 +286,10 @@ class Control extends View [
         if (disabled || e.repeat) return
         if (e.key == "Enter" || e.key == " ") press()
         else if (e.key == "ArrowDown" && this.menu != null) this.openMenu()
-        }
+        },
+
+    // a click activates, through the same seam as the keyboard; a control whose
+    // click means something else overrides it (Button's is the use site's action)
+
+    onClick() { if (!disabled) press() }
     ]

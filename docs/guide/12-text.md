@@ -124,6 +124,11 @@ App [ width = 380, height = 210, fill = white,
     ]
 ```
 
+**The width you give is the line length.** Give none and the text wraps at a 640 px
+reading measure, then takes the width of its widest line — so a short line of rich text
+is as wide as its words, and centers or sits in a row the way a `Text` does. A document
+holding a list, a table, a quote or code keeps the full measure.
+
 A document can be your app's material directly: fetch a `.md` file with
 [`DataSource [ url = "notes.md", format = "text" ]`](declare-docs:DataSource) and bind its value to `text`
 ([Data](declare-docs:guide:data@where-data-comes-from)). `text` is an ordinary attribute, so Markdown streaming
@@ -197,6 +202,8 @@ style Unit [ fontSize = 40, fontWeight = medium ]
 HTMLText [ fontSize = 96, fontWeight = bold,
     html = "1<span class='Unit'>h</span> 24<span class='Unit'>m</span>" ]
 ```
+
+With no width it is exactly as wide as the figure it sets.
 
 Separate views are for things that are separate: a figure beside the caption that names
 it.

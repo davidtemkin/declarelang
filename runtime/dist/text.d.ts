@@ -50,10 +50,10 @@ export declare class Text extends View {
     get xHeight(): number;
     /** The y of the FIRST baseline inside this view — what cross-font,
      *  cross-size baseline alignment positions against:
-     *  `y = { title.y + title.baseline - this.baseline }`. Both renderers
-     *  place the first line's baseline at the font ascent (the natural-box
-     *  rule; a declared `lineHeight` changes the stride between lines, never
-     *  where the first baseline sits). */
+     *  `y = { title.y + title.baseline - this.baseline }`. With the face's own
+     *  line box it is the ascent; a declared `lineHeight` puts half its
+     *  difference from that box above each line and half below, as the DOM's
+     *  line-height does, and every renderer places glyphs by the same rule. */
     get baseline(): number;
     attach(backend: RenderBackend, parentSurface: Surface | null): void;
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its
