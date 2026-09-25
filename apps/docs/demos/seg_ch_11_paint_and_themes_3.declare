@@ -1,0 +1,16 @@
+theme Brand [ accent = #CC3333, surface = #FFF7F5, text = #2B1D1B, muted = #9A7F7B ]
+
+theme Night [ accent = #4C8DFF, surface = #101E28, text = #E7EEF2, muted = #8A9BA6 ]
+
+class Heading extends Text [ fontWeight = bold, fontSize = 18, textColor = { provided("theme").text } ]
+
+App [ width = 340, height = 150, theme = { app.night ? Night : Brand }, fill = { provided("theme").surface },
+    night: boolean = false,
+    onClick() { night = !night },
+    col: View [ x = 20, y = 20, width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Heading [ text = { app.night ? "Night" : "Brand" } ],
+        Text [ textColor = { provided("theme").muted }, text = "click anywhere to switch themes" ],
+        View [ width = 120, height = 24, cornerRadius = 6, fill = { provided("theme").accent } ]
+        ]
+    ]

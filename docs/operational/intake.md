@@ -2,7 +2,7 @@
 
 A brief, a mockup, or a working implementation in another stack is **testimony, not
 instructions**. It records what someone wants, in the only vocabulary they had. This page is the first rung of
-[the working loop](declare-docs:guide:run-check-ship) — what to carry over untouched, what to re-derive,
+[the working loop](declare-docs:guide:run-and-check) — what to carry over untouched, what to re-derive,
 and what to supply that the brief could not ask for.
 
 Run it before you plan. Its output is a short written restatement; the last step of the loop
@@ -40,7 +40,7 @@ restatement. Fifteen lines is enough.
 Then derive in this order:
 
 1. **Data** — what exists, what it's shaped like, what changes.
-2. **States** — the modes the app can be in ([reversible bundles](declare-docs:guide:motion-and-states)).
+2. **States** — the modes the app can be in ([reversible bundles](declare-docs:guide:motion)).
 3. **Views** — arrangement derived from 1 and 2.
 
 Never screens-first. A brief is always organized by screen, because that is how people picture
@@ -55,13 +55,16 @@ Each of these words names a solution in another stack. None of them is a thing h
 | the brief says | it means | the house form |
 |---|---|---|
 | **modal** | focus on one thing, keep context | a state; the detail grows from what was clicked, interruptible, reversible |
-| **page** / **route** | this content, not that | a state bound to the URL ([the loop](declare-docs:guide:run-check-ship)) — not a swapped subtree |
+| **page** / **route** | this content, not that | a state bound to the URL ([URLs, links and history](declare-docs:guide:urls)) — not a swapped subtree |
 | **toast** | tell them it worked | a view whose presence and offset derive from a value; it travels in and out |
 | **hover state** / **active state** | respond to the pointer | a scalar sprung 0↔1, with color, scale, and shadow derived from it |
 | **loading spinner** / **skeleton** | something is happening | reserve the space, hold the frame still, derive content from data state |
 | **component** | a reusable piece | a view class — and when the brief *enumerates* instances, find the data that generates them |
 | **responsive breakpoint** | it should work small | constraints that were already true at every width; writing a breakpoint usually means something upstream was hard-coded |
 | **transition** / **animation** | make it move | a spring on the value itself; motion is a consequence of the constraint, not a layer over it |
+| **API call** / **fetch** / **save** | read or change something on a server | a `DataSource` per request — `url`, `method`, `body`; its `loading` and `failed` drive the screen and its `onLoad()` does what follows the reply ([Talking to a server](declare-docs:guide:data@talking-to-a-server)) |
+| **timer** / **polling** / **debounce** | later, or on a schedule | usually neither — a constraint on the thing being waited for; otherwise `afterDelay(ms, fn)` once, or a `Time` with a period (`tick = 5000`) |
+| **constants** / **design tokens** | a value used in many places | a token in a `theme` read with `provided("theme")`, or a `style` — never a script constant |
 
 The [vocabulary in `declare-model.json`](declare-docs:reference:index) carries the exact names
 once you know which thing you want. This table is for getting there.
@@ -89,7 +92,7 @@ A specified visual property gets exactly one of three fates:
 
 Dropping it wordlessly is the failure. Uncertainty about whether an effect can be expressed
 resolves *downward* by default, and the result is a flat interface that nobody chose. Check
-[Style](declare-docs:guide:house-style) before deciding a thing cannot be said.
+[Formatting](declare-docs:guide:formatting) before deciding a thing cannot be said.
 
 ## By modality
 
@@ -97,7 +100,7 @@ resolves *downward* by default, and the result is a flat interface that nobody c
 |---|---|
 | **prose brief** | sort it (above); the gaps will be data and states |
 | **screenshot / mockup** | read tokens and hierarchy off it, then say what it *does* — a static image specifies no behavior and no motion, and both are yours to derive |
-| **an implementation in another stack** | extract the data model, the derived values, the user-visible states, the copy and tokens; discard component boundaries, effect wiring, memoization, and state synchronization |
+| **an implementation in another stack** | extract the data model, the derived values, the user-visible states, the copy and tokens; discard component boundaries, effect wiring, memoization, and state synchronization; its fetch calls become `DataSource`s and its derived values methods on a model |
 | **a design system / token set** | tokens are Ends, not Means — bind them once at the root and derive |
 
 **On porting.** In a React or Svelte source, most lines are plumbing for a problem this language

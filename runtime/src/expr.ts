@@ -362,7 +362,7 @@ export function validateBody(params: readonly string[], src: string): string | n
 function validateBodyUncached(params: readonly string[], src: string): string | null {
   let e: string | null;
   if (syntaxValidator !== null) {
-    const r = rewriteDatapaths(src);
+    const r = rewriteDatapaths(src, true);
     if ("error" in r) return r.error;
     e = syntaxValidator(r.src, false);
   } else {
@@ -398,7 +398,7 @@ export function compileBody(params: readonly string[], src: string): { fn: BodyF
   const hit = memo.get(key);
   if (hit !== undefined) return hit;
   const out = ((): { fn: BodyFn } | { error: string } => {
-    const r = rewriteDatapaths(src);
+    const r = rewriteDatapaths(src, true);
     if ("error" in r) return r;
     try {
       // The body runs inside its own block so a statement may shadow a

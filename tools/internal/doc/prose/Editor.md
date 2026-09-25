@@ -1,4 +1,4 @@
-The abstract base every editing control extends (`TextInput` today). It owns the
+The abstract base every editing control extends — `TextInput` is the one the library ships. It owns the
 **edit session**: a draft the user is typing, the committed value it will become,
 and the validity derived from both — so a control gets `commitOn` / `error` /
 `valid` / `dirty` and the `commit()` / `revert()` verbs without restating them.
@@ -12,8 +12,8 @@ real record for autosave, or at a working copy you commit on a Save button for a
 
 ## error
 **Read-only.** The current validation message for the draft, or `""` when valid — the edit
-session recomputes it on every edit, so what you own is `validate()`, not this slot. Bind
-a label to it (`text = { app.field.error }`) to present the error.
+session recomputes it on every edit, so what you own is `validate()`, not this slot. Show
+it with a label that reads it (`text = { app.field.error }`).
 
 ## valid
 **Read-only.** Whether the draft passes `validate()` — recomputed by the session per edit,

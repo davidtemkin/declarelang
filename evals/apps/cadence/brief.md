@@ -154,10 +154,10 @@ unless they want to leave a note.
 
 ## Delivering it
 
-Write the program as a single `.declare` file at `my-apps/cadence.declare`. The
-development server (`npm start`) serves it at
-`http://localhost:8200/my-apps/cadence.declare`. The service runs separately, on
-port 8320.
+Write it idiomatically, following the platform's established best practices, as code
+that other people will read and maintain.
+
+The service runs separately, on port 8320.
 
 Check your work in the browser — there is no phone or simulator here. Headless
 Chrome will emulate one well enough to be useful: a narrow viewport, touch, a

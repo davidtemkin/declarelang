@@ -1,5 +1,5 @@
 /*
-# Table / TableRow
+# Table
 
 The list collection, componentized: the selection-bearing, scroll-owning frame around a replicated (or
 written) collection, carrying the selection model so no app hand-rolls it again:
@@ -43,10 +43,9 @@ App [ width = 320, height = 200,
 ```
 
 ## selected
-On a **`Table`**, the primary selected *member* — the record most recently selected, or
-`null`. On a **`TableRow`**, whether this row's member is in that selection, derived
-from the table and never stored. Both are members-not-views: **selection survives sorts,
-filters, and windowing** because it was never a set of instances.
+The primary selected *member* — the record most recently selected, or `null`.
+Members, not views: **selection survives sorts, filters, and windowing** because it was
+never a set of instances.
 
 ## selection
 Every selected member, in presented order — `null` when nothing is selected. Records
@@ -54,9 +53,8 @@ for a replicated table, the row views themselves for a written one. **Never assi
 deliver through `input`.**
 
 ## active
-On a **`Table`**, the member the keyboard stands on — moved by arrows, and distinct from
-the selection, which is what makes ⌘-walk-then-Space possible. On a **`TableRow`**,
-whether this row is that one.
+The member the keyboard stands on — moved by arrows, and distinct from the selection,
+which is what makes ⌘-walk-then-Space possible.
 
 ## selects
 The mode: `"none"`, `"single"` (the default), or `"multi"`. Multi is what enables
@@ -117,15 +115,6 @@ a re-sort**.
 ## same()
 Whether two members are the same one, by `idOf`.
 
-## member()
-The member this row presents: its **record** when replicated, the row view itself when
-written by hand.
-
-## rowIndex()
-This row's logical index in data order — read from the cursor when replicated, so it is
-true under windowing. A method rather than a slot because its consumers are gestures,
-and the written-row fallback walks children, which no constraint may do.
-
 ## anchorIndex
 **Internal.** Where a shift-range extends from.
 
@@ -136,29 +125,9 @@ and the written-row fallback walks children, which no constraint may do.
 Arrows, Home/End, Space (multi), Delete/Backspace and Enter. An override should call
 through or the table loses its keyboard.
 
-## onPointerDown
-Focuses the **table**, not the row — rows are never tab stops, so the arrow keys must
-land on the container.
-
-## onClick
-Delivers the click to the table's `rowClick` with the modifier state. Override
-`rowClick` on the table rather than this, unless a particular row needs to opt out.
-
 ## isTable
 **Internal.** The marker rows guard on, so a bare `TableRow` under a plain parent boots
 rather than crashing into a missing protocol — not API.
-
-## isTableRow
-**Internal.** The marker the table's walks key on — not API.
-
-## width
-As wide as its table; a row never sizes itself.
-
-## fill
-Selected takes the selected tint, hovered the hover tint, otherwise none — a row is transparent so the table's own ground shows through.
-
-## stroke
-The active row shows an accent ring only while the table's focus is visible (keyboard, not pointer) — the rule every control's focus ring follows.
 */
 
 include [ "control.declare" ]
@@ -331,6 +300,63 @@ class Table extends Control [
     ]
 
 
+/*
+# TableRow
+
+One row of a `Table`: a direct child of it, replicated over data (`datapath = :rows[]`)
+or written by hand. A row carries no selection wiring of its own — it reads whether it
+is selected or active from its table, and hands clicks to the table's `rowClick`. It is
+never a tab stop: the table holds focus, so the arrow keys land on the container.
+
+```declare
+App [ width = 320, height = 170,
+    d: Dataset { { "rows": [ { "id": 1, "label": "Ada" }, { "id": 2, "label": "Grace" } ] } },
+    t: Table [ x = 20, y = 20, width = 220, height = 60, datapath = { d.value },
+        TableRow [ datapath = :rows[], height = 28,
+            Text [ x = 8, y = center, text = { :label + (parent.selected ? "  ✓" : "") } ]
+            ]
+        ],
+    Text [ x = 20, y = 110, text = "Click a row: its own selected fact follows." ]
+    ]
+```
+
+## selected
+Whether this row's member is in its table's selection — derived from the table, never
+stored.
+
+## active
+Whether this row is its table's keyboard position.
+
+## member()
+The member this row presents: its **record** when replicated, the row view itself when
+written by hand.
+
+## rowIndex()
+This row's logical index in data order — read from the cursor when replicated, so it is
+true under windowing. A method rather than a slot because its consumers are gestures,
+and the written-row fallback walks children, which no constraint may do.
+
+## onPointerDown
+Focuses the **table**, not the row — rows are never tab stops, so the arrow keys must
+land on the container.
+
+## onClick
+Delivers the click to the table's `rowClick` with the modifier state. Override
+`rowClick` on the table rather than this, unless a particular row needs to opt out.
+
+## isTableRow
+**Internal.** The marker the table's walks key on — not API.
+
+## width
+As wide as its table; a row never sizes itself.
+
+## fill
+Selected takes the selected tint, hovered the hover tint, otherwise none — a row is transparent so the table's own ground shows through.
+
+## stroke
+The active row shows an accent ring only while the table's focus is visible (keyboard, not pointer) — the rule every control's focus ring follows.
+*/
+
 class TableRow extends Control [
     // the marker Table's walks key on (a plain fact, minifier-safe)
 
@@ -339,7 +365,7 @@ class TableRow extends Control [
     // The member this row presents: its record when replicated (the whole
     // region at its cursor), the row view itself when written.
 
-    member() -> object { return this.datapath != null ? this.$data("") : this },
+    member() -> object { return this.datapath != null ? :@ : this },
 
     // the row's logical index — the cursor path's last segment when
     // replicated (true data order, windowing included); a written row asks

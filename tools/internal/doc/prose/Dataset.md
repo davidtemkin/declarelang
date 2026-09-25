@@ -12,8 +12,11 @@ grid: View [ datapath = { classroot.cal.value },
     ]
 ```
 
-Read or replace the whole value through `.value` (a reactive slot — writing it wakes
-every reader); a whole-value swap re-renders the datapaths that read it in one settle.
+Read the whole document through `.value` (tracked like any read). `.value` itself is
+read-only: the document changes through the verbs — `set(path, v)` writes one place,
+`set([], v)` replaces the whole document, `insert`, `removeAt` and `move` reshape arrays —
+and a replicated row writes a field of its own record with `:field = v`. A whole-document
+replacement re-renders the datapaths that read it in one settle.
 
 ## schema
 The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):
@@ -26,9 +29,10 @@ unconventional name). Presence is the only switch; the `:path` surface never cha
 ## contents
 Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes
 the value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It
-recomputes exactly when what it reads changes, dep-gated like any constraint. Pair a derived
-list with `key = :field` on its replicated child so a recompute reconciles by that stable
-field (O(changed) instances) instead of by object identity (rebuild-all).
+recomputes exactly when what it reads changes, dep-gated like any constraint. A recompute
+reconciles replicated rows by each record's `id` field (or `key = :field` when identity lives
+under another name), so only the records that changed rebuild. A derived document is a
+projection: write the raw data it derives from, not the derivation.
 
 ## read()
 Tracked region read: `data.read([ "cols" ])` returns the value at that path **and subscribes
@@ -62,5 +66,5 @@ follow the new order (a reorder, not a destroy-and-rebuild), so their state ride
 The parsed data. `contents` is the slot you *write* (or a JSON body, or a fetch); this is
 the one you read, and it is read-only — a dataset changes through the structural verbs
 (`set`, `insert`, `removeAt`, `move`) or by a `DataSource` fetch landing, never by
-assignment. `:path` reads resolve against it, and a write wakes exactly the bindings that
+assignment. `:path` reads resolve against it, and a write wakes exactly the constraints that
 read the region that changed.

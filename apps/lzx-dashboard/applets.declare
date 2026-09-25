@@ -9,8 +9,8 @@ original.)
 
 The Communications window's live tab. The original talked to a chat server and
 rendered what came back; there is no server here, so a sent line is echoed
-straight into the transcript — in the same blue the server's copy of your own
-message used to arrive in.
+straight into the transcript — in the blue the original gave your own
+messages.
 */
 
 class ChatPanel extends View [
@@ -399,17 +399,15 @@ class MediaTransport extends View [
     width = 100%, height = 74,
     idleLabel: string = "Choose a track below.",
 
-    // The player this transport drives, in two halves. Verbs go through
-    // `player`, which the panel assigns once at init. The facts it displays
-    // arrive as constraints from the instance site instead, because reading
-    // through an assigned slot is not a live dependency while a
-    // `{ song.position }` written at the declaration is.
+    // The player this transport drives — the panel points it at its Audio or
+    // Video. The verbs go through it, and so does everything the transport
+    // displays: a constraint that reads through `player` follows the playhead.
 
     player: Media = null,
-    pos: number = 0,
-    dur: number = 0,
-    isPlaying: boolean = false,
-    isLoaded: boolean = false,
+    pos: number = { player != null ? player.position : 0 },
+    dur: number = { player != null ? player.duration : 0 },
+    isPlaying: boolean = { player != null && player.playing },
+    isLoaded: boolean = { player != null && player.loaded },
 
     // The buttons, wells and glyphs are the original's art — pixel icons are
     // not worth redrawing — while the bars and their geometry are ours.
@@ -534,17 +532,11 @@ class MusicPanel extends View [
         onEnded() { app.mediaWants = false }
         ],
 
-    // a component slot takes an assignment, not a constraint
-
-    onInit() { transport.player = song },
-
     iconWell: Image [ x = 4, y = 3, width = 32, height = 32, stretches = both,
         shadow = shadow(2, 2, 0, #826886),
         source = { app.nowPlayingIcon } ],
 
-    transport: MediaTransport [ y = 32,
-        pos = { song.position }, dur = { song.duration },
-        isPlaying = { song.playing }, isLoaded = { song.loaded } ],
+    transport: MediaTransport [ y = 32, player = { song } ],
 
     grid: View [ y = 106, width = 100%, height = { parent.height - 106 },
         fill = #FFFFFF, clip = true, scrolls = y,
@@ -573,12 +565,8 @@ class VideoPanel extends View [
         onEnded() { position = 0; app.mediaWants = false }
         ],
 
-    onInit() { transport.player = reel },
-
     transport: MediaTransport [ y = { parent.height - 74 - 65 },
-        idleLabel = "Choose a video below.",
-        pos = { reel.position }, dur = { reel.duration },
-        isPlaying = { reel.playing }, isLoaded = { reel.loaded } ],
+        idleLabel = "Choose a video below.", player = { reel } ],
 
     strip: View [ y = { parent.height - 65 }, width = 100%, height = 65,
         fill = #F8EEF8, clip = true,

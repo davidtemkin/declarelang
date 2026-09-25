@@ -77,6 +77,6 @@ them.
 
 ## arrived
 **Read-only.** True when every member has reached its destination — the pair to
-`running`, and the one to bind to when the interesting moment is the **end** of a motion
+`running`, and the one to read when the interesting moment is the **end** of a motion
 rather than the change that caused it. An interrupted group never arrives; it simply
 keeps running toward the new target.

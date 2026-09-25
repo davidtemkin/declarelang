@@ -165,5 +165,27 @@ await (async () => {
   });
 })();
 
+// A list of names is a literal on every node — a DataSource, a stream — not only
+// on a view: a request that fails is heard once, through `failed`.
+await (async () => {
+  const { provideTransport } = await import("../runtime/dist/data.js");
+  const prev = provideTransport(async () => ({ ok: false, status: 500, text: async () => "{\"message\":\"nope\"}" }));
+  try {
+    const app = await build(`App [ width = 100, height = 100, heard: number = 0,
+      src: DataSource [ url = "/x", trackChanges = [ "failed" ],
+          onChange(e: ChangeEvent) { if (this.failed) app.heard = app.heard + 1 } ],
+      feed: EventStream [ listenTo = [ "delta", "done" ] ] ]`);
+    app.src.fetch();
+    await new Promise((r) => setTimeout(r, 10)); settle();
+    test("trackChanges = [ … ] on a DataSource hears the failure", () => {
+      assert.equal(app.heard, 1);
+      assert.equal(app.src.errorBody.message, "nope");
+    });
+    test("listenTo = [ … ] on a stream is the list it names", () => {
+      assert.deepEqual([...app.feed.listenTo], ["delta", "done"]);
+    });
+  } finally { provideTransport(prev); }
+})();
+
 console.log(`change-event: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

@@ -154,7 +154,7 @@ class HitFig extends Plate [
             : this.hit == "Child" ? "Inside the pane’s clip. Past the pane’s edge the same child is neither drawn nor hit."
             : this.hit == "Clipped pane" ? "The child’s clipped-away part is not there to be hit; the press falls to the pane."
             : this.hit == "Invisible glass" ? "Opacity is paint. The view is fully present, so it takes the press over the card beneath it."
-            : this.hit == "Rotated card" ? "Hit through its rotation: the corners of its unrotated box do not count. The white label on it is pointerEvents none, so the walk skips it and finds the card."
+            : this.hit == "Rotated card" ? "Hit through its rotation: the corners of its unrotated box do not count. The white label on it declares nothing about the pointer, so the walk passes through it and finds the card."
             : this.hit == "Card" ? "The topmost view here, and it declares onClick, so it takes the press."
             : "Only the scene: nothing drawn above it is under the pointer." },
 

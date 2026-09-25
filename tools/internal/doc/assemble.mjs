@@ -31,6 +31,7 @@ import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { FLAG_SPECS, DEFAULT_FLAGS } from "../../../compiler/dist/flags.js";
 import { REQ } from "../../../compiler/dist/reqtypes.js";
+import { DIAGNOSTIC_CATALOG } from "../../../runtime/dist/diagnostics.js";
 import { LANGUAGE_API } from "../../../compiler/dist/scaffold.js";
 import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD, PAYLOAD_TYPE_NAMES } from "../../../runtime/dist/schema.js";
 import { DECLARED_TYPE_NAMES, declaredType } from "../../../runtime/dist/value.js";
@@ -294,7 +295,9 @@ function themeTokenSpine() {
   return {
     required: [...bare].sort().map(row),
     optional: [...guarded].sort().map(row),
-    presets: readdirSync(join(ROOT, "library/themes")).filter((f) => f.endsWith(".declare")).map((f) => f.replace(/\.declare$/, "")).sort(),
+    // the light record each preset file declares, by its declared name (`SanFrancisco`)
+    presets: readdirSync(join(ROOT, "library/themes")).filter((f) => f.endsWith(".declare")).sort()
+      .flatMap((f) => [...readFileSync(join(ROOT, "library/themes", f), "utf8").matchAll(/^theme (\w+) \[/gm)].map((m) => m[1]).filter((n) => !/Dark$/.test(n))),
   };
 }
 
@@ -532,10 +535,39 @@ const colorsDoc = (spine) => ["# Named colors", "",
   "| name | hex |", "|---|---|", ...Object.entries(spine.colors).map(([n, hex]) => `| \`${n}\` | \`${hex}\` |`)].join("\n");
 const flagsDoc = (spine) => ["# Compile flags", "", "*Modifiers on a program URL (`?…`), the `declarec` CLI (`--…`), and the JS API — one set of names.*", "",
   "| flag | what it does | default |", "|---|---|---|", ...spine.flags.map((f) => `| \`${f.name}\` | ${f.description} | \`${f.default}\` |`)].join("\n");
-const diagnosticsDoc = (spine) => ["# Diagnostic codes", "", `*Every compiler diagnostic carries a \`${spine.diagnostics.prefix}####\` code, and its message names the fix.*`, "",
-  spine.diagnostics.codes.map((c) => "`" + c + "`").join(" · ")].join("\n");
-const requestsDoc = (spine) => ["# Request types", "", "*The addressable request surface of a program URL.*", "",
-  Object.keys(spine.requests).map((r) => "`" + r + "`").join(" · ")].join("\n");
+// One line per code, from the compiler's own catalog (diagnostics.ts), grouped by
+// the phase that raises it — the page answers "what is DECLARE4014?" on sight.
+const PHASE_TITLE = { syntax: "Syntax", structure: "Structure", type: "Values and types", name: "Names and scope", module: "Files and includes", typecheck: "Type checking", constraint: "Constraints" };
+const diagnosticsDoc = (spine) => {
+  const out = ["# Diagnostic codes", "", `*Every compiler diagnostic carries a \`${spine.diagnostics.prefix}####\` code, and its message names the fix. \`npx declare-help ${spine.diagnostics.prefix}4001\` answers one code in full.*`];
+  const byPhase = new Map();
+  for (const d of DIAGNOSTIC_CATALOG) (byPhase.get(d.phase) ?? byPhase.set(d.phase, []).get(d.phase)).push(d);
+  for (const [phase, rows] of byPhase) {
+    out.push("", `## ${PHASE_TITLE[phase] ?? phase}`, "", "| code | what it means |", "|---|---|");
+    for (const d of rows) out.push(`| \`${d.code}\` | ${d.summary.replace(/\|/g, "\\|")} |`);
+  }
+  return out.join("\n");
+};
+// What each request returns and how a URL asks for it. Keyed by REQ value, so a new
+// request type without a line here fails the build instead of shipping unexplained.
+const REQUEST_LINES = {
+  run: ["*(no key)*", "boot and run the program — what an ordinary link to a `.declare` file does"],
+  build: ["`?build`", "the self-contained production package `declarec` makes, served as a directory"],
+  reader: ["`?viewer`", "Declare Viewer's Reader: the source highlighted, its block comments rendered as prose"],
+  source: ["`?viewer=source`", "the Viewer showing the source verbatim"],
+  edit: ["`?viewer=edit`", "the Viewer's workbench: the source in an editor, the running program below it"],
+  file: ["`?file`", "the raw source file as plain text — what an `include` or `curl` reads"],
+  segments: ["`?segments`", "the Reader's data alone — the highlighted segments as JSON, for tooling"],
+  extract: ["`?extract`", "the HTML a crawler reads: the program's content at its first frame"],
+  program: ["`?program`", "the compiled program as JSON, for a host with its own renderer (the Mac app)"],
+};
+const requestsDoc = (spine) => {
+  const missing = Object.values(spine.requests).filter((r) => !REQUEST_LINES[r]);
+  if (missing.length) throw new Error(`assemble: request type(s) with no line on the Requests page: ${missing.join(", ")} — add them to REQUEST_LINES`);
+  return ["# Request types", "", "*What a program URL returns. One request per URL; with no request key, a program runs. A request combines with the compile flags — `?viewer=edit&render=canvas`.*", "",
+    "| request | URL | what it returns |", "|---|---|---|",
+    ...Object.values(spine.requests).map((r) => `| \`${r}\` | ${REQUEST_LINES[r][0]} | ${REQUEST_LINES[r][1]} |`)].join("\n");
+};
 
 // One line per shared type/function: what it is, and the thing a signature does
 // not say. Keyed by name so the page stays generated — a type added to the
@@ -725,7 +757,7 @@ const TYPE_GROUPS = [
              "FitAlign", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
              "Process", "Scrolls", "StreamStatus", "Stretch", "TextAlign", "TextTransform", "Tick"]],
   ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "Shape", "Stroke", "BoxStroke", "Outline",
-              "Shadow", "Filter", "Backdrop", "Theme", "MotionCurve", "Cursor", "TextMeasure", "IslandPost"]],
+              "Shadow", "Filter", "Backdrop", "Theme", "MotionCurve", "Cursor", "TextMeasure", "IslandPost", "DelayHandle"]],
   ["Text", ["TextStyle", "TextStyles", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "ChangeEvent", "ValueChange"]],
@@ -791,7 +823,7 @@ function typeUses(name, tokens, ref, shared, siblings) {
     let detail = null;
     if (n.kind === "attribute") {
       const t = "" + (n.type ?? "");
-      if (t === name || (union !== null && t === union)) detail = n.default != null ? "= " + n.default : "";
+      if (t === name || (union !== null && (t === union || t === union + " | number"))) detail = n.default != null ? "= " + n.default : "";
     } else if (n.kind === "event" || n.kind === "method") {
       const sig = "" + (n.signature ?? "");
       if (named.test(sig)) detail = sig;
@@ -872,7 +904,10 @@ function buildTypes(spine, docsModel) {
   const index = { link: {}, unions: {} };
   for (const n of order) index.link[n] = "type/" + n;
   for (const c of docsModel.tree ?? []) if (!(c.name in index.link)) index.link[c.name] = "reference/" + c.name;
-  for (const [n, toks] of Object.entries(spine.enums)) index.unions[toks.join(" | ")] = "type/" + n;
+  for (const [n, toks] of Object.entries(spine.enums)) {
+    index.unions[toks.join(" | ")] = "type/" + n;
+    index.unions[toks.join(" | ") + " | number"] = "type/" + n;   // a numeric enum (FontWeight, Tick)
+  }
 
   return { groups, pages, order, index };
 }
@@ -891,7 +926,7 @@ const themeTokensDoc = (spine) => {
     "theme = { app.dark ? SanFranciscoDark : SanFrancisco },     // on the App",
     "theme = { { ...provided(\"theme\"), accent: 0xCC3333 } }       // override one token below",
     "```", "",
-    `Presets, each with a light record and a \`…Dark\` companion: ${spine.themeTokens.presets.map((p) => "`" + p + "`").join(" · ")}.`, "",
+    `Presets, each with a light record and a \`…Dark\` companion: ${spine.themeTokens.presets.map((p) => `[\`${p}\`](declare-docs:${p})`).join(" · ")}.`, "",
     "## Required — the contract", "",
     `**${t.required.length} tokens are read bare**, with no fallback. A record missing one of these`,
     "breaks the components that read it, which is why a theme is built from a preset rather than",

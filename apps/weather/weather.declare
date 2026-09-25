@@ -259,11 +259,11 @@ class WindCard extends Card [ label = "WIND",
     mph: number = 0,
     deg: number = 0,
     gusts: string = "",
-    dial: WindDial [ x = center, y = { (parent.height - 112) / 2 }, width = 112, height = 112,
+    dial: WindDial [ x = center, y = center, width = 112, height = 112,
         deg = { classroot.deg } ],
-    val: Text [ x = center, y = { (parent.height - 112) / 2 + 42 }, fontSize = 21,
+    val: Text [ x = center, y = { parent.dial.y + 42 }, fontSize = 21,
         fontWeight = semibold, textColor = white, wrap = false, text = { "" + classroot.mph } ],
-    unit: Text [ x = center, y = { (parent.height - 112) / 2 + 65 }, fontSize = 12,
+    unit: Text [ x = center, y = { parent.dial.y + 65 }, fontSize = 12,
         textColor = #FFFFFFCC, wrap = false, text = "mph" ],
     gustLine: Text [ x = 14, y = { parent.height - 26 }, width = { parent.width - 28 }, fontSize = 14,
         textColor = #FFFFFFCC, wrap = false, text = { classroot.gusts } ]
@@ -273,11 +273,11 @@ class WindCard extends Card [ label = "WIND",
 class PressureCard extends Card [ label = "PRESSURE",
     inHg: number = 0,
     frac: number = 0.5,
-    gauge: PressureGauge [ x = center, y = { (parent.height - 112) / 2 }, width = 112, height = 112,
+    gauge: PressureGauge [ x = center, y = center, width = 112, height = 112,
         frac = { classroot.frac } ],
-    val: Text [ x = center, y = { (parent.height - 112) / 2 + 58 }, fontSize = 22,
+    val: Text [ x = center, y = { parent.gauge.y + 58 }, fontSize = 22,
         fontWeight = semibold, textColor = white, wrap = false, text = { "" + classroot.inHg } ],
-    unit: Text [ x = center, y = { (parent.height - 112) / 2 + 80 }, fontSize = 12,
+    unit: Text [ x = center, y = { parent.gauge.y + 80 }, fontSize = 12,
         textColor = #FFFFFFCC, wrap = false, text = "inHg" ],
     loLabel: Text [ x = 22, y = { parent.height - 26 }, fontSize = 13, textColor = #FFFFFFCC,
         wrap = false, text = "Low" ],
@@ -333,7 +333,7 @@ class MoonCard extends Card [
 
 
 // The plain value-plus-sentence card — feels like, humidity, visibility.
-// One class, several uses; only the bound values differ.
+// One class, several uses; only the values it is given differ.
 
 class StatCard extends Card [
     value: string = "",
@@ -417,7 +417,7 @@ class AlertCard extends Card [ label = "WEATHER ALERT",
 // ── the card grid ──────────────────────────────────────────────────────────
 // The whole card vocabulary for one city. Both dialects instantiate this;
 // only the width and the column count differ (2 columns on a phone, 3 or 4
-// on a desktop). Every card binds its values from `city` — the guards keep
+// on a desktop). Every card takes its values from `city` — the guards keep
 // the grid quiet before the data arrives.
 
 class CityCards extends View [
@@ -668,10 +668,10 @@ class CityView extends View [
 
     // `openIn` is the raw scalar; `open` is it clamped, and everything below
     // reads the clamped one. A spring at ζ≈0.87 rings past both ends by about
-    // 0.4%, and geometry must not extrapolate with it: past 1 this view grew
-    // wider than the viewport and sat a pixel above it, past 0 it shrank
-    // smaller than the row it belongs to. The bounce belongs to the timing,
-    // not to the box.
+    // 0.4%, and geometry must not extrapolate with it: past 1 this view would
+    // grow wider than the viewport and sit a pixel above it, past 0 it would
+    // shrink smaller than the row it belongs to. The bounce belongs to the
+    // timing, not to the box.
 
     openIn: number = 0,
     open: number = { Math.max(0, Math.min(1, this.openIn)) },
@@ -804,7 +804,7 @@ class CityView extends View [
     ## The cards rise
 
     They belong to this view, so they ride in it — one grid, built once,
-    re-bound as you page. They rise from the foot of the screen into their
+    handed each city as you page. They rise from the foot of the screen into their
     seat under the header, and they are present, and frosted, from the first
     frame of the open.
 
@@ -873,7 +873,7 @@ App [ textColor = whitesmoke, appName = "Weather",
     // Both projections hold copies — just the fields their rows render —
     // never the city objects themselves. A Dataset adopts every container
     // placed in it, and adoption is exclusive: sharing the objects would
-    // pull them out of `data`, breaking everything else bound to them.
+    // pull them out of `data`, breaking everything else that reads them.
     // `shown` is the search-filtered list; `pageset` is the pager's roster,
     // which search must never narrow.
 
@@ -896,7 +896,7 @@ App [ textColor = whitesmoke, appName = "Weather",
     a path with no records builds nothing. That makes "which dialect is this?"
     the same question as "how many rows are there?", answered once, in data,
     rather than by hiding what has already been made. Hiding is not free: a
-    view that is built holds its box, its bindings, and — if it draws — a
+    view that is built holds its box, its constraints, and — if it draws — a
     full-size canvas, whether or not anyone can see it.
     */
 
@@ -1334,7 +1334,7 @@ App [ textColor = whitesmoke, appName = "Weather",
             x = { lerp(16, 0, app.openT) + app.swipeX },
             visible = { app.cityUp } ],
 
-        // The arriving neighbour: the same class, bound to one record and held
+        // The arriving neighbour: the same class, given one record and held
         // outside the document (`ignoreScroll`), because the page's extent
         // must be exactly the city you are reading — a neighbour occupying a
         // row would add its height to the scroll range. `pinned` tells its sky

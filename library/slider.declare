@@ -17,7 +17,7 @@ col: View [ x = 20, y = 20,
 ```
 
 ## value
-Where the handle sits, in your own units. Standalone the slider owns it; bound
+Where the handle sits, in your own units. Standalone the slider owns it; constrained
 (`value = { app.volume }`) it needs an `input` override with it, or the drag's own
 delivery is refused against the constraint.
 

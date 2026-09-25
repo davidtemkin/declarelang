@@ -1,0 +1,9 @@
+App [ width = 320, height = 190, fill = #F4F6FA, textColor = #172530,
+    Card [ x = 20, y = 20, width = 280,
+        Text [ fontSize = 15, fontWeight = semibold, text = "Storage" ],
+        Text [ width = 100%, textColor = slategray,
+            text = "Cards size themselves to what they hold, padding included." ],
+        Divider [ ],
+        Button [ label = "Manage" ]
+        ]
+    ]

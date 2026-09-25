@@ -115,24 +115,22 @@ await test("a real modulo is not mistaken for a percentage", async () => {
 });
 
 // ── the globals a body may use are IN SCOPE for the checker ──────────────────
-// The resolver admits `fetch` (it is in Node's globalThis) but the checker
-// loads no DOM lib, so until the prelude declared them by hand, `fetch`, `URL`
-// and `AbortController` failed R3 with "nothing in scope is named 'fetch' …
-// or a global" — which three agents read as an invitation to
-// `(globalThis as any).fetch` (field report 2026-08-21).
-await test("a handler may call fetch, build a URL, and cancel with an AbortController", async () => {
+// The checker loads no DOM lib, so the prelude declares the host chores a body
+// may use (URL, console, the URI escapes) by hand. The host's fetch and timers
+// are declared too — a script block shares the prelude — but a body is
+// answered with DataSource / afterDelay / Time instead.
+await test("a handler may build a URL and escape a component; fetch is answered with DataSource", async () => {
   const src = `App [ Text [ text = "x", onClick() {
     const u = new URL("/x?a=1", "http://h"); u.searchParams.set("b", "2");
-    const c = new AbortController();
-    fetch(u, { method: "POST", body: JSON.stringify({ a: 1 }), headers: { "content-type": "application/json" }, signal: c.signal })
-      .then((r) => r.ok ? r.json() : null).then((j) => console.log(j, encodeURIComponent("x y")));
+    console.log(u.toString(), encodeURIComponent("x y"));
   } ] ]`;
   const text = await errText(src);
   assert.equal(text, "", `expected a clean compile, got:\n  ${text}`);
+  await says(`App [ Text [ text = "x", onClick() { fetch("/x") } ] ]`, "A request is a DataSource member");
 });
 
 await test("an unknown bare name names what a global IS, instead of offering 'a global' as the answer", async () => {
-  await says(`App [ Text [ text = "x", onClick() { bogus(1) } ] ]`, "one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)");
+  await says(`App [ Text [ text = "x", onClick() { bogus(1) } ] ]`, "one of the globals a body may use (Math, JSON, Date, URL, console, …)");
 });
 
 // ── a typecheck error has a COLUMN ──────────────────────────────────────────
@@ -186,8 +184,8 @@ await test("a host global in a body is refused at resolution with the Declare wa
 });
 
 await test("await in a body is refused in Declare's words, naming the DataSource and .then() shapes", async () => {
-  await says(`App [ Text [ text = "x", onClick() { const r = await fetch("/x"); console.log(r) } ] ]`, "a { } body is synchronous — there is no 'await'");
-  await silent(`App [ Text [ text = "x", onClick() { const r = await fetch("/x"); console.log(r) } ] ]`, "async functions");
+  await says(`App [ Text [ text = "x", onClick() { const r = await Promise.resolve(1); console.log(r) } ] ]`, "a { } body is synchronous — there is no 'await'");
+  await silent(`App [ Text [ text = "x", onClick() { const r = await Promise.resolve(1); console.log(r) } ] ]`, "async functions");
 });
 
 // ── a bare enum token inside { } names its quoted form ──────────────────────
@@ -535,4 +533,18 @@ await test("DECLARE4013: a press() override on a Button warns and names onClick;
     Button [ label = "Go", onClick() { app.n = app.n + 1 } ] ]`);
   assert.equal(codes(plain, "DECLARE4013").length, 0, "the library's Button.press() is the definition, not an override");
 });
+// A subclass re-declaring an inherited child compiled clean and died at boot
+// ("already a member of the running B"). It is refused at compile, naming the
+// base that owns the child; `layout:` is the attribute form and stays legal.
+await test("a subclass cannot re-declare an inherited child — said at compile, naming the owner", async () => {
+  await says(`class A extends View [ width = 100, height = 40, inner: View [ width = 10, height = 10 ] ]
+    class B extends A [ inner: View [ width = 20, height = 20 ] ]
+    App [ B [ ] ]`, "'inner' is a child B inherits from A");
+  await says(`class MyButton extends Button [ run: Text [ text = "x" ] ]
+    App [ MyButton [ label = "hi" ] ]`, "'run' is a child MyButton inherits from Button");
+  await silent(`class A extends View [ width = 100, height = 40, layout: SimpleLayout [ axis = y ] ]
+    class B extends A [ layout: SimpleLayout [ axis = x ] ]
+    App [ B [ ] ]`, "inherits from");
+});
+
 summarize("diagnostics-hints");

@@ -13,7 +13,7 @@ App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
             Text [ text = { :score + " points" } ]
             ],
         Button [ label = "add a record", height = 30,
-            onClick() { app.people.insert(["rows"], (app.people.value as any).rows.length, ({ id: app.next, name: "Person " + app.next, score: 70 })); app.next = app.next + 1 }
+            onClick() { app.people.insert(["rows"], app.people.value.rows.length, ({ id: app.next, name: "Person " + app.next, score: 70 })); app.next = app.next + 1 }
             ]
         ]
     ]

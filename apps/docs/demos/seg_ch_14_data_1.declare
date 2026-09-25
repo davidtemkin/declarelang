@@ -1,0 +1,19 @@
+App [ width = 320, height = 170, fill = white, textColor = #172530,
+    todo: Dataset { { "items": [ { "id": 1, "title": "Water the plants", "done": false, "stars": 0 },
+                                 { "id": 2, "title": "Call the bank", "done": true, "stars": 2 } ] } },
+    left: number = { app.todo.value.items.filter((t) => !t.done).length },
+    col: View [ x = 20, y = 20, width = 280, datapath = { app.todo.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ fontWeight = semibold, text = { app.left + " left to do" } ],
+        View [ datapath = :items[], width = 100%, height = 30,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Checkbox [ checked = :done,
+                input(v: boolean) { :done = v }
+                ],
+            Text [ width = 150, text = :title ],
+            Button [ label = { "★ " + :stars }, height = 26,
+                onClick() { :stars += 1 }
+                ]
+            ]
+        ]
+    ]

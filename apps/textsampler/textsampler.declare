@@ -3,8 +3,8 @@
 // one long scroll: Text (a plain run up through gradients, shadows, tracking),
 // Rich Text (HTMLText — inline styles, the textStyles palette, variable inline
 // size on a shared baseline, links, and real views placed inline in the flowing
-// text), Effects (the treatments, one style bundle
-// each), and Markdown (a whole document, a table, a code block). Every specimen
+// text), Effects (the treatments, one style bundle each), and Markdown (a whole
+// document, a table, a code block). Every specimen
 // shows the live text and, below it, the exact Declare fragment that draws it —
 // static illustrative source, not a live editor. Styled to sit beside sampler
 // and viewer: the San Francisco theme, bordered cards on a quiet ground. Each
@@ -51,7 +51,7 @@ class Chip extends View [ label: string = "",
     cornerRadius = 9,
     fill = { provided("theme").bg },
     stroke = { stroke(1, provided("theme").line) },
-    t: TextLabel [ x = 9, y = center, fontSize = 11.5, text = { classroot.label },
+    t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label },
         textColor = { provided("theme").textMuted } ]
     ]
 
@@ -63,9 +63,9 @@ class Pill extends View [ label: string = "",
     cornerRadius = 10,
     fill = { picked ? provided("theme").accent : (hovered ? provided("theme").line : provided("theme").bg) },
     onClick() { picked = !picked },
-    t: TextLabel [ x = 11, y = center, fontSize = 11.5, fontWeight = medium,
+    t: TextLabel [ x = 11, fontSize = 11.5, fontWeight = medium,
         text = { classroot.picked ? classroot.label + " ✓" : classroot.label },
-        textColor = { classroot.picked ? 0xFFFFFF : provided("theme").textMuted } ]
+        textColor = { classroot.picked ? provided("theme").accentText : provided("theme").textMuted } ]
     ]
 
 
@@ -111,7 +111,7 @@ App [ minWidth = 340,
     textColor = { provided("theme").text },
     selectable = true,                           // a provided value — every specimen and snippet is selectable/copyable
 
-    page: string = "text",                       // text | rich | markdown
+    page: string = "text",                       // text | rich | effects | markdown
     themeMode: string = "auto",                  // light | auto | dark
     darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     narrow: boolean = { app.width < 900 },
@@ -128,8 +128,7 @@ App [ minWidth = 340,
         fill = { provided("theme").surface },
 
         // the rule under the bar is the bar's own bottom edge — a per-side
-        // stroke, not a child view. (The cast is the slot's TS type, `Stroke`,
-        // not yet admitting the four-sided list a { } constraint may hand it.)
+        // stroke, not a child view
 
         stroke = { [null, null, stroke(1, provided("theme").line), null] },
 
@@ -158,13 +157,10 @@ App [ minWidth = 340,
                           ({ id: "markdown", label: "Markdown" }) ] }
             ],
 
-        // the theme switch — light · follow the system · dark: the house
-        // control with the house marks, each choice naming its icon in data
-
         // light / dark: shows the appearance in force, a press flips it; until
         // then `themeMode` stays "auto" and the OS decides
 
-        themeSwitch: AppearanceSwitch [ y = { (app.barH - this.height) / 2 }, x = { app.width - this.width - 14 },
+        themeSwitch: AppearanceSwitch [ y = center, x = { app.width - this.width - 14 },
             dark = { app.darkUI },
             input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
@@ -200,7 +196,7 @@ App [ minWidth = 340,
                             Text [ fontSize = 18, fontWeight = semibold, textColor = { provided("theme").text }, text = "Semibold 18", wrap = false ],
                             Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = "Regular 14", wrap = false ]
                             ],
-                        Snippet [ code = "Text [ fontSize = 26, fontWeight = bold, text = \"Bold 26\" ]\nText [ fontSize = 18, fontWeight = semibold, text = \"Semibold 18\" ]\nText [ fontSize = 14, text = \"Regular 14\" ]" ]
+                        Snippet [ code = "Text [ fontSize = 26, fontWeight = bold,\n    text = \"Bold 26\" ]\nText [ fontSize = 18, fontWeight = semibold,\n    text = \"Semibold 18\" ]\nText [ fontSize = 14, text = \"Regular 14\" ]" ]
                         ],
 
                     Specimen [ label = "ITALIC & FAMILY",
@@ -209,7 +205,7 @@ App [ minWidth = 340,
                             Text [ fontSize = 20, italic = true, textColor = { provided("theme").text }, text = "Italic, the same face", wrap = false ],
                             Text [ fontSize = 20, fontFamily = "Georgia, 'Times New Roman', serif", textColor = { provided("theme").text }, text = "A serif family", wrap = false ]
                             ],
-                        Snippet [ code = "Text [ fontSize = 20, italic = true, text = \"Italic, the same face\" ]\nText [ fontSize = 20, fontFamily = \"Georgia, serif\",\n    text = \"A serif family\" ]" ]
+                        Snippet [ code = "Text [ fontSize = 20, italic = true,\n    text = \"Italic, the same face\" ]\nText [ fontSize = 20, fontFamily = \"Georgia, serif\",\n    text = \"A serif family\" ]" ]
                         ]
                     ],
 
@@ -222,7 +218,7 @@ App [ minWidth = 340,
                             Text [ fontSize = 24, fontWeight = bold, textColor = { provided("theme").accent }, text = "A themed accent", wrap = false ],
                             Text [ fontSize = 30, fontWeight = bold, wrap = false, text = "Gradient fill", textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
                             ],
-                        Snippet [ code = "Text [ fontWeight = bold, textColor = { theme.accent },\n    text = \"A themed accent\" ]\nText [ fontWeight = bold, text = \"Gradient fill\",\n    textFill = gradient(\"90deg\", #4C8DFF, #37E0C8) ]" ]
+                        Snippet [ code = "Text [ fontWeight = bold,\n    textColor = { provided(\"theme\").accent },\n    text = \"A themed accent\" ]\nText [ fontWeight = bold, text = \"Gradient fill\",\n    textFill = gradient(\"90deg\", #4C8DFF, #37E0C8) ]" ]
                         ],
 
                     Specimen [ label = "SHADOW",
@@ -240,7 +236,7 @@ App [ minWidth = 340,
                     Specimen [ label = "A LINK",
                         Text [ width = 100%, fontSize = 17, fontWeight = medium, wrap = false, text = "Declare on GitHub →",
                             textColor = { provided("theme").accent }, link = "https://github.com/davidtemkin/declarelang" ],
-                        Snippet [ code = "Text [ link = \"https://github.com/davidtemkin/declarelang\",\n    textColor = { theme.accent }, text = \"Declare on GitHub →\" ]" ]
+                        Snippet [ code = "Text [ link = \"https://github.com/davidtemkin/declarelang\",\n    textColor = { provided(\"theme\").accent },\n    text = \"Declare on GitHub →\" ]" ]
                         ]
                     ]
                 ],
@@ -267,8 +263,8 @@ App [ minWidth = 340,
                         Specimen [ label = "AN INLINE LINK",
                             HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 linkColor = { provided("theme").accent }, linkUnderline = true,
-                                html = "Read the <a href='#space'>space chapter</a> for how this flows." ],
-                            Snippet [ code = "HTMLText [ linkColor = { theme.accent }, linkUnderline = true,\n    html = \"Read the <a href='#space'>space chapter</a>\n    for how this flows.\" ]" ]
+                                html = "Read the <a href='#layout'>layout chapter</a> for how this flows." ],
+                            Snippet [ code = "HTMLText [ linkColor = { provided(\"theme\").accent },\n    linkUnderline = true,\n    html = \"Read the <a href='#layout'>layout chapter</a>\n    for how this flows.\" ]" ]
                             ],
 
                         Specimen [ label = "SYNTAX-COLORED SPANS",
@@ -299,7 +295,7 @@ App [ minWidth = 340,
                         Specimen [ label = "A VIEW IN A SENTENCE",
                             HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> this morning." ],
-                            Snippet [ code = "class Chip extends View [ label: string = \"\",\n    height = 19, width = { this.t.width + 18 }, cornerRadius = 9,\n    t: TextLabel [ x = 9, y = center, fontSize = 11.5,\n        text = { classroot.label } ]\n    ]\n\nHTMLText [ html = \"Filed under <Chip label='docs'/>\n    and <Chip label='runtime'/> this morning.\" ]" ]
+                            Snippet [ code = "class Chip extends View [ label: string = \"\",\n    height = 19, width = { this.t.width + 18 },\n    cornerRadius = 9,\n    t: TextLabel [ x = 9, fontSize = 11.5,\n        text = { classroot.label } ]\n    ]\n\nHTMLText [ html = \"Filed under <Chip label='docs'/>\n    and <Chip label='runtime'/> this morning.\" ]" ]
                             ],
 
                         // …and because it is a real view it has state: hover one,
@@ -308,7 +304,7 @@ App [ minWidth = 340,
                         Specimen [ label = "A VIEW, NOT A RUN",
                             HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "Click <Pill label='either'/> or <Pill label='this one'/> — each keeps its own state, and the line re-flows." ],
-                            Snippet [ code = "class Pill extends View [ label: string = \"\",\n    picked: boolean = false,\n    fill = { picked ? theme.accent : (hovered ? theme.line : theme.bg) },\n    onClick() { picked = !picked },\n    t: TextLabel [ text = { classroot.picked ? classroot.label + \" ✓\"\n        : classroot.label } ]\n    ]" ]
+                            Snippet [ code = "class Pill extends View [ label: string = \"\",\n    picked: boolean = false,\n    fill = { picked ? provided(\"theme\").accent\n        : hovered ? provided(\"theme\").line\n        : provided(\"theme\").bg },\n    onClick() { picked = !picked },\n    t: TextLabel [ text = { classroot.picked\n        ? classroot.label + \" ✓\" : classroot.label } ]\n    ]" ]
                             ]
                         ]
                     ],
@@ -325,14 +321,14 @@ App [ minWidth = 340,
 <p>Every run here is a <b>named</b> style, not a tangle of inline attributes. A word turns <b>bold</b> for weight or <i>italic</i> for aside, drops into <code>inline code</code> where a name must be exact, and still shares one <span class='mark'>baseline</span> with all its neighbours.</p>
 <p>Size is just another style. A <span class='big'>headline</span> word can sit mid-sentence and the line grows to hold it — the small text keeps its footing on the baseline. Set a phrase in <span class='caps'>small capitals</span> for a quiet label, or in <span class='upper'>uppercase</span> when it must carry across the room.</p>
 <blockquote>Style is a vocabulary you define once and speak everywhere — the document only ever names it.</blockquote>
-<p>That vocabulary reaches into code, too: a <span class='kw'>keyword</span>, a <span class='ty'>Type</span>, a <span class='st'>"string"</span> — the same tokens an editor colours, here by name. The decorative end comes along for free: a <span class='ring'>ringed</span> word, a <span class='shad'>lifted</span> one, a <span class='gone'>struck</span> revision, and a <a href='#space'>link</a> that raises its own intent.</p>
+<p>That vocabulary reaches into code, too: a <span class='kw'>keyword</span>, a <span class='ty'>Type</span>, a <span class='st'>"string"</span> — the same tokens an editor colours, here by name. The decorative end comes along for free: a <span class='ring'>ringed</span> word, a <span class='shad'>lifted</span> one, a <span class='gone'>struck</span> revision, and a <a href='#layout'>link</a> that raises its own intent.</p>
 <ul>
 <li>One name, defined once, worn anywhere</li>
 <li>Runs of any size, weight or fill on one baseline</li>
 <li>The same styled document on DOM, canvas and native Mac</li>
 </ul>
 """ ],
-                    Snippet [ code = "// brand, big, mark, caps, upper, kw, ty, st, ring, shad, gone — defined once, at the top\n\nHTMLText [ fontSize = 16, linkColor = { theme.accent }, linkUnderline = true,\n    html = \"\"\"\n<h3>The <span class='brand'>shape</span> of a sentence</h3>\n<p>Every run here is a <b>named</b> style, not a tangle of inline attributes. A word turns <b>bold</b> for weight or <i>italic</i> for aside, drops into <code>inline code</code> where a name must be exact, and still shares one <span class='mark'>baseline</span> with all its neighbours.</p>\n<p>Size is just another style. A <span class='big'>headline</span> word can sit mid-sentence and the line grows to hold it — the small text keeps its footing on the baseline. Set a phrase in <span class='caps'>small capitals</span> for a quiet label, or in <span class='upper'>uppercase</span> when it must carry across the room.</p>\n<blockquote>Style is a vocabulary you define once and speak everywhere — the document only ever names it.</blockquote>\n<p>That vocabulary reaches into code, too: a <span class='kw'>keyword</span>, a <span class='ty'>Type</span>, a <span class='st'>\"string\"</span> — the same tokens an editor colours, here by name. The decorative end comes along for free: a <span class='ring'>ringed</span> word, a <span class='shad'>lifted</span> one, a <span class='gone'>struck</span> revision, and a <a href='#space'>link</a> that raises its own intent.</p>\n<ul>\n<li>One name, defined once, worn anywhere</li>\n<li>Runs of any size, weight or fill on one baseline</li>\n<li>The same styled document on DOM, canvas and native Mac</li>\n</ul>\n\"\"\" ]" ]
+                    Snippet [ code = "// brand, big, mark, caps, upper, kw, ty, st, ring, shad, gone — defined once, at the top\n\nHTMLText [ fontSize = 16, linkColor = { provided(\"theme\").accent }, linkUnderline = true,\n    html = \"\"\"\n<h3>The <span class='brand'>shape</span> of a sentence</h3>\n<p>Every run here is a <b>named</b> style, not a tangle of inline attributes. A word turns <b>bold</b> for weight or <i>italic</i> for aside, drops into <code>inline code</code> where a name must be exact, and still shares one <span class='mark'>baseline</span> with all its neighbours.</p>\n<p>Size is just another style. A <span class='big'>headline</span> word can sit mid-sentence and the line grows to hold it — the small text keeps its footing on the baseline. Set a phrase in <span class='caps'>small capitals</span> for a quiet label, or in <span class='upper'>uppercase</span> when it must carry across the room.</p>\n<blockquote>Style is a vocabulary you define once and speak everywhere — the document only ever names it.</blockquote>\n<p>That vocabulary reaches into code, too: a <span class='kw'>keyword</span>, a <span class='ty'>Type</span>, a <span class='st'>\"string\"</span> — the same tokens an editor colours, here by name. The decorative end comes along for free: a <span class='ring'>ringed</span> word, a <span class='shad'>lifted</span> one, a <span class='gone'>struck</span> revision, and a <a href='#layout'>link</a> that raises its own intent.</p>\n<ul>\n<li>One name, defined once, worn anywhere</li>\n<li>Runs of any size, weight or fill on one baseline</li>\n<li>The same styled document on DOM, canvas and native Mac</li>\n</ul>\n\"\"\" ]" ]
                     ]
                 ],
 

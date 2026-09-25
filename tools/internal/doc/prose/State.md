@@ -14,7 +14,7 @@ card: View [ height = 72, fill = white,
 ```
 
 ## applied
-Whether the state is on. Bind it to a condition (`applied = { expanded }`) and the whole
+Whether the state is on. Constrain it to a condition (`applied = { expanded }`) and the whole
 bundle snaps in and out as that flips — the base values restore themselves when it turns
 off. The declarative alternative to the `apply()` / `remove()` / `toggle()` verbs.
 
@@ -28,9 +28,9 @@ Fires when the bundle turns **off**, the partner of `onApply` — after the base
 restored. For tearing down whatever `onApply` set up.
 
 ## apply()
-Turns the bundle **on** imperatively — the verb form of `applied = true`. Prefer binding
+Turns the bundle **on** imperatively — the verb form of `applied = true`. Prefer constraining
 `applied` to a condition; reach for `apply()` only when the toggle is truly event-driven and
-has no natural boolean to bind.
+has no natural boolean to constrain it to.
 
 ## remove()
 Turns the bundle **off**, restoring the base values via the precedence stack (no manual undo).

@@ -1118,7 +1118,7 @@ class FilesWindow extends Window [
                     // window opened onto a folder (focusDepth >= 0) instead pins
                     // that column to the left edge, so its contents lead.
 
-                    onInit() { setTimeout(() => {
+                    onInit() { afterDelay(440, () => {
                         const strip = classroot.body.strip
                         const fd = classroot.focusDepth
                         const left = this.x, right = left + this.width
@@ -1133,7 +1133,7 @@ class FilesWindow extends Window [
                             // like a user scroll — the app states the intent
                             strip.scrollToX(to, { duration: 260, motion: "cubicOut" })
                         }
-                    }, 440) },
+                    }) },
 
                     // a list column — this level's nodes as selectable rows
 
@@ -1160,7 +1160,7 @@ class FilesWindow extends Window [
                                         classroot.pendingPX = app.pointerX
                                         classroot.pendingPY = app.pointerY
                                         classroot.selPath = at
-                                        setTimeout(() => { if (classroot.pendingAt == at) classroot.pendingAt = "" }, 550)
+                                        afterDelay(550, () => { if (classroot.pendingAt == at) classroot.pendingAt = "" })
                                     }
                                     },
                                 hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.rowH - 4 }, cornerRadius = 5,
@@ -1707,7 +1707,7 @@ One taxonomy covers every citizen. A **built-in** app (Files, Jots) opens
 windows of this very program. A **hosted** app (Calendar, 50 Birds, Market Map,
 Declare Viewer) is a foreign program carried the same way — hosting is a subclass with
 a program path, not a different mechanism. An **inert** app (Write, Mail,
-Music) owns a quip and raises the alert. Chrome never switches on an
+Music, Terminal) owns a quip and raises the alert. Chrome never switches on an
 app id: the dock icon, the About box, the alert sheet, and a minimized
 window's badge all read the one instance, so the art, the name, and the
 running dot cannot disagree — and adding an application is one class plus one
@@ -1967,6 +1967,23 @@ class MusicApp extends InertApp [ id = "music", label = "Music", title = "Music"
     ]
 
 
+class TerminalApp extends InertApp [ id = "terminal", label = "Terminal", title = "Terminal",
+    quip = "Never.", hue1 = #3A3D44, hue2 = #16171B, drawn = true,
+    face(d: Draw) {
+        // the prompt: a chevron, then the cursor bar beside it
+        d.strokeStyle = 0xFFFFFF
+        d.lineWidth = 3
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(12, 16); d.lineTo(19, 23); d.lineTo(12, 30)
+        d.stroke()
+        d.fillStyle = 0xFFFFFF
+        d.fillRect(23, 28.5, 12, 3)
+        }
+    ]
+
+
 // the desktop itself — the About/Source subject when no application's window
 // is front; not in the dock roster
 
@@ -2044,10 +2061,8 @@ class WinManager extends Node [
     idSeq: number = 0,
     winCount: number = 0,
 
-    // the records. `recs()` reads through the tracked accessor, so a
-    // constraint that derives from the list re-derives on every insert/move/
-    // removeAt/set — mutations wake region cells, which plain `.value.wins`
-    // property access would never subscribe to.
+    // the records. `recs()` reads the list's region, so a constraint that
+    // derives from it re-derives on every insert/move/removeAt/set.
 
     list: Dataset { { "wins": [] } },
 
@@ -2255,7 +2270,7 @@ back from the id (a node reference never enters data-shaped state).
 
 The surface:
 
-  facts   the instances (`files` … `music`, plus `desk`, the desktop
+  facts   the instances (`files` … `terminal`, plus `desk`, the desktop
           itself) · `roster` (the dock's order) · `data` (id + ix, for the
           datapath) · `byId`
   verbs   each app's own `launch(v)` · `gated` (the launch bounce, once) ·
@@ -2279,12 +2294,13 @@ class Launcher extends Node [
     write:    WriteApp    [ ],
     mail:     MailApp     [ ],
     music:    MusicApp    [ ],
+    terminal: TerminalApp [ ],
     desk:     DeskApp     [ ],
 
     // the dock's order, and the enumeration every by-id lookup walks
 
     roster: DesktopApp[] = { [this.files, this.markdown, this.viewer, this.calendar,
-        this.jots, this.birds, this.marketmap, this.write, this.mail, this.music] },
+        this.jots, this.birds, this.marketmap, this.write, this.mail, this.music, this.terminal] },
 
     byId(id: string) -> DesktopApp { return this.roster.find((a) => a.id == id) ?? null },
 
@@ -2313,7 +2329,7 @@ class Launcher extends Node [
             a.count = a.count + 1
             body()
             }
-        if (first) { app.dock.poke(a); setTimeout(go, 900) } else go()
+        if (first) { app.dock.poke(a); afterDelay(900, go) } else go()
         },
 
     // ── the one door every window opens through (windows-as-data): mint the
@@ -2642,7 +2658,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     // Appearance follows the OS color scheme (app.dark) by default; the menu's
     // Dark / Light item locks the choice to the user's pick from that point on,
-    // so later system flips no longer move it.
+    // so later system flips do not move it.
 
     darkLocked: boolean = false,
     darkChoice: boolean = false,

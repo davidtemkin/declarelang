@@ -1,0 +1,11 @@
+App [ width = 320, height = 90, textColor = #172530,
+    blip: Audio [ source = "../resources/blip.wav" ],
+    row: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Button [ label = { app.blip.playing ? "Playing…" : "Play" }, primary = true,
+            onClick() { app.blip.position = 0; app.blip.playing = true }
+            ],
+        Text [ fontSize = 13, textColor = #6A7883,
+            text = { app.blip.ended ? "ended" : app.blip.playing ? "playing" : "a short tone" } ]
+        ]
+    ]

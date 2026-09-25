@@ -46,7 +46,7 @@ export declare function bindData(view: View, name: string, path: string, type: A
  *  (from the parent chain — never this view's own slot, which it defines)
  *  extended by `rel.path`. Interned, so a re-derivation of the same place
  *  stops at the equality gate. */
-export declare function bindDatapath(view: View, path: string | readonly string[]): void;
+export declare function bindDatapath(view: Node, path: string | readonly string[]): void;
 /** Bind `datapath = { expr }`: the expression yields a value from a
  *  dataset (`weatherData.value.rss.channel` — plain TS dereferences), and
  *  toCursor turns it back into a *place*, inside the tracked compute so the
@@ -54,7 +54,7 @@ export declare function bindDatapath(view: View, path: string | readonly string[
  *  The compute runs under withCursorDefining: a `:path` island in the body
  *  (`datapath = { :detail }`) resolves against the INHERITED cursor, never
  *  the slot this constraint defines — the same rule bindDatapath states. */
-export declare function bindCursor(view: View, src: string, pos: Pos, classroot: View | null): void;
+export declare function bindCursor(view: Node, src: string, pos: Pos, classroot: Node | null): void;
 export declare function percentAxis(name: string): "width" | "height" | null;
 export declare function bindPercent(view: View, name: string, percent: number, pos: Pos): void;
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).

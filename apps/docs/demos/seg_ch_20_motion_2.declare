@@ -1,0 +1,20 @@
+App [ width = 360, height = 150, fill = white, textColor = #172530,
+    t: number = 0,
+    sweep: Animator [ attribute = t, from = 0, to = 1, duration = 1500, motion = linear ],
+    col: View [ x = 20, y = 20, width = 320,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        track: View [ width = 100%, height = 10, cornerRadius = 5, fill = #E6EBF1,
+            View [ height = 10, cornerRadius = 5, fill = #2E6FE0, width = { parent.width * app.t } ]
+            ],
+        row: View [
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Button [ label = "Run", primary = true,
+                onClick() { app.sweep.start() }
+                ],
+            Button [ label = { app.sweep.paused ? "Resume" : "Pause" },
+                onClick() { app.sweep.paused = !app.sweep.paused }
+                ],
+            Text [ text = { app.sweep.arrived ? "done" : app.sweep.running ? Math.round(app.t * 100) + "%" : "ready" } ]
+            ]
+        ]
+    ]

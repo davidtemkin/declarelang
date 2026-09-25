@@ -1,0 +1,24 @@
+class Tile extends Control [ width = 90, height = 70, cornerRadius = 10,
+    label: string = "",
+    picked: boolean = { app.choice == label },
+    fill = { down ? 0xC9D6E8 : hot ? 0xDDE6F2 : 0xEEF2F7 },
+    stroke = { picked ? stroke(2, 0x2E6FE0) : null },
+    press() { app.choose(label) },
+    onClick() { if (!disabled) press() },
+    Text [ x = center, y = center, text = { classroot.label } ]
+    ]
+
+
+App [ width = 340, height = 150, fill = white, textColor = #172530,
+    choice: string = "",
+    choose(v: string) { choice = v },
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        row: View [ layout: SimpleLayout [ axis = x, spacing = 10 ],
+            Tile [ label = "North" ],
+            Tile [ label = "South" ],
+            Tile [ label = "East" ]
+            ],
+        Text [ text = { app.choice == "" ? "pick a tile — or Tab to one and press Space" : "picked " + app.choice } ]
+        ]
+    ]

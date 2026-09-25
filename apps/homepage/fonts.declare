@@ -11,9 +11,7 @@ App [ fontFamily = { Faces.helvetica }, … ]
 ```
 
 A list is a token because a token is bounded, plain data, and an ordered list of
-family names is that. Writing the stack as one comma-joined string would work
-too, but then the fallback order is a convention inside a string rather than
-something the checker can see.
+family names is that — so the fallback order is something the checker can see.
 
 Two faces, because the homepage offers a type tuner: Helvetica is the site's,
 Avenir the alternative under assessment.

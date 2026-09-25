@@ -1,0 +1,15 @@
+App [ width = 300, height = 150, fill = midnightblue, textColor = gainsboro,
+    people: Dataset {
+        { "rows": [ { "id": 1, "name": "Ada", "score": 92 },
+                    { "id": 2, "name": "Grace", "score": 87 },
+                    { "id": 3, "name": "Alan", "score": 74 } ] }
+        },
+    list: View [ x = 20, y = 20, datapath = { app.people.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        View [ datapath = :rows[],
+            layout: SimpleLayout [ axis = x, spacing = 12 ],
+            Text [ width = 120, text = :name ],
+            Text [ text = :score ]
+            ]
+        ]
+    ]

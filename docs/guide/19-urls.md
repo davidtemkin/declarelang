@@ -1,0 +1,243 @@
+<!-- nav: URLs, links and history -->
+<!-- part: Building -->
+
+# URLs, links and history
+
+This chapter is where an app becomes a **citizen of the web**: a thing with real addresses you
+can hand to anyone, a Back button that tells the truth, and pages a crawler can
+read — with no router, no history listener, and no server. The browser gives
+your user three instruments they already trust — the URL bar, the Back button,
+and copy-the-link — and Declare splits the work across two attributes, divided
+by a single test:
+
+> **Would you hand this value to a stranger?** If yes, it belongs in `location`
+> — it is an *address*. If no, but the Back button should still undo it, it
+> belongs in `waypoint` — it is a *step*. If neither, it is an ordinary
+> attribute, and none of this chapter applies to it.
+
+## The URL is an attribute; links are declared
+
+Inside the app, "where the user is" was always just an attribute — a `tab`, a
+`chapter`, a `selectedId` — with views deriving from it. Deep linking needs exactly
+one new thing: the *place*, reflected in the URL. That is [`location`](declare-docs:App.location), a built-in
+two-way reactive App attribute holding the fragment — and the views that manifest
+its values declare so with [`shows`](declare-docs:View.shows):
+
+```declare
+App [ width = 420, height = 200, fill = whitesmoke, location = "home",
+
+    home: View [ shows = "home", x = 20, y = 20,
+        Text [ text = "Home — visit the detail view", link = "#detail" ]
+        ],
+
+    detail: View [ shows = "detail", x = 20, y = 20,
+        Text [ text = "Detail — the URL ends in #detail. Back returns.", link = "#home" ]
+        ]
+    ]
+```
+
+`shows = "home"` is the visibility you would have written by hand ([`visible`](declare-docs:View.visible) still
+composes on top for further gating — an auth check, say), and it registers the name:
+the compiler now knows every destination, so `link = "#detial"` is a **compile error**
+naming the real names, and the crawler knows where to go without guessing. [`link`](declare-docs:View.link)
+makes any view a link — no handler: following, the real `<a>` (hover preview,
+⌘-click, copy-link), the keyboard stop, and the crawler's edge all come from the one
+attribute. The same references work in authored Markdown — `[the detail](#detail)` in
+a rendered `.md` follows identically, with no wiring.
+
+A place *inside* a destination is named with `anchor = "story"` on a view (headings in
+rendered prose are anchors automatically). Link to it as bare `#story` from anywhere: the
+compiler and the runtime work out which destination holds it, so the link survives the
+content moving. In the URL the anchor rides after the destination as `@story` —
+`#guide@story` — which is how a pasted address lands on the right place. The landing
+waits for rendered prose to finish measuring before it scrolls, and
+`App.revealInset = 56` keeps it clear of a fixed header. Writing `location` navigates — one history entry per
+change; `replace = true` beside a link overwrites instead (a slide deck's arrows must
+not bury the Back button). The back button writes `location` back and your state
+re-derives; you never handle a history event. A deep link is nothing special — an
+initial value, arriving before first paint. The declared initial *is* the default, so
+the bare URL stays clean.
+
+## The step: `waypoint`
+
+Some of what an interface remembers fails the stranger test but still deserves the
+Back button. The turns of a search session. Which page of a wizard you are on. When
+a user presses Back after a refinement they mean *undo that step* — but the words
+they typed must never appear in the URL bar, the history dropdown, or
+autocomplete. [`waypoint`](declare-docs:App.waypoint) is `location`'s twin with the opposite visibility: one
+two-way reactive string, grammar your own, whose writes make history entries **the
+URL never shows**. The browser carries the value inside the entry itself; Back and
+Forward write it back and your constraints re-derive — the same loop, minus the
+address bar.
+
+```declare-fragment
+App [ location = "", waypoint = "",
+
+    query: string = { app.waypoint },
+
+    submit(text: string) {
+        app.waypoint = text          // Back will undo this turn
+        app.location = "results"     // …and this move, together
+        }
+    ]
+```
+
+A history entry is the pair — the address and the step. **One entry per settle in
+which either changed**: if one settle changes both, as above, that's one entry and
+one Back restores both atomically. If a turn refines results in place, the URL
+holds still and Back still undoes the turn — back/forward that work, over a URL
+that never moves, which is the combination neither attribute could deliver alone.
+`replace = true` on a link overwrites the current entry's whole pair.
+
+Both halves are **coordinates on the entry**, never storage — and that one fact
+decides what each kind of arrival gets: **an arrival rebuilds the app from the
+URL; a traversal restores the entry's pair.** A **link or handler** writes it. A
+**pasted URL** carries the address and *no waypoint* — a stranger gets the place
+and none of the session. A **reload** is the same arrival: the URL is all there
+is to rebuild from, so the address comes back and the step starts at its declared
+initial, however far into a round the user had got. A
+**traversal** (Back/Forward) restores the pair — the address passes through
+`onFollow` exactly as any arrival does; the step is written directly, and
+deliberately has no hook: a waypoint can never arrive from outside your app, so
+every restored value is one your own code wrote earlier. Your parser is the gate —
+an unrecognized step degrades wherever your parsing sends it, same as an
+unrecognized fragment. Traversals also land where the user left that entry: the
+**app's own** scroll position, stamped as they leave and restored once the
+arrival has settled. A scrolling pane *inside* the app keeps no per-entry memory
+— if a pane's position is part of the place, it belongs in the `location`. An
+arrival lands at the top, and an `@name` reveals its anchor instead — that much
+*is* in the URL.
+
+Only the entry you arrive on is rebuilt. The entries behind it keep their own
+coordinates, which is why Back after a reload still walks into the session the
+reload started fresh from: a coordinate sits on its entry.
+
+Two disciplines keep waypoints healthy. **Coordinates, never data**: a waypoint
+names the step, and the data derives from it — entries are copied per history
+entry, so a result set stuffed into one is both a leak of the model and a real
+cost (the host warns loudly past 64KB). And **if you catch yourself wanting a
+waypoint to survive a paste, it was an address all along** — promote it to
+`location`. If you catch yourself wanting one to survive a *reload*, look again at
+what the value is: which step you are on is a coordinate, and a coordinate comes
+back by traversal only; what the user typed or scored on the way there is data, and
+data that must outlive the document belongs somewhere you put it deliberately —
+your server, through a `DataSource`.
+
+| the value | lives in | URL bar | Back undoes it | survives reload | shareable | crawled |
+|---|---|---|---|---|---|---|
+| which chapter, which product, map position | `location` | yes | yes | yes | yes | yes |
+| a session's turns, which page of a wizard | `waypoint` | no | yes | no | no | no |
+| a draft, a hover, a mid-drag selection | ordinary attribute | no | no | no | no | no |
+
+Read the middle row across and you have the whole attribute: a `waypoint` is the
+one value the Back button undoes without the URL ever showing it — and everything
+else about it, including what a reload does, follows from not being in the URL.
+
+For computed families the grammar after `#` is the app's own — `#deck/q3/47` is a
+string you `split`, and `deckId`/`page` derive from it; this documentation's entire
+navigation is three lines of exactly that. One discipline makes all of it free, and
+you already know it from [Constraints](declare-docs:guide:constraints): **derived
+state is never assigned.** Links write `location`; everything else derives.
+
+Sometimes a link alone is not enough and you want code to run around an arrival.
+Three hooks cover it, from narrowest to widest. `onClick` beside a `link` runs first
+— close the menu, then go. A handler may compute its destination and call
+[`app.follow(ref)`](declare-docs:App.method.follow) itself. And one app-scoped hook sees every arrival — a click, a
+prose link, a pasted URL, Back and Forward alike:
+
+```declare-fragment
+onFollow(ref: string) -> string {
+    if (ref == "#pricing") return "#plans"   // moved pages
+    return ref                                // "" vetoes
+    }
+```
+
+On a cold arrival it runs before any data loads — so don't gate access here. Gate at
+the destination, where a raw URL cannot walk around it: two views sharing one `shows`
+name, split on `visible = { app.authed }`, and the login screen renders with the
+location preserved — finishing auth lands the user where they aimed.
+
+`onFollow` meets the arrival at the door: the reference is still a string, and
+nothing has moved yet. There is also a hook for the other end. **`onArrive`**
+delivers the same arrival *landed*: its argument is the view the reference names —
+the destination view, or the anchored view inside it — handed to your handler once
+it exists and has its real place and size. If the address names something your data
+has not built yet, the platform holds the arrival and delivers when it exists; the
+waiting is never your code's.
+
+Most apps never write it, because the built-in landing is already right for a page
+that scrolls: an arrival starts at the top, an anchor waits for its prose to measure
+and scrolls into view. `onArrive` is for the app where scrolling is *not* how you
+show something — a canvas the camera zooms across, a map that pans. Declaring the
+handler replaces the built-in scroll entirely; showing the target is now yours:
+
+```declare-fragment
+onArrive(target: View) { app.flyTo(target) }   // fly the camera instead of scrolling
+```
+
+A document that wants the scroll *plus* something more — a highlight pulse on the
+anchored view, say — composes the default back in: [`app.reveal(target)`](declare-docs:App.method.reveal) is exactly
+the scroll the platform would have done, [`revealInset`](declare-docs:App.revealInset) honored.
+
+Two details make it dependable. It fires per *follow*, not per change of address:
+following the reference you already stand at arrives again — no dead clicks — and
+Back and Forward pass through the same door, so a camera flight written here answers
+them too. And it never waits for motion: the target arrives when it exists and has
+geometry, even if it is still moving toward how it will look. "When the motion
+lands" is a fact motion itself exposes (`arrived` — [Motion and states](declare-docs:guide:motion@a-spring-drives-an-attribute-toward-a-target)), not an arrival.
+
+> **From React:** this chapter replaces the router. No route table, no `<Link>`
+> component, no guards, no history listener — and the "router state vs app state"
+> question dissolves: the place is one reactive attribute your views derive from
+> like any other, and links are attributes the compiler can check.
+
+### Five minutes with a real one
+
+`apps/birds/birds.declare` — a field guide of Audubon's plates with an
+identification quiz over it — is this whole section as a working app. Run it and
+do five things in order:
+
+1. **Click a plate.** The URL becomes `#b/roseate-spoonbill`: an address, and one
+   you could paste to anybody.
+2. **Press Back.** The plate flies home to its slot on the shelf. (The return is
+   armed inside `onFollow` — Back runs no handler, and the hook is the one door
+   every arrival comes through, which is what makes a motion answerable to it.)
+3. **Open the quiz and answer a few questions.** Watch the address bar: it says
+   `#quiz` and then never moves again, however long you play.
+4. **Press Back mid-round.** The last question un-asks itself. That is the step
+   moving, not the address — one history entry per turn, none of them a place.
+5. **Paste that `#quiz` URL into a new tab — or just reload the one you're in.**
+   Either way you get a *fresh* quiz, because both are arrivals and the session
+   was never in the URL to rebuild from. (Press Back once and the round is still
+   there: it lives on the entries, not in the page.)
+
+Each of those is one row of the table above, and the source names which is which:
+its header comment sorts every value in the program into address, step, or
+ordinary attribute — including the flight animations, which are the third kind
+(nobody shares a zoom, so history never hears of them).
+
+One thing you cannot try in this page: the live demos in this guide are embedded
+child apps, and an embedded app owns neither the page's URL nor its history —
+both belong to the page it sits in ([Embedding](declare-docs:guide:embedding)).
+That is why this is a link rather than a frame.
+
+## What the crawler sees is what a stranger sees
+
+The crawl rule falls straight out of the stranger test, because **crawlable and
+shareable are the same property**: the build walks your app's *locations* —
+every destination, every link — and boots each one at its declared initial
+waypoint. Bird pages index; quiz rounds cannot, because a round was never an
+address. Content you want found must derive from `location`. That single rule
+is most of what "citizen of the web" means, and the machinery behind it —
+static extraction, `?extract`, shipping the crawl baked into the page — is the
+subject of [Packaging for production](declare-docs:guide:packaging@what-crawlers-see).
+
+---
+
+**What you can now say:** you can give an app's places addresses and its
+sessions a working Back button, decide exactly what the URL bar shows —
+including nothing — hand anyone a link that carries the place and none of the
+person, and know that what a crawler reads is precisely what a stranger would
+see. Your app is a citizen of the web, and nothing about it needed a server.
+
+[Next: **Motion and states** →](declare-docs:guide:motion)

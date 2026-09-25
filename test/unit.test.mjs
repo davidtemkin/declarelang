@@ -2532,7 +2532,7 @@ await test("compile(): an unresolvable bare name is a positioned error naming th
   const r = await compile(`App [ width=1, height=1, count: number = 0,\n  Text [ text = { "" + coutn } ] ]`);
   assert.equal(r.source, null);
   assert.equal(r.errors.length, 1);
-  assert.match(r.errors[0].message, /cannot resolve 'coutn' — not a member of Text → App, a parameter, or one of the globals a body may use \(fetch, URL, setTimeout, console, Math, JSON, …\) \(line 2, col 24\)/);
+  assert.match(r.errors[0].message, /cannot resolve 'coutn' — not a member of Text → App, a parameter, or one of the globals a body may use \(Math, JSON, Date, URL, console, …\) \(line 2, col 24\)/);
 });
 
 await test("compile(): shadowing a user-declared outer member warns, with the qualified spelling", async () => {
@@ -3030,12 +3030,11 @@ await test("the layout member's position among members is inert; CHILD order is 
 });
 
 await test("onInit sees laid positions (arrangement is part of construction)", async () => {
-  globalThis.__laidY = null;
-  await buildL(`App [ width=100, height=100,
-    onInit() { globalThis.__laidY = this.children[1].y },
+  const app = await buildL(`App [ width=100, height=100, laidY: number = -1,
+    onInit() { laidY = this.children[1].y },
     layout: SimpleLayout [ axis = y, spacing = 1 ],
     View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
-  assert.equal(globalThis.__laidY, 11);
+  assert.equal(app.laidY, 11);
 });
 
 await test("a laid tree pushes positions across the seam like any other write", async () => {
@@ -4237,7 +4236,7 @@ await test("graphics pass: filter / mask / gradient literals coerce, and the nam
   // one function, a list, the frost pair, null
   assert.deepEqual(v("filter=blur(3)").value, [{ fn: "blur", radius: 3 }]);
   assert.deepEqual(v("filter=[blur(2), brightness(0.8), colorize(#FF5A36)]").value,
-    [{ fn: "blur", radius: 2 }, { fn: "brightness", amount: 0.8 }, { fn: "tint", color: 0xff5a36 }]);
+    [{ fn: "blur", radius: 2 }, { fn: "brightness", amount: 0.8 }, { fn: "colorize", color: 0xff5a36 }]);
   assert.deepEqual(v("filter=[shadow(0, 26, 52, #00000080)]").value, [{ fn: "shadow", dx: 0, dy: 26, blur: 52, color: colorWithAlpha(0, 0x80) }]);
   assert.deepEqual(v("backdrop=frost(20, 1.4)").value, [{ fn: "blur", radius: 20 }, { fn: "saturate", amount: 1.4 }]);
   assert.deepEqual(v("backdrop=[blur(12), saturate(1.6), brightness(1.1)]").value,
@@ -7428,15 +7427,15 @@ await test("typed bodies: a cast SHARING a body with a :path island strips and r
 await test("typed bodies: TS-only forms that CANNOT run are rejected at check with the rule named", async () => {
   const cases = [
     [`App [ width=1, height=1, t: Text [ text = { [1,2].map((x: number) => x + 1).join(":") } ] ]`,
-      /annotates a binding \('x'\).*cast narrows/],
+      /annotates a name \('x'\).*cast narrows/],
     [`App [ width=1, height=1, n: number = 0, onClick() { const k: number = 2; n = k } ]`,
-      /annotates a binding \('k'\)/],
+      /annotates a name \('k'\)/],
     [`App [ width=1, height=1, n: number = 0, onClick() { type K = number; n = 2 } ]`,
       /declares a type — type declarations don't live in a \{ \} body/],
     [`App [ width=1, height=1, t: Text [ text = { (<T>(x: T) => x)("hi") } ] ]`,
-      /type parameter|annotates a binding/],
+      /type parameter|annotates a name/],
     [`App [ width=1, height=1, t: Text [ text = { ((x?) => "" + x)(1) } ] ]`,
-      /annotates a binding \('x'\)/],
+      /annotates a name \('x'\)/],
   ];
   for (const [src, re] of cases) {
     const r = await compile(src, {});
@@ -7634,7 +7633,7 @@ await test("E-series diagnostics name the fix: bare ident, layout-in-State, dott
   };
   // E-5: bare identifier in a value slot → both intents named
   assert.match(await msg(`App [ width=1, height=1, label: string = "x", Text [ text = label ] ]`),
-    /write \{ label \} to bind the attribute, or "label" for the literal text/);
+    /write \{ label \} to read it in a constraint, or "label" for the literal text/);
   // E-6: layout swap inside a State → the state rule + both idioms
   assert.match(await msg(`App [ width=1, height=1, layout: SimpleLayout [ axis = x ],
     s: State [ applied = true, layout: SimpleLayout [ axis = y ] ] ]`),

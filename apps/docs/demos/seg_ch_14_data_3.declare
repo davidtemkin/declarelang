@@ -1,0 +1,29 @@
+class TaskModel [
+    title: string = { "" + :title },
+    overdue: boolean = { :due < app.today },
+    finish() { :done = true }
+    ]
+
+
+App [ width = 340, height = 150, fill = white, textColor = #172530,
+    today: number = 5,
+    pick: number = 0,
+    d: Dataset { { "tasks": [ { "id": 1, "title": "File the report", "due": 3, "done": false },
+                              { "id": 2, "title": "Plan the offsite", "due": 9, "done": false } ] } },
+    sel: TaskModel [ datapath = { app.d.value.tasks[app.pick] } ],
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ fontWeight = semibold,
+            text = { app.sel.title + (app.sel.overdue ? " — overdue" : "") } ],
+        row: View [ layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Button [ label = "Next task",
+                onClick() { app.pick = (app.pick + 1) % 2 }
+                ],
+            Button [ label = "Finish", primary = true,
+                onClick() { app.sel.finish() }
+                ]
+            ],
+        Text [ textColor = slategray,
+            text = { app.d.value.tasks.filter((t) => t.done).length + " finished" } ]
+        ]
+    ]

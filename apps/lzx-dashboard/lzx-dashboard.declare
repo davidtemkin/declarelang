@@ -29,7 +29,7 @@ app against the OpenLaszlo 5.0 DHTML build of the same dashboard:
 
 | | Declare | OpenLaszlo | |
 |---|---|---|---|
-| source lines | 1,315 | 2,949 | 2.2× fewer |
+| source lines | 1,310 | 2,949 | 2.3× fewer |
 | HTTP requests | 61 | 183 | 3.0× fewer |
 | code over the wire, gzipped | 71 KB | 152 KB | 2.1× smaller |
 | JS heap, desktop open | 6.6 MB | 11.3 MB | 1.7× smaller |
@@ -121,7 +121,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
         // The original lit a contact row when that person signed on to the
         // chat server. There is no server here, so one buddy arrives on a
         // timer to show the effect.
-        setTimeout(() => { flashUser = "Bret" }, 6000)
+        afterDelay(6000, () => { flashUser = "Bret" })
         },
 
     desktop: Image [ source = "resources/img/background.png",
@@ -346,21 +346,21 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
             // so the bar is a beat in the sequence, not a progress report.
 
             loadView: View [ y = 40, width = 100%,
-                well: View [ x = { (parent.width - 258) / 2 }, y = 29, width = 258, height = 19,
+                well: View [ x = center, y = 29, width = 258, height = 19,
                     fill = #00000033, cornerRadius = 9 ],
-                barFill: View [ x = { (parent.width - 254) / 2 }, y = 31, width = 254, height = 15,
+                barFill: View [ x = center, y = 31, width = 254, height = 15,
                     fill = gradient(stop(0, #E8A88E), stop(1, #A34E34)), cornerRadius = 7 ],
                 fadeOut: Animator [ attribute = opacity, to = 0, duration = 700 ]
                 ],
 
             // the bar holds for a beat before the sequence starts — a timing
-            // rule, so a timer is the right tool for exactly this one wait
+            // rule, so afterDelay() is the right tool for exactly this one wait
 
             onInit() {
-                setTimeout(() => {
+                afterDelay(600, () => {
                     loadView.fadeOut.start()
                     grow.start()
-                    }, 600)
+                    })
                 },
 
             form: View [ x = 4, y = 31, width = 300, opacity = 0,

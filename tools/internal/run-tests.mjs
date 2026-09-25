@@ -26,6 +26,8 @@ const SUITE = [
   "test/dataset-merge.test.mjs",
   "test/change-event.test.mjs",
   "test/cursor-reach.test.mjs",
+  "test/path-write.test.mjs",
+  "test/after-delay.test.mjs",
   "test/provided-text-style.test.mjs",
   "test/hit-3d.test.mjs",
   "test/super.test.mjs",

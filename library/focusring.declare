@@ -239,7 +239,7 @@ class FocusRing extends View [
             classroot.gen = classroot.gen + 1
             const g2 = classroot.gen
             classroot.idle = false
-            setTimeout(() => { if (classroot.gen == g2) classroot.idle = true }, 1000)
+            afterDelay(1000, () => { if (classroot.gen == g2) classroot.idle = true })
             }
         ],
 

@@ -1,6 +1,6 @@
 Renders rich content authored — or **loaded** — as a small, whitelisted subset of **HTML**.
 The sibling of `Markdown`: it parses the string at render time into the same stack of real,
-wrapped, prose-styled **views** (identical on both backends), so paragraphs and headings get
+wrapped, prose-styled **views** (identical on every renderer), so paragraphs and headings get
 native, contiguous text selection for free. Supported tags are the text-shaped ones —
 `p`, `h1`–`h6`, `b`/`strong`, `i`/`em`, `code`, `s`/`del`, `a`, `br`, `ul`/`ol`/`li`,
 `blockquote`, `pre`, `hr`, `span`, `div` — and nothing else.

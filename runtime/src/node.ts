@@ -7,9 +7,11 @@
 // and construct/init events (R4/R5). Establishing the Node↔View seam now is
 // what lets those land without reshaping the base.
 
-import { Cell, isTracking } from "./reactive.js";
+import { Cell, isTracking, noteOrigin } from "./reactive.js";
+import { timeHost } from "./wallclock.js";
 import { trackNode, untrackNode } from "./change-event.js";
 import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE } from "./attributes.js";
+import type { Cursor } from "./data.js";
 
 /** The cursor read, installed by view.ts. A cursor belongs to a VIEW — it comes
  *  from that view's `datapath` and its place in replication — but the things
@@ -22,6 +24,11 @@ import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE } fro
 type CursorRead = (node: Node, path: string | readonly unknown[]) => unknown;
 let readCursor: CursorRead | null = null;
 export function provideCursorRead(fn: CursorRead): void { readCursor = fn; }
+/** The write half, through the same climb: a handler on any member writes the
+ *  record of the nearest view with a cursor, exactly where its reads land. */
+type CursorWrite = (node: Node, segs: readonly string[], v: unknown) => void;
+let writeCursor: CursorWrite | null = null;
+export function provideCursorWrite(fn: CursorWrite): void { writeCursor = fn; }
 
 export class Node {
   parent: Node | null = null;
@@ -37,15 +44,33 @@ export class Node {
   }
   /** The values this node reports changes to (schema.ts NodeSchema). */
   declare trackChanges: string[] | null;
+  /** The data cursor (language §9): the place `:path` reads and writes on this
+   *  node and its descendants resolve against — the nearest ancestor-or-self
+   *  cursor wins (view.ts inheritedCursor). On any node, so a model class can
+   *  stand on one record with no view involved. Written as `datapath =
+   *  :rel.path` (extends the inherited cursor), `datapath = { expr }` (a place
+   *  derived from a dataset's value), or null. */
+  declare datapath: Cursor | null;
 
   /** Read `path` against the nearest enclosing cursor — what a `:path` island
    *  lowers to (compile.ts resolveBody). On a view that is its own inherited
    *  cursor; on a non-view member it is the nearest view above that has one.
    *  An unresolved path yields null, as everywhere else in the language.
-   *  WRITES stay on the view (`$setData`): an edit into a record belongs to the
-   *  leaf that owns the edit, and a spring is not one. */
+   *  Writes climb the same way (`$cell`). */
   $data(path: string | readonly unknown[]): unknown {
     return readCursor === null ? null : readCursor(this, path);
+  }
+
+  /** One field of the record the nearest cursor points at, as an assignable
+   *  place — what a write to a `:path` in a handler lowers to (`:done = v` →
+   *  `this.$cell(["done"]).value = v`). Reading `value` is the `:path` read;
+   *  assigning it writes the dataset, so `:count += 1` reads and writes one field. */
+  $cell(segs: readonly unknown[]): { value: unknown } {
+    const node = this;
+    return {
+      get value(): unknown { return node.$data(segs); },
+      set value(v: unknown) { writeCursor?.(node, segs.map(String), v); },   // a computed key writes by its string form
+    };
   }
   readonly children: Node[] = [];
 
@@ -59,6 +84,41 @@ export class Node {
    *  node reads provided values too. */
   $provided(name: string, ...dflt: unknown[]): unknown {
     return providedRead(this, name, dflt.length > 0, dflt[0]);
+  }
+
+  /** The call behind `afterDelay(ms, fn)` — run `fn` once, `ms` milliseconds from
+   *  now. The compiler rewrites the callee to `this.$afterDelay`, so the wait
+   *  belongs to the node whose handler asked: discarding the node cancels it,
+   *  and the handle's `cancel()` drops it sooner. It never runs inside the
+   *  frame that asked — the frame is shown first, so `afterDelay(0, fn)` is "next
+   *  frame" — and it reads the wall clock through the one test seam
+   *  (wallclock.ts), so a driver that advances Time advances this too. */
+  $afterDelay(ms: number, fn: () => void): { cancel(): void } {
+    const host = timeHost();
+    const due = host.now() + Math.max(0, Number(ms) || 0);
+    let frame: unknown = null, timer: unknown = null, done = false;
+    const cancel = (): void => {
+      if (done) return;
+      done = true;
+      pending(this).delete(cancel);
+      if (frame !== null) (host.cancelFrame ?? host.clearTimeout)(frame);
+      if (timer !== null) host.clearTimeout(timer);
+    };
+    const fire = (): void => {
+      if (done) return;
+      done = true;
+      pending(this).delete(cancel);
+      const name = authoredName(this);
+      noteOrigin(`after on ${name ?? this.constructor.name}`, this);
+      fn();
+    };
+    pending(this).add(cancel);
+    const afterFrame = (): void => {
+      frame = null;
+      if (!done) timer = host.setTimeout(fire, Math.max(0, due - host.now()));
+    };
+    frame = host.frame !== undefined ? host.frame(afterFrame) : host.setTimeout(afterFrame, 0);
+    return { cancel };
   }
 
   /** The read behind `hostProvided("name", default)` — a value this program's
@@ -231,6 +291,20 @@ export function onDiscard(node: Node, fn: () => void): void {
   else RETIRE.set(node, [fn]);
 }
 
+// A node's outstanding `after` waits, each held as its cancel — registered
+// with the node's teardowns on the first one, so a discarded node leaves none.
+const AFTER = new WeakMap<Node, Set<() => void>>();
+function pending(node: Node): Set<() => void> {
+  let set = AFTER.get(node);
+  if (set === undefined) {
+    const s = new Set<() => void>();
+    set = s;
+    AFTER.set(node, s);
+    onDiscard(node, () => { for (const c of [...s]) c(); AFTER.delete(node); });
+  }
+  return set;
+}
+
 /** Run and clear `node`'s registered teardowns. Called by Node.discard (the
  *  base) and by View.discard (which re-implements the recursion rather than
  *  calling super — each discard path runs it exactly once). */
@@ -264,6 +338,8 @@ export function authoredName(node: Node): string | null {
 // so a name added later starts silent. Before `init` there is nothing to arm;
 // view.ts arms the node when it goes live.
 defineAttributes(Node, {
+  // The cursor is model state: bindings read it (tracked), nothing renders it.
+  datapath: { def: null },
   trackChanges: { def: null, push: (n, v) => {
     if ((n as unknown as { $live?: boolean }).$live !== true) return;
     trackNode(n, Array.isArray(v) ? v.map((x) => String(x)) : null);

@@ -1,5 +1,5 @@
 /*
-# RadioGroup / Radio
+# RadioGroup
 
 One-of-N. Radios are written as the group's **direct children** — the group's
 layout arranges them, and each radio reaches its group as `parent`:
@@ -21,7 +21,7 @@ size: RadioGroup [ x = 20, y = 20, value = "m",
 ## value
 **The group's value — the chosen `choice`, and the only value slot in the pair.** A
 `Radio` has none of its own; it derives `on` from this. Standalone the group owns it;
-bound, override `input` beside it as with any control.
+constrained, override `input` beside it as with any control.
 
 ## input()
 Where the choice goes. The default writes `value`; override it to own the destination
@@ -31,6 +31,50 @@ they deliver rather than store.
 ## pick()
 Selects a choice by name — the seam a `Radio` calls on its group. Call it to move the
 selection from code without bypassing `input`.
+
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
+*/
+
+include [ "control.declare" ]
+
+class RadioGroup extends View [
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+
+    value: string = "",
+
+    input(v: string) { value = v },
+    pick(v: string)  { input(v) },
+
+    layout: SimpleLayout [ axis = y, spacing = 10 ]
+    ]
+
+
+/*
+# Radio
+
+One choice in a `RadioGroup`: a direct child of the group, naming itself with
+`choice`. A radio stores nothing — it derives `on` from the group's `value` and
+delivers its `choice` to the group when pressed, so turning one on can never leave
+another stale.
+
+```declare
+App [ width = 300, height = 120, fill = white, textColor = black,
+    size: string = "m",
+    RadioGroup [ x = 20, y = 20, value = { app.size }, input(v: string) { app.size = v },
+        Radio [ choice = "s", label = "Small" ],
+        Radio [ choice = "m", label = "Medium" ]
+        ],
+    Text [ x = 160, y = 20, text = { "size: " + app.size } ]
+    ]
+```
 
 ## choice
 This radio's identity within its group, compared against the group's `value` by string.
@@ -62,31 +106,7 @@ Content-sized: the dot, then a gap and the label when there is one. A label-less
 ## opacity
 Disabled dims the whole choice, dot and label alike — to the theme's `disabledOpacity`,
 or 0.45 when the theme states none.
-
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
-
-include [ "control.declare" ]
-
-class RadioGroup extends View [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
-
-    value: string = "",
-
-    input(v: string) { value = v },
-    pick(v: string)  { input(v) },
-
-    layout: SimpleLayout [ axis = y, spacing = 10 ]
-    ]
-
 
 class Radio extends Control [ height = 22,
     baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the control by its label

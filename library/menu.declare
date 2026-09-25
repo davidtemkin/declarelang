@@ -382,18 +382,15 @@ class Menu extends View [
 
     // A pick dismisses first, then delivers — the native menu contract: the
     // takedown is part of the gesture, so a long action can never freeze an
-    // open menu on screen. Delivery defers past one paint (rAF, then a tick —
-    // rAF alone runs before that frame's paint); a host with no rAF defers a
-    // plain tick. Submenus route synchronously to the root: the chain closes
-    // as one, and only the root defers the app-facing delivery.
+    // open menu on screen. Delivery waits for the next frame — afterDelay(0, …)
+    // runs once the frame without the menu has been shown. Submenus route
+    // synchronously to the root: the chain closes as one, and only the root
+    // defers the app-facing delivery.
 
     pick(id: string) {
         if (!isRoot) { this.picked(id); this.close(); return }
         this.close()
-        const deliver = () => this.picked(id)
-        const raf = (globalThis as any).requestAnimationFrame
-        if (typeof raf == "function") raf(() => setTimeout(deliver, 0))
-        else setTimeout(deliver, 0)
+        afterDelay(0, () => this.picked(id))
         },
 
     // ── the cascade ────────────────────────────────────────────────────────

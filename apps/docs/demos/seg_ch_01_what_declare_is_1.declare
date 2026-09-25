@@ -1,0 +1,35 @@
+schema Task [ id: number, title: string, done: boolean ]
+
+class TaskRow extends View [ width = 100%, height = 32,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Checkbox [ checked = :done,
+        input(v: boolean) { :done = v }
+        ],
+    Text [ text = :title, textColor = { :done ? 0x8A96A0 : 0x172530 } ]
+    ]
+
+
+App [ width = 360, height = 260, fill = #F4F6FA, textColor = #172530,
+    tasks: Dataset [ schema = [ items[]: Task ] ] {
+        { "items": [ { "id": 1, "title": "Read the guide", "done": true },
+                     { "id": 2, "title": "Write a program", "done": false },
+                     { "id": 3, "title": "Ship it", "done": false } ] }
+        },
+    open: number = { (app.tasks.value?.items ?? []).filter((t) => !t.done).length },
+    nextId: number = 4,
+    add() {
+        app.tasks.set("/items/-", ({ id: app.nextId, title: "Task " + app.nextId, done: false }))
+        app.nextId = app.nextId + 1
+        },
+
+    card: Card [ x = 20, y = 20, width = 320,
+        Text [ fontWeight = semibold, text = { app.open + " open" } ],
+        list: View [ width = 100%, datapath = { app.tasks.value },
+            layout: SimpleLayout [ axis = y ],
+            TaskRow [ datapath = :items[] ]
+            ],
+        Button [ label = "Add a task",
+            onClick() { app.add() }
+            ]
+        ]
+    ]

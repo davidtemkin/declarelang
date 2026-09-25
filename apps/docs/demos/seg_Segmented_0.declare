@@ -4,7 +4,7 @@ App [ width = 340, height = 130,
         choices = { [ ({ id: "one", label: "One" }),
                      ({ id: "two", label: "Two" }),
                      ({ id: "three", label: "Three" }) ] },
-        input(v: object) { app.page = "" + v }
+        input(v: string) { app.page = v }
         ],
     Text [ x = 20, y = 74, text = { "showing: " + app.page } ]
     ]

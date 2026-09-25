@@ -69,9 +69,9 @@ await test("crawl: homepage emits the #why and #language documents, linked from 
 // rather than the real docs app; the assertions transfer directly.
 
 await test("crawl: canonical key strips the anchor and canonicalizes the declared default (dedup rules 1–2)", () => {
-  assert.equal(canonKey("guide/04-tree@components-are-classes", "guide/01-thinking-in-declare"), "guide/04-tree", "anchor stripped");
-  assert.equal(canonKey("guide/01-thinking-in-declare", "guide/01-thinking-in-declare"), "", "the declared default → the empty key");
-  assert.equal(canonKey("", "guide/01-thinking-in-declare"), "", "an empty fragment → the empty key (same page as the default)");
+  assert.equal(canonKey("guide/05-components@components-are-classes", "guide/01-what-declare-is"), "guide/05-components", "anchor stripped");
+  assert.equal(canonKey("guide/01-what-declare-is", "guide/01-what-declare-is"), "", "the declared default → the empty key");
+  assert.equal(canonKey("", "guide/01-what-declare-is"), "", "an empty fragment → the empty key (same page as the default)");
   assert.equal(canonKey("why", "home"), "why", "a non-default location keeps its own key");
 });
 

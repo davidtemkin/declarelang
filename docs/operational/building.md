@@ -5,7 +5,7 @@ at build time and emits a self-contained, static directory — the Declare analo
 bundler's production build.
 
 ```bash
-node tools/declarec.mjs apps/calendar/calendar.declare -o dist
+npx declarec apps/calendar/calendar.declare -o dist
 ```
 
 ## What it emits, and why it's small
@@ -43,7 +43,7 @@ data a literal `url` names beside the program, the island programs a literal `pr
 names. What it cannot see, the program states, in one top-level block — each member a fact
 about the program, never a build option:
 
-```declare
+```declare-fragment
 ship [
     islands = ["player", "queue", "../../settings/settings"],
     files = ["../../docs/model.json", "app.declare"],
@@ -147,4 +147,4 @@ the platform runtime already on the page — no compiler, no parse. It keeps the
 compile-on-request model fast; it is not a `declarec` build, and the figure above is not
 measured on it. The three arrangements — the standalone build, the dev server, and the
 static distro — are laid out in [Running & hosting](../system-design/hosting.md). The
-concepts are [Ship it](declare-docs:guide:run-check-ship); this page is the commands.
+concepts are [Packaging for production](declare-docs:guide:packaging); this page is the commands.

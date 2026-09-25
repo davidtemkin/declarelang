@@ -208,7 +208,7 @@ class Dialog extends View [
         // restore deferred: the in-flight keystroke must finish against the
         // old focus — an immediate restore hands the same Enter to the opener,
         // which re-activates and reopens
-        if (s != null) setTimeout(() => Focus.focus(s), 0)
+        if (s != null) afterDelay(0, () => Focus.focus(s))
         },
 
     // Dismiss-then-deliver, the same contract as Menu's pick: transient
@@ -219,10 +219,7 @@ class Dialog extends View [
         if (!shown) return                       // the double-activation guard
         const f = this.cb
         this.close()
-        const deliver = () => { this.picked(id); if (f != null) this.callCb(f, id) }
-        const raf = (globalThis as any).requestAnimationFrame
-        if (typeof raf == "function") raf(() => setTimeout(deliver, 0))
-        else setTimeout(deliver, 0)
+        afterDelay(0, () => { this.picked(id); if (f != null) this.callCb(f, id) })
         },
 
     callCb(f: (id: string) -> void, id: string) { f(id) },

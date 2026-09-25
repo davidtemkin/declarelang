@@ -1,0 +1,16 @@
+class StatRow extends View [ width = 260, height = 22,
+    label: string = "",
+    value: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8 ],
+    Text [ width = 100, textColor = slategray, text = { classroot.label } ],
+    Text [ text = { classroot.value } ]
+    ]
+
+
+App [ width = 320, height = 120, fill = white, textColor = black,
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        StatRow [ label = "Humidity", value = "62%" ],
+        StatRow [ label = "Wind", value = "8 mph" ]
+        ]
+    ]

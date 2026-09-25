@@ -1,0 +1,1888 @@
+/*
+# Cadence — a training log
+
+Fourteen months of sessions, read from the local service on :8320. Three things
+are on screen at once, and the order is the design: **where am I** (this week,
+the streak, the week's shape, the last session), **the year** as one continuous
+surface the hand pushes and pulls, and **a session** when one is picked.
+
+Three ideas carry the program:
+
+- **Every figure is a `Figure`** — a number with a spring under it. Nothing is
+  ever assigned a new reading; a target moves and the digits travel there. Add a
+  session and the week total, the streak, the week's bars and the period summary
+  all walk to their new values at once, because all of them read the one dataset
+  the write landed in.
+- **The year is two scalars** — `center` (the day in the middle of the frame)
+  and `span` (how many days are across it). Every mark on the ribbon, its ruler,
+  its summary and its labels are arithmetic over those two. A hand writes them
+  outright, so the surface is exactly where it was put with nothing to wait for;
+  a button or a key writes only their *targets*, and a spring carries them,
+  interruptibly, from wherever they are.
+- **Colour is effort.** One accent, and a bar's distance along it is how hard
+  that day was. A heavy week is red before you have read a number.
+
+`Log extends Node` is the faceless model: it owns the three sources, the writer,
+and every query over them. The views hold no copies — the week, the streak, the
+week's shape, the ribbon and the detail are all derivations of the one dataset a
+write lands in, which is why nothing in this program refreshes anything.
+*/
+
+
+script {
+    // ── dates ── The person's own dates: "YYYY-MM-DD" in, day numbers out, and
+    // no zone ever enters the arithmetic (UTC is used purely as a fixed grid).
+
+    const MS = 86400000
+
+    function dayNum(iso: string): number {
+        const p = iso.split("-")
+        return Math.round(Date.UTC(+p[0], +p[1] - 1, +p[2]) / MS)
+        }
+
+    function isoOf(n: number): string {
+        const d = new Date(Math.round(n) * MS)
+        const m = d.getUTCMonth() + 1, day = d.getUTCDate()
+        return d.getUTCFullYear() + "-" + (m < 10 ? "0" + m : m) + "-" + (day < 10 ? "0" + day : day)
+        }
+
+    // 1970-01-01 was a Thursday, so day 0 sits at index 4 of a Sunday-first week.
+    function dowOf(n: number): number { return ((Math.round(n) + 4) % 7 + 7) % 7 }
+
+    // Monday-first, which is how a training week is counted.
+    function weekIndex(n: number): number { return (dowOf(n) + 6) % 7 }
+    function weekStartOf(n: number): number { return Math.round(n) - weekIndex(n) }
+
+    function monthOf(n: number): number { return new Date(Math.round(n) * MS).getUTCMonth() }
+    function yearOf(n: number): number { return new Date(Math.round(n) * MS).getUTCFullYear() }
+    function dayOfMonth(n: number): number { return new Date(Math.round(n) * MS).getUTCDate() }
+
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONL = ["January", "February", "March", "April", "May", "June",
+                  "July", "August", "September", "October", "November", "December"]
+    const DOW = ["M", "T", "W", "T", "F", "S", "S"]
+    const DOWL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+    function monShort(n: number): string { return MON[monthOf(n)] }
+    function monLong(n: number): string { return MONL[monthOf(n)] }
+    function dowLetter(n: number): string { return DOW[weekIndex(n)] }
+    function dowName(n: number): string { return DOWL[weekIndex(n)] }
+
+    /** "4 Aug 2026" — and the year dropped when it is the one on screen. */
+    function longDate(n: number, hideYear: boolean): string {
+        return dayOfMonth(n) + " " + monShort(n) + (hideYear ? "" : " " + yearOf(n))
+        }
+
+    /** "Today" / "Yesterday" / "Tuesday" within the week, else the date. */
+    function whenWord(n: number, today: number): string {
+        const d = today - Math.round(n)
+        return d == 0 ? "Today" : d == 1 ? "Yesterday" : d < 7 ? dowName(n) : longDate(n, yearOf(n) == yearOf(today))
+        }
+
+    // ── the brief's number formats ──
+
+    function fmtDur(min: number): string {
+        const m = Math.max(0, Math.round(min)), h = Math.floor(m / 60), r = m % 60
+        return h > 0 ? (r > 0 ? h + "h " + r + "m" : h + "h") : r + "m"
+        }
+    function fmtKm(km: number): string { return (Math.round(km * 10) / 10).toFixed(1) + " km" }
+    function fmtBpm(b: number): string { return Math.round(b) + " bpm" }
+
+    /** A running session reads as a clock, not as a duration: it is moving. */
+    function fmtClock(sec: number): string {
+        const s = Math.max(0, Math.floor(sec)), h = Math.floor(s / 3600)
+        const m = Math.floor(s / 60) % 60, r = s % 60
+        const mm = (m < 10 && h > 0 ? "0" : "") + m, rr = (r < 10 ? "0" : "") + r
+        return (h > 0 ? h + ":" : "") + mm + ":" + rr
+        }
+
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+        }
+
+    // ── colour ── 0xRRGGBB in, a CSS string out for `draw`, and a channel-wise
+    // blend for the effort ramp.
+
+    function mixc(a: number, b: number, t: number): number {
+        const c = (x: number, y: number) => Math.round(x + (y - x) * t)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16)
+             | (c((a >> 8) & 255, (b >> 8) & 255) << 8)
+             | c(a & 255, b & 255)
+        }
+    function rgba(c: number, a: number): string {
+        return "rgba(" + ((c >> 16) & 255) + "," + ((c >> 8) & 255) + "," + (c & 255) + "," + a + ")"
+        }
+
+    /* The display face's left side bearing, as a fraction of the em: measured
+       off the rendered face (a 104px "2" starts 3.8px left of its origin, a "1"
+       4.8px). Big type set flush against a panel edge hangs by this much, so a
+       block that has to share a rail with a painted edge adds it back. */
+
+    const DISPLAY_BEARING = 0.036
+
+    function clamp(v: number, a: number, b: number): number { return Math.max(a, Math.min(b, v)) }
+    function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
+
+    /** The share of `arr` this value beats — the "where it sits" number. */
+    function pctile(v: number, arr: number[]): number {
+        if (arr.length == 0) return 0
+        let under = 0
+        for (const x of arr) if (x < v) under = under + 1
+        return Math.round(100 * under / arr.length)
+        }
+    function median(arr: number[]): number {
+        if (arr.length == 0) return 0
+        const s = arr.slice().sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+        }
+    }
+
+
+/* ## The shapes the service sends, declared once
+   The compiler checks every `:path` and every `.value` chain against these, and
+   the runtime checks each response and each local write. */
+
+schema Session [
+    id: string, date: string, sport: "run" | "ride" | "lift" | "swim",
+    minutes: number, distanceKm?: number, effort: number, heartAvg?: number, note?: string
+    ]
+
+schema LiveSession [
+    id: string, date: string, sport: string, startedSecondsAgo: number,
+    minutes: number, distanceKm?: number, heartNow?: number, effort: number
+    ]
+
+
+/* ## Two faces
+   A condensed grotesque for everything that is a number, the system face for
+   everything that is a word. The jump between them is the design: 11px of
+   letter-spaced label under a 104px figure. */
+
+theme Faces [
+    display = ["Avenir Next Condensed", "Helvetica Neue", "Arial Narrow", "sans-serif"],
+    body = ["system-ui", "-apple-system", "Helvetica Neue", "sans-serif"]
+    ]
+
+
+/* ## The model
+   One node owns the three sources, the writer, and every query. Views read it;
+   nothing copies out of it. The derived datasets below recompute because they
+   *read* `hist` — a POST that lands writes one record into it and the week, the
+   streak, the shape and the ribbon are all already true of it. */
+
+class Log extends Node [
+
+    base: string = "http://127.0.0.1:8320",
+
+    // The service's clock is the one to trust — "this week" and "the streak"
+    // mean the same thing on every run because this is where today comes from.
+
+    todaySrc: DataSource [ auto = true, url = { classroot.base + "/api/today" }, schema = [ today: string ] ],
+
+    hist: DataSource [ auto = true, url = { classroot.base + "/api/sessions" },
+        schema = [ sessions[]: Session ],
+        onLoad() { classroot.landed() }
+        ],
+
+    liveSrc: DataSource [ auto = true, url = { classroot.base + "/api/live" },
+        schema = [ session?: LiveSession ],
+        onLoad() { classroot.anchorLive() }
+        ],
+
+    /* When the running session began, in wall time. Anchored once, on the first
+       reading of a given session, and never re-anchored: re-deriving it from
+       each refreshed `startedSecondsAgo` re-seats the clock every five seconds,
+       which the eye sees as a stutter and a skipped second. */
+
+    liveStart: number = 0,
+    liveId: string = "",
+    anchorLive() {
+        const v = classroot.liveSrc.value
+        const s = v != null ? v.session : null
+        if (s == null) { classroot.liveId = ""; return }
+        if (s.id != classroot.liveId) {
+            classroot.liveId = s.id
+            classroot.liveStart = Date.now() - s.startedSecondsAgo * 1000
+            }
+        },
+
+    // the seam the App overrides: the history has landed and the year can open
+
+    landed() { },
+
+    /* Every read below asks the DATA, never the lifecycle. `loaded` is false for
+       the length of any re-fetch, so a screen derived from it empties itself and
+       fills back in each time a source is asked again — a whole-page flash five
+       times a minute. `value` survives a re-fetch (and a failure), which is why
+       it is the honest thing to derive from. */
+
+    today: string = { classroot.todaySrc.value != null ? classroot.todaySrc.value.today : "" },
+    ready: boolean = { classroot.today != "" && classroot.hist.value != null },
+    todayNum: number = { classroot.today == "" ? 0 : dayNum(classroot.today) },
+
+    all() -> Session[] { return classroot.hist.value != null ? classroot.hist.value.sessions : [] },
+
+    byId(id: string) -> Session { return classroot.all().find(s => s.id == id) ?? null },
+
+    firstDay: number = { classroot.all().length == 0 ? classroot.todayNum
+        : dayNum(classroot.all()[classroot.all().length - 1].date) },
+
+    // ── this week ──
+
+    weekStart: number = { weekStartOf(classroot.todayNum) },
+    weekOnes() -> Session[] {
+        const a = classroot.weekStart
+        return classroot.all().filter(s => dayNum(s.date) >= a && dayNum(s.date) <= classroot.todayNum)
+        },
+    weekCount: number = { classroot.weekOnes().length },
+    weekMinutes: number = { classroot.weekOnes().reduce((t, s) => t + s.minutes, 0) },
+
+    /* ## The streak
+       Consecutive days with a session. A day that has not happened yet cannot
+       break one, so a morning with nothing in it counts back from yesterday —
+       the streak only ends when a whole day passes empty. */
+
+    countStreak() -> number {
+        const days = new Set(classroot.all().map(s => dayNum(s.date)))
+        let n = 0, d = days.has(classroot.todayNum) ? classroot.todayNum : classroot.todayNum - 1
+        while (days.has(d)) { n = n + 1; d = d - 1 }
+        return n
+        },
+    streak: number = { classroot.countStreak() },
+
+    last: Session = { classroot.all().length > 0 ? classroot.all()[0] : null },
+
+    live: LiveSession = {
+        classroot.liveSrc.value != null && classroot.liveSrc.value.session != null
+            ? classroot.liveSrc.value.session : null
+        },
+
+    // ── the derived views of the history ──
+
+    /* One record per day that has anything in it: the ribbon's marks, the
+       ribbon's totals and the tap target all read this. */
+
+    buildDays() -> object {
+        const out = [] as any
+        const at = ({}) as any
+        for (const s of classroot.all()) {
+            const i = dayNum(s.date)
+            let e = at[i]
+            if (e == null) {
+                e = ({ i: i, date: s.date, minutes: 0, effort: 0, topMin: -1, id: s.id })
+                at[i] = e
+                out.push(e)
+                }
+            e.minutes = e.minutes + s.minutes
+            e.effort = Math.max(e.effort, s.effort)
+            // the day's own session, for a tap to land on: the longest one
+            if (s.minutes > e.topMin) { e.topMin = s.minutes; e.id = s.id }
+            }
+        out.sort((a, b) => (a as any).i - (b as any).i)
+        return ({ days: out })
+        },
+    days: Dataset [ contents = { classroot.buildDays() } ],
+
+    /** The months the history spans — the ribbon's ruler. */
+
+    buildMonths() -> object {
+        const out = [] as any
+        if (!classroot.ready) return ({ months: out })
+        let y = yearOf(classroot.firstDay), m = monthOf(classroot.firstDay)
+        const endY = yearOf(classroot.todayNum), endM = monthOf(classroot.todayNum)
+        while (y < endY || (y == endY && m <= endM)) {
+            const i = Math.round(Date.UTC(y, m, 1) / MS)
+            out.push(({ i: i, key: y + "-" + m, label: MON[m], year: "" + y, jan: m == 0 }))
+            m = m + 1
+            if (m > 11) { m = 0; y = y + 1 }
+            }
+        return ({ months: out })
+        },
+    months: Dataset [ contents = { classroot.buildMonths() } ],
+
+    /** Monday to Sunday of the week on screen. */
+
+    buildWeek() -> object {
+        const out = [] as any
+        const days = classroot.days.value == null ? [] : (classroot.days.value as any).days
+        for (let k = 0; k < 7; k++) {
+            const i = classroot.weekStart + k
+            const hit = days.find((d) => (d as any).i == i)
+            out.push(({ i: i, date: isoOf(i), dow: DOW[k], minutes: hit == null ? 0 : hit.minutes,
+                        effort: hit == null ? 0 : hit.effort, id: hit == null ? "" : hit.id,
+                        today: i == classroot.todayNum, ahead: i > classroot.todayNum }))
+            }
+        return ({ days: out })
+        },
+    week: Dataset [ contents = { classroot.buildWeek() } ],
+
+    /* ## What is usual
+       The add sheet opens on what the person most likely means, so these are
+       the medians of what they actually do — per sport, and per weekday for the
+       sport itself. */
+
+    ofSport(sport: string) -> Session[] { return classroot.all().filter(s => s.sport == sport) },
+
+    usualSport(day: number) -> string {
+        const k = weekIndex(day)
+        const tally = ({ run: 0, ride: 0, lift: 0, swim: 0 }) as any
+        for (const s of classroot.all()) if (weekIndex(dayNum(s.date)) == k) tally[s.sport] = tally[s.sport] + 1
+        let best = "run"
+        for (const name of ["run", "ride", "lift", "swim"]) if (tally[name] > tally[best]) best = name
+        return best
+        },
+    usualMinutes(sport: string) -> number {
+        const m = median(classroot.ofSport(sport).map(s => s.minutes))
+        return Math.max(5, Math.round(m / 5) * 5)
+        },
+    usualKm(sport: string) -> number {
+        const v = classroot.ofSport(sport).filter(s => s.distanceKm != null).map(s => s.distanceKm)
+        return Math.round(median(v as number[]) * 2) / 2
+        },
+    usualEffort(sport: string) -> number {
+        const e = median(classroot.ofSport(sport).map(s => s.effort))
+        return e > 0 ? e : 5
+        },
+
+    // ── where a session sits against everything else ──
+
+    rankMinutes(s: Session) -> number { return pctile(s.minutes, classroot.ofSport(s.sport).map(x => x.minutes)) },
+
+    // "longer than 14% of them" is true but graceless at the bottom of a
+    // distribution; below the middle, the sentence turns around
+
+    saySide(rank: number, more: string, less: string) -> string {
+        return rank >= 50 ? more + " than " + rank + "% of them"
+                          : less + " than " + (100 - rank) + "% of them"
+        },
+    rankKm(s: Session) -> number {
+        return pctile(s.distanceKm ?? 0, classroot.ofSport(s.sport).filter(x => x.distanceKm != null).map(x => x.distanceKm) as number[])
+        },
+    rankEffort(s: Session) -> number { return pctile(s.effort, classroot.ofSport(s.sport).map(x => x.effort)) },
+    sameDay(s: Session) -> Session[] { return classroot.all().filter(x => x.date == s.date) },
+
+    /* ## Writing
+       One writer serves all three verbs. Its url, method and body are ordinary
+       reactive slots, so a handler sets them and hands the send to the far side
+       of its own settle — by then the slots hold what was just written.
+       What comes back is the server's own record, and it goes straight into
+       `hist`: no refetch, nothing stale, nothing to wait for. */
+
+    wMethod: "POST" | "PUT" | "DELETE" = "POST",
+    wUrl: string = "",
+    wBody: object = null,
+    wId: string = "",
+    saving: boolean = { classroot.writer.loading },
+    problem: string = { classroot.writer.failed && classroot.writer.errorBody != null
+        ? "" + (classroot.writer.errorBody as any).message : "" },
+
+    writer: DataSource [ url = { classroot.wUrl }, method = { classroot.wMethod }, body = { classroot.wBody },
+        onLoad() { classroot.stored() }
+        ],
+
+    add(rec: object) {
+        classroot.wMethod = "POST"; classroot.wUrl = classroot.base + "/api/sessions"
+        classroot.wBody = rec; classroot.wId = ""
+        afterSettle(classroot.send)
+        },
+    correct(id: string, rec: object) {
+        classroot.wMethod = "PUT"; classroot.wUrl = classroot.base + "/api/sessions/" + id
+        classroot.wBody = rec; classroot.wId = id
+        afterSettle(classroot.send)
+        },
+    erase(id: string) {
+        classroot.wMethod = "DELETE"; classroot.wUrl = classroot.base + "/api/sessions/" + id
+        classroot.wBody = null; classroot.wId = id
+        afterSettle(classroot.send)
+        },
+    send() { classroot.writer.fetch() },
+
+    // The history is newest-first; a stored record takes its place in that order.
+
+    stored() {
+        const list = classroot.all()
+        if (classroot.wMethod == "DELETE") {
+            const i = list.findIndex(s => s.id == classroot.wId)
+            if (i >= 0) classroot.hist.removeAt(["sessions"], i)
+            }
+        else if (classroot.wMethod == "PUT") {
+            const i = list.findIndex(s => s.id == classroot.wId)
+            if (i >= 0) classroot.hist.set(["sessions", i], classroot.writer.value)
+            }
+        else {
+            const rec = classroot.writer.value as any
+            let at = list.findIndex(s => s.date <= rec.date)
+            if (at < 0) at = list.length
+            classroot.hist.insert(["sessions"], at, rec)
+            }
+        classroot.wrote(classroot.wMethod == "DELETE" ? "" : ((classroot.writer.value as any).id ?? ""))
+        },
+
+    // the second seam: the App follows the record that just landed
+
+    wrote(id: string) { }
+    ]
+
+
+/* ## A figure that travels
+   Every number on screen is one of these. The spring is under `shown`, so a
+   change of `value` — a session added, the period moved — is a journey, not a
+   cut.
+
+   `hang` is the optical correction: a glyph's ink starts a little left of its
+   origin, and at display sizes that bearing is several pixels — enough that a
+   figure set flush with a panel's painted edge visibly hangs left of it. The
+   text is nudged right by its own bearing so the INK lines up with the rail
+   everything else is on. (It is a ratio rather than a measurement because the
+   language measures advance widths, not ink extents.) */
+
+class Figure extends View [
+    value: number = 0,
+    size: number = 40,
+    digits: number = 0,
+    tint: Color = null,
+    hang: boolean = false,
+    shown: number = 0,
+    width = { classroot.t.x + classroot.t.width }, height = { classroot.t.height },
+
+    // so a figure can sit in a baseline-aligned run beside the word it names
+
+    baseline: number = { classroot.t.baseline },
+    Spring [ attribute = shown, to = { classroot.value }, stiffness = 260, damping = 30 ],
+    t: Text [ fontFamily = { Faces.display }, fontWeight = bold, wrap = false,
+        x = { classroot.hang ? DISPLAY_BEARING * classroot.size : 0 },
+        fontSize = { classroot.size }, letterSpacing = { -0.018 * classroot.size },
+        lineHeight = 1.04,
+        textColor = { classroot.tint ?? provided("theme").text },
+        text = { classroot.shown.toFixed(classroot.digits) } ]
+    ]
+
+
+/* A duration, set the same way — and set as ONE run.
+
+   The unit letters were a second, smaller run tucked into the figure's right
+   bearing, which is a real typographic move and the wrong one to make blind:
+   that bearing is 15px after a `1` and 3px after a `4` in this face, so one
+   kern either leaves a hole or collides. The language measures advances, not
+   ink, so nothing inside the program can tell those apart. Setting the whole
+   duration in one run hands the spacing back to the font, where it is right by
+   construction — and `3h 40m` can no longer break across a line either. */
+
+class DurFigure extends View [
+    minutes: number = 0,
+    size: number = 40,
+    tint: Color = null,
+    hang: boolean = false,
+    shown: number = 0,
+    width = { classroot.t.x + classroot.t.width }, height = { classroot.t.height },
+    baseline: number = { classroot.t.baseline },
+    Spring [ attribute = shown, to = { classroot.minutes }, stiffness = 260, damping = 30 ],
+    t: Text [ fontFamily = { Faces.display }, fontWeight = bold, wrap = false,
+        x = { classroot.hang ? DISPLAY_BEARING * classroot.size : 0 },
+        fontSize = { classroot.size }, letterSpacing = { -0.018 * classroot.size },
+        lineHeight = 1.04,
+        textColor = { classroot.tint ?? provided("theme").text },
+        text = { fmtDur(classroot.shown) } ]
+    ]
+
+
+/* The smallest text in the app, and the only label style: 11px, letter-spaced,
+   upper case. Everything large is measured against it. */
+
+class Cap extends Text [ fontSize = 11, fontWeight = semibold, wrap = false,
+    letterSpacing = 1.3, textTransform = uppercase,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+/* The word beside a figure. Small against the figure, but not so small that the
+   pair reads as two unrelated sizes — a display number wants a companion, not a
+   footnote. The scale that has to be dramatic is the one against the 11px
+   label, and at 22 against 104 it still is, six times over. */
+
+class Word extends Text [ wrap = false,
+    big: boolean = false,
+    fontSize = { (app.phone ? 17 : 21) + (this.big ? 3 : 0) },
+    fontWeight = medium,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+/* ## One day of the week's shape
+   A column whose bar is minutes against a fixed reference — fixed, so a light
+   week looks light and a heavy one heavy without a number being read. */
+
+class WeekDay extends Control [
+    height = 100%,
+    lane: number = { classroot.height - 24 },
+    full: number = { Math.min(1, :minutes / 120) * classroot.lane },
+    grown: number = 0,
+    disabled = { :id == "" },
+    Spring [ attribute = grown, to = { classroot.full }, stiffness = 220, damping = 26 ],
+
+    track: View [ width = 100%, height = { classroot.lane }, cornerRadius = 4,
+        fill = { app.hairline(:today ? 0.5 : 0.22) } ],
+    bar: View [ width = 100%, cornerRadius = 4,
+        height = { Math.max(:minutes > 0 ? 4 : 0, classroot.grown) },
+        y = { classroot.lane - classroot.bar.height },
+        fill = { app.effortInk(:effort) },
+        opacity = { classroot.hot ? 0.82 : 1 } ],
+    dot: View [ x = center, y = { classroot.lane + 7 }, width = 4, height = 4, cornerRadius = 2,
+        visible = { :today }, fill = { provided("theme").accent } ],
+    lbl: Cap [ width = 100%, textAlign = center, y = { classroot.lane + 11 },
+        textColor = { :today ? provided("theme").text : :ahead ? provided("theme").textFaint : provided("theme").textMuted },
+        text = { :dow } ],
+    onClick() { if (:id != "") app.showSession("" + :id, classroot) }
+    ]
+
+
+/* A month's name and rule on the ribbon's ruler. The label fades out as the
+   months crowd together, so a squeezed season still has a January in it. */
+
+class MonthTick extends View [
+    ignoreLayout = true,
+    x = { app.dayX(:i) },
+    y = 0,
+    width = 1,
+    height = { app.ribbonH },
+    fill = { app.hairline(:jan ? 0.45 : 0.17) },
+    visible = { app.dayX(:i) > -40 && app.dayX(:i) < app.ribbonW + 40 },
+
+    // the label of a month that straddles the left edge stays in view
+
+    name: Cap [ x = { Math.max(5, 5 - app.dayX(:i)) }, y = { app.ribbonH - 16 },
+        opacity = { app.monthLabelOn },
+        textColor = { :jan ? provided("theme").text : provided("theme").textFaint },
+        text = { :jan ? :label + " " + :year : :label } ]
+    ]
+
+
+/* ## The tap target
+   Everything touchable that is not a library control is one of these: it takes
+   focus, answers Space and Enter, and reports `hot` / `down` already gated by
+   `disabled`. Nothing in this app depends on hover to be discoverable. */
+
+class Tap extends Control [
+    cornerRadius = 12,
+    selected: boolean = false,
+    act() { },
+    press() { if (!classroot.disabled) classroot.act() },
+    onClick() { classroot.press() },
+    fill = { classroot.selected ? provided("theme").accent
+           : classroot.down ? provided("theme").controlPressed
+           : classroot.hot ? provided("theme").controlHover
+           : provided("theme").control },
+    opacity = { classroot.disabled ? 0.38 : 1 }
+    ]
+
+
+/* The sport, as four targets big enough to hit without looking. */
+
+class SportTile extends Tap [
+    sport: string = "run",
+    height = { app.phone ? 74 : 62 },
+    selected = { app.cSport == classroot.sport },
+    act() { app.pickSport(classroot.sport) },
+    mark: SportMark [ x = center, y = { app.phone ? 14 : 10 }, iconSize = 24,
+        kind = { classroot.sport },
+        ink = { classroot.selected ? provided("theme").accentText : provided("theme").text } ],
+    t: TextLabel [ width = 100%, textAlign = center, fontSize = 13, wrap = false,
+        y = { (app.phone ? 50 : 42) - this.baseline + this.capHeight / 2 },
+        fontWeight = semibold,
+        textColor = { classroot.selected ? provided("theme").accentText : provided("theme").text },
+        text = { sportName(classroot.sport) } ]
+    ]
+
+
+/* Four drawn marks rather than four glyphs — one path each, crisp at any size,
+   and the same ink as the label beside them. */
+
+class SportMark extends Icon [
+    kind: string = "run",
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = 1.6 / unit * weight / 1.6
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (classroot.kind == "run") {
+            d.moveTo(3, 14.5); d.lineTo(6.5, 10); d.lineTo(5, 7); d.lineTo(8.5, 4.5)
+            d.moveTo(5, 7); d.lineTo(9.5, 8.5); d.lineTo(11, 12)
+            d.moveTo(9.5, 8.5); d.lineTo(13.5, 6.5)
+            d.stroke()
+            d.beginPath(); d.arc(10.5, 2.8, 1.5, 0, 6.2832); d.fillStyle = ink; d.fill()
+            }
+        else if (classroot.kind == "ride") {
+            d.arc(4, 11, 3.2, 0, 6.2832); d.stroke()
+            d.beginPath(); d.arc(12, 11, 3.2, 0, 6.2832); d.stroke()
+            d.beginPath(); d.moveTo(4, 11); d.lineTo(7, 6); d.lineTo(11, 6); d.lineTo(12, 11)
+            d.moveTo(7, 6); d.lineTo(9, 11); d.stroke()
+            }
+        else if (classroot.kind == "lift") {
+            d.moveTo(2, 8); d.lineTo(14, 8)
+            d.moveTo(4, 5); d.lineTo(4, 11)
+            d.moveTo(12, 5); d.lineTo(12, 11)
+            d.moveTo(2, 6.5); d.lineTo(2, 9.5)
+            d.moveTo(14, 6.5); d.lineTo(14, 9.5)
+            d.stroke()
+            }
+        else {
+            d.moveTo(1.5, 12); d.bezierCurveTo(4, 9.5, 5.5, 14, 8, 11.5)
+            d.bezierCurveTo(10.5, 9, 12, 13.5, 14.5, 11)
+            d.moveTo(4, 7.5); d.lineTo(9, 5.5); d.lineTo(12.5, 6.5)
+            d.stroke()
+            d.beginPath(); d.arc(12.5, 3.6, 1.4, 0, 6.2832); d.fillStyle = ink; d.fill()
+            }
+        }
+    ]
+
+
+/* A round − / + for the values a thumb should nudge rather than type. */
+
+class Nudge extends Tap [
+    up: boolean = true,
+    size: number = 54,
+    width = { classroot.size }, height = { classroot.size },
+    cornerRadius = { classroot.size / 2 },
+    act() { app.nudge(classroot.group, classroot.up ? 1 : -1) },
+    group: string = "minutes",
+    draw(d: Draw) {
+        const c = classroot.size / 2, r = classroot.size * 0.21
+        d.strokeStyle = rgba(app.inkColor(), classroot.disabled ? 0.3 : 0.9)
+        d.lineWidth = 2
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(c - r, c); d.lineTo(c + r, c)
+        if (classroot.up) { d.moveTo(c, c - r); d.lineTo(c, c + r) }
+        d.stroke()
+        }
+    ]
+
+
+/* A small word-sized choice: the quick durations, the dates, "no distance". */
+
+class Chip extends Tap [
+    label: string = "",
+    sub: string = "",
+    height = { classroot.sub == "" ? 40 : 58 },
+    cornerRadius = { classroot.sub == "" ? 20 : 14 },
+    onPicked: (l: string) -> void = null,
+    act() { if (classroot.onPicked != null) classroot.onPicked(classroot.label) },
+    t: TextLabel [ width = 100%, textAlign = center, wrap = false, fontSize = 14, fontWeight = semibold,
+        y = { (classroot.sub == "" ? classroot.height / 2 : 38) - this.baseline + this.capHeight / 2 },
+        textColor = { classroot.selected ? provided("theme").accentText : provided("theme").text },
+        text = { classroot.label } ],
+    s: Cap [ width = 100%, textAlign = center, y = 11, visible = { classroot.sub != "" },
+        textColor = { classroot.selected ? provided("theme").accentText : provided("theme").textMuted },
+        text = { classroot.sub } ]
+    ]
+
+
+/* Effort, as ten targets. The pips fill along the accent, so setting one *is*
+   the colour the session will wear everywhere else. */
+
+class EffortPip extends Tap [
+    n: number = 1,
+    width = { (parent.width - 9 * 5) / 10 },
+    height = 44,
+    cornerRadius = 8,
+    selected = { app.cEffort >= classroot.n },
+    fill = { classroot.selected ? app.effortInk(classroot.n)
+           : classroot.hot ? provided("theme").controlHover : provided("theme").control },
+    act() { app.cEffort = classroot.n },
+    t: TextLabel [ width = 100%, textAlign = center, fontSize = 13, fontWeight = semibold,
+        fontFamily = { Faces.display },
+        textColor = { classroot.selected ? provided("theme").accentText : provided("theme").textMuted },
+        text = { "" + classroot.n } ]
+    ]
+
+
+/* The one full-width commitment in the app. It says what remains before it can
+   be pressed, so saving is never what tells you that you got it wrong. */
+
+class Commit extends Tap [
+    label: string = "Save",
+    width = 100%,
+    height = 58,
+    cornerRadius = 15,
+    selected = true,
+    fill = { classroot.disabled ? provided("theme").control
+           : classroot.down ? mixc(provided("theme").accent, 0x000000, 0.18)
+           : classroot.hot ? mixc(provided("theme").accent, 0x000000, 0.08)
+           : provided("theme").accent },
+    opacity = 1,
+    act() { app.commit() },
+    t: TextLabel [ width = 100%, textAlign = center, fontSize = 18, fontWeight = bold, wrap = false,
+        textColor = { classroot.disabled ? provided("theme").textFaint : provided("theme").accentText },
+        text = { classroot.label } ]
+    ]
+
+
+/* ## Where a session sits
+   The whole distribution as one lane, this session's place marked on it. The
+   caption says the same thing in words, because a mark alone is a picture. */
+
+class CompareRow extends View [
+    width = 100%,
+    height = 46,
+    label: string = "",
+    rank: number = 0,
+    grown: number = 0,
+    caption: string = "",
+    tint: Color = null,
+
+    // the lane IS the percentile the sentence names, so the mark and the words
+    // cannot say two different things
+
+    Spring [ attribute = grown, to = { classroot.rank }, stiffness = 200, damping = 26 ],
+    l: Cap [ y = 0, text = { classroot.label } ],
+    lane: View [ y = 18, width = 100%, height = 8, cornerRadius = 4,
+        fill = { app.hairline(0.3) } ],
+    fillBar: View [ y = 18, height = 8, cornerRadius = 4,
+        width = { Math.max(4, classroot.width * clamp(classroot.grown, 0, 100) / 100) },
+        fill = { classroot.tint ?? provided("theme").accent } ],
+    cap: Text [ y = 30, fontSize = 12, wrap = false,
+        textColor = { provided("theme").textMuted }, text = { classroot.caption } ]
+    ]
+
+
+/* A line of the detail: a small label with a figure under it. */
+
+class Fact extends View [
+    label: string = "",
+    value: string = "",
+    strong: boolean = false,
+    width = { classroot.contentWidth },
+    height = 44,
+    l: Cap [ y = 0, text = { classroot.label } ],
+    v: Text [ y = 15, fontFamily = { Faces.display }, wrap = false,
+        x = { DISPLAY_BEARING * this.fontSize },
+        fontSize = { classroot.strong ? 27 : 23 }, fontWeight = { classroot.strong ? "bold" : "medium" },
+        textColor = { provided("theme").text }, text = { classroot.value } ]
+    ]
+
+
+/* ═══════════════════════════════════════════════════════════════════════════ */
+
+
+App [ appName = "Cadence", minWidth = 320,
+
+    fill = { provided("theme").bg },
+    fontFamily = { Faces.body },
+    textColor = { provided("theme").text },
+
+    /* The palette is the house preset with this app's own ink over it, so a
+       library control finds every token it consults while Cadence keeps its own
+       paper. Two records, chosen by the room the app is in — there is no
+       appearance setting to find, because following the system is the default
+       and the only reason to override it would be a settings screen. */
+
+    theme = { { ...(app.dark ? SanFranciscoDark : SanFrancisco), ...(app.dark ? app.night() : app.day()) } },
+
+    day() { return ({
+        bg: 0xF7F5F0, surface: 0xFFFFFF, line: 0xE3DED2,
+        text: 0x15181C, textMuted: 0x76736A, textFaint: 0xA8A396,
+        accent: 0xDE3B11, accentText: 0xFFFFFF,
+        control: 0xEBE7DC, controlHover: 0xE2DCCE, controlPressed: 0xD6CFBD, controlSelected: 0xF7DDD4,
+        rest: 0xCFC9BA, sheet: 0xFFFFFF, veil: 0x2A2621 }) },
+    night() { return ({
+        bg: 0x0F1113, surface: 0x17191C, line: 0x282B2F,
+        text: 0xF2EFE9, textMuted: 0x8D8A83, textFaint: 0x595752,
+        accent: 0xFF5026, accentText: 0xFFFFFF,
+        control: 0x212429, controlHover: 0x292D32, controlPressed: 0x33373D, controlSelected: 0x3B241C,
+        rest: 0x3A3E44, sheet: 0x191C1F, veil: 0x000000 }) },
+
+    // colour helpers — `-> number`, because that is what mixes and what `draw` takes
+
+    inkColor() -> number { return provided("theme").text },
+    accentColor() -> number { return provided("theme").accent },
+    lineColor() -> number { return provided("theme").line },
+
+    /* ## Colour is effort
+       One accent, and how far along it a mark sits is how hard that day was.
+       Nothing else in the app is allowed to be this colour. */
+
+    effortInk(e: number) -> number {
+        if (e <= 0) return provided("theme").rest
+        return mixc(provided("theme").rest, provided("theme").accent, Math.pow(clamp((e - 1) / 9, 0, 1), 0.82))
+        },
+    hairline(a: number) -> Color { return colorWithAlpha(provided("theme").line, Math.round(255 * a)) },
+
+    log: Log [
+        landed() { app.home() },
+        wrote(id: string) { app.afterWrite(id) }
+        ],
+
+    clock: Time [ tick = second, running = { app.log.live != null } ],
+
+    /* The live session's numbers are two different kinds of fact. Elapsed time
+       is a pure function of now — a readout, so it reads the clock and nothing
+       else. Heart rate and distance only exist where the service holds them, so
+       that reading is refreshed every five seconds — the one thing in this
+       program that asks rather than derives.
+
+       The readout ticks once a second, and it is the ANCHOR that makes that
+       enough. A second-tick is aligned to the wall second, so an elapsed time
+       measured from a fixed start advances by exactly one each tick however the
+       fraction falls. What made it stutter and skip was re-deriving the start
+       from each refreshed `startedSecondsAgo`: every five seconds the clock was
+       re-seated against a new fraction, so a second was shown twice and the next
+       one never at all. Anchor once, and a one-second tick is exact. */
+
+    refresh: Time [ tick = second, running = { app.log.live != null },
+        onTick(dt: number) { if (this.second % 5 == 0) app.log.liveSrc.fetch() }
+        ],
+    liveSeconds: number = { app.log.live == null || app.log.liveStart == 0 ? 0
+        : Math.max(0, (app.clock.now - app.log.liveStart) / 1000) },
+    pulse: number = 0,
+    Animator [ attribute = pulse, from = 0, to = 1, duration = 1600, repeat = { Infinity },
+        motion = quadOut, started = { app.log.live != null } ],
+
+    // ── the room the app is in ──
+
+    pad: number = { Math.round(clamp(app.width * 0.035, 20, 40)) },
+    cardPadX: number = { app.phone ? 18 : 24 },
+    cardPadY: number = { app.phone ? 16 : 18 },
+    colW: number = { app.width - 2 * app.pad },
+    phone: boolean = { app.colW < 700 },
+    narrowBar: boolean = { app.width < 430 },
+    heroSize: number = { app.phone ? Math.min(82, app.colW * 0.23) : clamp(app.colW * 0.071, 70, 104) },
+    ribbonH: number = { app.phone ? 168 : 210 },
+    ribbonW: number = { app.colW },
+
+    // ── selection and the sheets ──
+
+    selId: string = "",
+    sel: Session = { app.selId == "" ? null : app.log.byId(app.selId) },
+    srcX: number = 0,
+    srcY: number = 0,
+    srcW: number = 0,
+    srcH: number = 0,
+    detailOn: number = 0,
+    Spring [ attribute = detailOn, to = { app.sel != null ? 1 : 0 }, stiffness = 210, damping = 26 ],
+
+    composing: boolean = false,
+    composeOn: number = 0,
+    Spring [ attribute = composeOn, to = { app.composing ? 1 : 0 }, stiffness = 210, damping = 26 ],
+
+    // the draft — everything pre-filled, so the common case is confirming
+
+    cSport: string = "run",
+    cDay: number = 0,
+    cMin: number = 60,
+    cKm: number = 0,
+    cHasKm: boolean = true,
+    cEffort: number = 5,
+    cNote: string = "",
+    cEditing: string = "",
+    cTouchedMin: boolean = false,
+    typing: boolean = false,
+    cKmOn: boolean = { app.cSport != "lift" && app.cHasKm },
+
+    /* What is outstanding, said before the button is reached rather than after
+       it is pressed — these are the service's own rules, checked here, so a
+       refusal should never be the thing that tells them. If one arrives anyway,
+       the service's sentence is shown beside the button and the button stays
+       live, so the answer to it is an edit and another press. */
+
+    cProblem: string = {
+          app.cDay > app.log.todayNum ? "That day hasn't happened yet"
+        : app.cMin <= 0               ? "Add a duration"
+        : app.cEffort < 1 || app.cEffort > 10 ? "Effort runs 1 to 10"
+        : "" },
+    saveNote: string = { app.cProblem != "" ? app.cProblem : app.log.problem },
+    canSave: boolean = { app.log.ready && app.cProblem == "" && !app.log.saving },
+
+    // ── the year surface: two scalars, and everything on it is arithmetic ──
+
+    /* `center` and `span` are the surface, and they are written two ways. A
+       gesture writes them outright — the frame is under the hand, so it is
+       exactly where the hand put it, this frame, with nothing to wait for. A
+       programmatic move writes only the *targets*, and the springs carry the
+       value there from wherever it happens to be — which is what makes Today,
+       a zoom button and a landing after a save all travel rather than cut, and
+       all of them interruptible by the next touch. */
+
+    span: number = 98,
+    center: number = 0,
+    spanTo: number = 98,
+    centerTo: number = 0,
+    panSpring: Spring [ attribute = center, to = { app.centerTo }, stiffness = 190, damping = 27 ],
+    zoomSpring: Spring [ attribute = span, to = { app.spanTo }, stiffness = 190, damping = 27 ],
+    grabX: number = 0,
+    grabCenter: number = 0,
+    pinchSpan: number = 0,
+    dragging: boolean = false,
+
+    totalDays: number = { Math.max(30, app.log.todayNum - app.log.firstDay + 1) },
+    minSpan: number = 14,
+    maxSpan: number = { app.totalDays },
+    pxPerDay: number = { app.ribbonW / app.span },
+    leftDay: number = { app.center - app.span / 2 },
+    dayX(i: number) -> number { return (i - app.leftDay) * app.pxPerDay },
+    monthLabelOn: number = { clamp((app.pxPerDay - 1.1) / 1.6, 0, 1) },
+
+    /* Pulling the surface open is supposed to show more, not the same marks
+       further apart — so the days name themselves and say what they were as
+       the room for it appears. It is a ramp, not a threshold: the detail
+       arrives with the zoom rather than snapping on at a width. */
+
+    zoomDetail: number = { clamp((app.pxPerDay - 16) / 12, 0, 1) },
+    faintColor() -> number { return provided("theme").textFaint },
+
+    /* What the frame is looking at, said at the resolution it is looking with —
+       a fortnight names its days, a season names its months. */
+
+    sayPeriod() -> string {
+        const a = Math.round(app.leftDay), b = Math.round(app.center + app.span / 2)
+        if (!app.log.ready) return ""
+        if (app.span <= 45) return longDate(a, yearOf(a) == yearOf(b)) + " – " + longDate(b, false)
+        if (app.span <= 200) return monLong(a) + " – " + monLong(b) + " " + yearOf(b)
+        return monShort(a) + " " + yearOf(a) + " – " + monShort(b) + " " + yearOf(b)
+        },
+    periodLabel: string = { app.sayPeriod() },
+    inFrame() -> Session[] {
+        const a = app.leftDay, b = app.center + app.span / 2
+        return app.log.all().filter(s => dayNum(s.date) >= a && dayNum(s.date) <= b)
+        },
+    frameCount: number = { app.inFrame().length },
+    frameMinutes: number = { app.inFrame().reduce((t, s) => t + s.minutes, 0) },
+    frameEffort: number = { app.frameCount == 0 ? 0
+        : app.inFrame().reduce((t, s) => t + s.effort, 0) / app.frameCount },
+
+    clampCenter(c: number, s: number) -> number {
+        const lo = app.log.firstDay + s / 2 - 6, hi = app.log.todayNum - s / 2 + 6
+        return hi < lo ? (lo + hi) / 2 : clamp(c, lo, hi)
+        },
+
+    /* The two ways to move the frame. `setFrame` is the hand's: value and
+       target together, so the springs have nothing left to do and the surface
+       is exactly where it was put. `flyFrame` is the program's: the target
+       only, and the spring brings the value after it. */
+
+    setFrame(c: number, s: number) {
+        const at = app.clampCenter(c, s)
+        app.span = s; app.spanTo = s
+        app.center = at; app.centerTo = at
+        },
+    flyFrame(c: number, s: number) {
+        const sp = clamp(s, app.minSpan, app.maxSpan)
+        app.spanTo = sp; app.centerTo = app.clampCenter(c, sp)
+        },
+    takeSurface() { app.panSpring.stop(); app.zoomSpring.stop() },   // a touch takes the surface mid-flight
+
+    home() { app.setFrame(app.log.todayNum - 20, Math.min(98, app.totalDays)) },
+    flyHome() { app.takeSurface(); app.flyFrame(app.log.todayNum - 20, Math.min(98, app.totalDays)) },
+    flyTo(day: number, s: number) { app.takeSurface(); app.flyFrame(day, s) },
+    zoomStep(k: number) { app.takeSurface(); app.flyFrame(app.center, app.span * k) },
+
+    // Pan: the frame moves under the finger, one assignment per move, no wait
+    // for the release and nothing to commit at the end of it.
+
+    grab() {
+        app.takeSurface()
+        app.grabX = app.pointerX; app.grabCenter = app.center; app.dragging = false
+        },
+    panning() {
+        const dx = app.pointerX - app.grabX
+        if (Math.abs(dx) > 3) app.dragging = true
+        app.setFrame(app.grabCenter - dx / app.pxPerDay, app.span)
+        },
+
+    // Zoom about a point, keeping the day under it where it is.
+
+    zoomAbout(px: number, k: number) {
+        const at = app.leftDay + px / app.pxPerDay
+        const s = clamp(app.span * k, app.minSpan, app.maxSpan)
+        app.setFrame(at - s * (px / app.ribbonW - 0.5), s)
+        },
+    spin(e: WheelEvent) {
+        app.takeSurface()
+        if (e.pinch) app.zoomAbout(e.x, Math.exp(e.deltaY * 0.012))
+        else if (Math.abs(e.deltaX) > Math.abs(e.deltaY))
+            app.setFrame(app.center + e.deltaX / app.pxPerDay, app.span)
+        else app.zoomAbout(e.x, Math.exp(e.deltaY * 0.004))
+        },
+
+    /* Two fingers: `scale` is cumulative from the start of the gesture, so the
+       span is read off the span the gesture began with — the surface stays with
+       the fingers however they wander, and a finger lifted and put down again
+       starts a fresh gesture from where the last one left the frame. The
+       midpoint arrives in root space, which the rail's own inset takes off. */
+
+    pinchBegin() { app.takeSurface(); app.pinchSpan = app.span },
+    pinching(e: PinchEvent) {
+        const local = e.center.x - app.pad
+        const at = app.leftDay + local / app.pxPerDay
+        const s = clamp(app.pinchSpan / Math.max(0.05, e.scale), app.minSpan, app.maxSpan)
+        app.setFrame(at - s * (local / app.ribbonW - 0.5), s)
+        },
+
+    /* A tap on the surface lands on the nearest day that has something in it —
+       measured in pixels, not days, so the reach is the same generous target
+       whether the frame holds a fortnight or fourteen months. */
+
+    pickAt(px: number) {
+        if (app.dragging) return
+        const days = app.log.days.value == null ? [] : (app.log.days.value as any).days
+        const reach = Math.max(20, app.barW())
+        let best = null as any, bestD = 1e9
+        for (const d of days) {
+            const gap = Math.abs(app.dayX(d.i) - px)
+            if (gap < bestD) { bestD = gap; best = d }
+            }
+        if (best == null || bestD > reach) return
+        app.srcX = app.pad + app.dayX(best.i) - app.barW() / 2
+        app.srcW = Math.max(10, app.barW())
+        app.srcH = Math.max(12, app.barHeight(best.minutes))
+        app.srcY = app.ribbonTop() + app.baseY() - app.srcH
+        app.selId = "" + best.id
+        },
+
+    // ── the ribbon's own arithmetic, shared by `draw` and the hit test ──
+
+    barW() -> number { return Math.max(2, Math.min(30, app.pxPerDay * 0.62)) },
+    baseY() -> number { return app.ribbonH - 26 - 15 * app.zoomDetail },
+    barHeight(min: number) -> number { return Math.min(1, min / 180) * (app.baseY() - 10) },
+
+    /* The flight's source rectangle is read in the frame the overlay lives in:
+       `rootOrigin` reports where a view would be with nothing scrolled, and the
+       layers ride the frame, so the page's own offset comes back off. */
+
+    frameY(v: View) -> number { return v.rootOrigin().y - app.scrollY },
+    ribbonTop() -> number { return app.frameY(app.page.year.rail) },
+
+    // ── showing a session ──
+
+    showSession(id: string, from: View) {
+        app.srcX = from.rootOrigin().x; app.srcY = app.frameY(from)
+        app.srcW = from.width; app.srcH = from.height
+        app.selId = id
+        },
+    closeDetail() { app.selId = "" },
+
+    detailW: number = { app.phone ? app.hostWidth : Math.min(470, app.hostWidth - 80) },
+    detailH: number = { app.phone ? Math.round(app.hostHeight * 0.88) : app.hostHeight },
+    detailX: number = { app.phone ? 0 : app.hostWidth - app.detailW },
+    detailY: number = { app.phone ? app.hostHeight - app.detailH : 0 },
+
+    // the card flies from the mark that was touched to where it rests
+
+    ease: number = { 1 - Math.pow(1 - app.detailOn, 2) },
+    cEase: number = { 1 - Math.pow(1 - app.composeOn, 2) },
+
+    // ── adding, correcting, deleting ──
+
+    openAdd() {
+        const from = app.phone ? app.plus : app.bar.add
+        app.srcX = from.rootOrigin().x; app.srcY = app.frameY(from)
+        app.srcW = from.width; app.srcH = from.height
+        app.cEditing = ""
+        app.cDay = app.log.todayNum
+        app.cSport = app.log.usualSport(app.log.todayNum)
+        app.cTouchedMin = false
+        app.seedFromSport()
+        app.cNote = ""
+        app.composing = true
+        },
+    openEdit() {
+        const s = app.sel
+        if (s == null) return
+        app.cEditing = s.id
+        app.cDay = dayNum(s.date)
+        app.cSport = s.sport
+        app.cMin = s.minutes
+        app.cTouchedMin = true
+        app.cHasKm = s.distanceKm != null
+        app.cKm = s.distanceKm ?? 0
+        app.cEffort = s.effort
+        app.cNote = s.note ?? ""
+        app.composing = true
+        },
+    seedFromSport() {
+        if (!app.cTouchedMin) app.cMin = app.log.usualMinutes(app.cSport)
+        app.cHasKm = app.cSport != "lift"
+        app.cKm = app.log.usualKm(app.cSport)
+        app.cEffort = app.log.usualEffort(app.cSport)
+        },
+    pickSport(s: string) { app.cSport = s; afterSettle(app.seedFromSport) },
+
+    nudge(group: string, dir: number) {
+        if (group == "minutes") { app.cMin = clamp(app.cMin + dir * 5, 5, 600); app.cTouchedMin = true }
+        else app.cKm = Math.max(0, Math.round((app.cKm + dir * 0.5) * 2) / 2)
+        },
+    setMinutes(label: string) { app.cMin = parseInt(label); app.cTouchedMin = true },
+
+    commit() {
+        if (!app.canSave) return
+        const rec = ({
+            sport: app.cSport,
+            date: isoOf(app.cDay),
+            minutes: Math.round(app.cMin),
+            effort: Math.round(app.cEffort),
+            distanceKm: app.cKmOn ? app.cKm : null,
+            note: app.cNote == "" ? null : app.cNote })
+        if (app.cEditing != "") app.log.correct(app.cEditing, rec)
+        else app.log.add(rec)
+        },
+    afterWrite(id: string) {
+        app.composing = false
+        if (id == "") app.selId = ""
+        else if (app.cEditing == "" && app.log.byId(id) != null) app.flyTo(dayNum(isoOf(app.cDay)), Math.max(app.minSpan, Math.min(app.span, 45)))
+        },
+    askDelete() {
+        const s = app.sel
+        if (s == null) return
+        app.confirm.open("Delete this session?", sportName(s.sport) + " · " + longDate(dayNum(s.date), false),
+            [ ({ id: "cancel", label: "Keep it", cancel: true }),
+              ({ id: "delete", label: "Delete", default: true }) ], "error",
+            (id) => { if (id == "delete") { app.log.erase("" + app.selId); app.selId = "" } })
+        },
+
+    // ── the draft's date strip: the last three weeks, newest first ──
+
+    buildStrip() -> object {
+        const out = [] as any
+        if (!app.log.ready) return ({ days: out })
+        for (let k = 0; k < 21; k++) {
+            const i = app.log.todayNum - k
+            out.push(({ i: i, label: "" + dayOfMonth(i),
+                        sub: k == 0 ? "today" : k == 1 ? "yest" : dowLetter(i) }))
+            }
+        return ({ days: out })
+        },
+    strip: Dataset [ contents = { app.buildStrip() } ],
+
+    // the other sessions of the selected day — a cursor reads declared data,
+    // so the projection is a dataset of its own rather than a literal
+
+    alsoSet: Dataset [ contents = { { rows: app.sel == null ? [] : app.log.sameDay(app.sel) } } ],
+
+    /* ═══ the page ═══ */
+
+    page: View [ width = 100%,
+        padding = { [app.barH + (app.phone ? 4 : 8), app.pad, 120, app.pad] },
+        layout: SimpleLayout [ axis = y, spacing = { app.phone ? 20 : 28 } ],
+
+        /* ## In progress
+           Where a running session lives. The band is the accent outright, a ring
+           breathes out of the sport mark, and the time is a clock rather than a
+           duration — nothing about it can be mistaken for something finished. */
+
+        /* The band is a padded box and everything in it is placed against that
+           box's inside, so no run can reach an edge: `padding` gives the card an
+           inside, `end` means the inside's far edge, and the height is whatever
+           the content came to rather than a number that has to be re-guessed
+           every time the type changes. */
+
+        live: View [ width = 100%, cornerRadius = 18,
+            padding = { [app.cardPadY, app.cardPadX, app.cardPadY, app.cardPadX] },
+            height = { contentHeight },
+            visible = { app.log.live != null },
+            fill = { provided("theme").accent },
+
+            ring: View [ x = 0, y = { (info.height - 44) / 2 },
+                width = 44, height = 44, cornerRadius = 22,
+                fill = { colorWithAlpha(0xFFFFFF, Math.round(58 * (1 - app.pulse))) },
+                scale = { 0.7 + 1.1 * app.pulse } ],
+            mark: SportMark [ x = 8, y = { (info.height - 28) / 2 }, iconSize = 28,
+                kind = { app.log.live != null ? app.log.live.sport : "run" },
+                ink = { provided("theme").accentText } ],
+
+            info: View [ x = 62,
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                l: Cap [ textColor = { colorWithAlpha(0xFFFFFF, 199) },
+                    text = { app.log.live != null ? sportName(app.log.live.sport) + " · in progress" : "" } ],
+                t: Text [ fontFamily = { Faces.display }, fontWeight = bold, wrap = false,
+                    numeralWidth = tabular, x = { DISPLAY_BEARING * this.fontSize },
+                    fontSize = { app.phone ? 40 : 50 }, letterSpacing = -1,
+                    textColor = { provided("theme").accentText },
+                    text = { fmtClock(app.liveSeconds) } ]
+                ],
+
+            // beside the clock where there is room for it, under it where there isn't
+
+            hr: Text [ fontFamily = { Faces.display }, fontWeight = medium, wrap = false,
+                fontSize = { app.phone ? 21 : 30 },
+                x = { app.phone ? info.x : parent.width - 2 * app.cardPadX - this.width },
+                y = { app.phone ? info.height + 8 : (info.height - this.height) / 2 },
+                textColor = { colorWithAlpha(0xFFFFFF, 235) },
+                text = { app.log.live != null && app.log.live.heartNow != null
+                    ? fmtBpm(app.log.live.heartNow) + (app.log.live.distanceKm != null ? "  ·  " + fmtKm(app.log.live.distanceKm) : "")
+                    : "" } ]
+            ],
+
+        /* ## Today
+           The two figures that answer "where am I", beside the week's shape.
+           One plan says how they sit; nothing else in the tree knows the width. */
+
+        today: View [ width = 100%,
+            layout: ResponsiveLayout [ gap = { app.phone ? 28 : 48 },
+                plan = { [ ({ from: 700, flow: "row", share: ({ hero: 56, shape: 44 }) }),
+                           ({ from: 0, flow: "stack", share: ({ hero: 100, shape: 100 }) }) ] } ],
+
+            /* The week and the streak sit side by side when the room is there
+               and stack when it isn't — a second plan, at the width the two
+               lines stop fitting one beside the other. */
+
+            hero: View [
+                layout: ResponsiveLayout [
+                    plan = { [ ({ from: 560, flow: "row", gap: 44, share: ({ wkBlock: 72, stBlock: 28 }) }),
+                               ({ from: 0, flow: "stack", gap: 16, share: ({ wkBlock: 100, stBlock: 100 }) }) ] } ],
+
+                wkBlock: View [
+                    layout: SimpleLayout [ axis = y, spacing = { app.phone ? 4 : 6 } ],
+                    wkCap: Cap [ text = "This week" ],
+                    wk: View [ width = 100%,
+                        layout: WrappingLayout [ spacing = { 0.09 * app.heroSize },
+                            lineSpacing = { 0.08 * app.heroSize }, align = baseline ],
+                        Figure [ value = { app.log.weekCount }, size = { app.heroSize }, hang = true ],
+                        Word [ text = { app.log.weekCount == 1 ? "session" : "sessions" } ],
+                        Word [ text = "·" ],
+                        DurFigure [ minutes = { app.log.weekMinutes }, size = { app.heroSize } ]
+                        ]
+                    ],
+
+                stBlock: View [
+                    layout: SimpleLayout [ axis = y, spacing = { app.phone ? 4 : 6 } ],
+                    stCap: Cap [ text = "Streak" ],
+                    st: View [ width = 100%, height = { app.heroSize * 0.82 },
+                        layout: SimpleLayout [ axis = x, spacing = 9, align = baseline ],
+                        n: Figure [ value = { app.log.streak }, size = { app.heroSize * 0.66 }, hang = true,
+                            visible = { app.log.streak > 0 },
+                            tint = { provided("theme").accent } ],
+                        d: Word [ big = true, visible = { app.log.streak > 0 },
+                            text = { app.log.streak == 1 ? "day" : "days" } ],
+                        none: Text [ fontFamily = { Faces.display }, fontWeight = medium, wrap = false,
+                            fontSize = { app.heroSize * 0.42 }, visible = { app.log.streak == 0 },
+                            textColor = { provided("theme").textFaint }, text = "no streak" ]
+                        ]
+                    ]
+                ],
+
+            shape: View [
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                c: Cap [ text = "The week" ],
+                row: View [ width = 100%, height = { app.phone ? 96 : 132 },
+                    datapath = { app.log.week.value },
+                    layout: SimpleLayout [ axis = x, spacing = 6 ],
+                    WeekDay [ datapath = :days[], key = :date,
+                        width = { (parent.width - 36) / 7 } ]
+                    ]
+                ]
+            ],
+
+        /* ## The last one in
+           The card is the way into the detail, and the flight starts from it. */
+
+        /* The three lines are a stack and the card takes the height they come
+           to. A fixed height is a guess about type that stops being true the
+           moment a face, a size or a locale moves — here it had stopped being
+           true, and the last line was printing past the card's own edge. */
+
+        lastCard: View [ width = 100%, cornerRadius = 18,
+            padding = { [app.cardPadY + 2, app.cardPadX, app.cardPadY + 2, app.cardPadX] },
+            height = { contentHeight },
+            visible = { app.log.last != null },
+            fill = { provided("theme").surface },
+            stroke = { stroke(1, app.hairline(0.8)) },
+            cursor = "pointer",
+            onClick() { if (app.log.last != null) app.showSession(app.log.last.id, this) },
+
+            col: View [ x = { app.phone ? 66 : 0 },
+                width = { parent.width - 2 * app.cardPadX - (app.phone ? 66 : 0) },
+                layout: SimpleLayout [ axis = y, spacing = { app.phone ? 5 : 4 } ],
+                c: Cap [ text = "Last session" ],
+                name: Text [ x = { DISPLAY_BEARING * this.fontSize },
+                    fontFamily = { Faces.display }, fontSize = { app.phone ? 29 : 32 },
+                    fontWeight = bold, wrap = false, letterSpacing = -0.5,
+                    textColor = { provided("theme").text },
+                    text = { app.log.last != null
+                        ? sportName(app.log.last.sport) + " · " + whenWord(dayNum(app.log.last.date), app.log.todayNum) : "" } ],
+                facts: Text [ x = { DISPLAY_BEARING * this.fontSize },
+                    width = { parent.width - (app.phone ? 0 : 70) },
+                    fontFamily = { Faces.display },
+                    fontSize = { app.phone ? 21 : 23 }, fontWeight = medium, wrap = true, maxLines = 2,
+                    textColor = { provided("theme").textMuted },
+                    text = { app.log.last == null ? "" : fmtDur(app.log.last.minutes)
+                        + (app.log.last.distanceKm != null ? "   " + fmtKm(app.log.last.distanceKm) : "")
+                        + (app.log.last.heartAvg != null ? "   " + fmtBpm(app.log.last.heartAvg) : "") } ]
+                ],
+
+            // the disc rides the column's middle, and its number is cap-centred
+            // in it — `TextLabel`'s whole job, and what `y = center` on a Text
+            // cannot do, since that centres the font's box and reads a hair low
+
+            eff: View [ y = { (col.height - 52) / 2 }, width = 52, height = 52, cornerRadius = 26,
+                x = { app.phone ? 0 : parent.width - 2 * app.cardPadX - 52 },
+                fill = { app.effortInk(app.log.last != null ? app.log.last.effort : 0) },
+                n: TextLabel [ width = 100%, textAlign = center, fontFamily = { Faces.display },
+                    fontSize = 24, fontWeight = bold,
+                    textColor = { provided("theme").accentText },
+                    text = { app.log.last != null ? "" + app.log.last.effort : "" } ]
+                ]
+            ],
+
+        /* ## The year
+           Fourteen months as one surface. The label and the three figures above
+           it are the frame's own summary — they travel as the frame moves,
+           because they are Figures reading values the frame derives. */
+
+        year: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+            top: View [ width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 5 ],
+                c: Cap [ text = "The year" ],
+                label: Text [ width = 100%, fontFamily = { Faces.display }, fontSize = { app.phone ? 25 : 29 },
+                    x = { DISPLAY_BEARING * this.fontSize },
+                    fontWeight = bold, wrap = false, letterSpacing = -0.4,
+                    textColor = { provided("theme").text }, text = { app.periodLabel } ],
+
+                // the frame's own summary, wrapping rather than running off a
+                // narrow screen — every figure in it travels as the frame moves
+
+                stats: View [ width = 100%,
+                    layout: WrappingLayout [ spacing = 7, lineSpacing = 2, align = baseline ],
+                    Figure [ value = { app.frameCount }, size = 23, hang = true ],
+                    Word [ text = "sessions" ],
+                    Word [ text = "·" ],
+                    DurFigure [ minutes = { app.frameMinutes }, size = 23 ],
+                    Word [ text = "·" ],
+                    Figure [ value = { app.frameEffort }, digits = 1, size = 23,
+                        tint = { app.effortInk(app.frameEffort) } ],
+                    Word [ text = "avg effort" ]
+                    ]
+                ],
+
+            /* The surface itself. The marks are drawn rather than built: two
+               hundred and fifty bars that must all move together with the hand
+               are a graph, and `draw` re-runs when what it read changes — the
+               two scalars, the data, the selection. The ruler above them stays
+               real text, because it is the part you read. */
+
+            rail: View [ width = 100%, height = { app.ribbonH }, cornerRadius = 16, clip = true,
+                fill = { provided("theme").surface },
+                stroke = { stroke(1, app.hairline(0.8)) },
+                cursor = { app.dragging ? "grabbing" : "grab" },
+                claim = x,
+
+                onPointerDown(e: PointerEvent) { app.grab() },
+                onPointerMove(e: PointerEvent) { app.panning() },
+                onPointerUp(e: PointerUpEvent) { app.dragging = app.dragging && !e.canceled },
+                onClick(e: PointerEvent) { app.pickAt(e.x) },
+                onWheel(e: WheelEvent) { app.spin(e) },
+                onPinchStart(e: PinchEvent) { app.pinchBegin() },
+                onPinch(e: PinchEvent) { app.pinching(e) },
+
+                ticks: View [ width = 100%, height = 100%, datapath = { app.log.months.value },
+                    MonthTick [ datapath = :months[], key = :key ]
+                    ],
+
+                marks: View [ width = 100%, height = 100%, ignoreLayout = true,
+                    draw(d: Draw) {
+                        const days = app.log.days.value == null ? [] : (app.log.days.value as any).days
+                        const w = app.barW(), base = app.baseY(), half = w / 2, det = app.zoomDetail
+                        const r = Math.min(3, w / 2)
+                        const selDay = app.sel == null ? -1 : dayNum(app.sel.date)
+                        const over = ({ fontFamily: Faces.display, fontSize: 11, fontWeight: "semibold" as FontWeight })
+                        const under = ({ fontFamily: Faces.body, fontSize: 11, textColor: app.faintColor() })
+                        d.textAlign = "center"
+                        d.fillStyle = rgba(app.lineColor(), 0.9)
+                        d.fillRect(0, base, app.ribbonW, 1)
+                        // labels thin themselves out rather than colliding, so
+                        // the ramp above can start as soon as there is any room
+                        let lastOver = -1e9, lastUnder = -1e9
+                        for (const day of days) {
+                            const x = app.dayX(day.i)
+                            if (x < -w - 20 || x > app.ribbonW + w + 20) continue
+                            const h = Math.max(2, app.barHeight(day.minutes))
+                            const ink = app.effortInk(day.effort)
+                            d.fillStyle = rgba(ink, day.i == selDay ? 1 : 0.92)
+                            d.beginPath()
+                            d.roundRect(x - half, base - h, w, h, [r, r, 0, 0])
+                            d.fill()
+                            if (day.i == selDay) {
+                                d.fillStyle = rgba(app.accentColor(), 1)
+                                d.fillRect(x - half - 1, base + 3, w + 2, 3)
+                                }
+                            // what the day was, as the room for saying it appears
+                            if (det > 0.02) {
+                                d.globalAlpha = det
+                                if (x - lastOver >= 46) {
+                                    d.fillStyle = rgba(ink, 1)
+                                    d.fillText(fmtDur(day.minutes), x, base - h - 7, over)
+                                    lastOver = x
+                                    }
+                                if (x - lastUnder >= 20) {
+                                    d.fillText("" + dayOfMonth(day.i), x, base + 15, under)
+                                    lastUnder = x
+                                    }
+                                d.globalAlpha = 1
+                                }
+                            }
+                        // today, as a hairline the history runs up to
+                        const tx = app.dayX(app.log.todayNum)
+                        if (tx > -2 && tx < app.ribbonW + 2) {
+                            d.fillStyle = rgba(app.accentColor(), 0.55)
+                            d.fillRect(tx - 0.5, 8, 1, base - 8)
+                            }
+                        }
+                    ]
+                ],
+
+            /* The surface is handled, so the handles are here: the same zoom the
+               wheel and the pinch reach, for a thumb that has neither. */
+
+            hint: View [ width = 100%, height = 34,
+                h: Cap [ y = 11, textColor = { provided("theme").textFaint },
+                    text = { app.phone ? "Drag · pinch" : "Drag to move · scroll or pinch to zoom" } ],
+                zoomOut: Tap [ x = { parent.width - 174 }, y = 0, width = 40, height = 34, cornerRadius = 12,
+                    act() { app.zoomStep(1.9) },
+                    tip = "Take in more",
+                    disabled = { app.span >= app.maxSpan - 0.5 },
+                    draw(d: Draw) { d.strokeStyle = rgba(app.inkColor(), 0.85); d.lineWidth = 2; d.lineCap = "round"
+                        d.beginPath(); d.moveTo(13, 17); d.lineTo(27, 17); d.stroke() }
+                    ],
+                zoomIn: Tap [ x = { parent.width - 128 }, y = 0, width = 40, height = 34, cornerRadius = 12,
+                    act() { app.zoomStep(1 / 1.9) },
+                    tip = "Look closer",
+                    disabled = { app.span <= app.minSpan + 0.5 },
+                    draw(d: Draw) { d.strokeStyle = rgba(app.inkColor(), 0.85); d.lineWidth = 2; d.lineCap = "round"
+                        d.beginPath(); d.moveTo(13, 17); d.lineTo(27, 17); d.moveTo(20, 10); d.lineTo(20, 24); d.stroke() }
+                    ],
+                todayBtn: Tap [ x = end, y = 0, width = 82, height = 34, cornerRadius = 17,
+                    act() { app.flyHome() },
+                    t: TextLabel [ width = 100%, textAlign = center, fontSize = 11, fontWeight = semibold,
+                        letterSpacing = 1.3, textTransform = uppercase,
+                        textColor = { provided("theme").textMuted }, text = "Today" ]
+                    ]
+                ]
+            ]
+        ],
+
+    /* ═══ the layers, declared last so they stand above the page ═══ */
+
+    /* ## The bar
+       The wordmark, the day the service says it is, and — at a desk — the way to
+       add one. It rides the frame and carries the page's own ground, so content
+       passes under it rather than through it, and the page reserves its height
+       instead of letting anything sit beneath it. A floating button over a
+       scrolling column is always over SOMETHING; this is the version that is
+       over nothing. */
+
+    barH: number = { app.phone ? 56 : 72 },
+
+    bar: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.barH },
+        padding = { [0, app.pad, 0, app.pad] },
+        fill = { provided("theme").bg },
+
+        mark: Text [ y = center, fontFamily = { Faces.display }, fontSize = 17, fontWeight = bold,
+            wrap = false, letterSpacing = 2.4, textTransform = uppercase,
+            textColor = { provided("theme").text }, text = "Cadence" ],
+        when: Cap [ x = { mark.width + 16 }, y = { mark.y + mark.baseline - this.baseline },
+            visible = { !app.narrowBar },
+            text = { app.log.ready ? dowName(app.log.todayNum) + " " + longDate(app.log.todayNum, false) : "" } ],
+
+        // at a desk the button lives here; on a phone it is under the thumb instead
+
+        add: Tap [ x = end, y = center, width = 168, height = 44, cornerRadius = 22,
+            visible = { !app.phone },
+            selected = true,
+            fill = { this.down ? mixc(provided("theme").accent, 0x000000, 0.18)
+                   : this.hot ? mixc(provided("theme").accent, 0x000000, 0.08)
+                   : provided("theme").accent },
+            act() { app.openAdd() },
+            draw(d: Draw) {
+                d.strokeStyle = "#FFFFFF"; d.lineWidth = 2.4; d.lineCap = "round"
+                d.beginPath(); d.moveTo(26 - 8, 22); d.lineTo(26 + 8, 22)
+                d.moveTo(26, 22 - 8); d.lineTo(26, 22 + 8); d.stroke()
+                },
+            t: TextLabel [ x = 46, fontSize = 16, fontWeight = semibold, wrap = false,
+                textColor = { provided("theme").accentText }, text = "Add session" ]
+            ],
+        rule: View [ y = { parent.height - 1 }, x = { -app.pad }, width = { app.hostWidth }, height = 1,
+            opacity = { clamp(app.scrollY / 24, 0, 1) },
+            fill = { app.hairline(0.9) } ]
+        ],
+
+    // and on a phone, where the reach is the bottom corner
+
+    plus: Tap [ ignoreScroll = true,
+        width = 68, height = 68, cornerRadius = 34,
+        x = { app.hostWidth - 68 - 20 },
+        y = { app.hostHeight - 68 - 24 - app.safeBottom },
+        visible = { app.phone && app.composeOn < 0.02 && app.detailOn < 0.02 },
+        selected = true,
+        fill = { this.down ? mixc(provided("theme").accent, 0x000000, 0.18) : provided("theme").accent },
+        shadow = { shadow(0, 8, 24, colorWithAlpha(0x000000, 56)) },
+        act() { app.openAdd() },
+        draw(d: Draw) {
+            d.strokeStyle = "#FFFFFF"; d.lineWidth = 2.6; d.lineCap = "round"
+            d.beginPath(); d.moveTo(34 - 9, 34); d.lineTo(34 + 9, 34)
+            d.moveTo(34, 34 - 9); d.lineTo(34, 34 + 9); d.stroke()
+            }
+        ],
+
+    /* ## A session
+       The card grows out of the mark that was touched — the bar on the ribbon,
+       the column in the week, the card at the top — so it is never in doubt
+       which one this is. */
+
+    detail: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
+        visible = { app.detailOn > 0.004 },
+
+        veil: View [ width = 100%, height = 100%,
+            fill = { provided("theme").veil }, opacity = { 0.45 * app.detailOn },
+            onClick() { app.closeDetail() }
+            ],
+
+        card: View [ clip = true,
+            x = { lerp(app.srcX, app.detailX, app.ease) },
+            y = { lerp(app.srcY, app.detailY, app.ease) },
+            width = { lerp(app.srcW, app.detailW, app.ease) },
+            height = { lerp(app.srcH, app.detailH, app.ease) },
+            cornerRadius = { lerp(4, app.phone ? 26 : 0, app.ease) },
+            fill = { provided("theme").sheet },
+            shadow = { shadow(0, 10, 40, colorWithAlpha(0x000000, 72)) },
+
+            body: View [ width = { app.detailW }, height = { app.detailH },
+                opacity = { clamp((app.detailOn - 0.45) / 0.4, 0, 1) },
+                scrolls = y,
+
+                col: View [ width = { app.detailW - 2 * (app.phone ? 22 : 30) },
+                    x = { app.phone ? 22 : 30 }, y = { app.phone ? 22 : 28 },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+                    top: View [ width = 100%, height = 26,
+                        c: Cap [ text = { app.sel == null ? ""
+                            : app.log.todayNum - dayNum(app.sel.date) <= 1
+                                ? whenWord(dayNum(app.sel.date), app.log.todayNum)
+                                : dowName(dayNum(app.sel.date)) } ],
+                        close: Tap [ x = end, y = -6, width = 38, height = 38, cornerRadius = 19,
+                            act() { app.closeDetail() },
+                            draw(d: Draw) {
+                                d.strokeStyle = rgba(app.inkColor(), 0.8); d.lineWidth = 2; d.lineCap = "round"
+                                d.beginPath(); d.moveTo(13, 13); d.lineTo(25, 25); d.moveTo(25, 13); d.lineTo(13, 25); d.stroke()
+                                }
+                            ]
+                        ],
+
+                    // the headline: the sport, and the effort as the colour it earned
+
+                    name: View [ width = 100%, height = { app.phone ? 46 : 52 },
+                        n: Text [ fontFamily = { Faces.display }, fontWeight = bold, wrap = false,
+                            x = { DISPLAY_BEARING * this.fontSize },
+                            fontSize = { app.phone ? 42 : 48 }, letterSpacing = -1,
+                            textColor = { provided("theme").text },
+                            text = { app.sel != null ? sportName(app.sel.sport) : "" } ],
+                        date: Cap [ x = end, y = 12, fontSize = 12,
+                            text = { app.sel != null ? longDate(dayNum(app.sel.date), false) : "" } ]
+                        ],
+
+                    /* A hard session looks hard: the band is the accent at exactly
+                       this effort, so the two numbers that say how much it cost are
+                       read off a field the colour has already answered. */
+
+                    band: View [ width = 100%, cornerRadius = 16, padding = { app.phone ? 18 : 22 },
+                        height = { contentHeight },
+                        fill = { app.effortInk(app.sel != null ? app.sel.effort : 0) },
+                        e: Figure [ x = 0, y = 0, hang = true,
+                            value = { app.sel != null ? app.sel.effort : 0 },
+                            size = { app.phone ? 52 : 58 },
+                            tint = { provided("theme").accentText } ],
+                        of: Text [ x = { e.width + 6 }, y = { e.height - 26 },
+                            fontSize = 15, fontFamily = { Faces.display }, wrap = false,
+                            textColor = { colorWithAlpha(0xFFFFFF, 184) }, text = "/ 10" ],
+                        l: Cap [ x = 0, y = { e.height + 2 },
+                            textColor = { colorWithAlpha(0xFFFFFF, 199) }, text = "Effort" ],
+                        d: DurFigure [ x = end, y = 0,
+                            minutes = { app.sel != null ? app.sel.minutes : 0 },
+                            size = { app.phone ? 44 : 50 },
+                            tint = { provided("theme").accentText } ],
+                        dl: Cap [ x = end, y = { e.height + 2 },
+                            textColor = { colorWithAlpha(0xFFFFFF, 199) }, text = "Duration" ]
+                        ],
+
+                    facts: View [ width = 100%, height = 48,
+                        layout: SimpleLayout [ axis = x, spacing = 26 ],
+                        Fact [ label = "Distance", strong = true,
+                            visible = { app.sel != null && app.sel.distanceKm != null },
+                            value = { app.sel != null && app.sel.distanceKm != null ? fmtKm(app.sel.distanceKm) : "" } ],
+                        Fact [ label = "Avg heart", strong = true,
+                            visible = { app.sel != null && app.sel.heartAvg != null },
+                            value = { app.sel != null && app.sel.heartAvg != null ? fmtBpm(app.sel.heartAvg) : "" } ],
+                        Fact [ label = "Pace",
+                            visible = { app.sel != null && app.sel.distanceKm != null && app.sel.distanceKm > 0 },
+                            value = { app.sel != null && app.sel.distanceKm != null && app.sel.distanceKm > 0
+                                ? fmtDur(app.sel.minutes / app.sel.distanceKm) + " / km" : "" } ]
+                        ],
+
+                    note: Text [ width = 100%, wrap = true, fontSize = 16, lineHeight = 1.45,
+                        italic = true,
+                        visible = { app.sel != null && app.sel.note != null },
+                        textColor = { provided("theme").textMuted },
+                        text = { app.sel != null && app.sel.note != null ? "“" + app.sel.note + "”" : "" } ],
+
+                    // where it sits against everything else
+
+                    rule: View [ width = 100%, height = 1, fill = { app.hairline(0.9) } ],
+                    against: Cap [ text = { app.sel != null ? "Against every " + app.sel.sport : "" } ],
+
+                    cmpMin: CompareRow [
+                        label = "Duration",
+                        rank = { app.sel != null ? app.log.rankMinutes(app.sel) : 0 },
+                        tint = { app.effortInk(app.sel != null ? app.sel.effort : 0) },
+                        caption = { app.sel == null ? "" : fmtDur(app.sel.minutes) + " — "
+                            + app.log.saySide(app.log.rankMinutes(app.sel), "longer", "shorter") } ],
+                    cmpKm: CompareRow [
+                        label = "Distance",
+                        visible = { app.sel != null && app.sel.distanceKm != null },
+                        rank = { app.sel != null && app.sel.distanceKm != null ? app.log.rankKm(app.sel) : 0 },
+                        tint = { app.effortInk(app.sel != null ? app.sel.effort : 0) },
+                        caption = { app.sel == null || app.sel.distanceKm == null ? ""
+                            : fmtKm(app.sel.distanceKm) + " — "
+                            + app.log.saySide(app.log.rankKm(app.sel), "further", "shorter") } ],
+                    cmpEff: CompareRow [
+                        label = "Effort",
+                        rank = { app.sel != null ? app.log.rankEffort(app.sel) : 0 },
+                        tint = { app.effortInk(app.sel != null ? app.sel.effort : 0) },
+                        caption = { app.sel == null ? "" : app.log.saySide(app.log.rankEffort(app.sel), "Harder", "Easier") } ],
+
+                    // the rest of that day, when there was more than one
+
+                    alsoCap: Cap [ text = "Also that day",
+                        visible = { app.sel != null && app.log.sameDay(app.sel).length > 1 } ],
+                    also: View [ width = 100%, height = 40,
+                        visible = { app.sel != null && app.log.sameDay(app.sel).length > 1 },
+                        datapath = { app.alsoSet.value },
+                        layout: SimpleLayout [ axis = x, spacing = 8 ],
+                        Chip [ datapath = :rows[], key = :id, width = 116,
+                            label = { sportName("" + :sport) + " " + fmtDur(:minutes) },
+                            selected = { :id == app.selId },
+                            act() { app.selId = "" + :id }
+                            ]
+                        ],
+
+                    actions: View [ width = 100%, height = 54,
+                        layout: SimpleLayout [ axis = x, spacing = 10 ],
+                        edit: Tap [ width = { (parent.width - 10) * 0.62 }, height = 52,
+                            act() { app.openEdit() },
+                            t: TextLabel [ width = 100%, textAlign = center, fontSize = 16,
+                                fontWeight = semibold, wrap = false,
+                                textColor = { provided("theme").text }, text = "Correct this" ]
+                            ],
+                        del: Tap [ width = { (parent.width - 10) * 0.38 }, height = 52,
+                            act() { app.askDelete() },
+                            t: TextLabel [ width = 100%, textAlign = center, fontSize = 16,
+                                fontWeight = semibold, wrap = false,
+                                textColor = { provided("theme").accent }, text = "Delete" ]
+                            ]
+                        ],
+                    tail: View [ width = 1, height = 40 ]
+                    ]
+                ]
+            ]
+        ],
+
+    /* ## Adding one
+       Every field opens on what the person most likely means — today, the sport
+       they do on this day, a duration near their usual — so the common case is
+       four taps and a confirm, and the keyboard is only ever asked for by the
+       note. */
+
+    sheet: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
+        visible = { app.composeOn > 0.004 },
+
+        veil: View [ width = 100%, height = 100%,
+            fill = { provided("theme").veil }, opacity = { 0.5 * app.composeOn },
+            onClick() { app.composing = false }
+            ],
+
+        panel: View [ clip = true,
+            restW: number = { app.phone ? app.hostWidth : 560 },
+            restH: number = { app.phone ? Math.min(app.hostHeight - 40, 730) : Math.min(app.hostHeight - 80, 720) },
+            restX: number = { app.phone ? 0 : (app.hostWidth - this.restW) / 2 },
+            restY: number = { app.phone ? app.hostHeight - this.restH : (app.hostHeight - this.restH) / 2 },
+            x = { lerp(app.srcX, this.restX, app.cEase) },
+            y = { lerp(app.srcY, this.restY, app.cEase) },
+            width = { lerp(app.srcW, this.restW, app.cEase) },
+            height = { lerp(app.srcH, this.restH, app.cEase) },
+            cornerRadius = { lerp(34, 26, app.cEase) },
+            fill = { provided("theme").sheet },
+            shadow = { shadow(0, 12, 48, colorWithAlpha(0x000000, 82)) },
+
+            body: View [ width = { parent.restW }, height = { parent.restH },
+                opacity = { clamp((app.composeOn - 0.4) / 0.4, 0, 1) },
+
+                scroller: View [ width = 100%, height = { parent.height - 92 }, scrolls = y,
+                    col: View [ width = { parent.width - 2 * (app.phone ? 18 : 28) },
+                        x = { app.phone ? 18 : 28 }, y = 16,
+                        layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+                        top: View [ width = 100%, height = 22,
+                            c: Cap [ fontSize = 12,
+                                text = { app.cEditing == "" ? "New session" : "Correct this session" } ],
+                            close: Tap [ x = end, y = -8, width = 38, height = 38, cornerRadius = 19,
+                                act() { app.composing = false },
+                                draw(d: Draw) {
+                                    d.strokeStyle = rgba(app.inkColor(), 0.8); d.lineWidth = 2; d.lineCap = "round"
+                                    d.beginPath(); d.moveTo(13, 13); d.lineTo(25, 25); d.moveTo(25, 13); d.lineTo(13, 25); d.stroke()
+                                    }
+                                ]
+                            ],
+
+                        sportCap: Cap [ text = "Sport" ],
+                        sports: View [ width = 100%, height = { app.phone ? 74 : 62 },
+                            layout: SimpleLayout [ axis = x, spacing = 8 ],
+                            SportTile [ sport = "run", width = { (parent.width - 24) / 4 } ],
+                            SportTile [ sport = "ride", width = { (parent.width - 24) / 4 } ],
+                            SportTile [ sport = "lift", width = { (parent.width - 24) / 4 } ],
+                            SportTile [ sport = "swim", width = { (parent.width - 24) / 4 } ]
+                            ],
+
+                        whenCap: Cap [ text = "When" ],
+                        when: View [ width = 100%, height = 58, scrolls = x,
+                            datapath = { app.strip.value },
+                            layout: SimpleLayout [ axis = x, spacing = 8 ],
+                            Chip [ datapath = :days[], key = :i, width = 58,
+                                label = { "" + :label }, sub = { "" + :sub },
+                                selected = { :i == app.cDay },
+                                act() { app.cDay = :i }
+                                ]
+                            ],
+
+                        longCap: Cap [ text = "How long" ],
+                        longRow: View [ width = 100%, height = 54,
+                            minus: Nudge [ up = false, group = "minutes", x = 0, y = center,
+                                disabled = { app.cMin <= 5 } ],
+                            fig: DurFigure [ x = center, y = center, size = 40,
+                                minutes = { app.cMin } ],
+                            plus: Nudge [ up = true, group = "minutes", x = end, y = center ]
+                            ],
+                        quick: View [ width = 100%, height = 40,
+                            layout: SimpleLayout [ axis = x, spacing = 8 ],
+                            Chip [ label = "30", width = { (parent.width - 24) / 4 },
+                                selected = { app.cMin == 30 }, onPicked = { app.setMinutes } ],
+                            Chip [ label = "45", width = { (parent.width - 24) / 4 },
+                                selected = { app.cMin == 45 }, onPicked = { app.setMinutes } ],
+                            Chip [ label = "60", width = { (parent.width - 24) / 4 },
+                                selected = { app.cMin == 60 }, onPicked = { app.setMinutes } ],
+                            Chip [ label = "90", width = { (parent.width - 24) / 4 },
+                                selected = { app.cMin == 90 }, onPicked = { app.setMinutes } ]
+                            ],
+
+                        farCap: Cap [ text = "How far", visible = { app.cSport != "lift" } ],
+                        farRow: View [ width = 100%, height = 54, visible = { app.cSport != "lift" },
+                            minus: Nudge [ up = false, group = "km", x = 0, y = center,
+                                disabled = { !app.cHasKm || app.cKm <= 0 } ],
+                            km: View [ x = center, y = center, visible = { app.cHasKm },
+                                layout: SimpleLayout [ axis = x, spacing = 2, align = baseline ],
+                                fig: Figure [ size = 40, digits = 1, value = { app.cKm },
+                                    tint = { provided("theme").text } ],
+                                u: Text [ fontFamily = { Faces.display }, fontWeight = medium, fontSize = 17,
+                                    wrap = false, textColor = { provided("theme").textMuted }, text = "km" ]
+                                ],
+                            none: Text [ x = center, y = center, fontFamily = { Faces.display }, fontSize = 22,
+                                visible = { !app.cHasKm },
+                                textColor = { provided("theme").textFaint }, text = "no distance" ],
+                            plus: Nudge [ up = true, group = "km", x = end, y = center,
+                                disabled = { !app.cHasKm } ]
+                            ],
+
+                        // the one thing a session may simply not have
+
+                        farToggle: Chip [ width = 132, height = 34, visible = { app.cSport != "lift" },
+                            label = "Measured",
+                            selected = { app.cHasKm },
+                            act() { app.cHasKm = !app.cHasKm }
+                            ],
+
+                        feltCap: Cap [ text = "How it felt" ],
+                        pips: View [ width = 100%, height = 44,
+                            layout: SimpleLayout [ axis = x, spacing = 5 ],
+                            EffortPip [ n = 1 ],
+                            EffortPip [ n = 2 ],
+                            EffortPip [ n = 3 ],
+                            EffortPip [ n = 4 ],
+                            EffortPip [ n = 5 ],
+                            EffortPip [ n = 6 ],
+                            EffortPip [ n = 7 ],
+                            EffortPip [ n = 8 ],
+                            EffortPip [ n = 9 ],
+                            EffortPip [ n = 10 ]
+                            ],
+
+                        // the one field that asks for a keyboard, and only if it is tapped
+
+                        noteRow: View [ width = 100%, height = 48,
+                            n: TextInput [ width = 100%, height = 48, padding = 14, cornerRadius = 12,
+                                fontSize = 16,
+                                fill = { provided("theme").control },
+                                textColor = { provided("theme").text },
+                                placeholder = "Note (optional)",
+                                stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").line) },
+                                text = { app.cNote },
+                                onInput(v: string) { app.cNote = v },
+                                onFocus() { app.typing = true },
+                                onBlur() { app.typing = false }
+                                ]
+                            ],
+                        keyHint: Cap [ width = 100%, visible = { !app.phone },
+                            textColor = { provided("theme").textFaint },
+                            text = "1–4 sport · ↑ ↓ duration · ← → effort · return saves · esc closes" ],
+                        tail: View [ width = 1, height = 10 ]
+                        ]
+                    ],
+
+                // the commitment, parked at the bottom where a thumb already is
+
+                foot: View [ width = 100%, height = 92, y = { parent.height - 92 },
+                    fill = { provided("theme").sheet },
+                    edge: View [ width = 100%, height = 1, fill = { app.hairline(0.9) } ],
+                    why: Text [ x = { app.phone ? 18 : 28 }, y = 8, fontSize = 12, wrap = false,
+                        visible = { app.saveNote != "" },
+                        textColor = { provided("theme").accent }, text = { app.saveNote } ],
+                    go: Commit [ x = { app.phone ? 18 : 28 }, y = 26,
+                        width = { parent.width - 2 * (app.phone ? 18 : 28) },
+                        disabled = { !app.canSave },
+                        label = { app.log.saving ? "Saving…" : app.cEditing == "" ? "Save session" : "Save changes" } ]
+                    ]
+                ]
+            ]
+        ],
+
+    confirm: Dialog [ ],
+
+    /* ## At a desk
+       The same app and the same data, with the shortcuts someone holding a
+       keyboard expects. The arrows page the year by a quarter of what is on
+       screen, so paging means the same thing at every zoom. */
+
+    keys: Keys [
+        onKeyDown(e: KeyEvent) {
+            const typing = app.typing
+            if (e.key == "Escape") { if (app.composing) app.composing = false; else app.closeDetail(); return }
+            if (app.composing && !typing) {
+                if (e.key == "Enter") app.commit()
+                else if (e.key == "1") app.pickSport("run")
+                else if (e.key == "2") app.pickSport("ride")
+                else if (e.key == "3") app.pickSport("lift")
+                else if (e.key == "4") app.pickSport("swim")
+                else if (e.key == "ArrowUp") app.nudge("minutes", 1)
+                else if (e.key == "ArrowDown") app.nudge("minutes", -1)
+                else if (e.key == "ArrowLeft") app.cEffort = Math.max(1, app.cEffort - 1)
+                else if (e.key == "ArrowRight") app.cEffort = Math.min(10, app.cEffort + 1)
+                return
+                }
+            if (app.composing || typing) return
+            if (e.key == "ArrowLeft") app.flyTo(app.center - app.span / 4, app.span)
+            else if (e.key == "ArrowRight") app.flyTo(app.center + app.span / 4, app.span)
+            else if (e.key == "-") app.zoomStep(1.9)
+            else if (e.key == "=" || e.key == "+") app.zoomStep(1 / 1.9)
+            else if (e.key == "t" || e.key == "T") app.flyHome()
+            else if (e.key == "n" || e.key == "N") app.openAdd()
+            }
+        ]
+    ]

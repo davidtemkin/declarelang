@@ -1,0 +1,12 @@
+App [ width = 340, height = 170, fill = white, textColor = #51606C, fontSize = 12,
+    row: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = x, spacing = 20 ],
+        pic: View [ width = 130, height = 130, fill = #E9EFF4, cornerRadius = 8, clip = true,
+            logo: Image [ width = 130, height = 130, source = "../resources/logo.png", stretches = contain ]
+            ],
+        Text [ width = 150,
+            text = { app.row.pic.logo.loaded
+                ? "loaded · " + app.row.pic.logo.naturalWidth + " × " + app.row.pic.logo.naturalHeight
+                : app.row.pic.logo.failed ? "could not load" : "loading…" } ]
+        ]
+    ]

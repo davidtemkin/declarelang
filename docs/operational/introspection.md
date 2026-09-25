@@ -16,13 +16,13 @@ inspectable: the island hands its child app to the Inspector directly, along wit
 page origin for the island's box, so picking and highlighting land on the child's own
 coordinates.
 
-One more exception, and it is deliberate: a **production build** (`declarelang build`)
+One more exception, and it is deliberate: a **production build** (`declarec`)
 ships the bridge as a stub — the ~6.5 KB inspect surface is dev tooling, and slimming it
 out is part of what the build is for. The stub is not silent about it:
 `window.__declare.stub` names what happened and the way back in. Two ways back: a
 program that answers questions about itself *in production* declares it — `ship [ inspector
 = true ]` keeps the bridge, the Inspector (compiled ahead, so no compiler is needed to open
-it), source positions, and error prose in the package — and a developer's `declarelang build
+it), source positions, and error prose in the package — and a developer's `declarec
 --debug` keeps all of that plus the program verbatim. Either is the right mode for an
 artifact you intend to `verify` or question after the fact.
 
@@ -149,7 +149,7 @@ asserts through this bridge — never through DOM selectors, so an assertion is 
 the language's altitude and survives any change to how a view is realized.
 
 ```js
-// checks.mjs — node tools/verify.mjs app.declare --assert checks.mjs
+// checks.mjs — npx declare-verify app.declare --assert checks.mjs
 export default async ({ drive, expect }) => {
   await drive.click("app.dock.row.calIcon");
   await drive.settleMotion();

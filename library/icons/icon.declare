@@ -23,9 +23,9 @@ class SparkIcon extends Icon [
     ]
 ```
 
-Overriding a **method** is the refinement path that works — re-opening an
-inherited child is not (`cap:` on a `Button` subclass fails at instantiate), so
-the shape lives in `draw` and everything adjustable is a slot.
+Overriding a **method** is how a subclass refines an icon — a subclass cannot
+re-declare a child it inherits (the compiler refuses it) — so the shape lives in
+`draw` and everything adjustable is a slot.
 
 ### Size changes the drawing, not the shape
 
@@ -43,9 +43,7 @@ at 32, 2.5% at 64. Across 14–18px — chrome sizes — that is invisible. Past
 an icon starts reading as a fine-line drawing rather than a mark — so **this set
 is built for chrome sizes**, and a large display icon (an empty-state mark, an
 about-box graphic) would want the opposite: `d.lineWidth = weight` *outside* the
-scale, so the line grows with the drawing. Real icon systems take a third road
-and redraw per optical size range; that is a bigger undertaking than this set
-needs.
+scale, so the line grows with the drawing.
 
 ### What is not an Icon
 
@@ -79,8 +77,7 @@ instead.
 recording size-dependent: an animated size re-records **and** reallocates the
 backing canvas every frame, which drops a magnifying dock of icons from 60 to
 ~25fps. A static size re-records once and costs nothing after: 120 icons
-re-recording their *content* every frame run frame-bound at 16.6ms, cheaper
-than the 120 text glyphs they replace.
+re-recording their *content* every frame run frame-bound at 16.6ms.
 
 Colour is not a rule — `ink` follows the provided text colour, so an icon beside
 a muted label goes muted on its own, and a host that needs a different ink (a
@@ -124,21 +121,18 @@ beside a muted label goes muted on its own; set `ink` to override.
 /*
 # IconHost — a named icon, materialized
 
-   A control names its icon (`iconLeft = TrashIcon`) rather than nesting one,
-   because a control is a leaf and everything else about it is an attribute — and
-   because an attribute is the one form where authored and bound are the same
-   mechanism. `IconHost` is what turns that name into a live view, through the
-   same `app.createView` seam a menu record's `icon` field uses.
+Turns an icon's class name into a live view. A control names its icon
+(`iconLeft = "TrashIcon"`) rather than nesting one: a control is a leaf, and a name is
+the one form that is the same whether it is written or read from data. `IconHost`
+builds the named icon with `createView`, as a menu record's `icon` field does.
 
-   It reserves no space when empty, so a control's `contentWidth` measures only
-   the slots that are actually filled and an icon-less button needs no special
-   case.
+It reserves no space when empty, so a control's `contentWidth` measures only the slots
+that are filled and an icon-less button needs no special case.
 
-   LIMITATION, deliberate for now: the name is consumed once, at construction.
-   A control whose icon must CHANGE at runtime (a play/pause toggle) is not
-   served by this yet — that needs a name-valued slot the runtime re-materializes
-   on change, which is a runtime feature, not a library one. Every site in this
-   corpus names its icon statically.
+**The name is read once, when the host is built.** A name read from data gives each row
+of a toolbar its own icon, but changing the name later does not swap the icon. An icon that
+must change at runtime — a play/pause toggle — is two icons, each with `visible`
+constrained.
 
 ## kind
 The icon **class name** to build (`"TrashIcon"`). `""` builds nothing and the host
@@ -147,9 +141,9 @@ at construction** — assigning a new name later does not re-materialize the ico
 that is only ever computed needs `use [ Name ]` to survive the build.
 
 ## ink
-The colour handed to the icon this host builds. **`createView` cannot pass attributes,
-so a PROVIDED value is the only channel that reaches it** — this provides `textColor`
-for exactly that. Defaults to `theme.text` rather than the platform's inherited black,
+The colour handed to the icon this host builds. A value passed to `createView` is set
+once, and the ink must follow the control's state, so it travels as a **provided value**:
+this provides `textColor`, which the icon's drawing reads. Defaults to `theme.text` rather than the platform's inherited black,
 which is what stops a host-built icon from rendering invisibly on a dark surface.
 
 ## onInit
@@ -185,9 +179,9 @@ class IconHost extends View [
     y = center,
     visible = { classroot.kind != "" },
 
-    // The ink channel. `createView` cannot pass attributes, so the only way to
-    // reach the icon it builds is a provided value — and the one `Icon.ink`
-    // reads is `textColor`, which the host provides here from its `ink`.
+    // The ink channel. A value passed to `createView` is set once, and the ink
+    // must follow the control's state, so it reaches the icon as a provided
+    // value — the one `Icon.ink` reads is `textColor`, provided here from `ink`.
     //
     // The default matters more than it looks: an icon that inherited a bare
     // `textColor` would fall back to black — fine on a light surface by luck,

@@ -1,0 +1,9 @@
+App [ width = 280, height = 120, fill = white,
+    tags: View [ x = 20, y = 20, width = 240,
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+        View [ width = 70, height = 28, cornerRadius = 14, fill = gainsboro ],
+        View [ width = 90, height = 28, cornerRadius = 14, fill = gainsboro ],
+        View [ width = 60, height = 28, cornerRadius = 14, fill = gainsboro ],
+        View [ width = 100, height = 28, cornerRadius = 14, fill = gainsboro ]
+        ]
+    ]

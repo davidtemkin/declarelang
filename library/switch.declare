@@ -6,14 +6,14 @@ A boolean control with a sliding thumb — same value contract as Checkbox (`che
 between its two rest points, so toggling moves rather than jumps.
 
 ## checked
-Whether the switch is on. Bind it (`checked = { app.muted }`) and override `input`
+Whether the switch is on. Constrain it (`checked = { app.muted }`) and override `input`
 to own the destination, or leave it and read it back — a `Switch` works standalone
 with no wiring.
 
 ## input()
 Where the value goes. The default writes `checked`; override it and the switch
 becomes a delivery mechanism for state you own. `press()` never writes `checked`
-directly, so a bound switch never fights its constraint.
+directly, so a constrained switch never fights its constraint.
 
 ## press()
 Toggles, by delivering the flipped value through `input`. Called by a click and by

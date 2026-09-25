@@ -23,6 +23,12 @@
 // flip, drift-free and sleep-safe (each firing re-aims at the next boundary
 // from the real clock; a page asleep for an hour gets ONE tick on return).
 //
+// A NUMBER is a period in milliseconds — `tick = 5000` fires every five
+// seconds, counted from when it starts, not aligned to the clock. That is the
+// periodic door for work that is not about the time of day: refetch a source,
+// poll, advance a slideshow. Each firing re-aims from the real clock, so a
+// page asleep for an hour still gets ONE tick, its dt clamped to one period.
+//
 // Facts are NUMBERS, never strings — formatting and localization are the
 // app's, as a subclass attribute and Intl. `now` is the instant, epoch ms;
 // `year month day hour minute second weekday` are the local-zone components:
@@ -51,14 +57,11 @@ import { Node, onDiscard, authoredName } from "./node.js";
 import { sharedClock } from "./animate.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { noteOrigin, observe } from "./reactive.js";
+import { timeHost } from "./wallclock.js";
 export const TICKS = ["frame", "second", "minute", "hour", "day"];
-const REAL_HOST = {
-    now: () => Date.now(),
-    setTimeout: (fn, ms) => setTimeout(fn, ms),
-    clearTimeout: (h) => clearTimeout(h),
-};
-let host = REAL_HOST;
-export function setTimeHost(h) { host = h ?? REAL_HOST; }
+// The wall clock and the alarm are wallclock.ts's one seam, shared with a
+// node's `after` — a test that drives one drives both.
+export { setTimeHost } from "./wallclock.js";
 /** The largest step handed to a per-frame onTick, in seconds — ~4 frames at
  *  60Hz, the standard clamp. A tab hidden for a minute must not resume with
  *  dt = 60 and launch an integrator into the weeds. */
@@ -66,6 +69,7 @@ const MAX_FRAME_DT = 1 / 15;
 /** A calendar tick's clamp: one period. Sleep, a throttled background tab —
  *  the elapsed time is reported as one tick's worth, never the whole gap. */
 const PERIOD_S = { frame: MAX_FRAME_DT, second: 1, minute: 60, hour: 3600, day: 86_400 };
+const periodS = (tick) => typeof tick === "number" ? tick / 1000 : PERIOD_S[tick];
 const FACTS = ["now", "year", "month", "day", "hour", "minute", "second", "weekday"];
 /** One fact of the instant `t`, local zone, Temporal's conventions. */
 export function factOf(f, t) {
@@ -85,9 +89,10 @@ export function factOf(f, t) {
         }
     }
 }
-/** The tier's boundary at or before `t` (local zone). */
+/** The tier's boundary at or before `t` (local zone). A period in ms has no
+ *  boundaries — it counts from its last firing — so `t` is its own floor. */
 export function floorTick(t, tick) {
-    if (tick === "frame")
+    if (tick === "frame" || typeof tick === "number")
         return t;
     if (tick === "second")
         return Math.floor(t / 1000) * 1000;
@@ -103,6 +108,8 @@ export function floorTick(t, tick) {
 /** The first boundary strictly after `t`. Hour and day step through Date so a
  *  zone's DST shift lands on the real local boundary, not 3600s later. */
 export function nextTick(t, tick) {
+    if (typeof tick === "number")
+        return t + tick;
     const at = floorTick(t, tick);
     if (tick === "frame")
         return at;
@@ -166,14 +173,14 @@ export class Time extends Node {
         if (this.#started)
             return;
         this.#started = true;
-        this.#refresh(host.now());
+        this.#refresh(timeHost().now());
         const app = rootOf(this);
         if (app !== this && typeof app.pageVisible === "boolean") {
             this.#pageVisible = app.pageVisible;
             this.#unwatch = observe(() => app.pageVisible, (v) => {
                 this.#pageVisible = v;
                 if (v)
-                    this.#refresh(host.now()); // back on screen: the facts catch up at once
+                    this.#refresh(timeHost().now()); // back on screen: the facts catch up at once
                 this.#sync();
             }, "Time.pageVisible");
         }
@@ -201,7 +208,7 @@ export class Time extends Node {
         else {
             this.#leaveClock();
             if (this.#alarm === null) {
-                this.#lastTick = floorTick(host.now(), this.tick);
+                this.#lastTick = floorTick(timeHost().now(), this.tick);
                 this.#schedule();
             }
         }
@@ -217,16 +224,18 @@ export class Time extends Node {
     #clearAlarm() {
         if (this.#alarm === null)
             return;
-        host.clearTimeout(this.#alarm);
+        timeHost().clearTimeout(this.#alarm);
         this.#alarm = null;
     }
     /** Aim at the next boundary from the real clock — never an interval. */
     #schedule() {
-        const now = host.now();
-        this.#alarm = host.setTimeout(() => { this.#alarm = null; this.#fire(); }, Math.max(0, nextTick(now, this.tick) - now));
+        const now = timeHost().now();
+        // A period counts from the last firing; a calendar tier aims at the next boundary.
+        const at = typeof this.tick === "number" ? this.#lastTick + this.tick : nextTick(now, this.tick);
+        this.#alarm = timeHost().setTimeout(() => { this.#alarm = null; this.#fire(); }, Math.max(0, at - now));
     }
     #fire() {
-        const now = host.now();
+        const now = timeHost().now();
         // An early wake (a timer may fire a hair short) re-aims. A late one —
         // sleep, a throttled background tab — is ONE tick, its dt clamped to a period.
         if (now < nextTick(this.#lastTick, this.tick)) {
@@ -234,7 +243,7 @@ export class Time extends Node {
             return;
         }
         this.#refresh(now);
-        const dt = Math.min((now - this.#lastTick) / 1000, PERIOD_S[this.tick]);
+        const dt = Math.min((now - this.#lastTick) / 1000, periodS(this.tick));
         this.#lastTick = floorTick(now, this.tick);
         this.#deliver(dt);
         if (this.#alarm === null && this.#wants())
@@ -247,7 +256,7 @@ export class Time extends Node {
             return false;
         const prev = this.#lastFrame;
         this.#lastFrame = clockNow;
-        this.#refresh(host.now());
+        this.#refresh(timeHost().now());
         if (prev !== null) {
             // BOTH ends: the top so a backgrounded tab cannot resume with one
             // enormous step, the bottom so a clock handover (a manual clock near
@@ -303,7 +312,7 @@ export class Time extends Node {
 // keeps the slot's contract — the value as of the last tick, the cell tracked
 // and, once, demand registered (`onTrack`) — while an untracked read samples
 // the real clock at that moment (`live`).
-const fact = (f) => ({ def: 0, onTrack: (t) => DEMAND(t), live: () => factOf(f, host.now()) });
+const fact = (f) => ({ def: 0, onTrack: (t) => DEMAND(t), live: () => factOf(f, timeHost().now()) });
 defineAttributes(Time, {
     tick: { def: "second", push: (t) => RETICK(t) },
     running: { def: true, push: (t) => SYNC(t) },

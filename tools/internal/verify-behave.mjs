@@ -41,11 +41,11 @@ export class VerifyAssertion extends Error {}
 // A static server over the repo tree (the app's <base> resolves its own data
 // and resources), a fixtures overlay mapped over the app's base (verify NEVER
 // touches live network, §2.6), one headless Chrome, and a host page embedding
-// the ALREADY-compiled source + deps — the dev server's own host-page shape.
+// the ALREADY-built program — the dev server's own host-page shape.
 
 async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend" }, fn) {
   const baseHref = "/" + relative(ROOT, resolve(appDir)).split("\\").join("/") + "/";
-  const cfg = { backend: backendClass, source: compiled.source, deps: compiled.deps };
+  const cfg = { backend: backendClass, program: compiled.program };
   // The viewport meta is LOAD-BEARING: without it a mobile-sized emulation
   // renders the legacy 980px desktop layout viewport, so every phone assertion
   // silently measured a desktop — which falsified the mobile half of any

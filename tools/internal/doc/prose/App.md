@@ -146,7 +146,7 @@ standing, constraints wired, geometry computed — and before anything presents,
 handler does is in the first frame the user sees (answered by `onReady`). Boot is the one
 settle with no app handler inside it, which is why its close is delivered as an event; a
 handler's own change asks inline with `afterSettle` instead. Ask first whether you need it
-at all: readiness is usually a value some binding derives from. Keep it for the genuinely
+at all: readiness is usually a value some constraint derives from. Keep it for the genuinely
 once-and-imperative — seed the camera, start the tour, open the socket.
 
 ## reveal()
@@ -328,7 +328,7 @@ A standing watch over an exposed value, for page script: `app.watchExposed(name,
 
 ## appName
 What this app calls itself — the host reflects it into the window or document title. An
-ordinary reactive attribute, so a title that tracks the open document is a binding rather
+ordinary reactive attribute, so a title that tracks the open document is a constraint rather
 than a mechanism: `appName = { "Viewer — " + app.fileName }`. `""` (the default) means no
 opinion, and the host keeps whatever title it served.
 

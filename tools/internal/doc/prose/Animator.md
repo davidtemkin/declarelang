@@ -62,7 +62,7 @@ Fires at each loop of a repeating run (answered by `onRepeat`).
 
 ## start()
 Runs the animation from the current attribute value toward `to` — the imperative trigger,
-equivalent to setting `started = true`. Prefer binding `started` to a condition when the run
+equivalent to setting `started = true`. Prefer constraining `started` to a condition when the run
 is state-driven; call `start()` for a one-shot fired from a handler (`onClick() { fx.start() }`).
 
 ## stop()

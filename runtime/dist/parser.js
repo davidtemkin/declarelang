@@ -228,7 +228,7 @@ function tokenize(src) {
         }
         // single-character punctuation
         const punct = {
-            "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "*": "star", "!": "bang", "|": "pipe",
+            "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "*": "star", "!": "bang", "|": "pipe", "@": "at",
         };
         if (punct[c]) {
             advance();
@@ -942,10 +942,12 @@ class Parser {
      *  filters and unions refuse with their gate named. `plan` is attached
      *  exactly when the spelling used anything beyond dot-idents. */
     parsePath(pos) {
-        const first = this.expect("ident", "a field name after ':'");
-        let path = first.text;
-        const plan = [first.text];
-        let planful = false;
+        // `:@` — the record itself (JSONPath's current node); selectors may follow
+        const at = this.peek().kind === "at" ? this.next() : null;
+        const first = at ?? this.expect("ident", "a field name after ':' (or '@', the record itself)");
+        let path = at !== null ? "@" : first.text;
+        const plan = at !== null ? [] : [first.text];
+        let planful = at !== null;
         let end = first.pos.offset + first.text.length;
         let many = false;
         for (;;) {
@@ -973,6 +975,9 @@ class Parser {
                     this.next();
                     many = true;
                     break; // the replication marker is trailing by grammar
+                }
+                if (s.kind === "lparen") {
+                    throw new DeclareError("a computed key [( … )] is TypeScript, so its path is written in braces — { :@[(key)] }", s.pos);
                 }
                 if (s.kind === "query") {
                     throw new DeclareError("filter selectors ([?…]) are not in the path subset yet (jsonpath-spelling.md §5) — derive the subset in a Dataset [ contents = { … } ] and bind to that", s.pos);

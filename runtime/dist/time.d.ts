@@ -1,20 +1,13 @@
 import { Node } from "./node.js";
-export type Tick = "frame" | "second" | "minute" | "hour" | "day";
+export type Tick = "frame" | "second" | "minute" | "hour" | "day" | number;
 export declare const TICKS: readonly Tick[];
-/** The wall clock and the alarm Time reads — one seam, swappable for tests
- *  (setTimeHost), so the calendar tiers can be driven by hand. `now` is
- *  epoch milliseconds (Date.now), never the frame scheduler's timeline. */
-export interface TimeHost {
-    now(): number;
-    setTimeout(fn: () => void, ms: number): unknown;
-    clearTimeout(handle: unknown): void;
-}
-export declare function setTimeHost(h: TimeHost | null): void;
+export { setTimeHost, type TimeHost } from "./wallclock.js";
 declare const FACTS: readonly ["now", "year", "month", "day", "hour", "minute", "second", "weekday"];
 type Fact = (typeof FACTS)[number];
 /** One fact of the instant `t`, local zone, Temporal's conventions. */
 export declare function factOf(f: Fact, t: number): number;
-/** The tier's boundary at or before `t` (local zone). */
+/** The tier's boundary at or before `t` (local zone). A period in ms has no
+ *  boundaries — it counts from its last firing — so `t` is its own floor. */
 export declare function floorTick(t: number, tick: Tick): number;
 /** The first boundary strictly after `t`. Hour and day step through Date so a
  *  zone's DST shift lands on the real local boundary, not 3600s later. */
@@ -40,4 +33,3 @@ export declare class Time extends Node {
      *  visibility is watched, and the tick arms if anything wants it. */
     autoStart(): void;
 }
-export {};

@@ -5,7 +5,7 @@ arrangements rather than snapping. The case for an author-written layout —
 a grid that becomes a list, a fan that collapses to a stack.
 
 ## t
-The interpolation scalar, `0`…`1` — `0` is the "from" arrangement, `1` the "to". Bind it
+The interpolation scalar, `0`…`1` — `0` is the "from" arrangement, `1` the "to". Constrain it
 to a state or animate it; the layout places each child at the blended position, so the
 transition is continuous.
 

@@ -41,6 +41,50 @@ Assign it to open a pane from code; `""` closes all of them. A `Pane` never stor
 whether it is open, it derives it from here, which is why the one-open-at-a-time
 invariant cannot break.
 
+## theme
+The provided design-token record this widget styles off — a **provided value**
+(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
+widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
+house look. See `Control.theme`.
+*/
+
+include [ "control.declare", "icons/core.declare" ]
+
+class Accordion extends View [
+    // The design-token record, a provided value: the app provides it once and
+    // this widget reads it, so `theme.x` reads below are plain typed members.
+    // Default = the house look.
+
+    theme: Theme = { provided("theme", SanFrancisco) },
+
+    value: string = "",
+
+    // one open pane at a time, stacked flush — the sliding heights are the
+    // arrangement; the group just stacks whatever heights the springs say
+
+    layout: SimpleLayout [ axis = y, spacing = 2 ]
+    ]
+
+
+/*
+# Pane
+
+One pane of an `Accordion`: a header you press and the content you write as its
+ordinary children. A pane derives `open` from the group's `value` — it never stores
+it — and slides open and closed on a spring over its height, its content present the
+whole way and revealed by the pane's own clip.
+
+```declare
+App [ width = 300, height = 180, fill = white, textColor = black,
+    Accordion [ x = 20, y = 20, width = 260,
+        Pane [ label = "Details", initial = true,
+            Text [ width = 100%, padding = 12, text = { "open: " + parent.open } ]
+            ],
+        Pane [ label = "More", Text [ padding = 12, text = "Press a header." ] ]
+        ]
+    ]
+```
+
 ## label
 The pane header's text, and — unless you set `name` — its identity in the group.
 
@@ -51,7 +95,7 @@ does not move under you when the wording does.
 
 ## initial
 Seeds the group: the first pane declaring `initial = true` opens if nothing else has
-claimed `value` yet. A one-shot at init, not a binding — **to drive which pane is open
+claimed `value` yet. A one-shot at init, not a constraint — **to drive which pane is open
 from state, constrain the group's `value` instead**.
 
 ## open
@@ -85,31 +129,7 @@ A pane is as wide as its accordion; only its height is its own.
 Disabled dims the whole pane, header and content alike, rather than recolouring it — to
 the theme's `disabledOpacity`, or 0.45 when the theme states none. A disabled pane
 neither opens nor closes; whatever it shows stays as it is.
-
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
-
-include [ "control.declare", "icons/core.declare" ]
-
-class Accordion extends View [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
-
-    value: string = "",
-
-    // one open pane at a time, stacked flush — the sliding heights are the
-    // arrangement; the group just stacks whatever heights the springs say
-
-    layout: SimpleLayout [ axis = y, spacing = 2 ]
-    ]
-
 
 class Pane extends Control [ width = 100%, clip = true,
     label: string = "",

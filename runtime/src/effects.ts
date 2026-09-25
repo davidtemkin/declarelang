@@ -40,7 +40,7 @@ export const sepia = (amount: number): Filter => Object.freeze({ fn: "sepia", am
 export const hueRotate = (degrees: number): Filter => Object.freeze({ fn: "hueRotate", degrees });
 /** `colorize(color)`: the group's alpha in one colour (template-image rendering) —
  *  what `Image.tint` is sugar for. (`tint(…)` is the theme helper's name.) */
-export const colorize = (color: Color): Filter => Object.freeze({ fn: "tint", color });
+export const colorize = (color: Color): Filter => Object.freeze({ fn: "colorize", color });
 /** The frost: blur + saturate, the material pair every platform's menus wear. */
 export const frost = (radius: number, saturation = 1): Backdrop =>
   Object.freeze(saturation === 1 ? [blur(radius)] : [blur(radius), saturate(saturation)]);

@@ -9,7 +9,7 @@
 // wakes exactly its dependents (attributes.ts has the full story). Before
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
-import { Node, onDiscard, runRetire, authoredName, provideCursorRead } from "./node.js";
+import { Node, onDiscard, runRetire, authoredName, provideCursorRead, provideCursorWrite } from "./node.js";
 import { DeclareError, diag, negativeSizeMessage } from "./errors.js";
 import { backdropEqual, fillEqual, filterList, filtersEqual, insetIsZero, insetLead, insetSides, isMaskGradient, shadowEqual, strokeEqual } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
@@ -408,21 +408,22 @@ export class View extends Node {
                             this.extentRelistQueued = true;
                             afterSettle(() => {
                                 this.extentRelistQueued = false;
-                                const dd = EXTENT.get(this);
-                                if (dd === undefined)
+                                const now = EXTENT.get(this);
+                                if (now === undefined)
                                     return;
-                                for (const sz of ["width", "height"]) {
-                                    const r = dd[sz];
-                                    if (r !== undefined && r.isNative && ownerOf(this, sz) === r && r.id >= 0) {
-                                        kernel().extentRewire(r.id, this.extentWords());
-                                        r.run();
+                                for (const s of ["width", "height"]) {
+                                    const n = now[s];
+                                    if (n !== undefined && n.isNative && ownerOf(this, s) === n && n.id >= 0) {
+                                        kernel().extentRewire(n.id, this.extentWords());
+                                        n.run();
                                     }
                                 }
                             });
                         }
                     }
-                    else
+                    else {
                         d.run();
+                    }
                 }
             }
         }
@@ -1749,8 +1750,6 @@ defineAttributes(View, {
                 INSTALLED.set(v, l.attachTo(v));
         },
     },
-    // The cursor is model state: bindings read it (tracked), nothing renders it.
-    datapath: { def: null },
 });
 /** The view whose `datapath = { }` compute is currently running, if any. A
  *  `:path` island in that body reads through the walk below — and must
@@ -1775,7 +1774,7 @@ export function withCursorDefining(view, fn) {
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export function inheritedCursor(node) {
     for (let n = node; n !== null; n = n.parent) {
-        if (n instanceof View && n !== cursorDefining) {
+        if (n !== cursorDefining) {
             const dp = n.datapath;
             if (dp !== null)
                 return dp;
@@ -2694,11 +2693,18 @@ setChangeDispatcher((node, changed) => {
 // levels inside an AnimatorGroup resolves to the same view its siblings do —
 // and a node with no cursor above it reads null, exactly as a view without a
 // datapath does.
+provideCursorWrite((node, segs, v) => {
+    const cursor = inheritedCursor(node);
+    if (cursor !== null)
+        cursor.data.set([...cursor.path, ...segs], v);
+});
 provideCursorRead((node, path) => {
     const cursor = inheritedCursor(node);
     if (cursor === null)
         return null;
-    const plan = typeof path === "string" ? splitPath(path) : path;
+    // a computed key arrives as its value: a number is an index, anything else a name
+    const plan = typeof path === "string" ? splitPath(path)
+        : path.map((sg) => typeof sg === "number" ? { i: sg } : typeof sg === "object" && sg !== null ? sg : String(sg));
     // Pure-name plans ride the currency walk (today's read, coercing —
     // `:rows.length` stays live); a plan with selectors evaluates per RFC 9535
     // (select.ts), the B3 surface.

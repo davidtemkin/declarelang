@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 import { formatSource } from "../../format.mjs";
+import { sectionAnchor, sectionHeadings } from "./links.mjs";
 import { SCHEMAS, RichTextSchema, EVENT_PAYLOAD } from "../../../runtime/dist/schema.js";
 
 /** Canon a generated demo, or leave it exactly as-is if the formatter cannot take
@@ -123,14 +124,29 @@ const brokenFences = [];
 // split prose Markdown into ordered segments: { md } for text/static-code, or
 // { md:"", code:[{id, source, lines, stageH}] } for a runnable island (0-or-1 array so
 // the app constructs the island by datapath replication). Merges runs of plain text.
-async function segmentize(md, idBase) {
+// With `sections`, a `## `/`### ` heading starts a segment of its own carrying the
+// heading's `anchor` (links.mjs sectionAnchor — the same slug a
+// `declare-docs:guide:name@slug` link names), and the title segment carries the
+// chapter's `toc`: its `## ` sections, for the page's "On this page" row.
+async function segmentize(md, idBase, sections = false) {
   if (!md) return [];
   const segs = [];
-  const pushMd = (t) => {
+  const pushOne = (t, anchor) => {
     if (!t.trim()) return;
     const last = segs[segs.length - 1];
-    if (last && last.code.length === 0) last.md += "\n\n" + t.trim();   // merge adjacent prose
-    else segs.push({ md: t.trim(), code: [] });
+    if (anchor === undefined && last && last.code.length === 0) last.md += "\n\n" + t.trim();   // merge adjacent prose
+    else segs.push(anchor === undefined ? { md: t.trim(), code: [] } : { md: t.trim(), code: [], anchor });
+  };
+  const pushMd = (t) => {
+    if (!sections) return pushOne(t);
+    let buf = [], anchor, fence = false;
+    for (const line of t.split("\n")) {
+      if (/^```/.test(line)) fence = !fence;
+      const h = !fence && line.match(/^#{1,3} (.+)$/);
+      if (h) { pushOne(buf.join("\n"), anchor); buf = []; anchor = line.startsWith("# ") ? "" : sectionAnchor(h[1].trim()); }
+      buf.push(line);
+    }
+    pushOne(buf.join("\n"), anchor);
   };
   let n = 0;
   for (const part of md.split(/(```declare\n[\s\S]*?```)/g)) {
@@ -150,6 +166,17 @@ async function segmentize(md, idBase) {
       }
     }
   }
+  if (sections && segs.length > 0) {
+    const toc = sectionHeadings(md).filter((h) => h.level === 2).map(({ title, anchor }) => ({ title: title.replace(/`/g, ""), anchor }));
+    const title = segs.find((s) => s.anchor === "");
+    if (title !== undefined && toc.length > 1) {
+      // the H1 alone, then the toc; the chapter's opening prose follows as its own segment
+      const [h1, ...rest] = title.md.split("\n");
+      const i = segs.indexOf(title);
+      segs.splice(i, 1, { md: h1, code: [], toc }, ...(rest.join("\n").trim() ? [{ md: rest.join("\n").trim(), code: [] }] : []));
+    }
+    for (const s of segs) if (s.anchor === "") delete s.anchor;
+  }
   return segs;
 }
 
@@ -166,7 +193,7 @@ function renderType(t) {
     case "shape": return "Shape";
     // an authored-style union's NAME is its quoted member list — the spelling
     // the ruling requires at every use site; a named vocabulary lists tokens
-    case "enum": return t.name.startsWith('"') ? t.name : t.tokens.join(" | ");
+    case "enum": return t.name.startsWith('"') ? t.name : t.tokens.join(" | ") + (t.numeric ? " | number" : "");
     case "component": return t.of;
     case "cursor": return "datapath";
     case "slotref": return "slot";
@@ -701,8 +728,14 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
       const id = d.name;
       if (nodes[id]) continue;
       PROSE[id] = prose;
+      // The dark record's page points at its light twin rather than repeating it:
+      // the header prose is written once, about the pair.
+      const light = id.replace(/Dark$/, "");
+      const doc = dark && decls.some((x) => x.name === light)
+        ? `The dark half of [\`${light}\`](declare-docs:${light}): the same tokens, with values for a dark ground. Everything said there applies; provide this record where the app is dark, or let [\`AppearanceSwitch\`](declare-docs:AppearanceSwitch) choose between the two.`
+        : prose.class;
       nodes[id] = { id, name: id, kind: "theme",
-        doc: prose.class, docSegs: await segmentize(prose.class, id), api: true,
+        doc, docSegs: await segmentize(doc, id), api: true,
         source: { file: rel, line: 0 }, parent: null, seeAlso: [],
         extends: null, subclasses: [], origin: "library",
         attributes: [], methods: [], events: [], example: null,
@@ -927,7 +960,7 @@ async function readGuide() {
       .trim();
     const short = navm ? navm[1] : title.split("—")[0].trim();   // rail label: nav marker, else text before the em-dash
     const id = f.replace(/\.md$/, "");
-    return { id, num, title, short, part: partm ? partm[1] : partOf(num), segs: await segmentize(md, "ch_" + id), demo };
+    return { id, num, title, short, part: partm ? partm[1] : partOf(num), segs: await segmentize(md, "ch_" + id, true), demo };
   }));
   const guideParts = [];
   for (const ch of guide) {

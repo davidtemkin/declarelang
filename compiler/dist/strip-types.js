@@ -22,7 +22,7 @@
 // ternary colons as islands) — the overlap guard below drops, rather than
 // misapplies, any edit that would cross a replacement.
 import ts from "typescript";
-import { scanDatapaths } from "../../runtime/dist/datapath.js";
+import { scanDatapaths, islandEdits } from "../../runtime/dist/datapath.js";
 /** The body-local spans to delete from one `{ }` body. `expression` selects
  *  the parse mode (a value body is an expression; a method body, statements).
  *  Unparseable text yields no edits — typecheck and dep extraction own those
@@ -31,6 +31,8 @@ export function stripEditsFor(src, expression) {
     // Rewrite `:path` islands to marker calls (`$DP("path")`) so the body parses;
     // record each replacement's span (rewritten coords) and length delta for the
     // map back to original coordinates below.
+    // A computed key's code stays in place between its island's pieces
+    // (`$DP("p", (key))`), so a type annotation inside it is found too.
     let islands = [];
     try {
         islands = scanDatapaths(src);
@@ -38,15 +40,21 @@ export function stripEditsFor(src, expression) {
     catch {
         islands = [];
     }
+    const pieceEdits = islands.flatMap((p) => {
+        const cs = p.computed ?? [];
+        const pieces = cs.length === 0 ? [`$DP(${JSON.stringify(p.path)})`]
+            : [`$DP(${JSON.stringify(p.path)}, (`, ...cs.slice(1).map(() => "), ("), "))"];
+        return islandEdits(p, pieces);
+    }).sort((a, b) => a.start - b.start);
     let rsrc = "";
     let at = 0;
     const reps = [];
-    for (const p of islands) {
-        rsrc += src.slice(at, p.start);
+    for (const e of pieceEdits) {
+        rsrc += src.slice(at, e.start);
         const rStart = rsrc.length;
-        rsrc += `$DP(${JSON.stringify(p.path)})`;
-        reps.push({ rStart, rEnd: rsrc.length, delta: rsrc.length - rStart - (p.end - p.start) });
-        at = p.end;
+        rsrc += e.text;
+        reps.push({ rStart, rEnd: rsrc.length, delta: rsrc.length - rStart - (e.end - e.start) });
+        at = e.end;
     }
     rsrc += src.slice(at);
     // A statement body parses inside a function wrapper (a bare top-level
@@ -165,7 +173,7 @@ export function tsBodySyntax(src, expression) {
         }
         else if ((ts.isParameter(n) && (n.type !== undefined || n.questionToken !== undefined)) ||
             (ts.isVariableDeclaration(n) && (n.type !== undefined || n.exclamationToken !== undefined))) {
-            tsOnly = `annotates a binding ('${n.name.getText(sf)}') — bindings in a body take no type annotation (contextual typing covers them); a cast narrows an expression (x as T), and declared types live on the attribute (name: type = …)`;
+            tsOnly = `annotates a name ('${n.name.getText(sf)}') — names declared in a body take no type annotation (contextual typing covers them); a cast narrows an expression (x as T), and declared types live on the attribute (name: type = …)`;
         }
         else if ((ts.isArrowFunction(n) || ts.isFunctionExpression(n) || ts.isFunctionDeclaration(n)) && (n.typeParameters !== undefined || n.type !== undefined)) {
             tsOnly = n.typeParameters !== undefined

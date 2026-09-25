@@ -44,7 +44,7 @@ out of `input`.
 
 ## value
 The **chosen member**, not the typed text — the whole record when you supplied records.
-`null` until something is picked. Standalone the combobox owns it; bound, override
+`null` until something is picked. Standalone the combobox owns it; constrained, override
 `input` beside it.
 
 ## input()

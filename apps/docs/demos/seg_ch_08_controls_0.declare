@@ -1,17 +1,15 @@
-App [ width = 360, height = 200, theme = { SanFrancisco }, fill = { provided("theme").bg },
+App [ width = 360, height = 210, theme = { SanFrancisco }, fill = { provided("theme").bg },
     volume: number = 50,
-    muted:  boolean = false,
-
-    col: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
+    muted: boolean = false,
+    col: View [ x = 20, y = 20, width = 320,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
         Checkbox [ label = "Mute", checked = { app.muted },
             input(v: boolean) { app.muted = v }
             ],
-        Slider [ value = { app.volume },
-            input(v: number) { app.volume = v },
-            disabled = { app.muted }
+        Slider [ width = 100%, value = { app.volume }, disabled = { app.muted },
+            input(v: number) { app.volume = v }
             ],
-        ProgressBar [ value = { app.muted ? 0 : app.volume } ],
+        ProgressBar [ width = 100%, value = { app.muted ? 0 : app.volume } ],
         Button [ label = "Reset", primary = true,
             onClick() { app.volume = 50; app.muted = false }
             ]

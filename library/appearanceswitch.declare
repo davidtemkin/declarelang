@@ -29,8 +29,8 @@ actually wearing, whether that came from the environment or from the reader.
 Where a press delivers the new appearance — the flipped value of `dark`. The default
 writes `dark`; override it to record the reader's choice in the app
 (`input(v: boolean) { app.themeMode = v ? "dark" : "light" }`), after which the
-environment no longer decides. `press()` never writes `dark` directly, so a bound
-switch never fights its constraint.
+environment stops deciding. `press()` never writes `dark` directly, so a
+constrained switch never fights its constraint.
 
 ## press()
 Flips the appearance, by delivering `!dark` through `input`. Called by a click and by

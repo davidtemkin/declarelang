@@ -1,0 +1,12 @@
+App [ width = 360, height = 170, fill = black, textColor = whitesmoke,
+    v: number = 42,
+    cool: Color = dodgerblue,
+    warm: Color = tomato,
+    onClick() { v = (v + 30) % 100 },
+    col: View [ x = 30, y = 24,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Text [ fontSize = 56, fontWeight = bold, text = { `${v}` } ],
+        View [ height = 14, cornerRadius = 7, width = { 30 + v * 2.7 },
+            fill = { v < 50 ? cool : warm } ]
+        ]
+    ]

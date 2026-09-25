@@ -19,7 +19,7 @@
 // zero-dependency runtime graph imports it. `annotateProgram` attaches the
 // read-paths onto the program AST for the runtime's static-constraint path.
 import ts from "typescript";
-import { scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
+import { scanDatapaths, splitPath, spliceIslands } from "../../runtime/dist/datapath.js";
 import { LANGUAGE_METHOD_EFFECTS } from "./effects.js";
 import { SCHEMAS } from "../../runtime/dist/schema.js";
 const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword; `app` is `this.root`
@@ -183,7 +183,10 @@ function parseBody(src, expression) {
         return null;
     return sf;
 }
-/** `:path` islands → `$DP0("path")` marker calls (`:arr[]` → `$DPM`). */
+/** `:path` islands → `$DP0("path")` marker calls (`:arr[]` → `$DPM`). A path
+ *  with computed keys marks the static part before the first key and passes
+ *  each key's code as a further argument, so what the key reads is a
+ *  dependency too: `:@[(f)]` → `$DP0("", (f))`. */
 function rewriteDP(src) {
     let islands;
     try {
@@ -194,12 +197,14 @@ function rewriteDP(src) {
     }
     if (!islands.length)
         return src;
-    let out = "", at = 0;
-    for (const p of islands) {
-        out += src.slice(at, p.start) + `${p.many ? "$DPM" : "$DP0"}(${JSON.stringify(p.path)})`;
-        at = p.end;
-    }
-    return out + src.slice(at);
+    return spliceIslands(src, islands, (p) => {
+        const head = p.path === "@" || p.path.startsWith("@") ? p.path.slice(1).replace(/^\./, "") : p.path;
+        const stat = head.split("[(")[0].replace(/\.$/, "");
+        const cs = p.computed ?? [];
+        if (cs.length === 0)
+            return [`${p.many ? "$DPM" : "$DP0"}(${JSON.stringify(stat)})`];
+        return [`$DP0(${JSON.stringify(stat)}, (`, ...cs.slice(1).map(() => "), ("), "))"];
+    });
 }
 /** A pure PATH — a chain of names off a single root, with only literal indices.
  *  Returns its canonical text, or null when the expression is anything else (a
@@ -653,8 +658,21 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         // non-literal plan is refused exactly like read([<expr>]) — the
                         // same dynamic-datapath rule.
                         const a0 = s.arguments[0];
-                        const text = a0 && ts.isArrayLiteralExpression(a0) ? planLiteralText(a0)
+                        let text = a0 && ts.isArrayLiteralExpression(a0) ? planLiteralText(a0)
                             : a0 && ts.isStringLiteral(a0) ? splitPath(a0.text).join(".") : null;
+                        if (text === null && a0 && ts.isArrayLiteralExpression(a0)) {
+                            // A computed key (`:@[(k)]`, `:rows[(i)].name`): the literal part
+                            // before the first key is the region read, and each key's own
+                            // expression is walked for what IT reads.
+                            const lit = (e) => ts.isStringLiteral(e) || ts.isObjectLiteralExpression(e);
+                            const k = a0.elements.findIndex((e) => !lit(e));
+                            const prefix = ts.factory.createArrayLiteralExpression(a0.elements.slice(0, k));
+                            text = planLiteralText(prefix);
+                            if (text !== null)
+                                for (const e of a0.elements.slice(k))
+                                    if (!lit(e))
+                                        walk(e);
+                        }
                         if (text !== null)
                             reads.add(":" + text);
                         else
@@ -755,8 +773,11 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
         if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && (n.expression.text === "$DP0" || n.expression.text === "$DPM")) {
             if (n.expression.text === "$DPM")
                 errors.push(new DepError(`a many-path (:arr[]) replicates — it cannot be read in a { } body`, n.getStart()));
-            else
+            else {
                 reads.add(":" + n.arguments[0].text); // .text is the unquoted path
+                for (const a of n.arguments.slice(1))
+                    walk(a); // a computed key's own reads
+            }
             return;
         }
         if (ts.isNewExpression(n) && ts.isIdentifier(n.expression) && !locals.has(n.expression.text) && SCRIPT_CLASSES.has(n.expression.text)) {

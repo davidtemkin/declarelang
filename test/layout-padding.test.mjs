@@ -696,9 +696,11 @@ await test("stroke: a re-derived list that is EQUAL never reaches the surface", 
   // changes; the list it computes does not.
   const log = [];
   globalThis.__strokeRuns = 0;
-  const app = await boot(`App [ width = 400, height = 300, wide: number = 400,
+  // the run counter lives in a script block: a { } body may not name globalThis
+  const app = await boot(`script { function counted<T>(v: T): T { (globalThis as any).__strokeRuns++; return v } }
+    App [ width = 400, height = 300, wide: number = 400,
     v: View [ width = 100, height = 40,
-      stroke = { globalThis.__strokeRuns++, [ stroke(1, app.wide > 100 ? 0x336699 : 0xFF0000), null, null, null ] } ] ]`);
+      stroke = { counted([ stroke(1, app.wide > 100 ? 0x336699 : 0xFF0000), null, null, null ]) } ] ]`);
   const methods = ["setX", "setY", "setWidth", "setHeight", "setFill", "setCornerRadius", "setStroke",
     "setShadow", "setVisible", "setOpacity", "setClip", "setBoxClip", "setDrawing", "setText",
     "setTextStyle", "setImage", "setImageStretch", "setInput", "setEditable", "activateEditable",

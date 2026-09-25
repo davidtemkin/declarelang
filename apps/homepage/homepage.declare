@@ -13,7 +13,7 @@ take `#…`. Every color on the page has a name in one of the two `theme`
 records below — the palette lives there, once, and nowhere else.
 */
 
-// what the site's programs share — the text faces, for now
+// what the site's programs share — the text faces
 
 include [ "fonts.declare" ]
 
@@ -144,7 +144,7 @@ class NavLink extends View [ height = 33, cornerRadius = 8, padding = [0, 12, 0,
         app.appsOpen = !app.appsOpen
         },
 
-    // ONE reference does all three jobs (location.md §0.3): "#why" is a
+    // ONE reference does all three jobs: "#why" is a
     // destination, "#apps" a bare anchor (the runtime derives its location and
     // reveals it), a URL leaves the app. The follow,
     // the real <a> (hover preview, ⌘-click, copy-link), the keyboard stop,
@@ -188,7 +188,7 @@ class MobileNavRow extends View [ width = 100%, height = 44, cornerRadius = 8,
 
     fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
 
-    // the coexistence rule (location.md §0.4): the handler runs — closing the
+    // the coexistence rule: the handler runs — closing the
     // sheet — then the follow. Navigation itself is the `link`.
 
     onClick()     { app.menuOpen = false; app.appsOpen = false },
@@ -339,7 +339,7 @@ more accent-colored controls.
 class AppNum extends View [ width = 30,
     n: string = "",
 
-    // the row's hover fact, bound in by the use site — the disc answers the
+    // the row's hover fact, handed in by the use site — the disc answers the
     // SAME state the title answers, so the pair lights as one target
 
     hot: boolean = false,
@@ -477,13 +477,13 @@ the focus ring, Space and Enter arrive with the control — the way to get a
 particular look is to subclass the control, not to rebuild it.
 
 The subclass restates only the page's own skin: the taller box, the softer
-corner, and the interaction shades. The library's primary fill is flat by house
-style; every other target on this page brightens on hover and deepens at the
-press, and the main call to action should not be the one exception.
+corner, and the interaction shades in the page's own tokens, so the calls to
+action brighten on hover and deepen at the press exactly as every other target
+on this page does.
 */
 
 class SiteButton extends Button [ height = 46, cornerRadius = 9,
-    fill = { primary ? (down ? provided("theme").accentPress : hot ? provided("theme").accentHover : provided("theme").accent)
+    fill = { primary ? (down ? provided("theme").accentPressed : hot ? provided("theme").accentHover : provided("theme").accent)
                      : (down ? provided("theme").press       : hot ? provided("theme").hover       : provided("theme").surface) },
     stroke = { primary ? null : stroke(1, down ? provided("theme").accentSecondary : provided("theme").line) },
 
@@ -770,7 +770,7 @@ both directions, with nothing to start or cancel.
 its own y inside the content column, plus the column's own y — which is the
 space `app.scrollY` is measured in. Reading it from `classroot` rather than
 counting `parent` hops upward from inside the Spring is what lets one class
-serve every use site: the arithmetic no longer depends on how deep the spring
+serve every use site: the arithmetic does not depend on how deep the spring
 happens to sit.
 */
 
@@ -857,7 +857,7 @@ theme Ink [
     // (hover), then flash brighter still at the press — the same direction
     // FootLink's teal takes, so every text link answers a tap the same way
 
-    accent = #4C8DFF, accentHover = #63A0FF, accentPress = #3D7BE0, linkHover = #7FB0FF, linkPress = #B2CFFF,
+    accent = #4C8DFF, accentHover = #63A0FF, accentPressed = #3D7BE0, linkHover = #7FB0FF, linkPress = #B2CFFF,
 
     // the teal second accent; the brand gradient runs accent → accentSecondary
 
@@ -892,7 +892,7 @@ theme Ink [
 
 theme Paper [
     text = #14202A, lead = #3A4A57, muted = #5A6B78, dim = #72838F, faint = #8A99A4,
-    accent = #2F6BDE, accentHover = #1F58C4, accentPress = #1A4AA6, linkHover = #1F58C4, linkPress = #173F8C,
+    accent = #2F6BDE, accentHover = #1F58C4, accentPressed = #1A4AA6, linkHover = #1F58C4, linkPress = #173F8C,
     accentSecondary = #0FA38E, accentSecondaryPress = #0B7F6F,
     brand = gradient("90deg", #2F6BDE, #0FA38E),
 
@@ -938,10 +938,10 @@ App [ tagline: string = "a UI language for you and your AI",
     revealInset = 80,
     appName = { "Declare — " + app.tagline },
 
-    // THIS PAGE IS DARK, whatever the machine is set to (DT, 2026-09-20). The
-    // site's own presentation is dark — the shots, the video, the blueprint
-    // grid and the plate shadows are all composed for it — so a light system
-    // no longer decides how a first-time reader sees it. The header's switch
+    // THIS PAGE IS DARK, whatever the machine is set to. The site's own
+    // presentation is dark — the shots, the video, the blueprint grid and the
+    // plate shadows are all composed for it — so a light system does not
+    // decide how a first-time reader sees it. The header's switch
     // still flips to light and from then on the choice holds. Every colour
     // below reads the theme, so the whole page (and the hosted Architecture
     // article, through its island) follows.
@@ -960,7 +960,7 @@ App [ tagline: string = "a UI language for you and your AI",
     // in-app location: "home" (the scrolling page), "why" (the mini-article),
     // "language" (the one-file core doc, rendered in-app), or "getstarted" (the
     // quick-start guide, rendered the same way) — the app’s slice of the
-    // URL (docs/system-design/location.md). `location` is a BUILT-IN App attribute;
+    // URL. `location` is a BUILT-IN App attribute;
     // setting it here declares the INITIAL, which is the default: the host shows a
     // clean URL at "home" and `#why`/`#language` elsewhere, seeds it from a deep
     // link before first paint, and walks it on back/forward — no hash wiring in app
@@ -975,7 +975,7 @@ App [ tagline: string = "a UI language for you and your AI",
        Markdown below — the FAQ's, the guide's, the language doc's — routes
        through the runtime's own default: a "#name" follows in-app (destination
        or anchor alike, measured-reveal and all), anything else leaves through
-       `navigate` (location.md §0.5). */
+       `navigate`. */
     // the page’s textual material, fetched DIRECTLY as text (format = "text"):
     // the core doc itself (docs/declare.md — up the tree, but still the
     // deployed repo’s own material), the getting-started guide, and the FAQ.
@@ -1307,8 +1307,8 @@ App [ tagline: string = "a UI language for you and your AI",
                spring — one each, nothing else. */
 
             s3: DemoSection [ num = "02", head = "Declare it. It runs. It stays true.",
-                lead = "A binding isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change.",
-                caption = "Three bindings track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark.",
+                lead = "A constraint isn’t a callback you remember to re-run — it’s a standing relationship the runtime keeps true, re-derived the moment its inputs change.",
+                caption = "Three constraints track one value: the big number, the bar’s width, and its color. Click to bump v — all three update together, and the color crosses cool to warm at the halfway mark.",
                 demo = "reactivity" ],
 
             s4: DemoSection [ num = "03", head = "Declare the shape, not the loop.",
@@ -1438,7 +1438,7 @@ App [ tagline: string = "a UI language for you and your AI",
        An in-app view (`app.location == "why"`) wearing the same skin as the page —
        theme, graph-paper grid, and the header renders here too. The host mirrors
        `app.location` to the URL fragment (#why), so it deep-links and honours the
-       back button — for free, from the one built-in binding. The article itself is
+       back button — for free, from the one built-in attribute. The article itself is
        prose in `"""` blocks: HTML collapses the line breaks, so the source wraps
        and the page flows. */
 
@@ -1613,8 +1613,6 @@ App [ tagline: string = "a UI language for you and your AI",
            and the appearance switch 34 — 657 in all, so 740 leaves 83 of air
            between the wordmark and the run. It is also the one number that moves
            when `navItems` gains an entry — which is why it is stated once.
-           (Folding the three applications under a single `Apps` pill took 179
-           out of the row; the Architecture entry has since put some back.)
 
            The Spacer is what right-aligns the run: it absorbs the slack between
            the wordmark and whatever follows. Shares fill; naturals align.

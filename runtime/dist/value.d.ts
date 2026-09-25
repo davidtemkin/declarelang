@@ -103,7 +103,7 @@ export type Filter = {
     readonly fn: "hueRotate";
     readonly degrees: number;
 } | {
-    readonly fn: "tint";
+    readonly fn: "colorize";
     readonly color: Color;
 } | Shadow;
 /** What a `backdrop` slot holds: the frost is a filter list applied to the
@@ -135,7 +135,7 @@ export declare const shadow: (dx: number, dy: number, blur: number, color: Color
 /** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
  *  canvas `ctx.filter` share it. `scale` maps view units to the target's
  *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
- *  `tint` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
+ *  `colorize` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
  *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
  *  after the blit — both leave it out of this string. */
 export declare function filterCss(list: readonly Filter[], scale?: number, tintRef?: (color: Color) => string): string;
@@ -222,7 +222,7 @@ export declare function radiusFit(r: Radius, w: number, h: number): [number, num
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | readonly (Stroke | null)[] | readonly number[] | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | {
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | readonly (Stroke | null)[] | readonly number[] | readonly string[] | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | {
     readonly arrayRoot: true;
     readonly fields: readonly ShapeField[];
 };

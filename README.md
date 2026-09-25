@@ -18,7 +18,7 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 
     onClick() { count = count + 1 },                 // click anywhere
 
-    Text [ y = 80, x = { (parent.width - this.width) / 2 },
+    Text [ x = center, y = center,                   // stays centered as the window resizes
         text = { `Clicked ${count} times` }         // re-runs whenever count changes
         ]
     ]
@@ -27,7 +27,7 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 Two delimiters carry the whole model: **`[ … ]`** is the view tree — components,
 attributes, children; **`{ … }`** is TypeScript — a value, a handler body. The `{ }`
 lines are *constraints*, standing relationships the runtime keeps true: click and the
-text updates, resize and it re-centers — you wrote no update logic for either. There is
+text updates, resize and it stays centered — you wrote no update logic for either. There is
 no re-render, no diffing, no dependency array, no hook.
 
 It's reactive by construction and statically typed, with all real logic in ordinary
@@ -58,7 +58,7 @@ to assume a rule from React, CSS, or HTML carries over.
   the reference app: four views, continuous zoom, drag and edit, written by a model.
 - **The loop** — write the whole program, check it with
   [verify](docs/operational/verify.md), *ask the platform* with
-  [declare-help](docs/operational/help.md) — `node tools/declare-help.mjs <name>`, one exact
+  [declare-help](docs/operational/help.md) — `npx declare-help <name>`, one exact
   answer per question, cheaper than reading for it — then *ask the running program* with
   [introspection](docs/operational/introspection.md). A clean compile is not a working app:
   layout, fonts, paint, and input routing do not exist until it runs.
@@ -122,7 +122,7 @@ zooming rectangle — normally a bespoke project on its own:
 | **<!--stat:calendar.wireKB-->118<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
 | **0** | lines written by hand — an LLM wrote it; the compiler kept it honest |
 
-→ How to think in it: [the guide](docs/guide/01-thinking-in-declare.md). The language in
+→ How to think in it: [the guide](docs/guide/01-what-declare-is.md). The language in
 full: [`docs/declare.md`](docs/declare.md).
 
 ## What comes with it
@@ -130,7 +130,7 @@ full: [`docs/declare.md`](docs/declare.md).
 - **A compiler that runs anywhere** — Node or the browser. The program URL *is* the app's
   address: browse to a `.declare` file and it compiles and runs, no build step, no route
   config, no scaffold.
-- **`verify`** — a six-rung ladder that stops at the first real problem: structure →
+- **`declare-verify`** — a six-rung ladder that stops at the first real problem: structure →
   resolution → typecheck → headless boot → behavior under real input → visual baselines.
   The first four need no browser and run in seconds.
 - **An Inspector** — press <kbd>⌥⌘D</kbd> on any page, or add `?inspector` to a program
@@ -167,7 +167,7 @@ Write a program to my-apps/hello.declare and browse to it under the server's add
 
 - **[docs/declare.md](docs/declare.md)** — the whole language, in one file, for you and your LLM.
 - **[skill/](skill/SKILL.md)** — the agent skill: the resident kernel + routing table a model loads to write Declare (auto-discovered by Claude Code via a gated copy in `.claude/skills/`).
-- **[docs/](docs/README.md)** — the guide (start at [getting-started](docs/operational/getting-started.md)), operational pages, and the machine model ([declare-model.json](docs/declare-model.json) — exact facts in its `spine`).
+- **[docs/](docs/README.md)** — the guide (start at [Core concepts](docs/guide/01-what-declare-is.md)), operational pages ([getting-started](docs/operational/getting-started.md) to run), and the machine model ([declare-model.json](docs/declare-model.json) — exact facts in its `spine`).
 - **[docs/system-design/](docs/system-design/)** — the internal design record (non-authoritative; the docs win).
 
 ## Explore & build
@@ -192,8 +192,8 @@ the hooks refuse is one page:
 | `runtime/` | the framework — parser, reactive core, layout, animation, DOM/Canvas backends (zero external deps) |
 | `compiler/` | the thin `.declare` → JS compiler; depends one-way on `runtime/` |
 | `library/` | components and theme records authored in `.declare` |
-| `apps/` | the runnable corpus — `homepage`, `calendar`, `desktop`, `docs`, `viewer`, `inspector`, and more; [apps/README.md](apps/README.md) is the guided tour of what each one is for |
-| `tools/` | `verify`, `format`, `declarec` (production builds), and the internal doc/build pipeline |
+| `apps/` | the complete applications — `calendar`, `tracker`, `desktop`, `birds`, `weather` and more; what each one teaches is mapped in [the guide's first chapter](docs/guide/01-what-declare-is.md#learning-from-the-apps) |
+| `tools/` | the command-line tools (`declare-dev`, `declare-verify`, `declare-format`, `declare-help`, and `declarec` for production builds) and the internal doc/build pipeline |
 | `docs/` | the [guide](docs/guide/), [operational pages](docs/operational/), and the [design record](docs/system-design/) |
 | `test/` | the suite `npm test` runs |
 
@@ -214,8 +214,8 @@ a first visit before the service worker exists. The dev server shadows these fil
 they serve exactly one navigation per visitor: the cold one.
 
 **Conventions** (for contributors):
-- **Format** every `.declare` to the house style — `node tools/format.mjs --write`. The style
-  is [docs/guide/22-house-style.md](docs/guide/22-house-style.md); the tool is
+- **Format** every `.declare` to the house style — `npx declare-format --write`. The style
+  is [docs/guide/28-formatting.md](docs/guide/28-formatting.md); the tool is
   [docs/operational/format.md](docs/operational/format.md).
 - **Never rebuild the platform bundles by hand**: `npm run derive` rebuilds a stale
   one before stamping the build id, and the dev server rebuilds on demand

@@ -54,13 +54,6 @@ leaves the cross placement to the child, which is what lets an ordinary
 `baseline` only where each child can report one: a `Text` does by itself, and a
 composite must **declare** which of its parts carries it.
 
-## DataStatus
-
-A `DataSource`'s lifecycle as one read-only fact. The booleans beside it derive
-from this token, so the two can never disagree — read whichever is clearer.
-Compare it explicitly (`status == "failed"`); every token is a truthy string, so a
-bare truth test is always true.
-
 ## Edges
 
 How an app meets the device's **own** chrome — a notch, a home-indicator bar.
@@ -145,7 +138,7 @@ says every view scrolls.
 
 ## StreamStatus
 
-A live connection's lifecycle as one read-only fact, the same shape `DataStatus`
+A live connection's lifecycle as one read-only fact, the same shape a `DataSource`'s `loaded` / `loading` / `failed` facts
 has for a fetch. `retrying` is the one worth planning for: it covers both the
 platform's own recovery and a declared retry waiting to re-dial, and it is the
 difference between a stream that is coming back and `failed`, which is not.
@@ -178,4 +171,6 @@ How often a `Time` fires, from the display's own rate up to a calendar boundary.
 The calendar tiers aim at the **boundary** — aligned and drift-free, so an
 hour-ticking clock changes on the hour rather than an hour after it started —
 while `frame` follows the display and is the one to reach for when something is
-being animated rather than counted.
+being animated rather than counted. A number instead of a token is a period in
+milliseconds — `tick = 30000` — counted from when the `Time` starts, for a repeating
+job that is not about the time of day.

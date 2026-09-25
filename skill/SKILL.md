@@ -26,6 +26,10 @@ or an implementation in another stack, start at **Starting from a brief** — be
   is the whole update model.
 - `name = value` sets an attribute that already exists; `name: Type = value` declares a
   new reactive one.
+- The outside world enters as **members**, not host calls: data through `Dataset` and
+  `DataSource` (loading *and* saving), the clock through `Time`, a single later call
+  through `afterDelay(ms, fn)`. A `{ }` body that names `fetch`, `setTimeout` or
+  `globalThis` is refused, with the member named.
 
 `docs/declare.md` is the entire language in this same voice — terse and complete. It is
 the best single thing to read before writing anything real.
@@ -63,23 +67,31 @@ shapes is the main way it goes wrong. These are the judgments that keep it idiom
 - **Structure.** Subclass a component when a child grows too long to read, not only to
   reuse it — a class named for its role makes the tree read as the design. Put a model,
   a service, or any faceless coordinator in a `Node` subclass; don't hang everything
-  off `App`. Split a large program across files with `include`. (ch. 4)
+  off `App`. Split a large program across files with `include`. (ch. 5)
+- **Data.** Records live in a `Dataset`, loaded and saved through a `DataSource` — its
+  `loading` / `failed` drive the screen, its `onLoad()` does what follows a reply. A
+  handler writes a record with `:field = v`. Summaries derived from the data (totals, a
+  streak) are **methods** on the node that holds it, fed to a derived `Dataset` with a
+  `schema`, so results arrive typed — no `as any`. (ch. 14)
+- **The look.** A color, size or font list the app repeats is a token in a `theme`, read
+  with `provided("theme")`; a repeated text voice is a `style` or a small class. Not
+  `script` constants, not the same hex in five places. (ch. 11, 12)
 - **Controls.** Use the library where appropriate; subclass `Control`, not `View`, for
   a custom control — focus, keyboard activation, roles and the pressed/hovered facts
   come with it; on bare `View` you rebuild them or ship without them. Don't forget
-  hover and pressed states in your custom components. (ch. 8, 11)
+  hover and pressed states in your custom components. (ch. 8, 17)
 - **Layouts are classes.** Use one for any stack or flow; write your own to arrange
   children as they and the space change. A layout owns the slots it places — let it,
-  or set `ignoreLayout` on a child you place by hand. (ch. 5, 11)
+  or set `ignoreLayout` on a child you place by hand. (ch. 6, 17)
 - **Visual continuity.** Draw on your knowledge of high-polish native app UX to inform
   your interaction design in Declare. In the best native apps one view shifts or
   expands in place to become another; the user sees, visually, where they came from and
   where they're going. These idioms are easily implemented here with `Spring` and
   `Animator`. A click that cuts to a wholly new screen with nothing moving between is a
-  sign you are underusing the language. (ch. 15)
+  sign you are underusing the language. (ch. 20, 22)
 - **Use `draw()` for custom visuals** — graphs, iconography, treatments the tree can't
   style — integrated with the view; use it freely but measure frame rate as drawn
-  surfaces grow large or change every frame. (ch. 11)
+  surfaces grow large or change every frame. (ch. 17)
 
 The shapes that mean you have drifted back toward another framework are listed as the
 last thing in this file — the **drift check**. Read it immediately before you write code.
@@ -96,36 +108,43 @@ to learn it, or jump to the chapter your task needs:
 
 | your task touches | read |
 |---|---|
-| program shape, the two brackets | `docs/guide/02-two-brackets.md` |
-| a constraint that won't update; setter rules; the settle, `afterSettle`, `onReady` | `docs/guide/03-relationships.md` |
-| scope — `this` / `parent` / `classroot` / `app`, classes, composition | `docs/guide/04-tree.md` |
-| layout, sizing, position, responsiveness, scrolling, fixed chrome (`ignoreScroll`) | `docs/guide/05-space.md` |
-| color, type, borders, shadows, themes | `docs/guide/06-style.md` |
-| hover / press / drag & drop, hit-testing (`viewAt`), clicks, keyboard | `docs/guide/07-interaction.md` |
-| the standard library (buttons, inputs), the value pattern | `docs/guide/08-controls.md` |
-| lists, datasets, editing data, loading documents | `docs/guide/09-data.md` |
-| big collections, `virtualize`, selection, `DataGrid` | `docs/guide/10-scale.md` |
-| your own component, control, icon, or layout | `docs/guide/11-make-your-own.md` |
-| menus, dialogs, popovers, tooltips — anything over the flow | `docs/guide/12-above-the-flow.md` |
-| deep links, the URL, `location`, `waypoint`, history, crawlability, `onFollow`/`onArrive` | `docs/guide/13-location.md` |
-| states, springs, animation, `Time` | `docs/guide/14-motion-and-states.md` |
-| whole arrangements moving as one — the sprung-scalar idiom | `docs/guide/15-arrangement.md` |
-| touch, gesture ownership, pinch/wheel zoom | `docs/guide/16-gestures.md` |
-| the canvas renderer, the native Mac host, choosing a target | `docs/guide/17-renderers.md` |
-| embedding — an app in a page, foreign DOM in an app, apps in apps | `docs/guide/18-embedding.md` |
-| run / verify / ship, extraction | `docs/guide/19-run-check-ship.md` |
-| canonical formatting, the one file shape | `docs/guide/22-house-style.md` |
-| the word for a thing — the language's own vocabulary, defined once | `docs/guide/23-glossary.md` |
+| what an idiomatic app looks like — every layer, start to finish (read before writing one) | `docs/guide/01-what-declare-is.md` |
+| program shape, `[ ]` vs `{ }`, member shapes, the top-level declarations | `docs/guide/02-notation.md` |
+| a constraint that won't update; setter rules; the settle, `afterSettle`, `onReady` | `docs/guide/03-constraints.md` |
+| running a program, reading errors, `declare-verify`, asking a running program | `docs/guide/04-run-and-check.md` |
+| classes, model classes (`Node`), content-taking components, scope, `script`, `include` | `docs/guide/05-components.md` |
+| layout, sizing, padding, `Card`, position, responsiveness | `docs/guide/06-layout.md` |
+| scrolling, fixed chrome (`ignoreScroll`), `scrollTo` | `docs/guide/07-scrolling.md` |
+| the standard library, the value pattern, text fields, keyboard focus | `docs/guide/08-controls.md` |
+| hover / press / drag & drop, hit-testing (`viewAt`), clicks, keyboard | `docs/guide/09-pointer-and-keyboard.md` |
+| touch, gesture ownership, pinch/wheel zoom | `docs/guide/10-touch.md` |
+| paint, provided values, themes, dark mode | `docs/guide/11-paint-and-themes.md` |
+| text, fonts, Markdown / HTMLText, named styles, views inside prose | `docs/guide/12-text.md` |
+| images, video, audio | `docs/guide/13-media.md` |
+| datasets, lists from data, writing records (`:field = v`, `:@`), models and derived summaries, loading and saving through `DataSource`, streams, forms | `docs/guide/14-data.md` |
+| schemas — typed data, what the compiler and runtime check | `docs/guide/15-schemas.md` |
+| big collections, `virtualize`, selection, `Table`, `DataGrid` | `docs/guide/16-collections.md` |
+| your own control, `draw()`, icons, your own layout | `docs/guide/17-custom-components.md` |
+| menus, dialogs, popovers, tooltips | `docs/guide/18-overlays.md` |
+| deep links, the URL, `location`, `waypoint`, history, `onFollow`/`onArrive` | `docs/guide/19-urls.md` |
+| springs, animators, states | `docs/guide/20-motion.md` |
+| `Time` (the clock, a repeating job), `afterDelay`, and the rare `onChange` | `docs/guide/21-time.md` |
+| whole arrangements moving as one — the sprung-scalar idiom, `TweenLayout` | `docs/guide/22-animated-arrangements.md` |
+| the canvas renderer, the native Mac host, choosing a target | `docs/guide/23-renderers.md` |
+| embedding — an app in a page, foreign DOM in an app, apps in apps | `docs/guide/24-embedding.md` |
+| packaging (`declarec`), the `ship` block, crawler extraction | `docs/guide/25-packaging.md` |
+| canonical formatting | `docs/guide/28-formatting.md` |
+| the word for a thing — the language's own vocabulary, defined once | `docs/guide/29-glossary.md` |
 
-(`docs/guide/` holds the full set; `20-with-an-llm.md` is written for an agent in
-particular, and `21-calendar.md` reads the flagship app end to end.)
+(`docs/guide/` holds the full set; `26-with-an-llm.md` is written for an agent in
+particular, and `27-calendar.md` reads the flagship app end to end.)
 
 **For an exact fact** — an attribute's name, an enum's tokens, a flag, a diagnostic code,
 a standard-library component — ask the help tool:
 
 ```bash
-node tools/declare-help.mjs Slider.value     # any dotted name, class, attribute,
-node tools/declare-help.mjs rotation         # concept, enum, or diagnostic code
+npx declare-help Slider.value     # any dotted name, class, attribute,
+npx declare-help rotation         # concept, enum, or diagnostic code
 ```
 
 It answers in the compiler's register, did-you-mean included — and for a thing that
@@ -175,7 +194,13 @@ brief asked for.
 Each of these means you have slipped back toward another framework's shape:
 
 - **Long `script` blocks.** They are meant to hold pure functions and foreign glue — many
-  programs have none.
+  programs have none. Two tells: color or font **constants** in script (a theme's job),
+  and script functions computing over the app's data (a model's methods).
+- **`as any` on your own data** — the dataset is missing a `schema`.
+- **A flag you set to say data has arrived** (`booted = true` in a callback) — derive it:
+  `ready: boolean = { app.src.loaded }`.
+- **A `Time` that fires often and checks the clock** (`if (now % 5 == 0)`) — give it the
+  period: `tick = 5000`.
 - **Script that positions views or computes motion timing.** These should be constraints
   and springs.
 - **Anything that runs every frame**, unless it is a physics or game loop.

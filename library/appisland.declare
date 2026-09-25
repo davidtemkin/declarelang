@@ -17,7 +17,7 @@ identical on the dev server and a static host — and renders the child.
 
 ### The boundary
 
-What crosses an island says its direction (guide ch. 18). DOWN: list names in
+What crosses an island says its direction (the guide's Embedding chapter). DOWN: list names in
 `provides = ["dark", "base"]`, and the tenant reads each with
 `hostProvided("dark", false)` — a value resolves at the island as `provided()`
 does, the island's own attribute first, then its ancestors' provisions. UP: the
@@ -39,7 +39,7 @@ stops paying for its tenant — and what bounds the recursion when a program emb
 view of itself.
 
 The tenant runs in the host page's runtime, as its own app. Where its compiled program
-comes from is the host's arrangement (hosting.md): on the distro, a prewarmed artifact or
+comes from is the host's arrangement: on the distro, a prewarmed artifact or
 a compile; in a **production build**, an artifact `declarec` made ahead of time — for
 every island whose `program` is a literal, and for every name the program declares in its
 `ship [ islands = [ "name", … ] ]` when the value is computed. A build carries no compiler

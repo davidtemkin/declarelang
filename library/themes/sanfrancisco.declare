@@ -8,13 +8,14 @@ Francisco light, always. These declarations are the preset itself, written in th
 language; the runtime serves them by name.
 
 A record is **complete**, not a delta: every token the standard library consults is
-stated, so a preset reads whole with nothing to chase.
+stated, so a preset reads whole with nothing to chase. Hover and pressed step
+darker in light and lighter in dark, for controls and the accent alike.
 */
 
 theme SanFrancisco [
     bg = #F4F6FA, surface = #FFFFFF, line = #DBE1E9,
     text = #1B2733, textMuted = #6C7A88, textFaint = #AAB4BE,
-    accent = #2E6FE0, accentText = #FFFFFF,
+    accent = #2E6FE0, accentText = #FFFFFF, accentHover = #2A66CE, accentPressed = #275DBC,
     control = #E7EBF1, controlHover = #DCE0E6, controlPressed = #CED2D7, controlSelected = #D3E2FC,
     depth = 1, focusRing = true, controlRadius = 7,
     tooltipBg = #1B2733, tooltipText = #F4F6FA,
@@ -26,7 +27,7 @@ theme SanFrancisco [
 theme SanFranciscoDark [
     bg = #0F1620, surface = #18212C, line = #2A3642,
     text = #E7EEF2, textMuted = #9DB0BC, textFaint = #556673,
-    accent = #4C8DFF, accentText = #FFFFFF,
+    accent = #4C8DFF, accentText = #FFFFFF, accentHover = #5E98FF, accentPressed = #70A4FF,
     control = #223040, controlHover = #2B3949, controlPressed = #364455, controlSelected = #1F3B54,
     depth = 1, focusRing = true, controlRadius = 7,
     tooltipBg = #E7EEF2, tooltipText = #0F1620,

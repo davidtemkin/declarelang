@@ -134,6 +134,27 @@ export function check(input: Element | Program): DeclareError[] {
     };
     for (const c of program.classes) membersOf(c.name);
     CLASS_MEMBERS = members;
+    // A subclass cannot re-declare a child it inherits: the base builds that child
+    // first, and a second one of the same name has nowhere to go (instantiate.ts
+    // refuses it when the program boots). Said here, where the fix can be named.
+    const childOwner = (name: string, child: string, seen = new Set<string>()): string | null => {
+      const decl = byName.get(name);
+      if (decl === undefined || seen.has(name)) return null;
+      seen.add(name);
+      if (decl.body.children.some((c) => c.name === child)) return name;
+      return childOwner(decl.base, child, seen);
+    };
+    for (const c of program.classes) {
+      for (const child of c.body.children) {
+        // `layout:` names the arrangement, an attribute — a subclass replaces it
+        if (child.name === null || child.name === "layout") continue;
+        const owner = childOwner(c.base, child.name);
+        if (owner === null) continue;
+        errors.push(new DeclareError(
+          `'${child.name}' is a child ${c.name} inherits from ${owner} — a subclass cannot declare it again. Make what varies an attribute of ${owner} that the child reads (a color, a label, a size), or a method the subclass overrides`,
+          child.pos));
+      }
+    }
     const sets = new Map<string, Set<string>>();
     const setsOf = (name: string, seen = new Set<string>()): Set<string> => {
       const hit = sets.get(name);
@@ -684,7 +705,7 @@ function checkElement(
               Object.hasOwn(CSS_COLORS, it.name.toLowerCase())));
           if (!plain) {
             errors.push(new DeclareError(
-              `${eff.name}.${attr.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`,
+              `${eff.name}.${attr.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`,
               it.pos));
           }
         }
@@ -704,6 +725,15 @@ function checkElement(
           `a replicated child cannot be named — ':${(many.value as { path: string }).path}[]' makes one instance per record, and '${child.name}' can only name one; reach the instances through their data`,
           child.pos
         ));
+      }
+      if (many !== null) {
+        const cs = schemas[child.tag] as ComponentSchema | undefined;
+        if (cs !== undefined && cs.name !== "View" && !descendsFrom(cs, "View")) {
+          errors.push(new DeclareError(
+            `a ${child.tag} cannot replicate — ':${(many.value as { path: string }).path}[]' makes one instance per record, and only a view replicates; a model class stands on ONE record ('datapath = :${(many.value as { path: string }).path}[0]', or a { } yielding the place)`,
+            child.pos
+          ));
+        }
       }
       if (child.name === null) continue;
       const declared = attrType(eff, child.name);
@@ -875,7 +905,7 @@ function checkSourceNode(el: Element, schema: ComponentSchema, errors: DeclareEr
           (it.kind === "ident" && (it.name === "null" || it.name === "true" || it.name === "false"));
         if (!plain) {
           errors.push(new DeclareError(
-            `${schema.name}.${a.name}: a bare list holds plain values — numbers, strings, booleans, null. For anything computed, write the whole list as a { } binding`,
+            `${schema.name}.${a.name}: a bare list holds plain values — numbers, strings, booleans, null. For anything computed, write the whole list as a { } constraint`,
             it.pos));
         }
         // `listenTo` names SSE event types, and three names are the transport's
@@ -1719,7 +1749,7 @@ export function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr {
     const hint = scrollsBool
       ? ` — scrolls is an axis now: ${attr.value.kind === "ident" && attr.value.name === "true" ? "'scrolls = y' is the old 'scrolls = true'" : "'scrolls = none' is the old 'scrolls = false'"}`
       : attr.value.kind === "ident" && type.kind !== "enum"
-        ? ` — write { ${attr.value.name} } to bind the attribute${type.kind === "string" ? `, or "${attr.value.name}" for the literal text` : ""}`
+        ? ` — write { ${attr.value.name} } to read it in a constraint${type.kind === "string" ? `, or "${attr.value.name}" for the literal text` : ""}`
         : "";
     return {
       ok: false,

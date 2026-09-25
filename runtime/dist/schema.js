@@ -63,6 +63,12 @@ const NodeSchema = {
         // changed (reactive.ts). Nothing else is tracked, so a node that names
         // nothing costs nothing.
         trackChanges: { kind: "array", of: "string" },
+        // the data cursor (language §9: "`datapath = …` sets the cursor;
+        // descendants read relative to it") — on every node, so a model class can
+        // stand on a record. Written as a `:path` (relative to the inherited
+        // cursor — `:arr[]` replicates a VIEW element), a `{ }` expression yielding
+        // a place in a dataset, or null.
+        datapath: { kind: "cursor" },
     },
     // the faceless lifecycle: a plain Node fires `init` when its tree stands
     // (instantiate.ts initNodeTree) — Node.md promised it; the walk and this
@@ -261,11 +267,6 @@ const ViewSchema = {
         // Appendix A: "Layout is an attribute, not a child"), written as the
         // member `layout: SimpleLayout [ … ]`, or `layout = null` for none.
         layout: { kind: "component", of: "Layout" },
-        // R8: the data cursor (language §9: "`datapath = …` sets the cursor;
-        // descendants read relative to it"). Written as a `:path` (relative to
-        // the inherited cursor — `:arr[]` replicates this element), a `{ }`
-        // expression yielding a place in a dataset, or null.
-        datapath: { kind: "cursor" },
         // Keyboard focus (docs/system-design/input.md, Layer 2): `focusable` = a tab stop;
         // `focusTrap` = a self-contained focus group (Tab cycles within, escapes at
         // the boundary). Traversal order is the view tree (no numeric tabindex),
@@ -1102,7 +1103,7 @@ const TimeSchema = {
     name: "Time",
     base: NodeSchema,
     attrs: {
-        tick: enumType("Tick", "frame", "second", "minute", "hour", "day"),
+        tick: numericEnumType("Tick", [1, 2_147_483_647], "frame", "second", "minute", "hour", "day"),
         running: { kind: "boolean" },
         now: { kind: "number" },
         year: { kind: "number" },

@@ -11,7 +11,7 @@
 // 2026-08-03) `statusCode`/`errorBody` while declaring only its five settable
 // attributes. `declare-model.json` is generated from the schemas and is what
 // `skill/SKILL.md` calls "the single authority for these details" — so the
-// reference denied attributes `declare.md` §7 and `guide/09-data.md` teach, and
+// reference denied attributes `declare.md` §7 and `guide/14-data.md` teach, and
 // an agent reading the authority concluded they did not exist. The stated reason
 // was a comment claiming read-only means omit, which is false for every other
 // class in the file: `readOnly` exists precisely so a computed slot can be both

@@ -475,4 +475,21 @@ await test("DataSource.method / .format are closed sets checked at compile — s
   assert.match(bare.errors[0].message, /written in quotes/, "a bare verb is refused with the quoted spelling named");
 });
 
+// A Dataset with a literal body or a `contents` constraint always holds a document,
+// so its typed `.value` is not nullable — a model's derived summary reads without a
+// cast or a `?.`. A DataSource has none until a fetch lands, and stays nullable.
+await test("a held Dataset's typed value is non-null; a DataSource's stays nullable", async () => {
+  const held = await compile(`schema Week [ count: number ]
+    App [ width = 100, height = 100,
+      d: Dataset [ schema = [ rows[]: Week ] ] { { "rows": [ { "count": 1 } ] } },
+      w: Dataset [ schema = Week, contents = { { count: app.d.value.rows.length } } ],
+      t: Text [ text = { "" + app.w.value.count } ] ]`);
+  assert.deepEqual((held.errors ?? []).map((e) => e.message), []);
+  const src = await compile(`schema Week [ count: number ]
+    App [ width = 100, height = 100,
+      s: DataSource [ url = "/w.json", schema = Week ],
+      t: Text [ text = { "" + app.s.value.count } ] ]`);
+  assert.ok((src.errors ?? []).some((e) => /possibly 'null'/.test(e.message)), "a DataSource's value may be null");
+});
+
 summarize("dataschema");

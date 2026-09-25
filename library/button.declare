@@ -27,8 +27,9 @@ The button's text. `""` (the default) leaves it iconless-and-wordless, which is
 only useful with an `icon` — a button with neither has nothing to press.
 
 ## primary
-Marks this as the affirmative action: it fills with the accent and takes
-`theme.accentText` for its ink. One per group of choices — a dialog's Save, not
+Marks this as the affirmative action: it fills with the accent — `accentHover` and
+`accentPressed` as the pointer hovers and presses — and takes `theme.accentText`
+for its ink. One per group of choices — a dialog's Save, not
 its Cancel. Purely a style decision; it changes nothing about behaviour.
 
 ```declare-fragment
@@ -92,11 +93,13 @@ Disabled dims the whole control, icon and label alike, rather than recolouring i
 the theme's `disabledOpacity`, or 0.45 when the theme states none.
 
 ## fill
-The state ladder, one rung per interaction fact, first match wins: a primary button
-is the accent whatever its state; an open menu holds the selected tint, so the
-button stays lit while its menu is up; pressed beats hovered; at rest, the quiet
-`control`. Every rung is a theme token, so a theme restyles every button's states
-at once.
+The state ladder, one rung per interaction fact, first match wins: an open menu
+holds the selected tint, so the button stays lit while its menu is up; pressed beats
+hovered; at rest, the quiet `control`. A primary button climbs the same ladder in
+the accent: held — pressed, or its menu open — is `accentPressed`, hovered is
+`accentHover`, at rest `accent`. Every rung is a theme token, so a theme restyles
+every button's states at once; a platform whose controls do not answer a passing
+pointer states its hover tones equal to its rest tones (Cupertino does).
 
 ## stroke
 A hairline only where the theme wants one: themes that border their secondary
@@ -153,7 +156,7 @@ class Button extends Control [
     width   = { this.run.width + this.padH * 2 },
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
-    fill = { primary   ? theme.accent
+    fill = { primary   ? (down || menuOpen ? theme.accentPressed : hot ? theme.accentHover : theme.accent)
            : menuOpen  ? theme.controlSelected
            : down      ? theme.controlPressed
            : hot       ? theme.controlHover

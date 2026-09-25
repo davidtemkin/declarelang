@@ -23,6 +23,12 @@
 // flip, drift-free and sleep-safe (each firing re-aims at the next boundary
 // from the real clock; a page asleep for an hour gets ONE tick on return).
 //
+// A NUMBER is a period in milliseconds — `tick = 5000` fires every five
+// seconds, counted from when it starts, not aligned to the clock. That is the
+// periodic door for work that is not about the time of day: refetch a source,
+// poll, advance a slideshow. Each firing re-aims from the real clock, so a
+// page asleep for an hour still gets ONE tick, its dt clamped to one period.
+//
 // Facts are NUMBERS, never strings — formatting and localization are the
 // app's, as a subclass attribute and Intl. `now` is the instant, epoch ms;
 // `year month day hour minute second weekday` are the local-zone components:
@@ -52,25 +58,14 @@ import { Node, onDiscard, authoredName } from "./node.js";
 import { sharedClock, type Ticker } from "./animate.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { noteOrigin, observe } from "./reactive.js";
+import { timeHost } from "./wallclock.js";
 
-export type Tick = "frame" | "second" | "minute" | "hour" | "day";
+export type Tick = "frame" | "second" | "minute" | "hour" | "day" | number;
 export const TICKS: readonly Tick[] = ["frame", "second", "minute", "hour", "day"];
 
-/** The wall clock and the alarm Time reads — one seam, swappable for tests
- *  (setTimeHost), so the calendar tiers can be driven by hand. `now` is
- *  epoch milliseconds (Date.now), never the frame scheduler's timeline. */
-export interface TimeHost {
-  now(): number;
-  setTimeout(fn: () => void, ms: number): unknown;
-  clearTimeout(handle: unknown): void;
-}
-const REAL_HOST: TimeHost = {
-  now: () => Date.now(),
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
-};
-let host: TimeHost = REAL_HOST;
-export function setTimeHost(h: TimeHost | null): void { host = h ?? REAL_HOST; }
+// The wall clock and the alarm are wallclock.ts's one seam, shared with a
+// node's `after` — a test that drives one drives both.
+export { setTimeHost, type TimeHost } from "./wallclock.js";
 
 /** The largest step handed to a per-frame onTick, in seconds — ~4 frames at
  *  60Hz, the standard clamp. A tab hidden for a minute must not resume with
@@ -79,7 +74,8 @@ const MAX_FRAME_DT = 1 / 15;
 
 /** A calendar tick's clamp: one period. Sleep, a throttled background tab —
  *  the elapsed time is reported as one tick's worth, never the whole gap. */
-const PERIOD_S: Record<Tick, number> = { frame: MAX_FRAME_DT, second: 1, minute: 60, hour: 3600, day: 86_400 };
+const PERIOD_S: Record<string, number> = { frame: MAX_FRAME_DT, second: 1, minute: 60, hour: 3600, day: 86_400 };
+const periodS = (tick: Tick): number => typeof tick === "number" ? tick / 1000 : PERIOD_S[tick];
 
 const FACTS = ["now", "year", "month", "day", "hour", "minute", "second", "weekday"] as const;
 type Fact = (typeof FACTS)[number];
@@ -99,9 +95,10 @@ export function factOf(f: Fact, t: number): number {
   }
 }
 
-/** The tier's boundary at or before `t` (local zone). */
+/** The tier's boundary at or before `t` (local zone). A period in ms has no
+ *  boundaries — it counts from its last firing — so `t` is its own floor. */
 export function floorTick(t: number, tick: Tick): number {
-  if (tick === "frame") return t;
+  if (tick === "frame" || typeof tick === "number") return t;
   if (tick === "second") return Math.floor(t / 1000) * 1000;
   const d = new Date(t);
   if (tick === "minute") d.setSeconds(0, 0);
@@ -113,6 +110,7 @@ export function floorTick(t: number, tick: Tick): number {
 /** The first boundary strictly after `t`. Hour and day step through Date so a
  *  zone's DST shift lands on the real local boundary, not 3600s later. */
 export function nextTick(t: number, tick: Tick): number {
+  if (typeof tick === "number") return t + tick;
   const at = floorTick(t, tick);
   if (tick === "frame") return at;
   if (tick === "second") return at + 1000;
@@ -188,13 +186,13 @@ export class Time extends Node {
   autoStart(): void {
     if (this.#started) return;
     this.#started = true;
-    this.#refresh(host.now());
+    this.#refresh(timeHost().now());
     const app = rootOf(this) as unknown as { pageVisible?: unknown };
     if ((app as unknown) !== this && typeof app.pageVisible === "boolean") {
       this.#pageVisible = app.pageVisible;
       this.#unwatch = observe(() => app.pageVisible as boolean, (v) => {
         this.#pageVisible = v;
-        if (v) this.#refresh(host.now());   // back on screen: the facts catch up at once
+        if (v) this.#refresh(timeHost().now());   // back on screen: the facts catch up at once
         this.#sync();
       }, "Time.pageVisible");
     }
@@ -221,7 +219,7 @@ export class Time extends Node {
     } else {
       this.#leaveClock();
       if (this.#alarm === null) {
-        this.#lastTick = floorTick(host.now(), this.tick);
+        this.#lastTick = floorTick(timeHost().now(), this.tick);
         this.#schedule();
       }
     }
@@ -238,23 +236,25 @@ export class Time extends Node {
 
   #clearAlarm(): void {
     if (this.#alarm === null) return;
-    host.clearTimeout(this.#alarm);
+    timeHost().clearTimeout(this.#alarm);
     this.#alarm = null;
   }
 
   /** Aim at the next boundary from the real clock — never an interval. */
   #schedule(): void {
-    const now = host.now();
-    this.#alarm = host.setTimeout(() => { this.#alarm = null; this.#fire(); }, Math.max(0, nextTick(now, this.tick) - now));
+    const now = timeHost().now();
+    // A period counts from the last firing; a calendar tier aims at the next boundary.
+    const at = typeof this.tick === "number" ? this.#lastTick + this.tick : nextTick(now, this.tick);
+    this.#alarm = timeHost().setTimeout(() => { this.#alarm = null; this.#fire(); }, Math.max(0, at - now));
   }
 
   #fire(): void {
-    const now = host.now();
+    const now = timeHost().now();
     // An early wake (a timer may fire a hair short) re-aims. A late one —
     // sleep, a throttled background tab — is ONE tick, its dt clamped to a period.
     if (now < nextTick(this.#lastTick, this.tick)) { this.#schedule(); return; }
     this.#refresh(now);
-    const dt = Math.min((now - this.#lastTick) / 1000, PERIOD_S[this.tick]);
+    const dt = Math.min((now - this.#lastTick) / 1000, periodS(this.tick));
     this.#lastTick = floorTick(now, this.tick);
     this.#deliver(dt);
     if (this.#alarm === null && this.#wants()) this.#schedule();
@@ -266,7 +266,7 @@ export class Time extends Node {
     if (!this.#onClock) return false;
     const prev = this.#lastFrame;
     this.#lastFrame = clockNow;
-    this.#refresh(host.now());
+    this.#refresh(timeHost().now());
     if (prev !== null) {
       // BOTH ends: the top so a backgrounded tab cannot resume with one
       // enormous step, the bottom so a clock handover (a manual clock near
@@ -323,7 +323,7 @@ export class Time extends Node {
 // keeps the slot's contract — the value as of the last tick, the cell tracked
 // and, once, demand registered (`onTrack`) — while an untracked read samples
 // the real clock at that moment (`live`).
-const fact = (f: Fact) => ({ def: 0, onTrack: (t: Time) => DEMAND(t), live: () => factOf(f, host.now()) });
+const fact = (f: Fact) => ({ def: 0, onTrack: (t: Time) => DEMAND(t), live: () => factOf(f, timeHost().now()) });
 defineAttributes(Time as never, {
   tick: { def: "second", push: (t: Time) => RETICK(t) },
   running: { def: true, push: (t: Time) => SYNC(t) },

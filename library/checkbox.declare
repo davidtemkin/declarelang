@@ -11,8 +11,8 @@ Hand the value to its real owner by overriding `input` and constraining down:
 
     Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ]
 
-`press()` never writes `checked` directly — it only delivers — so a bound checkbox
-never fights its constraint.
+`press()` never writes `checked` directly — it only delivers — so a constrained
+checkbox never fights its constraint.
 
 ```declare
 row: View [ x = 20, y = 20,
@@ -23,9 +23,9 @@ row: View [ x = 20, y = 20,
 ```
 
 ## checked
-Whether the box is ticked. Standalone it owns this and you read it back by name; bound
-(`checked = { app.muted }`) it needs an `input` override to go with it — **a one-way
-binding with no `input` leaves the checkbox's own edit assigning to a constrained slot,
+Whether the box is ticked. Standalone it owns this and you read it back by name;
+constrained (`checked = { app.muted }`) it needs an `input` override to go with it — **a
+constraint with no `input` leaves the checkbox's own edit assigning to a constrained slot,
 which is refused at runtime.**
 
 ## label
@@ -47,7 +47,7 @@ This is the one member to override when the value lives elsewhere.
 
 ## press()
 Toggles by delivering the flipped value through `input` — **never by writing `checked`**,
-which is what keeps a bound checkbox from fighting its constraint. Called by a click and
+which is what keeps a constrained checkbox from fighting its constraint. Called by a click and
 by Space/Enter.
 
 ## focusShape()

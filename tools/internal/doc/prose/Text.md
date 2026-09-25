@@ -31,7 +31,7 @@ Leading, as a **multiplier of `fontSize`** — the same convention as
 `RichText.lineHeight`: each line advances `round(fontSize × lineHeight)` pixels.
 `0` (the default) keeps the font's natural line box, so a single-line label is
 untouched. Wrapped height, `contentHeight`, and the `y = center` ink band all
-follow the declared leading, on both backends and in the measurer alike —
+follow the declared leading, on every renderer and in the measurer alike —
 `lineHeight = 1.5` on a wrapped paragraph is the measured-prose-density knob.
 
 ## text

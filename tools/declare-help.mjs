@@ -34,6 +34,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 // ── the answer budget (§3: elision by pointer, never truncation by accident) ──
 const BUDGET_LINES = 40;
+/** Shared functions a { } VALUE may not call — they act later, and a value computes. */
+const HANDLER_ONLY = new Set(["afterDelay"]);
 
 // ── arguments ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
@@ -406,6 +408,13 @@ function answer() {
     return true;
   };
 
+  const answerHostGlobal = () => {
+    const hostHint = hostGlobalHint(query);
+    say(`'${query}' is the host's, not Declare's — a program runs on three renderers and names none of their globals. ${hostHint.charAt(0).toUpperCase()}${hostHint.slice(1)}`);
+    json = { kind: "host-global", name: query, hint: hostHint };
+    return true;
+  };
+
   const answerShared = () =>
     sharedHit("shared-interface", "interfaces", (i) => {
       say(`${i.name} — a shared interface: every { } body may name it${i.name === "Draw" ? " (the argument of a draw(d: Draw) member — declare one on any view for custom drawing)" : ""}${i.extends ? ` · extends ${i.extends}` : ""}`);
@@ -414,7 +423,7 @@ function answer() {
       if (i.members.length > cap) say(`  …and ${i.members.length - cap} more — declare-help ${i.name} --all`);
     }) ||
     sharedHit("shared-alias", "aliases", (a) => say(`${a.name} — a shared type alias: ${a.type}`)) ||
-    sharedHit("shared-function", "functions", (f) => say(`${f.name} — a shared function, callable in any { } body: ${f.signature}`)) ||
+    sharedHit("shared-function", "functions", (f) => say(`${f.name} — a shared function, callable in ${HANDLER_ONLY.has(f.name) ? "a handler or a method (a { } value never waits)" : "any { } body"}: ${f.signature}`)) ||
     sharedHit("shared-namespace", "namespaces", (n) => {
       say(`${n.name} — a shared namespace:`);
       for (const mline of n.members.slice(0, ALL ? Infinity : BUDGET_LINES - 3)) say(`  ${n.name}.${mline}`);
@@ -444,6 +453,9 @@ function answer() {
     json = { kind: "attribute-owners", name: query, owners };
     return true;
   }
+  // a host global the prelude declares for script blocks (fetch, the timers)
+  // is refused in a body — answer as the compiler does, before the prelude hit
+  if (hostGlobalHint(query) !== null) return answerHostGlobal();
   if (answerShared()) return true;
 
 
@@ -539,8 +551,7 @@ function answer() {
   }
   // a host global (document, localStorage, process …) — the compiler's own
   // answer, verbatim, so the tool and the diagnostic cannot disagree
-  const hostHint = hostGlobalHint(query);
-  if (hostHint !== null) { say(`'${query}' is the host's, not Declare's — a program runs on three renderers and names none of their globals. ${hostHint.charAt(0).toUpperCase()}${hostHint.slice(1)}`); json = { kind: "host-global", name: query, hint: hostHint }; return true; }
+  if (hostGlobalHint(query) !== null) return answerHostGlobal();
   // foreign near-miss for the whole query (colour → color's hint)
   const hinted = hintedForeignName(query);
   if (hinted !== null) { say(`'${query}' is not a Declare name${cssAttributeHint(hinted)}`); json = { kind: "foreign", name: query, hint: cssAttributeHint(hinted) }; return true; }

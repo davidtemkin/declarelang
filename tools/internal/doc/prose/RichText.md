@@ -139,7 +139,7 @@ A link (`[text](url)` in Markdown, `<a href>` in HTMLText) was activated — you
 and you decide what it means: scroll to an anchor, set an in-app route, or open externally. The
 runtime only delivers the click. Left unhandled, a link falls back to `app.navigate` (so
 external links work with no wiring); declaring `onLink` overrides that. Modifier/middle clicks
-still open a new tab natively. Same on both backends.
+still open a new tab natively. Same on every renderer.
 
 ## textColor
 The running text's colour, defaulting to the provided value. The structural

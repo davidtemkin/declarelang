@@ -267,17 +267,17 @@ class Tile extends View [ cursor = "pointer",
 
     sym: Text [ x = center,
         y = { (classroot.height - this.height) / 2 - (classroot.roomy ? 12 : 0) },
-        fontWeight = bold, textColor = #FFFFFF,
+        fontWeight = bold, textColor = { provided("theme").ink },
         fontSize = { Math.max(8, Math.min(22, Math.round(classroot.width / 5))) },
         visible = { classroot.width > 26 && classroot.height > 16 },
         text = :sym ],
     companyName: Text [ x = center, y = { classroot.height / 2 + 6 }, fontSize = 9,
-        letterSpacing = 1, textColor = #FFFFFF, opacity = 0.6,
+        letterSpacing = 1, textColor = { provided("theme").ink }, opacity = 0.6,
         visible = { classroot.roomy && this.width < classroot.width - 10 },
         text = { ((:name as string) || "").toUpperCase() } ],
     pct: Text [ x = center,
         y = { classroot.height / 2 + (classroot.roomy ? 24 : 13) },
-        fontSize = 9, textColor = #E6EAF0, opacity = 0.85,
+        fontSize = 9, textColor = { provided("theme").inkSoft }, opacity = 0.85,
         visible = { classroot.width > 58 && classroot.height > 48 },
         text = { fmtPct(classroot.dayChange) } ]
     ]
@@ -301,13 +301,13 @@ class SectorBand extends View [ cursor = "pointer", clip = true,
 
     height = { SECTOR_BAND_H },
     width = { rectFor(mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH) as Record<string, Rect>, this.pid).w },
-    fill = { this.hot ? HIGHLIGHT : 0x171A21 },
+    fill = { this.hot ? provided("theme").highlight : provided("theme").sectorBand },
 
     onPointerOver() { app.hotGroup = "sec:" + (:id as string) },
     onClick() { app.openGroup("sec:" + (:id as string)) },
 
     Text [ x = 7, y = center, fontSize = 9, letterSpacing = 2, fontWeight = bold,
-        textColor = { classroot.hot ? INK_ON_HIGHLIGHT : 0xA6B0C0 }, text = :label ]
+        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").bandInk }, text = :label ]
     ]
 
 
@@ -318,13 +318,13 @@ class IndustryBand extends View [ cursor = "pointer", clip = true,
 
     height = { INDUSTRY_BAND_H },
     width = { rectFor(mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH) as Record<string, Rect>, this.pid).w },
-    fill = { this.hot ? HIGHLIGHT : 0x1D212A },
+    fill = { this.hot ? provided("theme").highlight : provided("theme").industryBand },
 
     onPointerOver() { app.hotGroup = (:id) },
     onClick() { app.openGroup(:id) },
 
     Text [ x = 6, y = center, fontSize = 8, letterSpacing = 1,
-        textColor = { classroot.hot ? INK_ON_HIGHLIGHT : 0x8792A3 }, text = :label ]
+        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").industryInk }, text = :label ]
     ]
 
 
@@ -404,13 +404,14 @@ class StageTile extends View [ cursor = "pointer", clip = true,
             if (v > 0) { if (v < lo) lo = v; if (v > hi) hi = v }
         }
         if (hi <= lo) return
-        d.strokeStyle = "rgba(255,255,255,0.28)"
+        const ink = provided("theme").ink
+        d.strokeStyle = colorWithAlpha(ink, 71)
         d.lineWidth = 1
         d.beginPath()
         d.moveTo(10, top + span)
         d.lineTo(w - 10, top + span)
         d.stroke()
-        d.strokeStyle = "rgba(255,255,255,0.75)"
+        d.strokeStyle = colorWithAlpha(ink, 191)
         d.lineWidth = 1.6
         d.lineJoin = "round"
         d.beginPath()
@@ -421,7 +422,7 @@ class StageTile extends View [ cursor = "pointer", clip = true,
             else d.lineTo(px, py)
         }
         d.stroke()
-        d.fillStyle = "#FFFFFF"
+        d.fillStyle = ink
         d.beginPath()
         d.arc(w - 10, top + span - ((pts[N] - lo) / (hi - lo)) * span, 2.4, 0, Math.PI * 2)
         d.fill()
@@ -429,14 +430,14 @@ class StageTile extends View [ cursor = "pointer", clip = true,
         if (u >= 0) {
             const px = 10 + (w - 20) * u
             const v = interpClose(closes, day - TRADING_YEAR + TRADING_YEAR * u)
-            d.strokeStyle = "rgba(255,213,74,0.55)"
+            d.strokeStyle = colorWithAlpha(provided("theme").highlight, 140)
             d.lineWidth = 1
             d.beginPath()
             d.moveTo(px, h * 0.62)
             d.lineTo(px, top + span)
             d.stroke()
             if (v > 0) {
-                d.fillStyle = "#FFD54A"
+                d.fillStyle = provided("theme").highlight
                 d.beginPath()
                 d.arc(px, top + span - ((v - lo) / (hi - lo)) * span, 3, 0, Math.PI * 2)
                 d.fill()
@@ -446,24 +447,24 @@ class StageTile extends View [ cursor = "pointer", clip = true,
 
     sym: Text [ x = center,
         y = { classroot.big ? classroot.height * 0.18 : (classroot.height - this.height) / 2 },
-        fontWeight = bold, textColor = #FFFFFF,
+        fontWeight = bold, textColor = { provided("theme").ink },
         fontSize = { Math.max(8, Math.min(30, Math.round(classroot.width / 5))) },
         visible = { classroot.width > 20 && classroot.height > 14 },
         text = { classroot.mine ? (:sym as string) : "" } ],
     companyName: Text [ x = center, y = { classroot.height * 0.18 + 36 }, fontSize = 10,
-        letterSpacing = 1, textColor = #FFFFFF, opacity = 0.7,
+        letterSpacing = 1, textColor = { provided("theme").ink }, opacity = 0.7,
         visible = { classroot.big && classroot.tall && this.width < classroot.width - 12 },
         text = { classroot.mine ? ((:name as string) || "").toUpperCase() : "" } ],
     pct: Text [ x = center,
         y = { classroot.big
             ? classroot.height * 0.18 + (classroot.tall ? 56 : 34)
             : classroot.height / 2 + 15 },
-        fontSize = { classroot.big ? 12 : 10 }, textColor = #E6EAF0, opacity = 0.9,
+        fontSize = { classroot.big ? 12 : 10 }, textColor = { provided("theme").inkSoft }, opacity = 0.9,
         visible = { classroot.width > 48 && classroot.height > 44 },
         text = { classroot.mine ? fmtPct(classroot.dayChange) + (classroot.big ? " TODAY" : "") : "" } ],
     statLine: Text [ x = center,
         y = { classroot.height * 0.18 + (classroot.tall ? 76 : 54) }, fontSize = 10,
-        textColor = #E6EAF0, opacity = 0.75,
+        textColor = { provided("theme").inkSoft }, opacity = 0.75,
         visible = { classroot.big && classroot.height >= 180 },
         text = { classroot.mine && classroot.big
             ? fmtPrice(app.market.priceAt(:closes as number[], app.day)) + "  ·  "
@@ -471,14 +472,14 @@ class StageTile extends View [ cursor = "pointer", clip = true,
                 + "  ·  1Y " + fmtPct(classroot.yearReturn)
             : "" } ],
 
-    probeChip: View [ fill = #0E1116, cornerRadius = 4, height = 18, opacity = 0.94,
+    probeChip: View [ fill = { provided("theme").probeChip }, cornerRadius = 4, height = 18, opacity = 0.94,
         pointerEvents = "none",
         visible = { classroot.probeU >= 0 && classroot.big && app.zoom > 0.5 },
         width = { this.t.width + 14 },
         x = { Math.max(4, Math.min(classroot.width - this.width - 4,
             10 + (classroot.width - 20) * Math.max(0, classroot.probeU) - this.width / 2)) },
         y = { classroot.height * SPARK_TOP - 26 },
-        t: TextLabel [ x = 7, fontSize = 9, letterSpacing = 1, textColor = #FFD54A,
+        t: TextLabel [ x = 7, fontSize = 9, letterSpacing = 1, textColor = { provided("theme").highlight },
             text = { classroot.probeU >= 0
                 ? app.market.probeLine(:closes as number[], :shares as number, app.day, classroot.probeU)
                 : "" } ]
@@ -509,13 +510,13 @@ class StageBand extends View [ cursor = "pointer", clip = true,
     width = { Math.max(0, (this.bandSlot as Rect).w) },
     height = { Math.max(0, (this.bandSlot as Rect).h) },
     visible = { this.mine && app.zoom > 0.002 && this.x > -800 },
-    fill = { this.hot ? HIGHLIGHT : 0x1D212A },
+    fill = { this.hot ? provided("theme").highlight : provided("theme").industryBand },
 
     onPointerOver() { app.hotStaged = (:id) },
     onClick() { app.drill(:id) },
 
     Text [ x = 6, y = center, fontSize = 9, letterSpacing = 1,
-        textColor = { classroot.hot ? INK_ON_HIGHLIGHT : 0xA6B0C0 },
+        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").bandInk },
         text = { classroot.mine ? (:label as string) : "" } ]
     ]
 
@@ -530,10 +531,10 @@ DAY simply names a far-future date); a swatch shows the color scale.
 class EraChip extends View [ height = 20, cornerRadius = 10, cursor = "pointer",
     label: string = "",
     iso: string = "",
-    fill = { hovered ? 0x2A2F3A : 0x1E222B },
+    fill = { hovered ? provided("theme").chipHover : provided("theme").chip },
     width = { this.t.width + 18 },
     onClick() { app.flyTo(this.iso) },
-    t: TextLabel [ x = 9, fontSize = 9, letterSpacing = 1.5, textColor = #B7C0CE,
+    t: TextLabel [ x = 9, fontSize = 9, letterSpacing = 1.5, textColor = { provided("theme").chipInk },
         text = { label } ]
     ]
 
@@ -542,7 +543,7 @@ class LegendSwatch extends View [ height = 18, cornerRadius = 2,
     pct: number = 0,
     width = { app.narrow ? 40 : 52 },
     fill = { changeColor(this.pct / 100) },
-    Text [ x = center, y = center, fontSize = 9, fontWeight = bold, textColor = #FFFFFF,
+    Text [ x = center, y = center, fontSize = 9, fontWeight = bold, textColor = { provided("theme").ink },
         text = { (pct > 0 ? "+" : "") + pct + "%" } ]
     ]
 
@@ -577,8 +578,6 @@ script {
     const EDGE_GUTTER = 3               // room for the halo stroke at the map's edges
     const TILE_GAP = 1                  // the dark grid line between tiles
     const MIN_TILE_PX = 2.5             // below this, a tile parks offscreen
-    const HIGHLIGHT = 0xFFD54A          // finviz yellow
-    const INK_ON_HIGHLIGHT = 0x14161A
     const OFFSTAGE: Rect = { x: -900, y: -900, w: 0, h: 0 }
     const SPARK_TOP = 0.70              // the sparkline band, as fractions of tile height
     const SPARK_SPAN = 0.24
@@ -872,6 +871,25 @@ script {
 
 
 /*
+## The palette
+
+Every color the app paints, named by role: Finviz's dark console, its yellow
+highlight, and the inks that sit on each. The day's change on a tile is not
+here — that is a scale over the data (`changeColor`), not a token. The App
+provides this record over the house tokens, so the library's Slider still
+finds everything it reads.
+*/
+
+theme MarketMap [
+    page = #101216, panel = #16191F, stage = #12151B, scrim = #0B0D11,
+    highlight = #FFD54A, highlightHover = #E8BD2E, inkOnHighlight = #14161A,
+    sectorBand = #171A21, industryBand = #1D212A, bandInk = #A6B0C0, industryInk = #8792A3,
+    chip = #1E222B, chipHover = #2A2F3A, chipInk = #B7C0CE, probeChip = #0E1116,
+    ink = #FFFFFF, inkSoft = #E6EAF0, inkMuted = #98A2B3
+    ]
+
+
+/*
 ## The App
 
 Assembly, top to bottom: the console (slider, era chips, live date), the map
@@ -880,7 +898,7 @@ as self-positioned chrome), and the legend. All interaction state is a handful
 of app attributes; every appearance below derives from them.
 */
 
-App [ fill = #101216, appName = "Market Map",
+App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").page }, appName = "Market Map",
     fontFamily = ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
 
     // when the data lands, open on its last day outright — writing both the
@@ -979,7 +997,7 @@ App [ fill = #101216, appName = "Market Map",
 
     // ── the console ──
 
-    top: View [ width = 100%, fill = #16191F,
+    top: View [ width = 100%, fill = { provided("theme").panel },
 
         // the console has an inside: every control is written against it, and
         // the panel is as tall as what it holds plus the inset under it
@@ -989,13 +1007,13 @@ App [ fill = #101216, appName = "Market Map",
         // the span reads off the data itself, so a different file retitles the app
 
         title: Text [ y = 12, fontSize = 10, letterSpacing = 3, fontWeight = bold,
-            textColor = #98A2B3, visible = { !app.narrow },
+            textColor = { provided("theme").inkMuted }, visible = { !app.narrow },
             text = { "MARKET MAP — S&P 500" + (app.market.ready
                 ? ", " + fmtMonthYear(app.market.dateAt(0)) + " → " + fmtMonthYear(app.market.dateAt(app.nDays - 1))
                 : "") } ],
         date: Text [ x = end, y = 10,
             fontSize = { app.narrow ? 13 : 17 }, fontWeight = bold,
-            letterSpacing = 1, textColor = #FFFFFF,
+            letterSpacing = 1, textColor = { provided("theme").ink },
             text = { fmtDateLong(app.market.dateAt(app.day)) } ],
 
         // min = 1: day zero has no prior close, so no day-over-day color
@@ -1034,7 +1052,7 @@ App [ fill = #101216, appName = "Market Map",
 
         // self-positioned chrome opts out of the layout
 
-        scrim: View [ ignoreLayout = true, width = 100%, height = 100%, fill = #0B0D11,
+        scrim: View [ ignoreLayout = true, width = 100%, height = 100%, fill = { provided("theme").scrim },
             pointerEvents = "none",
             opacity = { app.zoom * 0.62 },
             visible = { app.zoom > 0.01 } ],
@@ -1050,35 +1068,35 @@ App [ fill = #101216, appName = "Market Map",
             y = { (this.r as Rect).y - 1 },
             width = { (this.r as Rect).w + 2 },
             height = { (this.r as Rect).h + 2 },
-            stroke = { stroke(2, HIGHLIGHT) }
+            stroke = { stroke(2, provided("theme").highlight) }
             ],
 
         // the stage: backdrop + yellow title bar; its roster paints above
 
-        stage: View [ ignoreLayout = true, fill = #12151B,
+        stage: View [ ignoreLayout = true, fill = { provided("theme").stage },
             r: object = { rectFor(stagePartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress) as Record<string, Rect>, "zone:" + app.stageKey) },
             visible = { app.zoom > 0.002 && app.stageKey != "" },
             x = { (this.r as Rect).x },
             y = { (this.r as Rect).y },
             width = { (this.r as Rect).w },
             height = { (this.r as Rect).h },
-            stroke = { stroke(2, HIGHLIGHT) },
+            stroke = { stroke(2, provided("theme").highlight) },
 
-            head: View [ width = 100%, height = { STAGE_HEAD_H }, fill = #FFD54A, clip = true,
+            head: View [ width = 100%, height = { STAGE_HEAD_H }, fill = { provided("theme").highlight }, clip = true,
                 onPointerOver() { app.hotStaged = "" },       // the bar is not a subitem
                 Text [ x = 10, y = center, fontSize = 11, letterSpacing = 2, fontWeight = bold,
-                    textColor = { INK_ON_HIGHLIGHT }, opacity = { app.zoom },
+                    textColor = { provided("theme").inkOnHighlight }, opacity = { app.zoom },
                     text = { stageTitle(app.stageKey) } ],
                 Text [ x = { parent.width - this.width - 36 }, y = center, fontSize = 10,
-                    letterSpacing = 1, textColor = { INK_ON_HIGHLIGHT }, opacity = { app.zoom * 0.75 },
+                    letterSpacing = 1, textColor = { provided("theme").inkOnHighlight }, opacity = { app.zoom * 0.75 },
                     text = { app.zoom > 0.3 ? app.market.groupStat(app.stageKey, app.day) : "" } ]
                 ],
             closeBox: View [ x = { parent.width - 26 }, y = 4, width = 22, height = 22,
                 cornerRadius = 4, cursor = "pointer",
-                fill = { hovered ? 0xE8BD2E : HIGHLIGHT },
+                fill = { hovered ? provided("theme").highlightHover : provided("theme").highlight },
                 opacity = { app.zoom },
                 onClick() { app.closeGroup() },
-                CloseIcon [ x = center, y = center, iconSize = 14, ink = { INK_ON_HIGHLIGHT } ]
+                CloseIcon [ x = center, y = center, iconSize = 14, ink = { provided("theme").inkOnHighlight } ]
                 ]
             ],
 
@@ -1097,7 +1115,7 @@ App [ fill = #101216, appName = "Market Map",
                 y = { (this.r as Rect).y - 1 },
                 width = { (this.r as Rect).w + 2 },
                 height = { (this.r as Rect).h + 2 },
-                stroke = { stroke(2, HIGHLIGHT) }
+                stroke = { stroke(2, provided("theme").highlight) }
                 ]
             ]
         ],
@@ -1105,8 +1123,8 @@ App [ fill = #101216, appName = "Market Map",
     // ── the legend ──
 
     legend: View [ y = { parent.height - app.legendH }, width = 100%, height = { app.legendH },
-        fill = #16191F, clip = true,
-        readout: Text [ x = 24, y = 8, fontSize = 11, textColor = #E6EAF0,
+        fill = { provided("theme").panel }, clip = true,
+        readout: Text [ x = 24, y = 8, fontSize = 11, textColor = { provided("theme").inkSoft },
             opacity = 0.85, width = { parent.width - 48 },
             text = { app.spotLine } ],
         gamut: View [ height = 18,

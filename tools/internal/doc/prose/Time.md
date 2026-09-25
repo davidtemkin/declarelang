@@ -7,10 +7,12 @@ per-frame handler, for integration. The world outside the program comes in as a 
 once and never again (the compiler warns) — while a `{ }` that reads `clock.minute`
 wakes when the minute turns.
 
-`tick` names the resolution — `frame | second | minute | hour | day`. The calendar tiers
-are **aligned** alarms: `minute` fires when the minute turns, not sixty seconds after
-boot, so a clock built on it is right at the flip; a page asleep for an hour gets one
-tick on return. `frame` rides the one shared clock every animator uses (no second frame
+`tick` names the resolution — `frame | second | minute | hour | day`, or a number of
+milliseconds. The calendar tiers are **aligned** alarms: `minute` fires when the minute
+turns, not sixty seconds after boot, so a clock built on it is right at the flip; a page
+asleep for an hour gets one tick on return. A number is a **period** counted from when
+the `Time` starts — `tick = 30000, onTick() { app.feed.fetch() }` refreshes a source
+every thirty seconds. `frame` rides the one shared clock every animator uses (no second frame
 loop) and updates `now` per frame, for anything that is a pure function of the current
 time — a stopwatch readout, a countdown, progress toward a deadline.
 
@@ -48,9 +50,10 @@ App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
 ```
 
 ## tick
-The resolution: `frame | second | minute | hour | day`; default `second`. The calendar
-tiers aim at the boundary (aligned, drift-free); `frame` follows the display. Changing
-it re-arms.
+The resolution: `frame | second | minute | hour | day`, or a period in milliseconds
+(1 or more); default `second`. The calendar tiers aim at the boundary (aligned,
+drift-free); `frame` follows the display; a period counts from the start and from each
+firing, with `dt` clamped to one period after a late wake. Changing it re-arms.
 
 ## running
 The live gate — `running = { app.simulating }` is the idiom; default true. The first

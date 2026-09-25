@@ -1,0 +1,12 @@
+App [ width = 340, height = 130, fill = midnightblue, textColor = whitesmoke,
+    person: Dataset { { "name": "Ada Lovelace", "role": "analyst" } },
+    card: View [ x = 20, y = 20, width = 300, cornerRadius = 10, padding = 16,
+        fill = #1C3A4F,                                          // bare: a literal color
+        datapath = { app.person.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ fontWeight = bold, text = :name ],                // :path — read from data
+        Text [ textColor = lightsteelblue, text = :role ],
+        Text [ fontSize = 12, textColor = lightsteelblue,
+            text = { "card is " + parent.width + " wide" } ]    // { } — stays true
+        ]
+    ]

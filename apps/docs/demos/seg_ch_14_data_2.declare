@@ -1,0 +1,7 @@
+App [ width = 300, height = 60, fill = white, textColor = #172530,
+    d: Dataset { { "tags": ["design", "draft", "urgent"] } },
+    row: View [ x = 20, y = 20, datapath = { app.d.value },
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Text [ datapath = :tags[], text = :@ ]
+        ]
+    ]

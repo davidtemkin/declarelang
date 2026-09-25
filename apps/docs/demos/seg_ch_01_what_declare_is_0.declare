@@ -1,0 +1,10 @@
+App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
+    count: number = 0,
+    col: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+        Button [ label = "Add one", primary = true,
+            onClick() { app.count = app.count + 1 }
+            ],
+        Text [ text = { `Clicked ${app.count} times` } ]
+        ]
+    ]

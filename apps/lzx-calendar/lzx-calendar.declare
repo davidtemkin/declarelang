@@ -110,7 +110,7 @@ class PlusMinus extends View [
 
 `Stepper` is a value with ‹ › nudges — the info panel's date/time rows (§7):
 `field` picks the action (date = ±1 day; start = ±15m move; end = ±15m
-duration), and `label` is the formatted value, bound at the instance site.
+duration), and `label` is the formatted value, set at the instance site.
 `AccordionSection` is one collapsible panel tab (Notes / Location /
 Attendees), one open at a time (`app.openTab`): the open section's multiline
 field fills the area and pushes the sections below it down (SPEC §7), under a
@@ -355,7 +355,7 @@ class DayCell extends View [
 
 
 // DayName — a weekday column title, tracking its column's live geometry:
-// bound to the `cols` records relayout maintains (x/width per column, per
+// replicated over the `cols` records relayout maintains (x/width per column, per
 // mode) — the original constrained each label to its top-row cell for the
 // same effect. Day mode shows only the open day's label (SPEC §12-D).
 
@@ -611,9 +611,8 @@ App [ width = 835, height = 600, fill = #1E3A49,
         this.relayout(true)
         },
 
-    // Mode-aware navigation (SPEC §12-B: the original jumped a month from any
-    // mode and snapped back to month view — fixed): month steps a month, week
-    // a week, day a day; the mode is preserved. Navigation snaps (§11).
+    // Mode-aware navigation (SPEC §12-B): month steps a month, week a week,
+    // day a day; the mode is preserved. Navigation snaps (§11).
 
     step(dir: number) {
         if (this.mode == "month") {
@@ -680,7 +679,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         },
 
     // Click an event → select its day and the event; does not open the day
-    // (SPEC §6). The DayCell/event `selected` bindings react to the two keys.
+    // (SPEC §6). The DayCell/event `selected` constraints react to the two keys.
 
     selectEvent(id: number, key: string) {
         this.selectedKey = key
@@ -927,7 +926,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         return hours
         },
 
-    // Side-by-side lanes for overlapping open-timeline events (SPEC §12-E, fix).
+    // Side-by-side lanes for overlapping open-timeline events (SPEC §12-E).
     // `events` is start-sorted; each disjoint cluster shares its own lane count
     // so non-overlapping events stay full width (lane 0 of 1).
 

@@ -298,9 +298,11 @@ export function highlight(src) {
             i += 3;
             continue;
         }
-        // `:a.b` / `:arr[]` datapath
-        if (c === ":" && isIdentStart(src[i + 1])) {
+        // `:a.b` / `:arr[]` / `:@` datapath
+        if (c === ":" && (isIdentStart(src[i + 1]) || src[i + 1] === "@")) {
             let j = i + 1;
+            if (src[j] === "@")
+                j++;
             while (j < n && (isIdentPart(src[j]) || src[j] === "." || src[j] === "[" || src[j] === "]"))
                 j++;
             emit("p", src.slice(i, j));

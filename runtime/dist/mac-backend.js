@@ -32,7 +32,7 @@ function wireFilter(f) {
     switch (f.fn) {
         case "blur": return { fn: "blur", v: f.radius };
         case "hueRotate": return { fn: "hueRotate", v: f.degrees };
-        case "tint": return { fn: "tint", color: colorToCss(f.color) };
+        case "colorize": return { fn: "tint", color: colorToCss(f.color) }; // the host's wire name
         case "shadow": return { fn: "shadow", dx: f.dx, dy: f.dy, blur: f.blur, color: colorToCss(f.color) };
         default: return { fn: f.fn, v: f.amount };
     }
@@ -1355,7 +1355,7 @@ export class MacBackend {
         //     flashing the platform default — this alone was the ~90pt on every
         //     small-program fidelity score;
         //   • definitional containment — "every scroller, the App included, keeps
-        //     to its frame" (docs/guide/05-space.md; the DOM realizes it as
+        //     to its frame" (docs/guide/07-scrolling.md; the DOM realizes it as
         //     `overflow: clip` on the root element) — is applied by the host's
         //     ROOT handler, keyed on root-ness itself so no later clip push can
         //     clear it.

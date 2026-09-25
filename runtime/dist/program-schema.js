@@ -368,7 +368,7 @@ isShape = () => false) {
             if (it.kind === "hexColor" || (it.kind === "ident" && it.name !== "null" && it.name !== "true" && it.name !== "false")) {
                 const cc = coerce({ kind: "color" }, it);
                 if (!cc.ok) {
-                    return err(diag `${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
+                    return err(diag `${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`, it.pos);
                 }
                 items.push(cc.value);
                 continue;
@@ -377,13 +377,13 @@ isShape = () => false) {
                 items.push(it.name === "null" ? null : it.name === "true");
                 continue;
             }
-            return err(diag `${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } binding`, it.pos);
+            return err(diag `${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`, it.pos);
         }
         return { ok: true, type, value: Object.freeze(items) };
     }
     const c = coerce(type, d.def);
     if (!c.ok) {
-        // A raw :path default has one plausible intent — the { } binding form the
+        // A raw :path default has one plausible intent — the { } constraint form the
         // corpus itself uses (`rid: string = { :id }`): name it (Run-2 finding).
         const hint = d.def.kind === "path"
             ? diag ` — to seed from data, write a { } default: ${d.name}: ${d.type} = { :${d.def.path} }`
@@ -392,7 +392,7 @@ isShape = () => false) {
             // the message named the type and left the author to guess the spelling
             // that works (`x: number = { provided("x", 1) }`).
             : d.def.kind === "call"
-                ? diag ` — a default that reads a value is a { } binding: ${d.name}: ${d.type} = { ${d.def.name}(…) }`
+                ? diag ` — a default that reads a value is a { } constraint: ${d.name}: ${d.type} = { ${d.def.name}(…) }`
                 : "";
         return err(diag `${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}${hint}`, d.def.pos);
     }

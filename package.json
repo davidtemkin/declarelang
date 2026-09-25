@@ -7,8 +7,11 @@
   "license": "MIT",
   "author": "David Temkin",
   "bin": {
-    "declarelang": "bin/declare.mjs",
-    "declare": "bin/declare.mjs"
+    "declare-dev": "bin/declare-dev.mjs",
+    "declarec": "tools/declarec.mjs",
+    "declare-verify": "tools/verify.mjs",
+    "declare-format": "tools/format.mjs",
+    "declare-help": "tools/declare-help.mjs"
   },
   "scripts": {
     "prepare": "git config core.hooksPath tools/internal/hooks 2>/dev/null || true",

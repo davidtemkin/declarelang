@@ -73,7 +73,7 @@ await test("launchTarget refuses anything outside the entry page's own directory
 });
 
 await test("launchTarget carries the entry page's fragment to a target without one", () => {
-  assert.equal(launchTarget("https://x.dev/index.html?apps/docs/docs.declare#guide/05-space").hash, "#guide/05-space");
+  assert.equal(launchTarget("https://x.dev/index.html?apps/docs/docs.declare#guide/06-layout").hash, "#guide/06-layout");
   // the target's own fragment wins
   assert.equal(launchTarget("https://x.dev/index.html?apps/docs/docs.declare%23a#b").hash, "#a");
 });

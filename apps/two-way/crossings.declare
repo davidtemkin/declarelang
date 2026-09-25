@@ -3,8 +3,8 @@
 // into the two DOMIsland boxes below).
 //
 // Everything that crosses the boundary is NAMED, right here, on the islands
-// (guide ch. 18) — and each name says its direction. Read the two island
-// bodies below as the whole wiring diagram:
+// (the guide's *Embedding* chapter) — and each name says its direction. Read
+// the two island bodies below as the whole wiring diagram:
 //
 //   host → tenant    `provides = ["hue"]` and `hue = { app.masterHue }` on
 //                    the island: the host offers the value down, and whenever

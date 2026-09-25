@@ -5,13 +5,15 @@ The Material 3 record: pill buttons (buttonRadius saturates at half the
 height), square-ish fields, the grow-on-check switch thumb
 (switchThumbOff < the checked size), the bar-handle slider with its track
 gap, M3's 38% disabled opacity, and the offset focus indicator
-(width 3, gap 2). Roboto is the consuming app's `fontFamily`.
+(width 3, gap 2). Hover and pressed on the accent are Material's state layers:
+the button's ink over its fill at 8% and 16%. Roboto is the consuming app's
+`fontFamily`.
 */
 
 theme MountainView [
     bg = #FFFBFE, surface = #FFFFFF, line = #79747E,
     text = #1C1B1F, textMuted = #49454F, textFaint = #AAB4BE,
-    accent = #6750A4, accentText = #FFFFFF,
+    accent = #6750A4, accentText = #FFFFFF, accentHover = #735EAB, accentPressed = #7F6CB3,
     control = #E7E0EC, controlHover = #DCD5E1, controlPressed = #CEC7D3, controlSelected = #E8DEF8,
     depth = 1, focusRing = true,
     controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,
@@ -28,7 +30,7 @@ theme MountainView [
 theme MountainViewDark [
     bg = #141218, surface = #211F26, line = #938F99,
     text = #E6E0E9, textMuted = #CAC4D0, textFaint = #AAB4BE,
-    accent = #D0BCFF, accentText = #381E72,
+    accent = #D0BCFF, accentText = #381E72, accentHover = #C4AFF4, accentPressed = #B8A3E8,
     control = #49454F, controlHover = #524E58, controlPressed = #5E5A65, controlSelected = #4A4458,
     depth = 1, focusRing = true,
     controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,

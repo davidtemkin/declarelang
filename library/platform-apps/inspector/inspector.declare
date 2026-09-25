@@ -205,12 +205,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     // A modest tick re-derives what is on screen; it is passed as an argument to
     // every derived list so the constraint visibly depends on it.
     //
-    // It is a host interval, not a `Time`, because the pulse must keep beating
-    // while the subject is frozen: the inspector runs on the subject's runtime,
-    // and freezing puts their one shared frame clock — the clock a `Time` at
-    // `frame` rides — under manual stepping, while the calendar tiers are too
-    // coarse for a 110 ms pulse. The interval outlives nothing: the inspector
-    // is mounted once and re-pointed, never retired.
+    // The pulse is a `Time` with a period, which runs on the wall clock — so
+    // it keeps beating while the subject is frozen, when their one shared
+    // frame clock is under manual stepping.
 
     tick: number = 0,
     running: boolean = true,
@@ -225,7 +222,10 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         Inspect.clock.step(16.7)
         app.tick = app.tick + 1
         },
-    onInit() { app.darkUI = app.dark; app.open = ({ app: true }); app.vopen = ({ }); setInterval(() => { if (app.shown && app.running) { app.tick = app.tick + 1; app.pollTrace() } }, 110) },
+    onInit() { app.darkUI = app.dark; app.open = ({ app: true }); app.vopen = ({ }) },
+    refresh: Time [ tick = 110, running = { app.shown && app.running },
+        onTick() { app.tick = app.tick + 1; app.pollTrace() }
+        ],
 
     // ── the wake trace ───────────────────────────────────────────────────────
     // The subject's settles, as they happen, into the console: what opened

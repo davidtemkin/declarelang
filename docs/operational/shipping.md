@@ -90,11 +90,11 @@ anything itself:
 
 ```sh
 # 1. edit, keeping .declare files canon
-node tools/format.mjs --write <files>
+npx declare-format --write <files>
 
 # 2. prove the sources
 npm test                        # every source suite; no derive needed
-node tools/verify.mjs <file>    # or: one program, six rungs, while iterating
+npx declare-verify <file>    # or: one program, six rungs, while iterating
 npm run test:ladder             # before a push that touched layout, paint or input
 
 # 3. stage your sources — BEFORE the derive

@@ -31,13 +31,14 @@ export type PathSeg =
   | string                                              // name
   | { i: number }                                       // index (negative from the end)
   | { s: [number | null, number | null, number | null] } // slice start:end:step (null = RFC default)
-  | { w: 1 };                                           // wildcard
+  | { w: 1 }                                            // wildcard
+  | { c: number };                                      // a computed key `[( expr )]` — the island's computed[c]
 
 /** Does this plan select MANY (slice/wildcard present)? Names and indices are
  *  singular; a selective path is legal in reads and `:path[]` replication,
  *  refused on `<->` and bare `datapath =` (the D4 §4 table). */
 export const isSelective = (plan: readonly PathSeg[]): boolean =>
-  plan.some((s) => typeof s !== "string" && !("i" in s));
+  plan.some((s) => typeof s !== "string" && !("i" in s) && !("c" in s));
 
 /** A singular plan's STATIC segments — names pass, a non-negative index is
  *  its string key. Null when the place needs the data to resolve (a negative
@@ -65,6 +66,10 @@ export interface PathIsland {
   many: boolean;
   plan?: PathSeg[];
   trouble?: string | null;
+  /** The TypeScript of each computed key `[( expr )]`, as spans of the body —
+   *  left in place by every rewrite, so what they read is resolved (and their
+   *  own islands lowered) like any other code. */
+  computed?: { start: number; end: number }[];
 }
 
 /** RFC 9535 string-literal escapes for quoted name selectors. Returns null on
@@ -199,7 +204,7 @@ export function scanDatapaths(src: string): PathIsland[] {
         depth--; i++; ends = true; // an object literal's end is an operand
         continue;
       }
-      if (c === ":" && !ends && isIdentStart(src[i + 1])) {
+      if (c === ":" && !ends && (isIdentStart(src[i + 1]) || src[i + 1] === "@")) {
         const start = i;
         i++;
         let path = "";
@@ -207,7 +212,13 @@ export function scanDatapaths(src: string): PathIsland[] {
         let planful = false; // any piece beyond dot-idents (selector, quoted name)
         let trouble: string | null = null;
         let many = false;
-        {
+        const computed: { start: number; end: number }[] = [];
+        if (src[i] === "@") {
+          // `:@` — the record itself (JSONPath's current node); selectors may follow
+          i++;
+          path = "@";
+          planful = true;
+        } else {
           let name = "";
           while (i < n && isIdentPart(src[i])) name += src[i++];
           path += name;
@@ -233,6 +244,29 @@ export function scanDatapaths(src: string): PathIsland[] {
             path += "[*]"; // `.​*` normalizes to `[*]` — one canonical form (D4 §2)
             plan.push({ w: 1 });
             planful = true;
+            continue;
+          }
+          if (src[i] === "[" && src[i + 1] === "(") {
+            // `[( expr )]` — a key computed by TypeScript. The expression runs to
+            // the `)]` that closes it at depth zero; it is scanned as code by the
+            // caller's pass over the whole body, so its own reads are found there.
+            const open = i + 2;
+            let j = open, depth = 0, q: string | null = null;
+            while (j < n) {
+              const ch = src[j];
+              if (q !== null) { if (ch === "\\") j++; else if (ch === q) q = null; j++; continue; }
+              if (ch === "'" || ch === '"' || ch === "`") { q = ch; j++; continue; }
+              if (ch === "(" || ch === "[" || ch === "{") depth++;
+              else if (ch === ")" && depth === 0 && src[j + 1] === "]") break;
+              else if (ch === ")" || ch === "]" || ch === "}") depth--;
+              j++;
+            }
+            if (j >= n) { trouble ??= `':${path}[(' — unclosed '[(' in a computed key`; break; }
+            computed.push({ start: open, end: j });
+            plan.push({ c: computed.length - 1 });
+            path += "[(…)]";
+            planful = true;
+            i = j + 2;
             continue;
           }
           if (src[i] === "[") {
@@ -273,7 +307,14 @@ export function scanDatapaths(src: string): PathIsland[] {
           }
           break;
         }
-        out.push({ start, end: i, path, many, plan: planful ? plan : undefined, trouble });
+        out.push({ start, end: i, path, many, plan: planful ? plan : undefined, trouble, ...(computed.length ? { computed } : {}) });
+        // a computed key's own code — its reads, its islands — is scanned in place
+        for (const cs of computed) {
+          for (const inner of scanDatapaths(src.slice(cs.start, cs.end))) {
+            out.push({ ...inner, start: inner.start + cs.start, end: inner.end + cs.start,
+              ...(inner.computed ? { computed: inner.computed.map((x) => ({ start: x.start + cs.start, end: x.end + cs.start })) } : {}) });
+          }
+        }
         ends = true; // a datapath read is an operand
         continue;
       }
@@ -337,26 +378,83 @@ const beforeLastName = (path: string): string => {
   return k < 0 ? "" : path.slice(0, k + 1);
 };
 
-export function rewriteDatapaths(src: string): { src: string } | { error: string } {
+/** Is this island the TARGET of an assignment — `:done = v`, `:count += 1`,
+ *  `:count++`, `++:count`? A handler writes the field of the record its view is
+ *  showing with the same spelling it reads it by. */
+const ASSIGN_AFTER = /^\s*(?:=(?![=>])|\+=|-=|\*\*=|\*=|\/=|%=|<<=|>>>=|>>=|&&=|\|\|=|\?\?=|&=|\|=|\^=|\+\+|--)/;
+export function isWriteTarget(src: string, p: PathIsland): boolean {
+  if (ASSIGN_AFTER.test(src.slice(p.end))) return true;
+  return /(?:\+\+|--)\s*$/.test(src.slice(0, p.start));
+}
+
+/** Why a write target cannot be written, or null when it can. A write lands in
+ *  ONE place, so the path must name one: no replication form, no slice or
+ *  wildcard, no index counted from the end (that place depends on the data). */
+export function writeTargetTrouble(p: PathIsland): string | null {
+  if (p.many) return `':${p.path}[]' is a collection, not a place — a write names one field (':${p.path}[0].name = …'); to add or remove records use the dataset's insert / removeAt`;
+  if (staticSegs((p.plan ?? splitPath(p.path)).filter((sg) => typeof sg === "string" || !("c" in sg))) === null) {
+    return `':${p.path}' does not name one place — a write needs a field or a non-negative index, not a slice, a wildcard, or an index counted from the end`;
+  }
+  return null;
+}
+
+/** An island's runtime form, as the text AROUND its computed keys — one more
+ *  piece than it has keys; each key's own TypeScript stays where it is. A read
+ *  is `this.$data([...])`; a write target is `this.$cell([...]).value`,
+ *  assignable in every position an ordinary property is (`=`, `+=`, `++`). */
+export function loweredPieces(p: PathIsland, write: boolean): string[] {
+  const plan = p.plan ?? splitPath(p.path);
+  const pieces: string[] = [];
+  let cur = write ? "this.$cell([" : "this.$data([";
+  plan.forEach((sg, k) => {
+    if (k > 0) cur += ",";
+    if (typeof sg !== "string" && "c" in sg) { pieces.push(cur); cur = ""; return; }
+    // a write names places by key: an index is its string key
+    cur += write ? JSON.stringify(typeof sg === "string" ? sg : String((sg as { i: number }).i)) : JSON.stringify(sg);
+  });
+  pieces.push(cur + (write ? "]).value" : "])"));
+  return pieces;
+}
+
+/** The edits that replace an island by `pieces` (one per gap around its
+ *  computed keys), in body coordinates — what a caller merges with its own. */
+export function islandEdits(p: PathIsland, pieces: readonly string[]): { start: number; end: number; text: string }[] {
+  const out: { start: number; end: number; text: string }[] = [];
+  let at = p.start;
+  (p.computed ?? []).forEach((c, k) => { out.push({ start: at, end: c.start, text: pieces[k] }); at = c.end; });
+  out.push({ start: at, end: p.end, text: pieces[(p.computed ?? []).length] });
+  return out;
+}
+
+/** Apply `pieces` to every island of `src` — computed keys, and the islands
+ *  inside them, rewritten in place. */
+export function spliceIslands(src: string, islands: readonly PathIsland[], pieces: (p: PathIsland) => string[]): string {
+  const edits = islands.flatMap((p) => islandEdits(p, pieces(p))).sort((a, b) => a.start - b.start);
+  let out = "", at = 0;
+  for (const e of edits) { out += src.slice(at, e.start) + e.text; at = e.end; }
+  return out + src.slice(at);
+}
+
+export function rewriteDatapaths(src: string, statements = false): { src: string } | { error: string } {
   const islands = scanDatapaths(src);
   if (islands.length === 0) return { src };
   const trouble = datapathTrouble(src, islands);
   if (trouble !== null) return { error: trouble };
+  for (const p of islands) {
+    if (!isWriteTarget(src, p)) continue;
+    if (!statements) return { error: `assigns ':${p.path}' — a { } value only reads data; write the record from a handler or a method` };
+    const t = writeTargetTrouble(p);
+    if (t !== null) return { error: t };
+  }
   const many = islands.find((p) => p.many);
   if (many !== undefined) {
     return {
       error: `reads ':${many.path}[]' — a many-path replicates and belongs on a datapath attribute; a { } body reads a single :path`,
     };
   }
-  let out = "";
-  let at = 0;
-  for (const p of islands) {
-    // The same pre-parsed plan the compiler emits (compile.ts resolveBody) —
-    // the dev path and the compiled path evaluate identically.
-    out += src.slice(at, p.start) + `this.$data(${JSON.stringify(p.plan ?? splitPath(p.path))})`;
-    at = p.end;
-  }
-  return { src: out + src.slice(at) };
+  // The same pre-parsed plan the compiler emits (compile.ts resolveBody) —
+  // the dev path and the compiled path evaluate identically.
+  return { src: spliceIslands(src, islands, (p) => loweredPieces(p, isWriteTarget(src, p))) };
 }
 
 /** Replace each island with a same-length, identifier-free TS expression
@@ -369,11 +467,18 @@ export function rewriteDatapaths(src: string): { src: string } | { error: string
 export function fillDatapaths(src: string): string {
   const islands = scanDatapaths(src);
   if (islands.length === 0) return src;
-  let out = "";
-  let at = 0;
-  for (const p of islands) {
-    out += src.slice(at, p.start) + "0" + " ".repeat(p.end - p.start - 1);
-    at = p.end;
-  }
-  return out + src.slice(at);
+  // A plain island is `0`; one with computed keys keeps each key's code in a
+  // comma expression, `(0,(k1),(k2))`, padded to the same length.
+  return spliceIslands(src, islands, (p) => {
+    const cs = p.computed ?? [];
+    if (cs.length === 0) return ["0" + " ".repeat(p.end - p.start - 1)];
+    const lens: number[] = [];
+    let at = p.start;
+    for (const c of cs) { lens.push(c.start - at); at = c.end; }
+    lens.push(p.end - at);
+    return lens.map((len, k) => {
+      const t = k === 0 ? "(0,(" : k === lens.length - 1 ? "))" : "),(";
+      return k === lens.length - 1 ? t + " ".repeat(len - t.length) : " ".repeat(len - t.length) + t;
+    });
+  });
 }

@@ -19,11 +19,10 @@ builds (gzip, default level).
 
 include [ "../homepage/fonts.declare", "parts/kit.declare", "parts/hero.declare", "parts/compile.declare", "parts/ships.declare", "parts/click.declare", "parts/hit.declare" ]
 
-// The page's palette, light and dark. A token record is the language's own
-// notation for this, so the tokens are declarations rather than a JavaScript
-// object a `{ }` body happens to hold — and the App spreads one over a library
-// preset below, so the few library widgets on the page find every token they
-// read. The five layer hues (app, lib, run, ker, host) are the page's code.
+// The page's palette, light and dark, as two token records. The App spreads
+// one over a library preset below, so the few library widgets on the page find
+// every token they read. The five layer hues (app, lib, run, ker, host) are the
+// page's color code.
 
 theme Paper [
     ground = #F4F6F7, panel = #FFFFFF, sunk = #EBEFF1, line = #D5DDE3,
@@ -177,7 +176,7 @@ App [ appName = "What's under the hood · Declare",
                 ClickFig [ ]
                 ],
             Para [ html = "Steps 2 and 3 are the ones a web framework leaves to the browser: which element is under the pointer, and whether this was a click or the start of a drag. Here the runtime answers both, so hover, press, click-versus-drag and gesture ownership are one implementation — the same under a finger as under a pointer, and the same on every renderer." ],
-            Para [ html = "Step 5 runs no JavaScript at all. Beneath the runtime sits a kernel: one C file, about 940 lines, that holds the graph’s tables — every attribute, every edge, the settle’s order — and evaluates the arithmetic the compiler turned into bytecode. In the browser it ships as WebAssembly, 11 KB gzipped inside the bundle; on the Mac the same source is linked in natively. It is unusual for a web framework to carry a C library, and it is only possible because the compiler left nothing for the runtime to work out: with every dependency and every arithmetic body known in advance, the bookkeeping of a settle is a fixed procedure over fixed tables, which is what C is for. A frame that only moves geometry — most animation frames — finishes inside it without entering JavaScript." ]
+            Para [ html = "Step 5 runs no JavaScript at all. Beneath the runtime sits a kernel: one C file, about 1,000 lines, that holds the graph’s tables — every attribute, every edge, the settle’s order — and evaluates the arithmetic the compiler turned into bytecode. In the browser it ships as WebAssembly, 11 KB gzipped inside the bundle; on the Mac the same source is linked in natively. It is unusual for a web framework to carry a C library, and it is only possible because the compiler left nothing for the runtime to work out: with every dependency and every arithmetic body known in advance, the bookkeeping of a settle is a fixed procedure over fixed tables, which is what C is for. A frame that only moves geometry — most animation frames — finishes inside it without entering JavaScript." ]
             ],
 
         // ── 03 · Motion ──────────────────────────────────────────────
@@ -202,7 +201,7 @@ App [ appName = "What's under the hood · Declare",
         // ── 05 · Where the host begins ───────────────────────────────
 
         hosts: Section [ num = "05", head = "Where the host begins",
-            Para [ html = "Everything above happens on one side of a single interface. It is called <code>Surface</code>, it has 58 methods — <code>setX</code>, <code>setFill</code>, <code>setText</code>, <code>setDrawing</code> — the runtime calls them and a backend implements them, and a view never learns which backend it has. Below that interface a backend does one job: realize what it was told. The DOM backend keeps a <code>div</code> per view with its geometry as inline style, and hands the platform what the platform does best — real text that selects and finds, the page’s own scroll, links that ⌘-click, native form fields. The canvas backend draws the whole tree directly to pixels, with its own compositor and its own scroll physics, for surfaces that must be uniform or capturable. The Mac host is a Swift application with no web engine in it: it runs the same runtime bundle in JavaScriptCore, links the same kernel as C, and applies one batch of drawing operations per settle to a tree of Core Animation layers." ],
+            Para [ html = "Everything above happens on one side of a single interface. It is called <code>Surface</code>, it has 60 methods — <code>setX</code>, <code>setFill</code>, <code>setText</code>, <code>setDrawing</code> — the runtime calls them and a backend implements them, and a view never learns which backend it has. Below that interface a backend does one job: realize what it was told. The DOM backend keeps a <code>div</code> per view with its geometry as inline style, and hands the platform what the platform does best — real text that selects and finds, the page’s own scroll, links that ⌘-click, native form fields. The canvas backend draws the whole tree directly to pixels, with its own compositor and its own scroll physics, for surfaces that must be uniform or capturable. The Mac host is a Swift application with no web engine in it: it runs the same runtime bundle in JavaScriptCore, links the same kernel as C, and applies one batch of drawing operations per settle to a tree of Core Animation layers." ],
             f4: Figure [
                 Caption [ fig = "Fig. 4 — One program, three hosts",
                     text = "The calendar’s build, drawn to scale by gzipped bytes. Switch hosts and watch what moves: the program, the library and the rest of the runtime are the same bytes; one block is exchanged, and on the Mac the kernel leaves the bundle for the executable. Beneath, the same desktop program with the same four windows open, on each host." ],

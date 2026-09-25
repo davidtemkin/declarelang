@@ -12,7 +12,7 @@ App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
         View [ datapath = :items[], height = 26, width = 320,
             layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
             Checkbox [ checked = :done,
-                input(v: boolean) { this.$setData("done", v) }
+                input(v: boolean) { :done = v }
                 ],
             Text [ text = :title, textColor = { :done ? 0x6A7883 : 0x172530 } ]
             ]

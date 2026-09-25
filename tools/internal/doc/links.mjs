@@ -9,6 +9,7 @@
 //   • guide docs        docs/guide/NN-name.md      →  guide:name
 //   • operational docs  docs/operational/name.md   →  operational:name
 //   • the core doc      docs/declare.md            →  spec:core        (pinned root)
+//   • a guide section   a `## ` or `### ` heading  →  guide:name@section-slug
 //   • the reference     docs-model.json            →  reference:index  (pinned root)
 //                       …and every model node key  →  View.width, Slider.value, …
 //   • the Why essay     homepage, route "why"      →  essay:why-declare (pinned root)
@@ -33,6 +34,26 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const MODEL = path.join(ROOT, "docs/declare-model.json");
 
 // ── the registry ─────────────────────────────────────────────────────────────
+
+/** A heading's address inside its chapter: lowercase words joined by hyphens,
+ *  code ticks and punctuation dropped — `Later, once: \`afterDelay\`` →
+ *  `later-once-afterdelay`. The extractor anchors each section with the same
+ *  function, so a `guide:name@slug` link and the page agree by construction. */
+export function sectionAnchor(heading) {
+  return heading.toLowerCase().replace(/`/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+/** The `## ` and `### ` headings of a markdown text, outside code fences. */
+export function sectionHeadings(md) {
+  const out = [];
+  let fence = false;
+  for (const line of md.split("\n")) {
+    if (/^```/.test(line)) { fence = !fence; continue; }
+    const m = !fence && line.match(/^(#{2,3}) (.+)$/);
+    if (m) out.push({ level: m[1].length, title: m[2].trim(), anchor: sectionAnchor(m[2].trim()) });
+  }
+  return out;
+}
 
 /** First `# ` heading of a markdown file — the doc's title. */
 function titleOf(file) {
@@ -66,6 +87,9 @@ export function buildRegistry(reference, typeNames) {
     if (!f.endsWith(".md")) continue;
     const slug = f.replace(/^\d+-/, "").replace(/\.md$/, "");
     add(`guide:${slug}`, path.join(ROOT, "docs/guide", f), "guide");
+    for (const h of sectionHeadings(readFileSync(path.join(ROOT, "docs/guide", f), "utf8"))) {
+      ids[`guide:${slug}@${h.anchor}`] ??= { path: path.relative(ROOT, path.join(ROOT, "docs/guide", f)), title: h.title, kind: "guide-section" };
+    }
   }
   // operational: the filename IS the id.
   for (const f of readdirSync(path.join(ROOT, "docs/operational")).sort()) {
@@ -110,7 +134,7 @@ function corpusFiles() {
   return out.sort();
 }
 
-const REF = /declare-docs:([A-Za-z0-9_.:-]+)/g;
+const REF = /declare-docs:([A-Za-z0-9_.:@-]+)/g;
 
 export function scan(registry) {
   const dangling = [];   // { file, line, id }

@@ -1,0 +1,201 @@
+<!-- nav: Touch and gestures -->
+<!-- part: Building -->
+
+# Touch and gestures
+
+With a mouse, the pointer is almost entirely yours. A touch screen is different: the
+browser arrives owning most of what a finger can do — pan, pinch, double tap — and an
+app that wants any of it takes it deliberately. This chapter covers what a finger
+changes about design, how a gesture passes from the browser to your app, and what it
+costs to take all of it.
+
+> **The browser owns every gesture until a view claims it — and declaring the handler
+> is the claim.**
+
+## Designing for fingers
+
+The same handlers fire for mouse and finger, and the runtime absorbs most of the
+difference: a finger that moves does not click, a tap never leaves a view stuck in a
+hover state, and an interrupted gesture reports itself. Two differences remain yours
+to design for.
+
+**A finger doesn't hover.** [`hovered`](declare-docs:View.hovered) is always false on a touch device, so anything
+that only appears on hover is invisible on a phone unless you give it another way in
+— let [`pressed`](declare-docs:View.pressed) carry the feedback, or keep the affordance visible when
+[`app.touchDevice`](declare-docs:App.touchDevice) is true.
+
+**Targets want to be bigger.** Ask the device, and design accordingly:
+
+| you ask | it answers | use it for |
+|---|---|---|
+| `app.touchDevice` | is the *primary* pointer a finger? | sizing and layout density |
+| [`app.hasTouch`](declare-docs:App.hasTouch) | is there a touch digitizer *at all*? | a hit-target floor |
+| [`app.hasPointer`](declare-docs:App.hasPointer) | is there a mouse, trackpad, or stylus? | offering precise affordances |
+| [`app.lastPointerType`](declare-docs:App.lastPointerType) | what did the user *just* use — `"mouse"`, `"touch"`, `"pen"`? | revealing hover-only chrome |
+
+The last two exist for the awkward middle: a Windows touch laptop reports
+`touchDevice = false`, because its trackpad really is primary, yet a finger may arrive
+at any moment. The rule that follows is worth stating plainly — **size from
+`touchDevice`, floor from `hasTouch`, and reveal from `lastPointerType`.** Never drive
+layout from the live pointer type: targets that resize as the user alternates trackpad
+and finger are worse than either size. And a hit region need not match a visual one, so
+a hybrid can keep compact chrome and generous touch targets at the same time.
+
+## Who owns a gesture
+
+The same handlers hear mouse and finger, but the browser does not compete for
+them equally. A dragged mouse was always yours: the page does nothing with it —
+the one thing it would do, select text, Declare has already settled, because
+views are painted UI, not a document. A finger is different. Dragging one pans
+the page, two pinch to zoom, a double tap zooms to a column — and on the desktop,
+the wheel and the trackpad pinch belong to the browser the same way. Those
+meanings are good; the physics behind them are the ones your user's thumbs
+already know, and Declare's default is to leave every one of them alone.
+
+So when a gesture means something to both sides — the finger that lands on a
+draggable card is the same finger that means *scroll* — somebody has to decide
+who gets it. You already did, the moment you wrote the handler. There is no
+gesture-policy attribute, because the handler is the policy. A claim
+takes exactly what the handler needs in order to fire, and not one gesture more:
+
+| you declare | on a touch screen the browser yields | on the desktop it yields |
+|---|---|---|
+| `onPointerMove` | the single-finger drag over this view | nothing — a mouse drag was always yours |
+| `onHold` + the drag handlers | the drag, **from the hold** — a quick swipe still pans | nothing new — the mouse drag was already yours |
+| `onDblClick` | the double tap | nothing — a double click was always yours |
+| `onWheel` | — | the wheel over this view, trackpad pinch included |
+| the `onPinch*` family | the **two-finger** gesture — one finger still pans the page | — |
+| the `onTouch*` family | **every finger** | — |
+| `claim = x` (or `y`, `both`) | *narrows* a claim to one axis — the page keeps the other | — |
+
+**`onPinchStart` / `onPinch` / `onPinchEnd` is the recognized two-finger gesture** —
+declare any of them and two fingers over that subtree are yours, delivered as a
+cumulative `e.scale` (the spread now over the spread at start) with the fingers'
+midpoint in `e.center`, while a single finger keeps panning the page. You never do
+the finger arithmetic; rolling your own over a subtree touch claim is not the
+answer. A pinch nearly always drives [`scale`](declare-docs:View.scale) or
+[`rotation`](declare-docs:View.rotation) of a sub-surface — `onPinch(e) { zoom = anchor * e.scale }`, latching
+`anchor` at `onPinchEnd`. On the desktop the same intent arrives on the wheel
+stream as `e.pinch` (trackpad); handle both and every device zooms.
+
+**[`claim`](declare-docs:View.claim) is the knob for "drag horizontally on a page that scrolls vertically."** It
+scopes a claim you already have rather than making one: declare the drag handler, then
+`claim = x`, and a finger traveling sideways is yours while a finger traveling down
+still scrolls the page. A [`DataGrid`](declare-docs:DataGrid) header drags this way. It cannot help once the
+`onTouch*` family has taken **every** finger, because there is nothing left to narrow.
+
+`onClick`, `onPointerDown`, and `onHold` alone claim nothing. A tap coexists with every
+browser gesture — that is the resolved layer's whole point — and when the browser
+does take a gesture back mid-flight, `e.canceled` reports it. Everything a claim
+does not name stays with the user: a view that claimed the drag still zooms under
+two fingers, a view that claimed the double tap still pans. A `scrolls = y`
+view is the opposite move — it *delegates* its panning to the browser — and keeps
+pinch-zoom delegated too. Delegation has tiers, and they are measured, not
+theoretical: the **page's own scroll** (an app taller than its window — see
+[Scrolling](declare-docs:guide:scrolling)) is the only one a browser will
+upgrade mid-gesture, a second finger turning the scroll into a pinch-zoom; an
+interior pane pans and pinches but never upgrades. When touch matters, primary
+content belongs on the page's scroll.
+
+**A claim takes a gesture, not the pointer.** This is the
+[drag-and-click rule](declare-docs:guide:pointer-and-keyboard@dragging) from the other side: the
+claim decides whether the browser or your app owns the wandering finger; the slop
+rule then decides, inside the app, what the gesture meant. Neither arbitration
+reaches into the other. Claiming the drag never silences your clicks, and
+declaring `onClick` never takes panning from the page.
+
+A claim covers the declaring view and its subtree, and only that. The card
+claims the drag over its own few hundred pixels: a finger landing anywhere else
+still pans, with no code saying so on either side. And claims run one way — a
+child can claim more than its ancestor did, but it cannot hand a claimed gesture
+back to the browser — which is why the habit to build is:
+
+> **Claim the least you need, on the smallest view that needs it.**
+
+## Taking a drag from a scroll
+
+One row of the table deserves its own telling, because it resolves a conflict the
+others never face. A slider claims the finger from its first movement, and
+rightly — its surface never scrolls, so nothing competes. But a calendar event
+sits *on* a scrolling surface, and the finger that could drag it is the same
+finger that means *pan*. The platforms settled this long ago, and their answer is
+the right one: **press and hold to pick it up.** In Declare you state it with two
+handlers you already know — declare `onHold` alongside the drag handlers, and the
+claim engages *at the hold*:
+
+```declare-fragment
+block: View [
+    onHold(e: PointerEvent)        { app.liftEvent(:id) },          // the pick-up moment
+    onPointerDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
+    onPointerMove(e: PointerEvent) { app.dragMove() },
+    onPointerUp(e: PointerUpEvent) { app.dropDrag(e.x, e.y) },
+    ]
+```
+
+A quick swipe scrolls, exactly as the user expects, and reaches you as
+`e.canceled` — the contract drags already honor. A finger that presses and waits
+picks the thing up, and every move after the hold is yours. Notice that nothing
+about delivery changed: pre-hold, the finger is either *stationary* (there are no
+moves to deliver) or *moving* (the browser owns it, and you get the cancel). The
+hold only decides who owns the wandering finger — which was always the claim's
+one question. This is the least-claim rule read precisely: the pair needs nothing
+until the hold fires, so nothing is taken before it. A mouse ignores all of this;
+a mouse drag was never the browser's, so on desktop the same handlers drag
+immediately — hold your visible pick-up until `onHold` if you want the two to
+feel alike.
+
+## Full gesture control
+
+Some apps need it all. A map, a drawing canvas, a game — an app that requires
+full gesture control, because no browser primitive exists for its pan and its
+zoom. It takes that control the same way every claim is made — by declaring the
+handlers: the raw touch family and `onWheel`, on the App itself, which for once
+really is the smallest view that needs it.
+
+```declare-fragment
+App [
+    onTouchStart(e: TouchEvent)  { engine.begin(e.touches) },
+    onTouchMove(e: TouchEvent)   { engine.track(e.touches) },
+    onTouchEnd(e: TouchEvent)    { engine.release(e.touches) },
+    onTouchCancel(e: TouchEvent) { engine.abort() },
+    onWheel(e: WheelEvent)       { engine.wheel(e) }            // the desktop half: trackpad pan and pinch
+    ]
+```
+
+Every finger now arrives with a stable `id` for the life of its contact;
+`e.touches` is every finger currently down, `e.changed` the one this event is
+about, and **the touch family's coordinates are root-space throughout** — a gesture
+engine wants one fixed frame. (`onWheel` is the exception to keep straight: its
+coordinates are **view-local**, like `onPointerDown`'s. Only the multi-finger stream is
+root-space.) `onWheel` is the desktop half of the same ownership: a trackpad
+pinch arrives on the wheel stream (with `e.pinch` true), so the app that
+integrates its own zoom hears mouse wheels, trackpad scrolls, and trackpad
+pinches through one handler.
+
+Full gesture control is a trade, and both sides of it should be said plainly.
+
+**You now owe the user zoom.** Claiming every finger took pinch-zoom with it —
+the only rung of the ladder that does — so an app with full gesture control must
+be its own magnifier: the pinch you now receive should do what the browser's
+pinch used to, in your coordinates and your physics. Two escapes survive any
+claim: ⌘ +/− dispatches no event to any page and cannot be intercepted, and the
+operating system's accessibility zoom is beyond a page's reach entirely. They
+are the fire exit, not the accommodation.
+
+**The viewport holds still for you.** iOS has one zoom nobody asks for: focus a
+text field whose text is smaller than 16px and the browser zooms the page toward
+it, then zooms back on blur. Under an app running its own gesture arithmetic, a
+browser zoom arriving mid-gesture would shear every coordinate the engine is
+integrating — so while an app with full gesture control holds focus, the runtime
+suspends that auto-zoom, and lets go on blur. In every other app the browser's
+behavior stands untouched; instead, the compiler flags a focusable field that
+sits below the 16px line and names the fix.
+
+---
+
+**What you can now say:** you can design an interface fingers can actually use, you
+can name who owns any gesture over any view — and change the answer by declaring a
+handler — and you know exactly what an app that takes full gesture control owes its
+user in return.
+
+[Next: **Paint and themes** →](declare-docs:guide:paint-and-themes)

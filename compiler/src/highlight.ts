@@ -230,9 +230,10 @@ export function highlight(src: string): Segment[] {
     // `<->` two-way binding arrow
     if (c === "<" && src[i + 1] === "-" && src[i + 2] === ">") { emit("o", "<->"); i += 3; continue; }
 
-    // `:a.b` / `:arr[]` datapath
-    if (c === ":" && isIdentStart(src[i + 1])) {
-      let j = i + 1; while (j < n && (isIdentPart(src[j]) || src[j] === "." || src[j] === "[" || src[j] === "]")) j++;
+    // `:a.b` / `:arr[]` / `:@` datapath
+    if (c === ":" && (isIdentStart(src[i + 1]) || src[i + 1] === "@")) {
+      let j = i + 1; if (src[j] === "@") j++;
+      while (j < n && (isIdentPart(src[j]) || src[j] === "." || src[j] === "[" || src[j] === "]")) j++;
       emit("p", src.slice(i, j)); i = j; continue;
     }
 

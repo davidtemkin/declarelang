@@ -822,17 +822,17 @@ export function untracked<T>(fn: () => T): T {
 /** Steps registered by `afterSettle`, drained at the close of the settle. */
 const after: Array<() => void> = [];
 
-/** Run `step` exactly once, at the close of the current settle — constraints
+/** Run `fn` exactly once, at the close of the current settle — constraints
  *  quiescent, replication reconciled, layout placed, sizes derived, nothing
  *  painted yet (language §7: the settle is a microtask, ahead of the
  *  backends' paint). The far side of the landing: a handler's writes take
- *  effect at the settle, so a step registered inside a handler reads the
- *  world *after* that handler's change. Writes made in a step fold into the
+ *  effect at the settle, so a function registered inside a handler reads the
+ *  world *after* that handler's change. Writes it makes fold into the
  *  same settle (the drain loops back to quiescence), so a correction lands
  *  in the same frame as the change it corrects. Registered outside any
- *  pending settle, the step gets a settle of its own. */
-export function afterSettle(step: () => void): void {
-  after.push(step);
+ *  pending settle, it gets a settle of its own. */
+export function afterSettle(fn: () => void): void {
+  after.push(fn);
   if (!inSettle) schedule();
 }
 

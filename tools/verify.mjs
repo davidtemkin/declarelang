@@ -215,6 +215,21 @@ if (failedRung === null && flags.rung >= 4) {
   }
 }
 
+// The browser rungs boot the PROGRAM form — the parsed, checked, deps-applied
+// program every host boots from (host-client's bootHost takes `program`, not a
+// source string). Built once, on demand, from the same source the rungs above
+// checked; the typecheck already ran, so it is not paid twice.
+let builtProgram = null;
+async function programForBrowser() {
+  if (builtProgram === null) {
+    const { compileProgram } = await import("../compiler/dist/declarec.js");
+    const r = await compileProgram(source, { typecheck: false, originDir: dirname(resolve(file)) });
+    if (r.program == null) throw new Error("program build failed: " + (r.report ?? "no report"));
+    builtProgram = r.program;
+  }
+  return builtProgram;
+}
+
 // ── rung 5: behavior (drive + assert, real browser) ──────────────────────
 const behave = { ran: false, ok: false, failures: [], log: [] };
 if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
@@ -223,7 +238,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
   const { dirname: dirOf, resolve: resolvePath } = await import("node:path");
   try {
     const r = await runBehavior({
-      compiled: { source: out.source, deps: out.deps },
+      compiled: { program: await programForBrowser() },
       appDir: dirOf(resolvePath(file)),
       assertPath: flags.assert,
       fixturesDir: flags.fixtures,
@@ -246,7 +261,7 @@ if (failedRung === null && flags.rung >= 6 && flags.states !== null) {
   const { dirname: dirOf, resolve: resolvePath, join: joinPath } = await import("node:path");
   try {
     const r = await runStates({
-      compiled: { source: out.source, deps: out.deps },
+      compiled: { program: await programForBrowser() },
       appDir: dirOf(resolvePath(file)),
       statesPath: flags.states,
       // The default sits beside the STATES file, not the app program: the

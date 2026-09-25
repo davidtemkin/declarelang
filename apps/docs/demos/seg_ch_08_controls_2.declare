@@ -1,0 +1,12 @@
+App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").bg },
+    textColor = { provided("theme").text },
+    page: string = "list",
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Segmented [ width = 300, value = { app.page },
+            choices = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
+            input(v: string) { app.page = v }
+            ],
+        Text [ text = { "showing: " + app.page } ]
+        ]
+    ]

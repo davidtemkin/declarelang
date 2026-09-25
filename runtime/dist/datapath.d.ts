@@ -8,6 +8,8 @@ export type PathSeg = string | {
     s: [number | null, number | null, number | null];
 } | {
     w: 1;
+} | {
+    c: number;
 };
 /** Does this plan select MANY (slice/wildcard present)? Names and indices are
  *  singular; a selective path is legal in reads and `:path[]` replication,
@@ -30,6 +32,13 @@ export interface PathIsland {
     many: boolean;
     plan?: PathSeg[];
     trouble?: string | null;
+    /** The TypeScript of each computed key `[( expr )]`, as spans of the body —
+     *  left in place by every rewrite, so what they read is resolved (and their
+     *  own islands lowered) like any other code. */
+    computed?: {
+        start: number;
+        end: number;
+    }[];
 }
 /** Parse one bracket selector's interior (trimmed). The refusals are the D4
  *  ruling's named gates — filters, functions, unions — each pointing at the
@@ -62,7 +71,27 @@ export declare function scanDatapaths(src: string): PathIsland[];
  *  spellings). A malformed selector arrives as the island's own `trouble`
  *  (gated features refuse there: filters, unions — jsonpath-spelling.md §5). */
 export declare function datapathTrouble(src: string, islands: readonly PathIsland[]): string | null;
-export declare function rewriteDatapaths(src: string): {
+export declare function isWriteTarget(src: string, p: PathIsland): boolean;
+/** Why a write target cannot be written, or null when it can. A write lands in
+ *  ONE place, so the path must name one: no replication form, no slice or
+ *  wildcard, no index counted from the end (that place depends on the data). */
+export declare function writeTargetTrouble(p: PathIsland): string | null;
+/** An island's runtime form, as the text AROUND its computed keys — one more
+ *  piece than it has keys; each key's own TypeScript stays where it is. A read
+ *  is `this.$data([...])`; a write target is `this.$cell([...]).value`,
+ *  assignable in every position an ordinary property is (`=`, `+=`, `++`). */
+export declare function loweredPieces(p: PathIsland, write: boolean): string[];
+/** The edits that replace an island by `pieces` (one per gap around its
+ *  computed keys), in body coordinates — what a caller merges with its own. */
+export declare function islandEdits(p: PathIsland, pieces: readonly string[]): {
+    start: number;
+    end: number;
+    text: string;
+}[];
+/** Apply `pieces` to every island of `src` — computed keys, and the islands
+ *  inside them, rewritten in place. */
+export declare function spliceIslands(src: string, islands: readonly PathIsland[], pieces: (p: PathIsland) => string[]): string;
+export declare function rewriteDatapaths(src: string, statements?: boolean): {
     src: string;
 } | {
     error: string;

@@ -28,15 +28,17 @@ A `View` draws no glyphs, so it carries none of them; writing `fontFamily`, `tex
 mechanism. The geometry and paint slots below are the ones a `View` actually owns.
 
 ## width
-The box's width, in **pixels** (`Length`). Defaults to `0`, so a container with no
-width set collapses — give it one, a `{ }` constraint, or `100%` (parent-relative).
-Set it live and children constrained to it reflow in the same frame; there is no
-re-layout call. To size *to* content instead, constrain it: `width = { Math.min(contentWidth, 480) }`.
+The box's width, in **pixels** (`Length`). Left unset, a view is as wide as its content —
+the run a `Text` lays out, the bitmap an `Image` shows, and the boxes of its visible
+children (padding included); a view with nothing in it is `0`. Otherwise set a constant,
+`100%` (the parent's content box), or a `{ }` constraint. Set it live and children
+constrained to it reflow in the same frame; there is no re-layout call. To size to content
+with a limit, constrain it: `width = { Math.min(contentWidth, 480) }`.
 
 ## height
-The box's height in pixels (`Length`), mirroring `width`. `0` by default. A `Text`
-left unsized takes its natural measured height, so you usually set `height` only to
-clip or to drive a layout.
+The box's height in pixels (`Length`), mirroring `width`: left unset, a view is as tall as
+its content. A `Text` left unsized takes its natural measured height, so you usually set
+`height` only to fix a size, to clip, or to limit growth.
 
 ## padding
 **The view's content box** — the inset between this box and the room its children live in.
@@ -260,15 +262,10 @@ mouse wheel's notches make this fact flicker by nature. Written by the platform'
 
 ## layout
 How this view arranges its children — a reactive `Layout` attribute, not a child and
-not the container's type. Defaults to none (absolute `x`/`y`). Swap or animate it and
-the arrangement transitions continuously: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.
+not the container's type. Defaults to none (absolute `x`/`y`). Assigning a different
+layout swaps the arrangement; a `TweenLayout` subclass glides children between arrangements
+instead of snapping: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.
 Set `layout = null` for explicit none.
-
-## datapath
-The data cursor: sets the place in a dataset that this view and its
-descendants read relative to. Write it as a `:path` (relative to the inherited
-cursor), `:arr[]` to **replicate** this view once per array element, or a `{ }`
-expression yielding a place. Descendants read with their own relative `:paths`.
 
 ## childViews
 This view's child views, as a live collection — reading it re-runs when the child **set**
@@ -406,7 +403,7 @@ This view's transformed box in **root-content space** — every ancestor's posit
 scale, rotation, and scroll composed (the hit walk's own math). A one-shot query for
 handlers, deliberately not a reactive fact: absolute geometry depends on every
 ancestor, and a live slot would re-derive on each scrolled pixel. For the reactive
-question — "am I visible?" — bind `onScreen` or `visibleRect` instead.
+question — "am I visible?" — read `onScreen` or `visibleRect` instead.
 
 ## rootTransform()
 The composed similarity from this view's frame to root space — `{x, y, scale,
@@ -415,10 +412,10 @@ at-rest companions.
 
 ## onScreen
 Is this view **on screen** — inside the viewport, not scrolled away, not in a hidden
-subtree? A coarse reactive fact that flips at threshold crossings, so a binding
+subtree? A coarse reactive fact that flips at threshold crossings, so a constraint
 re-derives only when the answer changes: the gate for ambient work
 (`running = { classroot.onScreen && app.pageVisible }`) and for load culling. Fed
-lazily at the first read — a program that never binds it pays nothing. On the DOM the
+lazily at the first read — a program that never reads it pays nothing. On the DOM the
 feed sees the whole page, so an embedded app's box scrolled off its **host** page
 reads `false` too. Read-only.
 
@@ -461,14 +458,16 @@ App [
 ```
 
 ## x
-The horizontal offset within the parent, in pixels. Honoured only while the parent
-imposes no `layout` — **a layout overwrites `x` every pass**, so use it for absolute
-placement (the layout-none default) and switch to `layout` for arrangement; don't fight
-one with the other.
+The horizontal offset within the parent's content box, in pixels — `center` and `end`
+place the view centered or flush against the far edge. **What a parent's `layout` places,
+the child does not declare**: under a row (which places `x`), setting `x` in any spelling is
+a compile error naming what to use instead, and a handler writing it while the layout
+arranges the child is refused. Use `x` for free-form placement, a `layout` for arrangement,
+and `ignoreLayout = true` for a child that must stand apart from its parent's layout.
 
 ## y
-The vertical offset within the parent — the twin of `x`, and likewise overwritten by a
-parent `layout`.
+The vertical offset within the parent's content box — the twin of `x`, with the same
+ownership rule: a layout that places `y` (a stack, or a row with `align`) owns it.
 
 ## focusable
 Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no
@@ -490,15 +489,20 @@ slider freezes its value wherever the finger lifts.
 ## onPointerMove
 The pointer moved over the view — and, once pressed on it, every move **while captured**
 (even outside the box), so a drag handler keeps getting positions. The event carries the
-pointer in this view's own coordinates.
+pointer in **root** coordinates — the app's own space, the one `viewAt` takes — because a
+drag needs a frame that does not move with the thing being dragged. (`onPointerDown` and
+`onClick` carry view-local coordinates.)
 
 ## onPointerOver
-The pointer entered the view (retained enter tracking) — the hover-in half. Set a
-`hovered` flag here and read it in a `fill`/`textColor` constraint.
+The pointer entered the view — the hover-in moment. For styling, read the `hovered` fact in
+a constraint instead (`fill = { hovered ? … : … }`); `hovered` is read-only and kept true by
+the runtime. Handle this event only for something that must happen at the moment of
+entry.
 
 ## onPointerOut
-The pointer left the view — the hover-out half; also fires when a press is abandoned off
-the box, so clear both `hovered` and `pressed` here.
+The pointer left the view — the hover-out moment; it also fires when a press is abandoned
+off the box. `hovered` and `pressed` are facts the runtime clears on its own; there is
+nothing to reset here.
 
 ## onHold
 A press held in place for half a second — the tap-hold, equally available to a mouse.
@@ -521,8 +525,8 @@ immediate, keep the two handlers on different views.
 
 ## onTouchStart
 The **raw** multi-finger stream, and the layer below the recognized gestures: a finger
-landed. `e.touches` is every live finger in this view's coordinates, `e.changed` the ones
-this event is about. Reach for it when no recognized gesture fits — two-finger gestures
+landed. `e.touches` is every live finger, `e.changed` the ones this event is about, all in
+root coordinates — a gesture engine wants one fixed frame. Reach for it when no recognized gesture fits — two-finger gestures
 are `onPinch*`, a tap is `onClick`, a drag is the claim family — because the raw stream
 means doing the finger arithmetic yourself.
 
@@ -755,7 +759,7 @@ a paging strip's position or scroll-driven effects.
 
 ## anchor
 Names this view as a **reveal target** for a location's `@name` suffix
-(`#guide/04-tree@intro` scrolls to the view with `anchor = "intro"`).
+(`#guide/05-components@intro` scrolls to the view with `anchor = "intro"`).
 The anchor namespace is named views (this attribute) plus heading slugs inside
 rendered rich text, so a heading needs nothing from you. Resolution prefers views over
 slugs, preorder-first.
@@ -791,7 +795,8 @@ before anything is pressed. Meaningful on views that take input — the cursor f
 hit target, so a view with `pointerEvents = "none"` never shows its own.
 
 ## pointerEvents
-Whether **this view** takes pointer events: `"auto"` (the default) or `"none"`.
+Whether **this view** takes pointer events: `"none"` or `"auto"`. Unset, it behaves as
+`"auto"`.
 `"none"` is for a view that is pure decoration over live content — a highlight rectangle,
 a full-viewport chrome overlay — so presses reach what is beneath it. It is the fix for
 the invisible-lid bug: an overlay sized to the frame that silently swallows every click.
@@ -857,15 +862,15 @@ content exactly (the focus ring following a control inside a pane); pass `null` 
 it to the root.
 
 ## $setData()
-Writes a value at a path relative to this view's cursor — **the write half of `$data`**,
-and how a replicated row edits its own record without knowing where in the dataset it
-sits. The write wakes exactly the bindings that read the changed region, so a grid cell
-committing an edit re-derives everything downstream and nothing else.
+Writes a value at a path relative to this view's cursor — the runtime half of a text
+field's `<->` edit. In your own code, write a record field with `:field = v` in a handler
+or method — or `:@[(key)] = v` when the field is chosen at run time: it lands in the same place, through the dataset's `set`, and wakes exactly the
+constraints that read the changed region.
 
 ## createView()
 Instantiates a component **by tag name** into this view — the receiver is the parent, and
 with it the new instance's scope and data anchor. Returns the created view, a full
-citizen: bindings installed, `onInit` fired, and the parent's arrangement and auto-size
+citizen: constraints installed, `onInit` fired, and the parent's arrangement and auto-size
 take it in on arrival. The imperative door, for structure that genuinely cannot be
 declared; reach for replication over a datapath first — it reconciles, keys, and tears
 down for you.

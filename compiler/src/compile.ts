@@ -195,7 +195,7 @@ import { setBodySyntaxValidator } from "../../runtime/dist/expr.js";
 setBodySyntaxValidator(tsBodySyntax);
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
-import { fillDatapaths, scanDatapaths, splitPath } from "../../runtime/dist/datapath.js";
+import { fillDatapaths, isWriteTarget, scanDatapaths, loweredPieces, islandEdits } from "../../runtime/dist/datapath.js";
 import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
@@ -590,13 +590,15 @@ type ScopeKind = "class" | "app" | "bundle";
 //      Node compile admitted `process` and `Buffer`, and in a browser compile
 //      `document`, each then refused at the typecheck with TypeScript's own
 //      advice: "change lib to dom", "npm i @types/node");
-//   2. the host chores the prelude declares by hand (timers, console, the
-//      fetch/URL family — scaffold.ts), the same shape on all three renderers;
+//   2. the host chores the prelude declares by hand (console, the URL family —
+//      scaffold.ts), the same shape on all three renderers;
 //   3. the runtime services in body scope (expr.ts setBodyServices).
 // Everything else is unresolved — and a known host global (document, window,
 // process, …) is refused BY NAME with the Declare way (teach.ts).
-// `globalThis` is on the ES list, so `(globalThis as any).x` remains the one
-// visible, greppable escape (library/menu.declare uses it for rAF).
+// A name with a teach.ts answer is refused in a body even when a list below
+// admits it: `globalThis`, the timers and `fetch` stay declared (a script
+// block, which shares the prelude, may use them) but a body is answered with
+// the Declare way — after, Time, DataSource.
 const ES_GLOBALS = new Set([
   "globalThis", "Object", "Function", "Array", "Number", "Boolean", "String", "Symbol", "BigInt",
   "Date", "RegExp", "Math", "JSON", "Intl", "Reflect", "Proxy", "Promise",
@@ -615,7 +617,8 @@ const ES_GLOBALS = new Set([
 // scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
 const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Inspect", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
 
-const isKnownGlobal = (name: string): boolean => ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name);
+const isKnownGlobal = (name: string): boolean =>
+  hostGlobalHint(name) === null && (ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name));
 
 interface Edit {
   start: number;
@@ -1610,6 +1613,22 @@ class Resolver {
     }
   }
 
+  /** A handler's `:field = v` writes the record the nearest enclosing
+   *  `datapath` points at — from any member, as its reads do. The cursor is
+   *  checked the way a `<->` is: in the main tree, where the whole chain up to
+   *  the App is in hand; a class body's cursor arrives from its use site, which
+   *  is not visible here. */
+  private checkWriteTarget(path: string, levels: readonly Element[], mainRoot: Element | null, pos: Pos): void {
+    if (mainRoot === null) return;
+    const supplies = (e: Element): boolean =>
+      e.attrs.some((a) => a.name === "datapath") ||
+      e.children.some((c) => c.attrs.some((a) => a.name === "datapath"));
+    if (levels.some(supplies)) return;
+    this.errors.push(new DeclareError(
+      `':${path} = …' has no record to write — a :path names a field of the record the nearest enclosing 'datapath' points at, and nothing above this declares one. Move the handler inside 'datapath = { … }', or write an ordinary attribute instead`,
+      pos));
+  }
+
   private resolveBody(
     src: string,
     brace: Pos,
@@ -1639,11 +1658,12 @@ class Resolver {
     // stays a fixpoint: the emitted form has no islands to find, and `$data`
     // is a member of `this`, never a free identifier.
     for (const p of scanDatapaths(src)) {
-      this.edits.push({
-        start: bodyStart + p.start,
-        end: bodyStart + p.end,
-        text: `this.$data(${JSON.stringify(p.plan ?? splitPath(p.path))})`,
-      });
+      const write = !expression && isWriteTarget(src, p);
+      if (write) this.checkWriteTarget(p.path, levels, mainRoot, this.posAt(bodyStart + p.start));
+      // a computed key's code stays in place between the pieces, resolved below
+      for (const e of islandEdits(p, loweredPieces(p, write))) {
+        this.edits.push({ start: bodyStart + e.start, end: bodyStart + e.end, text: e.text });
+      }
     }
     // The TS-facing passes below still see the ORIGINAL body text (edits are
     // collected, not applied), so islands are neutralized with a same-length,
@@ -1682,6 +1702,15 @@ class Resolver {
           end: bodyStart + id.end,
           text: "this.$provided",
         });
+        continue;
+      }
+      if (id.name === "afterDelay" && id.callee) {
+        // `afterDelay(ms, fn)` — run fn once, later. Rewritten to the base-node
+        // method so the wait belongs to the node whose handler asked (a
+        // discarded node cancels it; Node.$afterDelay). A value { } computes and
+        // never waits, so there it is refused.
+        if (expression) this.errors.push(Diag.afterInValue(this.posAt(bodyStart + id.start)));
+        else this.edits.push({ start: bodyStart + id.start, end: bodyStart + id.end, text: "this.$afterDelay" });
         continue;
       }
       if (id.name === "hostProvided" && id.callee) {

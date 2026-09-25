@@ -97,7 +97,7 @@ You already have the whole development loop:
 Then break it on purpose. Change `count` to `kount` in the label and reload:
 
 ```
-cannot resolve 'kount' — not a member of Text → App, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …) [DECLARE4001] (line 5, col 31)
+cannot resolve 'kount' — not a member of Text → App, a parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …) [DECLARE4001] (line 5, col 31)
 ```
 
 The diagnostic names the fix: the name is not in scope, and it shows the exact
@@ -110,8 +110,8 @@ enum's tokens, what a library component carries, what a diagnostic code means �
 ask the platform instead of reading for it:
 
 ```
-node tools/declare-help.mjs Slider.value      # any dotted name, class, or attribute
-node tools/declare-help.mjs DECLARE4001       # a concept, an enum, a diagnostic code
+npx declare-help Slider.value      # any dotted name, class, or attribute
+npx declare-help DECLARE4001       # a concept, an enum, a diagnostic code
 ```
 
 One answer per question, did-you-mean included, and a true miss says what it
@@ -135,7 +135,7 @@ covers `declarec` and hosting.
 
 ## Where next
 
-- **Learn it properly** — [the guide](declare-docs:guide:thinking-in-declare), in order.
+- **Learn it properly** — [the guide](declare-docs:guide:what-declare-is), in order.
   It teaches you to think in Declare, starting from an app just like this one.
 - **Hold the whole language at once** — [`declare.md`](declare-docs:spec:core),
   the complete surface stated once.

@@ -347,7 +347,7 @@ export function validateBody(params, src) {
 function validateBodyUncached(params, src) {
     let e;
     if (syntaxValidator !== null) {
-        const r = rewriteDatapaths(src);
+        const r = rewriteDatapaths(src, true);
         if ("error" in r)
             return r.error;
         e = syntaxValidator(r.src, false);
@@ -378,7 +378,7 @@ export function compileBody(params, src) {
     if (hit !== undefined)
         return hit;
     const out = (() => {
-        const r = rewriteDatapaths(src);
+        const r = rewriteDatapaths(src, true);
         if ("error" in r)
             return r;
         try {

@@ -10,7 +10,7 @@
 // attach the pushes are no-ops (`surface` is null) and attach's flush sends
 // the full state once — literals cost no reactive machinery at all.
 
-import { Node, onDiscard, runRetire, authoredName, provideCursorRead } from "./node.js";
+import { Node, onDiscard, runRetire, authoredName, provideCursorRead, provideCursorWrite } from "./node.js";
 import { DeclareError, diag, negativeSizeMessage } from "./errors.js";
 import { backdropEqual, fillEqual, filterList, filtersEqual, insetIsZero, insetLead, insetSides, isMaskGradient, shadowEqual, strokeEqual, type Backdrop, type BoxStroke, type Fill, type FilterValue, type Inset, type Mask, type Radius, type Shadow } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
@@ -522,14 +522,6 @@ export class View extends Node {
    *  those pushes cross the seam — the slot itself never does. */
   declare layout: LayoutStrategy | null;
 
-  /** The data cursor (R8, language §9): the place `:path` reads on this view
-   *  and its descendants resolve against, inherited down the tree (the
-   *  nearest ancestor's cursor wins — see $data). Written as `datapath =
-   *  :rel.path` (extends the inherited cursor), `datapath = { expr }` (a
-   *  place derived from a dataset's value), or null. Model state — no
-   *  Surface push; visuals follow through the bindings that read it. */
-  declare datapath: Cursor | null;
-
   /** The optional draw method (the ruled rendering model): a `draw(d) { … }`
    *  member (its R5 language surface), a runtime assignment, or a subclass
    *  override — and this view draws. It runs on invalidation only, recording
@@ -640,15 +632,20 @@ export class View extends Node {
               this.extentRelistQueued = true;
               afterSettle(() => {
                 this.extentRelistQueued = false;
-                const dd = EXTENT.get(this);
-                if (dd === undefined) return;
-                for (const sz of ["width", "height"] as const) {
-                  const r = dd[sz];
-                  if (r !== undefined && r.isNative && ownerOf(this, sz) === r && r.id >= 0) { kernel().extentRewire(r.id, this.extentWords()); r.run(); }
+                const now = EXTENT.get(this);
+                if (now === undefined) return;
+                for (const s of ["width", "height"] as const) {
+                  const n = now[s];
+                  if (n !== undefined && n.isNative && ownerOf(this, s) === n && n.id >= 0) {
+                    kernel().extentRewire(n.id, this.extentWords());
+                    n.run();
+                  }
                 }
               });
             }
-          } else d.run();
+          } else {
+            d.run();
+          }
         }
       }
     }
@@ -1917,8 +1914,6 @@ defineAttributes(View, {
       if (l !== null) INSTALLED.set(v, l.attachTo(v));
     },
   },
-  // The cursor is model state: bindings read it (tracked), nothing renders it.
-  datapath: { def: null },
 });
 
 /** The view whose `datapath = { }` compute is currently running, if any. A
@@ -1927,8 +1922,8 @@ defineAttributes(View, {
  *  (bindDatapath's rule, applied to the island form). Without the skip,
  *  `datapath = { :detail }` reads its own half-written cursor on re-run and
  *  oscillates (null ↔ cursor) until the cycle guard trips. */
-let cursorDefining: View | null = null;
-export function withCursorDefining<T>(view: View, fn: () => T): T {
+let cursorDefining: Node | null = null;
+export function withCursorDefining<T>(view: Node, fn: () => T): T {
   const prev = cursorDefining;
   cursorDefining = view;
   try {
@@ -1944,7 +1939,7 @@ export function withCursorDefining<T>(view: View, fn: () => T): T {
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export function inheritedCursor(node: Node | null): Cursor | null {
   for (let n = node; n !== null; n = n.parent) {
-    if (n instanceof View && n !== cursorDefining) {
+    if (n !== cursorDefining) {
       const dp = n.datapath;
       if (dp !== null) return dp;
     }
@@ -3001,10 +2996,16 @@ setChangeDispatcher((node, changed) => {
 // levels inside an AnimatorGroup resolves to the same view its siblings do —
 // and a node with no cursor above it reads null, exactly as a view without a
 // datapath does.
+provideCursorWrite((node, segs, v) => {
+  const cursor = inheritedCursor(node);
+  if (cursor !== null) cursor.data.set([...cursor.path, ...segs], v);
+});
 provideCursorRead((node, path) => {
   const cursor = inheritedCursor(node);
   if (cursor === null) return null;
-  const plan = typeof path === "string" ? splitPath(path) : (path as readonly PathSeg[]);
+  // a computed key arrives as its value: a number is an index, anything else a name
+  const plan = typeof path === "string" ? splitPath(path)
+    : (path as readonly unknown[]).map((sg) => typeof sg === "number" ? { i: sg } : typeof sg === "object" && sg !== null ? sg : String(sg)) as PathSeg[];
   // Pure-name plans ride the currency walk (today's read, coercing —
   // `:rows.length` stays live); a plan with selectors evaluates per RFC 9535
   // (select.ts), the B3 surface.

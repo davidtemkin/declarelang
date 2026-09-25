@@ -157,7 +157,7 @@ await test("a transport that never reaches a server leaves statusCode 0", async 
 await test("the lifecycle is DECLARED surface: readable, refused on assignment", async () => {
   // findings 2026-08-04: DataSource declared only its five settable attrs, so
   // its whole lifecycle reached no generated reference — declare-model.json
-  // denied attributes declare.md §7 and guide/09-data.md teach. The stated
+  // denied attributes declare.md §7 and guide/14-data.md teach. The stated
   // reason was a comment saying read-only means omit, which is false for every
   // other class in the file: `readOnly` exists so a computed slot can be BOTH
   // declared and unsettable, exactly as View.hovered and Stream.status are.

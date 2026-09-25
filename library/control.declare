@@ -81,7 +81,8 @@ not nested as a child — a control is a leaf, and a name is the one form where 
 and data-bound are the same mechanism (`iconLeft = { "" + :icon }` in a replicated
 toolbar). Control only declares the slot; the concrete control lays it out. A
 **computed** name needs `use [ Name ]` to survive the build, since no static reference
-reaches it.
+reaches it. The name is read once, when the control is built: a name read from data gives
+each row its own icon, but changing the name later does not swap the icon (see `IconHost`).
 
 ## iconRight
 The trailing icon slot, same vocabulary as `iconLeft`. Setting it **wins over the
@@ -121,7 +122,7 @@ The seam a concrete control calls from its own `press()`.
 **The activation seam — override this, not the handlers.** Pointer and keyboard both
 land here, so one override serves a click, Space, and Enter. The base opens `menu` when
 there is one. A value control delivers through `input` from here and **never writes its
-own value slot directly**, which is what lets a bound control avoid fighting its
+own value slot directly**, which is what lets a constrained control avoid fighting its
 constraint.
 
 ## focusShape()
@@ -195,7 +196,7 @@ class Control extends View [
     // Icons by class name, resolved through the tag registry. A name rather than
     // a child because a control is a leaf — everything else about it is an
     // attribute — and because an attribute is the one form where authored and
-    // bound are the same mechanism: `iconLeft = TrashIcon` and
+    // bound are the same mechanism: `iconLeft = "TrashIcon"` and
     // `iconLeft = { "" + :icon }` in a replicated toolbar are one slot.
 
     iconLeft:  string = "",
@@ -250,7 +251,7 @@ class Control extends View [
 
     flashPress() {
         flash = true
-        setTimeout(() => { this.flash = false }, flashMs)
+        afterDelay(flashMs, () => { this.flash = false })
         },
 
     onFocus() { focused = true; focusVisible = Focus.byKeyboard() },
@@ -274,8 +275,7 @@ class Control extends View [
         },
 
     // Down opens a menu control — the platform convention, and the reason `menu`
-    // is a role rather than an icon: an author who wired a chevron by hand never
-    // got this.
+    // is a role rather than an icon: a chevron drawn by hand brings none of this.
 
     onKeyDown(e: KeyEvent) {
         if (disabled || e.repeat) return

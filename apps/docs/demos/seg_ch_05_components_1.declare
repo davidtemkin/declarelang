@@ -1,0 +1,7 @@
+App [ width = 260, height = 90, fill = white,
+    Button [ x = 20, y = 20,
+        taps: number = 0,
+        label = { "taps: " + taps },
+        onClick() { taps = taps + 1 }
+        ]
+    ]

@@ -3206,9 +3206,9 @@ class CanvasSurface {
             // has no ctx.filter function: a source-in pass over the layer first.
             const mag = Math.hypot(m.a, m.b) || 1;
             let src = layer;
-            const tint = this.filter.find((f) => f.fn === "tint");
+            const tint = this.filter.find((f) => f.fn === "colorize");
             let tinted = null;
-            if (tint !== undefined && tint.fn === "tint") {
+            if (tint !== undefined && tint.fn === "colorize") {
                 const { c: t, g: tg } = takeScratch(layer.width, layer.height);
                 tinted = t;
                 tg.drawImage(layer, 0, 0);
@@ -3217,7 +3217,7 @@ class CanvasSurface {
                 tg.fillRect(0, 0, t.width, t.height);
                 src = t;
             }
-            const rest = this.filter.filter((f) => f.fn !== "tint");
+            const rest = this.filter.filter((f) => f.fn !== "colorize");
             const css = filterCss(rest, mag);
             if (rest.length === 0)
                 ctx.drawImage(src, lx, ly);
@@ -3265,7 +3265,7 @@ class CanvasSurface {
         // would blur or shadow each strip onto the faces around it (the composed
         // card's bands, 2026-09-12). Under any of the three the strips go to a
         // scratch at full alpha, unfiltered, and the scratch lands as the group.
-        const filterCss3D = this.filter !== null && ctxFilterSupported() ? filterCss(this.filter.filter((f) => f.fn !== "tint"), k) : null;
+        const filterCss3D = this.filter !== null && ctxFilterSupported() ? filterCss(this.filter.filter((f) => f.fn !== "colorize"), k) : null;
         const grouped = this.opacity < 1 || this.blendMode !== "source-over" || filterCss3D !== null;
         let target = ctx;
         let scratch = null;

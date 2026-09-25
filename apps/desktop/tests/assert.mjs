@@ -33,9 +33,13 @@ export default async ({ drive, expect, page }) => {
   eq(await facts(), { activeApp: "files", miniCount: 0, front: "Documentation", birdsRunning: false, windows: 2 },
     "boot state");
 
-  // LAUNCH from the dock (icon 5 = 50 Birds): a real click, the launch gate
+  // a dock icon by its app, not its position — the dock's roster grows
+  const dockIcon = async (appId) => "app.dock.row." + await page.evaluate(
+    (id) => window.__declare.find("app.dock.row").children.findIndex((c) => c.appId == id), appId);
+
+  // LAUNCH from the dock (50 Birds): a real click, the launch gate
   // opens a window, focus and the active app follow
-  await drive.click("app.dock.row.5");
+  await drive.click(await dockIcon("birds"));
   await drive.wait(1500);
   await drive.settleMotion();
   eq(await facts(), { activeApp: "birds", miniCount: 0, front: "50 Birds", birdsRunning: true, windows: 3 },
@@ -79,9 +83,9 @@ export default async ({ drive, expect, page }) => {
   eq(await facts(), { activeApp: "files", miniCount: 0, front: "Documentation", birdsRunning: true, windows: 2 },
     "after refocus click");
 
-  // THE ALERT owns its state now (the repatriation): an inert dock icon
-  // (Write, past the five replicated launchables) raises it; OK dismisses
-  await drive.click("app.dock.row.6");
+  // THE ALERT: an inert dock icon (Write, past the launchables) raises it;
+  // OK dismisses
+  await drive.click(await dockIcon("write"));
   await drive.wait(300);
   await drive.settleMotion();
   const shown = await page.evaluate(() => ({ vis: window.__app.alert.visible,

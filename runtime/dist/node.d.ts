@@ -1,3 +1,4 @@
+import type { Cursor } from "./data.js";
 /** The cursor read, installed by view.ts. A cursor belongs to a VIEW — it comes
  *  from that view's `datapath` and its place in replication — but the things
  *  that want to read one are often not views: a Spring's target, an Animator's
@@ -8,6 +9,10 @@
  *  this module and the dependency stays one-directional. */
 type CursorRead = (node: Node, path: string | readonly unknown[]) => unknown;
 export declare function provideCursorRead(fn: CursorRead): void;
+/** The write half, through the same climb: a handler on any member writes the
+ *  record of the nearest view with a cursor, exactly where its reads land. */
+type CursorWrite = (node: Node, segs: readonly string[], v: unknown) => void;
+export declare function provideCursorWrite(fn: CursorWrite): void;
 export declare class Node {
     parent: Node | null;
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
@@ -19,13 +24,26 @@ export declare class Node {
     private chainMoved;
     /** The values this node reports changes to (schema.ts NodeSchema). */
     trackChanges: string[] | null;
+    /** The data cursor (language §9): the place `:path` reads and writes on this
+     *  node and its descendants resolve against — the nearest ancestor-or-self
+     *  cursor wins (view.ts inheritedCursor). On any node, so a model class can
+     *  stand on one record with no view involved. Written as `datapath =
+     *  :rel.path` (extends the inherited cursor), `datapath = { expr }` (a place
+     *  derived from a dataset's value), or null. */
+    datapath: Cursor | null;
     /** Read `path` against the nearest enclosing cursor — what a `:path` island
      *  lowers to (compile.ts resolveBody). On a view that is its own inherited
      *  cursor; on a non-view member it is the nearest view above that has one.
      *  An unresolved path yields null, as everywhere else in the language.
-     *  WRITES stay on the view (`$setData`): an edit into a record belongs to the
-     *  leaf that owns the edit, and a spring is not one. */
+     *  Writes climb the same way (`$cell`). */
     $data(path: string | readonly unknown[]): unknown;
+    /** One field of the record the nearest cursor points at, as an assignable
+     *  place — what a write to a `:path` in a handler lowers to (`:done = v` →
+     *  `this.$cell(["done"]).value = v`). Reading `value` is the `:path` read;
+     *  assigning it writes the dataset, so `:count += 1` reads and writes one field. */
+    $cell(segs: readonly unknown[]): {
+        value: unknown;
+    };
     readonly children: Node[];
     /** The read behind `provided("name")` — a value an ancestor makes available,
      *  read explicitly here. The compiler rewrites a `provided(…)` call's callee
@@ -36,6 +54,16 @@ export declare class Node {
      *  throws, naming the value. Lives on Node, not View: a faceless coordinator
      *  node reads provided values too. */
     $provided(name: string, ...dflt: unknown[]): unknown;
+    /** The call behind `afterDelay(ms, fn)` — run `fn` once, `ms` milliseconds from
+     *  now. The compiler rewrites the callee to `this.$afterDelay`, so the wait
+     *  belongs to the node whose handler asked: discarding the node cancels it,
+     *  and the handle's `cancel()` drops it sooner. It never runs inside the
+     *  frame that asked — the frame is shown first, so `afterDelay(0, fn)` is "next
+     *  frame" — and it reads the wall clock through the one test seam
+     *  (wallclock.ts), so a driver that advances Time advances this too. */
+    $afterDelay(ms: number, fn: () => void): {
+        cancel(): void;
+    };
     /** The read behind `hostProvided("name", default)` — a value this program's
      *  HOST makes available: an island's `provides` name, a page's
      *  `app.provide(…)`, the native host's launch parameters. The compiler

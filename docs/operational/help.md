@@ -4,7 +4,7 @@ One command answers name-shaped and concept-shaped questions from the documentat
 model, in the same register the compiler uses:
 
 ```bash
-node tools/declare-help.mjs <question> [--all] [--json]
+npx declare-help <question> [--all] [--json]
 ```
 
 No server, no index, no network — it reads `docs/declare-model.json` once and runs

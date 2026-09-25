@@ -146,7 +146,7 @@ export type Filter =
   | { readonly fn: "blur"; readonly radius: number }
   | { readonly fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; readonly amount: number }
   | { readonly fn: "hueRotate"; readonly degrees: number }
-  | { readonly fn: "tint"; readonly color: Color }
+  | { readonly fn: "colorize"; readonly color: Color }
   | Shadow;
 
 /** What a `backdrop` slot holds: the frost is a filter list applied to the
@@ -228,7 +228,7 @@ export const shadow = (dx: number, dy: number, blur: number, color: Color): Shad
 /** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
  *  canvas `ctx.filter` share it. `scale` maps view units to the target's
  *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
- *  `tint` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
+ *  `colorize` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
  *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
  *  after the blit — both leave it out of this string. */
 export function filterCss(list: readonly Filter[], scale = 1, tintRef?: (color: Color) => string): string {
@@ -243,7 +243,7 @@ export function filterCss(list: readonly Filter[], scale = 1, tintRef?: (color: 
       // the box-shadow radius (2σ) at every site, so one value looks the same
       // on a box, on glyphs, and in a filter list — halve it here.
       case "shadow": parts.push(`drop-shadow(${f.dx * scale}px ${f.dy * scale}px ${(f.blur * scale) / 2}px ${colorToCss(f.color)})`); break;
-      case "tint": if (tintRef !== undefined) parts.push(tintRef(f.color)); break;
+      case "colorize": if (tintRef !== undefined) parts.push(tintRef(f.color)); break;
     }
   }
   return parts.length === 0 ? "none" : parts.join(" ");
@@ -296,7 +296,7 @@ export function filterEqual(a: Filter, b: Filter): boolean {
   switch (a.fn) {
     case "blur": return a.radius === (b as typeof a).radius;
     case "hueRotate": return a.degrees === (b as typeof a).degrees;
-    case "tint": return a.color === (b as typeof a).color;
+    case "colorize": return a.color === (b as typeof a).color;
     case "shadow": return shadowEqual(a, b as Shadow);
     default: return a.amount === (b as typeof a).amount;
   }
@@ -424,7 +424,7 @@ export function radiusFit(r: Radius, w: number, h: number): [number, number, num
 /** A coerced literal — ready to assign to a typed view field. Percent is the
  *  one member with no field to land in yet (see above); the decoration
  *  records (Gradient/Stroke/Shadow) arrive from constructor literals. */
-export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | readonly (Stroke | null)[] | readonly number[] | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | { readonly arrayRoot: true; readonly fields: readonly ShapeField[] };
+export type AttrValue = number | boolean | string | null | Percent | Align | Gradient | Stroke | readonly (Stroke | null)[] | readonly number[] | readonly string[] | Shadow | readonly Filter[] | Mask | Motion | readonly ShapeField[] | { readonly arrayRoot: true; readonly fields: readonly ShapeField[] };
 
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
@@ -702,10 +702,15 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       return fail(diag`a datapath (':field.path', a { } expression yielding a place in a dataset, or null)`);
     case "array":
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
-      return fail(diag`an array — a { } binding (plain TS: items = { [ … ] }), or null`);
+      // A list of names — `trackChanges = [ "failed" ]`, `listenTo = [ "delta" ]` —
+      // is a literal on every node, not only where the view walk reads it.
+      if (type.of === "string" && lit.kind === "list" && lit.items.every((it) => it.kind === "string")) {
+        return ok(lit.items.map((it) => (it as { value: string }).value));
+      }
+      return fail(diag`an array — a { } constraint (plain TS: items = { [ … ] }), or null`);
     case "object":
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
-      return fail(diag`an object — a { } binding (plain TS), or null`);
+      return fail(diag`an object — a { } constraint (plain TS), or null`);
     case "view":
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
       return fail(diag`a View reference — assigned at runtime (an opener, a target), or null`);
@@ -723,9 +728,9 @@ export function coerce(type: AttrType, lit: Literal): Coerced {
       // `{ }` binding, or an inline `Theme [ … ]` record.
       if (type.data === true) {
         if (lit.kind === "ident" && lit.name === "null") return ok(null);
-        return fail(diag`a ${type.name} record (provide one with a { } binding), or null for none`);
+        return fail(diag`a ${type.name} record (provide one with a { } constraint), or null for none`);
       }
-      return fail(diag`a ${type.name} (a named theme, a { } binding, or a Theme [ … ] record)`);
+      return fail(diag`a ${type.name} (a named theme, a { } constraint, or a Theme [ … ] record)`);
     case "fill":
       return coerceFill(lit);
     case "stroke":
@@ -929,7 +934,7 @@ export function coerceShadow(lit: Literal): Coerced {
   return ok(shadow(dx, dy, blur, color));
 }
 
-const MASK = diag`a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } binding (mask = { stencil }), or null`;
+const MASK = diag`a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } constraint (mask = { stencil }), or null`;
 
 // ── Motion (animation.md §1) ─────────────────────────────────────────────────
 //

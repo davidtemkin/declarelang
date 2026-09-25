@@ -88,8 +88,8 @@ no build step on install.
 {
   "devDependencies": { "declarelang": "github:davidtemkin/declarelang#v0.1.1" },
   "scripts": {
-    "dev":   "declarelang dev",
-    "build": "declarelang build shop.declare -o ../server/static/shop"
+    "dev":   "declare-dev",
+    "build": "declarec shop.declare -o ../server/static/shop"
   }
 }
 ```
@@ -99,10 +99,9 @@ The version is pinned per project, so updating Declare is a one-line bump and an
 your project decides when, and a teammate gets the same version from the lockfile. The
 installed copy is never edited; treat it exactly like any other dependency.
 
-The command in scripts is **`declarelang`**, not `declare`: `declare` is a bash builtin, so
-`npm run dev` (which runs the script through `sh -c`) would hit the builtin instead of the
-CLI. `declare` is installed too and works interactively on non-bash shells and via
-`npx declare`, but `declarelang` is the one to use anywhere a shell might intercept it.
+The package installs one command per job: `declare-dev` runs the dev server, `declarec`
+packages a program for production, and `declare-verify`, `declare-format` and `declare-help`
+check, format and explain. Each runs from npm scripts, from `npx`, or from a shell.
 
 ## Running it — two processes
 
@@ -114,12 +113,12 @@ server proxying to it:
 uvicorn server.app:app --port 8000
 
 # terminal 2 — the front end, from your project dir
-declarelang dev
+npx declare-dev
 ```
 
 Edit a `.declare` file, reload, the change is live — [the dev loop](declare-docs:operational:dev-server)
-is identical to the distro's. `declarelang dev` is `node_modules/declarelang`'s CLI; the plain
-form that never depends on PATH or a shell builtin is `node node_modules/declarelang/server/index.mjs`.
+is identical to the distro's. `declare-dev` is `node_modules/declarelang`'s dev-server command; the plain
+form that never depends on PATH is `node node_modules/declarelang/server/index.mjs`.
 
 ## The proxy, and why it is not about CORS
 

@@ -231,14 +231,14 @@ class SkyPhoto extends View [ clip = true,
 /*
 # WSky — the one sky slot
 
-Bind `cond`, get that city's sky. A condition is either drawn (the sun and
+Set `cond`, get that city's sky. A condition is either drawn (the sun and
 its glow, the star field) or photographed, so this holds one of each rather
 than one per condition: the drawing is a branch inside a single `draw()`, and
 the single photograph changes its source.
 
 That shape matters more than it looks. A hidden `draw()` still allocates its
-canvas at full size and rasterizes into it, so four children showing one meant
-paying for every sky a city might have had — at a full page that is tens of
+canvas at full size and rasterizes into it, so a child per condition would
+pay for every sky a city might have had — at a full page that is tens of
 megabytes of backing store nobody can see. Here a photographic condition
 records nothing, and an empty recording has no bounds, so no canvas exists at
 all. One canvas or one image, never both, never four.

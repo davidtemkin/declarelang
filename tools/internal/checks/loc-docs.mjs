@@ -41,7 +41,7 @@ async function clickText(t, railOnly = false) {
 // 1) cold load, no fragment → the declared initial, clean URL (§3).
 await page.goto(DOCS, { waitUntil: "networkidle0", timeout: 30000 });
 await wait(2200);   // let the DataSource land + render
-check("cold docs → guide/01-thinking-in-declare, clean URL", await state(), { mode: "guide", chapter: "01-thinking-in-declare", hash: "" });
+check("cold docs → guide/01-what-declare-is, clean URL", await state(), { mode: "guide", chapter: "01-what-declare-is", hash: "" });
 
 // 2) Reference mode → reference/<remembered View>, pushes the fragment.
 await clickText("Reference", true);
@@ -51,9 +51,9 @@ check("click Reference → reference view + #reference/View", await state(), { m
 await clickText("Image", true);
 check("click Image (rail) → #reference/Image", await state(), { mode: "reference", selected: "Image", hash: "#reference/Image" });
 
-// 4) back to Guide → guide/01-thinking-in-declare is the DEFAULT, so a CLEAN URL (§3), not #guide/01-thinking-in-declare.
+// 4) back to Guide → guide/01-what-declare-is is the DEFAULT, so a CLEAN URL (§3), not #guide/01-what-declare-is.
 await clickText("Guide", true);
-check("click Guide → guide default, clean URL", await state(), { mode: "guide", chapter: "01-thinking-in-declare", hash: "" });
+check("click Guide → guide default, clean URL", await state(), { mode: "guide", chapter: "01-what-declare-is", hash: "" });
 
 // 5) Reference again → the reference cursor is REMEMBERED (Image), cross-mode memory intact.
 await clickText("Reference", true);
@@ -67,7 +67,7 @@ check("back → guide default", await state(), { mode: "guide", hash: "" });
 //    is fetched. The heading must be revealed once the model lands (held until then).
 const p2 = await b.newPage();
 await p2.setViewport({ width: 1200, height: 820 });
-await p2.goto(`${DOCS}#guide/04-tree@components-are-classes`, { waitUntil: "networkidle0", timeout: 30000 });
+await p2.goto(`${DOCS}#guide/05-components@components-are-classes`, { waitUntil: "networkidle0", timeout: 30000 });
 await wait(2600);   // model fetch + chapter render + reveal
 const race = await p2.evaluate(() => ({
   mode: window.__app?.mode, chapter: window.__app?.chapter, hash: location.hash,

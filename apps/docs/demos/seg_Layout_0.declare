@@ -5,7 +5,7 @@ class Rail extends Layout [
         let x = 0
         return this.laid().map((c) => {
             const box = ({ x })
-            if (c.visible) x = x + (c as any).width + this.gap
+            if (c.visible) x = x + c.width + this.gap
             return box
             })
         }

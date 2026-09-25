@@ -10,7 +10,7 @@ Segmented [ width = 300, value = { app.page },
     choices = { [ ({ id: "controls", label: "Controls" }),
                  ({ id: "table",    label: "Table" }),
                  ({ id: "grid",     label: "DataGrid" }) ] },
-    input(v: object) { app.page = "" + v }
+    input(v: string) { app.page = v }
     ]
 ```
 
@@ -23,27 +23,13 @@ live while anything reaching into the collection is refused —
 `aggregation over a reactive node collection … derive from data [DECLARE7001]`.
 The compiler names the answer.
 
-### Equal widths — a choice, not a limitation
+### Equal widths
 
-Segments divide the control's width evenly. This is a design decision and it
-could be otherwise: a `Layout`'s `place()` may aggregate over children — that is
-how `SimpleLayout` sizes a variable-width row — so a strategy that placed each
-segment by its own label and interpolated the pill between neighbours is
-buildable. The `DECLARE7001` refusal binds constraints reaching into the view
-tree, not the layout strategy whose job that is. Three reasons not to:
-
-- **A segmented control divides evenly; a row of buttons sizes to content.** The
-  two are different controls, and this one is the first.
-- **The segmented convention makes it a content rule**: keep segment labels short and
-  similar in length. Equal width enforces that rather than tolerating it. One long
-  label makes the whole control look wrong, which is the feedback you want.
-- **The sliding pill.** At equal widths it translates at constant width. At
-  variable widths it would have to morph its width while travelling, which reads
-  as rubbery and worsens the more the labels differ. Most platforms never meet
-  this, because their highlight pops.
-
-The cost is real and worth stating plainly: **a `Segmented` does not self-size to
-its labels.** Set `width`, or accept `segMin × choices.length`.
+Segments divide the control's width evenly — a segmented control divides evenly,
+where a row of buttons sizes to its content. Equal width keeps the convention that
+segment labels are short and similar in length, and it lets the pill travel at
+constant width between segments. So **a `Segmented` does not size itself to its
+labels**: set `width`, or accept `segMin × choices.length`.
 
 ### The pill
 
@@ -58,16 +44,16 @@ App [ width = 340, height = 130, page: string = "one",
         choices = { [ ({ id: "one", label: "One" }),
                      ({ id: "two", label: "Two" }),
                      ({ id: "three", label: "Three" }) ] },
-        input(v: object) { app.page = "" + v }
+        input(v: string) { app.page = v }
         ],
     Text [ x = 20, y = 74, text = { "showing: " + app.page } ]
     ]
 ```
 
 ## value
-The active choice. Bind it to your own state and override `input` to own the
+The active choice. Constrain it to your own state and override `input` to own the
 destination, or leave it alone and read `value` back — a `Segmented` works
-standalone. Compared against each item's `choice` by identity, so any value type
+standalone. Compared against each choice's `id` by identity, so any value type
 works.
 
 ## isSegmented
@@ -163,18 +149,25 @@ This segment's text and icon colour, brightening when it is on or hot. One slot,
 label and an icon can never disagree.
 
 ## location
-Makes this segment a **real link**: give a choice a `location` and the segment navigates
-there in its own `onClick`. This is what keeps a view-switching control visible to link
-extraction — the crawler reads `app.location = …` out of activation handlers, and
-`input(v)` is not one, since its destination depends on a value that does not exist at
-extraction time. Empty for an ordinary segmented control, and an empty read emits no
-anchor.
+Makes this segment a **real link**: give a choice a `location` and the segment declares
+`link = "#…"` to it, so it renders as a real anchor the crawler follows, ⌘-click opens,
+and a click or Enter navigates. A view-switching control is often the only edge into
+half of an app, so the switch has to say where it goes. Empty for an ordinary segmented
+control, and an empty location is no link at all.
+
+## link
+`"#"` + this segment's `location`, or empty — the segment is a link exactly when its
+choice names a place, and never while the group is disabled.
+
+## replace
+The group's own `replace`: whether following this segment's link overwrites the history
+entry instead of pushing one.
 
 ## press()
 Delivers this segment's id to the group.
 
 ## onClick
-Navigates if the choice carries a `location`, then presses.
+Presses. A segment whose choice carries a `location` also follows its `link`.
 
 ## onKeyDown
 Space and Enter pick; arrows rove to the adjacent segment.
@@ -335,29 +328,18 @@ class SegmentedItem extends Control [
     disabled = { (parent as Segmented).disabled },
 
     // A segment may be a location. Give a choice a `location` and this segment
-    // navigates there itself, in its own `onClick` — which is what makes it
-    // visible to link extraction: the crawler reads `app.location = …` out of
-    // activation handlers, and `input(v)` is not one; nor could it be, since
-    // the destination there depends on `v`, which does not exist at extraction
-    // time. A view-switching control is often the only edge into half of the
-    // crawl graph — the docs' Guide/Reference switch — so the switch itself
-    // has to say where it goes. Empty for an ordinary segmented control, and
-    // an empty read emits no anchor, so this is inert unless a choice asks
-    // for it.
+    // is a link to it — a real anchor the crawler follows, not a handler that
+    // navigates. A view-switching control is often the only edge into half of
+    // the crawl graph (the docs' Guide/Reference switch), so the switch itself
+    // says where it goes. The group's `replace` picks the history verb. Empty
+    // for an ordinary segmented control: an empty link is no link.
 
     location: string = { "" + (:location ?? "") },
+    link = { !disabled && classroot.location != "" ? "#" + classroot.location : "" },
+    replace = { (parent as Segmented).replace },
 
     press()   { if (!disabled) (this.parent as Segmented).pick(:id) },
-    onClick() {
-        if (disabled) return
-        if (classroot.location != "") {
-            // the group's `replace` picks the history verb; the `app.location =`
-            // branch stays first so link extraction keeps reading this edge
-            if ((this.parent as Segmented).replace) app.follow("#" + classroot.location, true)
-            else app.location = classroot.location
-            }
-        press()
-        },
+    onClick() { press() },
 
     onKeyDown(e: KeyEvent) {
         if (disabled) return

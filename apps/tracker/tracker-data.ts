@@ -1,4 +1,4 @@
-// tracker-data.ts — the seeded issue generator and the palette/format helpers,
+// tracker-data.ts — the seeded issue generator, the avatar hue scale and the format helpers,
 // loaded by tracker.declare with `script [ "tracker-data.ts" ]`. Plain
 // TypeScript, written as a module: these exports are what every { } body in the
 // tracker may name. Nothing here is reactive — script lives outside the
@@ -102,27 +102,6 @@ export function trkDate(ts: number): string {
     return TRK_MONTHS[d.getMonth()] + " " + d.getDate()
 }
 
-// ── the app's palette: every color that is not a theme token, named ──
-export const TRK_GREEN = 0x45A557    // open
-export const TRK_BLUE = 0x4C6FE7     // in progress
-export const TRK_RED = 0xE5484D      // blocked · urgent · destructive
-export const TRK_GRAY = 0x9A9DA5     // closed
-export const TRK_AMBER = 0xB88024    // high priority
-export const TRK_SLATE = 0x7C8698    // medium priority
-export const TRK_MIST = 0xAAB4BE     // low priority
-export const TRK_TEAL = 0x37B6A9     // the brand gradient's far stop
-export const TRK_WHITE = 0xFFFFFF    // glyphs cut into filled shapes
-
-export function trkStatusColor(s: string): number {
-    return s === "open" ? TRK_GREEN : s === "in-progress" ? TRK_BLUE : s === "blocked" ? TRK_RED : TRK_GRAY
-}
-export function trkPrioColor(p: string): number {
-    return p === "P0" ? TRK_RED : p === "P1" ? TRK_AMBER : p === "P2" ? TRK_SLATE : TRK_MIST
-}
-export function trkRed(): number { return TRK_RED }
-export function trkTeal(): number { return TRK_TEAL }
-export function trkWhite(): number { return TRK_WHITE }
-
 // avatars and label dots color by name — a stable hash into a small
 // palette of muted tones that hold white initials in both themes
 export const TRK_HUES = [0x6C7BD9, 0x4FA3A5, 0xC97B63, 0x8E6BC1, 0x5B9E5E, 0xC06A8C, 0x557FB8, 0xB08A4F]
@@ -130,20 +109,6 @@ export function trkHue(name: string): number {
     let h = 0
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
     return TRK_HUES[Math.abs(h) % TRK_HUES.length]
-}
-
-// Baselines. `y = center` centers a Text's ink band — cap top to
-// baseline — so a centered line's baseline lands at (boxHeight + cap)/2.
-// Two centered texts of different sizes therefore do **not** share a
-// baseline: the smaller one rides higher by half the cap difference.
-// `trkBaselineNudge` is that correction, in terms of the cap-height
-// fraction of the em (SF, Inter and Roboto all sit within a hair of
-// 0.72). Same-sized labels need none of this — they share a baseline by
-// construction once their boxes are the same height, which is why the
-// footer gives every control one row height. Lands within half a pixel.
-export const TRK_CAP_RATIO = 0.72
-export function trkBaselineNudge(refPx: number, ownPx: number): number {
-    return Math.round(TRK_CAP_RATIO * (refPx - ownPx) / 2 * 10) / 10
 }
 
 export function trkStatusLabel(s: string): string {

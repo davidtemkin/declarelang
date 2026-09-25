@@ -124,7 +124,7 @@ class HeroStage extends View [ height = { this.H },
         tagBg: View [ x = { parent.width - this.width - 24 }, y = -2, height = 16,
             padding = [1, 8, 1, 8], fill = { provided("theme").panel },
             t: Mono [ fontSize = 11, textColor = { provided("theme").muted },
-                text = "render seam · one interface, 58 methods" ]
+                text = "render seam · one interface, 60 methods" ]
             ]
         ],
 

@@ -38,7 +38,7 @@ export const sepia = (amount) => Object.freeze({ fn: "sepia", amount: Math.min(1
 export const hueRotate = (degrees) => Object.freeze({ fn: "hueRotate", degrees });
 /** `colorize(color)`: the group's alpha in one colour (template-image rendering) —
  *  what `Image.tint` is sugar for. (`tint(…)` is the theme helper's name.) */
-export const colorize = (color) => Object.freeze({ fn: "tint", color });
+export const colorize = (color) => Object.freeze({ fn: "colorize", color });
 /** The frost: blur + saturate, the material pair every platform's menus wear. */
 export const frost = (radius, saturation = 1) => Object.freeze(saturation === 1 ? [blur(radius)] : [blur(radius), saturate(saturation)]);
 /** A written `radialGradient(…)` / `conicGradient(…)` fill. */

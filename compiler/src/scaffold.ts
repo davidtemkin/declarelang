@@ -136,9 +136,9 @@ interface Stroke { width: number; color: Color }
  *  into a stroke asks which form it has first: \`Array.isArray(v.stroke)\`, or
  *  \`v.stroke && "width" in v.stroke\`. \`null\` is no border at all. */
 type BoxStroke = Stroke | readonly [Stroke | null, Stroke | null, Stroke | null, Stroke | null] | null;
-/** A ring drawn OUTSIDE the box, built by \`outline(width, color)\` — the focus
- *  silhouette's shape. Unlike a stroke it does not eat into the content box; unlike
- *  CSS's \`outline\` it is a value, not a property with its own cascade. */
+/** A stroke around the edges of the GLYPHS, built by \`outline(width, color)\` — the
+ *  value \`Text.outline\` takes. It rides under the fill, so a filled letter shows a
+ *  thin ring and an unfilled one reads hollow; it is not a box around the run. */
 interface Outline { width: number; color: Color }
 /** A drop shadow, built by \`shadow(dx, dy, blur, color)\`. It is also a \`Filter\`, so
  *  it composes in a filter list; on \`textShadow\` it shadows the glyphs. */
@@ -148,7 +148,7 @@ interface Shadow { fn: "shadow"; dx: number; dy: number; blur: number; color: Co
  *  GROUP (so a subtree blurs together, not child by child); \`backdrop\` applies the
  *  same list to what lies beneath. There is no CSS \`filter\` string: the tokens are
  *  functions, so a misspelling is a compile error rather than a silent no-op. */
-type Filter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "tint"; color: Color } | Shadow;
+type Filter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "colorize"; color: Color } | Shadow;
 /** What lies BENEATH a view, filtered: the same list \`filter\` takes, applied to
  *  the backdrop instead of the view's own paint. \`frost\` is the common one. */
 type Backdrop = readonly Filter[];
@@ -266,6 +266,15 @@ declare function measureText(text: string, style: TextStyle, width?: number): Te
  *  re-derives. \`theme = { hostProvided("theme", app.dark ? SanFranciscoDark : SanFrancisco) }\`. */
 declare function hostProvided<T>(name: string, fallback: T): T;
 declare function hostProvided(name: string): any;
+/** Run \`fn\` once, \`ms\` milliseconds from now — never in the frame that asked, so
+ *  \`afterDelay(0, fn)\` is the next frame. The wait belongs to the node whose handler
+ *  asked: discarding that node cancels it, and the handle's \`cancel()\` drops it
+ *  sooner. Handlers and methods only. Rarely the tool: a value that should change
+ *  when something happens is a constraint on that something, a repeating call is a
+ *  \`Time\` member (\`tick = 5000\`), and motion is a Spring or an Animator. */
+declare function afterDelay(ms: number, fn: () => void): DelayHandle;
+/** What \`afterDelay(ms, fn)\` returns: \`cancel()\` drops the wait if it has not run. */
+interface DelayHandle { cancel(): void }
 /** The \`TextStyle\` in force where you write this — the provided text face
  *  (\`textColor\`, \`fontSize\`, \`fontFamily\`, \`fontWeight\`, \`letterSpacing\`), each
  *  falling to the same default a \`Text\` would, with \`overrides\` replacing any of
@@ -292,8 +301,7 @@ interface DrawGradient { addColorStop(offset: number, color: string | Color): vo
  *  the node is what knows whether the bytes have arrived. */
 interface DrawImageSource { loaded: boolean; naturalWidth: number; naturalHeight: number }
 /** The canvas drawing context a \`draw(d: Draw)\` body receives — a Canvas2D-
- *  shaped recorder. Mirrors runtime/src/draw.ts; every \`draw(d)\` in the corpus
- *  was \`any\` until this was declared. */
+ *  shaped recorder whose operations every renderer replays (runtime/src/draw.ts). */
 interface Draw {
   // The view's own SIZE, for a drawing that sizes itself. Reading one opts this
   // drawing into re-recording when the view resizes (draw.ts explains why that
@@ -407,7 +415,7 @@ interface TipEvent { readonly text: string; readonly x: number; readonly y: numb
  *  id. \`onMessage\` receives it, and \`last\` holds the most recent. */
 interface StreamMessage { readonly data: string; readonly type: string; readonly id: string }
 /** An easing curve, built by \`cubicBezier\`, \`back\`, \`steps\` or \`laszlo\` — what an
- *  \`Animator\`'s \`curve\` takes, alongside the named tokens. Opaque by design: a curve
+ *  \`Animator\`'s \`motion\` takes, alongside the named tokens. Opaque by design: a curve
  *  is a value you pass, not a shape you inspect. */
 type MotionCurve = { readonly __motion: true };
 /** An easing curve from two control points, the CSS \`cubic-bezier\` form — so a
@@ -464,24 +472,22 @@ interface TraceChange { path: string; attr: string; from?: number | boolean | st
  *  that opened it (\`triggers\`) and what it changed in response (\`changes\`); and
  *  \`unnamed\`, cells that moved but belong to no addressable attribute. */
 interface TraceSettle { n: number; at: number; ms: number; origin: string[]; runs: number; triggers: TraceChange[]; changes: TraceChange[]; unnamed: number }
-/** Run \`step\` exactly once, at the close of the current settle — your
+/** Run \`fn\` exactly once, at the close of the current settle — your
  *  handler's writes applied, views real, placed, and sized, nothing painted
  *  yet. What it writes lands in the same frame as the change itself. Reach
  *  for a constraint first; afterSettle is for work that is irreducibly a
  *  READING of the new geometry (aiming a camera at a view your write just
  *  caused to exist), never for waiting. */
-declare function afterSettle(step: () => void): void;
+declare function afterSettle(fn: () => void): void;
 declare function setTimeout(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearTimeout(id: number): void;
 declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearInterval(id: number): void;
 declare const console: { log(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };
-/* The network and URL globals a handler reaches for. The checker deliberately
- * loads no DOM lib (its Text / Image would collide with the components), so
- * these are declared by hand — the narrow, honest shape each actually has in
- * every host Declare runs in. Three agents in one session wrote
- * \`(globalThis as any).fetch\` because the checker said fetch was not in
- * scope (field report 2026-08-21); it is. */
+/* The network and URL globals, declared by hand — the checker loads no DOM lib
+ * (its Text / Image would collide with the components). A \`script\` block uses
+ * them; a { } body is refused \`fetch\` and the timers by the resolver, which
+ * names DataSource / afterDelay / Time (compile.ts isKnownGlobal). */
 interface Headers { get(name: string): string | null; has(name: string): boolean; forEach(fn: (value: string, key: string) => void): void }
 interface AbortSignal { readonly aborted: boolean; addEventListener(type: "abort", fn: () => void): void }
 declare class AbortController { readonly signal: AbortSignal; abort(reason?: unknown): void }
@@ -702,7 +708,10 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // the edit. Data-shaped → `any`, the same deliberate under-report as
   // Dataset.value.
   Node: [
-    `  $data(path: string | readonly (string | { i: number } | { s: (number | null)[] } | { w: number })[]): any;`,
+    `  $data(path: string | readonly unknown[]): any;`,
+    // what a handler's `:field = v` lowers to (datapath.ts writeTargetForm) — the
+    // write climbs to the nearest cursor exactly as the read does
+    `  $cell(segs: readonly unknown[]): { value: any };`,
   ],
   // The App's navigation SERVICE ACTION (view.ts App.navigate, capabilities.md
   // §6): a link/button calls `app.navigate(url)` in an activation handler. A
@@ -957,6 +966,8 @@ function emitClass(
     // `$provided` this one IS typed: its shape is known (the provided face as a
     // `TextStyle`), so a misspelled override field is caught at the call.
     lines.push(`  $providedTextStyle(overrides?: TextStyle): TextStyle;`);
+    // `afterDelay(ms, fn)` → `this.$afterDelay(…)`: the wait belongs to the asking node.
+    lines.push(`  $afterDelay(ms: number, fn: () => void): DelayHandle;`);
   }
   // One optional handler member per event this schema DECLARES. Emitting them
   // is what makes a user's handler an OVERRIDE: writing `onPointerUp(e: string)`

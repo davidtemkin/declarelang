@@ -6,11 +6,14 @@
 // rungs that need it: names/ids and `classroot` scope (R6), the reactive core
 // and construct/init events (R4/R5). Establishing the Node↔View seam now is
 // what lets those land without reshaping the base.
-import { Cell, isTracking } from "./reactive.js";
+import { Cell, isTracking, noteOrigin } from "./reactive.js";
+import { timeHost } from "./wallclock.js";
 import { trackNode, untrackNode } from "./change-event.js";
 import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE } from "./attributes.js";
 let readCursor = null;
 export function provideCursorRead(fn) { readCursor = fn; }
+let writeCursor = null;
+export function provideCursorWrite(fn) { writeCursor = fn; }
 export class Node {
     parent = null;
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
@@ -28,10 +31,20 @@ export class Node {
      *  lowers to (compile.ts resolveBody). On a view that is its own inherited
      *  cursor; on a non-view member it is the nearest view above that has one.
      *  An unresolved path yields null, as everywhere else in the language.
-     *  WRITES stay on the view (`$setData`): an edit into a record belongs to the
-     *  leaf that owns the edit, and a spring is not one. */
+     *  Writes climb the same way (`$cell`). */
     $data(path) {
         return readCursor === null ? null : readCursor(this, path);
+    }
+    /** One field of the record the nearest cursor points at, as an assignable
+     *  place — what a write to a `:path` in a handler lowers to (`:done = v` →
+     *  `this.$cell(["done"]).value = v`). Reading `value` is the `:path` read;
+     *  assigning it writes the dataset, so `:count += 1` reads and writes one field. */
+    $cell(segs) {
+        const node = this;
+        return {
+            get value() { return node.$data(segs); },
+            set value(v) { writeCursor?.(node, segs.map(String), v); }, // a computed key writes by its string form
+        };
     }
     children = [];
     /** The read behind `provided("name")` — a value an ancestor makes available,
@@ -44,6 +57,45 @@ export class Node {
      *  node reads provided values too. */
     $provided(name, ...dflt) {
         return providedRead(this, name, dflt.length > 0, dflt[0]);
+    }
+    /** The call behind `afterDelay(ms, fn)` — run `fn` once, `ms` milliseconds from
+     *  now. The compiler rewrites the callee to `this.$afterDelay`, so the wait
+     *  belongs to the node whose handler asked: discarding the node cancels it,
+     *  and the handle's `cancel()` drops it sooner. It never runs inside the
+     *  frame that asked — the frame is shown first, so `afterDelay(0, fn)` is "next
+     *  frame" — and it reads the wall clock through the one test seam
+     *  (wallclock.ts), so a driver that advances Time advances this too. */
+    $afterDelay(ms, fn) {
+        const host = timeHost();
+        const due = host.now() + Math.max(0, Number(ms) || 0);
+        let frame = null, timer = null, done = false;
+        const cancel = () => {
+            if (done)
+                return;
+            done = true;
+            pending(this).delete(cancel);
+            if (frame !== null)
+                (host.cancelFrame ?? host.clearTimeout)(frame);
+            if (timer !== null)
+                host.clearTimeout(timer);
+        };
+        const fire = () => {
+            if (done)
+                return;
+            done = true;
+            pending(this).delete(cancel);
+            const name = authoredName(this);
+            noteOrigin(`after on ${name ?? this.constructor.name}`, this);
+            fn();
+        };
+        pending(this).add(cancel);
+        const afterFrame = () => {
+            frame = null;
+            if (!done)
+                timer = host.setTimeout(fire, Math.max(0, due - host.now()));
+        };
+        frame = host.frame !== undefined ? host.frame(afterFrame) : host.setTimeout(afterFrame, 0);
+        return { cancel };
     }
     /** The read behind `hostProvided("name", default)` — a value this program's
      *  HOST makes available: an island's `provides` name, a page's
@@ -215,6 +267,20 @@ export function onDiscard(node, fn) {
     else
         RETIRE.set(node, [fn]);
 }
+// A node's outstanding `after` waits, each held as its cancel — registered
+// with the node's teardowns on the first one, so a discarded node leaves none.
+const AFTER = new WeakMap();
+function pending(node) {
+    let set = AFTER.get(node);
+    if (set === undefined) {
+        const s = new Set();
+        set = s;
+        AFTER.set(node, s);
+        onDiscard(node, () => { for (const c of [...s])
+            c(); AFTER.delete(node); });
+    }
+    return set;
+}
 /** Run and clear `node`'s registered teardowns. Called by Node.discard (the
  *  base) and by View.discard (which re-implements the recursion rather than
  *  calling super — each discard path runs it exactly once). */
@@ -250,6 +316,8 @@ export function authoredName(node) {
 // so a name added later starts silent. Before `init` there is nothing to arm;
 // view.ts arms the node when it goes live.
 defineAttributes(Node, {
+    // The cursor is model state: bindings read it (tracked), nothing renders it.
+    datapath: { def: null },
     trackChanges: { def: null, push: (n, v) => {
             if (n.$live !== true)
                 return;

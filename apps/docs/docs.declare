@@ -172,7 +172,7 @@ class MemberChip extends Chip [
            : kind == "method" ? provided("theme").mchipBg
            : kind == "event"  ? provided("theme").echipBg
            : provided("theme").chipBg },
-    link = { "#" + app.page + "@" + :name }
+    link = { "#" + provided("docPage", app.page) + "@" + :name }
     ]
 
 
@@ -264,12 +264,17 @@ class JumpLink extends View [
     height = { 28 * app.fontScale }, cornerRadius = 7, cursor = "pointer",
     width = { this.row.width + 24 },
     fill = { hovered ? provided("theme").chipHov : provided("theme").chipBg },
-    link = { to != "" ? "#" + app.page + "@" + to : "" },
+
+    // the page this link sits on, which its page view provides — a page stays
+    // resident when hidden, so the current location is not necessarily its own
+
+    link = { to != "" ? "#" + provided("docPage", app.page) + "@" + to : "" },
     row: View [ x = 12, y = { 5 * app.fontScale }, width = { this.contentWidth }, height = { 18 * app.fontScale },
         layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
         name: Text [ fontSize = { 13 * app.fontScale }, fontWeight = semibold, wrap = false,
             textColor = { provided("theme").accent }, text = { classroot.label } ],
-        n: Mono [ fontSize = { 12 * app.fontScale }, wrap = false, textColor = { provided("theme").sigDim }, text = { "" + classroot.count } ]
+        n: Mono [ fontSize = { 12 * app.fontScale }, wrap = false, textColor = { provided("theme").sigDim },
+            visible = { classroot.count > 0 }, text = { "" + classroot.count } ]
         ]
     ]
 
@@ -477,11 +482,11 @@ class ReadStrip extends View [ width = 100%, cornerRadius = 10, visible = { :n >
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         tokens: View [ width = 100%, visible = { :reads.theme.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
-            Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]   // $data("") — the record is the string itself
+            Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + :@ } ]   // :@ — the record is the string itself
             ],
         provided: View [ width = 100%, visible = { :reads.provided.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
-            Chip [ datapath = :reads.provided[], kind = "token", label = { "" + this.$data("") } ]
+            Chip [ datapath = :reads.provided[], kind = "token", label = { "" + :@ } ]
             ]
         ]
     ]
@@ -760,9 +765,23 @@ class Block extends View [ width = 100%,
     tone: Color   = { provided("theme").body },
     lead: number  = 1.6,
     layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+    // a guide section's address (`guide/14-data@talking-to-a-server`) — the
+    // extractor anchors each segment that opens with a heading
+
+    anchor = { "" + (:anchor ?? "") },
     md: Markdown [ width = 100%, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, fontScale = { app.fontScale }, dark = { app.darkUI },
         visible = { :md != "" }, text = { :md },
         onLink(href: string) { app.openDocLink(href) }
+        ],
+
+    // a chapter's title segment carries its sections, as the reference's pages
+    // carry theirs: each a link to the section's anchor
+
+    toc: View [ width = 100%, visible = { (:toc ?? []).length > 0 },
+        layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = baseline ],
+        Muted [ fontSize = { 16 * app.fontScale }, text = "On this page:" ],
+        JumpLink [ datapath = :toc[], label = { "" + :title }, to = { "" + :anchor } ]
         ],
     RunIsland [ datapath = :code[], width = 100%, live = { classroot.live } ]
     ]
@@ -779,6 +798,7 @@ read, and a boot never pays for the pages it is not showing.
 
 class ClassDetail extends View [ width = 100%,
     cname: string = "",
+    docPage: string = { "reference/" + classroot.cname },   // provided: the address of this page
     visible = { app.selected == classroot.cname },
 
     // this page is on screen — the gate every inline preview reads before it mounts
@@ -815,7 +835,7 @@ class ClassDetail extends View [ width = 100%,
         subs: View [ width = 100%, visible = { :subclasses.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Muted [ fontSize = { 16 * app.fontScale }, text = "Subclasses:" ],
-            Chip [ datapath = :subclasses[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]   // $data("") — the record is the name itself
+            Chip [ datapath = :subclasses[], kind = "class", cls = { "" + :@ }, label = { "" + :@ } ]
             ],
 
         // the page's sections, one line, before the narration: for the reader
@@ -891,11 +911,11 @@ class ClassDetail extends View [ width = 100%,
             note = { "The values " + classroot.cname + " reads from above — its dependencies on whatever contains it. Change one on any ancestor and it follows. Its own body's reads; an ancestor that reads values of its own is folded beneath." } ],
         tokens: View [ width = 100%, visible = { :reads.theme.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
-            Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + this.$data("") } ]
+            Chip [ datapath = :reads.theme[], kind = "token", label = { "theme." + :@ } ]
             ],
         provided: View [ width = 100%, visible = { :reads.provided.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
-            Chip [ datapath = :reads.provided[], kind = "token", label = { "" + this.$data("") } ]
+            Chip [ datapath = :reads.provided[], kind = "token", label = { "" + :@ } ]
             ],
         strips: View [ width = 100%, datapath = { classroot.ancestors.value },
             layout: SimpleLayout [ axis = y, spacing = 8 ],
@@ -1037,6 +1057,7 @@ class FormIndex extends View [ width = 100%,
 
 class FormDetail extends View [ width = 100%,
     slug: string = "",
+    docPage: string = { "language/" + classroot.slug },     // provided: the address of this page
     visible = { app.mode == "language" && app.form == classroot.slug },
     pageLive: boolean = { app.mode == "language" && app.form == classroot.slug },
     layout: SimpleLayout [ axis = y, spacing = 36 ],
@@ -1077,12 +1098,12 @@ class FormDetail extends View [ width = 100%,
         forms: View [ width = 100%, visible = { :related.forms.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Muted [ fontSize = { 13 * app.fontScale }, text = "forms" ],
-            FormChip [ datapath = :related.forms[], slug = { "" + this.$data("") }, label = { app.formName("" + this.$data("")) } ]
+            FormChip [ datapath = :related.forms[], slug = { "" + :@ }, label = { app.formName("" + :@) } ]
             ],
         classes: View [ width = 100%, visible = { :related.classes.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Muted [ fontSize = { 13 * app.fontScale }, text = "classes" ],
-            Chip [ datapath = :related.classes[], kind = "class", cls = { "" + this.$data("") }, label = { "" + this.$data("") } ]
+            Chip [ datapath = :related.classes[], kind = "class", cls = { "" + :@ }, label = { "" + :@ } ]
             ],
         guide: View [ width = 100%, visible = { :related.guide.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
@@ -1161,6 +1182,7 @@ class UseRow extends View [ width = 100%,
 
 class TypeDetail extends View [ width = 100%,
     tname: string = "",
+    docPage: string = { "type/" + classroot.tname },        // provided: the address of this page
     visible = { app.mode == "type" && app.tname == classroot.tname },
     layout: SimpleLayout [ axis = y, spacing = 36 ],
 
@@ -1263,6 +1285,7 @@ class PartGroup extends View [ width = 100%,
 
 class ChapterDetail extends View [ width = 100%,
     cid: string = { :id },
+    docPage: string = { "guide/" + classroot.cid },         // provided: the address of this page
     visible = { app.mode == "guide" && app.chapter == classroot.cid },
     pageLive: boolean = { app.mode == "guide" && app.chapter == classroot.cid },
     layout: SimpleLayout [ axis = y, spacing = 20 ],
@@ -1394,21 +1417,21 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     mono: Font [ family = "ui-monospace, SFMono-Regular, monospace" ],
 
     /* Navigation is one string — `location`, the URL fragment. The grammar is
-       this app's own: `<mode>/<cursor>[@heading]` (`guide/04-tree`,
-       `reference/Slider`, `guide/04-tree@named-views`). The declared initial is the
+       this app's own: `<mode>/<cursor>[@heading]` (`guide/05-components`,
+       `reference/Slider`, `guide/05-components@models-classes-with-no-view`). The declared initial is the
        default, so a fresh `docs.declare` shows the first guide chapter with a clean
        URL. mode/chapter/selected derive from it and are never assigned — every
        tab and link writes `location`, back/forward writes it back, state follows
        (the single-writer rule; assigning derived state would disconnect history). */
 
-    location = "guide/01-thinking-in-declare",
+    location = "guide/01-what-declare-is",
 
     /* Cross-mode memory (not a language feature — three plain remembered cursors).
        `location` only carries the active mode's cursor, so switching guide↔reference
        would forget the other side. The navigation verbs keep these in step and the
        mode switch consults them, so returning to a mode lands where you left it. */
 
-    guideAt: string = "01-thinking-in-declare",              // last guide chapter visited …
+    guideAt: string = "01-what-declare-is",              // last guide chapter visited …
     refAt:   string = "View",                  // … and last reference class
     formAt:  string = "",                      // … and last language form ("" = the index)
     typeAt:  string = "Color",                 // … and last type page
@@ -1442,7 +1465,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
 
     page:     string = { app.location.split("@")[0] },                 // the location less its anchor — the fold heads' key
     mode:     string = { app.page.split("/")[0] || "guide" },
-    chapter:  string = { app.mode == "guide" ? (app.page.split("/")[1] || "01-thinking-in-declare") : app.guideAt },
+    chapter:  string = { app.mode == "guide" ? (app.page.split("/")[1] || "01-what-declare-is") : app.guideAt },
     selected: string = { app.mode == "reference" ? (app.page.split("/")[1] || "View") : app.refAt },
     form:     string = { app.mode == "language" ? (app.page.split("/")[1] || "") : app.formAt },
     tname:    string = { app.mode == "type" ? (app.page.split("/")[1] || app.typeAt) : app.typeAt },
@@ -1696,15 +1719,24 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
         if (!href.startsWith("declare-docs:")) { app.navigate(href); return }
         const id = href.slice("declare-docs:".length)
         if (id.startsWith("guide:")) {                       // guide:tree → the chapter whose id ends with the slug
-            const slug = id.slice("guide:".length)
+            const [slug, section] = id.slice("guide:".length).split("@")
             const hit = (app.docs.read(["guide"]) || []).find(c => c.id.replace(/^\d+-/, "") == slug)
-            if (hit) app.goGuide(hit.id)
+            if (hit == null) return
+            if (section == null) { app.goGuide(hit.id); return }
+            app.guideAt = hit.id                             // guide:data@talking-to-a-server → that section
+            app.follow("#guide/" + hit.id + "@" + section)
             return
         }
         if (id == "reference:index") { app.goRef(app.refAt); return }
         if (id.startsWith("language:")) { app.goForm(id.slice("language:".length)); return }   // language:class → the form's page ("language:" alone → the index)
         if (id.startsWith("type:")) { app.goType(id.slice("type:".length)); return }           // type:Motion → the type's page
-        if (!id.includes(":")) { app.goRef(id.split(".")[0]); return }                      // a reference symbol: View / View.width
+        if (!id.includes(":")) {                                                            // a reference symbol: View / View.width / View.method.draw
+            const parts = id.split(".")
+            if (parts.length == 1) { app.goRef(parts[0]); return }
+            app.refAt = parts[0]
+            app.follow("#reference/" + parts[0] + "@" + parts[parts.length - 1])
+            return
+        }
         if (id.startsWith("operational:")) { app.navigate("docs/operational/" + id.slice("operational:".length) + ".md"); return }
         if (id == "spec:core") { app.navigate("docs/declare.md"); return }
         if (id == "essay:why-declare") { app.navigate("apps/homepage/homepage.declare") }
@@ -1718,7 +1750,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     bar: View [ ignoreScroll = true, x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").rail },
         hair: View [ x = 0, y = { app.barH - 1 }, width = 100%, height = 1, fill = { provided("theme").edge } ],
 
-        brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
+        brand: View [ x = 20, y = center, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
 
             // "Declare" is the way home — navigate() resolves against the
@@ -1754,7 +1786,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
            reading zoom is the most droppable control; the theme switch and the
            search are not), which is what keeps the pill usable at 560. */
 
-        search: View [ y = { (app.barH - 32) / 2 }, height = 32, cornerRadius = 16,
+        search: View [ y = center, height = 32, cornerRadius = 16,
             lo: number = { parent.brand.x + parent.brand.width + 16 },
             hi: number = { (app.compact ? parent.themeSwitch.x : parent.size.x) - 16 },
             x = { Math.max(this.lo, Math.min((app.width - this.width) / 2, this.hi - this.width)) },
@@ -1774,7 +1806,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
                 ]
             ],
 
-        size: View [ y = { (app.barH - 30) / 2 }, x = { parent.themeSwitch.x - this.width - 20 }, height = 30,
+        size: View [ y = center, x = { parent.themeSwitch.x - this.width - 20 }, height = 30,
             visible = { !app.compact },
             width = { this.contentWidth },
             cornerRadius = 8, fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
@@ -1793,7 +1825,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
         // light / dark: shows the appearance in force, a press flips it; until
         // then `themeMode` stays "auto" and the OS decides
 
-        themeSwitch: AppearanceSwitch [ y = { (app.barH - this.height) / 2 }, x = { app.width - this.width - 16 },
+        themeSwitch: AppearanceSwitch [ y = center, x = { app.width - this.width - 16 },
             dark = { app.darkUI },
             input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]

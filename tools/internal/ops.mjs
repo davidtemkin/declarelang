@@ -96,10 +96,10 @@ export const OPS = {
         test: false, docs: "declare-docs:operational:building" },
       { id: "crawler", cmd: "node tools/declarec.mjs <app.declare> -o <outdir> --crawler",
         description: "Also bake the crawled document (every linked location's content) into the built page for crawlers.",
-        test: false, docs: "declare-docs:guide:location" },
+        test: false, docs: "declare-docs:guide:urls" },
       { id: "extract", cmd: null,
         description: "Append ?extract to any program URL to see the document a crawler gets.",
-        test: false, docs: "declare-docs:guide:location" },
+        test: false, docs: "declare-docs:guide:urls" },
     ],
   },
 };

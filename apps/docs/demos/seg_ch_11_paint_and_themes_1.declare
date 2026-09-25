@@ -1,0 +1,9 @@
+App [ width = 320, height = 130, fill = white,
+    fontFamily = ["Helvetica Neue", "sans-serif"], fontSize = 15, textColor = #172530,
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Text [ fontWeight = bold, text = "Rain or Shine?" ],
+        Text [ text = "94110" ],
+        Text [ textColor = royalblue, text = "overrides only the color" ]
+        ]
+    ]

@@ -1,10 +1,10 @@
 # `verify` — the checking CLI
 
 `verify` checks a program by climbing a ladder of rungs, cheapest first, stopping at the first
-failure. The concept is [Run it, check it, ship it](declare-docs:guide:run-check-ship); this page is the command.
+failure. The concept is [Running and checking a program](declare-docs:guide:run-and-check); this page is the command.
 
 ```bash
-node tools/verify.mjs app.declare
+npx declare-verify app.declare
 ```
 
 ## The rungs

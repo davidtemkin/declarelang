@@ -8,7 +8,7 @@ Image [ source = { weatherIcon(:code) }, width = 52, height = 52 ]
 ```
 
 ## source
-The image URL (`string`). Literal or a `{ }` constraint — bind it to data and the
+The image URL (`string`). Literal or a `{ }` constraint — derive it from data and the
 picture follows: `source = { weatherIcon(:code) }` swaps the bitmap whenever `:code`
 changes. A stateless helper in a `script { }` beats wrapping a class around one
 computed URL.
@@ -35,7 +35,7 @@ taller than its picture.
 A **color multiplied over the bitmap's alpha** — the result is the tint color wherever
 the bitmap is opaque, nothing where it is transparent (template-image rendering). The
 one-mask-asset, many-colors idiom: ship a single alpha-mask glyph and color it per use,
-`tint = { theme.accent }`, instead of pre-recoloring assets. `null` (the default) is
+`tint = { provided("theme").accent }`, instead of pre-recoloring assets. `null` (the default) is
 the untouched bitmap. A `Color`, so any color form works, and a `{ }` body makes it
 state.
 

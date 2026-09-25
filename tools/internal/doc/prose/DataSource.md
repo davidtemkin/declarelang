@@ -3,7 +3,7 @@ know: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = tru
 deliberate opt-in for reactive addresses, not the default). Call it when the data
 should load (typically `onInit`, or on a user action); value and flags then settle
 *together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`
-never disagree. Read the lifecycle through bindings — `.loaded` for the value, `.loading`
+never disagree. Read the lifecycle through constraints — `.loaded` for the value, `.loading`
 and `.failed` for the request, `.value`, `.error` — none are settable attributes;
 `clear()` returns it to never-fetched. The
 response is parsed JSON by default; `format = "text"` fetches textual material instead —
@@ -41,8 +41,10 @@ Loads (or reloads) the resource from the current `url`, then settles `value` and
 flags **together**, a frame ahead. Loading is a verb you call, not something that happens
 to you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again
 re-fetches — `loading` for the duration, `loaded` and `value` untouched until the new
-document lands; change `url`'s dependencies first to fetch a new address. Returns a
-`Promise` you can `await`, but the reactive flags are the idiomatic path.
+document lands. It settles before it sends, so a handler that changes what `url` or `body`
+derives from and then calls `fetch()` sends the new request. A later call supersedes an
+earlier one, whose reply is dropped. It returns a `Promise` that never rejects — a failure
+lands in `failed` and `error` — but the flags and `onLoad` are the idiomatic path.
 
 ## auto
 Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.
@@ -112,9 +114,9 @@ notes: DataSource [ url = "https://api.example.com/notes", credentials = include
 ## onLoad
 Fires when a fetch settles successfully, after `value` and the flags are consistent — a
 handler reading `value` sees the arrived data, never the previous one. Failures do not fire
-it; they set `failed` and `error`. **You usually do not need this**: any binding reading
+it; they set `failed` and `error`. **You usually do not need this**: any constraint reading
 `.value` or a `:path` beneath it already updates on arrival, which is the entire reactive
-point. Reach for `onLoad` only when arrival must cause something a binding cannot express —
+point. Reach for `onLoad` only when arrival must cause something a constraint cannot express —
 focusing the first result, chaining a follow-up fetch, announcing to a screen reader.
 
 ## clear()

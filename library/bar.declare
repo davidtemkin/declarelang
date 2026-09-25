@@ -2,9 +2,8 @@
 # Bar
 
 A labeled horizontal value bar: an optional caption, then a rounded track filled to
-`value`. A **placeholder component** — coherent and restyleable,
-but not the final widget. For a themed, theme-tracking meter reach for `ProgressBar`
-instead; `Bar` exists for demos and dashboards that want a caption and their own colour.
+`value`, in a colour you choose. It is for demos and dashboards that want a caption and
+their own colour; for a meter that follows the theme, use `ProgressBar`.
 
 ```declare
 col: View [ x = 20, y = 20, width = 260,

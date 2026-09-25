@@ -181,7 +181,7 @@ export const Diag = {
     smallField: (message, pos, hint) => err(code4(3005), message, pos, hint),
     type: (message, pos) => err(code4(3000), message, pos),
     // 4xxx name resolution
-    unresolved: (name, scope, pos, sizing = false) => err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)` +
+    unresolved: (name, scope, pos, sizing = false) => err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …)` +
         // In a size slot the missing name is often a child the USE SITE supplied,
         // which the class cannot name because it does not own it. It can measure
         // it: that is what the content intrinsics are for, and nothing else in the
@@ -236,6 +236,7 @@ export const Diag = {
     // pointer through press(); Button inverts that, so an override here is the
     // keyboard's path only and the click lands in the untouched onClick.
     buttonPressOverride: (owner, pos) => err(code4(4013), `press() on ${owner} replaces Button's activation path — every other control routes the pointer through press(), and Button inverts that: its own press() delivers to onClick, which is the use site's action slot. An override here answers Space and Enter, and a click still runs the untouched onClick — so the action never fires from the pointer. Put the action in onClick()`, pos),
+    afterInValue: (pos) => err(code4(4014), `afterDelay() waits, and a { } value computes — it runs whenever what it reads changes, so a wait here would be scheduled again on every change. Call afterDelay(ms, fn) from a handler or a method; a value that should change over time derives from a Time's facts or moves with a Spring or an Animator`, pos),
     scriptWrite: (name, pos) => err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
     // `classroot` reaches the root of the component (class) you are defining, so it
     // is meaningful ONLY inside a class body. `where` names the non-class body the
@@ -337,6 +338,7 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4011), phase: "name", summary: "a constraint centers a box by hand — x = center says it (hint)" },
     { code: code4(4012), phase: "name", summary: "an Animator nothing ever starts — no 'started', no start() call (warning)" },
     { code: code4(4013), phase: "name", summary: "a press() override on a Button — the click runs onClick, not this (warning)" },
+    { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },
     { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
     { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
     { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

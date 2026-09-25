@@ -11,17 +11,17 @@ library, in Declare.
 
 ```declare-fragment
 clip: Video [ source = "shots/tour.mp4", stretches = both, loop = true,
-    playing = { app.scrollY + app.height > this.parent.y } ]
+    playing = { onScreen && app.pageVisible } ]
 ```
 
 ## source
-The clip URL (`string`). Literal or a `{ }` constraint — bind it to data and the media
+The clip URL (`string`). Literal or a `{ }` constraint — derive it from data and the media
 follows. Re-pointing it starts a fresh load; a superseded in-flight load is discarded.
 
 ## playing
 Whether the clip is running. **Two-way**: a constraint decides when it plays, and the
 element writes back when something outside the program changes it — the browser pausing a
-backgrounded tab, a media key, an autoplay the platform refused. Bind it to a fact about
+backgrounded tab, a media key, an autoplay the platform refused. Constrain it to a fact about
 the world (`playing = { visible && app.pageVisible }`) rather than assigning it from a
 handler, and the clip does the right thing without anything scheduling it.
 

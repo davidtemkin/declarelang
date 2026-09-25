@@ -72,9 +72,9 @@ const specWords = () => specText().split(/\s+/).filter(Boolean).length;
 function group(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 
 const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/tenets/1 SATOR.md",
-  "docs/tenets/2 AREPO.md", "docs/guide/01-thinking-in-declare.md", "docs/guide/20-with-an-llm.md",
-  "docs/guide/21-calendar.md",
-  "docs/guide/19-run-check-ship.md", "docs/operational/building.md"];
+  "docs/tenets/2 AREPO.md", "docs/guide/01-what-declare-is.md", "docs/guide/26-with-an-llm.md",
+  "docs/guide/27-calendar.md",
+  "docs/guide/25-packaging.md", "docs/operational/building.md"];
 
 // THE PENDING RELEASE'S NOTES are a stamp target too — releases/v<version>.md
 // for package.json's version, but ONLY while that version is untagged. A

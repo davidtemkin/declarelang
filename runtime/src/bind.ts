@@ -383,7 +383,7 @@ export function bindData(view: View, name: string, path: string, type: AttrType,
  *  (from the parent chain — never this view's own slot, which it defines)
  *  extended by `rel.path`. Interned, so a re-derivation of the same place
  *  stops at the equality gate. */
-export function bindDatapath(view: View, path: string | readonly string[]): void {
+export function bindDatapath(view: Node, path: string | readonly string[]): void {
   const segs = typeof path === "string" ? splitPath(path) : path;
   const k = new Constraint(
     `${view.constructor.name}.datapath = :${typeof path === "string" ? path : path.join(".")}`,
@@ -404,7 +404,7 @@ export function bindDatapath(view: View, path: string | readonly string[]): void
  *  The compute runs under withCursorDefining: a `:path` island in the body
  *  (`datapath = { :detail }`) resolves against the INHERITED cursor, never
  *  the slot this constraint defines — the same rule bindDatapath states. */
-export function bindCursor(view: View, src: string, pos: Pos, classroot: View | null): void {
+export function bindCursor(view: Node, src: string, pos: Pos, classroot: Node | null): void {
   const c = compileExpr(src);
   if ("error" in c) {
     throw new DeclareError(`${view.constructor.name}.datapath = { … } ${c.error}`, pos);

@@ -112,7 +112,7 @@ export const shadow = (dx, dy, blur, color) => Object.freeze({ fn: "shadow", dx,
 /** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
  *  canvas `ctx.filter` share it. `scale` maps view units to the target's
  *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
- *  `tint` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
+ *  `colorize` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
  *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
  *  after the blit — both leave it out of this string. */
 export function filterCss(list, scale = 1, tintRef) {
@@ -139,7 +139,7 @@ export function filterCss(list, scale = 1, tintRef) {
             case "shadow":
                 parts.push(`drop-shadow(${f.dx * scale}px ${f.dy * scale}px ${(f.blur * scale) / 2}px ${colorToCss(f.color)})`);
                 break;
-            case "tint":
+            case "colorize":
                 if (tintRef !== undefined)
                     parts.push(tintRef(f.color));
                 break;
@@ -196,7 +196,7 @@ export function filterEqual(a, b) {
     switch (a.fn) {
         case "blur": return a.radius === b.radius;
         case "hueRotate": return a.degrees === b.degrees;
-        case "tint": return a.color === b.color;
+        case "colorize": return a.color === b.color;
         case "shadow": return shadowEqual(a, b);
         default: return a.amount === b.amount;
     }
@@ -465,11 +465,16 @@ export function coerce(type, lit) {
         case "array":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail(diag `an array — a { } binding (plain TS: items = { [ … ] }), or null`);
+            // A list of names — `trackChanges = [ "failed" ]`, `listenTo = [ "delta" ]` —
+            // is a literal on every node, not only where the view walk reads it.
+            if (type.of === "string" && lit.kind === "list" && lit.items.every((it) => it.kind === "string")) {
+                return ok(lit.items.map((it) => it.value));
+            }
+            return fail(diag `an array — a { } constraint (plain TS: items = { [ … ] }), or null`);
         case "object":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail(diag `an object — a { } binding (plain TS), or null`);
+            return fail(diag `an object — a { } constraint (plain TS), or null`);
         case "view":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
@@ -490,9 +495,9 @@ export function coerce(type, lit) {
             if (type.data === true) {
                 if (lit.kind === "ident" && lit.name === "null")
                     return ok(null);
-                return fail(diag `a ${type.name} record (provide one with a { } binding), or null for none`);
+                return fail(diag `a ${type.name} record (provide one with a { } constraint), or null for none`);
             }
-            return fail(diag `a ${type.name} (a named theme, a { } binding, or a Theme [ … ] record)`);
+            return fail(diag `a ${type.name} (a named theme, a { } constraint, or a Theme [ … ] record)`);
         case "fill":
             return coerceFill(lit);
         case "stroke":
@@ -713,7 +718,7 @@ export function coerceShadow(lit) {
         return fail(SHADOW);
     return ok(shadow(dx, dy, blur, color));
 }
-const MASK = diag `a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } binding (mask = { stencil }), or null`;
+const MASK = diag `a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } constraint (mask = { stencil }), or null`;
 // ── Motion (animation.md §1) ─────────────────────────────────────────────────
 //
 // A named token OR a value constructor — both forms already in the grammar,

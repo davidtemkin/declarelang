@@ -33,12 +33,15 @@ usage: form-app
 A program is one tree, and `App [ … ]` is its root — one per program. With `width` and
 `height` unset it fills its host, which is the common case: the page, the window, the
 island it is mounted in. Everything else nests inside its brackets, and `app` (lower case)
-names the running instance from any depth, so application-wide state belongs here.
+names the running instance from any depth — which makes it the place for the few values
+the whole app shares, such as the current selection or a mode.
 
 Any instance may declare its own members, the App included — attributes, methods,
 handlers, children — with no class at all; the compiler synthesizes an anonymous subclass.
-The top-level forms (`class`, `include`, `use`, `script`, `font`, `style`, `theme`,
-`schema`) may come before or after it, in any order.
+The top-level forms (`class`, `include`, `use`, `script`, `style`, `theme`, `schema`,
+`ship`) may come before or after it, in any order. Records belong in a `Dataset`, and state
+that is a thing in its own right in a model class (a class with no `extends`) — the App is
+not meant to hold every value.
 
 ### rules
 
@@ -78,8 +81,10 @@ Every member inside is one of the five shapes (set, declare, child, method, hand
 separated by commas.
 
 An instance is a full component in its own right: it may declare new attributes and methods
-without a class, because the compiler synthesizes an anonymous subclass for it. Promote a
-one-off to a named `class` when you instantiate it twice, or need to name its type.
+without a class, because the compiler synthesizes an anonymous subclass for it. Name a
+`class` when you instantiate it more than once or need to name its type — or when a long
+instance declaration makes its parent hard to read, so pulling it out (possibly into its
+own file) keeps the program's structure visible.
 
 ### rules
 
@@ -111,7 +116,7 @@ spec: §4 Composition
 terms: class, declare a class, define a component, component definition
 syntax:
     class Name extends Base [ members ]
-    class Name [ members ]                    // extends View
+    class Name [ members ]                    // extends Node — a model, no box
 usage: form-class, form-classroot
 
 A component is a class, and this is the one way to define one. Everything inside the
@@ -124,12 +129,15 @@ and add members of its own.
 A class is not a file and not a module. It is a top-level declaration, and a program is one
 tree of them — `include` merges another file's classes into the same program, and there is
 nothing to export. Any instance may declare members with no class at all, because the
-compiler synthesizes an anonymous subclass; promote a one-off to a named class when you
-instantiate it twice, or when you need to name its type.
+compiler synthesizes an anonymous subclass. Name a class when you instantiate it more than
+once or need to name its type, or when pulling a long instance out keeps its parent readable.
+
+With no `extends`, the base is `Node`: a model class — state and behaviour with no box. A
+class meant to be a view says `extends View`.
 
 ### rules
 
-- A class extends a built-in component or a class declared in this program — declared anywhere in it, later in the file included. Omit `extends` and the base is `View`.
+- A class extends a built-in component or a class declared in this program — declared anywhere in it, later in the file included. Omit `extends` and the base is `Node`.
   > says: unknown base 'Widget' — a class extends a built-in component or a class declared in this program
   > probe: class Chip extends Widget [ ]\nApp [ Chip [ ] ]
 - A class may not contain itself, directly or through another class: the tree it describes would never finish.
@@ -169,12 +177,13 @@ Single inheritance from another component — a library class or one of your own
 subclass sees every attribute, child, method, and event of the base. Re-stating an
 attribute with `name = value` **overrides** its default; re-stating a method replaces it;
 and a base's named child is reached by name, not redeclared. Omit `extends` altogether and
-the base is `View`.
+the base is `Node` — a model class with no box.
 
 `extends` is not a top-level form in its own right: it is part of a `class` declaration.
-The base may be declared later in the file, or in an included one. What a subclass may
-extend is what the runtime can wire: `View`, `Node`, `Layout` (and `TweenLayout`), and any
-class descending from them.
+The base may be declared later in the file, or in an included one. Any concrete built-in is
+a base — `View`, `Node`, `Layout` and `TweenLayout`, `Dataset`, `Spring`, `Keys`, `State` and
+the rest — as is any class descending from one; only the abstract bases (`Stream`, `Media`,
+`Editor`) are refused.
 
 ### rules
 
@@ -295,7 +304,7 @@ handler returns, together with every other write it made, in one settle.
   > says: App.width expects a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y), got the string "ten"
   > probe: App [ width = "ten" ]
 - A `script { }` constant is not a bare literal — reach it through braces.
-  > says: got 'W' — write { W } to bind the attribute
+  > says: got 'W' — write { W } to read it in a constraint
   > probe: script { const W = 10 }\nApp [ width = W ]
 - A list belongs to an array-typed slot; a scalar slot refuses one.
   > says: got the list […, …]
@@ -421,7 +430,7 @@ compiler never reads.
   > says: parameter 'a' has no type — a signature is typed name-first: 'f(a: number)'
   > probe: App [ f(a) { } ]
 - Type annotations do not live in bodies: a local takes no annotation (contextual typing covers it); narrow with a cast (`x as T`), and put declared types on attributes.
-  > says: annotates a binding ('x') — bindings in a body take no type annotation (contextual typing covers them); a cast narrows an expression (x as T), and declared types live on the attribute (name: type = …)
+  > says: annotates a name ('x') — names declared in a body take no type annotation (contextual typing covers them); a cast narrows an expression (x as T), and declared types live on the attribute (name: type = …)
   > probe: App [ f() { const x: number = 1 } ]
 - A value slot takes one expression; statements live in methods.
   > says: an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })
@@ -537,8 +546,8 @@ position, `(a: T) -> R` is a function type — a parameter that takes a callback
 declared attribute holding one.
 
 It is not a lambda arrow and not a binding operator: inside a `{ }` body or a `script`
-block, `=>` is ordinary TypeScript. The language's other arrows, `<-` and `<->`, are
-binding operators on attributes.
+block, `=>` is ordinary TypeScript. The language's other arrow, `<->`, is the two-way
+binding operator on a text field's value.
 
 ### rules
 
@@ -594,7 +603,7 @@ replicated data is written.
   > says: 'width' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead
   > probe: App [ width = { width + 1 } ]
 - A bare name must resolve: a member up the enclosing brackets, a parameter, or one of the few globals a body may use.
-  > says: cannot resolve 'nothingHere' — not a member of t: Text → App, a parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …)
+  > says: cannot resolve 'nothingHere' — not a member of t: Text → App, a parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …)
   > probe: App [ t: Text [ text = { nothingHere } ] ]
 - A script `let` has no cell, so a constraint cannot notice it change; hold changing state in an attribute.
   > says: 'n' is mutable state in a script { } block — a module variable has no cell, so nothing can notice it change; hold the value in a reactive attribute (declare it on the app) and read that instead
@@ -615,11 +624,14 @@ name: :path
 group: Values
 family: operator
 spec: §7 Data
-terms: :path, datapath, colon path, data read, replication, [] suffix, bound data
+terms: :path, datapath, colon path, data read, replication, [] suffix, bound data, :@, the record itself, computed key, whole record
 syntax:
     text = :title                              // a read, relative to the nearest datapath
     View [ datapath = :rows[], … ]             // [] replicates: one instance per record
     text = { :on ? :title : "—" }              // a read inside a body
+    input(v: boolean) { :done = v }            // a write, in a handler or method
+    Text [ datapath = :tags[], text = :@ ]     // :@ — the record itself
+    text = { "" + :@[(classroot.field)] }      // [( … )] — a key computed by TypeScript
 usage: form-datapath, form-datapath-select
 
 A colon-prefixed path reads from bound data, relative to the nearest enclosing `datapath`.
@@ -629,13 +641,27 @@ ending in `[]` **replicates** its node — one instance per record, reconciled b
 from code in the tree.
 
 Between the root and the `[]`, a path may select in the JSONPath subset — `[0]`, `[-1]`,
-`[1:4]`, `[*]`, `['quoted key']`. Reads are one-way; the only arrow that writes back is
-`<->`, on a leaf editor. Without a schema a path is dynamic: an unresolved read yields
+`[1:4]`, `[*]`, `['quoted key']`. A `:path` in a value is a read. In a handler or method,
+`:field = v` (and `+=`, `++`) writes that field of the record the node is attached to,
+through the dataset's `set` — a field, a nested field or a non-negative index; a slice,
+wildcard or `[]` is refused, and so is an assignment inside a `{ }` value. A text field's
+`<->` is the other write, with a draft and validation.
+
+`:@` is the record itself — JSONPath's current node — for a record that is a plain value
+(a string in a list of tags) or to hand a whole record to a method. `[( expr )]` is a key
+computed by TypeScript, anywhere in a path: `:@[(field)]` reads the field `field` names,
+`:rows[(i)].title` the title of the record `i` indexes, and both follow the expression as
+well as the data. Plain `[ ]` stays JSONPath; the parentheses mark the computed form, which
+needs braces — `text = { :@[(k)] }`. Both are written like any path: `:@[(k)] = v`, and
+`:@ = r` replaces the record. Without a schema a path is dynamic: an unresolved read yields
 `null` and the bound attribute falls back to its default; with one, every path is checked at
 compile time.
 
 ### rules
 
+- A computed key is TypeScript, so its path is written in braces.
+  > says: a computed key [( … )] is TypeScript, so its path is written in braces
+  > probe: App [ d: Dataset { { "r": { "a": 1 } } }, v: View [ datapath = { app.d.value.r }, Text [ text = :@[(k)] ] ] ]
 - `[]` replicates and may appear only at the end of a path.
   > says: expected a member name, got '.'
   > probe: App [ d: Dataset { { "rows": [] } }, datapath = { d.value }, View [ datapath = :rows[].x ] ]
@@ -754,7 +780,7 @@ or `frost`. A stroke is drawn **inside** the box, so it never enlarges the layou
 is cast outside it, escaping any clip, as a CSS box-shadow does. A `stroke` slot also takes
 **four** of them — `[top, right, bottom, left]`, clockwise from the top, `null` for a bare
 side — which is the one-or-four shape `cornerRadius` and `padding` share. All three take
-either form from a `{ }` binding as readily as from a literal, which is how a border in a
+either form from a `{ }` constraint as readily as from a literal, which is how a border in a
 theme token is written: `stroke = { [ stroke(1, provided("theme").line), null,
 stroke(1, provided("theme").line), null ] }` rules a row top and bottom.
 
@@ -884,8 +910,8 @@ syntax:
     include [ "a.declare", "b.declare" ]
 usage: form-include
 
-Merges another file's **top-level declarations** — its classes, scripts, fonts, styles,
-themes, schemas — into this program, once, however many times it is named. It is not a
+Merges another file's **top-level declarations** — its classes, scripts, styles, themes,
+schemas — into this program, once, however many times it is named. It is not a
 module system: there are no exports, no namespacing, and no root instance comes across.
 Everything merges into one program, and a class in an included file may extend one declared
 here.
@@ -1016,8 +1042,9 @@ syntax:
     script [ "file.ts" ]                       // the same, from a file
 usage: form-script
 
-A top-level block of plain TypeScript, wholly outside the reactive system: constants,
-functions, stateful helpers, whole libraries. A program may hold any number of blocks,
+A top-level block of plain TypeScript, wholly outside the reactive system: pure
+functions of their arguments (date arithmetic, formatting, parsing), stateful helpers,
+whole libraries. A program may hold any number of blocks,
 inline and files mixed; they share one scope in source order. A file is written
 module-style (`export` allowed); an inline block refuses `export`, since its top-level names
 are already visible to every `{ }`. A block may `import` ES modules — a relative file, or an
@@ -1028,6 +1055,14 @@ A constraint may call into script, **opaquely**: it depends on the values it pas
 what the function does inside. So pass values, not nodes, and hold state that changes in an
 attribute — a script `let` has no cell. This is where arithmetic, formatting, and imported
 JavaScript live, so the tree stays about the tree.
+
+What does **not** belong here is anything the program's look or model depends on. A
+color, a font list or a size used in more than one place is a theme token read with
+`provided("theme")`, a `style`, or an attribute — a script constant cannot be themed,
+switched for dark mode, or read by `explain`. A derivation over the app's data — a
+week's totals, a streak — is a **method** on the node that holds the data. The compiler
+reads through a method, so its dependencies are known and `explain` can show them; it
+cannot see inside a script function, and its results arrive untyped.
 
 ### rules
 
@@ -1041,7 +1076,7 @@ JavaScript live, so the tree stays about the tree.
   > says: 'n' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute
   > probe: script { let n = 1 }\nApp [ onClick() { n = 2 } ]
 - A script constant is not a bare literal; reach it through braces.
-  > says: got 'W' — write { W } to bind the attribute
+  > says: got 'W' — write { W } to read it in a constraint
   > probe: script { const W = 10 }\nApp [ width = W ]
 
 ### related
@@ -1155,7 +1190,7 @@ syntax:
 usage: form-theme
 
 A theme is a **named record of tokens** — colours, sizes, decorations — declared at the top
-level like a class or a font. Token names are free; values are plain literals, value
+level like a class or a schema. Token names are free; values are plain literals, value
 constructors, or lists of them. The library ships presets in scope by name (`SanFrancisco`, `Cupertino`,
 `MountainView`, `Redmond`, each with a `…Dark` companion), and `theme Brand [ … ]` declares
 your own.
@@ -1254,7 +1289,7 @@ system: use the name in any type position — a declared attribute, a parameter,
 field of another schema — and declare a dataset's document with it. The dataset's `.value`
 is then typed, so a misspelled field dies at compile time; the runtime enforces the same
 declaration at every boundary — arrival, the literal body, and the mutation verbs — so
-malformed data yields `.failed` rather than `undefined` three bindings deep.
+malformed data yields `.failed` rather than `undefined` three steps downstream.
 
 Field markers: `[]` for an array, `?` for optional. Field types are `string`, `number`,
 `boolean`, `any`, a literal union of strings or numbers, another schema's name, or a nested

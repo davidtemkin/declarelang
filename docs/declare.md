@@ -18,11 +18,11 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design.*
 
 | where | what is there | go when |
 |---|---|---|
-| [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `node tools/declare-help.mjs <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included; a true miss exits 1 and says what it searched, so silence is trustworthy | you need a name, a type, a signature, or what a code means |
+| [**`declare-help`**](operational/help.md) | **ask the platform for one exact fact** — `npx declare-help <name>` takes any dotted name, class, attribute, concept, enum, or diagnostic code and answers in the compiler's register, did-you-mean included; a true miss exits 1 and says what it searched, so silence is trustworthy | you need a name, a type, a signature, or what a code means |
 | [`declare-model.json`](declare-model.json) | what `declare-help` reads: every component, attribute, type, method, event and diagnostic, generated from source; a class's page carries its ancestors' members too, so everything reachable on it is on one page | you want to browse the whole surface rather than ask one question |
 | `library/` | the standard components — controls, structure, layouts, embedding, and the `Control` base your own controls extend — written in Declare | you want to know what ships, or to read how one is built |
-| `apps/` | complete programs; `apps/README.md` maps the whole corpus — `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->830<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
-| [`docs/guide/`](guide/01-thinking-in-declare.md) | a narrative course, chapter by chapter; its [glossary](guide/23-glossary.md) is one word per idea | you want the reasoning, or you are learning rather than looking up — or a term used a specific way |
+| `apps/` | complete programs; [Learning from the apps](guide/01-what-declare-is.md#learning-from-the-apps) maps what each teaches — `apps/calendar/calendar.declare` (~<!--stat:calendar.lines-->830<!--/stat--> lines) is the reference, and `apps/birds/birds.declare` is the worked example of `location` + `waypoint` | you want the idiom at full scale |
+| [`docs/guide/`](guide/01-what-declare-is.md) | a narrative course, chapter by chapter; its [glossary](guide/29-glossary.md) is one word per idea | you want the reasoning, or you are learning rather than looking up — or a term used a specific way |
 | [`docs/operational/`](operational/) | install, dev server, build, deploy | you are running or shipping rather than writing |
 
 **Those six carry everything you need to write Declare.** The language is closed and small, so
@@ -43,26 +43,22 @@ instantiates, configures, and relates them, and that grammar is what follows.
 A Declare program is a tree of components whose attributes are related to each other by
 standing expressions the runtime keeps true.
 
-**A binding is a relationship, not a callback.** Read a reactive value inside one and you are
-subscribed to it; assign to that value and everything bound to it updates. There is no
+**A constraint is a relationship, not a callback.** Read a reactive value inside one and you are
+subscribed to it; assign to that value and everything that reads it updates. There is no
 re-render, no diffing, no dependency array, and no hook, because nothing was ever a render.
 
 ```declare
 App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
-
     count: number = 0,                               // reactive state
-
-    add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
-        onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ]
-        ],
-
-    Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` } ]
+    col: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+        Button [ label = "Add one", primary = true, onClick() { app.count = app.count + 1 } ],
+        Text [ text = { `Clicked ${app.count} times` } ]
+        ]
     ]
 ```
 
-Click the view and the label updates; resize the window and it re-centers. You wrote no update
+Click the button and the label updates; resize the window and it stays centered. You wrote no update
 logic for either, and there is nowhere to put any. Every section below is this same idea
 applied to structure, space, data, style, and time.
 
@@ -79,9 +75,8 @@ applied to structure, space, data, style, and time.
 4. **Children come from data, not from code.** The `[ ]` tree never generates children from an
    expression, so React's `{items.map(…)}` and `{cond && …}` have no equivalent there: a
    collection comes from *replication* over a datapath, and conditional presence is `visible`.
-   (Those operators are ordinary TypeScript in any `{ }` value, and a handler *can* build views
-   imperatively with `createView` — the declarative tree is simply not where either
-   happens.) (§7)
+   (Both are ordinary TypeScript inside a `{ }` value, and a handler can build views with
+   `createView`; the tree is simply not where either happens.) (§7)
 5. **There is no CSS and no DOM.** No selectors, cascade, specificity, media queries, z-index,
    flexbox, or grid. Style is attributes, stacking is declaration order, and responsiveness is
    constraints on `app.width`. (§6, §9)
@@ -89,8 +84,7 @@ applied to structure, space, data, style, and time.
    to its owner by calling a method. (§8)
 7. **Nothing waits.** A program never polls: readiness is a value to constrain on, completion
    an event to take (`onLoad`, `onArrive`, `afterSettle`). A loop or timer that checks whether
-   something has happened yet is a constraint or an event written by hand — almost always the
-   wrong path. Time is only ever an input — a duration to animate over, a frame step to
+   something has happened is a constraint or an event written by hand. Time is only ever an input — a duration to animate over, a frame step to
    integrate by. (§5, §10)
 
 ## 2. Two delimiters
@@ -108,8 +102,8 @@ A value slot accepts four things, and the spelling tells you which:
 | a **`{ … }`** value | a live expression — a **constraint** | `width = { parent.width - 10 }` |
 | a **`:`-prefixed** path | a read from bound data — a **datapath** | `text = :title` |
 
-A bare literal is the value itself, so a `script { }` constant is *not* one: `tint = SEAT_FREE`
-fails in a bare slot. Reach a constant through braces — `tint = { SEAT_FREE }`.
+A bare literal is the value itself, so a name is *not* one: `fill = accent` fails in a bare
+slot. Reach a named value through braces — `fill = { provided("theme").accent }`.
 
 ### The vocabulary stops at the brace
 
@@ -198,8 +192,8 @@ calls the replaced one, wherever in the body it is written, or never.
 app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to
 unregister: a source is a child, so it lives and dies with the node that declares it.
 
-**Members are separated by commas** — the separator is required, and the compiler names the
-spot when one is missing. A *trailing* comma before a closing `]` is legal; the formatter
+**Members are separated by commas**, and the compiler names the spot when one is
+missing. A *trailing* comma before a closing `]` is legal; the formatter
 (§12) removes it.
 
 ### What a name reaches
@@ -207,14 +201,13 @@ spot when one is missing. A *trailing* comma before a closing `]` is legal; the 
 **A bare name resolves outward through the enclosing brackets, innermost first** — the brackets
 are the scope exactly as they are the tree. Each `[ ]` you are nested inside is a level whose
 surface is that component's whole member set, and the nearest level owning the name wins. The
-compiler rewrites the read to an explicit path, so this is lexical and settled at compile time,
-not a lookup that walks anything at runtime. One consequence to hold on to: every view carries
+compiler rewrites the read to an explicit path, so this is settled at compile time. One consequence to hold on to: every view carries
 the built-in attributes, so a bare `width` always means *this* node's `width` — built-ins never
 resolve outward.
 
 Three reserved words say it explicitly, and nothing else may take their names: **`this`** (the
 node the code is written on), **`parent`**, and **`app`** (the running application, from any depth
-— which is why application-wide state belongs there). Bare `App` is the class; `app` is the
+— the home of the few values the whole app shares). Bare `App` is the class; `app` is the
 instance. A fourth, `classroot`, belongs to authoring a component and arrives in §4.
 
 ## 4. Composition
@@ -240,13 +233,13 @@ App [ width = 400, height = 100, fill = black,
 **`App` is the one root**, one per program; with `width` and `height` unset it fills its host.
 **Any instance may declare its own members** — state, methods, handlers — with no class at all,
 because the compiler synthesizes an anonymous subclass, and the instance remains a subtype of
-its base. Promote a one-off to a named `class` when you instantiate it twice, or when you need
-to name its type.
+its base. Promote a one-off to a named `class` when you instantiate it twice, or when pulling
+it out keeps its parent readable.
 
-Besides `class`, the top level holds `script`, `include`, `use`, `theme`, and `style` — that is
-the complete set, **in any order**, before or after the root instance;
+Besides `class`, the top level holds `script`, `include`, `use`, `theme`, `style`, `schema`
+and `ship` — the complete set, **in any order**, before or after the root instance;
 `extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript — helpers,
-models, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
+parsers, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
 specifier; bundled at compile). **`script [ "file.ts" ]`** is the same block loaded from a
 file, spelled like `include` and tracked like one — edit the file and the program recompiles;
 a constraint may call into script, opaquely (§5). A program may hold **any number of script
@@ -261,7 +254,7 @@ a component the build would otherwise drop, for when your code constructs it by 
 self-contained package of the program must carry beyond what its source names — `islands = [ "name", … ]`, the
 programs an `AppIsland` may mount when its `program` is computed; `files = [ "path", … ]`, files it reads that no
 literal names or that live outside its folder; `compiler = true`, it compiles source at run time; `inspector =
-true`, it answers questions about itself in production ([Run, check, ship](declare-docs:guide:run-check-ship)). A
+true`, it answers questions about itself in production ([Packaging](declare-docs:guide:packaging)). A
 literal `program = "name"` or `url = "path"` needs no entry, and hosts that carry sources and a compiler read none of it. **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
 literal values — a token record, and the style of a run of text with no view (§9).
 
@@ -322,7 +315,7 @@ chrome that must float above everything is declared last.
 A `{ }` in a value slot is a **constraint**: re-evaluated when, and only when, its inputs change.
 
 ```declare-fragment
-x    = { (parent.width - width) / 2 },              // re-centers on resize
+x    = { parent.width - width - 20 },               // stays 20 from the right edge
 fill = { selected ? 0x4169E1 : 0x191970 },           // royalblue / midnightblue
 text = { data.failed ? data.error : "Loading…" }
 ```
@@ -340,7 +333,7 @@ pass — and never on what `fmt` does inside. Pass values, not nodes (a node ref
 changes, so a node-typed argument is refused); a helper that should be *analyzed* is a method.
 
 **Assignment is the setter.** `count = count + 1` updates the value and notifies everything
-bound to it; there is no bypass. Reads are symmetric — a bare read **is** the tracked read.
+that reads it; there is no bypass. Reads are symmetric — a bare read **is** the tracked read.
 
 ### The settle
 
@@ -369,8 +362,7 @@ showNewest() { app.frameOn(app.list.first) }      // the new row is real, placed
 
 The step runs exactly once, when the settle your handler triggered has closed — and before
 it presents, so what the step writes lands in the same frame as the change itself. It is
-tied to your change, not to a clock: no interval, no frame callback, nothing standing
-afterward. Constraint first, `afterSettle` second, and never for waiting — anything later
+tied to your change, not to a clock. Constraint first, `afterSettle` second, and never for waiting — anything later
 than this settle's close is a value changing, and values changing is what constraints are
 for.
 
@@ -424,16 +416,16 @@ them:
   theme above it without a cycle.)
 
 **`script { }` is foreign code — wholly outside the reactive system.** It may hold arbitrary
-TypeScript: stateful helpers, caches, classes, whole libraries. The compiler never reads a
-script body; a call is opaque, and its own state is invisible — if a function's answer can
-change without your inputs changing, hold that state in a node. Two direct uses stay refused
-in reactive code: a constraint naming a script `let` (a snapshot with no wake-up), and any
-body *writing* one (each body holds a copy, so the write lands nowhere — state that changes
-is an attribute). Handler code is under none of the *reactivity* rules above — it is ordinary
-TypeScript: locals, loops, `switch`, the host's `fetch`/`URL`/timers — and genuinely dynamic
-work belongs there or in the framework's own primitives. (Two things it is not: `async` — a
-handler is synchronous, a value the screen derives from is a `DataSource` — and a door to
-bare browser globals; see Vocabulary → Types and functions for what every body may name.)
+TypeScript: stateful helpers, caches, classes, whole libraries — but not the app's model (a
+derivation over its data is a method) or its look (a repeated color is a theme token). The
+compiler never reads a script body; a call is opaque, and its own state is invisible — if a function's answer can
+change without your inputs changing, hold that state in a node. Two uses stay refused: a
+constraint reading a script `let`, and any body writing one — state that changes is an
+attribute. Handler code is under none of the *reactivity* rules above — it is ordinary
+TypeScript: locals, loops, `switch`. It reaches the world through members, not host globals: a
+request is a `DataSource`, a repeating call a `Time`, one later call `afterDelay(ms, fn)` — a body
+naming `fetch`, the timers or `globalThis` is refused with these named. A handler is synchronous
+(no `async`); a `script { }` block may use the host directly.
 
 Only declared reactive attributes participate at all, so locals and plain objects in
 `script { }` cost nothing.
@@ -514,13 +506,13 @@ stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neith
 attribute.
 
 → `link`/`shows`/`anchor`, arrival and the crawl: the model reference ·
-[the location chapter](declare-docs:guide:location)
+[the URLs chapter](declare-docs:guide:urls)
 
 ## 7. Data
 
 A `datapath` selects a place in the data. Descendants read fields relative to it with `:path`
-— every member, not only the visible ones, so a `Spring`'s target or a `Time`'s gate reads the
-cursor of the view it is written in — and a path matching many records **replicates** its node
+— every member, not only the visible ones: a `Spring`'s target, a `Time`'s gate, or a model
+class (no `extends`: a plain `Node`) standing on a record of its own — and a path matching many records **replicates** its node
 — one instance per record. This is the
 replacement for React's `{items.map(…)}`: a collection of children comes from data, never from
 code in the tree.
@@ -550,7 +542,7 @@ ordinary read of whatever is there, and `[]` may appear only at the end of a pat
 Between those, a path may **select**: `:path` follows JSONPath (RFC 9535) over the shipped
 subset — `[0]`, `[-1]`, `[1:4]`, `[*]`, `['quoted key']`. So `:rows[*].label` is every row's
 label, and `:rows[2:8][]` replicates exactly that range, each instance cursored at its real
-index.
+index. `:@` is the record itself, and `[( expr )]` a key computed in TypeScript — `:@[(field)]`.
 
 A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing commas. The
 replicated node is anonymous, but names inside it resolve per instance. **Identity is
@@ -559,18 +551,19 @@ instances across sorts, filters and edits with nothing declared; when identity l
 another name, `key = :email` on the replicated node says which.
 
 **Count the data, not the tree.** A Dataset's `.value` is the parsed data, so a count is ordinary
-TypeScript on it. Reach for this whenever you would have counted rendered rows.
+TypeScript on it, never a walk of rendered rows.
 
 **A `DataSource` is a remote resource whose lifecycle is reactive state** —
 `data: DataSource [ url = "data/events.json" ]`. **Nothing loads on its own** unless you set
-`auto = true`; forgetting `.fetch()` is legal, silent, and the common first bug, and `onInit()`
+`auto = true`; forgetting `.fetch()` is the silent first bug, and `onInit()`
 is the usual place for it. Screens then derive from the resource (`shown = { data.loaded }`)
 rather than being toggled. An optional `schema = [ field: type, rows[]: [ … ] ]` declares the
 response's shape: it validates the payload on receipt — so malformed data yields `.failed` rather
-than `undefined` three bindings deep — and lets every `:path` be checked against the shape at
+than `undefined` three constraints deep — and lets every `:path` be checked against the shape at
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
 attribute falls back to its default. The request's own parts — method, body, credentials,
-headers — are ordinary reactive attributes, so an authenticated endpoint stays declarative.
+headers — are ordinary reactive attributes, so a write is a `DataSource` too: `method = "POST"`,
+a `body`, `.fetch()` from the handler, `onLoad()` for what follows the reply.
 
 **A schema is a named type — declare it once, at the top level, and use it in any type position.**
 `schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is a
@@ -579,29 +572,29 @@ declaration in the one type system: the name works in every type position (`sel:
 document with it (`schema = [ tasks[]: Task ]`, or `schema = Task[]` for a bare-array response),
 and its `.value` is then *typed* — `nest.value.tasks` is `Task[]` in every `{ }` body, so a
 misspelled field dies at compile time and the `as` casts go. The runtime enforces the same
-declaration at every boundary, the mutation verbs included. The schema grammar is deliberately
-the subset of TypeScript a JSON document can carry — which is exactly what makes one declaration
-checkable by the compiler *and* enforceable against live data. Extra keys always pass: a schema
+declaration at every boundary, the mutation verbs included. The schema grammar is
+the subset of TypeScript a JSON document can carry, so one declaration is checked by the
+compiler *and* enforced against live data. Extra keys always pass: a schema
 declares what the program relies on.
 
 **Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`:
 the right-hand side names a *place in data*, either a datapath or a `{ }` yielding a field name,
 resolved against the nearest enclosing `datapath` — an editor with none is a compile error. To
 drive an ordinary slot, use the value pattern: `text = { app.note }` plus
-`input(v: string) { app.note = v }`. One-way `:path` everywhere else. It is the only arrow in the
-language.
+`input(v: string) { app.note = v }`. One-way `:path` everywhere else.
 
-**Datasets are mutable from handlers** — `d.set(path, v)`, with `insert`, `removeAt` and `move`
-for collections. A path is a segments array (`["rows", 0, "name"]`) or a JSON Pointer string
-(RFC 6901 — `"/rows/0/name"`, and `"/rows/-"` appends). A write wakes exactly the bindings that
+**Datasets are mutable from handlers** — `:done = v` writes the record under the cursor;
+`d.set(path, v)`, with `insert`, `removeAt` and `move` for collections, writes anywhere. A path is a segments array (`["rows", 0, "name"]`) or a JSON Pointer string
+(RFC 6901 — `"/rows/0/name"`, and `"/rows/-"` appends). A write wakes exactly the constraints that
 read the changed region.
 
-**A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`.
+**A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`,
+a method the compiler reads through; with a `schema`, its `.value` is typed.
 
 **Large collections virtualize on one word.** `virtualize = true` on a replicated node builds
 only the rows near the viewport and leaves the rest logical — same records, same paths, same
-behaviour, reconstructed indistinguishably as you scroll. It is a boolean, **off by default** —
-full materialization keeps browser find working over every record. There is nothing else to
+behaviour. It is a boolean, **off by default** —
+full materialization keeps browser find working over every record. Nothing else to
 write: no row heights, no scroll wiring, no keys.
 
 **When structure is genuinely imperative**, build it from a handler:
@@ -618,7 +611,7 @@ a `DataSource`, and nothing to unsubscribe.
 → `Dataset` and `DataSource` attributes, `Stream`/`EventStream`/`Socket`, `View.createView`,
 `View.discard`: the model reference · paths, selection and editing:
 [the data chapter](declare-docs:guide:data) · virtualization at scale:
-[scale](declare-docs:guide:scale)
+[collections](declare-docs:guide:collections)
 
 ## 8. Input
 
@@ -809,8 +802,8 @@ value that changes *over* a duration, `Spring` for one that moves *toward* a tar
 idiom — and `Time` for the clock itself — its facts (`now`, `minute`, …) are inputs a
 constraint derives from, and its `onTick(dt)` at `tick = frame` is the one per-frame handler, there
 only to **integrate**, the previous value being the input; a per-frame `onTick` that ignores `dt` is
-polling. `setTimeout` is for a timing rule — a debounce, a request timeout —
-and a timer does not die with its node, so cancel it yourself. (Finishing after your own change
+polling. A timing rule — a debounce, a delayed dismissal — is `afterDelay(ms, fn)`, owned by its
+node and cancelled with it; a period is `Time [ tick = 5000 ]`. (Finishing after your own change
 has landed is neither — that is `afterSettle`, §5.)
 
 Because states, springs, and layout all sit on one reactive core, *arrangement* animates: spring
@@ -831,7 +824,7 @@ Two contracts are worth learning because your own components should obey them to
 **The value pattern.** A control's value is a plain reactive attribute, in one of three forms:
 standalone, where the control owns its state and you read it by name; **app-owned, deriving down
 and delivering up**; or data-owned, `<->`, editors only. The second is a *pair*, and splitting it
-is the §5 rule biting. A control's default `input` writes its **own** attribute, so a one-way
+is the §5 rule biting. A control's default `input` writes its **own** attribute, so
 `checked = { app.muted }` with no `input` override makes the control's own edit an assignment to a
 cell-owning slot — refused (§5). Override `input` and the edit goes where the value actually
 lives.
@@ -865,7 +858,7 @@ dialog's buttons — it takes plain record arrays and hands the choice back thro
    exactly the named fix, change nothing else, recompile. All independent errors in a phase are
    reported together.
 4. **Ask the platform.** When what you need is a fact rather than a failure — a name, a
-   signature, an enum's tokens, a diagnostic code — `node tools/declare-help.mjs <name>`
+   signature, an enum's tokens, a diagnostic code — `npx declare-help <name>`
    answers it in one shot (the map). It is the cheapest step in this list, and the one that
    keeps a guess from becoming a compile error.
 5. **Ask the running program.** A clean compile means the checker found nothing, not that nothing
@@ -873,10 +866,10 @@ dialog's buttons — it takes plain record arrays and hands the choice back thro
    something compiles yet misbehaves, stop re-reading the source. `__declare.explain(path, attr)`
    answers *why* a slot holds its value, giving the expression, the read-paths it was wired to,
    and their live values. (Dev tooling: a production build ships a stub unless you pass
-   `declarec --debug`.) `node tools/verify.mjs <file>` climbs the same ladder the test suite
+   `declarec --debug`.) `npx declare-verify <file>` climbs the same ladder the test suite
    does, from parse to real input in a headless browser.
 
-The formatter (`tools/format.mjs`) owns the house style; run it rather than hand-aligning. What it
+The formatter (`npx declare-format`) owns the house style; run it rather than hand-aligning. What it
 cannot decide for you is naming — camelCase — and that **a leaf goes on one line**, which most of a
 UI is.
 

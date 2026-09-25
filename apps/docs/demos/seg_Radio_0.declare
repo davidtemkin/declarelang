@@ -1,7 +1,9 @@
-App [
-    size: RadioGroup [ x = 20, y = 20, value = "m",
+App [ width = 300, height = 120, fill = white, textColor = black,
+    size: string = "m",
+    RadioGroup [ x = 20, y = 20, value = { app.size },
+        input(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],
-        Radio [ choice = "m", label = "Medium" ],
-        Radio [ choice = "l", label = "Large" ]
-        ]
+        Radio [ choice = "m", label = "Medium" ]
+        ],
+    Text [ x = 160, y = 20, text = { "size: " + app.size } ]
     ]

@@ -28,16 +28,12 @@ Write a program to my-apps/hello.declare and browse to it under the server's add
 <!-- generated:flagship-example -->
 ```declare
 App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
-
     count: number = 0,                               // reactive state
-
-    add: View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = royalblue,
-        onClick() { count = count + 1 },
-        Text [ x = 20, y = 10, text = "Add one" ]
-        ],
-
-    Text [ y = 80, x = { (parent.width - this.width) / 2 },
-        text = { `Clicked ${count} times` } ]
+    col: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+        Button [ label = "Add one", primary = true, onClick() { app.count = app.count + 1 } ],
+        Text [ text = { `Clicked ${app.count} times` } ]
+        ]
     ]
 ```
 <!-- /generated:flagship-example -->
@@ -47,5 +43,5 @@ Two delimiters carry the whole model: **`[ … ]`** is the view tree — compone
 ## Where everything is
 
 - [**docs/declare.md**](https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md) — the language, in one file, for you and your LLM.
-- [**The guide**](https://github.com/davidtemkin/declarelang/blob/main/docs/guide/01-thinking-in-declare.md) — how to think in Declare, starting from an app just like the one above.
+- [**The guide**](https://github.com/davidtemkin/declarelang/blob/main/docs/guide/01-what-declare-is.md) — what an idiomatic Declare app looks like, starting from an app just like the one above.
 - [**GitHub**](https://github.com/davidtemkin/declarelang) — the full source. The homepage you are reading is itself a Declare app, and every app is editable in the browser.

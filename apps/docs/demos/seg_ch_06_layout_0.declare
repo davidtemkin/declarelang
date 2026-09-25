@@ -1,0 +1,13 @@
+App [ width = 320, height = 170, fill = white, textColor = black,
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ fontWeight = semibold, text = "A column" ],
+        row: View [
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            View [ width = 40, height = 40, cornerRadius = 8, fill = steelblue ],
+            View [ width = 40, height = 24, cornerRadius = 8, fill = cadetblue ],
+            Text [ text = "a row, centered across" ]
+            ],
+        Button [ label = "and a button" ]
+        ]
+    ]

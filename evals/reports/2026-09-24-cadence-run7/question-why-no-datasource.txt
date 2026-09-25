@@ -1,0 +1,1 @@
+A question about how you built it, not a request to change anything. For the first load, and for adding, editing and deleting sessions, you called the browser's fetch() from handlers and script, but you used a DataSource for the live session. Why that split? What did you read, or not find, that led you there? Please be specific about the documents or examples involved.

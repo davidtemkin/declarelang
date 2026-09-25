@@ -67,7 +67,7 @@ child at the size it chose for itself. In a stack `"auto"` is accepted and
 changes nothing — the flow axis there is height, which a share never touches.
 
 **Two shares are refused, where the plan is read** — both of them mistakes
-with no arrangement they could mean, and both silent before. A row's shares
+with no arrangement they could mean. A row's shares
 divide one run, so a row whose shares add to more than 100 is an error naming
 the plan and the total, rather than a row that runs its children off the end.
 And a share that is neither a number from 0 to 100 nor the word `"auto"` is

@@ -23,7 +23,7 @@ untrue, say so in the commit rather than letting the gap open silently.
 Everything here is enforced by something runnable. Nothing is honour-system.
 
 ```sh
-node tools/verify.mjs <file>   # one program, six rungs: parse → resolve → analyze → boot → input → pixels
+npx declare-verify <file>   # one program, six rungs: parse → resolve → analyze → boot → input → pixels
 npm test                       # everything that tests the sources — no derive needed
 npm run derive                 # regenerate the committed artifacts (required before a push) — stages its outputs
 npm run test:derived           # the artifact gates — only meaningful straight after a derive
@@ -132,7 +132,7 @@ renames or migrations; no implementation history; no dates or "ruled" notes; no 
 into `docs/system-design/`; no prior-art framing. Mid-sentence ALL-CAPS is not emphasis
 here either — `**bold**` once or twice, or a better sentence. The prose rule, with
 examples, is [`prose/STYLE.md`](tools/internal/doc/prose/STYLE.md#one-version-of-the-truth);
-what a *comment* may say is [the house-style chapter](docs/guide/22-house-style.md#what-a-comment-says).
+what a *comment* may say is [the formatting appendix](docs/guide/28-formatting.md#what-a-comment-says).
 
 The corpus is the reason `apps/` is on that list. Every program under it is read to learn
 the language from, by people and by agents, so an ordinary `// ` comment in an app carries

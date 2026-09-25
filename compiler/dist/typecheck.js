@@ -336,7 +336,7 @@ function explainTs(d, u, synthTags) {
                 return `'${m[1]}' is read-only — a fact the component maintains; write the thing it derives from, not the fact`;
             return msg;
         case 1308:
-            return `a { } body is synchronous — there is no 'await' (and no async handler). For a value the screen derives from, declare a DataSource and read .value/.loaded; for a one-off sequence (a POST, then a write), chain .then(): fetch(url, init).then((r) => r.json()).then((j) => { app.x = j })`;
+            return `a { } body is synchronous — there is no 'await' (and no async handler). A request is a DataSource: its fetch() sends it, the screen derives from .value / .loading / .failed, and work that must follow the reply goes in its onLoad() — a POST and then a write is a DataSource with method = "POST" whose onLoad does the write`;
         // A host global the resolver let through (it admits only the prelude and
         // the ES built-ins, so this is rare) — never TypeScript's advice to add
         // lib.dom or @types/node, which names a fix the language does not take.
@@ -354,7 +354,7 @@ function explainTs(d, u, synthTags) {
                 // Name what "a global" means, because the old wording listed it as an
                 // option and an author whose `fetch` had just been refused read that as
                 // "fetch is a global, so why not?" — and reached for (globalThis as any).
-                return `nothing in scope is named '${m[1]}' — a bare name in a { } body is a member (written this.${m[1]}, or via parent/classroot/app), a method parameter, or one of the globals a body may use (fetch, URL, setTimeout, console, Math, JSON, …); '${m[1]}' is none of these`;
+                return `nothing in scope is named '${m[1]}' — a bare name in a { } body is a member (written this.${m[1]}, or via parent/classroot/app), a method parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …); '${m[1]}' is none of these`;
             }
             return msg;
         // Arithmetic over a non-number.
@@ -585,9 +585,13 @@ class CaseEmitter {
         // type — `app.nest.value.tasks` is `Task[]` to every body and method, so
         // the `as Task[]` coercion tax is retired at its source. A named form
         // projects the NAME; the inline literal projects structurally.
+        // A DataSource has no document until a fetch lands, so its value may be null;
+        // a Dataset with a literal body or a `contents` constraint always has one.
         const doc = this.docTypeOf(el);
+        const alwaysHeld = !descendsFrom(this.schemas[el.tag], "DataSource") && el.tag !== "DataSource"
+            && (el.raw !== undefined || el.attrs.some((a) => a.name === "contents"));
         if (doc !== null)
-            members.push(`  value: ${doc} | null;`);
+            members.push(`  value: ${doc}${alwaysHeld ? "" : " | null"};`);
         if (members.length === 0) {
             this.instType.set(el, el.tag);
             return el.tag;
@@ -636,7 +640,7 @@ class CaseEmitter {
                 // `any` does; a typed signature — `buildCols() -> Board` — closes
                 // the chain end to end.)
                 const slotType = a.name === "contents" ? (this.docTypeOf(el) ?? tsSlotType(this.schemas, el.tag, a.name)) : tsSlotType(this.schemas, el.tag, a.name);
-                this.emit(a.value.src, a.value.pos, a.name, a.name === "contents" && this.docTypeOf(el) !== null ? `${slotType} | null` : slotType, levels, true, [], classBody);
+                this.emit(a.value.src, a.value.pos, a.name, slotType, levels, true, [], classBody);
             }
         }
         for (const d of el.decls) {

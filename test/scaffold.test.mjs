@@ -189,8 +189,11 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   // writes also accept a place-bearing VALUE (`datapath = { d.value.rec }` —
   // toCursor turns the container back into a place), which a typed dataset
   // value (`Doc | null`) must satisfy exactly as the untyped `any` always did.
-  assert.ok(view.includes("get datapath(): Cursor;"), "cursor → read as the Cursor");
-  assert.ok(view.includes("set datapath(v: Cursor | object | null);"), "cursor → written as a place OR a place-bearing container");
+  // Declared on Node since 2026-09-24 (a model class stands on a record), so View
+  // inherits it.
+  const nodeBlock = classBlock(s, "Node");
+  assert.ok(nodeBlock.includes("get datapath(): Cursor;"), "cursor → read as the Cursor");
+  assert.ok(nodeBlock.includes("set datapath(v: Cursor | object | null);"), "cursor → written as a place OR a place-bearing container");
   // The tree nouns (language §11) live on the ROOT class — Node since
   // 2026-07-28, when the schema table started recording the runtime's real
   // chain (`class View extends Node`) instead of treating View as a root.

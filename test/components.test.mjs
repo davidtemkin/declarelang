@@ -443,6 +443,48 @@ await test("Segmented: every segment is a STOP — tab to an inactive choice, Sp
   Focus.blur();
 });
 
+await test("Segmented: a choice with a location is a real link — declared, not navigated by hand; replace follows the group", async () => {
+  const r = await (await import("../compiler/dist/compile-node.js")).compile(`App [ width = 500, height = 200,
+    s: Segmented [ replace = true, choices = { [ ({ id: "g", label: "Guide", location: "guide" }), ({ id: "x", label: "Plain" }) ] } ],
+    guide: View [ shows = "guide" ] ]`);
+  assert.deepEqual((r.warnings ?? []).map((w) => w.message), [], "no crawl-edge lint from library code");
+  const app = await boot(`App [ width = 500, height = 200, picked: string = "",
+    s: Segmented [ replace = true, input(v: object) { app.picked = "" + v },
+      choices = { [ ({ id: "g", label: "Guide", location: "guide" }), ({ id: "x", label: "Plain" }) ] } ],
+    guide: View [ shows = "guide" ] ]`);
+  const [g, x] = app.s.segs();
+  assert.equal(g.link, "#guide", "the segment declares its destination");
+  assert.equal(g.replace, true, "…with the group's history verb");
+  assert.equal(x.link, "", "a choice with no location is no link");
+  g.onClick(); settle();
+  assert.equal(app.picked, "g", "the click still delivers the pick");
+});
+
+await test("DataGrid: a column added at runtime joins the column model — nothing to bump", async () => {
+  const app = await boot(`App [ width = 500, height = 200,
+    d: Dataset { { "rows": [ { "id": 1, "a": "x", "b": "y" } ] } },
+    g: DataGrid [ width = 400, height = 120, datapath = { d.value },
+      Column [ title = "A", field = "a", width = 100 ],
+      GridRow [ datapath = :rows[] ] ] ]`);
+  assert.equal(app.g.colData.value.cols.length, 1);
+  app.g.createView("Column", { title: "B", field: "b", width: 100 });
+  settle();
+  assert.equal(app.g.colData.value.cols.length, 2, "the new column is in the model");
+});
+
+// A warning is about the author's code. The library's own code must raise none
+// in a program that merely uses it — the author cannot act on it.
+await test("the library raises no warnings in a program that uses it", async () => {
+  const r = await (await import("../compiler/dist/compile-node.js")).compile(`App [ width = 600, height = 600,
+    col: View [ layout: SimpleLayout [ axis = y ],
+    Button [ label = "b" ], Checkbox [ label = "c" ], Switch [ ], Slider [ ], ProgressBar [ ], Bar [ ],
+    Segmented [ choices = { [ ({ id: "a", label: "A", location: "a" }) ] } ], Combobox [ ], TextInput [ ], AppearanceSwitch [ ],
+    RadioGroup [ Radio [ choice = "a", label = "A" ] ], Field [ ], Card [ ], Divider [ ],
+    Accordion [ Pane [ ] ], Menu [ ], MenuBar [ ], ContextMenu [ ], Dialog [ ], Tooltip [ ], Icon [ ] ] ]`);
+  assert.deepEqual((r.errors ?? []).map((e) => e.message), []);
+  assert.deepEqual((r.warnings ?? []).map((e) => e.message), []);
+});
+
 // ── AUTO-PROVIDED SINGLETON splices at the ROOT's close, not the file's last
 // `]` (field report 2026-09-02). A `script { }` after the App holding a
 // bracket-indexed read (`lay[id]`) put the LAST `]` inside the script; the

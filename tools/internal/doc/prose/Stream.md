@@ -27,7 +27,7 @@ is deriving emptiness: `url = { app.chatId != "" ? "/api/chat/" + app.chatId : "
 
 ## active
 The gate. `false` closes the connection (and cancels any pending retry); flipping back
-`true` reopens it. Bind it to app state — `active = { app.live }` — rather than toggling
+`true` reopens it. Constrain it to app state — `active = { app.live }` — rather than toggling
 imperatively.
 
 ## retry
@@ -40,14 +40,14 @@ A structural failure (the factory itself refuses — headless extraction, a miss
 service) never loops, whatever `retry` says.
 
 ## status
-The connection lifecycle as **one fact**, like `DataSource.status`: `"closed"`,
+The connection lifecycle as **one fact**: `"closed"`,
 `"connecting"`, `"open"`, `"retrying"`, or `"failed"` (down, and will not reconnect).
 **Read-only** — computed for you; assigning it is a compile error. `"retrying"` covers
 both the platform's own recovery (SSE) and a declared `retry` waiting to re-dial.
 
 ## open
-The boolean view of `status == "open"`, as `DataSource.loaded` is of its status — one
-fact, two spellings, never in disagreement. **Read-only.** The connection dot is
+The boolean view of `status == "open"` — one fact, two spellings, never in
+disagreement. **Read-only.** The connection dot is
 `visible = { feed.open }`.
 
 ## error

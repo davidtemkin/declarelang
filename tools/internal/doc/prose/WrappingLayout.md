@@ -1,6 +1,6 @@
 A horizontal flow that **wraps** to a new row when the view runs out of width — a row
 while there's room, rows when there isn't. For tag lists, chip clouds, a toolbar that
-reflows. It re-wraps reactively as the view resizes, so binding the view's `width` to its
+reflows. It re-wraps reactively as the view resizes, so constraining the view's `width` to its
 parent is all it takes to make the flow responsive.
 
 ```declare

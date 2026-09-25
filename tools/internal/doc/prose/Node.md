@@ -13,7 +13,20 @@ class Cart [ count: number = 0,
 ```
 
 A view then holds one as a named member (`cart: Cart [ ]`) and reads/drives it reactively —
-state and behaviour with no pixels of its own.
+state and behaviour with no pixels of its own. A Node may also stand on a **record** with a
+`datapath` of its own: its `:path` reads and `:field = v` writes resolve against that
+record, so a model class owns the rules for a kind of data with no view involved. A class
+meant to be a box needs `extends View` — `class Box [ width = 40 ]` is refused ("Box has no
+attribute 'width'").
+
+## datapath
+The data cursor: the place in a dataset this node and its descendants read and write
+relative to. Written as a `:path` (extending the inherited cursor), a `{ }` expression
+yielding a place (`datapath = { app.d.value.tasks[app.pick] }`), or null. The nearest
+ancestor-or-self cursor wins, so a model class with its own `datapath` stands on that
+record, and views inside it read the same one. A `:path` ending in `[]` replicates — and
+only a view replicates; on any other node that form is a compile error naming the
+single-record spelling.
 
 ## onInit
 Fires once when the node has finished constructing and its subtree exists — the place for
@@ -52,7 +65,8 @@ constraint, nor for moving one, which is a Spring, and it is not meant for use i
 conjunction with animation.
 
 ## $data()
-Reads the datum at a path **relative to the nearest cursor** — this view's, or for a node that is not a view (a Spring's target, a Time's gate, a DataSource's url) the nearest enclosing view's — the compiled form every
+Reads the datum at a path **relative to the nearest cursor** — this node's own, or the
+nearest ancestor's — the compiled form every
 `:path` lowers to, callable by hand. `$data("")` is the whole record at the cursor, which
 is what a replicated row calls to hand its own record to a method. Reach for the `:path`
 spelling in ordinary code; reach for this when the path is computed, or when you need the
@@ -61,3 +75,10 @@ record itself rather than a field of it.
 ```declare-fragment
 member() -> object { return this.datapath != null ? this.$data("") : this }
 ```
+
+## $cell()
+The compiled form of a write to a record field: a handler's `:done = v` lowers to
+`this.$cell(["done"]).value = v`, and `:n += 1` reads and writes through the same place.
+The write lands through the dataset's `set`, relative to the nearest cursor, exactly where
+the matching read resolves. Write `:field = v`; this is what the compiler emits, not a call
+to make by hand.

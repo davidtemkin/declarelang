@@ -69,17 +69,16 @@ await test("ops: skill-gate — every repo path SKILL.md names exists", () => {
 });
 
 await test("ops: skill-gate — every guide chapter is on the skill's map", () => {
-  // The intro chapter is deliberately absent: the skill routes TASKS, and
-  // chapter 1 is the pitch. Everything else must appear — in the table or
-  // the parenthetical — so a new chapter cannot ship invisible to agents.
+  // Every chapter must appear — in the table or the parenthetical — so a new
+  // chapter cannot ship invisible to agents. Chapter 1 is on the map: it is the
+  // whole-app picture an agent should read before writing a program.
   //
-  // 24-comparatives.md is the second exemption, and for the opposite reason: it
-  // is a HUMAN phrasebook of React/Vue/SwiftUI/Flutter/CSS reflexes, and an
+  // 30-coming-from.md is exempt: it is a HUMAN phrasebook of React/Vue/SwiftUI/Flutter/CSS reflexes, and an
   // agent reads this same corpus. Naming the frameworks it is not trained on
   // Declare for is exactly the invitation to extrapolate foreign semantics that
   // the skill's opening line exists to refuse — so the appendix ships to readers
   // and stays off the agent's map, deliberately.
-  const EXEMPT = new Set(["01-thinking-in-declare.md", "24-comparatives.md"]);
+  const EXEMPT = new Set(["30-coming-from.md"]);
   const s = readFileSync(join(ROOT, "skill/SKILL.md"), "utf8");
   const chapters = readdirSync(join(ROOT, "docs/guide")).filter((f) => /^\d+-.+\.md$/.test(f));
   const missing = chapters.filter((f) => !EXEMPT.has(f) && !s.includes(f));

@@ -297,13 +297,6 @@ export declare class View extends Node {
      *  write. Purely model-side: the strategy's constraints move children, and
      *  those pushes cross the seam — the slot itself never does. */
     layout: LayoutStrategy | null;
-    /** The data cursor (R8, language §9): the place `:path` reads on this view
-     *  and its descendants resolve against, inherited down the tree (the
-     *  nearest ancestor's cursor wins — see $data). Written as `datapath =
-     *  :rel.path` (extends the inherited cursor), `datapath = { expr }` (a
-     *  place derived from a dataset's value), or null. Model state — no
-     *  Surface push; visuals follow through the bindings that read it. */
-    datapath: Cursor | null;
     /** The optional draw method (the ruled rendering model): a `draw(d) { … }`
      *  member (its R5 language surface), a runtime assignment, or a subclass
      *  override — and this view draws. It runs on invalidation only, recording
@@ -824,7 +817,7 @@ export declare class View extends Node {
 }
 /** Judge every pending size whose program is attached (see noteNegativeSize). */
 export declare function judgeNegativeSizes(): void;
-export declare function withCursorDefining<T>(view: View, fn: () => T): T;
+export declare function withCursorDefining<T>(view: Node, fn: () => T): T;
 /** The cursor in effect at `node`: the nearest ancestor-or-self datapath
  *  (language §9 — "descendants read fields relative to it"). Each level's
  *  slot is a tracked read, so a cursor appearing, changing, or clearing

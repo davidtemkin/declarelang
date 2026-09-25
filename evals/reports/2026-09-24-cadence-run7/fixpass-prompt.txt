@@ -1,0 +1,1 @@
+Rework Cadence so that wherever it talks to the service, it does so through DataSource rather than the browser's fetch: the first load, the live session's refresh, and adding, correcting and deleting. Keep its behavior and appearance as they are. When you're done, say what you had to look up, and anything the documentation didn't answer.

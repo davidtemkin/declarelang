@@ -13,7 +13,7 @@ class Rail extends Layout [
         let x = 0
         return this.laid().map((c) => {
             const box = ({ x })
-            if (c.visible) x = x + (c as any).width + this.gap
+            if (c.visible) x = x + c.width + this.gap
             return box
             })
         }
@@ -98,9 +98,9 @@ data-driven list with no extra wiring.
 **This is the method a custom layout is written against.** A `Layout` subclass overriding
 `place()` is the sanctioned extension point, and `laid()` is how it reaches the children —
 notably, a layout strategy *may* aggregate over them, which constraints may not. The other
-half is `this.view`, the view being arranged: read it for the extent to divide up
-(`this.view.width`), because **a layout answers to the view it is attached to, never to the
-window**, which is what makes nested responsive layouts compose.
+half is the room the view gives it, `this.contentExtent("width")` — the arranged view's
+extent less its padding — because **a layout answers to the view it is attached to, never to
+the window**, which is what makes nested responsive layouts compose.
 
 ```declare-fragment
 place() {
@@ -138,9 +138,8 @@ room it is given. **Read this, not `this.view.width`** — a strategy that reads
 own extent wraps, shares or spaces at the wrong number the moment anyone pads that view,
 and one that reads `contentExtent` honors it for free. It is the plain measurement: unlike
 `viewExtent` it does not ask whether the view derives that extent from these very children,
-so an *alignment band* wants `viewExtent` (which is the content box too). From a `.declare`
-`place()` reach it as `(this as any).contentExtent("width")`, the same cast the library's
-own strategies use.
+so an *alignment band* wants `viewExtent` (which is the content box too). A `place()` in a
+`.declare` class calls it directly: `this.contentExtent("width")`.
 
 ## viewExtent()
 The **band an alignment places children in**: the arranged view's own content extent on
@@ -153,7 +152,7 @@ the author drew, which is what `align = center` has always meant. The read is tr
 parent that resizes re-places its aligned children.
 
 ## attachTo()
-Binds this strategy to a view. Setting a `layout:` member does it for you; a strategy
+Attaches this strategy to a view. Setting a `layout:` member does it for you; a strategy
 swapped in at runtime is attached by the slot assignment, not by hand.
 
 ## rearm()

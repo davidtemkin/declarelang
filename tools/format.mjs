@@ -72,7 +72,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 // string/template ISLANDS inside them (line starts inside an island are never
 // re-indented — that whitespace is program data).
 
-const PUNCT = { "[": "lb", "]": "rb", "(": "lp", ")": "rp", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "|": "pipe" };
+const PUNCT = { "[": "lb", "]": "rb", "(": "lp", ")": "rp", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "|": "pipe", "@": "at" };
 const isDigit = (c) => c >= "0" && c <= "9";
 const isIdentStart = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
 const isIdentPart = (c) => isIdentStart(c) || isDigit(c);
@@ -303,7 +303,8 @@ function analyze(tokens) {
       case "colon": { // datapath `:a.b` / `:arr[]` / `:arr[2:8][]` (slices, indices)
         t.colonKind = "path";
         p++;
-        let last = tokens[expect("ident", "a field name after ':'")];
+        // `:@` — the record itself — or a field name
+        let last = tok().kind === "at" ? tokens[p++] : tokens[expect("ident", "a field name after ':'")];
         while (tok().kind === "dot") { p++; last = tokens[expect("ident", "a field name after '.'")]; }
         // bracket segments glue to the path: `[]` (replication), `[3]`,
         // `[a:b]` — any run of them, each emitted with no interior gaps

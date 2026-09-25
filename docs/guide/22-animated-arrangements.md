@@ -1,0 +1,161 @@
+<!-- nav: Animated arrangements -->
+<!-- part: Continuity -->
+
+# Animated arrangements
+
+[Core concepts](declare-docs:guide:what-declare-is) showed a card that becomes a panel:
+one sprung number, three constraints reading it. This chapter is that idea at the scale of
+whole layouts — the signature idiom of the language, and what separates it from stacks
+where animation is a layer added on top:
+
+> **Spring a few scalars; derive all geometry from them; and every arrangement
+> change glides, in lock-step, interruptibly, for free.**
+
+The reasoning is direct. Constraints stay true
+([Constraints](declare-docs:guide:constraints)). A spring moves a value continuously
+([Motion and states](declare-docs:guide:motion)). So if every position and size in
+an arrangement is a constraint reading a handful of sprung values, then moving those
+values *is* rearranging the interface — and every in-between frame is a real layout,
+because the same constraints hold at every instant. Nothing "transitions." The truth
+just moves, and the interface stays true to it.
+
+## A month becomes a week
+
+Here is the calendar's signature view-morph, at toy scale so you can see the whole
+mechanism at once. Twenty-one cells, and exactly **two sprung scalars**: `r0` (which
+row the focus starts at) and `nr` (how many rows are in view). Click a cell to zoom
+its row into a "week"; click again to fall back to the "month" — and, as always,
+interrupt it mid-flight:
+
+```declare
+class Cell extends View [ cornerRadius = 10, fill = darkslategray, clip = true,
+    x = { :col * app.colW + 2 },
+    y = { (:row - app.r0) * app.rowH + 2 },
+    width = { app.colW - 4 },
+    height = { app.rowH - 4 },
+    onClick() { app.pick(:row) },
+    n: Text [ x = 10, y = 5, fontSize = 12, textColor = gainsboro, text = :n ]
+    ]
+
+
+App [ width = 420, height = 240, fill = black,
+    mode: string = "month",
+    anchorRow: number = 0,
+
+    r0To: number = { app.mode == "week" ? app.anchorRow : 0 },
+    nrTo: number = { app.mode == "week" ? 1 : 3 },
+    r0: number = 0,
+    nr: number = 3,
+    Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 20 ],
+    Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 20 ],
+
+    colW: number = { (app.width - 32) / 7 },
+    rowH: number = { (app.height - 32) / app.nr },
+
+    pick(r: number) { if (this.mode == "month") { this.anchorRow = r; this.mode = "week" } else this.mode = "month" },
+    cells() {
+        const out = []
+        for (let i = 0; i < 21; i++) out.push({ n: i + 1, col: i % 7, row: Math.floor(i / 7) })
+        return { cells: out }
+        },
+    grid: Dataset [ contents = { app.cells() } ],
+
+    board: View [ x = 20, y = 20, width = { app.width - 40 }, height = { app.height - 40 }, clip = true,
+        datapath = { grid.value },
+        Cell [ datapath = :cells[], key = :n ]
+        ]
+    ]
+```
+
+Read the mechanism off the source, because it is all there. A view switch is **one
+assignment** — `pick` sets `mode`, nothing else. The spring *targets* (`r0To`,
+`nrTo`) derive from the mode; the springs chase them; and every cell's `y` and
+`height` are constraints reading `r0` and `nr` — so as two numbers glide, twenty-one
+cells rearrange in perfect lock-step, the focused row swelling to fill the board
+while the others slide out past the clip. The month doesn't cut to the week. It
+*becomes* it — and mid-morph, every frame is a coherent layout, because no frame is
+anything other than the constraints, holding.
+
+This is precisely how the real calendar works — four sprung scalars instead of two
+(columns too), forty-two cells instead of twenty-one, and events that reshape from
+chips into time-blocks as their row grows. Not a different technique at scale; the
+same one, with more constraints reading the same few moving numbers.
+
+## A layout that glides
+
+The toy above positions every cell with its own constraints, which is the right tool when
+the geometry is a formula. When the arrangement is a *layout* — a row that becomes a
+stack, a grid that becomes a list — extend [`TweenLayout`](declare-docs:TweenLayout) instead. Its `place()` is an
+ordinary layout method ([Custom components](declare-docs:guide:custom-components@an-arrangement-nobody-wrote-for-you)) that
+reads the layout's own state; change the state, call [`retarget(true)`](declare-docs:TweenLayout.method.retarget), and the children
+glide from where they are to where `place()` now puts them:
+
+```declare
+class RowOrStack extends TweenLayout [
+    stacked: boolean = false,
+    place() {
+        const W = this.contentExtent("width"), kids = this.laid(), n = kids.length
+        const cw = Math.floor((W - 8 * (n - 1)) / n)
+        return kids.map((c, i) => this.stacked
+            ? ({ x: 0, y: i * 48, w: W, h: 40, vis: true })
+            : ({ x: i * (cw + 8), y: 0, w: cw, h: 40, vis: true }))
+        }
+    ]
+
+
+App [ width = 440, height = 200, fill = white, textColor = white, fontSize = 14,
+    flip() { box.layout.stacked = !box.layout.stacked; box.layout.retarget(true) },
+    Button [ x = 20, y = 12, label = "Flip", textColor = black, onClick() { app.flip() } ],
+    box: View [ x = 20, y = 60, width = 400, height = 140,
+        layout: RowOrStack [ duration = 450 ],
+        View [ fill = 0x2E6FE0, cornerRadius = 8, TextLabel [ x = 10, text = "one" ] ],
+        View [ fill = 0x12A594, cornerRadius = 8, TextLabel [ x = 10, text = "two" ] ],
+        View [ fill = 0x8F6F28, cornerRadius = 8, TextLabel [ x = 10, text = "three" ] ]
+        ]
+    ]
+```
+
+Click Flip, then click again mid-flight: `retarget` aims the glide at the new arrangement
+from wherever the children are, the same interruption a spring has. `duration` sets the
+glide's length, and `t`, the layout's 0-to-1 blend between arrangements, can also be
+driven by a constraint or an [`Animator`](declare-docs:Animator).
+
+## Deriving character, not just geometry
+
+The idiom's second power: *qualities* can derive from the same scalars. The calendar
+never stores "are we in a time view?" — it derives a continuous `blockness` from the
+sprung row height, and everything that distinguishes a time view (the hour gutter,
+an event's shape) reads it. So those qualities morph *with* the motion instead of
+snapping at a threshold. A managed flag flips; a derived scalar flows. When you find
+yourself about to declare `isExpanded: boolean` next to a spring, ask whether the
+truth you want is already a function of the motion.
+
+## Designing for continuity
+
+Now the honest part: the language lowers the cost of building this, not the design bar. The mechanism is three declarations; the *thinking* is
+where the craft lives, and it has a discipline:
+
+- **Choose the scalars.** What should the user see persist through the change? The
+  focus rectangle answers "these same cells, framed differently." Your scalars are
+  that answer, made numeric — and if you can't say what persists, no spring will
+  say it for you.
+- **Derive; never duplicate.** The moment two constraints encode the same fact
+  independently, they can disagree mid-motion. One source, everything reading it —
+  the discipline of [Constraints](declare-docs:guide:constraints), now load-bearing
+  at 120 frames a second.
+- **Design the endpoints; audit the middle.** You declare the end states, but users
+  *live* in the in-betweens — drag the toy above halfway and look. Because every
+  frame is a real layout, the middle is inspectable, and worth inspecting.
+
+None of this is a burden unique to Declare — it is the same design thinking the best
+native software required all along. What's different is that here, expressing the
+answer costs a handful of declarations instead of a specialist's month.
+
+---
+
+**What you can now do:** you can make an interface's *arrangement* — not just its
+attributes — move as one continuous, interruptible whole, and you know the
+discipline that makes such motion mean something. That is the capability this
+language was built to make ordinary.
+
+[Next: **Renderers and hosts** →](declare-docs:guide:renderers)

@@ -26,8 +26,7 @@ include [ "icon.declare" ]
 # SunIcon
 
 "Light" in the appearance triad — a disc with rays, sharing its radius and stroke with
-`MoonIcon` and `AutoIcon` so the three read as one family at 14px, which three font
-glyphs never did.
+`MoonIcon` and `AutoIcon` so the three read as one family at 14px.
 
 ## rays
 How many rays surround the disc. Eight by default; lowering it reads lighter at small

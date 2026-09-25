@@ -7,15 +7,14 @@ records: the stylings are **data**, never code paths.
 
 The chrome is the house arrangement (Viewer/Calendar): a fixed-height top bar
 — the brand at left (compacting to just "Declare" when narrow, the Calendar
-move), the page switch in the center (Controls · Table · DataGrid), and one
-appearance affordance at right opening the appearance menu: theme mode
-(Light/System/Dark, checked rows), the four stylings, the accent-tint dot row,
-and the focus-flourish toggle — the whole styling rig, off the page and into
-the menu. The Controls page reads as cards, two columns wide, one below the
-breakpoint the cards actually need.
+move), the page switch in the center (Controls · Table · DataGrid), and at
+right a Styling button whose menu holds the four stylings, the accent-tint dot
+row and the focus-flourish toggle, beside the light/dark switch — the whole
+styling rig, off the page. The Controls page reads as cards, two columns wide,
+one below the breakpoint the cards actually need.
 */
 
-use [ TintRow, SunIcon, AutoIcon, MoonIcon ]   // the door and the menu name their icons in data
+use [ TintRow ]   // the styling menu names its tint row in data
 
 // A custom menu-item content class: named in the items data (`kind: "TintRow"`),
 // created by name through the menu's row host, fed `props` as its datapath
@@ -173,9 +172,6 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         gd.set(["rows"], rows)
         },
 
-    // ── the appearance menu — the whole styling rig as records: mode rows,
-    //    styling rows, the tint dots, the flourish ───────────────────────────
-
     // ── the STYLING menu — the styling rig as records: styling rows, the
     //    tint dots (the Finder idiom), the flourish. Light/dark is the bar's
     //    own switch, beside it. ───────────────────────────────────────────
@@ -238,13 +234,12 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     dlg: Dialog [ ],
     lastDialog: string = "(none yet)",
 
-    // ── the top bar: fixed height — brand · pages · the appearance door ────
+    // ── the top bar: fixed height — brand · pages · styling · light/dark ───
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").surface },
 
         // the rule under the bar is the bar's own bottom edge — a per-side stroke,
-        // not a child view. The cast is the slot's TS type (`Stroke`) not yet
-        // admitting the four-sided list a { } constraint may hand it.
+        // not a child view
 
         stroke = { [null, null, stroke(1, provided("theme").line), null] },
 
@@ -278,23 +273,18 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                           ({ id: "grid",     label: "DataGrid" }) ] }
             ],
 
-        // the appearance door — reads as a menu popper: the mode glyph and a
-        // chevron in a bordered pill. `menu` is the role: the anchored open
-        // under the pill, Space/Enter and ArrowDown from the keyboard all come
-        // with it, so the control declares nothing about opening.
-
         // the STYLING door — a button with a menu (the chevron and the anchored
         // open come with Control's `menu` role); the stylings, the tints and
         // the flourish live in it
 
-        styling: Button [ y = { (app.barH - this.height) / 2 }, height = 30, label = "Styling",
+        styling: Button [ y = center, height = 30, label = "Styling",
             x = { app.width - this.width - 14 - parent.appear.width - 8 },
             menu = { app.stylingMenu } ],
 
         // light / dark: shows the appearance in force, a press flips it; until
         // then `themeMode` stays "auto" and the OS decides
 
-        appear: AppearanceSwitch [ y = { (app.barH - this.height) / 2 }, x = { app.width - this.width - 14 },
+        appear: AppearanceSwitch [ y = center, x = { app.width - this.width - 14 },
             dark = { app.darkUI },
             input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]

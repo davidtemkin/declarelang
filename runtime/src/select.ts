@@ -80,7 +80,7 @@ function applySeg(nodes: readonly PathNode[], seg: PathSeg): PathNode[] {
       } else if (isObj(v)) {
         for (const key of Object.keys(v)) out.push({ path: [...n.path, key], value: v[key] });
       }
-    } else {
+    } else if ("s" in seg) {
       if (Array.isArray(v)) {
         for (const i of sliceIndices(v.length, seg.s)) {
           out.push({ path: [...n.path, String(i)], value: v[i] });

@@ -1,5 +1,5 @@
 /*
-# DataGrid / Column / GridRow
+# DataGrid
 
 The Table contract plus a **column model**: headers, sortable, reorderable and
 resizable by drag, touch-correct, over a windowed collection.
@@ -14,8 +14,8 @@ resizable by drag, touch-correct, over a windowed collection.
 - **Columns are written members** (`Column`: permanent, authored, its identity
   the child itself): `title` heads the column, `field` names what a cell
   shows, `width` is the authored width — a plain value (the column model
-  derives through an unanalyzed children walk; a responsive width belongs in
-  the grid's `widths` state, which is a tracked dependency:
+  follows which columns exist, not a column's own attributes; a responsive
+  width belongs in the grid's `widths` state, which is a tracked dependency:
   `widths = { app.narrow ? ({ id: 40, … }) : null }`). A column's id is its
   `field` (title as fallback).
 - **Order and widths are the grid's value-pattern state**: `order` (column
@@ -59,22 +59,6 @@ App [ width = 440, height = 220,
 
 Drag a header sideways to reorder; drag the divider between two headers to resize;
 click a header to sort.
-
-## title
-The column's heading text. Also its identity when `field` is empty.
-
-## field
-The record key this column shows, and the column's id. **A cell renders
-`record[field]`** — there is no per-cell template to write.
-
-## kind
-What a cell *is*: `"text"` (the default, a static label), `"edit"` (a `TextInput`
-committing every keystroke into the record), `"check"` (a `Checkbox` over a boolean
-field), or `"select"` (the value plus a chevron, opening the shared options menu).
-
-## options
-The choices a `"select"` cell offers — records or strings. **Read at gesture time, not
-baked into the column model**, so it may be a constraint that changes with app state.
 
 ## order
 The presented column order, as column ids — `null` means authored order. Part of the
@@ -127,7 +111,8 @@ record through the row's cursor. **One menu serves every select cell in the grid
 ## columnRecords()
 The derived column model — the authored `Column` children, ordered and widthed by state,
 with running x offsets. **The one truth every header cell and grid cell positions from.**
-State arrives as arguments precisely so the deriving constraint tracks it.
+Its inputs arrive as arguments — the grid's `childViews`, `order` and `widths` — so the
+model re-derives when a column is added or removed, or the order or widths change.
 
 ## currentOrder()
 The column ids in their present order.
@@ -137,16 +122,6 @@ A column's id: its `field`, falling back to its `title`.
 
 ## colWidthOf()
 The present width of a column by id.
-
-## colVersion
-Bump this to rebuild the column model when columns are **added or removed at runtime**.
-The model derives through a children walk, which no constraint can track — so this is
-the manual nudge that stands in for one.
-
-## rec
-The row's record, as a derived slot. **A slot rather than a method call, so cells
-re-derive when the record's fields change** — a method read would go stale. `null` on a
-written (unreplicated) row.
 
 ## onInit
 Requests the header's escape from the scroll box (see `escaped`). The request stands:
@@ -186,16 +161,6 @@ pointer re-derives the spans mid-drag and flickers.
 
 ## isDataGrid
 **Internal.** The marker rows and headers guard on — not API.
-
-## isColumn
-**Internal.** The marker the column walk keys on — not API.
-
-## isGridRow
-**Internal.** The marker identifying a generated grid row — not API.
-
-## theme
-The provided design-token record a `Column` styles its cells off — a **provided value**
-the app provides once (`App [ theme = { … } ]`) and the grid reads. See `Control.theme`.
 */
 
 include [ "table.declare", "menu.declare" ]
@@ -210,6 +175,50 @@ use [ Menu ]
 //   "check"  — a Checkbox over a boolean field
 //   "select" — the value + a chevron; a tap opens the shared options menu
 // `options` feeds "select" (records or strings, shown by String()).
+
+/*
+# Column
+
+One column of a `DataGrid`: a written member, never replicated — permanent, authored,
+its identity the child itself. `title` heads it, `field` names what each cell shows,
+`kind` says what a cell is, and `width` is its authored width. A column's id is its
+`field`, with `title` as the fallback. A column draws nothing itself (`visible` is
+false): the grid builds headers and cells from the column model.
+
+```declare
+App [ width = 400, height = 170,
+    d: Dataset { { "rows": [ { "id": 1, "task": "Write", "done": true }, { "id": 2, "task": "Ship", "done": false } ] } },
+    DataGrid [ x = 20, y = 20, width = 340, height = 110, datapath = { d.value },
+        Column [ title = "Task", field = "task", kind = "edit", width = 220 ],
+        Column [ title = "Done", field = "done", kind = "check", width = 80 ],
+        GridRow [ datapath = :rows[] ]
+        ]
+    ]
+```
+
+## title
+The column's heading text. Also its identity when `field` is empty.
+
+## field
+The record key this column shows, and the column's id. **A cell renders
+`record[field]`** — there is no per-cell template to write.
+
+## kind
+What a cell *is*: `"text"` (the default, a static label), `"edit"` (a `TextInput`
+committing every keystroke into the record), `"check"` (a `Checkbox` over a boolean
+field), or `"select"` (the value plus a chevron, opening the shared options menu).
+
+## options
+The choices a `"select"` cell offers — records or strings. **Read at gesture time, not
+baked into the column model**, so it may be a constraint that changes with app state.
+
+## isColumn
+**Internal.** The marker the column walk keys on — not API.
+
+## theme
+The provided design-token record a `Column` styles its cells off — a **provided value**
+the app provides once (`App [ theme = { … } ]`) and the grid reads. See `Control.theme`.
+*/
 
 class Column extends View [
     // The design-token record, a provided value: the app provides it once and
@@ -242,7 +251,6 @@ class DataGrid extends Table [
     widths: object = null,      // { id: width } overrides (null = authored)
     sortOn: string = "",        // the column id the sort names ("" = unsorted)
     sortDir: string = "",       // "asc" | "desc"
-    colVersion: number = 0,     // bump if columns are added/removed at runtime
 
     // ── the delivery seams — defaults write the slots; use-site overrides
     //    own the state (persisted layouts, app-derived sorts) ──────────────
@@ -257,13 +265,14 @@ class DataGrid extends Table [
 
     // ── the column records: the authored Columns, ordered and widthed by
     //    the state, with running x offsets — the one derived truth every
-    //    header cell and grid cell positions from. A for-of children walk
-    //    (never .filter in constraint-reachable code); the state rides in as
-    //    arguments so the deriving constraint tracks it ──────────────────────
+    //    header cell and grid cell positions from. A for-of walk over the
+    //    grid's childViews (never .filter in constraint-reachable code); the
+    //    children and the state ride in as arguments so the deriving
+    //    constraint tracks them ─────────────────────────────────────────────
 
-    columnRecords(v: number, ord: array, w: object) -> array {
+    columnRecords(kids: View[], ord: array, w: object) -> array {
         const cols = []
-        for (const c of this.children) { if ((c as Column).isColumn === true) cols.push(c) }
+        for (const c of kids) { if ((c as Column).isColumn === true) cols.push(c) }
         if (ord != null) {
             const rank = (c) => {
                 const i = ord.indexOf(this.colId(c))
@@ -293,7 +302,7 @@ class DataGrid extends Table [
 
     currentOrder() -> array { return this.colData.value.cols.map((r) => r.id) },
 
-    colData: Dataset [ contents = { { cols: classroot.columnRecords(classroot.colVersion, classroot.order, classroot.widths) } } ],
+    colData: Dataset [ contents = { { cols: classroot.columnRecords(classroot.childViews, classroot.order, classroot.widths) } } ],
 
     // reorder-by-drag commits on release, never live: swapping under the
     // pointer would re-derive the spans mid-drag and flicker. While a header
@@ -343,23 +352,22 @@ class DataGrid extends Table [
     // same column one row up/down (the spreadsheet expectation) — the
     // destination scrolls into existence and its editor takes focus.
     //
-    // The focus is a host timer rather than an afterSettle step because
-    // showRow scrolls the platform scroller, and that scroll lands as an
-    // event after this settle: the windowed rows re-link on it, and an
-    // editor whose row element moves loses the focus it was just given. The
-    // timer's task queues behind that event, so the focus lands once the
-    // rows have re-seated.
+    // The focus waits for the next frame (afterDelay 0) rather than an afterSettle
+    // step because showRow scrolls the platform scroller, and that scroll
+    // lands as an event after this settle: the windowed rows re-link on it,
+    // and an editor whose row element moves loses the focus it was just
+    // given. By the next frame the rows have re-seated.
 
     editStep(row: View, field: string, d: number) {
         const i = (row as TableRow).rowIndex() + d
         if (i < 0 || i >= this.memberCount()) return
         this.showRow(i)
-        setTimeout(() => {
+        afterDelay(0, () => {
             const inst = this.children.find((c) => (c as TableRow).isTableRow === true && (c as TableRow).rowIndex() == i)
             if (inst == null) return
             const cell = (inst as GridRow).cells.children.find((c) => "" + (c as any).fld == field) as any
             if (cell != null && cell.ed != null) Focus.focus(cell.ed)
-            }, 0)
+            })
         },
 
     prevColId(id: string) -> string {
@@ -394,7 +402,7 @@ class DataGrid extends Table [
         const m = this.selMenu as any
         m.minWidth = 170
         m.items = (opts ?? []).map((o) => ({ id: "" + o, label: "" + o, checked: "" + (current ?? "") == "" + o }))
-        m.picked = (id) => { (row as any).$setData([field], id) }
+        m.picked = (id) => { (row as GridRow).setText(field, "" + id) }
         m.openFor(cell)
         },
 
@@ -419,15 +427,15 @@ class DataGrid extends Table [
     // fallback geometry below; `false` here means the renderer has no ride
     // (headless, native), never "attach was slow".
     //
-    // The read is a host timer rather than an afterSettle step because the
-    // boot settle closes before the tree attaches: the host awaits the
-    // program's fonts between instantiating the tree and mounting it, so a
-    // step at this settle's close still finds no surface and records false
-    // for good. The timer runs after the mount, once the answer exists.
+    // The read waits for the next frame (afterDelay 0) rather than an afterSettle
+    // step because the boot settle closes before the tree attaches: the host
+    // awaits the program's fonts between instantiating the tree and mounting
+    // it, so a step at this settle's close still finds no surface and records
+    // false for good. The next frame comes after the mount.
 
     onInit() {
         escaped = this.hdr.travelWith(this.parent as any)
-        if (!escaped) setTimeout(() => { escaped = this.hdr.travelWith(this.parent as any) }, 0)
+        if (!escaped) afterDelay(0, () => { escaped = this.hdr.travelWith(this.parent as any) })
         },
 
     hdr: View [ height = { classroot.headerH },
@@ -435,7 +443,7 @@ class DataGrid extends Table [
         y = { classroot.escaped ? classroot.y - classroot.headerH : -classroot.headerH },
 
         // escaped chrome leaves the grid's display subtree, so the grid's
-        // own visibility no longer reaches it through the platform — mirror it
+        // own visibility does not reach it through the platform — mirror it
 
         visible = { classroot.visible },
         width = { classroot.width },
@@ -564,16 +572,57 @@ class DataGrid extends Table [
 // generating one cell per column record. The use site writes it bare over
 // its rows path — the cells come from the grid's column model.
 
+/*
+# GridRow
+
+The row template of a `DataGrid`: write one bare `GridRow` over the rows path
+(`GridRow [ datapath = :rows[] ]`) and its cells generate from the column model, each
+showing `record[field]`. Selection, keyboard travel and windowing are `TableRow`'s and
+`Table`'s, unchanged; `virtualize = true` on the template windows the grid.
+
+```declare
+App [ width = 400, height = 200,
+    d: Dataset [ contents = { { rows: [...Array(500).keys()].map((i) => ({ id: i, n: "row " + i })) } } ],
+    DataGrid [ x = 20, y = 20, width = 300, height = 150, datapath = { d.value },
+        Column [ title = "Name", field = "n", width = 280 ],
+        GridRow [ datapath = :rows[], virtualize = true ]
+        ]
+    ]
+```
+
+## rec
+The row's record, as a derived slot. **A slot rather than a method call, so cells
+re-derive when the record's fields change** — a method read would go stale. `null` on a
+written (unreplicated) row.
+
+## setText()
+Writes a text value into the field a column names, in **this row's** record —
+`:@[(field)] = v`. A cell calls it rather than writing itself, because a cell's own
+cursor is its column, not the row.
+
+## setFlag()
+The same for a boolean field — what a `"check"` cell calls.
+
+## isGridRow
+**Internal.** The marker identifying a generated grid row — not API.
+*/
+
 class GridRow extends TableRow [
     isGridRow: boolean = true,
 
     height = 28,
 
-    // the row's record as a derived slot — the $data read is analyzed, so
-    // cells re-render when the record's fields change (a method call would
-    // go stale); null when written/unreplicated
+    // the row's record as a derived slot — the read is analyzed, so cells
+    // re-render when the record's fields change (a method call would go
+    // stale); null when written/unreplicated
 
-    rec: object = { this.datapath != null ? this.$data("") : null },
+    rec: object = { this.datapath != null ? :@ : null },
+
+    // a cell's edit lands in this row's record, in the field its column names —
+    // written here, on the row, because a cell's own cursor is its column
+
+    setText(field: string, v: string)  { :@[(field)] = v },
+    setFlag(field: string, v: boolean) { :@[(field)] = v },
 
     cells: View [ x = 0, y = 0,
         width = 100%,
@@ -581,7 +630,7 @@ class GridRow extends TableRow [
         datapath = { (classroot.parent as DataGrid).isDataGrid === true ? (classroot.parent as DataGrid).colData.value : null },
 
         // One cell per column record; `kind` picks the presentation. Editors
-        // write the record through the row's cursor ($setData) — the grid
+        // write the record through the row (setText / setFlag) — the grid
         // never holds cell state, so windowing and sort re-derives keep
         // every edit.
 
@@ -602,7 +651,7 @@ class GridRow extends TableRow [
                 width = { parent.width - 8 },
                 height = { parent.height - 6 },
                 initial = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") },
-                onInput(v: string) { classroot.$setData(["" + :field], v) },
+                onInput(v: string) { classroot.setText("" + :field, v) },
                 onKeyDown(e: KeyEvent) {
                     if ((classroot.parent as DataGrid).isDataGrid !== true) return
                     if (e.key == "ArrowDown") (classroot.parent as DataGrid).editStep(classroot, "" + :field, 1)
@@ -615,7 +664,7 @@ class GridRow extends TableRow [
                 x = { (parent.width - 18) / 2 },
                 y = { (parent.height - 18) / 2 },
                 checked = { ((classroot.rec ?? ({}) as any)["" + :field]) == true },
-                input(v: boolean) { classroot.$setData(["" + :field], v) }
+                input(v: boolean) { classroot.setFlag("" + :field, v) }
                 ],
 
             // the select cell is a Control — a real tab stop (Space/Enter

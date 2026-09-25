@@ -25,7 +25,7 @@ App [ fill = white, textColor = black,
 
 ## text
 The field's contents. With `text <-> :path` it is the **draft** of a two-way edit session over
-a dataset record (see the intro). Otherwise: **bind** it (`text = { model }`) for a
+a dataset record (see the intro). Otherwise: **constrain** it (`text = { model }`) for a
 **controlled** field, or leave it unbound (or seed it with `initial`) for a field the user
 edits freely.
 
@@ -36,9 +36,9 @@ value arriving from elsewhere):
     who: string = "",
     f: TextInput [ text = { app.who }, onInput(v: string) { app.who = v } ],
 
-The keystroke never writes `text` directly — the binding is the value's source, so an edit
+The keystroke never writes `text` directly — the constraint is the value's source, so an edit
 that diverges from it reverts. It arrives as **`onInput`** instead, and the handler writes
-the slot the binding reads; the value returns through the constraint. That round trip is
+the slot the constraint reads; the value returns through the constraint. That round trip is
 what makes `app.who = ""` clear the field, which nothing else can do.
 
 ## placeholder
@@ -75,7 +75,7 @@ makes a newline and this never fires.
 
 ## select()
 `select(at, end?)` — place the caret or select a range; the write half of the native
-selection (the read half — selection facts — is not modeled yet). One verb, because a
+selection (there are no selection facts to read). One verb, because a
 caret **is** a zero-length range: `select(7)` puts the caret at 7, `select(3, 9)`
 selects the range, and the word forms need no lengths — `select("start")`,
 `select("end")`, `select("all")`. Numbers clamp to the text, like a scroll write.

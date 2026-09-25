@@ -1,0 +1,1320 @@
+/*
+# Cadence
+
+A training log: where am I (this week, the streak, the week's shape, the last
+session — and a session in progress, if there is one), the whole history as one
+surface the hand pushes and pinches, a session seen up close, and recording one
+in a few taps.
+
+Ink on paper. One accent, and it means **effort**: every mark of a session is
+drawn from the same ramp — pale for an easy hour, the accent for a hard one — so
+a hard week, a hard month and a hard session all read at a glance.
+
+The truth is `db` — the service's sessions, held in memory. Everything on screen
+derives from it, so a save or a delete is one data write and every figure moves.
+*/
+
+schema Session [ id: string, date: string, sport: "run" | "ride" | "lift" | "swim", minutes: number,
+    distanceKm?: number, effort: number, heartAvg?: number, note?: string ]
+
+schema LiveSession [ id: string, sport: string, startedSecondsAgo: number, minutes: number,
+    distanceKm?: number, heartNow: number, effort: number ]
+
+
+script {
+    const API = "http://127.0.0.1:8320"
+
+    // the palette — ink, paper, and the one accent
+    const PAPER = 0xF2EFE8
+    const SHEET = 0xFBFAF6
+    const INK = 0x16140F
+    const MUTED = 0x7A7468
+    const FAINT = 0xB9B2A4
+    const HAIR = 0xE0DBD0
+    const WASH = 0xE9E5DC
+    const ACCENT = 0xFF4A12
+
+    const SANS = ["SF Pro Display", "system-ui", "-apple-system", "Helvetica Neue", "Arial", "sans-serif"]
+    const MONO = ["SF Mono", "ui-monospace", "Menlo", "Consolas", "monospace"]
+
+    const DAYMS = 86400000
+    const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const SPORTS = ["run", "ride", "lift", "swim"]
+
+    type S = { id: string, date: string, sport: string, minutes: number, distanceKm?: number | null,
+               effort: number, heartAvg?: number | null, note?: string | null }
+
+    // ── dates, as day numbers (days since the epoch, UTC — the person's own dates, no zones) ──
+
+    function cDay(s: string): number {
+        if (!s) return 0
+        const p = s.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / DAYMS)
+    }
+    function cStr(n: number): string { return new Date(n * DAYMS).toISOString().slice(0, 10) }
+    function cDow(n: number): number { return (new Date(n * DAYMS).getUTCDay() + 6) % 7 }
+    function cDate(n: number): string {
+        const d = new Date(n * DAYMS)
+        return DOW[cDow(n)] + " " + d.getUTCDate() + " " + MON[d.getUTCMonth()]
+    }
+    function cDateY(n: number): string { return cDate(n) + " " + new Date(n * DAYMS).getUTCFullYear() }
+    function cRel(n: number, today: number): string {
+        const k = today - n
+        return k == 0 ? "today" : k == 1 ? "yesterday" : k > 1 && k < 7 ? k + " days ago" : cDate(n)
+    }
+    function cDayWord(n: number, today: number): string {
+        const k = today - n
+        return k == 0 ? "Today" : k == 1 ? "Yesterday" : DOW[cDow(n)]
+    }
+    function cRange(a: number, b: number): string {
+        const da = new Date(a * DAYMS), db = new Date(b * DAYMS)
+        const ya = da.getUTCFullYear(), yb = db.getUTCFullYear()
+        const left = da.getUTCDate() + " " + MON[da.getUTCMonth()] + (ya != yb ? " " + ya : "")
+        return left + " – " + db.getUTCDate() + " " + MON[db.getUTCMonth()] + " " + yb
+    }
+    function cSpanWords(days: number): string {
+        const d = Math.round(days)
+        if (d <= 10) return d + " days"
+        if (d < 50) return Math.round(d / 7) + " weeks"
+        if (d < 340) return Math.round(d / 30.4) + " months"
+        return Math.round(d / 30.4) + " months — everything"
+    }
+
+    // ── the house formats ──
+
+    function cDur(m: number): string {
+        const t = Math.max(0, Math.round(m)), h = Math.floor(t / 60), r = t % 60
+        return h == 0 ? r + "m" : r == 0 ? h + "h" : h + "h " + r + "m"
+    }
+    // the same duration with its unit letters set small — one run of text
+    function cDurHtml(m: number): string {
+        const t = Math.max(0, Math.round(m)), h = Math.floor(t / 60), r = t % 60
+        const u = (x: string) => "<span class='Unit'>" + x + "</span>"
+        return h == 0 ? r + u("m") : r == 0 ? h + u("h") : h + u("h") + "\u00A0" + r + u("m")
+    }
+    function cKm(k: number): string { return (Math.round(k * 10) / 10).toFixed(1) + " km" }
+    function cClock(secs: number): string {
+        const s = Math.max(0, Math.floor(secs)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60
+        const p = (v: number) => (v < 10 ? "0" : "") + v
+        return h > 0 ? h + ":" + p(m) + ":" + p(x) : m + ":" + p(x)
+    }
+    function cSport(s: string): string { return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : "" }
+    function cPace(s: string, min: number, km: number): string {
+        if (!km || km <= 0) return ""
+        if (s == "run") { const p = min / km; return Math.floor(p) + ":" + String(Math.round((p % 1) * 60)).padStart(2, "0") + " /km" }
+        if (s == "swim") { const p = min / (km * 10); return Math.floor(p) + ":" + String(Math.round((p % 1) * 60)).padStart(2, "0") + " /100m" }
+        return (km / (min / 60)).toFixed(1) + " km/h"
+    }
+
+    // ── effort: the one accent, as a ramp ──
+
+    function cMix(a: number, b: number, t: number): number {
+        const c = (x: number, y: number) => Math.round(x + (y - x) * t)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
+    }
+    function cEff(e: number): number { return cMix(0xCDC6B8, ACCENT, Math.max(0, Math.min(1, (e - 2) / 6.5))) }
+    function cEffInk(e: number): number { return e >= 6 ? 0xFFFFFF : INK }
+    function cEffWord(e: number): string {
+        return e <= 2 ? "very easy" : e <= 4 ? "easy" : e <= 5 ? "steady" : e <= 7 ? "hard" : e <= 9 ? "very hard" : "all out"
+    }
+
+    // ── derivations over the history ──
+
+    function cWeek(ss: S[], today: number) {
+        const days = []
+        let count = 0, min = 0, peak = 0
+        for (let i = 6; i >= 0; i--) {
+            const n = today - i
+            const on = ss.filter(s => cDay(s.date) == n)
+            const m = on.reduce((a, s) => a + s.minutes, 0)
+            const e = on.reduce((a, s) => Math.max(a, s.effort), 0)
+            count += on.length; min += m; peak = Math.max(peak, m)
+            days.push({ key: cStr(n), letter: DOW[cDow(n)].slice(0, 1), min: m, effort: e, n: on.length, today: i == 0,
+                        sport: on.length ? cSport(on[0].sport) : "" })
+        }
+        return { days, count, min, peak }
+    }
+
+    function cStreak(ss: S[], today: number): number {
+        const have = new Set(ss.map(s => cDay(s.date)))
+        let d = have.has(today) ? today : today - 1, n = 0
+        while (have.has(d)) { n++; d-- }
+        return n
+    }
+
+    function cLast(ss: S[]): S | null {
+        let best: S | null = null
+        for (const s of ss) if (best == null || s.date > best.date || (s.date == best.date && s.id > best.id)) best = s
+        return best
+    }
+
+    // every day from the Monday before the first session through today, each
+    // holding its sessions; and the weekly totals the season view reads
+    function cSeries(ss: S[], today: number) {
+        let first = today
+        for (const s of ss) first = Math.min(first, cDay(s.date))
+        first -= cDow(first)
+        const len = today - first + 1
+        const days: any[] = Array.from({ length: len }, () => [])
+        for (const s of ss) {
+            const i = cDay(s.date) - first
+            if (i >= 0 && i < len) days[i].push({ id: s.id, m: s.minutes, e: s.effort, sp: s.sport })
+        }
+        const weeks: number[] = []
+        for (let i = 0; i < len; i += 7) {
+            let t = 0
+            for (let k = i; k < Math.min(len, i + 7); k++) for (const x of days[k]) t += x.m
+            weeks.push(t)
+        }
+        return { first, len, days, weeks, maxWeek: Math.max(60, ...weeks) }
+    }
+
+    function cPeriod(ss: S[], from: number, to: number, today: number) {
+        const inside = ss.filter(s => { const n = cDay(s.date); return n >= from && n <= to })
+            .sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : a.id < b.id ? 1 : -1)
+        let min = 0, km = 0, eff = 0
+        for (const s of inside) { min += s.minutes; km += s.distanceKm ?? 0; eff += s.effort }
+        const rows = inside.map(s => ({
+            id: s.id, effort: s.effort, sport: cSport(s.sport),
+            when: cRel(cDay(s.date), today) == cDate(cDay(s.date)) ? cDateY(cDay(s.date)) : cRel(cDay(s.date), today) + " · " + cDate(cDay(s.date)),
+            summary: cDur(s.minutes) + (s.distanceKm != null ? "  ·  " + cKm(s.distanceKm) : "")
+        }))
+        return { rows, count: inside.length, min, km, eff: inside.length ? eff / inside.length : 0 }
+    }
+
+    function median(xs: number[]): number {
+        if (!xs.length) return 0
+        const a = [...xs].sort((p, q) => p - q), h = Math.floor(a.length / 2)
+        return a.length % 2 ? a[h] : (a[h - 1] + a[h]) / 2
+    }
+
+    // what this person usually does in this sport — the defaults a new entry starts from
+    function cTypical(ss: S[], sport: string) {
+        const xs = ss.filter(s => s.sport == sport).sort((a, b) => a.date < b.date ? 1 : -1).slice(0, 12)
+        const min = Math.max(5, Math.round(median(xs.map(s => s.minutes)) / 5) * 5 || 45)
+        const withKm = xs.filter(s => s.distanceKm != null && s.minutes > 0)
+        const kmPerMin = withKm.length ? median(withKm.map(s => (s.distanceKm as number) / s.minutes)) : 0
+        const effort = Math.round(median(xs.map(s => s.effort))) || 5
+        return { min, kmPerMin, effort }
+    }
+
+    // the sport most likely meant right now: what they usually do on this weekday,
+    // else what they have been doing lately
+    function cLikely(ss: S[], today: number): string {
+        const tally = (list: S[]) => {
+            const c: Record<string, number> = {}
+            for (const s of list) c[s.sport] = (c[s.sport] ?? 0) + 1
+            let best = "", n = 0
+            for (const k of SPORTS) if ((c[k] ?? 0) > n) { best = k; n = c[k] }
+            return best
+        }
+        const dow = cDow(today)
+        const same = ss.filter(s => { const n = cDay(s.date); return today - n <= 84 && cDow(n) == dow })
+        return tally(same) || tally(ss.slice(0, 14)) || "run"
+    }
+
+    // where one session sits against the rest
+    function cPlace(ss: S[], id: string) {
+        const s = ss.find(x => x.id == id)
+        if (!s) return { ok: false, mins: [], min: 0, lo: 0, hi: 1, longer: 0, harder: 0, easier: 0, n: 0, sport: "", effort: 0, rank: 0 }
+        const same = ss.filter(x => x.sport == s.sport)
+        const mins = same.map(x => x.minutes)
+        const longer = Math.round(100 * same.filter(x => x.minutes < s.minutes).length / Math.max(1, same.length))
+        const harder = Math.round(100 * ss.filter(x => x.effort < s.effort).length / Math.max(1, ss.length))
+        const easier = Math.round(100 * ss.filter(x => x.effort > s.effort).length / Math.max(1, ss.length))
+        const rank = 1 + same.filter(x => x.minutes > s.minutes).length
+        return { ok: true, mins, min: s.minutes, lo: Math.min(...mins), hi: Math.max(...mins), longer, harder, easier,
+                 n: same.length, sport: s.sport, effort: s.effort, rank }
+    }
+
+    function cOrdinal(n: number): string {
+        const t = n % 100, u = n % 10
+        return n + (t >= 11 && t <= 13 ? "th" : u == 1 ? "st" : u == 2 ? "nd" : u == 3 ? "rd" : "th")
+    }
+
+    function cChips(sport: string): number[] {
+        return sport == "ride" ? [45, 60, 90, 120, 180] : sport == "run" ? [30, 45, 60, 75, 90] : [30, 40, 45, 60, 75]
+    }
+    function cKmStep(sport: string): number { return sport == "swim" ? 0.1 : sport == "run" ? 0.5 : 1 }
+    }
+
+
+// ── small type ────────────────────────────────────────────────────────────
+
+// the one small voice: mono capitals, muted — every caption in the app
+
+class Label extends Text [ fontFamily = ["SF Mono", "ui-monospace", "Menlo", "Consolas", "monospace"],
+    fontSize = 11, fontWeight = medium, letterSpacing = 1.3, textTransform = uppercase, textColor = #7A7468, wrap = false
+    ]
+
+
+// a figure over the words that name it
+
+class Fact extends View [
+    value: string = "",
+    label: string = "",
+    big: number = 34,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    v: Text [ fontSize = { classroot.big }, fontWeight = bold, letterSpacing = { -0.03 * classroot.big }, numeralWidth = tabular,
+        wrap = false, text = { classroot.value } ],
+    l: Label [ text = { classroot.label } ]
+    ]
+
+
+// ── controls ──────────────────────────────────────────────────────────────
+
+// the app's one button shape: ink when it is the thing to do, a wash when it is not
+
+class Btn extends Control [ height = 48, cornerRadius = 12,
+    label: string = "",
+    strong: boolean = false,
+    danger: boolean = false,
+    width = { this.t.width + 40 },
+    fill = { classroot.strong ? (classroot.down ? 0x000000 : INK) : classroot.danger ? (classroot.down ? 0xFFD9CC : 0xFBE5DC) : classroot.down ? HAIR : classroot.hot ? 0xE4DFD4 : WASH },
+    opacity = { classroot.disabled ? 0.4 : 1 },
+    t: TextLabel [ x = center, fontSize = 16, fontWeight = semibold, wrap = false,
+        textColor = { classroot.strong ? 0xFFFFFF : classroot.danger ? 0xC23A0A : INK }, text = { classroot.label } ],
+    onClick() { if (!disabled) press() }
+    ]
+
+
+// a square nudge — − and + — sized for a thumb
+
+class Nudge extends Control [ width = 56, height = 56, cornerRadius = 14,
+    sign: number = 1,
+    fill = { classroot.down ? HAIR : classroot.hot ? 0xE4DFD4 : WASH },
+    opacity = { classroot.disabled ? 0.35 : 1 },
+    draw(d: Draw) {
+        d.strokeStyle = INK
+        d.lineWidth = 2.5
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(20, 28)
+        d.lineTo(36, 28)
+        if (sign > 0) { d.moveTo(28, 20); d.lineTo(28, 36) }
+        d.stroke()
+        },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+// a chevron step — ‹ and › — for the date
+
+class Step extends Control [ width = 56, height = 56, cornerRadius = 14,
+    dir: number = 1,
+    fill = { classroot.down ? HAIR : classroot.hot ? 0xE4DFD4 : WASH },
+    opacity = { classroot.disabled ? 0.3 : 1 },
+    draw(d: Draw) {
+        d.strokeStyle = INK
+        d.lineWidth = 2.5
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(28 - 4 * dir, 20)
+        d.lineTo(28 + 4 * dir, 28)
+        d.lineTo(28 - 4 * dir, 36)
+        d.stroke()
+        },
+    onClick() { if (!disabled) press() }
+    ]
+
+
+// a choice among a few — selected is ink, the rest a quiet wash
+
+class Choice extends Control [ height = 52, cornerRadius = 12,
+    label: string = "",
+    on: boolean = false,
+    fill = { classroot.on ? INK : classroot.down ? HAIR : classroot.hot ? 0xE4DFD4 : WASH },
+    t: TextLabel [ x = center, fontSize = 16, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? 0xFFFFFF : INK }, text = { classroot.label } ],
+    onClick() { if (!disabled) press() }
+    ]
+
+
+// ── today ─────────────────────────────────────────────────────────────────
+
+// the session in progress — the one inverted block in the app, and the only
+// thing that ticks: its clock runs, and its dot beats at the heart rate reported
+
+class LiveBand extends View [ width = 100%, cornerRadius = 18, fill = #16140F, padding = [18, 20, 20, 20],
+    beat: Time [ tick = frame, running = { app.live != null } ],
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    head: View [
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        dot: View [ width = 10, height = 10, cornerRadius = 5, fill = #FF4A12,
+            opacity = { app.live == null ? 1 : 0.3 + 0.7 * Math.pow(Math.max(0, Math.cos(classroot.beat.now / 60000 * app.live.heartNow * Math.PI)), 6) } ],
+        Label [ textColor = #FF4A12, text = { "Recording now · " + cSport(app.live?.sport ?? "") } ]
+        ],
+    clock: Text [ fontSize = { app.heroSize * (app.narrow ? 0.82 : 0.7) }, fontWeight = 800, letterSpacing = { -0.04 * fontSize }, numeralWidth = tabular,
+        textColor = #FBFAF6, wrap = false, text = { cClock(app.liveSecs) } ],
+    Text [ fontSize = 20, fontWeight = semibold, textColor = #D9D3C7, numeralWidth = tabular, wrap = false,
+        text = { app.live == null ? "" : cKm(app.live.distanceKm ?? 0) + "  ·  " + app.live.heartNow + " bpm  ·  effort " + app.live.effort } ]
+    ]
+
+
+// one day of the week's shape: a bar whose height is the time done that day,
+// coloured by the hardest thing in it
+
+class DayBar extends View [ width = { (parent.width - 6 * 8) / 7 }, height = 150,
+    barH: number = { Math.min(1, :min / app.weekScale) * (this.height - 50) },
+    Spring [ attribute = barH, to = { Math.min(1, :min / app.weekScale) * (classroot.height - 50) }, stiffness = 170, damping = 21 ],
+    bar: View [ width = 100%, cornerRadius = 4,
+        y = { classroot.height - 24 - Math.max(classroot.barH, 3) },
+        height = { Math.max(classroot.barH, 3) },
+        fill = { :n > 0 ? cEff(:effort) : HAIR } ],
+    mins: Text [ width = 100%, textAlign = center, fontSize = 11, wrap = false, numeralWidth = tabular,
+        fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"], textColor = #7A7468,
+        y = { classroot.height - 42 - classroot.barH }, text = { :n > 0 ? cDur(:min) : "" } ],
+    letter: Text [ width = 100%, textAlign = center, y = { classroot.height - 17 }, fontSize = 12, wrap = false,
+        fontFamily = ["SF Mono", "ui-monospace", "Menlo", "monospace"],
+        textColor = { :today ? INK : MUTED }, text = :letter,
+        isToday: State [ applied = { :today }, fontWeight = bold ]
+        ]
+    ]
+
+
+class TodayColumn extends View [
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+    head: View [ width = 100%, height = 40,
+        Label [ y = 12, textColor = #16140F, fontWeight = bold, text = "Cadence" ],
+        Label [ x = end, y = 12, text = { app.todayN > 0 ? cDate(app.todayN) : "" } ]
+        ],
+
+    live: LiveBand [ visible = { app.live != null } ],
+
+    // this week — "4 sessions · 3h 40m", figures large and words small, one run
+
+    week: View [ width = 100%, padding = [26, 0, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        Label [ text = "This week · last 7 days" ],
+        HTMLText [ width = 100%, fontSize = { app.heroSize }, fontWeight = 800, letterSpacing = { -0.045 * app.heroSize },
+            lineHeight = 1.0, bodyColor = #16140F, textStyles = { app.heroStyles },
+            html = { app.weekHtml } ]
+        ],
+
+    streak: View [ width = 100%, padding = [18, 0, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        Label [ text = "Streak" ],
+        HTMLText [ width = 100%, fontSize = { app.heroSize }, fontWeight = 800, letterSpacing = { -0.045 * app.heroSize },
+            lineHeight = 1.0, bodyColor = #16140F, textStyles = { app.heroStyles },
+            html = { app.streakHtml } ]
+        ],
+
+    shape: View [ width = 100%, padding = [26, 0, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Label [ text = "The week's shape" ],
+        bars: View [ width = 100%, datapath = { app.weekModel.value },
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            DayBar [ datapath = :days[], key = :key ]
+            ]
+        ],
+
+    // the last session — tap it to see it whole
+
+    last: Control [ width = 100%, padding = [26, 0, 18, 0], visible = { app.lastS != null },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Label [ text = "Last session" ],
+        row: View [
+            layout: SimpleLayout [ axis = x, spacing = 12, align = end ],
+            Text [ fontSize = 44, fontWeight = 800, letterSpacing = -1.6, wrap = false, text = { cSport(app.lastS?.sport ?? "") } ],
+            Text [ fontSize = 18, fontWeight = medium, textColor = #7A7468, wrap = false,
+                text = { app.lastS == null ? "" : cRel(cDay(app.lastS.date), app.todayN) } ]
+            ],
+        line: View [
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            eff: View [ width = 34, height = 34, cornerRadius = 17, fill = { cEff(app.lastS?.effort ?? 1) },
+                TextLabel [ x = center, fontSize = 15, fontWeight = bold, textColor = { cEffInk(app.lastS?.effort ?? 1) },
+                    text = { "" + (app.lastS?.effort ?? "") } ]
+                ],
+            Text [ fontSize = 18, fontWeight = medium, numeralWidth = tabular, wrap = false,
+                text = { app.lastS == null ? "" : cDur(app.lastS.minutes)
+                    + (app.lastS.distanceKm != null ? " · " + cKm(app.lastS.distanceKm) : "")
+                    + (app.lastS.heartAvg != null ? " · " + app.lastS.heartAvg + " bpm" : "")
+                    + " · " + cEffWord(app.lastS.effort) } ]
+            ],
+        opacity = { this.down ? 0.6 : 1 },
+        onClick() { if (app.lastS != null) app.openDetail(app.lastS.id) }
+        ]
+    ]
+
+
+// ── the year ──────────────────────────────────────────────────────────────
+
+/*
+The whole history as one surface. Two numbers say what is on screen — `vStart`,
+the day at the left edge, and `vSpan`, how many days fit across — and the
+drawing, the period title, its totals and the list below all derive from them.
+The hand writes those two numbers directly (a drag pans, a pinch or a wheel
+zooms about the point under it), so the surface never lags the finger; only a
+chosen jump (a zoom chip, "Now") glides.
+*/
+
+class YearSurface extends View [ clip = true, cornerRadius = 14, fill = #EBE7DE, claim = x,
+
+    onPointerDown(e: PointerEvent) { app.grab(app.pointerX, this.width) },
+    onPointerMove(e: PointerEvent) { app.pan(e.x) },
+    onPinchStart(e: PinchEvent) { app.pinchBegin(e.center.x - this.rootTransform().x, this.width) },
+    onPinch(e: PinchEvent) { app.pinchTo(e.scale, e.center.x - this.rootTransform().x) },
+    onPinchEnd(e: PinchEvent) { app.pinchDone() },
+    onWheel(e: WheelEvent) { app.wheelAt(e.x, e.deltaX, e.deltaY, e.pinch, this.width) },
+    onClick(e: PointerEvent) { app.pickAt(e.x, this.width) },
+
+    draw(d: Draw) {
+        const s = app.series.value as any
+        if (s == null || !s.len) return
+        const w = d.w, h = d.h
+        const span = app.vSpan, start = app.vStart
+        const pxd = w / span
+        const axisH = 30, top = 30
+        const base = h - axisH, plotH = base - top
+        const mono = { fontSize: 10, fontFamily: MONO, textColor: MUTED }
+        const monoInk = { fontSize: 10, fontFamily: MONO, textColor: INK, fontWeight: 700 }
+        const i0 = Math.max(0, Math.floor(start) - 1), i1 = Math.min(s.len - 1, Math.ceil(start + span) + 1)
+
+        // the season: weekly volume, a quiet backdrop that fades out as you zoom in
+        const season = Math.max(0, Math.min(1, (span - 28) / 80))
+        if (season > 0) {
+            d.globalAlpha = season
+            d.fillStyle = 0xDCD6CA
+            for (let wk = 0; wk < s.weeks.length; wk++) {
+                const x0 = (wk * 7 - start) * pxd
+                if (x0 > w || x0 + 7 * pxd < 0) continue
+                const hh = s.weeks[wk] / s.maxWeek * plotH
+                d.fillRect(x0 + 0.5, base - hh, 7 * pxd - 1, hh)
+                }
+            d.globalAlpha = 1
+            }
+
+        // month boundaries and names
+        for (let i = i0; i <= i1; i++) {
+            const dt = new Date((s.first + i) * DAYMS)
+            const x = (i - start) * pxd
+            if (dt.getUTCDate() == 1) {
+                d.fillStyle = FAINT
+                d.fillRect(x, top - 8, 1, base - top + 14)
+                const name = MON[dt.getUTCMonth()] + (dt.getUTCMonth() == 0 || pxd > 5 ? " " + dt.getUTCFullYear() : "")
+                const tw = measureText(name.toUpperCase(), monoInk).width
+                // zoomed in, the axis carries day numbers, so the month's name rides the top of its line
+                if (pxd >= 16) d.fillText(name.toUpperCase(), Math.min(x + 5, w - tw - 6), top - 2, monoInk)
+                else d.fillText(name.toUpperCase(), Math.min(x + 5, w - tw - 6), base + 18, monoInk)
+                }
+            if (pxd >= 16 && dt.getUTCDate() == 1) {
+                d.fillText("1", x + pxd / 2 - 3, base + 18, monoInk)
+                }
+            else if (pxd >= 16) {
+                d.fillText("" + dt.getUTCDate(), x + pxd / 2 - (dt.getUTCDate() >= 10 ? 6 : 3), base + 18, mono)
+                }
+            else if (pxd >= 3 && cDow(s.first + i) == 0) {
+                d.fillStyle = HAIR
+                d.fillRect(x, base, 1, 5)
+                }
+            }
+
+        // today
+        const tx = (s.len - 1 - start) * pxd
+        d.fillStyle = INK
+        d.fillRect(tx + pxd / 2 - 0.5, top - 14, 1, base - top + 14)
+        d.fillText("NOW", tx + pxd / 2 - 24, top - 18, monoInk)
+
+        // the session in progress: an open outline at today, growing as it runs
+        if (app.live != null) {
+            const lh = Math.max(3, Math.min(1, app.liveSecs / 60 / 180) * plotH)
+            const lw = Math.max(1.6, Math.min(pxd * 0.66, 44))
+            d.strokeStyle = ACCENT
+            d.lineWidth = 1.5
+            d.strokeRect((s.len - 1 - start) * pxd + (pxd - lw) / 2, base - lh, lw, lh)
+            }
+
+        // sessions: a bar per session, height its duration, colour its effort
+        const bw = Math.max(1.6, Math.min(pxd * 0.66, 44))
+        const labels = pxd >= 38
+        for (let i = i0; i <= i1; i++) {
+            const day = s.days[i]
+            if (!day.length) continue
+            const x = (i - start) * pxd + (pxd - bw) / 2
+            let y = base
+            for (const ss of day) {
+                const hh = Math.max(3, Math.min(1, ss.m / 180) * plotH / (day.length > 1 ? 1.4 : 1))
+                d.fillStyle = cEff(ss.e)
+                d.fillRect(x, y - hh, bw, hh)
+                if (ss.id == app.selId && app.detailOpen) {
+                    d.strokeStyle = INK
+                    d.lineWidth = 2
+                    d.strokeRect(x - 2, y - hh - 2, bw + 4, hh + 4)
+                    }
+                if (labels) {
+                    d.fillText(cSport(ss.sp).toUpperCase() + " " + cDur(ss.m), x, y - hh - 6, mono)
+                    }
+                y -= hh + 3
+                }
+            }
+        }
+    ]
+
+
+// one session in the list under the surface
+
+class SessionRow extends Control [ width = 100%, height = 64,
+    fill = { this.down ? HAIR : this.hot ? 0xECE8DF : PAPER },
+    rule: View [ y = { parent.height - 1 }, width = 100%, height = 1, fill = #E0DBD0 ],
+    eff: View [ x = 0, y = 15, width = 34, height = 34, cornerRadius = 17, fill = { cEff(:effort) },
+        TextLabel [ x = center, fontSize = 15, fontWeight = bold, textColor = { cEffInk(:effort) }, text = { "" + :effort } ]
+        ],
+    sport: Text [ x = 48, y = 11, fontSize = 19, fontWeight = bold, wrap = false, text = :sport ],
+    when: Text [ x = 48, y = 36, fontSize = 13, wrap = false, textColor = #7A7468, text = :when ],
+    sum: Text [ x = end, y = 20, fontSize = 17, fontWeight = medium, numeralWidth = tabular, wrap = false, text = :summary ],
+    press() { app.openDetail(:id) },
+    onClick() { press() }
+    ]
+
+
+class YearColumn extends View [
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+    head: View [ width = 100%, padding = { [app.twoCol ? 0 : 44, 0, 0, 0] },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        top: View [ width = 100%, height = { app.narrow ? 20 : 60 },
+            Label [ y = { app.narrow ? 0 : 36 }, text = { "The year · " + cSpanWords(app.vSpan) + " in view" } ],
+            log: Btn [ x = end, height = 48, strong = true, visible = { !app.narrow }, label = "Log a session",
+                press() { app.openEntry() }
+                ]
+            ],
+        title: Text [ width = 100%, fontSize = { app.narrow ? 30 : 40 }, fontWeight = 800, letterSpacing = { -0.03 * fontSize }, wrap = true,
+            text = { app.ready ? cRange(app.pFrom, app.pTo) : "" } ],
+        totals: HTMLText [ width = 100%, fontSize = { app.narrow ? 30 : 38 }, fontWeight = bold, letterSpacing = { -0.03 * fontSize },
+            bodyColor = #16140F, textStyles = { app.statStyles }, html = { app.periodHtml } ]
+        ],
+
+    tools: View [ width = 100%, height = 64,
+        chips: View [ y = 14,
+            layout: SimpleLayout [ axis = x, spacing = 6 ],
+            Choice [ width = 64, height = 40, label = "2 wk", on = { Math.abs(app.vSpan - 14) < 1 },
+                press() { app.zoomTo(14) }
+                ],
+            Choice [ width = 64, height = 40, label = "3 mo", on = { Math.abs(app.vSpan - 91) < 1 },
+                press() { app.zoomTo(91) }
+                ],
+            Choice [ width = 64, height = 40, label = "All", on = { app.vSpan >= app.maxSpan - 1 },
+                press() { app.zoomTo(app.maxSpan) }
+                ]
+            ],
+        now: Choice [ x = end, y = 14, width = 76, height = 40, label = "Now ›",
+            visible = { app.vStart + app.vSpan < app.seriesLen - 0.5 },
+            press() { app.toNow() }
+            ]
+        ],
+
+    chart: YearSurface [ width = 100%, height = { app.narrow ? 250 : 330 } ],
+
+    hint: Label [ width = 100%, wrap = true, lineHeight = 1.5, textTransform = none, letterSpacing = 0.2, fontSize = 12, padding = [10, 0, 0, 0],
+        text = { app.touchDevice ? "Drag to move through the months · pinch to open or close · tap a bar" : "Drag or scroll sideways to move · scroll or pinch to zoom · click a bar · N logs a session" } ],
+
+    listHead: View [ width = 100%, padding = [30, 0, 8, 0],
+        Label [ text = { app.periodCount == 0 ? "Nothing recorded in this stretch" : "Sessions in view" } ]
+        ],
+
+    list: View [ width = 100%, datapath = { app.period.value },
+        layout: SimpleLayout [ axis = y ],
+        SessionRow [ datapath = :rows[], key = :id, virtualize = true ]
+        ]
+    ]
+
+
+// ── a session, whole ──────────────────────────────────────────────────────
+
+// where it sits: every session of the same sport on one duration line, this one struck in effort colour
+
+class PlaceStrip extends View [ width = 100%, height = 64,
+    draw(d: Draw) {
+        const p = app.place as any
+        if (!p.ok) return
+        const w = d.w, pad = 8
+        const xo = (m) => pad + (m - p.lo) / Math.max(1, p.hi - p.lo) * (w - 2 * pad)
+        d.fillStyle = HAIR
+        d.fillRect(pad, 32, w - 2 * pad, 1)
+        d.fillStyle = FAINT
+        for (const m of p.mins) {
+            d.beginPath()
+            d.arc(xo(m), 32, 3.5, 0, Math.PI * 2)
+            d.fill()
+            }
+        const x = xo(p.min)
+        d.fillStyle = cEff(p.effort)
+        d.beginPath()
+        d.arc(x, 32, 9, 0, Math.PI * 2)
+        d.fill()
+        d.strokeStyle = INK
+        d.lineWidth = 2
+        d.stroke()
+        const mono = { fontSize: 10, fontFamily: MONO, textColor: MUTED }
+        d.fillText(cDur(p.lo), pad, 60, mono)
+        const hiT = cDur(p.hi)
+        d.fillText(hiT, w - pad - measureText(hiT, mono).width, 60, mono)
+        }
+    ]
+
+
+class DetailSheet extends View [ clip = true, fill = #FBFAF6,
+    x = { app.narrow ? 0 : app.width - app.panelW * app.detT },
+    y = { app.narrow ? app.hostHeight - (app.hostHeight - 28) * app.detT : 0 },
+    width = { app.narrow ? app.width : app.panelW },
+    height = { app.narrow ? app.hostHeight - 28 : app.hostHeight },
+    cornerRadius = { app.narrow ? [22, 22, 0, 0] : [0, 0, 0, 0] },
+    shadow = { shadow(0, -2, 30, 0x16140F33) },
+    visible = { app.detT > 0.002 },
+
+    body: View [ width = 100%, height = { parent.height - app.actionH }, scrolls = y,
+        col: View [ width = 100%, padding = [18, 24, 28, 24],
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            top: View [ width = 100%, height = 40,
+                Label [ y = 12, text = { app.sel == null ? "" : cDateY(cDay(app.sel.date))
+                    + (app.todayN - cDay(app.sel.date) < 7 ? " · " + cRel(cDay(app.sel.date), app.todayN) : "") } ],
+                close: Btn [ x = end, y = -4, height = 44, label = "Close",
+                    press() { app.closeDetail() }
+                    ]
+                ],
+            sport: Text [ fontSize = 48, fontWeight = 800, letterSpacing = -1.8, wrap = false, text = { cSport(app.sel?.sport ?? "") } ],
+
+            // the effort — the hero of this screen, drawn in its own colour
+
+            effort: View [ width = 100%, padding = [4, 0, 8, 0],
+                layout: SimpleLayout [ axis = x, spacing = 14, align = end ],
+                n: Text [ fontSize = 148, lineHeight = 0.86, fontWeight = 800, letterSpacing = -8, wrap = false, numeralWidth = tabular,
+                    textColor = { cEff(app.sel?.effort ?? 1) }, text = { "" + (app.sel?.effort ?? "") } ],
+                words: View [
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    Text [ fontSize = 26, fontWeight = bold, wrap = false, text = { cEffWord(app.sel?.effort ?? 5) } ],
+                    Label [ text = "effort, of 10" ]
+                    ]
+                ],
+
+            facts: View [ width = 100%,
+                layout: WrappingLayout [ spacing = 30, rowSpacing = 18 ],
+                Fact [ label = "Duration", value = { cDur(app.sel?.minutes ?? 0) } ],
+                Fact [ label = "Distance", value = { cKm(app.sel?.distanceKm ?? 0) }, visible = { app.sel?.distanceKm != null } ],
+                Fact [ label = "Heart", value = { (app.sel?.heartAvg ?? 0) + " bpm" }, visible = { app.sel?.heartAvg != null } ],
+                Fact [ label = { app.sel?.sport == "run" || app.sel?.sport == "swim" ? "Pace" : "Speed" },
+                    value = { app.sel == null ? "" : cPace(app.sel.sport, app.sel.minutes, app.sel.distanceKm ?? 0) },
+                    visible = { app.sel?.distanceKm != null } ]
+                ],
+
+            note: View [ width = 100%, padding = [26, 0, 0, 0], visible = { (app.sel?.note ?? "") != "" },
+                Text [ width = 100%, wrap = true, fontSize = 20, lineHeight = 1.35, textColor = #16140F,
+                    text = { "“" + (app.sel?.note ?? "") + "”" } ]
+                ],
+
+            against: View [ width = 100%, padding = [28, 0, 0, 0],
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                Label [ text = "Against everything else" ],
+                Text [ width = 100%, wrap = true, fontSize = 18, lineHeight = 1.35,
+                    text = { app.placeLine } ],
+                PlaceStrip [ ]
+                ]
+            ]
+        ],
+
+    actions: View [ y = { parent.height - app.actionH }, width = 100%, height = { app.actionH }, fill = #FBFAF6,
+        padding = { [12, 24, 12 + app.safeBottom, 24] },
+        rule: View [ x = -24, y = -12, width = { parent.width }, height = 1, fill = #E0DBD0 ],
+        edit: Btn [ width = { (parent.width - 60) / 2 }, height = 52, strong = true, label = "Edit",
+            press() { app.editSelected() }
+            ],
+        del: Btn [ x = end, width = { (parent.width - 60) / 2 }, height = 52, danger = true,
+            label = { app.confirmDelete ? "Tap again to delete" : "Delete" }, disabled = { app.busy },
+            press() { app.deleteSelected() }
+            ]
+        ]
+    ]
+
+
+// ── recording one ─────────────────────────────────────────────────────────
+
+class EntrySheet extends View [ clip = true, fill = #FBFAF6,
+    x = { app.narrow ? 0 : app.width - app.panelW * app.entT },
+    y = { app.narrow ? app.hostHeight - app.entryH * app.entT : 0 },
+    width = { app.narrow ? app.width : app.panelW },
+    height = { app.narrow ? app.entryH : app.hostHeight },
+    cornerRadius = { app.narrow ? [22, 22, 0, 0] : [0, 0, 0, 0] },
+    shadow = { shadow(0, -2, 30, 0x16140F33) },
+    visible = { app.entT > 0.002 },
+
+    body: View [ width = 100%, height = { parent.height - app.actionH }, scrolls = y,
+        col: View [ width = 100%, padding = [14, 20, 20, 20],
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+            top: View [ width = 100%, height = 46,
+                Text [ y = 6, fontSize = 24, fontWeight = 800, letterSpacing = -0.6, wrap = false,
+                    text = { app.editId == "" ? "Log a session" : "Correct this session" } ],
+                close: Btn [ x = end, y = 0, height = 44, label = "Cancel",
+                    press() { app.closeEntry() }
+                    ]
+                ],
+
+            sports: View [ width = 100%, padding = [6, 0, 0, 0],
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                Choice [ width = { (parent.width - 24) / 4 }, label = "Run",  on = { app.dSport == "run" },
+                    press() { app.setSport("run") }
+                    ],
+                Choice [ width = { (parent.width - 24) / 4 }, label = "Ride", on = { app.dSport == "ride" },
+                    press() { app.setSport("ride") }
+                    ],
+                Choice [ width = { (parent.width - 24) / 4 }, label = "Lift", on = { app.dSport == "lift" },
+                    press() { app.setSport("lift") }
+                    ],
+                Choice [ width = { (parent.width - 24) / 4 }, label = "Swim", on = { app.dSport == "swim" },
+                    press() { app.setSport("swim") }
+                    ]
+                ],
+
+            // when — a step back or forward, never a calendar to type into
+
+            when: View [ width = 100%, height = 76, padding = [14, 0, 0, 0],
+                back: Step [ dir = -1,
+                    press() { app.shiftDay(-1) }
+                    ],
+                mid: View [ x = 68, y = 4,
+                    layout: SimpleLayout [ axis = y, spacing = 1 ],
+                    Text [ fontSize = 24, fontWeight = bold, wrap = false, text = { cDayWord(app.dDay, app.todayN) } ],
+                    Label [ text = { cDateY(app.dDay) } ]
+                    ],
+                fwd: Step [ x = end, dir = 1, disabled = { app.dDay >= app.todayN },
+                    press() { app.shiftDay(1) }
+                    ]
+                ],
+
+            // how long — the figure is the hero of this sheet
+
+            long: View [ width = 100%, padding = [16, 0, 0, 0],
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                Label [ text = "How long" ],
+                row: View [ width = 100%, height = 76,
+                    less: Nudge [ y = 10, sign = -1, disabled = { app.eMin <= 5 },
+                        press() { app.nudgeMin(-5) }
+                        ],
+                    fig: Text [ x = center, y = { (76 - fontSize * 1.2) / 2 }, fontSize = { Math.min(68, (parent.width - 132) / 3.5) }, fontWeight = 800, letterSpacing = { -0.045 * fontSize }, numeralWidth = tabular, wrap = false,
+                        text = { cDur(app.eMinShown) } ],
+                    more: Nudge [ x = end, y = 10, sign = 1,
+                        press() { app.nudgeMin(5) }
+                        ]
+                    ],
+                chips: View [ width = 100%, datapath = { app.chipModel.value },
+                    layout: SimpleLayout [ axis = x, spacing = 6 ],
+                    Choice [ datapath = :chips[], key = :m, height = 44, width = { (parent.width - 24) / 5 },
+                        label = :label, on = { app.eMin == :m },
+                        press() { app.setMin(:m) }
+                        ]
+                    ]
+                ],
+
+            far: View [ width = 100%, padding = [18, 0, 0, 0], visible = { app.dSport != "lift" },
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                Label [ text = "How far" ],
+                row: View [ width = 100%, height = 68,
+                    less: Nudge [ y = 6, sign = -1, disabled = { app.eKm <= 0 },
+                        press() { app.nudgeKm(-1) }
+                        ],
+                    fig: Text [ x = center, y = { (68 - fontSize * 1.2) / 2 }, fontSize = { Math.min(50, (parent.width - 132) / 3.9) }, fontWeight = 800, letterSpacing = { -0.04 * fontSize }, numeralWidth = tabular, wrap = false,
+                        text = { cKm(app.eKmShown) } ],
+                    more: Nudge [ x = end, y = 6, sign = 1,
+                        press() { app.nudgeKm(1) }
+                        ]
+                    ]
+                ],
+
+            felt: View [ width = 100%, padding = [18, 0, 0, 0],
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                head: View [ width = 100%,
+                    Label [ text = "How it felt" ],
+                    Label [ x = end, textColor = #16140F, text = { app.eEff + " · " + cEffWord(app.eEff) } ]
+                    ],
+                cells: View [ width = 100%, datapath = { app.effortModel.value },
+                    layout: SimpleLayout [ axis = x, spacing = 4 ],
+                    EffortCell [ datapath = :cells[], key = :e ]
+                    ]
+                ],
+
+            noteBox: View [ width = 100%, padding = [18, 0, 0, 0], datapath = { app.draft.value },
+                note: TextInput [ width = 100%, height = 48, fontSize = 16, padding = 12, cornerRadius = 12,
+                    fill = #EFEBE3, stroke = { stroke(1, this.focused ? INK : 0xE0DBD0) },
+                    placeholder = "Add a note — optional", text <-> :note ]
+                ],
+
+            hint: Label [ width = 100%, wrap = true, lineHeight = 1.5, padding = [14, 0, 0, 0], textTransform = none, letterSpacing = 0.2, fontSize = 12,
+                visible = { !app.touchDevice },
+                text = "R B L S sport · ↑ ↓ time · ← → day · 1–0 effort · Enter saves · Esc closes" ]
+            ]
+        ],
+
+    // saving is always one tap away and always says exactly what it will save
+
+    actions: View [ y = { parent.height - app.actionH }, width = 100%, height = { app.actionH }, fill = #FBFAF6,
+        padding = { [12, 20, 12 + app.safeBottom, 20] },
+        rule: View [ x = -20, y = -12, width = { parent.width }, height = 1, fill = #E0DBD0 ],
+        err: Text [ y = -38, width = 100%, fontSize = 14, fontWeight = semibold, textColor = #C23A0A, wrap = false,
+            visible = { app.saveError != "" }, text = { app.saveError } ],
+        save: Btn [ width = 100%, height = 56, strong = true, disabled = { app.busy },
+            label = { app.busy ? "Saving…" : "Save  ·  " + app.draftSummary },
+            press() { app.save() }
+            ]
+        ]
+    ]
+
+
+class EffortCell extends Control [ height = 50, width = { (parent.width - 36) / 10 }, cornerRadius = 10,
+    fill = { :e <= app.eEff ? cEff(:e) : (this.down ? HAIR : WASH) },
+    t: TextLabel [ x = center, fontSize = 16, fontWeight = bold, textColor = { :e <= app.eEff ? cEffInk(:e) : MUTED }, text = { "" + :e } ],
+    press() { app.setEffort(:e) },
+    onClick() { press() }
+    ]
+
+
+// the round thumb button that starts a new entry
+
+class AddButton extends Control [ width = 68, height = 68, cornerRadius = 34,
+    fill = { classroot.down ? 0x000000 : INK },
+    shadow = { shadow(0, 8, 22, 0x16140F55) },
+    scale = { classroot.down ? 0.94 : 1 },
+    pivotX = 34, pivotY = 34,
+    draw(d: Draw) {
+        d.strokeStyle = 0xFFFFFF
+        d.lineWidth = 3
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(34, 22)
+        d.lineTo(34, 46)
+        d.moveTo(22, 34)
+        d.lineTo(46, 34)
+        d.stroke()
+        },
+    press() { app.openEntry() },
+    onClick() { press() }
+    ]
+
+
+// ── the app ───────────────────────────────────────────────────────────────
+
+App [ appName = "Cadence", fill = #F2EFE8, textColor = #16140F, minWidth = 320,
+    fontFamily = ["SF Pro Display", "system-ui", "-apple-system", "Helvetica Neue", "Arial", "sans-serif"],
+    theme = { { ...SanFrancisco, accent: ACCENT, text: INK, textMuted: MUTED, surface: SHEET, line: HAIR, focusRing: INK } },
+
+    // ── the room it is in ──
+
+    narrow: boolean = { app.width < 760 },
+    twoCol: boolean = { app.width >= 1000 },
+    heroSize: number = { Math.round(Math.max(64, Math.min(118, app.page.now.width / 4.15))) },
+    panelW: number = { Math.min(480, app.width) },
+    actionH: number = { 80 + app.safeBottom },
+    entryH: number = { Math.min(app.hostHeight - 24, 800) },
+
+    heroStyles: object = { {
+        Word: { fontSize: app.narrow ? 19 : 22, fontWeight: 600, letterSpacing: 0, textColor: MUTED },
+        Unit: { fontSize: Math.round(app.heroSize * 0.5), fontWeight: 800, letterSpacing: -1 },
+        Mid: { fontSize: Math.round(app.heroSize * 0.5), fontWeight: 800, letterSpacing: -1, textColor: MUTED } } },
+    statStyles: object = { {
+        Word: { fontSize: 14, fontWeight: 600, letterSpacing: 0, textColor: MUTED },
+        Unit: { fontSize: app.narrow ? 18 : 22, fontWeight: 700, letterSpacing: 0 } } },
+
+    // ── the truth ──
+
+    // The service's frozen "today", and the whole history. `db` is the source
+    // *and* the truth: it loads once, and every later save or delete is written
+    // into it with the Dataset verbs, so everything derived from it follows.
+
+    todaySrc: DataSource [ url = { API + "/api/today" }, schema = [ today: string ] ],
+    db: DataSource [ url = { API + "/api/sessions" }, schema = [ sessions[]: Session ] ],
+
+    todayStr: string = { app.todaySrc.value?.today ?? "" },
+    todayN: number = { cDay(app.todayStr) },
+    ss: Session[] = { app.db.value?.sessions ?? [] },
+    ready: boolean = { app.todaySrc.loaded && app.db.loaded },
+    busy: boolean = { app.saveSrc.loading || app.delSrc.loading },
+
+    onInit() {
+        this.todaySrc.fetch()
+        this.db.fetch()
+        this.liveSrc.fetch()
+        },
+
+    // Both documents in: aim the year at the latest weeks and land the first
+    // figures where they are, so that only later changes travel.
+
+    trackChanges = ["ready"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) if (c.name == "ready" && c.currentValue) this.adopt()
+        },
+
+    adopt() {
+        const sessions = this.ss
+        const today = this.todayStr
+        const len = cSeries(sessions, cDay(today)).len
+        this.vSpan = this.narrow ? 56 : 105
+        this.vStart = len + 1 - this.vSpan
+        const wk = cWeek(sessions, cDay(today))
+        this.countShown = wk.count
+        this.minShown = wk.min
+        this.streakShown = cStreak(sessions, cDay(today))
+        const first = cSeries(sessions, cDay(today)).first
+        const p = cPeriod(sessions, first + Math.floor(this.vStart + 0.5), cDay(today), cDay(today))
+        this.pCountShown = p.count
+        this.pMinShown = p.min
+        this.pKmShown = p.km
+        },
+
+    // the session in progress: re-read every fifth second; its clock runs between reads
+
+    tick: Time [ tick = second,
+        onTick() { if (Math.floor(this.now / 1000) % 5 == 0 && !app.liveSrc.loading) app.liveSrc.fetch() }
+        ],
+    liveAt: number = 0,
+    liveSrc: DataSource [ url = { API + "/api/live" }, schema = [ session?: LiveSession ],
+        onLoad() { app.liveAt = Date.now() }
+        ],
+    live: LiveSession = { app.liveSrc.value?.session ?? null },
+    liveSecs: number = { app.live == null ? 0 : app.live.startedSecondsAgo + Math.max(0, (app.tick.now - app.liveAt) / 1000) },
+
+    // ── today, derived ──
+
+    weekModel: Dataset [ contents = { cWeek(app.ss, app.todayN) } ],
+    weekScale: number = { Math.max(150, (app.weekModel.value as any).peak ?? 0) },
+    streak: number = { cStreak(app.ss, app.todayN) },
+    lastS: Session = { cLast(app.ss) as Session },
+
+    // the figures travel to their new values rather than cutting
+
+    countShown: number = 0,
+    Spring [ attribute = countShown, to = { (app.weekModel.value as any).count ?? 0 }, stiffness = 90, damping = 18 ],
+    minShown: number = 0,
+    Spring [ attribute = minShown, to = { (app.weekModel.value as any).min ?? 0 }, stiffness = 90, damping = 18 ],
+    streakShown: number = 0,
+    Spring [ attribute = streakShown, to = { app.streak }, stiffness = 90, damping = 18 ],
+
+    weekHtml: string = { Math.round(app.countShown) + "<span class='Word'> " + (Math.round(app.countShown) == 1 ? "session" : "sessions")
+        + " · </span>" + cDurHtml(app.minShown) },
+    streakHtml: string = { app.ready && app.streak == 0 ? "<span class='Mid'>no streak</span>"
+        : Math.round(app.streakShown) + "<span class='Word'> " + (Math.round(app.streakShown) == 1 ? "day" : "days") + "</span>" },
+
+    // ── the year, derived from two numbers ──
+
+    series: Dataset [ contents = { cSeries(app.ss, app.todayN) } ],
+    seriesLen: number = { (app.series.value as any).len ?? 1 },
+    sFirst: number = { (app.series.value as any).first ?? 0 },
+    maxSpan: number = { app.seriesLen + 4 },
+
+    vStart: number = 0,
+    vSpan: number = 91,
+    glideStart: Animator [ attribute = vStart, duration = 520, motion = quartOut ],
+    glideSpan: Animator [ attribute = vSpan, duration = 520, motion = quartOut ],
+
+    pFrom: number = { app.sFirst + Math.max(0, Math.floor(app.vStart + 0.5)) },
+    pTo: number = { app.sFirst + Math.min(app.seriesLen - 1, Math.ceil(app.vStart + app.vSpan - 0.5) - 1) },
+    period: Dataset [ contents = { cPeriod(app.ss, app.pFrom, app.pTo, app.todayN) } ],
+    periodCount: number = { (app.period.value as any).count ?? 0 },
+
+    pCountShown: number = 0,
+    Spring [ attribute = pCountShown, to = { app.periodCount }, stiffness = 120, damping = 20 ],
+    pMinShown: number = 0,
+    Spring [ attribute = pMinShown, to = { (app.period.value as any).min ?? 0 }, stiffness = 120, damping = 20 ],
+    pKmShown: number = 0,
+    Spring [ attribute = pKmShown, to = { (app.period.value as any).km ?? 0 }, stiffness = 120, damping = 20 ],
+    periodHtml: string = { Math.round(app.pCountShown) + "<span class='Word'> " + (Math.round(app.pCountShown) == 1 ? "session" : "sessions") + " · </span>"
+        + cDurHtml(app.pMinShown) + "<span class='Word'> · </span>" + Math.round(app.pKmShown) + "<span class='Unit'> km</span>"
+        + "<span class='Word'> · avg\u00A0effort\u00A0</span>" + ((app.period.value as any).eff ?? 0).toFixed(1) },
+
+    // the hand, on the surface
+
+    grabX: number = 0,
+    grabStart: number = 0,
+    grabW: number = 1,
+    pinching: boolean = false,
+    pinchSpan: number = 0,
+    pinchAnchor: number = 0,
+
+    clampSpan(v: number) -> number { return Math.max(7, Math.min(this.maxSpan, v)) },
+    clampStart(v: number, span: number) -> number { return Math.max(-2, Math.min(this.seriesLen + 2 - span, v)) },
+
+    grab(x: number, w: number) {
+        this.glideStart.stop()
+        this.glideSpan.stop()
+        this.grabX = x
+        this.grabW = Math.max(1, w)
+        this.grabStart = this.vStart
+        },
+    pan(x: number) {
+        if (this.pinching) return
+        this.vStart = this.clampStart(this.grabStart - (x - this.grabX) * this.vSpan / this.grabW, this.vSpan)
+        },
+    pinchBegin(cx: number, w: number) {
+        this.glideStart.stop()
+        this.glideSpan.stop()
+        this.pinching = true
+        this.grabW = Math.max(1, w)
+        this.pinchSpan = this.vSpan
+        this.pinchAnchor = this.vStart + cx / this.grabW * this.vSpan
+        },
+    pinchTo(scale: number, cx: number) {
+        const span = this.clampSpan(this.pinchSpan / Math.max(0.05, scale))
+        this.vSpan = span
+        this.vStart = this.clampStart(this.pinchAnchor - cx / this.grabW * span, span)
+        },
+    pinchDone() {
+        this.pinching = false
+        this.grabX = this.pointerX
+        this.grabStart = this.vStart
+        },
+    wheelAt(x: number, dx: number, dy: number, pinch: boolean, w: number) {
+        this.glideStart.stop()
+        this.glideSpan.stop()
+        if (pinch || Math.abs(dy) > Math.abs(dx)) {
+            const fx = x / Math.max(1, w)
+            const anchor = this.vStart + fx * this.vSpan
+            const span = this.clampSpan(this.vSpan * Math.exp(dy * (pinch ? 0.012 : 0.0025)))
+            this.vSpan = span
+            this.vStart = this.clampStart(anchor - fx * span, span)
+            }
+        else this.vStart = this.clampStart(this.vStart + dx * this.vSpan / Math.max(1, w), this.vSpan)
+        },
+    glideTo(start: number, span: number) {
+        const sp = this.clampSpan(span)
+        this.glideSpan.stop()
+        this.glideStart.stop()
+        this.glideSpan.from = this.vSpan
+        this.glideSpan.to = sp
+        this.glideStart.from = this.vStart
+        this.glideStart.to = this.clampStart(start, sp)
+        this.glideSpan.start()
+        this.glideStart.start()
+        },
+    zoomTo(span: number) {
+        const sp = this.clampSpan(span)
+        const end = Math.min(this.seriesLen + 1, this.vStart + this.vSpan)
+        const mid = this.vStart + this.vSpan / 2
+        this.glideTo(end >= this.seriesLen ? this.seriesLen + 1 - sp : mid - sp / 2, sp)
+        },
+    toNow() { this.glideTo(this.seriesLen + 1 - this.vSpan, this.vSpan) },
+    pickAt(x: number, w: number) {
+        const s = this.series.value as any
+        if (s == null || !s.len) return
+        const pxd = w / this.vSpan
+        const at = this.vStart + x / pxd - 0.5
+        const reach = Math.max(0.5, 10 / pxd)
+        let best = "", dist = 1e9
+        for (let i = Math.max(0, Math.floor(at - reach)); i <= Math.min(s.len - 1, Math.ceil(at + reach)); i++) {
+            for (const ss of s.days[i]) { const k = Math.abs(i - at); if (k <= reach && k < dist) { dist = k; best = ss.id } }
+            }
+        if (best != "") this.openDetail(best)
+        },
+
+    // ── a session, whole ──
+
+    selId: string = "",
+    detailOpen: boolean = false,
+    confirmDelete: boolean = false,
+    detT: number = 0,
+    Spring [ attribute = detT, to = { app.detailOpen ? 1 : 0 }, stiffness = 260, damping = 30 ],
+    sel: Session = { app.ss.find(s => s.id == app.selId) ?? null },
+    place: object = { cPlace(app.ss, app.selId) },
+    placeLine: string = { app.placeText(app.place) },
+    placeText(p: object) -> string {
+        const q = p as any
+        if (!q.ok) return ""
+        return "Longer than " + q.longer + "% of your " + q.n + " " + cSport(q.sport).toLowerCase() + "s — the "
+            + cOrdinal(q.rank) + " longest. " + (q.harder >= 50 ? "Harder than " + q.harder + "% of everything you have logged."
+                : "Easier than " + q.easier + "% of everything you have logged.")
+        },
+
+    openDetail(id: string) { this.selId = id; this.confirmDelete = false; this.entryOpen = false; this.detailOpen = true },
+    closeDetail() { this.detailOpen = false; this.confirmDelete = false },
+
+    // deleting is a source aimed at the open session; a 404 means it is already gone
+
+    delSrc: DataSource [ method = "DELETE", url = { API + "/api/sessions/" + app.selId },
+        onLoad() { app.dropSession(app.selId) },
+        trackChanges = { ["failed"] },
+        onChange(e: ChangeEvent) { if (this.failed && this.statusCode == 404) app.dropSession(app.selId) }
+        ],
+
+    deleteSelected() {
+        if (!this.confirmDelete) { this.confirmDelete = true; return }
+        if (!this.busy) this.delSrc.fetch()
+        },
+    dropSession(id: string) {
+        const i = this.ss.findIndex(s => s.id == id)
+        if (i >= 0) this.db.removeAt(["sessions"], i)
+        this.closeDetail()
+        },
+
+    // ── recording one ──
+
+    entryOpen: boolean = false,
+    entT: number = 0,
+    Spring [ attribute = entT, to = { app.entryOpen ? 1 : 0 }, stiffness = 260, damping = 30 ],
+    editId: string = "",
+
+    // the draft: what they touched, and otherwise what they usually do
+
+    dSport: string = "run",
+    dDay: number = 0,
+    dMin: number = 45,
+    minTouched: boolean = false,
+    dKm: number = 0,
+    kmTouched: boolean = false,
+    dEffort: number = 5,
+    effTouched: boolean = false,
+    draft: Dataset { { "note": "" } },
+
+    typ: object = { cTypical(app.ss, app.dSport) },
+    eMin: number = { app.minTouched ? app.dMin : (app.typ as any).min },
+    eKm: number = { app.dSport == "lift" ? 0 : app.kmTouched ? app.dKm : Math.round((app.typ as any).kmPerMin * app.eMin * 10) / 10 },
+    eEff: number = { app.effTouched ? app.dEffort : (app.typ as any).effort },
+    eMinShown: number = 45,
+    Spring [ attribute = eMinShown, to = { app.eMin }, stiffness = 300, damping = 28 ],
+    eKmShown: number = 0,
+    Spring [ attribute = eKmShown, to = { app.eKm }, stiffness = 300, damping = 28 ],
+
+    chipModel: Dataset [ contents = { { chips: cChips(app.dSport).map(m => ({ m: m, label: cDur(m) })) } } ],
+    effortModel: Dataset { { "cells": [ { "e": 1 }, { "e": 2 }, { "e": 3 }, { "e": 4 }, { "e": 5 },
+                                         { "e": 6 }, { "e": 7 }, { "e": 8 }, { "e": 9 }, { "e": 10 } ] } },
+
+    draftSummary: string = { cSport(app.dSport) + " · " + cDur(app.eMin) + (app.dSport == "lift" ? "" : " · " + cKm(app.eKm))
+        + " · effort " + app.eEff + (app.dDay == app.todayN ? "" : " · " + cDayWord(app.dDay, app.todayN).toLowerCase()) },
+
+    openEntry() {
+        const ss = this.ss
+        this.editId = ""
+        this.dSport = cLikely(ss, this.todayN)
+        this.dDay = this.todayN
+        this.minTouched = false
+        this.kmTouched = false
+        this.effTouched = false
+        this.draft.set(["note"], "")
+        this.saveSrc.clear()
+        this.detailOpen = false
+        this.entryOpen = true
+        },
+    editSelected() {
+        const s = this.sel
+        if (s == null) return
+        this.editId = s.id
+        this.dSport = s.sport
+        this.dDay = cDay(s.date)
+        this.dMin = s.minutes
+        this.minTouched = true
+        this.dKm = s.distanceKm ?? 0
+        this.kmTouched = true
+        this.dEffort = s.effort
+        this.effTouched = true
+        this.draft.set(["note"], s.note ?? "")
+        this.saveSrc.clear()
+        this.detailOpen = false
+        this.entryOpen = true
+        },
+    closeEntry() { this.entryOpen = false },
+
+    setSport(s: string) { this.dSport = s; this.clearRefusal() },
+    shiftDay(k: number) { this.dDay = Math.min(this.todayN, this.dDay + k); this.clearRefusal() },
+    clearRefusal() { if (this.saveSrc.failed) this.saveSrc.clear() },
+    nudgeMin(k: number) { this.dMin = Math.max(5, this.eMin + k); this.minTouched = true },
+    setMin(m: number) { this.dMin = m; this.minTouched = true },
+    nudgeKm(k: number) {
+        const step = cKmStep(this.dSport)
+        this.dKm = Math.max(0, Math.round((this.eKm + k * step) * 10) / 10)
+        this.kmTouched = true
+        },
+    setEffort(e: number) { this.dEffort = e; this.effTouched = true },
+
+    // Saving is one source whose verb, address and payload all derive from the
+    // draft: a new session POSTs, a correction PUTs. What it returns is the stored
+    // session, written into `db`; what it refuses is shown above the button.
+
+    saveSrc: DataSource [ schema = Session,
+        method = { app.editId == "" ? "POST" : "PUT" },
+        url = { API + "/api/sessions" + (app.editId == "" ? "" : "/" + app.editId) },
+        body = { app.draftBody() },
+        onLoad() { app.adoptSaved(this.value, app.editId != "") }
+        ],
+    draftBody() -> object {
+        const note = ("" + ((app.draft.value as any)?.note ?? "")).trim()
+        return { sport: app.dSport, date: cStr(app.dDay), minutes: app.eMin,
+                 distanceKm: app.dSport == "lift" ? null : app.eKm, effort: app.eEff, note: note == "" ? null : note }
+        },
+    saveError: string = { !app.saveSrc.failed ? ""
+        : app.saveSrc.statusCode == 0 ? "The service didn't answer — try again."
+        : (app.saveSrc.errorBody as any)?.message ?? "The service refused that session." },
+
+    save() { if (!this.busy) this.saveSrc.fetch() },
+    adoptSaved(s: object, editing: boolean) {
+        const rec = s as any
+        const ss = this.ss
+        if (editing) {
+            const i = ss.findIndex(x => x.id == rec.id)
+            if (i >= 0) this.db.set(["sessions", i], rec)
+            }
+        else this.db.insert(["sessions"], 0, rec)
+        this.entryOpen = false
+        // bring the new or corrected session into view on the surface
+        const day = cDay(rec.date) - this.sFirst
+        if (day < this.vStart || day > this.vStart + this.vSpan - 1) this.glideTo(day - this.vSpan / 2, this.vSpan)
+        },
+
+    // ── the keyboard, for someone at a desk ──
+
+    keys: Keys [
+        onKeyDown(e: KeyEvent) { app.handleKey(e.key, e.meta || e.ctrl) }
+        ],
+    handleKey(k: string, mod: boolean) {
+        if (mod) return
+        if (this.entryOpen) {
+            if (k == "Escape") { this.closeEntry(); return }
+            if (k == "Enter") { this.save(); return }
+            if (this.layer.entry.body.col.noteBox.note.focused) return
+            const lk = k.toLowerCase()
+            if (lk == "r") this.setSport("run")
+            else if (lk == "b") this.setSport("ride")
+            else if (lk == "l") this.setSport("lift")
+            else if (lk == "s") this.setSport("swim")
+            else if (k == "ArrowUp") this.nudgeMin(5)
+            else if (k == "ArrowDown") this.nudgeMin(-5)
+            else if (k == "ArrowLeft") this.shiftDay(-1)
+            else if (k == "ArrowRight") this.shiftDay(1)
+            else if (k >= "0" && k <= "9") this.setEffort(k == "0" ? 10 : Number(k))
+            return
+            }
+        if (this.detailOpen) {
+            if (k == "Escape") this.closeDetail()
+            else if (k.toLowerCase() == "e") this.editSelected()
+            return
+            }
+        if (k.toLowerCase() == "n") this.openEntry()
+        else if (k == "ArrowLeft") this.glideTo(this.vStart - this.vSpan * 0.5, this.vSpan)
+        else if (k == "ArrowRight") this.glideTo(this.vStart + this.vSpan * 0.5, this.vSpan)
+        else if (k == "-") this.zoomTo(this.vSpan * 1.6)
+        else if (k == "=" || k == "+") this.zoomTo(this.vSpan / 1.6)
+        },
+
+    // ── the page ──
+
+    page: View [ width = { app.width }, padding = { app.narrow ? [14, 18, 120, 18] : [26, 44, 64, 44] },
+        layout: ResponsiveLayout [ gap = 56, plan = { [
+            ({ from: 1000, flow: "row", share: ({ now: 36, year: 64 }) }),
+            ({ from: 0, flow: "stack", share: ({ now: 100, year: 100 }) }) ] } ],
+        now: TodayColumn [ ],
+        year: YearColumn [ ]
+        ],
+
+    // ── above the page ──
+
+    add: AddButton [ ignoreScroll = true, visible = { app.ready && app.narrow },
+        x = { app.hostWidth - 68 - (app.narrow ? 20 : 36) - app.safeRight },
+        y = { app.hostHeight - 68 - (app.narrow ? 22 : 36) - app.safeBottom } ],
+
+    layer: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
+        visible = { app.detT > 0.002 || app.entT > 0.002 },
+        scrim: View [ width = 100%, height = 100%, fill = #16140F, opacity = { 0.38 * Math.max(app.detT, app.entT) },
+            onClick() { app.closeDetail(); app.closeEntry() }
+            ],
+        detail: DetailSheet [ ],
+        entry: EntrySheet [ ]
+        ]
+    ]
