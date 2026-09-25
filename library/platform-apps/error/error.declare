@@ -1,13 +1,11 @@
-// error — a window's error state, as a program. One window is one Declare app,
-// and an app is either running or in error; when a program fails to load, the
-// Mac host opens this into the same window — a mode of the window, not a
-// destination — passing the diagnostics and the failed program's address
-// through env. It is in-window and non-modal: the titlebar stays live (‹›,
-// Open Location…, View Source), other windows are untouched, and a harness can
-// read the state instead of hanging on a modal run loop. Styled to the web's
-// own compile-error panel — dark ground, red heading, monospace diagnostics —
-// so both hosts show one error page. Retry re-opens the subject; a fixed file
-// simply loads and the window is running again.
+// error — a program's error state, as a program. When a program fails to load,
+// its host opens this in the program's place — the page in a browser, the
+// window on the Mac — providing the diagnostics (`errors`), the failed
+// program's address (`subject`), and optionally a line of host-specific advice
+// (`hint`). It is non-modal: the host's own controls stay live, and a harness
+// can read the state instead of hanging on a modal run loop. Dark ground, red
+// heading, monospace diagnostics, one page for every host. Retry re-opens the
+// subject; a fixed file simply loads and the program is running again.
 //
 // Dependency-light, not dependency-free. This page must come up when other
 // programs cannot, so it leans on View, Text and HTMLText — plus the library's
@@ -25,11 +23,12 @@ App [ minWidth = 360,
     theme = SanFranciscoDark,                     // the Button styles from the provided theme; dark matches the page
     fill = #0B141B, textColor = #E7EEF2,
 
-    // the two env values the host passes; both guarded, so an unhosted open
-    // (a person double-clicking this file) still renders a sensible page
+    // what the host provides, each with a default, so an unhosted open (a
+    // person double-clicking this file) still renders a sensible page
 
     errors: string = { hostProvided("errors", "") || "No diagnostics were passed." },
     subject: string = { hostProvided("subject", "") },
+    hint: string = { hostProvided("hint", "") || "Fix the file, then press Retry." },
 
     // HTML-escape a diagnostic so its own `<`/`&` render literally, then one
     // paragraph per line in the monospace style — a wrapped, selectable list.
@@ -62,8 +61,8 @@ App [ minWidth = 360,
                 onClick() { app.navigate(app.subject) }
                 ],
             list: HTMLText [ width = 100%, fontSize = 13, lineHeight = 1.55, bodyColor = #E7EEF2, dark = true, selectable = true, html = { app.listHtml } ],
-            hint: Text [ width = 100%, wrap = true, fontSize = 12, textColor = #8FA3B0,
-                text = "Open Location… is in the titlebar. If this program is served by the dev server, check that it is running: npm start  (or: PORT=8260 node server/index.mjs)" ]
+            advice: Text [ width = 100%, wrap = true, fontSize = 12, textColor = #8FA3B0,
+                text = { app.hint } ]
             ]
         ]
     ]

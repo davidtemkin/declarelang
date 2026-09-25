@@ -468,7 +468,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         // app is either running or in error — so the window shows the error, as
         // a baked chrome program (library/platform-apps/error), opened with `.stay` exactly as
         // Source mode opens the Viewer: a mode of this window, not a destination.
-        // Non-modal: the titlebar stays live (‹›, Open Location…, View Source),
+        // Non-modal: the titlebar stays live (‹›, View Source, Inspector),
         // other windows are untouched, and a harness can read the state instead
         // of hanging on runModal — so under automation this now shows too. The
         // page carries the diagnostics and the failed address through env; its
@@ -481,7 +481,8 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         let errorPage = Bridge.platformBase() + "library/platform-apps/error/error.declare"
         let showErrorPage = { (subject: String) in
             self.errorShown = msg
-            let q = "?errors=" + Self.queryEnc(msg) + "&subject=" + Self.queryEnc(subject)
+            let hint = "Fix the file, then press Retry. File ▸ Open Location… (⌘L) opens a different program. If this program is served by the dev server, check that it is running: npm start"
+            let q = "?errors=" + Self.queryEnc(msg) + "&subject=" + Self.queryEnc(subject) + "&hint=" + Self.queryEnc(hint)
             self.open(errorPage + q, history: .stay)
         }
         if !currentURL.hasPrefix(errorPage) { errorSubject = currentURL; showErrorPage(currentURL); return }
