@@ -957,6 +957,11 @@ App [ tagline: string = "a UI language for you and your AI",
     fontFamily = { app.uiFace }, fontSize = 17, fontWeight = normal,
     textColor = { provided("theme").text },
 
+    // the site's links are set apart by the accent alone — provided to all the
+    // rich text below, the hosted pages included
+
+    linkUnderline = false,
+
     // in-app location: "home" (the scrolling page), "why" (the mini-article),
     // "language" (the one-file core doc, rendered in-app), or "getstarted" (the
     // quick-start guide, rendered the same way) — the app’s slice of the

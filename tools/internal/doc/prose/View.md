@@ -685,8 +685,10 @@ away foreshortens; past 90° its back shows (`backface`). Hit-testing unprojects
 A rotation about the view's **vertical axis**, in degrees — the twin of `rotateX`.
 
 ## translateZ
-A push along the depth axis, in px, positive toward the viewer — under the parent's
-`perspective` the view grows as it comes closer. `0` is in the plane.
+A push along the view's own depth axis, in px — toward the viewer while the view is
+unrotated, and turned with it by `rotateX`/`rotateY`, so a face of a cube moves out along
+its own normal (CSS's `rotateY(…) translateZ(…)`). Under the parent's `perspective` the
+view grows as it comes closer. `0` is in the plane.
 
 ## perspective
 Sets this view as the **eye** for its children's `rotateX`/`rotateY`/`translateZ`: the

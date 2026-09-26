@@ -56,6 +56,7 @@ const SUITE = [
   "test/themes.test.mjs",
   "test/html.test.mjs",
   "test/richtext.test.mjs",
+  "test/swatchbook.test.mjs",      // every combination of what a view can look like, DOM vs canvas: layout exactly, pixels per swatch against a baseline
   "test/inline-views.test.mjs",    // a program class as a tag in rich text: one real view, placed in the line (DOM + canvas)
   "test/text.test.mjs",            // the silent text regressions only: headless, one stub measurer, ~1s
   "test/md-conformance.test.mjs",  // Declare's Markdown reader vs markdown-it (VS Code's) over the CommonMark+GFM surface

@@ -839,9 +839,15 @@ class GlassChip extends View [
 
 App [ textColor = whitesmoke, appName = "Weather",
 
-    // the platform's own UI face, then the classic fallbacks
+    // San Francisco wherever it is the system face: `-apple-system` is Safari's
+    // name for it and `BlinkMacSystemFont` Chrome's on a Mac. Everywhere else both
+    // are unknown and Inter draws — the closest open face to San Francisco, shipped
+    // beside the program (fonts/inter.woff2, weight and optical size; SIL OFL). An
+    // Apple device never downloads it: a font loads only when text reaches it.
 
-    fontFamily = ["-apple-system", "SF Pro Text", "Helvetica Neue", "Helvetica", "sans-serif"],
+    inter: Font [ Face [ src = "fonts/inter.woff2", weight = range(100, 900) ]
+        ],
+    fontFamily = { ["-apple-system", "BlinkMacSystemFont", app.inter, "Helvetica Neue", "Helvetica", "sans-serif"] },
 
     // ── the truth ─────────────────────────────────────────────────────────
     // A DataSource fetches once (`auto`) and exposes `loaded` and `value` as

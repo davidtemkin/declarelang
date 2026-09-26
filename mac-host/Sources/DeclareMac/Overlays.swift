@@ -207,6 +207,23 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
     /// The block's own font as a line's floor — CSS's strut, the root inline
     /// box: [its box above the baseline, its box below], carried on each run.
     static let strutKey = NSAttributedString.Key("declareLineStrut")
+    /// The run's own font. TextKit substitutes a fallback face into `.font` for
+    /// characters the face lacks (Thonburi for Thai, Kohinoor for Devanagari),
+    /// and those faces are taller — but with a numeric line height the browser
+    /// sizes the line from the run's own font, whatever face the glyphs come
+    /// from. The line box reads this instead.
+    static let baseFontKey = NSAttributedString.Key("declareBaseFont")
+
+    /// Break only where the browser may (LineBreaks): TextKit's own breaker
+    /// breaks after "/" and elsewhere the web does not, and a flow that broke
+    /// differently showed different words on each line than the layout's.
+    private var breaksFor: (text: String, set: Set<Int>)?
+    func layoutManager(_ lm: NSLayoutManager, shouldBreakLineByWordBeforeCharacterAt charIndex: Int) -> Bool {
+        guard let storage = lm.textStorage else { return true }
+        let text = storage.string
+        if breaksFor?.text != text { breaksFor = (text, Set(LineBreaks.opportunities(text))) }
+        return breaksFor!.set.contains(charIndex)
+    }
 
     /// EACH LINE'S BOX, THE WAY THE DOM AND CANVAS BUILD IT. With `lineHeight`
     /// set, every run is a box `size × multiple` tall with the difference from
@@ -224,26 +241,31 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
                        in textContainer: NSTextContainer, forGlyphRange glyphRange: NSRange) -> Bool {
         guard let storage = lm.textStorage else { return false }
         var above: CGFloat = -.greatestFiniteMagnitude, below: CGFloat = -.greatestFiniteMagnitude
-        var fixed: CGFloat = 0
-        storage.enumerateAttributes(in: lm.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)) { a, _, _ in
-            guard let mult = (a[RichOverlay.leadKey] as? NSNumber)?.doubleValue, let f = a[.font] as? NSFont,
+        var fixed: CGFloat = 0, spaceBefore: CGFloat = 0
+        let chars = lm.characterRange(forGlyphRange: glyphRange, actualGlyphRange: nil)
+        // The paragraph's own space above belongs to its FIRST line only; what
+        // else TextKit put above a line (the face's leading) is not the DOM's.
+        let firstLine = (storage.string as NSString).paragraphRange(for: NSRange(location: chars.location, length: 0)).location == chars.location
+        storage.enumerateAttributes(in: chars) { a, _, _ in
+            guard let mult = (a[RichOverlay.leadKey] as? NSNumber)?.doubleValue,
+                  let f = (a[RichOverlay.baseFontKey] ?? a[.font]) as? NSFont,
                   let p = a[.paragraphStyle] as? NSParagraphStyle,
                   p.maximumLineHeight > 0, p.maximumLineHeight == p.minimumLineHeight else { return }   // an image lifted the cap: TextKit's own line
             fixed = p.maximumLineHeight
-            let box = f.pointSize * CGFloat(mult)
+            if firstLine { spaceBefore = max(spaceBefore, p.paragraphSpacingBefore) }
+            let box = (f.pointSize * CGFloat(mult)).rounded()   // round(size × multiple), the DOM's and canvas's line box
             let m = TextEngine.webMetrics(f)
-            let up = (box + m.ascent - m.descent) / 2
+            let up = m.ascent + ((box - m.ascent - m.descent) / 2).rounded(.down)   // the floor above, as the browser splits it
             above = max(above, up); below = max(below, box - up)
             if let strut = a[RichOverlay.strutKey] as? [NSNumber], strut.count == 2 {
                 above = max(above, CGFloat(strut[0].doubleValue)); below = max(below, CGFloat(strut[1].doubleValue))
             }
         }
         guard fixed > 0, above > -.greatestFiniteMagnitude else { return false }
-        // What TextKit put above the fixed line (a paragraph's space before) stays.
-        let before = max(0, lineFragmentRect.pointee.height - fixed)
+        let before = spaceBefore
         let h = above + below
         lineFragmentRect.pointee.size.height = before + h
-        lineFragmentUsedRect.pointee.size.height = max(0, lineFragmentUsedRect.pointee.height - fixed) + h
+        lineFragmentUsedRect.pointee.size.height = h
         baselineOffset.pointee = before + above
         return true
     }
@@ -264,7 +286,11 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
     /// top-down space (band-top = y 0), the coordinates redraw() already used.
     private struct BandLine { let line: CTLine; let x: CGFloat; let y: CGFloat }
     /// A gradient fill clipped to a run's glyphs (band top-down space).
-    private struct BandGradient { let ramp: CGGradient; let clip: [CGRect]; let box: CGRect; let angle: CGFloat }
+    /// `boxes`: each clip rect's ramp box — a run broken across lines is ONE
+    /// inline box, its ramp laid over the fragments set end to end (CSS's sliced
+    /// decoration), so each fragment's box is the whole run's length, shifted
+    /// back by the fragments before it.
+    private struct BandGradient { let ramp: CGGradient; let clip: [CGRect]; let boxes: [CGRect]; let angle: CGFloat }
     /// Everything needed to raster a band with no reference back to the model or
     /// the layout manager — safe to hand to a background queue.
     private struct BandSnapshot {
@@ -278,6 +304,25 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
     /// A rich run's `fill` dict ({angle, stops:[{offset,color}]}, colors as
     /// numbers) → the ramp the redraw() post-pass clips to its glyphs. Mirrors
     /// LayerTree.parseTextStyle's standalone gradient, in the rich-run color shape.
+    /// A gradient run's fragments and the ramp box each takes. The run is ONE
+    /// inline box broken across lines, its ramp laid over the fragments set end
+    /// to end (CSS's sliced decoration): in reading order, each fragment's box
+    /// is the whole run's length, shifted back by the fragments before it.
+    /// Clipped to the run's TIGHT enclosing rects (the selection geometry), not
+    /// its bounding rect, which overran onto the next word.
+    static func gradientFragments(_ lm: NSLayoutManager, _ gr: NSRange, _ tc: NSTextContainer, dx: CGFloat, dy: CGFloat) -> [(clip: CGRect, box: CGRect)] {
+        var rects: [CGRect] = []
+        lm.enumerateEnclosingRects(forGlyphRange: gr, withinSelectedGlyphRange: gr, in: tc) { r, _ in rects.append(r.offsetBy(dx: dx, dy: dy)) }
+        // TextKit promises no order; the ramp runs line after line
+        rects.sort { abs($0.minY - $1.minY) > 0.5 ? $0.minY < $1.minY : $0.minX < $1.minX }
+        let total = rects.reduce(0) { $0 + $1.width }
+        var before: CGFloat = 0
+        return rects.map { r in
+            defer { before += r.width }
+            return (r, CGRect(x: r.minX - before, y: r.minY, width: total, height: r.height))
+        }
+    }
+
     static func richGradient(_ g: [String: Any]) -> TextGradient? {
         let stops = g["stops"] as? [[String: Any]] ?? []
         let colors = stops.compactMap { ($0["color"] as? NSNumber).map { TextEngine.declColor($0).cgColor } }
@@ -374,9 +419,9 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
                                   if let t = b["weight"] as? String { return Int(t) != nil ? t : (t == "bold" ? "700" : t == "semibold" ? "600" : t == "medium" ? "500" : t == "light" ? "300" : "400") }
                                   return "400" }()
                 let bf = TextEngine.nsFont(TextEngine.parse("\(w) \(fontSize)px \(fam)"))
-                let box = fontSize * mult
+                let box = (fontSize * mult).rounded()
                 let bm = TextEngine.webMetrics(bf)
-                let up = (box + bm.ascent - bm.descent) / 2
+                let up = bm.ascent + ((box - bm.ascent - bm.descent) / 2).rounded(.down)
                 strut = [NSNumber(value: Double(up)), NSNumber(value: Double(box - up))]
             }
             let para = NSMutableParagraphStyle()
@@ -445,6 +490,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
                 ]
                 if lineHeight > 0 && para.maximumLineHeight > 0 {
                     attrs[RichOverlay.leadKey] = Double(mult)
+                    attrs[RichOverlay.baseFontKey] = attrs[.font]
                     if let strut { attrs[RichOverlay.strutKey] = strut }
                     if let f = attrs[.font] as? NSFont {
                         let m = TextEngine.webMetrics(f)
@@ -459,6 +505,12 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
                     attrs[.foregroundColor] = c
                 }
                 if let tr = (r["tracking"] as? NSNumber)?.doubleValue, tr != 0 { attrs[.kern] = tr }
+                // a declared face with no bold is emboldened, as the browser does
+                // (an outline, below, takes the stroke over)
+                if TextEngine.syntheticBold(TextEngine.parse(css)) {
+                    attrs[.strokeWidth] = TextEngine.fakeBoldStroke(size: Double(size))
+                    attrs[.strokeColor] = attrs[.foregroundColor]
+                }
                 if ProcessInfo.processInfo.environment["DECLARE_DEBUG_RICH"] != nil {
                     NSLog("[rich-run] id=%d css=%@ tracking=%@ keys=%@", id, css,
                           String(describing: r["tracking"] ?? "ABSENT"),
@@ -754,12 +806,10 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
                 guard let g = val as? TextGradient, let cs = CGColorSpace(name: CGColorSpace.sRGB),
                       let ramp = CGGradient(colorsSpace: cs, colors: g.colors as CFArray, locations: g.locations) else { return }
                 let gr = lm.glyphRange(forCharacterRange: cr, actualCharacterRange: nil)
-                var clip: [CGRect] = []; var box = CGRect.null
-                lm.enumerateEnclosingRects(forGlyphRange: gr, withinSelectedGlyphRange: gr, in: tc) { r, _ in
-                    let rr = r.offsetBy(dx: 0, dy: -top); clip.append(rr); box = box.union(rr)
-                }
-                guard !box.isNull else { return }
-                grads.append(BandGradient(ramp: ramp, clip: clip, box: box, angle: g.angle))
+                let frags = RichOverlay.gradientFragments(lm, gr, tc, dx: 0, dy: -top)
+                guard !frags.isEmpty else { return }
+                let clip = frags.map { $0.clip }, boxes = frags.map { $0.box }
+                grads.append(BandGradient(ramp: ramp, clip: clip, boxes: boxes, angle: g.angle))
             }
         }
         return BandSnapshot(pw: pw, ph: ph, scale: scale, h: h, bandTop: top, bleed: bleed, lines: lines, selRects: selRects,
@@ -787,17 +837,18 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
         cg.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         for ln in s.lines { cg.textPosition = CGPoint(x: ln.x, y: ln.y); CTLineDraw(ln.line, cg) }
         for g in s.gradients {
-            cg.saveGState()
-            let clip = CGMutablePath(); for r in g.clip { clip.addRect(r) }
-            cg.addPath(clip); cg.clip()
-            cg.setBlendMode(.sourceAtop)
-            let rad = g.angle * .pi / 180
-            let dx = sin(rad) / 2, dy = -cos(rad) / 2
-            let c = CGPoint(x: g.box.midX, y: g.box.midY)
-            let start = CGPoint(x: c.x - dx * g.box.width, y: c.y - dy * g.box.height)
-            let end = CGPoint(x: c.x + dx * g.box.width, y: c.y + dy * g.box.height)
-            cg.drawLinearGradient(g.ramp, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-            cg.restoreGState()
+            for (r, box) in zip(g.clip, g.boxes) {
+                cg.saveGState()
+                cg.addRect(r); cg.clip()
+                cg.setBlendMode(.sourceAtop)
+                let rad = g.angle * .pi / 180
+                let dx = sin(rad) / 2, dy = -cos(rad) / 2
+                let c = CGPoint(x: box.midX, y: box.midY)
+                let start = CGPoint(x: c.x - dx * box.width, y: c.y - dy * box.height)
+                let end = CGPoint(x: c.x + dx * box.width, y: c.y + dy * box.height)
+                cg.drawLinearGradient(g.ramp, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+                cg.restoreGState()
+            }
         }
         return cg.makeImage()
     }
@@ -842,8 +893,8 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
         lm.drawBackground(forGlyphRange: glyphs, at: at)
         lm.drawGlyphs(forGlyphRange: glyphs, at: at)
         // textFill gradients: the runs above are opaque white; paint the ramp over
-        // each run's box with `sourceAtop` so ONLY those glyph pixels take it. The
-        // gradient spans the run's own box (the DOM's per-span `background-clip`),
+        // each run's fragments with `sourceAtop` so ONLY those glyph pixels take
+        // it — one ramp over the run's fragments end to end (gradientFragments),
         // in this y-DOWN flipped context.
         if let ts = text.textStorage, gradientRuns > 0 {
             ts.enumerateAttribute(RichOverlay.gradKey, in: NSRange(location: 0, length: ts.length)) { val, cr, _ in
@@ -851,24 +902,18 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
                       let ramp = CGGradient(colorsSpace: cs, colors: grad.colors as CFArray, locations: grad.locations)
                 else { return }
                 let gr = lm.glyphRange(forCharacterRange: cr, actualCharacterRange: nil)
-                // Clip to the run's TIGHT enclosing rects (the selection geometry),
-                // NOT boundingRect: a tall run's bounding box overran to the right
-                // and the sourceAtop ramp bled onto the next word.
-                let clip = CGMutablePath(); var box = CGRect.null
-                lm.enumerateEnclosingRects(forGlyphRange: gr, withinSelectedGlyphRange: gr, in: tc) { r, _ in
-                    let rr = r.offsetBy(dx: at.x, dy: at.y); clip.addRect(rr); box = box.union(rr)
+                for (r, box) in RichOverlay.gradientFragments(lm, gr, tc, dx: at.x, dy: at.y) {
+                    cg.saveGState()
+                    cg.addRect(r); cg.clip()
+                    cg.setBlendMode(.sourceAtop)
+                    let rad = grad.angle * .pi / 180
+                    let dx = sin(rad) / 2, dy = -cos(rad) / 2       // compass 0 = up = −y in this flipped space
+                    let c = CGPoint(x: box.midX, y: box.midY)
+                    let start = CGPoint(x: c.x - dx * box.width, y: c.y - dy * box.height)
+                    let end = CGPoint(x: c.x + dx * box.width, y: c.y + dy * box.height)
+                    cg.drawLinearGradient(ramp, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
+                    cg.restoreGState()
                 }
-                guard !box.isNull else { return }
-                cg.saveGState()
-                cg.addPath(clip); cg.clip()
-                cg.setBlendMode(.sourceAtop)
-                let rad = grad.angle * .pi / 180
-                let dx = sin(rad) / 2, dy = -cos(rad) / 2       // compass 0 = up = −y in this flipped space
-                let c = CGPoint(x: box.midX, y: box.midY)
-                let start = CGPoint(x: c.x - dx * box.width, y: c.y - dy * box.height)
-                let end = CGPoint(x: c.x + dx * box.width, y: c.y + dy * box.height)
-                cg.drawLinearGradient(ramp, start: start, end: end, options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
-                cg.restoreGState()
             }
         }
         NSGraphicsContext.restoreGraphicsState()

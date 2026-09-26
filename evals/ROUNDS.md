@@ -53,7 +53,7 @@ runs on a subscription-authenticated CLI draw plan usage, not billed dollars.
 
 **Crosses in (by copy, when the round closes):**
 - the round's write-up → `evals/reports/<date>-round-<NNN>.md`
-- a platform finding → `docs/system-design/findings-<date>-<slug>.md`
+- a platform finding → `evals/findings/findings-<date>-<slug>.md`
 - task repairs the drift check forced (reference/assert refreshes) — committed with their
   provenance stated
 - a row in the index below

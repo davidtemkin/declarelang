@@ -13,9 +13,9 @@
 // 60Hz (16.7ms), the native host at 120Hz (8.3ms). So each renderer's own
 // median interval is reported as its baseline, and "long" is >1.5x that.
 import puppeteer from "puppeteer-core";
+import { ORIGIN } from "./app.mjs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const ORIGIN = process.env.DECLARE_ORIGIN ?? "http://127.0.0.1:8260";
 const only = process.argv.slice(2).filter((a) => !a.startsWith("-"));
 const MODES = only.length ? only : ["dom", "canvas"];
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));

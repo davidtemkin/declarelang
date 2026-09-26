@@ -15,11 +15,15 @@
 export const FONT_CSS = Symbol("declare.font.css");
 /** Whether a font is still inside its wait for faces it has not received. */
 export const FONT_PENDING = Symbol("declare.font.pending");
+/** Ask a font for its faces: text has reached it. A declared font loads nothing
+ *  until then — a font no text reaches costs nothing. */
+export const FONT_DEMAND = Symbol("declare.font.demand");
 
 /** What a Font presents to the text machinery. */
 export interface FontValue {
   readonly [FONT_CSS]: string;
   readonly [FONT_PENDING]: boolean;
+  [FONT_DEMAND]?(): void;
 }
 
 /** Everything a family slot may hold. */
@@ -29,12 +33,37 @@ export function isFontValue(v: unknown): v is FontValue {
   return typeof v === "object" && v !== null && FONT_CSS in v;
 }
 
+// ── which font text actually reaches ─────────────────────────────────────────
+// A family list is tried in order, as the browser tries it: the first family
+// this machine has wins, and nothing after it is used. So a declared font is
+// DEMANDED — its faces fetched — only when no family before it is available:
+// `[-apple-system, BlinkMacSystemFont, app.inter, "Helvetica Neue"]` draws in the
+// system face on an Apple device and never fetches Inter; elsewhere both names
+// are unknown and Inter loads. Availability is measured (text widths are the
+// probe), since there is no API that says whether a name will resolve. That
+// machinery lives in font.ts — a program that declares no Font carries none of
+// it — and reaches this module through the hook below.
+interface FontDemand {
+  /** Demand the font text reaches in this family list. */
+  reached(v: readonly unknown[]): void;
+  /** Resolve every family a tree's text starts with (fontsReady, below). */
+  touch(root: object): void;
+}
+let demandHook: FontDemand | null = null;
+
+/** font.ts installs the demand machinery. */
+export function provideFontDemand(h: FontDemand): void { demandHook = h; }
+
 /** The CSS family list a value names: a string as written, a font's current
- *  family, a list joined in order. Tracked when a font is read. */
+ *  family, a list joined in order. Tracked when a font is read. Resolving it is
+ *  also what demands the font text reaches (above). */
 export function familyCss(v: unknown): string {
   if (typeof v === "string") return v;
-  if (isFontValue(v)) return v[FONT_CSS];
-  if (Array.isArray(v)) return v.map(familyCss).filter((s) => s !== "").join(", ");
+  if (isFontValue(v)) { v[FONT_DEMAND]?.(); return v[FONT_CSS]; }
+  if (Array.isArray(v)) {
+    if (demandHook !== null && v.some(isFontValue)) demandHook.reached(v);
+    return v.map((e) => (isFontValue(e) ? e[FONT_CSS] : familyCss(e))).filter((s) => s !== "").join(", ");
+  }
   return "";
 }
 
@@ -67,7 +96,13 @@ export async function fontsReady(root: object): Promise<void> {
     for (const c of (n as { children?: readonly unknown[] }).children ?? []) walk(c);
   };
   walk(root);
-  if (fonts.length > 0) await Promise.all(fonts.map((f) => f.ready()));
+  if (fonts.length === 0) return;
+  // Resolve every family the tree's text starts with, before waiting: that is
+  // what demands the fonts text reaches, so the gate waits for those and for no
+  // font a device will never draw in. (A family first used later demands its
+  // font then, through the same resolution.)
+  demandHook?.touch(root);
+  await Promise.all(fonts.map((f) => f.ready()));
 }
 
 /** The fix for a font NAME written where a family goes (`fontFamily = Serif`,

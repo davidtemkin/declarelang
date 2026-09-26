@@ -8,7 +8,7 @@ points to, and on any disagreement those documents win.
 
 Companions: verify-and-evals.md (the ladder + eval design — the normative
 spec), documentation.md (docs governance + its gate ramp), diagnostics.md (the
-message contract), language-learnings.md (the E-series register + run history).
+message contract), evals/findings/language-learnings.md (the E-series register + run history).
 
 ## 0. The principle
 

@@ -28,6 +28,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "../harness.mjs";
@@ -67,6 +68,15 @@ if (!process.env.DECLARE_ORIGIN) {
   server = http.createServer(declare.handler);
   await new Promise((r) => server.listen(PORT, "127.0.0.1", r));
   ORIGIN = `http://127.0.0.1:${server.address().port}`;
+}
+
+// Asked for and not running: launch one — behind whatever the person is using,
+// light (headless Chrome's appearance) — and close it at the end.
+let ownHost = null;
+if (MAC && !macLive() && hostBinary() !== null) {
+  ownHost = spawn(hostBinary(), [], { detached: true, stdio: "ignore",
+    env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_APPEARANCE: "light" } });
+  for (let i = 0; i < 150 && !macLive(); i++) await new Promise((r) => setTimeout(r, 100));
 }
 
 // Asked for but absent is an ERROR, not a skip: a run told to prove three
@@ -488,3 +498,4 @@ await test("conform: the transparent view itself never takes a press, everywhere
 
 await browser.close();
 if (server?.close) server.close();
+if (ownHost !== null) { try { process.kill(ownHost.pid); } catch { /* gone */ } }

@@ -394,6 +394,54 @@ function wrapEditableLive(text: string, font: string, width: number, letterSpaci
   return wrapBy(text, font, width, letterSpacing, { countIndent: true, breakWord: true });
 }
 
+/* The browser's break opportunities INSIDE a run of non-space text, as both
+ * engines lay it out (measured 2026-09-25, Chrome and WebKit alike): after a
+ * hyphen; between any two CJK or Hangul characters, except before closing
+ * punctuation and small kana and after opening brackets (the kinsoku a line
+ * never starts or ends with); and at word boundaries in the scripts written
+ * without spaces — Thai, Lao, Khmer, Myanmar — which the engines find by
+ * dictionary, as Intl.Segmenter does with the same ICU data. NOT after "/":
+ * neither engine breaks a spaceless path or URL there. */
+const CJK = /[\u1100-\u11FF\u2E80-\u2FDF\u3000-\u303F\u3040-\u30FF\u3100-\u31FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF\uFF00-\uFFEF]/;
+const SEA = /[\u0E00-\u0EFF\u1000-\u109F\u1780-\u17FF]/;
+const NO_START = /^[、。，．・：；？！ー」』）］｝〕〉》】〙〗ぁぃぅぇぉっゃゅょゎゕゖァィゥェォッャュョヮヵヶ々〻‐゠–〜～？！!?,.:;)\]}]/;
+const NO_END = /[「『（［｛〔〈《【〘〖(\[{]$/;
+let graphemeSeg: Intl.Segmenter | null | undefined;
+let wordSeg: Intl.Segmenter | null | undefined;
+function segmenter(kind: "grapheme" | "word"): Intl.Segmenter | null {
+  const S = (Intl as { Segmenter?: typeof Intl.Segmenter }).Segmenter;
+  if (kind === "grapheme") return graphemeSeg ??= S ? new S(undefined, { granularity: "grapheme" }) : null;
+  return wordSeg ??= S ? new S(undefined, { granularity: "word" }) : null;
+}
+/** May a line break between two adjacent pieces of one word? */
+export function breakBetween(before: string, after: string): boolean {
+  if (before === "" || after === "") return false;
+  if (before.endsWith("-") && !/^\d/.test(after)) return true;
+  const a = [...before].pop()!, b = [...after][0];
+  if ((CJK.test(a) || CJK.test(b)) && !NO_START.test(after) && !NO_END.test(before)) return true;
+  return false;
+}
+/** A word (no spaces) cut at every place the browser may break it. */
+export function breakUnits(word: string): string[] {
+  if (!CJK.test(word) && !SEA.test(word)) return word.split(/(?<=-)(?!\d)/);
+  const g = segmenter("grapheme");
+  const parts = g ? [...g.segment(word)].map((x) => x.segment) : [...word];
+  // SEA word boundaries, as offsets into `word`
+  const cuts = new Set<number>();
+  if (SEA.test(word)) {
+    const w = segmenter("word");
+    if (w) for (const x of w.segment(word)) cuts.add(x.index);
+  }
+  const out: string[] = [];
+  let cur = "", at = 0;
+  for (const p of parts) {
+    if (cur !== "" && (breakBetween(cur, p) || (cuts.has(at) && (SEA.test(p) || SEA.test([...cur].pop()!))))) { out.push(cur); cur = ""; }
+    cur += p; at += p.length;
+  }
+  if (cur !== "") out.push(cur);
+  return out;
+}
+
 function wrapBy(text: string, font: string, width: number, letterSpacing: number, rule: WrapRule): string[] {
   if (width <= 0) return text.split("\n");
   const m = measurer();
@@ -407,14 +455,13 @@ function wrapBy(text: string, font: string, width: number, letterSpacing: number
     // allowed to leave behind, so a deep indent never lands on a line alone.
     let ink = false;
     // Break opportunities are the BROWSER'S: at spaces (the space collapses
-    // at the break), and after "/" or "-" inside a word — how engines wrap
-    // paths, URLs, and hyphenated words; the delimiter stays with the line it
-    // ends. Without these a spaceless path measured as ONE line while the DOM
-    // rendered two (the desktop's preview pane caught it), so the model's
-    // height under-counted and layouts stacked into the overflow.
+    // at the break), and inside a word where breakUnits finds them — after a
+    // hyphen, between CJK characters, at Thai word boundaries; the delimiter
+    // stays with the line it ends. A measure that misses one counts fewer
+    // lines than the DOM renders, and layouts stack into the overflow.
     const words = seg.split(" ");
     for (let i = 0; i < words.length; i++) {
-      const chunks = words[i].split(/(?<=[/-])/);
+      const chunks = breakUnits(words[i]);
       for (let j = 0; j < chunks.length; j++) {
         // The separator belongs to the word that FOLLOWS it, which is what
         // makes a line's indent measurable: leading spaces ARE the empty
@@ -444,3 +491,4 @@ function wrapBy(text: string, font: string, width: number, letterSpacing: number
   ls.letterSpacing = "0px"; // the measurer is shared — leave it neutral
   return out.length === 0 ? [""] : out;
 }
+

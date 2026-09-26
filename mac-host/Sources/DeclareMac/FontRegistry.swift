@@ -139,6 +139,20 @@ enum FontRegistry {
         return CTFontCreateWithFontDescriptor(d, size, nil)
     }
 
+    /// The weight of the face `font(family:…)` would pick, at its heaviest —
+    /// nil when the family is not a declared one.
+    static func heaviestNear(family: String, weight: Int, italic: Bool) -> Int? {
+        let key = family.lowercased()
+        lock.lock()
+        let candidates = faces.filter { $0.family == key }
+        lock.unlock()
+        guard !candidates.isEmpty else { return nil }
+        let matchingSlant = candidates.filter { $0.italic == italic }
+        let pool = matchingSlant.isEmpty ? candidates : matchingSlant
+        guard let best = pool.min(by: { distance($0, weight) < distance($1, weight) }) else { return nil }
+        return best.variable ? max(best.weightMin, min(best.weightMax, weight)) : best.weightMax
+    }
+
     private static func distance(_ f: Face, _ w: Int) -> Int {
         if w >= f.weightMin && w <= f.weightMax { return 0 }
         return w < f.weightMin ? f.weightMin - w : w - f.weightMax

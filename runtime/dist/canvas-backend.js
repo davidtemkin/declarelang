@@ -118,7 +118,7 @@ import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, insetSides, isGradient, radiusFit, radiusIsSquare, filterCss, filterBlur, filterBleed } from "./value.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines } from "./measure.js";
-import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
+import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
 import { onDprChange } from "./dpr.js";
@@ -972,6 +972,16 @@ class Compositor {
         else if (!this.full) {
             s.damaged = true;
             this.dirty.add(s);
+            // A surface recorded as painting NOTHING that changes may paint something
+            // now — an image's bitmap landing, a drawing or a fill arriving on an
+            // empty view. Its ancestors' records left it out, so the cull would skip
+            // the whole subtree and it would never be drawn (an image inside a plain
+            // or blending parent stayed blank until an unrelated repaint). "Unknown"
+            // up the chain, as a subtree changing shape says (insertChild).
+            if (s.painted !== null && boxEmpty(s.painted)) {
+                for (let a = s; a !== null && a.painted !== null; a = a.parent)
+                    a.painted = null;
+            }
         }
         this.schedule();
     }
@@ -1719,11 +1729,11 @@ class CanvasSurface {
             // really gone — otherwise a before/after measured the memo's absence with
             // its memory still held
             releaseRaster(this);
-            replay(ctx, list, clip);
+            replayOnScene(ctx, list, clip);
             return;
         }
         if (!axis) {
-            replay(ctx, list, clip);
+            replayOnScene(ctx, list, clip);
             return;
         }
         const sx = Math.round(m.a * 1e4) / 1e4;
@@ -1734,7 +1744,7 @@ class CanvasSurface {
         // crisp, zero memory, and they were never the problem.
         const est = list.ops.length * OP_US + (replayArea(list) * sx * sy) * PX_US_PER_MPX / 1e6;
         if (est < PROMOTE_US) {
-            replay(ctx, list, clip);
+            replayOnScene(ctx, list, clip);
             return;
         }
         const e = this.rasterEntry;
@@ -1782,7 +1792,7 @@ class CanvasSurface {
         const seen = this.rasterSeen;
         this.rasterSeen = { list, sx, sy };
         if (e === null && (seen === null || seen.list !== list)) {
-            replay(ctx, list, clip);
+            replayOnScene(ctx, list, clip);
             return;
         }
         memoAttempts++;
@@ -1794,12 +1804,12 @@ class CanvasSurface {
         const h = Math.ceil((b.h + 2 * pad) * sy);
         const bytes = w * h * 4;
         if (w < 1 || h < 1 || w > RASTER_MAX_DIM || h > RASTER_MAX_DIM || w * h > RASTER_MAX_AREA || bytes > rasterEntryCap(viewportBytes(root))) {
-            replay(ctx, list, clip);
+            replayOnScene(ctx, list, clip);
             return;
         }
         while (memoBytes + bytes > rasterTotalCap(viewportBytes(root)) * budgetScale) {
             if (!evictLeastValuable(this)) {
-                replay(ctx, list, clip);
+                replayOnScene(ctx, list, clip);
                 return;
             }
         }
@@ -1858,7 +1868,7 @@ class CanvasSurface {
                 ctx.restore();
             }
             else
-                replay(ctx, list, clip);
+                replayOnScene(ctx, list, clip);
             return;
         }
         releaseRaster(this);
@@ -1885,7 +1895,7 @@ class CanvasSurface {
             // a DISCOVERED ceiling: live under it for the rest of the session
             budgetScale = Math.max(0.125, budgetScale * 0.5);
             globalThis.__declareRasterErr = String(err);
-            replay(ctx, list, clip); // a refused allocation is a slow frame, never a wrong one
+            replayOnScene(ctx, list, clip); // a refused allocation is a slow frame, never a wrong one
             return;
         }
         this.rasterEntry = { list, sx, sy, canvas: cv, bytes, bx, by, stamp: ++memoStamp, seen: memoGeneration, rasterMs, hits: 0 };
@@ -1917,7 +1927,7 @@ class CanvasSurface {
         // above each line and half below — the DOM's line-height, so a tight
         // `lineHeight = 1` keeps its glyphs centered in the box rather than sitting
         // on its floor.
-        this.halfLead = (this.lineHeight - (fm.ascent + fm.descent)) / 2;
+        this.halfLead = Math.floor((this.lineHeight - (fm.ascent + fm.descent)) / 2); // the floor above, the rest below — the browser's split
         this.textShadow = st.shadow ?? null;
         // smallCaps rides `fontString(st)` above (the CSS variant slot), so the
         // painter and the shared measurer synthesize the same caps; the rest are
@@ -3051,10 +3061,14 @@ class CanvasSurface {
             ctx.restore();
             return;
         }
-        if (cpPaint !== null)
+        // A filter lands on the CLIPPED subtree and its bleed escapes the clip, as
+        // a CSS filter's shadow escapes the element's own overflow: under one the
+        // clip goes inside the layer instead of around it.
+        const clipInside = group && this.filter !== null ? cpPaint : null;
+        if (cpPaint !== null && clipInside === null)
             ctx.clip(cpPaint);
         if (group)
-            this.paintLayer(ctx);
+            this.paintLayer(ctx, clipInside);
         else
             this.paintContent(ctx);
         ctx.restore();
@@ -3157,7 +3171,7 @@ class CanvasSurface {
      *  scroller isolation are all this one landing. The cost exists only where
      *  a group does; sizing layers to subtree bounds and pooling them are
      *  later policy work (free dimensions — rendering model). */
-    paintLayer(ctx) {
+    paintLayer(ctx, clipInside = null) {
         const target = ctx.canvas;
         if (target.width === 0 || target.height === 0)
             return;
@@ -3172,13 +3186,13 @@ class CanvasSurface {
         const box = this.groupDeviceBox(ctx);
         const { c: layer, g: lctx } = takeScratch(box === null ? target.width : box.w, box === null ? target.height : box.h);
         try {
-            this.paintLayerInto(ctx, layer, lctx, box);
+            this.paintLayerInto(ctx, layer, lctx, box, clipInside);
         }
         finally {
             giveScratch(layer);
         }
     }
-    paintLayerInto(ctx, layer, lctx, box) {
+    paintLayerInto(ctx, layer, lctx, box, clipInside) {
         const m = ctx.getTransform();
         // the same CTM, moved so the layer's own origin is the box's corner — the
         // landing below puts it back, still integer-aligned, still no resampling
@@ -3189,12 +3203,18 @@ class CanvasSurface {
         const ldx = box === null ? 0 : box.x, ldy = box === null ? 0 : box.y;
         LAYER_DX += ldx;
         LAYER_DY += ldy;
+        if (clipInside !== null) {
+            lctx.save();
+            lctx.clip(clipInside);
+        }
         try {
             this.paintContent(lctx);
         }
         finally {
             LAYER_DX -= ldx;
             LAYER_DY -= ldy;
+            if (clipInside !== null)
+                lctx.restore();
         }
         if (this.mask !== null)
             this.applyMaskTo(layer, lctx);
@@ -3253,7 +3273,12 @@ class CanvasSurface {
             return;
         const m = ctx.getTransform();
         const k = Math.hypot(m.a, m.b) || 1; // device px per parent unit
-        const pad = this.filter === null ? 0 : filterBleed(this.filter);
+        // the layer reaches past the box by the filter's bleed and the box
+        // shadow's (spread, offset, 3σ) — the shadow is the plane's own paint, so
+        // it is projected with the face, as a CSS box-shadow is transformed with it
+        const boxShadow = this.shadow;
+        const shadowPad = boxShadow === null ? 0 : Math.ceil(Math.max(Math.abs(boxShadow.dx), Math.abs(boxShadow.dy)) + 3 * boxShadow.blur);
+        const pad = Math.max(this.filter === null ? 0 : filterBleed(this.filter), shadowPad);
         const lw = Math.max(1, Math.ceil((w + 2 * pad) * k)), lh = Math.max(1, Math.ceil((h + 2 * pad) * k));
         if (lw * lh > 16_000_000)
             return; // a projected layer past any sane budget: skip, never hang
@@ -3262,21 +3287,22 @@ class CanvasSurface {
         layer.height = lh;
         const lctx = layer.getContext("2d");
         lctx.setTransform(k, 0, 0, k, pad * k, pad * k);
+        if (boxShadow !== null) {
+            this.box ??= boxShape(w, h, this.cornerRadius);
+            paintBoxShadow(lctx, this.box, boxShadow);
+        }
         this.paintContent(lctx);
         if (this.mask !== null)
             this.applyMaskTo(layer, lctx);
-        // Group opacity, a blend, and the filter land ONCE, on the projected whole:
-        // the strips overlap by a row (below), so a translucent strip over its
-        // neighbour's row would show as a denser hairline, and a per-strip filter
-        // would blur or shadow each strip onto the faces around it (the composed
-        // card's bands, 2026-09-12). Under any of the three the strips go to a
-        // scratch at full alpha, unfiltered, and the scratch lands as the group.
+        // The strips land on a scratch of their own, and the scratch lands ONCE as
+        // the group — opacity, a blend and the filter on the projected whole (a
+        // per-strip filter would blur or shadow each strip onto the faces around
+        // it: the composed card's bands, 2026-09-12).
         const filterCss3D = this.filter !== null && ctxFilterSupported() ? filterCss(this.filter.filter((f) => f.fn !== "colorize"), k) : null;
-        const grouped = this.opacity < 1 || this.blendMode !== "source-over" || filterCss3D !== null;
         let target = ctx;
         let scratch = null;
         let sbx = 0, sby = 0;
-        if (grouped) {
+        {
             let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
             for (const [cx, cy] of [[-pad, -pad], [w + pad, -pad], [-pad, h + pad], [w + pad, h + pad]]) {
                 const [px, py] = applyH(H, cx, cy);
@@ -3306,24 +3332,63 @@ class CanvasSurface {
             if (filterCss3D !== null)
                 ctx.filter = filterCss3D; // only when no scratch could be had
         }
-        const N = Math.max(8, Math.min(120, Math.ceil(h / 3)));
-        const H0 = -pad, HH = h + 2 * pad;
+        // Strips run along the axis the projection is exact on: rows under a turn
+        // about X (a row stays a row, only its scale changes), columns under a
+        // turn about Y. Each strip is one affine map of its layer pixels.
+        const byColumns = Math.abs(Math.sin((d.rotateY * Math.PI) / 180)) > Math.abs(Math.sin((d.rotateX * Math.PI) / 180));
+        const span = byColumns ? w : h, spanPx = byColumns ? lw : lh;
+        const N = Math.max(8, Math.min(120, Math.ceil(span / 3)));
+        const S0 = -pad, SS = span + 2 * pad;
+        const at = (along, across) => byColumns ? applyH(H, along, across) : applyH(H, across, along);
+        const acrossEnd = (byColumns ? h : w) + pad;
+        // Do the strips land as axis-aligned bands? Under a turn about one axis
+        // and no 2D rotation or skew they do (a row stays horizontal, a column
+        // vertical), and then each can own whole device pixels.
+        const base = target.getTransform();
+        const devAxis = (x, y) => byColumns ? base.a * x + base.c * y + base.e : base.b * x + base.d * y + base.f;
+        const e0 = at(S0, -pad), e1 = at(S0, acrossEnd), f0 = at(S0 + SS, -pad), f1 = at(S0 + SS, acrossEnd);
+        const aligned = Math.abs(devAxis(e0[0], e0[1]) - devAxis(e1[0], e1[1])) < 1e-6 && Math.abs(devAxis(f0[0], f0[1]) - devAxis(f1[0], f1[1])) < 1e-6;
         for (let i = 0; i < N; i++) {
-            const y0 = H0 + (HH * i) / N, y1 = H0 + (HH * (i + 1)) / N;
-            const [p0x, p0y] = applyH(H, -pad, y0), [p1x, p1y] = applyH(H, w + pad, y0), [p2x, p2y] = applyH(H, -pad, y1);
-            const sy0 = Math.floor((y0 + pad) * k), sy1 = Math.min(lh, Math.ceil((y1 + pad) * k) + 1);
-            if (sy1 - sy0 <= 0)
+            const t0 = S0 + (SS * i) / N, t1 = S0 + (SS * (i + 1)) / N;
+            const [p0x, p0y] = at(t0, -pad), [p1x, p1y] = at(t0, acrossEnd), [p2x, p2y] = at(t1, -pad);
+            const s0 = Math.floor((t0 + pad) * k), s1 = Math.min(spanPx, Math.ceil((t1 + pad) * k) + 1);
+            if (s1 - s0 <= 0)
                 continue;
-            // the affine that carries this strip's LAYER pixels into the parent's space
-            const a = (p1x - p0x) / lw, b = (p1y - p0y) / lw;
-            const rows = (y1 - y0) * k || 1;
-            const c = (p2x - p0x) / rows, dd = (p2y - p0y) / rows;
-            // each strip lands one source row past its neighbours on both sides: the
-            // antialiased edge of a strip drawn alone showed as a hairline seam
-            const o0 = Math.max(0, sy0 - 1), o1 = Math.min(lh, sy1 + 1);
+            // the strip's affine: along = one source pixel across the strip's
+            // length, across = one source pixel through it
+            const acrossPx = byColumns ? lh : lw;
+            const ux = (p1x - p0x) / acrossPx, uy = (p1y - p0y) / acrossPx;
+            const n = (t1 - t0) * k || 1;
+            const vx = (p2x - p0x) / n, vy = (p2y - p0y) / n;
+            // one source pixel past its neighbours on both sides: an antialiased
+            // strip edge drawn alone showed as a hairline seam
+            const o0 = Math.max(0, s0 - 1), o1 = Math.min(spanPx, s1 + 1);
             target.save();
-            target.transform(a, b, c, dd, p0x, p0y);
-            target.drawImage(layer, 0, o0, lw, o1 - o0, 0, o0 - sy0, lw, o1 - o0);
+            if (aligned) {
+                // the strip owns exactly its band of whole device pixels: the band's
+                // edges are shared with its neighbours, so the bands tile — no
+                // antialiased seam, and the rows it draws past the band are cut
+                const T = base, dev = (x, y) => [T.a * x + T.c * y + T.e, T.b * x + T.d * y + T.f];
+                const a0 = dev(p0x, p0y), a1 = dev(p2x, p2y);
+                const lo = Math.round(byColumns ? a0[0] : a0[1]), hi = i === N - 1 ? Infinity : Math.round(byColumns ? a1[0] : a1[1]);
+                target.setTransform(1, 0, 0, 1, 0, 0);
+                target.beginPath();
+                const from = i === 0 ? -Infinity : lo;
+                if (byColumns)
+                    target.rect(Math.max(-1e6, from), -1e6, Math.min(1e6, hi) - Math.max(-1e6, from), 2e6);
+                else
+                    target.rect(-1e6, Math.max(-1e6, from), 2e6, Math.min(1e6, hi) - Math.max(-1e6, from));
+                target.clip();
+                target.setTransform(T);
+            }
+            if (byColumns) {
+                target.transform(vx, vy, ux, uy, p0x, p0y);
+                target.drawImage(layer, o0, 0, o1 - o0, lh, o0 - s0, 0, o1 - o0, lh);
+            }
+            else {
+                target.transform(ux, uy, vx, vy, p0x, p0y);
+                target.drawImage(layer, 0, o0, lw, o1 - o0, 0, o0 - s0, lw, o1 - o0);
+            }
             target.restore();
         }
         if (scratch !== null) {
@@ -3456,6 +3521,9 @@ class CanvasSurface {
             const natW = typeof vid.videoWidth === "number" ? vid.videoWidth : this.image.naturalWidth;
             const natH = typeof vid.videoWidth === "number" ? vid.videoHeight : this.image.naturalHeight;
             const bmp = this.tintedBitmap(natW, natH) ?? this.image;
+            // resampled as the browser resamples an <img>, not canvas's default
+            const smooth = ctx.imageSmoothingQuality;
+            ctx.imageSmoothingQuality = "high";
             if (st === "cover" || st === "contain") {
                 // Aspect-preserving: one scale for both axes — max fills-and-crops
                 // (cover), min letterboxes (contain) — centered either way; cover
@@ -3480,6 +3548,7 @@ class CanvasSurface {
                 const h = st === "height" || st === "both" ? this.height : natH;
                 ctx.drawImage(bmp, 0, 0, w, h);
             }
+            ctx.imageSmoothingQuality = smooth;
             // a running video changes pixels with no write to the graph: ask for the
             // next frame here, or the picture would freeze on its first one
             if (this.videoRunning())
@@ -3820,5 +3889,62 @@ function devCheckDamage(screen, root, damage, w, h, dpr) {
         const top = [...cells].sort((p, q2) => q2[1] - p[1]).slice(0, 8).map(([k, v]) => k + ":" + v);
         rec.mismatches.push({ pixels: n, inside: nin, worst, frame: rec.partials, damage, top, px, suspects });
     }
+}
+/** A recording onto the SHARED scene. One that composites with anything but
+ *  source-over (`multiply`, `destination-out`, `source-atop`) replays onto a
+ *  transparent surface of its own over the recording's device-space extent (the
+ *  whole target when an op has none), which then lands source-over — so the
+ *  operator acts on the drawing's own marks, as on the canvas element the DOM
+ *  renderer gives each drawing, never on the card or the page beneath it. Here,
+ *  not in draw.ts, because only this renderer shares one canvas. */
+function replayOnScene(ctx, list, clip) {
+    if (!listIsolated(list)) {
+        replay(ctx, list, clip);
+        return;
+    }
+    const W = ctx.canvas.width, H = ctx.canvas.height;
+    const m = ctx.getTransform();
+    let x0 = 0, y0 = 0, x1 = W, y1 = H;
+    const ext = list.extents ?? [];
+    let lx0 = Infinity, ly0 = Infinity, lx1 = -Infinity, ly1 = -Infinity, bounded = true;
+    for (let i = 0; i < list.ops.length; i++) {
+        const k = list.ops[i].op;
+        if (k !== "fillRect" && k !== "strokeRect" && k !== "clearRect" && k !== "fill" && k !== "stroke" && k !== "fillText" && k !== "strokeText" && k !== "drawImage")
+            continue;
+        const e = ext[i];
+        if (!e) {
+            bounded = false;
+            break;
+        }
+        lx0 = Math.min(lx0, e.x);
+        ly0 = Math.min(ly0, e.y);
+        lx1 = Math.max(lx1, e.x + e.w);
+        ly1 = Math.max(ly1, e.y + e.h);
+    }
+    if (bounded && lx0 <= lx1) {
+        const pad = rasterPad(list) + 2;
+        const cs = [[lx0 - pad, ly0 - pad], [lx1 + pad, ly0 - pad], [lx0 - pad, ly1 + pad], [lx1 + pad, ly1 + pad]]
+            .map(([x, y]) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f]);
+        x0 = Math.max(0, Math.floor(Math.min(...cs.map((c) => c[0]))));
+        y0 = Math.max(0, Math.floor(Math.min(...cs.map((c) => c[1]))));
+        x1 = Math.min(W, Math.ceil(Math.max(...cs.map((c) => c[0]))));
+        y1 = Math.min(H, Math.ceil(Math.max(...cs.map((c) => c[1]))));
+    }
+    if (x1 <= x0 || y1 <= y0)
+        return;
+    const layer = makeCanvas(x1 - x0, y1 - y0);
+    const lc = layer.getContext("2d");
+    if (lc === null) {
+        replay(ctx, list, clip);
+        return;
+    }
+    lc.setTransform(m.a, m.b, m.c, m.d, m.e - x0, m.f - y0);
+    replay(lc, list, clip);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.drawImage(layer, x0, y0);
+    ctx.restore();
 }
 //# sourceMappingURL=canvas-backend.js.map

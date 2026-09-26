@@ -1,0 +1,374 @@
+/*
+# Drawing
+
+A view's own `draw()`, one operation or setting per swatch: shapes, paths and
+their joins, caps and dashes, curves, clipping, compositing, gradients, text,
+images, transforms, shadows and filters.
+*/
+
+// The drawing surface inside a swatch: 180 × 96.
+
+class Stage extends View [ x = 16, y = 12, width = 180, height = 96 ]
+
+class DrawingSection extends Section [ title = "Drawing",
+    caption = "A view's own draw(): shapes, paths, joins, caps and dashes, curves, clipping, compositing, gradients, text, images, transforms, shadows and filters — one operation or setting per swatch.",
+    tabs = { [ ({ id: "shapes", label: "Shapes" }), ({ id: "paths", label: "Paths" }), ({ id: "curves", label: "Curves" }),
+               ({ id: "clip", label: "Clip" }), ({ id: "compose", label: "Compose" }), ({ id: "gradients", label: "Gradients" }),
+               ({ id: "text", label: "Text" }), ({ id: "images", label: "Images" }), ({ id: "transforms", label: "Transforms" }),
+               ({ id: "shadows", label: "Shadows" }) ] },
+    sub = "shapes",
+
+    SubHead [ visible = { app.matrix }, text = "Shapes" ],
+    Grid [ visible = { classroot.showing("shapes") },
+        Swatch [ name = "fillRect",
+            Stage [ draw(d: Draw) { d.fillStyle = 0x2E6FE0; d.fillRect(10, 10, 160, 76) }
+                ]
+            ],
+        Swatch [ name = "strokeRect",
+            Stage [ draw(d: Draw) { d.strokeStyle = 0xE4572E; d.lineWidth = 6; d.strokeRect(10, 10, 160, 76) }
+                ]
+            ],
+        Swatch [ name = "clearRect",
+            Stage [ draw(d: Draw) { d.fillStyle = 0x17A34A; d.fillRect(0, 0, 180, 96); d.clearRect(50, 24, 80, 48) }
+                ]
+            ],
+        Swatch [ name = "rect path · fill + stroke",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.rect(20, 16, 140, 64); d.fillStyle = 0xFDE68A; d.fill(); d.strokeStyle = 0x111111; d.lineWidth = 3; d.stroke() }
+                ]
+            ],
+        Swatch [ name = "roundRect",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.roundRect(20, 12, 140, 72, 20); d.fillStyle = 0x2E6FE0; d.fill() }
+                ]
+            ],
+        Swatch [ name = "roundRect · four radii",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.roundRect(20, 12, 140, 72, [0, 30, 10, 40]); d.fillStyle = 0xE4572E; d.fill() }
+                ]
+            ],
+        Swatch [ name = "arc · full",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.arc(90, 48, 40, 0, 6.2832); d.fillStyle = 0xFDE68A; d.fill(); d.strokeStyle = 0xE4572E; d.lineWidth = 4; d.stroke() }
+                ]
+            ],
+        Swatch [ name = "arc · partial, anticlockwise",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.arc(90, 48, 40, 0, 4.5, true); d.strokeStyle = 0x2E6FE0; d.lineWidth = 8; d.stroke() }
+                ]
+            ],
+        Swatch [ name = "ellipse · rotated",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.ellipse(90, 48, 70, 30, 0.4, 0, 6.2832); d.fillStyle = 0x17A34A; d.fill() }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Paths" ],
+    Grid [ visible = { classroot.showing("paths") },
+        Swatch [ name = "lines · closePath",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.moveTo(20, 86); d.lineTo(90, 10); d.lineTo(160, 86); d.closePath(); d.strokeStyle = 0x111111; d.lineWidth = 4; d.stroke() }
+                ]
+            ],
+        Swatch [ name = "lineJoin miter · round · bevel",
+            Stage [ draw(d: Draw) {
+                const joins = ["miter", "round", "bevel"]
+                for (let i = 0; i < 3; i++) { d.lineJoin = joins[i]; d.lineWidth = 12; d.strokeStyle = 0x2E6FE0; d.beginPath(); d.moveTo(14 + i * 58, 80); d.lineTo(34 + i * 58, 20); d.lineTo(54 + i * 58, 80); d.stroke() }
+                }
+                ]
+            ],
+        Swatch [ name = "lineCap butt · round · square",
+            Stage [ draw(d: Draw) {
+                const caps = ["butt", "round", "square"]
+                for (let i = 0; i < 3; i++) { d.lineCap = caps[i]; d.lineWidth = 14; d.strokeStyle = 0xE4572E; d.beginPath(); d.moveTo(30, 20 + i * 28); d.lineTo(150, 20 + i * 28); d.stroke() }
+                }
+                ]
+            ],
+        Swatch [ name = "setLineDash",
+            Stage [ draw(d: Draw) {
+                d.setLineDash([12, 6]); d.lineWidth = 4; d.strokeStyle = 0x111111; d.strokeRect(14, 14, 152, 68) }
+                ]
+            ],
+        Swatch [ name = "dash offset · pattern",
+            Stage [ draw(d: Draw) {
+                d.setLineDash([2, 6, 14, 6]); d.lineDashOffset = 5; d.lineWidth = 5; d.strokeStyle = 0x2E6FE0; d.beginPath(); d.moveTo(10, 48); d.lineTo(170, 48); d.stroke() }
+                ]
+            ],
+        Swatch [ name = "miterLimit 10 · 1",
+            Stage [ draw(d: Draw) {
+                d.lineWidth = 10; d.strokeStyle = 0x17A34A
+                d.miterLimit = 10; d.beginPath(); d.moveTo(20, 86); d.lineTo(45, 16); d.lineTo(70, 86); d.stroke()
+                d.miterLimit = 1; d.beginPath(); d.moveTo(110, 86); d.lineTo(135, 16); d.lineTo(160, 86); d.stroke() }
+                ]
+            ],
+        Swatch [ name = "fill · evenodd",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.rect(20, 10, 140, 76); d.rect(60, 30, 60, 36); d.fillStyle = 0xE4572E; d.fill("evenodd") }
+                ]
+            ],
+        Swatch [ name = "fill · nonzero",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.rect(20, 10, 140, 76); d.rect(60, 30, 60, 36); d.fillStyle = 0xE4572E; d.fill() }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Curves" ],
+    Grid [ visible = { classroot.showing("curves") },
+        Swatch [ name = "quadraticCurveTo",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.moveTo(10, 86); d.quadraticCurveTo(90, -20, 170, 86); d.strokeStyle = 0x2E6FE0; d.lineWidth = 4; d.stroke() }
+                ]
+            ],
+        Swatch [ name = "bezierCurveTo",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.moveTo(10, 60); d.bezierCurveTo(60, -10, 120, 110, 170, 30); d.strokeStyle = 0xE4572E; d.lineWidth = 4; d.stroke() }
+                ]
+            ],
+        Swatch [ name = "arcTo",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.moveTo(20, 86); d.arcTo(90, 0, 160, 86, 30); d.lineTo(160, 86); d.strokeStyle = 0x17A34A; d.lineWidth = 4; d.stroke() }
+                ]
+            ],
+        Swatch [ name = "curves · filled shape",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.moveTo(90, 86); d.bezierCurveTo(10, 50, 40, 0, 90, 30); d.bezierCurveTo(140, 0, 170, 50, 90, 86); d.fillStyle = 0xE4572E; d.fill() }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Clip" ],
+    Grid [ visible = { classroot.showing("clip") },
+        Swatch [ name = "clip · circle",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.arc(90, 48, 40, 0, 6.2832); d.clip()
+                d.fillStyle = 0x2E6FE0; d.fillRect(0, 0, 90, 96); d.fillStyle = 0xE4572E; d.fillRect(90, 0, 90, 96) }
+                ]
+            ],
+        Swatch [ name = "clip · save and restore",
+            Stage [ draw(d: Draw) {
+                d.save(); d.beginPath(); d.rect(20, 20, 60, 56); d.clip(); d.fillStyle = 0x17A34A; d.fillRect(0, 0, 180, 96); d.restore()
+                d.strokeStyle = 0x111111; d.lineWidth = 2; d.strokeRect(100, 20, 60, 56) }
+                ]
+            ],
+        Swatch [ name = "clip · evenodd ring",
+            Stage [ draw(d: Draw) {
+                d.beginPath(); d.arc(90, 48, 44, 0, 6.2832); d.arc(90, 48, 22, 0, 6.2832); d.clip("evenodd")
+                d.fillStyle = 0xFDE68A; d.fillRect(0, 0, 180, 96) }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Compose" ],
+    Grid [ visible = { classroot.showing("compose") },
+        Swatch [ name = "globalAlpha 0.4",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x2E6FE0; d.fillRect(20, 16, 90, 64); d.globalAlpha = 0.4; d.fillStyle = 0xE4572E; d.fillRect(70, 16, 90, 64) }
+                ]
+            ],
+        Swatch [ name = "multiply",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0xFDE68A; d.fillRect(20, 16, 90, 64); d.globalCompositeOperation = "multiply"; d.fillStyle = 0x2E6FE0; d.fillRect(70, 16, 90, 64) }
+                ]
+            ],
+        Swatch [ name = "screen",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x2E6FE0; d.fillRect(20, 16, 90, 64); d.globalCompositeOperation = "screen"; d.fillStyle = 0xE4572E; d.fillRect(70, 16, 90, 64) }
+                ]
+            ],
+        Swatch [ name = "destination-out",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x17A34A; d.fillRect(20, 16, 140, 64); d.globalCompositeOperation = "destination-out"; d.beginPath(); d.arc(90, 48, 26, 0, 6.2832); d.fill() }
+                ]
+            ],
+        Swatch [ name = "source-atop",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x2E6FE0; d.beginPath(); d.arc(70, 48, 36, 0, 6.2832); d.fill(); d.globalCompositeOperation = "source-atop"; d.fillStyle = 0xE4572E; d.fillRect(70, 0, 110, 96) }
+                ]
+            ],
+        Swatch [ name = "difference",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0xFDE68A; d.fillRect(20, 16, 90, 64); d.globalCompositeOperation = "difference"; d.fillStyle = 0x2E6FE0; d.fillRect(70, 16, 90, 64) }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Gradients" ],
+    Grid [ visible = { classroot.showing("gradients") },
+        Swatch [ name = "createLinearGradient",
+            Stage [ draw(d: Draw) {
+                const g = d.createLinearGradient(0, 0, 180, 0); g.addColorStop(0, 0x2E6FE0); g.addColorStop(1, 0xE4572E); d.fillStyle = g; d.fillRect(0, 0, 180, 96) }
+                ]
+            ],
+        Swatch [ name = "linear · diagonal · stops",
+            Stage [ draw(d: Draw) {
+                const g = d.createLinearGradient(0, 0, 180, 96); g.addColorStop(0, 0xFDE68A); g.addColorStop(0.5, 0x17A34A); g.addColorStop(1, 0x2E6FE0); d.fillStyle = g; d.fillRect(0, 0, 180, 96) }
+                ]
+            ],
+        Swatch [ name = "createRadialGradient",
+            Stage [ draw(d: Draw) {
+                const g = d.createRadialGradient(90, 48, 4, 90, 48, 60); g.addColorStop(0, 0xFFFFFF); g.addColorStop(1, 0xE4572E); d.fillStyle = g; d.fillRect(0, 0, 180, 96) }
+                ]
+            ],
+        Swatch [ name = "createConicGradient",
+            Stage [ draw(d: Draw) {
+                const g = d.createConicGradient(0, 90, 48); g.addColorStop(0, 0x2E6FE0); g.addColorStop(0.5, 0xE4572E); g.addColorStop(1, 0x2E6FE0); d.fillStyle = g; d.fillRect(0, 0, 180, 96) }
+                ]
+            ],
+        Swatch [ name = "gradient stroke",
+            Stage [ draw(d: Draw) {
+                const g = d.createLinearGradient(0, 0, 180, 0); g.addColorStop(0, 0x17A34A); g.addColorStop(1, 0xE4572E); d.strokeStyle = g; d.lineWidth = 12; d.strokeRect(16, 16, 148, 64) }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Text" ],
+    Grid [ visible = { classroot.showing("text") },
+        Swatch [ name = "fillText · strokeText",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x111111; d.font = "bold 28px Helvetica"; d.fillText("Drawn", 10, 40)
+                d.strokeStyle = 0x2E6FE0; d.lineWidth = 1.5; d.font = "28px Helvetica"; d.strokeText("stroked", 10, 82) }
+                ]
+            ],
+        Swatch [ name = "textAlign · start centre end",
+            Stage [ draw(d: Draw) {
+                d.strokeStyle = 0xE4572E; d.beginPath(); d.moveTo(90, 0); d.lineTo(90, 96); d.stroke()
+                d.fillStyle = 0x111111; d.font = "16px Helvetica"
+                d.textAlign = "start"; d.fillText("start", 90, 24); d.textAlign = "center"; d.fillText("centre", 90, 52); d.textAlign = "end"; d.fillText("end", 90, 80) }
+                ]
+            ],
+        Swatch [ name = "textBaseline",
+            Stage [ draw(d: Draw) {
+                d.strokeStyle = 0xE4572E; d.beginPath(); d.moveTo(0, 48); d.lineTo(180, 48); d.stroke()
+                d.fillStyle = 0x111111; d.font = "14px Helvetica"; const bs = ["top", "middle", "alphabetic", "bottom"]
+                const labels = ["top", "mid", "alpha", "bot"]
+                for (let i = 0; i < 4; i++) { d.textBaseline = bs[i]; d.fillText(labels[i], 4 + i * 44, 48) } }
+                ]
+            ],
+        Swatch [ name = "letterSpacing · wordSpacing",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x111111; d.font = "18px Helvetica"; d.letterSpacing = "3px"; d.fillText("spaced", 10, 36)
+                d.letterSpacing = "0px"; d.wordSpacing = "14px"; d.fillText("word gaps", 10, 76) }
+                ]
+            ],
+        Swatch [ name = "font families",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x111111; d.font = "20px Georgia"; d.fillText("Georgia", 10, 28); d.font = "18px Menlo, monospace"; d.fillText("Menlo", 10, 56)
+                d.font = "italic bold 20px Helvetica"; d.fillText("Helvetica", 10, 86) }
+                ]
+            ],
+        Swatch [ name = "fillText · style bundle",
+            Stage [ draw(d: Draw) {
+                d.fillText("Warm", 10, 40, Warm); d.fillText("Big", 10, 86, Big) }
+                ]
+            ],
+        Swatch [ name = "fillText · inline records",
+            Stage [ draw(d: Draw) {
+                d.fillText("Small caps", 10, 34, { fontSize: 20, smallCaps: true, textColor: 0x2E6FE0 })
+                d.fillText("italic serif", 10, 76, { fontSize: 20, italic: true, fontFamily: "Georgia", textColor: 0x111111 }) }
+                ]
+            ],
+        Swatch [ name = "measureText · centred plate",
+            Stage [ draw(d: Draw) {
+                const st = { fontSize: 22, fontWeight: 600, textColor: 0x1B2733 }
+                const m = measureText("Plate 4", st)
+                d.fillStyle = 0xE7EBF1; d.fillRect((d.w - m.width) / 2 - 10, 24, m.width + 20, 48)
+                d.fillText("Plate 4", (d.w - m.width) / 2, 24 + (48 - m.height) / 2 + m.baseline, st) }
+                ]
+            ],
+        Swatch [ name = "gradient text",
+            Stage [ draw(d: Draw) {
+                const g = d.createLinearGradient(0, 0, 180, 0); g.addColorStop(0, 0x2E6FE0); g.addColorStop(1, 0xE4572E); d.fillStyle = g; d.font = "bold 40px Helvetica"; d.fillText("Ramp", 20, 64) }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Images" ],
+    Grid [ visible = { classroot.showing("images") },
+        Swatch [ name = "drawImage",
+            Stage [ img: Image [ visible = false, source = "assets/badge.png" ],
+                draw(d: Draw) { d.drawImage(this.img, 60, 0, 72, 96) }
+                ]
+            ],
+        Swatch [ name = "drawImage · crop",
+            Stage [ img: Image [ visible = false, source = "assets/badge.png" ],
+                draw(d: Draw) { d.drawImage(this.img, 0, 60, 240, 160, 10, 8, 160, 80) }
+                ]
+            ],
+        Swatch [ name = "drawImage · rotated · alpha",
+            Stage [ img: Image [ visible = false, source = "assets/badge.png" ],
+                draw(d: Draw) { d.save(); d.translate(90, 48); d.rotate(0.3); d.globalAlpha = 0.6; d.drawImage(this.img, -36, -48, 72, 96); d.restore() }
+                ]
+            ],
+        Swatch [ name = "imageSmoothing off · on",
+            Stage [ img: Image [ visible = false, source = "assets/badge.png" ],
+                draw(d: Draw) { d.imageSmoothingEnabled = false; d.drawImage(this.img, 60, 100, 24, 18, 6, 16, 80, 60); d.imageSmoothingEnabled = true; d.drawImage(this.img, 60, 100, 24, 18, 94, 16, 80, 60) }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Transforms" ],
+    Grid [ visible = { classroot.showing("transforms") },
+        Swatch [ name = "translate · rotate",
+            Stage [ draw(d: Draw) {
+                d.translate(90, 48); d.rotate(0.5); d.fillStyle = 0x2E6FE0; d.fillRect(-40, -20, 80, 40) }
+                ]
+            ],
+        Swatch [ name = "scale",
+            Stage [ draw(d: Draw) {
+                d.scale(2, 0.5); d.fillStyle = 0xE4572E; d.fillRect(10, 40, 70, 90) }
+                ]
+            ],
+        Swatch [ name = "transform · shear",
+            Stage [ draw(d: Draw) {
+                d.transform(1, 0.3, -0.4, 1, 40, 10); d.fillStyle = 0x17A34A; d.fillRect(0, 0, 100, 60) }
+                ]
+            ],
+        Swatch [ name = "setTransform · resetTransform",
+            Stage [ draw(d: Draw) {
+                d.setTransform(1, 0, 0.5, 1, 0, 0); d.fillStyle = 0x2E6FE0; d.fillRect(10, 10, 60, 40)
+                d.resetTransform(); d.fillStyle = 0xE4572E; d.fillRect(100, 50, 60, 36) }
+                ]
+            ],
+        Swatch [ name = "nested save and restore",
+            Stage [ draw(d: Draw) {
+                d.fillStyle = 0x111111; d.save(); d.translate(40, 20); d.save(); d.rotate(0.3); d.fillRect(0, 0, 40, 30); d.restore(); d.fillRect(60, 0, 40, 30); d.restore(); d.fillRect(10, 70, 40, 20) }
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Shadows" ],
+    Grid [ visible = { classroot.showing("shadows") },
+        Swatch [ name = "shadow · soft",
+            Stage [ draw(d: Draw) {
+                d.shadowColor = colorWithAlpha(0x000000, 130); d.shadowBlur = 12; d.shadowOffsetY = 6; d.fillStyle = 0x2E6FE0; d.fillRect(30, 16, 120, 56) }
+                ]
+            ],
+        Swatch [ name = "shadow · hard, offset",
+            Stage [ draw(d: Draw) {
+                d.shadowColor = 0x111111; d.shadowBlur = 0; d.shadowOffsetX = 8; d.shadowOffsetY = 8; d.fillStyle = 0xFDE68A; d.fillRect(30, 12, 110, 56) }
+                ]
+            ],
+        Swatch [ name = "shadow on text",
+            Stage [ draw(d: Draw) {
+                d.shadowColor = 0xE4572E; d.shadowBlur = 6; d.fillStyle = 0x111111; d.font = "bold 34px Helvetica"; d.fillText("Shade", 20, 60) }
+                ]
+            ],
+        Swatch [ name = "shadow on a stroke",
+            Stage [ draw(d: Draw) {
+                d.shadowColor = colorWithAlpha(0x000000, 150); d.shadowBlur = 8; d.shadowOffsetY = 4; d.strokeStyle = 0x17A34A; d.lineWidth = 8; d.beginPath(); d.arc(90, 48, 34, 0, 6.2832); d.stroke() }
+                ]
+            ],
+        Swatch [ name = "d.filter blur",
+            Stage [ draw(d: Draw) {
+                d.filter = "blur(4px)"; d.fillStyle = 0x2E6FE0; d.fillRect(40, 20, 100, 56) }
+                ]
+            ],
+        Swatch [ name = "d.filter grayscale",
+            Stage [ draw(d: Draw) {
+                d.filter = "grayscale(1)"; const g = d.createLinearGradient(0, 0, 180, 0); g.addColorStop(0, 0x2E6FE0); g.addColorStop(1, 0xE4572E); d.fillStyle = g; d.fillRect(10, 10, 160, 76) }
+                ]
+            ]
+        ]
+    ]

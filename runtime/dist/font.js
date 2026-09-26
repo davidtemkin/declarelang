@@ -34,9 +34,86 @@ import { defineAttributes, setBound } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 import { noteLoadedFaces, noteUnloadedFamily } from "./face-table.js";
 import { assetBaseFor, rebaseAsset } from "./asset-base.js";
-import { FONT_CSS, FONT_PENDING } from "./font-value.js";
+import { FONT_CSS, FONT_DEMAND, FONT_PENDING, familyCss, isFontValue, provideFontDemand } from "./font-value.js";
+import { textWidth } from "./measure.js";
 import { faceSourceCss, faceWeightDescriptor } from "./face-literal.js";
 export { FONT_WEIGHTS, faceWeight, faceWeightLiteral, FACE_WEIGHT_FORMS } from "./face-literal.js";
+// ── which font text actually reaches ─────────────────────────────────────────
+// A family list is tried in order and the first family this machine has wins,
+// so a declared font is demanded only when no family before it is available
+// (font-value.ts). Here, because only a program with a Font needs it.
+/** CSS's generic families: always available. */
+const GENERICS = new Set(["serif", "sans-serif", "monospace", "cursive", "fantasy", "system-ui", "ui-serif", "ui-sans-serif", "ui-monospace", "ui-rounded", "math", "emoji", "fangsong"]);
+const AVAILABLE = new Map();
+// Whether this machine has a family: text set in "name, monospace" measures
+// differently from "monospace" alone only if the name resolved — the browser (and
+// the Mac host's text engine) skip a name they cannot find. Tried against two
+// generics, so a face that happens to match one's widths is still seen. An
+// identifier is written bare, as a keyword (`-apple-system` quoted is a family
+// NAME, which no browser has); anything else is quoted.
+const PROBE_TEXT = "mmmmmmmmmmlli1WwQ@";
+function familyAvailable(name) {
+    const css = /^[-_a-zA-Z][-_a-zA-Z0-9]*$/.test(name) ? name : `"${name.replace(/"/g, "")}"`;
+    for (const generic of ["monospace", "serif"]) {
+        if (Math.abs(textWidth(PROBE_TEXT, `72px ${css}, ${generic}`) - textWidth(PROBE_TEXT, `72px ${generic}`)) > 0.5)
+            return true;
+    }
+    return false;
+}
+/** Whether a family string (one name, or a comma list) names something this machine has. */
+function stringAvailable(s) {
+    for (const raw of s.split(",")) {
+        const name = raw.trim().replace(/^["']|["']$/g, "");
+        if (name === "")
+            continue;
+        if (GENERICS.has(name.toLowerCase()))
+            return true;
+        let known = AVAILABLE.get(name);
+        if (known === undefined) {
+            known = familyAvailable(name);
+            AVAILABLE.set(name, known);
+        }
+        if (known)
+            return true;
+    }
+    return false;
+}
+/** Resolve every family slot in a tree — resolving is what demands. */
+function touch(n) {
+    const o = n;
+    try {
+        if ("fontFamily" in o)
+            familyCss(o.fontFamily);
+        if ("codeFamily" in o)
+            familyCss(o.codeFamily);
+        const ts = o.textStyles;
+        if (ts !== null && typeof ts === "object")
+            for (const st of Object.values(ts))
+                if (st && typeof st === "object")
+                    familyCss(st.fontFamily);
+    }
+    catch { /* a slot not readable yet is resolved when its view measures */ }
+    for (const c of o.children ?? [])
+        touch(c);
+}
+provideFontDemand({
+    /** The font text will reach in `v`, if any: the first font no available
+     *  family before it hides. Idempotent — a font asked twice loads once. */
+    reached(v) {
+        for (const e of v) {
+            if (typeof e === "string") {
+                if (stringAvailable(e))
+                    return;
+                continue;
+            }
+            if (isFontValue(e)) {
+                e[FONT_DEMAND]?.();
+                return;
+            }
+        }
+    },
+    touch,
+});
 function browserHost() {
     if (typeof FontFace === "undefined" || typeof document === "undefined")
         return null;
@@ -70,6 +147,14 @@ export class Font extends Node {
     #watch = null;
     #current = null; // the faces text is using
     #incoming = null; // faces being loaded to replace them
+    /** Text has reached this font (font-value.ts `familyCss`): only then are its
+     *  faces fetched — a font a device never draws in costs nothing there. */
+    #demanded = false;
+    /** Faces prepared and waiting for the first demand. */
+    #deferred = null;
+    /** Demanded, the load about to start (a microtask away): already pending, so
+     *  text switching to this font holds its current look from the first read. */
+    #queued = false;
     #gen = 0;
     #signature = "";
     #ready;
@@ -86,7 +171,23 @@ export class Font extends Node {
         });
     }
     get [FONT_CSS]() { return this.$css; }
-    get [FONT_PENDING]() { return this.$pending; }
+    get [FONT_PENDING]() { return this.$pending || this.#queued; }
+    /** Text reached this font: fetch its faces, once. */
+    [FONT_DEMAND]() {
+        if (this.#demanded)
+            return;
+        this.#demanded = true;
+        this.start();
+        const d = this.#deferred;
+        if (d === null)
+            return;
+        this.#deferred = null;
+        this.#queued = true;
+        // Asked mid-measurement, inside another constraint's read: the load writes
+        // this font's own slots, so it starts just after, not inside that read.
+        queueMicrotask(() => { if (this.#watch !== null)
+            this.#load(d.gen, d.specs); this.#queued = false; }); // not after a discard
+    }
     /** Construction-complete (instantiate.ts): start once the caller's synchronous
      *  setup (the app's asset base) has run. `fontsReady` starts it sooner. */
     autoStart() {
@@ -106,7 +207,8 @@ export class Font extends Node {
      *  or the wait ran out. The start-up gate (fontsReady) waits on this. */
     ready() {
         this.start();
-        return this.#ready;
+        // Faces no text has asked for are not waited on: they may never be needed.
+        return this.#deferred !== null ? Promise.resolve() : this.#ready;
     }
     #faces() {
         this.watchChildList();
@@ -146,6 +248,18 @@ export class Font extends Node {
             this.#settle(true, false);
             return;
         }
+        if (!this.#demanded) {
+            this.#retire(this.#deferred?.gen ?? null);
+            this.#deferred = { gen, specs };
+            return;
+        }
+        this.#load(gen, specs);
+    }
+    /** Fetch `gen`'s faces: the load, its wait, and what follows it. */
+    #load(gen, specs) {
+        const h = hostNow();
+        if (h === null)
+            return;
         this.#incoming = gen;
         setBound(this, "loaded", false);
         setBound(this, "failed", false);

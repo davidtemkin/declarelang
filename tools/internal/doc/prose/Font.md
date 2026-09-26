@@ -10,6 +10,12 @@ A list that holds a font is a value, so it is written in a `{ }`:
 `fontFamily = { [app.brand, "Helvetica", "sans-serif"] }`. A plain list of strings stays
 a bare literal.
 
+**A font loads when text reaches it.** A family list is tried in order, as the browser
+tries it, and a font's faces are fetched only when no family before it is available on
+the machine. So `[ "-apple-system", "BlinkMacSystemFont", app.inter, "Helvetica Neue" ]`
+draws in the system face on an Apple device and never downloads Inter; elsewhere both
+names are unknown, and Inter loads. A font no text reaches costs nothing.
+
 **Lifetime is placement.** A font on the App lives for the program; a font inside a view
 lives with that view, and its faces are unloaded when the view retires. A face's `src`
 may be a `{ }` value: set it and the new file loads while text keeps the face it has,
@@ -51,7 +57,8 @@ redraw; `keep` leaves the fallback for the rest of the run, and `loaded` stays `
 
 ## loaded
 `true` once every face has arrived; a system font is loaded from the start. Read-only.
-While loading, both `loaded` and `failed` are `false`.
+While loading, both `loaded` and `failed` are `false` — and so they stay for a font no
+text has reached, which has fetched nothing.
 
 ## failed
 `true` when a face could not be fetched — a missing file, an offline viewer, a host that

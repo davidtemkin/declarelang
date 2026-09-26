@@ -283,6 +283,7 @@ export declare class Draw {
     private tAlign;
     private tBaseline;
     tLetter: number;
+    tWord: number;
     /** The live transform matrix [a,b,c,d,e,f] and its save/restore stack. Every
      *  painted extent is mapped through it before it grows the ink box, so the
      *  recording's bounds land in the VIEW's local space even under scale/rotate/
@@ -474,4 +475,9 @@ export declare function replayArea(list: DisplayList): number;
  *  compositor is what costs, and an off-screen op reaching it costs the same as
  *  an on-screen one. `__declareNoCull` disables it for an A/B. */
 export declare function replay(ctx: CanvasRenderingContext2D, list: DisplayList, clip?: Bounds): void;
+/** Does this recording composite with anything but source-over? Such a
+ *  recording must act on its own marks only — which it does on the DOM, where
+ *  every drawing has a canvas of its own; the canvas renderer, which replays
+ *  onto one shared scene, isolates it (canvas-backend replayOnScene). */
+export declare function listIsolated(list: DisplayList): boolean;
 export {};

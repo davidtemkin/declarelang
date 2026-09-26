@@ -22,7 +22,12 @@ export function homography(affine, x, y, pivotX, pivotY, p3, P, ox, oy) {
     // with Z = 0 on the plane: X' = cy·X, Z' = −sy·X
     //   X'' = cy·X ; Y'' = cx·Y + sx·sy·X ; Z'' = sx·Y − cx·sy·X
     // A point on the plane, in the parent's space before projection:
-    //   (u,v) → affine → (X + pivot) → rotate about pivot → + (x, y), Z'' + translateZ
+    //   (u,v) → affine → (X + pivot) → push translateZ along the view's own
+    //   depth axis → rotate about pivot → + (x, y)
+    // — CSS's `rotateX() rotateY() translateZ()`, the order the DOM and Mac
+    // renderers compose: the push is rotated with the view (a cube's face moves
+    // out along its own normal), toward the viewer only when unrotated. The push
+    // (0, 0, tz) through R is (sy·tz, −sx·cy·tz, cx·cy·tz).
     const [a, b, c, d, e, f] = affine;
     // the three columns of the map (u, v, 1) → (X, Y) relative to the pivot
     const colU = [a, b], colV = [c, d], col1 = [e - pivotX, f - pivotY];
@@ -33,8 +38,9 @@ export function homography(affine, x, y, pivotX, pivotY, p3, P, ox, oy) {
         const Zr = sx * Y - cx * sy * X;
         rows.push([Xr, Yr, Zr]);
     }
-    // back to the parent's space: + pivot + (x, y); Z + translateZ
-    const px = pivotX + x, py = pivotY + y;
+    // back to the parent's space: + pivot + (x, y) + the rotated push
+    const tz = p3.translateZ;
+    const px = pivotX + x + sy * tz, py = pivotY + y - sx * cy * tz, pz = cx * cy * tz;
     // screen = origin + (point − origin) · P / (P − Z)  ⇒  w = 1 − Z/P, x_s·w = (X − ox)·1 + ox·w … written as a homography:
     //   x_s = (X + ox·(w − 1)) / w  where X is the unprojected x  ⇒  numerator = X − ox·Z/P
     const k = P > 0 ? 1 / P : 0;
@@ -43,7 +49,7 @@ export function homography(affine, x, y, pivotX, pivotY, p3, P, ox, oy) {
         const [Xr, Yr, Zr] = rows[i];
         const X = Xr + (i === 2 ? px : 0);
         const Y = Yr + (i === 2 ? py : 0);
-        const Z = Zr + (i === 2 ? p3.translateZ : 0);
+        const Z = Zr + (i === 2 ? pz : 0);
         H[i] = X - ox * Z * k; // x-row
         H[3 + i] = Y - oy * Z * k; // y-row
         H[6 + i] = (i === 2 ? 1 : 0) - Z * k; // w-row

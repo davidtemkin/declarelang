@@ -139,3 +139,7 @@ export declare function wrapLines(text: string, font: string, width: number, let
  *  TextInput's auto-height: a field that sizes to its own content has to
  *  measure the way the element it becomes will lay out. */
 export declare function wrapEditable(text: string, font: string, width: number, letterSpacing?: number): string[];
+/** May a line break between two adjacent pieces of one word? */
+export declare function breakBetween(before: string, after: string): boolean;
+/** A word (no spaces) cut at every place the browser may break it. */
+export declare function breakUnits(word: string): string[];

@@ -25,7 +25,8 @@ import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
 import { richInlineSlots, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
 import {} from "./boxpaint.js";
-import { effectiveFamily, fontMetrics, fontString, cssWeight } from "./measure.js";
+import { effectiveFamily, fontMetrics, fontString, cssWeight, transformText } from "./measure.js";
+import { renderClamped } from "./text-clamp.js";
 import { replay, rasterEntryCap, rasterLooksBlank, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
 import { deferral, firstFramePainted, afterFirstFrame } from "./boot-deferrals.js";
 import { onDprChange } from "./dpr.js";
@@ -778,6 +779,7 @@ export class DomSurface {
     imgEl = null;
     drawEl = null;
     drawing = null;
+    /** package-private: a mask stencil reads these too (dom-effects imagePaintRect) */
     stretch = "none";
     alignX = "center";
     alignY = "center";
@@ -854,7 +856,10 @@ export class DomSurface {
         }
     }
     setWidth(v) {
+        const was = this.frameW;
         this.frameW = v;
+        if (this.clampRule !== null && v !== was)
+            this.renderClamped(); // the lines were cut at the old width
         this.element.style.width = v + "px";
         this.box.width = v; // border-radius/background track the box via CSS — no re-raster
         if (this.element.dataset.declareApp !== undefined) {
@@ -2151,9 +2156,21 @@ export class DomSurface {
         else
             this.editEl.blur();
     }
+    /** The text as written, and whether this run is capitalized by us (below). */
+    rawText = "";
+    capitalized = false;
     setText(text) {
-        this.textRun().textContent = text;
+        this.rawText = text;
+        if (this.clampRule !== null) {
+            this.renderClamped();
+            return;
+        }
+        this.textRun().textContent = this.capitalized ? transformText(text, "capitalize") : text;
     }
+    /** A CLAMPED run's rule (`maxLines`): the run is cut by the shared rule and
+     *  keeps its whole text in the page — text-clamp.ts, a module of its own. */
+    clampRule = null;
+    renderClamped() { renderClamped(this.textRun(), this.rawText, this.clampRule, this.frameW); }
     setTextStyle(st) {
         const s = this.textRun().style;
         // The EFFECTIVE family, not the authored one: OpenType figures ride the
@@ -2189,7 +2206,19 @@ export class DomSurface {
         const ol = st.outline;
         s.webkitTextStroke = ol != null ? `${ol.width}px ${colorToCss(ol.color)}` : "";
         s.paintOrder = ol != null ? "stroke fill" : "";
-        s.textTransform = st.textTransform ?? "none";
+        // CAPITALIZE IS APPLIED TO THE TEXT, not by CSS: Chrome decides whether a
+        // word starts by the character BEFORE it in document order, across separate
+        // elements — absolutely positioned or not, whatever the display or
+        // containment — so a label after any other text ("capitalize", then "hand
+        // and wool") lost its first capital. The shared transformText is what the
+        // canvas and the Mac paint, and what the measurer measured. Upper and lower
+        // case do not depend on context and stay CSS.
+        const cap = st.textTransform === "capitalize";
+        s.textTransform = cap ? "none" : st.textTransform ?? "none";
+        if (cap !== this.capitalized) {
+            this.capitalized = cap;
+            this.textRun().textContent = cap ? transformText(this.rawText, "capitalize") : this.rawText;
+        }
         s.fontVariant = st.smallCaps ? "small-caps" : "normal";
         s.textDecoration = ((st.underline ? "underline " : "") + (st.strike ? "line-through" : "")).trim() || "none";
         // Wrapping: a bounded box wraps (`pre-wrap`) and the run fills the box
@@ -2198,28 +2227,31 @@ export class DomSurface {
         s.whiteSpace = st.wrap ? "pre-wrap" : "pre";
         const align = st.align ?? "left";
         s.textAlign = align;
-        // The run fills the box when it must: a wrapping run (to break lines) or a
-        // non-left single line (so textAlign has a box to align within). A plain
-        // left run stays shrink-to-content, preserving auto-size.
-        s.width = st.wrap || align !== "left" ? "100%" : "";
-        // LINE CLAMP (measure.ts clampLines is the rule; here the browser's own
-        // clamp is asked for the same count). A non-wrapping run under a clamp is
-        // a one-line ellipsis: it still needs the box's width to know where.
+        // The run fills the box when it must: a wrapping run (to break lines), a
+        // non-left single line (so textAlign has a box to align within), or a
+        // gradient fill — laid over the view's box, as a box fill is, and as the
+        // canvas and the Mac lay it, not over just the letters. A plain left run
+        // stays shrink-to-content, preserving auto-size.
+        s.width = st.wrap || align !== "left" || (tf != null && isGradient(tf)) ? "100%" : "";
+        // LINE CLAMP: cut by the shared rule (text-clamp.ts), never the browser's
+        // own, which loses its ellipsis off centred and right-aligned lines. A
+        // non-wrapping run under a clamp is a one-line ellipsis: it still needs the
+        // box's width to know where.
         const clamp = st.maxLines != null && st.maxLines > 0 ? st.maxLines : 0;
-        const sx = s;
         if (clamp > 0) {
+            // the run wraps into exactly the kept lines (renderClamped)
             s.width = "100%";
             s.overflow = "hidden";
-            s.display = "-webkit-box";
-            sx.webkitBoxOrient = "vertical";
-            sx.webkitLineClamp = String(st.wrap ? clamp : 1);
-            s.whiteSpace = "pre-wrap";
+            s.whiteSpace = st.wrap ? "pre-wrap" : "pre";
+            this.clampRule = { max: clamp, wrap: st.wrap === true, font: fontString(st), letterSpacing: st.letterSpacing, transform: st.textTransform };
+            this.renderClamped();
         }
         else {
             s.overflow = "";
-            s.display = "";
-            sx.webkitBoxOrient = "";
-            sx.webkitLineClamp = "";
+            if (this.clampRule !== null) {
+                this.clampRule = null;
+                this.textRun().textContent = this.capitalized ? transformText(this.rawText, "capitalize") : this.rawText;
+            }
         }
         // Pin the first baseline to the font ascent: a line-height of exactly
         // ascent+descent leaves no half-leading, so DOM text and the Canvas
@@ -2358,8 +2390,10 @@ export class DomSurface {
         t.maskSize = size;
         t.webkitMaskRepeat = "no-repeat";
         t.maskRepeat = "no-repeat";
-        t.webkitMaskPosition = "center";
-        t.maskPosition = "center";
+        // the mask sits where the bitmap does: object-position's alignment
+        const pos = fit ? `${FIT_POS[this.alignX] ?? "50%"} ${FIT_POS[this.alignY] ?? "50%"}` : "0 0";
+        t.webkitMaskPosition = pos;
+        t.maskPosition = pos;
         img.style.visibility = "hidden";
     }
     /** `100%` tracks the view box natively (a later resize costs no image

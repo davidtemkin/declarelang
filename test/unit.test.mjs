@@ -8366,9 +8366,15 @@ await test("wrapLines vs wrapEditable: break-word and indent are the field's rul
   for (const w of [wrapLines, wrapEditable]) {
     assert.deepEqual(w("one two three four", "10px mono", 9), ["one two", "three", "four"], w.name + ": greedy fill");
     assert.deepEqual(w("a  b  c", "10px mono", 20), ["a  b  c"], w.name + ": interior spaces survive");
-    assert.deepEqual(w("assets/img/photo-large.png", "10px mono", 12),
-      ["assets/img/", "photo-", "large.png"], w.name + ": breaks after / and -, delimiter kept");
   }
+  // after a hyphen, the hyphen kept; never after "/" — neither Chrome nor
+  // WebKit breaks a spaceless path there (measured 2026-09-25)
+  assert.deepEqual(wrapLines("assets/img/photo-large.png", "10px mono", 12),
+    ["assets/img/photo-", "large.png"], "wrapLines: breaks after -, not after /");
+  assert.deepEqual(wrapEditable("assets/img/photo-large.png", "10px mono", 12),
+    ["assets/img/p", "hoto-", "large.png"], "wrapEditable: the same, then break-word inside the piece that overflows");
+  // CJK breaks between characters; closing punctuation stays with the one before
+  assert.deepEqual(wrapLines("日本語の文章、です。", "10px mono", 4), ["日本語の", "文章、で", "す。"], "CJK: any character, kinsoku kept");
 
   // overflow-wrap: a box lets a long word overflow, a field breaks it
   assert.deepEqual(wrapLines("supercalifragilistic", "10px mono", 8), ["supercalifragilistic"]);

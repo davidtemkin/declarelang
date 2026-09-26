@@ -13,17 +13,18 @@
 //   node gate.mjs --only arc,blur # a subset
 //
 // The app is navigated IN PROCESS (`__declareBoot`) rather than relaunched, so
-// a whole corpus costs one launch. Requires DECLARE_CONTROL=1 and a dev server.
+// a whole corpus costs one launch — its own, when no controllable host is
+// running (window at the back, light appearance, closed at the end). Programs
+// come from main's dev server (app.mjs ORIGIN).
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
-import { CTL_IN, CTL_OUT, APP_NAME } from "./app.mjs";
-import { execFileSync } from "node:child_process";
+import { CTL_IN, CTL_OUT, APP_NAME, ORIGIN, hostBinary } from "./app.mjs";
+import { execFileSync, spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BASELINE = path.join(HERE, "gate-baseline.json");
-const ORIGIN = process.env.DECLARE_ORIGIN ?? "http://127.0.0.1:8260";
 const IN = CTL_IN, OUT = CTL_OUT;
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
@@ -84,9 +85,11 @@ const only = onlyArg >= 0 ? args[onlyArg + 1].split(",") : null;
 async function ctl(cmd) {
   if (existsSync(OUT)) unlinkSync(OUT);
   writeFileSync(IN, cmd + "\n");
-  for (let i = 0; i < 200; i++) {
+  // the reply file can exist before the host has written it: an empty read
+  // is "not yet", not an answer (it read as a NaN layer count)
+  for (let i = 0; i < 1000; i++) {
     await sleep(0.02);
-    if (existsSync(OUT)) return readFileSync(OUT, "utf8").trim();
+    if (existsSync(OUT)) { const t = readFileSync(OUT, "utf8").trim(); if (t) return t; }
   }
   throw new Error("no reply — is the app running with DECLARE_CONTROL=1?");
 }
@@ -135,6 +138,27 @@ async function awaitProgram(before) {
   }
   return `settle timeout (layers stuck at ${last}${changed ? "" : ", never changed from " + before})`;
 }
+
+// A host of our own when none answers: launched behind whatever the person is
+// using, in light mode (headless Chrome's), rendering even while covered.
+let ownHost = null;
+async function ensureHost() {
+  try { if ((await ctlQuick("ping")) === "ok") return; } catch { /* none */ }
+  const bin = hostBinary();
+  if (bin === null) throw new Error("no native host is built — npm run build:mac");
+  ownHost = spawn(bin, [], { detached: true, stdio: "ignore",
+    env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_APPEARANCE: "light", DECLARE_URL: `${ORIGIN}/${CORPUS[0]}` } });
+  for (let i = 0; i < 150; i++) { await sleep(0.1); try { if ((await ctlQuick("ping")) === "ok") break; } catch { /* booting */ } }
+  await ctl("waitload 30");
+  await ctl("occlusion ignore");
+}
+async function ctlQuick(cmd) {
+  if (existsSync(OUT)) unlinkSync(OUT);
+  writeFileSync(IN, cmd + "\n");
+  for (let i = 0; i < 10; i++) { await sleep(0.02); if (existsSync(OUT)) { const t = readFileSync(OUT, "utf8").trim(); if (t) return t; } }
+  throw new Error("no reply");
+}
+await ensureHost();
 
 const base = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {};
 const now = {};
@@ -243,4 +267,5 @@ if (bless) {
               (only ? `  (the other ${Object.keys(base).length - Object.keys(now).length} kept)` : ""));
 }
 console.log(`\n  ${rows.length} programs · ${failed} failing · ${fresh} without a baseline\n`);
+if (ownHost !== null) { try { await ctl("closewindow"); } catch { /* gone */ } try { process.kill(ownHost.pid); } catch { /* gone */ } }
 process.exit(failed > 0 && !bless ? 1 : 0);

@@ -124,6 +124,24 @@ await test("a Text in a Font measures in that font, and re-measures when its fac
   assert.equal(app.t.width, 64, "re-measured in the face that landed");
 });
 
+await test("a font loads only when text reaches it: a present family before it keeps it unfetched", async () => {
+  // `[-apple-system, BlinkMacSystemFont, app.inter, …]`: on a machine with the
+  // system face Inter is never downloaded; elsewhere it is. Presence is measured —
+  // here a family the stub measures differently from monospace.
+  FACES["present face"] = 9;
+  const before = loads.length;
+  const kept = await boot(`web: Font [ Face [ src = "kept.woff2" ] ],
+    t: Text [ fontFamily = { ["Present Face", app.web, "sans-serif"] }, text = "abcd" ]`);
+  await turn();
+  assert.equal(loads.slice(before).filter((l) => l.src.includes("kept.woff2")).length, 0, "an available family first: nothing fetched");
+  assert.equal(kept.web.loaded, false);
+  const reached = await boot(`web: Font [ Face [ src = "reached.woff2" ] ],
+    t: Text [ fontFamily = { ["Absent Face", app.web, "sans-serif"] }, text = "abcd" ]`);
+  await turn();
+  assert.equal(loads.slice(before).filter((l) => l.src.includes("reached.woff2")).length, 1, "nothing before it is here: fetched");
+  assert.ok(reached.web !== undefined);
+});
+
 await test("switching to a font still inside its wait keeps the old family until it settles", async () => {
   FACES.alpha = 10;
   const app = await boot(`alpha: Font [ family = "Alpha" ],
@@ -132,11 +150,13 @@ await test("switching to a font still inside its wait keeps the old family until
     t: Text [ fontFamily = { app.choice }, text = "abcd" ]`);
   app.alpha.start(); app.beta.start();
   settle();
-  const name = loads.at(-1).family;
   assert.equal(app.t.width, 40, "in Alpha");
+  // Beta is fetched only once text reaches it — the switch below.
   app.choice = app.beta;
   settle();
   assert.equal(app.t.width, 40, "held in Alpha while Beta loads");
+  await Promise.resolve();
+  const name = loads.at(-1).family;
   await landing(name, 16);
   assert.equal(app.t.width, 64, "changed once, when Beta landed");
   app.choice = app.alpha;

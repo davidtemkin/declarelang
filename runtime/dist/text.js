@@ -73,7 +73,7 @@ export class Text extends View {
      *  line-height does, and every renderer places glyphs by the same rule. */
     get baseline() {
         const m = fontMetrics(fontString(this));
-        return m.ascent + (this.lineAdvance(m) - (m.ascent + m.descent)) / 2;
+        return m.ascent + Math.floor((this.lineAdvance(m) - (m.ascent + m.descent)) / 2);
     }
     attach(backend, parentSurface) {
         // A switch to a font still inside its wait keeps this run in the family it

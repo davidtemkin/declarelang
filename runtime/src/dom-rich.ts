@@ -141,6 +141,11 @@ export function setRichContent(
     // matches the Canvas backend's line advance exactly (conformity).
     bs.fontSize = b.fontSize + "px";
     bs.lineHeight = Math.round(b.fontSize * b.lineHeight) + "px";
+    // …and in the block's own FACE: the block element's font is every line's
+    // strut. Left to the cascade it was the page's default (Times, whose line box
+    // the browsers enlarge), which widened every line of a system-ui paragraph by
+    // a pixel beyond the canvas and Mac layouts.
+    if (b.family !== undefined) { bs.fontFamily = b.family; bs.fontWeight = cssWeight(b.weight ?? "normal"); }
     if (b.pre) { bs.whiteSpace = "pre"; bs.overflowX = "auto"; bs.overflowY = "hidden"; }
     // A flowing block wraps at spaces, and a token WIDER than the flow (a long
     // code span or slash-path in a narrow table cell) breaks rather than

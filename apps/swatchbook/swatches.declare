@@ -1,0 +1,102 @@
+/*
+# The parts every section is made of
+
+A swatch is one case, in a card of fixed size with its name underneath — the
+unit a person looks at and the unit the conformance gate compares across
+renderers. A section is a title, a caption, its own switch between sub-pages,
+and the sub-pages themselves; in the matrix (`#matrix`) every sub-page shows at
+once. Where a sub-page is data — a list of rows, the values of its axes — a
+replicated swatch class draws a row; the rows live in the App's `book`.
+*/
+
+script {
+    /** Every combination of the axes, as rows, each named by `name`. */
+    function cross(axes: Record<string, unknown[]>, name: (r: Record<string, unknown>) => string): Record<string, unknown>[] {
+        let rows: Record<string, unknown>[] = [{}]
+        for (const key of Object.keys(axes)) {
+            const next: Record<string, unknown>[] = []
+            for (const r of rows) for (const v of axes[key]) next.push({ ...r, [key]: v })
+            rows = next
+        }
+        return rows.map((r) => ({ ...r, name: name(r) }))
+    }
+
+    /** Rows from a list of partial records over a base. */
+    function over(base: Record<string, unknown>, list: Record<string, unknown>[]): Record<string, unknown>[] {
+        return list.map((r) => ({ ...base, ...r }))
+    }
+    }
+
+
+/*
+## The card
+
+Fixed size, so a grid is a grid and a difference between renderers is never
+absorbed by a neighbour. The stage is the top 120px; the name sits under it.
+*/
+
+class Swatch extends View [ width = 212, height = 152, cornerRadius = 10, clip = true,
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+    name: string = "",
+    stageH: number = 120,
+    cap: Text [ x = 10, y = 128, width = 192, fontSize = 11, wrap = false,
+        textColor = { provided("theme").textMuted }, text = { classroot.name } ]
+    ]
+
+
+// A wrapping grid of swatches.
+
+class Grid extends View [ width = 100%,
+    layout: WrappingLayout [ spacing = 12, rowSpacing = 12 ]
+    ]
+
+
+/*
+## A section
+
+Its sub-pages are chosen by its own switch; `showing(id)` is true for the chosen
+one, and for every one in the matrix. A sub-page is any view under the section
+whose `visible` reads `classroot.showing("…")`.
+*/
+
+class Section extends View [ width = 100%,
+    title: string = "",
+    caption: string = "",
+    tabs: object = null,
+    sub: string = "",
+    showing(id: string) -> boolean { return app.matrix || this.sub == id },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    head: Text [ fontSize = 20, fontWeight = semibold, wrap = false,
+        textColor = { provided("theme").text }, text = { classroot.title } ],
+    cap: Text [ width = 100%, fontSize = 13, wrap = true,
+        textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
+    pick: Segmented [ visible = { !app.matrix },
+        segMin = 96,
+        value = { classroot.sub },
+        input(v: object) { classroot.sub = "" + v },
+        choices = { classroot.tabs }
+        ]
+    ]
+
+
+// A sub-page's label, shown in the matrix, where every sub-page is on screen.
+
+class SubHead extends Text [ fontSize = 13, fontWeight = semibold, wrap = false,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// A view placed inside a line of rich text: the tag names the class.
+
+class Chip extends View [ label: string = "",
+    height = 19, width = { this.t.width + 18 }, cornerRadius = 9, fill = 0xDDF4E4,
+    baseline: number = { this.t.y + this.t.baseline },
+    t: TextLabel [ x = 9, fontSize = 11.5, textColor = 0x1B5E36, text = { classroot.label } ]
+    ]
+
+
+class TallChip extends View [ label: string = "",
+    height = 30, width = { this.t.width + 20 }, cornerRadius = 6, fill = 0xDDE7F9,
+    t: TextLabel [ x = 10, fontSize = 16, textColor = 0x1D3F8F, text = { classroot.label } ]
+    ]

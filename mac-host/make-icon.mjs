@@ -16,9 +16,10 @@ import puppeteer from "puppeteer-core";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
 import path from "node:path";
+import { ORIGIN as DEV_ORIGIN } from "./app.mjs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const ORIGIN = process.argv[2] ?? process.env.DECLARE_ORIGIN ?? "http://127.0.0.1:8260";
+const ORIGIN = process.argv[2] ?? DEV_ORIGIN;
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ART = 512;                 // CSS px; at DPR 2 this captures 1024 crisp pixels
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));

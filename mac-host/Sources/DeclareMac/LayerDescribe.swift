@@ -347,8 +347,10 @@ enum LayerDescribe {
         grad.anchorPoint = .zero
         grad.bounds = CGRect(x: 0, y: 0, width: w, height: h)
         grad.position = .zero
-        grad.colors = colors
-        grad.locations = locs
+        // canvas gradients interpolate straight (not premultiplied), in sRGB
+        let (rc, rl) = GradientStops.resampled(colors: colors, locations: locs.map { CGFloat($0.doubleValue) }, premultiplied: false)
+        grad.colors = rc
+        grad.locations = rl.map { NSNumber(value: Double($0)) }
         grad.actions = ["position": NSNull(), "bounds": NSNull(), "colors": NSNull(),
                         "locations": NSNull(), "startPoint": NSNull(), "endPoint": NSNull()]
         /// Gradient geometry arrives in the recording's user space; the layer
@@ -360,8 +362,18 @@ enum LayerDescribe {
         switch kind {
         case "linear" where coords.count >= 4:
             grad.type = .axial
-            grad.startPoint = unit(coords[0], coords[1])
-            grad.endPoint = unit(coords[2], coords[3])
+            // Core Animation projects onto the axis in UNIT space, so on a box
+            // that is not square the bands would lean (a diagonal ramp's bands
+            // ran along the box's other diagonal). Canvas projects in pixels,
+            // perpendicular to the axis: keep the start, and pick the unit end
+            // whose unit-space projection equals the pixel one — the axis
+            // scaled by the box, at length |V|² / |DV| in unit terms.
+            let s0 = unit(coords[0], coords[1]), e0 = unit(coords[2], coords[3])
+            let v = CGPoint(x: (e0.x - s0.x) * w, y: (e0.y - s0.y) * h)          // the axis, pixels
+            let dv = CGPoint(x: v.x * w, y: v.y * h)
+            let k = (v.x * v.x + v.y * v.y) / max(1e-9, dv.x * dv.x + dv.y * dv.y)
+            grad.startPoint = s0
+            grad.endPoint = CGPoint(x: s0.x + dv.x * k, y: s0.y + dv.y * k)
         case "radial" where coords.count >= 6:
             // `expressible` has already refused the two-circle focal form.
             let x1 = coords[3], y1 = coords[4], r1 = coords[5]

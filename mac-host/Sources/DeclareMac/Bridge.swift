@@ -293,6 +293,7 @@ final class Bridge {
             self.lastCommitAt = CFAbsoluteTimeGetCurrent()
             if self.firstCommitAt == 0 { self.firstCommitAt = CFAbsoluteTimeGetCurrent(); self.mark("FIRST COMMIT") }
             self.settleBoot()                      // something is on screen now
+            ControlChannel.noteCommitted()         // a rig waiting on this load hears `ok`
             }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "commit")
 

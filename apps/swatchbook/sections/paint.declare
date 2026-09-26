@@ -1,0 +1,80 @@
+/*
+# Paint
+
+A box's fill, its corners, its stroke on every side or some, and its shadow —
+one at a time, then together.
+*/
+
+script {
+    const PAINT_BASE = { fill: "solid", radius: "square", stroke: "none", shadow: "none" }
+    function paintFills(): Record<string, unknown>[] {
+        return over(PAINT_BASE, ["solid", "translucent", "linear", "linear45", "vertical", "stops", "radial", "radialEdge", "conic", "conicFrom"]
+            .map((f) => ({ fill: f, radius: "round", name: "fill · " + f })))
+    }
+    function paintCorners(): Record<string, unknown>[] {
+        return over(PAINT_BASE, cross({ radius: ["square", "small", "round", "pill", "four", "huge"], stroke: ["none", "ring"] },
+            (r) => r.radius + (r.stroke === "ring" ? " · ring" : "")))
+    }
+    function paintStrokes(): Record<string, unknown>[] {
+        return over({ ...PAINT_BASE, fill: "light" }, ["hair", "ring", "thick", "top", "right", "bottom", "left", "topBottom", "leftRight", "three", "ladder", "colours"]
+            .flatMap((s) => [{ stroke: s, name: "stroke · " + s }, { stroke: s, radius: "round", name: "stroke · " + s + " · round" }]))
+    }
+    function paintShadows(): Record<string, unknown>[] {
+        return over({ ...PAINT_BASE, fill: "white" }, ["soft", "hard", "far", "up", "coloured", "tight"].flatMap((s) => [
+            { shadow: s, name: "shadow · " + s }, { shadow: s, radius: "round", stroke: "hair", name: "shadow · " + s + " · round · ring" }]))
+    }
+    function paintAll(): Record<string, unknown>[] {
+        return cross({ fill: ["solid", "linear", "radial", "conic"], radius: ["square", "four"], stroke: ["ring", "topBottom"], shadow: ["none", "soft"] },
+            (r) => r.fill + " · " + r.radius + " · " + r.stroke + (r.shadow !== "none" ? " · shadow" : ""))
+    }
+    }
+
+
+class PaintSwatch extends Swatch [ name = :name,
+    box: View [ x = 36, y = 16, width = 140, height = 88,
+        fill = { :fill == "solid" ? 0x2E6FE0 : :fill == "translucent" ? colorWithAlpha(0x2E6FE0, 100) : :fill == "light" ? 0xE8EEF9 : :fill == "white" ? 0xFFFFFF
+            : :fill == "linear" ? gradient("90deg", 0xFDE68A, 0xE4572E) : :fill == "linear45" ? gradient("45deg", 0xFDE68A, 0xE4572E)
+            : :fill == "vertical" ? gradient("180deg", 0x2E6FE0, 0x17A34A) : :fill == "stops" ? gradient("90deg", 0x2E6FE0, 0xFDE68A, 0x17A34A, 0xE4572E)
+            : :fill == "radial" ? radialGradient(0.5, 0.5, 0.8, 0xFDE68A, 0xE4572E) : :fill == "radialEdge" ? radialGradient(0.1, 0.2, 1, 0xFFFFFF, 0x2E6FE0)
+            : :fill == "conic" ? conicGradient(0.5, 0.5, 0, 0x2E6FE0, 0x17A34A, 0xE4572E, 0x2E6FE0) : conicGradient(0.3, 0.6, 90, 0xFDE68A, 0xE4572E, 0xFDE68A) },
+        cornerRadius = { :radius == "square" ? 0 : :radius == "small" ? 4 : :radius == "round" ? 16 : :radius == "pill" ? 44
+            : :radius == "four" ? [0, 28, 44, 8] : 200 },
+        stroke = { :stroke == "hair" ? stroke(1, 0x111111) : :stroke == "ring" ? stroke(4, 0x111111) : :stroke == "thick" ? stroke(14, 0x111111)
+            : :stroke == "top" ? [stroke(8, 0x111111), null, null, null] : :stroke == "right" ? [null, stroke(8, 0x111111), null, null]
+            : :stroke == "bottom" ? [null, null, stroke(8, 0x111111), null] : :stroke == "left" ? [null, null, null, stroke(8, 0x111111)]
+            : :stroke == "topBottom" ? [stroke(4, 0x111111), null, stroke(10, 0x111111), null] : :stroke == "leftRight" ? [null, stroke(6, 0x111111), null, stroke(6, 0x111111)]
+            : :stroke == "three" ? [stroke(6, 0x111111), stroke(6, 0x111111), stroke(6, 0x111111), null]
+            : :stroke == "ladder" ? [stroke(2, 0x111111), stroke(6, 0x111111), stroke(10, 0x111111), stroke(14, 0x111111)]
+            : :stroke == "colours" ? [stroke(6, 0x2E6FE0), stroke(6, 0x17A34A), stroke(6, 0xE4572E), stroke(6, 0xB8860B)] : null },
+        shadow = { :shadow == "soft" ? shadow(0, 8, 16, colorWithAlpha(0x000000, 100)) : :shadow == "hard" ? shadow(6, 6, 0, 0x111111)
+            : :shadow == "far" ? shadow(12, 18, 24, colorWithAlpha(0x000000, 90)) : :shadow == "up" ? shadow(0, -8, 12, colorWithAlpha(0x000000, 100))
+            : :shadow == "coloured" ? shadow(0, 6, 14, 0xE4572E) : :shadow == "tight" ? shadow(0, 1, 2, colorWithAlpha(0x000000, 160)) : null } ]
+    ]
+
+
+class PaintSection extends Section [ title = "Paint",
+    caption = "A box's fill — solid, translucent, linear at any angle, many stops, radial, conic — its corners, its stroke on every side or some, its shadow, and all of them together.",
+    tabs = { [ ({ id: "fills", label: "Fills" }), ({ id: "corners", label: "Corners" }), ({ id: "strokes", label: "Strokes" }),
+               ({ id: "shadows", label: "Shadows" }), ({ id: "all", label: "Together" }) ] },
+    sub = "fills",
+    SubHead [ visible = { app.matrix }, text = "Fills" ],
+    Grid [ visible = { classroot.showing("fills") }, datapath = { app.book.value },
+        PaintSwatch [ datapath = :paintFills[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Corners" ],
+    Grid [ visible = { classroot.showing("corners") }, datapath = { app.book.value },
+        PaintSwatch [ datapath = :paintCorners[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Strokes" ],
+    Grid [ visible = { classroot.showing("strokes") }, datapath = { app.book.value },
+        PaintSwatch [ datapath = :paintStrokes[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Shadows" ],
+    Grid [ visible = { classroot.showing("shadows") }, datapath = { app.book.value },
+        PaintSwatch [ datapath = :paintShadows[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Together" ],
+    Grid [ visible = { classroot.showing("all") }, datapath = { app.book.value },
+        PaintSwatch [ datapath = :paintAll[] ]
+        ]
+    ]

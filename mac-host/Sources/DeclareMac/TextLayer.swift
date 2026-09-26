@@ -39,7 +39,7 @@ final class TextLayer: CALayer {
     var pitch: CGFloat { lineHeight > 0 ? lineHeight : ascent + descent }
     /// Half the declared line's difference from the face's own box: space above
     /// each line when the line is open, ink past its top when it is tight.
-    private var halfLead: CGFloat { (pitch - (ascent + descent)) / 2 }
+    private var halfLead: CGFloat { ((pitch - (ascent + descent)) / 2).rounded(.down) }   // the floor above, as the browser splits it
     /// How far the layer reaches ABOVE the box, so a tight line's ink is inside
     /// the backing store (set by fit).
     private var overTop: CGFloat = 0
@@ -89,17 +89,18 @@ final class TextLayer: CALayer {
         if !wrap && clamp == 0 { return [CTLineCreateWithAttributedString(a)] }
         let width = bounds.width > 0 ? bounds.width : .greatestFiniteMagnitude
         let ts = CTTypesetterCreateWithAttributedString(a)
+        let breaker = BrowserBreaker(a, typesetter: ts)
         var out: [CTLine] = []
         var start = 0
         while start < a.length {
-            let count = CTTypesetterSuggestLineBreak(ts, start, Double(width))
+            let count = breaker.next(from: start, width: width)
             if count <= 0 { break }
             if clamp > 0 && out.count == clamp - 1 && start + count < a.length {
-                // the last kept line carries the REST of the text, truncated with an ellipsis
-                let rest = CTTypesetterCreateLine(ts, CFRange(location: start, length: a.length - start))
-                let attrs = a.attributes(at: start, effectiveRange: nil)
-                let token = CTLineCreateWithAttributedString(NSAttributedString(string: "\u{2026}", attributes: attrs))
-                out.append(CTLineCreateTruncatedLine(rest, Double(width), .end, token) ?? rest)
+                // the last kept line, ended with an ellipsis by the shared rule
+                // (measure.ts ellipsize — what the DOM and the canvas show): whole
+                // words dropped from ITS end until it and the ellipsis fit, then
+                // characters if one word alone is too long
+                out.append(ellipsized(a, from: start, count: count, width: width))
                 return out
             }
             out.append(CTTypesetterCreateLine(ts, CFRange(location: start, length: count)))
@@ -108,9 +109,31 @@ final class TextLayer: CALayer {
         return out
     }
 
+    /// A line's text with an ellipsis, cut as `measure.ts ellipsize` cuts it.
+    private func ellipsized(_ a: NSAttributedString, from start: Int, count: Int, width: CGFloat) -> CTLine {
+        let ns = a.string as NSString
+        var end = start + count
+        func trimmed(_ e: Int) -> Int { var e = e; while e > start, [32, 9, 10].contains(ns.character(at: e - 1)) { e -= 1 }; return e }
+        func line(_ e: Int) -> CTLine {
+            let m = NSMutableAttributedString(attributedString: a.attributedSubstring(from: NSRange(location: start, length: e - start)))
+            let attrs = a.attributes(at: max(start, e - 1), effectiveRange: nil)
+            m.append(NSAttributedString(string: "\u{2026}", attributes: attrs))
+            return CTLineCreateWithAttributedString(m)
+        }
+        end = trimmed(end)
+        while end > start, CGFloat(CTLineGetTypographicBounds(line(end), nil, nil, nil)) > width {
+            let space = ns.rangeOfCharacter(from: .whitespaces, options: .backwards, range: NSRange(location: start, length: end - start))
+            if space.location != NSNotFound && space.location > start { end = trimmed(space.location) }
+            else { end = ns.rangeOfComposedCharacterSequence(at: end - 1).location }
+        }
+        return line(end)
+    }
+
     /// Where line `i`'s origin sits, in the layer's own bottom-up space.
     private func origin(of line: CTLine, index i: Int) -> CGPoint {
-        let w = CTLineGetTypographicBounds(line, nil, nil, nil)
+        // the space a line breaks after HANGS, as it does on the web: it takes
+        // no part in centring or right-aligning the line
+        let w = CTLineGetTypographicBounds(line, nil, nil, nil) - CTLineGetTrailingWhitespaceWidth(line)
         var x: CGFloat = 0
         if align == .center { x = (bounds.width - CGFloat(w)) / 2 }
         else if align == .right { x = bounds.width - CGFloat(w) }
@@ -138,6 +161,7 @@ final class TextLayer: CALayer {
         ctx.setShouldSmoothFonts(true)
         ctx.setShouldSubpixelPositionFonts(true)
         ctx.setShouldSubpixelQuantizeFonts(true)
+        drawOutline(ls, in: ctx)
         if let g = fillGradient {
             drawGradientFilled(ls, g, in: ctx)
         } else {
@@ -149,6 +173,31 @@ final class TextLayer: CALayer {
             }
         }
         ctx.restoreGState()
+    }
+
+    /// The outline (`TextEngine.outlineKey`), UNDER the fill: each line again,
+    /// stroke only, at the outline's full width, so the fill drawn after covers
+    /// its inner half — CSS `-webkit-text-stroke` with `paint-order: stroke`.
+    /// Without the glyph shadow, which the fill pass casts.
+    private func drawOutline(_ ls: [CTLine], in ctx: CGContext) {
+        guard let a = attributed, a.length > 0,
+              let o = a.attribute(TextEngine.outlineKey, at: 0, effectiveRange: nil) as? [Any], o.count == 2,
+              let w = (o[0] as? NSNumber)?.doubleValue, let color = o[1] as? NSColor else { return }
+        for (i, line) in ls.enumerated() {
+            let r = CTLineGetStringRange(line)
+            guard r.location >= 0, r.location + r.length <= a.length else { continue }
+            let m = NSMutableAttributedString(attributedString: a.attributedSubstring(from: NSRange(location: r.location, length: r.length)))
+            let full = NSRange(location: 0, length: m.length)
+            m.removeAttribute(.shadow, range: full)
+            m.enumerateAttribute(.font, in: full) { v, rr, _ in
+                guard let f = v as? NSFont else { return }
+                m.addAttribute(.strokeWidth, value: w / Double(f.pointSize) * 100, range: rr)   // positive: stroke only
+            }
+            m.addAttribute(.strokeColor, value: color, range: full)
+            let under = CTLineCreateWithAttributedString(m)
+            ctx.textPosition = origin(of: line, index: i)
+            CTLineDraw(under, ctx)
+        }
     }
 
     /// `textFill`: build the union of the glyph outlines, clip to it, and run the
@@ -183,6 +232,21 @@ final class TextLayer: CALayer {
               let cs = CGColorSpace(name: CGColorSpace.sRGB),
               let ramp = CGGradient(colorsSpace: cs, colors: g.colors as CFArray,
                                     locations: g.locations) else { return }
+        // The glyph shadow (the run's NSShadow, which CTLineDraw would have
+        // painted) lands with the filled glyphs as ONE shape: set on the context
+        // and composited through a transparency layer — set on the clipped ramp
+        // it would be clipped away with it, and a gradient-filled word lost its
+        // shadow.
+        var shadow: NSShadow?
+        if let first = ls.first, let run = (CTLineGetGlyphRuns(first) as? [CTRun])?.first {
+            shadow = (CTRunGetAttributes(run) as NSDictionary)[NSAttributedString.Key.shadow] as? NSShadow
+        }
+        ctx.saveGState()
+        if let sh = shadow {
+            ctx.setShadow(offset: sh.shadowOffset, blur: sh.shadowBlurRadius, color: (sh.shadowColor as? NSColor)?.cgColor)
+            ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+        }
+        defer { if shadow != nil { ctx.endTransparencyLayer() }; ctx.restoreGState() }
         ctx.saveGState()
         ctx.addPath(path)
         ctx.clip()
@@ -196,5 +260,52 @@ final class TextLayer: CALayer {
         ctx.drawLinearGradient(ramp, start: start, end: end,
                                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation])
         ctx.restoreGState()
+    }
+}
+
+
+/// Greedy line filling over the BROWSER's break opportunities (LineBreaks),
+/// with Core Text's advances: a line takes the furthest opportunity whose
+/// text, less the spaces it ends with, fits the width; a word wider than the
+/// line overflows on a line of its own (`overflow-wrap: normal`), as a box of
+/// text does on the web. Hard breaks end a line wherever they fall.
+struct BrowserBreaker {
+    private let text: NSString
+    private let full: CTLine
+    private let opps: [Int]
+
+    init(_ a: NSAttributedString, typesetter: CTTypesetter) {
+        text = a.string as NSString
+        full = CTTypesetterCreateLine(typesetter, CFRange(location: 0, length: a.length))
+        opps = LineBreaks.opportunities(a.string)
+    }
+
+    private func x(_ i: Int) -> CGFloat { CTLineGetOffsetForStringIndex(full, i, nil) }
+    private func isSpace(_ i: Int) -> Bool { let c = text.character(at: i); return c == 32 || c == 9 }
+
+    /// The width of [start, end) as a line shows it: trailing spaces hang.
+    private func width(_ start: Int, _ end: Int) -> CGFloat {
+        var e = end
+        while e > start, isSpace(e - 1) { e -= 1 }
+        return abs(x(e) - x(start))
+    }
+
+    /// How many UTF-16 units the line starting at `start` takes.
+    func next(from start: Int, width limit: CGFloat) -> Int {
+        let n = text.length
+        // a hard break ends the line (the newline goes with it)
+        let nl = text.rangeOfCharacter(from: .newlines, options: [], range: NSRange(location: start, length: n - start))
+        let hard = nl.location == NSNotFound ? n : nl.location
+        if width(start, hard) <= limit { return (hard < n ? hard + 1 : n) - start }
+        var best = -1
+        for o in opps where o > start && o < hard {
+            if width(start, o) <= limit { best = o } else { break }
+        }
+        if best < 0 {
+            // nothing fits: the first word overflows on its own line
+            best = opps.first(where: { $0 > start && $0 < hard }) ?? hard
+            if best == hard { return (hard < n ? hard + 1 : n) - start }
+        }
+        return best - start
     }
 }

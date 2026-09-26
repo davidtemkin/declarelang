@@ -1,5 +1,5 @@
 import { Node } from "./node.js";
-import { FONT_CSS, FONT_PENDING } from "./font-value.js";
+import { FONT_CSS, FONT_DEMAND, FONT_PENDING } from "./font-value.js";
 export { FONT_WEIGHTS, faceWeight, faceWeightLiteral, FACE_WEIGHT_FORMS } from "./face-literal.js";
 export interface FontHost {
     /** Fetch one face; resolves to a handle `add`/`remove` understand, rejects on failure. */
@@ -42,6 +42,8 @@ export declare class Font extends Node {
     constructor();
     get [FONT_CSS](): string;
     get [FONT_PENDING](): boolean;
+    /** Text reached this font: fetch its faces, once. */
+    [FONT_DEMAND](): void;
     /** Construction-complete (instantiate.ts): start once the caller's synchronous
      *  setup (the app's asset base) has run. `fontsReady` starts it sooner. */
     autoStart(): void;

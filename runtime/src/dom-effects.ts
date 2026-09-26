@@ -87,6 +87,24 @@ export function applyDomMask(s: DomSurface): void {
     `${stencil.x + stencil.positionLead("x") + m.x}px ${stencil.y + stencil.positionLead("y") + m.y}px`);
 }
 
+const FIT_FRAC: Record<string, number> = { start: 0, center: 0.5, end: 1 };
+
+/** Where an Image's bitmap paints in its box — the stretch and alignment the
+ *  surface hands CSS (applyStretch), as a rect. */
+function imagePaintRect(s: DomSurface, img: HTMLImageElement): { x: number; y: number; w: number; h: number } {
+  const nw = img.naturalWidth, nh = img.naturalHeight;
+  const fw = s.frameW, fh = s.frameH;
+  if ((s.stretch === "cover" || s.stretch === "contain") && nw > 0 && nh > 0) {
+    const k = s.stretch === "cover" ? Math.max(fw / nw, fh / nh) : Math.min(fw / nw, fh / nh);
+    const w = nw * k, h = nh * k;
+    const fx = FIT_FRAC[s.alignX] ?? 0.5, fy = FIT_FRAC[s.alignY] ?? 0.5;
+    return { x: (fw - w) * fx, y: (fh - h) * fy, w, h };
+  }
+  return { x: 0, y: 0,
+    w: s.stretch === "width" || s.stretch === "both" ? fw : nw,
+    h: s.stretch === "height" || s.stretch === "both" ? fh : nh };
+}
+
 /** A surface's paint as a mask bitmap, in its own coordinates: an Image's
  *  source over its box, or a draw() recording rendered to a data URL at its
  *  bounds — rendered here even when the view is hidden (the stencil idiom),
@@ -94,7 +112,8 @@ export function applyDomMask(s: DomSurface): void {
 function maskBitmap(s: DomSurface): { url: string; x: number; y: number; w: number; h: number } | null {
   if (s.imgEl instanceof HTMLImageElement) {
     if (!s.imgEl.complete || s.imgEl.naturalWidth === 0) return null;
-    return { url: `url("${s.imgEl.src}")`, x: 0, y: 0, w: s.frameW, h: s.frameH };
+    const r = imagePaintRect(s, s.imgEl);
+    return { url: `url("${s.imgEl.src}")`, x: r.x, y: r.y, w: r.w, h: r.h };
   }
   const d = s.drawing;
   if (d === null || d.bounds === null) return null;

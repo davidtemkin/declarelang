@@ -34,15 +34,23 @@ cd "$RUN/work"
 if [ -z "$STACK" ]; then
   git clone -q https://github.com/davidtemkin/declarelang.git declarelang
   [ -n "$COMMIT" ] && git -C declarelang checkout -q "$COMMIT"
-  SUBJECT="$(git -C declarelang log -1 --format='%h %s') (GitHub, evals/ removed)"
-  rm -rf declarelang/evals
+  SUBJECT="$(git -C declarelang log -1 --format='%h %s') (GitHub, evals/ and docs/system-design/findings-*.md removed)"
+  # evals/ holds every task's answer key; a findings file records one eval run's pitfalls
+  rm -rf declarelang/evals declarelang/docs/system-design/findings-*.md
 else
   SUBJECT="none — $STACK, from the brief alone"
 fi
 
-# the task: the brief and the service, beside the download
+# the task: the brief and the service, beside the download. An app with fixtures/ keeps
+# its service outside the sandbox — the agent gets the contract, not the data or the schedule
 cp "$SRC/brief.md" task/
-[ -d "$SRC/api" ] && cp -R "$SRC/api" task/
+if [ -d "$SRC/fixtures" ]; then
+  mkdir -p task/api && cp "$SRC/api/API.md" task/api/
+  SERVICE=("$SRC/api/server.mjs" "--port=$PORT" "--seed=1")
+else
+  [ -d "$SRC/api" ] && cp -R "$SRC/api" task/
+  SERVICE=(task/api/server.mjs "--port=$PORT")
+fi
 
 # the prompt: nothing beyond what the task needs — the distribution carries the rest
 if [ -z "$STACK" ]; then
@@ -59,8 +67,8 @@ fi
 cp "$HERE/tail.py" "$HERE/cost.py" "$HERE/report.py" "$LOGS/"
 
 # the service
-if [ -f task/api/server.mjs ]; then
-  nohup node task/api/server.mjs --port="$PORT" > "$LOGS/fixture.log" 2>&1 &
+if [ -f "${SERVICE[0]}" ]; then
+  nohup node "${SERVICE[@]}" > "$LOGS/fixture.log" 2>&1 &
   for _ in $(seq 1 50); do lsof -iTCP:"$PORT" -sTCP:LISTEN -P >/dev/null 2>&1 && break; sleep 0.1; done
 fi
 
@@ -76,6 +84,7 @@ TOOLS="Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch"
   echo "PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none"
   echo "CWD=$RUN/work (logs outside it)"
   echo "PORT=$PORT"
+  echo "SERVICE=node ${SERVICE[*]}"
 } > "$LOGS/started.txt"
 
 # the agent: headless, the full event stream, exactly these tools

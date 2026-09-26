@@ -1,0 +1,139 @@
+/*
+# Swatchbook
+
+Everything a view can look like, one swatch at a time: type, lines, rich text,
+paint, effects, transforms, images, drawing, measurement, and the places where
+they combine. Each section has its own sub-pages; `#matrix` shows every case of
+every section on one page, which is what the conformance gate renders on each
+renderer and compares swatch by swatch.
+
+What to notice: most cases are data (each section builds its rows from its
+axes), so the page and the gate are one source; and every swatch is the same
+fixed card, so a difference between renderers is never absorbed by a neighbour.
+*/
+
+include [ "swatches.declare", "sections/type.declare", "sections/lines.declare", "sections/rich.declare",
+    "sections/paint.declare", "sections/effects.declare", "sections/transforms.declare", "sections/images.declare",
+    "sections/drawing.declare", "sections/measure.declare", "sections/combined.declare"
+    ]
+
+
+style Warm [ textColor = #E4572E, fontWeight = bold ]
+
+style Big  [ fontSize = 38, fontWeight = bold ]
+
+style Unit [ fontSize = 18, fontWeight = medium ]
+
+script {
+    /** Every data sub-page's rows, by the key its grid replicates over. */
+    function allRows(): Record<string, unknown> {
+        return { typeFaces: typeFaces(), typeItalic: typeItalic(), typeSizes: typeSizes(), typeCase: typeCase(),
+                 typeDecoration: typeDecoration(), typeFill: typeFill(),
+                 lineLeading: lineLeading(), lineAlign: lineAlign(), lineClamp: lineClamp(),
+                 richRuns: richRuns(), richBlocks: richBlocks(),
+                 paintFills: paintFills(), paintCorners: paintCorners(), paintStrokes: paintStrokes(), paintShadows: paintShadows(), paintAll: paintAll(),
+                 effectFilters: effectFilters(), effectChains: effectChains(), effectBlends: effectBlends(), effectMasks: effectMasks(),
+                 xfScale: xfScale(), xfRotate: xfRotate(), xfSkew: xfSkew(), xfPivot: xfPivot(), xfCombined: xfCombined(), xf3d: xf3d(),
+                 imgFit: imgFit(), imgAlign: imgAlign(), imgTint: imgTint(),
+                 measureRows: measureRows(), comboRows: comboRows() }
+    }
+    }
+
+
+App [ minWidth = 340,
+    fill = { provided("theme").bg },
+    textColor = { provided("theme").text },
+
+    page: string = "type",
+    themeMode: string = "auto",
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
+    compact: boolean = { app.width < 700 },
+    barH: number = 52,
+    theme = { app.darkUI ? SanFranciscoDark : SanFrancisco },
+    fontFamily = { ["-apple-system", "BlinkMacSystemFont", "Helvetica Neue", "Helvetica", "sans-serif"] },
+    textStyles = { { Warm, Big, Unit } },
+
+    roboto: Font [ Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+        Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
+        ],
+
+    // THE MATRIX: every case of every section, on one page — the view the
+    // conformance gate renders. `#matrix` in the address.
+
+    matrix: boolean = { app.location == "matrix" },
+    on(p: string) -> boolean { return this.matrix || this.page == p },
+
+    // A filter by the name a row gives it.
+
+    filterFor(fx: string) -> object {
+        if (fx == "blur") return [blur(3)]
+        if (fx == "brightness") return [brightness(1.5)]
+        if (fx == "contrast") return [contrast(1.8)]
+        if (fx == "saturate") return [saturate(2.5)]
+        if (fx == "grayscale") return [grayscale(1)]
+        if (fx == "invert") return [invert(1)]
+        if (fx == "sepia") return [sepia(1)]
+        if (fx == "hueRotate") return [hueRotate(120)]
+        if (fx == "colorize") return [colorize(0x17A34A)]
+        if (fx == "shadow") return [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))]
+        if (fx == "dim") return [brightness(0.5)]
+        if (fx == "halfGray") return [grayscale(0.5)]
+        if (fx == "grayContrast") return [grayscale(1), contrast(1.6)]
+        if (fx == "blurShadow") return [blur(2), shadow(0, 4, 8, colorWithAlpha(0x000000, 136))]
+        if (fx == "sepiaHue") return [sepia(1), hueRotate(180)]
+        if (fx == "invertBlur") return [invert(1), blur(1.5)]
+        if (fx == "shadowTwice") return [shadow(3, 3, 0, 0xE4572E), shadow(-3, -3, 0, 0x2E6FE0)]
+        if (fx == "saturateBright") return [saturate(2), brightness(1.3)]
+        return null
+        },
+
+    // THE ROWS, as data: every data sub-page's list, built once at start.
+
+    book: Dataset { { } },
+    onInit() {
+        const rows = allRows()
+        for (const k of Object.keys(rows)) book.set([k], rows[k])
+        },
+
+    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, ignoreScroll = true,
+        fill = { provided("theme").surface },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        brand: Text [ x = 20, y = center, fontSize = 18, fontWeight = semibold, wrap = false, text = "Swatchbook" ],
+        pages: Segmented [ y = 11, visible = { !app.matrix },
+            x = { Math.max(app.compact ? 150 : 170, (app.width - this.width) / 2) },
+            segMin = { app.compact ? 44 : 78 },
+            value = { app.page },
+            input(v: object) { app.page = "" + v },
+            choices = { [ ({ id: "type", label: "Type" }), ({ id: "lines", label: "Lines" }),
+                          ({ id: "rich", label: "Rich" }), ({ id: "paint", label: "Paint" }),
+                          ({ id: "effects", label: "Effects" }), ({ id: "transforms", label: "Transforms" }),
+                          ({ id: "images", label: "Images" }), ({ id: "drawing", label: "Drawing" }),
+                          ({ id: "measure", label: "Measure" }), ({ id: "combos", label: "Combined" }) ] }
+            ],
+        matrixNote: Text [ y = center, x = { (app.width - this.width) / 2 }, visible = { app.matrix }, fontSize = 13, wrap = false,
+            textColor = { provided("theme").textMuted }, text = "The matrix — every case of every section" ],
+        themeSwitch: AppearanceSwitch [ y = center, x = { app.width - this.width - 14 },
+            dark = { app.darkUI },
+            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+            ]
+        ],
+
+    body: View [ x = 0, y = { app.barH }, width = { app.width }, height = { app.height - app.barH },
+        scrolls = y, clip = true,
+
+        sheet: View [ y = 24, x = 24, width = { app.width - 48 },
+            layout: SimpleLayout [ axis = y, spacing = 44 ],
+            type: TypeSection [ visible = { app.on("type") } ],
+            lines: LinesSection [ visible = { app.on("lines") } ],
+            rich: RichSection [ visible = { app.on("rich") } ],
+            paint: PaintSection [ visible = { app.on("paint") } ],
+            effects: EffectsSection [ visible = { app.on("effects") } ],
+            transforms: TransformsSection [ visible = { app.on("transforms") } ],
+            images: ImagesSection [ visible = { app.on("images") } ],
+            drawn: DrawingSection [ visible = { app.on("drawing") } ],
+            measure: MeasureSection [ visible = { app.on("measure") } ],
+            combos: CombinedSection [ visible = { app.on("combos") } ],
+            foot: View [ width = 100%, height = 24 ]
+            ]
+        ]
+    ]

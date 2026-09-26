@@ -7,6 +7,7 @@
 // watching the client rect's top jump — the browser will not name its own line
 // breaks, but it will place every character.
 import puppeteer from "puppeteer-core";
+import { ORIGIN } from "./app.mjs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const b = await puppeteer.launch({ executablePath: CHROME, headless: true,
@@ -14,7 +15,7 @@ const b = await puppeteer.launch({ executablePath: CHROME, headless: true,
   defaultViewport: { width: 1280, height: 800, deviceScaleFactor: 2 } });
 const p = await b.newPage();
 await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "dark" }]);
-await p.goto("http://127.0.0.1:8260/apps/desktop/desktop.declare?render=dom", { waitUntil: "networkidle0" });
+await p.goto(`${ORIGIN}/apps/desktop/desktop.declare?render=dom`, { waitUntil: "networkidle0" });
 await new Promise((r) => setTimeout(r, 2500));
 await p.mouse.move(497, 700); await new Promise((r) => setTimeout(r, 300));
 await p.mouse.click(497, 735);

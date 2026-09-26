@@ -67,7 +67,26 @@ final class ControlChannel {
     static func noteLoadFailure(_ msg: String) {
         outstanding = msg
         try? msg.write(toFile: errPath, atomically: true, encoding: .utf8)
+        settleLoad("error")
     }
+
+    // ── `waitload`: the verdict, the moment there is one ─────────────────────
+    // A rig used to learn that a load had finished by sleeping and then asking
+    // what was on screen — seconds per program, and an error page left up the
+    // whole time. The host knows the moment either way: a load becomes
+    // `loading` on its attempt, `ok` on its first commit, `error` when it fails
+    // (and the error page's own commit does not undo that).
+    private(set) static var loadState = "loading"   // nothing has loaded yet
+    private static var loadWaiters: [() -> Void] = []
+    /// The program committed its first frame since its load began.
+    static func noteCommitted() { if loadState == "loading" { settleLoad("ok") } }
+    private static func settleLoad(_ s: String) {
+        loadState = s
+        let w = loadWaiters
+        loadWaiters = []
+        for f in w { f() }
+    }
+    fileprivate static var loadVerdict: String { loadState == "error" ? "error: " + (outstanding ?? "") : loadState }
     /// The failure standing over this host right now, or nil. Held in memory as
     /// well as on disk so the refusal below costs nothing per command.
     private(set) static var outstanding: String?
@@ -78,6 +97,7 @@ final class ControlChannel {
     static func clearLoadFailure() {
         outstanding = nil
         try? FileManager.default.removeItem(atPath: errPath)
+        loadState = "loading"
     }
 
     /// Verbs that still answer while a load is outstanding: the ones ABOUT the
@@ -86,7 +106,7 @@ final class ControlChannel {
     /// unrecoverable through the channel that reports it.
     private static let whileFailed: Set<String> = [
         "ping", "lasterror", "windows", "newwindow", "closewindow", "activate",
-        "menukey", "jit", "compilecache", "occlusion", "eval", "platform",
+        "menukey", "jit", "compilecache", "occlusion", "eval", "platform", "waitload",
     ]
 
     func start() {
@@ -139,7 +159,7 @@ final class ControlChannel {
         // beats trapping on an implicit unwrap inside a test run. The few verbs
         // that are ABOUT windows rather than about a program still work.
         let windowless = ["ping", "windows", "newwindow", "closewindow", "menukey", "activate", "jit",
-                          "compilecache", "occlusion"]
+                          "compilecache", "occlusion", "waitload"]
         guard target() != nil || windowless.contains(verb) else { return "no window" }
         // A LOAD FAILED AND NOTHING HAS LOADED SINCE. Every verb below this line
         // answers ABOUT A PROGRAM, and the program on screen is the error page —
@@ -156,6 +176,24 @@ final class ControlChannel {
         switch verb {
         case "ping":
             return "ok"
+        case "waitload":
+            // `waitload [seconds]` — answers when the current load has an
+            // outcome: `ok` (it committed a frame), `error: <message>`, or
+            // `timeout` (default 20s). At once when there already is one.
+            if Self.loadState != "loading" { return Self.loadVerdict }
+            let limit = a.count > 1 ? (Double(a[1]) ?? 20) : 20
+            var answered = false
+            Self.loadWaiters.append { [weak self] in
+                guard !answered else { return }
+                answered = true
+                self?.reply([Self.loadVerdict])
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + limit) { [weak self] in
+                guard !answered else { return }
+                answered = true
+                self?.reply(["timeout"])
+            }
+            return nil
         case "jit":
             // Is JavaScriptCore compiling? The measured answer, so a test can
             // assert it — the entitlement went missing for weeks precisely
@@ -340,6 +378,9 @@ final class ControlChannel {
             // was spawned from a terminal rather than through LaunchServices.
             NSApp.activate(ignoringOtherApps: true)
             NSRunningApplication.current.activate(options: [.activateAllWindows])
+            // An automated window opens at the back (ProgramWindow.present); a
+            // rig asking for the foreground means this window.
+            (NSApp.delegate as? AppDelegate)?.front?.window.makeKeyAndOrderFront(nil)
             let deadline = Date().addingTimeInterval(2.0)
             while NSApp.keyWindow == nil && Date() < deadline {
                 RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))

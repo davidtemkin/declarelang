@@ -30,7 +30,7 @@
 
 **The question.** How does a stateful control expose its value to the app — and who owns writes?
 
-**What the tree does today.** `TextInput [ value <-> zip ]` (attribute two-way, weather); `TextInput [ text <-> :title ]` (datapath two-way, calendar); the uncontrolled seed via `initial = { src }` — "follows the source until you type, then holds the edit" (site CodeField); the ruled editor-session model for text (the dataset owns the committed value; the editor owns draft/valid/dirty/commit). The known trap is logged as language-learnings **D3**: controlled/uncontrolled field semantics.
+**What the tree does today.** `TextInput [ value <-> zip ]` (attribute two-way, weather); `TextInput [ text <-> :title ]` (datapath two-way, calendar); the uncontrolled seed via `initial = { src }` — "follows the source until you type, then holds the edit" (site CodeField); the ruled editor-session model for text (the dataset owns the committed value; the editor owns draft/valid/dirty/commit). The known trap is logged as `evals/findings/language-learnings.md` **D3**: controlled/uncontrolled field semantics.
 
 **Proposal.**
 
@@ -42,7 +42,7 @@
    - **(c) Data-owned state.** The value lives in data: two-way `<->` through an editor (`text <-> :title`). The arrow is REQUIRED here and only here — `=` cannot write a record; the data write path (mutation API, boundary validation, editor draft/commit) is what `<->` carries. Requires the data chapter; only apps with data get here.
 4. **`<->` is NOT extended to attribute targets — RULED OUT for Tier 1 (2026-07-13).** What the extension would have bought (atomic wiring, one definition for standalone+bound, D3-trap-unrepresentable) is convenience, not power; `=` already is the attribute write path; the corpus pattern (b) is proven; and the standing no-magic value (predictability over ergonomic sugar) applies. Logged as a *possible future* with an explicit re-open condition: if evals show models habitually half-wiring form (b) despite brief + diagnostic, that E-series evidence reopens this — the sugar gets added on receipts or not at all.
 5. **Documentation ordering is part of the contract:** each component's docs show forms (a) and (b) only; `:path` bindings appear exclusively in the data chapter. The eval **form** task binds App attributes — no dataset — so it measures forms, not the data system.
-6. **The half-wired and fighting forms want diagnostics, not docs.** Statically detectable: a value slot constrained at the use site while the class writes it internally (the write-fights-constraint case — whose underlying semantics is open decision **D2** in language-learnings.md and needs that ruling), and a supplied-`onInput`-without-down-binding (or vice versa where detectable). Each error names the two-line fix.
+6. **The half-wired and fighting forms want diagnostics, not docs.** Statically detectable: a value slot constrained at the use site while the class writes it internally (the write-fights-constraint case — whose underlying semantics is open decision **D2** in `evals/findings/language-learnings.md` and needs that ruling), and a supplied-`onInput`-without-down-binding (or vice versa where detectable). Each error names the two-line fix.
 
 **Concerns to rule on (the honest edges).**
 

@@ -48,9 +48,10 @@ export declare class DomSurface implements Surface {
     imgEl: Bitmap | null;
     drawEl: HTMLCanvasElement | null;
     drawing: DisplayList | null;
-    private stretch;
-    private alignX;
-    private alignY;
+    /** package-private: a mask stencil reads these too (dom-effects imagePaintRect) */
+    stretch: Stretch;
+    alignX: string;
+    alignY: string;
     setImageAlign(ax: string, ay: string): void;
     /** The box's retained paint state — cornerRadius/stroke/shadow that decorate()
      *  brushes onto the div as CSS. `fillV` keeps the raw Fill for the gradient
@@ -357,7 +358,14 @@ export declare class DomSurface implements Surface {
      *  itself once typing starts. */
     setSelection(start: number, end: number): void;
     activateEditable(active: boolean): void;
+    /** The text as written, and whether this run is capitalized by us (below). */
+    private rawText;
+    private capitalized;
     setText(text: string): void;
+    /** A CLAMPED run's rule (`maxLines`): the run is cut by the shared rule and
+     *  keeps its whole text in the page — text-clamp.ts, a module of its own. */
+    private clampRule;
+    private renderClamped;
     setTextStyle(st: TextStyle): void;
     /** The text run element, created on first use. A positioned <span> — not a
      *  bare text node — so it paints in element order with the other content

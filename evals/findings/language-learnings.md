@@ -144,7 +144,7 @@ defaulted to its *content* (like any view) rather than its *host*. Fixed: App
 retargets auto-extent to its host. **Learning:** the root is special (it fills its
 host); its sensible default differs from a child's. **Renamed 2026-07-10:** the
 host extent is `hostWidth`/`hostHeight` (was `stageWidth`/`stageHeight`) — read-only
-intrinsics that width/height default to; "stage" is retired ([sizing.md](sizing.md)).
+intrinsics that width/height default to; "stage" is retired ([sizing.md](../../docs/system-design/sizing.md)).
 
 ### 7. `hostWidth`/`hostHeight` are the WINDOW, not the containing element
 They read `window.innerWidth/innerHeight` at top level. Coincides with the

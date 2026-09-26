@@ -1,0 +1,100 @@
+/*
+# Transforms
+
+Scale — uniform and per axis — rotation, skew, the pivot they turn about, their
+combinations, and 3D, each on a box, on text and on an image. A faint outline
+marks the untransformed box.
+*/
+
+script {
+    const XF_BASE = { scale: 1, sx: 1, sy: 1, rot: 0, kx: 0, ky: 0, px: 0.5, py: 0.5, content: "box" }
+    function xfScale(): Record<string, unknown>[] {
+        return over(XF_BASE, cross({ s: ["0.5", "0.8", "1.25", "x 1.5", "y 0.6", "x 0.6 y 1.3"], content: ["box", "text", "image"] }, (r) => "scale " + r.s + " · " + r.content)
+            .map((r) => ({ ...r, scale: r.s.startsWith("x") || r.s.startsWith("y") ? 1 : Number(r.s),
+                sx: r.s === "x 1.5" ? 1.5 : r.s === "x 0.6 y 1.3" ? 0.6 : 1, sy: r.s === "y 0.6" ? 0.6 : r.s === "x 0.6 y 1.3" ? 1.3 : 1 })))
+    }
+    function xfRotate(): Record<string, unknown>[] {
+        return over(XF_BASE, cross({ rot: [15, 45, 90, 180, -30], content: ["box", "text", "image"] }, (r) => "rotate " + r.rot + " · " + r.content))
+    }
+    function xfSkew(): Record<string, unknown>[] {
+        return over(XF_BASE, cross({ k: ["x 15", "x -25", "y 15", "x 15 y 10"], content: ["box", "text", "image"] }, (r) => "skew " + r.k + " · " + r.content)
+            .map((r) => ({ ...r, kx: r.k === "x 15" || r.k === "x 15 y 10" ? 15 : r.k === "x -25" ? -25 : 0, ky: r.k === "y 15" ? 15 : r.k === "x 15 y 10" ? 10 : 0 })))
+    }
+    function xfPivot(): Record<string, unknown>[] {
+        return over({ ...XF_BASE, rot: 30 }, cross({ p: ["top left", "top right", "bottom right", "centre", "left middle"], content: ["box", "text"] },
+            (r) => "rotate 30 about " + r.p + " · " + r.content)
+            .map((r) => ({ ...r, px: r.p.includes("left") ? 0 : r.p.includes("right") ? 1 : 0.5, py: r.p.includes("top") ? 0 : r.p.includes("bottom") ? 1 : 0.5 })))
+    }
+    function xfCombined(): Record<string, unknown>[] {
+        return over(XF_BASE, [
+            { scale: 0.8, rot: 20, name: "scale 0.8 · rotate 20" }, { rot: 20, kx: 15, name: "rotate 20 · skew 15" },
+            { sx: 1.4, rot: 30, name: "scale x 1.4 · rotate 30" }, { scale: 1.2, kx: -15, name: "scale 1.2 · skew -15" },
+            { sx: 0.7, sy: 1.2, rot: -20, kx: 10, name: "all four" }, { scale: 0.8, rot: 45, px: 0, py: 0, name: "scale · rotate · top-left pivot" },
+            { scale: 0.8, rot: 20, content: "text", name: "scale · rotate · text" }, { rot: 20, kx: 15, content: "image", name: "rotate · skew · image" },
+        ])
+    }
+    function xf3d(): Record<string, unknown>[] {
+        return cross({ axis: ["rotateY 40", "rotateY -40", "rotateX 40", "rotateX -40", "both 30", "translateZ 40"], content: ["box", "image"] },
+            (r) => r.axis + " · " + r.content)
+    }
+    }
+
+
+class XFSubject extends View [ width = 100, height = 64,
+    content: string = "box",
+    box: View [ width = 100, height = 64, cornerRadius = 8, visible = { classroot.content == "box" },
+        fill = gradient(90, #2E6FE0, #E4572E), stroke = stroke(2, #111111) ],
+    word: Text [ y = 14, width = 100, textAlign = center, fontSize = 28, fontWeight = bold, wrap = false,
+        visible = { classroot.content == "text" }, textColor = 0x1B2733, text = "Tilt" ],
+    pic: Image [ width = 100, height = 64, stretches = contain, source = "assets/badge.png", visible = { classroot.content == "image" } ]
+    ]
+
+
+class XFSwatch extends Swatch [ name = :name,
+    ghost: View [ x = 56, y = 28, width = 100, height = 64, stroke = stroke(1, #2E6FE044) ],
+    s: XFSubject [ x = 56, y = 28, content = { :content },
+        scale = { :scale }, scaleX = { :sx }, scaleY = { :sy }, rotation = { :rot }, skewX = { :kx }, skewY = { :ky },
+        pivotX = { :px * 100 }, pivotY = { :py * 64 } ]
+    ]
+
+
+class XF3DSwatch extends Swatch [ name = :name,
+    stage: View [ x = 56, y = 28, width = 100, height = 64, perspective = 400,
+        s: XFSubject [ content = { :content }, pivotX = 50, pivotY = 32,
+            rotateY = { :axis == "rotateY 40" ? 40 : :axis == "rotateY -40" ? -40 : :axis == "both 30" ? 30 : 0 },
+            rotateX = { :axis == "rotateX 40" ? 40 : :axis == "rotateX -40" ? -40 : :axis == "both 30" ? 30 : 0 },
+            translateZ = { :axis == "translateZ 40" ? 40 : 0 } ]
+        ]
+    ]
+
+
+class TransformsSection extends Section [ title = "Transforms",
+    caption = "Scale, uniform and per axis; rotation; skew on either axis; the pivot a turn is about; the four combined; and 3D — each on a box, on text and on an image. The faint outline is the untransformed box.",
+    tabs = { [ ({ id: "scale", label: "Scale" }), ({ id: "rotate", label: "Rotate" }), ({ id: "skew", label: "Skew" }),
+               ({ id: "pivot", label: "Pivot" }), ({ id: "combined", label: "Combined" }), ({ id: "3d", label: "3D" }) ] },
+    sub = "scale",
+    SubHead [ visible = { app.matrix }, text = "Scale" ],
+    Grid [ visible = { classroot.showing("scale") }, datapath = { app.book.value },
+        XFSwatch [ datapath = :xfScale[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Rotate" ],
+    Grid [ visible = { classroot.showing("rotate") }, datapath = { app.book.value },
+        XFSwatch [ datapath = :xfRotate[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Skew" ],
+    Grid [ visible = { classroot.showing("skew") }, datapath = { app.book.value },
+        XFSwatch [ datapath = :xfSkew[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Pivot" ],
+    Grid [ visible = { classroot.showing("pivot") }, datapath = { app.book.value },
+        XFSwatch [ datapath = :xfPivot[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Combined" ],
+    Grid [ visible = { classroot.showing("combined") }, datapath = { app.book.value },
+        XFSwatch [ datapath = :xfCombined[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "3D" ],
+    Grid [ visible = { classroot.showing("3d") }, datapath = { app.book.value },
+        XF3DSwatch [ datapath = :xf3d[] ]
+        ]
+    ]

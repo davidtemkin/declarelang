@@ -18,9 +18,10 @@ import { hostWindow } from "./win.mjs";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import puppeteer from "puppeteer-core";
+import { ORIGIN } from "./app.mjs";
 
 const URL_ARG = process.argv.find((a) => a.startsWith("http")) ??
-  "http://127.0.0.1:8260/apps/desktop/desktop.declare";
+  `${ORIGIN}/apps/desktop/desktop.declare`;
 const OUT = (() => {
   const i = process.argv.indexOf("--out");
   return i > 0 ? process.argv[i + 1] : "/tmp/fidelity";

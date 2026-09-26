@@ -157,22 +157,69 @@ enum TextEngine {
         // the list, as CSS says.
         if let concrete = generics[lower] { name = concrete }
         if let named = NSFont(name: name, size: f.size) {
-            // Apply the requested weight via the font manager where possible.
-            let fm = NSFontManager.shared
-            // AppKit's 0–15 weight scale is not linear in CSS weight: 5 is
-            // regular, 6 medium, 8 demibold, 9 bold, 10 heavy. Scaling 700 by
-            // 15/1000 asks for 10 and gets a family's Heavy where the browser
-            // shows its Bold (and 400 got Medium).
-            let appKitWeight = [100: 2, 200: 3, 300: 4, 400: 5, 500: 6, 600: 8, 700: 9, 800: 10, 900: 11]
-            let w = appKitWeight[max(100, min(900, (f.weight + 50) / 100 * 100))] ?? 5
-            if let converted = fm.font(withFamily: named.familyName ?? name,
-                                       traits: f.italic ? .italicFontMask : [],
-                                       weight: w, size: f.size) {
-                return converted
+            if let face = cssFace(family: named.familyName ?? name, weight: f.weight, italic: f.italic, size: f.size) {
+                return styled(face, f)
             }
             return styled(named, f)
         }
         return nil
+    }
+
+    /// A family's members as CSS sees them: the faces of the family's own width
+    /// — the one nearest normal, so Helvetica Neue's condensed faces (a
+    /// different `font-stretch`) are left out while a family that is ALL
+    /// condensed (Avenir Next Condensed) keeps every face — each with its CSS
+    /// weight read from the face's own weight trait, and its slant.
+    private static var familyFaces: [String: [(name: String, weight: Int, italic: Bool)]] = [:]
+    private static func faces(of family: String) -> [(name: String, weight: Int, italic: Bool)] {
+        cacheLock.lock()
+        if let hit = familyFaces[family] { cacheLock.unlock(); return hit }
+        cacheLock.unlock()
+        var members: [(name: String, font: NSFont, traits: [NSFontDescriptor.TraitKey: Any])] = []
+        for m in NSFontManager.shared.availableMembers(ofFontFamily: family) ?? [] {
+            guard let ps = m.first as? String, let font = NSFont(name: ps, size: 12) else { continue }
+            members.append((ps, font, font.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any] ?? [:]))
+        }
+        func width(_ t: [NSFontDescriptor.TraitKey: Any]) -> Double { (t[.width] as? NSNumber)?.doubleValue ?? 0 }
+        let own = members.map { width($0.traits) }.min(by: { abs($0) < abs($1) }) ?? 0
+        var out: [(name: String, weight: Int, italic: Bool)] = []
+        for (ps, font, traits) in members {
+            if abs(width(traits) - own) > 0.05 { continue }
+            let w = (traits[.weight] as? NSNumber)?.doubleValue ?? 0
+            // NSFont.Weight's steps (ultraLight −0.8 … black 0.62) → CSS 100…900
+            let steps: [(Double, Int)] = [(-0.8, 100), (-0.6, 200), (-0.4, 300), (0, 400), (0.23, 500), (0.3, 600), (0.4, 700), (0.56, 800), (0.62, 900)]
+            let css = steps.min(by: { abs($0.0 - w) < abs($1.0 - w) })?.1 ?? 400
+            out.append((ps, css, font.fontDescriptor.symbolicTraits.contains(.italic)))
+        }
+        cacheLock.lock(); familyFaces[family] = out; cacheLock.unlock()
+        return out
+    }
+
+    /// The face CSS font matching picks: the slant asked for if the family has
+    /// it; then the exact weight, else — asking for 400 or 500 — the other of
+    /// the two, then lighter, then heavier; asking lighter than 400, lighter
+    /// first; heavier than 500, heavier first. AppKit's own 0–15 weight scale
+    /// is per family (Helvetica Neue's Light is 3 and its 4 is Light
+    /// CONDENSED), so asking it by number picked a narrower face than the web.
+    private static func cssFace(family: String, weight: Int, italic: Bool, size: CGFloat) -> NSFont? {
+        let all = faces(of: family)
+        guard !all.isEmpty else { return nil }
+        let slanted = all.filter { $0.italic == italic }
+        let pool = slanted.isEmpty ? all : slanted
+        let want = max(1, min(1000, weight))
+        func rank(_ w: Int) -> (Int, Int) {
+            if w == want { return (0, 0) }
+            if want >= 400 && want <= 500 {
+                if want == 400 && w == 500 { return (1, 0) }
+                if want == 500 && w == 400 { return (1, 0) }
+                if w < want { return (2, want - w) }
+                return (3, w - want)
+            }
+            if want < 400 { return w < want ? (1, want - w) : (2, w - want) }
+            return w > want ? (1, w - want) : (2, want - w)
+        }
+        guard let best = pool.min(by: { rank($0.weight) < rank($1.weight) }) else { return nil }
+        return NSFont(name: best.name, size: size)
     }
 
     /// `base` with OpenType feature tags switched on, through Core Text's
@@ -208,10 +255,30 @@ enum TextEngine {
         return styled(NSFont.systemFont(ofSize: f.size, weight: weight), f)
     }
 
+    /// Italic ADDED to the face's traits, never in place of them: replacing
+    /// them with `.italic` alone dropped a bold system face to regular. And
+    /// where the family has no italic at all, the browser slants the upright
+    /// (Skia's quarter skew); so does this.
     private static func styled(_ base: NSFont, _ f: Font) -> NSFont {
         guard f.italic else { return base }
-        let d = base.fontDescriptor.withSymbolicTraits(.italic)
-        return NSFont(descriptor: d, size: f.size) ?? base
+        if base.fontDescriptor.symbolicTraits.contains(.italic) { return base }
+        let traits = base.fontDescriptor.symbolicTraits.union(.italic)
+        let weight = (base.fontDescriptor.object(forKey: .traits) as? [NSFontDescriptor.TraitKey: Any])?[.weight]
+        var t: [NSFontDescriptor.TraitKey: Any] = [.symbolic: traits.rawValue]
+        if let weight { t[.weight] = weight }
+        if let italic = NSFont(descriptor: base.fontDescriptor.addingAttributes([.traits: t]), size: f.size),
+           italic.fontDescriptor.symbolicTraits.contains(.italic) {
+            return italic
+        }
+        return oblique(base)
+    }
+
+    /// The upright, slanted — what a browser draws for italic when the family
+    /// has no italic face (Skia: a skew of one quarter).
+    static func oblique(_ base: NSFont) -> NSFont {
+        let m = AffineTransform(m11: 1, m12: 0, m21: 0.25, m22: 1, tX: 0, tY: 0)
+        let d = base.fontDescriptor.addingAttributes([.matrix: m])
+        return NSFont(descriptor: d, size: base.pointSize) ?? base
     }
 
     private static func nsWeight(_ w: Int) -> NSFont.Weight {
@@ -268,7 +335,8 @@ enum TextEngine {
         if !text.isEmpty {
             var attrs: [NSAttributedString.Key: Any] = [.font: f]
             if letterSpacing != 0 { attrs[.kern] = letterSpacing }
-            let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
+            let run = parse(font).smallCaps ? smallCapsText(text, attrs: attrs) : NSAttributedString(string: text, attributes: attrs)
+            let line = CTLineCreateWithAttributedString(run)
             var asc: CGFloat = 0, desc: CGFloat = 0, lead: CGFloat = 0
             width = CTLineGetTypographicBounds(line, &asc, &desc, &lead)
             // The canvas contract's `actualBoundingBox*` is the INK box — how far
@@ -305,9 +373,14 @@ enum TextEngine {
 
     /// An attributed string for a run, matching what the measurer promised.
     static func attributed(_ text: String, style: TextStyleSpec) -> NSAttributedString {
-        let f = nsFont(parse(style.fontCSS))
+        let parsed = parse(style.fontCSS)
+        let f = nsFont(parsed)
         var attrs: [NSAttributedString.Key: Any] = [.font: f]
         attrs[.foregroundColor] = style.color ?? NSColor.labelColor
+        if syntheticBold(parsed), style.outline == nil {
+            attrs[.strokeWidth] = fakeBoldStroke(size: parsed.size)
+            attrs[.strokeColor] = style.color ?? NSColor.labelColor
+        }
         if style.letterSpacing != 0 { attrs[.kern] = style.letterSpacing }
         let p = NSMutableParagraphStyle()
         p.alignment = style.align
@@ -328,15 +401,18 @@ enum TextEngine {
         if style.underline { attrs[.underlineStyle] = NSUnderlineStyle.single.rawValue }
         if style.strike { attrs[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
         if let o = style.outline, o.0 > 0 {
-            // AppKit's NEGATIVE strokeWidth fills AND strokes, the stroke CENTERED
-            // on the glyph path (its whole width shows). CSS `-webkit-text-stroke`
-            // with `paint-order: stroke` shows only the OUTER half (the fill covers
-            // the inner), so halve the width to match the DOM's visible red. Width
-            // is a percent of point size, negated to keep the fill.
-            attrs[.strokeWidth] = -(o.0 / 2 / f.pointSize * 100)
-            attrs[.strokeColor] = o.1
+            // CSS `-webkit-text-stroke` with `paint-order: stroke`: the stroke,
+            // CENTERED on the glyph path at its full width, painted UNDER the
+            // fill — so its outer half shows. A fill-and-stroke run paints the
+            // stroke OVER the fill instead (halving it made a thinner ring eating
+            // into the glyph), so the outline rides as a mark TextLayer draws
+            // first, stroke only, before the run's fill.
+            attrs[TextEngine.outlineKey] = [NSNumber(value: o.0), o.1]
         }
-        if style.smallCaps { attrs[.font] = smallCaps(f) }
+        if style.smallCaps {
+            attrs[.font] = smallCaps(f)
+            return smallCapsText(transform(text, style.transform), attrs: attrs)
+        }
         return NSAttributedString(string: transform(text, style.transform), attributes: attrs)
     }
 
@@ -360,13 +436,87 @@ enum TextEngine {
 
     /// The small-caps OpenType feature on a font — synthesized caps, matching
     /// the web backends' `font-variant: small-caps` / canvas `small-caps` font.
+    /// Small capitals as the face's own `smcp` feature, switched on by a Core
+    /// Text COPY of the font: re-resolving a system face through a descriptor
+    /// with the feature added lost it for the weighted system faces (a bold
+    /// small-caps run came out in ordinary lowercase).
     static func smallCaps(_ f: NSFont) -> NSFont {
-        let settings: [[NSFontDescriptor.FeatureKey: Int]] = [[
-            .typeIdentifier: kLowerCaseType,
-            .selectorIdentifier: kLowerCaseSmallCapsSelector,
-        ]]
-        let d = f.fontDescriptor.addingAttributes([.featureSettings: settings])
-        return NSFont(descriptor: d, size: f.pointSize) ?? f
+        let settings: [[String: Any]] = [[kCTFontOpenTypeFeatureTag as String: "smcp", kCTFontOpenTypeFeatureValue as String: 1]]
+        let d = CTFontDescriptorCreateWithAttributes([kCTFontFeatureSettingsAttribute as String: settings] as CFDictionary)
+        return CTFontCreateCopyWithAttributes(f as CTFont, f.pointSize, nil, d) as NSFont
+    }
+
+    /// A Text's outline — [width, colour] — drawn by TextLayer under the fill.
+    static let outlineKey = NSAttributedString.Key("declareOutline")
+
+    /// Does this face carry real small capitals? Measured once per face: the
+    /// lowercase alphabet with `smcp` against without — a face without the
+    /// feature shapes the two alike.
+    private static var smcpByFace: [String: Bool] = [:]
+    static func hasSmallCaps(_ f: NSFont) -> Bool {
+        cacheLock.lock()
+        if let hit = smcpByFace[f.fontName] { cacheLock.unlock(); return hit }
+        cacheLock.unlock()
+        // the face WITHOUT any feature settings — a system face cannot be
+        // re-made by name, so strip the attribute from its own descriptor
+        var fa = f.fontDescriptor.fontAttributes
+        fa.removeValue(forKey: .featureSettings)
+        fa[.size] = 20
+        let plain = NSFont(descriptor: NSFontDescriptor(fontAttributes: fa), size: 20) ?? f
+        let abc = "abcdefghijklmnopqrstuvwxyz"
+        func w(_ font: NSFont) -> Double {
+            CTLineGetTypographicBounds(CTLineCreateWithAttributedString(NSAttributedString(string: abc, attributes: [.font: font])), nil, nil, nil)
+        }
+        let has = abs(w(plain) - w(smallCaps(plain))) > 0.01
+        cacheLock.lock(); smcpByFace[f.fontName] = has; cacheLock.unlock()
+        return has
+    }
+
+    /// Text in small capitals, as the browser sets it: the face's own `smcp`
+    /// where it has one (the font in `attrs` is already that face), else
+    /// SYNTHESIZED — each lowercase letter drawn as its capital at 0.7 of the
+    /// size, Blink's figure (Helvetica, which `sans-serif` resolves to, has no
+    /// small capitals; the Mac drew plain lowercase and the web capitals).
+    static func smallCapsText(_ text: String, attrs: [NSAttributedString.Key: Any]) -> NSAttributedString {
+        guard let f = attrs[.font] as? NSFont, !hasSmallCaps(f) else { return NSAttributedString(string: text, attributes: attrs) }
+        let base = NSFont(descriptor: f.fontDescriptor, size: f.pointSize) ?? f
+        let small = NSFont(descriptor: f.fontDescriptor, size: f.pointSize * 0.7) ?? f
+        let out = NSMutableAttributedString()
+        var bigAttrs = attrs; bigAttrs[.font] = base
+        var smallAttrs = attrs; smallAttrs[.font] = small
+        for ch in text {
+            let s = String(ch)
+            if s != s.uppercased() && s == s.lowercased() {
+                out.append(NSAttributedString(string: s.uppercased(), attributes: smallAttrs))
+            } else {
+                out.append(NSAttributedString(string: s, attributes: bigAttrs))
+            }
+        }
+        return out
+    }
+
+    /// Does the browser embolden this style synthetically? A declared family
+    /// whose nearest face is lighter than 600, asked for 600 or more — the
+    /// Blink rule. The face itself cannot say so (it is the lighter face), so
+    /// the drawing side asks and strokes the glyphs (`fakeBoldStroke`).
+    static func syntheticBold(_ f: Font) -> Bool {
+        guard f.weight >= 600 else { return false }
+        for raw in f.family.split(separator: ",") {
+            let name = raw.trimmingCharacters(in: .whitespaces).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            if let heaviest = FontRegistry.heaviestNear(family: name, weight: f.weight, italic: f.italic) { return heaviest < 600 }
+            if name.lowercased() == "system-ui" || name.lowercased() == "-apple-system" || name.lowercased() == "blinkmacsystemfont" { return false }
+            if NSFont(name: generics[name.lowercased()] ?? name, size: 12) != nil { return false }
+        }
+        return false
+    }
+
+    /// The emboldening, as a Core Text stroke: fill and stroke at a width that
+    /// is a share of the size, as Skia's fake bold outsets by 1/24 of the size
+    /// at 9px down to 1/32 at 36px. Negative: fill AND stroke.
+    static func fakeBoldStroke(size: Double) -> Double {
+        let t = max(0, min(1, (size - 9) / 27))
+        let outset = size * (1.0 / 24 + (1.0 / 32 - 1.0 / 24) * t)
+        return -(outset / size) * 100
     }
 
     /// Decode a Declare Color NUMBER → NSColor. Opaque colors are plain 0xRRGGBB;

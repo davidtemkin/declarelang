@@ -1,8 +1,9 @@
 // Fit the Gaussian sigma the two renderers actually produce for blur(20px).
 import { execFileSync } from "node:child_process";
 import puppeteer from "puppeteer-core";
+import { ORIGIN } from "./app.mjs";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const URLBASE = "http://127.0.0.1:8260/test/probe/blur2.declare";
+const URLBASE = `${ORIGIN}/test/probe/blur2.declare`;
 
 async function webProfile(render) {
   const b = await puppeteer.launch({ executablePath: CHROME, headless: true,

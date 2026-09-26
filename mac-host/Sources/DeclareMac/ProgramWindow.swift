@@ -156,7 +156,12 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         guard !presented else { return }
         presented = true
         bridge.mark("WINDOW ON SCREEN")
-        window.makeKeyAndOrderFront(nil)
+        // A RIG'S WINDOW OPENS AT THE BACK. Automation never takes the focus,
+        // but a window ordered front still lands over whatever the person at the
+        // machine is doing, run after run. A test that reads the model needs no
+        // visible window, and one that shoots it captures by window id, which a
+        // covered window answers. A rig that wants the foreground asks (`activate`).
+        if Launch.isAutomated { window.orderBack(nil) } else { window.makeKeyAndOrderFront(nil) }
         publishGeometry()
     }
 

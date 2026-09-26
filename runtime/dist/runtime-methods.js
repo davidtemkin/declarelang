@@ -38,7 +38,7 @@ export const RUNTIME_METHODS = {
     DOMIsland: ["exposed", "post", "receiveMessage", "providedValue", "foreignHandle"], // `flush` is View's, overridden here
     Editor: ["commit", "revert"],
     TextInput: ["draftSlot", "editStyle", "syncEditable", "onNativeInput", "select", "applySelection"],
-    RichText: ["policy", "stylesOf", "isDark", "dispatchLink", "relayout", "claimBaseline", "rebuild"],
+    RichText: ["policy", "stylesOf", "isDark", "dispatchLink", "relayout", "ownWidth", "fitNatural", "claimBaseline", "rebuild"],
     Markdown: ["sourceKey", "parseSource"],
     HTMLText: ["sourceKey", "parseSource"],
     Layout: ["attachTo", "rearm", "laid", "place", "contentExtent", "reportConflict", "reportDiscarded", "firstReport", "refuseBaseline", "viewExtent", "refuseStackBaseline", "claim", "unclaim", "label", "install"],

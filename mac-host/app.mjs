@@ -29,6 +29,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
  *  machine builds, installs and drives its own app without touching the
  *  first. The control pipe follows the same knob (`DECLARE_CTL_PIPE`). */
 export const APP_NAME = process.env.DECLARE_MAC_APP ?? "Declare Mac";
+/** Where the rigs load programs from: main's dev server — what is tested and
+ *  gated is the tree it serves (`node tools/reload-dev.mjs`). Override with
+ *  DECLARE_ORIGIN, as the conformance and crossrender rigs do. */
+export const ORIGIN = process.env.DECLARE_ORIGIN ?? `http://127.0.0.1:${process.env.PORT ?? "8200"}`;
 export const CTL_IN = process.env.DECLARE_CTL_PIPE ?? "/tmp/declare-ctl.in";
 export const CTL_OUT = CTL_IN.replace(/\.in$/, "") + ".out";
 

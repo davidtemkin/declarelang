@@ -47,7 +47,7 @@ editorial/IA pass builds *on* them.
 
 The guide's ordering and its "don't do this" moments should be *evidence-driven*, not guessed:
 
-- **`docs/system-design/language-learnings.md`** — the friction log **and the eval E-series** (E-1 CSS
+- **`evals/findings/language-learnings.md`** — the friction log **and the eval E-series** (E-1 CSS
   border ghost → the brief never showed `stroke()`; E-2 well-diagnosed seam/scope errors;
   E-3 responsive-layout-wants-to-constrain-`axis`). This is real evidence of what trips
   people, so the guide can *preempt* it — and it tells you exactly what **not** to front-load

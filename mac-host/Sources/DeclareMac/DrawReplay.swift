@@ -41,6 +41,10 @@ enum DrawReplay {
         /// composite op when the (filtered) drawing reaches the canvas, so a
         /// side layer has to carry it to the composite.
         var blend: CGBlendMode = .normal
+        /// `imageSmoothingEnabled` / `imageSmoothingQuality`, as CG's
+        /// interpolation: off is nearest-neighbour, canvas's default is low
+        var smoothing: CGInterpolationQuality = .low
+        var smoothingQuality: CGInterpolationQuality = .low
     }
 
 
@@ -128,6 +132,14 @@ enum DrawReplay {
         // A filter (blur) applies to everything drawn under it — replay into a
         // side layer and composite it back through CoreImage.
         var filterLayers: [(CGContext, State)] = []
+        // Each context's ORIGIN transform — the drawing's placement (offset ×
+        // density, the flip). A recording's setTransform / resetTransform are
+        // relative to it, as they are on the canvas a drawing has on the web,
+        // and a filtered result lands at it.
+        var origins: [ObjectIdentifier: CGAffineTransform] = [ObjectIdentifier(cg): cg.ctm]
+        func origin(_ c: CGContext) -> CGAffineTransform { origins[ObjectIdentifier(c)] ?? c.ctm }
+        func contexts() -> [CGContext] { [cg] + filterLayers.map { $0.0 } }
+        func setCTM(_ c: CGContext, _ m: CGAffineTransform) { c.concatenate(c.ctm.inverted()); c.concatenate(m) }
 
         /// A side context congruent with the main raster: same pixel size, same
         /// user-space mapping, so compositing is a straight image draw.
@@ -141,6 +153,7 @@ enum DrawReplay {
             c2.translateBy(x: 0, y: geom.h)
             c2.scaleBy(x: 1, y: -1)
             c2.translateBy(x: -geom.x, y: -geom.y)
+            origins[ObjectIdentifier(c2)] = c2.ctm
             return c2
         }
 
@@ -148,45 +161,27 @@ enum DrawReplay {
         /// rect, flipped locally because CG draws images bottom-up.
         func composite(_ layer: CGContext, blur: String, blend2: CGBlendMode = .normal) {
             guard let img = layer.makeImage() else { return }
-            var out: CGImage? = img
-            if let r = blurRadius(blur), r > 0 {
-                let ci = CIImage(cgImage: img, options: [.colorSpace: NSNull()])
-                if let f = CIFilter(name: "CIGaussianBlur") {
-                    // NOT clampedToExtent. Canvas `filter: blur()` follows the
-                    // SVG filter model, where everything outside the source is
-                    // transparent black — so a blurred full-bleed drawing fades
-                    // at its own edges. Clamping instead extends the edge pixels
-                    // outward, which left the wallpaper visibly brighter in a
-                    // band around the whole screen (~26/255 at the very edge,
-                    // decaying inward over roughly the blur radius).
-                    f.setValue(ci, forKey: kCIInputImageKey)
-                    // CIGaussianBlur's inputRadius IS the standard deviation, and so
-                    // is CSS `blur(<length>)` — so the radius carries across
-                    // UNSCALED. It was being multiplied by the backing scale here,
-                    // which the comment above it already said not to do: the layer
-                    // is congruent with the raster (device resolution) and is drawn
-                    // back 1:1, so a radius in layer pixels IS a radius in device
-                    // pixels. Measured on test/probe/drawops.declare, blur(9px):
-                    // Chrome sigma 10.1, this at `r * geom.scale` sigma 19.4.
-                    //
-                    // ⚠ Canvas filter lengths are DEVICE space and ignore the CTM —
-                    // blur(10px) ramps over the same 32 device px at scale 1, 2 and
-                    // 4, and blur.declare reads the same sigma at dpr 1 and dpr 2.
-                    // So there is no view scale to fold in here, ever.
-                    f.setValue(r, forKey: kCIInputRadiusKey)
-                    if let result = f.outputImage?.cropped(to: ci.extent) {
-                        out = ciContext.createCGImage(result, from: ci.extent)
-                    }
-                }
-            }
+            let out = filtered(img, css: blur)
             guard let final = out else { return }
             let c = target()   // the scratch is already popped, so this is the destination
             c.saveGState()
+            setCTM(c, origin(c))   // the image is the recording's whole rect, at its origin
             c.setBlendMode(blend2)
             c.translateBy(x: geom.x, y: geom.y + geom.h)
             c.scaleBy(x: 1, y: -1)
             c.draw(final, in: CGRect(x: 0, y: 0, width: geom.w, height: geom.h))
             c.restoreGState()
+        }
+
+        /// The whole CSS filter list over one op's pixels, in list order — the
+        /// view chain's functions, in ENCODED sRGB (the null working space), a
+        /// blur NOT clamped at the edge (see below) and a drop-shadow laid under
+        /// what the chain has made so far. Lengths are device pixels, as
+        /// canvas filter lengths are.
+        func filtered(_ img: CGImage, css: String) -> CGImage? {
+            let ci = CIImage(cgImage: img, options: [.colorSpace: NSNull()])
+            let out = DrawReplay.applyChain(ci, FilterList(css: css).items, lengthScale: 1)
+            return ciContext.createCGImage(out.cropped(to: ci.extent), from: ci.extent)
         }
 
         func d(_ o: [String: Any], _ k: String) -> CGFloat { CGFloat((o[k] as? NSNumber)?.doubleValue ?? 0) }
@@ -197,10 +192,13 @@ enum DrawReplay {
         /// current operator. Blurring their union instead is measurably
         /// brighter wherever shapes overlap (lighten of blurs ≠ blur of
         /// lighten), so a filtered op gets its own scratch layer here.
+        func marker0CTM() -> CGAffineTransform { target().ctm }
         func paint(_ body: (CGContext) -> Void) {
             guard !filterLayers.isEmpty, let scratch = makeCongruentLayer() else {
                 body(target()); return
             }
+            // the op draws under the transform in force, which rides the marker
+            setCTM(scratch, marker0CTM())
             let marker = filterLayers.removeLast()      // so target() is the DESTINATION
             scratch.setAlpha(st.alpha)
             scratch.setBlendMode(.normal)
@@ -345,28 +343,34 @@ enum DrawReplay {
             let c = target()
             c.setAlpha(st.alpha)
             switch op {
+            // The transform and the gstate stack belong to the DRAWING, so they
+            // move every context at once: the main raster and each filter layer
+            // open under it. A transform made while a filter is in force still
+            // holds after `filter = "none"`, and a layer opened after a save is
+            // closed (not restored) by the matching restore.
             case "save":
                 stack.append((st, filterLayers.count))
-                c.saveGState()
+                for x in contexts() { x.saveGState() }
             case "restore":
                 if let saved = stack.popLast() {
                     while filterLayers.count > saved.filterDepth { _ = filterLayers.popLast() }
                     st = saved.state
                 }
-                target().restoreGState()
-            case "translate": c.translateBy(x: d(o, "x"), y: d(o, "y"))
-            case "scale": c.scaleBy(x: d(o, "x"), y: d(o, "y"))
-            case "rotate": c.rotate(by: d(o, "angle"))
-            case "transform":
+                for x in contexts() { x.restoreGState() }
+            case "translate": for x in contexts() { x.translateBy(x: d(o, "x"), y: d(o, "y")) }
+            case "scale": for x in contexts() { x.scaleBy(x: d(o, "x"), y: d(o, "y")) }
+            case "rotate": for x in contexts() { x.rotate(by: d(o, "angle")) }
+            case "transform", "setTransform":
                 // the op carries `m: [a,b,c,d,e,f]` (draw.ts). Reading keys "a"…"f"
                 // gave a ZERO matrix and collapsed the drawing — silently.
                 if let m = o["m"] as? [NSNumber], m.count == 6 {
-                    c.concatenate(CGAffineTransform(a: CGFloat(m[0].doubleValue), b: CGFloat(m[1].doubleValue),
-                                                    c: CGFloat(m[2].doubleValue), d: CGFloat(m[3].doubleValue),
-                                                    tx: CGFloat(m[4].doubleValue), ty: CGFloat(m[5].doubleValue)))
+                    let t = CGAffineTransform(a: CGFloat(m[0].doubleValue), b: CGFloat(m[1].doubleValue),
+                                              c: CGFloat(m[2].doubleValue), d: CGFloat(m[3].doubleValue),
+                                              tx: CGFloat(m[4].doubleValue), ty: CGFloat(m[5].doubleValue))
+                    for x in contexts() { if op == "transform" { x.concatenate(t) } else { setCTM(x, t.concatenating(origin(x))) } }
                 }
-            case "setTransform", "resetTransform":
-                break   // absolute transforms are not used by the corpus; ignore rather than corrupt
+            case "resetTransform":
+                for x in contexts() { setCTM(x, origin(x)) }
             case "fillStyle": st.fill = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
             case "strokeStyle": st.stroke = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
             case "set":
@@ -385,6 +389,11 @@ enum DrawReplay {
                 case "font": st.font = o["v"] as? String ?? st.font
                 case "textAlign": st.textAlign = o["v"] as? String ?? "left"
                 case "textBaseline": st.textBaseline = o["v"] as? String ?? "alphabetic"
+                case "imageSmoothingEnabled": st.smoothing = (o["v"] as? Bool ?? true) ? st.smoothingQuality : .none
+                case "imageSmoothingQuality":
+                    let q: CGInterpolationQuality = { switch o["v"] as? String { case "high": return .high; case "medium": return .medium; default: return .low } }()
+                    if st.smoothing != .none { st.smoothing = q }
+                    st.smoothingQuality = q
                 case "letterSpacing": st.letterSpacing = CGFloat(Double((o["v"] as? String ?? "0").replacingOccurrences(of: "px", with: "")) ?? 0)
                 case "globalCompositeOperation":
                     st.blend = blendMode(o["v"] as? String ?? "source-over")
@@ -406,7 +415,10 @@ enum DrawReplay {
                         st.filter = v
                         // A marker layer: its presence means "filtered", and
                         // paint() gives each op its own scratch.
-                        if let layer = makeCongruentLayer() { filterLayers.append((layer, st)) }
+                        if let layer = makeCongruentLayer() {
+                            setCTM(layer, target().ctm)   // the transform in force carries into the filtered run
+                            filterLayers.append((layer, st))
+                        }
                     }
                 default: break
                 }
@@ -448,18 +460,24 @@ enum DrawReplay {
             case "clearRect":
                 c.clear(CGRect(x: d(o, "x"), y: d(o, "y"), width: d(o, "w"), height: d(o, "h")))
             case "fillText", "strokeText":
+                let stroke = op == "strokeText"
+                // a gradient style paints THROUGH the glyphs (they become the clip)
+                let grad = (stroke ? st.stroke : st.fill) as? [String: Any]
                 paint { t in
                     applyShadow(t)
                     drawText(o["text"] as? String ?? "", at: CGPoint(x: d(o, "x"), y: d(o, "y")),
-                             state: st, in: t, stroke: op == "strokeText")
+                             state: st, in: t, stroke: stroke,
+                             gradient: grad.map { g in { ctx in paintGradient(ctx, g, clipTo: nil, stroke: false) } })
                 }
             case "drawImage":
                 // the handle is the bridge's own (the Mac env's <img> shim
                 // carries it); the source rect is bitmap pixels, y-DOWN from
-                // the top as canvas states it — CG crops y-up, so mirror it
+                // the top as canvas states it — and `CGImage.cropping(to:)`
+                // takes its rect from the image's TOP-left too, so it passes
+                // straight through (mirroring it cut the wrong band)
                 guard let full = bridge.image(Int(d(o, "h"))) else { break }
                 let sw = d(o, "sw"), sh = d(o, "sh")
-                let src = CGRect(x: d(o, "sx"), y: CGFloat(full.height) - d(o, "sy") - sh, width: sw, height: sh)
+                let src = CGRect(x: d(o, "sx"), y: d(o, "sy"), width: sw, height: sh)
                 let whole = src == CGRect(x: 0, y: 0, width: CGFloat(full.width), height: CGFloat(full.height))
                 guard let img = whole ? full : full.cropping(to: src) else { break }
                 let dst = CGRect(x: d(o, "dx"), y: d(o, "dy"), width: d(o, "dw"), height: d(o, "dh"))
@@ -468,6 +486,7 @@ enum DrawReplay {
                     t.saveGState()
                     t.translateBy(x: dst.minX, y: dst.maxY)
                     t.scaleBy(x: 1, y: -1)          // CG draws images bottom-up; flip locally
+                    t.interpolationQuality = st.smoothing
                     t.draw(img, in: CGRect(x: 0, y: 0, width: dst.width, height: dst.height))
                     t.restoreGState()
                 }
@@ -477,6 +496,38 @@ enum DrawReplay {
         }
         // Any filter left open at the end still composites.
         filterLayers.removeAll()
+    }
+
+    /// A filter list over an image, in list order, in ENCODED sRGB (the caller's
+    /// unmanaged context): the view chain's functions, a blur NOT clamped at
+    /// the edge (canvas and CSS filters follow the SVG model — outside the
+    /// source is transparent black; clamping extended the edge pixels and left
+    /// the wallpaper visibly brighter in a band round the screen), and a
+    /// drop-shadow laid under what the chain has made so far. `lengthScale`
+    /// turns the list's lengths into the image's pixels: 1 for a drawing
+    /// (canvas filter lengths are device pixels), the backing scale for a view
+    /// (whose lengths are view units). CIGaussianBlur's radius IS the standard
+    /// deviation, as CSS `blur(<length>)` is.
+    static func applyChain(_ input: CIImage, _ items: [FilterFn], lengthScale k: CGFloat) -> CIImage {
+        var ci = input
+        for f in items {
+            if f.fn == "shadow" {
+                guard let color = f.color, let tint = FilterList.tintMatrix(color) else { continue }
+                tint.setValue(ci, forKey: kCIInputImageKey)
+                var sh = tint.outputImage ?? ci
+                if f.blur > 0, let g = CIFilter(name: "CIGaussianBlur") {
+                    // a shadow's length is a blur RADIUS: its deviation is half
+                    g.setValue(sh, forKey: kCIInputImageKey); g.setValue(f.blur * k / 2, forKey: kCIInputRadiusKey)
+                    sh = g.outputImage ?? sh
+                }
+                sh = sh.transformed(by: CGAffineTransform(translationX: f.dx * k, y: -f.dy * k))   // CI is y-up
+                ci = ci.composited(over: sh)
+            } else if let flt = FilterList.filter(f, blurScale: k) {
+                flt.setValue(ci, forKey: kCIInputImageKey)
+                ci = flt.outputImage ?? ci
+            }
+        }
+        return ci
     }
 
     private static func roundRadii(_ v: Any?) -> [CGFloat] {
@@ -503,7 +554,8 @@ enum DrawReplay {
         return p
     }
 
-    private static func drawText(_ text: String, at p: CGPoint, state st: State, in c: CGContext, stroke: Bool) {
+    private static func drawText(_ text: String, at p: CGPoint, state st: State, in c: CGContext, stroke: Bool,
+                                 gradient: ((CGContext) -> Void)? = nil) {
         guard !text.isEmpty else { return }
         let f = TextEngine.nsFont(TextEngine.parse(st.font))
         var attrs: [NSAttributedString.Key: Any] = [.font: f]
@@ -515,6 +567,9 @@ enum DrawReplay {
             if let s = st.stroke as? String, let col = CSSColor.parse(s) { c.setStrokeColor(col.cgColor) }
             c.setLineWidth(st.lineWidth)
             c.setTextDrawingMode(.stroke)
+            // Core Text strokes in the run's own colour (black by default) unless
+            // told to take the context's — which holds the strokeStyle
+            attrs[NSAttributedString.Key(kCTForegroundColorFromContextAttributeName as String)] = true
         } else {
             c.setTextDrawingMode(.fill)
         }
@@ -537,7 +592,24 @@ enum DrawReplay {
         c.translateBy(x: x, y: y)
         c.scaleBy(x: 1, y: -1)
         c.textPosition = .zero
-        CTLineDraw(line, c)
+        if let gradient {
+            // the glyphs (or their stroked outline) become the clip, then the
+            // gradient paints through them in the recording's own space; a
+            // shadow belongs to the painted shape, so it rides the gradient
+            // inside a transparency layer, which lands with the shadow: a shadow
+            // set on the clipped gradient itself would be clipped away with it
+            c.beginTransparencyLayer(auxiliaryInfo: nil)
+            c.saveGState()
+            c.setTextDrawingMode(stroke ? .strokeClip : .clip)
+            CTLineDraw(line, c)
+            c.scaleBy(x: 1, y: -1)
+            c.translateBy(x: -x, y: -y)
+            gradient(c)
+            c.restoreGState()
+            c.endTransparencyLayer()
+        } else {
+            CTLineDraw(line, c)
+        }
         c.restoreGState()
     }
 
@@ -567,14 +639,6 @@ enum DrawReplay {
         case "xor": return .xor
         default: return .normal
         }
-    }
-
-    private static func blurRadius(_ filter: String) -> CGFloat? {
-        guard let r = filter.range(of: "blur(") else { return nil }
-        let rest = filter[r.upperBound...]
-        guard let end = rest.firstIndex(of: ")") else { return nil }
-        let v = rest[rest.startIndex..<end].replacingOccurrences(of: "px", with: "")
-        return CGFloat(Double(v.trimmingCharacters(in: .whitespaces)) ?? 0)
     }
 }
 
@@ -692,36 +756,48 @@ enum CSSColor {
 /// Resampling into closely-spaced stops computed in premultiplied space makes
 /// the two agree without needing either API to change its interpolation.
 enum GradientStops {
-    static func resampled(colors: [CGColor], locations: [CGFloat], steps: Int = 64) -> ([CGColor], [CGFloat]) {
+    /// The stops as Core Animation should be handed them. CAGradientLayer
+    /// interpolates in LINEAR light, where the web interpolates the encoded
+    /// sRGB values — a green-to-orange ramp came out visibly lighter through
+    /// its middle on the Mac, and every gradient differed. So each segment is
+    /// sampled in sRGB (premultiplied for a CSS gradient; straight for a
+    /// canvas one, which Skia interpolates straight) into short runs that
+    /// linear interpolation cannot bend. A hard stop (two stops at one
+    /// position) stays hard: samples are taken per segment, never across one.
+    static func resampled(colors: [CGColor], locations: [CGFloat], perSegment: Int = 16,
+                          premultiplied: Bool = true) -> ([CGColor], [CGFloat]) {
         guard colors.count == locations.count, colors.count >= 2 else { return (colors, locations) }
+        let space = CGColorSpace(name: CGColorSpace.sRGB)!
         let pts: [(l: CGFloat, r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat)] =
             zip(locations, colors).map { (loc, c) in
-                let comp = c.components ?? [0, 0, 0, 1]
-                let a = c.alpha
-                if c.numberOfComponents >= 4 { return (loc, comp[0], comp[1], comp[2], a) }
+                let s = c.converted(to: space, intent: .defaultIntent, options: nil) ?? c
+                let comp = s.components ?? [0, 0, 0, 1]
+                let a = s.alpha
+                if s.numberOfComponents >= 4 { return (loc, comp[0], comp[1], comp[2], a) }
                 let v = comp.first ?? 0
                 return (loc, v, v, v, a)
             }
-        // Nothing to reconcile unless some stop is partly transparent.
-        guard pts.contains(where: { $0.a < 0.999 }) else { return (colors, locations) }
-
         var outC: [CGColor] = [], outL: [CGFloat] = []
-        let space = CGColorSpace(name: CGColorSpace.sRGB)!
-        let lo = pts.first!.l, hi = pts.last!.l
-        for i in 0...steps {
-            let t = lo + (hi - lo) * CGFloat(i) / CGFloat(steps)
-            var j = 0
-            while j + 2 < pts.count, pts[j + 1].l < t { j += 1 }
-            let p0 = pts[j], p1 = pts[j + 1]
-            let span = p1.l - p0.l
-            let u = span > 0 ? min(max((t - p0.l) / span, 0), 1) : 0
+        func emit(_ p0: (l: CGFloat, r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat),
+                  _ p1: (l: CGFloat, r: CGFloat, g: CGFloat, b: CGFloat, a: CGFloat), _ u: CGFloat) {
             let a = p0.a + (p1.a - p0.a) * u
-            let pr = p0.r * p0.a + (p1.r * p1.a - p0.r * p0.a) * u
-            let pg = p0.g * p0.a + (p1.g * p1.a - p0.g * p0.a) * u
-            let pb = p0.b * p0.a + (p1.b * p1.a - p0.b * p0.a) * u
-            let comps: [CGFloat] = a > 0.0001 ? [pr / a, pg / a, pb / a, a] : [0, 0, 0, 0]
-            if let c = CGColor(colorSpace: space, components: comps) { outC.append(c); outL.append(t) }
+            var comps: [CGFloat]
+            if premultiplied {
+                let pr = p0.r * p0.a + (p1.r * p1.a - p0.r * p0.a) * u
+                let pg = p0.g * p0.a + (p1.g * p1.a - p0.g * p0.a) * u
+                let pb = p0.b * p0.a + (p1.b * p1.a - p0.b * p0.a) * u
+                comps = a > 0.0001 ? [pr / a, pg / a, pb / a, a] : [0, 0, 0, 0]
+            } else {
+                comps = [p0.r + (p1.r - p0.r) * u, p0.g + (p1.g - p0.g) * u, p0.b + (p1.b - p0.b) * u, a]
+            }
+            if let c = CGColor(colorSpace: space, components: comps) { outC.append(c); outL.append(p0.l + (p1.l - p0.l) * u) }
         }
+        for i in 0..<(pts.count - 1) {
+            let p0 = pts[i], p1 = pts[i + 1]
+            if p1.l - p0.l <= 0 { emit(p0, p0, 0); continue }        // a hard stop: its own colour, then the next
+            for j in 0..<perSegment { emit(p0, p1, CGFloat(j) / CGFloat(perSegment)) }
+        }
+        emit(pts[pts.count - 1], pts[pts.count - 1], 0)
         return outC.count >= 2 ? (outC, outL) : (colors, locations)
     }
 }

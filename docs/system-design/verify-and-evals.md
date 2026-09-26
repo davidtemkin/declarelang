@@ -223,7 +223,7 @@ Every failure gets exactly one label, with a mandated escalation order:
    patching it invalidates every comparison taken against it. Patch the candidate, never the
    control.)
 2. **diagnostic gap** — it erred and the error failed to teach the repair → patch the `Diag` catalog message → rerun. (Feeds diagnostics.md §4's standard directly; a diagnostic whose named fix models don't follow is a bug by definition.)
-3. **language footgun** — persists across models *after* 1 and 2 → an entry in the footgun register (extend `docs/system-design/language-learnings.md` with an `E-series`: evidence, tasks affected, models affected, docs/diagnostic attempts). Only E-series entries with ≥2 models and ≥2 cycles of evidence earn a language-change discussion — the language stays stable while the mutable surfaces absorb the churn, and changes that do happen arrive with receipts.
+3. **language footgun** — persists across models *after* 1 and 2 → an entry in the footgun register (extend `evals/findings/language-learnings.md` with an `E-series`: evidence, tasks affected, models affected, docs/diagnostic attempts). Only E-series entries with ≥2 models and ≥2 cycles of evidence earn a language-change discussion — the language stays stable while the mutable surfaces absorb the churn, and changes that do happen arrive with receipts.
 
 Regression rule: any edit to the brief, a diagnostic, or the language reruns the affected tasks before merging. The suite is CI for teachability.
 

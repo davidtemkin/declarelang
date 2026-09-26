@@ -33,7 +33,7 @@
 // re-launch to a plausible-looking number.
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
-import { CTL_IN, CTL_OUT, APP_NAME } from "./app.mjs";
+import { CTL_IN, CTL_OUT, APP_NAME, ORIGIN } from "./app.mjs";
 import { execFileSync, spawn } from "node:child_process";
 import { hostWindow } from "./win.mjs";
 import { hostBinary, NO_HOST } from "./app.mjs";
@@ -42,7 +42,7 @@ import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const URL_DOM = "http://127.0.0.1:8260/apps/desktop/desktop.declare?render=dom";
+const URL_DOM = `${ORIGIN}/apps/desktop/desktop.declare?render=dom`;
 const IN = CTL_IN;
 const OUT = CTL_OUT;
 const CHROME_H = 32;                      // the native capture includes the title bar
@@ -69,7 +69,7 @@ async function relaunchNative() {
     env: { ...process.env,
            DECLARE_CONTROL: "1",
            DECLARE_APPEARANCE: APPEARANCE,
-           DECLARE_URL: "http://127.0.0.1:8260/apps/desktop/desktop.declare?render=mac" },
+           DECLARE_URL: `${ORIGIN}/apps/desktop/desktop.declare?render=mac` },
   }).unref();
   await sleep(6);
 }

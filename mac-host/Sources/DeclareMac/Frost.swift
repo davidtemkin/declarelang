@@ -69,6 +69,34 @@ extension LayerTree {
     // node, which is the 13x redundancy compositeFrosts below exists to remove.
     // The sequence and its numbers are in memory project-mac-draw-framerate.)
 
+    /// A view's 2D paint transform in MODEL space (y-down, about its own box
+    /// origin): the affine when the model sent one, else scale and rotation
+    /// about the pivot. nil for none — and for 3D, which a flat walk cannot
+    /// paint. The paint walks concatenate it around the view's origin, so what
+    /// is sampled beneath a frost or a blend is the scene as drawn, turned
+    /// content included (a rotated drawing under glass was sampled upright).
+    func modelTransform(_ n: Node) -> CGAffineTransform? {
+        if n.rot3D != nil { return nil }
+        if let m = n.affine {
+            if m.a == 1 && m.b == 0 && m.c == 0 && m.d == 1 && m.e == 0 && m.f == 0 { return nil }
+            return CGAffineTransform(a: m.a, b: m.b, c: m.c, d: m.d, tx: m.e, ty: m.f)
+        }
+        if n.scaleK == 1 && n.rotation == 0 { return nil }
+        return CGAffineTransform(translationX: n.pivot.x, y: n.pivot.y)
+            .rotated(by: n.rotation * .pi / 180)
+            .scaledBy(x: n.scaleK, y: n.scaleK)
+            .translatedBy(x: -n.pivot.x, y: -n.pivot.y)
+    }
+
+    /// Concatenate a view's transform around its origin, when it has one.
+    func applyModelTransform(_ n: Node, _ ctx: CGContext) {
+        guard let m = modelTransform(n) else { return }
+        let o = absOrigin(n)
+        ctx.translateBy(x: o.x, y: o.y)
+        ctx.concatenate(m)
+        ctx.translateBy(x: -o.x, y: -o.y)
+    }
+
     /// A node's own paint — its background and its content layers — without its
     /// children (they are walked separately, in order).
     private func drawOwnPaint(_ a: Node, into ctx: CGContext, clip: CGRect) {
@@ -86,7 +114,7 @@ extension LayerTree {
             }
             ctx.restoreGState()
         }
-        for aux in [a.gradient, a.draw, a.image, a.text as CALayer?].compactMap({ $0 }) {
+        for aux in [a.shapeBg, a.gradient, a.sidesLayer, a.draw, a.image, a.text as CALayer?].compactMap({ $0 }) {
             guard !aux.isHidden, aux.opacity > 0 else { continue }
             let f = aux.frame
             let at = CGRect(x: o.x + f.origin.x, y: o.y + f.origin.y, width: f.width, height: f.height)
@@ -333,16 +361,6 @@ extension LayerTree {
         return image
     }
 
-    /// EVERY radius the group needs, one command buffer, ONE wait. The
-    /// per-call synchronous version measured ~1.7ms per radius, most of it the
-    /// GPU round trip — batched, weather's three radii cost roughly one.
-    /// Returns nil when Metal is unavailable; caller falls back per-key to the
-    /// CPU chain.
-    static func blurManyOnGPU(_ img: CGImage,
-                              specs: [(radius: CGFloat, saturate: CGFloat, chain: [CIFilter]?)]) -> [CGImage]? {
-        blurJobsOnGPU(specs.map { (img: img, radius: $0.radius, saturate: $0.saturate, chain: $0.chain) })
-    }
-
     /// The general batch: EVERY job its own input image and radius, ONE
     /// command buffer, ONE wait — what lets a whole frame's frosts (each on its
     /// own snapshot crop) cost one round trip instead of one each.
@@ -466,15 +484,6 @@ extension LayerTree {
         var snapshot: CGImage?                 // the canvas as of the last snapshot
         var dirty: CGRect = .null              // drawn since that snapshot
         var gen = 0                            // bumped per snapshot
-        /// The whole snapshot, blurred, per radius. Blurring the CANVAS once and
-        /// letting each frost window into it replaces one blur per frost with
-        /// one per distinct radius — and it is MORE faithful, not less: the
-        /// kernel then samples the real backdrop continuing past each frost's
-        /// edge instead of a cropped copy of it.
-        var blurred: [String: (gen: Int, img: CGImage)] = [:]
-        /// Every distinct (blur, saturate) in the group, so a fresh snapshot
-        /// can batch all of them into one GPU submission.
-        var specs: [(blur: CGFloat, saturate: CGFloat, chain: [CIFilter]?)] = []
         /// Suffix unions of the capture rects still to come, in paint order —
         /// "can anything drawn here still reach a frost?"
         var remaining: [CGRect] = []
@@ -540,6 +549,7 @@ extension LayerTree {
                 c.reachIndex += 1                       // this one is served
             }
             c.ctx.saveGState()
+            applyModelTransform(node, c.ctx)
             if clips {
                 if node.radius > 0 {
                     c.ctx.addPath(CGPath(roundedRect: box, cornerWidth: node.radius, cornerHeight: node.radius, transform: nil))
@@ -655,7 +665,13 @@ extension LayerTree {
     /// the draw-back, exactly as before.
     private func landFrost(_ node: Node, spec: FilterList, from c: Canvas) {
         guard let fl = node.frostLayer else { return }
-        let pad = max(1, spec.blur * 2)
+        // THE SAMPLE IS THE BOX ITSELF, clamped at its edge. A browser's
+        // backdrop filter sees only the backdrop inside the element's border
+        // box (measured: black up to a glass's left edge, blur(20px) — the glass
+        // reads pure white at x+1), and the blur duplicates the edge. Sampling
+        // past it — the padded capture this used — pulled the white card in
+        // beyond a frost(24)'s ground and lightened the glass (14% of the swatch).
+        let pad: CGFloat = 0
         // beyond the (blur, saturate) pair the whole list runs as a Core Image
         // chain over the sample (graphics-pass.md §1) — the blur scaled to the
         // canvas, since the chain's radius is in model units
@@ -708,37 +724,20 @@ extension LayerTree {
         }
         guard let snap = c.snapshot else { return }
 
-        // ONE BLUR PER RADIUS, over the whole canvas — not one per frost. Every
-        // frost then just windows into it, which is free. The blur itself runs
-        // on the GPU when Metal is there; the CPU chain is the fallback and the
-        // reference.
-        let key = spec.isPlainFrost ? String(format: "%.2f/%.2f", spec.blur, spec.saturate) : spec.key
-        var img: CGImage
-        if let hit = c.blurred[key], hit.gen == c.gen {
-            img = hit.img
-        } else {
-            let tb = CFAbsoluteTimeGetCurrent()
-            // THE FIRST snapshot of a walk computes every radius the group uses
-            // in one GPU submission — the round-trip wait dominates a single
-            // blur, so three-in-one costs about the same as one. LATER gens
-            // (a draw-back invalidated the snapshot) usually serve one straggler
-            // frost, so they compute only the key asked for — batching all
-            // radii per gen was measured SLOWER than not batching at all.
-            let wanted: [(blur: CGFloat, saturate: CGFloat, chain: [CIFilter]?)] = c.blurred.isEmpty
-                ? c.specs : [(blur: spec.blur, saturate: spec.saturate, chain: chain)]
-            if let batch = Self.blurManyOnGPU(snap, specs: wanted.map { (radius: $0.blur * c.scale, saturate: $0.saturate, chain: $0.chain) }) {
-                for (i, w) in wanted.enumerated() {
-                    c.blurred[w.chain == nil ? String(format: "%.2f/%.2f", w.blur, w.saturate) : key] = (c.gen, batch[i])
-                }
-            }
-            if let hit = c.blurred[key], hit.gen == c.gen {
-                img = hit.img
-            } else {
-                img = Self.blur(snap, radius: spec.blur * c.scale, saturate: spec.saturate, chain: chain) ?? snap
-                c.blurred[key] = (c.gen, img)
-            }
-            frostBlurMs += (CFAbsoluteTimeGetCurrent() - tb) * 1000
-        }
+        // A STACKED frost lands now, on its own crop of the canvas as it stands
+        // (with the frosts beneath it drawn back in), blurred on the CPU chain —
+        // the rare case; the deferred batch above is the common one.
+        let visible = cap.intersection(c.rect)
+        guard !visible.isNull, !visible.isEmpty else { return }
+        let px = CGRect(x: floor((visible.minX - c.rect.minX) * c.scale), y: floor((visible.minY - c.rect.minY) * c.scale),
+                        width: ceil(visible.width * c.scale) + 1, height: ceil(visible.height * c.scale) + 1)
+            .intersection(CGRect(x: 0, y: 0, width: snap.width, height: snap.height))
+        guard let crop = snap.cropping(to: px) else { return }
+        let cropRect = CGRect(x: c.rect.minX + px.minX / c.scale, y: c.rect.minY + px.minY / c.scale,
+                              width: px.width / c.scale, height: px.height / c.scale)
+        let tb = CFAbsoluteTimeGetCurrent()
+        let img = Self.blur(crop, radius: spec.blur * c.scale, saturate: spec.saturate, chain: chain) ?? crop
+        frostBlurMs += (CFAbsoluteTimeGetCurrent() - tb) * 1000
 
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -754,10 +753,10 @@ extension LayerTree {
         // pixels. Canvas-wide it is the whole bug — the sample tracks the scroll
         // in the WRONG DIRECTION, which reads as a backdrop moving faster than
         // the content, and windows into never-painted canvas as dark banding.
-        fl.contentsRect = CGRect(x: (box.minX - c.rect.minX) / c.rect.width,
-                                 y: (c.rect.maxY - box.maxY) / c.rect.height,
-                                 width: box.width / c.rect.width,
-                                 height: box.height / c.rect.height)
+        fl.contentsRect = CGRect(x: (box.minX - cropRect.minX) / cropRect.width,
+                                 y: (cropRect.maxY - box.maxY) / cropRect.height,
+                                 width: box.width / cropRect.width,
+                                 height: box.height / cropRect.height)
         fl.backgroundFilters = []
         CATransaction.commit()
         node.frostEpoch = frostEpoch
@@ -769,7 +768,7 @@ extension LayerTree {
             c.ctx.saveGState()
             c.ctx.addPath(CGPath(roundedRect: box, cornerWidth: node.radius, cornerHeight: node.radius, transform: nil))
             c.ctx.clip()
-            c.ctx.draw(img, in: c.rect)
+            c.ctx.draw(img, in: cropRect)
             c.ctx.restoreGState()
             c.dirty = c.dirty.union(box)
         }
@@ -827,15 +826,9 @@ extension LayerTree {
             // commit for weather's three radii, became the dominant term the
             // moment the rendition cache fixed the capture).
             var minBlur = CGFloat.greatestFiniteMagnitude
-            var specs: [(blur: CGFloat, saturate: CGFloat, chain: [CIFilter]?)] = []
             forEachNode {
                 guard group.set.contains(ObjectIdentifier($0)), let b = $0.backdrop else { return }
                 minBlur = min(minBlur, b.blur)
-                // the plain pairs batch on the first snapshot; a general chain is
-                // built per frost in landFrost and keyed by its own list
-                if b.isPlainFrost, !specs.contains(where: { $0.chain == nil && $0.blur == b.blur && $0.saturate == b.saturate }) {
-                    specs.append((b.blur, b.saturate, nil))
-                }
             }
             let scale: CGFloat = max(0.2, min(0.5, 4.0 / max(1, minBlur)))
             frostCanvasScale = scale
@@ -857,7 +850,6 @@ extension LayerTree {
             ctx.interpolationQuality = .low
 
             let canvas = Canvas(ctx: ctx, scale: scale, rect: rect)
-            canvas.specs = specs
             let (n, ms) = compositeFrosts(floor: group.floor, frosts: group.set, into: canvas)
             // Only when someone has asked for it: `makeImage()` on every
             // commit is a full canvas copy retained per frame, for a diagnostic.
@@ -866,5 +858,247 @@ extension LayerTree {
             frostPaintMs += ms
         }
         return (count, (CFAbsoluteTimeGetCurrent() - t0) * 1000)
+    }
+
+    // ── BLEND, composited here ───────────────────────────────────────────────
+    //
+    // `View.blend` lands a view's painted subtree on what is already painted
+    // beneath it, inside its isolating ancestor, with the operator — the web's
+    // mix-blend-mode, which blends the ENCODED sRGB values. Core Animation's
+    // compositing filters run in linear light instead, so difference,
+    // exclusion, overlay, colour burn and the rest came out visibly wrong
+    // (15–18% of each swatch); its own named modes fix most, not all. So the
+    // host composites: the backdrop is the paint walk above, stopped at the
+    // blended view; the source is the view's own layer tree; Core Image's
+    // blend filters in the unmanaged (encoded) working space make the result,
+    // which a sibling layer right above the view shows while the view's own
+    // layer paints nothing. Re-made once per commit that changed anything,
+    // as the frost is. A view under a transform keeps Core Animation's named
+    // mode — its backdrop would have to be sampled through the transform.
+
+    /// The isolating ancestor a blend stops at (View.blend): the App root, an
+    /// island, an `opacity < 1` group, a filtered or masked view — and, unlike a
+    /// backdrop, a scrolling view's content.
+    func blendFloor(_ n: Node) -> Node {
+        var cur = n
+        while let p = cur.parent {
+            if p.isRoot || p.isEmbedHost || p.modelOpacity < 1 || p.filterList != nil
+                || p.maskGradient != nil || p.maskStencil != nil || p.content !== p.layer { return p }
+            cur = p
+        }
+        return cur
+    }
+
+    func syncBlend(_ n: Node) {
+        guard let b = n.blendLayer else { return }
+        if n.hostBlended {
+            // squarely placed (refreshBlends checked): the composite covers the
+            // box and the bleed of a host-run filter
+            b.transform = CATransform3DIdentity
+            b.frame = n.layer.frame.insetBy(dx: -n.hostPad, dy: -n.hostPad)
+        } else {
+            b.bounds = n.layer.bounds
+            b.position = n.layer.position
+            b.transform = n.layer.transform
+        }
+        b.isHidden = n.layer.isHidden || !n.hostBlended
+        b.opacity = n.modelOpacity
+    }
+
+    func unblend(_ n: Node) {
+        n.hostBlended = false
+        n.layer.opacity = n.modelOpacity
+        n.blendLayer?.removeFromSuperlayer()
+        n.blendLayer = nil
+        if let p = n.parent { restack(p) }
+    }
+
+    /// Everything painted before `target` inside `node`, in paint order, into
+    /// `ctx` (model space). True once the target is reached — the walk stops.
+    private func paintBeneath(_ node: Node, target: Node, floor: Node, ctx: CGContext, clip: CGRect) -> Bool {
+        if node === target { return true }
+        guard !node.layer.isHidden else { return false }
+        let o = absOrigin(node)
+        let box = CGRect(origin: o, size: node.box.size)
+        // an earlier host-blended view is its composite, already made
+        if node.hostBlended, let bl = node.blendLayer, let img = bl.contents {
+            let r = box.insetBy(dx: -node.hostPad, dy: -node.hostPad)   // with a host-run filter's bleed
+            if r.intersects(clip) {
+                ctx.saveGState()
+                ctx.setAlpha(CGFloat(node.modelOpacity))
+                ctx.translateBy(x: r.minX, y: r.maxY); ctx.scaleBy(x: 1, y: -1)
+                ctx.draw(img as! CGImage, in: CGRect(origin: .zero, size: r.size))
+                ctx.restoreGState()
+            }
+            return false
+        }
+        guard node.modelOpacity > 0 else { return false }
+        let clips = node.boxClip || node.clipPath != nil || node.isRoot || node.isEmbedHost
+        ctx.saveGState()
+        applyModelTransform(node, ctx)
+        if clips {
+            if node.radius > 0 { ctx.addPath(CGPath(roundedRect: box, cornerWidth: node.radius, cornerHeight: node.radius, transform: nil)) }
+            else { ctx.addRect(box) }
+            ctx.clip()
+        }
+        let group = node !== floor && node.modelOpacity < 1
+        if group { ctx.setAlpha(CGFloat(node.modelOpacity)); ctx.beginTransparencyLayer(auxiliaryInfo: nil) }
+        drawOwnPaint(node, into: ctx, clip: clip)
+        var reached = false
+        for k in node.children where paintBeneath(k, target: target, floor: floor, ctx: ctx, clip: clip) { reached = true; break }
+        if group { ctx.endTransparencyLayer() }
+        ctx.restoreGState()
+        return reached
+    }
+
+    /// The host can composite a view it can sample squarely: no scale,
+    /// rotation, skew or 3D on it (a translation is only a position).
+    private func squarelyPlaced(_ n: Node) -> Bool {
+        if n.scaleK != 1 || n.rotation != 0 || n.rot3D != nil { return false }
+        if let m = n.affine, !(m.a == 1 && m.b == 0 && m.c == 0 && m.d == 1) { return false }
+        var p = n.parent
+        while let q = p {
+            if q.scaleK != 1 || q.rotation != 0 || q.rot3D != nil { return false }
+            if let m = q.affine, !(m.a == 1 && m.b == 0 && m.c == 0 && m.d == 1) { return false }
+            p = q.parent
+        }
+        return true
+    }
+
+    func refreshBlends() {
+        guard blendEpoch != frostEpoch else { return }
+        blendEpoch = frostEpoch
+        var blended: [Node] = []
+        forEachNode { if $0.blendName != nil || Self.hostFilters($0) { blended.append($0) } }
+        guard !blended.isEmpty else { return }
+        // paint order: a blend over an earlier blend samples its composite
+        let order = paintOrder()
+        blended.sort { (order[ObjectIdentifier($0)] ?? 0) < (order[ObjectIdentifier($1)] ?? 0) }
+        let screen = view?.bounds ?? .zero
+        let scale = view?.window?.backingScaleFactor ?? 2
+        let savedScale = frostCanvasScale
+        frostCanvasScale = scale
+        defer { frostCanvasScale = savedScale }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+        for n in blended {
+            let box = CGRect(origin: absOrigin(n), size: n.box.size)
+            let visible = !hiddenAnywhere(n) && box.intersects(screen) && box.width >= 1 && box.height >= 1
+            var img: CGImage?
+            var pad: CGFloat = 0
+            if visible, squarelyPlaced(n) {
+                if let mode = n.blendName, let name = BLEND_FILTERS[mode] { img = composite(n, filter: name, box: box, scale: scale) }
+                else if let list = n.filterList {
+                    pad = CGFloat(Self.bleed(list))
+                    img = filterComposite(n, list: list, box: box, pad: pad, scale: scale)
+                }
+            }
+            guard let img else {
+                // not on screen, or not squarely placed: Core Animation's named
+                // mode, or its layer filters and shadow
+                if n.hostBlended { n.hostBlended = false; n.layer.opacity = n.modelOpacity; syncBlend(n) }
+                if let mode = n.blendName { n.layer.compositingFilter = mode == "plusLighter" ? "plusL" : mode + "BlendMode" }
+                continue
+            }
+            n.hostPad = pad
+            let bl: CALayer
+            if let e = n.blendLayer { bl = e } else {
+                bl = CALayer(); bl.anchorPoint = n.layer.anchorPoint
+                bl.actions = ["contents": NSNull(), "bounds": NSNull(), "position": NSNull(), "transform": NSNull(), "opacity": NSNull(), "hidden": NSNull()]
+                n.blendLayer = bl
+                if let p = n.parent { restack(p) }
+            }
+            bl.contents = img
+            bl.contentsScale = scale
+            bl.contentsGravity = .resize
+            n.hostBlended = true
+            n.layer.opacity = 0
+            n.layer.compositingFilter = nil
+            syncBlend(n)
+        }
+    }
+
+    /// A filter list the layer cannot run: a `shadow(…)` with anything else.
+    /// Core Animation's layer shadow is cast from the UNFILTERED content and is
+    /// lost under `layer.filters` (a blurred card came out with no shadow and
+    /// square corners), while the list means each function over the result of
+    /// the one before. A lone shadow, or a list without one, stays on the layer.
+    static func hostFilters(_ n: Node) -> Bool {
+        guard n.blendName == nil, let l = n.filterList else { return false }
+        return l.shadow != nil && l.items.count > 1
+    }
+
+    /// How far a list's output reaches past the box, in view units — a blur's
+    /// 3σ, a shadow's offset plus its 3σ (value.ts filterBleed, mirrored).
+    static func bleed(_ l: FilterList) -> Int {
+        var pad: CGFloat = 0
+        for f in l.items {
+            if f.fn == "blur" { pad += f.v * 3 }
+            else if f.fn == "shadow" { pad = max(pad, max(abs(f.dx), abs(f.dy)) + f.blur * 1.5) }
+        }
+        return Int(pad.rounded(.up))
+    }
+
+    /// The view's subtree run through its whole filter list, over its box and
+    /// the list's bleed.
+    private func filterComposite(_ n: Node, list: FilterList, box: CGRect, pad: CGFloat, scale: CGFloat) -> CGImage? {
+        let r = box.insetBy(dx: -pad, dy: -pad)
+        let pw = Int((r.width * scale).rounded(.up)), ph = Int((r.height * scale).rounded(.up))
+        guard pw > 0, ph > 0, pw * ph < 16_000_000, let cs = CGColorSpace(name: CGColorSpace.sRGB),
+              let c = CGContext(data: nil, width: pw, height: ph, bitsPerComponent: 8, bytesPerRow: 0, space: cs,
+                                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
+        // the layer's own y-up space, offset by the pad, at the backing scale
+        c.scaleBy(x: scale, y: scale)
+        c.translateBy(x: pad, y: pad)
+        let was = n.layer.opacity, wasF = n.layer.filters, wasS = n.layer.shadowOpacity
+        n.layer.opacity = 1; n.layer.filters = nil; n.layer.shadowOpacity = 0
+        n.layer.render(in: c)
+        n.layer.opacity = was; n.layer.filters = wasF; n.layer.shadowOpacity = wasS
+        guard let src = c.makeImage() else { return nil }
+        let ci = CIImage(cgImage: src, options: [.colorSpace: NSNull()])
+        let out = DrawReplay.applyChain(ci, list.items, lengthScale: scale)
+        return Self.ciCtx.createCGImage(out.cropped(to: ci.extent), from: ci.extent, format: .BGRA8, colorSpace: cs)
+    }
+
+    /// A number per node in paint order (a pre-order walk from the root).
+    private func paintOrder() -> [ObjectIdentifier: Int] {
+        var out: [ObjectIdentifier: Int] = [:], i = 0
+        var roots: [Node] = []
+        forEachNode { if $0.parent == nil { roots.append($0) } }
+        func walk(_ n: Node) { out[ObjectIdentifier(n)] = i; i += 1; for k in n.children { walk(k) } }
+        for r in roots { walk(r) }
+        return out
+    }
+
+    /// The view's subtree blended onto what is beneath it, over its box.
+    private func composite(_ n: Node, filter: String, box: CGRect, scale: CGFloat) -> CGImage? {
+        let pw = Int((box.width * scale).rounded(.up)), ph = Int((box.height * scale).rounded(.up))
+        guard pw > 0, ph > 0, pw * ph < 16_000_000, let cs = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        func context() -> CGContext? {
+            guard let c = CGContext(data: nil, width: pw, height: ph, bitsPerComponent: 8, bytesPerRow: 0, space: cs,
+                                    bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
+            c.translateBy(x: 0, y: CGFloat(ph)); c.scaleBy(x: scale, y: -scale)   // model space, top-left
+            return c
+        }
+        // the backdrop: the floor's paint up to this view, over this box
+        guard let bctx = context() else { return nil }
+        bctx.translateBy(x: -box.minX, y: -box.minY)
+        let floor = blendFloor(n)
+        _ = paintBeneath(floor, target: n, floor: floor, ctx: bctx, clip: box)
+        // the source: the view's own layer tree at full alpha — its opacity
+        // lands on the composite, as a CSS blend's opacity does
+        guard let sctx = context() else { return nil }
+        let was = n.layer.opacity, wasFilter = n.layer.compositingFilter
+        n.layer.opacity = 1; n.layer.compositingFilter = nil
+        sctx.translateBy(x: 0, y: box.height); sctx.scaleBy(x: 1, y: -1)
+        n.layer.render(in: sctx)
+        n.layer.opacity = was; n.layer.compositingFilter = wasFilter
+        guard let bImg = bctx.makeImage(), let sImg = sctx.makeImage(), let f = CIFilter(name: filter) else { return nil }
+        f.setValue(CIImage(cgImage: sImg), forKey: kCIInputImageKey)
+        f.setValue(CIImage(cgImage: bImg), forKey: kCIInputBackgroundImageKey)
+        guard let out = f.outputImage else { return nil }
+        let extent = CGRect(x: 0, y: 0, width: pw, height: ph)
+        return Self.ciCtx.createCGImage(out.cropped(to: extent), from: extent, format: .BGRA8, colorSpace: cs)
     }
 }

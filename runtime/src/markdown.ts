@@ -23,7 +23,7 @@ import { Cell, Constraint } from "./reactive.js";
 import { defineAttributes, isSet, ownerOf, provideWrite, providedDefault, providedRead, setBound } from "./attributes.js";
 import { DeclareError } from "./errors.js";
 import { coerce, isAlign, isAuthoredUnion, isGradient, type AttrType, type Gradient } from "./value.js";
-import { ellipsize, fontMetrics, fontString, textWidth, transformText, type FontWeight, type TextTransform } from "./measure.js";
+import { breakBetween, breakUnits, ellipsize, fontMetrics, fontString, textWidth, transformText, type FontWeight, type TextTransform } from "./measure.js";
 import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
 import { faceGeneration } from "./face-table.js";
 import { heldFamily, type FamilyValue } from "./font-value.js";
@@ -161,7 +161,7 @@ let BODY: { size: number; weight: FontWeight; tracking: number } = { size: 16, w
 // an app-wide override but look right with zero config.
 let HEADINGW: FontWeight = "bold";
 let HEADINGC = 0, LINKC = 0, CODEC = 0;
-let LINKU = false;                               // underline links (schema `linkUnderline`)
+let LINKU = true;                                // underline links (schema `linkUnderline`)
 // Code face + size — resolved per rebuild from the provided codeSize/codeFamily
 // slots, with the house code style (PROSE.codeSize / PROSE.mono) as the fallback.
 // One value drives every monospace region: inline code, fenced blocks, and the
@@ -734,7 +734,10 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       : fontMetrics(fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: lead?.weight ?? "normal" }));
     const lineH = Math.ceil(bm.ascent + bm.descent);              // glyph box (for half-leading)
     const adv = Math.round(b.fontSize * b.lineHeight);            // line box = round(fontSize × lineHeight), CSS-unitless — matches the DOM path
-    const halfLead = Math.round((adv - lineH) / 2);              // centre the glyph box in the line box (half-leading)
+    // Centre the glyph box in the line box (half-leading), the browser's way:
+    // the space above takes the FLOOR of the half, the space below the rest
+    // (LayoutNG's AddLeading), so an odd leading puts its extra pixel below.
+    const halfLead = Math.floor((adv - lineH) / 2);
     const spaceFont = fontString({ fontFamily: lead?.family ?? FALLBACK_FAMILY, fontSize: lead?.size ?? sz(PROSE.body), fontWeight: "normal" });
     const spaceW = textWidth(" ", spaceFont);
     // A space is as wide as a space in the face it was typed in — the run it came
@@ -743,9 +746,11 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     const spaceOf = (r: Extract<RichRun, { text: string }> | undefined): number => {
       if (r === undefined) return spaceW;
       const sf = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: "normal" });
-      if (sf === spaceFont) return spaceW;
-      let w = spaceMemo.get(sf);
-      if (w === undefined) { w = textWidth(" ", sf, r.tracking); spaceMemo.set(sf, w); }
+      // a tracked space is wider by the tracking, as a CSS space is
+      if (sf === spaceFont && !r.tracking) return spaceW;
+      const key = r.tracking ? `${sf}|${r.tracking}` : sf;
+      let w = spaceMemo.get(key);
+      if (w === undefined) { w = textWidth(" ", sf, r.tracking); spaceMemo.set(key, w); }
       return w;
     };
     let pendingRun: Extract<RichRun, { text: string }> | undefined;
@@ -824,7 +829,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         const imf = fontString({ fontFamily: base.family, fontSize: base.size, fontWeight: base.weight });
         for (const part of (r.img.alt || r.img.src).split(/(\s+)/)) {
           if (part === "") continue;
-          if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last)) toks.push({ sp: true }); }
+          if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last || "slot" in last)) toks.push({ sp: true }); }
           else word.push({ text: part, run: { ...base, text: part }, w: textWidth(part, imf, base.tracking) });
         }
         continue;
@@ -832,8 +837,19 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
       for (const part of r.text.split(/(\s+)/)) {
         if (part === "") continue;
-        if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last)) toks.push({ sp: true, run: r }); }
-        else word.push({ text: part, run: r, w: textWidth(r.transform ? transformText(part, r.transform) : part, f, r.tracking) });
+        if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last || "slot" in last)) toks.push({ sp: true, run: r }); }
+        else {
+          // a place the browser may break INSIDE the word (after a hyphen,
+          // between CJK characters, at a Thai word boundary) ends one word
+          // token and starts the next, with no space between them
+          const units = breakUnits(part);
+          for (let k = 0; k < units.length; k++) {
+            const u = units[k];
+            const prev = word[word.length - 1];
+            if (k > 0 || (prev !== undefined && breakBetween(prev.text, u))) flush();
+            word.push({ text: u, run: r, w: textWidth(r.transform ? transformText(u, r.transform) : u, f, r.tracking) });
+          }
+        }
       }
     }
     flush();
@@ -892,7 +908,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     // A laid entry is either a VIEW this pass created (text, chip, rule), a
     // PERSISTENT child the flow keeps (an inline image), or a SLOT — a box with
     // no view of its own, published as the geometry fact instead of positioned.
-    const blockViews: { v: View | null; line: number; boff: number; persistent?: boolean; slot?: string; sx?: number; sy?: number; sw?: number; sh?: number; run?: RichRun }[] = [];
+    const blockViews: { v: View | null; line: number; boff: number; persistent?: boolean; slot?: string; sx?: number; sy?: number; sw?: number; sh?: number; run?: RichRun; w?: number; dir?: Dir }[] = [];
     const lineRight = new Map<number, number>();
     let x = 0, line = 0, pending = false;
     // The block strut: `strutAbove` is the baseline's distance below the line top
@@ -905,10 +921,15 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
     // A run's own half-leading box (CSS: leading split evenly around the glyph),
     // widening the line only past the strut.
     const grow = (ln: number, fmAsc: number, fmDesc: number, size: number) => {
+      // A run's box is exactly `round(size × lineHeight)` tall, as a CSS inline
+      // box is: the space below its baseline is what the box leaves under the
+      // space above — computed as the strut is, so a run in the block's own face
+      // matches the strut to the pixel. (Descent plus a ROUNDED half-leading
+      // overshot the box by up to a pixel, and every line grew by it.)
       const box = Math.round(size * (b.lineHeight || 1));
-      const hl = Math.round((box - Math.ceil(fmAsc + fmDesc)) / 2);
-      lineAbove[ln] = Math.max(lineAbove[ln] ?? strutAbove, fmAsc + hl);
-      lineBelow[ln] = Math.max(lineBelow[ln] ?? strutBelow, fmDesc + hl);
+      const above = Math.floor((box - Math.ceil(fmAsc + fmDesc)) / 2) + fmAsc;
+      lineAbove[ln] = Math.max(lineAbove[ln] ?? strutAbove, above);
+      lineBelow[ln] = Math.max(lineBelow[ln] ?? strutBelow, box - above);
     };
     type Group = { run: Extract<RichRun, { text: string }>; x0: number; line: number; parts: string[]; end: number };
     let group: Group | null = null;
@@ -929,7 +950,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       // a no-op for ordinary prose, where the lead face IS the block's.
       const fm = fontMetrics(fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic }));
       grow(g.line, fm.ascent, fm.descent, r.size);
-      blockViews.push({ v: t, line: g.line, boff: -fm.ascent, run: r });
+      blockViews.push({ v: t, line: g.line, boff: -fm.ascent, run: r, w: g.end - g.x0, dir: dirOf(t.text) });
     };
     for (const tok of broken) {
       if ("br" in tok) { flushGroup(); line++; x = 0; pending = false; continue; }
@@ -955,7 +976,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
           lineAbove[line] = Math.max(lineAbove[line] ?? strutAbove, bl);
           lineBelow[line] = Math.max(lineBelow[line] ?? strutBelow, vh - bl);
         }
-        blockViews.push({ v: null, line, boff: -bl, slot: tok.slot, sx: x, sw: vw, sh: vh });
+        blockViews.push({ v: null, line, boff: -bl, slot: tok.slot, sx: x, sw: vw, sh: vh, w: vw, dir: "N" });
         x += vw;
         lineRight.set(line, x);
         continue;
@@ -970,7 +991,7 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
         im.x = x; im.width = iw; im.height = ih;
         if (tok.href !== undefined && onLink) { const href = tok.href; setClick(im, () => onLink(href)); }
         if (ih > 0) lineAbove[line] = Math.max(lineAbove[line] ?? strutAbove, ih);   // fit the box above the baseline
-        blockViews.push({ v: im, line, boff: -ih, persistent: true });
+        blockViews.push({ v: im, line, boff: -ih, persistent: true, w: iw, dir: "N" });
         x += iw;
         lineRight.set(line, x);
         continue;
@@ -1015,13 +1036,14 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
           if (r.fill !== undefined) t.textFill = r.fill;   // themed accent (gradient/solid) — same ramp as the DOM path
           applyRunTreatments(t, r);
           if (r.href !== undefined && onLink) { const href = r.href; setClick(t, () => onLink(href)); }
-          blockViews.push({ v: t, line, boff: -fm.ascent, run: r });
+          const d = dirOf(p.text);
+          blockViews.push({ v: t, line, boff: -fm.ascent, run: r, w: p.w, dir: d });
           // The strike rule, CENTER-anchored ~0.31·size ABOVE the baseline — the
           // same font-metric position the Text component and the DOM backend use,
           // so `~~struck~~` prose lines up across all three. (The old
           // `-ascent + 0.55·size` sat ~0.1·size too low.) Thickness tracks size
           // like the Text rule; at prose sizes that is the 1px hairline as before.
-          if (r.strike) { const sth = Math.max(1, Math.round(r.size / 16)); blockViews.push({ v: rectAt(x, 0, Math.ceil(p.w), sth, r.color), line, boff: -Math.round(r.size * 0.31) - Math.floor(sth / 2) }); }
+          if (r.strike) { const sth = Math.max(1, Math.round(r.size / 16)); blockViews.push({ v: rectAt(x, 0, Math.ceil(p.w), sth, r.color), line, boff: -Math.round(r.size * 0.31) - Math.floor(sth / 2), w: p.w, dir: d }); }
           x += p.w;
         }
         lineRight.set(line, x);
@@ -1039,6 +1061,13 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       const yy2 = lineTop[bv.line] + (lineAbove[bv.line] ?? strutAbove) + bv.boff;
       if (bv.v !== null) bv.v.y = yy2; else bv.sy = yy2;
     }
+    // BIDI. Pieces were placed left to right in logical order; a run of
+    // right-to-left pieces is then mirrored within its own span, which is the
+    // Unicode bidi algorithm's reordering at the grain this flow places things
+    // (a view, a run piece, an inline box) — the engine orders the characters
+    // inside each piece as it paints. The paragraph is left-to-right, as the
+    // DOM's is by default.
+    reorderBidi(blockViews);
     if (b.align === "center" || b.align === "right") {
       for (const bv of blockViews) {
         const free = width - (lineRight.get(bv.line) ?? 0);
@@ -1067,10 +1096,17 @@ function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (href: stri
       // every piece of one run is one face, so one line box tall
       const fm = fontMetrics(fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic }));
       const h = fm.ascent + fm.descent;
-      for (const on of lines.values()) {
-        if (on.length < 2) continue;
-        const x0 = Math.min(...on.map((t) => t.x)), x1 = Math.max(...on.map((t) => t.x + t.width));
-        for (const t of on) t.textFill = sliceGradient(g, { x: x0, y: 0, w: x1 - x0, h }, { x: t.x, y: 0, w: t.width, h });
+      // A run that wraps is ONE inline box broken across lines, and its ramp
+      // is laid over the fragments set end to end (CSS's sliced decoration):
+      // each line's fragment takes the next stretch of the one ramp.
+      const order = [...lines.keys()].sort((a, b) => a - b);
+      const span = order.map((ln) => { const on = lines.get(ln)!; return { on, x0: Math.min(...on.map((t) => t.x)), x1: Math.max(...on.map((t) => t.x + t.width)) }; });
+      const total = span.reduce((sum, f) => sum + f.x1 - f.x0, 0);
+      if (span.length === 1 && span[0].on.length < 2) continue;
+      let before = 0;
+      for (const f of span) {
+        for (const t of f.on) t.textFill = sliceGradient(g, { x: f.x0 - before, y: 0, w: total, h }, { x: t.x, y: 0, w: t.width, h });
+        before += f.x1 - f.x0;
       }
     }
     // THE CLAMP (RichText.maxLines). The lines exist here — every view carries
@@ -1531,6 +1567,58 @@ function inlineText(inline: Inline[]): string {
 /** One paragraph or heading resolved to the seam's RichBlock shape. A heading
  *  also carries its `anchor` — the deterministic slug of its text (location.md §6:
  *  a heading IS its anchor) — so a fragment `@name` can bring it into view. */
+type Dir = "L" | "R" | "E" | "N";
+const RTL_CHARS = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+const RTL_ALL = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/g;
+/** A piece's direction: R when its letters are all right-to-left, L when any
+ *  letter is not, E for figures alone (they follow the text before them), N
+ *  for the rest (punctuation, space, an inline box). */
+function dirOf(text: string): Dir {
+  const r = RTL_CHARS.test(text);
+  if (/\p{L}/u.test(text.replace(RTL_ALL, ""))) return "L";
+  if (r) return "R";
+  return /\d/.test(text) ? "E" : "N";
+}
+function reorderBidi(views: { v: View | null; line: number; sx?: number; w?: number; dir?: Dir }[]): void {
+  if (!views.some((b) => b.dir === "R")) return;
+  const byLine = new Map<number, typeof views>();
+  for (const b of views) if (b.dir !== undefined && b.w !== undefined) {
+    const on = byLine.get(b.line) ?? [];
+    byLine.set(b.line, on);
+    on.push(b);
+  }
+  const xOf = (b: (typeof views)[number]): number => b.v !== null ? b.v.x : (b.sx ?? 0);
+  for (const on of byLine.values()) {
+    if (!on.some((b) => b.dir === "R")) continue;
+    on.sort((a, b) => xOf(a) - xOf(b));
+    // resolve: figures take the strong direction before them; a neutral
+    // between two right-to-left pieces is right-to-left, else the paragraph's
+    const strong = on.map((b) => b.dir === "L" || b.dir === "R" ? b.dir : null);
+    const res: ("L" | "R")[] = [];
+    for (let i = 0; i < on.length; i++) {
+      const d = on[i].dir!;
+      if (d === "L" || d === "R") { res.push(d); continue; }
+      let prev: "L" | "R" | null = null, next: "L" | "R" | null = null;
+      for (let k = i - 1; k >= 0 && prev === null; k--) prev = strong[k];
+      for (let k = i + 1; k < on.length && next === null; k++) next = strong[k];
+      res.push(d === "E" ? (prev === "R" ? "R" : "L") : (prev === "R" && next === "R" ? "R" : "L"));
+    }
+    for (let i = 0; i < on.length;) {
+      if (res[i] !== "R") { i++; continue; }
+      let j = i;
+      while (j + 1 < on.length && res[j + 1] === "R") j++;
+      if (j > i) {
+        const x0 = xOf(on[i]), x1 = xOf(on[j]) + on[j].w!;
+        for (let k = i; k <= j; k++) {
+          const nx = x0 + x1 - (xOf(on[k]) + on[k].w!);
+          if (on[k].v !== null) on[k].v!.x = nx; else on[k].sx = nx;
+        }
+      }
+      i = j + 1;
+    }
+  }
+}
+
 function proseBlock(b: Extract<Block, { t: "paragraph" }> | Extract<Block, { t: "heading" }>, gapBefore: number, bodyColor: number, ctx: Ctx): RichBlock {
   if (b.t === "heading") {
     const size = PROSE.heading[b.level - 1];
@@ -2216,7 +2304,7 @@ defineAttributes(RichText, {
   headingColor: { def: null, defBinding: providedDefault("headingColor", null) },
   headingWeight: { def: "bold", defBinding: providedDefault("headingWeight", "bold") },
   linkColor: { def: null, defBinding: providedDefault("linkColor", null) },
-  linkUnderline: { def: false, defBinding: providedDefault("linkUnderline", false) },
+  linkUnderline: { def: true, defBinding: providedDefault("linkUnderline", true) },
   codeColor: { def: null, defBinding: providedDefault("codeColor", null) },
   codeSize: { def: 0, defBinding: providedDefault("codeSize", 0) },
   codeFamily: { def: "", defBinding: providedDefault("codeFamily", "") },

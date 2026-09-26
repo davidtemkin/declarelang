@@ -102,6 +102,7 @@ export class Draw {
     tAlign = "start";
     tBaseline = "alphabetic";
     tLetter = 0;
+    tWord = 0;
     /** The live transform matrix [a,b,c,d,e,f] and its save/restore stack. Every
      *  painted extent is mapped through it before it grows the ink box, so the
      *  recording's bounds land in the VIEW's local space even under scale/rotate/
@@ -161,7 +162,7 @@ export class Draw {
     get direction() { return this.readOnly("direction"); }
     set letterSpacing(v) { this.tLetter = parseFloat(v) || 0; this.push({ op: "set", k: "letterSpacing", v }); }
     get letterSpacing() { return this.readOnly("letterSpacing"); }
-    set wordSpacing(v) { this.push({ op: "set", k: "wordSpacing", v }); }
+    set wordSpacing(v) { this.tWord = parseFloat(v) || 0; this.push({ op: "set", k: "wordSpacing", v }); }
     get wordSpacing() { return this.readOnly("wordSpacing"); }
     set fontKerning(v) { this.push({ op: "set", k: "fontKerning", v }); }
     get fontKerning() { return this.readOnly("fontKerning"); }
@@ -307,6 +308,8 @@ export class Draw {
         let w, asc, desc;
         try {
             w = textWidth(text, this.tFont, this.tLetter);
+            if (this.tWord !== 0)
+                w += this.tWord * (text.match(/ /g)?.length ?? 0);
             const m = fontMetrics(this.tFont);
             asc = m.ascent;
             desc = m.descent;
@@ -532,7 +535,7 @@ function listInfo(list) {
     if (hit !== undefined)
         return hit;
     const ext = list.extents ?? [];
-    let area = 0, fillGrad = false, strokeGrad = false, shadow = false, filtered = false, cullable = true;
+    let area = 0, fillGrad = false, strokeGrad = false, shadow = false, filtered = false, cullable = true, isolated = false;
     const w = (base) => base * (shadow ? KIND_WEIGHT.shadow : 1);
     for (let i = 0; i < list.ops.length; i++) {
         const o = list.ops[i];
@@ -546,8 +549,12 @@ function listInfo(list) {
             case "set":
                 if (o.k === "filter" && o.v !== "none" && o.v !== "")
                     filtered = true;
-                else if (o.k === "globalCompositeOperation" && UNCULLABLE.has(String(o.v)))
-                    cullable = false;
+                else if (o.k === "globalCompositeOperation") {
+                    if (o.v !== "source-over")
+                        isolated = true;
+                    if (UNCULLABLE.has(String(o.v)))
+                        cullable = false;
+                }
                 else if (o.k === "shadowBlur")
                     shadow = typeof o.v === "number" && o.v > 0;
                 break;
@@ -586,7 +593,7 @@ function listInfo(list) {
             }
         }
     }
-    const info = { area: filtered ? Infinity : area, cullable };
+    const info = { area: filtered ? Infinity : area, cullable, isolated };
     infoCache.set(list, info);
     return info;
 }
@@ -677,6 +684,17 @@ export function replay(ctx, list, clip) {
     }
     replayDirect(ctx, list, cull);
 }
+/** Does this recording composite with anything but source-over? Such a
+ *  recording must act on its own marks only — which it does on the DOM, where
+ *  every drawing has a canvas of its own; the canvas renderer, which replays
+ *  onto one shared scene, isolates it (canvas-backend replayOnScene). */
+export function listIsolated(list) {
+    return listInfo(list).isolated;
+}
+/** `base × m`: a recording's absolute transform, placed at the drawing's origin. */
+function setRelative(c, base, m) {
+    c.setTransform(base.a * m[0] + base.c * m[1], base.b * m[0] + base.d * m[1], base.a * m[2] + base.c * m[3], base.b * m[2] + base.d * m[3], base.a * m[4] + base.c * m[5] + base.e, base.b * m[4] + base.d * m[5] + base.f);
+}
 function replayDirect(ctx, list, cull) {
     ctx.save();
     // A recording replays as onto a FRESH context: the canvas defaults, not
@@ -704,6 +722,10 @@ function replayDirect(ctx, list, cull) {
     ctx.setLineDash([]);
     ctx.lineDashOffset = 0;
     ctx.beginPath();
+    // the drawing's own origin: where the backend placed it (offset × density);
+    // a recording's setTransform / resetTransform are relative to it, as they
+    // are on the canvas of its own a drawing has on the DOM
+    const base = ctx.getTransform();
     for (let i = 0; i < list.ops.length; i++) {
         const o = list.ops[i];
         if (culled(list, i, cull))
@@ -803,10 +825,10 @@ function replayDirect(ctx, list, cull) {
                 ctx.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]);
                 break;
             case "setTransform":
-                ctx.setTransform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]);
+                setRelative(ctx, base, o.m);
                 break;
             case "resetTransform":
-                ctx.resetTransform();
+                ctx.setTransform(base);
                 break;
         }
     }
@@ -943,6 +965,7 @@ function replayFiltered(ctx, list, cull) {
     ctx.beginPath();
     sx.save();
     sx.beginPath();
+    const base = ctx.getTransform();
     for (let i = 0; i < list.ops.length; i++) {
         const o = list.ops[i];
         if (culled(list, i, cull))
@@ -1055,10 +1078,12 @@ function replayFiltered(ctx, list, cull) {
                 both((c) => c.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]));
                 break;
             case "setTransform":
-                both((c) => c.setTransform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]));
+                setRelative(ctx, base, o.m);
+                setRelative(sx, base, o.m);
                 break;
             case "resetTransform":
-                both((c) => c.resetTransform());
+                ctx.setTransform(base);
+                sx.setTransform(base);
                 break;
         }
     }

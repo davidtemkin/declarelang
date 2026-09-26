@@ -92,6 +92,11 @@ App [ width = 360, height = 110, fill = white, textColor = black,
     ]
 ```
 
+**A font loads when text reaches it.** A family list is tried in order, and a font's
+faces are fetched only when nothing before it is on the machine: put the platform's
+own face first and a web font after it, and a device that has the first never
+downloads the second. A font no text reaches costs nothing.
+
 **While a font loads,** the font decides what waiting is worth. [`wait`](declare-docs:Font.wait) (milliseconds,
 default 500) is how long text about to change to this font keeps its current look — at
 startup, how long the first paint waits. [`late`](declare-docs:Font.late) decides what a face arriving after that

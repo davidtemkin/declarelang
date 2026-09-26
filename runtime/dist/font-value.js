@@ -14,18 +14,30 @@
 export const FONT_CSS = Symbol("declare.font.css");
 /** Whether a font is still inside its wait for faces it has not received. */
 export const FONT_PENDING = Symbol("declare.font.pending");
+/** Ask a font for its faces: text has reached it. A declared font loads nothing
+ *  until then — a font no text reaches costs nothing. */
+export const FONT_DEMAND = Symbol("declare.font.demand");
 export function isFontValue(v) {
     return typeof v === "object" && v !== null && FONT_CSS in v;
 }
+let demandHook = null;
+/** font.ts installs the demand machinery. */
+export function provideFontDemand(h) { demandHook = h; }
 /** The CSS family list a value names: a string as written, a font's current
- *  family, a list joined in order. Tracked when a font is read. */
+ *  family, a list joined in order. Tracked when a font is read. Resolving it is
+ *  also what demands the font text reaches (above). */
 export function familyCss(v) {
     if (typeof v === "string")
         return v;
-    if (isFontValue(v))
+    if (isFontValue(v)) {
+        v[FONT_DEMAND]?.();
         return v[FONT_CSS];
-    if (Array.isArray(v))
-        return v.map(familyCss).filter((s) => s !== "").join(", ");
+    }
+    if (Array.isArray(v)) {
+        if (demandHook !== null && v.some(isFontValue))
+            demandHook.reached(v);
+        return v.map((e) => (isFontValue(e) ? e[FONT_CSS] : familyCss(e))).filter((s) => s !== "").join(", ");
+    }
     return "";
 }
 /** Whether any font in the value is still waiting for its faces. */
@@ -52,8 +64,14 @@ export async function fontsReady(root) {
             walk(c);
     };
     walk(root);
-    if (fonts.length > 0)
-        await Promise.all(fonts.map((f) => f.ready()));
+    if (fonts.length === 0)
+        return;
+    // Resolve every family the tree's text starts with, before waiting: that is
+    // what demands the fonts text reaches, so the gate waits for those and for no
+    // font a device will never draw in. (A family first used later demands its
+    // font then, through the same resolution.)
+    demandHook?.touch(root);
+    await Promise.all(fonts.map((f) => f.ready()));
 }
 /** The fix for a font NAME written where a family goes (`fontFamily = Serif`,
  *  or a retired top-level `font Serif [ … ]`): name the object form. */

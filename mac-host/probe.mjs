@@ -3,13 +3,14 @@
 import puppeteer from "puppeteer-core";
 import { writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { ORIGIN } from "./app.mjs";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const prog = process.argv[2], row = Number(process.argv[3] ?? 100);
 const b = await puppeteer.launch({ executablePath: CHROME, headless: true,
   args: ["--no-sandbox", "--force-device-scale-factor=1"],
   defaultViewport: { width: 400, height: 250, deviceScaleFactor: 1 } });
 const p = await b.newPage();
-await p.goto(`http://127.0.0.1:8260/test/probe/${prog}.declare?render=dom`, { waitUntil: "networkidle0" });
+await p.goto(`${ORIGIN}/test/probe/${prog}.declare?render=dom`, { waitUntil: "networkidle0" });
 await new Promise((r) => setTimeout(r, 1200));
 writeFileSync("/tmp/probe-web.png", Buffer.from(await p.screenshot({ encoding: "base64" }), "base64"));
 await b.close();

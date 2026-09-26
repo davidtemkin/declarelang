@@ -1,0 +1,134 @@
+/*
+# Lines
+
+A paragraph's leading, alignment and clamp; a single line's box; baseline
+alignment across faces and sizes. Rules mark each text box's measured edges.
+*/
+
+script {
+    function lineLeading(): Record<string, unknown>[] {
+        return cross({ lh: [0, 0.8, 1, 1.2, 1.5, 2], size: [12, 18] },
+            (r) => "lineHeight " + (r.lh === 0 ? "natural" : r.lh) + " · " + r.size + "px")
+    }
+    function lineAlign(): Record<string, unknown>[] {
+        return cross({ align: ["left", "center", "right"], wrap: [true, false] },
+            (r) => r.align + (r.wrap ? " · wraps" : " · one line"))
+    }
+    function lineClamp(): Record<string, unknown>[] {
+        return cross({ clamp: [1, 2, 3], align: ["left", "center", "right"] }, (r) => r.clamp + " line" + (r.clamp > 1 ? "s" : "") + " · " + r.align)
+    }
+    }
+
+
+class LeadSwatch extends Swatch [ name = :name,
+    top: View [ x = 10, y = 8, width = 192, height = 1, fill = #2E6FE066 ],
+    p: Text [ x = 10, y = 8, width = 192, wrap = true, fontSize = { :size }, lineHeight = { :lh },
+        textColor = { provided("theme").text },
+        text = "Leading sets the stride between lines; tight keeps glyphs centred." ],
+    bottom: View [ x = 10, y = { classroot.p.y + classroot.p.height }, width = 192, height = 1, fill = #E4572E66 ]
+    ]
+
+
+class AlignSwatch extends Swatch [ name = :name,
+    frame: View [ x = 10, y = 8, width = 192, height = 100, stroke = stroke(1, #2E6FE033) ],
+    p: Text [ x = 10, y = 8, width = 192, fontSize = 13, wrap = { :wrap }, textAlign = { :align },
+        textColor = { provided("theme").text },
+        text = { :wrap ? "Aligned within the box, line by line, as the paragraph wraps." : "One line, aligned" } ]
+    ]
+
+
+class ClampSwatch extends Swatch [ name = :name,
+    p: Text [ x = 10, y = 8, width = 192, fontSize = 13, wrap = true, maxLines = { :clamp }, textAlign = { :align },
+        textColor = { provided("theme").text },
+        text = "A clamp keeps only so many lines and ends the last with an ellipsis where the text runs on past it." ],
+    bottom: View [ x = 10, y = { classroot.p.y + classroot.p.height }, width = 192, height = 1, fill = #E4572E66 ]
+    ]
+
+
+class LinesSection extends Section [ title = "Lines",
+    caption = "Leading, alignment and the clamp on a paragraph; a one-line box, centred and auto-sized; and baseline alignment across faces and sizes. Blue is a box's measured top, orange its bottom.",
+    tabs = { [ ({ id: "leading", label: "Leading" }), ({ id: "align", label: "Align" }), ({ id: "clamp", label: "Clamp" }),
+               ({ id: "box", label: "Box" }), ({ id: "baseline", label: "Baseline" }) ] },
+    sub = "leading",
+    SubHead [ visible = { app.matrix }, text = "Leading" ],
+    Grid [ visible = { classroot.showing("leading") }, datapath = { app.book.value },
+        LeadSwatch [ datapath = :lineLeading[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Align" ],
+    Grid [ visible = { classroot.showing("align") }, datapath = { app.book.value },
+        AlignSwatch [ datapath = :lineAlign[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Clamp" ],
+    Grid [ visible = { classroot.showing("clamp") }, datapath = { app.book.value },
+        ClampSwatch [ datapath = :lineClamp[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Box" ],
+    Grid [ visible = { classroot.showing("box") },
+        Swatch [ name = "auto size",
+            t: Text [ x = 20, y = 30, fontSize = 24, text = "Auto" ],
+            ring: View [ x = 20, y = 30, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ],
+        Swatch [ name = "y = center",
+            band: View [ x = 10, y = 20, width = 192, height = 80, fill = #2E6FE011 ],
+            t: Text [ x = center, y = center, fontSize = 22, text = "Centred" ]
+            ],
+        Swatch [ name = "TextLabel · cap-centred",
+            band: View [ x = 10, y = 30, width = 192, height = 60, fill = #2E6FE011,
+                t: TextLabel [ x = 10, fontSize = 22, text = "Label" ]
+                ]
+            ],
+        Swatch [ name = "fixed height · clipped",
+            t: Text [ x = 10, y = 10, width = 192, height = 36, clip = true, fontSize = 13, wrap = true,
+                text = "A box shorter than its text clips what runs past its bottom edge." ]
+            ],
+        Swatch [ name = "hard line breaks",
+            t: Text [ x = 10, y = 10, fontSize = 14, wrap = false, text = "first line\nsecond, longer line\nthird" ]
+            ],
+        Swatch [ name = "tall face · lineHeight 1",
+            t: Text [ x = 10, y = 20, fontSize = 56, lineHeight = 1, fontWeight = bold, fontFamily = "Georgia, serif", text = "Hgy" ],
+            top: View [ x = 10, y = 20, width = 120, height = 1, fill = 0x2E6FE0 ],
+            bottom: View [ x = 10, y = { 20 + parent.t.height }, width = 120, height = 1, fill = 0xE4572E ]
+            ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Baseline" ],
+    Grid [ visible = { classroot.showing("baseline") },
+        Swatch [ name = "sizes on one baseline",
+            row: View [ x = 10, y = 20,
+                layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+                Text [ fontSize = 40, fontWeight = bold, text = "42" ],
+                Text [ fontSize = 14, text = "units" ],
+                Text [ fontSize = 24, text = "ok" ]
+                ]
+            ],
+        Swatch [ name = "faces on one baseline",
+            row: View [ x = 10, y = 20,
+                layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+                Text [ fontSize = 30, fontFamily = "Georgia, serif", text = "Serif" ],
+                Text [ fontSize = 20, fontFamily = "monospace", text = "mono" ],
+                Text [ fontSize = 26, fontFamily = { app.roboto }, text = "Rob" ]
+                ]
+            ],
+        Swatch [ name = "text and rich text",
+            row: View [ x = 10, y = 20,
+                layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+                Text [ fontSize = 32, fontWeight = bold, text = "12" ],
+                HTMLText [ fontSize = 14, html = "<b>rich</b> run" ]
+                ]
+            ],
+        Swatch [ name = "text and an inline view",
+            row: View [ x = 10, y = 30,
+                layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+                Text [ fontSize = 20, text = "tag" ],
+                Chip [ label = "chip" ],
+                Text [ fontSize = 14, text = "after" ]
+                ]
+            ],
+        Swatch [ name = "baseline under lineHeight 1.6",
+            row: View [ x = 10, y = 20,
+                layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+                Text [ fontSize = 28, lineHeight = 1.6, text = "Tall" ],
+                Text [ fontSize = 14, text = "small" ]
+                ]
+            ]
+        ]
+    ]

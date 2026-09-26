@@ -52,6 +52,9 @@ mac-host/winb
 # the off-screen WebKit measurement harness (tools/rasterbench.mjs): the source
 # is tracked, the compiled binary is not — rasterbench rebuilds it when stale
 mac-host/webkitprobe
+# its sibling, the off-screen WebKit snapshot (a third reference for the
+# renderers): source tracked, binary built per machine
+mac-host/webkitshot
 
 # the assembled native host (mac-host/bundle.sh). Its sources are tracked; the
 # .app is a per-machine build product, and it lands here so it self-locates the

@@ -16,7 +16,7 @@ never read by the running program), and whatever the program's `ship` block name
 `programs/` folder with one compiled program per island, a `files/` folder for what it reads
 from elsewhere, the compiler and the component library when it compiles at run time.
 Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->118<!--/stat--> KB gzipped** — and that is the figure the
+around **<!--stat:calendar.wireKB-->119<!--/stat--> KB gzipped** — and that is the figure the
 homepage prints, measured on the build its own calendar page ships. The module carries
 everything a page needs and nothing else: the runtime's run path, your program, and the web
 host — the URL and history mirror (`app.location` ↔ the fragment, Back and Forward), island

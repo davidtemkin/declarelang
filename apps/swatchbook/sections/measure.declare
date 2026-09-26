@@ -1,0 +1,85 @@
+/*
+# Measure
+
+Text a measurer can get wrong: other scripts, right-to-left and mixed
+direction, emoji and their sequences, combining marks, and words too long for
+their line — each as one line in its measured box, as a wrapped paragraph, and
+as rich text. The ring is the box the runtime measured.
+*/
+
+script {
+    const SAMPLES: Record<string, string[]> = {
+        latin: ["Handgloves", "Measure wraps a paragraph at the width it is given."],
+        cjk: ["漢字かなカナ한글", "日本語の文章は単語の間に空白がなく、どこでも折り返せます。"],
+        arabic: ["مرحبا بالعالم", "النص العربي يُكتب من اليمين إلى اليسار ويلتف في السطر."],
+        hebrew: ["שלום עולם", "טקסט עברי נכתב מימין לשמאל וגולש לשורה הבאה."],
+        mixed: ["abc مرحبا 123", "English, then العربية in the middle, then English again."],
+        emoji: ["😀🎉👍🏽", "Emoji 🎉 in running text 👍🏽 wrap like words 🚀 do."],
+        zwj: ["👩‍💻👨‍👩‍👧🏳️‍🌈", "Sequences 👩‍💻 and 👨‍👩‍👧 are one glyph each."],
+        marks: ["é ä ñ ộ", "Combining marks: café, naïve, mañana, stacḳ̂ed."],
+        thai: ["ภาษาไทย", "ภาษาไทยไม่มีช่องว่างระหว่างคำและตัดบรรทัดตามพจนานุกรม"],
+        devanagari: ["नमस्ते दुनिया", "हिन्दी पाठ संयुक्ताक्षरों के साथ पंक्ति में लपेटा जाता है।"],
+        longword: ["Donaudampfschifffahrt", "A Donaudampfschifffahrtsgesellschaftskapitän won't fit its line."],
+        url: ["example.com/a/b", "Visit https://example.com/a/really/long/path/that/never/breaks today."],
+    }
+    function measureRows(): Record<string, unknown>[] {
+        return cross({ script: Object.keys(SAMPLES), kind: ["line", "wrap", "rich"] }, (r) => r.script + " · " + r.kind)
+            .map((r) => ({ ...r, one: SAMPLES[r.script as string][0], para: SAMPLES[r.script as string][1] }))
+    }
+    }
+
+
+class MeasureSwatch extends Swatch [ name = :name,
+    line: Text [ x = 14, y = 40, fontSize = 22, wrap = false, visible = { :kind == "line" }, text = { :one } ],
+    ring: View [ visible = { :kind == "line" }, x = 14, y = 40, width = { parent.line.width }, height = { parent.line.height }, stroke = stroke(1, #E4572E) ],
+    para: Text [ x = 10, y = 8, width = 192, fontSize = 14, wrap = true, visible = { :kind == "wrap" }, text = { :para } ],
+    rich: Markdown [ x = 10, y = 8, width = 192, fontSize = 14, visible = { :kind == "rich" }, text = { "**" + :one + "** " + :para } ],
+    bottom: View [ x = 10, width = 192, height = 1, fill = #E4572E66, visible = { :kind != "line" },
+        y = { :kind == "wrap" ? parent.para.y + parent.para.height : parent.rich.y + parent.rich.height } ]
+    ]
+
+
+class MeasureSection extends Section [ title = "Measure",
+    caption = "Other scripts, right-to-left and mixed direction, emoji and their sequences, combining marks, and words too long for their line — as one line in its measured box, a wrapped paragraph, and rich text.",
+    tabs = { [ ({ id: "line", label: "One line" }), ({ id: "wrap", label: "Wrapped" }), ({ id: "rich", label: "Rich" }), ({ id: "fit", label: "Fit" }) ] },
+    sub = "line",
+    SubHead [ visible = { app.matrix }, text = "Scripts" ],
+    Grid [ visible = { app.matrix || classroot.sub == "line" || classroot.sub == "wrap" || classroot.sub == "rich" }, datapath = { app.book.value },
+        MeasureSwatch [ datapath = :measureRows[], visible = { app.matrix || :kind == classroot.sub } ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Fit" ],
+    Grid [ visible = { classroot.showing("fit") },
+        Swatch [ name = "measureText · plate",
+            plate: View [ x = 16, y = 12, width = 180, height = 96,
+                draw(d: Draw) {
+                    const st = { fontSize: 20, fontWeight: 600 }
+                    const m = measureText("日本語 mixed", st)
+                    d.fillStyle = 0xE7EBF1; d.fillRect((d.w - m.width) / 2 - 8, 26, m.width + 16, 44)
+                    d.fillText("日本語 mixed", (d.w - m.width) / 2, 26 + (44 - m.height) / 2 + m.baseline, { ...st, textColor: 0x1B2733 }) }
+                ]
+            ],
+        Swatch [ name = "chip fitted to its label",
+            Chip [ x = 20, y = 40, label = "fits its words exactly" ]
+            ],
+        Swatch [ name = "letterSpacing in the measure",
+            t: Text [ x = 14, y = 40, fontSize = 18, letterSpacing = 4, text = "TRACKED" ],
+            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ],
+        Swatch [ name = "uppercase in the measure",
+            t: Text [ x = 14, y = 40, fontSize = 18, textTransform = uppercase, text = "measured caps" ],
+            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ],
+        Swatch [ name = "smallCaps in the measure",
+            t: Text [ x = 14, y = 40, fontSize = 18, smallCaps = true, text = "Small Caps" ],
+            ring: View [ x = 14, y = 40, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ],
+        Swatch [ name = "italic overhang",
+            t: Text [ x = 14, y = 36, fontSize = 30, italic = true, fontFamily = "Georgia", text = "fjord" ],
+            ring: View [ x = 14, y = 36, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ],
+        Swatch [ name = "tabular vs proportional",
+            a: Text [ x = 14, y = 20, fontSize = 18, numeralWidth = tabular, text = "1111 0000" ],
+            b: Text [ x = 14, y = 60, fontSize = 18, numeralWidth = proportional, text = "1111 0000" ]
+            ]
+        ]
+    ]

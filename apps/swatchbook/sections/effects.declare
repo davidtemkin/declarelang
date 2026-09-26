@@ -1,0 +1,156 @@
+/*
+# Effects
+
+The filter vocabulary on a box, on text and on an image; chains; every blend
+mode over two kinds of ground; masks of every gradient kind and a view stencil;
+opacity; the frosted backdrop.
+*/
+
+script {
+    function effectFilters(): Record<string, unknown>[] {
+        return cross({ fx: ["blur", "brightness", "contrast", "saturate", "grayscale", "invert", "sepia", "hueRotate", "colorize", "shadow", "dim", "halfGray"],
+                       content: ["box", "text", "image"] }, (r) => r.fx + " · " + r.content)
+    }
+    function effectChains(): Record<string, unknown>[] {
+        return cross({ fx: ["grayContrast", "blurShadow", "sepiaHue", "invertBlur", "shadowTwice", "saturateBright"], content: ["box", "image"] },
+            (r) => r.fx + " · " + r.content)
+    }
+    function effectBlends(): Record<string, unknown>[] {
+        return cross({ mode: ["normal", "multiply", "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn", "hardLight",
+                              "softLight", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plusLighter"],
+                       ground: ["gradient", "image"] }, (r) => r.mode + " · over " + r.ground)
+    }
+    function effectMasks(): Record<string, unknown>[] {
+        return cross({ mask: ["linear", "vertical", "radial", "conic"], content: ["box", "text", "image"] }, (r) => r.mask + " mask · " + r.content)
+    }
+    }
+
+
+class Subject extends View [ width = 140, height = 88,
+    content: string = "box",
+    box: View [ width = 140, height = 88, cornerRadius = 12, visible = { classroot.content == "box" },
+        fill = gradient(90, #2E6FE0, #E4572E) ],
+    word: Text [ y = 20, width = 140, textAlign = center, fontSize = 34, fontWeight = bold, wrap = false,
+        visible = { classroot.content == "text" }, textColor = 0xE4572E, text = "Aa 12" ],
+    pic: Image [ width = 140, height = 88, stretches = contain, source = "assets/badge.png", visible = { classroot.content == "image" } ]
+    ]
+
+
+class FilterSwatch extends Swatch [ name = :name,
+    s: Subject [ x = 36, y = 16, content = { :content }, filter = { app.filterFor(:fx) } ]
+    ]
+
+
+class BlendSwatch extends Swatch [ name = :name,
+    ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, visible = { :ground == "gradient" },
+        fill = gradient(90, #17A34A, #FDE68A) ],
+    pic: Image [ x = 20, y = 14, width = 172, height = 92, stretches = cover, source = "assets/badge.png", visible = { :ground == "image" } ],
+    over: View [ x = 56, y = 28, width = 100, height = 64, cornerRadius = 32, fill = 0xE4572E, blend = { :mode } ]
+    ]
+
+
+class MaskSwatch extends Swatch [ name = :name,
+    s: Subject [ x = 36, y = 16, content = { :content },
+        mask = { :mask == "linear" ? gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0))
+            : :mask == "vertical" ? gradient("180deg", 0x000000, colorWithAlpha(0x000000, 0))
+            : :mask == "radial" ? radialGradient(0.5, 0.5, 0.6, 0x000000, colorWithAlpha(0x000000, 0))
+            : conicGradient(0.5, 0.5, 0, 0x000000, colorWithAlpha(0x000000, 0), 0x000000) } ]
+    ]
+
+
+class EffectsSection extends Section [ title = "Effects",
+    caption = "Each filter on a box, on text and on an image; chains of them; every blend mode over a gradient and over an image; masks; opacity; and a frosted backdrop.",
+    tabs = { [ ({ id: "filters", label: "Filters" }), ({ id: "chains", label: "Chains" }), ({ id: "blend", label: "Blend" }),
+               ({ id: "masks", label: "Masks" }), ({ id: "opacity", label: "Opacity" }), ({ id: "backdrop", label: "Backdrop" }) ] },
+    sub = "filters",
+    SubHead [ visible = { app.matrix }, text = "Filters" ],
+    Grid [ visible = { classroot.showing("filters") }, datapath = { app.book.value },
+        FilterSwatch [ datapath = :effectFilters[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Chains" ],
+    Grid [ visible = { classroot.showing("chains") }, datapath = { app.book.value },
+        FilterSwatch [ datapath = :effectChains[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Blend" ],
+    Grid [ visible = { classroot.showing("blend") }, datapath = { app.book.value },
+        BlendSwatch [ datapath = :effectBlends[] ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Masks" ],
+    Grid [ visible = { classroot.showing("masks") }, datapath = { app.book.value },
+        MaskSwatch [ datapath = :effectMasks[] ]
+        ],
+    Grid [ visible = { classroot.showing("masks") },
+        Swatch [ name = "drawn stencil · circle",
+            s: Subject [ x = 36, y = 16, mask = { this.st },
+                st: View [ visible = false, x = 26, y = 0, width = 88, height = 88,
+                    draw(d: Draw) { d.fillStyle = 0x000000; d.beginPath(); d.arc(44, 44, 44, 0, 6.2832); d.fill() }
+                    ]
+                ]
+            ],
+        Swatch [ name = "drawn stencil · text",
+            s: Subject [ x = 36, y = 16, content = "image", mask = { this.st },
+                st: View [ visible = false, width = 140, height = 88,
+                    draw(d: Draw) { d.fillStyle = 0x000000; d.font = "bold 44px Helvetica"; d.textAlign = "center"; d.fillText("MASK", 70, 60) }
+                    ]
+                ]
+            ],
+        Swatch [ name = "image stencil",
+            s: Subject [ x = 36, y = 16, mask = { this.st },
+                st: Image [ visible = false, width = 140, height = 88, stretches = contain, source = "assets/badge.png" ]
+                ]
+            ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Opacity" ],
+    Grid [ visible = { classroot.showing("opacity") },
+        Swatch [ name = "opacity 0.25 · box",
+            s: Subject [ x = 36, y = 16, opacity = 0.25 ]
+            ],
+        Swatch [ name = "opacity 0.5 · box",
+            s: Subject [ x = 36, y = 16, opacity = 0.5 ]
+            ],
+        Swatch [ name = "opacity 0.75 · text",
+            s: Subject [ x = 36, y = 16, content = "text", opacity = 0.75 ]
+            ],
+        Swatch [ name = "opacity 0.5 · image",
+            s: Subject [ x = 36, y = 16, content = "image", opacity = 0.5 ]
+            ],
+        Swatch [ name = "nested 0.5 × 0.5",
+            outer: View [ x = 36, y = 16, width = 140, height = 88, opacity = 0.5,
+                s: Subject [ opacity = 0.5 ]
+                ]
+            ],
+        Swatch [ name = "group opacity over overlap",
+            g: View [ x = 30, y = 16, width = 160, height = 88, opacity = 0.5,
+                View [ width = 100, height = 88, cornerRadius = 44, fill = 0x2E6FE0 ],
+                View [ x = 60, width = 100, height = 88, cornerRadius = 44, fill = 0xE4572E ]
+                ]
+            ]
+        ],
+    SubHead [ visible = { app.matrix }, text = "Backdrop" ],
+    Grid [ visible = { classroot.showing("backdrop") },
+        Swatch [ name = "frost 4",
+            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #E4572E) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(4), fill = #FFFFFF55 ]
+            ],
+        Swatch [ name = "frost 12",
+            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #E4572E) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(12), fill = #FFFFFF55 ]
+            ],
+        Swatch [ name = "frost 24 · saturated",
+            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #E4572E) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(24, 2), fill = #FFFFFF33 ]
+            ],
+        Swatch [ name = "frost over an image",
+            Image [ x = 20, y = 14, width = 172, height = 92, stretches = cover, source = "assets/badge.png" ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(10), fill = #FFFFFF44 ]
+            ],
+        Swatch [ name = "frost over text",
+            Text [ x = 20, y = 30, fontSize = 34, fontWeight = bold, textColor = 0x2E6FE0, text = "Behind" ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(6), fill = #FFFFFF55 ]
+            ],
+        Swatch [ name = "dark frost",
+            View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #FDE68A, #2E6FE0) ],
+            View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(12), fill = #11111166 ]
+            ]
+        ]
+    ]

@@ -89,7 +89,7 @@ so a capability that serves content-heavy interfaces counts as application value
 |---|---|---|---|---|---|---|
 | scale, rotation, pivot | done | ✓ | ✓ | ✓ | | |
 | scaleX, scaleY, skewX, skewY | done | ✓ | ✓ | ✓ | | one matrix, one seam call |
-| rotateX, rotateY, translateZ | done | ✓ | partial | ✓ | | canvas projects in up to 120 strips: exact along rows for rotateX, close otherwise |
+| rotateX, rotateY, translateZ | done | ✓ | partial | ✓ | | canvas projects in up to 120 strips along the exact axis — rows for rotateX, columns for rotateY, each owning whole device pixels; a turn on both axes is close (E32) |
 | perspective on the parent | done | ✓ | ✓ | ✓ | | **[mirror]** the odometer |
 | backface hidden, paint and hit | done | ✓ | ✓ | ✓ | | |
 | hit testing under every transform | done | ✓ | ✓ | ✓ | | one inverse shared by paint, hit walk and bounds |
@@ -141,7 +141,9 @@ so a capability that serves content-heavy interfaces counts as application value
 |---|---|---|---|---|---|---|
 | wrap, textAlign left/center/right | done | ✓ | ✓ | ✓ | | three different line breakers: browser, shared `wrapLines`, Core Text |
 | lineHeight on Text | done | ✓ | ✓ | ✓ | | FIXED 2026-09-13 (D7): the Mac host reads it and pitches its lines by it; pinned by the gate's `test/probe/text.declare` |
-| maxLines, clamp with ellipsis | done | ✓ | ✓ | ✓ | | three different truncation rules: browser line-clamp, whole words, Core Text characters |
+| maxLines, clamp with ellipsis | done | ✓ | ✓ | ✓ | | one rule on all three (whole words, measure.ts clampLines — E34, M22); on the DOM a clamped run's selection copies the cut text |
+| right-to-left: order within a line | done | ✓ | ✓ | ✓ | | the engine orders a run's characters; the canvas rich flow mirrors a line's right-to-left pieces (E25) |
+| right-to-left: paragraph direction and mirrored layout | absent | ✗ | ✗ | ✗ | P2 | every paragraph is left-to-right (no `direction`, no start/end alignment — an Arabic sentence's period lands on the right); rows, wrapping and `x` are physical. The Mac's choice of base direction is unchecked |
 | `maxLines` on RichText | done | ✓ | ✓ | ✓ | | BUILT 2026-09-13: one budget apportioned across a document's flows and structural blocks; canvas drops views, DOM and Mac clamp natively through `setRichClamp`. §11b |
 | a fact reporting that truncation happened | done | ✓ | ✓ | ✓ | | BUILT 2026-09-13: `truncated`, read-only, on `Text` and on `RichText` — what a "Show more" binds to |
 | middle truncation | absent | ✗ | ✗ | ✗ | P2 | File names, paths and addresses in lists. CSS has no equivalent, so this is a place Declare can be better rather than equal |
@@ -457,6 +459,132 @@ the render diffed (1.5–4.7 % each).
 
 Confirmed complete on every renderer: gradient kinds, the filter vocabulary, the
 blend table, stretch modes, the text style fields, the editable fields.
+
+**Then the layout sweep** (`tools/crossrender.mjs`: every view's box and baseline,
+DOM against canvas and the Mac, over every app and guide demo) found five more,
+each a number rather than a haze:
+
+| | defect | fix |
+|---|---|---|
+| E11 | the canvas rich flow's run box overshot its line by up to a pixel: the space below the baseline was the descent plus a ROUNDED half-leading, not what the box leaves | a run's box is exactly `round(size × lineHeight)`; below = box − above |
+| E12 | a DOM paragraph element had no face of its own, so every line's strut was the page default (Times, whose line box the browsers enlarge) — a system-ui paragraph ran a pixel a line taller than on canvas and the Mac; the docs guide chapter drifted 185px | the block element wears the block's face |
+| E13 | half-leading was rounded to nearest on canvas and split evenly on the Mac; the browser gives the space above the FLOOR of the half and the rest below (LayoutNG) | the floor split everywhere: canvas rich flow and `Text`, `Text.baseline`, the Mac text layer and rich line boxes |
+| E14 | the manual flow dropped the space after an inline view, so every inline view after the first sat one space to the left (canvas, and the Mac, which flows inline views manually) | a space after an inline view is a space |
+| E15 | the Mac's rich line boxes kept TextKit's per-line leading as "space before" and used an unrounded `size × lineHeight` | only the paragraph's own space, on its first line; the box rounded as on the web |
+
+**Then Swatchbook** (`apps/swatchbook/`, `test/swatchbook.test.mjs`: every
+combination, DOM against canvas, layout and per-swatch pixels) found three more on its
+first run:
+
+| | defect | fix |
+|---|---|---|
+| E16 | canvas never drew an image whose bitmap landed after its parent recorded no ink — a plain or blending parent's painted box left it out, and the repaint culled the subtree (blank until an unrelated repaint; cold loads only) | a surface recorded as painting nothing that changes clears its ancestors' records to unknown, as a subtree changing shape does |
+| E17 | Chrome decides `capitalize`'s word starts by the character before it in DOCUMENT ORDER, across separate elements whatever their positioning or containment — so a Text after any other text lost its first capital | the DOM backend capitalizes the text itself (the shared `transformText`, what canvas and the Mac paint); upper and lower case stay CSS |
+| E18 | a DOM gradient text fill spanned the letters of a left-aligned single line, not the view's box as the canvas, the Mac and the reference say | a gradient-filled run fills its box |
+
+The book's second build (a sub-page switch per section; 683 swatches across ten
+sections, every primitive and the combinations) found fifteen more:
+
+| | defect | fix |
+|---|---|---|
+| E19 | canvas composited a drawing's `globalCompositeOperation` against the scene under it — `screen` lightened the card, `destination-out` cut through it, `source-atop` drew outside the drawing's own marks | a recording with any operator but source-over replays onto a bounded surface of its own, which lands source-over (the DOM's canvas-per-drawing) |
+| E20 | a drawing's `setTransform` / `resetTransform` replaced the backend's placement (offset × density): off the card on canvas, and half size on a dense DOM raster | both are relative to the drawing's own origin |
+| E21 | a drawing's recorded text extent ignored `wordSpacing`, so the DOM raster cropped a spaced line | the extent counts it |
+| E22 | a DOM mask stencil that is an `Image` masked by the whole box, ignoring its `stretches` and alignment | the stencil masks where its bitmap paints; a tint's mask takes the image's alignment too |
+| E23 | the shared line breaker had no break inside CJK or Thai text, so on canvas a Japanese paragraph was one overflowing line, and on the DOM its measured height counted one line where the browser drew three | breaks between CJK characters (with the line-start/line-end kinsoku) and at dictionary word boundaries for Thai, Lao, Khmer and Myanmar, by `Intl.Segmenter` — the engines' ICU data |
+| E24 | the same breaker broke after `/`, which neither Chrome nor WebKit does in a path or URL (measured) | `/` is not a break; a hyphen still is |
+| E25 | the canvas rich flow placed right-to-left runs in logical order, so a bold Arabic word before plain Arabic came out on the wrong side | a line's right-to-left pieces are mirrored within their span (the bidi reordering, at the grain the flow places pieces); left-to-right paragraph, as the DOM's default |
+| E26 | the canvas rich flow had neither of those breaks either, and none after a hyphen | the same break units |
+| E27 | the space after a tracked run in the flow's own face was untracked | tracked, as a CSS space is |
+| E28 | a gradient run that wraps restarted its ramp on every line | one ramp over the fragments set end to end (CSS's sliced decoration) |
+| E29 | canvas clipped a filtered view's own shadow and blur to its box when the view clips | the clip goes inside the layer; the filter's bleed escapes it, as it escapes CSS overflow |
+| E30 | canvas upscaled an `Image` with the canvas default resampling, visibly coarser than the browser's `<img>` | `imageSmoothingQuality = "high"` |
+| E31 | canvas dropped a 3D view's own box shadow (the projected path paints content only) | the shadow is painted into the projected layer, which pads for it |
+| E32 | canvas projected 3D in row strips that overlapped by a row: a translucent pixel (a shadow, an image's soft edge) drawn twice read as banding, and under `rotateY` rows are only approximate | strips run along the exact axis (rows for X, columns for Y) and, when they land as axis-aligned bands, each owns whole device pixels; a view turned on both axes keeps the overlapping strips |
+| E34 | the DOM's `-webkit-line-clamp` places its ellipsis after aligning the whole line: under `textAlign = center` it was half cut, under `right` gone (no CSS form avoids it, measured) | the DOM cuts a clamped run itself by the shared rule (wrapLines + clampLines) and shows those lines — DOM and canvas now truncate identically |
+| E33 | `translateZ` under a rotation: the DOM and the Mac push along the view's own turned depth axis (CSS's `rotateY() translateZ()`); the homography — canvas paint and every renderer's hit walk — pushed toward the viewer | the homography rotates the push with the view; the reference says so |
+
+**Found, not fixed — for a decision:**
+
+- **Features on the system face, in Chrome.** A feature rides a derived `FontFace`
+  built from `local()`, and Chrome cannot name the system face there, so `numeralWidth`,
+  `numerals` and `slashedZero` on `-apple-system` / `system-ui` do nothing on Chrome's
+  DOM or canvas. WebKit and the Mac honour them (`tabular` is 12px wider on "1111 0000").
+- **Rich text colour.** The reference and the guide say a flow's body follows the
+  provided text face; the body reads only `bodyColor` (else a house grey), so a
+  container's or theme's `textColor` never reaches prose — and the house heading, link
+  and code tones follow the machine's appearance (`app.dark`), not the app's theme, so
+  a light-themed app on a dark Mac gets dark-mode headings. Recommended: the body takes
+  `textColor`, `bodyColor` stays the body-only override, the house tones come from the
+  provided theme. (Links underline by default now — the reference's rule, RULED
+  2026-09-26; the homepage provides `linkUnderline = false` to keep its look.)
+
+**The Mac, per swatch** (`crossrender --mac --pixels`: the sheet paged on the host's
+window and a Chrome page of the same size at 2×; 170 of 683 swatches over 2% on the
+first run). Fixed:
+
+| | defect | fix |
+|---|---|---|
+| M1 | a `cornerRadius` past half the box painted NOTHING (Core Animation's rule; the web fits it to a pill) | the radius a layer rounds is fitted to the box, re-fitted when the box changes |
+| M2 | a box with a gradient fill and four radii lost its stroke (the gradient layer covered the shape that strokes it) | the gradient sits under the stroking shape, which no longer fills |
+| M3 | a drawing's `d.filter` ran only `blur()` | the whole CSS list, parsed into the view tier's filter functions, plus `drop-shadow` |
+| M4 | a drawing's `setTransform` / `resetTransform` were skipped; a transform made while a filter was in force was lost when it ended | both are relative to the drawing's origin; transforms and save/restore move the raster and every open filter layer together |
+| M5 | a drawing's diagonal gradient ran at another angle: `CAGradientLayer` projects in UNIT space, so on a box that is not square the bands lean | the end point is chosen so the unit projection equals the pixel one |
+| M6 | a drawing's nine-argument `drawImage` cut the wrong band (the source rect was mirrored; `CGImage.cropping` is already top-left); `imageSmoothingEnabled` was ignored | passed straight through; smoothing maps to interpolation quality |
+| M7 | every `CAGradientLayer` interpolates in LINEAR light, where the web interpolates the encoded values — a green-to-orange ramp was visibly lighter mid-way, under every gradient on the Mac | each segment is resampled in sRGB (premultiplied for CSS, straight for canvas), hard stops kept |
+| M8 | a filter `shadow(…)` took the box outline as its path on every geometry update — a filtered rich text or rounded card cast a rectangle | a filter shadow keeps no path: it follows the content's alpha |
+| M9 | blend modes: Core Animation's compositing filters run in linear light (15–18% of each blend swatch wrong) | the host composites: the backdrop is the frost's paint walk stopped at the view, the source its layer tree, the operator Core Image's in the encoded space, shown by a sibling layer; Core Animation's own named modes (far closer than the Core Image ones) under a transform |
+| M10 | a filter list pairing `shadow(…)` with anything else lost the shadow and squared the corners (the layer shadow is cast from the unfiltered content) | such a list runs on the host over the rendered subtree, with its bleed |
+| M11 | frost sampled past its own box, so `frost(24)` pulled in what lay beyond the ground (a browser's backdrop filter sees only the backdrop inside the element's box, measured, and clamps at its edge) | the sample is the box itself; stacked frosts crop the same way |
+| M12 | a drawing's `fillText` with a gradient style painted black; a gradient-filled Text lost its `textShadow` | gradient text paints through a glyph clip inside a transparency layer that lands with the shadow |
+| M13 | system-ui bold italic lost the bold (italic replaced the traits); a family with no italic was not slanted; small caps vanished on a weighted system face; a declared face with no bold was not emboldened | italic is added to the traits; oblique (Skia's quarter skew) where no italic exists; small caps as the face's `smcp` through a Core Text copy; Blink's synthetic bold (a fill-and-stroke of 1/24 to 1/32 of the size) |
+| M14 | a named family's weight asked of AppKit by number: its scale is per family, and Helvetica Neue's 4 is Light CONDENSED | CSS font matching over the family's normal-width faces by their own weight traits |
+| M15 | Core Text broke lines where the browser does not (after `/`; its own CJK and Thai places), so a Mac paragraph showed other words on each line than the layout assumed | plain Text fills lines over the browser's break opportunities (LineBreaks.swift: the same rule as the runtime, Thai by CFStringTokenizer's ICU dictionary); rich text refuses any other break through the TextKit delegate |
+| M16 | a rich line holding Thai or Devanagari was 2–3px taller: TextKit substitutes the taller fallback face into the run's attributes and the line box read it | the line box reads the run's own font (Chrome and WebKit agree, measured) |
+| M17 | small capitals in a face without them (Helvetica, which `sans-serif` resolves to) drew plain lowercase; the browser synthesizes them | lowercase drawn as capitals at 0.7 of the size, measured and drawn alike; the face's own `smcp` where it has one |
+| M18 | a rich gradient run that wraps laid one ramp over the union of its lines (two painters, both) | the fragments end to end in reading order, one shared function |
+| M19 | a Text `outline` was stroked OVER the fill at half its width — a thinner ring eating into the glyph | a stroke-only pass at the full width UNDER the fill, as `paint-order: stroke` |
+| M20 | a drawing's `strokeText` stroked in black | Core Text takes the context's colour (the strokeStyle) |
+| M22 | the Mac truncated a clamped run by characters (Core Text's truncation), where the web drops whole words | the shared rule (measure.ts ellipsize), ported: the three renderers truncate alike |
+| M23 | a centred or right-aligned Mac line counted the space it breaks after | the space hangs, as on the web |
+| M21 | the frost and blend paint walks drew every view untransformed, so a rotated drawing under glass was sampled upright | the walks apply each view's 2D transform about its origin |
+
+**Chrome is the outlier, measured against WebKit** (`mac-host/webkitshot.swift` and
+`webkitprobe`, off-screen, the Mac's own engine): Apple Color Emoji advances (Chrome
+16/20/23/32 at 13/16/22/32px; WebKit and the Mac 19/23/26/36), and `numeralWidth`
+on the system face (the feature cannot ride a derived face in Chrome — `local()`
+cannot name the system face; WebKit and the Mac apply it), and the CJK fallback face
+(Chrome's is wider: "ま" 13.75px at 14px against WebKit's 12.93, so a Japanese
+paragraph breaks a character earlier in Chrome). Not Mac defects.
+
+**The Mac's per-swatch baseline** is `apps/swatchbook/tests/pixels-mac.json`
+(`crossrender --mac --pixels --mac-baseline …`), blessed 2026-09-26 at 117 of 683
+swatches over 2%: the DOM clamp above, the Chrome-only faces, and Core Text's glyph
+and blur antialiasing against Chrome's (2–5%; a declared web face like Roboto at the
+top of that band).
+
+**The Chrome capture anomaly** (the colourBurn swatch drawn without its pill in the
+2× comparison page) was the harness: a tab opened mid-sequence for the diff made
+Chrome drop that blended layer from the next capture. It never reproduced in plain
+HTML or on a fresh page; the Mac pass now captures every page first and diffs after.
+
+**Residuals, by measurement:** a Thai rich line may break a word earlier on the DOM
+(glyph advances); and swatches at 2–4% of pixels from antialiasing and sub-pixel text
+position — Core Text's glyph raster against Chrome's, on every text swatch.
+
+**A trap, for the checker:** inside `{ }`, `gradient(90, 0xFDE68A, …)` reads the 90 as
+a COLOUR (0x00005A) and draws a vertical ramp with a navy stop; the angle in code is a
+string, `gradient("90deg", …)`. A bare-slot literal knows the difference. A
+diagnostic for a small integer first argument would catch it.
+
+**Found, not fixed — for a decision:** Chrome does not know `-apple-system` (only
+Safari does) and falls back past it; the Mac host reads it as the system face.
+Weather's family list opens with it, so the same program is San Francisco on the
+Mac and Helvetica Neue in Chrome.
+
+**Accepted residuals.** Core Text and the browser break some lines differently
+(an extra line on the Mac in a paragraph of long code spans), already in §12;
+the docs guide chapter is within 2px on canvas.
 
 **Not a defect:** Mac window captures are tagged Display P3, so an sRGB colour
 reads as different numbers (#2E6FE0 → 64,110,217) though it displays the same.

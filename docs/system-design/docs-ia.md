@@ -122,7 +122,7 @@ reader knows costs thirty elsewhere — and the argument is carried by the examp
 adjectives (constraint 13).
 
 **Evidence-driven ordering.** Three changes to the current shape come straight from the
-empirical record (`language-learnings.md`, the E-series, brief §10):
+empirical record (`evals/findings/language-learnings.md`, the E-series, brief §10):
 
 - **Scope moves up** (27 → 22): `classroot` appears in the guide's very first example, and
   this-vs-classroot is the top observed mistake — it can't wait until after data.

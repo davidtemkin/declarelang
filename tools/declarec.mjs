@@ -798,6 +798,17 @@ export const Inspect = new Proxy({ ready: () => false }, {
     // that constructs one by name or a `use [ … ]` keep-list — the same
     // indirection the source components above read off this set.
     const richText = ["Markdown", "HTMLText", "RichText"].some((n) => built.usedComponents.includes(n));
+    // THE LINE CLAMP (text-clamp.js) runs only for a Text whose `maxLines` is
+    // set — and `maxLines` can only be set by NAMING it: an attribute in the
+    // tree (the program's or a component's it pulls in), or a write in a `{ }`
+    // body. Either keeps the module; a program that names it nowhere cannot clamp.
+    let textClamp = false;
+    const walkClamp = (el) => {
+      if ((el.attrs ?? []).some((a) => a.name === "maxLines")) textClamp = true;
+      for (const c of el.children ?? []) walkClamp(c);
+    };
+    for (const r of roots) walkClamp(r);
+    if (!textClamp) for (const r of roots) walkBodies(r, (src) => { if (/\bmaxLines\b/.test(src)) textClamp = true; });
     // the change event arms only through `trackChanges` (an onChange with no
     // list never fires), so the attribute's presence is the whole fact
     let changeEvent = false;
@@ -808,7 +819,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const r of roots) walkChange(r);
     return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
       usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces, usesChangeEvent: changeEvent,
-      usesRichText: richText };
+      usesRichText: richText, usesTextClamp: textClamp };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -934,7 +945,7 @@ export function isArrayDoc() { return false; }
   // a canvas-backend build: frost there filters a backdrop snapshot through this
   // module with no d.filter in the program at all.
   const filterStub = `export function parseFilter() { return { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, unsupported: [] }; }\nexport function isIdentity() { return true; }\nexport function ctxFilterSupported() { return true; }\nexport function forceFilterFallback() {}\nexport function applyFilterFallback(src) { return src; }\n`;
-  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\nexport function makeCanvas() { return null; }\nexport function registerDrawImage() {}\nexport function drawImageBitmap() { return undefined; }\nexport function drawImageHandles() { return []; }\n`;
+  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function listIsolated() { return false; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\nexport function makeCanvas() { return null; }\nexport function registerDrawImage() {}\nexport function drawImageBitmap() { return undefined; }\nexport function drawImageHandles() { return []; }\n`;
   // The named-vocabulary stubs (programFacts above): each keeps its module's
   // export list and refuses through notAboard, so a program that reaches one
   // anyway fails with the name it used instead of painting wrong.
@@ -1017,6 +1028,9 @@ export const setRichWidth = refuse;
 export const setRichClamp = refuse;
 export const setRichContent = refuse;
 `;
+  const textClampStub = `import { notAboard } from "./errors.js";
+export function renderClamped() { throw notAboard("maxLines", "unused"); }
+`;
   const changeEventStub = `import { notAboard } from "./errors.js";
 export function setChangeDispatcher() {}
 export function trackNode(node, names) { if (names !== null && names.length > 0) throw notAboard("trackChanges", "unused"); }
@@ -1075,6 +1089,7 @@ export class CanvasBackend { constructor() { throw notAboard("CanvasBackend", "u
     ...(programFacts.usesDrawText ? [] : [stubFor("slim-draw-text", /[/\\]draw-text\.js$/, drawTextStub)]),
     ...(programFacts.usesChangeEvent ? [] : [stubFor("slim-change-event", /[/\\]change-event\.js$/, changeEventStub)]),
     ...(programFacts.usesRichText ? [] : [stubFor("slim-dom-rich", /[/\\]dom-rich\.js$/, domRichStub)]),
+    ...(programFacts.usesTextClamp ? [] : [stubFor("slim-text-clamp", /[/\\]text-clamp\.js$/, textClampStub)]),
     ]),
   ];
   // The page host's two substitutions: the Inspector's wiring (above), and the

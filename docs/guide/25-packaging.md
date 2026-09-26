@@ -43,7 +43,7 @@ compiler, no component library, no server — and nothing beyond it is ever aske
   already a function, and the page host that runs it — the address bar and Back, islands,
   the window title. It holds only the components your program can construct and one
   renderer (DOM, or `--canvas`). For the flagship calendar it is about
-  <!--stat:calendar.wireKB-->118<!--/stat--> KB gzipped, the figure the homepage reports;
+  <!--stat:calendar.wireKB-->119<!--/stat--> KB gzipped, the figure the homepage reports;
 - **your program's folder, swept in** — its data, images, fonts, anything beside the
   `.declare` file — minus its sources and its `tests/` folder of verify fixtures;
 - **`BUILD.json`**, what the package was built from, so a committed build can say whether

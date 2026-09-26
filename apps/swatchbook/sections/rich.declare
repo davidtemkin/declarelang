@@ -1,0 +1,198 @@
+/*
+# Rich text
+
+Styled runs inside a wrapping paragraph, every block Markdown and HTML can
+hold, the structure's own colours and faces, views placed in a line, and the
+flow's size — natural width, the clamp, the zoom.
+*/
+
+style rBold    [ fontWeight = bold ]
+
+style rItalic  [ italic = true ]
+
+style rGrad    [ fontWeight = bold, textFill = gradient(90, #2E6FE0, #E4572E) ]
+
+style rUnder   [ underline = true ]
+
+style rStrike  [ strike = true ]
+
+style rCaps    [ smallCaps = true ]
+
+style rOutline [ fontWeight = bold, textColor = #FFFFFF, outline = outline(1, #2E6FE0) ]
+
+style rShadow  [ textShadow = shadow(0, 2, 4, #00000080) ]
+
+style rTrack   [ letterSpacing = 3 ]
+
+style rUpper   [ textTransform = uppercase ]
+
+style rSerif   [ fontFamily = "Georgia", fontSize = 17 ]
+
+style rMono    [ fontFamily = "Menlo" ]
+
+style rSmall   [ fontSize = 9 ]
+
+script {
+    function richRuns(): Record<string, unknown>[] {
+        return cross({ run: ["rBold", "rItalic", "Warm", "Big", "rGrad", "rUnder", "rStrike", "rCaps", "rOutline", "rShadow", "rTrack", "rUpper", "rSerif", "rMono", "rSmall"],
+                       lh: [1, 1.5] }, (r) => String(r.run).replace(/^r/, "").toLowerCase() + " run · lineHeight " + r.lh)
+            .filter((r) => !(r.run === "Big" && (r.lh as number) > 1))   // a 38px run at 1.5 outgrows the card
+    }
+
+    const BLOCKS: Record<string, string[]> = {
+        paragraphs: ["A first paragraph that wraps.\n\nAnd a second one after it.", "<p>A first paragraph that wraps.</p><p>And a second one after it.</p>"],
+        bullets: ["- one\n- a second that wraps onto a line\n- three", "<ul><li>one</li><li>a second that wraps onto a line</li><li>three</li></ul>"],
+        ordered: ["1. first\n2. second\n3. third", "<ol><li>first</li><li>second</li><li>third</li></ol>"],
+        nested: ["- outer\n  - inner\n  - inner two\n- outer two", "<ul><li>outer<ul><li>inner</li><li>inner two</li></ul></li><li>outer two</li></ul>"],
+        table: ["| Face | Size |\n| :-- | --: |\n| Serif | 14 |\n| Mono | 12 |", ""],
+        code: ["```\nApp [ width = 200 ]\n```", "<pre><code>App [ width = 200 ]</code></pre>"],
+        inlineCode: ["Set `width` and `height`, then `fill`.", "Set <code>width</code> and <code>height</code>, then <code>fill</code>."],
+        quote: ["> A quotation sits in from the edge and wraps.", "<blockquote>A quotation sits in from the edge and wraps.</blockquote>"],
+        h1: ["# Heading one\n\nBody.", "<h1>Heading one</h1><p>Body.</p>"],
+        h2: ["## Heading two\n\nBody.", "<h2>Heading two</h2><p>Body.</p>"],
+        h3: ["### Heading three\n\nBody text after.", "<h3>Heading three</h3><p>Body text after.</p>"],
+        rule: ["Above\n\n---\n\nBelow", "<p>Above</p><hr><p>Below</p>"],
+        link: ["Read [the guide](https://example.com) first.", "Read <a href='https://example.com'>the guide</a> first."],
+        emphasis: ["Plain, **bold**, *italic* and ***both***.", "Plain, <b>bold</b>, <i>italic</i> and <b><i>both</i></b>."],
+    }
+    function richBlocks(): Record<string, unknown>[] {
+        return cross({ block: Object.keys(BLOCKS), fmt: ["markdown", "html"] }, (r) => r.block + " · " + r.fmt)
+            .map((r) => ({ ...r, src: BLOCKS[r.block as string][r.fmt === "markdown" ? 0 : 1] }))
+            .filter((r) => r.src !== "")   // HTMLText has no table
+    }
+    }
+
+
+class RunSwatch extends Swatch [ name = :name,
+    p: HTMLText [ x = 10, y = 8, width = 192, fontSize = 14, lineHeight = { :lh },
+        html = { "Before the <span class='" + :run + "'>styled run</span> and after it, wrapping on." } ],
+    bottom: View [ x = 10, y = { classroot.p.y + classroot.p.height }, width = 192, height = 1, fill = #E4572E66 ]
+    ]
+
+
+class BlockSwatch extends Swatch [ name = :name,
+    md: Markdown [ x = 10, y = 6, width = 192, fontSize = 12, visible = { :fmt == "markdown" }, text = { :fmt == "markdown" ? :src : "" } ],
+    ht: HTMLText [ x = 10, y = 6, width = 192, fontSize = 12, visible = { :fmt == "html" }, html = { :fmt == "html" ? :src : "" } ]
+    ]
+
+
+class RichSection extends Section [ title = "Rich text",
+    caption = "Styled runs in a wrapping paragraph; every block, in Markdown and in HTML; the structure's own colours and faces; views placed in a line; and the flow's size — natural width, the clamp, the zoom.",
+    tabs = { [ ({ id: "runs", label: "Runs" }), ({ id: "blocks", label: "Blocks" }), ({ id: "structure", label: "Structure" }),
+               ({ id: "inline", label: "Inline views" }), ({ id: "size", label: "Size" }) ] },
+    sub = "runs",
+    SubHead [ visible = { app.matrix }, text = "Runs" ],
+    Grid [ visible = { classroot.showing("runs") }, datapath = { app.book.value },
+        RunSwatch [ datapath = :richRuns[] ]
+        ],
+    Grid [ visible = { classroot.showing("runs") },
+        Swatch [ name = "mixed sizes · lineHeight 1",
+            HTMLText [ x = 10, y = 10, width = 192, lineHeight = 1, fontSize = 15, fontWeight = bold,
+                html = "<span class='Big'>55</span> sessions <span class='Big'>942.6</span> km" ]
+            ],
+        Swatch [ name = "every run in one paragraph",
+            HTMLText [ x = 10, y = 6, width = 192, fontSize = 12,
+                html = "<span class='rBold'>bold</span> <span class='rItalic'>italic</span> <span class='rGrad'>ramp</span> <span class='rUnder'>under</span> <span class='rStrike'>struck</span> <span class='rCaps'>caps</span> <span class='rOutline'>ring</span> <span class='rShadow'>shade</span> <span class='rTrack'>wide</span> <span class='rUpper'>upper</span> <span class='rSerif'>serif</span> <span class='rMono'>mono</span> <span class='rSmall'>small</span>" ]
+            ],
+        Swatch [ name = "inline textStyles map",
+            HTMLText [ x = 10, y = 10, width = 192, fontSize = 14,
+                textStyles = { { lead: { fontSize: 30, fontFamily: "Georgia", textFill: gradient("90deg", 0x4C8DFF, 0x37E0C8) } } },
+                html = "The <span class='lead'>headline</span> word sits on the baseline." ]
+            ],
+        Swatch [ name = "a run that wraps across lines",
+            HTMLText [ x = 10, y = 10, width = 192, fontSize = 14,
+                html = "Plain words, then <span class='rGrad'>a gradient run long enough to wrap across the line</span> and on." ]
+            ],
+        Swatch [ name = "ambient weight · container",
+            View [ x = 10, y = 10, width = 192, fontWeight = semibold, textColor = #2E6FE0,
+                HTMLText [ width = 192, fontSize = 14, html = "The container provides the face; <span class='rItalic'>runs</span> keep theirs." ]
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Blocks" ],
+    Grid [ visible = { classroot.showing("blocks") }, datapath = { app.book.value },
+        BlockSwatch [ datapath = :richBlocks[] ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Structure" ],
+    Grid [ visible = { classroot.showing("structure") },
+        Swatch [ name = "headingColor · headingWeight",
+            Markdown [ x = 10, y = 6, width = 192, fontSize = 12, headingColor = #E4572E, headingWeight = black, text = "### Heading\n\nThe body keeps its own colour." ]
+            ],
+        Swatch [ name = "linkColor · no underline",
+            Markdown [ x = 10, y = 10, width = 192, fontSize = 13, linkColor = #17A34A, linkUnderline = false, text = "Read [the guide](https://example.com) and [the reference](https://example.com)." ]
+            ],
+        Swatch [ name = "codeColor · codeBackground",
+            Markdown [ x = 10, y = 10, width = 192, fontSize = 13, codeColor = #E4572E, codeBackground = #FFF4D6, text = "Set `fill` and `stroke`:\n\n```\nfill = #FFF\n```" ]
+            ],
+        Swatch [ name = "codeFamily · codeSize",
+            Markdown [ x = 10, y = 10, width = 192, fontSize = 13, codeFamily = "Courier", codeSize = 15, text = "Inline `code` in Courier, and\n\n```\na fence\n```" ]
+            ],
+        Swatch [ name = "bodyColor",
+            Markdown [ x = 10, y = 6, width = 192, fontSize = 12, bodyColor = #8A94A6, text = "### Firm heading\n\nA dimmed body with `code` kept." ]
+            ],
+        Swatch [ name = "fontFamily · serif flow",
+            Markdown [ x = 10, y = 6, width = 192, fontSize = 13, fontFamily = "Georgia", text = "### In Georgia\n\nThe whole flow, headings too, and `code` stays mono." ]
+            ],
+        Swatch [ name = "letterSpacing on the flow",
+            Markdown [ x = 10, y = 10, width = 192, fontSize = 13, letterSpacing = 1.5, text = "Tracking applies to the running text of every block." ]
+            ],
+        Swatch [ name = "dark = true",
+            View [ x = 6, y = 6, width = 200, height = 112, cornerRadius = 8, fill = #1B2733,
+                Markdown [ x = 8, y = 4, width = 184, fontSize = 12, dark = true, text = "### Dark\n\nBody, a [link](https://example.com) and `code`." ]
+                ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Inline views" ],
+    Grid [ visible = { classroot.showing("inline") },
+        Swatch [ name = "chips on the baseline",
+            HTMLText [ x = 10, y = 10, width = 192, fontSize = 14,
+                html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/>, each a real view on the line's baseline." ]
+            ],
+        Swatch [ name = "a tall view grows its line",
+            HTMLText [ x = 10, y = 10, width = 192, fontSize = 14,
+                html = "Before <TallChip label='Tall'/> after, and the next line keeps its stride." ]
+            ],
+        Swatch [ name = "a view at the line's start",
+            HTMLText [ x = 10, y = 10, width = 192, fontSize = 14, html = "<Chip label='first'/> leads the paragraph that follows it." ]
+            ],
+        Swatch [ name = "views wrapping",
+            HTMLText [ x = 10, y = 10, width = 192, fontSize = 13,
+                html = "<Chip label='one'/> <Chip label='two'/> <Chip label='three'/> <Chip label='four'/> <Chip label='five'/> <Chip label='six'/>" ]
+            ],
+        Swatch [ name = "a view beside a big run",
+            HTMLText [ x = 10, y = 10, width = 192, fontSize = 14, html = "<span class='Big'>42</span> <Chip label='units'/> and text" ]
+            ],
+        Swatch [ name = "a view in Markdown",
+            Markdown [ x = 10, y = 10, width = 192, fontSize = 14, text = "**Tagged** <Chip label='md'/> inside Markdown, wrapping on." ]
+            ]
+        ],
+
+    SubHead [ visible = { app.matrix }, text = "Size" ],
+    Grid [ visible = { classroot.showing("size") },
+        Swatch [ name = "natural width · units",
+            nat: HTMLText [ x = 10, y = 30, fontSize = 36, fontWeight = bold, html = "1<span class='Unit'>h</span> 24<span class='Unit'>m</span>" ],
+            edge: View [ y = 20, width = 2, height = 60, fill = #E4572E, x = { parent.nat.x + parent.nat.width } ]
+            ],
+        Swatch [ name = "natural width · one word",
+            nat: Markdown [ x = 10, y = 40, fontSize = 18, text = "**Short**" ],
+            edge: View [ y = 30, width = 2, height = 40, fill = #E4572E, x = { parent.nat.x + parent.nat.width } ]
+            ],
+        Swatch [ name = "maxLines 2 · truncated",
+            md: Markdown [ x = 10, y = 10, width = 192, fontSize = 13, maxLines = 2,
+                text = "A long paragraph clamped to two lines ends the last with an ellipsis where the text runs on past it." ],
+            more: Text [ x = 10, y = 90, fontSize = 11, textColor = #E4572E, text = { parent.md.truncated ? "truncated" : "whole" } ]
+            ],
+        Swatch [ name = "maxLines 3 across blocks",
+            Markdown [ x = 10, y = 6, width = 192, fontSize = 12, maxLines = 3, text = "### Heading\n\n- one\n- two\n- three" ]
+            ],
+        Swatch [ name = "fontScale 1.3",
+            Markdown [ x = 10, y = 6, width = 192, fontSize = 12, fontScale = 1.3, text = "### Zoomed\n\nType grows, the box re-wraps." ]
+            ],
+        Swatch [ name = "lineHeight 1.6",
+            Markdown [ x = 10, y = 6, width = 192, fontSize = 12, lineHeight = 1.6, text = "Airy prose spreads its lines further apart as it wraps along." ]
+            ]
+        ]
+    ]

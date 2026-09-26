@@ -482,9 +482,16 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                 // Over whatever touches reactive state — a chain (`this.team`), an
                 // alias, or a value built from them (`[app.a, app.b]`, `Object.values(…)`):
                 // its elements may be nodes, and a read through the parameter is a cell.
+                // A datapath read (`:rows[0:2]`, compiled to `this.$data(…)`) yields
+                // plain records, which the selective read itself tracks — not nodes.
                 const recv = n.expression.expression;
                 const b = baseOfChain(recv);
-                const overReactive = touchesReactive(recv)
+                const viaData = (() => { let c = recv; while (ts.isPropertyAccessExpression(c) || ts.isElementAccessExpression(c) || ts.isCallExpression(c) || ts.isNonNullExpression(c) || ts.isParenthesizedExpression(c)) {
+                    if (ts.isCallExpression(c) && ts.isPropertyAccessExpression(c.expression) && c.expression.name.text === "$data")
+                        return true;
+                    c = c.expression;
+                } return false; })();
+                const overReactive = (!viaData && touchesReactive(recv))
                     || (ts.isIdentifier(b) && dynamicRoots.has(b.text));
                 if (overReactive) {
                     for (const a of n.arguments) {

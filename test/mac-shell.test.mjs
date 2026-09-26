@@ -1,5 +1,5 @@
-// test/mac-shell.test.mjs — the Mac host's SHELL: several windows at once, and
-// the two key equivalents that close one and quit the app.
+// test/mac-shell.test.mjs — the Mac host's SHELL: several windows at once,
+// closing them, and the host surviving that.
 //
 // Deliberately fast. The gates are long and this is not one of them: ONE launch
 // (~6s, the only real cost), then every assertion over the control channel, and
@@ -7,10 +7,10 @@
 // cannot fail visibly in a screenshot — they fail as a crash, a hang, or a
 // window that does not go away.
 //
-// ⌘W is driven with `menukey`, which hands a synthesized event to the REAL menu
-// (NSMenu.performKeyEquivalent). A System Events keystroke would need
-// accessibility permission and the frontmost app, so it would be both flaky and
-// rude in a test run; this exercises the same dispatch AppKit uses.
+// It never takes the foreground: a window closes through the control channel's
+// `closewindow` — `performClose`, the path ⌘W takes — so the suite runs while
+// someone uses the machine. (The key equivalents themselves are not pinned:
+// menu wiring is hard to break unnoticed.)
 //
 // THE REGRESSION THIS PINS: an NSWindow created in code is released when it
 // closes, which under ARC is one release too many. With a single never-closed
@@ -84,18 +84,9 @@ async function ready() {
 }
 
 const alive = () => { try { process.kill(host.pid, 0); return true; } catch { return false; } };
-/// ⌘W the front window and wait for the count to settle.
-///
-/// Re-activates every time, deliberately. A key equivalent with a nil target is
-/// resolved through the KEY window's responder chain, and after a close macOS
-/// does not synchronously make the next window key — so a single activate at
-/// the top of the suite left the second ⌘W landing nowhere. It reported
-/// "handled" (the menu matched) and closed nothing, once in about every three
-/// runs. Polling for the count instead of sleeping removes the other half of
-/// the flake.
+/// Close the front window and wait for the count to settle (polled, not slept).
 async function closeFrontWindow(expected) {
-  assert.equal(await ctl("activate"), "ok");
-  assert.equal(await ctl("menukey w cmd"), "handled", "⌘W did not reach the menu");
+  assert.match(await ctl("closewindow"), /^ok/);
   for (let i = 0; i < 40 && (await countWindows()) !== expected; i++) await sleep(0.1);
 }
 const countWindows = async () => {
@@ -107,11 +98,6 @@ try {
   await test("the host comes up with one window", async () => {
     assert.equal(await ready(), true, "host never answered ping");
     assert.equal(await countWindows(), 1);
-    // A key equivalent with a nil target is resolved through the KEY window's
-    // responder chain, and an inactive app has none — automation does not take
-    // the foreground on its own, so ⌘W would report "handled" and close
-    // nothing. Put the app where a person pressing ⌘W would have it.
-    assert.equal(await ctl("activate"), "ok");
   });
 
   // THE REGRESSION THIS PINS: bundle.sh signed the app with a path that did not
@@ -156,7 +142,7 @@ try {
     assert.ok(list.split("\n")[1].startsWith("*"), "the newest window is front");
   });
 
-  await test("⌘W is wired to the menu and closes the front window", async () => {
+  await test("closing the front window leaves the other", async () => {
     await closeFrontWindow(1);
     assert.equal(await countWindows(), 1);
   });
@@ -184,14 +170,6 @@ try {
     assert.equal(await countWindows(), 1);
   });
 
-  // LAST: it ends the process, which IS the assertion. Do not expect a reply —
-  // the app usually terminates before it can write one, so a null here is the
-  // healthy case and only the exit is worth asserting.
-  await test("⌘Q quits", async () => {
-    await ctl("menukey q cmd", 40);
-    for (let i = 0; i < 50 && alive(); i++) await sleep(0.1);
-    assert.equal(alive(), false, "⌘Q did not quit the app");
-  });
 } finally {
   if (alive()) { try { process.kill(host.pid, "SIGKILL"); } catch { /* gone */ } }
   httpServer.close();

@@ -19,7 +19,7 @@ import UniformTypeIdentifiers
 /// with (`compositingFilter` — public API on macOS; compositing.md §2). The
 /// same operators are already proven inside drawings through CGBlendMode
 /// (DrawReplay); this is the view tier of the same table. `normal` → nil.
-private let BLEND_FILTERS: [String: String] = [
+let BLEND_FILTERS: [String: String] = [
     "multiply": "CIMultiplyBlendMode", "screen": "CIScreenBlendMode",
     "overlay": "CIOverlayBlendMode", "darken": "CIDarkenBlendMode",
     "lighten": "CILightenBlendMode", "colorDodge": "CIColorDodgeBlendMode",
@@ -115,6 +115,18 @@ final class Node {
     /// in the node's PARENT, immediately below the node's own layer — see
     /// `paint(_:)` for why it cannot be a child of the node it frosts.
     var frostLayer: CALayer?
+    /// The view-tier blend (case 35), composited HERE rather than by Core
+    /// Animation: its compositing filters run in linear light and the web
+    /// blends the encoded values (Blend, in Frost.swift). While the host
+    /// blends a node its own layer paints nothing (opacity 0) and `blendLayer`
+    /// — a sibling right above it — shows the composite.
+    var blendName: String?
+    var blendLayer: CALayer?
+    var hostBlended = false
+    /// How far the host's composite reaches past the box (a host-run filter's bleed).
+    var hostPad: CGFloat = 0
+    /// The opacity the model asked for; the layer's own may be 0 while blended.
+    var modelOpacity: Float = 1
     /// The paint epoch this node's frost was captured at. Behind the tree's
     /// current epoch = something beneath may have moved, so re-sample.
     var frostEpoch: Int = -1
@@ -276,6 +288,8 @@ final class LayerTree {
     /// Bumped by any op that could change what a backdrop sample would see.
     /// A commit that changed nothing beneath costs the frost nothing.
     var frostEpoch = 0
+    /// The epoch the host's blend composites were last made at (Frost.swift).
+    var blendEpoch = -1
     var frostAppliedEpoch = -1
     /// How many frosts re-sampled on the last commit, and what it cost —
     /// `ctl froststats`.
@@ -340,6 +354,7 @@ final class LayerTree {
         // and never per frosted node per op, which is what made the old CPU
         // sampler quadratic. See Frost.swift.
         let fr = refreshFrosts()
+        refreshBlends()
         refreshMasks()
         frostLastN = fr.n; frostLastMs = fr.ms
         frostTotalN += fr.n; frostTotalMs += fr.ms
@@ -485,6 +500,7 @@ final class LayerTree {
             // the frost lives in the PARENT, so re-homing the node has to take
             // it along — the old parent is not restacked and would keep it
             c.frostLayer?.removeFromSuperlayer()
+            c.blendLayer?.removeFromSuperlayer()
             var at = n.children.count
             if beforeId >= 0, let b = nodes[beforeId], let i = n.children.firstIndex(where: { $0 === b }) { at = i }
             n.children.insert(c, at: at)
@@ -516,6 +532,7 @@ final class LayerTree {
             layoutContent(n)
             if n.rich != nil { refreshBand(n) }
             if n.frostLayer != nil { syncFrost(n) }
+            if n.blendLayer != nil { syncBlend(n) }
             if n.scaleK != 1 || n.rotation != 0 || n.affine != nil || n.rot3D != nil { applyScale(n) }    // the pivot mirrors against the new height
             // NOT re-rasterized here. A recording is in the view's own
             // coordinates and does not depend on the box, so moving or
@@ -526,6 +543,7 @@ final class LayerTree {
             if n.clipPath != nil || n.boxClip || n.rich != nil { applyClip(n) }
             if n.layer.shadowOpacity > 0 { applyShadowPath(n) }
             if n.shapeBg != nil { syncShape(n) }
+            if n.radius > 0 { applyRadius(n) }     // the fit is against the box
             if n.strokeSides != nil { syncSides(n) }
         case 32: // PAGEFILL — the page behind a TOP-LEVEL app wears the app's
             // own background (the DOM paints documentElement/body; the canvas
@@ -606,10 +624,12 @@ final class LayerTree {
             if n.boxClip || n.clipPath != nil { restack(n); applyClip(n); placeClipHost(n) }
         case 11: // VISIBLE
             nodes[id]?.layer.isHidden = num(a(0)) == 0
-            nodes[id].map { syncFrost($0) }
+            nodes[id].map { syncFrost($0); syncBlend($0) }
         case 12: // OPACITY
-            nodes[id]?.layer.opacity = Float(num(a(0)))
-            nodes[id].map { syncFrost($0) }
+            guard let n = nodes[id] else { return }
+            n.modelOpacity = Float(num(a(0)))
+            n.layer.opacity = n.hostBlended ? 0 : n.modelOpacity
+            syncFrost(n); syncBlend(n)
         case 13: // SCALE
             guard let n = nodes[id] else { return }
             n.scaleK = num(a(0)); n.pivot = CGPoint(x: num(a(1)), y: num(a(2)))
@@ -854,7 +874,15 @@ final class LayerTree {
             // the same blends-as-a-unit semantics the web backends realize.
             // restack/clipHost are untouched.
             guard let n = nodes[id] else { return }
-            n.layer.compositingFilter = (str(a(0)).flatMap { BLEND_FILTERS[$0] }).flatMap { CIFilter(name: $0) }
+            let mode = str(a(0)).flatMap { $0 == "normal" ? nil : $0 }
+            n.blendName = mode
+            // Core Animation's own named modes land the layer until the host's
+            // composite is in (and wherever the host cannot composite — a
+            // transformed view): they match the web far more closely than the
+            // Core Image filters, which blend in linear light
+            n.layer.compositingFilter = mode.map { $0 == "plusLighter" ? "plusL" : $0 + "BlendMode" }
+            if mode == nil { unblend(n) }
+            blendEpoch = -1
         case 44: // FILTER — the view's own painted subtree, as a group
             // (graphics-pass.md §1). `layer.filters` is Core Image over the
             // layer's contents AND its sublayers — the group semantics the web
@@ -867,10 +895,12 @@ final class LayerTree {
             if a(0) == nil || a(0) is NSNull {
                 n.filterList = nil
                 n.layer.filters = nil
+                if n.hostBlended && n.blendName == nil { unblend(n) }
                 if n.filterShadow { n.filterShadow = false; n.layer.shadowOpacity = 0 }
             } else {
                 let list = FilterList(wire: a(0))
                 n.filterList = list
+                blendEpoch = -1
                 n.layer.filters = list.coreImageChain(forLayer: true)
                 if let sh = list.shadow {
                     let color = sh.color ?? .black
@@ -1000,7 +1030,7 @@ final class LayerTree {
         f.cornerRadius = n.layer.cornerRadius
         f.maskedCorners = n.layer.maskedCorners
         f.isHidden = n.layer.isHidden
-        f.opacity = n.layer.opacity
+        f.opacity = n.modelOpacity
     }
 
     /// The sample-under, natively: hand the window server the filters and let
@@ -1075,14 +1105,16 @@ final class LayerTree {
     /// paints — its fill, then its children — lands above, so the material
     /// contract (wash OVER blur) falls out of the ordering for free.
     private func paint(_ c: Node) -> [CALayer] {
-        c.frostLayer.map { [$0, c.layer] } ?? [c.layer]
+        (c.frostLayer.map { [$0] } ?? []) + [c.layer] + (c.blendLayer.map { [$0] } ?? [])
     }
 
     /// Re-establish paint order: gradient, drawing, image, text, then children.
-    private func restack(_ n: Node) {
+    func restack(_ n: Node) {
         var order: [CALayer] = []
-        if let sh = n.shapeBg { order.append(sh) }       // the fill, when four radii differ
+        // the fill, when four radii differ — and the inside stroke, which a
+        // gradient fill must not cover: the gradient goes under it
         if let g = n.gradient { order.append(g) }
+        if let sh = n.shapeBg { order.append(sh) }
         if let sd = n.sidesLayer { order.append(sd) }    // a per-side stroke: over the fill, under the content
         if let d = n.draw { order.append(d) }
         if let i = n.image { order.append(i) }
@@ -1233,7 +1265,7 @@ final class LayerTree {
         // The host does the clipping now, so it also has to carry the CORNER —
         // leaving the radius behind on n.layer (whose masksToBounds is off)
         // squared off every rounded window.
-        ch.cornerRadius = n.radius
+        ch.cornerRadius = fittedRadius(n)
     }
 
     /// THE placement rule. The model is top-left; Core Animation is bottom-left.
@@ -1568,7 +1600,7 @@ final class LayerTree {
         applyGradientSpec(g, spec, size: n.box.size)
         g.bounds = CGRect(origin: .zero, size: n.box.size)
         g.position = .zero
-        g.cornerRadius = n.radius
+        g.cornerRadius = fittedRadius(n)
         g.masksToBounds = true
     }
 
@@ -1743,8 +1775,12 @@ final class LayerTree {
         for c in n.children where c.rot3D != nil { applyScale(c) }
     }
 
+    /// The BOX shadow follows the box outline; a filter's `shadow(…)` follows
+    /// the painted content's alpha (CSS drop-shadow), so it keeps no path — a
+    /// geometry update used to hand it the box outline, and a filtered rich
+    /// text or a rounded card cast a rectangle.
     private func applyShadowPath(_ n: Node) {
-        n.layer.shadowPath = cornerPath(n)
+        n.layer.shadowPath = n.filterShadow ? nil : cornerPath(n)
     }
 
     // ── corners ─────────────────────────────────────────────────────────────
@@ -1763,6 +1799,11 @@ final class LayerTree {
         let f = min(1, over(w, c[0] + c[1]), over(w, c[3] + c[2]), over(h, c[0] + c[3]), over(h, c[1] + c[2]))
         return f >= 1 ? c : c.map { $0 * f }
     }
+
+    /// The one radius a layer rounds, fitted to the box: Core Animation
+    /// paints NOTHING for a cornerRadius past half the box, where the web
+    /// shrinks it to a pill.
+    private func fittedRadius(_ n: Node) -> CGFloat { fittedCorners(n).max() ?? 0 }
 
     /// The box outline with its corners, in layer space (y-up: tl at max-y).
     private func cornerPath(_ n: Node) -> CGPath {
@@ -1794,12 +1835,13 @@ final class LayerTree {
         let nonzero = (c ?? []).filter { $0 > 0 }
         let uniform = c == nil || nonzero.isEmpty || nonzero.allSatisfy { $0 == nonzero[0] }
         if uniform {
-            let r = c == nil ? n.radius : (nonzero.first ?? 0)
+            let r = fittedCorners(n).max() ?? 0
             var mask: CACornerMask = []
             if let c = c { for i in 0..<4 where c[i] > 0 { mask.insert(Self.cornerMasks[i]) } }
             else { mask = [.layerMinXMaxYCorner, .layerMaxXMaxYCorner, .layerMaxXMinYCorner, .layerMinXMinYCorner] }
             n.layer.cornerRadius = r; n.layer.maskedCorners = mask
             n.clipHost?.cornerRadius = r; n.clipHost?.maskedCorners = mask
+            if let g = n.gradient, g.mask == nil { g.cornerRadius = r; g.maskedCorners = mask }
             if n.shapeBg != nil { dropShape(n) }
         } else {
             n.layer.cornerRadius = 0
@@ -1815,11 +1857,12 @@ final class LayerTree {
             sh.actions = ["path": NSNull(), "fillColor": NSNull(), "strokeColor": NSNull(), "lineWidth": NSNull(), "bounds": NSNull(), "position": NSNull()]
             n.shapeBg = sh
             n.layer.insertSublayer(sh, at: 0)
+            if n.gradient != nil { restack(n) }   // over the gradient, which it strokes
         }
         sh.bounds = CGRect(origin: .zero, size: n.box.size); sh.position = .zero
         let path = cornerPath(n)
         sh.path = path
-        sh.fillColor = n.fillColor
+        sh.fillColor = n.gradient == nil ? n.fillColor : nil   // a gradient is the fill, beneath
         // an INSIDE stroke, as the other renderers paint it: stroke the outline
         // at double width, masked to the outline — the inner half remains
         if n.strokeW > 0, let sc = n.strokeColor {
@@ -2497,6 +2540,7 @@ final class LayerTree {
         // this same transaction, exactly as an op commit does (apply)
         frostEpoch &+= 1
         let fr = refreshFrosts()
+        refreshBlends()
         refreshMasks()
         frostLastN = fr.n; frostLastMs = fr.ms
         frostTotalN += fr.n; frostTotalMs += fr.ms
@@ -2590,6 +2634,8 @@ final class LayerTree {
         if n.content !== n.layer { n.content.removeFromSuperlayer() }
         n.frostLayer?.removeFromSuperlayer()
         n.frostLayer = nil
+        n.blendLayer?.removeFromSuperlayer()
+        n.blendLayer = nil
         n.layer.removeFromSuperlayer()
         pendingBand.remove(n.id)
         pendingDraw.remove(n.id)
@@ -2806,7 +2852,7 @@ struct FilterList {
     }
     /// tint(color): every pixel becomes the colour, shaped by its own alpha —
     /// premultiplied working space, so the bias rides on alpha.
-    private static func tintMatrix(_ c: NSColor) -> CIFilter? {
+    static func tintMatrix(_ c: NSColor) -> CIFilter? {
         guard let f = CIFilter(name: "CIColorMatrix"), let rgb = c.usingColorSpace(.sRGB) else { return nil }
         let a = rgb.alphaComponent
         f.setValue(CIVector(x: 0, y: 0, z: 0, w: rgb.redComponent), forKey: "inputRVector")
@@ -2814,6 +2860,93 @@ struct FilterList {
         f.setValue(CIVector(x: 0, y: 0, z: 0, w: rgb.blueComponent), forKey: "inputBVector")
         f.setValue(CIVector(x: 0, y: 0, z: 0, w: a), forKey: "inputAVector")
         return f
+    }
+
+    /// One function of the chain as a Core Image filter (nil when it is the
+    /// identity, or a `shadow`, which is not a filter of the pixels alone).
+    static func filter(_ f: FilterFn, blurScale: CGFloat = 1) -> CIFilter? {
+        switch f.fn {
+        case "blur":
+            if f.v > 0.01, let g = CIFilter(name: "CIGaussianBlur") { g.setValue(f.v * blurScale, forKey: kCIInputRadiusKey); return g }
+        case "saturate":
+            if abs(f.v - 1) > 0.001 { return saturateMatrix(f.v) }
+        case "grayscale":
+            if f.v > 0.001 { return saturateMatrix(1 - min(1, f.v)) }
+        case "brightness":
+            // CSS brightness is a plain multiply; CIColorControls' brightness
+            // is an offset, so use a matrix scale instead
+            if abs(f.v - 1) > 0.001, let m = CIFilter(name: "CIColorMatrix") {
+                m.setValue(CIVector(x: f.v, y: 0, z: 0, w: 0), forKey: "inputRVector")
+                m.setValue(CIVector(x: 0, y: f.v, z: 0, w: 0), forKey: "inputGVector")
+                m.setValue(CIVector(x: 0, y: 0, z: f.v, w: 0), forKey: "inputBVector")
+                m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+                return m
+            }
+        case "contrast":
+            // CSS contrast: c' = (c − 0.5)·k + 0.5 — a scale about mid-grey
+            if abs(f.v - 1) > 0.001, let m = CIFilter(name: "CIColorMatrix") {
+                let off = (1 - f.v) * 0.5
+                m.setValue(CIVector(x: f.v, y: 0, z: 0, w: 0), forKey: "inputRVector")
+                m.setValue(CIVector(x: 0, y: f.v, z: 0, w: 0), forKey: "inputGVector")
+                m.setValue(CIVector(x: 0, y: 0, z: f.v, w: 0), forKey: "inputBVector")
+                m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
+                m.setValue(CIVector(x: off, y: off, z: off, w: 0), forKey: "inputBiasVector")
+                return m
+            }
+        case "opacity":
+            if f.v < 0.999, let m = CIFilter(name: "CIColorMatrix") {
+                m.setValue(CIVector(x: 0, y: 0, z: 0, w: max(0, f.v)), forKey: "inputAVector")
+                return m
+            }
+        case "sepia":
+            if f.v > 0.001 { return sepiaMatrix(min(1, f.v)) }
+        case "invert":
+            if f.v > 0.001 { return invertMatrix(min(1, f.v)) }
+        case "hueRotate":
+            if abs(f.v) > 0.001, let h = CIFilter(name: "CIHueAdjust") { h.setValue(f.v * .pi / 180, forKey: kCIInputAngleKey); return h }
+        case "tint":
+            if let c = f.color { return tintMatrix(c) }
+        default: break
+        }
+        return nil
+    }
+
+    /// A CSS `filter` string — what a drawing's `d.filter` holds — as the
+    /// list: `blur(4px) grayscale(1) hue-rotate(90deg) drop-shadow(2px 3px 4px #000)`.
+    init(css: String) {
+        var out: [FilterFn] = []
+        let re = try! NSRegularExpression(pattern: "([a-z-]+)\\(([^()]*(?:\\([^()]*\\)[^()]*)*)\\)")
+        let ns = css as NSString
+        for m in re.matches(in: css, range: NSRange(location: 0, length: ns.length)) {
+            let name = ns.substring(with: m.range(at: 1)), arg = ns.substring(with: m.range(at: 2)).trimmingCharacters(in: .whitespaces)
+            func amount(_ t: String) -> CGFloat {
+                if t.hasSuffix("%") { return CGFloat(Double(t.dropLast()) ?? 100) / 100 }
+                return CGFloat(Double(t) ?? 1)
+            }
+            func length(_ t: String) -> CGFloat { CGFloat(Double(t.replacingOccurrences(of: "px", with: "")) ?? 0) }
+            switch name {
+            case "blur": out.append(FilterFn(fn: "blur", v: length(arg), color: nil, dx: 0, dy: 0, blur: 0))
+            case "hue-rotate":
+                var deg = CGFloat(Double(arg.replacingOccurrences(of: "deg", with: "").replacingOccurrences(of: "rad", with: "").replacingOccurrences(of: "turn", with: "")) ?? 0)
+                if arg.hasSuffix("rad") { deg = deg * 180 / .pi } else if arg.hasSuffix("turn") { deg *= 360 }
+                out.append(FilterFn(fn: "hueRotate", v: deg, color: nil, dx: 0, dy: 0, blur: 0))
+            case "drop-shadow":
+                // three lengths, then the colour (which may itself hold spaces, as rgba( … ) does)
+                var parts: [String] = [], rest = arg
+                for _ in 0..<3 {
+                    rest = rest.trimmingCharacters(in: .whitespaces)
+                    guard let sp = rest.firstIndex(of: " "), rest.first.map({ $0.isNumber || $0 == "-" || $0 == "." }) == true else { break }
+                    parts.append(String(rest[..<sp])); rest = String(rest[sp...])
+                }
+                let color = CSSColor.parse(rest.trimmingCharacters(in: .whitespaces)) ?? NSColor.black
+                out.append(FilterFn(fn: "shadow", v: 0, color: color, dx: parts.count > 0 ? length(parts[0]) : 0,
+                                    dy: parts.count > 1 ? length(parts[1]) : 0, blur: parts.count > 2 ? length(parts[2]) : 0))
+            case "brightness", "contrast", "grayscale", "saturate", "sepia", "invert", "opacity":
+                out.append(FilterFn(fn: name, v: arg.isEmpty ? 1 : amount(arg), color: nil, dx: 0, dy: 0, blur: 0))
+            default: break
+            }
+        }
+        items = out
     }
 
     /// The chain as Core Image filters, in list order, in ENCODED sRGB (the
@@ -2825,48 +2958,10 @@ struct FilterList {
     func coreImageChain(forLayer: Bool, blurScale: CGFloat = 1) -> [CIFilter]? {
         var fs: [CIFilter] = []
         for f in items {
-            switch f.fn {
-            case "blur":
-                if f.v > 0.01, let g = CIFilter(name: "CIGaussianBlur") { g.setValue(f.v * blurScale, forKey: kCIInputRadiusKey); fs.append(g) }
-            case "saturate":
-                if abs(f.v - 1) > 0.001, let m = Self.saturateMatrix(f.v) { fs.append(m) }
-            case "grayscale":
-                if f.v > 0.001, let m = Self.saturateMatrix(1 - f.v) { fs.append(m) }
-            case "brightness":
-                // CSS brightness is a plain multiply; CIColorControls' brightness
-                // is an offset, so use a matrix scale instead
-                if abs(f.v - 1) > 0.001, let m = CIFilter(name: "CIColorMatrix") {
-                    m.setValue(CIVector(x: f.v, y: 0, z: 0, w: 0), forKey: "inputRVector")
-                    m.setValue(CIVector(x: 0, y: f.v, z: 0, w: 0), forKey: "inputGVector")
-                    m.setValue(CIVector(x: 0, y: 0, z: f.v, w: 0), forKey: "inputBVector")
-                    m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-                    fs.append(m)
-                }
-            case "contrast":
-                // CSS contrast: c' = (c − 0.5)·k + 0.5 — a scale about mid-grey
-                if abs(f.v - 1) > 0.001, let m = CIFilter(name: "CIColorMatrix") {
-                    let off = (1 - f.v) * 0.5
-                    m.setValue(CIVector(x: f.v, y: 0, z: 0, w: 0), forKey: "inputRVector")
-                    m.setValue(CIVector(x: 0, y: f.v, z: 0, w: 0), forKey: "inputGVector")
-                    m.setValue(CIVector(x: 0, y: 0, z: f.v, w: 0), forKey: "inputBVector")
-                    m.setValue(CIVector(x: 0, y: 0, z: 0, w: 1), forKey: "inputAVector")
-                    m.setValue(CIVector(x: off, y: off, z: off, w: 0), forKey: "inputBiasVector")
-                    fs.append(m)
-                }
-            case "sepia":
-                if f.v > 0.001, let m = Self.sepiaMatrix(f.v) { fs.append(m) }
-            case "invert":
-                if f.v > 0.001, let m = Self.invertMatrix(f.v) { fs.append(m) }
-            case "hueRotate":
-                if abs(f.v) > 0.001, let h = CIFilter(name: "CIHueAdjust") { h.setValue(f.v * .pi / 180, forKey: kCIInputAngleKey); fs.append(h) }
-            case "tint":
-                if let c = f.color, let m = Self.tintMatrix(c) { fs.append(m) }
-            case "shadow":
-                if forLayer { break }
-                // in a backdrop chain a shadow of the sample is meaningless; skipped
-            default:
-                break
-            }
+            // a `shadow(…)` on a layer is the layer's own shadow; in a backdrop
+            // chain a shadow of the sample is meaningless — skipped either way
+            if f.fn == "shadow" { continue }
+            if let c = Self.filter(f, blurScale: blurScale) { fs.append(c) }
         }
         if fs.isEmpty { return nil }
         if let toSRGB = CIFilter(name: "CILinearToSRGBToneCurve"),

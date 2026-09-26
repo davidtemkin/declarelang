@@ -2,13 +2,14 @@
 // hover states can be compared against a native capture of the same point.
 import puppeteer from "puppeteer-core";
 import { writeFileSync } from "node:fs";
+import { ORIGIN } from "./app.mjs";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const [mx, my] = [Number(process.argv[2]), Number(process.argv[3])];
 const b = await puppeteer.launch({ executablePath: CHROME, headless: true,
   args: ["--no-sandbox", "--force-device-scale-factor=2"],
   defaultViewport: { width: 1280, height: 800, deviceScaleFactor: 2 } });
 const p = await b.newPage();
-await p.goto("http://127.0.0.1:8260/apps/desktop/desktop.declare?render=dom", { waitUntil: "networkidle0" });
+await p.goto(`${ORIGIN}/apps/desktop/desktop.declare?render=dom`, { waitUntil: "networkidle0" });
 await new Promise((r) => setTimeout(r, 2500));
 await p.mouse.move(mx - 40, my);
 await new Promise((r) => setTimeout(r, 120));

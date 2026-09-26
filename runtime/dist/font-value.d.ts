@@ -2,16 +2,29 @@
 export declare const FONT_CSS: unique symbol;
 /** Whether a font is still inside its wait for faces it has not received. */
 export declare const FONT_PENDING: unique symbol;
+/** Ask a font for its faces: text has reached it. A declared font loads nothing
+ *  until then — a font no text reaches costs nothing. */
+export declare const FONT_DEMAND: unique symbol;
 /** What a Font presents to the text machinery. */
 export interface FontValue {
     readonly [FONT_CSS]: string;
     readonly [FONT_PENDING]: boolean;
+    [FONT_DEMAND]?(): void;
 }
 /** Everything a family slot may hold. */
 export type FamilyValue = string | FontValue | readonly (string | FontValue)[] | null | undefined;
 export declare function isFontValue(v: unknown): v is FontValue;
+interface FontDemand {
+    /** Demand the font text reaches in this family list. */
+    reached(v: readonly unknown[]): void;
+    /** Resolve every family a tree's text starts with (fontsReady, below). */
+    touch(root: object): void;
+}
+/** font.ts installs the demand machinery. */
+export declare function provideFontDemand(h: FontDemand): void;
 /** The CSS family list a value names: a string as written, a font's current
- *  family, a list joined in order. Tracked when a font is read. */
+ *  family, a list joined in order. Tracked when a font is read. Resolving it is
+ *  also what demands the font text reaches (above). */
 export declare function familyCss(v: unknown): string;
 /** Whether any font in the value is still waiting for its faces. */
 export declare function familyPending(v: unknown): boolean;
@@ -41,3 +54,4 @@ export declare function heldFamily(host: object, slot: string, v: unknown): stri
 export declare function familyOf(style: {
     fontFamily?: unknown;
 }): string;
+export {};

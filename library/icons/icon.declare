@@ -186,9 +186,10 @@ class IconHost extends View [
     // The default matters more than it looks: an icon that inherited a bare
     // `textColor` would fall back to black — fine on a light surface by luck,
     // invisible on a dark one. The provided theme's `text` token is a floor that
-    // is never invisible in either palette.
+    // is never invisible in either palette — and with no theme above (a host
+    // outside any control), the house theme's.
 
-    ink: Color = { provided("theme").text },
+    ink: Color = { provided("theme", SanFrancisco).text },
     textColor = { classroot.ink },
 
     onInit() { if (this.kind != "") this.createView(this.kind, ({ })) }
