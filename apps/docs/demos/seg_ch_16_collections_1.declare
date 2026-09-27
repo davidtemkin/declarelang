@@ -1,20 +1,25 @@
-App [ width = 460, height = 240, fill = white, textColor = black,
-    d: Dataset [ contents = { { rows: app.make(2000) } } ],
-    make(n: number) -> array {
-        const out = []
-        const st = ["open", "done", "held"]
-        for (let i = 0; i < n; i++) out.push({ id: i, title: "Issue " + i, state: st[i % 3] })
-        return out
-        },
-    chosen: number = 0,
-    head: Text [ x = 20, y = 12, textColor = 0x666666,
-        text = { app.chosen + " selected of " + (d.value.rows).length } ],
-    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, datapath = { d.value },
-        selects = "multi",
-        input(sel: object) { app.chosen = (sel ?? []).length },
-        Column [ title = "ID",    field = "id",    width = 60 ],
-        Column [ title = "Title", field = "title", width = 220 ],
-        Column [ title = "State", field = "state", width = 120 ],
-        GridRow [ datapath = :rows[], virtualize = true ]
+class Entry extends View [ width = 288, height = 28,
+    t: Text [ y = 5, width = 288, text = :text,
+        State [ applied = { :kind == "heading" }, fontWeight = bold ]
+        ],
+    heading: State [ applied = { :kind == "heading" }, height = 40,
+        rule: View [ y = 38, width = 288, height = 1, fill = #D5DCE3 ]
+        ],
+    photo: State [ applied = { :kind == "photo" }, height = 92,
+        pic: View [ y = 28, width = 120, height = 60, cornerRadius = 6, fill = #9FB8CC ]
+        ]
+    ]
+
+
+App [ width = 320, height = 300, fill = white, textColor = #1B2733,
+    d: Dataset [ contents = { { items: [
+        { id: 1, kind: "heading", text: "Monday" },
+        { id: 2, kind: "note",    text: "Ran 5 km" },
+        { id: 3, kind: "photo",   text: "The bridge at dawn" },
+        { id: 4, kind: "note",    text: "Called the plumber" }
+        ] } } ],
+    list: View [ x = 16, y = 12, width = 288, datapath = { d.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Entry [ datapath = :items[] ]
         ]
     ]

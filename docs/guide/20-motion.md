@@ -86,6 +86,46 @@ class Figure [
 `weekCount: Figure [ value = { app.week.value.count } ]`, and a view reads
 `app.weekCount.shown`. Logging a session then rolls the count over; opening the app does not.
 
+The same shape opens a *view* on its data: a timeline that should first show the whole
+history cannot know the history's length until it arrives. Derive the fact that says it has
+(`ready: boolean = { app.log.ready }`, itself read off the sources' `loaded`), track it, and
+place the view once when it turns true — `trackChanges = ["ready"]`,
+`onChange(e: ChangeEvent) { if (ready) { showAll() } }`. The flag is derived, not set by a
+handler, so it cannot drift from the data; `loaded` stays up through a refresh, so the view
+is placed once.
+
+**Under the hand, write the value and its target together.** A surface the user drags — a
+strip, a timeline, a map — is also one a button or a released fling moves, and that motion
+wants a spring. While the finger drives, set the sprung value *and* the spring's `to` to
+the same number: the spring has nowhere to go, so it rests and the surface never lags the
+finger. On release, set only the target, and the spring carries the surface there.
+
+```declare
+App [ width = 360, height = 140, fill = white,
+    offset: number = 0,                   // what the strip shows
+    offsetTo: number = 0,                 // where its spring is taking it
+    Spring [ attribute = offset, to = { app.offsetTo }, stiffness = 170, damping = 22 ],
+    // the hand: the value and its target together, so the spring stays at rest
+    handTo(v: number) { offset = v; offsetTo = v },
+    // a destination: the spring carries it there
+    glideTo(v: number) { offsetTo = Math.max(0, Math.min(720, v)) },
+    strip: View [ y = 20, width = 1080, height = 100, x = { -app.offset },
+        grab: number = 0,
+        onPointerDown(e: PointerEvent) { grab = app.offset },
+        onPointerMove(e: PointerEvent) { app.handTo(grab - e.deltaX) },
+        onPointerUp(e: PointerUpEvent) { app.glideTo(Math.round(app.offset / 360) * 360) },
+        View [ x = 20, width = 320, height = 100, cornerRadius = 12, fill = #2E6FE0 ],
+        View [ x = 380, width = 320, height = 100, cornerRadius = 12, fill = #12A594 ],
+        View [ x = 740, width = 320, height = 100, cornerRadius = 12, fill = #E0802E ]
+        ]
+    ]
+```
+
+Drag the strip part-way and let go: it follows the pointer exactly, then springs to the
+nearest card. Write only `offsetTo` under the hand and the strip trails behind the
+finger. Write only `offset` and the target never moves, so a release that aims back at it
+changes nothing a sleeping spring watches — the strip stays where the finger left it.
+
 > **From SwiftUI:** `withAnimation` animates the *transaction* — changes made inside
 > the block. A `Spring` here is a standing declaration on the attribute itself:
 > nothing is wrapped, and any write to the target, from anywhere, moves the ball.

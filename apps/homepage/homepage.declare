@@ -821,7 +821,7 @@ class DocView extends View [ width = { app.width }, fill = { provided("theme").i
                 textColor = { provided("theme").faint }, wrap = true, width = 100%,
                 text = { classroot.trouble + classroot.reason } ],
             doc: Markdown [ visible = { classroot.loaded }, width = 100%, lineHeight = 1.35,
-                bodyColor = { provided("theme").lead }, dark = { app.isDark },
+                bodyColor = { provided("theme").lead },
                 text = { classroot.markdown } ],
 
             // the air between the document and the footer is the footer's own, at
@@ -1466,7 +1466,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 // pipeline the FAQ, the guide and the language doc use.
 
                 essay: Markdown [ visible = { app.why.loaded }, width = 100%, lineHeight = 1.35,
-                    bodyColor = { provided("theme").lead }, dark = { app.isDark },
+                    bodyColor = { provided("theme").lead },
                     linkColor = { provided("theme").accent },
                     text = { app.why.value || "" } ],
                 wait: Text [ visible = { app.why.loading }, fontSize = 15,
@@ -1499,7 +1499,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
                 story: Markdown [ visible = { app.story.loaded }, width = 100%,
                     fontSize = 16, lineHeight = 1.35,
-                    bodyColor = { provided("theme").muted }, dark = { app.isDark },
+                    bodyColor = { provided("theme").muted },
                     linkColor = { provided("theme").accent },
                     text = { app.story.value || "" } ],
 

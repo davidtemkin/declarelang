@@ -186,7 +186,7 @@ await test("a runtime error code expands to its sentence (the production strip's
   assert.equal(r.code, 0, "a known code is answered");
   assert.match(r.out, new RegExp(code), "names the code");
   assert.match(r.out, /a runtime error/, "says what it is");
-  assert.match(r.out, /thrown at \w+\.ts:\d+/, "points at the throw site");
+  assert.match(r.out, /thrown at [\w-]+\.(?:ts|js):\d+/, "points at the throw site (a runtime source, or the web host's)");
   // an unknown code is answered too (informative, like a DECLARE#### miss)
   const miss = help("EFFFFFF");
   assert.match(miss.out, /no runtime error EFFFFFF/);

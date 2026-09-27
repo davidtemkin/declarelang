@@ -199,6 +199,32 @@ await test("check() names attribute, expected type, and found value per type", (
   }
 });
 
+await test("every pointer event carries both frames — local x/y through the view's transform, rootX/rootY, and deltaX/deltaY since the press", () => {
+  const app = build(`App [ width = 400, height = 300,
+    got: object = null,
+    plain: View [ x = 100, y = 50, width = 80, height = 40,
+      onPointerMove(e: PointerEvent) { parent.got = e }, onPointerDown(e: PointerEvent) { parent.got = e } ],
+    turned: View [ x = 200, y = 100, width = 100, height = 100, scale = 2, rotation = 90,
+      onPointerMove(e: PointerEvent) { parent.got = e } ] ]`);
+  settle();
+  const sinkOf = (v) => v.inputSink();
+  sinkOf(app.plain)("pointerDown", 120, 60, { deltaX: 0, deltaY: 0 });
+  assert.deepEqual([app.got.x, app.got.y, app.got.rootX, app.got.rootY, app.got.deltaX, app.got.deltaY], [20, 10, 120, 60, 0, 0], "a press: local and root");
+  sinkOf(app.plain)("pointerMove", 150, 90, { deltaX: 30, deltaY: 30 });
+  assert.deepEqual([app.got.x, app.got.y, app.got.rootX, app.got.rootY, app.got.deltaX, app.got.deltaY], [50, 40, 150, 90, 30, 30],
+    "a move is LOCAL now, beside its root point and its movement since the press");
+  // the centre of a scaled, rotated view is still its local centre; a point
+  // 20 root px to the right of it is 10 local px along the view's own y (rotated 90°)
+  const c = app.turned.rootBounds();
+  const cx = c.x + c.width / 2, cy = c.y + c.height / 2;
+  sinkOf(app.turned)("pointerMove", cx, cy);
+  assert.ok(Math.abs(app.got.x - 50) < 1e-6 && Math.abs(app.got.y - 50) < 1e-6, `the centre is local (50, 50), got (${app.got.x}, ${app.got.y})`);
+  sinkOf(app.turned)("pointerMove", cx + 20, cy);
+  assert.ok(Math.abs(app.got.x - 50) < 1e-6 && Math.abs(app.got.y - 40) < 1e-6, `through the whole transform, got (${app.got.x}, ${app.got.y})`);
+  assert.equal(app.got.deltaX, 0, "no press, no movement");
+  app.discard();
+});
+
 await test("a datapath { } that is a literal is refused in the source — no Dataset holds a fresh value", async () => {
   for (const lit of ["[1, 2, 3]", "{ rows: [] }", "[]"]) {
     const r = await compile(`App [ row: View [ datapath = { ${lit} }, Text [ text = "x" ] ] ]`);
@@ -248,6 +274,14 @@ await test("check(): a Spring on a slot its view binds is refused, naming 'to'; 
   assert.deepEqual(check(parse(`App [ w: number = 5, v: View [ x = 0, Spring [ attribute = x, to = { parent.w } ] ] ]`)), [], "the working form");
   assert.deepEqual(check(parse(`App [ w: number = 5, v: View [ x = { parent.w }, a: Animator [ attribute = x, to = 80, duration = 200 ] ] ]`)), [],
     "an Animator takes a bound slot for its run and the constraint takes it back — the LZX slide");
+});
+
+await test("check(): a state overrides its view's declared slots, never a provided value", () => {
+  const errs = check(parse(`App [ on: boolean = false, v: View [ width = 10, State [ applied = { app.on }, fontWeight = bold ] ] ]`));
+  assert.equal(errs.length, 1);
+  assert.match(errs[0].message, /State\.fontWeight: a state override sets a declared slot of the view, not a provided value/);
+  assert.deepEqual(check(parse(`App [ on: boolean = false, v: View [ width = 10, State [ applied = { app.on }, width = 20 ] ] ]`)), [], "a declared slot");
+  assert.deepEqual(check(parse(`App [ on: boolean = false, t: Text [ text = "a", State [ applied = { app.on }, fontWeight = bold ] ] ]`)), [], "a slot the view declares itself");
 });
 
 await test("check() reports EVERY error, in source order, each positioned", () => {

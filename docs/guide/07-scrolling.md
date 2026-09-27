@@ -74,15 +74,19 @@ parked beyond *the layer's* edge:
 ```declare-fragment
 overlay: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
     detail: View [ width = 360, height = { parent.height },
-        x = { app.open ? parent.width - 360 : parent.width },
-        slide: Spring [ attribute = x ]
+        away: number = 360,                     // how far past the edge it sits
+        x = { parent.width - 360 + away },
+        slide: Spring [ attribute = away, to = { app.open ? 0 : 360 } ]
         ]
     ]
 ```
 
 The page sees one frame-sized layer; the panel sliding in and out of it adds no scroll
-range. (The [`Spring`](declare-docs:Spring) makes the slide continuous — [Motion and
-states](declare-docs:guide:motion).)
+range. The [`Spring`](declare-docs:Spring) drives `away`, a number of the panel's own,
+rather than `x`: a spring owns the slot it moves, so the slot it moves carries no
+constraint, while `x` stays one and keeps the panel against the edge as the window
+resizes. `away` starts at its closed value, so the panel waits offstage from the first
+frame ([Motion and states](declare-docs:guide:motion)).
 
 ## Moving a scroller: requests, not assignments
 

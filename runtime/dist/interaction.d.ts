@@ -95,6 +95,13 @@ export declare function hitAt(root: unknown, x: number, y: number, pierce?: bool
  *  occlusion is `hitAt`'s question — so a view can ask "is the pointer within
  *  me" without a tree walk. */
 export declare function boxContains(view: InteractionView, x: number, y: number): boolean;
+/** A point in the root's CONTENT space (the language's root-space) as `view`'s
+ *  own local point. Walks down from the root accumulating the transform, so it
+ *  honours exactly the scroll/scale/pivot/3D inversion the routed hit does.
+ *  Content space in, so the ROOT's own scroll is already in the coordinates
+ *  (frame = content − scroll); each descent then re-applies each level's
+ *  terms. The one conversion every pointer event's local `x`/`y` comes from. */
+export declare function rootToLocal(view: InteractionView, x: number, y: number): [number, number];
 /** The COMPOSED view→root-frame transform — every level's scale-then-rotate
  *  about its pivot (F(p) = pivot + s·R(rot)(p − pivot), the forward of
  *  toChildLocal's terms 3–4), translate, and scroll subtraction folded into

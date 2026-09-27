@@ -116,9 +116,6 @@ see**. The header itself remains a stop either way.
 Opens this pane by writing its `name` to the group. Called by a click and by
 Space/Enter on the header.
 
-## onClick
-Runs `press()` when enabled.
-
 ## onInit
 Applies `initial`. Fires once per pane.
 

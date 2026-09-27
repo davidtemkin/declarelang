@@ -143,9 +143,9 @@ shared measurer (so the DOM's measured heights were short as well), and a break 
 `/` neither engine makes; no bidi reordering in the canvas rich flow; a filtered
 clipping view's shadow cut off on canvas; a 3D view's box shadow dropped and its
 strips banding; `translateZ` composed in a different order by the homography than by
-the DOM and the Mac; and five smaller ones. Three findings wait for a decision (the
-DOM clamp's ellipsis under centre or right alignment, features on the system face,
-rich text's body colour), listed there.
+the DOM and the Mac; the DOM clamp's ellipsis under centre or right alignment; rich
+text's colour following the machine instead of the theme; and five smaller ones. One
+finding waits for a decision (features on the system face), listed there.
 
 The Mac pass (`--mac --pixels`: the matrix paged on the host's window against a
 Chrome page of the same size at 2×, the window captured by its own number, P3

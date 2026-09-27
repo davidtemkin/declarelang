@@ -17,7 +17,7 @@ import { dirname, resolve, basename, join, relative, sep, extname } from "node:p
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
-import { stripSource } from "./internal/error-codes.mjs";
+import { stripSource, HOST_SOURCES } from "./internal/error-codes.mjs";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { stripPos } from "../compiler/dist/program-build.js";
@@ -569,11 +569,14 @@ export const Inspect = new Proxy({ ready: () => false }, {
   const errorCodePlugin = {
     name: "error-codes",
     setup(build) {
-      build.onLoad({ filter: /[/\\]runtime[/\\]dist[/\\][^/\\]+\.js$/ }, async (args) => {
+      // the runtime, and the web host's own sources (their boot and island
+      // reports are Declare diagnostics too, and ship in the same bundle)
+      const host = HOST_SOURCES.map((f) => f.replace(/\.js$/, "").replace(/[-]/g, "\\-")).join("|");
+      build.onLoad({ filter: new RegExp(`[/\\\\](?:runtime[/\\\\]dist[/\\\\][^/\\\\]+|browser[/\\\\](?:${host}))\\.js$`) }, async (args) => {
         const raw = await readFile(args.path, "utf8");
         const { src: out, entries } = stripSource(raw);
         for (const e of entries) errorCatalog[e.code] = { message: e.message, file: args.path.split("/").pop(), line: e.line };
-        return { contents: out, loader: "js", resolveDir: RUNTIME };
+        return { contents: out, loader: "js", resolveDir: dirname(args.path) };
       });
     },
   };
@@ -658,7 +661,11 @@ export const Inspect = new Proxy({ ready: () => false }, {
         // `focusable = …` in any form except the literal `false` makes a tab stop.
         if (a.name === "focusable" && !(a.value?.kind === "ident" && a.value.name === "false")) focusKeys = true;
         if (a.name === "tip") tips = true;
+        // a preset named as a literal (`theme = SanFranciscoDark`) resolves
+        // against the records at boot, as surely as one named in a body
+        if (a.value?.kind === "ident" && THEME_USE.test(a.value.name)) themes = true;
       }
+      for (const d of el.decls ?? []) if (d.def?.kind === "ident" && THEME_USE.test(d.def.name)) themes = true;
       for (const c of el.children ?? []) walkEl(c);
     };
     for (const r of roots) {

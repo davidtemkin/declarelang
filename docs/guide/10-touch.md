@@ -128,7 +128,7 @@ block: View [
     onHold(e: PointerEvent)        { app.liftEvent(:id) },          // the pick-up moment
     onPointerDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
     onPointerMove(e: PointerEvent) { app.dragMove() },
-    onPointerUp(e: PointerUpEvent) { app.dropDrag(e.x, e.y) },
+    onPointerUp(e: PointerUpEvent) { app.dropDrag(e.rootX, e.rootY) },
     ]
 ```
 

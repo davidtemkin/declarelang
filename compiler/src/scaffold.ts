@@ -381,10 +381,13 @@ interface ValueChange { readonly name: string; readonly previousValue: any; read
 /** What \`onChange\` receives: every value this node named in \`trackChanges\` that
  *  ended the settle different, in list order, once per settle. */
 interface ChangeEvent { readonly changed: readonly ValueChange[] }
-/** A pointer's position. The raw handlers carry root-space points for a drag,
- *  since a drag needs a frame that does not move with the dragged thing; \`onClick\`
- *  and \`onPointerDown\` carry view-local ones. */
-interface PointerEvent { x: number; y: number }
+/** A pointer's position, in both frames. \`x\`/\`y\` are in this view's own
+ *  coordinates (through its whole transform); \`rootX\`/\`rootY\` are in root
+ *  space — the frame a drag reads, since it does not move with the dragged view
+ *  (and the one \`app.viewAt\` takes). \`deltaX\`/\`deltaY\` are how far the pointer
+ *  has moved, in root space, since the press (0 with no press; on a wheel, the
+ *  scroll amount). */
+interface PointerEvent { x: number; y: number; rootX: number; rootY: number; deltaX: number; deltaY: number }
 /** A release, plus the one fact a drag handler must not miss: \`canceled\` is true
  *  when the browser reclaimed the gesture — a touch that became a scroll. Commit on
  *  release only when it is false, or an interruption reads as a drop. */
@@ -396,7 +399,7 @@ interface TouchEvent extends PointerEvent { touches: readonly Touch[]; changed: 
 /** A wheel or trackpad scroll, by axis. A trackpad PINCH arrives here too, with
  *  \`pinch\` true — the browser reports it as a wheel event with a modifier, and
  *  hiding that would make a zoom impossible to write. */
-interface WheelEvent extends PointerEvent { deltaX: number; deltaY: number; pinch: boolean }
+interface WheelEvent extends PointerEvent { pinch: boolean }
 /** A resolved two-finger zoom: the accumulated \`scale\` and the \`center\` it
  *  pivots about, so the view can zoom about the point the fingers chose. */
 interface PinchEvent extends PointerEvent { scale: number; center: { readonly x: number; readonly y: number } }

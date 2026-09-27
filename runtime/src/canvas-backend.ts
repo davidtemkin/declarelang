@@ -129,6 +129,11 @@ import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive, type HitTarget } from "./input.js";
 
+
+/** The root-space point of the wheel being walked (set at the wheel entry,
+ *  read where a claimant hears it): every pointer event carries both frames. */
+let WHEEL_ROOT = { x: 0, y: 0 };
+
 /** Style a native editable overlay to match the view's painted text metrics, so
  *  its caret and glyphs align with the static-text measure (measure.ts). */
 function applyCanvasEditStyle(el: HTMLElement, st: TextStyle): void {
@@ -761,6 +766,7 @@ class Compositor {
       const r = this.canvas.getBoundingClientRect();
       const x = e.clientX - r.left;
       const y = e.clientY - r.top;
+      WHEEL_ROOT = { x, y };   // the root point (routeInput's rootPoint) the claimant hears beside its own
       if (this.root.wheelTo(x, y, e.deltaX, e.deltaY, e.ctrlKey) === "claimed") {
         e.preventDefault();
         return;
@@ -1947,7 +1953,7 @@ class CanvasSurface implements Surface {
       if (r !== null) return r;
     }
     if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
-      this.sink("wheel", lx, ly, { deltaX, deltaY, pinch });
+      this.sink("wheel", lx, ly, { deltaX, deltaY, pinch, rootX: WHEEL_ROOT.x, rootY: WHEEL_ROOT.y });
       return "claimed";
     }
     // the page root's wheel is the browser's own — never consumed here

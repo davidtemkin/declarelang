@@ -841,11 +841,6 @@ export const RichTextSchema = {
         // a font-size zoom a reader control can drive; 1 = the natural sizes. Not
         // `scale`, which on every view is a transform.
         fontScale: { kind: "number" },
-        // `dark` overrides which color scheme the house rich-element palette (the
-        // inline-code chip, the fenced-code box, rules, quotes) is drawn from. Unset
-        // (null) follows the root App's OS `dark`; set it to an app's OWN effective
-        // theme when a Light/Dark selector can differ from the OS: `dark = { app.isDark }`.
-        dark: { kind: "boolean" },
         // The y of the FIRST line's baseline in this box — the fact a baseline-
         // aligning layout reads (`align = baseline` on SimpleLayout/WrappingLayout).
         // A flow claims its first line, by the same strut-and-growth arithmetic the

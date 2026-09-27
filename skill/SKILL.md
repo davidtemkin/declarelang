@@ -56,8 +56,10 @@ main way it goes wrong. Chapter 1 shows every one of these in a working app.
   derived `Dataset` with a `schema` — no `as any`. (ch. 14)
 - **The look.** A repeated color, size or font list is a `theme` token read with
   `provided("theme")`; a repeated text voice is a `style` or a small class. (ch. 11, 12)
-- **Controls.** Use the library; for your own, subclass `Control`, not `View` — focus,
-  keyboard, hover and pressed come with it. (ch. 8, 17)
+- **Controls.** Use the library. Anything the user presses to act — a tab, a chip, a
+  delete mark — is a control even with no value: subclass `Control`, not `View`, and put
+  the action in `press()` — focus, keyboard, `hot`/`down` and a non-selecting label come
+  with it. (ch. 8, 17)
 - **Layout.** Stacks and flows are layout classes; a layout owns what it places, or the
   child says `ignoreLayout`. (ch. 6, 17)
 - **Continuity.** One view should become the next — a `Spring` or `Animator` on the

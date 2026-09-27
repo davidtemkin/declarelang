@@ -138,9 +138,10 @@ class RichSection extends Section [ title = "Rich text",
         Swatch [ name = "letterSpacing on the flow",
             Markdown [ x = 10, y = 10, width = 192, fontSize = 13, letterSpacing = 1.5, text = "Tracking applies to the running text of every block." ]
             ],
-        Swatch [ name = "dark = true",
+        Swatch [ name = "a dark theme",
             View [ x = 6, y = 6, width = 200, height = 112, cornerRadius = 8, fill = #1B2733,
-                Markdown [ x = 8, y = 4, width = 184, fontSize = 12, dark = true, text = "### Dark\n\nBody, a [link](https://example.com) and `code`." ]
+                Markdown [ x = 8, y = 4, width = 184, fontSize = 12, theme = SanFranciscoDark,
+                    text = "### Dark\n\nBody, a [link](https://example.com) and `code`." ]
                 ]
             ]
         ],

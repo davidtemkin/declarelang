@@ -1858,12 +1858,15 @@ export class DomSurface implements Surface {
         const s = SINKS.get(el);
         if (s === undefined) return;
         const p = localPoint(el, e.clientX, e.clientY);
-        // View-local point (the positional rule of pointerDown/click), the raw
-        // deltas, and `pinch`: a trackpad pinch arrives on the wheel stream
-        // with the zoom-intent flag set (a mouse user's ctrl+wheel zoom
-        // reports the same way) — one handler hears wheels, trackpad scrolls,
-        // and trackpad pinches.
-        s("wheel", p.x, p.y, { deltaX: e.deltaX, deltaY: e.deltaY, pinch: e.ctrlKey });
+        // The app root's point beside it, as the router gives every other
+        // pointer event (input.ts rootPoint): the view's payload carries both.
+        const appEl = el.closest<HTMLElement>("[data-declare-app]");
+        const r = appEl !== null ? localPoint(appEl, e.clientX, e.clientY) : p;
+        // View-local point, root point, the raw deltas, and `pinch`: a trackpad
+        // pinch arrives on the wheel stream with the zoom-intent flag set (a
+        // mouse user's ctrl+wheel zoom reports the same way) — one handler
+        // hears wheels, trackpad scrolls, and trackpad pinches.
+        s("wheel", p.x, p.y, { deltaX: e.deltaX, deltaY: e.deltaY, pinch: e.ctrlKey, rootX: r.x, rootY: r.y });
         e.preventDefault();
       };
       el.addEventListener("wheel", this.wheelListener, { passive: false });

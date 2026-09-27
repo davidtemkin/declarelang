@@ -26,6 +26,9 @@ import { effectiveFamily } from "./measure.js";
 import { colorToCss, insetSides, isGradient, strokeUniform } from "./value.js";
 import { routeInput } from "./input.js";
 import { strokeSides } from "./stroke-sides.js";
+/** The root-space point of the wheel being walked (set at the wheel entry,
+ *  read where a claimant hears it): every pointer event carries both frames. */
+let WHEEL_ROOT = { x: 0, y: 0 };
 // ── the wire ────────────────────────────────────────────────────────────────
 /** A filter function as the Swift side reads it: `fn` plus its one argument
  *  (`v`), colours as CSS text — the SHADOW op's own convention. */
@@ -1179,7 +1182,7 @@ class MacSurface {
                 return r;
         }
         if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
-            this.sink("wheel", lx, ly, { deltaX, deltaY, pinch });
+            this.sink("wheel", lx, ly, { deltaX, deltaY, pinch, rootX: WHEEL_ROOT.x, rootY: WHEEL_ROOT.y });
             return "claimed";
         }
         return (this.scrolls || this.scrollsX) && inBox ? "scroller" : null;
@@ -1460,6 +1463,7 @@ export function macTraceHit(x, y) {
  *  more: a wheel over a scroller is the HOST's process, and what it moved
  *  arrives as facts (macScrollFacts). */
 export function macWheel(x, y, dx, dy, pinch) {
+    WHEEL_ROOT = { x, y }; // the root point this wheel's claimant hears beside its own
     macRoot?.wheelTo(x, y, dx, dy, pinch);
     flushOps();
 }

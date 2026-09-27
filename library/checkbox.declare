@@ -54,9 +54,6 @@ by Space/Enter.
 Rings the box alone, not the box-plus-label — the Radio rule, so a long label does not
 drag a wide ring across the row.
 
-## onClick
-Runs `press()` when enabled. Override `input` instead if what you want is the value.
-
 ## width
 Content-sized: the box, then a gap and the label when there is one. A label-less checkbox is exactly its box, so a bare mark in a table cell reserves no phantom room.
 

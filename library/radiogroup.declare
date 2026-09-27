@@ -97,9 +97,6 @@ Delivers this radio's `choice` to the group. Called by a click and by Space/Ente
 ## focusShape()
 Rings the round dot rather than the dot-plus-label row.
 
-## onClick
-Runs `press()` when enabled.
-
 ## width
 Content-sized: the dot, then a gap and the label when there is one. A label-less radio is exactly its dot.
 

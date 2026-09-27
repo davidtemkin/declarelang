@@ -95,7 +95,7 @@ export async function bootHost(cfg) {
   let pageProvides = {};
   if (provideAttr) {
     try { pageProvides = JSON.parse(provideAttr); }
-    catch { console.error("[Declare] data-declare-provide is not valid JSON — nothing provided: " + provideAttr.slice(0, 80)); }
+    catch { console.error(`[Declare] data-declare-provide is not valid JSON — nothing provided: ${provideAttr.slice(0, 80)}`); }
   }
   pageProvides = { ...pageProvides, ...(cfg.provides ?? {}) };
   const app = buildApp({ program: cfg.program }, { provides: pageProvides });
@@ -213,7 +213,7 @@ export async function bootHost(cfg) {
   const entryState = (w, s) => ({ declare: s == null ? { w } : { w, s } });
   const guardStep = () => {
     if (app.waypoint.length > 64 * 1024)
-      console.error("[Declare] waypoint exceeds 64KB — a waypoint is coordinates in the session, not the session's data; derive the data from it instead (guide ch. 13)");
+      console.error("[Declare] waypoint exceeds 64KB — a waypoint is coordinates in the session, not the session's data; derive the data from it instead (guide: URLs, links and history)");
   };
   // The page's OWN path+query, never a bare "#frag": history resolves against
   // the DOCUMENT BASE, and a source page's <base> points elsewhere (measured
@@ -431,7 +431,7 @@ export async function bootHost(cfg) {
         beforeMount: (app) => {
           if (!islView || typeof islView.post !== "function") return;
           try { childUndo.push(linkIslandTenant(islView, app)); }
-          catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
+          catch (e) { console.error(`[Declare] ${name || "island"}: ${e.message}`); }
         },
       };
       const childApp = await renderProgramAsync(compiled.program, box, backend, childOpts);
@@ -459,7 +459,7 @@ export async function bootHost(cfg) {
       // The island is already marked wired, so a swallowed failure here is a
       // pane that stays blank forever with nothing said. Say it: a preview that
       // never mounts is a bug in the host or the child, not a quiet outcome.
-      console.error("[Declare] preview '" + (name || "?") + "' failed to render", e);
+      console.error(`[Declare] preview '${name || "?"}' failed to render`, e);
     }
   }
 
@@ -588,14 +588,14 @@ export async function bootHost(cfg) {
       // the boundary first, so the tenant's first settle sees what the host provides
       if (typeof view.post === "function") {
         try { childApp.__unlink = linkIslandTenant(view, childApp); }
-        catch (e) { console.error("[Declare] " + (name || "island") + ": " + e.message); }
+        catch (e) { console.error(`[Declare] ${name || "island"}: ${e.message}`); }
       }
       mountEmbeddedApp(childApp, view);
       childApp.demoSources = seeds;
       provideHostServices(childApp, navServices);
       view.__childApp = childApp;
     } catch (e) {
-      console.error("[Declare] canvas island '" + (name || "?") + "' failed to mount", e);
+      console.error(`[Declare] canvas island '${name || "?"}' failed to mount`, e);
     }
   }
   // The RETRY path — the one genuine wait in this shim (a compiler still

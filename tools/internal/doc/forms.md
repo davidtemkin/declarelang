@@ -671,8 +671,8 @@ compile time.
 - A dataset needs data: a literal body, or a derived `contents`.
   > says: a Dataset needs data — a literal JSON body ('d: Dataset { … }') or a derived 'contents = { … }'
   > probe: App [ d: Dataset [ ] ]
-- A computed object is not a place: a cursor points into declared data. Wrap a computed list in a Dataset and read its `.value`.
-  > says: this value belongs to no Dataset/DataSource — a cursor can only point into declared data
+- A literal is not a place: a cursor points into declared data. Declare the records in a Dataset and point at its `.value`.
+  > says: a datapath is a place in declared data, and a literal is in none
   > probe: App [ v: View [ datapath = { { a: 1 } }, Text [ text = :a ] ] ]
 
 ### related

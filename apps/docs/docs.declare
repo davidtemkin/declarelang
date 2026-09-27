@@ -582,7 +582,7 @@ class Example extends View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         Title [ fontSize = { 16 * app.fontScale }, text = { "" + :title } ],
         lead: Markdown [ width = 100%, visible = { ("" + :lead) != "" }, lineHeight = 1.55,
-            bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale }, dark = { app.darkUI }, text = { "" + :lead } ],
+            bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale }, text = { "" + :lead } ],
         gap: View [ height = 6 ]
         ],
 
@@ -770,7 +770,7 @@ class Block extends View [ width = 100%,
     // extractor anchors each segment that opens with a heading
 
     anchor = { "" + (:anchor ?? "") },
-    md: Markdown [ width = 100%, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, fontScale = { app.fontScale }, dark = { app.darkUI },
+    md: Markdown [ width = 100%, lineHeight = { classroot.lead }, bodyColor = { classroot.tone }, fontScale = { app.fontScale },
         visible = { :md != "" }, text = { :md },
         onLink(href: string) { app.openDocLink(href) }
         ],
@@ -993,7 +993,7 @@ class SyntaxBox extends View [ width = 100%, fill = { provided("theme").chipBg }
 
 class RuleRow extends View [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 6 ],
-    md: Markdown [ width = 100%, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale }, dark = { app.darkUI },
+    md: Markdown [ width = 100%, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale },
         text = { "" + :rule } ],
     says: View [ width = 100%, height = { this.t.height + 16 },
         rule: View [ x = 0, y = 0, width = 2, height = 100%, fill = { provided("theme").line } ],
@@ -1029,7 +1029,7 @@ class FormRow extends View [ width = 100%,
     onClick() { app.goForm("" + :slug) },
     syn: Mono [ x = 0, y = 0, width = 260, fontSize = { 14 * app.fontScale }, fontWeight = semibold, lineHeight = 1.5,
         textColor = { classroot.hovered ? provided("theme").accent : provided("theme").chipBlue }, text = { "" + :name } ],
-    gist: Markdown [ x = 276, width = { parent.width - 276 }, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale }, dark = { app.darkUI },
+    gist: Markdown [ x = 276, width = { parent.width - 276 }, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale },
         text = { "" + :gist } ]
     ]
 
@@ -1192,7 +1192,7 @@ class TypeDetail extends View [ width = 100%,
         Mono [ fontSize = { 32 * app.fontScale }, fontWeight = semibold, textColor = { provided("theme").text }, text = { "" + :name } ],
         SyntaxBox [ visible = { ("" + :syntaxText) != "" }, lines = { "" + :syntaxText } ],
         prose: Markdown [ width = 100%, lineHeight = 1.6, bodyColor = { provided("theme").refDim },
-            fontScale = { app.fontScale }, dark = { app.darkUI }, text = { "" + :doc },
+            fontScale = { app.fontScale }, text = { "" + :doc },
             onLink(href: string) { app.openDocLink(href) }
             ]
         ],
@@ -1394,7 +1394,7 @@ class SearchHit extends View [ width = 100%, cornerRadius = 8,
         Mono [ y = 3, fontSize = 10, letterSpacing = 0.6, textColor = { provided("theme").eyebrow }, wrap = false, text = { :crumb } ]
         ],
     snip: Markdown [ width = 100%, fontScale = 0.92, lineHeight = 1.45,
-        bodyColor = { provided("theme").refDim }, dark = { app.darkUI },
+        bodyColor = { provided("theme").refDim },
         visible = { :snip != "" }, text = { :snip } ]
     ]
 

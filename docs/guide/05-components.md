@@ -166,7 +166,10 @@ The same idea covers the platform's own non-visual pieces. A [`Dataset`](declare
 [`Spring`](declare-docs:Spring) driving an attribute, a [`Time`](declare-docs:Time) giving the clock, [`Keys`](declare-docs:Keys) hearing the keyboard,
 a [`DataSource`](declare-docs:DataSource) fetching from a server — each is a child member of some node. It is
 created with that node and removed with it, so there is nothing to subscribe to and
-nothing to clean up. Where you declare one says who owns it.
+nothing to clean up. Where you declare one says who owns it — and a model class owns
+them as well as a view does: a `Clock` model holding a `Time`, or a `Feed` holding its
+`DataSource`, runs exactly as it would inside a view, and keeps the source beside the
+state it feeds.
 
 ## Arriving and leaving
 

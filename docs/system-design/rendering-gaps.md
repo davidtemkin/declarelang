@@ -503,6 +503,7 @@ sections, every primitive and the combinations) found fifteen more:
 | E32 | canvas projected 3D in row strips that overlapped by a row: a translucent pixel (a shadow, an image's soft edge) drawn twice read as banding, and under `rotateY` rows are only approximate | strips run along the exact axis (rows for X, columns for Y) and, when they land as axis-aligned bands, each owns whole device pixels; a view turned on both axes keeps the overlapping strips |
 | E34 | the DOM's `-webkit-line-clamp` places its ellipsis after aligning the whole line: under `textAlign = center` it was half cut, under `right` gone (no CSS form avoids it, measured) | the DOM cuts a clamped run itself by the shared rule (wrapLines + clampLines) and shows those lines — DOM and canvas now truncate identically |
 | E33 | `translateZ` under a rotation: the DOM and the Mac push along the view's own turned depth axis (CSS's `rotateY() translateZ()`); the homography — canvas paint and every renderer's hit walk — pushed toward the viewer | the homography rotates the push with the view; the reference says so |
+| E35 | rich text's body read only `bodyColor` (else a house grey), so a provided `textColor` never reached prose; its heading, link and code tones followed the machine's appearance, not the app's theme | the ink is `textColor` (set or provided), else the theme's `text`; links take `accent`, quotes `textMuted`, rules `line`, the code box `codeBg` else `control`; the `bodyColor`-family slots override their part; rich text has no `dark` attribute |
 
 **Found, not fixed — for a decision:**
 
@@ -510,14 +511,6 @@ sections, every primitive and the combinations) found fifteen more:
   built from `local()`, and Chrome cannot name the system face there, so `numeralWidth`,
   `numerals` and `slashedZero` on `-apple-system` / `system-ui` do nothing on Chrome's
   DOM or canvas. WebKit and the Mac honour them (`tabular` is 12px wider on "1111 0000").
-- **Rich text colour.** The reference and the guide say a flow's body follows the
-  provided text face; the body reads only `bodyColor` (else a house grey), so a
-  container's or theme's `textColor` never reaches prose — and the house heading, link
-  and code tones follow the machine's appearance (`app.dark`), not the app's theme, so
-  a light-themed app on a dark Mac gets dark-mode headings. Recommended: the body takes
-  `textColor`, `bodyColor` stays the body-only override, the house tones come from the
-  provided theme. (Links underline by default now — the reference's rule, RULED
-  2026-09-26; the homepage provides `linkUnderline = false` to keep its look.)
 
 **The Mac, per swatch** (`crossrender --mac --pixels`: the sheet paged on the host's
 window and a Chrome page of the same size at 2×; 170 of 683 swatches over 2% on the

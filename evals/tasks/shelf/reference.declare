@@ -18,7 +18,7 @@ class Block extends View [ cornerRadius = 8, clip = true,
     Spring [ attribute = growT, to = { app.sel == parent.bid ? 1 : 0 }, stiffness = 210, damping = 22, epsilon = 0.001 ],
     onClick() { app.sel = "" + :id },
     onPointerDown() { app.beginDrag("" + :id) },
-    onPointerMove(e: PointerEvent) { app.dragOver(e.x, e.y) },
+    onPointerMove(e: PointerEvent) { app.dragOver(e.rootX, e.rootY) },
     onPointerUp(e: PointerUpEvent) { app.drop(e.canceled) },
     t: Text [ x = 8, y = 8, fontSize = 12, textColor = whitesmoke, wrap = false, text = :label ]
     ]

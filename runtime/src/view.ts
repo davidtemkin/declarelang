@@ -69,7 +69,7 @@ import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteOr
 import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine, type Affine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
-import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
+import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, rootToLocal, type InteractionView } from "./interaction.js";
 import { bindDerived, blockOf, declarationsOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
 import { type AttrType } from "./value.js";
 import { observe } from "./reactive.js";
@@ -271,6 +271,26 @@ export function fireRetireTree(v: View): void {
     if (c instanceof View) fireRetireTree(c);
   }
   fireEvent(v, "retire");
+}
+
+/** The last local point each view could report — kept for the moment a 3D view
+ *  turns edge-on (or away), where no local point exists. */
+const LAST_LOCAL = new WeakMap<object, [number, number]>();
+
+/** A pointer event's payload, in both frames (View.inputSink). */
+function pointerPayload(view: View, type: string, x: number, y: number, extra: Record<string, unknown> | undefined): Record<string, unknown> {
+  let rootX = x, rootY = y, lx: number, ly: number;
+  if (type === "wheel") {
+    lx = x; ly = y;
+    rootX = typeof extra?.rootX === "number" ? extra.rootX : x;
+    rootY = typeof extra?.rootY === "number" ? extra.rootY : y;
+  } else {
+    [lx, ly] = rootToLocal(view as unknown as InteractionView, x, y);
+    if (!Number.isFinite(lx) || !Number.isFinite(ly) || Math.abs(lx) >= 1e9 || Math.abs(ly) >= 1e9) {
+      [lx, ly] = LAST_LOCAL.get(view) ?? [0, 0];
+    } else LAST_LOCAL.set(view, [lx, ly]);
+  }
+  return { deltaX: 0, deltaY: 0, ...extra, x: lx, y: ly, rootX, rootY };
 }
 
 /** Fire the membership-anchored `init` down an EXISTING subtree — the
@@ -1127,13 +1147,13 @@ export class View extends Node {
    *  eligible ancestor:
    *
    *      onPointerUp(e) {
-   *          let t = app.viewAt(e.x, e.y)
+   *          let t = app.viewAt(e.rootX, e.rootY)
    *          while (t != null && t.accept == null) t = t.parent
    *          if (t != null) t.accept(dragged)
    *          },
    *
-   *  Root-space, like the coordinates `onPointerMove`/`onPointerUp` carry, so a
-   *  drag can pass its own event coordinates straight in. (Root-space is the
+   *  Root-space, like every pointer event's `rootX`/`rootY`, so a drag can
+   *  pass its own event's root point straight in. (Root-space is the
    *  root's CONTENT space; the walk itself runs in frame space, so the root's
    *  own scroll converts here at the boundary — the contract stays exactly
    *  what the drag pairing needs, scrolled or not.) */
@@ -1565,10 +1585,15 @@ export class View extends Node {
         else if (type === "pointerOut") Tip.out(this);
         else if (type === "pointerDown") Tip.hide();
       }
-      // One plain event argument: the point in this view's coordinates, plus
-      // whatever fact this event kind carries (`canceled` on a release, the
-      // finger list on the raw touch family).
-      if (handled) fireEvent(this, type, extra === undefined ? { x, y } : { x, y, ...extra });
+      // One plain event argument, in both frames: `x`/`y` in this view's own
+      // coordinates (through its whole transform — scale, rotation, 3D) and
+      // `rootX`/`rootY` in root space, the frame a drag reads because it does
+      // not move with the dragged view; `deltaX`/`deltaY` the root-space
+      // movement since the press (a wheel's own deltas are its scroll amount);
+      // plus whatever fact this kind carries (`canceled`, the finger list).
+      // Every sender hands the ROOT point, except a wheel, which each
+      // renderer's own walk delivers locally with its root point beside it.
+      if (handled) fireEvent(this, type, pointerPayload(this, type, x, y, extra));
       if (type === "click" && this.link !== "") {
         const app = this.root as unknown as { follow?: (ref: string, replace?: boolean) => void };
         app?.follow?.(this.link, this.replace);

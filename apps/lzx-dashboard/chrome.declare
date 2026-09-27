@@ -243,8 +243,8 @@ class DashWindow extends View [
         // relative to the stage, hence the parent origin coming off.
 
         onPointerMove(e: PointerEvent) {
-            classroot.x = e.x - grabX - classroot.parent.x
-            classroot.y = e.y - grabY - classroot.parent.y
+            classroot.x = e.rootX - grabX - classroot.parent.x
+            classroot.y = e.rootY - grabY - classroot.parent.y
             },
         onPointerUp() { classroot.dragging = false },
 
@@ -319,8 +319,8 @@ class DashWindow extends View [
         grip: View [ x = { parent.width - 15 }, width = 15, height = 15,
             cursor = "nwse-resize",
             onPointerMove(e: PointerEvent) {
-                classroot.width = Math.max(classroot.minW, e.x - classroot.parent.x - classroot.x)
-                classroot.height = Math.max(classroot.minH, e.y - classroot.parent.y - classroot.y)
+                classroot.width = Math.max(classroot.minW, e.rootX - classroot.parent.x - classroot.x)
+                classroot.height = Math.max(classroot.minH, e.rootY - classroot.parent.y - classroot.y)
                 },
             draw(d: Draw) {                      // the grip's diagonal ridges
                 d.fillStyle = 0xFFFFFF44

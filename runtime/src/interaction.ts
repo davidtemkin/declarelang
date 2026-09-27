@@ -406,10 +406,17 @@ export function hitAt(root: unknown, x: number, y: number, pierce = false): Inte
  *  occlusion is `hitAt`'s question — so a view can ask "is the pointer within
  *  me" without a tree walk. */
 export function boxContains(view: InteractionView, x: number, y: number): boolean {
-  // Walk down from the root accumulating the transform, so the answer honours
-  // the same scroll/scale/pivot inversion the routed hit does. Content space
-  // in, so the ROOT's own scroll is already in the coordinates (frame =
-  // content − scroll); each descent then re-applies each level's terms.
+  const [lx, ly] = rootToLocal(view, x, y);
+  return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
+}
+
+/** A point in the root's CONTENT space (the language's root-space) as `view`'s
+ *  own local point. Walks down from the root accumulating the transform, so it
+ *  honours exactly the scroll/scale/pivot/3D inversion the routed hit does.
+ *  Content space in, so the ROOT's own scroll is already in the coordinates
+ *  (frame = content − scroll); each descent then re-applies each level's
+ *  terms. The one conversion every pointer event's local `x`/`y` comes from. */
+export function rootToLocal(view: InteractionView, x: number, y: number): [number, number] {
   const chain: InteractionView[] = [];
   for (let n: unknown = view; isView(n); n = n.parent) chain.push(n);
   const rootV = chain[chain.length - 1];
@@ -418,7 +425,7 @@ export function boxContains(view: InteractionView, x: number, y: number): boolea
   for (let i = chain.length - 2; i >= 0; i--) {
     [lx, ly] = toChildLocal(chain[i + 1], chain[i], lx, ly);
   }
-  return lx >= 0 && ly >= 0 && lx <= view.width && ly <= view.height;
+  return [lx, ly];
 }
 
 /** The COMPOSED view→root-frame transform — every level's scale-then-rotate

@@ -395,7 +395,7 @@ App [ minWidth = 340,
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "A DOCUMENT",
-                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI }, selectable = true,
+                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text }, selectable = true,
                             text = """
 ## Reading well
 
@@ -416,7 +416,7 @@ scale. It carries **bold**, *italic*, `code`, and a
                     layout: SimpleLayout [ axis = y, spacing = 22 ],
 
                     Specimen [ label = "A TABLE",
-                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI },
+                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text },
                             text = """
 | City | People |
 | :-- | --: |
@@ -428,7 +428,7 @@ scale. It carries **bold**, *italic*, `code`, and a
                         ],
 
                     Specimen [ label = "A CODE BLOCK",
-                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text }, dark = { app.darkUI },
+                        Markdown [ width = 100%, fontScale = 0.92, bodyColor = { provided("theme").text },
                             text = """
 ```
 App [ width = 480,

@@ -139,7 +139,10 @@ A document can be your app's material directly: fetch a `.md` file with
 ([Data](declare-docs:guide:data@where-data-comes-from)). `text` is an ordinary attribute, so Markdown streaming
 in piece by piece renders as it arrives.
 
-The body follows the provided text face; headings, links and code have their own tokens
+The body follows the provided text face, and its colours follow the theme: body and
+headings in the `textColor` a container provides (else the theme's `text`), links in its
+`accent`, quotes and rules in `textMuted` and `line` — so a document goes dark with the app
+and needs nothing said. Headings, links and code also have their own tokens
 ([`headingColor`](declare-docs:RichText.headingColor), [`headingWeight`](declare-docs:RichText.headingWeight), [`linkColor`](declare-docs:RichText.linkColor), [`codeColor`](declare-docs:RichText.codeColor), [`codeFamily`](declare-docs:RichText.codeFamily)), and
 `lineHeight`, [`bodyColor`](declare-docs:RichText.bodyColor), [`fontScale`](declare-docs:RichText.fontScale) (a reader-facing type zoom) and [`richTextLayout`](declare-docs:RichText.richTextLayout) (a
 comfortable line length per block type) tune the flow.

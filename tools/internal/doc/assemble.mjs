@@ -39,7 +39,7 @@ import { CSS_COLORS } from "../../../runtime/dist/css-colors.js";
 import { RESERVED, programSchemas } from "../../../runtime/dist/program-schema.js";
 import { parseLibrary } from "../../../runtime/dist/parser.js";
 import { CODE_PREFIX } from "../../../runtime/dist/diagnostics.js";
-import { catalogFor } from "../error-codes.mjs";
+import { catalogFor, HOST_SOURCES } from "../error-codes.mjs";
 import { MOTION_TOKENS } from "../../../runtime/dist/animate.js";
 import { OPS } from "../ops.mjs";
 import { buildRegistry, scan } from "./links.mjs";
@@ -340,7 +340,9 @@ function diagnosticSpine() {
  *  save wire weight); this is what gives the sentence back, so
  *  `declare-help E42` answers from the same source the strip reads. */
 function runtimeErrorSpine() {
-  const catalog = catalogFor(join(ROOT, "runtime/src"));
+  // the runtime's sources, and the web host's, whose reports the production
+  // strip codes the same way
+  const catalog = { ...catalogFor(join(ROOT, "browser"), (n) => HOST_SOURCES.includes(n)), ...catalogFor(join(ROOT, "runtime/src")) };
   return Object.fromEntries(Object.entries(catalog).map(([code, v]) => [code, { message: v.message, at: `${v.file}:${v.line}` }]));
 }
 

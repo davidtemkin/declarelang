@@ -58,21 +58,14 @@ export const PROSE = {
   cellGap: 18,
 };
 
-// The rich-element colors (headings, code, links, rules, quotes) come in a dark and
-// a light set; `C` points at the one matching the app's color scheme, chosen per
-// rebuild from the root App's `dark` (below). Body text is themed separately via the
-// `bodyColor` attribute, so a caller can dim prose independently of the scheme.
-const COLORS_DARK = {
-  headingColor: 0xffffff, bodyColor: 0xc7d0d6,
-  code: 0xb8cfef, codeChip: 0x172b39, codeFg: 0xb8c4cc, codeBg: 0x121f2a,
-  rule: 0x24394a, link: 0x6aa4ff, quoteRule: 0x2f4a5c, quoteColor: 0x9fb0ba,
-};
-const COLORS_LIGHT = {
-  headingColor: 0x111c24, bodyColor: 0x33424e,
-  code: 0x2c5578, codeChip: 0xe6edf3, codeFg: 0x2e3b46, codeBg: 0xe6ecf2,
-  rule: 0xd3dce4, link: 0x2f6fe0, quoteRule: 0xc4d0da, quoteColor: 0x5a6874,
-};
-export let C: typeof COLORS_DARK = COLORS_DARK;        // active set; set at the top of each rebuild
+// The rich-element colors, resolved per rebuild (RichText.palette): body and
+// headings take the text's ink (`textColor`, inherited like every text's), and
+// links, code, quotes and rules take the provided theme's tokens — so a document
+// wears the scheme its app provides, light or dark, with nothing else to set.
+// The explicit slots (`bodyColor`, `headingColor`, `linkColor`, `codeColor`,
+// `codeBackground`) override their part.
+interface Palette { headingColor: number; bodyColor: number; code: number; codeFg: number; codeBg: number; rule: number; link: number; quoteRule: number; quoteColor: number }
+export let C: Palette = { headingColor: 0, bodyColor: 0, code: 0, codeFg: 0, codeBg: 0, rule: 0, link: 0, quoteRule: 0, quoteColor: 0 };   // set at the top of each rebuild
 let SCALE = 1;                                   // font-size multiplier (the `fontScale` attr), set per rebuild
 // A named style a `<span class="…">` selects: a bundle of TEXT'S OWN style
 // attributes, named exactly as on `Text` (no terse parallel vocabulary — the skin
@@ -1192,8 +1185,6 @@ export abstract class RichText extends View {
   declare bodyColor: number | null;
   declare linkUnderline: boolean;
   declare fontScale: number;
-  /** Color-scheme override (null = follow the App's OS `dark`). */
-  declare dark: boolean | null;
   /** The y of the first line's baseline in this box — what `align = baseline`
    *  sits a Markdown/HTMLText on. A flow CLAIMS it (never discovered by the
    *  layout): the first block's first line when the document opens with prose;
@@ -1241,7 +1232,7 @@ export abstract class RichText extends View {
     // which is the apply — where reads are not tracked (face-table.ts). Without
     // it a face that lands after this flow was built leaves every run placed by
     // the fallback's widths, and paints the real face over those positions.
-    const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.isDark()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.rebuild(), 0);
+    const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.rebuild(), 0);
     c.run();
     onDiscard(this, () => c.dispose());
     // WIDTH — nothing structural depends on it, so re-width in place. Separate
@@ -1253,15 +1244,31 @@ export abstract class RichText extends View {
     onDiscard(this, () => cw.dispose());
   }
 
-  /** The color scheme for the house rich-element palette: the explicit `dark`
-   *  override if set (an app whose own theme selector differs from the OS), else
-   *  the root App's OS `dark`, read by walking to the tree root. */
-  private isDark(): boolean {
-    if (this.dark != null) return this.dark;
-    let r: unknown = this;
-    while (r instanceof View && r.parent !== null) r = r.parent;
-    return !!(r as { dark?: boolean }).dark;
+  /** The house palette for this render: the text's ink for body and headings
+   *  (`textColor`, else the theme's `text`), the provided theme's tokens for the rest (`code` and `codeBg` when a theme
+   *  names them, else the ink and the neutral `control` tint). Read tracked, so
+   *  a theme swap or an ink change re-renders. */
+  private palette(): Palette {
+    // With no theme provided, the fallbacks are San Francisco light — the look a
+    // program that never names a theme has — written here so such a program
+    // carries no theme records.
+    const t = (providedRead(this, "theme", true, undefined) ?? {}) as Record<string, unknown>;
+    const tok = (name: string, fallback: number): number => typeof t[name] === "number" ? t[name] as number : fallback;
+    // The ink: `textColor` when this text or anything above it says one, else
+    // the theme's `text` — never the attribute's bare default, which is black
+    // on a dark page.
+    const said = isSet(this, "textColor") ? this.textColor : providedRead(this, "textColor", true, undefined);
+    const ink = typeof said === "number" ? said : tok("text", 0x1b2733);
+    const code = tok("code", ink);
+    return {
+      headingColor: ink, bodyColor: ink, code, codeFg: code,
+      codeBg: tok("codeBg", tok("control", 0xe7ebf1)),
+      rule: tok("line", 0xdbe1e9), link: tok("accent", 0x2e6fe0),
+      quoteRule: tok("line", 0xdbe1e9), quoteColor: tok("textMuted", 0x6c7a88),
+    };
   }
+  /** The palette's values, for the render key. */
+  private paletteKey(): string { const p = this.palette(); return Object.values(p).join(","); }
 
   /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
    *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
@@ -1344,7 +1351,7 @@ export abstract class RichText extends View {
   private slotHost: SlotHost | null = null;
 
   private rebuild(): void {
-    C = this.isDark() ? COLORS_DARK : COLORS_LIGHT;   // pick the palette for this render
+    C = this.palette();                               // resolve the palette for this render
     // A renderer that lays whole documents out takes this one as ONE flow — one
     // region to wrap, select and find in — unless a line budget is in force,
     // which the view path spends block by block as it builds.
@@ -1364,9 +1371,9 @@ export abstract class RichText extends View {
     // `Text` does — so rich text honors its inherited style like every other
     // run. Size/weight/tracking follow fontSize/fontWeight/
     // letterSpacing; their View defaults (16/normal/0) match the house body, so
-    // prose that sets nothing renders unchanged. Color stays on the theme-aware
-    // `bodyColor` house default (textColor's default is opaque black, which would
-    // break dark-mode prose), overridable via `bodyColor`.
+    // prose that sets nothing renders unchanged. Colour is the text's ink too
+    // (`textColor`, through the palette), with `bodyColor` overriding the body
+    // alone.
     BODY = { size: this.fontSize || PROSE.body, weight: this.fontWeight || "normal", tracking: this.letterSpacing || 0 };
     HEADINGW = this.headingWeight || "bold";
     HEADINGC = this.headingColor ?? C.headingColor;
@@ -1473,6 +1480,6 @@ defineAttributes(RichText, {
   codeBackground: { def: null, defBinding: providedDefault("codeBackground", null) },
   codeRule: { def: null, defBinding: providedDefault("codeRule", null) },
   richTextLayout: { def: null, defBinding: providedDefault("richTextLayout", null) },
-  lineHeight: { def: 1 }, bodyColor: { def: null }, fontScale: { def: 1 }, dark: { def: null }, baseline: { def: null },
+  lineHeight: { def: 1 }, bodyColor: { def: null }, fontScale: { def: 1 }, baseline: { def: null },
   maxLines: { def: 0 }, truncated: { def: false },
 });

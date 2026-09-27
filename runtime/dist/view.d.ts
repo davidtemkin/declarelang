@@ -578,13 +578,13 @@ export declare class View extends Node {
      *  eligible ancestor:
      *
      *      onPointerUp(e) {
-     *          let t = app.viewAt(e.x, e.y)
+     *          let t = app.viewAt(e.rootX, e.rootY)
      *          while (t != null && t.accept == null) t = t.parent
      *          if (t != null) t.accept(dragged)
      *          },
      *
-     *  Root-space, like the coordinates `onPointerMove`/`onPointerUp` carry, so a
-     *  drag can pass its own event coordinates straight in. (Root-space is the
+     *  Root-space, like every pointer event's `rootX`/`rootY`, so a drag can
+     *  pass its own event's root point straight in. (Root-space is the
      *  root's CONTENT space; the walk itself runs in frame space, so the root's
      *  own scroll converts here at the boundary — the contract stays exactly
      *  what the drag pairing needs, scrolled or not.) */

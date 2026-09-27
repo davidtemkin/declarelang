@@ -363,7 +363,7 @@ class ContactsPanel extends View [
             onPointerDown(e: PointerEvent) { grabY = e.y },
             onPointerMove(e: PointerEvent) {
                 const t = trackH() - this.height
-                const ny = Math.max(0, Math.min(t, e.y - parent.rootOrigin().y - 13 - grabY))
+                const ny = Math.max(0, Math.min(t, e.rootY - parent.rootOrigin().y - 13 - grabY))
                 classroot.scrollPos = (ny / Math.max(1, t)) * classroot.maxScroll()
                 }
             ]
@@ -458,7 +458,7 @@ class MediaTransport extends View [
             onPointerDown(e: PointerEvent) { grabX = e.x },
             onPointerMove(e: PointerEvent) {
                 const p = classroot.player
-                const nx = Math.max(0, Math.min(parent.width - 16, e.x - parent.rootOrigin().x - grabX))
+                const nx = Math.max(0, Math.min(parent.width - 16, e.rootX - parent.rootOrigin().x - grabX))
                 if (p && p.duration > 0) p.position = (nx / (parent.width - 16)) * p.duration
                 },
             onClick() { app.mediaWants = !app.mediaWants }
@@ -508,7 +508,7 @@ class MediaTransport extends View [
             grabX: number = 0,
             onPointerDown(e: PointerEvent) { grabX = e.x },
             onPointerMove(e: PointerEvent) {
-                x = Math.max(0, Math.min(39, e.x - parent.rootOrigin().x - 10 - grabX))
+                x = Math.max(0, Math.min(39, e.rootX - parent.rootOrigin().x - 10 - grabX))
                 const p = classroot.player
                 if (p) p.volume = x / 39
                 }

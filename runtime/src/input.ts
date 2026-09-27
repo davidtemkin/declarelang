@@ -149,6 +149,11 @@ export function routeInput(
   // coordinates are in ROOT space (app-relative), so a handler can hit-test the
   // whole tree; down/up stay view-local.
   let held: HitTarget | null = null;
+  // EVERY sink call hands the ROOT point: the view builds its local x/y from
+  // it (view.ts pointerPayload), so both frames come from one conversion.
+  const rootOf = (e: MouseEvent): { x: number; y: number } => rootPoint !== undefined ? rootPoint(e) : { x: e.clientX, y: e.clientY };
+  // …and a pointer event's movement since the press, in root space.
+  const moved = (x: number, y: number): { deltaX: number; deltaY: number } => ({ deltaX: x - pressX, deltaY: y - pressY });
   // Where and how the current press began — the origin the slop test measures
   // from, and the pointer kind that picks the threshold.
   let pressX = 0;
@@ -266,7 +271,8 @@ export function routeInput(
       const t = resolve(e as MouseEvent);
       if (t !== null && t.wantsContext === true) {
         e.preventDefault();
-        t.sink("contextMenu", t.x, t.y);
+        const cp = rootOf(e as MouseEvent);
+        t.sink("contextMenu", cp.x, cp.y);
       }
     };
     window.addEventListener("contextmenu", ctxListener);
@@ -360,7 +366,7 @@ export function routeInput(
           }
         }
       }
-      t.sink("pointerDown", t.x, t.y);
+      t.sink("pointerDown", p0.x, p0.y, { deltaX: 0, deltaY: 0 });
       if (t.wantsHold === true) {
         const target = t;
         const touch = e.pointerType === "touch";
@@ -375,7 +381,7 @@ export function routeInput(
             // view that also drags, a held touch finger now belongs to the
             // app — the backends keep the browser's pan out from this moment.
             if (touch && target.wantsDrag === true) holdCapture = true;
-            target.sink("hold", target.x, target.y);
+            target.sink("hold", lastX, lastY, moved(lastX, lastY));
           }
         }, HOLD_MS);
       }
@@ -411,7 +417,7 @@ export function routeInput(
       if (hoveredSink !== null) hoveredSink("pointerOut", 0, 0);
       hoveredKey = key;
       hoveredSink = t !== null ? t.sink : null;
-      if (t !== null) t.sink("pointerOver", t.x, t.y);
+      if (t !== null) { const op = rootOf(e); t.sink("pointerOver", op.x, op.y); }
     }
     // Pinch moves ride EVERY tracked finger, captured or not — the second
     // finger never holds the capture (`held` is the first press's), so this
@@ -453,7 +459,7 @@ export function routeInput(
       fingers.set(e.pointerId, { id: e.pointerId, x: p.x, y: p.y });
       held.sink("touchMove", p.x, p.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p.x, y: p.y }] });
     }
-    held.sink("pointerMove", p.x, p.y);
+    held.sink("pointerMove", p.x, p.y, moved(p.x, p.y));
   });
   listen("pointerup", (e) => {
     // A release the scroll-takeover detector already synthesized: the gesture
@@ -486,8 +492,8 @@ export function routeInput(
     if (captor !== null) {
       // The presser captured the pointer, so the release goes to IT (root-space
       // coords) — a drag drops on its owner even released over another view.
-      const p = rootPoint !== undefined ? rootPoint(e) : { x: captor.x, y: captor.y };
-      captor.sink("pointerUp", p.x, p.y, { canceled: false });
+      const p = rootOf(e);
+      captor.sink("pointerUp", p.x, p.y, { canceled: false, ...moved(p.x, p.y) });
       // Click rule: press and release resolved to the same view, and the
       // pointer never wandered past slop (a moved finger was swiping, whatever
       // it started on). An excursion that returns still counts as wandering —
@@ -505,15 +511,16 @@ export function routeInput(
           // view arbitrates, then fire the pair's own event.
           const held1 = pendingClick !== null;
           dropPendingClick();
-          if (!held1) captor.sink("click", t.x, t.y);
-          captor.sink("dblClick", t.x, t.y);
+          if (!held1) captor.sink("click", p.x, p.y, moved(p.x, p.y));
+          captor.sink("dblClick", p.x, p.y, moved(p.x, p.y));
           lastClickKey = null;
         } else {
           lastClickKey = captor.key;
           lastClickAt = now;
           lastClickX = p.x;
           lastClickY = p.y;
-          const fire = (): void => captor.sink("click", t.x, t.y);
+          const at = moved(p.x, p.y);
+          const fire = (): void => captor.sink("click", p.x, p.y, at);
           if (captor.wantsDbl === true) {
             // This view answers double-clicks, so its single click waits out
             // the window — otherwise a double-click would perform the single
@@ -526,7 +533,8 @@ export function routeInput(
         }
       }
     } else if (t !== null) {
-      t.sink("pointerUp", t.x, t.y, { canceled: false });
+      const up = rootOf(e);
+      t.sink("pointerUp", up.x, up.y, { canceled: false, ...moved(up.x, up.y) });
     }
     // A touch pointer ceases to exist on release; drop the hover it carried so a
     // just-tapped view doesn't stay stuck in its rollover (hover) state.
@@ -559,8 +567,8 @@ export function routeInput(
       if (fingers.size === 0) touchSink = null;
     }
     if (captor !== null) {
-      const p = rootPoint !== undefined ? rootPoint(e) : { x: captor.x, y: captor.y };
-      captor.sink("pointerUp", p.x, p.y, { canceled: true });
+      const p = rootOf(e);
+      captor.sink("pointerUp", p.x, p.y, { canceled: true, ...moved(p.x, p.y) });
     }
     if (e.pointerType === "touch") clearHover();
   });
@@ -609,7 +617,7 @@ export function routeInput(
         }
         if (fingers.size === 0) touchSink = null;
       }
-      captor.sink("pointerUp", lastX, lastY, { canceled: true });
+      captor.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
       clearHover();
     };
     window.addEventListener("scroll", scrollListener, true);

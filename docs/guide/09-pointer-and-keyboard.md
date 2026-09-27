@@ -100,16 +100,18 @@ away, so there is no tracking code to write.
 ```declare
 App [ width = 320, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
-        grabX: number = 0,
-        onPointerDown(e: PointerEvent) { grabX = e.x },
-        onPointerMove(e: PointerEvent) { x = Math.max(0, Math.min(180, e.x - grabX)) }
+        startX: number = 0,
+        onPointerDown(e: PointerEvent) { startX = x },
+        onPointerMove(e: PointerEvent) { x = Math.max(0, Math.min(180, startX + e.deltaX)) }
         ]
     ]
 ```
 
-Two details matter. **Coordinates:** `onPointerDown` and `onClick` carry positions in the
-view's own coordinates, while `onPointerMove` and `onPointerUp` carry them in the app's
-root coordinates — a drag needs a frame that does not move with the thing being dragged.
+Two details matter. **Coordinates:** every pointer event carries its point both ways —
+`x`/`y` in the view's own coordinates, and `rootX`/`rootY` in the app's root coordinates —
+plus `deltaX`/`deltaY`, how far the pointer has moved since the press. A drag reads the
+root frame, because it does not move with the thing being dragged; `deltaX` is that frame
+already subtracted, which is why the card above needs only where it started.
 **Interruptions:** on a touch screen the browser may take a gesture back mid-drag to
 scroll. That still arrives as `onPointerUp`, with `canceled` set, so reset your state and
 do not commit:
@@ -147,7 +149,7 @@ attribute; every target derives its look from it.
 
 ```declare-fragment
 // on the dragger
-onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
+onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
 
 // on each target — no handler, just a constraint
 hot = { app.dropTarget == this }

@@ -177,7 +177,7 @@ App [ width = 520, height = 120, fill = white, textColor = black, minWidth = 300
     bar: View [ x = 20, y = 20, width = { app.width - 40 },
         layout: ResponsiveLayout [ plan = { [
             ({ from: 480, flow: "row", share: ({ menu: 30, body: 70 }) }),
-            ({ from: 0, flow: "stack" })
+            ({ from: 0, flow: "stack", share: ({ menu: 100, body: 100 }) })
             ] } ],
         menu: View [ height = 60, fill = gainsboro ],
         body: View [ height = 60, fill = whitesmoke ]
@@ -185,9 +185,12 @@ App [ width = 520, height = 120, fill = white, textColor = black, minWidth = 300
     ]
 ```
 
-Wide, it is a 30/70 row; narrow, a stack. A plan can flow children as a `"row"` or a
-`"stack"`, give named children a percentage of the width (`share`), and drop one with a
-share of `0`. It watches its **own** view's width, not the window's, so plans nest: a
+Wide, it is a 30/70 row; narrow, a stack of two full-width bands. A plan can flow
+children as a `"row"` or a `"stack"`, give named children a percentage of the width
+(`share`), and drop one with a share of `0`. `share` is width in **both** flows: in a row
+the shares divide the run, in a stack each one sets its band's width on its own — so the
+narrow plan names `menu` and `body` at 100. A child a plan does not name keeps the width
+it has, which for these two, sized only by the plan, is none. It watches its **own** view's width, not the window's, so plans nest: a
 parent decides how much room a child gets, and the child's own layout decides what to do
 with it. That nesting, with an ordinary inline child carrying its own `layout:`, is the
 answer to most things a single plan cannot say. The reference entry for

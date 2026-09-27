@@ -19,10 +19,6 @@ directly, so a constrained switch never fights its constraint.
 Toggles, by delivering the flipped value through `input`. Called by a click and by
 Space/Enter.
 
-## onClick
-Fires on click when the switch is enabled. `press()` is the activation path;
-prefer overriding `input` if what you want is the value.
-
 ## width
 A theme with a native switch size says so (`theme.switchWidth`); otherwise 44, the common pill.
 

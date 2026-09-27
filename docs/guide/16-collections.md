@@ -74,6 +74,44 @@ Reach for `key` only when the convention does not fit:
 View [ datapath = :people[], key = :email ]
 ```
 
+## Records of different kinds
+
+A feed mixes headings, notes and photos; one path still replicates **one** class. The
+kinds differ by state, not by class: each kind is a [`State`](declare-docs:State) whose `applied` reads the
+record, and what only that kind has is the state's conditional children.
+
+```declare
+class Entry extends View [ width = 288, height = 28,
+    t: Text [ y = 5, width = 288, text = :text,
+        State [ applied = { :kind == "heading" }, fontWeight = bold ]
+        ],
+    heading: State [ applied = { :kind == "heading" }, height = 40,
+        rule: View [ y = 38, width = 288, height = 1, fill = #D5DCE3 ]
+        ],
+    photo: State [ applied = { :kind == "photo" }, height = 92,
+        pic: View [ y = 28, width = 120, height = 60, cornerRadius = 6, fill = #9FB8CC ]
+        ]
+    ]
+
+App [ width = 320, height = 300, fill = white, textColor = #1B2733,
+    d: Dataset [ contents = { { items: [
+        { id: 1, kind: "heading", text: "Monday" },
+        { id: 2, kind: "note",    text: "Ran 5 km" },
+        { id: 3, kind: "photo",   text: "The bridge at dawn" },
+        { id: 4, kind: "note",    text: "Called the plumber" }
+        ] } } ],
+    list: View [ x = 16, y = 12, width = 288, datapath = { d.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Entry [ datapath = :items[] ]
+        ]
+    ]
+```
+
+A state's children exist only while it applies, so a note builds no rule and no picture
+— twelve views for these four records — and a record whose `kind` changes swaps its
+parts in place, keeping its instance. A state overrides its own view's slots, so the
+bold heading is a state on the `Text`, not on the row.
+
 ## Virtualization is one word
 
 Here is the part that is a library in every other stack. A large collection should

@@ -38,6 +38,13 @@ mirror every value export") fails otherwise, so a new export needs its stub line
 - **The isolated draw replay** (a drawing's composite operations kept to its own layer) is
   canvas-only code in `canvas-backend.ts`, which DOM builds stub. 0 B on the DOM.
 
+## Facts widened
+
+- **`slim-themes` sees a preset named as a literal.** `theme = SanFranciscoDark` (an attribute
+  or a declaration default) resolves against the records at boot, so it keeps `themes.js` as a
+  preset named in a `{ }` body does. The fact had read bodies only, and a program with no
+  control (whose library source names `SanFrancisco`) lost its theme in production.
+
 ## Deliberately not gated
 
 - **CJK and Thai line breaking** (`measure.ts` `breakUnits`, ~727 B): whether it runs depends on

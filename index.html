@@ -73,7 +73,7 @@
 <a href="apps/desktop/desktop.declare"><p>→</p></a>
 <a href="apps/desktop/desktop.declare"><img loading="lazy" src="apps/homepage/shots/desktop-dark.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3191 lines — 1750 code, 928 comment · 175 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3191 lines — 1749 code, 928 comment · 175 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -374,7 +374,7 @@ why: View [ shows = "why",
 <p><strong>Pointer input has two layers.</strong> The <strong>raw</strong> layer — <code>onPointerDown</code>/<code>Move</code>/<code>Up</code>, the multi-finger touch family, and <code>onWheel</code> — reports what the pointer physically did, immediately: the layer for <em>manipulation</em>. The <strong>resolved</strong> layer — <code>onClick</code>, <code>onDblClick</code>, <code>onHold</code> — reports what the user <em>meant</em>, decided after watching the whole gesture: the layer for <em>commands</em>.</p>
 <p><em>Pointer</em>, not <em>mouse</em>: one handler serves a mouse, a fingertip, and a pen, and it fires at once for each — there is no compatibility event here and nothing to fall back to. <code>onTouch…</code> is the separate multi-finger stream, for when you need the finger list rather than a point.</p>
 <blockquote><p><strong><code>onClick</code> activates, <code>onPointerDown</code> manipulates.</strong></p></blockquote>
-<p>Reach for the raw layer to run a command and it misfires on touch, where a finger landing on a button may be starting a scroll. Because the runtime resolves the gesture, a wandering pointer is a drag and activates nothing, and declaring <code>onDblClick</code> makes that view's single click wait out the double window. <code>onPointerMove</code> and <code>onPointerUp</code> carry <strong>root-space</strong> points, because a drag needs a frame that does not move with the dragged thing; <code>onPointerDown</code> and <code>onClick</code> carry view-local ones.</p>
+<p>Reach for the raw layer to run a command and it misfires on touch, where a finger landing on a button may be starting a scroll. Because the runtime resolves the gesture, a wandering pointer is a drag and activates nothing, and declaring <code>onDblClick</code> makes that view's single click wait out the double window. Every pointer event carries its point both ways: <code>x</code>/<code>y</code> in the view's own coordinates, and <code>rootX</code>/<code>rootY</code> in <strong>root space</strong> — the frame a drag reads, because it does not move with the dragged thing — with <code>deltaX</code>/<code>deltaY</code> the root-space movement since the press.</p>
 <p>One fact a drag handler must not miss: a gesture the browser reclaims — a touch that became a scroll — still delivers <code>onPointerUp</code>, but with <strong><code>e.canceled</code> true</strong>. Commit on release only when it is false, or an interruption reads as a drop.</p>
 <p><strong>The browser owns every gesture until a view claims one — and declaring the handler <em>is</em> the claim</strong>, taking exactly what that handler needs to fire and nothing more: <code>onPointerMove</code> claims the single-finger drag over its view and subtree while pinch stays the user's, the raw touch family claims every finger (the app then owes its own zoom), <code>onWheel</code> claims the wheel stream — trackpad pinch included, arriving with <code>e.pinch</code> true — and a scrolling view is the opposite move, delegating its panning to the browser. Claim the least you need, on the smallest view that needs it; claiming at the App is legitimate exactly when the app <em>is</em> the surface — a map, a canvas, a game taking <strong>full gesture control</strong>.</p>
 <h3>Opacity is paint; <code>visible</code> is presence</h3>
@@ -811,7 +811,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=3072ba9bb483";
+  import boot from "./bundles/declare-boot.js?v=f0fe9414b0c9";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

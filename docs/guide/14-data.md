@@ -204,30 +204,32 @@ schema Week [ count: number, minutes: number ]
 class Log [
     sessions: Dataset [ schema = [ rows[]: Session ] ] { { "rows": [
         { "id": 1, "day": 1, "minutes": 30 }, { "id": 2, "day": 2, "minutes": 45 } ] } },
-    week(today: number) -> Week {
+    week: Dataset [ schema = Week, contents = { classroot.weekOf(3) } ],
+    weekOf(today: number) -> Week {
         const rows = this.sessions.value.rows.filter((s) => s.day > today - 7)
         return ({ count: rows.length, minutes: rows.reduce((n, s) => n + s.minutes, 0) })
         },
     add(minutes: number) {
-        this.sessions.insert(["rows"], -1, ({ id: this.sessions.value.rows.length + 1, day: 3, minutes: minutes }))
+        this.sessions.set(["rows", "-"], ({ id: this.sessions.value.rows.length + 1, day: 3, minutes: minutes }))
         }
     ]
 
 App [ width = 320, height = 110, fill = white, textColor = #172530,
     log: Log [ ],
-    week: Dataset [ schema = Week, contents = { app.log.week(3) } ],
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Text [ text = { app.week.value.count + " sessions, " + app.week.value.minutes + " minutes" } ],
+        Text [ text = { app.log.week.value.count + " sessions, " + app.log.week.value.minutes + " minutes" } ],
         Button [ label = "Log 20 minutes", onClick() { app.log.add(20) } ]
         ]
     ]
 ```
 
-`week` is a derived dataset: its contents are whatever `log.week(3)` returns, re-derived
-when the sessions change, and its `schema` makes `app.week.value.count` a `number` to
-every body. What stays in `script` is code that knows nothing about your model —
-date arithmetic, formatting — functions of their arguments alone.
+`week` is a derived dataset: its contents are whatever `weekOf(3)` returns, re-derived
+when the sessions change, and its `schema` makes `app.log.week.value.count` a `number` to
+every body. It lives in `Log`, beside the sessions it reads: a summary belongs to the node
+that holds its data, so everything that uses the log reaches the week through it. What
+stays in `script` is code that knows nothing about your model — date arithmetic,
+formatting — functions of their arguments alone.
 
 ## Where data comes from
 

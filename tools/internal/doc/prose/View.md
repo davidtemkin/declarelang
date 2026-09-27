@@ -488,10 +488,12 @@ slider freezes its value wherever the finger lifts.
 
 ## onPointerMove
 The pointer moved over the view — and, once pressed on it, every move **while captured**
-(even outside the box), so a drag handler keeps getting positions. The event carries the
-pointer in **root** coordinates — the app's own space, the one `viewAt` takes — because a
-drag needs a frame that does not move with the thing being dragged. (`onPointerDown` and
-`onClick` carry view-local coordinates.)
+(even outside the box), so a drag handler keeps getting positions. Like every pointer
+event it carries the point both ways: `x`/`y` in this view's own coordinates, and
+`rootX`/`rootY` in **root** coordinates — the app's own space, the one `viewAt` takes —
+which is the frame a drag reads, because it does not move with the thing being dragged.
+`deltaX`/`deltaY` are the root-space movement since the press, so most drags need nothing
+else: `x = startX + e.deltaX`.
 
 ## onPointerOver
 The pointer entered the view — the hover-in moment. For styling, read the `hovered` fact in
@@ -820,7 +822,7 @@ out, every target derives:
 
 ```declare-fragment
 // on the dragger
-onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.x, e.y) },
+onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
 onPointerUp(e: PointerUpEvent) { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },
 // on each target — no handlers, just a standing relationship
 hot = { app.dropTarget == this }

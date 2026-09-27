@@ -13,8 +13,9 @@ face values a `Text` does — `fontSize`, `fontWeight`, `textColor`, `letterSpac
 `lineHeight` — each a **provided value**, so prose takes the ambient face like any other run:
 set `fontWeight = semibold` on a container and the prose body below is semibold (the container
 provides it, the block reads it). Its **structure** (headings, code, links, list spacing)
-comes from a built-in house style that looks right with zero config and follows light/dark on
-its own; the parts you commonly re-theme are their own provided values —
+comes from a built-in house style that looks right with zero config, coloured by the text's
+ink and the provided theme — so a document follows the app's light or dark theme on its own;
+the parts you commonly re-theme are their own provided values —
 `headingColor`, `headingWeight`, `linkColor`, `codeColor` — each defaulting to the nearest
 provided value, exactly like `fontSize`.
 
@@ -125,8 +126,8 @@ re-spends the budget from the top.
 `true` when `maxLines` dropped something. Read-only and reactive.
 
 ## bodyColor
-Overrides the running-text color (`null` = the theme-aware house body). Headings and inline
-code keep their own tokens, so this dims **body text only** — the hierarchy stays crisp. (Body
+Overrides the running-text color (`null` = `textColor`). Headings and inline code keep their
+own colours, so this dims **body text only** — the hierarchy stays crisp. (Body
 weight/size/tracking come from the ambient `fontWeight`/`fontSize`/`letterSpacing`.)
 
 ## baseline
@@ -147,10 +148,11 @@ external links work with no wiring); declaring `onLink` overrides that. Modifier
 still open a new tab natively. Same on every renderer.
 
 ## textColor
-The running text's colour, defaulting to the provided value. The structural
-colours — headings, links, code — have their own slots below, so setting this recolours
-the prose without touching them. `bodyColor` overrides the running text alone when the
-flow should differ from what it provides onward.
+The ink of the running text and of the headings, defaulting to the provided value — so prose
+takes its region's ink like any other text — and, where nothing provides one, to the theme's
+`text` token, so a document reads on a light or a dark theme alike. Links, code, quotes and rules take the provided
+theme's tokens instead, and each part has its own slot below. `bodyColor` overrides the
+running text alone when the flow should differ from what it provides onward.
 
 ## fontScale
 A multiplier on every type size in the flow — the body, the headings, the code
@@ -185,9 +187,8 @@ The body weight for the flow, defaulting to the provided value. Headings take
 Tracking for the flow's running text, defaulting to the provided value.
 
 ## headingColor
-The colour of headings, at every level. `null`, the default, is the
-theme-aware house tone — which is why this is not simply `textColor`: prose usually wants
-headings a shade firmer than its body, and the house already knows which shade.
+The colour of headings, at every level. `null`, the default, is `textColor`: headings are set
+apart by size and weight, and take the prose's ink.
 
 ## headingWeight
 The weight headings render at — the nine keywords or a number, as anywhere
@@ -204,7 +205,8 @@ link distinguished by colour alone is invisible to a reader who cannot see the c
 it off only when something else in the design carries that job.
 
 ## codeColor
-The ink of inline code and fenced blocks. `null` is the theme-aware house tone.
+The ink of inline code and fenced blocks. `null` is the provided theme's `code` token when the
+theme names one, else `textColor` — the monospace face sets code apart.
 
 ## codeSize
 The size of code, in the flow's own units. Unset, code takes a size derived from
@@ -217,9 +219,8 @@ The face code renders in — the one place a flow does **not** follow
 stack.
 
 ## codeBackground
-The fill behind a code span and a fenced block. `null` is the theme-aware
-house tint. Set it to `null`-adjacent transparency when code should sit on the page rather
-than in a box.
+The fill behind a fenced block (and a highlighted `<pre>`). `null` is the provided theme's
+`codeBg` token when the theme names one, else its neutral `control` tint.
 
 ## codeRule
 The colour of the rule down the left of a fenced block. `null` is the house
@@ -238,10 +239,3 @@ Each entry may also set a `[left, right]` `margin` and an `align`, and what a bl
 not state it takes from `default`, field by field. A `pre` with no entry of its own follows
 `code`. This is how a document gets a comfortable line length without its code samples and
 images being narrowed to match.
-
-## dark
-Which colour scheme the house rich-element palette is drawn from — the code chip,
-the fenced box, rules and quotes. `null`, the default, follows the root App's OS `dark`.
-Set it to the app's own effective appearance when those can differ, which they do the moment
-you offer a Light/Dark/Auto control: `dark = { app.isDark }`, where `isDark` is the app's
-own mode attribute.

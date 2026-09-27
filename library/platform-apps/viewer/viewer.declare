@@ -48,7 +48,7 @@ class Block extends View [ kind: string = "",
         y = { classroot.nested ? 8 : app.proseTopPad },
         width = { Math.min(parent.width - (classroot.nested ? 20 : 0), app.proseMeasure * app.fontScale) },
         text = { classroot.md }, fontScale = { app.fontScale }, lineHeight = 1.6,
-        bodyColor = { provided("theme").text }, dark = { app.isDark }, selectable = true ],
+        bodyColor = { provided("theme").text }, selectable = true ],
 
     // the thread: the code spine, continued through the aside — unbroken and at
     // the spine's own weight. It reaches up across the column's 12px gap to

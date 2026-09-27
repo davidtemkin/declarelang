@@ -60,7 +60,7 @@ class EventBar extends View [
         textColor = #4B5D6C, text = :title ],
 
     onPointerDown() { app.startDrag(:id) },
-    onPointerMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
+    onPointerMove(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
     onPointerUp()   { app.endDrag() },
     onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
     ]
@@ -238,7 +238,7 @@ class TimeEvent extends View [
         textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :title ],
 
     onPointerDown() { app.startDrag(:id) },
-    onPointerMove(e: PointerEvent) { app.dragMove(e.x, e.y) },
+    onPointerMove(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
     onPointerUp()   { app.endDrag() },
     onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
     ]

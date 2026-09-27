@@ -172,6 +172,44 @@ Body with \`inline code\` here.
     assert.ok(/Courier New/i.test(tok.probe.cFamily), "codeFamily not worn: " + tok.probe.cFamily);
   });
 
+  // The palette comes from the theme and textColor: with nothing said the ink is
+  // the theme's `text`, links its `accent`; a textColor (set or provided) is the
+  // ink, and links keep the accent.
+  const palDoc = `App [ width = 480,
+    box: View [ x = 0, y = 0, width = 480, height = 400, theme = SanFranciscoDark,
+      a: HTMLText [ x = 20, y = 20, width = 440, html = "<h2>Themed</h2><p>see <a href='#x'>alink</a></p>" ],
+      b: View [ x = 0, y = 200, width = 480, height = 200, textColor = #AA2233,
+        HTMLText [ x = 20, y = 0, width = 440, html = "<p>inked <a href='#y'>blink</a></p>" ],
+        ],
+      ],
+    ]`;
+  const pal = await (async () => {
+    const b = await buildProduction(palDoc, {});
+    assert.ok(b.ok, "palette build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    try {
+      const page = await browser.newPage();
+      const errs = []; page.on("pageerror", (e) => errs.push(e.message));
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
+      await new Promise((r) => setTimeout(r, 350));
+      return { errs, probe: await page.evaluate(() => {
+        const leaf = (needle) => Array.from(document.querySelectorAll("#host *"))
+          .filter((e) => e.childElementCount === 0 && e.textContent.trim() === needle).pop();
+        const color = (needle) => { const e = leaf(needle); return e ? getComputedStyle(e).color : null; };
+        return { heading: color("Themed"), alink: color("alink"), inked: color("inked"), blink: color("blink") };
+      }) };
+    } finally { await browser.close(); }
+  })();
+  await test("rich text inks from the theme's text and links from its accent", () => {
+    assert.equal(pal.errs.length, 0, pal.errs.slice(0, 2).join(" | "));
+    assert.equal(pal.probe.heading, "rgb(231, 238, 242)", "heading not the theme's text: " + pal.probe.heading);
+    assert.equal(pal.probe.alink, "rgb(76, 141, 255)", "link not the theme's accent: " + pal.probe.alink);
+  });
+  await test("a provided textColor is the rich text's ink; links keep the accent", () => {
+    assert.equal(pal.probe.inked, "rgb(170, 34, 51)", "body not the provided textColor: " + pal.probe.inked);
+    assert.equal(pal.probe.blink, "rgb(76, 141, 255)", "link lost the accent: " + pal.probe.blink);
+  });
+
   const canvas = await render("canvas");
   await test("Canvas fallback renders the same doc without error", () => {
     assert.equal(canvas.errs.length, 0, canvas.errs.slice(0, 2).join(" | "));
@@ -198,9 +236,8 @@ Body with \`inline code\` here.
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
-      // The probe reads BLACK body ink, which is the LIGHT palette's bodyColor;
-      // headless Chrome inherits the machine's scheme (dark here, 2026-09-09 —
-      // the body painted 0xc7d0d6 and the black probe found nothing). Pin it.
+      // The probe reads near-black body ink: the default theme's `text`. The
+      // scheme is pinned so nothing the machine's appearance decides reaches it.
       await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
       await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });

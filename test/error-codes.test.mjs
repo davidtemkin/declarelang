@@ -16,7 +16,7 @@ import { test, summarize } from "./harness.mjs";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { stripSource, skeletonOf, codeFor, findMessages, catalogFor } from "../tools/internal/error-codes.mjs";
+import { stripSource, skeletonOf, codeFor, findMessages, catalogFor, HOST_SOURCES } from "../tools/internal/error-codes.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -128,7 +128,7 @@ await test("the committed model carries the catalog — declare-help's source", 
   const n = Object.keys(runtimeErrors).length;
   assert.ok(n > 150, `catalog is published, got ${n}`);
   // and it agrees with a fresh scan (derive keeps it fresh; this is the gate)
-  const fresh = catalogFor(resolve(ROOT, "runtime/src"));
+  const fresh = { ...catalogFor(resolve(ROOT, "browser"), (n) => HOST_SOURCES.includes(n)), ...catalogFor(resolve(ROOT, "runtime/src")) };
   assert.deepEqual(
     Object.keys(runtimeErrors).sort(),
     Object.keys(fresh).sort(),

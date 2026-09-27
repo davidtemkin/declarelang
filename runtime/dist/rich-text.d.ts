@@ -25,19 +25,18 @@ export declare const PROSE: {
     quoteIndent: number;
     cellGap: number;
 };
-declare const COLORS_DARK: {
+interface Palette {
     headingColor: number;
     bodyColor: number;
     code: number;
-    codeChip: number;
     codeFg: number;
     codeBg: number;
     rule: number;
     link: number;
     quoteRule: number;
     quoteColor: number;
-};
-export declare let C: typeof COLORS_DARK;
+}
+export declare let C: Palette;
 export interface RunStyle {
     fontSize?: number;
     fontFamily?: string;
@@ -335,8 +334,6 @@ export declare abstract class RichText extends View {
     bodyColor: number | null;
     linkUnderline: boolean;
     fontScale: number;
-    /** Color-scheme override (null = follow the App's OS `dark`). */
-    dark: boolean | null;
     /** The y of the first line's baseline in this box — what `align = baseline`
      *  sits a Markdown/HTMLText on. A flow CLAIMS it (never discovered by the
      *  layout): the first block's first line when the document opens with prose;
@@ -371,10 +368,13 @@ export declare abstract class RichText extends View {
      *  A rich text that IS transformed says so with `scale`, like any view, and
      *  every reader honours it. */
     attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
-    /** The color scheme for the house rich-element palette: the explicit `dark`
-     *  override if set (an app whose own theme selector differs from the OS), else
-     *  the root App's OS `dark`, read by walking to the tree root. */
-    private isDark;
+    /** The house palette for this render: the text's ink for body and headings
+     *  (`textColor`, else the theme's `text`), the provided theme's tokens for the rest (`code` and `codeBg` when a theme
+     *  names them, else the ink and the neutral `control` tint). Read tracked, so
+     *  a theme swap or an ink change re-renders. */
+    private palette;
+    /** The palette's values, for the render key. */
+    private paletteKey;
     /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
      *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
      *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,

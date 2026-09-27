@@ -47,7 +47,7 @@ class Ev extends View [ clip = true,
 
     onPointerDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
     onPointerMove()  { app.dragMove() },
-    onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.x, e.y, e.canceled) },
+    onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.rootX, e.rootY, e.canceled) },
 
     // The hold moves this chip's touch claim to the press-and-hold (a drag view
     // that also holds claims nothing at touchdown) — a quick swipe over a chip

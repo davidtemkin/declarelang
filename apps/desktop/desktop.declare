@@ -1319,7 +1319,7 @@ class ViewerWindow extends Window [ width = 640, height = 460,
             bodyColor = { app.darkMode ? 0xC4CFD8 : 0x2E3B46 },
             codeBackground = { app.darkMode ? 0x35393F : 0xE9EFF4 },
             codeRule = { app.darkMode ? 0x37E0C8 : 0x12A08D },
-            dark = { app.darkMode },
+
             text = { classroot.inlineDoc != "" ? classroot.inlineDoc : (classroot.src.value || "") } ]
         ]
     ]
@@ -1399,8 +1399,8 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false,
 
     pad: View [ x = 12, y = { classroot.barH + 6 }, clip = true,
         width = { parent.width - 24 }, height = { parent.height - classroot.barH - 16 },
-        md: Markdown [ width = 100%, dark = false,
-            bodyColor = 0x1D1D1F, fontScale = 0.82, lineHeight = 1.45,
+        md: Markdown [ width = 100%, theme = Cupertino, textColor = 0x1D1D1F,
+            fontScale = 0.82, lineHeight = 1.45,
             text = { classroot.note } ]
         ]
     ]

@@ -60,7 +60,7 @@ App [ minWidth = 360,
             retry: Button [ visible = { app.subject != "" }, height = 34, fontSize = 13, label = "Retry", primary = true,
                 onClick() { app.navigate(app.subject) }
                 ],
-            list: HTMLText [ width = 100%, fontSize = 13, lineHeight = 1.55, bodyColor = #E7EEF2, dark = true, selectable = true, html = { app.listHtml } ],
+            list: HTMLText [ width = 100%, fontSize = 13, lineHeight = 1.55, bodyColor = #E7EEF2, selectable = true, html = { app.listHtml } ],
             advice: Text [ width = 100%, wrap = true, fontSize = 12, textColor = #8FA3B0,
                 text = { app.hint } ]
             ]

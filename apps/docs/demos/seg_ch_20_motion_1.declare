@@ -1,11 +1,22 @@
-App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
-    open: boolean = false,
-    onClick() { open = !open },
-    card: View [ x = 30, y = 30, width = 300, height = 70, cornerRadius = 10, fill = midnightblue,
-        Text [ x = 20, y = 20, fontWeight = bold, text = "Summary" ],
-        big: State [ applied = { open }, height = 180, fill = steelblue,
-            Text [ x = 20, y = 50, width = 260, textColor = gainsboro, wrap = true,
-                text = "height, color, and this whole line swap in together" ]
-            ]
+App [ width = 360, height = 140, fill = white,
+    offset: number = 0,                   // what the strip shows
+    offsetTo: number = 0,                 // where its spring is taking it
+    Spring [ attribute = offset, to = { app.offsetTo }, stiffness = 170, damping = 22 ],
+
+    // the hand: the value and its target together, so the spring stays at rest
+
+    handTo(v: number) { offset = v; offsetTo = v },
+
+    // a destination: the spring carries it there
+
+    glideTo(v: number) { offsetTo = Math.max(0, Math.min(720, v)) },
+    strip: View [ y = 20, width = 1080, height = 100, x = { -app.offset },
+        grab: number = 0,
+        onPointerDown(e: PointerEvent) { grab = app.offset },
+        onPointerMove(e: PointerEvent) { app.handTo(grab - e.deltaX) },
+        onPointerUp(e: PointerUpEvent) { app.glideTo(Math.round(app.offset / 360) * 360) },
+        View [ x = 20, width = 320, height = 100, cornerRadius = 12, fill = #2E6FE0 ],
+        View [ x = 380, width = 320, height = 100, cornerRadius = 12, fill = #12A594 ],
+        View [ x = 740, width = 320, height = 100, cornerRadius = 12, fill = #E0802E ]
         ]
     ]

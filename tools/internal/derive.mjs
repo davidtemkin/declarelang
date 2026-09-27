@@ -223,7 +223,7 @@ const RULES = [
              // runtimeErrorSpine() scans the runtime SOURCE for its DeclareError
              // messages (the production error-code catalog), and error-codes.mjs
              // is the scanner — both are real inputs to the model
-             "runtime/src", "tools/internal/error-codes.mjs",
+             "runtime/src", "browser/host-client.js", "browser/boot-page.js", "tools/internal/error-codes.mjs",
              "bundles/version.json", "skill/SKILL.md",
              { dir: "docs", exclude: ["declare-model.json"] }],
     outputs: ["docs/declare-model.json", ".claude/skills/declare/SKILL.md"],

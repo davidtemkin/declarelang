@@ -990,6 +990,12 @@ classRoot = false) {
         }
         if (parentSchema === null)
             continue;
+        // A name the enclosing view does not declare would be a provided value, and
+        // an override drives the view's own slots only (the engine's rule too).
+        if (attrType(parentSchema, a.name) === null) {
+            errors.push(new DeclareError(`${el.tag}.${a.name}: a state override sets a declared slot of the view, not a provided value`, a.value.pos));
+            continue;
+        }
         const r = checkAttr(parentSchema, a);
         if (!r.ok)
             errors.push(r.error);
