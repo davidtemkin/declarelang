@@ -45,8 +45,8 @@
 // releases/*.md is a STAMP TARGET of stamp-stats — hand-authored around
 // markers, like README — never an OUTPUT of any rule (a rule that authored it
 // whole would clobber the prose: derive's "two authors, one file"). And a
-// stamp is FROZEN once its version is tagged: a release's figure is a fact
-// about that tag, not about the tree today (stamp-stats.mjs).
+// stamp is FROZEN once its version is published (isPublished): a release's
+// figure is a fact about that tag, not about the tree today (stamp-stats.mjs).
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from "node:fs";
@@ -96,17 +96,30 @@ export function bodyFor(text) {
   return stripStamps(rest.join("\n")).trim() + "\n";
 }
 
+// ── pure: is a version published? ───────────────────────────────────────────
+/** A version is PUBLISHED once its tag exists here, or once origin/main
+ *  already declares it (or a later one). The second is the signal this side
+ *  can trust: the release workflow tags and publishes on GitHub as a
+ *  consequence of the push, so its tag need never reach this clone — but the
+ *  push itself moves the local origin/main. `pushed` is origin/main's
+ *  package.json version, or null when there is no remote to read. */
+export function isPublished(version, { tags, pushed }) {
+  if (tags.includes(tagOf(version))) return true;
+  return pushed !== null && parseVersion(pushed) !== null && compareVersions(version, pushed) <= 0;
+}
+
 // ── pure: the pre-push question ─────────────────────────────────────────────
-/** `version` from package.json; `tags` every local tag; `notes` every
- *  releases/*.md path; `committed` the subset of those that are tracked AND
- *  clean in the working tree. Returns the problems, each with its fix. */
-export function checkRelease({ version, tags, notes, committed }) {
+/** `version` from package.json; `tags` every local tag; `pushed` origin/main's
+ *  version (isPublished); `notes` every releases/*.md path; `committed` the
+ *  subset of those that are tracked AND clean in the working tree. Returns the
+ *  problems, each with its fix. */
+export function checkRelease({ version, tags, pushed = null, notes, committed }) {
   const problems = [];
   if (parseVersion(version) === null) {
     problems.push(`package.json version '${version}' is not semver-shaped (x.y.z)`);
     return { ok: false, pending: false, problems };
   }
-  const tagged = tags.includes(tagOf(version));
+  const tagged = isPublished(version, { tags, pushed });
   const file = notesPath(version);
   if (!tagged) {
     if (!notes.includes(file)) {
@@ -122,7 +135,7 @@ export function checkRelease({ version, tags, notes, committed }) {
     const m = /^releases\/v(\d+\.\d+\.\d+)\.md$/.exec(n);
     if (m === null) continue;
     const v = m[1];
-    if (v !== version && !tags.includes(tagOf(v))) {
+    if (v !== version && !isPublished(v, { tags, pushed })) {
       problems.push(`${n} names a release package.json does not declare (version is ${version}; ${tagOf(v)} is not a tag).\n` +
         `    bump package.json to ${v}, or remove the file.`);
     }
@@ -155,7 +168,16 @@ function state() {
   const notes = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => `${RELEASES}/${f}`) : [];
   const tracked = new Set((tryRun(() => git("ls-files", "--", RELEASES)) ?? "").split("\n").filter(Boolean));
   const committed = notes.filter((n) => tracked.has(n) && (tryRun(() => git("status", "--porcelain", "--", n)) ?? "x") === "");
-  return { version: pkg.version, tags, notes, committed, pkg };
+  return { version: pkg.version, tags, pushed: pushedVersion(), notes, committed, pkg };
+}
+
+/** origin/main's package.json version — what the last push declared — or null
+ *  with no remote-tracking ref to read. Read-only: no fetch (a push moves the
+ *  ref, and --check runs inside pre-push, which may not write). */
+export function pushedVersion(root = ROOT) {
+  const raw = tryRun(() => execFileSync("git", ["show", "origin/main:package.json"], { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }));
+  if (raw === null) return null;
+  try { return JSON.parse(raw).version ?? null; } catch { return null; }
 }
 
 function lastTag(tags) {
@@ -208,6 +230,9 @@ function check() {
 }
 
 function publish() {
+  // The release workflow may already have tagged this version on GitHub: see
+  // its tag before deciding to make one (publishing writes; --check never does).
+  tryRun(() => git("fetch", "origin", "--tags"));
   const s = state();
   const r = checkRelease(s);
   if (!r.ok) { for (const p of r.problems) console.error(`  ${p}`); process.exit(1); }

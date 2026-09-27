@@ -11,7 +11,7 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkRelease, titleFor, bodyFor, stripStamps, headlineOf, scaffoldText, compareVersions, notesPath, tagOf }
+import { checkRelease, isPublished, titleFor, bodyFor, stripStamps, headlineOf, scaffoldText, compareVersions, notesPath, tagOf }
   from "../tools/internal/release.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -43,6 +43,19 @@ await test("a complete declaration is pending; an already-tagged version is sile
   // an old notes file with a dirty working copy is still history — only the pending one must be clean
   const editing = checkRelease({ version: "0.4.3", tags: ["v0.4.3"], notes: ["releases/v0.4.3.md"], committed: [] });
   assert.equal(editing.ok, true, "amending a published release's notes is ordinary work; publish re-projects");
+});
+
+await test("a version the last push declared is published, though its tag lives only on GitHub", () => {
+  // the release workflow tags on GitHub; this clone never fetched v0.5.0, but
+  // the push moved origin/main to a package.json that declares it
+  assert.equal(isPublished("0.5.0", { tags: ["v0.4.6"], pushed: "0.5.0" }), true, "declared by origin/main");
+  assert.equal(isPublished("0.4.2", { tags: [], pushed: "0.5.0" }), true, "an earlier version is history");
+  assert.equal(isPublished("0.5.1", { tags: ["v0.4.6"], pushed: "0.5.0" }), false, "bumped here, not yet pushed: pending");
+  assert.equal(isPublished("0.5.1", { tags: ["v0.5.1"], pushed: null }), true, "a local tag still counts with no remote to read");
+  assert.equal(isPublished("0.5.1", { tags: [], pushed: null }), false);
+  // the check agrees: the pushed version is history, not a pending release to warn about
+  const r = checkRelease({ version: "0.5.0", tags: ["v0.4.6"], pushed: "0.5.0", notes: ["releases/v0.5.0.md"], committed: [] });
+  assert.deepEqual(r, { ok: true, pending: false, problems: [] }, "its notes may be amended like any published release's");
 });
 
 await test("the projection: title from the H1, body without it, stamps reduced to their values", () => {

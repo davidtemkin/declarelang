@@ -84,7 +84,7 @@ this page adds only what a release does on top of it.
    arc's batch.
 
 5. **`git push`** — the gate asks its two questions and a third: a bumped,
-   untagged version must have its notes present and committed, and a notes
+   unpublished version must have its notes present and committed, and a notes
    file must not name a version `package.json` doesn't declare. It refuses
    with the fix named; when nothing is pending it is silent, which is most
    pushes.
@@ -109,12 +109,16 @@ be. The file is the source; the page follows it.
 - `releases/*.md` is a **stamp target** of `stamp-stats` — hand-authored
   around markers, like README — never an **output** of any rule. A rule that
   authored it whole would clobber the prose.
-- A stamp in a release file is **frozen once its version is tagged**. A
-  release's figure is a fact about that tag, not about the tree today; without
+- A stamp in a release file is **frozen once its version is published**. A
+  release's figure is a fact about its tag, not about the tree today; without
   the freeze, every later derive would rewrite v0.4.3's number and the
-  published page would follow. This is the one deliberate impurity in a derive
-  rule (a tag is a fact about history, not a tree input), and it is safe in
-  both directions — see the note in `stamp-stats.mjs`.
+  published page would follow. A version is published when its tag is in the
+  clone **or `origin/main` already declares it** (`release.mjs isPublished`):
+  the workflow tags on GitHub, so the tag need never reach a clone, but the
+  push that triggered it moves the local `origin/main`. This is the one
+  deliberate impurity in a derive rule (a push is a fact about history, not a
+  tree input), and it is safe in both directions — see the note in
+  `stamp-stats.mjs`.
 - The hooks **refuse, never write** (a commit or tag made inside `pre-push`
   lands *after* the pushed SHA). So the tag is made after the push, by the
   publish step, and points at what was published.

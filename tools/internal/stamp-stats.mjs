@@ -21,6 +21,7 @@
 import path from "node:path";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { isPublished, pushedVersion } from "./release.mjs";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -77,17 +78,20 @@ const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "
   "docs/guide/25-packaging.md", "docs/operational/building.md"];
 
 // THE PENDING RELEASE'S NOTES are a stamp target too — releases/v<version>.md
-// for package.json's version, but ONLY while that version is untagged. A
-// release's figure is a fact about its tag, not about the tree today, so the
-// moment `v<version>` exists the file is FROZEN and never restamped: without
-// this, every derive after the tag would rewrite v0.4.3's "85.0" with
+// for package.json's version, but ONLY while that version is unpublished. A
+// release's figure is a fact about its tag, not about the tree today, so once
+// the version is published the file is FROZEN and never restamped: without
+// this, every derive afterwards would rewrite the release's figure with
 // whatever the calendar weighs now, and the published release (a projection of
-// this file — release.mjs) would follow it. This is the one deliberate
-// impurity in a derive rule — a tag is a fact about history, not a tree
-// input — and it is safe in both directions: the tag appearing changes no
-// input hash (so the rule need not re-run, and not writing is what re-running
-// would do), and an input moving after the tag re-runs the rule, which then
-// declines to write. Older release files are never in the list at all.
+// this file — release.mjs) would follow it. "Published" is release.mjs
+// isPublished: its tag is here, OR origin/main already declares the version —
+// the release workflow tags on GitHub, so the tag need never reach this clone,
+// but the push that triggered it moved origin/main. This is the one deliberate
+// impurity in a derive rule — a push is a fact about history, not a tree
+// input — and it is safe in both directions: publication changes no input hash
+// (so the rule need not re-run, and not writing is what re-running would do),
+// and an input moving afterwards re-runs the rule, which then declines to
+// write. Older release files are never in the list at all.
 {
   const version = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
   const pending = `releases/v${version}.md`;
@@ -95,9 +99,12 @@ const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "
   // that may already be published stays frozen. Guessing untagged there restamped
   // the tagged v0.4.4 notes in a git-less copy, and a merge carried the rewrite
   // back toward main (2026-09-15). A pending release is stamped where git exists.
-  let tagged = true;
-  try { tagged = execFileSync("git", ["tag", "-l", `v${version}`], { cwd: ROOT, encoding: "utf8" }).trim() !== ""; } catch { tagged = true; }
-  if (!tagged && existsSync(path.join(ROOT, pending))) FILES.push(pending);
+  let published = true;
+  try {
+    const tags = execFileSync("git", ["tag", "-l"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+    published = isPublished(version, { tags, pushed: pushedVersion(ROOT) });
+  } catch { published = true; }
+  if (!published && existsSync(path.join(ROOT, pending))) FILES.push(pending);
 }
 // key class admits digits: `calendar.wireKB1` (one decimal) never matched under
 // `[a-zA-Z.]+` and was skipped SILENTLY — a marker that does not match cannot
