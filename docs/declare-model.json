@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "ac7578c97b58",
+  "buildId": "4d9c386cd33c",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -19413,8 +19413,8 @@
    "docSegs": [],
    "api": false,
    "source": {
-    "file": "runtime/src/markdown.ts",
-    "line": 2057
+    "file": "runtime/src/rich-text.ts",
+    "line": 1233
    },
    "parent": "RichText",
    "seeAlso": [],
@@ -74592,6 +74592,14 @@
      "preview": "A view's size is one of three things on each axis, chosen by what the source says — nothing hidden, no layout \"modes\": - unset → the axis auto-sizes to the bounding box of the view's visible children (the auto-extent derive, view.ts). Yield…"
     },
     {
+     "name": "Slimming gates",
+     "subtitle": "the 2026-09-26 set",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/slimming-gates.md",
+     "preview": "Status: BUILT, 2026-09-26. The exclusions added with the swatchbook pass and the rich-text document flow, listed in one place so a rework of the slimming framework (app-slimming.md) carries each one over. Every gate here is decided at compi…"
+    },
+    {
      "name": "States",
      "subtitle": "",
      "kind": "doc",
@@ -74654,6 +74662,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/text-layers.md",
      "preview": "Status: PROPOSAL, 2026-09-25 — not ruled, nothing built. Worth a closer look later. It grows out of the Cadence run-7 eval (evals/reports/2026-09-24-cadence-run7/) and a design conversation the same day. It builds on, and in one place revis…"
+    },
+    {
+     "name": "Text selection",
+     "subtitle": "where a drag may begin, and what a copy carries",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/text-selection.md",
+     "preview": "Status: OPEN, 2026-09-26. Two items are recorded here to come back to: where a selection may begin (§2, with the App as a surface in §3 and a homepage test plan in §4), and selection on the Mac and canvas (§5). One item is ruled: an inline…"
     },
     {
      "name": "Type-driven controls",

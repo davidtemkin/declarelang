@@ -23,7 +23,7 @@ import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts
 import { colorToCss, insetSides, isGradient, radiusIsSquare, strokeUniform, filterCss, gradientCss } from "./value.js";
 import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
-import { richInlineSlots, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
+import { richBlocks, richInlineSlots, richMetrics, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
 import {} from "./boxpaint.js";
 import { effectiveFamily, fontMetrics, fontString, cssWeight, transformText } from "./measure.js";
 import { renderClamped } from "./text-clamp.js";
@@ -1765,7 +1765,9 @@ export class DomSurface {
     // component. These four are the seam — the surface carries the state
     // (richEl/richObserver/onRich*), the module does the work.
     get richInlineSlots() { return richInlineSlots; }
-    setRichWidth(width) { setRichWidth(this, width); }
+    get richBlocks() { return richBlocks; }
+    richMetrics() { return richMetrics(this); }
+    setRichWidth(width) { return setRichWidth(this, width); }
     setRichClamp(maxLines) { return setRichClamp(this, maxLines); }
     setRichContent(blocks, selectable, width, onResize, onLink, onSlots) {
         return setRichContent(this, blocks, selectable, width, onResize, onLink, onSlots);

@@ -51,7 +51,7 @@ async function bundle(entry, outfile, globalName, { keepNames = false } = {}) {
     write: true,
     minify: true,
     // ⚠ KEEP CLASS NAMES IN THE RUNTIME. The runtime labels constraints and
-    // diagnostics with `this.constructor.name` (view.ts `.draw`, markdown.ts
+    // diagnostics with `this.constructor.name` (view.ts `.draw`, rich-text.ts
     // `.render`, state.ts's gated-state error, …), and unlike the web — where
     // dev loads runtime/dist unminified and only production ships the bundle —
     // the Mac host ALWAYS runs this bundle. Mangling here would degrade every

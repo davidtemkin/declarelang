@@ -94,7 +94,7 @@ exported so the dev server produces (and caches) the identical artifact on deman
 
 **Registry slimming** rides on this build: only the component classes the app can
 instantiate are bundled; the rest — most importantly the whole rich-text engine
-(`markdown.ts`/`md.ts`/`html.ts`) — are dropped. See §Slimming.
+(`rich-text.ts` and its readers and layout paths) — are dropped. See §Slimming.
 
 ## Static hosting (GitHub Pages)
 

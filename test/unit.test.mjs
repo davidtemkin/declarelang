@@ -1650,9 +1650,9 @@ await test("datapath = { d.value.<branch> } still resolves through the tracked v
   } finally { app.discard(); }
 });
 
-// ── markdown code blocks: the overlay scrollbar's gutter (#25) ─────────────
+// ── markdown code blocks: the overlay scrollbar's seat (#25) ────────────────
 
-await test("a code block reserves a scrollbar gutter exactly when a line overflows", () => {
+await test("a code block's scroller carries its bottom padding — the scrollbar sits there, the height never changes", () => {
   const mk = (line) => {
     const app = build(`App [ width = 300, height = 200, md: Markdown [ x = 10, y = 10, width = 260 ] ]`);
     app.attach(new CanvasBackend(), null);   // blocks build only against a surface (render() needs one)
@@ -1667,9 +1667,10 @@ await test("a code block reserves a scrollbar gutter exactly when a line overflo
   assert.ok(short.hit, "found the code scroller");
   const long = mk("a single very long line of code that overflows the fenced block width by a lot, forcing horizontal scrolling");
   assert.ok(long.hit, "found the overflowing scroller");
-  assert.ok(long.hit.box.height > short.hit.box.height, "the overflowing block is taller — the gutter");
-  assert.equal(long.hit.box.height - short.hit.box.height, 10, "…by exactly the gutter");
-  assert.ok(long.hit.scroller.height > short.hit.scroller.height, "the scroller carries the slack, so the bar sits below the text");
+  assert.equal(long.hit.box.height, short.hit.box.height, "an overflowing line does not change the block's height");
+  for (const h of [short.hit, long.hit]) {
+    assert.equal(h.scroller.y + h.scroller.height, h.box.height, "the scroller reaches the box's bottom edge: an overlay bar draws on the padding, not on a line");
+  }
   short.app.discard(); long.app.discard();
 });
 

@@ -1864,7 +1864,7 @@ export function fireEvent(view, event, ...args) {
  *  target is attached/rendered, so the caller keeps holding the intent), or null
  *  when the name is not present in the tree at all. */
 /** Re-arm the rich-measurement veto for every flow under `v` — the visible
- *  pusher's half of the §0.5.3 hold (see markdown.ts measurePending). Duck-
+ *  pusher's half of the §0.5.3 hold (see rich-text.ts measurePending). Duck-
  *  typed to avoid a view→markdown import cycle; deferred backends only. */
 function markRichPending(v) {
     const walk = (n) => {

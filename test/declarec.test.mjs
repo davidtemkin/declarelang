@@ -289,7 +289,7 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // can reach, carried deliberately. Measured 86.1 at the filter tier alone.
   // 90 → 92 KB (2026-09-13, the text round): the seven defect fixes, the line
   // clamp end to end (Text.maxLines through clampLines/ellipsize in the shared
-  // measurer, the flow budget in markdown.ts, and the setRichClamp seam DOM and
+  // measurer, the flow budget in rich-text.ts, and the setRichClamp seam DOM and
   // Mac realize natively), and the group-layer sizing. Measured 90.2 — the band
   // moves by the size of the surface added, not by the size of the overshoot.
   // 92 → 91 KB (2026-09-15, the merge of the graphics tree into main): main at

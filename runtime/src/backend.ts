@@ -64,6 +64,39 @@ export interface SlotBox { x: number; y: number; width: number; height: number }
  *  default, so a plain paragraph carries nothing. */
 export interface RichBlock { tag: string; runs: RichRun[]; gapBefore: number; lineHeight: number; fontSize: number; family?: string; weight?: FontWeight; align?: "left" | "center" | "right"; pre?: boolean; anchor?: string }
 
+/** Where a top-level node sits in its flow's width — the `richTextLayout`
+ *  geometry: `ml`/`mr` inset the track, `maxWidth` (0 = none) caps the box
+ *  inside it, and `align` places a capped box in the track. */
+export interface RichBox { ml: number; mr: number; maxWidth: number; align: "left" | "center" | "right" }
+
+/** A STRUCTURAL node of a document flow — for a backend whose native flow lays
+ *  a whole document out (`richBlocks`). Every number is resolved model-side and
+ *  is the one the view path lays the same structure out by, so the two agree:
+ *  - `list`: each item's marker (one right-aligned block in a `markerBox`-wide
+ *    column at the item's left) beside its blocks, indented `indent`; items
+ *    `itemGap` apart. A `loose` list's items hold paragraphs (CommonMark).
+ *  - `quote`: its blocks indented `indent` past a `ruleWidth` rule spanning them.
+ *  - `rule`: a 1px line.
+ *  - `code`: a `pre` block in a rounded box, padded, with an optional left bar;
+ *    its lines scroll horizontally, and the bottom padding scrolls with them,
+ *    so an overlay scrollbar sits on the padding and never on a line.
+ *  - `table`: even columns `gap` apart, rows `rowGap` apart, a rule under the
+ *    header row.
+ *  `gapBefore` is the space above the node; `box` is set on top-level nodes. */
+export type RichNode =
+  | (RichBlock & { box?: RichBox })
+  | { tag: "list"; gapBefore: number; box?: RichBox; loose: boolean; indent: number; markerBox: number; itemGap: number; items: { marker: RichBlock; blocks: RichNode[] }[] }
+  | { tag: "quote"; gapBefore: number; box?: RichBox; indent: number; ruleWidth: number; ruleColor: number; blocks: RichNode[] }
+  | { tag: "rule"; gapBefore: number; box?: RichBox; color: number }
+  | { tag: "code"; gapBefore: number; box?: RichBox; fill: number | null; radius: number; pad: number; padLeft: number; bar: { width: number; color: number } | null; block: RichBlock }
+  | { tag: "table"; gapBefore: number; box?: RichBox; gap: number; rowGap: number; ruleColor: number; header: RichBlock[]; rows: RichBlock[][] };
+export type RichStructure = Exclude<RichNode, RichBlock & { box?: RichBox }>;
+
+/** True for a node that holds other nodes or boxes — not a run-bearing block. */
+export function isStructural(n: RichNode): n is RichStructure {
+  return n.tag === "list" || n.tag === "quote" || n.tag === "rule" || n.tag === "code" || n.tag === "table";
+}
+
 /** The optional GLIDE on a scroll request (`scrollTo(y, glide)` and kin): a
  *  hint the scroll PROVIDER executes in its own loop — the browser's smooth
  *  scroll, an NSAnimationContext, the runtime provider's tween. Explicitly
@@ -396,7 +429,20 @@ export interface Surface {
    *  again when a later measurement moves things): the renderer measures, the
    *  model places. A backend that cannot place inline views says so by leaving
    *  `richInlineSlots` unset, and the flow then lays that content out itself. */
-  setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void, onSlots?: (boxes: Record<string, SlotBox>) => void): number;
+  setRichContent(blocks: RichNode[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void, onSlots?: (boxes: Record<string, SlotBox>) => void): number;
+  /** OPTIONAL — true when this backend's native flow lays out a whole DOCUMENT:
+   *  the structural nodes (`RichNode` — lists, quotes, rules, code boxes,
+   *  tables) as well as paragraphs and headings, in one flowing region. The
+   *  rich text then hands it the document as one flow; absent, only runs of
+   *  paragraphs and headings are handed over and the structure is built from
+   *  views (the canvas and the Mac). */
+  readonly richBlocks?: boolean;
+  /** OPTIONAL — the facts a rich text claims from its flow, read off the flow
+   *  the renderer laid out: the first line's baseline (null when the flow
+   *  opens with no line of text) and the right edge of its widest line, both
+   *  in flow-local layout coordinates. Absent, the rich text computes them by
+   *  the shared line arithmetic. */
+  richMetrics?(): { firstBaseline: number | null; widest: number };
   /** OPTIONAL — true when this backend's native rich flow can hold INLINE VIEW
    *  slots: it reserves each slot's box in the line and publishes where the box
    *  landed (`setRichContent`'s `onSlots`). Absent = it cannot, and a flow whose
@@ -405,10 +451,11 @@ export interface Surface {
    *  feature honest on a native text engine that knows nothing about it. */
   readonly richInlineSlots?: boolean;
   /** OPTIONAL width-only follow-up to `setRichContent`: adopt a new flow width
-   *  without re-flowing content — for flows whose layout provably cannot change
-   *  (an all-`pre` flow; its lines never rewrap) but whose host box still bounds
-   *  the native horizontal scroller. A backend without it gets a full render. */
-  setRichWidth?(width: number): void;
+   *  without re-sending content. For an all-`pre` flow (its lines never rewrap)
+   *  the host box still bounds the native horizontal scroller; a `richBlocks`
+   *  backend re-wraps the document it holds in place and answers the new
+   *  height. A backend without it gets a full render. */
+  setRichWidth?(width: number): number | void;
   /** OPTIONAL clamp follow-up to `setRichContent`, for a backend that wraps the
    *  flow ITSELF (`RichText.maxLines`). `maxLines` is how many lines of THIS
    *  flow may show — 0 lifts a clamp, so a re-render is not stuck with the last

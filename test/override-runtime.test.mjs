@@ -18,7 +18,7 @@ import * as reg from "../runtime/dist/registry.js";
 import { Media } from "../runtime/dist/media.js";
 import { Editor } from "../runtime/dist/editor.js";
 import { Stream } from "../runtime/dist/streams.js";
-import { RichText } from "../runtime/dist/markdown.js";
+import { RichText } from "../runtime/dist/rich-text.js";
 import { RUNTIME_METHODS, runtimeMethodsOf } from "../runtime/dist/runtime-methods.js";
 import { runtimePlumbing } from "../compiler/dist/scaffold.js";
 

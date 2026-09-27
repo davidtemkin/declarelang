@@ -264,7 +264,7 @@ document order. It now works on **all three renderers**, and the shape of the
 answer is worth recording, because the three do genuinely different things:
 
 * **Canvas** splits the runs into single-line `Text` views itself, so it spends
-  the budget while it lays them out (`BUDGET` in `markdown.ts`), drops the views
+  the budget while it lays them out (`BUDGET` in `rich-views.ts`), drops the views
   past it, and rewrites the last kept run with `ellipsize`.
 * **DOM and Mac** lay the flow out in their own engines — a real `p`/`h1` tree
   under one host div, a real `NSTextView` — so the model cannot drop laid-out

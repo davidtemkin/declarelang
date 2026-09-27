@@ -809,6 +809,30 @@ export const Inspect = new Proxy({ ready: () => false }, {
     };
     for (const r of roots) walkClamp(r);
     if (!textClamp) for (const r of roots) walkBodies(r, (src) => { if (/\bmaxLines\b/.test(src)) textClamp = true; });
+    // THE RICH-TEXT LINE BUDGET (rich-views.js on a DOM build — see slim-rich-views
+    // below) runs only for a RICH TEXT whose `maxLines` is set: an attribute on an
+    // element whose class chain reaches Markdown/HTMLText (a class body's tag is its
+    // own name, so one chain walk covers instances and class bodies), or a write in
+    // a `{ }` body — whose receiver no build can see, so any body naming it keeps
+    // the module. A `maxLines` on a Text keeps the Text clamp, not this.
+    const classBases = new Map(built.program.classes.map((c) => [c.name, c.base]));
+    const isRichTag = (tag) => {
+      const seen = new Set();
+      for (let t = tag; t != null && !seen.has(t); t = classBases.get(t) ?? null) {
+        if (t === "Markdown" || t === "HTMLText" || t === "RichText") return true;
+        seen.add(t);
+      }
+      return false;
+    };
+    let richClamp = false;
+    const walkRichClamp = (el) => {
+      if (isRichTag(el.tag) && (el.attrs ?? []).some((a) => a.name === "maxLines")) richClamp = true;
+      for (const c of el.children ?? []) walkRichClamp(c);
+    };
+    if (richText) {
+      for (const r of roots) walkRichClamp(r);
+      if (!richClamp) for (const r of roots) walkBodies(r, (src) => { if (/\bmaxLines\b/.test(src)) richClamp = true; });
+    }
     // the change event arms only through `trackChanges` (an onChange with no
     // list never fires), so the attribute's presence is the whole fact
     let changeEvent = false;
@@ -819,7 +843,7 @@ export const Inspect = new Proxy({ ready: () => false }, {
     for (const r of roots) walkChange(r);
     return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
       usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces, usesChangeEvent: changeEvent,
-      usesRichText: richText, usesTextClamp: textClamp };
+      usesRichText: richText, usesTextClamp: textClamp, usesRichClamp: richClamp };
   })();
   // index.js re-exports inspect's query surface by name; a stub must export
   // every name (esbuild resolves named re-exports even when unused downstream).
@@ -1017,16 +1041,33 @@ export function styledRun() { throw notAboard("fillText", "unused"); }
 `;
   // The DOM backend's native rich-text FLOW (dom-rich.js): only a RichText
   // reaches it, so an app that names none refuses the whole module. `false`
-  // for the slot capability is the honest answer from a build with no flow at
-  // all — nothing reads it, and a backend that says it cannot place inline
-  // views is the documented fallback rather than a lie.
+  // for the slot and document capabilities is the honest answer from a build
+  // with no flow at all — nothing reads them, and a backend that says it cannot
+  // place inline views or lay out a document is the documented fallback.
   const domRichStub = `import { notAboard } from "./errors.js";
 const refuse = () => { throw notAboard("Markdown", "unused"); };
 export const richInlineSlots = false;
+export const richBlocks = false;
 export const measureRichSlots = refuse;
+export const richMetrics = refuse;
 export const setRichWidth = refuse;
 export const setRichClamp = refuse;
 export const setRichContent = refuse;
+`;
+  // The rich text's two ways to lay a document out. The DOM lays the whole
+  // document out natively (rich-doc.js), so a DOM build reaches the VIEW PATH
+  // (rich-views.js — the manual flow, the block builders) only to spend a line
+  // budget, which only a rich text with `maxLines` has (usesRichClamp); a
+  // canvas build never reaches the document path at all.
+  const richViewsStub = `import { notAboard } from "./errors.js";
+const refuse = () => { throw notAboard("maxLines", "unused"); };
+export const startBudget = refuse;
+export const budgetTruncated = refuse;
+export const flowRichCanvas = refuse;
+export const layoutBlocks = refuse;
+`;
+  const richDocStub = `import { notAboard } from "./errors.js";
+export function docNodes() { throw notAboard("Markdown", "unused"); }
 `;
   const textClampStub = `import { notAboard } from "./errors.js";
 export function renderClamped() { throw notAboard("maxLines", "unused"); }
@@ -1089,7 +1130,12 @@ export class CanvasBackend { constructor() { throw notAboard("CanvasBackend", "u
     ...(programFacts.usesDrawText ? [] : [stubFor("slim-draw-text", /[/\\]draw-text\.js$/, drawTextStub)]),
     ...(programFacts.usesChangeEvent ? [] : [stubFor("slim-change-event", /[/\\]change-event\.js$/, changeEventStub)]),
     ...(programFacts.usesRichText ? [] : [stubFor("slim-dom-rich", /[/\\]dom-rich\.js$/, domRichStub)]),
+    // The 2026-09-26 set (text-clamp, rich-views, rich-doc, and dom-rich's new
+    // exports) — listed with the placement-only exclusions in
+    // docs/system-design/slimming-gates.md and pinned in test/slim.test.mjs.
     ...(programFacts.usesTextClamp ? [] : [stubFor("slim-text-clamp", /[/\\]text-clamp\.js$/, textClampStub)]),
+    ...(canvas || programFacts.usesRichClamp ? [] : [stubFor("slim-rich-views", /[/\\]rich-views\.js$/, richViewsStub)]),
+    ...(canvas ? [stubFor("slim-rich-doc", /[/\\]rich-doc\.js$/, richDocStub)] : []),
     ]),
   ];
   // The page host's two substitutions: the Inspector's wiring (above), and the

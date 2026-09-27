@@ -68,7 +68,7 @@ export function bootBuildOptions(overrides = {}) {
     target: "es2022",
     minify: true,
     // ⚠ KEEP CLASS NAMES. The runtime labels constraints and diagnostics with
-    // `this.constructor.name` (view.ts `.draw`, markdown.ts `.render`, state.ts's
+    // `this.constructor.name` (view.ts `.draw`, rich-text.ts `.render`, state.ts's
     // gated-state error, stylesheet.ts, editor.ts), and the Inspector shows that
     // name as a node's type. Minified without this, every one of them collapses
     // to an esbuild identifier: MEASURED on the calendar, the Inspector's root

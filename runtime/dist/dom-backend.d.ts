@@ -306,7 +306,12 @@ export declare class DomSurface implements Surface {
     private scrollXListener;
     setScrollX(on: boolean, onScroll?: (x: number) => void, _onScrolling?: (active: boolean) => void): void;
     get richInlineSlots(): boolean;
-    setRichWidth(width: number): void;
+    get richBlocks(): boolean;
+    richMetrics(): {
+        firstBaseline: number | null;
+        widest: number;
+    };
+    setRichWidth(width: number): number;
     setRichClamp(maxLines: number): number;
     setRichContent(blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void, onSlots?: (boxes: Record<string, SlotBox>) => void): number;
     /** dom-backend's coalesced iOS selectable-region refresh, reached from the

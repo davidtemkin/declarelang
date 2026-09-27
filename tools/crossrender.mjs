@@ -68,8 +68,10 @@ if (files.length === 0) { console.error("usage: crossrender <file.declare | dir>
 // The dump, as SOURCE: the same text runs in Chrome's page and in the native
 // host's context, so both sides walk the tree by one rule — the inspector's
 // (`__declare.inspect`): real class names through minification, declared names
-// in the path, boxes in root coordinates (transforms included). One line — the
-// host's control channel reads a line.
+// in the path, boxes in root coordinates (transforms included). A rich text is
+// compared by its own box and its inline views: the views it builds to lay its
+// document out are its own business, and a renderer that flows the document
+// natively builds none. One line — the host's control channel reads a line.
 const DUMP = `(() => { const out = [];
   const a0 = globalThis.__app;
   if (a0 && typeof a0.errors === "string" && typeof a0.listHtml === "string") return JSON.stringify({ loadError: a0.errors.replace(/\\s+/g, " ").slice(0, 300) });
@@ -82,7 +84,8 @@ const DUMP = `(() => { const out = [];
     if (v && typeof v.baseline === "number") rec.b = Math.round(v.baseline * 100) / 100;
     out.push(rec);
     if (v && v.flowWidth !== undefined && Array.isArray(v.content)) return;
-    for (const c of n.children || []) if (c.rootWidth !== undefined) walk(c);
+    const inline = v && v.richTextLayout !== undefined ? new Set(v.slotHost ? v.slotHost.views() : []) : null;
+    for (const c of n.children || []) if (c.rootWidth !== undefined && (inline === null || inline.has(__declare.find(c.path)))) walk(c);
   };
   walk(__declare.inspect()); return JSON.stringify(out); })()`.replace(/\n\s*/g, " ");
 

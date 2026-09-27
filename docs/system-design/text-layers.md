@@ -28,8 +28,8 @@ Almost none of it is used: no parsing is needed, no blocks, no lists or quotes.
 
 ## 2. How it is built today
 
-`RichText` (in `markdown.ts`) is an abstract base that does all the work. `Markdown` and
-`HTMLText` are about eight lines each: a source key, and a parser that turns their source
+`RichText` (in `rich-text.ts`) is an abstract base that does all the work. `Markdown` and
+`HTMLText` (`markdown.ts`, `html-text.ts`) are about eight lines each: a source key, and a parser that turns their source
 (`text`, `html`) into the **same block tree** (`Block[]`/`Inline[]`, `md.ts`'s types). The
 HTML reader's whitelist is itself block-shaped — `p`, `h1`–`h6`, `blockquote`, `ul`/`ol`/`li`,
 `pre`, `hr`, `div`, plus inline tags — so `HTMLText` needs block layout as much as
@@ -40,10 +40,12 @@ Inside the engine, three layers are already distinct:
 - **The run layer** — a run model (`RichRun`, `RichBlock` in `backend.ts`), style bundles
   resolved to run styles (`RunStyle`, `bundleToRunStyle`, `richRunsOf`), and the renderer
   seam `setRichContent`. The DOM realization (`dom-rich.ts`) emits each paragraph as a real
-  `<p>`/`<h*>` with its runs in normal browser flow; canvas and the Mac host flow runs
-  themselves (`flowRichCanvas`).
-- **The block layer** — block geometry, prose defaults, and builders for code blocks, lists,
-  tables, quotes and rules; each block becomes Declare views, stacked by a `Layout`.
+  `<p>`/`<h*>` with its runs in normal browser flow; canvas flows runs itself
+  (`flowRichCanvas`, `rich-views.ts`).
+- **The block layer** — block geometry, prose defaults, and two ways to lay the blocks out: on
+  the DOM, one native flow of structural nodes (`rich-doc.ts` — lists, tables, quotes, code
+  boxes and rules as real elements); on canvas and the Mac, builders that make each block
+  Declare views, stacked by a `Layout` (`rich-views.ts`).
 - **The document layer** — the reactive render keyed on the source, `textStyles` and named
   span styles, inline views in a sentence (`SlotHost`), links, anchors, clamping.
 
@@ -92,7 +94,7 @@ not true of `Markdown` or `HTMLText`: their sources can arrive at run time, so t
 always carry every block kind.)
 
 **No duplication.** Each piece of the engine sits at the lowest class that needs it and is
-inherited above. The work is a refactor of `markdown.ts` — moving the run layer down into
+inherited above. The work is a refactor of `rich-text.ts` — moving the run layer down into
 `RichText` and splitting the block layer out of the module the run layer lives in — not new
 code.
 
@@ -152,8 +154,8 @@ only changes what `Document` does on the DOM.
    shorthand for a single run.
 3. **What a run may carry.** Style bundles only, or also links (`{ link: …, text: … }`)?
    Inline views stay out — views in a sentence belong to the deferred text-layout design.
-4. **The canvas flow's shape.** Can `flowRichCanvas` be split so a one-paragraph `RichText`
-   reaches only its run path, not block handling?
+4. **The canvas flow's shape.** Can the view path (`rich-views.ts`) be split so a one-paragraph
+   `RichText` reaches only its run path, not block handling?
 5. **Measure before building.** The §3 cost is estimated from line counts. Build a variant with
    the run layer split out and read its real size from the build's own module breakdown; for
    §4, measure a DOM `Document` with no block engine.

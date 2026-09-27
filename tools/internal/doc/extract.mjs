@@ -354,7 +354,7 @@ const DECOR = readDecorations(["runtime/src/view.ts", "runtime/src/text.ts", "ru
 // method signatures — read from every runtime file that declares a documented class.
 const METHODS = readMethods([
   "runtime/src/view.ts", "runtime/src/text.ts", "runtime/src/image.ts", "runtime/src/video.ts",
-  "runtime/src/markdown.ts", "runtime/src/text-input.ts", "runtime/src/layout.ts",
+  "runtime/src/rich-text.ts", "runtime/src/markdown.ts", "runtime/src/html-text.ts", "runtime/src/text-input.ts", "runtime/src/layout.ts",
   "runtime/src/data.ts", "runtime/src/animator.ts", "runtime/src/spring.ts",
   "runtime/src/state.ts", "runtime/src/node.ts", "runtime/src/editor.ts",
   "runtime/src/streams.ts",

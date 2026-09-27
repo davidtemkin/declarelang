@@ -230,8 +230,17 @@ const TABLE = {
     // maximumNumberOfLines with .byTruncatingTail and re-measures. Both return
     // the clamped height, because the caller's box has to shrink with it.
     dom: true,
-    canvas: "deliberate — canvas has no host to clamp: it splits the runs into single-line Text views itself, so the line budget is spent MODEL-side while it lays them out (markdown.ts's BUDGET), and the ellipsis is written into the last kept run. Same feature, other half of the seam — a host call here would have nothing to call",
+    canvas: "deliberate — canvas has no host to clamp: it splits the runs into single-line Text views itself, so the line budget is spent MODEL-side while it lays them out (rich-views.ts's BUDGET), and the ellipsis is written into the last kept run. Same feature, other half of the seam — a host call here would have nothing to call",
     mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  richMetrics: {
+    // FILLED 2026-09-26 (the document flow). The rich text's two claimed facts —
+    // its first baseline and its widest line — read off the layout the renderer
+    // made, so the DOM build needs none of the manual flow to know them.
+    dom: true,
+    canvas: "deliberate — canvas has no host flow: the manual flow lays the runs out, and the same pass reports the baseline and the widest line",
+    mac: "GAP (not yet built) — TextKit could report both off its layout manager; until it does the rich text computes them by the shared line arithmetic, which the Mac's flow is held to",
     headless: NOT_APPLICABLE,
   },
 
@@ -386,7 +395,8 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 31,   // +setPadding (2026-09-19, padding moves to the view): the TRAILING inset a padded scroller must still show — the origin shift rides the children's own setX/setY and needs no row
+  assert.equal(members.length, 32,   // +richMetrics (2026-09-26, the document flow): baseline + widest off the renderer's layout — DOM reports, canvas/mac use the manual flow's arithmetic
+                                     // +setPadding (2026-09-19, padding moves to the view): the TRAILING inset a padded scroller must still show — the origin shift rides the children's own setX/setY and needs no row
                                      // +setRichClamp (2026-09-13, the truncation round): maxLines on a flow — DOM/mac clamp in the host, canvas spends the budget model-side
                                      // +setFilter/setMask/setTransform/setTransform3D/setPerspective/setImageAlign (2026-09-12, the graphics pass) — all three implement
                                      // +setSelection (2026-08-30): the caret write half, TextInput.select — all three implement

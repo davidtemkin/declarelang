@@ -17,7 +17,8 @@ import { Image } from "./image.js";
 import { Video } from "./video.js";
 import { Audio } from "./audio.js";
 import { TextInput } from "./text-input.js";
-import { Markdown, HTMLText } from "./markdown.js";
+import { Markdown } from "./markdown.js";
+import { HTMLText } from "./html-text.js";
 import { Layout, TweenLayout } from "./layout.js";
 import { Dataset, DataSource } from "./data.js";
 import { Animator, AnimatorGroup } from "./animator.js";
@@ -90,7 +91,7 @@ export const REGISTRY_MANIFEST = [
     { name: "DOMIsland", table: "TAGS", module: "view.js", export: "DOMIsland" },
     { name: "TextInput", table: "TAGS", module: "text-input.js", export: "TextInput" },
     { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },
-    { name: "HTMLText", table: "TAGS", module: "markdown.js", export: "HTMLText" },
+    { name: "HTMLText", table: "TAGS", module: "html-text.js", export: "HTMLText" },
     { name: "Node", table: "TAGS", module: "node.js", export: "Node" },
     { name: "Time", table: "TAGS", module: "time.js", export: "Time" },
     { name: "Font", table: "TAGS", module: "font.js", export: "Font" },

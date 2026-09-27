@@ -24,7 +24,7 @@ export function provideViewCreator(fn: ViewCreator): void {
   viewCreator = fn;
 }
 
-/** The PROGRAM'S CLASS TABLE, as rich text's inline views need it (markdown.ts):
+/** The PROGRAM'S CLASS TABLE, as rich text's inline views need it (rich-text.ts):
  *  which names a tag in flowing content may claim, what each attribute's
  *  declared type is, and how to make one. The same injection seam as the view
  *  creator above, and for the same reason — the rich-text engine must not import
@@ -2030,7 +2030,7 @@ export function fireEvent(view: Node, event: string, ...args: unknown[]): void {
  *  target is attached/rendered, so the caller keeps holding the intent), or null
  *  when the name is not present in the tree at all. */
 /** Re-arm the rich-measurement veto for every flow under `v` — the visible
- *  pusher's half of the §0.5.3 hold (see markdown.ts measurePending). Duck-
+ *  pusher's half of the §0.5.3 hold (see rich-text.ts measurePending). Duck-
  *  typed to avoid a view→markdown import cycle; deferred backends only. */
 function markRichPending(v: View): void {
   const walk = (n: Node): void => {

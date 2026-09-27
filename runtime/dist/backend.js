@@ -22,6 +22,10 @@ export function allowedRef(ref) {
     const scheme = m[1].toLowerCase();
     return scheme === "http" || scheme === "https" || scheme === "mailto";
 }
+/** True for a node that holds other nodes or boxes — not a run-bearing block. */
+export function isStructural(n) {
+    return n.tag === "list" || n.tag === "quote" || n.tag === "rule" || n.tag === "code" || n.tag === "table";
+}
 export const POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "pinchStart", "pinch", "pinchEnd", "wheel"];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend

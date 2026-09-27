@@ -58,6 +58,8 @@ export function inlineAppPage(build) {
   const appJs = build.files.find((f) => f.name.startsWith("app.")).contents;
   const cfg = build.files.find((f) => f.name === "index.html").contents.match(/boot\((\{[^\n]*\})\);/)[1]
     .replace(/main: "[^"]*"/, 'main: "https://declare.test/app.declare"');
-  const booted = appJs.replace(/export\s*\{\s*(\w+) as default\s*\};?\s*$/, `$1(${cfg});`);
+  // `[\w$]`: a minified name may be `$b`. A function replacement, so a `$` in
+  // the config is never read as a replacement pattern.
+  const booted = appJs.replace(/export\s*\{\s*([\w$]+) as default\s*\};?\s*$/, (_, fn) => `${fn}(${cfg});`);
   return `<!doctype html><div id=host></div><script type=module>${booted}</script>`;
 }

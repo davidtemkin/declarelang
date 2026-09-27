@@ -1098,7 +1098,7 @@ the text) and CSS `text-box-trim`'s box-TRIMMING (it makes ink exceed the bounds
 wrapping as a sentence (`4 sessions · 3h 40m`). Many solutions (a custom baseline-flow layout, or
 manual positioning off the exposed `Text.baseline`); none needs a language change, and the choice
 is an app's. `HTML[]` was NOT the agent's instinct and is not a clean fix today: Declare's RichText
-engine (markdown.ts) packs a line at `line-top + halfLead` using the LEAD run's metrics, so it
+engine (rich-views.ts) packs a line at `line-top + halfLead` using the LEAD run's metrics, so it
 top-aligns mixed sizes rather than per-run baseline-aligning them.
 
 **How it shipped (2026-09-06), diverging from step 1's `centerCap` token:** the label case
@@ -1113,7 +1113,7 @@ converted to `TextLabel`; guide ch.5 + the centering pins updated. Symbols (`×`
 were the metric-fragility argument now box-center correctly as raw `Text`.
 
 **Filed, separate/bigger — RichText baseline + the line-box follow-on:** the RichText engine
-(`markdown.ts`) top-aligned every inline run (`t.y = py` from the LEAD run's metrics), so a run in
+(`rich-views.ts`) top-aligned every inline run (`t.y = py` from the LEAD run's metrics), so a run in
 a different face — inline `code` (mono) most of all — rode ABOVE the body baseline. Fix (a),
 shipped alongside this: each run now drops to the line baseline (`ry = py + bodyAscent - runAscent`;
 a no-op for plain body prose). At today's content the correction is ~1px (same-size mixed-FONT), so

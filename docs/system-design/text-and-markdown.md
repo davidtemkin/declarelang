@@ -61,7 +61,26 @@ document → [ block ]
 | inline (everywhere) | styled spans |
 
 Block Markdown is literally *"generate a Declare component subtree from the tree"* — it **reuses the
-site's `Stack`/`Grid`/`Text`/`View`** (double duty, not new machinery). A text **field** operates
+site's `Stack`/`Grid`/`Text`/`View`** (double duty, not new machinery).
+
+**How each renderer lays a document out.** The tree is one; the layout goes where the renderer's
+text engine can take it:
+
+- **DOM** — the whole document is **one native flow**: real `<p>`/`<h*>`, `<ul>`/`<li>`,
+  `<blockquote>`, `<pre>` and `<table>` elements under one element, set by the same numbers the
+  view subtree uses (indents, gaps, the code box, even table columns). One region to wrap, select,
+  copy and find in; a width change re-wraps it in place. The model reads back what it claims from
+  the layout the browser made — the height, the first baseline, the widest line, where each inline
+  view landed (`rich-doc.ts`, `dom-rich.ts`).
+- **Canvas and the Mac** — the block tier is the view subtree in the table above; paragraphs and
+  headings are native flows on the Mac and laid out run by run on canvas (`rich-views.ts`). A
+  `maxLines` budget, spent block by block as the document is built, takes this path on every
+  renderer.
+
+The views either path builds are the rich text's own business, never program surface: a program
+sees the `Markdown`/`HTMLText` box, its facts (`baseline`, `truncated`) and its inline views.
+A code block scrolls sideways inside its box, and the scroller carries the box's bottom padding,
+so an overlay scrollbar sits on the padding and never on the last line. A text **field** operates
 on the **inline tier only** — which is why a table categorically can't live in a field (block vs
 inline), not a limitation to fight.
 

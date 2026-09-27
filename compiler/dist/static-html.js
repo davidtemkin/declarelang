@@ -17,7 +17,8 @@
 // compile-node and compile-browser — the browser compiler does everything the
 // Node one can, as architecture and as principle.
 import { Image, Text, TextInput, View } from "../../runtime/dist/index.js";
-import { Markdown, HTMLText } from "../../runtime/dist/markdown.js";
+import { Markdown } from "../../runtime/dist/markdown.js";
+import { HTMLText } from "../../runtime/dist/html-text.js";
 import { parse as parseMd } from "../../runtime/dist/md.js";
 import { parseHtml } from "../../runtime/dist/html.js";
 import { compileExpr } from "../../runtime/dist/expr.js";

@@ -827,7 +827,7 @@ the docs app uses (`apps/docs/docs.declare:346`). The **docs app shows the same
 symptom**: 100 anchors, and clicking one does not change `location`.
 
 **Unproven next step.** Determine whether a declared `onLink` handler installs
-the `this.onLink` *property* that `markdown.ts:454` reads when it flows content
+the `this.onLink` *property* that the flow (`rich-text.ts`, TextFlow) reads when it flows content
 (`const link = this.onLink ?? (() => {})`), or whether it registers a listener
 for RichText's declared `link` event that nothing dispatches. The closure is
 captured per run at flow time, so a handler installed after the first flow

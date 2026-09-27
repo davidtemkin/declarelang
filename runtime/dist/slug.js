@@ -1,4 +1,4 @@
-// The one heading→slug rule, shared by the renderer (markdown.ts, which assigns
+// The one heading→slug rule, shared by the renderer (rich-text.ts, which assigns
 // each rendered heading its anchor) and the crawler (Phase C, which addresses a
 // heading anchor). One function so a heading in prose and a link to it agree on
 // the name everywhere — the doc system's pinned-slug discipline (docs-ia.md): a

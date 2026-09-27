@@ -1,4 +1,4 @@
-import type { RichBlock, SlotBox } from "./backend.js";
+import { type RichNode, type SlotBox } from "./backend.js";
 /** The surface state a rich flow owns: the one flowing content element, the
  *  observer watching its height, and the two callbacks the flow reports
  *  through. Implemented by DomSurface (dom-backend.ts). */
@@ -14,18 +14,30 @@ export interface RichHost {
 /** This backend places inline views: `setRichContent` emits one inline-block
  *  placeholder per slot and reads back where the browser put it. */
 export declare const richInlineSlots = true;
+/** This backend's flow lays out a whole document — lists, quotes, rules, code
+ *  boxes and tables as well as paragraphs — as one flowing region (RichNode). */
+export declare const richBlocks = true;
 /** Read back every slot placeholder's box, in flow-local coordinates, and
  *  publish the geometry fact. `offsetLeft`/`offsetTop` rather than a client
  *  rect ON PURPOSE: they are LAYOUT coordinates, so an ancestor `scale` (a CSS
- *  transform) cannot scale the numbers the model then places views with. The
- *  rich host is `position: absolute`, so it is the placeholders' offsetParent.
+ *  transform) cannot scale the numbers the model then places views with. They
+ *  are summed up the offsetParent chain to the host (`position: absolute`, so
+ *  always in it): a placeholder in a list item has the item as its parent.
  *  Called where a layout has already been forced (right after the height read,
  *  and from the ResizeObserver) — never forcing one of its own. */
 export declare function measureRichSlots(h: RichHost): void;
-/** Width-only follow-up to setRichContent: the host tracks the flow's width
- *  (it bounds a pre block's native horizontal scroller) without re-flowing —
- *  the cheap half the all-`pre` reflow early-out still needs. */
-export declare function setRichWidth(h: RichHost, width: number): void;
+/** The first baseline and the widest line's right edge, off the laid-out flow
+ *  (flow-local LAYOUT coordinates — an ancestor `scale` is divided back out of
+ *  the line rects, which are client coordinates). */
+export declare function richMetrics(h: RichHost): {
+    firstBaseline: number | null;
+    widest: number;
+};
+/** Width-only follow-up to setRichContent: the host takes the new width and
+ *  the browser re-wraps what it holds — nothing in a flow's content depends on
+ *  its width. Answers the flowed height, and republishes the slots (the same
+ *  forced layout). */
+export declare function setRichWidth(h: RichHost, width: number): number;
 /** Clamp the flow to `maxLines` (0 lifts the clamp), and answer its new height.
  *
  *  `-webkit-line-clamp` on the flow HOST rather than on a block: the host is
@@ -39,4 +51,4 @@ export declare function setRichClamp(h: RichHost, maxLines: number): number;
  *  per RichBlock (real `<p>`/`<h*>` for a11y), inline runs in NORMAL flow (a
  *  `<span>`/`<code>`) — so the browser wraps, aligns baselines, and lets the user
  *  select/copy/find contiguously. Returns the measured (flowed) height. */
-export declare function setRichContent(h: RichHost, blocks: RichBlock[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void, onSlots?: (boxes: Record<string, SlotBox>) => void): number;
+export declare function setRichContent(h: RichHost, blocks: readonly RichNode[], selectable: boolean, width: number, onResize: (height: number) => void, onLink: (href: string) => void, onSlots?: (boxes: Record<string, SlotBox>) => void): number;

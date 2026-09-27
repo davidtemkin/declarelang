@@ -346,6 +346,62 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
     await renders(sub);
   });
 
+  // ── the 2026-09-26 gates (docs/system-design/slimming-gates.md) ─────────────
+  // Each pins one exclusion added with the rich-text document flow, so a change
+  // to the slimming framework that loses one fails here instead of silently
+  // shipping the code again.
+
+  await test("the Text line clamp (text-clamp.js) rides only where `maxLines` is named", async () => {
+    const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
+    assert.ok((none["text-clamp.js"] ?? 0) < STUBBED, `text-clamp.js should be stubbed, was ${none["text-clamp.js"]}`);
+    const attr = modsOf(await buildProduction(`App [ width = 200, Text [ width = 100, maxLines = 1, text = "a long label" ] ]`, {}));
+    assert.ok(attr["text-clamp.js"] > STUBBED, "a Text naming maxLines keeps the clamp");
+    const body = modsOf(await buildProduction(`App [ width = 200, t: Text [ width = 100, text = "x" ], onClick() { t.maxLines = 2 } ]`, {}));
+    assert.ok(body["text-clamp.js"] > STUBBED, "a body naming maxLines keeps the clamp");
+  });
+
+  await test("the rich-text view path (rich-views.js) rides a DOM build only with a clamped rich text; the document path (rich-doc.js) never rides canvas", async () => {
+    const md = `App [ width = 200, Markdown [ width = 180, text = "hi" ] ]`;
+    const dom = modsOf(await buildProduction(md, {}));
+    assert.ok((dom["rich-views.js"] ?? 0) < STUBBED, `a DOM Markdown with no maxLines should stub rich-views.js, was ${dom["rich-views.js"]}`);
+    assert.ok(dom["rich-doc.js"] > STUBBED, "the DOM lays documents out: rich-doc.js rides");
+    const canvas = modsOf(await buildProduction(md, { render: "canvas" }));
+    assert.ok(canvas["rich-views.js"] > STUBBED, "canvas lays documents out from views: rich-views.js rides");
+    assert.ok((canvas["rich-doc.js"] ?? 0) < STUBBED, `canvas never builds a document flow: rich-doc.js should be stubbed, was ${canvas["rich-doc.js"]}`);
+    // the fact is the RICH TEXT's maxLines — a clamped Text label beside it is not
+    const label = modsOf(await buildProduction(`App [ width = 200, Markdown [ width = 180, text = "hi" ], Text [ y = 40, width = 100, maxLines = 1, text = "a label" ] ]`, {}));
+    assert.ok((label["rich-views.js"] ?? 0) < STUBBED, `a clamped Text beside a Markdown should not keep rich-views.js, was ${label["rich-views.js"]}`);
+    for (const src of [
+      `App [ width = 200, Markdown [ width = 180, maxLines = 2, text = "hi" ] ]`,
+      `class Note extends HTMLText [ maxLines = 2 ]\nApp [ width = 200, Note [ width = 180, html = "hi" ] ]`,
+      `App [ width = 200, m: Markdown [ width = 180, text = "hi" ], onClick() { m.maxLines = 3 } ]`,
+    ]) {
+      const kept = modsOf(await buildProduction(src, {}));
+      assert.ok(kept["rich-views.js"] > STUBBED, "a rich text with maxLines (attribute, class body, or a body write) keeps rich-views.js: " + src.slice(0, 60));
+    }
+    await renders(md);
+    await renders(`App [ width = 200, fill = white, Markdown [ width = 180, maxLines = 1, text = "one two three four five six seven eight nine ten eleven twelve" ] ]`);
+  });
+
+  await test("each rich-text component carries only its own reader (md.js / html.js)", async () => {
+    const md = modsOf(await buildProduction(`App [ width = 200, Markdown [ width = 180, text = "hi" ] ]`, {}));
+    const ht = modsOf(await buildProduction(`App [ width = 200, HTMLText [ width = 180, html = "<p>hi</p>" ] ]`, {}));
+    assert.ok((md["html.js"] ?? 0) === 0, `a Markdown-only build carries no HTML reader, had ${md["html.js"]}`);
+    assert.ok(ht["html.js"] > STUBBED, "an HTMLText keeps its reader");
+    // html.js shares md.js's entity decoder and view-tag scanner, never its parser
+    assert.ok((ht["md.js"] ?? 0) < md["md.js"] / 3, `an HTMLText-only build carries md.js's shared helpers, not its parser (${ht["md.js"]} vs ${md["md.js"]})`);
+  });
+
+  await test("the font-availability probe and demand ride only with a declared Font", async () => {
+    const PROBE = "mmmmmmmmmmlli1WwQ@";   // the probe string, in font.ts
+    const js = (b) => b.files.find((f) => f.name.startsWith("app.")).contents;
+    const plain = await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {});
+    assert.ok(!js(plain).includes(PROBE), "a program declaring no Font carries no family probe");
+    const font = await buildProduction(`App [ width = 200, f: Font [ Face [ src = "f.woff2" ] ], Text [ text = "x", fontFamily = { [app.f, "serif"] } ] ]`, {});
+    assert.ok(font.ok, "build failed: " + (font.errors || []).map((e) => e.message).join("; "));
+    assert.ok(js(font).includes(PROBE), "a declared Font carries the probe");
+  });
+
   // The PER-SIDE stroke (stroke-sides.js — the split, the uniform test, the
   // list's equality and coercion, and both painters) is NOT gated, and this is
   // the test that says why it may not be. It rode behind a fact that read a

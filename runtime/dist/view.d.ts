@@ -3,7 +3,7 @@ import { type Backdrop, type BoxStroke, type Fill, type FilterValue, type Inset,
 import { type RenderBackend, type Surface } from "./backend.js";
 type ViewCreator = (root: View, tag: string, parent: View, props?: Record<string, unknown>) => View;
 export declare function provideViewCreator(fn: ViewCreator): void;
-/** The PROGRAM'S CLASS TABLE, as rich text's inline views need it (markdown.ts):
+/** The PROGRAM'S CLASS TABLE, as rich text's inline views need it (rich-text.ts):
  *  which names a tag in flowing content may claim, what each attribute's
  *  declared type is, and how to make one. The same injection seam as the view
  *  creator above, and for the same reason — the rich-text engine must not import

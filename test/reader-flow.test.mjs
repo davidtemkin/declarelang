@@ -1,7 +1,7 @@
 // The reader's segments may not overlap — the RichText scale/geometry rule
 // (task #26, 2026-08-20). RichText's `scale` is a font-size multiplier baked
 // into the runs, so to the geometry system the view is UNTRANSFORMED
-// (markdown.ts footprint override, the twin of the flush() paint mask).
+// (rich-text.ts footprint override, the twin of the flush() paint mask).
 // Before the fix, auto-extent multiplied every flow's measured height by
 // scale a second time: at the reader's default 0.9 each code block stood
 // 1/0.9 taller on screen than in the model, and the desktop's 7,000px

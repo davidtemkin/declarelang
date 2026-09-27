@@ -47,14 +47,16 @@ async function render(mode) {
     await new Promise((r) => setTimeout(r, 400));
     const probe = await page.evaluate(() => {
       const texts = (sel) => Array.from(document.querySelectorAll(sel)).map((e) => e.textContent);
-      const ps = texts("p");
+      // Every text block: a paragraph, a tight list item's text (`<li>` holds
+      // it as a plain block beside its aria-hidden marker), a table cell.
+      const ps = texts("p, li > div:not([aria-hidden]), td, th");
       return {
         errCount: 0,
         nodes: document.querySelectorAll("#host *").length,
         paras: ps,
         canvases: document.querySelectorAll("canvas").length,
-        // The text-align of the <p> holding a specific right-column cell value.
-        scoreAlign: (() => { const p = Array.from(document.querySelectorAll("p")).find((e) => e.textContent === "88"); return p ? getComputedStyle(p).textAlign : null; })(),
+        // The text-align of the cell holding a specific right-column value.
+        scoreAlign: (() => { const p = Array.from(document.querySelectorAll("p, td")).find((e) => e.textContent === "88"); return p ? getComputedStyle(p).textAlign : null; })(),
       };
     });
     return { errs, probe };
@@ -69,18 +71,18 @@ if (!CHROME) {
     assert.equal(dom.errs.length, 0, dom.errs.slice(0, 2).join(" | "));
     assert.ok(dom.probe.nodes > 5, "host has little content");
   });
-  await test("a list item is ONE contiguous <p>, not word-per-view", () => {
-    // The whole item text lives in a single flowing paragraph. In the old layout
-    // no single element held it — each word was its own positioned Text.
+  await test("a list item is ONE contiguous block, not word-per-view", () => {
+    // The whole item text lives in a single flowing block — never a positioned
+    // Text per word.
     assert.ok(dom.probe.paras.some((t) => t === "alpha beta gamma"), "list item text not contiguous: " + JSON.stringify(dom.probe.paras));
     assert.ok(dom.probe.paras.some((t) => t === "delta epsilon zeta"));
   });
-  await test("a table cell is a contiguous <p>", () => {
+  await test("a table cell is one contiguous cell", () => {
     assert.ok(dom.probe.paras.some((t) => t === "Linus"), "cell text not a single <p>");
     assert.ok(dom.probe.paras.some((t) => t === "88"));
   });
   await test("a right-aligned column carries text-align:right", () => {
-    // The Score column is `--:` (right). Its "88" cell flows as a right-aligned <p>.
+    // The Score column is `--:` (right). Its "88" cell flows right-aligned.
     assert.equal(dom.probe.scoreAlign, "right", "right column cell not right-aligned");
   });
   await test("a blockquote line is a contiguous <p>", () => {

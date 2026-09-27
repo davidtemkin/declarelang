@@ -42,13 +42,13 @@ export type Inline =
   | { t: "link"; href: string; title?: string; inline: Inline[] }
   // An inline image — CommonMark `![alt](src "title")` (and its reference forms).
   // `alt` is the flattened text of the bracket content (markup stripped, per spec);
-  // the flow renders it as an inline replaced box (see markdown.ts).
+  // the flow renders it as an inline replaced box (see rich-text.ts).
   | { t: "image"; src: string; alt: string; title?: string }
   | { t: "br" }
   // An INLINE VIEW — a tag whose name is a class the program declares
   // (`<Issue id='142'/>`). The flow engine creates ONE real view of that class
   // and places it in the line as an atomic box, the way an inline image is
-  // placed (markdown.ts). Both readers emit it, and only when they are given
+  // placed (rich-text.ts). Both readers emit it, and only when they are given
   // the class predicate (ReadOptions.isClass) — with none, every `<tag>` keeps
   // exactly the meaning it has today. `attrs` keep their CASE (an attribute
   // names a slot, and slots are camelCase) and their raw string values; the
