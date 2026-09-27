@@ -567,4 +567,7 @@ struct TextStyleSpec {
     var smallCaps: Bool = false
     var underline: Bool = false
     var strike: Bool = false
+    /// The Text's padding (top, right, bottom, left): the run is laid out in
+    /// the box less these.
+    var pad: (Double, Double, Double, Double) = (0, 0, 0, 0)
 }

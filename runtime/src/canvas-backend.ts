@@ -1347,6 +1347,12 @@ class CanvasSurface implements Surface {
   private font = "";
   private textFill = "";
   private textGradient: Gradient | null = null;
+  /** The Text's padding (TextStyle padTop/padRight/padBottom/padLeft): the run
+   *  is laid out, wrapped and aligned inside the box less these. */
+  private padT = 0;
+  private padR = 0;
+  private padB = 0;
+  private padL = 0;
   private ascent = 0;
   /** The natural line height (ascent+descent) — the wrapped-line stride, and
    *  what the DOM backend sets as `line-height`, so multi-line agrees. */
@@ -1771,6 +1777,10 @@ class CanvasSurface implements Surface {
     this.maxLines = st.maxLines != null && st.maxLines > 0 ? (this.wrap ? st.maxLines : 1) : 0;
     if (this.maxLines > 0) this.wrap = true;
     this.align = st.align ?? "left";
+    this.padT = st.padTop ?? 0;
+    this.padR = st.padRight ?? 0;
+    this.padB = st.padBottom ?? 0;
+    this.padL = st.padLeft ?? 0;
     this.textLines = null;
     this.compositor.invalidate(this);
   }
@@ -3166,11 +3176,16 @@ class CanvasSurface implements Surface {
     }
     if (this.drawing !== null) this.paintDrawing(ctx);
     if (this.text !== "" && this.font !== "") {
+      // The run lives in the box less the padding: origin at the leading
+      // insets, wrapping and aligning within what is left.
+      const padded = this.padT !== 0 || this.padL !== 0;
+      const tw = this.width - this.padL - this.padR;
+      if (padded) { ctx.save(); ctx.translate(this.padL, this.padT); }
       ctx.font = this.font;
-      // A gradient text-fill is realized over the view box, so multi-line runs
-      // share one continuous ramp (like the DOM's background-clip:text).
+      // A gradient text-fill is realized over the text's box, so multi-line
+      // runs share one continuous ramp (like the DOM's background-clip:text).
       ctx.fillStyle = this.textGradient !== null
-        ? realizeGradient(ctx, this.textGradient, this.width, this.height)
+        ? realizeGradient(ctx, this.textGradient, tw, this.height - this.padT - this.padB)
         : this.textFill;
       ctx.textBaseline = "alphabetic";
       // Tracking (canvas-native) — set for this run, reset after so the shared
@@ -3230,13 +3245,13 @@ class CanvasSurface implements Surface {
           ctx.restore();
         }
       };
-      if (this.wrap && this.width > 0) {
+      if (this.wrap && tw > 0) {
         // Wrapping: break at the set-time-cached points and stack the lines at
         // the shared stride (the DOM backend's `line-height`), aligning each
         // within the box. The greedy breaker (measure.ts) is the one BOTH
         // backends share, so the DOM's native wrap and this agree.
         if (this.textLines === null) {
-          this.textLines = clampLines(wrapLines(disp, this.font, this.width, this.letterSpacing), this.maxLines, this.font, this.width, this.letterSpacing);
+          this.textLines = clampLines(wrapLines(disp, this.font, tw, this.letterSpacing), this.maxLines, this.font, tw, this.letterSpacing);
         }
         const lines = this.textLines;
         for (let i = 0; i < lines.length; i++) {
@@ -3244,7 +3259,7 @@ class CanvasSurface implements Surface {
           let x = 0;
           if (this.align !== "left") {
             const lw = textWidth(line, this.font, this.letterSpacing);
-            x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
+            x = this.align === "center" ? (tw - lw) / 2 : tw - lw;
           }
           paintLine(line, x, this.halfLead + this.ascent + i * this.lineHeight);
         }
@@ -3262,15 +3277,16 @@ class CanvasSurface implements Surface {
         for (let i = 0; i < hard.length; i++) {
           const line = hard[i];
           let x = 0;
-          if (this.align !== "left" && this.width > 0) {
+          if (this.align !== "left" && tw > 0) {
             const lw = textWidth(line, this.font, this.letterSpacing);
-            x = this.align === "center" ? (this.width - lw) / 2 : this.width - lw;
+            x = this.align === "center" ? (tw - lw) / 2 : tw - lw;
           }
           paintLine(line, x, this.halfLead + this.ascent + i * this.lineHeight);
         }
       }
       if (restoreShadow) ctx.restore();
       if (this.letterSpacing !== 0) lsCtx.letterSpacing = "0px";
+      if (padded) ctx.restore();
     }
     if (this.scrolls || this.scrollsX) {
       // Scroll container: clip to the box and offset the content — the canvas

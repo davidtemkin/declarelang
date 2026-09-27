@@ -88,6 +88,22 @@ class LinesSection extends Section [ title = "Lines",
             t: Text [ x = 10, y = 20, fontSize = 56, lineHeight = 1, fontWeight = bold, fontFamily = "Georgia, serif", text = "Hgy" ],
             top: View [ x = 10, y = 20, width = 120, height = 1, fill = 0x2E6FE0 ],
             bottom: View [ x = 10, y = { 20 + parent.t.height }, width = 120, height = 1, fill = 0xE4572E ]
+            ],
+        Swatch [ name = "padding · wraps inside",
+            t: Text [ x = 10, y = 10, width = 192, padding = [8, 14, 9, 14], fill = #2E6FE011, fontSize = 13,
+                text = "Padding insets the text: it wraps inside the box less the padding." ]
+            ],
+        Swatch [ name = "padding · auto size",
+            t: Text [ x = 20, y = 30, padding = [6, 16, 6, 16], fill = #2E6FE011, fontSize = 20, text = "Padded" ],
+            ring: View [ x = 20, y = 30, width = { parent.t.width }, height = { parent.t.height }, stroke = stroke(1, #E4572E) ]
+            ],
+        Swatch [ name = "padding · centred",
+            t: Text [ x = 10, y = 30, width = 192, padding = [8, 40, 8, 10], textAlign = center, fill = #2E6FE011, fontSize = 16,
+                text = "Centred in what is left" ]
+            ],
+        Swatch [ name = "padding · clamped",
+            t: Text [ x = 10, y = 30, width = 192, maxLines = 1, padding = [5, 18, 5, 18], fill = #2E6FE011, fontSize = 14,
+                text = "A clamped line ends its ellipsis inside the padding, not at the edge." ]
             ]
         ],
     SubHead [ visible = { app.matrix }, text = "Baseline" ],

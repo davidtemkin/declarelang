@@ -66,7 +66,7 @@ const checkAttr = (schema, attr) => CHECKER.checkAttr(schema, attr);
 const checkMethod = (eff, m) => CHECKER.checkMethod(eff, m);
 const checkComponentValue = (...a) => CHECKER.checkComponentValue(...a);
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken } from "./program-schema.js";
-import { fontObjectHint, isFontNode } from "./font-value.js";
+import { fontObjectHint } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
@@ -482,11 +482,10 @@ function initNodeTree(node) {
         INITED.add(node);
         fireEvent(node, "init");
     }
-    // A font inside a faceless node (a controller holding its own typeface) starts
-    // loading like one on a view (initTree's source pass).
-    for (const child of node.children)
-        if (isFontNode(child))
-            child.autoStart();
+    // A faceless node's own members start exactly as a view's do: a model class
+    // holding a Time, a Socket, an animator, a State or a sprung attribute is the
+    // guide's own Store/Log shape, and it gets the same pass (startMembers).
+    startMembers(node);
 }
 function initTree(view) {
     for (const child of view.children) {
@@ -505,13 +504,17 @@ function initTree(view) {
         INITED.add(view);
         fireEvent(view, "init");
     }
-    // Auto-start animators AFTER this view's init (and its subtree's), so an
-    // onInit that sets up geometry is reflected in the animator's sampled `from`
-    // (animation.md §1: LZX's auto-start-at-init). Animators are non-View
-    // children, skipped by the recursion above; pay-per-use — no animators, no
-    // cost. Idempotent (autoStart fires once per lifetime), so a replicated
-    // subtree's own initTree covers its animators too.
-    for (const child of view.children) {
+    startMembers(view);
+}
+/** Start a node's non-view members — on a view and on a faceless node alike.
+ *  Auto-start animators AFTER the owner's init (and its subtree's), so an
+ *  onInit that sets up geometry is reflected in the animator's sampled `from`
+ *  (animation.md §1: LZX's auto-start-at-init). Animators are non-View
+ *  children, skipped by the recursion above; pay-per-use — no animators, no
+ *  cost. Idempotent (autoStart fires once per lifetime), so a replicated
+ *  subtree's own initTree covers its animators too. */
+function startMembers(owner) {
+    for (const child of owner.children) {
         // A Spring consumes its declaration snap here — its first computed
         // target renders outright; physics governs every change after (the
         // boot-equal-to-default case never wakes, so priming cannot be lazy).

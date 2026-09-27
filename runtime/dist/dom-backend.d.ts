@@ -371,6 +371,8 @@ export declare class DomSurface implements Surface {
      *  keeps its whole text in the page — text-clamp.ts, a module of its own. */
     private clampRule;
     private renderClamped;
+    /** The run's horizontal insets together (TextStyle padLeft + padRight). */
+    private textPadX;
     setTextStyle(st: TextStyle): void;
     /** The text run element, created on first use. A positioned <span> — not a
      *  bare text node — so it paints in element order with the other content

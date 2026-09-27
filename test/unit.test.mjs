@@ -8122,6 +8122,51 @@ const fakeTimeHost = (start) => {
 /** 10:15:42 local on Wednesday 2026-08-26 — 42s into a minute, so boundary math is checkable */
 const T0 = new Date(2026, 7, 26, 10, 15, 42, 0).getTime();
 
+await test("a derived Dataset inside a model class derives, re-derives on a write, and drives replication", () => {
+  const app = build(`schema Row [ n: number ]
+    class Log [
+      sessions: Dataset { { "rows": [ { "n": 1 }, { "n": 2 } ] } },
+      total() -> number { return (this.sessions.value?.rows ?? []).reduce((a, r) => a + r.n, 0) },
+      week: Dataset [ schema = [ rows[]: Row, sum: number ], contents = { ({ rows: classroot.sessions.value?.rows ?? [], sum: classroot.total() }) } ]
+      ]
+    App [ width = 200, height = 200, log: Log [ ],
+      list: View [ datapath = { parent.log.week.value }, View [ datapath = :rows[], width = { :n * 10 }, height = 4 ] ] ]`);
+  settle();
+  assert.equal(app.log.week.value.sum, 3, "the model's derived Dataset derived");
+  assert.deepEqual(app.list.childViews.map((v) => v.width), [10, 20], "…and drives replication from outside the model");
+  app.log.sessions.insert(["rows"], 2, { n: 4 }); settle();
+  assert.equal(app.log.week.value.sum, 7, "a write to the working copy re-derives it");
+  assert.deepEqual(app.list.childViews.map((v) => v.width), [10, 20, 40], "…and the replicas follow");
+  app.discard();
+});
+
+await test("a MODEL CLASS starts its members as a view does — a Time ticks, an animator runs, a spring snaps to its first target", () => {
+  // The guide's Store/Log shape: sources and motion inside a class with no view
+  // base. Its members used to get only `init`: a Time never armed (a live poll
+  // silently never re-fetched), an animator never started.
+  const h = fakeTimeHost(T0);
+  setTimeHost(h);
+  try {
+    const app = build(`class Model [
+        ticks: number = 0,
+        poll: Time [ tick = minute, onTick(dt: number) { classroot.ticks = classroot.ticks + 1 } ],
+        target: number = 40,
+        shown: number = 0,
+        Spring [ attribute = shown, to = { classroot.target } ],
+        swept: number = 0,
+        sweep: Animator [ attribute = swept, from = 0, to = 1, duration = 100, started = true ]
+        ]
+      App [ width = 100, height = 100, model: Model [ ] ]`);
+    settle();
+    assert.equal(h.timers.length, 1, "the model's Time armed its alarm");
+    h.fire(); settle();
+    assert.equal(app.model.ticks, 1, "…and ticked");
+    assert.equal(app.model.shown, 40, "the spring took its first target outright (the declaration snap)");
+    assert.equal(app.model.sweep.running, true, "the model's animator auto-started");
+    app.discard();
+  } finally { setTimeHost(null); }
+});
+
 await test("Time [ tick = minute ]: facts stand at boot, the alarm aims at the flip, a tracked read wakes there, an untracked read is live", () => {
   const h = fakeTimeHost(T0);
   setTimeHost(h);

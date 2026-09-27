@@ -1308,7 +1308,15 @@ final class LayerTree {
             }
         }
         if let p = n.player { p.bounds = CGRect(origin: .zero, size: n.box.size); p.position = .zero }
-        if let t = n.text { t.fit(box: n.box.size) }
+        if let t = n.text { fitText(t, n) }
+    }
+
+    /// The text layer fitted to the box less the Text's padding — the layer is
+    /// bottom-up, so its origin is the left and BOTTOM insets.
+    private func fitText(_ t: TextLayer, _ n: Node) {
+        let p = n.textStyle.pad
+        t.fit(box: CGSize(width: max(0, n.box.width - CGFloat(p.1 + p.3)), height: max(0, n.box.height - CGFloat(p.0 + p.2))),
+              origin: CGPoint(x: CGFloat(p.3), y: CGFloat(p.2)))
     }
 
     /// A TextStyle payload → the spec. Shared by TEXTSTYLE and by EDIT, which
@@ -1368,6 +1376,9 @@ final class LayerTree {
         st.smallCaps = (s["smallCaps"] as? NSNumber)?.boolValue ?? false
         st.underline = (s["underline"] as? NSNumber)?.boolValue ?? false
         st.strike = (s["strike"] as? NSNumber)?.boolValue ?? false
+        if let p = s["pad"] as? [NSNumber], p.count == 4 {
+            st.pad = (p[0].doubleValue, p[1].doubleValue, p[2].doubleValue, p[3].doubleValue)
+        }
         if let o = s["outline"] as? [String: Any], let w = (o["width"] as? NSNumber)?.doubleValue, w > 0 {
             st.outline = (w, (o["color"] as? String).flatMap { CSSColor.parse($0) } ?? .labelColor)
         }
@@ -1420,7 +1431,7 @@ final class LayerTree {
         t.align = n.textStyle.align
         t.fillGradient = n.textStyle.fillGradient
         t.attributed = TextEngine.attributed(n.textString, style: n.textStyle)
-        t.fit(box: n.box.size)
+        fitText(t, n)
     }
 
     /// Bitmaps far larger than the box they are drawn in, at the size they will

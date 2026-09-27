@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "4d9c386cd33c",
+  "buildId": "bab6322c7f50",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -3640,115 +3640,115 @@
    },
    "ED99BD2": {
     "message": "style …: a bundle carries attribute sets only — a look, not a component",
-    "at": "instantiate.ts:595"
+    "at": "instantiate.ts:601"
    },
    "E99FB68": {
     "message": "….…: '…' is a built-in member of the runtime … — choose another name",
-    "at": "instantiate.ts:669"
+    "at": "instantiate.ts:675"
    },
    "E9CD504": {
     "message": "….…'s default = { … } …",
-    "at": "instantiate.ts:678"
+    "at": "instantiate.ts:684"
    },
    "E067112": {
     "message": "….…: '…' is a built-in field of the runtime …, not a method — a method may not take its name",
-    "at": "instantiate.ts:816"
+    "at": "instantiate.ts:822"
    },
    "E536F21": {
     "message": "….…: '…' is a member of every object — choose another name",
-    "at": "instantiate.ts:821"
+    "at": "instantiate.ts:827"
    },
    "ECBF1B8": {
     "message": "….…: '…' is runtime plumbing (a $-member) — choose another name",
-    "at": "instantiate.ts:824"
+    "at": "instantiate.ts:830"
    },
    "E7E2E60": {
     "message": "….…(…) …",
-    "at": "instantiate.ts:833"
+    "at": "instantiate.ts:839"
    },
    "ECE4353": {
     "message": "….… = :…: …",
-    "at": "instantiate.ts:929"
+    "at": "instantiate.ts:935"
    },
    "EB5CD6B": {
     "message": "….…: no axis to resolve a percent against",
-    "at": "instantiate.ts:932"
+    "at": "instantiate.ts:938"
    },
    "E0AC949": {
     "message": "unknown component '…'",
-    "at": "instantiate.ts:952"
+    "at": "instantiate.ts:958"
    },
    "ED46990": {
     "message": "':…[]' makes many instances — a replication belongs on a child element, not here",
-    "at": "instantiate.ts:1103"
+    "at": "instantiate.ts:1109"
    },
    "EA9624C": {
     "message": "datapath = :… — a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :…[]",
-    "at": "instantiate.ts:1112"
+    "at": "instantiate.ts:1118"
    },
    "E526053": {
     "message": "'… <-> :…' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it",
-    "at": "instantiate.ts:1125"
+    "at": "instantiate.ts:1131"
    },
    "E0CEFC8": {
     "message": "class … contains itself — a class may not appear inside its own body",
-    "at": "instantiate.ts:1171"
+    "at": "instantiate.ts:1177"
    },
    "E6D26FF": {
     "message": "a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'",
-    "at": "instantiate.ts:1206"
+    "at": "instantiate.ts:1212"
    },
    "EBDD8CF": {
     "message": "…: the embedded data does not match the schema — …",
-    "at": "instantiate.ts:1228"
+    "at": "instantiate.ts:1234"
    },
    "ECC636A": {
     "message": "a … overrides its enclosing view's slots, but '…' has no view to target here",
-    "at": "instantiate.ts:1389"
+    "at": "instantiate.ts:1395"
    },
    "EAC3FD7": {
     "message": "….…: a state override is a value or a { }, not a data read",
-    "at": "instantiate.ts:1403"
+    "at": "instantiate.ts:1409"
    },
    "E73D55D": {
     "message": "….…: a state override sets a declared slot of the view, not a provided value",
-    "at": "instantiate.ts:1405"
+    "at": "instantiate.ts:1411"
    },
    "E95A703": {
     "message": "….…: a layout attribute takes a literal or { }",
-    "at": "instantiate.ts:1455"
+    "at": "instantiate.ts:1461"
    },
    "EB3EBF7": {
     "message": "a replicated child cannot be named — ':…[]' makes one instance per record, and '…' can only name one; reach the instances through their data",
-    "at": "instantiate.ts:1516"
+    "at": "instantiate.ts:1522"
    },
    "E418372": {
     "message": "virtualize = { … } …",
-    "at": "instantiate.ts:1537"
+    "at": "instantiate.ts:1543"
    },
    "EF86534": {
     "message": "'…' is already a member of the running … — choose another name for this child",
-    "at": "instantiate.ts:1563"
+    "at": "instantiate.ts:1569"
    },
    "EEF1C34": {
     "message": "createView: this tree was not built from a program (no registry to resolve '…' against)",
-    "at": "instantiate.ts:1586"
+    "at": "instantiate.ts:1592"
    },
    "E0580F5": {
     "message": "— declare the class, include its library, or keep it with 'use [ … ]'",
-    "at": "instantiate.ts:1589"
+    "at": "instantiate.ts:1595"
    },
    "EE1ADC3": {
     "message": "createView: no component named '…'…",
-    "at": "instantiate.ts:1590"
+    "at": "instantiate.ts:1596"
    },
    "ED8CD97": {
     "message": "a … cannot replicate — it is not a view",
-    "at": "instantiate.ts:1632"
+    "at": "instantiate.ts:1638"
    },
    "E367A91": {
     "message": "evaluate: this tree was not built from a program (no registry to resolve against)",
-    "at": "instantiate.ts:1674"
+    "at": "instantiate.ts:1680"
    },
    "E78A7D6": {
     "message": "skipped — visible = false",
@@ -16878,7 +16878,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 265
+    "line": 279
    },
    "parent": "Text",
    "seeAlso": [],
@@ -16902,7 +16902,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 270
+    "line": 284
    },
    "parent": "Text",
    "seeAlso": [],
@@ -16926,7 +16926,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 271
+    "line": 285
    },
    "parent": "Text",
    "seeAlso": [],
@@ -16950,7 +16950,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 272
+    "line": 286
    },
    "parent": "Text",
    "seeAlso": [],
@@ -16974,7 +16974,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 273
+    "line": 287
    },
    "parent": "Text",
    "seeAlso": [],
@@ -16998,7 +16998,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 274
+    "line": 288
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17022,7 +17022,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 275
+    "line": 289
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17046,7 +17046,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 276
+    "line": 290
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17070,7 +17070,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 277
+    "line": 291
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17105,7 +17105,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 280
+    "line": 294
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17129,7 +17129,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 281
+    "line": 295
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17153,7 +17153,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 282
+    "line": 296
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17177,7 +17177,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 285
+    "line": 299
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17201,7 +17201,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 286
+    "line": 300
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17225,7 +17225,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 287
+    "line": 301
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17249,7 +17249,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 288
+    "line": 302
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17273,7 +17273,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 289
+    "line": 303
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17297,7 +17297,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 290
+    "line": 304
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17435,7 +17435,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 97
+    "line": 108
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17453,7 +17453,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 100
+    "line": 111
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17471,7 +17471,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 103
+    "line": 114
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17489,7 +17489,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 105
+    "line": 116
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17507,7 +17507,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 112
+    "line": 123
    },
    "parent": "Text",
    "seeAlso": [],
@@ -17525,7 +17525,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/text.ts",
-    "line": 117
+    "line": 128
    },
    "parent": "Text",
    "seeAlso": [],
@@ -43702,7 +43702,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 265
+      "line": 279
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43726,7 +43726,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 270
+      "line": 284
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43750,7 +43750,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 271
+      "line": 285
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43774,7 +43774,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 272
+      "line": 286
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43798,7 +43798,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 273
+      "line": 287
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43822,7 +43822,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 274
+      "line": 288
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43846,7 +43846,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 275
+      "line": 289
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43870,7 +43870,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 276
+      "line": 290
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43894,7 +43894,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 277
+      "line": 291
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43929,7 +43929,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 280
+      "line": 294
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43953,7 +43953,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 281
+      "line": 295
      },
      "parent": "Text",
      "seeAlso": [],
@@ -43977,7 +43977,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 282
+      "line": 296
      },
      "parent": "Text",
      "seeAlso": [],
@@ -44001,7 +44001,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 285
+      "line": 299
      },
      "parent": "Text",
      "seeAlso": [],
@@ -44025,7 +44025,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 286
+      "line": 300
      },
      "parent": "Text",
      "seeAlso": [],
@@ -44049,7 +44049,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 287
+      "line": 301
      },
      "parent": "Text",
      "seeAlso": [],
@@ -44073,7 +44073,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 288
+      "line": 302
      },
      "parent": "Text",
      "seeAlso": [],
@@ -44097,7 +44097,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 289
+      "line": 303
      },
      "parent": "Text",
      "seeAlso": [],
@@ -44121,7 +44121,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/text.ts",
-      "line": 290
+      "line": 304
      },
      "parent": "Text",
      "seeAlso": [],
@@ -64580,7 +64580,7 @@
    "name": "1 SATOR",
    "segs": [
     {
-     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 119 KB gzipped (machine-stamped from\nthe measured artifact): a compact runtime, practical on a phone over a slow network.\nInput latency is low — there is no virtual-DOM pass between gesture and pixels — and\nanimation runs at the display's full rate. The homepage reports the live size figures,\nmeasured from the deployed artifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+     "md": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 120 KB gzipped (machine-stamped from\nthe measured artifact): a compact runtime, practical on a phone over a slow network.\nInput latency is low — there is no virtual-DOM pass between gesture and pixels — and\nanimation runs at the display's full rate. The homepage reports the live size figures,\nmeasured from the deployed artifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
      "code": []
     }
    ]
@@ -72371,7 +72371,7 @@
        "subtitle": "",
        "kind": "tenet",
        "label": "Tenet",
-       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 119 KB gzipped (machine-stamped from\nthe measured artifact): a compact runtime, practical on a phone over a slow network.\nInput latency is low — there is no virtual-DOM pass between gesture and pixels — and\nanimation runs at the display's full rate. The homepage reports the live size figures,\nmeasured from the deployed artifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
+       "doc": "# How it ships\n\nDelivery, hosting, and the honest posture — the promises about running and\nshipping a Declare program.\n\n### SATOR-1 — Programs are data\nA compiled program is data the toolchain can read, so one compiler powers the\ndocumentation system, static extraction for crawlers, and live editing alike —\nnot three separate pipelines.\n*Held in:* FAQ (\"programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing\").\n\n### SATOR-2 — What a visitor sees and what a crawler sees can never drift\nStatic extraction is built into the compiler: it runs the program headlessly to\nits settled state and serializes the actual content as semantic HTML — real\nheadings, paragraphs, links — baked into the page at build time. A crawler (or an\nAI reading the web) reads that; a person gets the live app that replaces it at\nboot. No server-side rendering, no hydration — it works on a plain static host.\n*Held in:* FAQ (\"How do Declare-written sites handle crawlers and SEO\"); the \"why\" essay (\"what a visitor sees and what a crawler sees can never drift\").\n\n### SATOR-3 — In-browser compilation, and no build step to develop\nBecause the compiler runs in the page, a page can edit and re-run itself: every\nsample is live-editable, and view-source culture is restored. Development needs no\nbuild step — the dev server and the browser use the *same* compiler with\nbyte-identical output.\n*Held in:* FAQ (\"What benefits does in-browser compilation bring\"); getstarted (\"no build step\").\n\n### SATOR-4 — You don't ship the compiler\nFor production, `declarec` precompiles everything into a small, self-contained\nartifact — a set of static files you can host anywhere, with no trace of the\ntoolchain and no compiler aboard.\n*Held in:* FAQ (\"For production you don't ship the compiler\").\n\n### SATOR-5 — The program's URL is the app's address\nA program is addressed by its own URL: on the dev server, browse to a `.declare`\nfile's URL and get the running app. The address is the program, not a route\nregistered elsewhere.\n*Held in:* getstarted (\"the program URL is the app's address\"); FAQ.\n\n### SATOR-6 — Small, and fast where it counts\nA full application ships small — the flagship calendar, application *and* runtime,\nat roughly 120 KB gzipped (machine-stamped from\nthe measured artifact): a compact runtime, practical on a phone over a slow network.\nInput latency is low — there is no virtual-DOM pass between gesture and pixels — and\nanimation runs at the display's full rate. The homepage reports the live size figures,\nmeasured from the deployed artifacts and regenerated with them on every publication.\n*Held in:* FAQ (\"What should I expect in terms of performance\").\n\n### SATOR-7 — Honest about the trades and the gaps\nThe promises come with their limits stated plainly: a framework with no in-browser\ncompiler wins the very first cold load (the production path closes the gap by\nprecompiling); Declare is young and the repository *is* the distribution and the\nsource of truth; and accessibility depth, an npm package, and a dedicated editor\nextension are named, unhidden gaps.\n*Held in:* FAQ (\"Startup\" trade; \"How mature is Declare?\"; \"Is Declare accessible?\"; \"Is there editor support?\").\n\n### SATOR-8 — Open, MIT, entirely public\nThe complete source — compiler, runtime, standard library, documentation, and the\nsite itself — is public under the MIT license.\n*Held in:* FAQ (\"What license is Declare offered under?\").",
        "preview": "Delivery, hosting, and the honest posture — the promises about running and shipping a Declare program. SATOR-1 — Programs are data A compiled program is data the toolchain can read, so one compiler powers the documentation system, static ex…"
       },
       {

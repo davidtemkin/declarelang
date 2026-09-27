@@ -55,6 +55,28 @@ function drawn(root) {
   return out;
 }
 
+// ── the run's box ─────────────────────────────────────────────────────────────
+await test("padding insets a Text's run: auto size grows by it, wrapping and the baseline move inside it", async () => {
+  // 8px a character, 16px a line (the stub measurer above)
+  const app = await boot(`auto: Text [ padding = [6, 10, 4, 12], text = "abcd" ],
+    wrapped: Text [ y = 60, width = 70, padding = [0, 11, 0, 11], text = "ab ab ab" ]`);
+  assert.equal(app.auto.width, 4 * 8 + 12 + 10, "auto width is the run plus both horizontal insets");
+  assert.equal(app.auto.height, 16 + 6 + 4, "auto height is the line plus both vertical insets");
+  assert.equal(app.auto.baseline, 6 + 12, "the baseline sits the top inset lower");
+  // 70 wide less 22 of padding leaves 48: "ab ab" (40) fits, "ab ab ab" (64) does not
+  assert.equal(app.wrapped.height, 2 * 16, "it wraps at the width less the horizontal insets");
+  const st = app.auto.surface.textStyle;
+  assert.deepEqual([st.padTop, st.padRight, st.padBottom, st.padLeft], [6, 10, 4, 12], "the renderers are told the insets");
+});
+
+await test("a { } that yields null before its data arrives draws the empty run — never a crash under a text transform", async () => {
+  const app = await boot(`d: Dataset { { "rows": [ { "a": null }, { "a": "ok" } ] } },
+    col: View [ datapath = { app.d.value }, Text [ datapath = :rows[], text = { :a }, textTransform = uppercase ] ]`);
+  const [empty, ok] = app.col.childViews;
+  assert.equal(empty.width, 0, "the absent value measures as the empty run");
+  assert.equal(ok.width, 16, "the present one as itself");
+});
+
 // ── fonts ─────────────────────────────────────────────────────────────────────
 
 await test("the Mac host reads the derived family name this side writes", () => {

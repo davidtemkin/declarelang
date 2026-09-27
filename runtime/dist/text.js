@@ -22,7 +22,7 @@
 // tracking); the derive *yields* to a direct author write. Wrapping /
 // multiline is a ruled open question (HANDOFF) — a run never wraps.
 import { View, onDiscard } from "./view.js";
-import { shadowEqual, outlineEqual } from "./value.js";
+import { insetSides, shadowEqual, outlineEqual } from "./value.js";
 import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight } from "./measure.js";
 import { holdsFamily, heldFamily } from "./font-value.js";
 /** A line count under `maxLines` (0 = no clamp). */
@@ -30,6 +30,15 @@ const clampN = (n, max) => (max > 0 ? Math.min(n, max) : n);
 import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
 import { Constraint } from "./reactive.js";
 import { faceGenerationNow } from "./face-table.js";
+/** The run as drawn: `text`, with an absent value (a `{ }` that reads a field
+ *  before its data arrives) as the empty run — what a `:path` binding already
+ *  gives. A function, not a member: nothing is added to every Text's names. */
+function runOf(t) { return t.text ?? ""; }
+/** A Text's padding as the style's four fields (TextStyle.padTop…padLeft). */
+function padFields(p) {
+    const [padTop, padRight, padBottom, padLeft] = insetSides(p);
+    return { padTop, padRight, padBottom, padLeft };
+}
 /** Field-by-field identity of two style records built by the same code (same
  *  keys, same order). */
 function sameRecord(a, b) {
@@ -73,7 +82,7 @@ export class Text extends View {
      *  line-height does, and every renderer places glyphs by the same rule. */
     get baseline() {
         const m = fontMetrics(fontString(this));
-        return m.ascent + Math.floor((this.lineAdvance(m) - (m.ascent + m.descent)) / 2);
+        return insetSides(this.padding)[0] + m.ascent + Math.floor((this.lineAdvance(m) - (m.ascent + m.descent)) / 2);
     }
     attach(backend, parentSurface) {
         // A switch to a font still inside its wait keeps this run in the family it
@@ -87,8 +96,9 @@ export class Text extends View {
             // even when soft wrapping is off, so the whole string is not one line's width.
             bindDerived(this, "width", () => {
                 const font = fontString(this);
-                return Math.ceil(transformText(this.text, this.textTransform).split("\n")
-                    .reduce((w, line) => Math.max(w, textWidth(line, font, this.letterSpacing)), 0));
+                const [, right, , left] = insetSides(this.padding);
+                return Math.ceil(transformText(runOf(this), this.textTransform).split("\n")
+                    .reduce((w, line) => Math.max(w, textWidth(line, font, this.letterSpacing)), 0)) + left + right;
             });
         }
         if (!isSet(this, "height") && ownerOf(this, "height") === null) {
@@ -100,13 +110,14 @@ export class Text extends View {
                 // container/viewport resize re-wraps and re-flows — baseline.
                 const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
                 const all = bounded && this.wrap
-                    ? wrapLines(transformText(this.text, this.textTransform), fontString(this), this.width, this.letterSpacing).length
+                    ? wrapLines(transformText(runOf(this), this.textTransform), fontString(this), this.contentBox("width"), this.letterSpacing).length
                     // Not wrapping still breaks at a HARD newline — DOM (`pre`), canvas and the
                     // Mac host all draw each line — so a code block's Text is as tall as its lines.
-                    : this.text.split("\n").length;
+                    : runOf(this).split("\n").length;
                 setBound(this, "truncated", this.maxLines > 0 && all > this.maxLines);
                 const lines = clampN(all, this.maxLines);
-                return Math.ceil(lineH * lines);
+                const [top, , bottom] = insetSides(this.padding);
+                return Math.ceil(lineH * lines) + top + bottom;
             });
         }
         super.attach(backend, parentSurface);
@@ -121,12 +132,12 @@ export class Text extends View {
      *  wrapped line count when the width is bounded, matching the derives above. */
     contentExtent(size) {
         const font = fontString(this);
-        const disp = transformText(this.text, this.textTransform);
+        const disp = transformText(runOf(this), this.textTransform);
         if (size === "width")
             return Math.ceil(disp.split("\n").reduce((w, line) => Math.max(w, textWidth(line, font, this.letterSpacing)), 0));
         const m = fontMetrics(font);
         const bounded = (isSet(this, "width") || ownerOf(this, "width") !== null) && this.width > 0;
-        const all = bounded && this.wrap ? wrapLines(disp, font, this.width, this.letterSpacing).length : disp.split("\n").length;
+        const all = bounded && this.wrap ? wrapLines(disp, font, this.contentBox("width"), this.letterSpacing).length : disp.split("\n").length;
         setBound(this, "truncated", this.maxLines > 0 && all > this.maxLines);
         const lines = clampN(all, this.maxLines);
         return Math.ceil(this.lineAdvance(m) * lines);
@@ -178,6 +189,7 @@ export class Text extends View {
                 strike: this.strike,
                 selectable: this.selectable,
                 lineHeight: this.lineHeight,
+                ...padFields(this.padding),
             };
         }, 
         // Constraint is deliberately untyped across compute→apply; this
@@ -209,7 +221,7 @@ export class Text extends View {
         }, 0);
         style.run();
         onDiscard(this, () => style.dispose());
-        s.setText(this.text);
+        s.setText(runOf(this));
     }
 }
 defineAttributes(Text, {
@@ -225,7 +237,7 @@ defineAttributes(Text, {
         defBinding: providedDefault("selectable", false),
         push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
     },
-    text: { def: "", push: (t, v) => t.surface?.setText(v) },
+    text: { def: "", push: (t, v) => t.surface?.setText(v ?? "") },
     textShadow: { def: null, equal: shadowEqual },
     wrap: { def: true },
     maxLines: { def: 0 },

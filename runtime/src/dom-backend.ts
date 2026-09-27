@@ -2121,10 +2121,19 @@ export class DomSurface implements Surface {
   /** A CLAMPED run's rule (`maxLines`): the run is cut by the shared rule and
    *  keeps its whole text in the page — text-clamp.ts, a module of its own. */
   private clampRule: ClampRule | null = null;
-  private renderClamped(): void { renderClamped(this.textRun(), this.rawText, this.clampRule!, this.frameW); }
+  private renderClamped(): void { renderClamped(this.textRun(), this.rawText, this.clampRule!, this.frameW - this.textPadX); }
+  /** The run's horizontal insets together (TextStyle padLeft + padRight). */
+  private textPadX = 0;
 
   setTextStyle(st: TextStyle): void {
     const s = this.textRun().style;
+    // PADDING: the run sits at the leading insets and, where it fills the box,
+    // spans the box less both horizontal ones — so it wraps, aligns and clamps
+    // inside the padding, as the canvas and the Mac lay it.
+    const pl = st.padLeft ?? 0, pr = st.padRight ?? 0;
+    this.textPadX = pl + pr;
+    s.left = pl + "px";
+    s.top = (st.padTop ?? 0) + "px";
     // The EFFECTIVE family, not the authored one: OpenType figures ride the
     // family name (font-features.ts), and this element must paint in the family
     // the shared measurer measured, or its width is a lie.
@@ -2200,6 +2209,7 @@ export class DomSurface implements Surface {
         this.textRun().textContent = this.capitalized ? transformText(this.rawText, "capitalize") : this.rawText;
       }
     }
+    if (s.width === "100%" && this.textPadX > 0) s.width = `calc(100% - ${this.textPadX}px)`;
     // Pin the first baseline to the font ascent: a line-height of exactly
     // ascent+descent leaves no half-leading, so DOM text and the Canvas
     // backend's fillText(…, ascent) place identical glyph geometry. A declared

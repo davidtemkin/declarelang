@@ -63,7 +63,7 @@ final class TextLayer: CALayer {
     /// paints past the box, above the first line and below the last). A layer's
     /// backing store is its bounds, so a glyph outside them is never painted,
     /// whatever masksToBounds says: the bounds grow to the ink on both sides.
-    func fit(box: CGSize) {
+    func fit(box: CGSize, origin: CGPoint = .zero) {
         let w = max(box.width, 1), h = max(box.height, 1)
         if wrap, w != bounds.width { lines = nil }     // the breaks were taken at the old width
         bounds = CGRect(origin: .zero, size: CGSize(width: w, height: h))
@@ -75,9 +75,9 @@ final class TextLayer: CALayer {
         let need = overTop + ceil(max(h, n * pitch, inkBottom))
         if need > h {
             bounds = CGRect(origin: .zero, size: CGSize(width: w, height: need))
-            position = CGPoint(x: 0, y: h + overTop - need)
+            position = CGPoint(x: origin.x, y: origin.y + h + overTop - need)
         } else {
-            position = .zero
+            position = origin
         }
     }
 

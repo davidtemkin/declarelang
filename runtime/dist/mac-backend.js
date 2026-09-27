@@ -715,6 +715,9 @@ class MacSurface {
             smallCaps: style.smallCaps === true,
             underline: style.underline === true,
             strike: style.strike === true,
+            // the Text's padding, [top, right, bottom, left]: the host fits the text
+            // layer to the box less these (LayerTree textBox)
+            pad: [style.padTop ?? 0, style.padRight ?? 0, style.padBottom ?? 0, style.padLeft ?? 0],
         });
     }
     setDrawing(list) {

@@ -37,6 +37,13 @@ export interface TextStyle {
     /** Leading as a fontSize multiplier (line box = round(fontSize × lineHeight));
      *  0/absent = the font's natural ascent + descent. */
     readonly lineHeight?: number;
+    /** The Text's `padding`, per side: the run is laid out, wrapped and aligned
+     *  inside the box less these insets. Four numbers, not a list, so an
+     *  unchanged style compares equal field by field (Text's push skips it). */
+    readonly padTop?: number;
+    readonly padRight?: number;
+    readonly padBottom?: number;
+    readonly padLeft?: number;
     /** OpenType figures (font-features.ts). They reach the renderers through the
      *  family NAME, so a backend that wants the painted family asks
      *  `effectiveFamily(style)` rather than reading `fontFamily` raw. */
