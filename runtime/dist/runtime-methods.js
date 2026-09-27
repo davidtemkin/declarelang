@@ -59,6 +59,37 @@ export const RUNTIME_METHODS = {
     Socket: ["dial", "send"],
     State: ["onLinked", "init", "apply", "remove", "toggle", "drive", "sync", "buildChildren", "teardownChildren", "fire"],
 };
+/** THE RUNTIME FIELD TABLE — the other half of a runtime class's members: the
+ *  names an instance carries that are neither methods (above) nor declared
+ *  attributes — instance fields (`surface`, `backend`, `parent`) and prototype
+ *  accessors. A child may not take one: the runtime refuses it at instantiate
+ *  (`'surface' is already a member of the running App`), and the checker, being
+ *  runtime-free, refuses it in the source from this table. OWN names per
+ *  schema, as above; PINNED by test/override-runtime.test.mjs, which constructs
+ *  each class and recomputes the lists (minus `$`-names and attributes). */
+export const RUNTIME_FIELDS = {
+    View: ["_navLink", "backend", "drawing", "exposes", "extentRelistQueued", "insetX", "insetY", "maskUsers", "scrollsOn", "surface", "travelHost", "visArmed", "visElem", "visFlushTimer", "visGeneric", "visH", "visMode", "visOn", "visPending", "visRule", "visScale", "visStale", "visUnwatch", "visW", "visWake", "visX", "visY"],
+    App: ["demoSources", "hostServices", "hostSink", "hostValues", "lastRevealLocation", "liveReport", "pageScroll", "pageWeight", "pendingAnchor", "pendingHistoryVerb", "pendingInspect", "pendingNav", "pendingOpen", "pumpOn", "pumpRetireHooked", "readyDelivered", "revealPump", "sourceLines"],
+    Image: ["bitmap", "loadSeq", "natural"],
+    Media: ["el", "loadSeq"],
+    Video: ["natural"],
+    DOMIsland: ["exposedValues", "handle", "tenantSink"],
+    TextInput: ["pendingSel"],
+    Layout: ["authorSized", "bases", "discarded", "rearming", "reported", "stackReported", "undo", "view"],
+    TweenLayout: ["from", "to", "tween"],
+    Dataset: ["cursors"],
+    DataSource: ["autoUrl", "seq"],
+    Animator: ["autoStarted", "cyclesLeft", "elapsed", "fromJump", "grouped", "lastNow", "live", "perpetual", "runAttr", "runDelta", "runDuration", "runMotion", "runTarget", "traveled"],
+    AnimatorGroup: ["active", "autoStarted", "cyclesLeft", "grouped", "live"],
+    Spring: ["arriving", "primed", "springLastNow", "springRunning", "vel"],
+    Keys: ["wired"],
+    Focus: ["wired"],
+    Tip: ["wired"],
+    Stream: ["gen", "handle", "timer", "wasOpen", "wired"],
+    State: ["builtChildren", "childTemplates", "installed", "materialize", "overrides", "priority"],
+    Node: ["children", "classroot", "exParent", "parent", "root", "structure"],
+    RichText: ["built", "laid", "slotHost"],
+};
 /** Every schema the table can be asked about: the SCHEMAS table plus RichText,
  *  the documented-but-uninstantiable base Markdown and HTMLText share (the
  *  schema chain passes through it, so its methods must sit somewhere). */
@@ -68,6 +99,29 @@ function schemaOf(name) {
     return Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name] : null;
 }
 const CHAIN = new Map();
+const FIELD_CHAIN = new Map();
+/** The runtime fields a schema's instances carry — its own and every base's up
+ *  the schema chain (RUNTIME_FIELDS). By name for a built-in, or by schema
+ *  object for any schema, a program class's included. */
+export function runtimeFieldsOf(schema) {
+    if (typeof schema !== "string") {
+        const names = new Set();
+        for (let s = schema; s !== null; s = s.base)
+            for (const n of RUNTIME_FIELDS[s.name] ?? [])
+                names.add(n);
+        return names;
+    }
+    let set = FIELD_CHAIN.get(schema);
+    if (set === undefined) {
+        const names = new Set();
+        for (let s = schemaOf(schema); s !== null; s = s.base)
+            for (const n of RUNTIME_FIELDS[s.name] ?? [])
+                names.add(n);
+        set = names;
+        FIELD_CHAIN.set(schema, set);
+    }
+    return set;
+}
 /** The runtime methods a schema's instances carry — its own and every base's
  *  up the schema chain, i.e. the whole prototype chain. By NAME for a built-in
  *  (cached; empty for a name that is no schema), or by SCHEMA for any schema

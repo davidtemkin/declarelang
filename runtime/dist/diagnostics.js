@@ -215,6 +215,21 @@ export const Diag = {
     // A WARNING: a program overrides a runtime method the reference documents
     // no contract for. A method is a method, so the override stands — but the
     // runtime calls this one on its own schedule, with its own arguments.
+    // A datapath { } that is a literal: a cursor is a place IN declared data, and
+    // a literal array or object is a fresh value no Dataset holds — the boot
+    // refuses it ("belongs to no Dataset") every time.
+    literalDatapath: (pos) => err(code4(3006), `a datapath is a place in declared data, and a literal is in none — the value is fresh, so no Dataset holds it and the cursor has nowhere to point. Declare the records as data and point there: 'items: Dataset { { "rows": [ … ] } }', then 'datapath = { app.items.value }' and replicate with ':rows[]'`, pos),
+    // A declared type name that TypeScript's standard library already declares
+    // globally (Pick, Map, Record, …): every { } body typechecks against that
+    // library, where the name already means the built-in — so a reference in a
+    // body reaches the wrong thing, and TypeScript's errors blame the use.
+    shadowsTsGlobal: (kind, name, lib, pos) => err(code4(4015), `${kind} ${name} takes a name TypeScript's standard library already declares (${lib}) — the { } bodies typecheck against that library, where '${name}' means the built-in, so a use of yours there reaches the wrong thing. Choose another name`, pos),
+    // A Spring owns its slot for as long as it lives — it never finishes — so a
+    // slot its view also binds ({ }, :path or a percent) has two owners, and the
+    // boot refuses it. (An Animator may drive a bound slot: it takes the slot for
+    // its run and the constraint takes it back — the LZX slide.) Always wrong for
+    // a Spring, so an error, and the message gives the form that works.
+    springsBoundSlot: (owner, slot, spring, pos) => err(code4(2005), `${owner}.${slot} is bound by a constraint, so this ${spring} cannot drive it — a spring owns its slot for as long as it lives, and a bound slot belongs to its constraint. Put the target in the spring and leave ${slot} unbound: ${spring} [ attribute = ${slot}, to = { … } ]`, pos),
     overridesPlumbing: (owner, name, base, pos) => err(code4(4009), `${owner}.${name}() replaces ${base}'s ${name}(), which is runtime plumbing — the reference documents no contract for it: the runtime calls it when and how it needs to, and a later version may change either. The override stands (super.${name}(…) reaches the runtime's); if this was meant as a method of your own, choose another name`, pos),
     // A WARNING: a class named exactly like a tag the rich-text whitelist owns.
     // Inside `Markdown`/`HTMLText` content a tag is resolved against the program's
@@ -318,12 +333,14 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(2002), phase: "structure", summary: "a name is declared more than once" },
     { code: code4(2003), phase: "structure", summary: "a member is placed where its node-kind forbids it" },
     { code: code4(2004), phase: "structure", summary: "a name violates the member namespace" },
+    { code: code4(2005), phase: "structure", summary: "a Spring drives a slot its view also binds — the target belongs in the Spring's to" },
     { code: code4(3000), phase: "type", summary: "type/value error (unclassified)" },
     { code: code4(3001), phase: "type", summary: "a value does not fit its slot's type" },
     { code: code4(3002), phase: "type", summary: "a percent with no axis to resolve against" },
     { code: code4(3003), phase: "type", summary: "a malformed datapath" },
     { code: code4(3004), phase: "type", summary: "an attribute is set twice" },
     { code: code4(3005), phase: "type", summary: "a text field's size sits under the iOS focus-zoom line (warning)" },
+    { code: code4(3006), phase: "type", summary: "a datapath { } is a literal — a fresh value no Dataset holds" },
     { code: code4(4000), phase: "name", summary: "name-resolution error (unclassified)" },
     { code: code4(4001), phase: "name", summary: "a bare name resolves to nothing in scope" },
     { code: code4(4002), phase: "name", summary: "a bare name shadows an outer member (warning)" },
@@ -339,6 +356,7 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4012), phase: "name", summary: "an Animator nothing ever starts — no 'started', no start() call (warning)" },
     { code: code4(4013), phase: "name", summary: "a press() override on a Button — the click runs onClick, not this (warning)" },
     { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },
+    { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library declares" },
     { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
     { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
     { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

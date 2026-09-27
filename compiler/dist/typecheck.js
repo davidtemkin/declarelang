@@ -117,6 +117,20 @@ export function typecheckBodies(resolved, program) {
     const starts = lineStarts(resolved);
     const synthTags = emitter.synthTags;
     const out = [];
+    // A declared type name the standard library already owns: said once, at the
+    // declaration, before TypeScript's errors at each use.
+    const globals = libGlobals(tsProgram);
+    const declared = [
+        ["class", rprog.classes], ["schema", rprog.shapes ?? []], ["theme", rprog.themes ?? []], ["style", rprog.styles ?? []],
+    ];
+    for (const [kind, list] of declared)
+        for (const d of list) {
+            const lib = globals.get(d.name);
+            if (lib !== undefined)
+                out.push(Diag.shadowsTsGlobal(kind, d.name, lib, d.pos));
+        }
+    for (const pos of emitter.literalPaths)
+        out.push(Diag.literalDatapath(pos));
     for (const d of diags) {
         const u = emitter.unitAt(d.line);
         if (u === null) {
@@ -629,9 +643,13 @@ class CaseEmitter {
      *  rooted at a class declaration's body (its root-level `parent` is typed
      *  `View`: an instance mounts under SOME view, statically unknowable — while
      *  the main tree's root is the App, whose parent truly is null). */
+    /** `datapath = { … }` bodies that are LITERALS (typecheckBodies reports them). */
+    literalPaths = [];
     walkElement(el, ancestors, classBody) {
         const levels = [el, ...ancestors];
         for (const a of el.attrs) {
+            if (a.value.kind === "code" && a.name === "datapath" && isLiteralExpression(a.value.src))
+                this.literalPaths.push(a.value.pos);
             if (a.value.kind === "code") {
                 // THE PRODUCER'S WALL (typed data, 2026-09-02): on a schema'd derived
                 // dataset, `contents` is checked against the DOCUMENT type — the
@@ -807,6 +825,52 @@ function tsSlotType(schemas, tag, slot) {
 // typecheck attempted with NO provider registered throws loudly (a wiring bug
 // must never degrade into silently-unchecked code).
 let libProvider = null;
+/** Is `src` — a `{ }` body — a literal value: an array, an object, a string, a
+ *  number, a boolean, or a template with nothing interpolated (parentheses
+ *  unwrapped)? Parsed, not pattern-matched: `[app.d.value][0]` is an element
+ *  access, not a literal. */
+function isLiteralExpression(src) {
+    const sf = ts.createSourceFile("literal.ts", `(${src}\n)`, ts.ScriptTarget.ES2022, false);
+    const st = sf.statements[0];
+    if (sf.statements.length !== 1 || st === undefined || !ts.isExpressionStatement(st))
+        return false;
+    let e = st.expression;
+    while (ts.isParenthesizedExpression(e))
+        e = e.expression;
+    return ts.isArrayLiteralExpression(e) || ts.isObjectLiteralExpression(e) || ts.isStringLiteral(e) || ts.isNumericLiteral(e)
+        || ts.isNoSubstitutionTemplateLiteral(e) || e.kind === ts.SyntaxKind.TrueKeyword || e.kind === ts.SyntaxKind.FalseKeyword;
+}
+/** Every name the loaded standard library declares at its top level, and the
+ *  lib file that declares it — read off the library's own syntax trees in the
+ *  program that just ran, so it is exactly the library the bodies are checked
+ *  against (no list to keep). Cached: the library does not change in a run. */
+let LIB_GLOBALS = null;
+function libGlobals(tsProgram) {
+    if (LIB_GLOBALS !== null)
+        return LIB_GLOBALS;
+    const out = new Map();
+    for (const sf of tsProgram.getSourceFiles()) {
+        const file = sf.fileName.split("/").pop() ?? sf.fileName;
+        if (!file.startsWith("lib."))
+            continue;
+        for (const st of sf.statements) {
+            const names = [];
+            if (ts.isVariableStatement(st)) {
+                for (const d of st.declarationList.declarations)
+                    if (ts.isIdentifier(d.name))
+                        names.push(d.name.text);
+            }
+            else if ((ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st) || ts.isClassDeclaration(st) || ts.isFunctionDeclaration(st) || ts.isEnumDeclaration(st) || ts.isModuleDeclaration(st)) && st.name !== undefined && ts.isIdentifier(st.name)) {
+                names.push(st.name.text);
+            }
+            for (const n of names)
+                if (!out.has(n))
+                    out.set(n, file);
+        }
+    }
+    LIB_GLOBALS = out;
+    return out;
+}
 /** Register where `lib.*.d.ts` texts come from (Node: disk; browser: embedded).
  *  Consulted lazily, only when a typecheck actually runs. */
 export function provideLib(provider) {

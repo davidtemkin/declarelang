@@ -70,6 +70,9 @@ export declare const Diag: {
      *  born hidden and nothing says so (field report 2026-09-04: `location = ""`
      *  with `shows = "home"` rendered display:none, silently, forever). */
     showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos) => DeclareError;
+    literalDatapath: (pos: Pos) => DeclareError;
+    shadowsTsGlobal: (kind: string, name: string, lib: string, pos: Pos) => DeclareError;
+    springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos) => DeclareError;
     overridesPlumbing: (owner: string, name: string, base: string, pos: Pos) => DeclareError;
     shadowsRichTextTag: (name: string, pos: Pos) => DeclareError;
     centersByHand: (axis: "x" | "y", pos: Pos) => DeclareError;

@@ -199,6 +199,57 @@ await test("check() names attribute, expected type, and found value per type", (
   }
 });
 
+await test("a datapath { } that is a literal is refused in the source — no Dataset holds a fresh value", async () => {
+  for (const lit of ["[1, 2, 3]", "{ rows: [] }", "[]"]) {
+    const r = await compile(`App [ row: View [ datapath = { ${lit} }, Text [ text = "x" ] ] ]`);
+    const e = (r.errors ?? []).find((x) => x.code === "DECLARE3006");
+    assert.ok(e, lit);
+    assert.match(e.message, /a literal is in none/);
+  }
+  const ok = await compile(`App [ d: Dataset { { "rows": [ { "n": 1 } ] } }, row: View [ datapath = { [app.d.value][0] }, View [ datapath = :rows[], width = { :n } ] ] ]`);
+  assert.equal((ok.errors ?? []).filter((x) => x.code === "DECLARE3006").length, 0, "an expression that starts with [ is not a literal");
+});
+
+await test("a declared name TypeScript's standard library already owns is said plainly, at the declaration", async () => {
+  for (const [src, kind, name] of [
+    [`class Pick extends View [ on: boolean = false ]\nApp [ p: Pick [ ], flip(v: Pick) { v.on = !v.on }, onClick() { flip(p) } ]`, "class", "Pick"],
+    [`schema Record [ id: string ]\nApp [ onClick() { const n = 1 } ]`, "schema", "Record"],
+    [`class Map extends View [ n: number = 0 ]\nApp [ m: Map [ ], onClick() { m.n = 1 } ]`, "class", "Map"],
+  ]) {
+    const r = await compile(src);
+    const e = (r.errors ?? []).find((x) => x.code === "DECLARE4015");
+    assert.ok(e, `${kind} ${name} is reported`);
+    assert.match(e.message, new RegExp(`${kind} ${name} takes a name TypeScript's standard library already declares \\(lib\\.[a-z0-9.]+\\.d\\.ts\\)`));
+    assert.equal(e.pos?.line, 1, "at the declaration");
+  }
+  const clean = await compile(`class Choice extends View [ on: boolean = false ]\nApp [ c: Choice [ ], flip(v: Choice) { v.on = !v.on }, onClick() { flip(c) } ]`);
+  assert.deepEqual((clean.errors ?? []).map((x) => x.message), [], "a free name");
+});
+
+await test("check(): a child may not take the name of one of the runtime's own members — a field or a method", () => {
+  for (const name of ["surface", "backend", "attach", "scrollTo"]) {
+    const errs = check(parse(`App [ ${name}: View [ width = 10 ] ]`));
+    assert.equal(errs.length, 1, name);
+    assert.match(errs[0].message, new RegExp(`'${name}' is a member of the running App \\(the runtime's own\\)`));
+  }
+  assert.deepEqual(check(parse(`App [ strip: View [ width = 10 ] ]`)), [], "a free name");
+  assert.match(check(parse(`App [ parent: View [ width = 10 ] ]`))[0].message, /scope noun/, "the sharper message still wins for a scope noun");
+});
+
+await test("check(): a Spring on a slot its view binds is refused, naming 'to'; an Animator's slide over a bound slot is not", () => {
+  for (const [bound, form] of [["{ parent.w }", "a { }"], ["50%", "a percent"]]) {
+    const errs = check(parse(`App [ w: number = 5, v: View [ x = ${bound}, Spring [ attribute = x ] ] ]`));
+    assert.equal(errs.length, 1, form);
+    assert.equal(errs[0].code, "DECLARE2005");
+    assert.match(errs[0].message, /v\.x is bound by a constraint, so this Spring cannot drive it/);
+    assert.match(errs[0].message, /Spring \[ attribute = x, to = \{ … \} \]/, "the fix is named");
+  }
+  assert.equal(check(parse(`App [ w: number = 5, v: View [ x = { parent.w }, Spring [ attribute = x, to = { parent.w * 2 } ] ] ]`)).length, 1, "a Spring's own `to` does not release the bound slot");
+  assert.deepEqual(check(parse(`App [ w: number = 5, v: View [ x = 0, Spring [ attribute = x, to = { parent.w } ] ] ]`)), [], "the working form");
+  assert.deepEqual(check(parse(`App [ w: number = 5, v: View [ x = { parent.w }, a: Animator [ attribute = x, to = 80, duration = 200 ] ] ]`)), [],
+    "an Animator takes a bound slot for its run and the constraint takes it back — the LZX slide");
+});
+
 await test("check() reports EVERY error, in source order, each positioned", () => {
   const src = `App [ width="wide", zap=1,
   Widget [ x=1 ],
@@ -2447,14 +2498,16 @@ await test("named children are members: real properties, on the parent, collisio
   assert.equal(app.cap, undefined);
   assert.throws(
     () => build("App [ width=1, height=1, surface: View [ ] ]"),
-    /'surface' is already a member of the running App/
+    /'surface' is a member of the running App \(the runtime's own\)/,
+    "refused in the source (the instantiate backstop still stands for a direct instantiate)"
   );
 });
 
 await test("a declared attribute may not shadow a runtime built-in (instantiation-context fact)", () => {
   const src = "class Bad extends View [ surface: number = 1 ]\nApp [ width=1, height=1, Bad [ ] ]";
-  assert.deepEqual(check(parseProgram(src)), [], "the checker is runtime-free by design");
-  assert.throws(() => build(src), /Bad\.surface: 'surface' is a built-in member of the runtime View/);
+  const errs = check(parseProgram(src));
+  assert.equal(errs.length, 1, "refused in the source, from the pinned runtime tables (the checker stays runtime-free)");
+  assert.match(errs[0].message, /'surface' is a member of the running View \(the runtime's own\) — a declared attribute cannot take its name/);
 });
 
 await test("class methods and handlers: per-instance, extraction-safe, overridable at the use site", () => {
@@ -4423,8 +4476,8 @@ await test("Radius is a declarable type; a { } body may produce either form; a S
   const r = await compile(`class Tab extends View [ r: Radius = [8, 8, 0, 0], cornerRadius = { r } ]
 App [ width=100, height=100, on: boolean = false,
     t: Tab [ width=40, height=20 ],
-    b: View [ width=40, height=20, cornerRadius = { on ? [4, 0, 4, 0] : 2 },
-        Spring [ attribute = cornerRadius, to = 3 ] ] ]`);
+    b: View [ width=40, height=20, cornerRadius = 2,
+        Spring [ attribute = cornerRadius, to = { on ? 4 : 2 } ] ] ]`);
   assert.deepEqual(r.errors ?? [], [], "declares, typechecks, and animates");
   const app = build(`class Tab extends View [ r: Radius = [8, 8, 0, 0], cornerRadius = { this.r } ]
 App [ width=100, height=100, t: Tab [ width=40, height=20 ] ]`);

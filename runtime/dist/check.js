@@ -27,9 +27,9 @@
 // namespace.
 import { CSS_COLORS } from "./css-colors.js";
 import { DeclareError, insetOrRadiusMessage, noBaselineMessage, stackBaselineMessage, placedAttributeMessage } from "./errors.js";
-import { attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
+import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
-import { runtimeMethodsOf } from "./runtime-methods.js";
+import { runtimeFieldsOf, runtimeMethodsOf } from "./runtime-methods.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
 import { coerce, describeLiteral, declaredType, isAuthoredUnion, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
@@ -92,6 +92,18 @@ export function check(input) {
     CHECK_SHAPES = shapeNames(program);
     CHECK_CLASSES = new Map(program.classes.map((c) => [c.name, c]));
     const { infos, schemas, errors } = programSchemas(program.classes, CHECK_SHAPES);
+    // A class body declaring one of the runtime's own members (the instantiate
+    // backstop refuses it at boot). Here, not in checkDecl: the tables are
+    // checker-only, and checkDecl ships with every runtime.
+    for (const c of program.classes) {
+        const cs = Object.hasOwn(schemas, c.name) ? schemas[c.name] : null;
+        if (cs !== null)
+            for (const d of c.body.decls) {
+                const e = runtimeMemberDecl(cs, d);
+                if (e !== null)
+                    errors.push(e);
+            }
+    }
     {
         const byName = new Map(program.classes.map((c) => [c.name, c]));
         const members = new Map();
@@ -481,6 +493,11 @@ classRoot = false) {
             const r = checkDecl(schema, d, schema.name, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
             if (!r.ok)
                 errors.push(r.error);
+            else {
+                const e = runtimeMemberDecl(schema, d);
+                if (e !== null)
+                    errors.push(e);
+            }
         }
         eff = withDecls(schema, el.decls, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
     }
@@ -701,6 +718,11 @@ classRoot = false) {
                 // is the attribute door, so the message names it.
                 errors.push(new DeclareError(`'${child.name}' is already a member of ${el.tag} — a use site configures a component through its attributes, not by redeclaring its children. Give ${el.tag} an attribute and read it in the child ('text: string = ""' on the class, 'text = { classroot.text }' on '${child.name}')`, child.pos));
             }
+            else if (runtimeMethodsOf(schema).has(child.name) || runtimeFieldsOf(schema).has(child.name)) {
+                // The runtime's own member (a method, or a field like `surface`): the
+                // instantiate backstop refuses it at boot; this is the same rule, here.
+                errors.push(new DeclareError(`'${child.name}' is a member of the running ${builtinOf(schema)} (the runtime's own) — a child cannot take its name; choose another`, child.pos));
+            }
         }
     }
     // An unknown parent doesn't silence its subtree — child tags stand on
@@ -714,6 +736,35 @@ classRoot = false) {
         if (!consumed.has(child))
             checkElement(child, errors, schemas, false, env, childCtx);
     }
+    // A Spring child driving a slot this element binds: two owners for one slot.
+    for (const child of el.children) {
+        const cs = Object.hasOwn(schemas, child.tag) ? schemas[child.tag] : null;
+        if (cs === null || !descendsFrom(cs, "Spring"))
+            continue;
+        const target = child.attrs.find((a) => a.name === "attribute");
+        if (target === undefined || target.value.kind !== "ident")
+            continue;
+        const slot = target.value.name;
+        const bound = el.attrs.find((a) => a.name === slot && (a.value.kind === "code" || a.value.kind === "path" || a.value.kind === "percent"));
+        if (bound !== undefined)
+            errors.push(Diag.springsBoundSlot(el.name ?? el.tag, slot, child.tag, target.value.pos));
+    }
+}
+/** A declaration taking one of the runtime's own members' names (a field like
+ *  `surface`, or a method) — the runtime-free twin of instantiate's refusal,
+ *  from the pinned tables (runtime-methods.ts). */
+function runtimeMemberDecl(schema, d) {
+    if (!runtimeMethodsOf(schema).has(d.name) && !runtimeFieldsOf(schema).has(d.name))
+        return null;
+    return new DeclareError(`'${d.name}' is a member of the running ${builtinOf(schema)} (the runtime's own) — a declared attribute cannot take its name; choose another`, d.pos);
+}
+/** The built-in a schema's runtime members come from — itself, or the nearest
+ *  built-in up a program class's chain. */
+function builtinOf(schema) {
+    for (let s = schema; s !== null; s = s.base)
+        if (Object.hasOwn(SCHEMAS, s.name))
+            return s.name;
+    return schema.name;
 }
 /** Validate a data node (R8: Dataset / DataSource — descendsFrom "Dataset").
  *  A data node is a NAMED member (bindings reach its lifecycle by name); its

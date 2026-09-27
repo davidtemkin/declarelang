@@ -19,7 +19,7 @@ import { Media } from "../runtime/dist/media.js";
 import { Editor } from "../runtime/dist/editor.js";
 import { Stream } from "../runtime/dist/streams.js";
 import { RichText } from "../runtime/dist/rich-text.js";
-import { RUNTIME_METHODS, runtimeMethodsOf } from "../runtime/dist/runtime-methods.js";
+import { RUNTIME_METHODS, RUNTIME_FIELDS, runtimeMethodsOf, runtimeFieldsOf } from "../runtime/dist/runtime-methods.js";
 import { runtimePlumbing } from "../compiler/dist/scaffold.js";
 
 provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: t.length * 7, fontBoundingBoxAscent: 11, fontBoundingBoxDescent: 3, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 }) });
@@ -229,6 +229,29 @@ await (async () => {
       const expected = [...chainMethods(classes[s])].filter((n) => !beneath.has(n)).sort();
       assert.deepEqual([...(RUNTIME_METHODS[s] ?? [])].sort(), expected, `RUNTIME_METHODS.${s} drifted from ${classes[s].name}.prototype`);
     }
+  });
+  // An instance's non-method members that are not declared attributes: its own
+  // fields and the prototype chain's accessors, minus `$`-names — what a child
+  // name collides with at instantiate (`childEl.name in parentView`).
+  const attrsOf = (s) => { const out = new Set(); for (let x = s; x; x = x.base) for (const k of Object.keys(x.attrs ?? {})) out.add(k); return out; };
+  const chainFields = (s) => {
+    const C = classes[s];
+    const out = new Set(Object.keys(new C()));
+    for (let p = C.prototype; p && p !== Object.prototype; p = Object.getPrototypeOf(p))
+      for (const n of Object.getOwnPropertyNames(p)) if (n !== "constructor" && typeof Object.getOwnPropertyDescriptor(p, n).value !== "function") out.add(n);
+    const attrs = attrsOf(schemas[s]);
+    return new Set([...out].filter((n) => !n.startsWith("$") && !attrs.has(n)));
+  };
+  await test("RUNTIME_FIELDS: each schema's OWN list is exactly its instances' fields beyond its nearest schema base's", () => {
+    for (const k of Object.keys(RUNTIME_FIELDS)) assert.ok(schemas[k] !== undefined, `RUNTIME_FIELDS.${k} names no schema`);
+    for (const s of Object.keys(schemas)) {
+      let b = schemas[s].base;
+      while (b !== null && classes[b.name] === undefined) b = b.base;
+      const beneath = b === null ? new Set() : chainFields(b.name);
+      const expected = [...chainFields(s)].filter((n) => !beneath.has(n)).sort();
+      assert.deepEqual([...(RUNTIME_FIELDS[s] ?? [])].sort(), expected, `RUNTIME_FIELDS.${s} drifted from a new ${classes[s].name}()`);
+    }
+    assert.ok(runtimeFieldsOf("App").has("surface"), "an App reaches View's surface");
   });
   await test("runtimeMethodsOf(schema) is the whole prototype chain", () => {
     for (const s of Object.keys(schemas)) {
