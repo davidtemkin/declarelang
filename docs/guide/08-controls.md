@@ -168,14 +168,15 @@ When you need more:
 There is no tab bar or date picker in the library yet — and that is the normal case, not
 a gap. Check the tables first: a modal is `Dialog`, one-open-at-a-time panes are
 `Accordion`, and each already carries the parts that are tedious to rebuild. When
-something is genuinely missing, compose it — and **anything the user presses to act is
-a control**, whether or not it has a value: a tab, a chip, a row's delete mark, a card
-that opens. `extends Control` gives it focus and a place in the tab order, Space and
-Enter reaching the same `press()` a click does, `hot` and `down` to style against, and
-a label that never selects as text; a plain
-`View` with an `onClick` has none of them, so a keyboard user cannot reach it and a
-drag across it selects its words. The two contracts above make it behave like the ones
-you were given. [Custom components](declare-docs:guide:custom-components@what-extends-control-gives-you) shows how.
+something is genuinely missing, compose it — and **anything that would be a button —
+anything a keyboard user must be able to reach and press — is a control**, whether or
+not it has a value: a tab, a chip, a row's delete mark, a card that opens.
+`extends Control` gives it focus and a place in the tab order, Space and Enter reaching
+the same `press()` a click does, `hot` and `down` to style against, and a label that
+never selects as text; a plain `View` with an `onClick` has none of them, so a keyboard
+user cannot reach it. A `View` with pointer handlers is for what is not a button: a
+surface you drag or draw on, or a scrim a click dismisses. The two contracts above make
+a control behave like the ones you were given. [Custom components](declare-docs:guide:custom-components@what-extends-control-gives-you) shows how.
 
 ---
 

@@ -266,6 +266,37 @@ Body with \`inline code\` here.
     assert.ok(Math.abs(vb.probe.bluB - vb.probe.blkB) <= 2,
       `body and lead are not on one baseline: blackBottom=${vb.probe.blkB} blueBottom=${vb.probe.bluB}`);
   });
+
+  // OpenType features on Apple's system face. Its family is hidden, so the
+  // derived face reaches it by its instances' full names (font-derive.ts); a
+  // tabular run must come out wider than a proportional one, measured (canvas)
+  // and painted (DOM) alike. macOS only: elsewhere there is no system SF.
+  if (process.platform === "darwin") {
+    const featDoc = `App [ width = 400, height = 120,
+    fontFamily = { ["-apple-system", "BlinkMacSystemFont", "Helvetica Neue", "sans-serif"] },
+    a: Text [ x = 10, y = 10, fontSize = 18, numeralWidth = tabular, text = "1111 0000" ],
+    b: Text [ x = 10, y = 50, fontSize = 18, numeralWidth = proportional, text = "1111 0000" ] ]`;
+    for (const render of ["dom", "canvas"]) {
+      const b = await buildProduction(featDoc, render === "canvas" ? { render: "canvas" } : {});
+      assert.ok(b.ok, "feature build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+      const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+      let probe;
+      try {
+        const page = await browser.newPage();
+        await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
+        await new Promise((r) => setTimeout(r, 600));   // the derived face lands, and the text re-measures
+        probe = await page.evaluate(() => {
+          const app = window.__app;
+          const dom = [...document.querySelectorAll("#host *")].filter((e) => e.childElementCount === 0 && e.textContent === "1111 0000").map((e) => e.getBoundingClientRect().width);
+          return { a: app.a.width, b: app.b.width, dom };
+        });
+      } finally { await browser.close(); }
+      await test(`tabular figures on the Apple system face widen the run (${render})`, () => {
+        assert.ok(probe.a > probe.b + 4, `tabular ${probe.a} is not wider than proportional ${probe.b}`);
+        if (render === "dom") assert.ok(probe.dom.length === 2 && probe.dom[0] > probe.dom[1] + 4, "painted widths: " + JSON.stringify(probe.dom));
+      });
+    }
+  }
 }
 
 console.log(`\nrichtext: ${pass} passed, ${fail} failed`);

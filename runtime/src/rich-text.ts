@@ -217,7 +217,10 @@ function resolveStyle(name: string): RunStyle | undefined {
 }
 export const sz = (n: number) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
 
-export const FALLBACK_FAMILY = "system-ui, sans-serif";
+/** The face rich text uses when nothing provides one — the same generic a plain
+ *  Text defaults to, so an app that names no font draws its labels and its prose
+ *  in one face. The language imposes no face of its own on a bare view. */
+export const FALLBACK_FAMILY = "sans-serif";
 
 // ── inline views ─────────────────────────────────────────────────────────────
 // A tag whose name is a class the program declares (`<Issue id='142'/>`) is ONE

@@ -504,13 +504,14 @@ sections, every primitive and the combinations) found fifteen more:
 | E34 | the DOM's `-webkit-line-clamp` places its ellipsis after aligning the whole line: under `textAlign = center` it was half cut, under `right` gone (no CSS form avoids it, measured) | the DOM cuts a clamped run itself by the shared rule (wrapLines + clampLines) and shows those lines — DOM and canvas now truncate identically |
 | E33 | `translateZ` under a rotation: the DOM and the Mac push along the view's own turned depth axis (CSS's `rotateY() translateZ()`); the homography — canvas paint and every renderer's hit walk — pushed toward the viewer | the homography rotates the push with the view; the reference says so |
 | E35 | rich text's body read only `bodyColor` (else a house grey), so a provided `textColor` never reached prose; its heading, link and code tones followed the machine's appearance, not the app's theme | the ink is `textColor` (set or provided), else the theme's `text`; links take `accent`, quotes `textMuted`, rules `line`, the code box `codeBg` else `control`; the `bodyColor`-family slots override their part; rich text has no `dark` attribute |
+| E36 | an OpenType feature (`numeralWidth`, `numerals`, `slashedZero`) on Apple's system face did nothing in Chrome: the derived face is built from `local()`, and the system face's family is hidden (`.SF NS` on macOS, `.SF UI` on iOS), so `local("-apple-system")` named nothing | the derivation reaches the face by its instances' full names — `System Font Regular`, `System Font Regular Italic Regular Italic`, shipped on both systems — one variable instance per style covering every weight; DOM and canvas now measure and paint the feature as the Mac does |
 
-**Found, not fixed — for a decision:**
+**Found, not fixed — a platform difference, recorded:**
 
-- **Features on the system face, in Chrome.** A feature rides a derived `FontFace`
-  built from `local()`, and Chrome cannot name the system face there, so `numeralWidth`,
-  `numerals` and `slashedZero` on `-apple-system` / `system-ui` do nothing on Chrome's
-  DOM or canvas. WebKit and the Mac honour them (`tabular` is 12px wider on "1111 0000").
+- **Emoji advances, in Chrome.** Chrome's Apple Color Emoji advances are narrower than
+  WebKit's and the Mac's (16/20/23/32 against 19/23/26/36 at 13/16/22/32px), so the two
+  emoji swatches measure 9px wider on the Mac. The Mac agrees with WebKit; nothing in
+  Declare to change.
 
 **The Mac, per swatch** (`crossrender --mac --pixels`: the sheet paged on the host's
 window and a Chrome page of the same size at 2×; 170 of 683 swatches over 2% on the
@@ -544,9 +545,7 @@ first run). Fixed:
 
 **Chrome is the outlier, measured against WebKit** (`mac-host/webkitshot.swift` and
 `webkitprobe`, off-screen, the Mac's own engine): Apple Color Emoji advances (Chrome
-16/20/23/32 at 13/16/22/32px; WebKit and the Mac 19/23/26/36), and `numeralWidth`
-on the system face (the feature cannot ride a derived face in Chrome — `local()`
-cannot name the system face; WebKit and the Mac apply it), and the CJK fallback face
+16/20/23/32 at 13/16/22/32px; WebKit and the Mac 19/23/26/36), and the CJK fallback face
 (Chrome's is wider: "ま" 13.75px at 14px against WebKit's 12.93, so a Japanese
 paragraph breaks a character earlier in Chrome). Not Mac defects.
 

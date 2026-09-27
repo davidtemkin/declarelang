@@ -97,6 +97,28 @@ faces are fetched only when nothing before it is on the machine: put the platfor
 own face first and a web font after it, and a device that has the first never
 downloads the second. A font no text reaches costs nothing.
 
+**With no `fontFamily`,** text is set in the generic `sans-serif`: whatever sans the
+browser or system prefers, the same for a plain `Text` and for rich text. Declare adds no
+face of its own.
+
+**The same face everywhere** comes down to one of two things. A **family nearly every
+system has** costs nothing, but "nearly" is the word: the Microsoft core families are the
+same face on Apple systems and Windows, and on Android the name resolves to Android's own
+face, so the text still reads but its metrics — and its line breaks — differ:
+
+| family | macOS | iOS | Windows | Android |
+|---|---|---|---|---|
+| Arial, Verdana | ✓ | ✓ | ✓ | the name → Roboto |
+| Georgia, Times New Roman | ✓ | ✓ | ✓ | the name → Noto Serif |
+| Courier New | ✓ | ✓ | ✓ | the name → Cutive Mono |
+| Trebuchet MS | ✓ | ✓ | ✓ | — |
+| Helvetica, Helvetica Neue, Menlo | ✓ | ✓ | — | — |
+| Segoe UI, Consolas | — | — | ✓ | — |
+
+A **web font** is the same everywhere, and it is a download: every face is a file, often
+tens of kilobytes. Put the families that already look right ahead of it, and only the
+devices that lack them pay for it.
+
 **While a font loads,** the font decides what waiting is worth. [`wait`](declare-docs:Font.wait) (milliseconds,
 default 500) is how long text about to change to this font keeps its current look — at
 startup, how long the first paint waits. [`late`](declare-docs:Font.late) decides what a face arriving after that

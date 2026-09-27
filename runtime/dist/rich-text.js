@@ -209,7 +209,10 @@ function resolveStyle(name) {
     return undefined;
 }
 export const sz = (n) => Math.round(n * SCALE); // scale a prose size, keeping whole pixels
-export const FALLBACK_FAMILY = "system-ui, sans-serif";
+/** The face rich text uses when nothing provides one — the same generic a plain
+ *  Text defaults to, so an app that names no font draws its labels and its prose
+ *  in one face. The language imposes no face of its own on a bare view. */
+export const FALLBACK_FAMILY = "sans-serif";
 const NUMERIC = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 const HEXCOLOR = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 const HEXNUM = /^0[xX][0-9a-fA-F]+$/;

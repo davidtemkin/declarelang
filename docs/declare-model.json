@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "f0fe9414b0c9",
+  "buildId": "248c7fef6b95",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -19435,7 +19435,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/rich-text.ts",
-    "line": 1224
+    "line": 1227
    },
    "parent": "RichText",
    "seeAlso": [],
@@ -63849,7 +63849,7 @@
    "teaches": {
     "App": 12,
     "Button": 5,
-    "DataSource": 4,
+    "DataSource": 3,
     "Dataset": 2,
     "Image": 2,
     "Keys": 2,
@@ -63858,7 +63858,7 @@
     "Spring": 2,
     "State": 1,
     "Text": 6,
-    "Time": 4,
+    "Time": 3,
     "View": 12
    }
   },
@@ -63934,7 +63934,7 @@
     "Text": 3,
     "TextInput": 4,
     "Tooltip": 2,
-    "View": 7
+    "View": 8
    }
   },
   {
@@ -63997,7 +63997,7 @@
     "Image": 2,
     "Markdown": 7,
     "RichText": 11,
-    "Text": 35,
+    "Text": 36,
     "TextLabel": 5,
     "View": 1
    }

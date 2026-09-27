@@ -82,7 +82,10 @@ export declare function contentWidth(width: number, g: ReturnType<typeof geoFor>
 export declare function placeX(width: number, cw: number, g: ReturnType<typeof geoFor>): number;
 export declare const geoEqual: (a: ReturnType<typeof geoFor>, b: ReturnType<typeof geoFor>) => boolean;
 export declare const sz: (n: number) => number;
-export declare const FALLBACK_FAMILY = "system-ui, sans-serif";
+/** The face rich text uses when nothing provides one — the same generic a plain
+ *  Text defaults to, so an app that names no font draws its labels and its prose
+ *  in one face. The language imposes no face of its own on a bare view. */
+export declare const FALLBACK_FAMILY = "sans-serif";
 export interface Style {
     size: number;
     weight: FontWeight;

@@ -31,6 +31,17 @@ function onMacHost() {
     return globalThis.__declareMacHost !== undefined;
 }
 const REGISTERED = new Set();
+/** Apple's system face, for a derivation. Its family is hidden (`.SF NS` on
+ *  macOS, `.SF UI` on iOS), so `local("-apple-system")` names nothing in Chrome;
+ *  its named instances carry public full names, the same on both systems, and
+ *  one variable instance per style covers every weight — measured in Chrome
+ *  (widths equal to the keyword's at 300…900, italic included). The keyword's
+ *  own `local()` stays first, for an engine that resolves it. */
+const APPLE_SYSTEM = new Set(["-apple-system", "blinkmacsystemfont"]);
+const appleSystemFaces = (plain) => [
+    { src: `local("${plain}"), local("System Font Regular")`, weight: "1 1000", style: "normal" },
+    { src: `local("System Font Regular Italic Regular Italic")`, weight: "1 1000", style: "italic" },
+];
 /** Register the derived family if it is not already registered. One FontFace
  *  per face the base family has loaded (so weights and italics stay exact); for
  *  a family the program did not declare, one `local(…)` face — which reaches the
@@ -47,7 +58,8 @@ export function ensureDerived(base, derived, tags) {
     const loaded = loadedFontFaces().filter((f) => f.family.toLowerCase() === plain.toLowerCase());
     const specs = loaded.length > 0
         ? loaded.map((f) => ({ src: f.src, weight: f.weight, style: f.style }))
-        : [{ src: `local("${plain}")`, weight: "1 1000", style: "normal" }];
+        : APPLE_SYSTEM.has(plain.toLowerCase()) ? appleSystemFaces(plain)
+            : [{ src: `local("${plain}")`, weight: "1 1000", style: "normal" }];
     for (const sp of specs) {
         try {
             const face = new FontFace(derived, sp.src, { weight: sp.weight, style: sp.style, featureSettings });

@@ -144,8 +144,9 @@ shared measurer (so the DOM's measured heights were short as well), and a break 
 clipping view's shadow cut off on canvas; a 3D view's box shadow dropped and its
 strips banding; `translateZ` composed in a different order by the homography than by
 the DOM and the Mac; the DOM clamp's ellipsis under centre or right alignment; rich
-text's colour following the machine instead of the theme; and five smaller ones. One
-finding waits for a decision (features on the system face), listed there.
+text's colour following the machine instead of the theme; features on Apple's system
+face doing nothing in Chrome; and five smaller ones. What remains is a platform
+difference, recorded there: Chrome's emoji advances.
 
 The Mac pass (`--mac --pixels`: the matrix paged on the host's window against a
 Chrome page of the same size at 2×, the window captured by its own number, P3
@@ -153,8 +154,7 @@ converted to sRGB) found twenty-one Mac defects, M1–M21 — blend modes
 and every gradient in linear light, frost sampling past its box, a radius past half
 the box painting nothing, a drawing's filter and `setTransform` ignored, Core Text's
 line breaks, a per-family weight scale that picked condensed faces — all fixed; and
-two places where Chrome, not the Mac, is the outlier (emoji advances, system-face
-features), established with WebKit as the third reference (`mac-host/webkitshot`).
+one place where Chrome, not the Mac, is the outlier (emoji advances), established with WebKit as the third reference (`mac-host/webkitshot`).
 It needs an unlocked session: WindowServer gives no window images while the screen is
 locked, and the host's display link stops, so nothing animated advances. Its baseline is
 `apps/swatchbook/tests/pixels-mac.json`:

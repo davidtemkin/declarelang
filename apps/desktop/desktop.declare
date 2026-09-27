@@ -1873,38 +1873,29 @@ class BirdsApp extends HostedApp [ id = "birds", label = "50 Birds", title = "50
 
 class MarketMapApp extends HostedApp [ id = "marketmap", label = "Market Map", title = "Market Map",
     blurb = "The actual apps/marketmap — the S&P 500 as a treemap through the years — hosted as an embedded app.",
-    hue1 = #30343B, hue2 = #111316, drawn = true,
+    hue1 = #1C1E22, hue2 = #1C1E22, drawn = true,
     prog = "../../marketmap/marketmap", base = "../marketmap/", src = "../marketmap/marketmap.declare",
     face(d: Draw) {
-        // the map itself: a treemap on the dark plate — one large cap and its
-        // neighbors, tiled edge to edge with a hairline gap, in the day's two
-        // colors (the system green and red, a deeper shade for smaller moves)
-        const up = 0x34C759, upLow = 0x1F8A3C, down = 0xFF453A, downLow = 0xB8302A
-        const tile = (c, x, y, w, h) => {
-            d.fillStyle = c
-            d.beginPath()
-            d.roundRect(x, y, w, h, 1.8)
-            d.fill()
-            }
-        tile(up, 8, 8, 17, 21)                   // the giant, top left
-        tile(downLow, 8, 30.5, 8, 9.5)
-        tile(upLow, 17.5, 30.5, 7.5, 9.5)
-        tile(up, 26.5, 8, 13.5, 11)
-        tile(down, 26.5, 20.5, 13.5, 8.5)
-        tile(upLow, 26.5, 30.5, 6, 9.5)
-        tile(downLow, 34, 30.5, 6, 9.5)
-        // the index over it: a white line climbing through the day, set on a
-        // dark keyline so it reads over green and red alike
-        d.lineCap = "round"
-        d.lineJoin = "round"
-        d.beginPath()
-        d.moveTo(9.5, 33.5); d.lineTo(16, 26.5); d.lineTo(21, 29.5); d.lineTo(28, 19.5); d.lineTo(32.5, 23); d.lineTo(38.5, 12.5)
-        d.strokeStyle = 0x111316
-        d.lineWidth = 4.4
-        d.stroke()
-        d.strokeStyle = 0xFFFFFF
-        d.lineWidth = 2.2
-        d.stroke()
+        // the map itself, edge to edge like the calendar's page: one large cap
+        // and its neighbours in the day's two colours (the system green and
+        // red, a deeper shade for smaller moves), the plate's corners
+        // rounding it and its dark showing only in the hairline gaps
+        const up = 0x34C759, upLow = 0x248A3D, down = 0xFF453A, downLow = 0xC0352C
+        const tile = (c, x, y, w, h) => { d.fillStyle = c; d.fillRect(x, y, w, h) }
+        tile(up, 0, 0, 27, 30)                   // the giant, top left
+        tile(downLow, 0, 30.8, 15, 17.2)
+        tile(upLow, 15.8, 30.8, 11.2, 17.2)
+        tile(up, 27.8, 0, 20.2, 13)
+        tile(down, 27.8, 13.8, 20.2, 10.2)
+        tile(upLow, 27.8, 24.8, 11, 23.2)
+        tile(down, 39.6, 24.8, 8.4, 11.4)
+        tile(upLow, 39.6, 37, 8.4, 11)
+        // the light the other plates have: a touch brighter at the top, deeper at the foot
+        const shade = d.createLinearGradient(0, 0, 0, 48)
+        shade.addColorStop(0, "rgba(255,255,255,0.16)")
+        shade.addColorStop(1, "rgba(0,0,0,0.18)")
+        d.fillStyle = shade
+        d.fillRect(0, 0, 48, 48)
         }
     ]
 
