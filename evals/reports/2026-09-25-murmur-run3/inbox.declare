@@ -1,0 +1,109 @@
+/*
+# The list
+
+Every conversation, most recent first. A row's place is its `rank`, and a spring
+carries it there, so when a message lifts a conversation to the top the row is seen
+to travel rather than the list being seen to change.
+*/
+
+// A person's face, or their initials on their voice colour when there is no picture —
+// and while the picture is still on its way.
+
+class Avatar extends View [ clip = true,
+    size: number = 40,
+    face: string = "",
+    initials: string = "",
+    voice: number = 0,
+    width = { classroot.size },
+    height = { classroot.size },
+    cornerRadius = { classroot.size / 2 },
+    fill = { app.voiceColor(classroot.voice) },
+    letters: Text [ x = center, y = center, fontSize = { classroot.size * 0.38 }, fontWeight = semibold,
+        textColor = { provided("theme").mineInk }, text = { classroot.initials } ],
+    pic: Image [ width = 100%, height = 100%, stretches = cover, visible = { classroot.face != "" },
+        source = { classroot.face == "" ? "" : app.store.api + "/" + classroot.face },
+        opacity = { this.loaded ? 1 : 0 } ]
+    ]
+
+
+// A pair shows the other person; a group shows two of its people, overlapped.
+
+class Faces extends View [ width = 52, height = 52,
+    one: Avatar [ size = 52, visible = { !:group }, face = :face1, initials = :init1, voice = :voice1 ],
+    back: Avatar [ x = 16, size = 36, visible = { :group }, face = :face2, initials = :init2, voice = :voice2 ],
+    front: View [ y = 16, width = 40, height = 40, cornerRadius = 20, visible = { :group },
+        fill = { provided("theme").sheet },
+        Avatar [ x = 2, y = 2, size = 36, face = :face1, initials = :init1, voice = :voice1 ]
+        ]
+    ]
+
+
+class ThreadRow extends View [ width = 100%, height = 80, padding = [0, 16, 0, 16],
+    glide: Spring [ attribute = y, to = { :rank * 80 }, stiffness = 170, damping = 24 ],
+    fill = { this.pressed ? provided("theme").sheetPressed
+           : app.wide && app.openId == :id ? provided("theme").sheetSelected : provided("theme").sheet },
+    onClick() { app.open(:id) },
+
+    faces: Faces [ y = 14 ],
+    when: Text [ x = end, y = 17, fontSize = 13, wrap = false,
+        numeralWidth = tabular,
+        textColor = { :unread > 0 ? provided("theme").accent : provided("theme").muted }, text = :when ],
+    title: Text [ x = 66, y = 14, width = { parent.width - 32 - 66 - parent.when.width - 10 }, maxLines = 1,
+        fontSize = 16.5, fontWeight = { :unread > 0 ? "bold" : "semibold" },
+        textColor = { provided("theme").ink }, text = :title ],
+    preview: Text [ x = 66, y = 37, width = { parent.width - 32 - 66 - (:unread > 0 ? 34 : 0) }, maxLines = 2,
+        fontSize = 14.5, lineHeight = 1.28, italic = :typing,
+        textColor = { :typing ? provided("theme").accent : :unread > 0 ? provided("theme").inkSoft : provided("theme").muted },
+        text = :preview ],
+    badge: View [ x = end, y = 42, height = 22, cornerRadius = 11, visible = { :unread > 0 },
+        width = { Math.max(22, this.n.width + 14) },
+        fill = { provided("theme").accent },
+        n: Text [ x = center, y = center, fontSize = 12.5, fontWeight = bold, wrap = false,
+            textColor = { provided("theme").accentInk }, text = { "" + :unread } ]
+        ],
+    hair: View [ x = 66, y = { parent.height - 1 }, width = { parent.width - 66 }, height = 1,
+        fill = { provided("theme").rule } ]
+    ]
+
+
+// Before the history arrives: the list's own shape, held still, in the paper's tone.
+
+class GhostRow extends View [ width = 100%, height = 80, padding = [0, 16, 0, 16],
+    View [ y = 14, width = 52, height = 52, cornerRadius = 26, fill = { provided("theme").rule } ],
+    View [ x = 66, y = 20, width = { (parent.width - 66) * 0.45 }, height = 12, cornerRadius = 6,
+        fill = { provided("theme").rule } ],
+    View [ x = 66, y = 44, width = { (parent.width - 66) * 0.8 }, height = 10, cornerRadius = 5,
+        fill = { provided("theme").rule }, opacity = 0.7 ]
+    ]
+
+
+class InboxPane extends View [ fill = { provided("theme").sheet }, clip = true,
+
+    head: View [ width = 100%, height = { 64 + app.safeTop }, padding = [0, 20, 0, 20],
+        mark: Text [ y = { app.safeTop + 16 }, fontSize = 28, fontWeight = semibold,
+            fontFamily = { app.serif }, letterSpacing = -0.4,
+            textColor = { provided("theme").ink }, text = "Murmur" ],
+        count: Text [ x = end, y = { app.safeTop + 28 }, fontSize = 13, wrap = false,
+            visible = { app.store.ready },
+            textColor = { app.unreadTotal > 0 ? provided("theme").accent : provided("theme").muted },
+            text = { app.unreadTotal == 0 ? "All read" : app.unreadTotal + " unread" } ]
+        ],
+
+    rows: View [ y = { 64 + app.safeTop }, width = 100%, height = { parent.height - this.y }, scrolls = y,
+        list: View [ width = 100%, height = { app.inbox.value?.threads.length * 80 },
+            datapath = { app.inbox.value },
+            ThreadRow [ datapath = :threads[] ]
+            ],
+        waiting: View [ width = 100%, visible = { !app.store.ready },
+            layout: SimpleLayout [ axis = y ],
+            GhostRow [ ],
+            GhostRow [ ],
+            GhostRow [ ],
+            GhostRow [ ],
+            GhostRow [ ]
+            ]
+        ],
+
+    edge: View [ x = { parent.width - 1 }, width = 1, height = 100%, visible = { app.wide },
+        fill = { provided("theme").rule } ]
+    ]

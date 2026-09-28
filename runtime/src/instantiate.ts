@@ -67,8 +67,9 @@ import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkCo
 // THE CHECKER SEAM. A trusted program (compiler-checked and stamped) never
 // reaches these; an UNTRUSTED element does — the Inspector's live `Tag [ … ]`
 // evaluation, a text program handed to build(). The boot bundle and every
-// production build ship check.js as a stand-in (tools/internal/stubs.mjs), so
-// there the three refuse — unless a host that has loaded the compiler bundle
+// production build ship check.js as a stand-in (the `checker` capability in
+// compiler/src/capabilities.ts), so there the three refuse — unless a host
+// that has loaded the compiler bundle
 // PROVIDES its checker (inspector-boot.js does, on open): the same three pure
 // functions over the same plain schema and attribute objects, from the copy
 // of the runtime the compiler carries.

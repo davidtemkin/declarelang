@@ -1,0 +1,91 @@
+.year { display: grid; gap: 1rem; }
+
+.year__head {
+  display: grid;
+  gap: 0.6rem;
+  border-top: 2px solid var(--ink);
+  padding-top: 1rem;
+}
+.year__range {
+  font-size: var(--fs-l);
+  font-weight: 850;
+  font-stretch: 72%;
+  line-height: 0.95;
+  letter-spacing: -0.015em;
+}
+.year__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem 1.5rem;
+}
+.year__stats div { display: grid; gap: 0.1rem; }
+.year__stats dt { order: 2; }
+.year__stats dd {
+  font-size: clamp(2rem, 9vw, 3rem);
+  font-weight: 750;
+  font-stretch: 72%;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.year__stats .unit { font-size: 0.45em; }
+
+.year__surface {
+  position: relative;
+  height: clamp(13rem, 55vw, 20rem);
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 0 var(--gutter);
+  /* Vertical swipes scroll the page; horizontal drags and pinches are ours. */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  overflow: hidden;
+}
+.year__surface:active { cursor: grabbing; }
+.year__surface:focus-visible { outline-offset: -3px; }
+.year__surface svg { display: block; overflow: visible; }
+
+.year__bar { transition: fill 300ms; }
+.year__bar--selected { stroke: var(--ink); stroke-width: 3px; paint-order: stroke; }
+
+.year__baseline { stroke: var(--ink); stroke-width: 1px; }
+.year__monthline { stroke: var(--rule); stroke-width: 1px; }
+.year__tick { stroke: var(--ink-3); }
+.year__monthlabel, .year__weeklabel, .year__today {
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 650;
+  fill: var(--ink-2);
+}
+.year__monthlabel { fill: var(--ink); font-weight: 750; letter-spacing: 0.04em; text-transform: uppercase; }
+.year__today { fill: var(--ink); font-weight: 800; }
+
+.year__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.year__hint { font-size: var(--fs-xs); color: var(--ink-2); font-weight: 550; flex: 1 1 14rem; }
+.year__zoom { display: flex; gap: 0.4rem; }
+.year__zoom button {
+  min-height: 2.75rem;
+  min-width: 3.5rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--paper-2);
+  font-weight: 700;
+}
+.year__zoom button:active { background: var(--ink); color: var(--paper); }
+
+@media (min-width: 900px) {
+  .year__head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+  .year__head .label { grid-column: 1 / -1; }
+  .year__stats { grid-template-columns: repeat(4, auto); gap: 0 2.5rem; }
+  .year__surface { margin: 0; padding: 0; }
+}

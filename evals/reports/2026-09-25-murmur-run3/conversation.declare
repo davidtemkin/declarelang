@@ -1,0 +1,236 @@
+/*
+# The conversation
+
+A header, the thread, and the composer. The thread is one scroller over the rows
+`Store.present()` derives for whichever conversation is open.
+
+Three rules keep the reader's place, and each lives where its cause does:
+
+- **Leaving and returning.** Every scroll is noted against the conversation it
+  belongs to; opening one goes back to that place — or, the first time, to the
+  first unread message, or to the end if nothing is new.
+- **Something arrives, or grows.** When the reader is at the end (`pinned`), the thread
+  follows what grew. Anywhere else the thread holds an *anchor* — the message at the top
+  of the view and how far above the edge it sits — and whenever its height changes (a
+  photograph arriving, a reaction landing, a message below) it puts that message back
+  exactly where it was. A note says when something new is below.
+*/
+
+class ConversationPane extends View [ clip = true, fill = { provided("theme").paper },
+
+    // what the pane shows: the open conversation — and on a phone, while it slides
+    // away, the one just closed
+
+    thread: string = { app.openId != "" ? app.openId : app.wide ? "" : app.lastOpen },
+    opened: string = { app.openId },
+    group: boolean = { this.thread != "" && app.store.threads()[app.store.threadAt(this.thread)]?.participants.length > 2 },
+    divider: string = "",
+    pinned: boolean = true,
+    places: Dataset { {} },      // thread id → { key, off, pinned }, noted as the reader scrolls
+    typing: string = { app.store.typingIn(this.thread) },
+    typist: string = { app.store.threads()[app.store.threadAt(this.thread)]?.typing?.[0] ?? "" },
+    below: number = { this.pinned || this.thread == "" ? 0 : app.store.unreadIn(app.store.threads()[app.store.threadAt(this.thread)]) },
+    trayOpen: boolean = false,
+    tray: number = 0,
+    Spring [ attribute = tray, to = { classroot.trayOpen ? 1 : 0 }, stiffness = 260, damping = 28 ],
+
+    trackChanges = ["opened"],
+    onChange(e: ChangeEvent) {
+        if (this.opened == "") return
+        const t = app.store.threads()[app.store.threadAt(this.opened)]
+        this.divider = t != null && app.store.unreadIn(t) > 0 ? t.lastSeen : ""
+        this.trayOpen = false
+        afterSettle(() => this.arrive())
+        },
+
+    anchorKey: string = "",
+    anchorOff: number = 0,
+
+    // Where to land in the conversation just opened: where the reader left it; the
+    // first time, the first unread message; else the end.
+
+    arrive() {
+        const saved = this.places.value[this.thread]
+        const fresh = (app.talk.value?.rows ?? []).find((r) => r.firstUnread)
+        if (saved != null && !(saved.pinned && fresh != null)) {
+            this.pinned = saved.pinned; this.anchorKey = saved.key; this.anchorOff = saved.off
+        } else if (fresh != null) {
+            this.pinned = false; this.anchorKey = fresh.id; this.anchorOff = 24
+        } else {
+            this.pinned = true
+            }
+        this.keepPlace()
+        },
+
+    // Put the anchor back where the reader saw it — or, at the end, stay there.
+
+    keepPlace() {
+        if (this.pinned) {
+            this.feed.scrollTo(Infinity)
+            if (app.openId == this.thread) app.store.markRead(this.thread)
+            return
+            }
+        const row = this.rowFor(this.anchorKey)
+        if (row != null && Math.abs(row.y - this.anchorOff - this.feed.scrollY) > 0.5) this.feed.scrollTo(row.y - this.anchorOff)
+        },
+
+    // the message rows — replicated first in the column, ahead of the typing row
+
+    rows() -> MessageRow[] {
+        return this.feed.column.childViews.slice(0, (app.talk.value?.rows ?? []).length) as MessageRow[]
+        },
+
+    rowFor(key: string) -> MessageRow? {
+        return this.rows().find((v) => v.mkey == key) ?? null
+        },
+
+    // The reader moved: note their place, and whether they are at the end.
+
+    noteScroll() {
+        const f = this.feed
+        this.pinned = f.scrollY + f.height >= f.contentHeight - 40
+        const top = this.rows().find((v) => v.visible && v.y + v.height > f.scrollY)
+        if (top != null) { this.anchorKey = top.mkey; this.anchorOff = top.y - f.scrollY }
+        if (this.thread == "") return
+        this.places.set([this.thread], ({ key: this.anchorKey, off: this.anchorOff, pinned: this.pinned }))
+        if (this.pinned && app.openId == this.thread) app.store.markRead(this.thread)
+        },
+
+    // ── the header ──
+
+    head: View [ width = 100%, height = { 60 + app.safeTop }, fill = { provided("theme").sheet },
+        stroke = { [null, null, stroke(1, provided("theme").rule), null] },
+        padding = { [app.safeTop, 16, 0, app.wide ? 20 : 6] },
+        visible = { classroot.thread != "" },
+        back: View [ y = 8, width = 44, height = 44, visible = { !app.wide },
+            onClick() { app.close() },
+            ChevronIcon [ x = 8, y = center, iconSize = 22, dir = "left", weight = 2, ink = { provided("theme").ink } ],
+            n: Text [ x = 28, y = center, fontSize = 13, fontWeight = semibold, wrap = false,
+                visible = { app.unreadElsewhere > 0 }, textColor = { provided("theme").accent },
+                text = { "" + app.unreadElsewhere } ]
+            ],
+        who: View [ x = { app.wide ? 0 : 48 }, y = 8, width = { parent.width - this.x }, height = 44,
+            datapath = { app.inbox.value?.threads.find((t) => t.id == classroot.thread) ?? null },
+            faces: Faces [ y = 4, scale = 0.69, pivotX = 0, pivotY = 0 ],
+            title: Text [ x = 46, y = { classroot.typing == "" && !classroot.group ? 11 : 3 }, width = { parent.width - 46 }, maxLines = 1,
+                fontFamily = { app.serif }, fontSize = 18, fontWeight = semibold,
+                textColor = { provided("theme").ink }, text = :title ],
+            sub: Text [ x = 46, y = 25, width = { parent.width - 46 }, maxLines = 1, fontSize = 12.5,
+                visible = { classroot.typing != "" || classroot.group },
+                italic = { classroot.typing != "" },
+                textColor = { classroot.typing != "" ? provided("theme").accent : provided("theme").muted },
+                text = { classroot.typing != "" ? classroot.typing : app.memberLine(classroot.thread) } ]
+            ]
+        ],
+
+    // the reading measure: the thread's column, which the composer and tray share
+
+    inset: number = { Math.max(0, (this.width - 760) / 2) },
+
+    // ── the thread ──
+
+    feed: View [ y = { parent.head.height }, width = 100%, scrolls = y,
+        height = { parent.height - parent.head.height - parent.compose.height - parent.tray * 108 },
+        visible = { classroot.thread != "" },
+        trackChanges = ["scrollY", "contentHeight", "height"],
+        onChange(e: ChangeEvent) {
+            if (e.changed.some((c) => c.name != "scrollY")) classroot.keepPlace()
+            else classroot.noteScroll()
+            },
+
+        column: View [ x = center, width = { Math.min(760, parent.width) }, padding = [6, 14, 14, 14],
+            y = { Math.max(0, parent.height - this.height) },
+            layout: SimpleLayout [ axis = y ],
+            datapath = { app.talk.value },
+            MessageRow [ datapath = :rows[] ],
+            typing: TypingRow [ visible = { classroot.typist != "" }, who = { classroot.typist } ]
+            ]
+        ],
+
+    news: View [ x = center, y = { parent.feed.y + parent.feed.height - 52 }, height = 36, cornerRadius = 18,
+        padding = [0, 16, 0, 12], visible = { classroot.below > 0 },
+        fill = { provided("theme").accent }, shadow = shadow(0, 4, 14, #00000030),
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        onClick() { classroot.feed.scrollTo(Infinity, ({ duration: 320 })) },
+        View [ width = 15, height = 15,
+            ArrowIcon [ iconSize = 15, dir = "down", weight = 2, ink = { provided("theme").accentInk } ]
+            ],
+        Text [ fontSize = 14, fontWeight = semibold, wrap = false, textColor = { provided("theme").accentInk },
+            text = { classroot.below == 1 ? "1 new message" : classroot.below + " new messages" } ]
+        ],
+
+    // ── the photographs that can be sent ──
+
+    picks: View [ y = { parent.compose.y - this.height }, width = 100%, height = { parent.tray * 108 },
+        fill = { provided("theme").sheet }, clip = true,
+        stroke = { [stroke(1, provided("theme").rule), null, null, null] },
+        strip: View [ y = 10, width = 100%, height = 88, scrolls = x,
+            row: View [ padding = { [0, 14 + classroot.inset, 0, 14 + classroot.inset] },
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                datapath = { app.store.db.value },
+                View [ datapath = :sendable[], width = 88, height = 88, cornerRadius = 12, clip = true,
+                    fill = { provided("theme").rule },
+                    Image [ width = 100%, height = 100%, stretches = cover, source = { app.store.api + "/" + :src } ],
+                    onClick() { app.sendPhoto(:src, :alt) }
+                    ]
+                ]
+            ]
+        ],
+
+    compose: Composer [ y = { parent.height - this.height }, visible = { classroot.thread != "" } ],
+
+    // ── nothing open (wide only) ──
+
+    idle: View [ x = center, y = center, visible = { classroot.thread == "" },
+        layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+        Text [ fontFamily = { app.serif }, fontSize = 22, textColor = { provided("theme").inkSoft },
+            text = { app.store.ready ? "Nothing open" : "Gathering conversations…" } ],
+        Text [ fontSize = 14, textColor = { provided("theme").muted }, visible = { app.store.ready },
+            text = { app.unreadTotal > 0 ? "Something new is waiting on the left." : "Pick a conversation on the left." } ]
+        ]
+    ]
+
+
+class Composer extends View [ width = 100%, height = { 62 + app.safeBottom },
+    fill = { provided("theme").sheet },
+    stroke = { app.convo.tray > 0.01 ? null : [stroke(1, provided("theme").rule), null, null, null] },
+    padding = { [0, 10 + app.convo.inset, app.safeBottom, 8 + app.convo.inset] },
+    draft: string = { app.drafts.value?.[app.openId] ?? "" },
+
+    send() {
+        app.sendText(this.draft)
+        },
+
+    photos: View [ y = 10, width = 42, height = 42, cornerRadius = 21,
+        fill = { app.convo.trayOpen ? app.mix(provided("theme").sheet, provided("theme").accent, 0.14) : null },
+        onClick() { app.convo.trayOpen = !app.convo.trayOpen },
+        View [ x = 9, y = 10, width = 24, height = 22,
+            draw(d: Draw) {
+                const ink = app.convo.trayOpen ? provided("theme").accent : provided("theme").inkSoft
+                d.strokeStyle = ink
+                d.fillStyle = ink
+                d.lineWidth = 1.7
+                d.lineJoin = "round"
+                d.beginPath(); d.roundRect(1.5, 2.5, 21, 17, 3.5); d.stroke()
+                d.beginPath(); d.moveTo(3.5, 17); d.lineTo(9.5, 10.5); d.lineTo(13.5, 14.5); d.lineTo(16, 12); d.lineTo(20.5, 17); d.stroke()
+                d.beginPath(); d.arc(16.5, 7.5, 1.9, 0, Math.PI * 2); d.fill()
+                }
+            ]
+        ],
+
+    field: TextInput [ x = 52, y = 10, height = 42, width = { parent.width - 18 - 2 * app.convo.inset - 52 - 50 }, cornerRadius = 21, padding = 14,
+        fontSize = 16, placeholder = "Message", fill = { provided("theme").paper },
+        textColor = { provided("theme").ink },
+        stroke = { stroke(1, this.focused ? provided("theme").faint : provided("theme").rule) },
+        text = { classroot.draft },
+        onInput(v: string) { app.drafts.set([app.openId], v) },
+        onEnter() { classroot.send() }
+        ],
+
+    go: View [ x = end, y = 11, width = 40, height = 40, cornerRadius = 20,
+        fill = { classroot.draft.trim() == "" ? provided("theme").rule : provided("theme").mine },
+        onClick() { classroot.send() },
+        ArrowIcon [ x = center, y = center, iconSize = 18, dir = "up", weight = 2.2,
+            ink = { classroot.draft.trim() == "" ? provided("theme").faint : provided("theme").mineInk } ]
+        ]
+    ]

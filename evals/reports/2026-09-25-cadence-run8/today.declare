@@ -1,0 +1,128 @@
+/*
+# Today — where am I
+
+This week, the streak, the week's shape and the last session, set so the
+answers arrive before anyone decides to read them. A session in progress lives
+here too, at the top, counting.
+*/
+
+
+/*
+## In progress
+
+A running session is not a finished one: its clock counts every second, and the
+dot beside it beats. Nothing else on the screen moves on its own.
+*/
+
+class LiveBlock extends View [ width = 100%,
+    padding = [16, 0, 18, 18],
+    stroke = { [null, null, null, stroke(5, provided("theme").accent)] },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+
+    head: View [
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        dot: View [ width = 10, height = 10, cornerRadius = 5, fill = { provided("theme").accent },
+            opacity = { app.m.second.second % 2 == 0 ? 1 : 0.25 } ],
+        Caps [ textColor = { provided("theme").accent },
+            text = { "In progress · " + sportName(app.m.live.value?.session?.sport ?? "") } ]
+        ],
+    clock: Fig [ fontSize = { app.heroSize }, lineHeight = 1,
+        text = { clockText(app.m.liveSeconds) } ],
+    FigLine [ fontSize = 32, wordSize = 16,
+        html = { liveHtml(app.m.live.value?.session?.heartNow ?? 0, app.m.live.value?.session?.distanceKm ?? 0) } ]
+    ]
+
+
+/*
+## The week's shape
+
+Seven days ending today, each a bar whose height is the day's minutes against
+the heaviest day in the whole history — so a light week looks light. Colour is
+the day's hardest effort. Tap a day to open its hardest session.
+*/
+
+class DayBar extends Control [ height = 100%,
+    width = { (parent.width - 6 * 8) / 7 },
+    focusable = false,
+    rise: number = 0,
+    Spring [ attribute = rise, to = { :minutes / app.dayScale }, stiffness = 140, damping = 20 ],
+    onClick() { if (:pick != "") app.select(:pick, true) },
+
+    bar: View [ x = 0, width = 100%, cornerRadius = 4,
+        height = { Math.max(4, Math.min(1, classroot.rise) * (parent.height - 30)) },
+        y = { parent.height - 30 - this.height },
+        opacity = { classroot.down ? 0.7 : 1 },
+        fill = { :minutes > 0 ? app.heat(:effort) : provided("theme").line } ],
+    letter: Text [ x = center, y = { parent.height - 20 }, fontSize = 13,
+        fontWeight = { :today ? "bold" : "medium" },
+        textColor = { :today ? provided("theme").ink : provided("theme").muted },
+        text = :letter ]
+    ]
+
+
+class WeekShape extends View [ width = 100%, height = { app.wide ? 120 : 150 },
+    datapath = { app.weekData.value },
+    layout: SimpleLayout [ axis = x, spacing = 8 ],
+    DayBar [ datapath = :days[] ]
+    ]
+
+
+/*
+## The last session
+
+What it was, when, and how it went — and a way into it.
+*/
+
+class LastSession extends Control [ width = 100%, focusable = true,
+    padding = [14, 0, 14, 0],
+    stroke = { [stroke(1, provided("theme").line), null, stroke(1, provided("theme").line), null] },
+    fill = { down ? provided("theme").raised : null },
+    s: Session = { app.m.newest() },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    onClick() { if (classroot.s != null) app.select(classroot.s.id, true) },
+
+    Caps [ text = { classroot.s == null ? "Last session" : "Last session · " + dayLabel(dayNum(classroot.s.date), app.m.today) } ],
+    what: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 14, align = end ],
+        Fig [ fontSize = 44, textTransform = uppercase,
+            text = { classroot.s == null ? "—" : sportName(classroot.s.sport) } ],
+        FigLine [ fontSize = 30, wordSize = 15, width = { this.natural },
+            html = { classroot.s == null ? "" : sessionHtml(classroot.s.minutes, classroot.s.distanceKm ?? 0) } ]
+        ],
+    how: Text [ width = 100%, fontSize = 15, fontWeight = semibold, visible = { classroot.s != null },
+        textColor = { classroot.s == null ? provided("theme").ink : app.heatInk(classroot.s.effort) },
+        text = { classroot.s == null ? "" : howItWent(classroot.s.effort, classroot.s.heartAvg ?? 0) } ]
+    ]
+
+
+class TodayColumn extends View [
+    layout: SimpleLayout [ axis = y, spacing = { app.wide ? 24 : 26 } ],
+
+    live: LiveBlock [ visible = { app.m.running } ],
+
+    week: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Caps [ text = "This week" ],
+
+        // "4 sessions · 3h 40m": two runs that wrap as wholes, so a narrow
+        // phone breaks the line after the dot and never inside a duration
+
+        line: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 12, rowSpacing = 0 ],
+            FigLine [ width = { this.natural }, fontSize = { app.heroSize }, wordSize = { app.wide ? 24 : 20 },
+                html = { countHtml(app.weekCount.shown) + "<span class='W'> ·</span>" } ],
+            FigLine [ width = { this.natural }, fontSize = { app.heroSize }, wordSize = { app.wide ? 24 : 20 },
+                html = { durHtml(app.weekMinutes.shown) } ]
+            ],
+        shape: WeekShape [ ]
+        ],
+
+    streak: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Caps [ text = "Streak" ],
+        FigLine [ width = 100%, fontSize = { app.heroSize }, wordSize = { app.wide ? 24 : 20 },
+            html = { streakHtml(app.streakDays.shown) } ]
+        ],
+
+    last: LastSession [ ]
+    ]

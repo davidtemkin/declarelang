@@ -1,0 +1,1 @@
+Build the app described in `task/brief.md` as a React application. The data service is described in `task/api/API.md` and is already running on port 8320; do not modify it.

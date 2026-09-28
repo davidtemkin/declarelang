@@ -1,0 +1,81 @@
+.app {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+}
+
+.app__list,
+.app__thread {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app__list {
+  background: var(--surface);
+}
+
+/* Narrow: two screens, the conversation sliding over the list. */
+.app[data-layout='narrow'] .app__thread {
+  transform: translateX(100%);
+  transition:
+    transform 320ms cubic-bezier(0.32, 0.72, 0, 1),
+    box-shadow 320ms;
+  will-change: transform;
+}
+
+.app[data-layout='narrow'] .app__list {
+  transition: transform 320ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.app[data-layout='narrow'][data-open='true'] .app__thread {
+  transform: none;
+  box-shadow: -1px 0 0 var(--rule), -12px 0 32px rgb(0 0 0 / 0.08);
+}
+
+.app[data-layout='narrow'][data-open='true'] .app__list {
+  transform: translateX(-24%);
+}
+
+/* Wide: the list is a column of its own, the conversation fills the rest. */
+.app[data-layout='wide'] {
+  display: grid;
+  grid-template-columns: minmax(320px, 26%) 1fr;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.app[data-layout='wide'] .app__list,
+.app[data-layout='wide'] .app__thread {
+  position: relative;
+  inset: auto;
+}
+
+.app[data-layout='wide'] .app__list {
+  border-right: 1px solid var(--rule);
+}
+
+.empty-pane {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 32px;
+}
+
+.empty-pane__text {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 22px;
+  color: var(--ink-2);
+  text-align: center;
+}
+
+.empty-pane__text span {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink-3);
+}

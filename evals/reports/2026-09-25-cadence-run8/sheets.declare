@@ -1,0 +1,395 @@
+/*
+# A session, and adding one
+
+The detail says what a session was and where it sits against everything else.
+The entry sheet records one — built for a thumb, in a gym, in a few seconds:
+everything is already filled in with what they most likely mean, every choice
+is a tap, the keyboard is only for a note, and the Save button always says
+exactly what it will save.
+*/
+
+
+/*
+## Where one session sits
+
+Every session of the same sport as a faint dot — duration across, effort up —
+and this one, large, in its effort's colour. Long-and-hard sits top right.
+*/
+
+class SportPlot extends View [ height = 120,
+    s: Session = null,
+    draw(d: Draw) {
+        const th = provided("theme")
+        const me = classroot.s
+        if (me == null) return
+        const all = app.m.sameSport(me.sport)
+        let maxMin = 60
+        for (const o of all) maxMin = Math.max(maxMin, o.minutes)
+        const padL = 4, padB = 22, w = d.w - padL - 10, h = d.h - padB - 8
+        const X = (min) => padL + (min / maxMin) * w
+        const Y = (e) => 8 + h - ((e - 1) / 9) * h
+        const small = ({ ...ChartLabel, fontFamily: th.body, textColor: th.muted })
+        d.fillStyle = th.line
+        d.fillRect(padL, 8 + h, w, 1)
+        d.fillText("LONGER →", d.w - measureText("LONGER →", small).width - 10, d.h - 4, small)
+        d.fillText("HARDER ↑", padL, 20, small)
+        d.fillStyle = th.ink
+        d.globalAlpha = 0.18
+        for (const o of all) {
+            d.beginPath()
+            d.arc(X(o.minutes), Y(o.effort + ((o.minutes * 7) % 5 - 2) * 0.06), 3, 0, Math.PI * 2)
+            d.fill()
+            }
+        d.globalAlpha = 1
+        d.fillStyle = app.heat(me.effort)
+        d.strokeStyle = th.ink
+        d.lineWidth = 2
+        d.beginPath()
+        d.arc(X(me.minutes), Y(me.effort), 8, 0, Math.PI * 2)
+        d.fill()
+        d.stroke()
+        }
+    ]
+
+
+class Figure extends View [
+    caption: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 2 ]
+    ]
+
+
+class SessionDetail extends View [
+    s: Session = { app.sel },
+    confirming: boolean = false,
+
+    effort: Tween [ value = { classroot.s?.effort ?? 0 } ],
+    minutes: Tween [ value = { classroot.s?.minutes ?? 0 } ],
+    km: Tween [ value = { classroot.s?.distanceKm ?? 0 } ],
+    bpm: Tween [ value = { classroot.s?.heartAvg ?? 0 } ],
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    top: View [ width = 100%, height = 44,
+        what: Caps [ y = center, textColor = { provided("theme").ink },
+            text = { classroot.s == null ? "" : sportName(classroot.s.sport) + " · " + dayLabel(dayNum(classroot.s.date), app.m.today) } ],
+        close: TextButton [ x = end, label = "Close",
+            press() { app.select("", false) }
+            ]
+        ],
+
+    // the effort is the hero; time, distance and heart rate stand beside it
+
+    figs: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 28 ],
+        effortFig: Figure [
+            Fig [ fontSize = 124, lineHeight = 0.9, textColor = { app.heatInk(classroot.s?.effort ?? 1) },
+                text = { "" + Math.round(classroot.effort.shown) } ],
+            Caps [ textColor = { app.heatInk(classroot.s?.effort ?? 1) },
+                text = { "Effort · " + effortWord(classroot.s?.effort ?? 1) } ]
+            ],
+        rest: View [
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Figure [
+                FigLine [ fontSize = 38, wordSize = 16, html = { sessionHtml(classroot.minutes.shown, 0) } ],
+                Caps [ text = "Time" ]
+                ],
+            Figure [ visible = { (classroot.s?.distanceKm ?? 0) > 0 },
+                FigLine [ fontSize = 38, wordSize = 16, html = { classroot.km.shown.toFixed(1) + "<span class='W'>\u00A0km</span>" } ],
+                Caps [ text = "Distance" ]
+                ],
+            Figure [ visible = { (classroot.s?.heartAvg ?? 0) > 0 },
+                FigLine [ fontSize = 38, wordSize = 16, html = { Math.round(classroot.bpm.shown) + "<span class='W'>\u00A0bpm</span>" } ],
+                Caps [ text = "Avg heart rate" ]
+                ]
+            ]
+        ],
+
+    note: Text [ width = 100%, fontSize = 17, italic = true, visible = { (classroot.s?.note ?? "") != "" },
+        text = { "“" + (classroot.s?.note ?? "") + "”" } ],
+
+    actions: View [ width = 100%, height = 44,
+        layout: SimpleLayout [ axis = x, spacing = 24 ],
+        TextButton [ label = "Correct it",
+            press() { app.draft.beginEdit(classroot.s) }
+            ],
+        TextButton [ tone = { provided("theme").accent },
+            label = { classroot.confirming ? "Tap again to delete" : "Delete" },
+            press() {
+                if (classroot.confirming) { classroot.confirming = false; app.m.erase(classroot.s!.id) }
+                else classroot.confirming = true
+                }
+            ]
+        ],
+
+    context: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Caps [ text = { "Against every " + sportName(classroot.s?.sport ?? "").toLowerCase() } ],
+        SportPlot [ width = 100%, s = { classroot.s } ],
+        Text [ width = 100%, fontSize = 15, fontWeight = medium,
+            text = { classroot.s == null ? "" : app.m.standing(classroot.s) } ]
+        ],
+
+    // a new session in view forgets a half-made delete
+
+    trackChanges = ["s"],
+    onChange(e: ChangeEvent) { confirming = false }
+    ]
+
+
+/*
+## The draft
+
+What the sheet is about to save. Anything they have not touched is what they
+most likely mean, derived from their own history — the sport they usually do on
+this weekday, a duration near their usual one for that sport, a distance at
+their usual pace — so the common case is a confirm, and changing the sport
+re-guesses everything they have not set themselves.
+*/
+
+class Draft [
+    open: boolean = false,
+    editId: string = "",
+    sport: string = "run",
+    day: number = 0,
+    minutesSet: number = 0,
+    kmSet: number = -1,
+    effortSet: number = 0,
+    note: string = "",
+
+    hasDistance: boolean = { classroot.sport != "lift" },
+    kmStep: number = { classroot.sport == "swim" ? 0.1 : classroot.sport == "ride" ? 1 : 0.5 },
+    minutes: number = { classroot.minutesSet > 0 ? classroot.minutesSet : app.m.usualMinutes(classroot.sport) },
+    km: number = { !classroot.hasDistance ? 0
+        : classroot.kmSet >= 0 ? classroot.kmSet
+        : Math.round(app.m.usualPace(classroot.sport) * classroot.minutes / classroot.kmStep) * classroot.kmStep },
+    effort: number = { classroot.effortSet > 0 ? classroot.effortSet : app.m.usualEffort(classroot.sport) },
+
+    begin() {
+        this.editId = ""
+        this.sport = app.m.likelySport(weekdayOf(app.m.today))
+        this.day = app.m.today
+        this.minutesSet = 0
+        this.kmSet = -1
+        this.effortSet = 0
+        this.note = ""
+        this.sent = false
+        this.open = true
+        },
+    beginEdit(s: Session?) {
+        if (s == null) return
+        this.editId = s.id
+        this.sport = s.sport
+        this.day = dayNum(s.date)
+        this.minutesSet = s.minutes
+        this.kmSet = s.distanceKm ?? -1
+        this.effortSet = s.effort
+        this.note = s.note ?? ""
+        this.sent = false
+        this.open = true
+        },
+    close() { this.open = false },
+
+    nudge(kind: string, dir: number) {
+        if (kind == "minutes") this.minutesSet = clamp(this.minutes + dir * 5, 5, 600)
+        else this.kmSet = Math.max(0, Math.round((this.km + dir * this.kmStep) / this.kmStep) * this.kmStep)
+        },
+
+    // what Save will say, and send
+
+    summary() -> string {
+        return sportName(this.sport) + " · " + fmtDur(this.minutes)
+            + (this.hasDistance && this.km > 0 ? " · " + fmtKm(this.km) : "") + " · effort " + this.effort
+        },
+    fields() -> object {
+        return ({ sport: this.sport, date: isoOf(this.day), minutes: this.minutes,
+            distanceKm: this.hasDistance && this.km > 0 ? Math.round(this.km * 10) / 10 : null,
+            effort: this.effort, note: this.note.trim() == "" ? null : this.note.trim() })
+        },
+    sent: boolean = false,
+    save() {
+        if (this.sent) return          // Enter on a focused Save would otherwise send twice
+        this.sent = true
+        if (this.editId == "") app.m.add(this.fields())
+        else app.m.correct(this.editId, this.fields())
+        },
+
+    // the days a session can be on: today and the two weeks before it (the
+    // row scrolls sideways), plus the session's own day when correcting an
+    // older one
+
+    chips() -> object {
+        const t = app.m.today
+        const out = []
+        for (let i = 0; i < 14; i++) out.push(({ id: t - i, label: i == 0 ? "Today" : i == 1 ? "Yesterday" : dayName(t - i) + " " + dateOf(t - i) }))
+        if (this.day < t - 13) out.push(({ id: this.day, label: dayLabel(this.day, t) }))
+        return ({ chips: out })
+        }
+    ]
+
+
+/*
+## The effort strip
+
+Ten cells, 1 to 10, coloured as effort is coloured everywhere else. Tap one, or
+slide a thumb along it; arrow keys step it.
+*/
+
+class EffortStrip extends Control [ width = 100%, height = 56, claim = x,
+    value: number = 5,
+    input(v: number) { value = v },
+    cellAt(x: number) -> number { return clamp(Math.floor(x / (this.width / 10)) + 1, 1, 10) },
+    originX: number = 0,
+    onPointerDown(e: PointerEvent) {
+        originX = this.rootOrigin().x
+        input(cellAt(e.x))
+        },
+    onPointerMove(e: PointerEvent) { input(cellAt(e.x - originX)) },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowLeft") input(clamp(value - 1, 1, 10))
+        else if (e.key == "ArrowRight") input(clamp(value + 1, 1, 10))
+        },
+    draw(d: Draw) {
+        const th = provided("theme")
+        const gap = 4, cw = (d.w - gap * 9) / 10
+        for (let i = 1; i <= 10; i++) {
+            const x = (i - 1) * (cw + gap)
+            const on = i <= classroot.value
+            d.fillStyle = on ? app.heat(i) : th.line
+            d.beginPath()
+            d.roundRect(x, 0, cw, d.h, 6)
+            d.fill()
+            const style = ({ ...CellNumber, fontFamily: th.display,
+                textColor: on ? (i >= 6 ? th.raised : th.ink) : th.muted })
+            const label = "" + i
+            const m = measureText(label, style)
+            d.fillText(label, x + (cw - m.width) / 2, (d.h - m.height) / 2 + m.baseline, style)
+            if (i == classroot.value) {
+                d.strokeStyle = th.ink
+                d.lineWidth = 2.5
+                d.beginPath()
+                d.roundRect(x + 1.25, 1.25, cw - 2.5, d.h - 2.5, 5)
+                d.stroke()
+                }
+            }
+        }
+    ]
+
+
+class SportTile extends Control [ height = 60, cornerRadius = 12,
+    sport: string = "",
+    on: boolean = { app.draft.sport == sport },
+    width = { (parent.width - 3 * 8) / 4 },
+    fill = { on ? provided("theme").ink : down ? provided("theme").line : null },
+    stroke = { stroke(1.5, on ? provided("theme").ink : provided("theme").line) },
+    press() { app.draft.sport = sport },
+    onClick() { if (!disabled) press() },
+    t: TextLabel [ x = center, fontSize = 22, fontWeight = bold, fontFamily = { provided("theme").display },
+        textTransform = uppercase, letterSpacing = 1,
+        textColor = { classroot.on ? provided("theme").paper : provided("theme").ink },
+        text = { sportName(classroot.sport) } ]
+    ]
+
+
+// a figure to nudge: − and + either side of a number big enough to read at
+// arm's length, its label above it
+
+class Stepper extends View [ width = 100%, height = { app.shortScreen ? 80 : 96 },
+    label: string = "",
+    kind: string = "",
+    value: string = "",
+    unit: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    RoundButton [ width = 56, height = 56, cornerRadius = 28, minus = true,
+        press() { app.draft.nudge(classroot.kind, -1) }
+        ],
+    shown: View [ height = { parent.height }, width = { parent.width - 2 * 56 - 2 * 8 },
+        Caps [ x = center, y = 0, text = { classroot.label } ],
+        figure: View [ x = center, y = 16,
+            layout: SimpleLayout [ axis = x, spacing = 6, align = end ],
+
+            // as large as the room between the buttons allows, up to 72
+
+            Fig [ fontSize = { Math.min(72, (classroot.width - 128) / 3.1) }, lineHeight = 1,
+                text = { classroot.value } ],
+            Text [ fontSize = 22, fontWeight = semibold, visible = { classroot.unit != "" }, text = { classroot.unit } ]
+            ]
+        ],
+    RoundButton [ width = 56, height = 56, cornerRadius = 28,
+        press() { app.draft.nudge(classroot.kind, 1) }
+        ]
+    ]
+
+
+class EntryForm extends View [
+    layout: SimpleLayout [ axis = y, spacing = { app.shortScreen ? 9 : 14 } ],
+
+    top: View [ width = 100%, height = 44,
+        Fig [ y = center, fontSize = 30, text = { app.draft.editId == "" ? "Log a session" : "Correct a session" } ],
+        TextButton [ x = end, label = "Cancel",
+            press() { app.draft.close() }
+            ]
+        ],
+
+    dates: View [ width = 100%, height = 44, scrolls = x,
+        row: View [ datapath = { app.dayChips.value },
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            Chip [ datapath = :chips[], label = :label, on = { app.draft.day == :id },
+                press() { app.draft.day = :id }
+                ]
+            ]
+        ],
+
+    sports: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        SportTile [ sport = "run" ],
+        SportTile [ sport = "ride" ],
+        SportTile [ sport = "lift" ],
+        SportTile [ sport = "swim" ]
+        ],
+
+    Stepper [ label = "How long", kind = "minutes", value = { fmtDur(app.draft.minutes) } ],
+    Stepper [ label = "How far", kind = "km", visible = { app.draft.hasDistance }, value = { app.draft.km.toFixed(1) }, unit = "km" ],
+
+    feel: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Caps [ text = "How it felt" ],
+        Caps [ textColor = { app.heatInk(app.draft.effort) }, text = { effortWord(app.draft.effort) } ]
+        ],
+    EffortStrip [ value = { app.draft.effort },
+        input(v: number) { app.draft.effortSet = v }
+        ],
+
+    noteField: TextInput [ width = 100%, height = 44, padding = 12, cornerRadius = 10, fontSize = 16,
+        fill = { provided("theme").paper }, stroke = { stroke(1, provided("theme").line) },
+        placeholder = "Add a note (optional)",
+        text = { app.draft.note },
+        onInput(v: string) { app.draft.note = v },
+        onEnter() { app.draft.save() }
+        ],
+
+    err: Text [ width = 100%, fontSize = 15, fontWeight = semibold, textColor = { provided("theme").accent },
+        visible = { app.m.create.failed || app.m.update.failed },
+        text = { "Not saved — " + (app.m.create.failed ? app.m.create.error : app.m.update.error) } ],
+
+    save: SaveButton [ ],
+
+    hint: Caps [ visible = { !app.touchDevice }, text = "1–0 effort · ↑↓ time · ↵ save · esc cancel" ]
+    ]
+
+
+// the one big thing to press — and it always says what it will save
+
+class SaveButton extends Control [ width = 100%, height = 64, cornerRadius = 14,
+    disabled = { app.m.saving },
+    fill = { down ? provided("theme").muted : provided("theme").ink },
+    press() { app.draft.save() },
+    onClick() { if (!disabled) press() },
+    lines: View [ x = 20, y = center, width = { parent.width - 40 },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 22, fontWeight = bold, fontFamily = { provided("theme").display }, textTransform = uppercase,
+            letterSpacing = 1, textColor = { provided("theme").paper },
+            text = { app.m.saving ? "Saving…" : app.draft.editId == "" ? "Save" : "Save changes" } ],
+        Text [ width = 100%, fontSize = 14, fontWeight = medium, wrap = false, maxLines = 1,
+            textColor = { provided("theme").faint }, text = { app.draft.summary() } ]
+        ]
+    ]

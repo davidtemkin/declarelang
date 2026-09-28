@@ -213,3 +213,32 @@ of that code, not a capability.
 Three candidates stay in every build, because nearly every real program uses
 them and the saving would be small: text editing, reveal and anchors (close to
 the URL and Back), and pane scrolling.
+
+### Measured, not built
+
+The rest of the candidates measured on 2026-09-26. **None is a capability**, and
+none looks worth one: each saves well under a kilobyte, most programs use it, or
+it would split code the renderer calls from its core. Figures are gzipped savings
+on a hello-world DOM build, measured by emptying the functions' bodies, so they
+are lower bounds.
+
+| candidate | saves | trigger it would take |
+|---|---:|---|
+| raster cache | 0.78 KB | a `draw` method (the library's icons draw, so most apps keep it) |
+| effects setters (filter, blend, mask, backdrop, tint) | 0.45 | a value slot of that kind |
+| ignoreScroll | 0.27 | the attribute |
+| image setters | 0.23 | the Image class |
+| selectable text | 0.22 | the `selectable` attribute |
+| horizontal scroll | 0.22 | `scrolls` = x or both |
+| carved hits (shaped clips) | 0.20 | the `clip` value slot |
+| travel, virtual extent, row ARIA | 0.18 | `travelWith`, `virtualize`, replication |
+| link | 0.16 | `link` / `linksTo` |
+| raise, travel, rich, `createView` (view side) | 0.16 | member read / class |
+| negative-size diagnostics | 0.15 | none: production could always drop them, as it drops error prose |
+| rotation, scale, matrix; 3D | 0.10; 0.05 | the attributes |
+| precomputed class schemas | ≤ ~2 (not measured) | none: the compiler knows them; a design change (ship the result instead of rebuilding at boot), not a split |
+
+Corrections from measuring: pinch-zoom watching and the root's touch-action run
+for every app at attach, so they are core (only carved hit-testing could be
+triggered), and the shared transform chain is core (only the rotation, scale and
+3D setters could be).

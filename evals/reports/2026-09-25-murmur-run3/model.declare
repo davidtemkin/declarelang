@@ -1,0 +1,351 @@
+/*
+# The model
+
+Everything the app knows lives in one `Store`: the served history, copied into a
+working `Dataset` so the live feed and the person using the app can write to it, and
+the socket that keeps it current. Views never hold a copy of a conversation; they read
+two projections of it — `inbox()` for the list, `present()` for the open thread.
+
+Sends and reactions land in the working copy first and on the wire second, so what
+someone does appears the moment they do it. A local message carries a `key` that never
+changes, so the row showing it survives the server handing back the real id.
+*/
+
+schema Person [ id: string, name: string, avatar?: string ]
+schema Reaction [ person: string, emoji: string ]
+schema Photo [ src: string, alt: string ]
+
+schema Message [ id: string, from: string, at: string, kind: "text" | "photo" | "voice",
+    text?: string, src?: string, alt?: string, durationMs?: number, peaks[]?: number,
+    reactions[]?: Reaction,
+    key?: string, pending?: boolean ]
+
+schema Thread [ id: string, title?: string, participants[]: string, lastSeen: string,
+    messages[]: Message,
+    typing[]?: string, seen?: any ]
+
+schema History [ me: string, people[]: Person, sendable[]: Photo, threads[]: Thread ]
+
+// one frame of the live feed; `message` is a whole message, or on a reaction its id
+
+schema Event [ t: string, thread?: string, person?: string, state?: string, message?: any,
+    emoji?: string, through?: string, ref?: string ]
+
+// one message, as the open conversation shows it — see Store.present()
+
+schema Row [ id: string, mid: string, from: string, mine: boolean, kind: string,
+    text: string, src: string, alt: string, durationMs: number, peaks[]: number,
+    reacts[]: [ id: string, emoji: string, count: number, mine: boolean ],
+    stamp: string, newDay: boolean, firstUnread: boolean, runStart: boolean, runEnd: boolean,
+    group: boolean, name: string, voice: number, avatar: string, initials: string,
+    pending: boolean, receipt: string ]
+
+schema Convo [ rows[]: Row ]
+
+// one conversation, as the list shows it — see Store.inbox()
+
+schema Entry [ id: string, rank: number, title: string, preview: string, typing: boolean,
+    when: string, unread: number, group: boolean,
+    face1: string, init1: string, voice1: number, face2: string, init2: string, voice2: number ]
+
+schema Inbox [ threads[]: Entry ]
+
+
+script {
+    // Formatting — functions of their arguments alone.
+
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+                    "August", "September", "October", "November", "December"]
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+    function dayKey(ms: number): string {
+        const d = new Date(ms)
+        return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate()
+        }
+    function clockTime(ms: number): string {
+        const d = new Date(ms)
+        const h = d.getHours() % 12 == 0 ? 12 : d.getHours() % 12
+        const m = d.getMinutes()
+        return h + ":" + (m < 10 ? "0" : "") + m + (d.getHours() < 12 ? " AM" : " PM")
+        }
+    function daysBetween(a: number, b: number): number {
+        const x = new Date(a), y = new Date(b)
+        return Math.round((Date.UTC(y.getFullYear(), y.getMonth(), y.getDate())
+                         - Date.UTC(x.getFullYear(), x.getMonth(), x.getDate())) / 86400000)
+        }
+
+    // The stamp over a break in the conversation: the day in full when the day
+    // changes, the time alone when it is only a pause.
+    function stampLabel(ms: number, now: number, newDay: boolean): string {
+        const d = new Date(ms)
+        if (!newDay) return clockTime(ms)
+        const ago = daysBetween(ms, now)
+        const day = ago == 0 ? "Today" : ago == 1 ? "Yesterday"
+                  : ago < 7 ? DAYS[d.getDay()]
+                  : DAYS[d.getDay()] + ", " + MONTHS[d.getMonth()] + " " + d.getDate()
+        return day + " · " + clockTime(ms)
+        }
+
+    // The list's compact time: the clock today, the weekday this week, the date before.
+    function whenLabel(ms: number, now: number): string {
+        const ago = daysBetween(ms, now)
+        const d = new Date(ms)
+        if (ago <= 0) return clockTime(ms)
+        if (ago == 1) return "Yesterday"
+        if (ago < 7) return DAYS[d.getDay()]
+        return MONTHS[d.getMonth()].slice(0, 3) + " " + d.getDate()
+        }
+
+    function durationLabel(ms: number): string {
+        const s = Math.max(0, Math.round(ms / 1000))
+        return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60)
+        }
+
+    function initialsOf(name: string): string {
+        const parts = name.split(/[\s-]+/).filter((p) => p.length > 0)
+        return parts.length == 0 ? "?" : parts.length == 1 ? parts[0].slice(0, 1)
+             : parts[0].slice(0, 1) + parts[parts.length - 1].slice(0, 1)
+        }
+
+    function firstName(name: string): string { return name.split(" ")[0] }
+    }
+
+
+class Store [
+    api: string = "http://localhost:8330",
+    me: string = { this.db.value?.me ?? "" },
+    ready: boolean = { this.db.value.threads.length > 0 },
+    sends: number = 0,
+
+    history: DataSource [ url = { classroot.api + "/threads.json" }, schema = History,
+        onLoad() { classroot.adopt() }
+        ],
+    db: Dataset [ schema = History ] { { "me": "", "people": [], "sendable": [], "threads": [] } },
+
+    // The feed's socket is declared on the App, which owns the connection (a
+    // source inside a view-less node is not started by the runtime); the store
+    // is handed each frame through `receive` and writes back through `wire`.
+
+    wire(frame: object) { app.live.send(JSON.stringify(frame)) },
+
+    onInit() { this.history.fetch() },
+
+    // The working copy: every thread gains the live state the feed will write,
+    // every message a key that outlives its id.
+
+    adopt() {
+        const h = this.history.value
+        if (h == null) return
+        this.db.set([], ({ me: h.me, people: h.people, sendable: h.sendable,
+            threads: h.threads.map((t) => ({ ...t, typing: [], seen: ({}),
+                messages: t.messages.map((m) => ({ ...m, key: m.id })) })) }))
+        },
+
+    // ── lookups ──
+
+    threads() -> Thread[] { return this.db.value?.threads ?? [] },
+    threadAt(id: string) -> number { return this.threads().findIndex((t) => t.id == id) },
+    person(id: string) -> Person? { return (this.db.value?.people ?? []).find((p) => p.id == id) ?? null },
+    nameOf(id: string) -> string { return this.person(id)?.name ?? "Someone" },
+    voiceOf(id: string) -> number { return Math.max(0, (this.db.value?.people ?? []).findIndex((p) => p.id == id)) },
+    sendable() -> Photo[] { return this.db.value?.sendable ?? [] },
+
+    // Unread: what others said after the last message this person looked at.
+
+    unreadIn(t: Thread) -> number {
+        const seen = t.messages.findIndex((m) => m.id == t.lastSeen)
+        return t.messages.filter((m, i) => i > seen && m.from != this.me).length
+        },
+    lastAt(t: Thread) -> number {
+        return t.messages.length == 0 ? 0 : Date.parse(t.messages[t.messages.length - 1].at)
+        },
+    titleOf(t: Thread) -> string {
+        if (t.title != null && t.title != "") return t.title
+        const others = t.participants.filter((p) => p != this.me)
+        return others.length == 1 ? this.nameOf(others[0]) : others.map((p) => firstName(this.nameOf(p))).join(", ")
+        },
+    typingIn(id: string) -> string {
+        const t = this.threads()[this.threadAt(id)]
+        const who = t?.typing ?? []
+        if (who.length == 0) return ""
+        const names = who.map((p) => firstName(this.nameOf(p)))
+        return (names.length == 1 ? names[0] + " is" : names.join(" and ") + " are") + " writing…"
+        },
+
+    // ── the list ──
+
+    inbox(now: number) -> Inbox {
+        const rows = this.threads().map((t) => {
+            const others = t.participants.filter((p) => p != this.me)
+            const a = this.person(others[0]), b = others.length > 1 ? this.person(others[1]) : null
+            const last = t.messages[t.messages.length - 1]
+            const typing = (t.typing ?? []).length > 0
+            return ({ id: t.id, rank: 0, title: this.titleOf(t),
+                preview: typing ? this.typingIn(t.id) : last == null ? "No messages yet" : this.previewOf(last, others.length > 1),
+                typing: typing,
+                when: last == null ? "" : whenLabel(Date.parse(last.at), now),
+                unread: this.unreadIn(t), group: others.length > 1,
+                face1: a?.avatar ?? "", init1: initialsOf(a?.name ?? "?"), voice1: this.voiceOf(a?.id ?? ""),
+                face2: b?.avatar ?? "", init2: initialsOf(b?.name ?? "?"), voice2: this.voiceOf(b?.id ?? ""),
+                at: this.lastAt(t) })
+            })
+        rows.sort((x, y) => y.at - x.at)
+        return ({ threads: rows.map((r, i) => ({ ...r, rank: i })) })
+        },
+
+    previewOf(m: Message, group: boolean) -> string {
+        const who = m.from == this.me ? "You: " : group ? firstName(this.nameOf(m.from)) + ": " : ""
+        const body = m.kind == "photo" ? "Photo" + (m.alt ? " · " + m.alt : "")
+                   : m.kind == "voice" ? "Voice message · " + durationLabel(m.durationMs ?? 0)
+                   : m.text ?? ""
+        return who + body
+        },
+
+    // ── one conversation ──
+    // Each message becomes a row that already knows how it sits among its
+    // neighbours: whether it opens or closes a run, whether a stamp or the
+    // unread rule goes over it. `divider` is the last message read when the
+    // thread was opened, so the rule stays where it was while the reader is here.
+
+    present(id: string, divider: string, now: number) -> Convo {
+        const t = this.threads()[this.threadAt(id)]
+        if (t == null) return ({ rows: [] })
+        const group = t.participants.length > 2
+        const msgs = t.messages
+        const cut = divider == "" ? -2 : msgs.findIndex((m) => m.id == divider)
+        const firstNew = msgs.findIndex((m, i) => i > cut && cut > -2 && m.from != this.me)
+        const breaks = msgs.map((m, i) => {
+            if (i == 0) return true
+            const gap = Date.parse(m.at) - Date.parse(msgs[i - 1].at)
+            return gap > 45 * 60000 || dayKey(Date.parse(m.at)) != dayKey(Date.parse(msgs[i - 1].at)) || i == firstNew
+            })
+        const joins = (i) => i > 0 && i < msgs.length && !breaks[i] && msgs[i - 1].from == msgs[i].from
+            && Date.parse(msgs[i].at) - Date.parse(msgs[i - 1].at) < 10 * 60000
+        const lastMine = msgs.length > 0 && msgs[msgs.length - 1].from == this.me ? msgs.length - 1 : -1
+        return ({ rows: msgs.map((m, i) => {
+            const ms = Date.parse(m.at)
+            const p = this.person(m.from)
+            const newDay = i == 0 || dayKey(ms) != dayKey(Date.parse(msgs[i - 1].at))
+            return ({ id: m.key ?? m.id, mid: m.id, from: m.from, mine: m.from == this.me, kind: m.kind,
+                text: m.text ?? "", src: m.src ?? "", alt: m.alt ?? "", durationMs: m.durationMs ?? 0, peaks: m.peaks ?? [],
+                reacts: this.tally(m.reactions ?? []),
+                stamp: breaks[i] ? stampLabel(ms, now, newDay) : "", newDay: newDay, firstUnread: i == firstNew,
+                runStart: !joins(i), runEnd: !joins(i + 1) || i == msgs.length - 1,
+                group: group, name: p?.name ?? "Someone", voice: this.voiceOf(m.from),
+                avatar: p?.avatar ?? "", initials: initialsOf(p?.name ?? "?"),
+                pending: m.pending == true,
+                receipt: i == lastMine ? this.receiptFor(t, i) : "" })
+            }) })
+        },
+
+    // Reactions grouped by mark, in the order the marks first arrived.
+
+    tally(rs: Reaction[]) -> array {
+        const out = []
+        for (const r of rs) {
+            const hit = out.find((o) => o.emoji == r.emoji)
+            if (hit) { hit.count = hit.count + 1; hit.mine = hit.mine || r.person == this.me }
+            else out.push(({ id: r.emoji, emoji: r.emoji, count: 1, mine: r.person == this.me }))
+            }
+        return out
+        },
+
+    receiptFor(t: Thread, i: number) -> string {
+        const m = t.messages[i]
+        if (m.pending) return "Sending…"
+        const seen = t.seen ?? ({})
+        const readers = t.participants.filter((p) => p != this.me && seen[p] != null
+            && t.messages.findIndex((x) => x.id == seen[p]) >= i)
+        if (readers.length == 0) return "Sent"
+        if (t.participants.length == 2) return "Seen"
+        return readers.length == t.participants.length - 1 ? "Seen by everyone"
+             : "Seen by " + readers.map((p) => firstName(this.nameOf(p))).join(", ")
+        },
+
+    // ── writes ──
+
+    markRead(id: string) {
+        const ti = this.threadAt(id)
+        if (ti < 0) return
+        const msgs = this.threads()[ti].messages
+        const last = msgs.filter((m) => m.pending != true).pop()
+        if (last != null && last.id != this.threads()[ti].lastSeen) this.db.set(["threads", ti, "lastSeen"], last.id)
+        },
+
+    sendText(id: string, text: string) {
+        const body = text.trim()
+        if (body == "") return
+        this.post(id, ({ kind: "text", text: body }), ({ kind: "text", text: body }))
+        },
+
+    sendPhoto(id: string, photo: Photo) {
+        this.post(id, ({ kind: "photo", src: photo.src, alt: photo.alt }), ({ kind: "photo", src: photo.src }))
+        },
+
+    post(id: string, shown: object, wire: object) {
+        const ti = this.threadAt(id)
+        if (ti < 0) return
+        this.sends = this.sends + 1
+        const ref = "local-" + this.sends
+        this.markRead(id)
+        this.db.set("/threads/" + ti + "/messages/-", ({ ...shown, id: ref, key: ref, from: this.me,
+            at: new Date().toISOString(), pending: true, reactions: [] }))
+        this.wire(({ ...wire, t: "send", ref: ref, thread: id }))
+        },
+
+    react(id: string, key: string, emoji: string) {
+        const ti = this.threadAt(id)
+        if (ti < 0) return
+        const mi = this.threads()[ti].messages.findIndex((m) => (m.key ?? m.id) == key)
+        if (mi < 0) return
+        const m = this.threads()[ti].messages[mi]
+        const rs = m.reactions ?? []
+        if (rs.some((r) => r.person == this.me && r.emoji == emoji)) return
+        this.db.set(["threads", ti, "messages", mi, "reactions"], [...rs, ({ person: this.me, emoji: emoji })])
+        // a message still on its way carries the mark with it; sent() forwards it
+        if (m.pending != true) this.wire(({ t: "react", thread: id, message: m.id, emoji: emoji }))
+        },
+
+    // ── the feed ──
+
+    receive(ev: Event) {
+        if (ev.t == "sent") return this.sent(ev.ref ?? "", ev.message)
+        const ti = this.threadAt(ev.thread ?? "")
+        if (ti < 0) return
+        const t = this.threads()[ti]
+        const who = ev.person ?? ""
+        if (ev.t == "composing") {
+            const rest = (t.typing ?? []).filter((p) => p != who)
+            this.db.set(["threads", ti, "typing"], ev.state == "start" ? [...rest, who] : rest)
+        } else if (ev.t == "message") {
+            if (t.messages.some((m) => m.id == ev.message.id)) return
+            this.db.set(["threads", ti, "typing"], (t.typing ?? []).filter((p) => p != ev.message.from))
+            this.db.set("/threads/" + ti + "/messages/-", ({ ...ev.message, key: ev.message.id }))
+        } else if (ev.t == "reaction") {
+            const mi = t.messages.findIndex((m) => m.id == ev.message)
+            if (mi < 0) return
+            const rs = t.messages[mi].reactions ?? []
+            if (rs.some((r) => r.person == who && r.emoji == ev.emoji)) return
+            this.db.set(["threads", ti, "messages", mi, "reactions"], [...rs, ({ person: who, emoji: ev.emoji ?? "" })])
+        } else if (ev.t == "seen") {
+            this.db.set(["threads", ti, "seen"], ({ ...(t.seen ?? ({})), [who]: ev.through }))
+            }
+        },
+
+    // The service's answer to a send: the message keeps its key and takes its real
+    // id and time; any mark attached while it was on its way now follows it.
+
+    sent(ref: string, message: Message) {
+        const ts = this.threads()
+        for (let ti = 0; ti < ts.length; ti++) {
+            const mi = ts[ti].messages.findIndex((m) => m.key == ref)
+            if (mi < 0) continue
+            const m = ts[ti].messages[mi]
+            this.db.set(["threads", ti, "messages", mi], ({ ...m, id: message.id, at: message.at, pending: false }))
+            for (const r of (m.reactions ?? []).filter((r) => r.person == this.me)) {
+                this.wire(({ t: "react", thread: ts[ti].id, message: message.id, emoji: r.emoji }))
+                }
+            return
+            }
+        }
+    ]

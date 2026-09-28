@@ -1,0 +1,363 @@
+/*
+# The training log — data, and everything derived from it
+
+The service is the whole backend. Its history arrives once, is copied into a
+working `Dataset` (`log`), and every write — add, correct, delete — goes to the
+server first and lands in `log` from the server's own reply. Everything the
+screen shows is a method over `log` fed to a derived dataset, so a write is
+immediately true of this week, the streak, the week's shape and the year.
+*/
+
+schema Session [ id: string, date: string, sport: string, minutes: number, distanceKm?: number,
+    effort: number, heartAvg?: number, note?: string ]
+
+schema LiveSession [ id: string, date: string, sport: string, startedSecondsAgo: number,
+    minutes: number, distanceKm?: number, heartNow: number, effort: number ]
+
+schema WeekDay [ id: number, letter: string, minutes: number, effort: number, today: boolean,
+    pick: string ]
+
+schema Totals [ count: number, minutes: number, km: number, effort: number ]
+
+schema Series [ first: number, last: number, minutes[]: number, effort[]: number, load[]: number,
+    loadEffort[]: number, maxDay: number, maxLoad: number ]
+
+/*
+Dates travel as day numbers (days since 1970-01-01, UTC) so that "the day
+before" is subtraction. The person's dates are their own; nothing here knows
+about time zones.
+*/
+
+script {
+    function dayNum(iso: string): number {
+        const p = iso.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000)
+    }
+
+    function isoOf(n: number): string {
+        return new Date(n * 86400000).toISOString().slice(0, 10)
+    }
+
+    /** 0 = Monday … 6 = Sunday */
+    function weekdayOf(n: number): number {
+        return (new Date(n * 86400000).getUTCDay() + 6) % 7
+    }
+
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    function monthOf(n: number): number { return new Date(n * 86400000).getUTCMonth() }
+    function yearOf(n: number): number { return new Date(n * 86400000).getUTCFullYear() }
+    function dateOf(n: number): number { return new Date(n * 86400000).getUTCDate() }
+    function monthName(m: number): string { return MONTHS[m] }
+    function dayName(n: number): string { return DAYS[weekdayOf(n)] }
+    function dayLetter(n: number): string { return DAYS[weekdayOf(n)].slice(0, 1) }
+
+    /** "Today", "Yesterday", "Mon 3 Aug", or "Tue 14 Oct 2025" outside this year */
+    function dayLabel(n: number, today: number): string {
+        if (n == today) return "Today"
+        if (n == today - 1) return "Yesterday"
+        const base = DAYS[weekdayOf(n)] + " " + dateOf(n) + " " + MONTHS[monthOf(n)]
+        return yearOf(n) == yearOf(today) ? base : base + " " + yearOf(n)
+    }
+
+    /** `3h 40m`, `45m` — the brief's own forms */
+    function fmtDur(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60)
+        return h > 0 ? h + "h " + (m % 60) + "m" : m + "m"
+    }
+
+    function fmtKm(km: number): string { return km.toFixed(1) + " km" }
+
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+    }
+
+    function effortWord(e: number): string {
+        return e <= 2 ? "Easy" : e <= 4 ? "Light" : e <= 6 ? "Steady" : e <= 8 ? "Hard" : "All-out"
+    }
+
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = xs.slice().sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+    }
+
+    function pct(n: number, of: number): number { return Math.round(of == 0 ? 0 : (n / of) * 100) }
+
+    function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
+
+    function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
+
+    /** blend two 0xRRGGBB colors */
+    function mixColor(a: number, b: number, t: number): number {
+        const c = (x: number, y: number) => Math.round(x + (y - x) * clamp(t, 0, 1))
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
+    }
+
+    /** How loudly an effort speaks: easy work stays in the ink, hard work shouts. */
+    function heatT(effort: number): number { return Math.pow(clamp((effort - 4) / 5, 0, 1), 1.5) }
+    }
+
+
+/*
+## Training
+
+The model: the history, the live session, and the questions the screen asks of
+them. No views; the App holds one.
+*/
+
+class Training [
+    api: string = "http://127.0.0.1:8320",
+
+    clock: DataSource [ auto = true, url = { classroot.api + "/api/today" }, schema = [ today: string ] ],
+    src: DataSource [ auto = true, url = { classroot.api + "/api/sessions" }, schema = [ sessions[]: Session ],
+        onLoad() { classroot.log.set([], ({ sessions: this.value?.sessions ?? [] })) }
+        ],
+
+    // the working copy every view reads, and every save lands in
+
+    log: Dataset [ schema = [ sessions[]: Session ] ] { { "sessions": [] } },
+
+    ready: boolean = { classroot.clock.loaded && classroot.src.loaded },
+    failed: boolean = { classroot.clock.failed || classroot.src.failed },
+    today: number = { classroot.clock.loaded ? dayNum(classroot.clock.value?.today ?? "1970-01-01") : 0 },
+
+    // ── the session in progress ────────────────────────────────────────────
+    // The service advances it on every read; between reads the elapsed time
+    // is counted here from when the last reading arrived.
+
+    live: DataSource [ auto = true, url = { classroot.api + "/api/live" }, schema = [ session?: LiveSession ],
+        onLoad() { classroot.liveAt = Date.now() }
+        ],
+    liveAt: number = 0,
+    poll: Time [ tick = 5000,
+        onTick() { classroot.live.fetch() }
+        ],
+    second: Time [ tick = second ],
+    running: boolean = { classroot.live.loaded && classroot.live.value?.session != null },
+    liveSeconds: number = { classroot.running
+        ? classroot.live.value!.session!.startedSecondsAgo + Math.max(0, Math.floor((classroot.second.now - classroot.liveAt) / 1000))
+        : 0 },
+
+    // ── questions about the history ────────────────────────────────────────
+
+    all() -> Session[] { return this.log.value?.sessions ?? [] },
+
+    find(id: string) -> Session? { return this.all().find((o) => o.id == id) ?? null },
+
+    // the one session being looked at — held here, and read through a method
+    // with no arguments, so everything showing it follows a correction to it
+
+    selId: string = "",
+    selected() -> Session? { return this.find(this.selId) },
+
+    newest() -> Session? {
+        const all = this.all()
+        if (all.length == 0) return null
+        let best = all[0]
+        for (const s of all) if (s.date > best.date || (s.date == best.date && s.id > best.id)) best = s
+        return best
+        },
+
+    totals(from: number, to: number) -> Totals {
+        let count = 0, minutes = 0, km = 0, eff = 0
+        for (const s of this.all()) {
+            const d = dayNum(s.date)
+            if (d < from || d > to) continue
+            count += 1
+            minutes += s.minutes
+            km += s.distanceKm ?? 0
+            eff += s.effort * s.minutes
+            }
+        return ({ count: count, minutes: minutes, km: km, effort: minutes > 0 ? eff / minutes : 0 })
+        },
+
+    // "this week" is the seven days ending today — on a Monday morning that is
+    // the week just finished, which is what the person opening it wants to see
+
+    week() -> Totals { return this.totals(this.today - 6, this.today) },
+
+    weekDays() -> object {
+        const days = []
+        for (let i = 6; i >= 0; i--) {
+            const n = this.today - i
+            let minutes = 0, effort = 0, pick = "", pickEffort = -1
+            for (const s of this.all()) {
+                if (dayNum(s.date) != n) continue
+                minutes += s.minutes
+                effort = Math.max(effort, s.effort)
+                if (s.effort > pickEffort) { pickEffort = s.effort; pick = s.id }
+                }
+            days.push(({ id: n, letter: dayLetter(n), minutes: minutes, effort: effort, today: i == 0, pick: pick }))
+            }
+        return ({ days: days })
+        },
+
+    // consecutive days with a session, ending today — or yesterday, while
+    // today is still open
+
+    streak() -> number {
+        const on = new Set(this.all().map((s) => dayNum(s.date)))
+        let n = on.has(this.today) ? this.today : this.today - 1
+        let count = 0
+        while (on.has(n)) { count += 1; n -= 1 }
+        return count
+        },
+
+    // the whole history as per-day arrays the year chart reads by index
+
+    series() -> Series {
+        const all = this.all()
+        const last = this.today
+        let first = last
+        for (const s of all) first = Math.min(first, dayNum(s.date))
+        first = first - weekdayOf(first)            // start on a Monday
+        const n = last - first + 1
+        const minutes = new Array(n).fill(0), effort = new Array(n).fill(0)
+        const load = new Array(n).fill(0), loadEffort = new Array(n).fill(0)
+        for (const s of all) {
+            const i = dayNum(s.date) - first
+            if (i < 0 || i >= n) continue
+            minutes[i] += s.minutes
+            effort[i] = Math.max(effort[i], s.effort)
+            }
+        // the week behind each day: minutes, and effort weighted by minutes
+        const weighted = new Array(n).fill(0)
+        for (const s of all) {
+            const i = dayNum(s.date) - first
+            if (i >= 0 && i < n) weighted[i] += s.effort * s.minutes
+            }
+        let maxDay = 60, maxLoad = 300
+        for (let i = 0; i < n; i++) {
+            let m = 0, w = 0
+            for (let k = Math.max(0, i - 6); k <= i; k++) { m += minutes[k]; w += weighted[k] }
+            load[i] = m
+            loadEffort[i] = m > 0 ? w / m : 0
+            maxDay = Math.max(maxDay, minutes[i])
+            maxLoad = Math.max(maxLoad, m)
+            }
+        return ({ first: first, last: last, minutes: minutes, effort: effort, load: load,
+            loadEffort: loadEffort, maxDay: maxDay, maxLoad: maxLoad })
+        },
+
+    // the sessions on one day, hardest first
+
+    sessionsOn(n: number) -> Session[] {
+        return this.all().filter((s) => dayNum(s.date) == n).sort((a, b) => b.effort - a.effort)
+        },
+
+    // ── where one session sits against everything else ─────────────────────
+
+    // a sentence about effort against every session, and duration against
+    // every session of the same sport — told from whichever side is larger
+
+    standing(s: Session) -> string {
+        const all = this.all()
+        const same = all.filter((o) => o.sport == s.sport)
+        const harder = pct(all.filter((o) => o.effort < s.effort).length, all.length)
+        const easier = pct(all.filter((o) => o.effort > s.effort).length, all.length)
+        const longer = pct(same.filter((o) => o.minutes < s.minutes).length, same.length)
+        const shorter = pct(same.filter((o) => o.minutes > s.minutes).length, same.length)
+        const kind = s.sport == "lift" ? "lifting sessions" : sportName(s.sport).toLowerCase() + "s"
+        return (harder >= easier ? "Harder than " + harder : "Easier than " + easier) + "% of all your sessions. "
+            + (longer >= shorter ? "Longer than " + longer : "Shorter than " + shorter) + "% of your " + kind + "."
+        },
+
+    sameSport(sport: string) -> Session[] { return this.all().filter((o) => o.sport == sport) },
+
+    // ── what someone is most likely about to record ─────────────────────────
+    // The history has dates but no times of day, so "the sport they always do
+    // at this hour" is read as the sport they do most on this weekday.
+
+    likelySport(weekday: number) -> string {
+        const counts = ({ run: 0, ride: 0, lift: 0, swim: 0 })
+        for (const s of this.all()) {
+            const age = this.today - dayNum(s.date)
+            if (age > 120) continue
+            counts[s.sport] = (counts[s.sport] ?? 0) + (weekdayOf(dayNum(s.date)) == weekday ? 3 : 1)
+            }
+        let best = "run"
+        for (const k of Object.keys(counts)) if (counts[k] > counts[best]) best = k
+        return best
+        },
+
+    recent(sport: string) -> Session[] {
+        return this.all().filter((s) => s.sport == sport && this.today - dayNum(s.date) <= 120)
+        },
+
+    usualMinutes(sport: string) -> number {
+        const m = median(this.recent(sport).map((s) => s.minutes))
+        return m > 0 ? Math.round(m / 5) * 5 : 45
+        },
+
+    usualEffort(sport: string) -> number {
+        const e = median(this.recent(sport).map((s) => s.effort))
+        return e > 0 ? e : 5
+        },
+
+    // kilometres per minute, from what they usually cover
+
+    usualPace(sport: string) -> number {
+        const withKm = this.recent(sport).filter((s) => (s.distanceKm ?? 0) > 0)
+        return median(withKm.map((s) => (s.distanceKm ?? 0) / s.minutes))
+        },
+
+    // ── writing, through the service ───────────────────────────────────────
+    // Each write is a DataSource; the reply is the stored truth and lands in
+    // `log`, so nothing on screen is ever ahead of or behind the service.
+
+    outgoing: object = null,
+    targetId: string = "",
+
+    create: DataSource [ url = { classroot.api + "/api/sessions" }, method = "POST", schema = Session,
+        body = { classroot.outgoing },
+        onLoad() {
+            if (this.value == null) return
+            classroot.log.insert(["sessions"], 0, this.value)
+            app.afterSave(this.value.id)
+            }
+        ],
+    update: DataSource [ url = { classroot.api + "/api/sessions/" + classroot.targetId }, method = "PUT",
+        schema = Session, body = { classroot.outgoing },
+        onLoad() {
+            if (this.value == null) return
+            classroot.replace(this.value)
+            app.afterSave(this.value.id)
+            }
+        ],
+    remove: DataSource [ url = { classroot.api + "/api/sessions/" + classroot.targetId }, method = "DELETE",
+        onLoad() {
+            classroot.drop(classroot.targetId)
+            app.afterDelete(classroot.targetId)
+            }
+        ],
+
+    saving: boolean = { classroot.create.loading || classroot.update.loading || classroot.remove.loading },
+
+    add(fields: object) {
+        this.outgoing = fields
+        this.create.fetch()
+        },
+    correct(id: string, fields: object) {
+        this.targetId = id
+        this.outgoing = fields
+        this.update.fetch()
+        },
+    erase(id: string) {
+        this.targetId = id
+        this.remove.fetch()
+        },
+
+    // written as a new list, so everything that looked the session up by id
+    // (not only what read its fields) sees the corrected one
+
+    replace(s: Session) {
+        this.log.set(["sessions"], this.all().map((o) => o.id == s.id ? s : o))
+        },
+    drop(id: string) {
+        const i = this.all().findIndex((o) => o.id == id)
+        if (i >= 0) this.log.removeAt(["sessions"], i)
+        }
+    ]

@@ -1,0 +1,37 @@
+/*
+# The look
+
+Paper and ink. The page is a warm off-white, what you said is set in ink, and
+one colour — a dusk coral — means *new*: the unread mark, the rule over the first
+unread message, the note that something arrived below.
+
+Every other person is given a voice colour (`voice0` … `voice7`, by their place in
+the service's list of people). In a group it tints their bubbles, their name and
+their initials, so a run of speakers reads at a glance before a word is read.
+*/
+
+theme Paper [
+    paper = #F3EFE8,          // the page behind everything
+    sheet = #FBF9F5,          // the list, the header, the composer
+    sheetPressed = #EEE8DE,
+    sheetSelected = #ECE5D9,
+    ink = #1F1D1A,
+    inkSoft = #4B463F,
+    muted = #847D72,
+    faint = #B7AFA2,
+    rule = #E3DDD2,
+    mine = #26313C,           // your own bubbles
+    mineInk = #F7F3EC,
+    theirs = #FFFFFF,
+    theirsEdge = #E4DED4,
+    accent = #D2583A,         // new
+    accentInk = #FFFFFF,
+    voice0 = #B4533A,
+    voice1 = #2D7A6A,
+    voice2 = #7D4E9A,
+    voice3 = #9A7420,
+    voice4 = #33689E,
+    voice5 = #5B7A2A,
+    voice6 = #A8436A,
+    voice7 = #6A5A4A
+    ]

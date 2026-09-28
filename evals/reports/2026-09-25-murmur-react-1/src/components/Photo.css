@@ -1,0 +1,53 @@
+.photo {
+  --max-w: min(300px, 72vw);
+  --max-h: 340px;
+
+  position: relative;
+  display: block;
+  width: min(var(--max-w), calc(var(--max-h) * var(--ratio)));
+  aspect-ratio: var(--ratio);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .photo {
+    --max-w: 380px;
+    --max-h: 400px;
+  }
+}
+
+.photo:not([data-loaded='true'])::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--surface) 55%, transparent) 50%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  animation: photo-shimmer 1.6s linear infinite;
+}
+
+@keyframes photo-shimmer {
+  from {
+    background-position: 125% 0;
+  }
+  to {
+    background-position: -125% 0;
+  }
+}
+
+.photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 240ms ease-out;
+}
+
+.photo[data-loaded='true'] img {
+  opacity: 1;
+}

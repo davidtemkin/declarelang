@@ -1,0 +1,449 @@
+/*
+# Cadence — the model
+
+Everything the screens show is derived from one list of sessions. The service
+is the truth; `Log.sessions` is the working copy it lands in, and every write
+the app makes (add, correct, delete) is merged into that copy from the
+server's own reply, so each derived number — this week, the streak, the
+week's shape, the year — follows in the same settle.
+*/
+
+
+schema Session [ id: string, date: string, sport: "run" | "ride" | "lift" | "swim",
+    minutes: number, distanceKm?: number, effort: number, heartAvg?: number, note?: string ]
+
+schema Live [ id: string, date: string, sport: string, startedSecondsAgo: number, minutes: number,
+    distanceKm?: number, heartNow?: number, effort?: number ]
+
+schema Day [ n: number, letter: string, minutes: number, effort: number, today: boolean, top: string ]
+
+schema Week [ days[]: Day, count: number, minutes: number ]
+
+schema Bar [ minutes: number, effort: number, top: string ]
+
+schema Summary [ count: number, minutes: number, km: number, effort: number, hardest: string ]
+
+schema Typical [ minutes: number, km: number, effort: number ]
+
+schema Refusal [ message: string ]
+
+
+// Pure date and number formatting — functions of their arguments alone.
+// A day is an integer: days since 1970-01-01, so ranges are subtraction.
+
+script {
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    function dayNum(s: string): number {
+        const p = s.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000)
+    }
+    function dayStr(n: number): string { return new Date(n * 86400000).toISOString().slice(0, 10) }
+    function weekdayOf(n: number): number { return (n + 3) % 7 }          // 0 = Monday
+    function monthOf(n: number): number { return new Date(n * 86400000).getUTCMonth() }
+    function yearOf(n: number): number { return new Date(n * 86400000).getUTCFullYear() }
+    function dateOf(n: number): number { return new Date(n * 86400000).getUTCDate() }
+
+    function fmtDur(min: number): string {
+        const t = Math.max(0, Math.round(min)), h = Math.floor(t / 60), m = t % 60
+        return h == 0 ? m + "m" : h + "h " + m + "m"
+    }
+    // the same duration as rich text: figures at the run's size, units small
+    function durHtml(min: number): string {
+        const t = Math.max(0, Math.round(min)), h = Math.floor(t / 60), m = t % 60
+        return h == 0 ? m + "<span class='Unit'>m</span>"
+                      : h + "<span class='Unit'>h</span> " + m + "<span class='Unit'>m</span>"
+    }
+    function fmtKm(km: number): string { return km.toFixed(1) + " km" }
+    function fmtClock(secs: number): string {
+        const s = Math.max(0, Math.floor(secs)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, r = s % 60
+        const two = (v: number) => (v < 10 ? "0" : "") + v
+        return h > 0 ? h + ":" + two(m) + ":" + two(r) : m + ":" + two(r)
+    }
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+    }
+    function sportPlural(s: string): string {
+        return s == "run" ? "runs" : s == "ride" ? "rides" : s == "lift" ? "lifts" : "swims"
+    }
+    function fmtDay(n: number, today: number): string {
+        if (n == today) return "Today"
+        if (n == today - 1) return "Yesterday"
+        const base = DOW[weekdayOf(n)] + " " + dateOf(n) + " " + MONTHS[monthOf(n)]
+        return yearOf(n) == yearOf(today) ? base : base + " " + yearOf(n)
+    }
+    function fmtShortDay(n: number): string { return dateOf(n) + " " + MONTHS[monthOf(n)] }
+    function monthLabel(n: number): string { return MONTHS[monthOf(n)] }
+    function monthYear(n: number): string { return MONTHS_LONG[monthOf(n)] + " " + yearOf(n) }
+
+    // what a stretch of days is called: a month by name when it is one,
+    // otherwise its two ends, as coarse as the stretch is long
+    function periodName(a: number, b: number): string {
+        if (monthOf(a) == monthOf(b) && yearOf(a) == yearOf(b)) return monthYear(a)
+        if (b - a <= 62) {
+            const ends = fmtShortDay(a) + " – " + fmtShortDay(b)
+            return yearOf(a) == yearOf(b) ? ends + " " + yearOf(b) : fmtShortDay(a) + " " + yearOf(a) + " – " + fmtShortDay(b) + " " + yearOf(b)
+        }
+        return yearOf(a) == yearOf(b)
+            ? MONTHS[monthOf(a)] + " – " + MONTHS[monthOf(b)] + " " + yearOf(b)
+            : MONTHS[monthOf(a)] + " " + yearOf(a) + " – " + MONTHS[monthOf(b)] + " " + yearOf(b)
+    }
+
+    function ordinal(n: number): string {
+        const t = n % 100
+        if (t >= 11 && t <= 13) return n + "th"
+        return n + (n % 10 == 1 ? "st" : n % 10 == 2 ? "nd" : n % 10 == 3 ? "rd" : "th")
+    }
+
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = xs.slice().sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+    }
+
+    // blend two 0xRRGGBB colors channel-wise
+    function mix(a: number, b: number, t: number): number {
+        const k = Math.max(0, Math.min(1, t))
+        const c = (x: number, y: number) => Math.round(x + (y - x) * k)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
+    }
+    function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
+    }
+
+
+/*
+## Figure
+
+A number that travels. The screen reads `shown`; a spring carries it to
+`value`. The first real value is taken outright — opening the app should not
+count up from zero — and every later one moves.
+*/
+
+class Figure [
+    value: number = 0,
+    shown: number = 0,
+    seeded: boolean = false,
+    Spring [ attribute = shown, to = { classroot.value }, stiffness = 120, damping = 22 ],
+    trackChanges = ["value"],
+    onChange(e: ChangeEvent) { if (!seeded) { seeded = true; shown = value } }
+    ]
+
+
+/*
+## Log
+
+The training history and everything that summarises it. Reading: the frozen
+`today`, the whole list, and the live session (re-read every few seconds —
+the service advances it). Writing: one `DataSource` per verb, each merging
+the server's reply into the working copy.
+*/
+
+class Log [
+    api: string = "http://127.0.0.1:8320",
+
+    clock: DataSource [ auto = true, url = { classroot.api + "/api/today" }, schema = [ today: string ] ],
+    src: DataSource [ auto = true, url = { classroot.api + "/api/sessions" }, schema = [ sessions[]: Session ],
+        onLoad() { classroot.sessions.set([], ({ sessions: this.value?.sessions ?? [] })) }
+        ],
+    sessions: Dataset [ schema = [ sessions[]: Session ] ] { { "sessions": [] } },
+
+    ready: boolean = { classroot.src.loaded && classroot.clock.loaded },
+    loadFailed: boolean = { classroot.src.failed || classroot.clock.failed },
+    todayN: number = { classroot.clock.value != null ? dayNum(classroot.clock.value.today) : 0 },
+
+    // ── the session in progress ──
+    // The service reports elapsed seconds as of each read; between reads the
+    // second hand runs on locally, so the clock ticks rather than jumping by
+    // five. `liveAt` is when the last reading landed.
+
+    live: DataSource [ auto = true, url = { classroot.api + "/api/live" }, schema = [ session?: Live ],
+        onLoad() { classroot.liveAt = Date.now() }
+        ],
+    liveAt: number = 0,
+    livePoll: Time [ tick = 5000,
+        onTick() { classroot.live.fetch() }
+        ],
+    second: Time [ tick = second ],
+    running: boolean = { classroot.live.value?.session != null },
+    liveSecs: number = { (classroot.live.value?.session?.startedSecondsAgo ?? 0)
+        + Math.max(0, (classroot.second.now - classroot.liveAt) / 1000) },
+
+    // ── writes ──
+    // `target` names the record an update or delete is aimed at; `fetch()`
+    // settles first, so a handler can aim and send in one go.
+
+    target: string = "",
+    body: object = null,
+    create: DataSource [ url = { classroot.api + "/api/sessions" }, method = "POST", schema = Session,
+        body = { classroot.body },
+        onLoad() { if (this.value != null) { classroot.merge(this.value); app.saved(this.value.id) } }
+        ],
+    update: DataSource [ url = { classroot.api + "/api/sessions/" + classroot.target }, method = "PUT", schema = Session,
+        body = { classroot.body },
+        onLoad() { if (this.value != null) { classroot.merge(this.value); app.saved(this.value.id) } }
+        ],
+    remove: DataSource [ url = { classroot.api + "/api/sessions/" + classroot.target }, method = "DELETE",
+        onLoad() { classroot.drop(classroot.target) }
+        ],
+    saving: boolean = { classroot.create.loading || classroot.update.loading },
+    refusal: string = { classroot.create.failed ? classroot.why(classroot.create.errorBody, classroot.create.error)
+        : classroot.update.failed ? classroot.why(classroot.update.errorBody, classroot.update.error)
+        : "" },
+    why(body: object, fallback: string) -> string {
+        const r = body as Refusal
+        return r != null && r.message ? r.message : "Not saved — " + fallback
+        },
+
+    add(payload: object) { this.body = payload; this.create.fetch() },
+    correct(id: string, payload: object) { this.target = id; this.body = payload; this.update.fetch() },
+    erase(id: string) { this.target = id; this.remove.fetch() },
+
+    merge(s: Session) {
+        const i = this.all().findIndex((x) => x.id == s.id)
+        if (i >= 0) this.sessions.set(["sessions", i], s)
+        else this.sessions.insert(["sessions"], 0, s)
+        },
+    drop(id: string) {
+        const i = this.all().findIndex((x) => x.id == id)
+        if (i >= 0) this.sessions.removeAt(["sessions"], i)
+        },
+
+    // ── reading the history ──
+
+    all() -> Session[] { return this.sessions.value?.sessions ?? [] },
+    find(id: string) -> Session? { return this.all().find((s) => s.id == id) ?? null },
+    newest() -> Session? {
+        let best = this.all()[0] ?? null
+        for (const s of this.all()) if (best == null || s.date > best.date || (s.date == best.date && s.id > best.id)) best = s
+        return best
+        },
+    firstN: number = { classroot.oldestDay() },
+    oldestDay() -> number {
+        let lo = this.todayN
+        for (const s of this.all()) lo = Math.min(lo, dayNum(s.date))
+        return lo
+        },
+    dayCount: number = { classroot.todayN - classroot.firstN + 1 },
+
+    // The seven days ending today — a rolling week, so on a Monday morning
+    // it is the week just finished, not a week one morning old.
+
+    buildWeek() -> Week {
+        const t = this.todayN, days = []
+        let count = 0, minutes = 0
+        for (let n = t - 6; n <= t; n++) {
+            const on = this.all().filter((s) => dayNum(s.date) == n)
+            const m = on.reduce((a, s) => a + s.minutes, 0)
+            let top = ""
+            let topMin = 0
+            for (const s of on) if (s.minutes > topMin) { topMin = s.minutes; top = s.id }
+            count += on.length
+            minutes += m
+            days.push(({ n: n, letter: "MTWTFSS"[weekdayOf(n)], minutes: m,
+                effort: on.reduce((a, s) => Math.max(a, s.effort), 0), today: n == t, top: top }))
+            }
+        return ({ days: days, count: count, minutes: minutes })
+        },
+
+    // Consecutive days with a session, counted back from today — or from
+    // yesterday while today is still open, since the day isn't lost yet.
+
+    streak() -> number {
+        const on = new Set(this.all().map((s) => dayNum(s.date)))
+        let n = on.has(this.todayN) ? this.todayN : this.todayN - 1, run = 0
+        while (on.has(n)) { run++; n-- }
+        return run
+        },
+
+    // One bar per day across the whole history: total minutes, the hardest
+    // effort, and the longest session (what a tap on the bar opens).
+
+    buildBars() -> object {
+        const n = this.dayCount, bars = []
+        for (let i = 0; i < n; i++) bars.push(({ minutes: 0, effort: 0, top: "", topMin: 0 }))
+        for (const s of this.all()) {
+            const i = dayNum(s.date) - this.firstN
+            if (i < 0 || i >= n) continue
+            const b = bars[i]
+            b.minutes += s.minutes
+            b.effort = Math.max(b.effort, s.effort)
+            if (s.minutes > b.topMin) { b.topMin = s.minutes; b.top = s.id }
+            }
+        return ({ bars: bars })
+        },
+
+    summary(a: number, b: number) -> Summary {
+        const on = this.all().filter((s) => { const n = dayNum(s.date); return n >= a && n <= b })
+        let hardest = "", score = -1
+        for (const s of on) if (s.effort * 1000 + s.minutes > score) { score = s.effort * 1000 + s.minutes; hardest = s.id }
+        return ({ count: on.length,
+            minutes: on.reduce((t, s) => t + s.minutes, 0),
+            km: on.reduce((t, s) => t + (s.distanceKm ?? 0), 0),
+            effort: on.length == 0 ? 0 : on.reduce((t, s) => t + s.effort, 0) / on.length,
+            hardest: hardest })
+        },
+
+    // ── where one session sits against everything else ──
+
+    harderThan(s: Session) -> number {
+        const all = this.all()
+        return all.length <= 1 ? 0 : Math.round(100 * all.filter((x) => x.effort < s.effort).length / (all.length - 1))
+        },
+    lengthRank(s: Session) -> number {
+        return 1 + this.all().filter((x) => x.sport == s.sport && x.minutes > s.minutes).length
+        },
+    sportCount(sport: string) -> number { return this.all().filter((x) => x.sport == sport).length },
+
+    // ── what someone most likely means, for the log form ──
+
+    usualSport(day: number) -> string {
+        const wd = weekdayOf(day), tally = ({ run: 0, ride: 0, lift: 0, swim: 0 })
+        for (const s of this.all()) {
+            const n = dayNum(s.date)
+            if (n > day - 70) tally[s.sport] += weekdayOf(n) == wd ? 3 : 1
+            }
+        return ["run", "ride", "lift", "swim"].reduce((b, k) => (tally[k] > tally[b] ? k : b), "run")
+        },
+    typical(sport: string) -> Typical {
+        const recent = this.all().filter((s) => s.sport == sport).slice(0, 12)
+        const minutes = Math.max(5, Math.round(median(recent.map((s) => s.minutes)) / 5) * 5) || 45
+        const pace = median(recent.filter((s) => (s.distanceKm ?? 0) > 0).map((s) => (s.distanceKm ?? 0) / s.minutes))
+        return ({ minutes: minutes, km: Math.round(pace * minutes * 10) / 10, effort: Math.round(median(recent.map((s) => s.effort))) || 5 })
+        }
+    ]
+
+
+/*
+## Lens
+
+The year surface's window onto the history: `start` is the first day in view
+(an index from the oldest day, fractional) and `span` how many days are in
+view. Under the hand both are written directly, so the surface never lags the
+finger; a button or a released fling sets the targets instead, and the
+springs carry the window there.
+*/
+
+class Lens [
+    total: number = { app.log.dayCount },
+    start: number = 0,
+    span: number = 30,
+    startTo: number = 0,
+    spanTo: number = 30,
+    Spring [ attribute = start, to = { classroot.startTo }, stiffness = 140, damping = 24 ],
+    Spring [ attribute = span, to = { classroot.spanTo }, stiffness = 140, damping = 24 ],
+
+    minSpan: number = 10,
+    maxSpan: number = { Math.max(classroot.minSpan, classroot.total + 4) },
+    clampSpan(sp: number) -> number { return clamp(sp, this.minSpan, this.maxSpan) },
+    clampStart(s: number, sp: number) -> number {
+        const lo = -2, hi = this.total + 2 - sp
+        return hi < lo ? (this.total - sp) / 2 : clamp(s, lo, hi)
+        },
+
+    // the hand: value and target together, so the springs stay at rest
+
+    follow(s: number, sp: number) {
+        const w = this.clampSpan(sp), x = this.clampStart(s, w)
+        this.span = w
+        this.spanTo = w
+        this.start = x
+        this.startTo = x
+        },
+
+    // a destination: the springs carry it there
+
+    glide(s: number, sp: number) {
+        const w = this.clampSpan(sp)
+        this.spanTo = w
+        this.startTo = this.clampStart(s, w)
+        },
+
+    // zoom to a span about the middle of what is in view
+
+    zoomTo(sp: number) {
+        const mid = this.startTo + this.spanTo / 2
+        this.glide(mid - this.clampSpan(sp) / 2, sp)
+        },
+    showDay(i: number) {
+        if (i < this.startTo + 1 || i > this.startTo + this.spanTo - 2) this.glide(i - this.spanTo / 2, this.spanTo)
+        },
+
+    // the stretch of days on screen, as absolute day numbers
+
+    fromN: number = { app.log.firstN + Math.max(0, Math.round(classroot.start)) },
+    toN: number = { app.log.firstN + Math.min(classroot.total - 1, Math.round(classroot.start + classroot.span) - 1) },
+
+    // Once the history lands, open on all of it.
+
+    ready: boolean = { app.log.ready },
+    trackChanges = ["ready"],
+    onChange(e: ChangeEvent) { if (ready) { this.follow(0, this.total) } }
+    ]
+
+
+/*
+## Draft
+
+The session being logged or corrected. A new one opens already filled in with
+what the person most likely means; each control nudges one field, and the
+distance follows the duration at their usual pace until they touch it.
+*/
+
+class Draft [
+    editing: string = "",
+    sport: string = "run",
+    day: number = 0,
+    minutes: number = 45,
+    km: number = 0,
+    effort: number = 5,
+    note: string = "",
+    kmTouched: boolean = false,
+    hasKm: boolean = { classroot.sport != "lift" },
+    kmStep: number = { classroot.sport == "swim" ? 0.1 : 0.5 },
+    valid: boolean = { classroot.minutes > 0 && classroot.day <= app.log.todayN && classroot.effort >= 1 },
+
+    fresh() {
+        const t = app.log.todayN
+        this.editing = ""
+        this.day = t
+        this.note = ""
+        this.pickSport(app.log.usualSport(t))
+        },
+    load(s: Session) {
+        this.editing = s.id
+        this.sport = s.sport
+        this.day = dayNum(s.date)
+        this.minutes = s.minutes
+        this.km = s.distanceKm ?? 0
+        this.kmTouched = true
+        this.effort = s.effort
+        this.note = s.note ?? ""
+        },
+    pickSport(sp: string) {
+        this.sport = sp
+        if (this.editing != "") return
+        const t = app.log.typical(sp)
+        this.minutes = t.minutes
+        this.km = t.km
+        this.effort = t.effort
+        this.kmTouched = false
+        },
+    setMinutes(m: number) {
+        const was = this.minutes
+        this.minutes = clamp(m, 5, 600)
+        if (!this.kmTouched && was > 0) this.km = Math.round(this.km * this.minutes / was * 10) / 10
+        },
+    setKm(k: number) { this.km = Math.max(0, Math.round(k * 10) / 10); this.kmTouched = true },
+    shiftDay(d: number) { this.day = Math.min(app.log.todayN, this.day + d) },
+
+    payload() -> object {
+        return ({ sport: this.sport, date: dayStr(this.day), minutes: this.minutes,
+            distanceKm: this.hasKm && this.km > 0 ? this.km : null, effort: this.effort,
+            note: this.note.trim() == "" ? null : this.note.trim() })
+        },
+    summaryLine: string = { sportName(classroot.sport) + " · " + fmtDay(classroot.day, app.log.todayN) + " · " + fmtDur(classroot.minutes)
+        + (classroot.hasKm && classroot.km > 0 ? " · " + fmtKm(classroot.km) : "") }
+    ]

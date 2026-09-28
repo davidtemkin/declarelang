@@ -1,0 +1,218 @@
+.form { display: grid; gap: 0.9rem; }
+
+.form__title {
+  font-size: var(--fs-m);
+  font-weight: 850;
+  font-stretch: 80%;
+  padding-right: 3.5rem;
+  line-height: 3rem;
+  margin: -0.75rem 0 -0.5rem;
+}
+
+.field { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 0.45rem; }
+.field__label { display: flex; align-items: baseline; gap: 0.6rem; padding: 0; }
+.field__label { width: 100%; }
+.field__action {
+  margin: -0.9rem 0 -0.5rem auto;
+  min-height: 2.75rem;
+  padding: 0 0.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--paper-2);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+}
+.field__hint { font-size: var(--fs-xs); color: var(--ink-2); font-style: italic; }
+
+/* ── choices: big, flat, obvious ────────────────────────────────────────── */
+
+.choices { display: grid; gap: 0.4rem; }
+.choices--sports { grid-template-columns: repeat(4, 1fr); }
+.choices--dates { grid-template-columns: repeat(4, 1fr); }
+.choices--quick { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; }
+
+.choice {
+  min-height: var(--tap);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  background: var(--paper-2);
+  font-size: 1.0625rem;
+  font-weight: 750;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 150ms, color 150ms;
+}
+.choice.is-on { background: var(--ink); color: var(--paper); }
+.choice:has(:focus-visible) { outline: 3px solid var(--ink); outline-offset: 2px; }
+.choice--date { line-height: 1.1; min-height: 3.25rem; }
+.choice__small { font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.02em; }
+.choice__big { font-size: 1.25rem; font-weight: 850; font-stretch: 80%; }
+
+.dates { display: grid; gap: 0.5rem; }
+.dates__other { display: flex; align-items: center; gap: 0.75rem; }
+.dates__other input {
+  flex: 1;
+  min-height: var(--tap);
+  padding: 0 1rem;
+  border: 2px solid var(--ink);
+  border-radius: 1rem;
+  background: transparent;
+  font-weight: 700;
+}
+
+/* ── steppers: a nudge, not a keyboard ──────────────────────────────────── */
+
+.stepper {
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) 3.5rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+.stepper__btn {
+  width: 3.5rem;
+  height: 3.5rem;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: transparent;
+  font-size: 2rem;
+  font-weight: 400;
+  line-height: 1;
+}
+.stepper__btn:active { background: var(--ink); color: var(--paper); }
+.stepper__btn:disabled { border-color: var(--rule); color: var(--ink-3); }
+.stepper__value {
+  min-height: 4.25rem;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.stepper__input {
+  width: 100%;
+  min-height: 4.25rem;
+  border: 0;
+  border-bottom: 3px solid var(--ink);
+  background: none;
+  text-align: center;
+  font-size: clamp(3rem, 14vw, 4rem);
+  font-weight: 850;
+  font-stretch: 66%;
+}
+.big {
+  font-size: clamp(4rem, 18vw, 5rem);
+  font-weight: 850;
+  font-stretch: 66%;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.big .unit { font-size: 0.32em; }
+.stepper__empty { font-size: 3rem; color: var(--ink-3); }
+
+/* ── effort: drag a thumb along it ──────────────────────────────────────── */
+
+.effort { display: grid; gap: 0.4rem; }
+.effort__row {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 3px;
+  height: 3.75rem;
+  touch-action: pan-y;
+  user-select: none;
+  cursor: pointer;
+}
+.effort__step {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  cursor: pointer;
+}
+.effort__step:has(:focus-visible) { outline: 3px solid var(--ink); outline-offset: 2px; }
+.effort__fill {
+  position: absolute;
+  inset: auto 0 0 0;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--paper-2);
+  transition: background-color 120ms;
+}
+.effort__num {
+  position: relative;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  padding-bottom: 0.3rem;
+  color: var(--ink-2);
+}
+.effort__step.is-on .effort__num { color: var(--paper); }
+.effort__ends {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  color: var(--ink-2);
+}
+.effort__now {
+  font-size: 2.25rem;
+  font-weight: 900;
+  font-stretch: 66%;
+  line-height: 1;
+  color: var(--ink);
+}
+.effort__now.is-hard { color: var(--accent); }
+
+.form__note {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--ink);
+  border-radius: 1rem;
+  background: transparent;
+  resize: vertical;
+  font-size: 1rem;
+}
+.form__addnote { background: none; border: 2px dashed var(--rule); color: var(--ink-2); }
+
+/* ── the save bar stays under the thumb ─────────────────────────────────── */
+
+.form__bar {
+  position: sticky;
+  bottom: calc(-1.5rem - env(safe-area-inset-bottom));
+  margin: 0 calc(-1 * var(--gutter)) calc(-1.5rem - env(safe-area-inset-bottom));
+  padding: 0.75rem var(--gutter) calc(0.9rem + env(safe-area-inset-bottom));
+  background: var(--paper);
+  box-shadow: 0 -1px 0 var(--rule);
+  display: grid;
+  gap: 0.5rem;
+}
+.save {
+  width: 100%;
+  min-height: 4.25rem;
+  border: 0;
+  border-radius: 1.25rem;
+  background: var(--ink);
+  color: var(--paper);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.1rem;
+  padding: 0.5rem 1rem;
+  transition: background-color 150ms, transform 120ms var(--ease-out);
+}
+.save:active:not(:disabled) { transform: scale(0.985); }
+.save:disabled { background: var(--paper-2); color: var(--ink-2); }
+.save__verb { font-size: 1.25rem; font-weight: 850; line-height: 1.1; }
+.save__what { font-size: var(--fs-xs); font-weight: 600; opacity: 0.8; }
+.form__keys { font-size: var(--fs-xs); color: var(--ink-3); text-align: center; }
+
+@media (pointer: coarse) {
+  .form__keys { display: none; }
+}
+
+@media (min-width: 900px) {
+  .form { gap: 0.9rem; }
+  .choice { min-height: 3rem; border-radius: 0.75rem; }
+  .choice__small { font-size: var(--fs-xs); }
+  .form__bar { margin: 0 -2.5rem -2rem; padding: 0.75rem 2.5rem 1.25rem; bottom: -2rem; }
+}

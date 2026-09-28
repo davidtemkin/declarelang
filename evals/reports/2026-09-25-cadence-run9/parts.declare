@@ -1,0 +1,313 @@
+/*
+# Cadence — the parts
+
+The design's vocabulary: one small monospaced voice for labels, one large
+face for figures, a pill for every choice, and the drawn surfaces (the
+week's shape, the year, a session's place among its kind). Colour is ink and
+paper; the one accent means effort, and every mark that carries it is
+tinted by how hard the session was.
+*/
+
+
+theme Cadence [ paper = #F1EEE7, sheet = #FBFAF6, ink = #151412, inkSoft = #6B665C, faint = #C9C3B7,
+    rule = #DDD7CB, heat = #FF4B1F, onAccent = #FFFFFF
+    ]
+
+
+// The small voice: every label, caption and axis in the app.
+
+class Label extends Text [ fontSize = 12, letterSpacing = 1.4, textTransform = uppercase, wrap = false,
+    fontFamily = ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+    textColor = { provided("theme").inkSoft }
+    ]
+
+
+// The large voice: a figure set as one run, its units and words small
+// (`<span class='Unit'>`, `<span class='Word'>`), so "3h 40m" is one line
+// of type that may still break on a narrow screen.
+
+class Big extends HTMLText [ figure: number = 96,
+    fontSize = { classroot.figure },
+    fontWeight = black,
+    letterSpacing = { -0.035 * classroot.figure },
+    lineHeight = 1.0,
+    bodyColor = { provided("theme").ink },
+    textStyles = { { Unit: ({ fontSize: Math.round(classroot.figure * 0.4), fontWeight: "bold", letterSpacing: 0 }),
+        Word: ({ fontSize: Math.max(16, Math.round(classroot.figure * 0.24)), fontWeight: "semibold", letterSpacing: 0,
+            textColor: provided("theme").inkSoft }) } }
+    ]
+
+
+// effort as ink: the quiet grey of an easy day, rising to the accent
+// at the hardest — the only place colour appears
+
+class Effort [
+    ink(e: number) -> number {
+        const t = provided("theme")
+        return e <= 0 ? t.rule : mix(t.faint, t.heat, Math.pow(clamp((e - 3) / 6, 0, 1), 1.5))
+        }
+    ]
+
+
+// A choice: sport, day, zoom, effort. Large enough to hit without looking;
+// filled ink when chosen. `tint` lets an effort pill wear its own intensity.
+
+class Choice extends Control [ height = 48, cornerRadius = 24,
+    on: boolean = false,
+    label: string = "",
+    tint: number = -1,
+    width = { Math.max(48, this.t.width + 34) },
+    fill = { classroot.tint >= 0 ? (classroot.on ? classroot.tint : mix(provided("theme").sheet, classroot.tint, down ? 0.45 : 0.25))
+        : classroot.on ? provided("theme").ink : down ? provided("theme").rule : null },
+    stroke = { classroot.on || classroot.tint >= 0 ? null : stroke(1.5, provided("theme").rule) },
+    t: TextLabel [ x = center, fontSize = 16, fontWeight = semibold, wrap = false, text = { classroot.label },
+        textColor = { classroot.on ? (classroot.tint >= 0 ? provided("theme").onAccent : provided("theme").paper) : provided("theme").ink } ]
+    ]
+
+
+// A round − / + nudge.
+
+class Nudge extends Control [ width = 56, height = 56, cornerRadius = 28,
+    sign: number = 1,
+    fill = { down ? provided("theme").rule : null },
+    stroke = { stroke(1.5, provided("theme").rule) },
+    mark: View [ x = center, y = center, width = 18, height = 18,
+        draw(d: Draw) {
+            d.strokeStyle = provided("theme").ink
+            d.lineWidth = 2.5
+            d.lineCap = "round"
+            d.beginPath()
+            d.moveTo(1, 9)
+            d.lineTo(17, 9)
+            if (classroot.sign > 0) { d.moveTo(9, 1); d.lineTo(9, 17) }
+            d.stroke()
+            }
+        ]
+    ]
+
+
+// The primary action: a wide slab of ink.
+
+class Slab extends Control [ height = 60, cornerRadius = 30,
+    label: string = "",
+    fill = { disabled ? provided("theme").faint : down ? provided("theme").inkSoft : provided("theme").ink },
+    t: TextLabel [ x = center, fontSize = 17, fontWeight = bold, wrap = false, text = { classroot.label },
+        textColor = { provided("theme").paper } ]
+    ]
+
+
+// A quiet text action ("Edit", "Delete", "Close").
+
+class Quiet extends Control [ height = 44, width = { this.t.width + 24 },
+    label: string = "",
+    danger: boolean = false,
+    t: TextLabel [ x = 12, fontSize = 15, fontWeight = semibold, wrap = false, text = { classroot.label },
+        textColor = { classroot.danger ? provided("theme").heat : down ? provided("theme").inkSoft : provided("theme").ink } ]
+    ]
+
+
+/*
+## The week's shape
+
+Seven columns, each as tall as that day's minutes and as hot as its hardest
+effort. A day with nothing is a stub on the baseline, so an empty day reads as
+empty rather than missing. Heights spring: a session added moves its column.
+*/
+
+class WeekDay extends Control [ height = 150,
+    barH: number = 0,
+    Spring [ attribute = barH, to = { Math.min(1, :minutes / 150) * 112 }, stiffness = 140, damping = 20 ],
+    press() { if (:top != "") app.open(:top) },
+    bar: View [ width = 100%, cornerRadius = 4,
+        height = { Math.max(3, classroot.barH) },
+        y = { 118 - Math.max(3, classroot.barH) },
+        fill = { :minutes > 0 ? app.effort.ink(:effort) : provided("theme").rule } ],
+    Label [ x = center, y = 128, fontSize = 13, letterSpacing = 0, text = { :letter ?? "" },
+        fontWeight = { :today ? "black" : "regular" },
+        textColor = { :today ? provided("theme").ink : provided("theme").inkSoft } ]
+    ]
+
+
+/*
+## The year
+
+The whole history as one surface: a column per day, height the minutes,
+colour the effort. It is handled, not looked at — a finger or the mouse drags
+it through the months (the horizontal drag only, so the page still scrolls
+under a vertical swipe), two fingers or a trackpad pinch open and close it
+about the point between them, and the wheel pans. Every one of those writes
+the lens directly, so the surface is under the hand the whole time; a fling
+leaves it gliding. A tap opens the session under it.
+*/
+
+class YearSurface extends View [ clip = true, claim = x, cursor = "grab",
+    grabX: number = 0,
+    grabStart: number = 0,
+    lastX: number = 0,
+    lastT: number = 0,
+    vel: number = 0,
+    pinching: boolean = false,
+    pinchSpan: number = 0,
+    pinchDay: number = 0,
+
+    axisH: number = 30,
+    ppd: number = { this.width / Math.max(1, app.lens.span) },
+
+    regrab() { grabX = app.pointerX; grabStart = app.lens.start; lastX = app.pointerX; lastT = Date.now(); vel = 0 },
+    onPointerDown(e: PointerEvent) { regrab() },
+    onPointerMove(e: PointerEvent) {
+        if (pinching) return
+        app.lens.follow(grabStart - (e.x - grabX) / ppd, app.lens.span)
+        const now = Date.now(), dt = Math.max(1, now - lastT)
+        vel = 0.7 * vel + 0.3 * (e.x - lastX) / dt
+        lastX = e.x
+        lastT = now
+        },
+    onPointerUp(e: PointerUpEvent) {
+        if (e.canceled || pinching) return
+        const v = Date.now() - lastT > 90 ? 0 : vel
+        if (Math.abs(v) > 0.05) app.lens.glide(app.lens.start - v * 320 / ppd, app.lens.span)
+        },
+
+    onPinchStart(e: PinchEvent) {
+        pinching = true
+        pinchSpan = app.lens.span
+        pinchDay = app.lens.start + (e.center.x - this.rootOrigin().x) / ppd
+        },
+    onPinch(e: PinchEvent) {
+        const sp = app.lens.clampSpan(pinchSpan / Math.max(0.05, e.scale))
+        app.lens.follow(pinchDay - (e.center.x - this.rootOrigin().x) / this.width * sp, sp)
+        },
+    onPinchEnd(e: PinchEvent) { pinching = false; regrab() },
+
+    onWheel(e: WheelEvent) {
+        if (e.pinch) {
+            const day = app.lens.start + e.x / ppd
+            const sp = app.lens.clampSpan(app.lens.span * Math.exp(e.deltaY * 0.012))
+            app.lens.follow(day - e.x / this.width * sp, sp)
+        } else {
+            const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+            app.lens.follow(app.lens.start + d / ppd, app.lens.span)
+            }
+        },
+
+    // a tap: the nearest day with a session, within a finger's width
+
+    onClick(e: PointerEvent) {
+        const bars = app.bars.value.bars
+        const at = app.lens.start + e.x / ppd, reach = Math.max(0.6, 14 / ppd)
+        let best = -1
+        for (let i = Math.max(0, Math.floor(at - reach)); i <= Math.min(bars.length - 1, Math.ceil(at + reach)); i++) {
+            if (bars[i].top != "" && (best < 0 || Math.abs(i + 0.5 - at) < Math.abs(best + 0.5 - at))) best = i
+            }
+        if (best >= 0) app.open(bars[best].top)
+        },
+
+    draw(d: Draw) {
+        const t = provided("theme")
+        const bars = app.bars.value.bars
+        const start = app.lens.start, ppd = d.w / Math.max(1, app.lens.span)
+        const base = d.h - this.axisH, room = base - 14
+        const first = app.log.firstN
+        const sel = app.selectedDay - first
+
+        // month rules and names, day numbers once there is room for them
+        const lo = Math.max(0, Math.floor(start) - 1), hi = Math.min(bars.length - 1, Math.ceil(start + app.lens.span) + 1)
+        const axis = ({ fontSize: 11, letterSpacing: 1, fontFamily: ["ui-monospace", "SFMono-Regular", "Menlo", "monospace"], textColor: t.inkSoft })
+        for (let i = lo; i <= hi; i++) {
+            const x = (i - start) * ppd
+            if (dateOf(first + i) == 1) {
+                d.fillStyle = t.rule
+                d.fillRect(Math.round(x), 0, 1, base + 22)
+                d.fillText(monthLabel(first + i).toUpperCase() + (monthOf(first + i) == 0 ? " ’" + (yearOf(first + i) % 100) : ""), x + 5, d.h - 6, axis)
+            } else if (ppd >= 22 || (ppd >= 9 && dateOf(first + i) % 7 == 1)) {
+                d.fillText("" + dateOf(first + i), x + ppd / 2 - 4, d.h - 6, axis)
+                }
+            }
+
+        // zoomed in past a month's start, the month in view stays named at the left
+        const leftDay = first + Math.max(0, Math.floor(start))
+        if (ppd >= 9 && dateOf(leftDay) > 1 && dateOf(leftDay) < 28) {
+            d.fillStyle = t.paper
+            d.fillRect(0, base + 8, 84, 22)
+            d.fillText(monthLabel(leftDay).toUpperCase() + " " + yearOf(leftDay), 0, d.h - 6, ({ ...axis, textColor: t.ink }))
+            }
+
+        // one column per day
+        const bw = Math.max(1, Math.min(ppd * 0.72, 40))
+        for (let i = lo; i <= hi; i++) {
+            const b = bars[i]
+            if (b.minutes <= 0) continue
+            const h = Math.max(2, Math.min(1, b.minutes / 180) * room)
+            d.fillStyle = app.effort.ink(b.effort)
+            d.fillRect((i - start) * ppd + (ppd - bw) / 2, base - h, bw, h)
+            }
+
+        // the baseline, and the chosen day marked beneath it
+        d.fillStyle = t.ink
+        d.fillRect(0, base, d.w, 1.5)
+        if (sel >= lo && sel <= hi) {
+            const x = (sel - start) * ppd + ppd / 2
+            d.beginPath()
+            d.moveTo(x, base + 3)
+            d.lineTo(x - 6, base + 12)
+            d.lineTo(x + 6, base + 12)
+            d.closePath()
+            d.fill()
+            }
+        }
+    ]
+
+
+/*
+## A session among its kind
+
+Every session of the same sport on one line, placed by duration and tinted by
+effort; this one stands tall. It answers "where does this sit" without a
+sentence — the sentence is beside it for those who want it.
+*/
+
+class Spread extends View [ height = 64,
+    draw(d: Draw) {
+        const t = provided("theme")
+        const s = app.selected
+        if (s == null) return
+        const same = app.log.all().filter((x) => x.sport == s.sport)
+        const max = same.reduce((m, x) => Math.max(m, x.minutes), 1)
+        const mid = d.h - 14
+        d.fillStyle = t.rule
+        d.fillRect(0, mid, d.w, 1)
+        for (const x of same) {
+            if (x.id == s.id) continue
+            d.fillStyle = app.effort.ink(x.effort)
+            d.fillRect(x.minutes / max * (d.w - 4), mid - 12, 3, 12)
+            }
+        d.fillStyle = app.effort.ink(s.effort)
+        d.fillRect(s.minutes / max * (d.w - 8), mid - 40, 8, 40)
+        d.fillStyle = t.ink
+        d.fillRect(s.minutes / max * (d.w - 8), mid, 8, 3)
+        }
+    ]
+
+
+/*
+## Sheet
+
+A surface that comes up over the day: from the bottom edge on a phone, where
+the thumb is, and in from the right at a desk. One sprung number carries it;
+the scrim behind reads the same number.
+*/
+
+class Sheet extends View [ clip = true, cornerRadius = { app.narrow ? [22, 22, 0, 0] : 0 },
+    shown: boolean = false,
+    t: number = 0,
+    Spring [ attribute = t, to = { classroot.shown ? 1 : 0 }, stiffness = 260, damping = 30 ],
+    visible = { classroot.t > 0.002 },
+    fill = { provided("theme").sheet },
+    shadow = { shadow(0, 0, 30, 0x00000026) },
+    width = { app.narrow ? app.hostWidth : Math.min(460, app.hostWidth) },
+    height = { app.narrow ? Math.min(app.hostHeight - 24, contentHeight) : app.hostHeight },
+    x = { app.narrow ? 0 : app.hostWidth - classroot.t * this.width },
+    y = { app.narrow ? app.hostHeight - classroot.t * this.height : 0 },
+    onClick() { }
+    ]

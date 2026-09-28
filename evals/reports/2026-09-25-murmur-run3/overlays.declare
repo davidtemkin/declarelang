@@ -1,0 +1,102 @@
+/*
+# Over everything
+
+Two things rise above the conversation, and both grow out of what was touched rather
+than appearing from nowhere: a photograph opens from its own place in the thread to the
+full screen and returns there, and the marks for a reaction rise from the bubble they
+will be attached to.
+*/
+
+class PhotoViewer extends View [ width = 100%, height = 100%,
+    key: string = "",
+    src: string = "",
+    alt: string = "",
+    aspect: number = 1,
+    fromX: number = 0,
+    fromY: number = 0,
+    fromW: number = 0,
+    fromH: number = 0,
+    open: boolean = false,
+    t: number = 0,
+    Spring [ attribute = t, to = { classroot.open ? 1 : 0 }, stiffness = 200, damping = 25 ],
+    visible = { this.open || this.t > 0.003 },
+
+    // the largest box of the picture's proportions the screen can hold, captions clear
+
+    toW: number = { Math.min(app.width - 24, (app.height - app.safeTop - app.safeBottom - 132) * this.aspect) },
+    toH: number = { this.toW / this.aspect },
+    toX: number = { (app.width - this.toW) / 2 },
+    toY: number = { app.safeTop + 56 + (app.height - app.safeTop - app.safeBottom - 132 - this.toH) / 2 },
+
+    covers(key: string) -> boolean { return this.key == key && (this.open || this.t > 0.003) },
+    show(card: View, key: string, src: string, alt: string, aspect: number) {
+        const o = card.rootOrigin()
+        this.fromX = o.x; this.fromY = o.y; this.fromW = card.width; this.fromH = card.height
+        this.key = key; this.src = src; this.alt = alt; this.aspect = aspect
+        this.open = true
+        },
+    hide() { this.open = false },
+    onClick() { this.hide() },
+
+    scrim: View [ width = 100%, height = 100%, fill = #0F0E0C, opacity = { Math.min(1, classroot.t) * 0.95 } ],
+    frame: View [ clip = true,
+        x = { app.lerp(classroot.fromX, classroot.toX, classroot.t) },
+        y = { app.lerp(classroot.fromY, classroot.toY, classroot.t) },
+        width = { app.lerp(classroot.fromW, classroot.toW, classroot.t) },
+        height = { app.lerp(classroot.fromH, classroot.toH, classroot.t) },
+        cornerRadius = { app.lerp(14, 3, Math.min(1, classroot.t)) },
+        Image [ width = 100%, height = 100%, stretches = cover,
+            source = { classroot.src == "" ? "" : app.store.api + "/" + classroot.src } ]
+        ],
+    caption: Text [ x = center, y = { classroot.toY + classroot.toH + 16 }, width = { Math.min(560, app.width - 48) },
+        textAlign = center, maxLines = 2, fontFamily = { app.serif }, fontSize = 15, italic = true,
+        textColor = #E9E4DB, opacity = { app.clamp((classroot.t - 0.55) / 0.45, 0, 1) }, text = { classroot.alt } ],
+    shut: View [ x = { app.width - 56 }, y = { app.safeTop + 8 }, width = 44, height = 44, cornerRadius = 22,
+        fill = #FFFFFF1F, opacity = { app.clamp(classroot.t, 0, 1) },
+        onClick() { classroot.hide() },
+        CloseIcon [ x = center, y = center, iconSize = 18, weight = 2, ink = #F3EFE8 ]
+        ]
+    ]
+
+
+class ReactionPicker extends View [ width = 100%, height = 100%,
+    key: string = "",
+    mine: boolean = false,
+    atX: number = 0,
+    atY: number = 0,
+    atW: number = 0,
+    atH: number = 0,
+    open: boolean = false,
+    t: number = 0,
+    Spring [ attribute = t, to = { classroot.open ? 1 : 0 }, stiffness = 380, damping = 26 ],
+    visible = { this.open || this.t > 0.01 },
+    above: boolean = { this.atY - 64 > app.safeTop + 60 },
+
+    show(bubble: View, key: string, mine: boolean) {
+        const o = bubble.rootOrigin()
+        this.atX = o.x; this.atY = o.y; this.atW = bubble.width; this.atH = bubble.height
+        this.key = key; this.mine = mine
+        this.open = true
+        },
+    hide() { this.open = false },
+    onClick() { this.hide() },
+
+    tray: View [ height = 52, cornerRadius = 26, padding = [0, 5, 0, 5],
+        fill = { provided("theme").sheet }, shadow = shadow(0, 8, 28, #00000033),
+        x = { app.clamp(classroot.mine ? classroot.atX + classroot.atW - this.width : classroot.atX,
+                        8, app.width - this.width - 8) },
+        y = { classroot.above ? classroot.atY - 60 : classroot.atY + classroot.atH + 8 },
+        opacity = { app.clamp(classroot.t, 0, 1) },
+        scale = { 0.8 + 0.2 * classroot.t },
+        pivotX = { classroot.mine ? this.width : 0 },
+        pivotY = { classroot.above ? 52 : 0 },
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        datapath = { app.marks.value },
+        View [ datapath = :marks[], width = 44, height = 44, cornerRadius = 22,
+            fill = { app.hasMark(classroot.key, :id) ? app.mix(provided("theme").sheet, provided("theme").accent, 0.18)
+                   : this.pressed ? provided("theme").sheetPressed : null },
+            onClick() { app.react(classroot.key, :id) },
+            Text [ x = center, y = center, fontSize = 25, wrap = false, text = :id ]
+            ]
+        ]
+    ]

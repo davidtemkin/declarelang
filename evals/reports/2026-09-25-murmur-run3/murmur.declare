@@ -1,0 +1,147 @@
+/*
+# Murmur
+
+A conversation app: the list of conversations, and one conversation open beside it
+— or, on a phone, over it.
+
+The open conversation is the app's `location`, so the Back button (a phone's back
+gesture included) closes it, and a link can open one. On a narrow screen one sprung
+number, `depth`, carries the conversation in over the list and back out again; on a
+wide one the two sit side by side and `depth` has nothing to do.
+
+The model is `store` (model.declare). Everything on screen reads two projections of
+it: `inbox` for the list and `talk` for the open conversation.
+*/
+
+include [ "theme.declare", "model.declare", "inbox.declare", "message.declare", "conversation.declare",
+    "overlays.declare"
+    ]
+
+
+App [ appName = "Murmur", minWidth = 320, minHeight = 480,
+    theme = { { ...SanFrancisco, ...Paper } },
+    fill = { provided("theme").paper },
+    fontFamily = ["system-ui", "-apple-system", "Helvetica Neue", "sans-serif"],
+    textColor = { provided("theme").ink },
+
+    bookFace: Font [ family = "Iowan Old Style" ],
+    serif: object = { [app.bookFace, "Georgia", "serif"] },
+
+    store: Store [ ],
+
+    // the live feed, connected once the history is in so nothing arrives with nowhere to land
+
+    live: Socket [ url = { app.store.api.replace("http", "ws") + "/live" }, active = { app.store.ready }, retry = 2,
+        onMessage(e: StreamMessage) { app.store.receive(JSON.parse(e.data)) }
+        ],
+    clock: Time [ tick = minute ],
+
+    inbox: Dataset [ schema = Inbox, contents = { app.store.inbox(app.clock.now) } ],
+    talk: Dataset [ schema = Convo, contents = { app.store.present(app.convo.thread, app.convo.divider, app.clock.now) } ],
+    drafts: Dataset { {} },
+
+    // the marks a reaction can be; others may attach any, and theirs show as they come
+
+    marks: Dataset { { "marks": [ { "id": "❤️" }, { "id": "😂" }, { "id": "😮" }, { "id": "👍" }, { "id": "🔥" }, { "id": "💯" } ] } },
+
+    // ── where the person is ──
+
+    openId: string = { app.store.threadAt(app.location) >= 0 ? app.location : "" },
+    lastOpen: string = "",
+    trackChanges = ["openId"],
+    onChange(e: ChangeEvent) {
+        if (app.openId != "") app.lastOpen = app.openId
+        app.nowPlaying = ""
+        app.picker.hide()
+        },
+
+    wide: boolean = { app.width >= 760 },
+    listW: number = { app.wide ? Math.round(Math.min(400, Math.max(330, app.width * 0.3))) : app.width },
+    depth: number = 0,
+    Spring [ attribute = depth, to = { app.openId != "" ? 1 : 0 }, stiffness = 260, damping = 30 ],
+
+    columnW: number = { Math.min(760, app.wide ? app.width - app.listW : app.width) - 28 },
+    bubbleMax: number = { Math.min(520, Math.round(app.columnW * 0.78)) },
+    photoMax: number = { Math.min(320, app.bubbleMax) },
+
+    unreadTotal: number = { (app.inbox.value?.threads ?? []).reduce((n, t) => n + t.unread, 0) },
+    unreadElsewhere: number = { (app.inbox.value?.threads ?? []).filter((t) => t.id != app.openId).reduce((n, t) => n + t.unread, 0) },
+
+    nowPlaying: string = "",
+
+    // ── what the person does ──
+
+    open(id: string) { app.location = id },
+    close() { app.location = "" },
+
+    sendText(text: string) {
+        app.store.sendText(app.openId, text)
+        app.drafts.set([app.openId], "")
+        },
+    sendPhoto(src: string, alt: string) {
+        app.store.sendPhoto(app.openId, ({ src: src, alt: alt }))
+        app.convo.trayOpen = false
+        },
+    pickFor(bubble: View, key: string, mine: boolean) { app.picker.show(bubble, key, mine) },
+    react(key: string, emoji: string) {
+        app.store.react(app.convo.thread, key, emoji)
+        app.picker.hide()
+        },
+    hasMark(key: string, emoji: string) -> boolean {
+        const row = (app.talk.value?.rows ?? []).find((r) => r.id == key)
+        return row != null && row.reacts.some((r) => r.emoji == emoji && r.mine)
+        },
+    togglePlaying(key: string) { app.nowPlaying = app.nowPlaying == key ? "" : key },
+    stopPlaying() { app.nowPlaying = "" },
+
+    keys: Keys [
+        onKeyUp(e: KeyEvent) {
+            if (e.key != "Escape") return
+            if (app.viewer.open) app.viewer.hide()
+            else if (app.picker.open) app.picker.hide()
+            else if (app.convo.trayOpen) app.convo.trayOpen = false
+            else if (!app.wide) app.close()
+            }
+        ],
+
+    // ── small readings the views share ──
+
+    lerp(a: number, b: number, t: number) -> number { return a + (b - a) * t },
+    clamp(v: number, lo: number, hi: number) -> number { return Math.max(lo, Math.min(hi, v)) },
+    mix(a: number, b: number, t: number) -> number {
+        const c = (x, y) => Math.round(x + (y - x) * t)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
+        },
+    voiceColor(i: number) -> number {
+        const t = provided("theme")
+        return [t.voice0, t.voice1, t.voice2, t.voice3, t.voice4, t.voice5, t.voice6, t.voice7][i % 8]
+        },
+
+    // a voice note's ink: the speaker's colour in a group, the page's ink in a pair
+
+    voiceInk(group: boolean, voice: number) -> number { return group ? app.voiceColor(voice) : provided("theme").ink },
+    clockOf(seconds: number) -> string { return durationLabel(seconds * 1000) },
+    faceOf(person: string) -> string { return app.store.person(person)?.avatar ?? "" },
+    initialsFor(person: string) -> string { return initialsOf(app.store.nameOf(person)) },
+    memberLine(id: string) -> string {
+        const t = app.store.threads()[app.store.threadAt(id)]
+        return t == null ? "" : t.participants.filter((p) => p != app.store.me).map((p) => firstName(app.store.nameOf(p))).join(", ") + " and you"
+        },
+
+    // ── the surface ──
+
+    list: InboxPane [ width = { app.listW }, height = 100%,
+        x = { app.wide ? 0 : -0.3 * app.width * app.depth } ],
+
+    dim: View [ width = 100%, height = 100%, fill = #1F1D1A, pointerEvents = "none",
+        visible = { !app.wide && app.depth > 0.002 }, opacity = { 0.14 * app.depth } ],
+
+    convo: ConversationPane [ height = 100%,
+        width = { app.wide ? app.width - app.listW : app.width },
+        x = { app.wide ? app.listW : app.width * (1 - app.depth) },
+        visible = { app.wide || app.depth > 0.002 },
+        shadow = { app.wide ? null : shadow(0, 0, 24, 0x00000026) } ],
+
+    picker: ReactionPicker [ ],
+    viewer: PhotoViewer [ ]
+    ]

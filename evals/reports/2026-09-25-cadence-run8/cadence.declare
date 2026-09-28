@@ -1,0 +1,233 @@
+/*
+# Cadence
+
+A training log for someone who runs, rides, lifts and swims — the thing they
+open in the morning to see where they are, and again after a session to put it
+in.
+
+One program for a phone and a desk. Below 900px it is one column the thumb
+scrolls: today first, then the year, with the Log button where a thumb rests.
+From 900px it is two: today on the left, the year filling the right, a chosen
+session opening beneath it. The data, the derivations and every control are the
+same objects either way; only their arrangement changes.
+
+The shape of the program:
+
+- `m` (model.declare) is the history and every question asked of it.
+- `lens` (year.declare) is which part of the year is on screen.
+- `draft` (sheets.declare) is the session being logged or corrected.
+- `m.selId` is the one session being looked at.
+
+Everything else is derived from those four, and moves because they moved.
+*/
+
+include [ "model.declare", "parts.declare", "today.declare", "year.declare", "sheets.declare" ]
+
+App [ appName = "Cadence", minWidth = 320,
+    theme = { { ...SanFrancisco, ...Paper } },
+    fill = { Paper.paper }, textColor = { Paper.ink }, fontFamily = { Paper.body },
+
+    m: Training [ ],
+    lens: Lens [ first = { app.series.value?.first ?? 0 }, last = { app.m.today } ],
+    draft: Draft [ ],
+
+    // ── what the screen derives from the history ───────────────────────────
+
+    weekData: Dataset [ schema = [ days[]: WeekDay ], contents = { app.m.weekDays() } ],
+    weekTotals: Dataset [ schema = Totals, contents = { app.m.week() } ],
+    series: Dataset [ schema = Series, contents = { app.m.series() } ],
+    periodTotals: Dataset [ schema = Totals, contents = { app.m.totals(app.lens.fromDay, app.lens.toDay) } ],
+    dayChips: Dataset [ contents = { app.draft.chips() } ],
+
+    // the figures that travel when something is added or the period moves
+
+    weekCount: Tween [ value = { app.weekTotals.value.count } ],
+    weekMinutes: Tween [ value = { app.weekTotals.value.minutes } ],
+    streakDays: Tween [ value = { app.m.streak() } ],
+    periodCount: Tween [ value = { app.periodTotals.value.count } ],
+    periodMinutes: Tween [ value = { app.periodTotals.value.minutes } ],
+    periodKm: Tween [ value = { app.periodTotals.value.km } ],
+
+    // a day's bar is measured against the heaviest day there has ever been
+
+    dayScale: number = { Math.max(60, app.series.value?.maxDay ?? 60) },
+
+    // ── the room it is in ──────────────────────────────────────────────────
+
+    wide: boolean = { app.width >= 900 },
+    heroSize: number = { app.wide ? 88 : 76 },
+    shortScreen: boolean = { app.hostHeight < 760 },
+    gutter: number = { app.wide ? 40 : 20 },
+    innerW: number = { app.width - 2 * app.gutter },
+    todayW: number = { app.wide ? 400 : app.innerW },
+    yearW: number = { app.wide ? app.innerW - 400 - 56 : app.innerW },
+
+    // ── looking at one session ─────────────────────────────────────────────
+
+    sel: Session = { app.m.selected() },
+
+    select(id: string, reveal: boolean) {
+        this.m.selId = id
+        const s = this.m.find(id)
+        if (reveal && s != null) this.lens.reveal(dayNum(s.date))
+        },
+
+    // a tap on the year: the session on the nearest day that has one, within
+    // reach of the finger; tapping the same day again steps through its sessions
+
+    pickNear(day: number, reach: number) {
+        let bestDay = -1, bestDist = 1e9
+        for (const s of this.m.all()) {
+            const dist = Math.abs(dayNum(s.date) + 0.5 - day)
+            if (dist <= Math.max(0.5, reach) && dist < bestDist) { bestDist = dist; bestDay = dayNum(s.date) }
+            }
+        if (bestDay < 0) { this.m.selId = ""; return }
+        const there = this.m.sessionsOn(bestDay)
+        const at = there.findIndex((s) => s.id == this.m.selId)
+        this.m.selId = there[(at + 1) % there.length].id
+        },
+
+    // effort is the one colour: easy work stays in the ink, hard work shouts
+
+    heat(effort: number) -> number { return mixColor(Paper.calm, Paper.accent, heatT(effort)) },
+
+    // the same scale for words, which must stay readable at the easy end
+
+    heatInk(effort: number) -> number { return effort >= 7 ? Paper.accent : Paper.ink },
+
+    // the service confirmed a write
+
+    afterSave(id: string) {
+        this.draft.close()
+        if (this.draft.editId != "") this.m.selId = id
+        },
+    afterDelete(id: string) { if (this.m.selId == id) this.m.selId = "" },
+
+    // ── motion: one number per thing that opens ────────────────────────────
+
+    entryT: number = 0,
+    Spring [ attribute = entryT, to = { app.draft.open ? 1 : 0 }, stiffness = 320, damping = 30, epsilon = 0.002 ],
+    detailT: number = 0,
+    Spring [ attribute = detailT, to = { app.sel != null ? 1 : 0 }, stiffness = 260, damping = 28, epsilon = 0.002 ],
+    drawerW: number = { app.wide ? app.detailT * 380 : 0 },
+
+    // ── the keyboard, for someone at a desk ────────────────────────────────
+
+    keys: Keys [ onKeyDown(e: KeyEvent) { app.key(e) }
+        ],
+    key(e: KeyEvent) {
+        if (e.meta || e.ctrl || e.alt) return
+        if (this.draft.open) {
+            if (e.key == "Escape") this.draft.close()
+            else if (this.overlay.entry.form.noteField.focused) return
+            else if (e.key == "Enter") this.draft.save()
+            else if (e.key.length == 1 && e.key >= "0" && e.key <= "9") this.draft.effortSet = e.key == "0" ? 10 : Number(e.key)
+            else if (e.key == "ArrowUp") this.draft.nudge("minutes", 1)
+            else if (e.key == "ArrowDown") this.draft.nudge("minutes", -1)
+            return
+            }
+        if (e.key == "Escape") this.m.selId = ""
+        else if (e.key == "n") this.draft.begin()
+        else if (e.key == "ArrowLeft") this.lens.step(-1)
+        else if (e.key == "ArrowRight") this.lens.step(1)
+        else if (e.key == "=" || e.key == "+") this.lens.zoomStep(0.6)
+        else if (e.key == "-") this.lens.zoomStep(1.6)
+        },
+
+    // ── the page ───────────────────────────────────────────────────────────
+
+    page: View [ width = 100%,
+        padding = { [app.wide ? 28 : 18 + app.safeTop, app.gutter, app.wide ? 32 : 120, app.gutter] },
+        layout: SimpleLayout [ axis = y, spacing = { app.wide ? 28 : 22 } ],
+
+        header: View [ width = 100%, height = 48,
+            layout: SimpleLayout [ axis = x, spacing = 16, align = baseline ],
+            Fig [ fontSize = 24, letterSpacing = 5, text = "CADENCE" ],
+            Caps [ text = { app.m.ready ? dayName(app.m.today) + " " + dateOf(app.m.today) + " " + monthName(monthOf(app.m.today)) : "" } ]
+            ],
+
+        notice: Text [ width = 100%, fontSize = 17, fontWeight = semibold, visible = { !app.m.ready },
+            textColor = { app.m.failed ? Paper.accent : Paper.muted },
+            text = { app.m.failed ? "The training service isn’t answering on port 8320." : "Reading your history…" } ],
+
+        body: View [ width = 100%, visible = { app.m.ready },
+            layout: SimpleLayout [ axis = { app.wide ? "x" : "y" }, spacing = { app.wide ? 56 : 44 } ],
+            todayCol: TodayColumn [ width = { app.todayW } ],
+            yearCol: YearPanel [ width = { app.yearW },
+                height = { app.wide ? Math.max(620, app.hostHeight - 28 - 48 - 28 - 32) : contentHeight } ]
+            ]
+        ],
+
+    // ── what floats above the page: a scrim, the session sheet, Log ────────
+
+    // a corridor, not a lid: presses pass through to the page except where
+    // one of its children is
+
+    overlay: View [ ignoreScroll = true, width = 100%, height = { app.hostHeight }, pointerEvents = "none",
+
+        scrim: View [ width = 100%, height = 100%, fill = { Paper.ink },
+            opacity = { 0.3 * Math.max(app.entryT, app.wide ? 0 : app.detailT) },
+            visible = { this.opacity > 0.002 },
+            onClick() { if (app.draft.open) app.draft.close(); else app.m.selId = "" }
+            ],
+
+        // on a phone the chosen session rises from the bottom edge
+
+        detailSheet: View [ width = 100%, visible = { !app.wide && app.detailT > 0.002 },
+            padding = { [8, 20, 24 + app.safeBottom, 20] },
+            y = { app.hostHeight - this.height * Math.min(1, app.detailT) },
+            fill = { Paper.raised }, cornerRadius = [22, 22, 0, 0],
+            shadow = { shadow(0, -8, 30, 0x0000002E) },
+            detail: SessionDetail [ width = 100% ]
+            ],
+
+        logButton: LogButton [ ],
+
+        // the Log button opens into the sheet: one surface growing from the
+        // thing that was pressed, and shrinking back into it
+        // (it scrolls only if a very short screen cannot hold the whole form)
+
+        entry: View [ clip = true, visible = { app.entryT > 0.002 }, scrolls = y,
+            dstW: number = { app.wide ? 480 : app.width },
+            dstH: number = { Math.min(this.form.height + 20 + 28 + app.safeBottom, app.hostHeight - 16) },
+            x = { lerp(app.overlay.logButton.x, app.wide ? app.width - app.gutter - 480 : 0, app.entryT) },
+            y = { lerp(app.overlay.logButton.y, app.wide ? 24 : app.hostHeight - this.dstH, app.entryT) },
+            width = { lerp(app.overlay.logButton.width, this.dstW, app.entryT) },
+            height = { lerp(app.overlay.logButton.height, this.dstH, app.entryT) },
+            cornerRadius = { lerp(app.overlay.logButton.height / 2, 22, Math.min(1, app.entryT)) },
+            fill = { mixColor(Paper.ink, Paper.raised, app.entryT * 1.8) },
+            shadow = { shadow(0, 12, 40, 0x00000033) },
+            form: EntryForm [ x = 20, y = 20, width = { parent.dstW - 40 },
+                opacity = { clamp((app.entryT - 0.45) / 0.4, 0, 1) } ]
+            ]
+        ]
+    ]
+
+
+// Log: a round thumb target at the bottom corner of a phone, a labelled
+// button at the top corner of a desk
+
+class LogButton extends Control [
+    x = { app.wide ? app.width - app.gutter - 180 : app.width - 20 - 68 },
+    y = { app.wide ? 26 : app.hostHeight - 20 - 68 - app.safeBottom },
+    width = { app.wide ? 180 : 68 },
+    height = { app.wide ? 48 : 68 },
+    cornerRadius = { this.height / 2 },
+
+    // it steps aside while a sheet is up
+
+    opacity = { 1 - Math.min(1, app.entryT * 3 + (app.wide ? 0 : app.detailT * 2)) },
+    visible = { this.opacity > 0.01 },
+    fill = { down ? Paper.muted : Paper.ink },
+    shadow = { app.wide ? null : shadow(0, 6, 18, 0x00000040) },
+    press() { app.draft.begin() },
+    onClick() { if (!disabled) press() },
+    row: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        mark: View [ width = { app.wide ? 16 : 26 }, height = { app.wide ? 16 : 26 },
+            PlusIcon [ iconSize = { parent.width }, ink = { Paper.paper } ]
+            ],
+        Text [ visible = { app.wide }, fontSize = 18, fontWeight = bold, fontFamily = { Paper.display },
+            textTransform = uppercase, letterSpacing = 1, textColor = { Paper.paper }, text = "Log session" ]
+        ]
+    ]

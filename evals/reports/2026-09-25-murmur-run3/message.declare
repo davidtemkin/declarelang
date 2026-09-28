@@ -1,0 +1,261 @@
+/*
+# A message
+
+One row per message, already told by `Store.present()` how it sits among its
+neighbours. A run from one person is one shape: its bubbles join with tight inner
+corners, the name heads it and the face ends it. A stamp marks a new day or a long
+pause, and the coral rule marks where the unread begins.
+*/
+
+class MessageRow extends View [ width = 100%,
+    mkey: string = { :id },
+    padding = { [:runStart ? 10 : 2, 0, 0, 0] },
+    layout: SimpleLayout [ axis = y ],
+
+    stamp: Text [ width = 100%, visible = { :stamp != "" }, textAlign = center, padding = [10, 0, 10, 0],
+        fontFamily = { app.serif }, fontSize = 13.5, italic = true,
+        textColor = { provided("theme").muted }, text = :stamp ],
+
+    fresh: View [ width = 100%, height = 34, visible = { :firstUnread },
+        left: View [ y = 16, width = { (parent.width - parent.word.width) / 2 - 10 }, height = 1,
+            fill = { provided("theme").accent } ],
+        word: Text [ x = center, y = 8, fontSize = 12, fontWeight = semibold, letterSpacing = 0.6,
+            textTransform = uppercase, textColor = { provided("theme").accent }, text = "New" ],
+        right: View [ x = end, y = 16, width = { (parent.width - parent.word.width) / 2 - 10 }, height = 1,
+            fill = { provided("theme").accent } ]
+        ],
+
+    who: Text [ x = 53, visible = { :group && !:mine && :runStart }, padding = [0, 0, 3, 0], maxLines = 1,
+        width = { app.bubbleMax - 13 },
+        fontSize = 12.5, fontWeight = semibold, textColor = { app.voiceColor(:voice) }, text = :name ],
+
+    line: View [ width = 100%,
+        face: Avatar [ size = 30, y = { parent.body.height - 30 },
+            visible = { :group && !:mine && :runEnd },
+            face = :avatar, initials = :initials, voice = :voice ],
+        body: Bubble [ x = { :mine ? parent.width - this.width : :group ? 40 : 0 } ],
+
+        // with a mouse there is no hold to discover: the way to react waits beside the bubble
+
+        react: View [ width = 30, height = 30, cornerRadius = 15,
+            visible = { parent.hovered && !app.touchDevice && !:pending },
+            x = { :mine ? parent.body.x - 38 : parent.body.x + parent.body.width + 8 },
+            y = { parent.body.height / 2 - 15 },
+            fill = { this.hovered ? provided("theme").sheetPressed : provided("theme").sheet },
+            stroke = { stroke(1, provided("theme").rule) },
+            onClick() { app.pickFor(parent.body, :id, :mine) },
+            draw(d: Draw) {
+                d.strokeStyle = provided("theme").muted
+                d.fillStyle = provided("theme").muted
+                d.lineWidth = 1.5
+                d.lineCap = "round"
+                d.beginPath(); d.arc(15, 15, 7.5, 0, Math.PI * 2); d.stroke()
+                d.beginPath(); d.arc(15, 15.5, 4, 0.2 * Math.PI, 0.8 * Math.PI); d.stroke()
+                d.beginPath(); d.arc(12.3, 13, 1, 0, Math.PI * 2); d.fill()
+                d.beginPath(); d.arc(17.7, 13, 1, 0, Math.PI * 2); d.fill()
+                }
+            ],
+        marks: Reactions [ visible = { :reacts.length > 0 }, y = { parent.body.height - 4 },
+            x = { :mine ? parent.width - this.width - 10 : parent.body.x + 10 } ]
+        ],
+
+    receipt: Text [ width = 100%, visible = { :receipt != "" }, textAlign = right, padding = [4, 4, 0, 0],
+        fontSize = 12, textColor = { provided("theme").muted }, text = :receipt ]
+    ]
+
+
+// The bubble takes the shape of its place in a run, the colour of whoever said it,
+// and the content of whatever was said.
+
+class Bubble extends View [ clip = true,
+    opacity = { :pending ? 0.62 : 1 },
+    cornerRadius = { :mine
+        ? [18, :runStart ? 18 : 5, :runEnd ? 18 : 5, 18]
+        : [:runStart ? 18 : 5, 18, 18, :runEnd ? 18 : 5] },
+    fill = { :kind == "photo" ? provided("theme").theirsEdge
+           : :mine ? provided("theme").mine
+           : :group ? app.mix(provided("theme").theirs, app.voiceColor(:voice), 0.15)
+           : provided("theme").theirs },
+    stroke = { !:mine && !:group && :kind != "photo" ? stroke(1, provided("theme").theirsEdge) : null },
+
+    onHold() { app.pickFor(this, :id, :mine) },
+
+    words: View [ visible = { :kind == "text" }, padding = [8, 13, 9, 13],
+        onClick() { app.pickFor(classroot, :id, :mine) },
+        Text [ selectable = true, fontSize = 16, lineHeight = 1.32,
+            width = { Math.min(Math.ceil(measureText(:text, providedTextStyle(({ fontSize: 16 }))).width) + 1,
+                               app.bubbleMax - 26) },
+            textColor = { :mine ? provided("theme").mineInk : provided("theme").ink }, text = :text ]
+        ],
+
+    photo: PhotoCard [ visible = { :kind == "photo" } ],
+    voice: VoiceNote [ visible = { :kind == "voice" } ]
+    ]
+
+
+/*
+## Photographs
+
+The service does not know a photograph's shape, so the card holds a calm 4:3 place,
+captioned with what the picture is, until the bitmap tells it. Then it takes the
+picture's own proportions inside a box that keeps a tall one from towering and a wide
+one from shrinking out of sight — and never crops or stretches it.
+*/
+
+class PhotoCard extends View [
+    aspect: number = { this.pic.loaded && this.pic.naturalHeight > 0 ? this.pic.naturalWidth / this.pic.naturalHeight : 4 / 3 },
+    width = { Math.min(app.photoMax, 340 * classroot.aspect) },
+    height = { this.width / classroot.aspect },
+
+    caption: Text [ x = 16, y = center, width = { parent.width - 32 }, visible = { !parent.pic.loaded },
+        textAlign = center, maxLines = 3, italic = true, fontSize = 13.5,
+        textColor = { provided("theme").muted }, text = :alt ],
+    pic: Image [ width = 100%, height = 100%, stretches = cover,
+        source = { :kind == "photo" ? app.store.api + "/" + :src : "" },
+        opacity = 0,
+        Spring [ attribute = opacity, to = { parent.loaded && !app.viewer.covers(:id) ? 1 : 0 }, stiffness = 120, damping = 20 ]
+        ],
+
+    // a hold is for a reaction; the click that ends it must not also open the picture
+
+    onHold() { app.pickFor(parent, :id, :mine) },
+    onClick() { if (!app.picker.open) app.viewer.show(this, :id, :src, :alt, classroot.aspect) }
+    ]
+
+
+/*
+## Voice
+
+The waveform is the scrubber. Its length is printed before it plays; while it plays
+the bars fill in ink and a knob rides the edge of what has been heard; and anywhere on
+it can be pressed, or dragged along, to hear from there. The drag claims only the
+sideways motion, so a finger travelling down the thread still scrolls it.
+*/
+
+class VoiceNote extends View [ height = 56, padding = [0, 14, 0, 0],
+    width = { Math.min(290, app.bubbleMax) },
+    seconds: number = { :durationMs / 1000 },
+    playing: boolean = { app.nowPlaying == :id },
+    heard: number = { Math.min(1, this.audio.position / Math.max(0.001, classroot.seconds)) },
+    begun: boolean = { classroot.playing || this.audio.position > 0 },
+    ink: number = { :mine ? provided("theme").mineInk : app.voiceInk(:group, :voice) },
+
+    audio: Audio [ source = { :kind == "voice" ? app.store.api + "/" + :src : "" }, playing = { classroot.playing },
+        onEnded() { app.stopPlaying(); this.position = 0 }
+        ],
+
+    knob: View [ x = 10, y = 10, width = 36, height = 36, cornerRadius = 18,
+        fill = { :mine ? provided("theme").mineInk : app.voiceInk(:group, :voice) },
+        glyph: View [ width = 36, height = 36,
+            draw(d: Draw) {
+                d.fillStyle = :mine ? provided("theme").mine : provided("theme").theirs
+                if (classroot.playing) {
+                    d.fillRect(12.5, 11, 4, 14)
+                    d.fillRect(19.5, 11, 4, 14)
+                } else {
+                    d.beginPath(); d.moveTo(14, 10.5); d.lineTo(26, 18); d.lineTo(14, 25.5); d.closePath(); d.fill()
+                    }
+                }
+            ],
+        onClick() { app.togglePlaying(:id) }
+        ],
+
+    wave: Scrubber [ x = 54, y = 10, width = { parent.width - 14 - 54 - (classroot.begun ? 84 : 48) }, height = 36,
+        value = { classroot.heard }, ink = { classroot.ink }, lit = { classroot.begun },
+        input(f: number) { classroot.audio.position = f * classroot.seconds }
+        ],
+
+    time: Text [ x = end, y = center, fontSize = 12.5, numeralWidth = tabular, wrap = false,
+        textColor = { :mine ? provided("theme").mineInk : provided("theme").inkSoft },
+        text = { classroot.begun ? app.clockOf(classroot.audio.position) + " / " + app.clockOf(classroot.seconds)
+                                 : app.clockOf(classroot.seconds) } ]
+    ]
+
+
+// The scrubber: a drawn waveform showing `value` (0–1, how much has been heard),
+// delivering a chosen point through `input`. While a finger is down the knob
+// follows the finger, not the clip.
+
+class Scrubber extends View [ claim = x,
+    value: number = 0,
+    ink: number = 0,
+    lit: boolean = false,        // has listening begun — before it, the bars rest and no knob shows
+    scrub: number = -1,          // where a finger is, 0–1, while it is down
+    at: number = { this.scrub >= 0 ? this.scrub : this.value },
+
+    input(f: number) { },
+    choose(px: number) {
+        this.scrub = Math.max(0, Math.min(1, px / this.width))
+        this.input(this.scrub)
+        },
+    onPointerDown(e: PointerEvent) { this.choose(e.x) },
+    onPointerMove(e: PointerEvent) { if (this.scrub >= 0) this.choose(e.x - this.rootOrigin().x) },
+    onPointerUp(e: PointerUpEvent) { this.scrub = -1 },
+
+    draw(d: Draw) {
+        const peaks = :peaks
+        const n = Math.max(8, Math.floor(d.w / 4))
+        const bar = d.w / n
+        const mid = d.h / 2
+        const live = this.lit || this.scrub >= 0
+        d.fillStyle = this.ink
+        for (let i = 0; i < n; i++) {
+            const lo = Math.floor(i * peaks.length / n), hi = Math.max(lo + 1, Math.floor((i + 1) * peaks.length / n))
+            const v = Math.max(...peaks.slice(lo, hi), 0)
+            const h = Math.max(3, v * (d.h - 8))
+            d.globalAlpha = live && (i + 0.5) / n <= this.at ? 1 : 0.32
+            d.fillRect(i * bar + (bar - 2.2) / 2, mid - h / 2, 2.2, h)
+            }
+        d.globalAlpha = 1
+        if (live) {
+            d.beginPath(); d.arc(Math.max(5, Math.min(d.w - 5, this.at * d.w)), mid, this.scrub >= 0 ? 6.5 : 4.5, 0, Math.PI * 2); d.fill()
+            }
+        }
+    ]
+
+
+/*
+## Reactions
+
+The marks a message carries, one pill per mark, counted. They sit on the bubble's
+lower edge, so a message that gains its first mark grows by the pill's overhang and
+nothing more.
+*/
+
+class Reactions extends View [ height = 26,
+    layout: SimpleLayout [ axis = x, spacing = 3 ],
+    View [ datapath = :reacts[], height = 26, cornerRadius = 13, padding = [0, 7, 0, 7],
+        fill = { :mine ? app.mix(provided("theme").sheet, provided("theme").accent, 0.16) : provided("theme").sheet },
+        stroke = { stroke(1.5, provided("theme").paper) },
+        layout: SimpleLayout [ axis = x, spacing = 3, align = center ],
+        Text [ fontSize = 14, wrap = false, text = :emoji ],
+        Text [ fontSize = 12, fontWeight = semibold, wrap = false, visible = { :count > 1 },
+            textColor = { provided("theme").inkSoft }, text = { "" + :count } ]
+        ]
+    ]
+
+
+// Someone is writing: their face (in a group) and a bubble of three breathing dots.
+
+class TypingRow extends View [ width = 100%, padding = [10, 0, 0, 0],
+    who: string = "",
+    beat: Time [ tick = frame, running = { classroot.visible } ],
+    face: Avatar [ size = 30, visible = { app.convo.group }, y = 10,
+        face = { app.faceOf(classroot.who) }, initials = { app.initialsFor(classroot.who) },
+        voice = { app.store.voiceOf(classroot.who) } ],
+    bubble: View [ x = { app.convo.group ? 40 : 0 }, width = 62, height = 38, cornerRadius = 18,
+        fill = { app.convo.group ? app.mix(provided("theme").theirs, app.voiceColor(app.store.voiceOf(classroot.who)), 0.15)
+                                 : provided("theme").theirs },
+        stroke = { app.convo.group ? null : stroke(1, provided("theme").theirsEdge) },
+        dots: View [ width = 100%, height = 100%,
+            draw(d: Draw) {
+                const t = classroot.beat.now / 1000
+                d.fillStyle = provided("theme").muted
+                for (let i = 0; i < 3; i++) {
+                    d.globalAlpha = 0.3 + 0.7 * Math.max(0, Math.sin(t * 5 - i * 0.9))
+                    d.beginPath(); d.arc(19 + i * 12, 19, 3.6, 0, Math.PI * 2); d.fill()
+                    }
+                }
+            ]
+        ]
+    ]

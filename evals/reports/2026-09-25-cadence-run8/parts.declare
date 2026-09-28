@@ -1,0 +1,195 @@
+/*
+# Shared parts — the type voices, the travelling number, the small controls
+
+Type carries the design: one condensed display face for figures, one text face
+for words, and a scale between them that is dramatic on purpose. Colour is
+earned: ink and paper, and one accent that means effort.
+*/
+
+theme Paper [
+    paper = #F1EEE7, raised = #FAF8F3, ink = #16140F, muted = #7E796F, faint = #BDB7AB, line = #DCD7CC,
+    calm = #BFB8AA, accent = #F2441D,
+    display = "'Avenir Next Condensed', 'DIN Condensed', 'Roboto Condensed', 'Arial Narrow', sans-serif-condensed, sans-serif",
+    body = "system-ui, -apple-system, 'Helvetica Neue', 'Segoe UI', Roboto, sans-serif"
+    ]
+
+
+/*
+The copy the brief fixes, built as figure lines: figures bare, words in a `W`
+span. Each reads exactly as the brief writes it once the markup is set aside.
+*/
+
+script {
+    function w(s: string): string { return "<span class='W'>" + s + "</span>" }
+
+    function durHtml(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60)
+        return h > 0 ? h + w("h\u00A0") + (m % 60) + w("m") : m + w("m")
+    }
+
+    /** "12 days", or "no streak" */
+    function streakHtml(days: number): string {
+        const n = Math.round(days)
+        if (n <= 0) return "<span class='Q'>no streak</span>"
+        return n + w(n == 1 ? "\u00A0day" : "\u00A0days")
+    }
+
+    /** "52m", "1h 12m · 14.0 km" */
+    function sessionHtml(minutes: number, km: number): string {
+        return durHtml(minutes) + (km > 0 ? w(" · ") + km.toFixed(1) + w("\u00A0km") : "")
+    }
+
+    /** "148 bpm · 1.1 km" */
+    function liveHtml(bpm: number, km: number): string {
+        return Math.round(bpm) + w("\u00A0bpm") + (km > 0 ? w(" · ") + km.toFixed(1) + w("\u00A0km") : "")
+    }
+
+    /** "23 sessions", or "nothing logged" */
+    function countHtml(count: number): string {
+        const n = Math.round(count)
+        if (n == 0) return "<span class='Q'>nothing logged</span>"
+        return n + w(n == 1 ? "\u00A0session" : "\u00A0sessions")
+    }
+
+    /** "212.4 km" */
+    function kmHtml(km: number): string { return km.toFixed(1) + w("\u00A0km") }
+
+    /** elapsed seconds as a running clock: 7:05, 1:02:09 */
+    function clockText(secs: number): string {
+        const s = Math.max(0, Math.floor(secs))
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
+        const two = (v: number) => (v < 10 ? "0" : "") + v
+        return h > 0 ? h + ":" + two(m) + ":" + two(r) : m + ":" + two(r)
+    }
+
+    /** "Effort 8 · Hard · 148 bpm" */
+    function howItWent(effort: number, bpm: number): string {
+        return "Effort " + effort + " · " + effortWord(effort) + (bpm > 0 ? " · " + bpm + " bpm" : "")
+    }
+    }
+
+
+// the voices drawn text speaks in (colour and face are added where drawn)
+
+style ChartLabel [ fontSize = 12, fontWeight = semibold, letterSpacing = 1 ]
+
+style ChartLabelStrong [ fontSize = 12, fontWeight = bold, letterSpacing = 1 ]
+
+style CellNumber [ fontSize = 17, fontWeight = bold ]
+
+style FigFace [ fontWeight = bold ]
+
+style WordFace [ fontWeight = semibold ]
+
+// a small uppercase label — the smallest text anywhere in the app (12px)
+
+class Caps extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.4, wrap = false,
+    textTransform = uppercase, textColor = { provided("theme").muted }
+    ]
+
+
+// a figure set in the display face
+
+class Fig extends Text [ fontFamily = { provided("theme").display }, fontWeight = bold, wrap = false,
+    numeralWidth = tabular, textColor = { provided("theme").ink }
+    ]
+
+
+/*
+A line whose figures are set large and whose words are set small, as one run of
+text — so it reads exactly as written ("4 sessions · 3h 40m") and may break
+where a phone needs it to. Words go inside `<span class='W'>`.
+*/
+
+class FigLine extends HTMLText [ fontFamily = { provided("theme").display }, fontWeight = bold,
+    lineHeight = 1, bodyColor = { provided("theme").ink },
+    wordSize: number = 20,
+
+    // rich text wraps to the width it is given and has no width of its own;
+    // a line that should sit at its natural width sets `width = { this.natural }`
+
+    natural: number = { classroot.measure(classroot.html, classroot.fontSize, classroot.wordSize) },
+    measure(html: string, size: number, words: number) -> number {
+        const th = provided("theme")
+        const big = ({ ...FigFace, fontSize: size, fontFamily: th.display })
+        const small = ({ ...WordFace, fontSize: words, fontFamily: th.body })
+        const quiet = ({ ...FigFace, fontSize: size * 0.5, fontFamily: th.display })
+        let w = 0
+        for (const part of html.split(/(<span class='[WQ]'>.*?<\/span>)/)) {
+            if (part == "") continue
+            const inner = part.replace(/<[^>]*>/g, "")
+            w += measureText(inner, part.startsWith("<span class='W'>") ? small : part.startsWith("<span class='Q'>") ? quiet : big).width
+            }
+        return Math.ceil(w) + 4
+        },
+    textStyles = { { W: ({ fontSize: classroot.wordSize, fontWeight: "semibold",
+        fontFamily: provided("theme").body, textColor: provided("theme").ink }),
+        Q: ({ fontSize: classroot.fontSize * 0.5, fontWeight: "bold",
+        fontFamily: provided("theme").display, textColor: provided("theme").muted }) } }
+    ]
+
+
+/*
+## A number that travels
+
+`value` is the truth; `shown` is what the screen reads, and a spring carries it
+to each new value. The first real value is taken outright — a figure arriving
+with the data is not a change the person lived through, so it does not count up.
+*/
+
+class Tween [
+    value: number = 0,
+    shown: number = 0,
+    seeded: boolean = false,
+    Spring [ attribute = shown, to = { classroot.value }, stiffness = 120, damping = 21, epsilon = 0.01 ],
+    trackChanges = ["value"],
+    onChange(e: ChangeEvent) {
+        if (!seeded) { seeded = true; shown = value }
+        }
+    ]
+
+
+/*
+## Controls
+
+Every touch target is at least 44px; press feedback comes from `down`, never
+from hover, so a phone gets it too.
+*/
+
+class Chip extends Control [ height = 44, cornerRadius = 22,
+    label: string = "",
+    on: boolean = false,
+    width = { this.t.width + 32 },
+    fill = { on ? provided("theme").ink : down ? provided("theme").line : null },
+    stroke = { stroke(1.5, on ? provided("theme").ink : provided("theme").line) },
+    press() { },
+    onClick() { if (!disabled) press() },
+    t: TextLabel [ x = 16, fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").paper : provided("theme").ink }, text = { classroot.label } ]
+    ]
+
+
+class RoundButton extends Control [ width = 52, height = 52, cornerRadius = 26,
+    minus: boolean = false,
+    fill = { down ? provided("theme").line : null },
+    stroke = { stroke(1.5, disabled ? provided("theme").line : provided("theme").ink) },
+    press() { },
+    onClick() { if (!disabled) press() },
+    plus: PlusIcon [ x = center, y = center, iconSize = 20, visible = { !classroot.minus },
+        ink = { classroot.disabled ? provided("theme").faint : provided("theme").ink } ],
+    less: MinusIcon [ x = center, y = center, iconSize = 20, visible = { classroot.minus },
+        ink = { classroot.disabled ? provided("theme").faint : provided("theme").ink } ]
+    ]
+
+
+class TextButton extends Control [ height = 44,
+    label: string = "",
+    tone: Color = { provided("theme").ink },
+    width = { this.t.width + 8 },
+    press() { },
+    onClick() { if (!disabled) press() },
+    t: TextLabel [ x = 4, fontSize = 15, fontWeight = semibold, wrap = false,
+        textColor = { classroot.tone }, opacity = { classroot.down ? 0.5 : 1 },
+        text = { classroot.label } ]
+    ]

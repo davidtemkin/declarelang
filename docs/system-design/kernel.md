@@ -40,6 +40,13 @@ minimize (genie) −50 / −73 / −39 / −49%; weather resize −28 / −69 / 
 interpreter targets gain as the JIT ones do. Frames that did not improve are applier-bound (the
 Mac's real-window resize: frost compositing; the iPhone's resize: DOM paint).
 
+The declared-defaults, kernel-landed and more-EXPR rows, measured together against the build
+before them (kernel settle time, two rounds averaged, 2026-09-27): Mac native calendar mode −70%,
+desktop minimize −54%, weather city −37%, marketmap slider −33%; Mac WASM about the same; Chrome
+WASM −7 to −31%. No case measurably slower. Download: +0.8–1.0 KB gzipped per app, of which the
+WASM kernel is 73 bytes. Held: batching rule-body callbacks, and the remaining ~5% native
+crossing cost.
+
 Earlier (settle time; `mac-host/profile/REPORT.md`): Mac JIT weather resize 9.7 → 3.4 ms/frame,
 desktop seed 2.0 → 0.15 ms/settle; Chrome desktop seed 0.90 → 0.09 ms/settle, weather canvas
 6.9 → 0.65 ms/settle. Not moved: replication (tracker filter −7%), no-JIT (neutral: each read/write

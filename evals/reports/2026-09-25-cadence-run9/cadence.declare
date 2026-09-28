@@ -1,0 +1,427 @@
+/*
+# Cadence
+
+A training log for someone who runs, rides, lifts and swims — the thing they
+open in the morning to see where they are, and again after a session to put
+it in.
+
+Three things are on the page: **Today** (this week, the streak, the week's
+shape, the session running or the last one), **the year** (fourteen months as
+one surface the hand pushes and pulls open), and, over them, a **sheet** — a
+session's detail, or the log form. Everything on the page derives from one
+list of sessions (`model.declare`); adding, correcting or deleting writes
+that list, and every figure moves to take it in.
+*/
+
+include [ "model.declare" ]
+
+include [ "parts.declare" ]
+
+App [ appName = "Cadence", minWidth = 340,
+    theme = { { ...SanFrancisco, ...Cadence, bg: Cadence.paper, surface: Cadence.sheet, text: Cadence.ink,
+        textMuted: Cadence.inkSoft, line: Cadence.rule, accent: Cadence.ink } },
+    fill = { provided("theme").paper },
+    fontFamily = ["system-ui", "-apple-system", "Helvetica Neue", "sans-serif"],
+    textColor = { provided("theme").ink },
+
+    narrow: boolean = { app.width < 820 },
+    gutter: number = { app.narrow ? 22 : 56 },
+
+    log: Log [ ],
+    lens: Lens [ ],
+    draft: Draft [ ],
+    effort: Effort [ ],
+
+    week: Dataset [ schema = Week, contents = { app.log.buildWeek() } ],
+    bars: Dataset [ schema = [ bars[]: Bar ], contents = { app.log.buildBars() } ],
+    levels: Dataset { { "levels": [ { "n": 1 }, { "n": 2 }, { "n": 3 }, { "n": 4 }, { "n": 5 },
+                                    { "n": 6 }, { "n": 7 }, { "n": 8 }, { "n": 9 }, { "n": 10 } ] } },
+    period: Dataset [ schema = Summary, contents = { app.log.summary(app.lens.fromN, app.lens.toN) } ],
+
+    // the figures that travel when the history changes or the lens moves
+
+    weekCount: Figure [ value = { app.week.value.count } ],
+    weekMinutes: Figure [ value = { app.week.value.minutes } ],
+    streakDays: Figure [ value = { app.log.streak() } ],
+    periodCount: Figure [ value = { app.period.value.count } ],
+    periodMinutes: Figure [ value = { app.period.value.minutes } ],
+    periodKm: Figure [ value = { app.period.value.km } ],
+
+    // ── which sheet is up ──
+    // "" for none, "detail" for a session, "form" to log or correct one.
+
+    sheet: string = "",
+    selectedId: string = "",
+    selected: Session = { app.log.find(app.selectedId) },
+    selectedDay: number = { app.selected != null ? dayNum(app.selected.date) : -1 },
+
+    open(id: string) {
+        const s = this.log.find(id)
+        if (s == null) return
+        this.selectedId = id
+        this.sheet = "detail"
+        this.lens.showDay(dayNum(s.date) - this.log.firstN)
+        },
+    startLog() { this.draft.fresh(); this.sheet = "form" },
+    startEdit() { if (this.selected != null) { this.draft.load(this.selected); this.sheet = "form" } },
+    close() { this.sheet = this.sheet == "form" && this.draft.editing != "" ? "detail" : "" },
+    save() {
+        if (!this.draft.valid || this.log.saving) return
+        if (this.draft.editing == "") this.log.add(this.draft.payload())
+        else this.log.correct(this.draft.editing, this.draft.payload())
+        },
+    saved(id: string) {
+        if (this.draft.editing == "") { this.selectedId = id; this.sheet = "" }
+        else this.sheet = "detail"
+        },
+    askDelete() {
+        const id = this.selectedId
+        this.confirm.ask("Delete this session?", "It leaves the history, and everything counted from it.",
+            (r) => { if (r == "yes") { this.log.erase(id); this.sheet = "" } })
+        },
+
+    confirm: Dialog [ ],
+
+    // At a desk the keyboard is quicker: N logs, Escape backs out, and in
+    // the form the arrows nudge duration and effort and Return saves.
+
+    keys: Keys [
+        onKeyDown(e: KeyEvent) {
+            if (app.layer.form.body.noteField.focused) return
+            if (e.key == "Escape") app.close()
+            else if (app.sheet == "" && (e.key == "n" || e.key == "N")) app.startLog()
+            else if (app.sheet == "form") {
+                if (e.key == "ArrowRight") app.draft.setMinutes(app.draft.minutes + 5)
+                else if (e.key == "ArrowLeft") app.draft.setMinutes(app.draft.minutes - 5)
+                else if (e.key == "ArrowUp") app.draft.effort = Math.min(10, app.draft.effort + 1)
+                else if (e.key == "ArrowDown") app.draft.effort = Math.max(1, app.draft.effort - 1)
+                else if (e.key == "Enter") app.save()
+            } else if (app.sheet == "") {
+                if (e.key == "ArrowLeft") app.lens.glide(app.lens.startTo - app.lens.spanTo / 3, app.lens.spanTo)
+                else if (e.key == "ArrowRight") app.lens.glide(app.lens.startTo + app.lens.spanTo / 3, app.lens.spanTo)
+                }
+            }
+        ],
+
+    /* ## The page
+       Two columns at a desk — today on the left, the year taking the rest —
+       and one column on a phone, today first. */
+
+    page: View [ width = 100%,
+        padding = { app.narrow ? [28, app.gutter, 132, app.gutter] : [44, app.gutter, 48, app.gutter] },
+        layout: ResponsiveLayout [ gap = 64,
+            plan = { [ ({ from: 760, flow: "row", share: ({ today: 40, year: 60 }) }), ({ from: 0, flow: "stack", share: ({ today: 100, year: 100 }) }) ] } ],
+
+        /* ### Today — where am I, from across the room */
+
+        today: View [
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            head: View [ width = 100%, height = 34,
+                Label [ fontWeight = black, textColor = { provided("theme").ink }, text = "Cadence" ],
+                Label [ x = end, text = { app.log.ready ? fmtDay(app.log.todayN, 0) : "" } ]
+                ],
+            gone: Text [ width = 100%, visible = { app.log.loadFailed }, fontSize = 15, textColor = { provided("theme").heat },
+                text = "Can't reach the training log. Is the service on port 8320 running?" ],
+
+            Label [ text = "This week" ],
+            hero: Big [ width = 100%, figure = { app.narrow ? 78 : 112 },
+                html = { Math.round(app.weekCount.shown) + "<span class='Word'> " + (Math.round(app.weekCount.shown) == 1 ? "session" : "sessions")
+                    + " · </span>" + durHtml(app.weekMinutes.shown) } ],
+
+            shape: View [ width = 100%, height = 172,
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                datapath = { app.week.value },
+                WeekDay [ datapath = :days[], key = :n, y = 22, width = { (parent.width - 48) / 7 } ]
+                ],
+
+            streak: View [ width = 100%, height = { contentHeight + 30 },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                Label [ text = "Streak" ],
+                Big [ figure = { app.narrow ? 60 : 72 },
+                    html = { app.log.streak() == 0 ? "no streak"
+                        : Math.round(app.streakDays.shown) + "<span class='Word'> " + (Math.round(app.streakDays.shown) == 1 ? "day" : "days") + "</span>" } ]
+                ],
+
+            /* The session running now, if there is one: the one live thing on
+               the page — an accent dot breathing and a clock that ticks. */
+
+            live: Control [ width = 100%, visible = { app.log.running }, height = { contentHeight + 30 },
+                pulse: number = 1,
+                Animator [ attribute = pulse, from = 1, to = 0.25, duration = 900, repeat = 1000000, motion = quadBoth,
+                    started = { app.log.running } ],
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                tag: View [ height = 16,
+                    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                    View [ width = 10, height = 10, cornerRadius = 5, fill = { provided("theme").heat }, opacity = { pulse } ],
+                    Label [ textColor = { provided("theme").heat }, fontWeight = black,
+                        text = { "Running now · " + sportName(app.log.live.value?.session?.sport ?? "") } ]
+                    ],
+                Big [ figure = { app.narrow ? 60 : 72 },
+                    html = { fmtClock(app.log.liveSecs) } ],
+                Text [ fontSize = 17, fontWeight = semibold, textColor = { provided("theme").inkSoft },
+                    text = { fmtKm(app.log.live.value?.session?.distanceKm ?? 0) + " · " + (app.log.live.value?.session?.heartNow ?? 0) + " bpm" } ]
+                ],
+
+            last: Control [ width = 100%, visible = { app.log.newest() != null }, height = { contentHeight + 12 },
+                press() { app.open(app.log.newest()?.id ?? "") },
+                layout: SimpleLayout [ axis = y, spacing = 6 ],
+                Label [ text = "Last session" ],
+                View [ width = 100%,
+                    layout: SimpleLayout [ axis = x, spacing = 14, align = baseline ],
+                    Text [ fontSize = 34, fontWeight = black, letterSpacing = -0.8,
+                        text = { sportName(app.log.newest()?.sport ?? "") } ],
+                    Text [ fontSize = 17, fontWeight = semibold, textColor = { provided("theme").inkSoft },
+                        text = { fmtDay(dayNum(app.log.newest()?.date ?? "1970-01-01"), app.log.todayN) } ]
+                    ],
+                Text [ width = 100%, fontSize = 17,
+                    text = { app.lastLine(app.log.newest()) } ],
+                View [ width = 100%, height = 6, cornerRadius = 3, fill = { provided("theme").rule },
+                    View [ height = 6, cornerRadius = 3, fill = { app.effort.ink(app.log.newest()?.effort ?? 0) },
+                        width = { parent.width * (app.log.newest()?.effort ?? 0) / 10 } ]
+                    ]
+                ],
+
+            deskLog: View [ width = 100%, height = 92, visible = { !app.narrow },
+                Slab [ y = 28, width = 260, label = "Log a session",
+                    press() { app.startLog() }
+                    ]
+                ]
+            ],
+
+        /* ### The year — fourteen months, handled */
+
+        year: View [
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            head: View [ width = 100%, height = 34,
+                Label [ text = "The year" ],
+                Label [ x = end, visible = { !app.narrow }, text = "Drag · pinch or ⌘-scroll to zoom" ]
+                ],
+            name: Text [ width = 100%, fontSize = { app.narrow ? 30 : 40 }, fontWeight = black, letterSpacing = -1,
+                text = { app.log.ready ? periodName(app.lens.fromN, app.lens.toN) : "" } ],
+            figs: View [ width = 100%, height = { contentHeight + 18 },
+                layout: WrappingLayout [ spacing = 28, rowSpacing = 6 ],
+                Big [ figure = { app.narrow ? 44 : 56 },
+                    html = { Math.round(app.periodCount.shown) + "<span class='Word'> " + (Math.round(app.periodCount.shown) == 1 ? "session" : "sessions") + "</span>" } ],
+                Big [ figure = { app.narrow ? 44 : 56 }, html = { durHtml(app.periodMinutes.shown) } ],
+                Big [ figure = { app.narrow ? 44 : 56 }, visible = { app.period.value.km > 0 },
+                    html = { Math.round(app.periodKm.shown) + "<span class='Unit'> km</span>" } ]
+                ],
+            hardest: Control [ width = 100%, height = 44, visible = { app.period.value.hardest != "" },
+                press() { app.open(app.period.value.hardest) },
+                TextLabel [ fontSize = 16, textColor = { provided("theme").inkSoft },
+                    text = { app.hardestLine(app.log.find(app.period.value.hardest)) } ]
+                ],
+            strip: YearSurface [ width = 100%, height = { app.narrow ? 250 : Math.max(280, app.hostHeight - 420) } ],
+            zoom: View [ width = 100%, height = 72,
+                layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+                Choice [ label = "2 wk", on = { Math.abs(app.lens.spanTo - 14) < 0.5 },
+                    press() { app.lens.zoomTo(14) }
+                    ],
+                Choice [ label = "3 mo", on = { Math.abs(app.lens.spanTo - 91) < 0.5 },
+                    press() { app.lens.zoomTo(91) }
+                    ],
+                Choice [ label = "All", on = { app.lens.spanTo >= app.lens.total },
+                    press() { app.lens.glide(0, app.lens.total) }
+                    ]
+                ]
+            ]
+        ],
+
+    lastLine(s: Session?) -> string {
+        if (s == null) return ""
+        return fmtDur(s.minutes) + (s.distanceKm != null ? " · " + fmtKm(s.distanceKm) : "") + " · effort " + s.effort
+            + (s.heartAvg != null ? " · " + s.heartAvg + " bpm" : "")
+        },
+    hardestLine(s: Session?) -> string {
+        if (s == null) return ""
+        return "Hardest: " + sportName(s.sport) + (s.distanceKm != null ? " " + fmtKm(s.distanceKm) : " " + fmtDur(s.minutes))
+            + ", effort " + s.effort + " · " + fmtShortDay(dayNum(s.date)) + "  →"
+        },
+
+    /* ## Over the page
+       A frame-sized layer that ignores the page's scroll: the phone's log
+       button under the thumb, and the sheets with their scrim. */
+
+    layer: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.hostHeight },
+
+        thumb: View [ visible = { app.narrow && app.log.ready }, width = 100%, height = { 92 + app.safeBottom },
+            y = { app.hostHeight - this.height },
+            fill = { gradient("180deg", 0xF1EEE700, 0xF1EEE7FF) },
+            Slab [ x = { app.gutter }, y = 16, width = { parent.width - 2 * app.gutter }, label = "Log a session",
+                press() { app.startLog() }
+                ]
+            ],
+
+        scrim: View [ width = 100%, height = 100%, fill = { provided("theme").ink },
+            opacity = { 0.28 * Math.max(app.layer.detail.t, app.layer.form.t) },
+            visible = { this.opacity > 0.004 },
+            onClick() { app.sheet = "" }
+            ],
+
+        /* ### A session */
+
+        detail: Sheet [ shown = { app.sheet == "detail" && app.selected != null },
+            body: View [ width = 100%, padding = [18, 24, 28, 24],
+                layout: SimpleLayout [ axis = y, spacing = 0 ],
+                bar: View [ width = 100%, height = 48,
+                    Label [ y = center, text = { app.selected != null ? fmtDay(dayNum(app.selected.date), app.log.todayN) : "" } ],
+                    Quiet [ x = end, y = 2, label = "Close",
+                        press() { app.sheet = "" }
+                        ]
+                    ],
+                Text [ fontSize = 30, fontWeight = black, letterSpacing = -0.6, text = { sportName(app.selected?.sport ?? "") } ],
+                Big [ figure = { app.narrow ? 84 : 96 }, html = { durHtml(app.selected?.minutes ?? 0) } ],
+                facts: View [ width = 100%, height = { contentHeight + 22 },
+                    layout: WrappingLayout [ spacing = 26, rowSpacing = 10 ],
+                    Text [ fontSize = 22, fontWeight = bold, visible = { app.selected?.distanceKm != null },
+                        text = { fmtKm(app.selected?.distanceKm ?? 0) } ],
+                    Text [ fontSize = 22, fontWeight = bold, visible = { app.selected?.heartAvg != null },
+                        text = { (app.selected?.heartAvg ?? 0) + " bpm" } ]
+                    ],
+
+                // effort: how hard, as a number and as ten cells of heat
+
+                Label [ text = "Effort" ],
+                eff: View [ width = 100%, height = 70,
+                    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+                    Text [ fontSize = 44, fontWeight = black, letterSpacing = -1,
+                        textColor = { app.effort.ink(app.selected?.effort ?? 0) },
+                        text = { "" + (app.selected?.effort ?? "") } ],
+                    cells: View [ width = { parent.width - 70 }, height = 22,
+                        draw(d: Draw) {
+                            const e = app.selected?.effort ?? 0, w = (d.w - 9 * 4) / 10
+                            for (let i = 0; i < 10; i++) {
+                                d.fillStyle = i < e ? app.effort.ink(e) : provided("theme").rule
+                                d.fillRect(i * (w + 4), 0, w, d.h)
+                                }
+                            }
+                        ]
+                    ],
+
+                note: Text [ width = 100%, fontSize = 18, italic = true, visible = { (app.selected?.note ?? "") != "" },
+                    text = { "“" + (app.selected?.note ?? "") + "”" } ],
+                Label [ text = "Against everything else" ],
+                Spread [ width = 100% ],
+                Text [ width = 100%, fontSize = 15, textColor = { provided("theme").inkSoft },
+                    text = { app.placeLine(app.selected) } ],
+                actions: View [ width = 100%, height = 72,
+                    layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+                    Quiet [ label = "Edit",
+                        press() { app.startEdit() }
+                        ],
+                    Quiet [ label = "Delete", danger = true,
+                        press() { app.askDelete() }
+                        ]
+                    ]
+                ]
+            ],
+
+        /* ### Logging one
+           Filled in before it opens — today, their usual sport for the day,
+           their usual length and effort for it — so the common case is a
+           glance and a tap on Save. Every field is a tap, never a keyboard,
+           except the note. */
+
+        form: Sheet [ shown = { app.sheet == "form" },
+            body: View [ width = 100%, padding = [18, 24, 24, 24],
+                layout: SimpleLayout [ axis = y, spacing = 12 ],
+                bar: View [ width = 100%, height = 44,
+                    Label [ y = center, text = { app.draft.editing == "" ? "Log a session" : "Correct a session" } ],
+                    Quiet [ x = end, label = "Cancel",
+                        press() { app.close() }
+                        ]
+                    ],
+
+                sports: View [ width = 100%,
+                    layout: SimpleLayout [ axis = x, spacing = 8 ],
+                    Choice [ label = "Run", on = { app.draft.sport == "run" },
+                        press() { app.draft.pickSport("run") }
+                        ],
+                    Choice [ label = "Ride", on = { app.draft.sport == "ride" },
+                        press() { app.draft.pickSport("ride") }
+                        ],
+                    Choice [ label = "Lift", on = { app.draft.sport == "lift" },
+                        press() { app.draft.pickSport("lift") }
+                        ],
+                    Choice [ label = "Swim", on = { app.draft.sport == "swim" },
+                        press() { app.draft.pickSport("swim") }
+                        ]
+                    ],
+
+                when: View [ width = 100%,
+                    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                    Choice [ label = "Today", on = { app.draft.day == app.log.todayN },
+                        press() { app.draft.day = app.log.todayN }
+                        ],
+                    Choice [ label = "Yesterday", on = { app.draft.day == app.log.todayN - 1 },
+                        press() { app.draft.day = app.log.todayN - 1 }
+                        ],
+                    Nudge [ sign = -1, width = 48, height = 48,
+                        press() { app.draft.shiftDay(-1) }
+                        ],
+                    Text [ fontSize = 15, fontWeight = semibold, visible = { app.draft.day < app.log.todayN - 1 },
+                        text = { fmtShortDay(app.draft.day) } ],
+                    Nudge [ sign = 1, width = 48, height = 48, disabled = { app.draft.day >= app.log.todayN },
+                        opacity = { this.disabled ? 0.3 : 1 },
+                        press() { app.draft.shiftDay(1) }
+                        ]
+                    ],
+
+                howLong: View [ width = 100%, height = 96,
+                    Label [ y = 0, text = "How long" ],
+                    Nudge [ y = 30, sign = -1,
+                        press() { app.draft.setMinutes(app.draft.minutes - 5) }
+                        ],
+                    Big [ x = center, y = 16, figure = 72, html = { durHtml(app.draft.minutes) } ],
+                    Nudge [ x = end, y = 30, sign = 1,
+                        press() { app.draft.setMinutes(app.draft.minutes + 5) }
+                        ]
+                    ],
+
+                howFar: View [ width = 100%, height = 76, visible = { app.draft.hasKm },
+                    Label [ y = 0, text = "How far" ],
+                    Nudge [ y = 20, sign = -1,
+                        press() { app.draft.setKm(app.draft.km - app.draft.kmStep) }
+                        ],
+                    Big [ x = center, y = 16, figure = 44, html = { app.draft.km.toFixed(1) + "<span class='Unit'> km</span>" } ],
+                    Nudge [ x = end, y = 20, sign = 1,
+                        press() { app.draft.setKm(app.draft.km + app.draft.kmStep) }
+                        ]
+                    ],
+
+                Label [ text = "How it felt" ],
+                felt: View [ width = 100%, height = 48,
+                    datapath = { app.levels.value },
+                    layout: SimpleLayout [ axis = x, spacing = 4 ],
+                    Choice [ datapath = :levels[], key = :n, cornerRadius = 10,
+                        width = { (parent.width - 36) / 10 }, label = { "" + :n },
+                        tint = { app.effort.ink(:n) }, on = { app.draft.effort == :n },
+                        press() { app.draft.effort = :n }
+                        ]
+                    ],
+
+                noteField: TextInput [ width = 100%, height = 48, padding = 12, cornerRadius = 12, fontSize = 16,
+                    placeholder = "Add a note (optional)", fill = { provided("theme").paper },
+                    text = { app.draft.note },
+                    onInput(v: string) { app.draft.note = v }
+                    ],
+
+                refusal: Text [ width = 100%, fontSize = 15, fontWeight = semibold, visible = { app.log.refusal != "" },
+                    textColor = { provided("theme").heat }, text = { app.log.refusal } ],
+
+                save: Slab [ width = 100%, disabled = { !app.draft.valid || app.log.saving },
+                    label = { app.log.saving ? "Saving…" : (app.draft.editing == "" ? "Save · " : "Save changes · ") + app.draft.summaryLine },
+                    press() { app.save() }
+                    ],
+                View [ height = { app.safeBottom } ]
+                ]
+            ]
+        ],
+
+    placeLine(s: Session?) -> string {
+        if (s == null) return ""
+        const n = app.log.sportCount(s.sport)
+        return "Harder than " + app.log.harderThan(s) + "% of all your sessions. The "
+            + (app.log.lengthRank(s) == 1 ? "longest" : ordinal(app.log.lengthRank(s)) + " longest") + " of " + n + " " + sportPlural(s.sport) + "."
+        }
+    ]

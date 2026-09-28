@@ -6,7 +6,7 @@
 // bundles/declare-boot.js. Two things keep it so: the host imports the runtime
 // through runtime/host-api.js (a barrel import would pin the compiler's half
 // back in), and the boot build substitutes the checker with the production
-// stand-in (tools/internal/stubs.mjs). The witness is esbuild's own metafile
+// stand-in (the `checker` capability, compiler/src/capabilities.ts). The witness is esbuild's own metafile
 // from the boot's own build options — never a grep over minified names.
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";

@@ -1,0 +1,373 @@
+/*
+# The year — one surface, handled
+
+All fourteen months are one strip of days. What is on screen is a window onto
+it, described by two numbers: `span`, how many days the window holds, and
+`back`, how many days its right edge sits behind tomorrow. Pushing moves `back`;
+pulling open and squeezing shut moves `span`. Everything drawn and every figure
+in the header is a function of those two, so the surface can only ever be in
+one coherent place.
+
+Gestures write the *targets* (`spanTo`, `backTo`); springs carry the window to
+them. While a hand is on the surface the springs are stiff enough to stay with
+it; when it lets go they soften, so a flick carries on and settles.
+*/
+
+class Lens [
+    first: number = 0,                  // the first day of the strip (a Monday)
+    last: number = 0,                   // today
+    days: number = { classroot.last - classroot.first + 1 },
+
+    spanTo: number = 84,
+    backTo: number = 0,
+    span: number = 84,
+    back: number = 0,
+    handling: boolean = false,
+
+    Spring [ attribute = span, to = { classroot.spanTo }, epsilon = 0.002,
+        stiffness = { classroot.handling ? 2500 : 90 }, damping = { classroot.handling ? 100 : 19 } ],
+    Spring [ attribute = back, to = { classroot.backTo }, epsilon = 0.002,
+        stiffness = { classroot.handling ? 2500 : 60 }, damping = { classroot.handling ? 100 : 15.5 } ],
+
+    // the window's left edge, as a day number (fractional while moving)
+
+    left: number = { classroot.last + 1 - classroot.back - classroot.span },
+
+    maxSpan: number = { Math.max(14, classroot.days + 4) },
+    fitSpan(s: number) -> number { return clamp(s, 7, this.maxSpan) },
+
+    // the right edge may run a day past today, never before the first day
+
+    fitBack(b: number, s: number) -> number { return clamp(b, -1, Math.max(-1, this.days - s + 2)) },
+
+    // ── gestures: pixels in, targets out ───────────────────────────────────
+
+    grabBack: number = 0,
+    grabX: number = 0,
+    lastX: number = 0,
+    lastAt: number = 0,
+    velocity: number = 0,               // px per ms, positive = rightward
+
+    grab(x: number) {
+        this.handling = true
+        this.grabBack = this.backTo
+        this.grabX = x
+        this.lastX = x
+        this.lastAt = Date.now()
+        this.velocity = 0
+        },
+    drag(x: number, width: number) {
+        const now = Date.now()
+        const dt = Math.max(1, now - this.lastAt)
+        this.velocity = 0.8 * ((x - this.lastX) / dt) + 0.2 * this.velocity
+        this.lastX = x
+        this.lastAt = now
+        this.backTo = this.fitBack(this.grabBack + (x - this.grabX) * this.spanTo / width, this.spanTo)
+        },
+
+    // a flick carries on for a quarter-second's worth of its speed
+
+    release(width: number, canceled: boolean) {
+        this.handling = false
+        if (canceled || Date.now() - this.lastAt > 80) return
+        this.backTo = this.fitBack(this.backTo + this.velocity * 260 * this.spanTo / width, this.spanTo)
+        },
+
+    // zoom about a point: the day under `fx` (0 = left edge, 1 = right) stays put
+
+    zoomAbout(newSpan: number, fx: number) {
+        const s = this.fitSpan(newSpan)
+        const anchor = this.last + 1 - this.backTo - this.spanTo * (1 - fx)
+        this.spanTo = s
+        this.backTo = this.fitBack(this.last + 1 - anchor - s * (1 - fx), s)
+        },
+
+    pinchSpan: number = 0,
+    pinchAnchor: number = 0,
+    pinchStart(fx: number) {
+        this.handling = true
+        this.pinchSpan = this.spanTo
+        this.pinchAnchor = this.last + 1 - this.backTo - this.spanTo * (1 - fx)
+        },
+    pinch(scale: number, fx: number) {
+        const s = this.fitSpan(this.pinchSpan / Math.max(0.05, scale))
+        this.spanTo = s
+        this.backTo = this.fitBack(this.last + 1 - this.pinchAnchor - s * (1 - fx), s)
+        },
+
+    wheelAt: number = 0,
+    wheel(dx: number, dy: number, zoom: boolean, fx: number, width: number) {
+        this.handling = true
+        this.wheelAt = Date.now()
+        if (zoom) this.zoomAbout(this.spanTo * Math.exp(dy * 0.01), fx)
+        else if (Math.abs(dx) > Math.abs(dy)) this.backTo = this.fitBack(this.backTo - dx * this.spanTo / width, this.spanTo)
+        else this.zoomAbout(this.spanTo * Math.exp(dy * 0.0025), fx)
+        afterDelay(140, () => { if (Date.now() - this.wheelAt >= 130) this.handling = false })
+        },
+
+    // ── moves that are not under the hand: they glide ───────────────────────
+
+    show(span: number) {
+        const s = this.fitSpan(span)
+        this.spanTo = s
+        this.backTo = this.fitBack(this.backTo + (this.spanTo - s) / 2, s)
+        },
+    toToday() { this.backTo = this.fitBack(0, this.spanTo) },
+    step(dir: number) { this.backTo = this.fitBack(this.backTo - dir * this.spanTo * 0.5, this.spanTo) },
+    zoomStep(factor: number) { this.zoomAbout(this.spanTo * factor, 0.5) },
+
+    // bring a day into the window if it is not already comfortably inside
+
+    reveal(day: number) {
+        const left = this.last + 1 - this.backTo - this.spanTo
+        if (day >= left + this.spanTo * 0.08 && day <= left + this.spanTo * 0.92) return
+        this.backTo = this.fitBack(this.last + 1 - day - this.spanTo / 2, this.spanTo)
+        },
+
+    // ── what the window is looking at ──────────────────────────────────────
+
+    fromDay: number = { Math.ceil(classroot.left - 0.5) },
+    toDay: number = { Math.min(classroot.last, Math.floor(classroot.left + classroot.span - 0.5)) },
+
+    title() -> string {
+        const a = this.fromDay, b = Math.max(this.fromDay, this.toDay)
+        if (this.span > 70) {
+            const ya = yearOf(a), yb = yearOf(b)
+            if (ya != yb) return monthName(monthOf(a)) + " " + ya + " – " + monthName(monthOf(b)) + " " + yb
+            if (monthOf(a) == monthOf(b)) return monthName(monthOf(a)) + " " + ya
+            return monthName(monthOf(a)) + " – " + monthName(monthOf(b)) + " " + ya
+            }
+        if (yearOf(a) != yearOf(b))
+            return dateOf(a) + " " + monthName(monthOf(a)) + " " + yearOf(a) + " – " + dateOf(b) + " " + monthName(monthOf(b)) + " " + yearOf(b)
+        if (monthOf(a) == monthOf(b)) return dateOf(a) + " – " + dateOf(b) + " " + monthName(monthOf(a)) + " " + yearOf(a)
+        return dateOf(a) + " " + monthName(monthOf(a)) + " – " + dateOf(b) + " " + monthName(monthOf(b)) + " " + yearOf(b)
+        }
+    ]
+
+
+/*
+## The chart
+
+Drawn, because it is a picture of a thousand small facts. Behind: the load —
+the minutes of the week behind each day, a soft ink landscape that shows the
+shape of a season when the window is wide. In front: one bar per day, its
+height the day's minutes, its colour the day's hardest effort. Hard work is the
+only thing on it that shouts.
+
+A tap picks the session under the finger; a sideways drag pushes the months; two
+fingers (or a trackpad pinch, or the wheel) pull a fortnight open or squeeze a
+season shut. Vertical page scrolling stays the browser's.
+*/
+
+class YearChart extends View [ clip = true,
+    claim = x,
+
+    onPointerDown(e: PointerEvent) { app.lens.grab(e.x + this.rootOrigin().x) },
+    onPointerMove(e: PointerEvent) { if (!classroot.pinching) app.lens.drag(e.x, this.width) },
+    onPointerUp(e: PointerUpEvent) { app.lens.release(this.width, e.canceled || classroot.pinching) },
+
+    pinching: boolean = false,
+    onPinchStart(e: PinchEvent) {
+        pinching = true
+        app.lens.pinchStart(this.fx(e.center.x))
+        },
+    onPinch(e: PinchEvent) { app.lens.pinch(e.scale, this.fx(e.center.x)) },
+    onPinchEnd(e: PinchEvent) {
+        pinching = false
+        app.lens.handling = false
+        },
+    onWheel(e: WheelEvent) {
+        app.lens.wheel(e.deltaX, e.deltaY, e.pinch, clamp(e.x / this.width, 0, 1), this.width)
+        },
+    fx(rootX: number) -> number { return clamp((rootX - this.rootOrigin().x) / this.width, 0, 1) },
+
+    onClick(e: PointerEvent) {
+        const ppd = this.width / app.lens.span
+        app.pickNear(app.lens.left + e.x / ppd, 18 / ppd)
+        },
+
+    draw(d: Draw) {
+        const s = app.series.value
+        const th = provided("theme")
+        if (s == null || s.minutes.length == 0) return
+        const w = d.w, h = d.h
+        const axisH = 30, top = 10
+        const base = h - axisH, ph = base - top
+        const span = app.lens.span, left = app.lens.left
+        const ppd = w / span
+        const X = (day) => (day - left) * ppd
+        const i0 = Math.max(0, Math.floor(left - s.first) - 7)
+        const i1 = Math.min(s.minutes.length - 1, Math.ceil(left + span - s.first) + 1)
+        const small = ({ ...ChartLabel, fontFamily: th.body, textColor: th.muted })
+        const strong = ({ ...ChartLabelStrong, fontFamily: th.body, textColor: th.ink })
+
+        // months: a hairline at each first day, the name beside it — the name
+        // of a month already begun stays pinned at the left edge until the
+        // next one pushes it off
+        const monthPx = ppd * 30.4
+        let m = new Date(Math.floor(left - 40) * 86400000)
+        m = new Date(Date.UTC(m.getUTCFullYear(), m.getUTCMonth(), 1))
+        while (m.getTime() / 86400000 < left + span) {
+            const day = Math.round(m.getTime() / 86400000)
+            const month = m.getUTCMonth()
+            const next = Math.round(Date.UTC(m.getUTCFullYear(), month + 1, 1) / 86400000)
+            const labelled = monthPx >= 46 || month % 3 == 0
+            const x = X(day)
+            d.fillStyle = th.line
+            d.fillRect(Math.round(x), top, 1, h - top - (labelled ? 8 : 16))
+            if (labelled) {
+                const name = monthName(month).toUpperCase() + (month == 0 || x < 60 ? " " + m.getUTCFullYear() : "")
+                const lw = measureText(name, small).width
+                const room = (monthPx >= 46 ? X(next) : X(next + 61)) - 10
+                const lx = Math.min(Math.max(x + 6, 2), room - lw, w - lw - 2)
+                if (lx >= 0) d.fillText(name, lx, h - 8, small)
+                }
+            m = new Date(Date.UTC(m.getUTCFullYear(), month + 1, 1))
+            }
+
+        // the load behind — the week before each day: a faint landscape with a
+        // firmer ridge, so a season's shape reads when the window is wide
+        d.beginPath()
+        d.moveTo(X(s.first + i0), base)
+        for (let i = i0; i <= i1; i++) d.lineTo(X(s.first + i + 0.5), base - (s.load[i] / s.maxLoad) * ph)
+        d.lineTo(X(s.first + i1 + 1), base)
+        d.closePath()
+        d.fillStyle = th.ink
+        d.globalAlpha = 0.045
+        d.fill()
+        d.beginPath()
+        for (let i = i0; i <= i1; i++) {
+            const y = base - (s.load[i] / s.maxLoad) * ph
+            if (i == i0) d.moveTo(X(s.first + i + 0.5), y)
+            else d.lineTo(X(s.first + i + 0.5), y)
+            }
+        d.strokeStyle = th.ink
+        d.globalAlpha = 0.22
+        d.lineWidth = 1.5
+        d.stroke()
+        d.globalAlpha = 1
+
+        // days: one bar each, coloured by the hardest effort in it
+        const bw = Math.max(1, Math.min(ppd * 0.64, 26))
+        const r = bw >= 6 ? Math.min(3, bw / 3) : 0
+        for (let i = i0; i <= i1; i++) {
+            const mins = s.minutes[i]
+            if (mins <= 0) continue
+            const bh = Math.max(2, (mins / s.maxDay) * ph)
+            const x = X(s.first + i + 0.5) - bw / 2
+            d.fillStyle = app.heat(s.effort[i])
+            if (r > 0) { d.beginPath(); d.roundRect(x, base - bh, bw, bh, [r, r, 0, 0]); d.fill() }
+            else d.fillRect(x, base - bh, bw, bh)
+            }
+
+        // the baseline, and day numbers once a fortnight is open
+        d.fillStyle = th.ink
+        d.fillRect(0, base, w, 1)
+        if (ppd >= 16) {
+            for (let i = i0; i <= i1; i++) {
+                const day = s.first + i
+                const label = "" + dateOf(day)
+                const lw = measureText(label, small).width
+                d.fillText(label, X(day + 0.5) - lw / 2, base + 16, weekdayOf(day) == 0 ? strong : small)
+                }
+            }
+        else if (ppd >= 7) {
+            for (let i = i0; i <= i1; i++) if (weekdayOf(s.first + i) == 0) {
+                d.fillStyle = th.faint
+                d.fillRect(Math.round(X(s.first + i)), base + 1, 1, 5)
+                }
+            }
+
+        // today: the right edge of the history
+        d.fillStyle = th.ink
+        d.fillRect(Math.round(X(s.last + 1)), top, 1.5, ph)
+
+        // the chosen session: ringed, with a caret beneath
+        const sel = app.sel
+        if (sel != null) {
+            const day = dayNum(sel.date)
+            const i = day - s.first
+            if (i >= 0 && i < s.minutes.length) {
+                const x = X(day + 0.5)
+                const bh = Math.max(2, (s.minutes[i] / s.maxDay) * ph)
+                d.strokeStyle = th.ink
+                d.lineWidth = 2
+                d.strokeRect(x - bw / 2 - 3, base - bh - 3, bw + 6, bh + 3)
+                d.fillStyle = th.ink
+                d.beginPath()
+                d.moveTo(x, base + 3)
+                d.lineTo(x - 6, base + 11)
+                d.lineTo(x + 6, base + 11)
+                d.closePath()
+                d.fill()
+                }
+            }
+        }
+    ]
+
+
+/*
+## The panel around it
+
+It says what it is looking at — the period, in words — and what happened in it,
+in figures that roll as the window moves. Beneath, the few moves that are not
+gestures: a fortnight, a quarter, the whole history, and back to today.
+*/
+
+class YearPanel extends View [
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Caps [ text = "The year" ],
+        title: Fig [ fontSize = { app.wide ? 40 : 30 }, text = { app.lens.title() } ],
+
+        // each figure is one unbroken run; they wrap as wholes, so a phone
+        // stacks them and a desk sets them in a line
+
+        figures: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 26, rowSpacing = 4 ],
+            FigLine [ fontSize = { app.wide ? 52 : app.heroSize }, wordSize = { app.wide ? 18 : 20 },
+                width = { this.natural }, html = { countHtml(app.periodCount.shown) } ],
+            FigLine [ fontSize = { app.wide ? 52 : app.heroSize }, wordSize = { app.wide ? 18 : 20 },
+                width = { this.natural }, visible = { app.periodTotals.value.count > 0 },
+                html = { durHtml(app.periodMinutes.shown) } ],
+            FigLine [ fontSize = { app.wide ? 52 : app.heroSize }, wordSize = { app.wide ? 18 : 20 },
+                width = { this.natural }, visible = { app.periodKm.shown >= 0.05 },
+                html = { kmHtml(app.periodKm.shown) } ]
+            ],
+        effort: Text [ fontSize = 15, fontWeight = semibold, visible = { app.periodTotals.value.count > 0 },
+            textColor = { app.heatInk(app.periodTotals.value.effort) },
+            text = { "Average effort " + app.periodTotals.value.effort.toFixed(1) + " · " + effortWord(Math.round(app.periodTotals.value.effort)) } ]
+        ],
+
+    // on a desk the chosen session opens beside the chart, which gives up the
+    // room it needs; on a phone it rises as a sheet instead
+
+    chartRow: View [ width = 100%,
+        height = { app.wide ? Math.max(320, parent.height - parent.head.height - 44 - 20) : 280 },
+        layout: SimpleLayout [ axis = x ],
+        chart: YearChart [ height = 100%, width = { parent.width - app.drawerW } ],
+        drawer: View [ width = { app.drawerW }, height = 100%, clip = true, visible = { app.wide && app.detailT > 0.002 },
+            scrolls = y,
+            detail: SessionDetail [ x = 32, width = 348, opacity = { app.detailT } ]
+            ]
+        ],
+
+    moves: View [ width = 100%, height = 44,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Chip [ label = "2 wks", on = { Math.abs(app.lens.spanTo - 14) < 0.5 },
+            press() { app.lens.show(14) }
+            ],
+        Chip [ label = "Quarter", on = { Math.abs(app.lens.spanTo - 91) < 0.5 },
+            press() { app.lens.show(91) }
+            ],
+        Chip [ label = "All", on = { app.lens.spanTo >= app.lens.maxSpan - 0.5 },
+            press() { app.lens.show(10000) }
+            ],
+        Spacer [ ],
+        Chip [ label = "Today →", visible = { app.lens.backTo > 1 },
+            press() { app.lens.toToday() }
+            ]
+        ]
+    ]
