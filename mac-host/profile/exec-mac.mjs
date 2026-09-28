@@ -104,10 +104,11 @@ async function doInput(step, env) {
       const n = step.resize.frames, hz = step.resize.hz ?? 60;
       await ctl(`resize ${w0} ${h0}`, { timeout: 20 });                    // the start size
       // the host's verb is `liveresize W1 H1 N HZ`: from the current size to
-      // W1×H1 in N steps at HZ. It returns at once — the steps run on the
-      // host's run loop — so the case waits them out.
-      await ctl(`liveresize ${w1} ${h1} ${n} ${hz}`, { timeout: 30 });
-      await sleep(n / hz + 0.1);
+      // W1×H1 in N steps at HZ. Its steps run on the host's main thread and
+      // fall behind when main is busy, so the case waits for the last one
+      // (`wait`) rather than for N/HZ — a later `resize` landing mid-steps was
+      // a one-frame jump in the window's size.
+      await ctl(`liveresize ${w1} ${h1} ${n} ${hz} wait`, { timeout: 30 + n / hz * 4 });
     } else {
       await ctl(`resize ${w1} ${h1}`, { timeout: 20 });
     }
@@ -181,6 +182,11 @@ export async function runCaseOnMac(desc, opts = {}) {
   // only honest test of whether anything is listening.
   const alive = await ctl("ping", { timeout: 10 }).catch(() => null);
   if (alive !== "ok") throw new Error(`no host on ${CTL_IN} — start it with DECLARE_CONTROL=1 DECLARE_CTL_PIPE=${CTL_IN}`);
+  // DECLARE_BENCH_FRONT=1: bring this host frontmost before its case. Off by
+  // default — rigs keep to the back — but a host left in the background can be
+  // throttled by the system as a whole (App Nap), whatever its threads ask for,
+  // and a round comparing two background hosts then measures that instead.
+  if (process.env.DECLARE_BENCH_FRONT === "1") await ctl("activate", { timeout: 10 });
 
   // NAVIGATE THIS HOST TO THIS CASE'S PROGRAM. The app boots on whatever
   // DECLARE_URL it was launched with; a case names its own program, and the

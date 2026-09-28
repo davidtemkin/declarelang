@@ -33,10 +33,10 @@
 // re-launch to a plausible-looking number.
 
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
-import { CTL_IN, CTL_OUT, APP_NAME, ORIGIN } from "./app.mjs";
+import { CTL_IN, CTL_OUT, ORIGIN } from "./app.mjs";
 import { execFileSync, spawn } from "node:child_process";
 import { hostWindow } from "./win.mjs";
-import { hostBinary, NO_HOST } from "./app.mjs";
+import { hostBinary, NO_HOST, stopStrayHosts } from "./app.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
@@ -58,19 +58,23 @@ const stepArg = args.find((a) => !a.startsWith("--")) ?? null;
 const steps = args[0] === "--inline" ? JSON.parse(args[1]) : JSON.parse(readFileSync(stepArg, "utf8"));
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
+/** The host this run launched (relaunchNative), stopped by its own PID. */
+let nativeHost = null;
 /** Start the native host from a known state, in the pinned theme. */
 async function relaunchNative() {
-  try { execFileSync("/usr/bin/pkill", ["-f", "DeclareMac"]); } catch { /* none running */ }
+  if (nativeHost !== null) { try { process.kill(nativeHost.pid); } catch { /* gone */ } }
+  stopStrayHosts();
   await sleep(1);
   const bin = hostBinary();
   if (bin === null) { console.error(NO_HOST); process.exit(1); }
-  spawn(bin, [], {
+  nativeHost = spawn(bin, [], {
     detached: true, stdio: "ignore",
     env: { ...process.env,
            DECLARE_CONTROL: "1",
            DECLARE_APPEARANCE: APPEARANCE,
            DECLARE_URL: `${ORIGIN}/apps/desktop/desktop.declare?render=mac` },
-  }).unref();
+  });
+  nativeHost.unref();
   await sleep(6);
 }
 

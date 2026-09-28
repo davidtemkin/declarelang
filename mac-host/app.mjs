@@ -15,6 +15,7 @@
 // looking in the same order.
 
 import { existsSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -56,6 +57,27 @@ export function hostApp() {
 export function hostBinary() {
   const app = hostApp();
   return app === null ? null : path.join(app, `Contents/MacOS/${APP_NAME}`);
+}
+
+/** Stop any host that would answer on `pipe` in place of the one a rig is
+ *  about to launch — by PID, and only a host that IS one: this app's binary,
+ *  launched with DECLARE_CONTROL, listening on `pipe`. Never by name pattern:
+ *  `pkill -f "Declare Mac"` also matches every "Declare Mac …" variant app (the
+ *  benchmark round's measurement hosts) and a person's own copy of the app.
+ *  A rig stops the host IT launched by that child's own PID. */
+export function stopStrayHosts(pipe = CTL_IN) {
+  const bin = hostBinary();
+  if (bin === null) return;
+  let pids = [];
+  try { pids = execFileSync("/usr/bin/pgrep", ["-x", APP_NAME], { encoding: "utf8" }).trim().split("\n").filter(Boolean); } catch { return; }
+  for (const pid of pids) {
+    let cmd = "";
+    try { cmd = execFileSync("/bin/ps", ["-E", "-ww", "-o", "command=", "-p", pid], { encoding: "utf8" }); } catch { continue; }
+    const listens = cmd.match(/DECLARE_CTL_PIPE=(\S+)/)?.[1] ?? "/tmp/declare-ctl.in";
+    if (cmd.startsWith(bin) && /\bDECLARE_CONTROL=1\b/.test(cmd) && listens === pipe) {
+      try { process.kill(Number(pid)); } catch { /* gone */ }
+    }
+  }
 }
 
 /** The message a rig prints when there is nothing to drive. */

@@ -167,6 +167,11 @@ Each of these was hit in 2026-09-20 and each looks like a result rather than a f
   device round runs in one foregrounded tab for this reason, and alternates the two trees case
   by case so a pair is measured minutes apart at most — a phone's thermal state moves over a
   long round.
+- **A measurement app in the background.** With both Mac measurement apps open, the one behind
+  can be throttled by the system as a whole, whatever its threads ask for: the same unchanged tree
+  read 8 µs per rule body in one round and 43 µs in the next, with half the settles. Run the Mac
+  round with `DECLARE_BENCH_FRONT=1`, which brings each app frontmost before its case — both
+  trees then settle the same number of times and the per-body cost is stable.
 - **A host that never loaded its program.** The Mac error page is itself a Declare program, so
   a failed load mounts *it*: an app is up, it has a real width, and a rig that asks only "is
   something mounted?" will drive the error page and report its numbers. Check WHICH program is

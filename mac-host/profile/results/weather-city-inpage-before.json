@@ -1,0 +1,307 @@
+{
+  "app": "apps/weather/weather.declare",
+  "stim": "city",
+  "label": "before",
+  "jit": "JIT: compiling  (3000000-iteration probe in 0.9ms, budget 10ms; mmap(MAP_JIT)=ok)",
+  "windowS": 12.535184916496277,
+  "boot": {
+    "runs": 5010,
+    "wired": 1220,
+    "settleN": 33,
+    "settleMs": 62.456708908081055,
+    "settleMax": 38.969916582107544,
+    "settleRuns": 3507,
+    "settleEmpty": 3,
+    "settleEmptyMs": 0.2533750534057617,
+    "kruns": 2791,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 29.13041663169861,
+    "nfN": 525,
+    "nfMs": 4.197532892227173,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 5663,
+      "live": 4253,
+      "wired": 2091,
+      "ranInWindow": 2864
+    }
+  },
+  "win": {
+    "runs": 113779,
+    "wired": 40510,
+    "settleN": 513,
+    "settleMs": 881.8040840625763,
+    "settleMax": 33.01683330535889,
+    "settleRuns": 113779,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 214186,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 7893,
+      "live": 3804,
+      "wired": 1851,
+      "ranInWindow": 1187
+    }
+  },
+  "stats": "commits=574 over 15.39s (37.3/s)  linkTicks=1740 (113.1 Hz)  pumps=1731\n  commit ms  p50=6.29 p95=16.49 max=24.60  avgBytes=30061\n  gap ms     p50=3.18 p95=92.71 max=1391.80  (display budget 8.33) over=106\n  MOTION gap ms p50=2.86 p95=93.97 max=1482.39  over=91  (n=537)\n  RESIZE path n=0  total=0.0ms  avg=0.00 max=0.00   of which __declareResize=0.0ms  __declareSettle=0.0ms  pump+apply=0.0ms\n  first commits:\n    [[5,4,-47.592170539431365,-16.03251664918107,1382.4,864],[5,4,-47.592170539431365,-16.034692903937405,1382.4,864]]\n    [[5,4,-47.467941858691354,-16.034692903937405,1382.4,864],[5,4,-47.467941858691354,-16.037129965260462,1382.4,864]]\n    [[5,4,-47.343752597780714,-16.037129965260462,1382.4,864],[5,4,-47.343752597780714,-16.039649644376997,1382.4,864]]\n    [[5,4,-47.219604068174164,-16.039649644376997,1382.4,864],[5,4,-47.219604068174164,-16.042251928251908,1382.4,864]]\n  ticks: 1@4ms· 2@13ms· 3@21ms· 4@29ms· 5@38ms· 6@46ms· 7@54ms· 8@63ms· 9@81ms· 10@88ms· 11@96ms· 12@104ms· 13@113ms· 14@121ms· 15@129ms· 16@138ms· 17@146ms· 18@154ms· 19@163ms· 20@171ms· 21@187ms· 22@188ms· 23@196ms· 24@204ms·  worstGapAtCommit=1/574\n  rasters=7167  rasterMs total=485.5 avg=0.07 (12% of commit) overlayMs total=47.2 (1% of commit)   ops: GEOM=75567 DRAW=9539 OPACITY=2098 TEXTSTYLE=2026 op40=1133 TEXT=986 RADIUS=986 VISIBLE=549\n  CATransaction.commit total=1258ms (32% of commit)  of which CPU=1006ms, WAITING=252ms\n  TextLayer.draw n=9265 total=35ms (1% of commit) lineBuilds=0\n  RichOverlay.redraw n=0 0.0 Mpx 0ms\n  richLayout n=0 0ms 0 KB\n  rich bitmaps HELD: n=0  0.0 MB\n    parse=0ms  build=0ms (n=0)  layout=0ms\n  opMs: GEOM=322ms TEXTSTYLE=58ms SCROLLPOS=47ms DRAW=29ms TEXT=17ms INSERT=3ms\n  redrawn: #390x450 [80x5] #396x450 [80x5] #402x450 [80x5] #409x450 [314x256] #384x450 [80x5] #372x450 [80x5]\n  rasterMs by node: #409=124ms/48.5Mpx[314x256] #427=48ms/0.0Mpx[135x54] #414=27ms/0.0Mpx[310x10] #421=27ms/0.0Mpx[135x5] #348=26ms/0.0Mpx[80x5] #366=20ms/0.0Mpx[80x5] #396=20ms/0.0Mpx[80x5] #384=20ms/0.0Mpx[80x5]\n    LAYERS: described=5836  rasterized=200\n    hidden: skipped=1131  paid back on reveal=214 (32ms)  still owed=85\n    (top node is 25% of all raster time; 83 nodes rastered)",
+  "bench": {
+    "n": 1187,
+    "body": 267.2936125032357,
+    "run": 198.43566409234109,
+    "top": [
+      {
+        "label": "Text.height",
+        "n": 162,
+        "wired": 0,
+        "runs": 9524,
+        "bodyMs": 19.298,
+        "runMs": 25.858
+      },
+      {
+        "label": "Text.textStyle",
+        "n": 85,
+        "wired": 0,
+        "runs": 5852,
+        "bodyMs": 15.743,
+        "runMs": 22.148
+      },
+      {
+        "label": "View's MasonryLayout → StatCard.height",
+        "n": 6,
+        "wired": 0,
+        "runs": 1338,
+        "bodyMs": 12.713,
+        "runMs": 16.149
+      },
+      {
+        "label": "View's MasonryLayout",
+        "n": 2,
+        "wired": 0,
+        "runs": 446,
+        "bodyMs": 8.703,
+        "runMs": 11.262
+      },
+      {
+        "label": "View's MasonryLayout → MapCard.height",
+        "n": 2,
+        "wired": 0,
+        "runs": 446,
+        "bodyMs": 8.362,
+        "runMs": 9.529
+      },
+      {
+        "label": "CityRow.slide",
+        "n": 25,
+        "wired": 0,
+        "runs": 20350,
+        "bodyMs": 5.164,
+        "runMs": 8.902
+      },
+      {
+        "label": "View's MasonryLayout → AQICard.height",
+        "n": 2,
+        "wired": 0,
+        "runs": 446,
+        "bodyMs": 8.419,
+        "runMs": 7.915
+      },
+      {
+        "label": "CityRow.y",
+        "n": 25,
+        "wired": 0,
+        "runs": 20194,
+        "bodyMs": 124.897,
+        "runMs": 7.83
+      }
+    ],
+    "errors": 0
+  },
+  "bootlog": [
+    "2026-09-28 09:22:21.409 Declare Mac Before[35113:39502348] [Declare] JIT: compiling  (3000000-iteration probe in 0.9ms, budget 10ms; mmap(MAP_JIT)=ok)",
+    "2026-09-28 09:22:21.429 Declare Mac Before[35113:39502397] [boot]       1ms  ctx created ",
+    "2026-09-28 09:22:21.439 Declare Mac Before[35113:39502348] [boot]      11ms  WINDOW ON SCREEN ",
+    "2026-09-28 09:22:21.444 Declare Mac Before[35113:39502348] [boot]      16ms  open() file:///Users/temkin/Code/Declare/apps/weather/weather.declare",
+    "2026-09-28 09:22:21.455 Declare Mac Before[35113:39502397] [boot]      27ms  runtime scripts evaluated ",
+    "2026-09-28 09:22:21.456 Declare Mac Before[35113:39502397] [boot]      28ms  file 200   74 KB read 0ms  weather.declare",
+    "2026-09-28 09:22:21.456 Declare Mac Before[35113:39502397] [boot]      28ms    └ JS handled it 0ms",
+    "2026-09-28 09:22:21.565 Declare Mac Before[35113:39502352] [compile-worker] ready in 108ms (file:///Applications/Declare%20Mac%20Before.app/Contents/Resources/)",
+    "2026-09-28 09:22:21.962 Declare Mac Before[35113:39502397] [boot]     534ms  compile compile 499ms  weather.declare",
+    "2026-09-28 09:22:21.963 Declare Mac Before[35113:39502397] [Declare:log] boot: compiled (499ms)",
+    "2026-09-28 09:22:21.990 Declare Mac Before[35113:39502397] [boot]     562ms  file 200   69 KB read 0ms  weather.json",
+    "2026-09-28 09:22:21.990 Declare Mac Before[35113:39502397] [boot]     562ms    └ JS handled it 0ms",
+    "2026-09-28 09:22:22.192 Declare Mac Before[35113:39502397] [boot]     764ms  file 200    0 KB read 0ms  demos.json",
+    "2026-09-28 09:22:22.192 Declare Mac Before[35113:39502397] [boot]     764ms    └ JS handled it 0ms",
+    "2026-09-28 09:22:22.316 Declare Mac Before[35113:39502348] [boot]     888ms  FIRST COMMIT "
+  ],
+  "platform": "f99ff1482d30",
+  "gaps": {
+    "n": 1270,
+    "p50": 8.333333253860474,
+    "p95": 8.333333730697632,
+    "max": 34.25058317184448,
+    "over20": 12,
+    "over33": 1
+  },
+  "driveBoot": {
+    "runs": 48,
+    "wired": 48,
+    "settleN": 24,
+    "settleMs": 3.4035403728485107,
+    "settleMax": 0.28566670417785645,
+    "settleRuns": 48,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 48,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 5663,
+      "live": 4253,
+      "wired": 2091,
+      "ranInWindow": 2
+    },
+    "kernelKind": "native",
+    "callNs": 121.82875156402588,
+    "stateNs": 84.78249788284302,
+    "tableReadNs": 8867.583274841309,
+    "ringWriteNs": 4285.583257675171,
+    "acc": 22879451.8250002
+  },
+  "byLabel": [
+    [
+      "CityRow.slide",
+      20350
+    ],
+    [
+      "CityRow.y",
+      20194
+    ],
+    [
+      "Text.height",
+      9596
+    ],
+    [
+      "RangeBar.visibility",
+      6723
+    ],
+    [
+      "Text.textStyle",
+      5888
+    ],
+    [
+      "RangeBar.draw",
+      4540
+    ],
+    [
+      "WIcon.visibility",
+      3456
+    ],
+    [
+      "Text.x",
+      2857
+    ],
+    [
+      "Text.opacity",
+      2347
+    ],
+    [
+      "Text.width",
+      2148
+    ],
+    [
+      "Text.fontSize",
+      1925
+    ],
+    [
+      "Text.y",
+      1904
+    ],
+    [
+      "View's MasonryLayout → StatCard.height",
+      1338
+    ],
+    [
+      "StatCard.width",
+      1329
+    ],
+    [
+      "RowSky.visibility",
+      1121
+    ],
+    [
+      "WSky.visibility",
+      962
+    ],
+    [
+      "CityView.height",
+      892
+    ],
+    [
+      "View.opacity",
+      891
+    ],
+    [
+      "CityView.width",
+      886
+    ],
+    [
+      "View.cornerRadius",
+      886
+    ],
+    [
+      "GlassChip.opacity",
+      886
+    ],
+    [
+      "SunCurve.visibility",
+      673
+    ],
+    [
+      "Text.text",
+      611
+    ],
+    [
+      "RadarBlobs.visibility",
+      541
+    ]
+  ],
+  "drag": null
+}

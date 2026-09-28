@@ -34,6 +34,11 @@ final class ControlChannel {
     private let inPath: String = (Bundle.main.infoDictionary?["DeclareCtlPipe"] as? String) ?? "/tmp/declare-ctl.in"
     private var outPath: String { inPath.hasSuffix(".in") ? String(inPath.dropLast(3)) + ".out" : inPath + ".out" }
     private var timer: Timer?
+    /// A `liveresize` still stepping. A later size command cancels it: its steps
+    /// run on a main-thread timer that falls behind whenever main is busy, and a
+    /// step landing after a `resize` put the window back to that step's size —
+    /// a one-frame jump, and a window left at the wrong size.
+    private var liveResize: Timer?
     /// The channel outlives any one window, so it addresses the FRONT one at
     /// the moment a command arrives rather than holding a program hostage.
     /// A rig that opens a second window talks to the second window, which is
@@ -757,24 +762,36 @@ final class ControlChannel {
         case "resize":
             // resize W H — set the window's CONTENT size now (one jump).
             guard let w = view?.window else { return "no window" }
+            liveResize?.invalidate(); liveResize = nil
             w.setContentSize(NSSize(width: num(1), height: num(2)))
             return "content \(Int(w.contentView?.frame.width ?? 0))x\(Int(w.contentView?.frame.height ?? 0))"
         case "liveresize":
-            // liveresize W1 H1 N HZ — step the content size from where it is to
-            // W1×H1 in N steps at HZ, returning to the run loop between steps —
-            // a person dragging the corner, as far as a frame change is one.
+            // liveresize W1 H1 N HZ [wait] — step the content size from where it
+            // is to W1×H1 in N steps at HZ, returning to the run loop between
+            // steps — a person dragging the corner, as far as a frame change is
+            // one. The steps run on a main-thread timer, so they fall behind when
+            // main is busy: with `wait` the answer comes when the last step has
+            // landed, so a rig waits for the resize rather than for the clock.
             guard let w = view?.window, let cv = w.contentView else { return "no window" }
             let w0 = cv.frame.width, h0 = cv.frame.height, w1 = num(1), h1 = num(2)
             let n = max(2, Int(num(3))), hz = max(1.0, num(4))
+            let waits = a.dropFirst(5).contains("wait")
+            liveResize?.invalidate()
             var i = 1
-            let t = Timer.scheduledTimer(withTimeInterval: 1.0 / hz, repeats: true) { [weak w] timer in
+            let t = Timer.scheduledTimer(withTimeInterval: 1.0 / hz, repeats: true) { [weak self, weak w] timer in
                 guard let w else { timer.invalidate(); return }
                 let f = CGFloat(i) / CGFloat(n)
                 w.setContentSize(NSSize(width: w0 + (w1 - w0) * f, height: h0 + (h1 - h0) * f))
                 i += 1
-                if i > n { timer.invalidate() }
+                if i > n {
+                    timer.invalidate()
+                    if self?.liveResize === timer { self?.liveResize = nil }
+                    if waits { self?.reply(["done \(Int(w.contentView?.frame.width ?? 0))x\(Int(w.contentView?.frame.height ?? 0))"]) }
+                }
             }
+            liveResize = t
             RunLoop.main.add(t, forMode: .common)
+            if waits { return nil }
             return "resizing \(Int(w0))x\(Int(h0)) → \(Int(w1))x\(Int(h1)) in \(n) steps at \(Int(hz))Hz"
         case "frame":
             // frame — the window's frame in SCREEN coordinates (AppKit, origin

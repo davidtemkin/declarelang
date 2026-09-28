@@ -18,7 +18,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { APP_NAME, CTL_IN, CTL_OUT, hostApp, hostBinary, NO_HOST } from "../app.mjs";
+import { APP_NAME, CTL_IN, CTL_OUT, hostApp, hostBinary, NO_HOST, stopStrayHosts } from "../app.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -42,9 +42,12 @@ const evalJSON = async (src) => JSON.parse(await ctl(`eval JSON.stringify(${src}
 const bin = hostBinary();
 if (bin === null) { console.error(NO_HOST); process.exit(1); }
 const platform = JSON.parse(readFileSync(path.join(hostApp(), "Contents/Resources/platform.json"), "utf8"));
-if (!/profile/.test(platform.runtime ?? "")) { console.error(`the installed test app bakes runtime "${platform.runtime}" — rebuild with --runtime …/declare-mac.profile.js`); process.exit(1); }
+// the baked runtime must be a PROFILE build (build-runtime.mjs): its meters are what this reads
+if (!readFileSync(path.join(hostApp(), "Contents/Resources/declare-mac.js"), "utf8").includes("globalThis.__prof")) {
+  console.error(`${APP_NAME}.app bakes no profile runtime — build one with mac-host/profile/build-runtime.mjs and bake-mac.mjs`); process.exit(1);
+}
 
-try { execFileSync("/usr/bin/pkill", ["-f", APP_NAME]); await sleep(1); } catch { /* none running */ }
+stopStrayHosts(); await sleep(1);
 mkdirSync(path.join(HERE, "results"), { recursive: true });
 const base = `${path.basename(target, ".declare")}-${STIM}${INPAGE ? "-inpage" : ""}-${LABEL}`;
 const logPath = path.join(HERE, "results", base + ".log");
@@ -92,8 +95,9 @@ if (INPAGE) {
   if (driven === null || driven.error) { console.error("in-page drive failed:", driven?.error); process.exit(1); }
 } else if (STIM === "resize") {
   await ctl("frostreset");
-  await ctl("liveresize 1000 640 60 60");
-  await sleep(1.03);   // the drag is 60 steps at 60 Hz: stats cover the drag, not the idle animation after it
+  // the drag is 60 steps at 60 Hz, answered when the last one lands (they fall
+  // behind when main is busy): stats cover the drag, not the idle animation after it
+  await ctl("liveresize 1000 640 60 60 wait", 60);
 } else if (STIM === "wheel") {
   console.log("under the wheel:", await ctl("wheelat 640 500"));
   await ctl("wheelsweep 90 60 -24 640 500");
@@ -138,7 +142,7 @@ const win = INPAGE ? driven.win : await evalJSON("__prof.snapshot()");
 const bench = INPAGE ? { ...driven.bench, errors: 0, top: driven.bench.top } : await evalJSON("__prof.bench()");
 if (INPAGE) console.log(`frames:  rAF gaps n=${driven.gaps.n} p50=${driven.gaps.p50.toFixed(1)} p95=${driven.gaps.p95.toFixed(1)} max=${driven.gaps.max.toFixed(1)} · >20ms ${driven.gaps.over20} · >33ms ${driven.gaps.over33}`);
 
-try { execFileSync("/usr/bin/pkill", ["-f", APP_NAME]); } catch { /* gone */ }
+try { process.kill(child.pid); } catch { /* gone */ }
 await sleep(0.5);
 const bootlog = readFileSync(logPath, "utf8").split("\n").filter((l) => /\[boot\]|BOOT|WINDOW ON SCREEN|FIRST COMMIT|compile|runtime scripts|H\.evaluate|ctx created|jit/i.test(l)).slice(0, 40);
 

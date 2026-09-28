@@ -12,13 +12,12 @@
 // Same launch discipline as drawconform.mjs: pinned light appearance, the
 // installed binary, "Declare Mac" WITH THE SPACE on the way out.
 import { execFileSync, spawn } from "node:child_process";
-import { APP_NAME } from "./app.mjs";
 import { readFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { hostWindow } from "./win.mjs";
-import { hostBinary, NO_HOST } from "./app.mjs";
+import { hostBinary, NO_HOST, stopStrayHosts } from "./app.mjs";
 import { createDeclareServer } from "../server/create.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -33,10 +32,11 @@ const URL_ = `http://127.0.0.1:${httpServer.address().port}/test/probe/textbound
 
 const bin = hostBinary();
 if (bin === null) { console.error(NO_HOST); process.exit(1); }
-for (const pat of [APP_NAME]) { try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* none */ } }
+stopStrayHosts();
 await sleep(1.2);
-spawn(bin, [], { detached: true, stdio: "ignore",
-  env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_APPEARANCE: "light", DECLARE_URL: URL_ } }).unref();
+const host = spawn(bin, [], { detached: true, stdio: "ignore",
+  env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_APPEARANCE: "light", DECLARE_URL: URL_ } });
+host.unref();
 let up = false;
 for (let i = 0; i < 60 && !up; i++) { await sleep(0.5); try { hostWindow(); up = i > 4; } catch { /* not yet */ } }
 if (!up) { console.error("no host window"); process.exit(1); }
@@ -69,6 +69,6 @@ print(f"{lone} {box}")
 const [lone, box] = out.split(" ").map(Number);
 console.log(`mac: text-only view ${lone} white px · with-a-box control ${box} white px · ${shot}`);
 console.log(lone > 500 ? "OK — the text-only drawing renders natively" : "FAIL — the text-only drawing is blank on the host");
-for (const pat of [APP_NAME]) { try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* gone */ } }
+try { process.kill(host.pid); } catch { /* gone */ }
 httpServer.close();
 process.exit(lone > 500 ? 0 : 1);

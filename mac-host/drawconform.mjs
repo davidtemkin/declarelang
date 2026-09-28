@@ -34,14 +34,13 @@
 // fails here has moved or resized, which is a real bug; one that differs by a
 // uniform haze has not.
 import { execFileSync, spawn } from "node:child_process";
-import { APP_NAME } from "./app.mjs";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { hostWindow } from "./win.mjs";
-import { hostBinary, NO_HOST } from "./app.mjs";
+import { hostBinary, NO_HOST, stopStrayHosts } from "./app.mjs";
 import { createDeclareServer } from "../server/create.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -81,17 +80,18 @@ const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
  *
  *  Appearance is pinned rather than read, because the whole comparison is void
  *  if the two sides disagree about it — and pinning is cheaper than detecting. */
+/** The host this run launched, stopped by its own PID at the end. */
+let nativeHost = null;
 async function launchNative(url) {
   const bin = hostBinary();
   if (bin === null) { console.error(NO_HOST); process.exit(1); }
-  for (const pat of [APP_NAME]) {
-    try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* none running */ }
-  }
+  stopStrayHosts();
   await sleep(1.2);
-  spawn(bin, [], {
+  nativeHost = spawn(bin, [], {
     detached: true, stdio: "ignore",
     env: { ...process.env, DECLARE_CONTROL: "1", DECLARE_APPEARANCE: "light", DECLARE_URL: url },
-  }).unref();
+  });
+  nativeHost.unref();
   // the window has to exist AND have painted; poll rather than guess
   for (let i = 0; i < 60; i++) {
     await sleep(0.5);
@@ -219,9 +219,7 @@ if (macOk) {
   await sleep(2.5);                       // let the first settle land
   nativeShot(macPng);
   report("chrome canvas vs MAC", await compareCells(refPng, macPng, cells, cols, cw, ch));
-  for (const pat of [APP_NAME]) {
-    try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* already gone */ }
-  }
+  try { process.kill(nativeHost.pid); } catch { /* already gone */ }
 }
 console.log(`\n  ${refPng}\n  ${macOk ? macPng : "(no mac shot)"}`);
 httpServer.close();
