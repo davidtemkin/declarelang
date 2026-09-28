@@ -97,6 +97,8 @@ const countWindows = async () => {
 try {
   await test("the host comes up with one window", async () => {
     assert.equal(await ready(), true, "host never answered ping");
+    // the title bar says who is driving the host (Automation.swift)
+    assert.match(await ctl("attach mac-shell"), /^ok/);
     assert.equal(await countWindows(), 1);
   });
 

@@ -406,6 +406,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        // a main thread that stops answering is logged with what it was doing
+        Watchdog.shared.start()
+        Watchdog.shared.set("launch")
+        defer { Watchdog.shared.set("untagged") }
         // Pin the theme when asked, so a parity run measures the program rather
         // than the machine it happens to be on (see the `appearance` bridge fn).
         if let forced = ProcessInfo.processInfo.environment["DECLARE_APPEARANCE"] {

@@ -159,6 +159,8 @@ async function ctlQuick(cmd) {
   throw new Error("no reply");
 }
 await ensureHost();
+// the title bar says who is driving the host (Automation.swift); `detach` below
+await ctl("attach gate");
 
 const base = existsSync(BASELINE) ? JSON.parse(readFileSync(BASELINE, "utf8")) : {};
 const now = {};
@@ -267,5 +269,6 @@ if (bless) {
               (only ? `  (the other ${Object.keys(base).length - Object.keys(now).length} kept)` : ""));
 }
 console.log(`\n  ${rows.length} programs · ${failed} failing · ${fresh} without a baseline\n`);
+await ctl("detach");
 if (ownHost !== null) { try { await ctl("closewindow"); } catch { /* gone */ } try { process.kill(ownHost.pid); } catch { /* gone */ } }
 process.exit(failed > 0 && !bless ? 1 : 0);

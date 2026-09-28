@@ -115,6 +115,91 @@ final class ChromeButton: NSButton {
     }
 }
 
+/// The automation label: "Automated", or "Automated · gate" for a named
+/// session (Automation.swift). A STATUS, not a mode — so it is not a word-and-
+/// chip toggle, whose grey chip means "on, press to change". It is its own
+/// colour, the amber browsers use for an automated window, on a capsule; it is
+/// pressable only to stop the session, which asks first. A dot before the
+/// words pulses for as long as the session lasts — the recording light: a
+/// status that is live, not one that happened once.
+final class AutomationBadge: NSButton {
+    private var hovering = false
+    private static let amber = NSColor.systemOrange
+    private let dot = CALayer()
+    private static let dotSize: CGFloat = 6
+    private static let dotInset: CGFloat = 8
+
+    init(target: AnyObject, action: Selector) {
+        super.init(frame: .zero)
+        self.target = target
+        self.action = action
+        title = "Automated"
+        toolTip = "This window is being driven through the control channel (/tmp/declare-ctl.in). Press to stop it."
+        isBordered = false
+        bezelStyle = .regularSquare
+        font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+        setButtonType(.momentaryChange)
+        wantsLayer = true
+        dot.backgroundColor = Self.amber.cgColor
+        dot.cornerRadius = Self.dotSize / 2
+        layer?.addSublayer(dot)
+    }
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    private var attrs: [NSAttributedString.Key: Any] {
+        [.font: font ?? NSFont.systemFont(ofSize: NSFont.smallSystemFontSize), .foregroundColor: Self.amber]
+    }
+    override var intrinsicContentSize: NSSize {
+        let s = (title as NSString).size(withAttributes: attrs)
+        return NSSize(width: ceil(s.width) + 18 + Self.dotSize + 5, height: 22)
+    }
+    override func layout() {
+        super.layout()
+        dot.frame = NSRect(x: Self.dotInset, y: (bounds.height - Self.dotSize) / 2, width: Self.dotSize, height: Self.dotSize)
+    }
+    /// The pulse runs while the label is on screen, and stops with it.
+    override var isHidden: Bool {
+        didSet {
+            if isHidden { dot.removeAnimation(forKey: "pulse"); return }
+            let pulse = CABasicAnimation(keyPath: "opacity")
+            pulse.fromValue = 1; pulse.toValue = 0.2; pulse.duration = 0.8
+            pulse.autoreverses = true; pulse.repeatCount = .infinity
+            pulse.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            dot.add(pulse, forKey: "pulse")
+        }
+    }
+    override func draw(_ dirtyRect: NSRect) {
+        let r = bounds.insetBy(dx: 0.5, dy: 2.5)
+        let capsule = NSBezierPath(roundedRect: r, xRadius: r.height / 2, yRadius: r.height / 2)
+        Self.amber.withAlphaComponent(hovering ? 0.24 : 0.14).setFill()
+        capsule.fill()
+        Self.amber.withAlphaComponent(0.55).setStroke()
+        capsule.lineWidth = 1
+        capsule.stroke()
+        let a = attrs
+        let s = title as NSString
+        let sz = s.size(withAttributes: a)
+        let x0 = Self.dotInset + Self.dotSize + 5
+        s.draw(at: NSPoint(x: x0 + (bounds.width - x0 - 10 - sz.width) / 2, y: (bounds.height - sz.height) / 2), withAttributes: a)
+    }
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(rect: bounds, options: [.mouseEnteredAndExited, .activeAlways], owner: self, userInfo: nil))
+    }
+    override func mouseEntered(with event: NSEvent) { hovering = true; needsDisplay = true }
+    override func mouseExited(with event: NSEvent) { hovering = false; needsDisplay = true }
+
+    /// A person's input was refused: say where the reason is.
+    func flash() {
+        guard let layer else { return }
+        let pulse = CABasicAnimation(keyPath: "opacity")
+        pulse.fromValue = 1; pulse.toValue = 0.25; pulse.duration = 0.18
+        pulse.autoreverses = true; pulse.repeatCount = 2
+        layer.add(pulse, forKey: "flash")
+    }
+}
+
 /// Back or forward: a chevron.
 ///
 /// A GLYPH HERE, WORDS THERE, and the difference is not inconsistency. "View
@@ -174,20 +259,26 @@ final class NavButton: NSButton {
     override func mouseExited(with event: NSEvent) { hovering = false; needsDisplay = true }
 }
 
-/// The LEADING accessory: back and forward, after the traffic lights.
+/// The LEADING accessory: back and forward, after the traffic lights — and,
+/// while the control channel drives the window, the automation label after them.
 final class WindowNav: NSTitlebarAccessoryViewController {
     let back: NavButton
     let forward: NavButton
+    let automation: AutomationBadge
+    private let row: NSStackView
 
     init(owner: ProgramWindow) {
         back = NavButton(back: true, tip: "Back (⌘[)",
                          target: owner, action: #selector(ProgramWindow.goBack))
         forward = NavButton(back: false, tip: "Forward (⌘])",
                             target: owner, action: #selector(ProgramWindow.goForward))
+        automation = AutomationBadge(target: owner, action: #selector(ProgramWindow.stopAutomation))
+        automation.isHidden = true
+        row = NSStackView(views: [back, forward, automation])
         super.init(nibName: nil, bundle: nil)
-        let row = NSStackView(views: [back, forward])
         row.orientation = .horizontal
         row.spacing = 2
+        row.setCustomSpacing(10, after: forward)
         row.edgeInsets = NSEdgeInsets(top: 0, left: 8, bottom: 0, right: 0)
         row.frame = NSRect(x: 0, y: 0, width: row.fittingSize.width, height: 24)
         view = row
@@ -201,6 +292,20 @@ final class WindowNav: NSTitlebarAccessoryViewController {
         back.needsDisplay = true
         forward.needsDisplay = true
     }
+
+    /// Show the automation label (nil hides it). The accessory is re-fitted: a
+    /// hidden view leaves the stack, so the row's width moves.
+    func setAutomation(_ label: String?) {
+        let show = label != nil
+        var changed = automation.isHidden == show
+        if let label, automation.title != label { automation.title = label; automation.invalidateIntrinsicContentSize(); changed = true }
+        guard changed else { return }
+        automation.isHidden = !show
+        row.frame = NSRect(x: 0, y: 0, width: row.fittingSize.width, height: 24)
+        automation.needsDisplay = true
+    }
+
+    func flashAutomation() { if !automation.isHidden { automation.flash() } }
 }
 
 /// The TRAILING accessory: the two ways of looking at the program.
@@ -233,4 +338,5 @@ final class WindowChrome: NSTitlebarAccessoryViewController {
         source.needsDisplay = true
         inspector.needsDisplay = true
     }
+
 }

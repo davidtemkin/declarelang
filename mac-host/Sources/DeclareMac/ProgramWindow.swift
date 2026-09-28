@@ -28,6 +28,24 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
     /// 99.98% differing on one run, clean on the next). The state is PUSHED
     /// from JS instead (Bridge.onInspector), so this is only ever read.
     private var inspectorIsOpen = false
+    /// Show (or clear) the automation label for this window's current state.
+    func refreshAutomation() {
+        nav?.setAutomation(Automation.shared.label(for: self))
+    }
+
+    /// The label was pressed: ask, and stop the session on Stop. The run fails
+    /// loudly — the channel refuses that client's acting commands afterwards.
+    @objc func stopAutomation() {
+        let alert = NSAlert()
+        alert.messageText = "A test is driving this window"
+        alert.informativeText = "Stop it? The control channel will refuse its next action, and the run will fail."
+        alert.addButton(withTitle: "Stop")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { response in
+            if response == .alertFirstButtonReturn { Automation.shared.stopByUser() }
+        }
+    }
+
     func refreshChrome() {
         chrome?.refresh(viewing: viewing, inspecting: inspectorIsOpen)
         nav?.refresh(canGoBack: canGoBack, canGoForward: canGoForward)
@@ -39,9 +57,10 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
 
     init(frame: NSRect, owner: AppDelegate) {
         self.owner = owner
-        window = NSWindow(contentRect: frame,
-                          styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                          backing: .buffered, defer: false)
+        let pw = ProgramNSWindow(contentRect: frame,
+                                 styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                                 backing: .buffered, defer: false)
+        window = pw
         view = DeclareView(frame: NSRect(origin: .zero, size: frame.size))
         bridge = Bridge(view: view)
         super.init()
@@ -129,6 +148,12 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         chrome = WindowChrome(owner: self)
         window.addTitlebarAccessoryViewController(chrome)
         refreshChrome()                 // back/forward start out with nowhere to go
+        // While the control channel drives this window its content refuses a
+        // person's input, and a refused event points at the label (Automation.swift).
+        pw.blocksInput = { [weak self] in self.map { Automation.shared.blocksInput($0) } ?? false }
+        pw.refused = { [weak self] in self?.nav?.flashAutomation() }
+        Automation.shared.register(self)
+        refreshAutomation()
         syncSize()
         // ⚠ NOT ordered front yet — see `present()`. A harness is the exception:
         // it addresses windows the moment it makes them.

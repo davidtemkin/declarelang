@@ -19,6 +19,9 @@
 //   trace X Y   (narrate the hit walk)      flows   (dump rich flows)
 //   geom        (window id and content box) ping
 //   occlusion ignore|honor  (keep a COVERED window rendering, for off-focus shots)
+//   attach NAME [input] · detach · automation   (the session the title bar shows —
+//     Automation.swift; `input` lets a person's input through, for a rig that
+//     posts real events itself)
 
 import AppKit
 import CoreImage
@@ -111,7 +114,7 @@ final class ControlChannel {
 
     func start() {
         try? "".write(toFile: inPath, atomically: true, encoding: .utf8)
-        let t = Timer(timeInterval: 0.03, repeats: true) { [weak self] _ in self?.poll() }
+        let t = Timer(timeInterval: 0.03, repeats: true) { [weak self] _ in self?.poll(); Automation.shared.tick() }
         RunLoop.main.add(t, forMode: .common)
         timer = t
         NSLog("[control] listening on %@", inPath)
@@ -154,6 +157,23 @@ final class ControlChannel {
     private func run(_ cmd: String) -> String? {
         let a = cmd.split(separator: " ").map(String.init)
         guard let verb = a.first else { return "empty" }
+        // THE AUTOMATION SESSION (Automation.swift): named by `attach`, ended by
+        // `detach` or silence; an acting command with none attached starts an
+        // anonymous one. A person may have stopped it — then acting is refused.
+        switch verb {
+        case "attach":
+            guard a.count > 1 else { return "usage: attach NAME [input]" }
+            Automation.shared.attach(name: a[1], allowInput: a.dropFirst(2).contains("input"), target: target())
+            return "ok " + Automation.shared.describe()
+        case "detach":
+            Automation.shared.detach()
+            return "ok"
+        case "automation":
+            return Automation.shared.describe()
+        default:
+            let appLevel = ["windows", "newwindow", "closewindow"].contains(verb)
+            if let refusal = Automation.shared.note(words: a, target: target(), appLevel: appLevel) { return refusal }
+        }
         // Almost every verb below reaches through `bridge`/`view` into a window.
         // With none open there is nothing to address, and answering plainly
         // beats trapping on an implicit unwrap inside a test run. The few verbs

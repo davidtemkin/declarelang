@@ -190,7 +190,8 @@ npm run test:mac
 
 Rebuilds the Mac bundles, then runs the three-renderer conformance suite and the native
 gate (every program in a corpus rendered natively and in Chrome, compared against a
-recorded per-program baseline). Both need a running host and a dev server on `:8260`:
+recorded per-program baseline). Both need a dev server on `:8200`; each launches a host of
+its own when none is running, or drives the one that is:
 
 ```bash
 npm start &
@@ -198,6 +199,19 @@ DECLARE_CONTROL=1 "/Applications/Declare Mac.app/Contents/MacOS/Declare Mac" &
 ```
 
 `DECLARE_CONTROL=1` opens the control channel the harnesses drive (`mac-host/ctl.mjs`).
+
+**A driven window says so.** A harness names itself with `attach NAME` and ends with
+`detach`; while it lasts, the title bar reads "Automated · NAME" and the window's content
+refuses a person's clicks and keys (the title bar stays live; ⌘-keys pass). Pressing the
+label offers to stop the run, after which the channel refuses that harness's acting
+commands until it attaches again. A command that only reads (`geom`, `stats`, `trace`, …)
+starts nothing; one that acts with no session attached starts an anonymous one, and
+silence ends a session (30 s named, 5 s anonymous). `attach NAME input` lets real input
+through, for a rig that posts system events. `ctl automation` reports the state.
+
+**A hang is logged.** A watchdog thread logs any stretch over 250 ms in which the main
+thread did not answer, with what it was doing — `[hang] main thread blocked 402 ms (in:
+layer commit (2790 ops))`. Launch the host from a terminal to see it.
 
 ## When something is wrong
 

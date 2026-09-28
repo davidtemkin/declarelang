@@ -177,6 +177,8 @@ async function macDump(file) {
     // locked): a host that counts itself hidden idles its animations, and a
     // spring caught mid-flight reads as a layout difference
     await ctl("occlusion ignore");
+    // the title bar says who is driving the host (Automation.swift)
+    await ctl("attach crossrender");
   } else {
     // `__declareBoot` announces the new load to the host asynchronously, so a
     // `waitload` sent straight after it can be answered by the PREVIOUS
@@ -403,7 +405,7 @@ try {
   }
 } finally {
   await browser.close();
-  if (host !== null) { await ctl("closewindow", 50); try { process.kill(host.pid); } catch {} }
+  if (host !== null) { await ctl("detach", 50); await ctl("closewindow", 50); try { process.kill(host.pid); } catch {} }
 }
 if (JSON_OUT) writeFileSync(JSON_OUT, JSON.stringify(report, null, 1));
 const bad = report.filter((r) => r.error || Object.values(r.renderers ?? {}).some((x) => x.error || x.total > 0)).length;

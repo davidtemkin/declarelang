@@ -49,8 +49,8 @@ final class Bridge {
     // the frame request), or a SYNC hop to main only where the runtime needs
     // the answer (`richLayout`: TextKit is main-only) — which is deadlock-free
     // exactly because the main thread never blocks on this thread. THE RULE:
-    // nothing on main ever waits for the runtime after init; a value from JS
-    // (eval, bench) comes back by a callback.
+    // nothing on main ever waits for the runtime — creating it included; a
+    // value from JS (eval, bench) comes back by a callback.
     //
     // WHY A REAL THREAD WITH A RUN LOOP, not a dispatch queue: JavaScriptCore
     // binds its own timers (GC activity, the incremental sweeper) to the run
@@ -109,13 +109,6 @@ final class Bridge {
         }
     }
 
-    /// INIT ONLY: the one place main waits for the runtime — creating the
-    /// context and evaluating the platform scripts, before anything else runs.
-    private func runtimeSyncAtInit(_ f: @escaping () -> Void) {
-        let done = DispatchSemaphore(value: 0)
-        onRuntime { f(); done.signal() }
-        done.wait()
-    }
     /// AppKit facts the runtime asks for synchronously, cached on main so the
     /// runtime thread never touches a window: the backing scale and the theme.
     var cachedScale: CGFloat = 2
@@ -223,7 +216,14 @@ final class Bridge {
         self.view = view
         self.tree = LayerTree(bridge: self, view: view)
         cachedAppearance = Bridge.appearance()
-        runtimeSyncAtInit { [self] in
+        // CREATING THE RUNTIME IS POSTED, NOT WAITED FOR. It was the one place main
+        // waited on this thread — context creation and the platform scripts —
+        // and on a cold launch (the first after a build: nothing cached, files
+        // cold) that wait ran long enough to beachball a window already on
+        // screen. Nothing on main reads the context: every use is posted, and
+        // this thread runs posts in order, so whatever main sends next (the boot,
+        // the first frame request) simply queues behind this.
+        onRuntime { [self] in
             ctx = JSContext()
             ctx.exceptionHandler = { _, e in
                 NSLog("[Declare] JS exception: %@", e?.toString() ?? "?")
@@ -236,8 +236,8 @@ final class Bridge {
             declare_kernel_install(ctx.jsGlobalContextRef)
             install()
             loadScripts()
+            mark("runtime scripts evaluated")
         }
-        mark("runtime scripts evaluated")
         startDisplayLink()
     }
 
@@ -270,7 +270,7 @@ final class Bridge {
             guard let self else { return }
             let t0 = CFAbsoluteTimeGetCurrent()
             if self.statsTracing, self.firstCommits.count < 4 { self.firstCommits.append(head) }
-            self.tree.apply(ops: ops)
+            Watchdog.shared.during("layer commit (\(ops.count) ops)") { self.tree.apply(ops: ops) }
             let dt = (CFAbsoluteTimeGetCurrent() - t0) * 1000
             self.commitCount += 1
             self.commitMsTotal += dt
@@ -671,6 +671,8 @@ final class Bridge {
     var tickLog: [(Int, Double, Bool, Int)] = []
 
     @objc private func onFrame(_ link: CADisplayLink) {
+        Watchdog.shared.set("frame")
+        defer { Watchdog.shared.set("untagged") }
         linkTicks += 1
         let before = commitCount
         let beforeBytes = commitBytes
