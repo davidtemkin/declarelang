@@ -73,7 +73,7 @@
 // (the same posture as compile.ts / free-idents). Its two VALUE imports —
 // MOTION_TOKENS and declaredType — read the runtime's own vocabulary tables so
 // the scaffold cannot drift from them; everything else is `import type`.
-import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
+import { MOTION_TOKENS } from "../../runtime/dist/easing.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { EVENT_PAYLOAD, handlerName, SCHEMAS } from "../../runtime/dist/schema.js";

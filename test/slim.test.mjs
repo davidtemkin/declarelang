@@ -392,11 +392,16 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
     assert.ok((ht["md.js"] ?? 0) < md["md.js"] / 3, `an HTMLText-only build carries md.js's shared helpers, not its parser (${ht["md.js"]} vs ${md["md.js"]})`);
   });
 
-  await test("a theme preset named as a literal keeps the preset records", async () => {
+  await test("a theme preset named as a literal ships as its record, not the preset table", async () => {
     const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
     assert.ok((none["themes-data.js"] ?? 0) < STUBBED, `a program naming no preset carries no records, had ${none["themes-data.js"]}`);
+    // `theme = SanFranciscoDark` resolves at compile time (lower-literals.ts
+    // lowerThemeNames): the program carries the one record, the table stays out
     const lit = `App [ width = 200, fill = black, View [ width = 200, height = 60, theme = SanFranciscoDark, HTMLText [ width = 180, html = "<p>hi</p>" ] ] ]`;
-    assert.ok(modsOf(await buildProduction(lit, {}))["themes-data.js"] > STUBBED, "`theme = SanFranciscoDark` keeps the records");
+    const b = await buildProduction(lit, {});
+    assert.ok((modsOf(b)["themes-data.js"] ?? 0) < STUBBED, "the preset table stays out");
+    const js = b.files.find((f) => f.name.startsWith("app.")).contents;
+    assert.ok(js.includes(String(0x4C8DFF)), "the dark preset's accent rides in the program");
     await renders(lit);
   });
 

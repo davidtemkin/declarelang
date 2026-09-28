@@ -1,6 +1,7 @@
 import type { Closure } from "./closure.js";
 import type { Compiled } from "./compile.js";
 import { type Program } from "../../runtime/dist/parser.js";
+import { type ProgramFacts } from "./capabilities.js";
 import { type Diagnostic } from "../../runtime/dist/diagnostics.js";
 import type { DeclareError } from "../../runtime/dist/errors.js";
 export interface ProgramBuild {
@@ -23,6 +24,16 @@ export interface ProgramBuild {
      *  production build keeps (∩ the runtime registry), dropping every other
      *  component module (rich-text, etc.). Empty when the source did not compile. */
     usedComponents: readonly string[];
+    /** What the program reaches, read from it AS WRITTEN (capabilities.ts
+     *  programFacts), before its literals become values — present when asked for
+     *  (a production build decides what it carries from these). */
+    facts?: ProgramFacts;
+    /** Literals shipped as written because the compile could not ship their value
+     *  (lower-literals.ts), with why — each keeps the runtime's parsers aboard. */
+    unlowered?: ReadonlyArray<{
+        pos: unknown;
+        why: string;
+    }>;
 }
 /** The component NAMES a program may instantiate: its STATIC tree references
  *  (tags + class bases) ∪ any component a `{ }` body constructs BY NAME
@@ -47,4 +58,5 @@ export declare function programFromCompiled(c: Compiled & {
     closure: Closure;
 }, opts?: {
     stripPos?: boolean;
+    facts?: boolean;
 }): Promise<ProgramBuild>;

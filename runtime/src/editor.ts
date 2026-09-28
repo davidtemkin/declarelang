@@ -23,7 +23,7 @@ import { Constraint } from "./reactive.js";
 import { View, onDiscard, inheritedCursor } from "./view.js";
 import { setBound, defineAttributes } from "./attributes.js";
 import { coerceData } from "./data.js";
-import { splitPath } from "./datapath.js";
+import { splitPath } from "./path-plan.js";
 import type { ShapeField } from "./data-schema.js";
 import { compileExpr } from "./expr.js";
 import { DeclareError, type Pos } from "./errors.js";

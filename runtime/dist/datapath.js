@@ -22,26 +22,10 @@
 // expression and an identifier follows. Shares the parser's known, accepted
 // regex-literal gap (a `/}/`-style regex defeats any heuristic short of full
 // lexing — HANDOFF §R4); real lexing arrives with the tsc front-end.
-/** Does this plan select MANY (slice/wildcard present)? Names and indices are
- *  singular; a selective path is legal in reads and `:path[]` replication,
- *  refused on `<->` and bare `datapath =` (the D4 §4 table). */
-export const isSelective = (plan) => plan.some((s) => typeof s !== "string" && !("i" in s) && !("c" in s));
-/** A singular plan's STATIC segments — names pass, a non-negative index is
- *  its string key. Null when the place needs the data to resolve (a negative
- *  index reads the array's length) or the plan selects many — the cases a
- *  cursor or write target refuses with a pointed error. */
-export function staticSegs(plan) {
-    const out = [];
-    for (const s of plan) {
-        if (typeof s === "string")
-            out.push(s);
-        else if ("i" in s && s.i >= 0)
-            out.push(String(s.i));
-        else
-            return null;
-    }
-    return out;
-}
+// The plan currency — PathSeg, splitPath, isSelective, staticSegs — lives in
+// path-plan.ts, which every build carries; this module is the scanner.
+export { isSelective, staticSegs, splitPath } from "./path-plan.js";
+import { splitPath, staticSegs } from "./path-plan.js";
 /** RFC 9535 string-literal escapes for quoted name selectors. Returns null on
  *  a bad escape. */
 function unescapeName(body, quote) {
@@ -129,10 +113,6 @@ export function parsePathSpec(raw) {
     const text = `[${nums.map((v) => (v === null ? "" : String(v))).join(":").replace(/:$/, "")}]`;
     return { seg: { s: nums }, text };
 }
-/** Split a dot-path into segments ("" → the cursor itself: no segments).
- *  Array indices are ordinary string segments — JS containers index
- *  identically with "2" and 2, so the path currency stays one type. */
-export const splitPath = (path) => (path === "" ? [] : path.split("."));
 // Identifier-shaped words that may directly PRECEDE an expression — after
 // these, a `:` still opens a datapath (`return :title`, `yield :x`).
 const NON_ENDING = new Set([

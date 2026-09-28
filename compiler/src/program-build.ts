@@ -17,6 +17,9 @@ import { resolveIncludes, NO_INCLUDES, referencedComponentNames } from "../../ru
 import { REGISTRY_NAMES } from "../../runtime/dist/registry.js";
 import { SCHEMAS, descendsFrom, type ComponentSchema } from "../../runtime/dist/schema.js";
 import { check } from "../../runtime/dist/check.js";
+import { withLiteralSink } from "../../runtime/dist/value.js";
+import { LiteralValues, lowerLiterals, lowerThemeNames } from "./lower-literals.js";
+import { programFacts, type ProgramFacts } from "./capabilities.js";
 import { toDiagnostic, renderReport, type Diagnostic } from "../../runtime/dist/diagnostics.js";
 import type { DeclareError } from "../../runtime/dist/errors.js";
 
@@ -40,6 +43,13 @@ export interface ProgramBuild {
    *  production build keeps (∩ the runtime registry), dropping every other
    *  component module (rich-text, etc.). Empty when the source did not compile. */
   usedComponents: readonly string[];
+  /** What the program reaches, read from it AS WRITTEN (capabilities.ts
+   *  programFacts), before its literals become values — present when asked for
+   *  (a production build decides what it carries from these). */
+  facts?: ProgramFacts;
+  /** Literals shipped as written because the compile could not ship their value
+   *  (lower-literals.ts), with why — each keeps the runtime's parsers aboard. */
+  unlowered?: ReadonlyArray<{ pos: unknown; why: string }>;
 }
 
 /** Each rich-text format's CONTENT slot, keyed by the schema that owns it. An
@@ -150,7 +160,7 @@ export function stripPos<T>(node: T): T {
  *  default) strip positions. `c` is the ONE compile result (compileTracked,
  *  on either host); on any error `program` is null and `errors` carries every
  *  diagnostic (nothing is emitted). */
-export async function programFromCompiled(c: Compiled & { closure: Closure }, opts: { stripPos?: boolean } = {}): Promise<ProgramBuild> {
+export async function programFromCompiled(c: Compiled & { closure: Closure }, opts: { stripPos?: boolean; facts?: boolean } = {}): Promise<ProgramBuild> {
   if (c.source === null) {
     return { program: null, errors: c.errors, warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents: [] };
   }
@@ -162,7 +172,11 @@ export async function programFromCompiled(c: Compiled & { closure: Closure }, op
   // resolved re-parse), so the emitted artifact is provably valid. A failure
   // here is OUR bug (compile() accepted what the re-check rejects), so the
   // structured view is composed the same way compile() composes its own.
-  const errors = [...incErrors, ...check(program)];
+  // The check also learns what each literal means: the runtime's coercion
+  // reports every value it produces (lower-literals.ts), and below the program
+  // ships those values in place of the written forms.
+  const literals = new LiteralValues();
+  const errors = [...incErrors, ...withLiteralSink(literals.note, () => check(program))];
   if (errors.length > 0) {
     const diagnostics = errors.map((e) => toDiagnostic(e, "error", "structure"));
     return { program: null, errors, warnings: c.warnings, diagnostics, report: renderReport(diagnostics), closure: c.closure, usedComponents: [] };
@@ -176,10 +190,15 @@ export async function programFromCompiled(c: Compiled & { closure: Closure }, op
   // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
   // needs nothing positional, but order it here so it reads the same program).
   const usedComponents = usedComponentNames(program);
+  // Facts are read from the program as written, before its literals become values.
+  const facts = opts.facts ? programFacts(program, usedComponents) : undefined;
+  const { kept } = lowerLiterals(program, literals);
+  lowerThemeNames(program);
+  if (facts !== undefined && kept.length > 0) facts.syntax.add("raw-literal");
   // The program is now provably checked (the gate above), so stamp it trusted:
   // instantiate routes by value kind and coerces directly, and the production
   // bundle ships no validator at all (tools/declarec.mjs stubs check.js).
   program.trusted = true;
   if (opts.stripPos ?? true) stripPos(program);
-  return { program, errors: [], warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents };
+  return { program, errors: [], warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents, facts, unlowered: kept };
 }

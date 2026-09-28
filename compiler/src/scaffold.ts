@@ -77,7 +77,7 @@
 import type { ComponentSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
 import type { ClassDecl, Method, Param, SchemaDecl } from "../../runtime/dist/parser.js";
-import { MOTION_TOKENS } from "../../runtime/dist/animate.js";
+import { MOTION_TOKENS } from "../../runtime/dist/easing.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { EVENT_PAYLOAD, handlerName, SCHEMAS } from "../../runtime/dist/schema.js";

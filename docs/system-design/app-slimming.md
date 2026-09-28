@@ -1,352 +1,215 @@
-# App slimming — one inclusion graph for everything optional
+# What a production build carries
 
-**Status: PROPOSAL, 2026-09-26 — not ruled, nothing built in the tree.** Measurements come
-from production DOM builds of release `224f6940`, in a scratch copy (`~/Code/eval-murmur-3`).
-That copy's `declarec` gained one measurement hook, `opts.extraPlugins`, and nothing else. It
-supersedes the conclusion of [bundle-slimming.md](bundle-slimming.md) (2026-08-02), whose
-premise no longer holds: the floor has roughly doubled since.
+A production build (`declarec`, a server's `?build`) carries the runtime a
+program can reach and nothing else. Most of the runtime is optional machinery —
+data, replication, motion, islands, drawing, effects, rich text, the checker —
+and a program that never reaches a piece of it does not ship it. This page is
+how that is decided, how the build leaves a piece out, and how it is checked.
 
----
+## 1. The rule
 
-## 1. Where the bytes are
+A piece of the runtime is left out only when the compiler can show, from the
+program, that nothing in it can reach that piece. The decision is made at
+compile time from the program's source — its tree, its classes, the libraries
+it pulls in, every `{ }` body — and never at run time: nothing optional is
+loaded lazily. A trigger that cannot be exact over-includes. Where a program
+could reach something only through a value the build cannot read (a `{ }`
+body, a `:path`), the trigger counts that as reaching it.
 
-**The floor.** A hello-world (`App [ Text [ text = "hello" ] ]`) is now **90 KB gzipped**;
-on 2026-08-02 it was 47. React's floor is about 61.5 KB. Real apps:
+## 2. Capabilities
 
-| app | gzipped |
-|---|---:|
-| weather | 120 |
-| calendar | 118 |
-| Murmur | 126 |
-| tracker | 135 |
-| desktop | 170 |
+The unit is the **capability**: one runtime module or a few, plus the triggers
+that say a program reaches them. They are listed in one manifest,
+`compiler/src/capabilities.ts`, and nothing else in the build decides what
+ships.
 
-The runtime is most of every one of these.
+| field | meaning |
+|---|---|
+| `id`, `describe` | its name, and what it is (for `--why` and `BUILD.json`) |
+| `modules` | the files it stands for: `runtime/dist/<m>.js`, or `browser/<m>.js` |
+| `when` | its triggers; it is needed when any one matches |
+| `requires` | the capabilities it needs in turn |
+| `hostsKeep` | a page that hosts other programs (islands) keeps it |
+| `inert` | the exports the core calls whether or not the program uses it |
+| `subset` | for a table the program reaches only by name: ship the entries it names |
 
-What the hello-world carries, in minified KB before compression (the gzip ratio is about
-0.34, and about 0.42 for the kernel):
+Needed capabilities are closed over `requires`, the same shape as include and
+auto-include: name only A and only A comes in; A requiring B brings both. A
+`--debug` build keeps every capability. A page that hosts islands keeps every
+`hostsKeep` capability, since a hosted program may need what the page never
+names.
 
-| group | min KB | modules |
-|---|---:|---|
-| tree core | ~93 | view 29.3, instantiate 19.9, attributes 9.4, bind 7.5, reactive 6.7, boot 6.6, expr 4.5, text 2.9, node 2.8, errors 2.0 |
-| DOM renderer | ~54 | dom-backend 34.6, input 5.5, interaction 3.8, measure 3.5, and small ones |
-| values and schemas | ~34 | value 13.5, schema 11.5, program-schema 5.4, css-colors 2.7 |
-| the kernel | ~29 | kernel-wasm 23.3 (base64), kernel-loader 5.7 |
-| data | ~26 | replicate 13.9, data 10.0, editor 2.1 |
-| motion and layout | ~20 | layout 6.0, animator 5.3, animate 3.7, state 2.7, spring 2.2 |
-| host page | ~11 | host-client 8.0, boot-page 2.7 |
+What hosting shares, and why it costs: a hosted program runs **in the host's
+runtime** — the build compiles each island's program to `programs/<key>.json`,
+and the host's bundle hydrates and runs it; it brings no runtime of its own. So
+the host carries what its tenants need. The scope is the runtime modules (the
+capabilities); component classes are added exactly — the host's registry gains
+the classes its tenants construct (`alsoUses`) — and a library `.declare`
+component is compiled into each program, never shared. Open: the build compiles
+every tenant, so it could keep the union of the host's and its tenants'
+capabilities instead of every `hostsKeep` one; a hosting page (desktop, the
+homepage) would then slim like any other.
 
-**Why optional machinery rides every build.** Almost all of it comes in through direct
-imports from the core, not through anything a program says:
-- `instantiate.js` imports `Replicator`, `Layout`, `Animator`/`AnimatorGroup`, `Spring`,
-  `State`, the two-way binder and the schema builder, and recognises them with `instanceof`;
-- `layout.js` imports `Animator` because `TweenLayout` creates one internally;
-- `replicate.js` imports `spring.js` for a single helper;
-- `Island`/`DOMIsland` live inside `view.ts`.
+## 3. Triggers
 
-The registry slimming (`slimRegistrySource`) works correctly. It just can't drop a module
-that the core imports on its own.
+One walk over the program (`programFacts`) reads every fact a trigger can ask
+about. `{ }` bodies are read with TypeScript's own parser, never with a
+pattern. No capability has analysis code of its own.
 
-## 2. What we have today
+| trigger | matches when the program… |
+|---|---|
+| `classes` | constructs the class or one descending from it: tags, `extends` bases, `new X()` in a body, `use [ … ]`, and each built-in's own bases (TextInput is an Editor) |
+| `ownClasses` | constructs the class itself; a built-in descending from it does not count (Spring from Animator) |
+| `methods` | declares a method of the name (`draw`) |
+| `attributes` | sets the attribute anywhere, or a body writes it (`attributesUnless` names literals that do not count, as `focusable = false`) |
+| `mentions`, `calls`, `writes` | a body names it, calls it, or assigns it |
+| `slots`, `dynamicSlots` | a slot is set at all, or set to a value the build cannot read |
+| `scoped` | sets the attribute on an element descending from one of the named classes (a program class counts through its `extends`), or constructs one of them while a body names or writes it — `maxLines` counts for the rich-text view path only on a rich text |
+| `syntax` | uses a construct: a replicating datapath, `<->`, a selector segment, a data shape, any read of data |
+| `build` | the build itself: its renderer, `--debug`, `ship [ inspector ]`, `ship [ compiler ]` |
 
-Four mechanisms, each built separately:
+## 4. What stands in for a piece left out
 
-1. **The library auto-include.** Components written in Declare are pulled by tag, and their
-   bases transitively (`include.ts`, OpenLaszlo's `autoincludes`). This is the good model: a
-   manifest, one walk, transitive closure.
-2. **The registry.** A generated `registry.js` names only the runtime classes the program
-   constructs, found by a real scope analysis (`usedComponentNames`), and esbuild drops the
-   rest. It's exact, but defeated by the direct imports above.
-3. **About 25 fact-gated stubs** in `declarec.mjs`: themes, draw, filter, focus/keys, tip,
-   viewport lock, selectors, schemas, effects, 3D, text measurement, font features, faces,
-   draw-image/text, change events, rich-text flow, the checker, the Inspector, and so on.
-   - Each is a **hand-written stand-in** whose exports must track the real module's.
-   - Each has a **hand-written fact**: some read from the parse tree, some as regular
-     expressions over body text.
-   - This is the fragile part DT is worried about. Every new exclusion adds one more
-     analysis and one more stub.
-4. **Host swaps:** the compiler client, live edit, the Inspector boot, and the canvas
-   backend on a DOM build.
+A capability left out has each of its modules replaced by a **stand-in the
+build generates** from the real module's exports, so a stand-in cannot drift
+from its module:
 
-## 3. The proposed architecture: capabilities
+- an export the core calls regardless is **inert**: a benign value from a
+  fixed vocabulary (`noop`, `null`, `false`, `identity`, an empty class, …),
+  declared in the manifest;
+- every other export **refuses**. Reaching it means the program did need the
+  capability, so it throws the coded "not aboard" error (`notAboard`,
+  `runtime/src/errors.ts`) naming the capability, rather than misbehaving
+  quietly;
+- a constant that is neither inert nor refusable is a build error, so every
+  export has a decision.
 
-**One unit, the capability.** A capability is a runtime module, or a small set of modules,
-plus an entry in **one manifest**:
+The core is written so the inert set stays small: an optional module is
+reached through a call the core makes only when the program uses it (Animator
+makes its timed run, `tween.ts`, at its first `start()`; a view arms
+`visibility.ts` at the first tracked read of a fact), or through a class the
+core only tests with `instanceof`, which an empty class answers.
 
-```
-{ id: "tween",      modules: ["animator-tween.js", "easing.js"], requires: ["animation-core"],
-  trigger: { class: ["Animator", "TweenLayout"] } }
-{ id: "replication", modules: ["replicate.js"], requires: [],
-  trigger: { syntax: "replicating-datapath" } }
-```
+A **subset** capability is a table the program can reach only by the names it
+writes: the built-in component schemas (`schema`, keyed by the classes it
+constructs). Unless a debug or hosting build needs it whole, the module ships
+as itself with that table cut to the entries the program names. Whatever only
+the cut entries referenced is left for the bundler to drop.
 
-Developer-visible classes are just capabilities whose trigger is a class name. A class
-capability is **the class plus whatever private machinery only it needs**.
+The component registry is the same idea: `registry.js` is generated
+per program with only the classes it constructs (`slimRegistrySource`), and
+the bundler drops the rest.
 
-**One graph, one closure, the same shape as auto-include.**
-- `requires` edges plus class `extends` edges form the graph.
-- The build takes the program's triggered capabilities and closes them transitively: C needs
-  B needs A, so all three come in; name only A and only A comes in.
-- This is exactly the include and auto-include model, extended to the runtime. The library
-  auto-include stays as it is. A library class that uses `Spring` triggers the `spring`
-  capability in the ordinary way, because its compiled body names it.
+## 5. Literals ship as values
 
-**A small, fixed set of trigger kinds.** Every capability must be triggered by one of these;
-**no capability gets its own analysis code:**
+A compiled program carries no literal text for the runtime to parse. The
+checker coerces every literal the program writes, in its slot, to the value it
+means — `navy` in a Color slot is `0x000080`, `gradient(#F8F8F8, #D8D8D8)` a
+gradient record, `easeOut` a curve, `bold` in a weight slot `700` — and while
+the compile checks the program it will ship, the runtime's own coercion reports
+each value it produces (`value.ts` `withLiteralSink`). The compile then
+replaces each literal with a `value` literal carrying that value
+(`compiler/src/lower-literals.ts`). The value is the one the runtime's
+coercion computed, so it cannot disagree with what the runtime would have done;
+every mode — a dev page, a production build, the Mac host — gets the same
+program.
 
-| trigger kind | read from | examples |
-|---|---|---|
-| `class` | the used-class set (tags, `extends`, `new X()`, `use [ … ]`), already exact | Spring, State, Image, DOMIsland |
-| `syntax` | a named construct the parser already marks | a replicating datapath (`many: true`), `<->` (`bind: "two"`), a `draw` method, `trackChanges` |
-| `attribute` | an attribute set anywhere, by name | `rotateX`…, `travelWith`, `link`, `tip`, `mask`/`tint` |
-| `member read` | a body reads a runtime member by name, found by the scope analysis (`freeIdentifiers`), not by regex | `visibleRect`/`onScreen`/`apparentScale`, `measureText`, `raise` |
-| `value slot` | a slot that can carry the value is set to anything other than a readable literal: the one-directional rule the graphics gates already follow | filters, gradients, masks |
+A theme preset named as a literal (`theme = SanFranciscoDark`) is resolved the
+same way, to its record (`lowerThemeNames`), so a program ships the one preset it
+names and never the table of them; a theme the program declares itself stays a
+name, resolved from its own declaration.
 
-A single compiler function, `programCapabilities(program)`, walks the tree once and evaluates
-every manifest trigger. It replaces the regex facts in `declarec.mjs`, reports its result in
-`BUILD.json`, and can say *why* each capability is in (`declarec --why <id>`).
+So the literal parsers — color names and hex, the decoration constructors,
+motion tokens and curves, shape paths (`literal-parse.ts`) — are a capability
+like any other, and one only rich text needs: its inline-view tags are read
+from the text as it arrives, which may be data. A literal the compile could not
+ship as a value would keep them too; there is none in the corpus, and
+`test/lower-literals.test.mjs` holds that line: every literal in the corpus
+ships as its value, and a compiled program, booted, parses none of its own.
 
-**The runtime side: plug in by import, no stubs.**
-- Core modules never import an optional module. They reach optional behaviour through a
-  small number of **installation points**:
-  - construction handlers by kind, which the registry already half-does;
-  - `Node` lifecycle hooks, replacing the `instanceof` checks (`prime`, `autoStart`,
-    `init`/`onLinked`);
-  - surface feature methods installed onto `DomSurface` by feature modules (text editing,
-    selectable text, raster, touch, islands);
-  - value coercers registered by kind.
-- The generated entry **imports exactly the closure's modules**, and each installs itself on
-  import.
-- An absent capability is an absent hook, and the core calls `need("replication")`, which
-  throws a message naming the capability and the `use [ … ]` escape. Absence is loud, as
-  bundle-slimming.md §6 asked.
-- The hand-written stubs retire, and with them the drift between a stub and its module.
+## 6. The kernel
 
-**How it stays safe:**
-- **The one-directional rule, stated once in the manifest's contract:** a capability may be
-  left out only when the program *cannot* reach it. A trigger that can't be exact (dynamic
-  values) over-includes.
-- **The corpus gate:** every program in `apps/`, the docs demos and the eval fixtures, built
-  both slim and full, must give the same results through the verification ladder (R5/R6).
-  This one test replaces per-stub tests. A missing trigger shows up as a behaviour
-  difference, not as a smaller bundle nobody checks.
-- **Per-capability rows** in `slim.test`: a program that reaches the capability through each
-  route its trigger claims (tag, `extends`, body construction, `use`) must include it.
+The reactive kernel is chosen by the `kernel` build modifier: WebAssembly by
+default, or JavaScript (`--kernel js`). A build carries exactly one of them,
+inlined. See [kernel.md](kernel.md) §10–11.
 
-**Why this addresses fragility:**
-- There's one manifest instead of 25 pairs of stub and fact.
-- There are five trigger kinds instead of a regex per module.
-- There's one walk instead of several.
-- There's one gate instead of a test per stub.
-- Adding a capability means: split the module, add a manifest row, add a gate row. The
-  compiler doesn't change.
+## 7. Checking it: the gate
 
-## 4. The kernel — its own lever
+`test/slim-corpus.test.mjs` is the one check that what a build leaves out was
+unreachable. A trigger that misses shows up there as a program that behaves
+differently.
 
-| | min KB | gz KB |
+1. **The ladder, on the slimmed build.** Every app with a `tests/` folder has
+   its rungs 5 and 6 (`tests/assert.mjs`, `tests/states.mjs` against the
+   blessed baselines) run against its production build. The build carries the
+   `__declare` bridge (`bridge: true`) so the rungs can drive it, and is
+   otherwise unchanged.
+2. **The corpus, slim against whole.** Every program — the apps, the docs
+   demos, the probes, the eval apps — is built twice: slimmed, and whole
+   (`slim: false, keepAll: true`). Both are booted headlessly with the wall
+   clock, `performance.now`, frame times and media playback pinned. They must settle to the
+   same view tree (every view's box, visibility and text), the same pixels and
+   the same page errors. A difference counts only when the program is still:
+   a second settle of the whole build must agree with the first.
+
+It takes minutes and a browser, so it is not part of `npm test`. Run it after
+changing the manifest or splitting a module:
+
+    node test/slim-corpus.test.mjs [--only <substring>] [--skip-ladder] [--skip-corpus] [--render canvas]
+
+`declarec.test` checks the manifest itself: every module exists, every
+stand-in generates, every export is answered, and no inert value names an
+export its module lacks.
+
+## 8. Seeing it
+
+A build reports what it carries, and `--why` says what in the program brought
+each capability aboard:
+
+    $ node tools/declarec.mjs apps/weather/weather.declare --why
+        capabilities: 14 of 44 aboard, 1 cut to what the program names (schema-table) — left out: checker, bridge, …
+          themes: names SanFrancisco
+          draw: declares draw()
+          visibility: required by draw
+          editor: constructs TextInput, an Editor
+          animator: constructs Spring, an Animator
+          …
+
+`BUILD.json` records the same: `capabilities.needed` (each with its reason),
+`capabilities.cut` and `capabilities.absent`.
+
+## 9. Adding a capability
+
+1. Put the optional code in a module of its own. The core must reach it only
+   through calls it makes when the program uses it, or through `instanceof`.
+2. Add the manifest row: its modules, its triggers from the kinds above, what
+   it requires, and the exports the core calls regardless, as `inert`.
+3. Run `declarec.test` (the manifest check) and the gate.
+
+The compiler does not change.
+
+## 10. What it comes to
+
+Gzipped DOM builds, measured 2026-09-26:
+
+| program | capabilities aboard | gzipped |
 |---|---:|---:|
-| WebAssembly kernel (base64, inlined) | 23.4 | 9.8 |
-| JavaScript kernel (`kernel-js.ts`) | 8.7 | 3.3 |
+| hello-world (`App [ Text [ text = "hello" ] ]`) | 1 | 71.0 KB |
+| marketmap | 11 | 109.2 KB |
+| calendar | 15 | 113.0 KB |
+| weather | 14 | 118.0 KB |
+| sampler | 15 | 123.8 KB |
+| tracker | 19 | 128.8 KB |
+| desktop (hosts islands, so keeps what they may need) | 37 | 176.0 KB |
 
-Measured in whole builds, removing the WebAssembly kernel saves **10.3–10.8 KB gzipped in
-every app**. Swapping in the JavaScript kernel nets about **−7 KB** everywhere, minus the
-loader code that only WebAssembly needs.
+A JavaScript-kernel build is about 9 KB smaller again.
 
-**How well the JavaScript kernel is vetted:**
-- `test/kernel-conformance.test.mjs` drives 13 contract scenarios through both kernels and
-  compares everything observable.
-- The unit suite passes **467 of 467** on it (run 2026-09-26). The suite has to wait for the
-  kernel to load (`await kernelReady()`) before starting. The test runner doesn't do that
-  today, so a plain `DECLARE_KERNEL=js` run fails 240 tests on loading, not on semantics.
-- Per `mac-host/profile/REPORT.md`, the node-side suites passed on 2026-09-17. **The browser
-  suites have never run on it.**
+What every build carries is the core: the tree (views, instantiation,
+attributes, bindings, the reactive glue), the renderer's own core (attachment,
+the flush, input routing, text styling, the page scroller, the transform
+chain), and the kernel. It is not optional machinery. Reducing it is an audit
+of that code, not a capability.
 
-**Speed, from the same report:**
-
-| | old runtime (before the kernel) | JavaScript kernel | WebAssembly kernel |
-|---|---:|---:|---:|
-| tracker filter | 1,174 ms | 541 ms | 469 ms |
-| desktop seed | 141 ms | 112 ms | 15 ms |
-| startup | — | 5–22% slower than main | — |
-
-The desktop gap exists because the JavaScript kernel doesn't implement the view-table rules
-(visibility and auto-extent). It hands them back to the JavaScript fallbacks in `view.ts`.
-Everywhere measured, the JavaScript kernel is faster than what shipped before September.
-
-These figures come from the 2026-09-18 "twin" tree (the optimized runtime with a JavaScript
-kernel), measured once. They weren't taken on today's `kernel-js.ts` in a shipped build.
-
-**Why the JavaScript kernel beats the old runtime.** Most of the kernel arc's gain is in the
-runtime's new structure, not in WebAssembly:
-- values live in a flat numeric table (`Float64Array` in `kernel-js.ts`, linear memory in C);
-- reads and writes are table indexing plus a shared ring rather than function calls;
-- numeric `{ }` bodies are compiled to bytecode;
-- bodies are precompiled;
-- defaults are declared as rules;
-- the settle is two-phase with ownership.
-
-Both kernels implement that design. WebAssembly adds native arithmetic and the view-table
-rules on top.
-
-**The trade is size against speed in every measured case.** No measurement shows the
-JavaScript kernel faster. The only places it could plausibly win are unmeasured:
-- startup for a small program, since there's no base64 decode or WebAssembly compile;
-- very short sessions before the JIT matters.
-
-**The proposal:**
-- A compiler flag, `--kernel=wasm|js|auto`, recorded in `BUILD.json`.
-- **Whichever kernel is chosen is inlined into the app's one file**, as the WebAssembly one
-  is today. A separate file costs a request before first paint, which was measured on an iPad
-  at +50–150 ms (2026-09-18). Today's production build excludes the JavaScript kernel entirely
-  (`__DECLARE_JS_KERNEL__` false), and development builds load it as an on-demand chunk. A
-  build that chose it would import it statically.
-- `auto` picks WebAssembly when the program is view-heavy, measured statically: element count
-  after library expansion, replication, many animated views. It picks JavaScript otherwise.
-- The Mac always uses its native kernel, as now.
-- **Before `auto` defaults to JavaScript anywhere:** run the performance matrix and the
-  browser suites on the JavaScript kernel, and consider porting `DK_VIS`/`DK_EXTENT` into
-  `kernel-js.ts`. That would close the view-heavy gap and make the choice purely one of size.
-- Until then: default to WebAssembly, and let size-sensitive embeds opt into JavaScript.
-
-## 5. The candidates, measured
-
-Each figure is the gzipped saving when a program doesn't use the capability.
-
-**How the figures were measured:**
-- **Whole modules:** replaced by an empty stand-in in a real build.
-- **Groups inside a module:** those functions' bodies emptied in a real build. That gives a
-  lower bound, since helpers shared with kept code stay.
-- **Hello-world** is the baseline unless noted.
-
-Frequency is the share of programs that would *gain*, meaning they don't use the capability:
-13 apps, 185 docs demos (small programs), and 3 recent eval apps. Library components count:
-an app using `Switch` uses `Spring`.
-
-### Module-level, measured
-
-| capability | gz saved | trigger kind | apps gaining | demos gaining | work |
-|---|---:|---|---:|---:|---|
-| **kernel: JavaScript instead of WebAssembly** | **~7 net** | build flag / `auto` | all (if chosen) | all | flag + vetting (§4) |
-| **replication** (`replicate.js`) | **4.6** | syntax: replicating datapath | 0/13 | 153/185 | move one helper out of `spring.js`; construct through a hook |
-| **data** (`data.js`: Dataset/DataSource) | 3.5 | class | 0/13 | 146/185 | several core importers; toy programs only |
-| **tween Animator** (Animator's own `start`/`tick`, the easing curves, AnimatorGroup, TweenLayout) | **~1.5** combined, for Spring-only programs | class: Animator, AnimatorGroup, TweenLayout | ~8/13 | ~178/185 | split into shared core (target, clock, lifecycle) + tween + group; TweenLayout to its own file |
-| **all animation** (the above plus Spring) | 2.6 | class | 0/13 | 102/185 | as above, plus Spring's hook |
-| **State** | 0.8 | class | 11/13 | 183/185 | two lifecycle hooks and one construction handler |
-| **Editor and two-way binding** (`editor.js`) | 0.7 | class: TextInput + syntax: `<->` | 5/13 | 171/185 | one construction-time hook |
-| **named CSS colors** (`css-colors.js`) | 1.5 | none needed: names are already literal-only (the compiler refuses a bare name inside `{ }`, and values from data never go through the name lookup). The compiler resolves `navy` to `0x000080` in the program, and the table leaves every build. | all | all | compile-time literal resolution (see below) |
-| **the component schema table**, per program | 0.5 | class (the used set) | all | all | generate like the registry |
-| **precomputed class schemas** (`program-schema.js`) | ≤ ~2 (not measured) | always | all | all | the compiler already knows them; ship the result instead of rebuilding at boot. A design change, not a split. |
-
-### Inside `dom-backend` and `view`, measured by emptying function bodies
-
-**The renderer seam is already the capability boundary.** Most of `dom-backend.js` implements
-the renderer interface (`Surface` in `backend.ts`), which `view.ts` calls when a particular
-attribute is set. Many of those methods are already optional in the interface
-(`setRotation?`, `setFilter?`, `setMask?`, `setScrollX?`, `watchVisibility?`…), because the
-canvas, Mac and headless renderers implement different subsets. So the view layer already
-copes with a renderer method that isn't there. A capability module can install its
-`DomSurface` methods on import, keyed by the attributes that call them, and the attribute
-trigger is exact. Writing the attribute in a method body counts, found by the same scope
-analysis.
-
-**With every group below removed at once, a hello-world drops 7.95 KB gzipped.** That's the
-ceiling for these two files: about 38% of the ~21 KB gzipped they cost. The rest is core:
-- tree attachment, the flush, input routing, text styling;
-- the page scroller;
-- geometry and the transform chain.
-
-| capability | gz saved | trigger | apps gaining | demos gaining |
-|---|---:|---|---:|---:|
-| **islands and host values**: island link, `BoundaryValues`, `syncNamed`, post/exposed (1.10), DOM embed (0.15), the `Island`/`DOMIsland` classes, and the island half of `host-client` (not measured) | **~1.3+** | class: Island/DOMIsland (AppIsland extends it); `external`, `hostProvided`, `post`/`onPost` | 8–10/13 | 182/185 |
-| **visibility family**: view 0.69 + DOM observer 0.26, plus the kernel's `DK_VIS` | **~0.95** | member read: `visibleRect`/`onScreen`/`apparentScale` | **13/13** | **185/185**: nothing in the corpus reads them |
-| **text editing** | 0.86 | class: TextInput | 5/13 | 171/185 |
-| **raster cache** | 0.78 | syntax: a `draw` method (the library's icons draw) | 0/13 | 96/185 |
-| **pane scrolling** (a `scrolls` view other than the page) | 0.50 | attribute `scrolls` | 5/13 | 170/185 |
-| **effects setters** (filter, blend, mask, backdrop, tint) | 0.45 | value slot (with `effects.js` and `dom-effects.js`, already gated) | 8/13 | 168/185 |
-| **reveal and anchors** | 0.44 | member read: `reveal`, `waypoint`, anchors | 3/13 | 179/185; **care:** the URL mirror (Back) stays whole |
-| ignoreScroll | 0.27 | attribute | 9/13 | 184/185 |
-| image setters | 0.23 | class: Image | 5/13 | 183/185 |
-| selectable text | 0.22 | attribute `selectable` | 5/13 | 108/185 |
-| horizontal scroll | 0.22 | attribute `scrolls` = x/both | 11/13 | 185/185 |
-| carved hits (shaped clips) | 0.20 | value slot `clip` | — | — |
-| travel, virtual extent, row ARIA | 0.18 | attribute `travelWith`, `virtualize`; syntax: replication | — | — |
-| link | 0.16 | attribute `link`/`linksTo` | 6/13 | 181/185 |
-| negative-size diagnostics | 0.15 | **always dropped in production**, like error prose | all | all |
-| raise, travel, rich, `createView` (view side) | 0.16 | member read / class | — | — |
-| rich-text flow (DOM side, beyond `dom-rich.js`) | 0.12 | class: Markdown/HTMLText | 9/13 | 173/185 |
-| rotation/scale/matrix; 3D | 0.10; 0.05 | attribute | 8/13 | 185/185 |
-
-**Corrections to earlier drafts of this list:**
-- Pinch-zoom watching and the root's touch-action are called for every app at attach, so
-  they're core. The triggerable touch part is only the carved hit-testing.
-- The shared transform chain (`applyTransform`, `throughTransforms`) is core. Only the
-  rotation, scale and 3D setters are triggerable.
-
-## 6. What it adds up to
-
-**A toy or small program** (most docs demos): kernel ~7, replication 4.6, data 3.5, all
-animation 2.6, State 0.8, Editor 0.7, the DOM and view groups up to ~8, the schema table 0.5.
-That's **about 25–28 KB**, taking 90 → ~62–65 KB gzipped, near React's floor. Add ~1.5 more once color names
-are resolved at compile time.
-
-**A typical real app** (weather, tracker or Murmur class):
-
-| | gz saved |
-|---|---:|
-| without the kernel switch: tween Animator ~1.5 (when Spring-only), State 0.8, visibility 0.95, islands ~1.3, the schema table 0.5, diagnostics 0.15, tint 0.2, one or two DOM groups ~0.5–1 | **about 5–6 KB, 4–5%** |
-| with the JavaScript kernel | **about 12–13 KB, around 10%** |
-
-**The honest reading:**
-- The capability architecture makes toys and small embeds genuinely small.
-- For real apps, **the kernel is the single largest lever**. Everything else together is
-  about the same size as the kernel.
-- The rest of a real app's floor is the tree core and the renderer core (the ~93 KB and
-  ~54 KB groups in §1). That isn't optional machinery, and reducing it is a code audit (dead
-  paths, duplication, compile-time work done at boot), a separate item.
-- One piece of that audit already sits in the table: `program-schema.js` rebuilding at boot
-  what the compiler knew.
-
-## 7. Suggested order
-
-1. **The architecture skeleton:**
-   - the manifest;
-   - `programCapabilities` (one walk, five trigger kinds);
-   - the generated entry;
-   - the corpus gate (slim versus full through R5/R6).
-
-   Port the existing registry, then the existing stubs, as the first capabilities. No bundle
-   changes yet; the proof is that every build's output is identical.
-2. **The cheap splits with exact triggers:**
-   - visibility (all apps);
-   - islands (all but three apps);
-   - State;
-   - TweenLayout to its own file, then the tween/Spring split of Animator;
-   - Editor;
-   - production-only diagnostics.
-3. **Replication and data as capabilities:** toys only, but the largest module-level wins for
-   small programs.
-4. **The kernel:**
-   - the flag;
-   - vetting (browser suites, the performance matrix);
-   - optionally, `DK_VIS`/`DK_EXTENT` in the JavaScript kernel;
-   - then decide the `auto` rule.
-5. **Compile-time work done at boot:** resolve literal values in the compiler (color names
-   first, then every literal the runtime coerces at boot), and precompute class schemas.
-6. **Separately:** the core audit of `view`, `instantiate`, `dom-backend` and `value`.
-
-## 8. Open questions
-
-1. **Literals coerced at boot.** The program carries raw literals (`navy`, `gradient(…)`,
-   `shadow(…)`), and the runtime coerces them when it starts (`instantiate.ts`,
-   `program-schema.ts` → `coerce`). Named colors show the cost: the language already allows
-   names only as literals, yet the table ships so boot can resolve them. Resolving literals in
-   the compiler would drop the table, and would let each value parser (gradients, shadows,
-   outlines, shapes) ride only when a slot of its kind is set dynamically — the same
-   one-directional rule the effects gate follows.
-2. **`use [ … ]` for capabilities?** The escape exists for classes built from a string. A
-   capability triggered by syntax can't be reached dynamically, so the escape shouldn't need
-   to grow. It should be confirmed per trigger kind.
-3. **Hosting pages** (a page whose islands run in its runtime) keep the union of their
-   islands' capabilities, as `alsoUses` does for classes today.
-4. **The canvas and Mac hosts.** This proposal measured DOM builds only. The manifest applies
-   to canvas builds unchanged, and the Mac app carries the whole runtime by design.
+Three candidates stay in every build, because nearly every real program uses
+them and the saving would be small: text editing, reveal and anchors (close to
+the URL and Back), and pane scrolling.

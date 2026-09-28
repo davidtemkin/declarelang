@@ -11,7 +11,7 @@
 // the full state once — literals cost no reactive machinery at all.
 
 import { Node, onDiscard, runRetire, authoredName, provideCursorRead, provideCursorWrite } from "./node.js";
-import { DeclareError, diag, negativeSizeMessage } from "./errors.js";
+import { diag } from "./errors.js";
 import { backdropEqual, fillEqual, filterList, filtersEqual, insetIsZero, insetLead, insetSides, isMaskGradient, shadowEqual, strokeEqual, type Backdrop, type BoxStroke, type Fill, type FilterValue, type Inset, type Mask, type Radius, type Shadow } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
 import { Tip } from "./tip.js";
@@ -67,14 +67,17 @@ import { record, type Draw, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteOrigin } from "./reactive.js";
 import { setChangeDispatcher, trackNode } from "./change-event.js";
-import { boxThrough, fromParts, isIdentity as isIdentityAffine, type Affine } from "./affine.js";
+import { boxThrough, fromParts, isIdentity as isIdentityAffine, leavesPlane, type Affine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
 import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, rootToLocal, type InteractionView } from "./interaction.js";
-import { bindDerived, blockOf, declarationsOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
+import { bindDerived, blockOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
 import { type AttrType } from "./value.js";
 import { observe } from "./reactive.js";
+import { hostValuesFor, type BoundaryValues } from "./boundary.js";
+import { armVisibility, reattachVisibility, retireVisibility } from "./visibility.js";
+import { judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
 import { handlerName } from "./schema.js";
-import { splitPath, type PathSeg } from "./datapath.js";
+import { splitPath, type PathSeg } from "./path-plan.js";
 import { selectValue } from "./select.js";
 import type { Attr, LinkTarget } from "./parser.js";
 import type { Cursor } from "./data.js";
@@ -165,103 +168,6 @@ export function withHostProvides<T>(values: Readonly<Record<string, unknown>> | 
   const prev = SEED_PROVIDES;
   SEED_PROVIDES = { ...values };
   try { return fn(); } finally { SEED_PROVIDES = prev; }
-}
-
-function seededHostValues(): BoundaryValues {
-  const bv = new BoundaryValues("hostProvided");
-  // every App constructed inside the one build reads the seed (not consumed:
-  // instantiate may construct a throwaway App before the root; a program has
-  // only one real App, and a tenant is always its own, later, build)
-  if (SEED_PROVIDES !== null) for (const [k, v] of Object.entries(SEED_PROVIDES)) if (v !== undefined) bv.write(k, v);
-  return bv;
-}
-
-/** A set of named reactive values crossing a boundary — what a host provides
- *  to an app (App.hostValues), what a hosted side exposes to its island
- *  (Island.exposedValues). Each name owns a cell, created on first read, so a
- *  write wakes exactly its readers; a write from outside a settle schedules
- *  one (reactive.ts touchCell), which is how a page or foreign code drives it. */
-class BoundaryValues {
-  private readonly m = new Map<string, { has: boolean; v: unknown; cell: Cell }>();
-  private readonly warned = new Set<string>();
-  constructor(private readonly what: "hostProvided" | "exposed") {}
-  private entry(name: string): { has: boolean; v: unknown; cell: Cell } {
-    let e = this.m.get(name);
-    if (e === undefined) { e = { has: false, v: undefined, cell: new Cell() }; this.m.set(name, e); }
-    return e;
-  }
-  write(name: string, v: unknown): void {
-    const e = this.entry(name);
-    if (e.has && Object.is(e.v, v)) return;
-    e.has = true;
-    e.v = v;
-    e.cell.changed();
-  }
-  clear(name: string): void {
-    const e = this.m.get(name);
-    if (e === undefined || !e.has) return;
-    e.has = false;
-    e.v = undefined;
-    e.cell.changed();
-  }
-  names(): string[] { return [...this.m].filter(([, e]) => e.has).map(([n]) => n); }
-  /** The tracked read. With a default: an absent value, or one of a different
-   *  kind than the default, answers the default (the latter with a warning,
-   *  once per name). With none: an absent value throws, naming it. */
-  read(name: string, hasDefault: boolean, dflt: unknown): unknown {
-    const e = this.entry(name);
-    e.cell.track();
-    if (!e.has) {
-      if (hasDefault) return dflt;
-      throw new DeclareError(`${this.what}("${name}"): nothing provides '${name}' here, and this read declares no default — give the read a default, or have the ${this.what === "hostProvided" ? "host list it in its island's `provides`" : "hosted side expose it"}`);
-    }
-    if (hasDefault && !sameKind(e.v, dflt)) {
-      if (!this.warned.has(name)) {
-        this.warned.add(name);
-        console.warn(`[Declare] ${this.what}("${name}"): the value arriving is ${kindOf(e.v)}, but this read's default is ${kindOf(dflt)} — using the default`);
-      }
-      return dflt;
-    }
-    return e.v;
-  }
-}
-
-/** The kind a boundary read compares — the default's kind is the read's type. */
-function kindOf(v: unknown): string {
-  if (v === null) return "null";
-  if (Array.isArray(v)) return "an array";
-  return typeof v === "object" ? "a record" : `a ${typeof v}`;
-}
-function sameKind(v: unknown, dflt: unknown): boolean {
-  if (dflt === null || dflt === undefined) return true;   // a null default accepts any value
-  return kindOf(v) === kindOf(dflt);
-}
-
-/** The value an island provides under `name` — the `provided("name")` read AT
- *  the island: its own provision or declared slot first, then its ancestors.
- *  Undefined when nothing provides it. Tracked (the readers of a provision
- *  wake on change), so an observe over it follows the host. */
-export function islandProvision(island: Island, name: string): unknown {
-  const own = localProvision(island, name);
-  if (own !== undefined) return own;
-  const decls = declarationsOf(island);
-  if (decls[name] !== undefined) return (island as unknown as Record<string, unknown>)[name];
-  return (island as unknown as { $provided(n: string, d: unknown): unknown }).$provided(name, undefined);
-}
-
-/** Everything an island provides right now, by name — what a host passes as
- *  build's `provides` for the tenant it is about to build, so the tenant's
- *  first evaluation sees it; linkIslandTenant keeps it live from there. */
-export function islandProvisions(island: Island): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const n of providesOf(island)) { const v = islandProvision(island, n); if (v !== undefined) out[n] = v; }
-  return out;
-}
-
-/** The names an island provides, as a clean string list. */
-function providesOf(island: Island): string[] {
-  const p = (island as unknown as { provides?: unknown }).provides;
-  return Array.isArray(p) ? p.filter((n): n is string => typeof n === "string") : [];
 }
 
 export function fireRetireTree(v: View): void {
@@ -574,8 +480,9 @@ export class View extends Node {
 
   /** The draw method's standing recording (null until one exists). Phase 1:
    *  it re-records only after value constraints settle, so a draw body
-   *  always sees consistent attributes. */
-  private drawing: Constraint | null = null;
+   *  always sees consistent attributes. @internal read by the visibility
+   *  feed, which lands a drawing's resolution (visibility.ts). */
+  drawing: Constraint | null = null;
 
   /** Realize this view and its subtree on a backend: create the surface,
    *  flush the current visual state across the seam, parent it (before
@@ -811,29 +718,6 @@ export class View extends Node {
     return pair === 0 ? raw : Math.max(0, raw - pair);
   }
 
-  /** The kernel's view id and its visibility rule (−1 = none): the ancestor
-   *  walk runs in the kernel over the table, and `visGeneric`/`visWake`
-   *  become small wired rules over the vis* output cells. */
-  private visElem = -1;
-  private visRule = -1;
-  /** @internal This view as the kernel knows it (its block + parent link),
-   *  registering the ancestors on the way up. */
-  kernelElem(): number {
-    if (this.visElem >= 0) return this.visElem;
-    const base = blockOf(this);
-    const p = this.parent instanceof View ? this.parent.kernelElem() : -1;
-    this.visElem = kernel().viewAdd(base, p);
-    return this.visElem;
-  }
-  /** A (re)attach may have moved this view under a new parent: refresh the
-   *  kernel's link and the rule's edges, and land the facts again. */
-  private relinkKernelVis(): void {
-    const K = kernel();
-    const p = this.parent instanceof View ? this.parent.kernelElem() : -1;
-    K.viewParent(this.visElem, p);
-    K.visRewire(this.visRule);
-    K.run(this.visRule);
-  }
   /** @internal THE ORIGIN SHIFT, at the seam: what this view's own `x`/`y` is
    *  measured from in the coordinates its SURFACE lives in — its position
    *  host's content origin on that axis. The host is the parent, or the
@@ -1053,17 +937,7 @@ export class View extends Node {
     }
     disposeBindings(this);
     freeCells(this);
-    if (this.visRule >= 0) { kernel().dispose(this.visRule); this.visRule = -1; }
-    if (this.visElem >= 0) { kernel().viewRemove(this.visElem); this.visElem = -1; }
-    // the visibility feed dies with the view — the backend watch, the generic
-    // computer, and any at-rest flush still pending
-    this.visUnwatch?.();
-    this.visUnwatch = null;
-    if (this.visGeneric !== null) { this.visGeneric.dispose(); this.visGeneric = null; }
-    if (this.visWake !== null) { this.visWake.dispose(); this.visWake = null; }
-    if (this.visFlushTimer !== 0) { clearTimeout(this.visFlushTimer); this.visFlushTimer = 0; }
-    this.visPending = null;
-    this.visStale = false;
+    retireVisibility(this);   // the visibility feed dies with the view
     this.drawing?.dispose();
     this.drawing = null;
     const s = this.surface;
@@ -1085,7 +959,7 @@ export class View extends Node {
     // gap between its leaves anchors on it (backend.setSelectableRegion).
     if (localProvision(this, "selectable") === true) s.setSelectableRegion?.(true);
     // an armed visibility feed follows the view onto its (re)attached surface
-    if (this.visArmed) this.startVisibility();
+    reattachVisibility(this);
     // The position lands in the parent's CONTENT coordinates — x/y plus the
     // parent's leading inset, the one place the origin shift reaches paint
     // (the pushers below do the same for every later change). Everything past
@@ -1190,200 +1064,10 @@ export class View extends Node {
     return { x: b.x + r.scrollX, y: b.y + r.scrollY, width: b.width, height: b.height };
   }
 
-  /** The visibility feed — armed at the FIRST tracked read of any of the
-   *  three facts (AttrSpec.onTrack: facts nobody binds cost nothing),
-   *  re-armed at attach so a bound view that re-attaches keeps its feed.
-   *
-   *  TWO FEEDERS, one contract. A backend with page context implements
-   *  Surface.watchVisibility (DOM: one shared IntersectionObserver — sees the
-   *  host page's scroll and transforms, which the app cannot). Everywhere
-   *  else — canvas, native, headless — the runtime computes the facts itself:
-   *  a Constraint over the ancestor walk (rootFrameBox ∩ the root's frame,
-   *  rootTransform's scale × dpr), whose TRACKED reads subscribe it to
-   *  exactly the ancestor x/y/scale/rotation/scroll/visible slots the answer
-   *  depends on — the camera case (a world writing its own scale) invalidates
-   *  it for free, with no attribute of the descendant changing.
-   *
-   *  DELIVERY GRANULARITY (the Aperture ruling): `onScreen` lands
-   *  immediately — a crossing is rare and cheap. `visibleRect` /
-   *  `apparentScale` land AT REST — while the shared clock has motion in
-   *  flight the latest value is buffered and flushed when the glide ends, so
-   *  a fact-bound tier re-derives once per flight, not per frame. */
-  private visArmed = false;
-  private visUnwatch: (() => void) | null = null;
-  private visGeneric: Constraint | null = null;
-  private visWake: Constraint | null = null;
-  private visPending: { rect: { x: number; y: number; width: number; height: number }; scale: number } | null = null;
-  private visStale = false;
-  private visFlushTimer: ReturnType<typeof setTimeout> | 0 = 0;
-  /** @internal the attribute table's onTrack calls this (first tracked read). */
+  /** @internal the facts' feed (visibility.ts), armed by the attribute
+   *  table's onTrack — the first tracked read of a fact — and by a drawing. */
   armVisibility(): void {
-    this.visArmed = true;
-    this.startVisibility();
-  }
-/** THE KERNEL PATH. The kernel's rule walks this view's parent chain in the
-   *  slot table — rootTransform ∘ boxThrough ∩ the root's frame, scale × dpr,
-   *  the arithmetic of readVisibility term for term — and writes the vis*
-   *  cells; a wired JS rule over those cells delivers (or wakes). A 3D
-   *  transform anywhere on the chain is beyond the affine walk: the rule
-   *  writes visMode = 0 and the JS walk takes over (visFallbackToJS). Returns
-   *  false when the kernel path is not available (no kernel; 3D at arm). */
-  private installKernelVis(): boolean {
-    if (this.visRule >= 0) return true;
-    if (!kernelLoaded() || !viewLayoutReady()) return false;
-    for (let v: View | null = this; v !== null; v = v.parent instanceof View ? v.parent : null)
-      if (v.rotateX !== 0 || v.rotateY !== 0 || v.translateZ !== 0) return false;
-    const K = kernel();
-    const root = (this.root ?? this) as View;
-    const rule = K.visAdd(this.kernelElem(), root.kernelElem());
-    if (rule < 0) return false;
-    this.visRule = rule;
-    K.run(rule);
-    return true;
-  }
-/** The delivery rule: wired over the seven output cells. */
-  private visOutputRule(label: string, land: (on: boolean, rect: { x: number; y: number; width: number; height: number } | null, scale: number) => void): Constraint {
-    const c = new Constraint(label,
-      () => [this.visMode, this.visOn, this.visScale, this.visX, this.visY, this.visW, this.visH] as const,
-      (v) => {
-        const [mode, on, scale, x, y, w, h] = v as readonly [number, boolean, number, number, number, number, number];
-        if (mode === 0) { this.visFallbackToJS(); return; }
-        land(on, on ? { x, y, width: w, height: h } : null, scale);
-      });
-    c.wire(() => { void this.visMode; void this.visOn; void this.visScale; void this.visX; void this.visY; void this.visW; void this.visH; });
-    return c;
-  }
-/** The chain grew a 3D transform: retire the kernel rule and run the JS
-   *  walk as a tracking constraint from here on (this life). */
-  private visFallbackToJS(): void {
-    if (this.visRule < 0) return;
-    kernel().dispose(this.visRule); this.visRule = -1;
-    if (this.visGeneric !== null) { this.visGeneric.dispose(); this.visGeneric = null; }
-    if (this.visWake !== null) { this.visWake.dispose(); this.visWake = null; }
-    this.startVisibility();
-  }
-  /** The model's own answer — the ancestor walk, with TRACKED reads: the
-   *  visible chain, rootTransform, rootFrameBox. The generic feed delivers
-   *  this value; the DOM feed runs the same reads purely as a WAKE (below),
-   *  because the reads subscribing to exactly the ancestor slots the answer
-   *  depends on is what makes the camera case (a world writing only its own
-   *  scale) invalidate a descendant's facts with no attribute of its own
-   *  changing. */
-  private readVisibility(): { on: boolean; rect: { x: number; y: number; width: number; height: number } | null; scale: number } {
-    const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
-    // hidden anywhere up the chain = off (tracked reads, so a flip wakes us)
-    for (let v: View | null = this; v !== null; v = v.parent instanceof View ? v.parent : null)
-      if (!v.visible) return { on: false, rect: null, scale: rootTransform(this as unknown as InteractionView).scale * dpr };
-    const t = rootTransform(this as unknown as InteractionView);
-    const b = rootFrameBox(this as unknown as InteractionView);
-    const r = (this.root ?? this) as View;
-    const ix = Math.max(b.x, 0), iy = Math.max(b.y, 0);
-    const iw = Math.min(b.x + b.width, r.width) - ix, ih = Math.min(b.y + b.height, r.height) - iy;
-    if (iw <= 0 || ih <= 0) return { on: false, rect: null, scale: t.scale * dpr };
-    const k = t.scale === 0 ? 1 : t.scale;
-    return {
-      on: true,
-      rect: { x: (ix - b.x) / k, y: (iy - b.y) / k, width: iw / k, height: ih / k },
-      scale: t.scale * dpr,
-    };
-  }
-  private startVisibility(): void {
-    if (!this.visArmed) return;
-    const s = this.surface;
-    if (s?.watchVisibility) {
-      // backend feed available: retire any generic computer from a prior life
-      if (this.visGeneric !== null) { this.visGeneric.dispose(); this.visGeneric = null; }
-      this.visUnwatch?.();
-      this.visUnwatch = s.watchVisibility((v) => this.deliverVisibility(v.on, v.rect, v.scale));
-      // THE WAKE (the sprung-camera fix). An IntersectionObserver is an EDGE
-      // sensor: it reports when the intersection crosses a threshold, not
-      // when the level changes — a fully visible box under a scaling
-      // ancestor crosses nothing and reports nothing, and mid-glide entries
-      // are samples frozen at each box's crossing instant. So the facts
-      // cannot be read off the observer's last entry; it is kept for what
-      // only it can see (the HOST PAGE's scroll and transforms, ancestor
-      // clip) and as the measurement instrument. The model's tracked reads
-      // are the wake: when an ancestor slot changes, RE-ASK the observer for
-      // current truth (refreshVisibility → a fresh entry) — at once when at
-      // rest, at the glide's end otherwise. The computed value is discarded:
-      // the model cannot see the page context, the observer can.
-      if (this.visWake === null) {
-        // THE KERNEL PATH first: the chain walk runs over the slot table and a
-        // small wired rule over its outputs does the waking (installKernelVis).
-        const wake = (): void => {
-          if (sharedClock.busy) { this.visStale = true; this.scheduleVisFlush(); return; }
-          this.surface?.refreshVisibility?.();
-        };
-        if (this.installKernelVis()) {
-          this.visWake = this.visOutputRule(`${this.constructor.name}.visibilityWake`, () => wake());
-        } else {
-          this.visWake = new Constraint(
-            `${this.constructor.name}.visibilityWake`,
-            () => this.readVisibility(),
-            wake,
-          );
-          this.visWake.run();
-        }
-      } else if (this.visRule >= 0) this.relinkKernelVis();
-      return;
-    }
-    if (this.visGeneric !== null) { if (this.visRule >= 0) this.relinkKernelVis(); return; } // already computing
-    if (this.installKernelVis()) {
-      this.visGeneric = this.visOutputRule(`${this.constructor.name}.visibility`,
-        (on, rect, scale) => this.deliverVisibility(on, rect, scale));
-      return;
-    }
-    this.visGeneric = new Constraint(
-      `${this.constructor.name}.visibility`,
-      () => this.readVisibility(),
-      (v) => {
-        const r = v as { on: boolean; rect: { x: number; y: number; width: number; height: number } | null; scale: number };
-        this.deliverVisibility(r.on, r.rect, r.scale);
-      },
-    );
-    this.visGeneric.run();
-  }
-  /** Arm the at-rest flush (the timer only exists while something is pending
-   *  or stale — no standing loop). At rest it prefers RE-MEASURING over
-   *  replaying: a buffered value from mid-glide is a sample of the journey,
-   *  not the destination. */
-  private scheduleVisFlush(): void {
-    if (this.visFlushTimer !== 0) return;
-    const tick = (): void => {
-      this.visFlushTimer = 0;
-      if (sharedClock.busy) { this.visFlushTimer = setTimeout(tick, 120); return; }
-      const p = this.visPending;
-      this.visPending = null;
-      const s = this.surface;
-      if (this.visStale && s?.refreshVisibility) {
-        // the backend can measure current truth — ask it; the fresh entry
-        // arrives through deliverVisibility on the now-idle clock
-        this.visStale = false;
-        s.refreshVisibility();
-        return;
-      }
-      this.visStale = false;
-      if (p !== null) {
-        setBound(this, "visibleRect", p.rect);
-        setBound(this, "apparentScale", p.scale);
-        if (this.drawing !== null && p.rect !== null) this.surface?.setRasterScale?.(p.scale);
-      }
-    };
-    this.visFlushTimer = setTimeout(tick, 120);
-  }
-  private deliverVisibility(on: boolean, rect: { x: number; y: number; width: number; height: number } | null, scale: number): void {
-    if (this.onScreen !== on) setBound(this, "onScreen", on);
-    const shaped = on && rect !== null ? rect : EMPTY_RECT;
-    if (sharedClock.busy) {
-      // mid-glide: hold the latest, flush at rest
-      this.visPending = { rect: shaped, scale };
-      this.scheduleVisFlush();
-      return;
-    }
-    this.visPending = null;
-    setBound(this, "visibleRect", shaped);
-    setBound(this, "apparentScale", scale);
-    if (this.drawing !== null && on) this.surface?.setRasterScale?.(scale);
+    armVisibility(this);
   }
 
   /** The composed transform from MY frame to ROOT-frame space — `{x, y,
@@ -1699,7 +1383,7 @@ const pushTransform = (v: View): void => {
   // matrix member still gets the similarity pair — the seam table says which
   if (s.setTransform !== undefined) {
     s.setTransform(v.localTransform(), v.pivotX, v.pivotY);
-    if (s.setTransform3D !== undefined) s.setTransform3D(spec3DOf(v, v.parent instanceof View ? v.parent : null));
+    if (s.setTransform3D !== undefined) s.setTransform3D(leavesPlane(v) ? spec3DOf(v, v.parent instanceof View ? v.parent : null) : null);
     return;
   }
   s.setScale(v.scale, v.pivotX, v.pivotY);
@@ -1722,66 +1406,9 @@ const pushScrolls = (v: View, ax: string): void => {
 
 /** visibleRect's rest state — one frozen instance, so an off-screen view's
  *  slot never churns (rectEqual gates the writes besides). */
-const EMPTY_RECT: { x: number; y: number; width: number; height: number } = Object.freeze({ x: 0, y: 0, width: 0, height: 0 });
+export const EMPTY_RECT: { x: number; y: number; width: number; height: number } = Object.freeze({ x: 0, y: 0, width: 0, height: 0 });
 const rectEqual = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }): boolean =>
   a === b || (a != null && b != null && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height);
-
-/** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE is reported
- *  (docs/system-design/layout-ownership.md §4). A child whose size is derived
- *  from its parent's does not count toward the parent's content size, so when
- *  that parent takes its size from its content the child's arithmetic runs from
- *  nothing — `{ parent.contentWidth - 40 }` in a card with no width is −40 in
- *  every state. That lands below zero, and it is a mistake that draws nothing
- *  and says nothing, so it is said here. Ordinary arithmetic below zero is NOT
- *  reported: a field sized `{ parent.height - 60 }` in an accordion section
- *  closed to 46px is −14 while the section hides it, which is what the author
- *  meant, and a negative size draws nothing, as it always has.
- *
- *  Judged only once the program HAS ITS ROOM. A program settles once before it
- *  is attached, when its host has not yet said how big it is, and every size
- *  computed from the App's is provisional then. So a size noted before the App
- *  attaches waits, and is judged at the close of the first settle after it
- *  does (App.attach — the join point `onReady` uses, on every render path);
- *  one noted after is judged at its own settle's close. Once per class and axis
- *  per program: one authored line builds every replicated row. */
-const NEGATIVE_PENDING = new Set<View>();
-const NEGATIVE_SAID = new WeakMap<object, Set<string>>();
-function rootOf(v: Node): Node {
-  let root: Node = v;
-  while (root.parent !== null) root = root.parent;
-  return root;
-}
-function noteNegativeSize(v: View, size: "width" | "height"): void {
-  if (!percentOwned(v, size) || NEGATIVE_PENDING.has(v)) return;   // only a size derived from the parent's
-  NEGATIVE_PENDING.add(v);
-  // attached: judge at this settle's close; not yet: App.attach judges it
-  if ((rootOf(v) as View).surface != null) afterSettle(judgeNegativeSizes);
-}
-/** Judge every pending size whose program is attached (see noteNegativeSize). */
-export function judgeNegativeSizes(): void {
-  for (const v of [...NEGATIVE_PENDING]) {
-    const root = rootOf(v);
-    if ((root as View).surface == null) continue;   // not attached yet — its App will ask
-    NEGATIVE_PENDING.delete(v);
-    const p = v.parent instanceof View ? v.parent : null;
-    if (p === null) continue;
-    for (const axis of ["width", "height"] as const) {
-      const value = v[axis];
-      if (!(value < 0) || !percentOwned(v, axis)) continue;
-      // the parent has no size to give on this axis: it takes it from its
-      // content (no size of its own, or its auto-extent owns it)
-      const pOwner = ownerOf(p, axis);
-      if (!(pOwner === null ? !isSet(p, axis) : pOwner.isAutoExtent)) continue;
-      let said = NEGATIVE_SAID.get(root);
-      if (said === undefined) NEGATIVE_SAID.set(root, (said = new Set()));
-      const key = `${v.constructor.name}.${axis}`;
-      if (said.has(key)) continue;
-      said.add(key);
-      const onlyContent = !p.children.some((c) => c !== v && c instanceof View && c.visible && !percentOwned(c, axis));
-      console.error("[Declare] " + negativeSizeMessage(v.constructor.name, axis, value, p.constructor.name, onlyContent, ownerOf(v, axis)?.sourcePos));
-    }
-  }
-}
 
 defineAttributes(View, {
   // Position is authored in the parent's CONTENT coordinates and realized in
@@ -2130,7 +1757,7 @@ function findAnchor(root: View, name: string): AnchorHit | null {
 /** Tell the kernel where View's slots sit (once, at the first arm — the
  *  kernel loads asynchronously, after this module) and give it the dpr cell. */
 let viewLayoutSent = false;
-function viewLayoutReady(): boolean {
+export function viewLayoutReady(): boolean {
   if (viewLayoutSent) return true;
   if (!kernelLoaded()) return false;
   const K = kernel();
@@ -2518,8 +2145,9 @@ export class App extends View {
 
   /** @internal the values the host provides, by name (Node.$hostProvided reads).
    *  Seeded from build's `provides` when there are any, so the app's very
-   *  first evaluation — at instantiate, before any settle or link — reads them. */
-  readonly hostValues = seededHostValues();
+   *  first evaluation — at instantiate, before any settle or link — reads them.
+   *  Null in a build without host values (boundary.ts): no read could reach them. */
+  readonly hostValues: BoundaryValues | null = hostValuesFor(SEED_PROVIDES);
 
   /** The HOST's write: make `value` available to this app under `name` — what
    *  a `hostProvided("name", …)` read in the program returns. Called by the
@@ -2529,8 +2157,8 @@ export class App extends View {
    *  re-derives every reader. `undefined` withdraws the value (readers fall to
    *  their defaults). Data only — a host never hands over a node. */
   provide(name: string, value: unknown): void {
-    if (value === undefined) this.hostValues.clear(name);
-    else this.hostValues.write(name, value);
+    if (value === undefined) this.hostValues?.clear(name);
+    else this.hostValues?.write(name, value);
   }
 
   /** The value this app exposes under `name` — one of its `exposes` names — or
@@ -2808,203 +2436,6 @@ defineAttributes(App, {
   appName: { def: "" },
 });
 
-// ═══ Islands — the boundary is a box, and the box has a typed surface ════════
-//
-// An Island is a View whose INTERIOR belongs to a TENANT — foreign DOM
-// (DOMIsland) or a whole other Declare program (AppIsland, library). The
-// bridge across that boundary is two channels with two natures (islands
-// design, ruled 2026-08-20):
-//
-//   FACTS — the instance's `external` attribute declarations (parser.ts).
-//   Typed, declared on BOTH sides (the island's declarations are the host's
-//   half; a tenant App's `external` declarations are its exports), paired by
-//   name at link time with a TYPE HANDSHAKE — two separately compiled programs
-//   cannot share a static proof, so agreement is checked at the moment the
-//   pairing forms, like a linker resolving extern symbols; a mismatch is a
-//   link error, not a mid-session surprise. Direction is arbitrated by the
-//   OWNERSHIP machinery (a host-bound slot refuses tenant pushes, loudly —
-//   the same referee `location` lives under), with `readonly external` as the
-//   opt-in stricter spelling for a tenant-owned out-fact.
-//
-//   VERBS — post(topic, payload) / onPost({ topic, payload }), both directions,
-//   data-shaped payloads. Consumed once, ordered, never re-readable: what
-//   state slots must not be abused into (the pendingNav lesson).
-//
-// Foreign (non-Declare) tenants reach the same bridge through ONE sanctioned
-// JS handle (the island element's `__declareIsland`): get/set/observe/post/
-// onPost — set is boundary-VALIDATED against the declared type, since a
-// foreign push has no compiler behind it (the same trust-edge rule a
-// DataSource applies to arriving bytes).
-
-/** A tenant's connection, installed by linkIslandTenant / the foreign handle. */
-interface TenantSink {
-  message(topic: string, payload: unknown): void;
-}
-
-
-
-/** Island — the abstract boundary box. Concrete kinds decide what the tenant
- *  IS (DOMIsland: foreign DOM; AppIsland: a Declare program); this base owns
- *  the bridge — the external-fact surface and the message verbs. */
-export class Island extends View {
-  declare provides: readonly string[];
-  /** @internal the linked tenant's delivery sink (null = nothing linked). */
-  tenantSink: TenantSink | null = null;
-  /** @internal the values the hosted side exposes, by name (`exposed` reads). */
-  readonly exposedValues = new BoundaryValues("exposed");
-
-  /** The host's read of a value the hosted side EXPOSES — a Declare tenant's
-   *  `exposes` name, or foreign content's `expose(name, value)`. Tracked like
-   *  any attribute read, so a constraint over it re-derives when the hosted
-   *  side changes it. The default types the read: an absent value, or one of a
-   *  different kind, answers the default (the latter with a warning). With no
-   *  default an absent value throws, naming it. */
-  exposed(name: string, ...dflt: unknown[]): unknown {
-    return this.exposedValues.read(name, dflt.length > 0, dflt[0]);
-  }
-
-  /** The message verb, host → tenant (`post`, in the postMessage lineage —
-   *  `message` is the stream family's event). Dropped with a console note
-   *  when no tenant is linked — a verb has no meaning without a receiver. */
-  post(topic: string, payload?: unknown): void {
-    if (this.tenantSink === null) { console.warn(`[Declare] ${this.constructor.name}.post("${topic}"): no tenant linked — message dropped`); return; }
-    this.tenantSink.message(topic, payload);
-  }
-
-  /** @internal tenant → host verb arrival: fire the declared onPost with the
-   *  one-record payload `{ topic, payload }` (IslandPost). */
-  receiveMessage(topic: string, payload: unknown): void {
-    fireEvent(this, "post", { topic, payload });
-  }
-
-  /** The value this island provides under `name`, if `name` is on its
-   *  `provides` list — else undefined, with a warning (the host did not offer
-   *  it). What a hosted side's read resolves to. */
-  providedValue(name: string): unknown {
-    if (!providesOf(this).includes(name)) {
-      console.warn(`[Declare] hostProvided("${name}"): this island does not list '${name}' in its provides (${providesOf(this).join(", ") || "none"})`);
-      return undefined;
-    }
-    return islandProvision(this, name);
-  }
-
-  /** The foreign content's handle — built once, attached to the island's
-   *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
-   *  surface for non-Declare content, in the same words a Declare tenant
-   *  uses: read what the host provides, expose values up, and the verbs. */
-  private handle: Record<string, unknown> | null = null;
-  foreignHandle(): Record<string, unknown> {
-    if (this.handle !== null) return this.handle;
-    const island = this;
-    const messageCbs: Array<(m: { topic: string; payload: unknown }) => void> = [];
-    this.tenantSink ??= {
-      message: (topic, payload) => { for (const cb of messageCbs) cb({ topic, payload }); },
-    };
-    this.handle = {
-      /** the current value the host provides under `name` (plain data), or
-       *  undefined when the island does not list it */
-      hostProvided: (name: string) => island.providedValue(name),
-      /** a standing watch over a provided value: cb(value) now, then at the
-       *  close of each settle that changed it; returns the unwatch */
-      watchProvided: (name: string, cb: (v: unknown) => void) => {
-        cb(island.providedValue(name));
-        return observe(() => (providesOf(island).includes(name) ? islandProvision(island, name) : undefined), (v) => cb(v), `island:${name}`);
-      },
-      /** expose a value up to the host — read there with `exposed(name, default)`,
-       *  whose default's kind the value must match */
-      expose: (name: string, v: unknown) => {
-        if (v === undefined) island.exposedValues.clear(name);
-        else island.exposedValues.write(name, v);
-      },
-      /** tenant → host message (fires the island's onPost) */
-      post: (topic: string, payload?: unknown) => island.receiveMessage(topic, payload),
-      /** host → tenant messages (island.post lands here); cb({ topic, payload }) */
-      onPost: (cb: (m: { topic: string; payload: unknown }) => void) => { messageCbs.push(cb); return () => { const i = messageCbs.indexOf(cb); if (i >= 0) messageCbs.splice(i, 1); }; },
-      /** the names the host provides here, for discovery */
-      provides: () => providesOf(island),
-    };
-    return this.handle;
-  }
-}
-
-/** A standing sync of a NAMED SET of values: `read()` returns the current
- *  { name → value } (tracked), and each settle that changes it delivers the
- *  names whose value changed, and the names that left. Shared by both
- *  directions of the island link. */
-function syncNamed(read: () => Record<string, unknown>, put: (name: string, v: unknown) => void, drop: (name: string) => void, label: string): () => void {
-  let last: Record<string, unknown> = {};
-  const apply = (next: Record<string, unknown>): void => {
-    for (const n of Object.keys(next)) if (!(n in last) || !Object.is(last[n], next[n])) put(n, next[n]);
-    for (const n of Object.keys(last)) if (!(n in next)) drop(n);
-    last = next;
-  };
-  apply(read());
-  // observe coalesces equal results one level deep; a fresh record per run
-  // is compared here, name by name, so identical values deliver nothing
-  return observe(() => { const r = read(); return Object.keys(r).sort().flatMap((k) => [k, r[k]]); }, () => apply(read()), label);
-}
-
-/** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
- *  island service, the mac runner). DOWN: every name on the island's
- *  `provides` list, resolved at the island, is provided to the tenant (what
- *  its `hostProvided` reads return) and kept live. UP: every name on the
- *  tenant's `exposes` list is delivered into the island's exposed values
- *  (what the host's `exposed` reads return) and kept live. The verbs link
- *  both ways. Build the tenant with `provides: islandProvisions(island)` so
- *  its first evaluation already sees what the host provides, and link it
- *  before its first settle. Returns the unlink. */
-export function linkIslandTenant(island: Island, tenant: App): () => void {
-  const undo: Array<() => void> = [];
-  undo.push(syncNamed(
-    () => islandProvisions(island),
-    (n, v) => tenant.provide(n, v),
-    (n) => tenant.provide(n, undefined),
-    "link:provides"));
-  undo.push(syncNamed(
-    () => {
-      const out: Record<string, unknown> = {};
-      const list = (tenant as unknown as { exposes?: unknown }).exposes;
-      if (Array.isArray(list)) for (const n of list) {
-        if (typeof n !== "string") continue;
-        const v = (tenant as unknown as Record<string, unknown>)[n];
-        if (v !== undefined) out[n] = v;
-      }
-      return out;
-    },
-    (n, v) => island.exposedValues.write(n, v),
-    (n) => island.exposedValues.clear(n),
-    "link:exposes"));
-  // verbs, both directions
-  island.tenantSink = {
-    message: (topic, payload) => fireEvent(tenant, "post", { topic, payload }),
-  };
-  tenant.hostSink = { message: (topic, payload) => island.receiveMessage(topic, payload) };
-  undo.push(() => { island.tenantSink = null; tenant.hostSink = null; });
-  return () => { for (const fn of undo.splice(0)) { try { fn(); } catch { /* torn down */ } } };
-}
-
-/** DOMIsland — the FOREIGN-CONTENT island (design: the `DOMIsland [ … ]` view). A leaf
- *  whose box Declare lays out and constrains normally, but whose interior is
- *  host-managed DOM: the `slot` key is reflected onto the element (DOM backend)
- *  so the host can mount an iframe / textarea / any element into the Declare-sized
- *  box — its width/height follow this view's constraints with no coordinate
- *  sync. Carries the Island boundary: `provides` down, `exposed` up, and the
- *  post/onPost verbs, reachable from the foreign side through the element's
- *  `__declareIsland`. */
-export class DOMIsland extends Island {
-  declare slot: string;
-  declare childName: string;
-
-  protected flush(s: Surface): void {
-    super.flush(s);
-    if (this.slot !== "") s.setEmbed(this.slot, this);
-  }
-}
-
-defineAttributes(DOMIsland, {
-  slot: { def: "", push: (v, id) => v.surface?.setEmbed(id, v) },
-  childName: { def: "" },
-});
 
 // THE CHANGE EVENT's delivery (change-event.ts wakes and batches; this module owns
 // the handler door). The node remembers which values it is being called for, so

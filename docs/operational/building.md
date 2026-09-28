@@ -16,7 +16,7 @@ never read by the running program), and whatever the program's `ship` block name
 `programs/` folder with one compiled program per island, a `files/` folder for what it reads
 from elsewhere, the compiler and the component library when it compiles at run time.
 Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->120<!--/stat--> KB gzipped** — and that is the figure the
+around **<!--stat:calendar.wireKB-->114<!--/stat--> KB gzipped** — and that is the figure the
 homepage prints, measured on the build its own calendar page ships. The module carries
 everything a page needs and nothing else: the runtime's run path, your program, and the web
 host — the URL and history mirror (`app.location` ↔ the fragment, Back and Forward), island
@@ -130,6 +130,7 @@ prose that remains is one sentence — the `.error` an app may show.
 | `-o <dir>` | output directory (default `dist`) |
 | `--canvas` | canvas backend instead of DOM |
 | `--crawler` | bake the extracted static document into `index.html` (crawlers read it; the client clears it at boot) |
+| `--kernel js` | carry the JavaScript reactive kernel instead of the WebAssembly one: about 9 KB gzipped smaller, the same results, somewhat slower on view-heavy work and at startup on phones. `wasm` is the default |
 | `--extract` | also write the static document standalone as `<name>.extract.html` |
 | `--debug` | a developer's build: the program verbatim, positions, prose, the Inspector, no slimming. For a program that needs some of that *in production*, declare it — `ship [ inspector = true ]` |
 | `--quiet` | suppress progress output |

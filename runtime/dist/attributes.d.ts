@@ -63,6 +63,17 @@ export declare function slotOfCell(cell: number): {
  *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
  *  The EXPR binder resolves its read paths and its target through this. */
 export declare function slotCellOf(self: object, name: string): number;
+/** A rule whose value the KERNEL lands in `self.name`'s table cell
+ *  (Constraint.landInKernel): the cell, and which values the kernel can take —
+ *  a number (0/1 for a boolean slot), while the slot is still in the table and
+ *  no change handler is running for it. Anything else — a union slot's list, a
+ *  value arriving after the slot escaped, a declared default not yet
+ *  evaluable — the rule lands through write() as before. null: not a table slot. */
+export declare function kernelLanding(self: object, name: string): {
+    cell: number;
+    bool: boolean;
+    accepts: (v: unknown) => boolean;
+} | null;
 /** Is `self.name` a boolean slot (a kernel-written 0/1 lands as true/false)? */
 export declare function slotIsBoolean(self: object, name: string): boolean;
 /** A node has moved to a different parent: its subtree's chains changed, and
@@ -227,9 +238,16 @@ export interface DeclRecord {
     external?: boolean;
     /** Declared `readonly` — with external, an out-fact the host cannot write. */
     readOnly?: boolean;
+    /** The `{ }` default stands as a rule on each instance (AttrSpec.defRule):
+     *  installed at construction on a slot nothing set (instantiate.ts). */
+    rule?: boolean;
+    /** …bound outward (an inline, use-site declaration): its classroot is the
+     *  instance's classroot, not the instance. */
+    outer?: boolean;
 }
 /** Record a class's author declarations (instantiate.ts makeClass). */
 export declare function recordDeclarations(ctor: object, table: Record<string, DeclRecord>): void;
+export declare function declaredRules(self: object): ReadonlyArray<[string, DeclRecord]>;
 /** Every author-declared slot visible on this instance — the class's own and
  *  its user superclasses', merged up the prototype chain (runtime base
  *  classes never register, so View's built-ins stay out of the answer). */

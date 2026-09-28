@@ -319,8 +319,8 @@ is always on.
 
 ## Compile flags
 
-`compiler/src/flags.ts` is the single `CompileFlags` model — exactly **two modifiers**,
-`render` (dom/canvas) and `seo` — with `DEFAULT_FLAGS` and two parsers:
+`compiler/src/flags.ts` is the single `CompileFlags` model — exactly **three modifiers**,
+`render` (dom/canvas), `crawler`, and `kernel` (wasm/js, for a build) — with `DEFAULT_FLAGS` and two parsers:
 `parseFlags(URLSearchParams-like)` for the server and browser URL queries, and
 `parseArgvFlags(argv)` for the CLI. So `?render=canvas` on the server, `--render canvas`
 (or `--canvas`) on the CLI, and the browser's `?render=canvas` all resolve through one
@@ -336,7 +336,7 @@ escape hatch is `declarec --debug`, which keeps the full registry and source pos
 of the one compile — always on, no URL/CLI flag. The compiler's *internal* options still
 carry `stripPos`/`typecheck` (the `build` act sets them, and tooling can still pass
 `{ typecheck: false }` in a JS `compile()` call); only the externally-named FLAG surface
-is the two modifiers.
+is the three modifiers.
 
 ## Request types
 

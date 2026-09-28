@@ -7,7 +7,7 @@
 // a JS `compile()` call all mean the same thing; adding a modifier is a single entry
 // below, picked up by every surface.
 //
-// There are exactly TWO modifiers — `render` and `crawler` — and they compose onto the
+// There are exactly THREE modifiers — `render`, `crawler` and `kernel` — and they compose onto the
 // app-producing REQUESTS (`run`, `build`; see reqtypes.ts and docs/system-design/requests.md).
 // The request TYPE (what artifact a URL returns) is orthogonal and lives in
 // reqtypes.ts. Everything is lowercase — no camelCase in the URL/CLI surface.
@@ -19,12 +19,14 @@
 //     `declarec --debug`, not a public flag.
 //   • `typecheck` is a mandatory phase of the one compile — always on, no opt-out.
 // The compiler's INTERNAL options still carry stripPos/typecheck (the build act sets
-// them); only this externally-named FLAG surface is the two modifiers.
+// them); only this externally-named FLAG surface is the three modifiers.
 export const FLAG_SPECS = [
     { name: "render", kind: "enum", values: ["dom", "canvas", "mac"], default: "dom",
         description: "render through managed DOM, a single <canvas>, or the native Mac host" },
     { name: "crawler", kind: "bool", default: false,
         description: "embed the crawled document in the host page, for crawlers" },
+    { name: "kernel", kind: "enum", values: ["wasm", "js"], default: "wasm",
+        description: "the reactive kernel a build carries: the C kernel as WebAssembly, or the JavaScript one (a smaller download)" },
 ];
 /** Defaults, derived from the registry — never hand-maintained. */
 export const DEFAULT_FLAGS = Object.fromEntries(FLAG_SPECS.map((s) => [s.name, s.default]));

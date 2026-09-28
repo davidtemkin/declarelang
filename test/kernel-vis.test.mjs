@@ -9,6 +9,7 @@ import { compile } from "../compiler/dist/compile-node.js";
 import { settleHeadless } from "../compiler/dist/headless.js";
 import { settle } from "../runtime/dist/index.js";
 import { setBound } from "../runtime/dist/attributes.js";
+import { visibilityRule, readVisibility } from "../runtime/dist/visibility.js";
 
 let seed = 7;
 const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
@@ -16,8 +17,8 @@ const pick = (a) => a[rnd(a.length)];
 
 const close = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps * Math.max(1, Math.abs(a), Math.abs(b));
 function check(v, name) {
-  assert.ok(v.visRule >= 0 || v.rotateX !== 0 || (v.parent?.rotateX ?? 0) !== 0, `${name}: the kernel path is not active (visRule ${v.visRule}) — the test would compare JS to JS`);
-  const js = v.readVisibility();
+  assert.ok(visibilityRule(v) >= 0 || v.rotateX !== 0 || (v.parent?.rotateX ?? 0) !== 0, `${name}: the kernel path is not active (rule ${visibilityRule(v)}) — the test would compare JS to JS`);
+  const js = readVisibility(v);
   assert.equal(v.onScreen, js.on, `${name}: onScreen ${v.onScreen} vs js ${js.on}`);
   assert.ok(close(v.apparentScale, js.scale), `${name}: apparentScale ${v.apparentScale} vs js ${js.scale}`);
   const r = v.visibleRect, jr = js.rect ?? { x: 0, y: 0, width: 0, height: 0 };
@@ -80,7 +81,7 @@ await test("a 3D transform on the chain hands the facts back to the JS walk", as
   app.a.b.armVisibility(); settle();
   check(app.a.b, "flat");
   app.a.rotateX = 30; settle();
-  assert.equal(app.a.b.visRule, -1, "the kernel rule retired on 3D");
+  assert.equal(visibilityRule(app.a.b), -1, "the kernel rule retired on 3D");
   check(app.a.b, "after rotateX");
   app.a.b.x = 200; settle();
   check(app.a.b, "after a later move under 3D");

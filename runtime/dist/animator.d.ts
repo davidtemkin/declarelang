@@ -5,7 +5,7 @@ import { type Motion, type Ticker } from "./animate.js";
  *  `tick`'s optional `frozen` freezes progression while keeping the member's
  *  clock reference fresh — how a group cascades its own pause down without the
  *  member jumping when unpaused (a plain Ticker call passes it false). */
-interface Animatable extends Ticker {
+export interface Animatable extends Ticker {
     start(): void;
     stop(): void;
     tick(now: number, frozen?: boolean): boolean;
@@ -56,29 +56,13 @@ export declare class Animator extends Node implements Animatable {
      *  settle", the update transaction, language §7 — different clocks.) */
     running: boolean;
     arrived: boolean;
-    private live;
     /** Group-driven: an enclosing AnimatorGroup registers the clock and ticks
      *  us, so start()/stop() must NOT touch the shared clock themselves. */
-    private grouped;
-    private runTarget;
-    private runAttr;
-    /** The eased delta this run travels — measured against the ledger's expected
-     *  value (LZX `this.to`), so an absolute `to` composes with everything in
-     *  flight. Excludes the `from` snap (that rides `fromJump`). */
-    private runDelta;
-    /** The one-time `from` snap (from − slot's value at start), applied over the
-     *  first frame; 0 when `from` is unset. Deferred to the first tick so a
-     *  restart shows no jump at start() time. */
-    private fromJump;
-    /** How much this animator has contributed to the target so far — the sum of
-     *  its written increments, `fromJump + ease(t)·runDelta`. The additive
-     *  currentValue (LZX), one frame's increment being the delta of this. */
-    private traveled;
-    private runDuration;
-    private runMotion;
-    private cyclesLeft;
-    private elapsed;
-    private lastNow;
+    grouped: boolean;
+    /** The timed run (tween.ts), made at the first start(). A Spring never
+     *  makes one — it integrates its own tick — so every entry below that
+     *  reaches the run is a no-op until there is one. */
+    private run;
     private autoStarted;
     /** Marked by an enclosing AnimatorGroup at construct: the group drives the
      *  clock and cascades attributes, so this animator is group-controlled. */
@@ -89,7 +73,7 @@ export declare class Animator extends Node implements Animatable {
      *  that is not itself an animator/group. For an ungrouped animator this is
      *  just its parent (a View). Matches the checker's target context, which
      *  threads the group's PARENT schema through to its members. */
-    protected resolveTarget(): Node | null;
+    resolveTarget(): Node | null;
     /** Auto-start at init if `started` (the initTree hook — once per lifetime,
      *  after the tree is linked and every binding has evaluated, so `from`
      *  samples a settled target value). A grouped animator is never reached here
@@ -106,28 +90,15 @@ export declare class Animator extends Node implements Animatable {
      *  the settled value once at the init hook. A grouped member is driven by
      *  its group (its own `started` is ignored; see AnimatorGroup). */
     startedChanged(v: boolean): void;
-    /** `paused` is clock MEMBERSHIP, not a per-frame flag to poll: a paused
-     *  animator produces no frames, so it must not hold the frame loop open —
-     *  the idle-zero invariant (animate.ts) extends to "frozen counts as idle".
-     *  Pause drops off the clock; resume re-seeds the anchor at NOW (elapsed
-     *  cannot have advanced while unenrolled, so nothing jumps — the same
-     *  re-anchor a scheduler handover uses) and re-enrolls. A grouped member
-     *  keeps the old frozen-tick path instead: its group owns the clock and
-     *  must keep ticking its OTHER members, so the member's own pause cannot
-     *  withdraw the group's ticker. */
+    /** `paused` is clock membership (TweenRun.paused says how). */
     pausedChanged(v: boolean): void;
     /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own
-     *  pause calls this down its members, whose anchors went stale while the
-     *  group was off the clock (the unpause twin of rebase()). */
+     *  pause calls this down its members (TweenRun.reanchor). */
     reanchor(now: number): void;
-    /** Begin driving the target slot through the curve (LZX's doStart). A no-op
-     *  while already running (LZX's guard). Samples from / to / duration /
-     *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
-     *  (displacing the slot's prior non-animator driver on the first arrival). */
+    /** Begin driving the target slot through the curve (LZX's doStart) — the
+     *  timed run, sampled once here (TweenRun.start). A no-op while running. */
     start(): void;
-    /** Halt in place — no snap to either end (LZX). Idempotent; a no-op when not
-     *  running. Leaves the ledger (resuming the displaced driver when it was the
-     *  last animator), without landing an end value (animation.md §2). */
+    /** Halt in place — no snap to either end (LZX). Idempotent (TweenRun.stop). */
     stop(): void;
     /** Retire with the host view (the teardown recursion reaches us): drop off
      *  the clock and dispose our own `{ }` bindings (`to`, `attribute`, …).
@@ -135,111 +106,16 @@ export declare class Animator extends Node implements Animatable {
      *  it read — the leak — and the spring keeps ticking. Bindings first, so a
      *  stop() that fires onStop cannot re-target through a live binding. */
     teardown(): void;
-    /** One clock frame (the Ticker contract): advance by real elapsed time,
-     *  write the eased DELTA additively, handle repeat / completion. `frozen`
-     *  (an enclosing group's pause) freezes progression while keeping `lastNow`
-     *  fresh so nothing jumps on unpause. Returns whether still running (false
-     *  drops it from the clock; a group reads it to retire a finished member). */
     /** Shift the anchor across a scheduler handover (Ticker.rebase). */
     rebase(delta: number): void;
+    /** One clock frame (the Ticker contract; TweenRun.tick). Returns whether
+     *  still running — false drops it from the clock, and a group reads it to
+     *  retire a finished member. */
     tick(now: number, frozen?: boolean): boolean;
-    /** Leave the slot's exact-landing ledger. Decrement the live-animator count;
-     *  on a natural completion (`finalize`) with others still running, bring this
-     *  animator's own contribution to its full delta first. When the count hits
-     *  zero: resume the one displaced driver re-evaluated (animation.md §2 rule
-     *  4), and — on a natural completion — assign the exact expected value (no
-     *  float drift, LaszloAnimation.lzs:347–365); a mid-flight stop() halts in
-     *  place, only rolling its un-travelled remainder out of `expected` so the
-     *  animators still running land where they were headed. */
-    private releaseSlot;
-    /** Shared teardown for imperative stop AND natural completion (LZX has no
-     *  finished-vs-stopped split): mark stopped, clear run state, fire onStop
-     *  (which MAY restart us). The ledger cleanup + displaced resume already ran
-     *  in releaseSlot; this only closes out the animator. */
-    private end;
     /** Fire a carried handler if one is installed (onStart / onStop / onRepeat).
      *  A plain Node dispatch — fireEvent (view.ts) is View-typed, and an
-     *  animator is a Node; an absent handler is a silent no-op. PROTECTED
-     *  because Spring integrates its own tick and must announce its own
-     *  arrival through the same door (spring.ts's rest branch). */
-    protected fire(handler: string): void;
+     *  animator is a Node; an absent handler is a silent no-op. The timed run
+     *  (tween.ts) and a Spring's own tick (spring.ts's rest branch) both
+     *  announce through it. */
+    fire(handler: string): void;
 }
-/** AnimatorGroup — coordinates several animators (or nested groups) in
- *  `sequential` or `simultaneous` order (animation.md §1, LzAnimatorGroup.lzs).
- *  A twin-table component exactly like Animator: it carries the same
- *  started/paused/start()/stop()/repeat surface, and it — not its children —
- *  is the driver (a member's own `started` is ignored; the group starts them).
- *  It registers ONE ticker with the shared clock and forwards the same `now`
- *  to its members each frame ("to ensure that all animators are synched",
- *  LzAnimatorGroup.lzs:475), so a whole group's motion stays in lockstep and
- *  the idle-zero invariant holds for the group as a unit. Members compose on a
- *  shared slot through the same additive ledger an ungrouped pair uses. */
-export declare class AnimatorGroup extends Node implements Animatable {
-    /** Cascaded to members at construct (the LZX default-cascade): a member that
-     *  did not set one of these inherits the group's. Not surface the group reads
-     *  itself (its motion lives in its members) — declared so cascade can carry
-     *  them and the schema can check the group's `attribute` against its target. */
-    /** The two facts of motion, on a group as on its members (see Animator). */
-    running: boolean;
-    arrived: boolean;
-    attribute: string;
-    to: number;
-    from: number | null;
-    relative: boolean;
-    duration: number;
-    motion: Motion;
-    /** Run members one-after-another (`sequential`, default) or all-at-once
-     *  (`simultaneous`) — the one group-only control (LZX). */
-    process: "sequential" | "simultaneous";
-    /** How many times to replay the whole group (default 1; Infinity legal). */
-    repeat: number;
-    /** Opt-in auto-start at init: default **false** (see Animator.started). */
-    started: boolean;
-    /** Freeze the whole group; members hold in place and resume together. */
-    paused: boolean;
-    private live;
-    /** The members still to finish this run, in tree order — LZX's `actAnim`. */
-    private active;
-    private cyclesLeft;
-    private grouped;
-    private autoStarted;
-    markGrouped(): void;
-    /** This group's members (child Animators / AnimatorGroups), in tree order. */
-    private members;
-    autoStart(): void;
-    /** The group's own `started`, reactive exactly as an Animator's (see
-     *  Animator.startedChanged) — the group is the driver, so a change here
-     *  starts or stops the whole group, members included. */
-    startedChanged(v: boolean): void;
-    /** The group's own pause is clock membership too (see Animator.pausedChanged):
-     *  off the clock while paused — members freeze because nothing ticks them —
-     *  and on resume every running member's anchor is re-seeded at NOW before the
-     *  group re-enrolls, so no member measures the pause as elapsed time. */
-    pausedChanged(v: boolean): void;
-    /** Cascade the unpause re-anchor down (Animator.reanchor). */
-    reanchor(now: number): void;
-    /** Begin the group (LZX doStart): snapshot the members to run this cycle and
-     *  register the one group ticker (unless the group is itself group-driven).
-     *  Members are NOT started here — each is started lazily when it first
-     *  becomes active (so a sequential member samples its `from` only once the
-     *  members before it have moved the slot). */
-    start(): void;
-    /** Stop the group (LZX stop): halt every still-running member in place, drop
-     *  the group ticker, fire onStop. Idempotent. */
-    stop(): void;
-    /** Retire with the host view: drop the group ticker + own bindings, then
-     *  recurse so each member animator disposes its own bindings too. */
-    teardown(): void;
-    /** One group frame: drive the active members with the shared `now`, retire
-     *  the finished, replay or finish when all are done. `sequential` advances
-     *  only the head member per frame; `simultaneous` advances all. A `frozen`
-     *  group (its own pause, or an enclosing group's) keeps running members'
-     *  clocks fresh but neither starts pending members nor advances progression. */
-    rebase(delta: number): void;
-    tick(now: number, frozen?: boolean): boolean;
-    /** All members done: replay the whole group (repeat) or finish it. */
-    private cycleComplete;
-    private endGroup;
-    private fire;
-}
-export {};

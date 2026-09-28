@@ -144,11 +144,9 @@ export class Spring extends Animator {
     else setTimeout(() => { this.arriving = false; }, 0);
   }
 
-  /** Shift the anchor across a scheduler handover (Ticker.rebase); the
-   *  Animator half never runs for a spring, but super keeps its own anchor
-   *  coherent if it ever does. */
+  /** Shift the anchor across a scheduler handover (Ticker.rebase). A spring
+   *  has no timed run, so its own anchor is the only one. */
   override rebase(delta: number): void {
-    super.rebase(delta);
     if (this.springLastNow !== null) this.springLastNow += delta;
   }
 

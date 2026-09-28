@@ -42,10 +42,16 @@ export class VerifyAssertion extends Error {}
 // and resources), a fixtures overlay mapped over the app's base (verify NEVER
 // touches live network, §2.6), one headless Chrome, and a host page embedding
 // the ALREADY-built program — the dev server's own host-page shape.
+//
+// `built` runs a PRODUCTION build instead (declarec's files, built with
+// `bridge: true` so the rungs can drive it): its files are served over the
+// app's folder and its own index.html is the page — how the corpus gate
+// proves a slimmed build behaves as the program does.
 
-async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend" }, fn) {
+async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend", built = null }, fn) {
   const baseHref = "/" + relative(ROOT, resolve(appDir)).split("\\").join("/") + "/";
-  const cfg = { backend: backendClass, program: compiled.program };
+  const builtFiles = new Map((built?.files ?? []).map((f) => [f.name, f.contents]));
+  const cfg = { backend: backendClass, program: compiled?.program ?? null };
   // The viewport meta is LOAD-BEARING: without it a mobile-sized emulation
   // renders the legacy 980px desktop layout viewport, so every phone assertion
   // silently measured a desktop — which falsified the mobile half of any
@@ -67,6 +73,10 @@ bootHost(cfg);
     if (pathname === "/__verify__/" || pathname === "/__verify__/index.html") {
       res.writeHead(200, { "content-type": "text/html" });
       return res.end(hostPage);
+    }
+    if (pathname.startsWith(baseHref) && builtFiles.has(pathname.slice(baseHref.length))) {
+      res.writeHead(200, { "content-type": MIME[extname(pathname)] ?? "application/octet-stream" });
+      return res.end(builtFiles.get(pathname.slice(baseHref.length)));
     }
     const candidates = [];
     if (fixturesDir !== null && pathname.startsWith(baseHref)) {
@@ -177,8 +187,8 @@ bootHost(cfg);
           pending: () => pend.size,
         };
       });
-      await page.goto(`http://127.0.0.1:${port}/__verify__/`, { waitUntil: "networkidle0", timeout: 30000 });
-      await page.waitForFunction("!!window.__declare", { timeout: 10000 });
+      await page.goto(`http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "networkidle0", timeout: 30000 });
+      await page.waitForFunction("!!window.__declare?.inspect", { timeout: 10000 });
       // Deferred time now rides the driven clock for every stepper — the
       // asserts' clock.step, settleMotion, and the states' routes alike.
       await page.evaluate(() => {
@@ -322,8 +332,8 @@ bootHost(cfg);
 
 // ── rung 5: behavior ────────────────────────────────────────────────────────
 
-export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend" }) {
-  return withHost({ compiled, appDir, fixturesDir, backendClass }, async ({ openApp }) => {
+export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend", built = null }) {
+  return withHost({ compiled, appDir, fixturesDir, backendClass, built }, async ({ openApp }) => {
     const failures = [];
     const app = await openApp();
     const mod = await import(pathToFileURL(resolve(assertPath)).href);
@@ -472,13 +482,13 @@ async function diffPng(page, aBase64, bBase64, tolerance = 4, mask = []) {
  *  capture a dark state) so a capture never depends on the host machine's own
  *  appearance. `mask` is a list of {x,y,w,h} rectangles excluded from the diff,
  *  for regions that measure the machine (see diffPng). */
-export async function runStates({ compiled, appDir, statesPath, baselinesDir, bless = false, fixturesDir = null, backendClass = "DomBackend", tolerance = 4 }) {
+export async function runStates({ compiled, appDir, statesPath, baselinesDir, bless = false, fixturesDir = null, backendClass = "DomBackend", tolerance = 4, built = null }) {
   const mod = await import(pathToFileURL(resolve(statesPath)).href);
   const states = mod.default;
   if (!Array.isArray(states)) throw new VerifyAssertion(`${statesPath} must default-export an array of states`);
   const suffix = backendClass === "CanvasBackend" ? "-canvas" : "";
 
-  return withHost({ compiled, appDir, fixturesDir, backendClass }, async ({ openApp }) => {
+  return withHost({ compiled, appDir, fixturesDir, backendClass, built }, async ({ openApp }) => {
     const failures = [];
     const results = [];
     const KNOWN_STATE_KEYS = new Set(["name", "viewport", "clock", "scheme", "dpr", "mask", "route", "frames"]);

@@ -31,7 +31,8 @@ import { DeclareError } from "./errors.js";
 import { applyH, frontFacing, homography, inFront, invertH, type Homography } from "./projective.js";
 const FIT_FRAC: Record<string, number> = { start: 0, center: 0.5, end: 1 };
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
-import { inAnimationFrame, sample, motionToken, DEFAULT_MOTION, type Motion } from "./animate.js";
+import { inAnimationFrame, DEFAULT_MOTION, type Motion } from "./animate.js";
+import { sample, motionToken } from "./easing.js";
 import { ScrollPhysics, type ScrollState } from "./scroll-physics.js";
 const MICROTASK_PAINT = -1;
 
@@ -120,7 +121,8 @@ const damageDisabled = (): boolean => typeof __DECLARE_DEV_SWITCHES__ !== "undef
 const damageChecking = (): boolean => typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareDamageCheck?: unknown }).__declareDamageCheck !== undefined;
 import { type MaskSpec, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, insetSides, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Inset, type Radius, type Shadow, type BoxStroke, filterCss, filterBlur, type Filter, filterBleed } from "./value.js";
+import { colorToCss, insetSides, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Inset, type Radius, type Shadow, type BoxStroke, filterBlur, type Filter, filterBleed } from "./value.js";
+import { filterCss } from "./effects.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";

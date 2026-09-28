@@ -133,7 +133,7 @@ export class Node {
     let top: Node = this;
     while (top.parent !== null) top = top.parent as Node;
     const hv = (top as unknown as { hostValues?: { read(n: string, h: boolean, d: unknown): unknown } }).hostValues;
-    if (hv === undefined) {
+    if (hv == null) {
       if (dflt.length > 0) return dflt[0];
       throw new Error(`hostProvided("${name}"): this node is not in a running app`);
     }
@@ -342,6 +342,7 @@ defineAttributes(Node, {
   datapath: { def: null },
   trackChanges: { def: null, push: (n, v) => {
     if ((n as unknown as { $live?: boolean }).$live !== true) return;
-    trackNode(n, Array.isArray(v) ? v.map((x) => String(x)) : null);
+    const names = Array.isArray(v) ? v.map((x) => String(x)) : [];
+    if (names.length > 0) trackNode(n, names); else untrackNode(n);   // no list: nothing tracked, and the change module is never asked
   } },
 });

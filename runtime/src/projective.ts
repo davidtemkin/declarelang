@@ -8,13 +8,13 @@
 // viewer; rotateX(a)·rotateY(b) as matrices, applied to a point right-to-left;
 // the eye sits `perspective` px in front of the parent's perspective origin.
 
-import type { Affine } from "./affine.js";
+import { has3D, partsOf, type Affine, type Parts3D } from "./affine.js";
+export { has3D } from "./affine.js";
+export type { Parts3D } from "./affine.js";
 
 /** Row-major 3×3: [x-row, y-row, w-row]. */
 export type Homography = readonly [number, number, number, number, number, number, number, number, number];
 
-export interface Parts3D { rotateX: number; rotateY: number; translateZ: number }
-export const has3D = (p: Parts3D): boolean => p.rotateX !== 0 || p.rotateY !== 0 || p.translateZ !== 0;
 
 /** local (u, v) on the plane → the PARENT's coordinates, as a homography.
  *  `affine` is the view's 2D matrix (about its pivot), `x`/`y` its position in
@@ -120,7 +120,7 @@ export function frontFacing(h: Homography, w: number, hgt: number): boolean {
 // ── The 3D paths the runtime's walks go through ───────────────────────────────
 // The view, the hit walk and the DOM backend reach the third dimension only
 // through these, so a production build for a program that names no 3D attribute
-// carries none of it (declarec's slim-3d stubs this file). Views are read
+// carries none of it (the `3d` capability, compiler/src/capabilities.ts). Views are read
 // structurally — this file imports no node class.
 
 /** A view as the 3D paths read it. */
@@ -138,7 +138,6 @@ export interface Spec3D {
   perspective: number; originX: number; originY: number;
 }
 
-const partsOf = (v: View3D): Parts3D => ({ rotateX: v.rotateX ?? 0, rotateY: v.rotateY ?? 0, translateZ: v.translateZ ?? 0 });
 
 /** The seam spec for `v` under `parent`, or null for a view that stays in its plane. */
 export function spec3DOf(v: View3D, parent: View3D | null): Spec3D | null {

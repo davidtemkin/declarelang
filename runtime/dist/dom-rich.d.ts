@@ -17,6 +17,11 @@ export declare const richInlineSlots = true;
 /** This backend's flow lays out a whole document — lists, quotes, rules, code
  *  boxes and tables as well as paragraphs — as one flowing region (RichNode). */
 export declare const richBlocks = true;
+/** Scroll a heading of the flow into view — where a reveal to its anchor lands
+ *  (location.md §0.5). The heading is a real element in the flow
+ *  (setRichContent tagged it with `data-anchor`); scroll IT. Missing ⇒ the
+ *  flow hasn't rendered that heading yet (held intent, retried later). */
+export declare function revealRichAnchor(h: RichHost, slug: string, inset: number): boolean;
 /** Read back every slot placeholder's box, in flow-local coordinates, and
  *  publish the geometry fact. `offsetLeft`/`offsetTop` rather than a client
  *  rect ON PURPOSE: they are LAYOUT coordinates, so an ancestor `scale` (a CSS

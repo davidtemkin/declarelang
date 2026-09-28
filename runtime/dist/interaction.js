@@ -34,7 +34,7 @@
 // a cycle.
 import { Cell, Constraint } from "./reactive.js";
 import { affineFit, childHomography, unprojectChild } from "./projective.js";
-import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
+import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
 import { diag } from "./errors.js";
 import { insetLead } from "./value.js";
 /** The parent's CONTENT ORIGIN on one axis — the leading inset every child's
@@ -107,7 +107,7 @@ function localAffine(v) {
 /** The homography of a child that leaves its plane (rotateX/rotateY/translateZ),
  *  local → parent, or null for one that stays in it. */
 function homographyOf(parent, c) {
-    return childHomography(parent, c, () => localAffine(c));
+    return leavesPlane(c) ? childHomography(parent, c, () => localAffine(c)) : null;
 }
 function toChildLocal(v, c, lx, ly) {
     if (v.scrolls !== "none" && !c.ignoreScroll) {

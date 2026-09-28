@@ -32,7 +32,7 @@ import { Diag, nearestName } from "./diagnostics.js";
 import { runtimeFieldsOf, runtimeMethodsOf } from "./runtime-methods.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
-import { coerce, describeLiteral, declaredType, isAuthoredUnion, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
+import { coerce, describeLiteral, noteLiteral, declaredType, isAuthoredUnion, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
 // The program-under-check's declared schema names — set at check() entry
 // (checkElement recurses too deep to thread one more parameter through).
@@ -55,9 +55,9 @@ function classSets(tag, attr) {
     return CLASS_SETS.get(tag)?.has(attr) === true;
 }
 import { validateExpr, validateBody } from "./expr.js";
-import { isSelective, staticSegs } from "./datapath.js";
+import { isSelective, staticSegs } from "./path-plan.js";
 import { fontObjectHint } from "./font-value.js";
-import { NOUNS, RESERVED, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
+import { NOUNS, RESERVED, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken, provisionValue } from "./program-schema.js";
 import { THEME_PRESET_NAMES } from "./themes.js";
 // The schema half of the twin tables — class registration, effective schemas,
 // replication detection, token coercion — lives in program-schema.ts so a
@@ -635,6 +635,9 @@ classRoot = false) {
                         continue;
                     errors.push(new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos));
                 }
+                // one ordered family chain — what the slot, or the provision, holds
+                if (items.every((i) => i.kind === "string"))
+                    noteLiteral(attr.value, items.map((i) => i.value).join(", "));
                 continue;
             }
             // A bare `[ … ]` on an array slot is the ORDINARY literal form: the parser
@@ -922,6 +925,7 @@ classRoot = false) {
             // compile time (animation.md §1). `{ }` and `:path` are refused here.
             if (a.value.kind === "ident" && a.value.name !== "null") {
                 checkTargetSlot(schema, a.value.name, parentSchema, a.value.pos, errors);
+                noteLiteral(a.value, a.value.name); // the slot's name is its value (lower-literals.ts)
                 // A SLOT, not a fact: an animator writes its target every tick, and a
                 // read-only attribute — the scroll offsets above all — is the platform's
                 // report, not a slot Declare controls. The glide belongs to the verb.
@@ -1041,6 +1045,7 @@ function checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, attri
             providesAttribute = true;
             if (a.value.kind === "ident" && a.value.name !== "null") {
                 checkTargetSlot(schema, a.value.name, parentSchema, a.value.pos, errors);
+                noteLiteral(a.value, a.value.name); // the slot's name is its value (lower-literals.ts)
                 // A SLOT, not a fact: an animator writes its target every tick, and a
                 // read-only attribute — the scroll offsets above all — is the platform's
                 // report, not a slot Declare controls. The glide belongs to the verb.
@@ -1494,11 +1499,24 @@ export function checkAttr(schema, attr) {
         if (attr.value.kind === "path") {
             return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = :${attr.value.path}: a provided value is a plain value or a { }, not a datapath`, attr.value.pos) };
         }
-        // Any literal form is a valid provision (a scalar, a color, a value
-        // constructor, a font list / enum token). It is coerced at instantiation,
-        // where the font registry and the reader's face type are in reach
-        // (resolveProvisionLiteral) — the checker only rules out the non-literal
-        // kinds above.
+        // A literal provision is a scalar, a color, a value constructor, a font
+        // list or an enum token, and the checker computes what it provides
+        // (provisionValue — the instantiation's own function), so the compile ships
+        // the value rather than the text. A theme name is the instantiation's (it
+        // resolves against the build's themes); a font name in a family list is
+        // reported by check() itself. A literal no form admits would provide
+        // nothing — every reader falling to its default — so it is refused, as the
+        // same literal is in a declared slot.
+        if (!(attr.name === "theme" && attr.value.kind === "ident")) {
+            let value = null;
+            try {
+                value = provisionValue(attr);
+            }
+            catch { /* reported by check() */ }
+            if (value === undefined) {
+                return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = ${describeLiteral(attr.value)}: a provided value is a number, string, boolean, color, a value constructor (gradient/stroke/shadow/frost), an enum token, or a list of them — this one would provide nothing`, attr.value.pos) };
+            }
+        }
         return { ok: true, provision: { name: attr.name } };
     }
     if (type === null) {

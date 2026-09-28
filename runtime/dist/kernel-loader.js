@@ -10,6 +10,9 @@ export const KERNEL_ERR = Object.freeze({ IMAGE: -1, ARENA: -2, OWNED: -3, CYCLE
 export const KERNEL_KIND = Object.freeze({ EXPR: 0, BODY: 1, DYNAMIC: 2 });
 export const KERNEL_FLAG = Object.freeze({ YIELDING: 1, PHASE1: 2, PERCENT: 4 });
 export const KERNEL_STATE = Object.freeze({ QUEUED: 1, DEAD: 2, SUSPENDED: 4, REWIRE: 8, UNLANDED: 16 });
+/** The track ring's owner mark (declare_kernel.h): `OWNER | rule` closes the
+ *  reads before it under `rule`; `OWNER | NOBODY` drops them. */
+export const KERNEL_TRACK = Object.freeze({ OWNER: 0x80000000, NOBODY: 0x7fffffff });
 export const CELL_KIND = Object.freeze({ F64: 0, REF: 1 });
 /** dk_view_layout, field order (declare_kernel.h). */
 export const VIEW_LAYOUT_FIELDS = ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY",
@@ -42,7 +45,7 @@ export function emptyImage() {
  *  buffer. So a growth re-takes every view here and tells the runtime to re-read
  *  them (`onGrow`), synchronously, before the call that triggered it returns. */
 const SCRATCH_START = 1 << 10;
-function importsFor(host) {
+function importsFor(host, hooks) {
     return {
         host: {
             body: (rule, elem, target) => host.body(rule, elem, target),
@@ -52,6 +55,7 @@ function importsFor(host) {
             error: (code, rule) => host.error(code, rule),
             schedule: () => host.schedule(),
             decline: (rule) => host.decline(rule),
+            reserve: (nodes) => hooks.reserve(nodes),
             sin: Math.sin, cos: Math.cos, tan: Math.tan,
         },
     };
@@ -60,7 +64,8 @@ const withDefaults = (caps) => ({ extra_elems: 0, extra_cells: 0, extra_rules: 0
 export async function instantiateKernel(wasm, image, host, caps = {}) {
     // Synchronous where the engine allows it (JavaScriptCore, Firefox, node);
     // Chrome refuses main-thread compilation past 4 KB, so fall back to async.
-    const imports = importsFor(host);
+    const hooks = { reserve: () => { } };
+    const imports = importsFor(host, hooks);
     let instance;
     try {
         instance = new WebAssembly.Instance(new WebAssembly.Module(wasm), imports);
@@ -68,23 +73,36 @@ export async function instantiateKernel(wasm, image, host, caps = {}) {
     catch {
         instance = (await WebAssembly.instantiate(wasm, imports)).instance;
     }
-    return bind(instance, image, withDefaults(caps));
+    return bind(instance, image, withDefaults(caps), hooks);
 }
 /** The synchronous form, for hosts that can (the Mac's JavaScriptCore). */
 export function instantiateKernelSync(wasm, image, host, caps = {}) {
-    return bind(new WebAssembly.Instance(new WebAssembly.Module(wasm), importsFor(host)), image, withDefaults(caps));
+    const hooks = { reserve: () => { } };
+    return bind(new WebAssembly.Instance(new WebAssembly.Module(wasm), importsFor(host, hooks)), image, withDefaults(caps), hooks);
 }
+/** declare_kernel.h: a capacity is spent */
+const DK_ERR_FULL = -7;
+const NO_NEED = {};
+/** a visibility rule reads 18 slots on each ancestor: room for a deep chain */
+const VIS_NEED = { rules: 1, nodes: 18 * 64 };
+/** an auto-extent reads 17 slots per child, and keeps its words in the code arena */
+const extentNeed = (words, rules) => ({ rules, nodes: 17 * words + 1, code: 2 * words });
 function wasmMem(x) {
     const mem = x.memory;
     let heap = (x.__heap_base.value + 7) & ~7;
     const buf = () => mem.buffer;
+    // A wasm32 address is UNSIGNED, but an export hands it to JS as an i32: past
+    // 2 GB of memory (a kernel grown many times — the old tables stay behind) the
+    // table's address comes back negative. Every view reads its address unsigned.
     return {
+        // 8-byte alignment in ARITHMETIC — `& ~7` is a 32-bit signed op, and past
+        // 2 GB it wraps the heap negative
         alloc(bytes) { const at = heap; const end = at + bytes; if (end > mem.buffer.byteLength)
-            mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536)); heap = (end + 7) & ~7; return at; },
-        u8: (at, n) => new Uint8Array(buf(), at, n),
-        u32: (at, n) => new Uint32Array(buf(), at, n),
-        i32: (at, n) => new Int32Array(buf(), at, n),
-        f64: (at, n) => new Float64Array(buf(), at, n),
+            mem.grow(Math.ceil((end - mem.buffer.byteLength) / 65536)); heap = Math.ceil(end / 8) * 8; return at; },
+        u8: (at, n) => new Uint8Array(buf(), at >>> 0, n),
+        u32: (at, n) => new Uint32Array(buf(), at >>> 0, n),
+        i32: (at, n) => new Int32Array(buf(), at >>> 0, n),
+        f64: (at, n) => new Float64Array(buf(), at >>> 0, n),
     };
 }
 function nativeKernel() {
@@ -93,13 +111,40 @@ function nativeKernel() {
 }
 export function hasNativeKernel() { return nativeKernel() !== null; }
 function nativeMem(nk) {
+    const A = nk.args;
+    const view = (at, kind, n) => { A[0] = at; A[1] = kind; A[2] = n; return nk.view(); };
     return {
-        alloc: (bytes) => nk.alloc(bytes),
-        u8: (at, n) => nk.view(at, 0, n),
-        u32: (at, n) => nk.view(at, 1, n),
-        f64: (at, n) => nk.view(at, 2, n),
-        i32: (at, n) => nk.view(at, 3, n),
+        alloc: (bytes) => { A[0] = bytes; return nk.alloc(); },
+        u8: (at, n) => view(at, 0, n),
+        u32: (at, n) => view(at, 1, n),
+        f64: (at, n) => view(at, 2, n),
+        i32: (at, n) => view(at, 3, n),
     };
+}
+/** The ABI as the loader calls it — `x.kernel_run(k, rule)` — over a native
+ *  kernel whose functions read their arguments from the `args` block. */
+function nativeCalls(nk) {
+    const A = nk.args;
+    const calls = {};
+    for (const name of Object.keys(nk)) {
+        const f = nk[name];
+        if (typeof f !== "function" || !name.startsWith("kernel_"))
+            continue;
+        const fn = f.bind(nk);
+        calls[name] = (a = 0, b = 0, c = 0, d = 0, e = 0, g = 0, h = 0, i = 0, j = 0) => {
+            A[0] = a;
+            A[1] = b;
+            A[2] = c;
+            A[3] = d;
+            A[4] = e;
+            A[5] = g;
+            A[6] = h;
+            A[7] = i;
+            A[8] = j;
+            return fn();
+        };
+    }
+    return calls;
 }
 /** The Mac host's native kernel: the C library in the process, reached
  *  through JavaScriptCore functions and zero-copy views (kernel.md Phase D). */
@@ -107,20 +152,24 @@ export function instantiateKernelNative(image, host, caps = {}) {
     const nk = nativeKernel();
     if (nk === null)
         throw new Error("kernel: no native kernel installed");
-    nk.setHost((rule, elem, target) => host.body(rule, elem, target), () => (host.afterSteps() ? 1 : 0), () => (host.fireChanges() ? 1 : 0), () => { host.endChain(); }, (code, rule) => { host.error(code, rule); }, () => { host.schedule(); }, (rule) => { host.decline(rule); });
+    const hooks = { reserve: () => { } };
+    // each callback reads its arguments before it calls anything that could call back in
+    const IO = nk.io;
+    nk.setHost(() => { IO[3] = host.body(IO[0], IO[1], IO[2]); }, () => { IO[3] = host.afterSteps() ? 1 : 0; }, () => { IO[3] = host.fireChanges() ? 1 : 0; }, () => { host.endChain(); }, () => { host.error(IO[0], IO[1]); }, () => { host.schedule(); }, () => { host.decline(IO[0]); }, () => { hooks.reserve(IO[0]); });
     globalThis.__declareKernelKind = "native";
-    return bindWith(nk, nativeMem(nk), image, withDefaults(caps));
+    return bindWith(nativeCalls(nk), nativeMem(nk), image, withDefaults(caps), hooks);
 }
-function bind(instance, image, c) {
+function bind(instance, image, c, hooks) {
     const x = instance.exports;
     globalThis.__declareKernelKind = "wasm";
-    return bindWith(x, wasmMem(x), image, c);
+    return bindWith(x, wasmMem(x), image, c, hooks);
 }
-function bindWith(x, mem, image, c) {
+function bindWith(x, mem, image, c, hooks) {
     const imgAt = mem.alloc(image.length);
     mem.u8(imgAt, image.length).set(image);
     const capsAt = mem.alloc(32);
-    mem.u32(capsAt, 8).set([c.extra_elems, c.extra_cells, c.extra_rules, c.dyn_edges, c.ring, c.code_words, c.consts, c.track_ring]);
+    const writeCaps = (cc) => { mem.u32(capsAt, 8).set([cc.extra_elems, cc.extra_cells, cc.extra_rules, cc.dyn_edges, cc.ring, cc.code_words, cc.consts, cc.track_ring]); };
+    writeCaps(c);
     const arenaBytes = x.kernel_arena_size(imgAt, image.length, capsAt);
     if (arenaBytes === 0)
         throw new Error("kernel: bad image");
@@ -128,21 +177,29 @@ function bindWith(x, mem, image, c) {
     const k = x.kernel_load(imgAt, image.length, capsAt, arenaAt, arenaBytes, 0);
     if (k === 0)
         throw new Error("kernel: load failed");
-    const capacity = x.kernel_cells(k) + c.extra_cells;
-    const tableAt = x.kernel_table(k);
+    // what the image itself holds, per table: a capacity is image + extra
+    const usageAt = mem.alloc(48);
+    const usage = () => { x.kernel_usage(k, usageAt); return mem.u32(usageAt, 12); };
+    const u0 = usage();
+    const base = { cells: u0[0], rules: u0[2], elems: u0[6], code: u0[8], consts: u0[10] };
+    let caps = { ...c };
+    // the TABLE's size — the image's cells plus the extra the capacities ask for;
+    // never the cells in use plus the extra, which equals it only at load
+    let capacity = base.cells + c.extra_cells;
+    let tableAt = x.kernel_table(k);
     let scratchCap = SCRATCH_START;
     let scratchAt = mem.alloc(4 * scratchCap);
-    const dirtyAt = mem.alloc(4 * capacity);
-    const kdirtyAt = mem.alloc(4 * capacity);
+    let dirtyAt = mem.alloc(4 * capacity);
+    let kdirtyAt = mem.alloc(4 * capacity);
     const ringCapAt = mem.alloc(4);
-    const ringAt = x.kernel_ring(k, ringCapAt);
+    let ringAt = x.kernel_ring(k, ringCapAt);
     const ringCap = mem.u32(ringCapAt, 1)[0];
-    const trackAt = x.kernel_track_ring(k, ringCapAt);
+    let trackAt = x.kernel_track_ring(k, ringCapAt);
     const trackCap = mem.u32(ringCapAt, 1)[0];
-    const stateAt = x.kernel_state_ptr(k, ringCapAt);
+    let stateAt = x.kernel_state_ptr(k, ringCapAt);
     const ruleStride = mem.u32(ringCapAt, 1)[0];
-    const ruleCap = x.kernel_rule_cap(k);
-    // Views are taken once, after every allocation: memory never grows after load.
+    let ruleCap = x.kernel_rule_cap(k);
+    // Views are taken after every allocation, and again after the kernel grows (retake).
     let kdirty = mem.u32(kdirtyAt, capacity);
     const table0 = mem.f64(tableAt, capacity);
     const active0 = mem.i32(x.kernel_active_ptr(k), 1);
@@ -160,6 +217,7 @@ function bindWith(x, mem, image, c) {
     /** Re-take every view and hand the fresh ones back to whoever cached them.
      *  Called after any allocation that may have grown (and so detached) memory. */
     const retake = () => {
+        self.capacity = capacity;
         scratch = mem.u32(scratchAt, scratchCap);
         dirtyView = mem.u32(dirtyAt, capacity);
         self.table = mem.f64(tableAt, capacity);
@@ -195,6 +253,52 @@ function bindWith(x, mem, image, c) {
         scratchAt = at;
         retake();
     };
+    /** GROWTH (kernel.c kernel_grow): any table that would be past half full
+     *  doubles. Checked after every settle, and when an allocating call reports
+     *  DK_ERR_FULL — which may be from inside a settle (a body building rows): the
+     *  kernel keeps its address and holds no table address across a host call, so
+     *  its tables can move at any time. The old tables are left behind (WebAssembly
+     *  memory cannot shrink; on the Mac the first arena also holds the kernel).
+     *  Returns whether the kernel grew. */
+    const reserve = (need = NO_NEED) => {
+        const u = usage();
+        // a table doubles until what it holds — plus what the call about to be made needs — fills at most half of it
+        const grown = (used, cap, more = 0) => { let n = cap; while ((used + more) * 2 > n)
+            n *= 2; return n; };
+        const cells = grown(u[0], u[1], need.cells), rules = grown(u[2], u[3], need.rules), nodes = grown(u[4], u[5], need.nodes);
+        const elems = grown(u[6], u[7], need.elems), code = grown(u[8], u[9], need.code), consts = grown(u[10], u[11], need.consts);
+        if (cells === u[1] && rules === u[3] && nodes === u[5] && elems === u[7] && code === u[9] && consts === u[11])
+            return false;
+        const next = { ...caps, extra_cells: cells - base.cells, extra_rules: rules - base.rules, dyn_edges: nodes,
+            extra_elems: elems - base.elems, code_words: code - base.code, consts: consts - base.consts };
+        writeCaps(next);
+        const bytes = x.kernel_arena_size(imgAt, image.length, capsAt);
+        const at = bytes === 0 ? 0 : mem.alloc(bytes);
+        const grew = at !== 0 && x.kernel_grow(k, imgAt, image.length, capsAt, at, bytes) !== 0;
+        writeCaps(grew ? next : caps);
+        if (!grew) {
+            retake();
+            return false;
+        } // the allocation may have moved memory under the views
+        caps = next;
+        capacity = base.cells + caps.extra_cells;
+        tableAt = x.kernel_table(k);
+        ringAt = x.kernel_ring(k, ringCapAt);
+        trackAt = x.kernel_track_ring(k, ringCapAt);
+        stateAt = x.kernel_state_ptr(k, ringCapAt);
+        ruleCap = x.kernel_rule_cap(k);
+        dirtyAt = mem.alloc(4 * capacity);
+        kdirtyAt = mem.alloc(4 * capacity);
+        retake();
+        return true;
+    };
+    /** An allocating call, and what it needs: on DK_ERR_FULL, grow for that need and try once more. */
+    const roomy = (need, call) => {
+        const r = call();
+        return r === DK_ERR_FULL && reserve(need) ? call() : r;
+    };
+    // the kernel asks, before draining a rule's reads, when they may not fit the edge table
+    hooks.reserve = (nodes) => { reserve({ nodes }); };
     const edgesIn = (edges) => {
         ensureScratch(edges.length);
         scratch.set(edges);
@@ -203,6 +307,7 @@ function bindWith(x, mem, image, c) {
     const self = {
         table: table0, active: active0, capacity,
         cells: () => x.kernel_cells(k), rules: () => x.kernel_rules(k),
+        tableSize: () => usage()[1],
         write: (cell, v) => x.kernel_write(k, cell, v),
         set: (cell, v) => x.kernel_set(k, cell, v),
         touch: (cell) => { x.kernel_touch(k, cell); },
@@ -215,14 +320,14 @@ function bindWith(x, mem, image, c) {
         dispose: (rule) => { x.kernel_dispose(k, rule); },
         suspend: (rule) => { x.kernel_suspend(k, rule); },
         resume: (rule) => x.kernel_resume(k, rule),
-        track: (cell) => x.kernel_track(k, cell),
-        settle: () => x.kernel_settle(k),
+        track: (cell) => roomy({ nodes: 1 }, () => x.kernel_track(k, cell)),
+        settle: () => { const r = x.kernel_settle(k); reserve(); return r; },
         pending: () => x.kernel_pending(k) === 1,
         dirty: () => { const n = x.kernel_dirty(k, dirtyAt, capacity); return dirtyView.subarray(0, Math.min(n, capacity)); },
         /** Re-read the views after a growth — the runtime caches them (reactive.ts bindKernel). */
         onGrow: (cb) => { onGrow = cb; },
-        addCell: (kind, structural) => x.kernel_add_cell(k, kind, structural ? 1 : 0),
-        addCells: (n) => x.kernel_add_cells(k, n, 0),
+        addCell: (kind, structural) => roomy({ cells: 1 }, () => x.kernel_add_cell(k, kind, structural ? 1 : 0)),
+        addCells: (n) => roomy({ cells: n }, () => x.kernel_add_cells(k, n, 0)),
         clearCells: (base, n) => { x.kernel_clear_cells(k, base, n); },
         ring: ring0, ringCount: ringCount0, ringCap,
         trackRing: trackRing0, trackCount: trackCount0, trackCap,
@@ -230,27 +335,27 @@ function bindWith(x, mem, image, c) {
         pendingFlag: pendingFlag0,
         listened: (cell) => cell < staticCells || cellDyn[cell] !== 0xffffffff,
         flush: () => { x.kernel_flush(k); },
-        addCode: (words) => { ensureScratch(words.length); scratch.set(words); return x.kernel_add_code(k, scratchAt, words.length); },
-        addConst: (v) => x.kernel_add_const(k, v),
+        addCode: (words) => roomy({ code: words.length }, () => { ensureScratch(words.length); scratch.set(words); return x.kernel_add_code(k, scratchAt, words.length); }),
+        addConst: (v) => roomy({ consts: 1 }, () => x.kernel_add_const(k, v)),
         kdirty: () => { const n = x.kernel_kdirty(k, kdirtyAt, capacity); return kdirty.subarray(0, Math.min(n, capacity)); },
-        addExprRule: (target, flags, edges, codeOffset, ncode) => x.kernel_add_rule(k, target, 0, flags, scratchAt, edgesIn(edges), codeOffset, ncode, 0),
+        addExprRule: (target, flags, edges, codeOffset, ncode) => roomy({ rules: 1, nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_add_rule(k, target, 0, flags, scratchAt, n, codeOffset, ncode, 0); }),
         viewLayout: (layout) => { scratch.set(VIEW_LAYOUT_FIELDS.map((f) => layout[f] ?? 0)); x.kernel_view_layout(k, scratchAt); },
         viewDprCell: (cell) => { x.kernel_view_dpr_cell(k, cell); },
-        viewAdd: (base, parent) => x.kernel_view_add(k, base, parent),
+        viewAdd: (at, parent) => roomy({ elems: 1 }, () => x.kernel_view_add(k, at, parent)),
         viewParent: (view, parent) => { x.kernel_view_parent(k, view, parent); },
         viewRemove: (view) => { x.kernel_view_remove(k, view); },
-        visAdd: (view, root) => x.kernel_vis_add(k, view, root),
+        visAdd: (view, root) => roomy(VIS_NEED, () => x.kernel_vis_add(k, view, root)),
         visRewire: (rule) => x.kernel_vis_rewire(k, rule),
         // the staging pointer is read AFTER edgesIn: a growth moves it, and JS
         // evaluates arguments left to right, so an inline `scratchAt` would be stale
-        extentAdd: (axis, target, words) => { const n = edgesIn(words); return x.kernel_extent_add(k, axis, target, scratchAt, n); },
-        extentRewire: (rule, words) => { const n = edgesIn(words); return x.kernel_extent_rewire(k, rule, scratchAt, n); },
+        extentAdd: (axis, target, words) => roomy(extentNeed(words.length, 1), () => { const n = edgesIn(words); return x.kernel_extent_add(k, axis, target, scratchAt, n); }),
+        extentRewire: (rule, words) => roomy(extentNeed(words.length, 0), () => { const n = edgesIn(words); return x.kernel_extent_rewire(k, rule, scratchAt, n); }),
         freeCell: (cell) => { x.kernel_free_cell(k, cell); },
         state: (rule) => x.kernel_state(k, rule),
         deps: (rule) => { const n = x.kernel_deps(k, rule, scratchAt, scratchCap); return Array.from(scratch.subarray(0, Math.min(n, scratchCap))); },
         abort: () => { x.kernel_abort(k); },
-        rewire: (rule, edges) => { const n = edgesIn(edges); return x.kernel_rewire(k, rule, scratchAt, n); },
-        addRule: (target, kind, flags, edges, body = 0) => { const n = edgesIn(edges); return x.kernel_add_rule(k, target, kind, flags, scratchAt, n, 0, 0, body); },
+        rewire: (rule, edges) => roomy({ nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_rewire(k, rule, scratchAt, n); }),
+        addRule: (target, kind, flags, edges, body = 0) => roomy({ rules: 1, nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_add_rule(k, target, kind, flags, scratchAt, n, 0, 0, body); }),
     };
     return self;
 }

@@ -52,7 +52,7 @@
 
 import { DeclareError, DeclareErrors, type Pos } from "./errors.js";
 import { Diag } from "./diagnostics.js";
-import type { PathSeg } from "./datapath.js";
+import type { PathSeg } from "./path-plan.js";
 
 /** A literal value as written — the parser classifies syntax, not type.
  *  `hex` preserves whether a number was written `0x…`: the Color type only
@@ -80,7 +80,12 @@ export type Literal =
   // (`styles = [card, danger]`), and font names / strings / url()·local()
   // sources for the font slots (`fontFamily = [Brand, "sans-serif"]`, a Face's
   // `src = [local("…"), "…"]`). Which item kinds a slot admits is the checker's.
-  | { kind: "list"; items: Literal[]; pos: Pos };
+  | { kind: "list"; items: Literal[]; pos: Pos }
+  // A literal the compiler has already coerced: `value` is what the written
+  // form means in its slot, as plain data (compiler/src/lower-literals.ts).
+  // Every checked literal a program ships arrives this way, so the runtime
+  // parses no literal text a compiled program holds.
+  | { kind: "value"; value: unknown; pos: Pos };
 
 /** `name = value`. */
 export interface Attr {

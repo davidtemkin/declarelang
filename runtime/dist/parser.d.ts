@@ -1,5 +1,5 @@
 import { type Pos } from "./errors.js";
-import type { PathSeg } from "./datapath.js";
+import type { PathSeg } from "./path-plan.js";
 /** A literal value as written — the parser classifies syntax, not type.
  *  `hex` preserves whether a number was written `0x…`: the Color type only
  *  admits the hex-written numeric form (language §6), so the written form is
@@ -51,6 +51,10 @@ export type Literal = {
 } | {
     kind: "list";
     items: Literal[];
+    pos: Pos;
+} | {
+    kind: "value";
+    value: unknown;
     pos: Pos;
 };
 /** `name = value`. */

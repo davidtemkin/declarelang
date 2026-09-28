@@ -1,15 +1,16 @@
 # Modifiers (flags)
 
-There are exactly **two** compile-time modifiers, defined once in the registry
+There are exactly **three** compile-time modifiers, defined once in the registry
 (`compiler/src/flags.ts` — `FLAG_SPECS`) and read the same way by every surface: a CLI switch,
-a server URL query, and a browser URL query all mean the same thing and cannot drift. Both
-compose onto a run or a build.
+a server URL query, and a browser URL query all mean the same thing and cannot drift. They
+compose onto a run or a build; `kernel` matters only to a build.
 
 <!-- generated:flags-table -->
 | modifier | what it does | CLI (`declarec`) | URL | default |
 |---|---|---|---|---|
 | **render** | render through managed DOM, a single <canvas>, or the native Mac host | `--render dom` / `--canvas` | `?render=dom` | `dom` |
 | **crawler** | embed the crawled document in the host page, for crawlers | `--crawler` | `?crawler` | `false` |
+| **kernel** | the reactive kernel a build carries: the C kernel as WebAssembly, or the JavaScript one (a smaller download) | `--kernel wasm` | `?kernel=wasm` | `wasm` |
 <!-- /generated:flags-table -->
 
 Every name is lowercase, and the same name works everywhere: `?render=canvas` on the server,

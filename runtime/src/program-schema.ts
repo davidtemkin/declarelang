@@ -15,8 +15,9 @@
 
 import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
 import { DeclareError, diag, insetOrRadiusMessage, type Pos } from "./errors.js";
-import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, type ComponentSchema } from "./schema.js";
-import { coerce, declaredType, describeLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
+import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, TextSchema, RichTextSchema, type ComponentSchema } from "./schema.js";
+import { fontObjectHint } from "./font-value.js";
+import { coerce, declaredType, describeLiteral, noteLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
 
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES: ReadonlySet<string> = new Set();
@@ -221,7 +222,55 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
  *  the one the corpus needed most, a font stack, was written as a comma-joined
  *  string and parsed back into a list at the other end. ONE LEVEL: a list of
  *  lists is refused, which keeps "bounded" a fact rather than a hope. */
+/** The value a LITERAL provision provides (`View [ textColor = navy ]`). A
+ *  provision has no declared slot on the providing node, but its NAME may match
+ *  a text FACE value (`fontFamily`, `fontWeight`, `textColor`, …), and then it
+ *  coerces exactly as that slot would — a `fontFamily = ["Georgia", "serif"]`
+ *  joins into one family chain, a `fontWeight = normal` keeps the token — so the
+ *  reader (`Text`'s `provided("fontFamily")`) gets a well-formed value. A name
+ *  no face value claims (`accent`, `density`) coerces by its written form.
+ *  Undefined when no form admits the literal. The one context-dependent
+ *  provision, a `theme` naming a theme, is the instantiation's (instantiate.ts);
+ *  the checker computes every other one here, so the compile can ship it as its
+ *  value (compiler/src/lower-literals.ts). */
+export function provisionValue(attr: Attr): unknown {
+  const v = attr.value;
+  if (v.kind === "value") return v.value;
+  // Coerce by the KNOWN face/rich type. The type matters where a token is
+  // ambiguous: `headingWeight = black` is the weight token, not the color
+  // 0x000000 the coerceToken fallback would misread.
+  const ptype = attrType(TextSchema, attr.name) ?? attrType(RichTextSchema, attr.name);
+  let value: unknown;
+  if (ptype?.kind === "font" && ((v.kind === "ident" && v.name !== "null") || v.kind === "list")) {
+    // A bare list of family strings joins into one chain. A font is an object,
+    // reached in a { } — a bare name here is refused (checker), thrown (unchecked).
+    const items = v.kind === "ident" ? [v] : v.items;
+    value = items.map((i) => {
+      if (i.kind === "string") return i.value;
+      throw new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos);
+    }).join(", ");
+  } else {
+    const c = ptype !== null ? coerce(ptype, v) : null;
+    if (c !== null && c.ok) value = c.value;
+    // A bare enum-like token no face type claims still reads as its string; every
+    // other written form coerces by itself (colors, numbers, value constructors).
+    else if (v.kind === "ident" && v.name !== "true" && v.name !== "false" && v.name !== "null") {
+      const cc = coerce({ kind: "color" }, v);
+      value = cc.ok ? cc.value : v.name;
+    } else value = coerceToken(v);
+  }
+  if (value !== undefined) noteLiteral(v, value);
+  return value;
+}
+
 export function coerceToken(lit: Literal): unknown {
+  if (lit.kind === "value") return lit.value;
+  const v = tokenOf(lit);
+  if (v !== undefined) noteLiteral(lit, v);
+  return v;
+}
+
+function tokenOf(lit: Literal): unknown {
   switch (lit.kind) {
     case "list": {
       const out: unknown[] = [];
@@ -404,7 +453,7 @@ export function checkDecl(
   if (type.kind === "array" && d.def.kind === "list") {
     const items: unknown[] = [];
     for (const it of d.def.items) {
-      if (it.kind === "number" || it.kind === "string") { items.push(it.value); continue; }
+      if (it.kind === "number" || it.kind === "string" || it.kind === "value") { items.push(it.value); continue; }
       if (it.kind === "hexColor" || (it.kind === "ident" && it.name !== "null" && it.name !== "true" && it.name !== "false")) {
         const cc = coerce({ kind: "color" }, it);
         if (!cc.ok) {

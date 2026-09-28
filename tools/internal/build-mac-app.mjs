@@ -1,6 +1,6 @@
 // build-mac-app — "Declare Mac.app", assembled and PROVEN.
 //
-//   node tools/internal/build-mac-app.mjs [dest]      (npm run build:mac)
+//   node tools/internal/build-mac-app.mjs [dest] [--force] [--no-stage]      (npm run build:mac)
 //
 // THE PROBLEM THIS SCRIPT EXISTS TO END. The app bakes a copy of the platform —
 // the runtime, the compiler, the library, the two chrome programs — and every
@@ -95,7 +95,7 @@ const bundleInputs = (out) => BUNDLES.find((b) => b.out === out)?.inputs;
 
 const BAKE = [
   { from: "mac-host/.build/release/DeclareMac", to: `Contents/MacOS/${APP_NAME}`,
-    inputs: ["mac-host/Sources", "mac-host/Package.swift"] },
+    inputs: ["mac-host/Sources", "mac-host/Package.swift", "mac-host/build.sh", "kernel/src", "kernel/include"] },
   { from: "browser/mac-env.js", to: "Contents/Resources/mac-env.js" },
   { from: "bundles/declare-mac.js", to: "Contents/Resources/declare-mac.js",
     inputs: bundleInputs("bundles/declare-mac.js") },
@@ -154,7 +154,8 @@ const SKIP_INPUTS = [
   { at: "tsconfig.json" }, { at: "runtime/tsconfig.json" }, { at: "compiler/tsconfig.json" },
   { at: "browser" },                                               // → declare-mac.js + mac-env.js
   { at: "library", only: /\.(declare|json)$/ },                   // baked source, the platform apps included
-  { at: "mac-host/Sources" }, { at: "mac-host/Package.swift" },    // the Swift binary
+  { at: "mac-host/Sources" }, { at: "mac-host/Package.swift" },    // the Swift binary…
+  { at: "mac-host/build.sh" }, { at: "kernel/src" }, { at: "kernel/include" },   // …and the kernel it links
   { at: "mac-host/Declare.icns" },
   { at: "tools/internal/build-mac.mjs" }, { at: "tools/internal/build-compiler.mjs" },
   { at: "tools/internal/build-boot.mjs" }, { at: "tools/internal/build-mac-app.mjs" },
@@ -178,6 +179,8 @@ function inputHashOf() {
 const FLAGS = new Set(process.argv.slice(2).filter((a) => a.startsWith("--")));
 const DEST_ARG = process.argv.slice(2).find((a) => !a.startsWith("--"));
 const FORCE = FLAGS.has("--force");
+// --no-stage: derive regenerates without touching the git index (derive's own flag)
+const NO_STAGE = FLAGS.has("--no-stage");
 
 // ── where it lands ──────────────────────────────────────────────────────────
 //
@@ -264,7 +267,7 @@ say("build:mac");
 say("  derive --only tsc,bundles");
 try {
   const out = execFileSync(process.execPath,
-    [path.join(ROOT, "tools/internal/derive.mjs"), "--only", "tsc,bundles"],
+    [path.join(ROOT, "tools/internal/derive.mjs"), "--only", "tsc,bundles", ...(NO_STAGE ? ["--no-stage"] : [])],
     { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
   for (const line of out.trim().split("\n")) say("    " + line);
 } catch (e) {

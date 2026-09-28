@@ -27,7 +27,7 @@
 // after `:` — so the tracked prefix is never empty.)
 
 import type { Dataset } from "./data.js";
-import type { PathSeg } from "./datapath.js";
+import type { PathSeg } from "./path-plan.js";
 
 /** An RFC 9535 node: a value plus its location — locations are what let
  *  replication cursor each selected record at its REAL place (`:rows[2:8][]`

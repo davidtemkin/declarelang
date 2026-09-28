@@ -1,5 +1,5 @@
 import type { Literal, ShapeField } from "./parser.js";
-import { type Motion } from "./animate.js";
+import type { Motion } from "./animate.js";
 /** A color as one number, or `null` for "no color".
  *
  *  Opaque colors are plain 0xRRGGBB (0…0xFFFFFF) — every number a program
@@ -132,13 +132,6 @@ export declare const stop: (offset: number, color: Color) => GradientStop;
 export declare const stroke: (width: number, color: Color) => Stroke;
 export declare const outline: (width: number, color: Color) => Outline;
 export declare const shadow: (dx: number, dy: number, blur: number, color: Color) => Shadow;
-/** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
- *  canvas `ctx.filter` share it. `scale` maps view units to the target's
- *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
- *  `colorize` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
- *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
- *  after the blit — both leave it out of this string. */
-export declare function filterCss(list: readonly Filter[], scale?: number, tintRef?: (color: Color) => string): string;
 /** How far a filter's output can reach past the painted box, in view units —
  *  a blur's 3σ, a shadow's offset plus its 3σ. The over-scan a backdrop sample
  *  and an offscreen group both pad by (graphics-pass.md §0, the bleed rule). */
@@ -320,16 +313,13 @@ export type Coerced = {
     readonly expected: string;
     readonly found?: string;
 };
+export declare function withLiteralSink<T>(sink: (lit: Literal, value: unknown) => void, run: () => T): T;
+/** Report a literal's value to the sink (coerceToken's untyped path uses it too). */
+export declare function noteLiteral(lit: Literal, value: unknown): void;
 /** Coerce a parsed literal to an attribute type. Pure — safe for the checker
- *  to call speculatively; instantiate assigns the same result. */
+ *  to call speculatively; instantiate assigns the same result. A literal the
+ *  compiler already coerced (`value`) is its value. */
 export declare function coerce(type: AttrType, lit: Literal): Coerced;
-export declare const FILL: string;
-/** A constructor argument as a plain color number (no null). */
-export declare function argColor(lit: Literal): number | null;
-export declare function argNumber(lit: Literal): number | null;
-/** The stops of a written gradient call (after its geometry arguments). */
-export declare function coerceStops(args: Literal[]): GradientStop[] | string;
-export declare function coerceShadow(lit: Literal): Coerced;
 /** A literal as a message names it — "got the string \"wide\"". Hex-written
  *  numbers read back as hex, so a color message shows the channels. */
 export declare function describeLiteral(lit: Literal): string;

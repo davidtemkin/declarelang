@@ -40,51 +40,19 @@
 // resumed only when the last one leaves, so a composing pair displaces its
 // prior owner exactly once and hands it back exactly once.
 import { Node } from "./node.js";
-import { sample, sharedClock, DEFAULT_MOTION } from "./animate.js";
-import { addBound, defineAttributes, disposeBindings, ownerOf, setBound } from "./attributes.js";
-/** The per-target ledger, keyed by slot name (LZX's `__animatedAttributes`).
- *  A Symbol-keyed side table, materialized only when an animator first drives a
- *  slot on the target — pay-per-use, invisible to author reads. */
-const LEDGER = Symbol("animatedAttributes");
-function ledgerFor(target) {
-    const t = target;
-    return (t[LEDGER] ??= new Map());
-}
-/** The target's current numeric value for a slot (0 for a never-written or
- *  non-numeric slot) — read through the ordinary getter, off the tracking path
- *  (a tick never runs inside a constraint's compute), so it registers no dep. */
-function numOf(target, attr) {
-    const v = target[attr];
-    return typeof v === "number" ? v : 0;
-}
+import { DEFAULT_MOTION } from "./animate.js";
+import { defineAttributes, disposeBindings } from "./attributes.js";
+import { TweenRun } from "./tween.js";
+import { AnimatorGroup } from "./animator-group.js";
 export class Animator extends Node {
     perpetual = false;
-    // ── Per-run state: set by start(), read by tick(), cleared by end(). All
-    //    the driving inputs are SAMPLED at start (animation.md §1) so writing
-    //    `to`/`duration`/… mid-run has no effect until a restart. ────────────
-    live = false;
     /** Group-driven: an enclosing AnimatorGroup registers the clock and ticks
      *  us, so start()/stop() must NOT touch the shared clock themselves. */
     grouped = false;
-    runTarget = null;
-    runAttr = "";
-    /** The eased delta this run travels — measured against the ledger's expected
-     *  value (LZX `this.to`), so an absolute `to` composes with everything in
-     *  flight. Excludes the `from` snap (that rides `fromJump`). */
-    runDelta = 0;
-    /** The one-time `from` snap (from − slot's value at start), applied over the
-     *  first frame; 0 when `from` is unset. Deferred to the first tick so a
-     *  restart shows no jump at start() time. */
-    fromJump = 0;
-    /** How much this animator has contributed to the target so far — the sum of
-     *  its written increments, `fromJump + ease(t)·runDelta`. The additive
-     *  currentValue (LZX), one frame's increment being the delta of this. */
-    traveled = 0;
-    runDuration = 0;
-    runMotion = DEFAULT_MOTION;
-    cyclesLeft = 1;
-    elapsed = 0; // accumulated ms in the current cycle (pause-aware)
-    lastNow = null;
+    /** The timed run (tween.ts), made at the first start(). A Spring never
+     *  makes one — it integrates its own tick — so every entry below that
+     *  reaches the run is a no-op until there is one. */
+    run = null;
     autoStarted = false;
     /** Marked by an enclosing AnimatorGroup at construct: the group drives the
      *  clock and cascades attributes, so this animator is group-controlled. */
@@ -132,110 +100,23 @@ export class Animator extends Node {
         else
             this.stop();
     }
-    /** `paused` is clock MEMBERSHIP, not a per-frame flag to poll: a paused
-     *  animator produces no frames, so it must not hold the frame loop open —
-     *  the idle-zero invariant (animate.ts) extends to "frozen counts as idle".
-     *  Pause drops off the clock; resume re-seeds the anchor at NOW (elapsed
-     *  cannot have advanced while unenrolled, so nothing jumps — the same
-     *  re-anchor a scheduler handover uses) and re-enrolls. A grouped member
-     *  keeps the old frozen-tick path instead: its group owns the clock and
-     *  must keep ticking its OTHER members, so the member's own pause cannot
-     *  withdraw the group's ticker. */
+    /** `paused` is clock membership (TweenRun.paused says how). */
     pausedChanged(v) {
-        if (!this.live || this.grouped)
-            return;
-        if (v) {
-            sharedClock.remove(this);
-        }
-        else {
-            this.lastNow = sharedClock.now();
-            sharedClock.add(this);
-        }
+        this.run?.paused(v);
     }
     /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own
-     *  pause calls this down its members, whose anchors went stale while the
-     *  group was off the clock (the unpause twin of rebase()). */
+     *  pause calls this down its members (TweenRun.reanchor). */
     reanchor(now) {
-        if (this.live && this.lastNow !== null)
-            this.lastNow = now;
+        this.run?.reanchor(now);
     }
-    /** Begin driving the target slot through the curve (LZX's doStart). A no-op
-     *  while already running (LZX's guard). Samples from / to / duration /
-     *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
-     *  (displacing the slot's prior non-animator driver on the first arrival). */
+    /** Begin driving the target slot through the curve (LZX's doStart) — the
+     *  timed run, sampled once here (TweenRun.start). A no-op while running. */
     start() {
-        if (this.live)
-            return;
-        const target = this.resolveTarget();
-        const attr = this.attribute;
-        if (target === null || attr === "")
-            return; // no target / unnamed slot: nothing to drive
-        this.runTarget = target;
-        this.runAttr = attr;
-        const ledger = ledgerFor(target);
-        let entry = ledger.get(attr);
-        const fresh = entry === undefined;
-        if (entry === undefined) {
-            entry = { expected: 0, count: 0, displaced: null };
-            ledger.set(attr, entry);
-        }
-        // First animator on this slot displaces the slot's prior (non-animator)
-        // driver one-deep (animation.md §2 rules 2–3) and remembers it in the
-        // ledger; later animators COMPOSE (§4) — they see no owner (an animator
-        // never owns) and simply add on top.
-        if (entry.count === 0) {
-            entry.displaced = ownerOf(target, attr);
-            entry.displaced?.suspend();
-        }
-        const preStart = numOf(target, attr);
-        // A fresh slot's expected end starts at the animator's own start position:
-        // the explicit `from`, else the current value. (An existing entry keeps its
-        // running expected — a composing animator measures against that.)
-        if (fresh)
-            entry.expected = this.from !== null ? this.from : preStart;
-        // The eased delta: `relative` travels `to` outright; an absolute `to`
-        // travels to the author's value measured against the EXPECTED end
-        // (LaszloAnimation.lzs:236–244) so a later `to` composes with what is
-        // already in flight. `expected` then advances to the new running end.
-        this.runDelta = this.relative ? this.to : this.to - entry.expected;
-        entry.expected += this.runDelta;
-        entry.count += 1;
-        // The `from` snap, deferred to the first frame: from a slot not already at
-        // `from`, the first increment jumps it there before easing begins.
-        this.fromJump = this.from !== null ? this.from - preStart : 0;
-        this.traveled = 0;
-        this.runDuration = this.duration;
-        this.runMotion = this.motion;
-        this.cyclesLeft = this.repeat;
-        // Declared perpetuity (Ticker.perpetual): `repeat = Infinity` is life —
-        // it keeps painting without holding settleMotion open.
-        this.perpetual = this.repeat === Infinity;
-        this.elapsed = 0;
-        // Seed the baseline NOW rather than on the first tick (the same enroll-time
-        // rule the Spring adopted, spring.ts: "enrollment is the start of motion"):
-        // a null seed spends the first frame recording a baseline, which under a
-        // hand-cranked clock reads as "the animation never ran" — a full-duration
-        // step() moved nothing (GitHub #17's Animator readout).
-        this.lastNow = sharedClock.now();
-        this.live = true;
-        setBound(this, "running", true); // a new journey (the two facts, above)
-        setBound(this, "arrived", false);
-        // A start under `paused = true` arms without enrolling — frozen at `from`,
-        // zero frames until the resume push re-anchors and enrolls (pausedChanged).
-        if (!this.grouped && !this.paused)
-            sharedClock.add(this);
-        this.fire("onStart");
+        (this.run ??= new TweenRun(this)).start();
     }
-    /** Halt in place — no snap to either end (LZX). Idempotent; a no-op when not
-     *  running. Leaves the ledger (resuming the displaced driver when it was the
-     *  last animator), without landing an end value (animation.md §2). */
+    /** Halt in place — no snap to either end (LZX). Idempotent (TweenRun.stop). */
     stop() {
-        if (!this.live)
-            return;
-        if (!this.grouped)
-            sharedClock.remove(this);
-        this.releaseSlot(false); // halt in place — read runTarget before end() clears it
-        this.end();
+        this.run?.stop();
     }
     /** Retire with the host view (the teardown recursion reaches us): drop off
      *  the clock and dispose our own `{ }` bindings (`to`, `attribute`, …).
@@ -247,99 +128,21 @@ export class Animator extends Node {
         this.stop();
         super.teardown();
     }
-    /** One clock frame (the Ticker contract): advance by real elapsed time,
-     *  write the eased DELTA additively, handle repeat / completion. `frozen`
-     *  (an enclosing group's pause) freezes progression while keeping `lastNow`
-     *  fresh so nothing jumps on unpause. Returns whether still running (false
-     *  drops it from the clock; a group reads it to retire a finished member). */
     /** Shift the anchor across a scheduler handover (Ticker.rebase). */
     rebase(delta) {
-        if (this.lastNow !== null)
-            this.lastNow += delta;
+        this.run?.rebase(delta);
     }
+    /** One clock frame (the Ticker contract; TweenRun.tick). Returns whether
+     *  still running — false drops it from the clock, and a group reads it to
+     *  retire a finished member. */
     tick(now, frozen = false) {
-        if (!this.live)
-            return false;
-        if (this.lastNow === null)
-            this.lastNow = now; // defensive: start() seeds it
-        const dt = Math.max(now - this.lastNow, 0);
-        this.lastNow = now;
-        if (this.paused || frozen)
-            return true; // frozen in place: hold elapsed, stay live
-        this.elapsed += dt;
-        // Consume completed cycles (a large dt may span several) — repeat replays
-        // from→to; the last cycle finishes below.
-        while (this.runDuration > 0 && this.elapsed >= this.runDuration && this.cyclesLeft > 1) {
-            this.elapsed -= this.runDuration;
-            this.cyclesLeft -= 1;
-            this.fire("onRepeat");
-        }
-        const t = this.runDuration > 0 ? Math.min(this.elapsed / this.runDuration, 1) : 1;
-        if (t >= 1) {
-            this.releaseSlot(true); // natural completion: land the full delta / exact expected
-            setBound(this, "arrived", true); // arrived — BEFORE onStop, so its handler reads the landed truth
-            this.end(); // resumes a displaced owner (when last) + fires onStop, which MAY restart us
-            return this.live; // an onStop that called start() keeps the ticker alive; else false → dropped
-        }
-        // The additive write: this animator's cumulative contribution is
-        // `fromJump + ease(t)·runDelta`; land the increment since last frame so it
-        // composes with any other animator's contribution on the same slot.
-        const contribution = this.fromJump + sample(this.runMotion, t, this.runDelta) * this.runDelta;
-        addBound(this.runTarget, this.runAttr, contribution - this.traveled);
-        this.traveled = contribution;
-        return true;
-    }
-    /** Leave the slot's exact-landing ledger. Decrement the live-animator count;
-     *  on a natural completion (`finalize`) with others still running, bring this
-     *  animator's own contribution to its full delta first. When the count hits
-     *  zero: resume the one displaced driver re-evaluated (animation.md §2 rule
-     *  4), and — on a natural completion — assign the exact expected value (no
-     *  float drift, LaszloAnimation.lzs:347–365); a mid-flight stop() halts in
-     *  place, only rolling its un-travelled remainder out of `expected` so the
-     *  animators still running land where they were headed. */
-    releaseSlot(finalize) {
-        const target = this.runTarget;
-        if (target === null)
-            return;
-        const attr = this.runAttr;
-        const ledger = ledgerFor(target);
-        const entry = ledger.get(attr);
-        if (entry === undefined)
-            return;
-        entry.count -= 1;
-        if (finalize && entry.count > 0) {
-            // Others still running: complete my own contribution to its full delta.
-            addBound(target, attr, this.fromJump + this.runDelta - this.traveled);
-            this.traveled = this.fromJump + this.runDelta;
-        }
-        if (entry.count <= 0) {
-            const expected = entry.expected;
-            ledger.delete(attr);
-            if (finalize)
-                setBound(target, attr, expected); // exact landing — assign the expected end outright
-            entry.displaced?.resume(); // the displaced driver takes the slot back, re-evaluated
-        }
-        else if (!finalize) {
-            // Halted in place: withdraw the delta I had not yet travelled so the
-            // remaining animators' expected end value stays consistent.
-            entry.expected -= this.fromJump + this.runDelta - this.traveled;
-        }
-    }
-    /** Shared teardown for imperative stop AND natural completion (LZX has no
-     *  finished-vs-stopped split): mark stopped, clear run state, fire onStop
-     *  (which MAY restart us). The ledger cleanup + displaced resume already ran
-     *  in releaseSlot; this only closes out the animator. */
-    end() {
-        this.live = false;
-        setBound(this, "running", false);
-        this.runTarget = null;
-        this.fire("onStop");
+        return this.run !== null && this.run.tick(now, frozen);
     }
     /** Fire a carried handler if one is installed (onStart / onStop / onRepeat).
      *  A plain Node dispatch — fireEvent (view.ts) is View-typed, and an
-     *  animator is a Node; an absent handler is a silent no-op. PROTECTED
-     *  because Spring integrates its own tick and must announce its own
-     *  arrival through the same door (spring.ts's rest branch). */
+     *  animator is a Node; an absent handler is a silent no-op. The timed run
+     *  (tween.ts) and a Spring's own tick (spring.ts's rest branch) both
+     *  announce through it. */
     fire(handler) {
         const h = this[handler];
         if (typeof h === "function")
@@ -359,192 +162,4 @@ defineAttributes(Animator, {
     running: { def: false },
     arrived: { def: false },
 });
-/** AnimatorGroup — coordinates several animators (or nested groups) in
- *  `sequential` or `simultaneous` order (animation.md §1, LzAnimatorGroup.lzs).
- *  A twin-table component exactly like Animator: it carries the same
- *  started/paused/start()/stop()/repeat surface, and it — not its children —
- *  is the driver (a member's own `started` is ignored; the group starts them).
- *  It registers ONE ticker with the shared clock and forwards the same `now`
- *  to its members each frame ("to ensure that all animators are synched",
- *  LzAnimatorGroup.lzs:475), so a whole group's motion stays in lockstep and
- *  the idle-zero invariant holds for the group as a unit. Members compose on a
- *  shared slot through the same additive ledger an ungrouped pair uses. */
-export class AnimatorGroup extends Node {
-    live = false;
-    /** The members still to finish this run, in tree order — LZX's `actAnim`. */
-    active = [];
-    cyclesLeft = 1;
-    grouped = false;
-    autoStarted = false;
-    markGrouped() {
-        this.grouped = true;
-    }
-    /** This group's members (child Animators / AnimatorGroups), in tree order. */
-    members() {
-        return this.children.filter(isAnimatable);
-    }
-    autoStart() {
-        if (this.autoStarted || this.grouped)
-            return; // an enclosing group drives us
-        this.autoStarted = true;
-        if (this.started)
-            this.start();
-    }
-    /** The group's own `started`, reactive exactly as an Animator's (see
-     *  Animator.startedChanged) — the group is the driver, so a change here
-     *  starts or stops the whole group, members included. */
-    startedChanged(v) {
-        if (!this.autoStarted || this.grouped)
-            return;
-        if (v)
-            this.start();
-        else
-            this.stop();
-    }
-    /** The group's own pause is clock membership too (see Animator.pausedChanged):
-     *  off the clock while paused — members freeze because nothing ticks them —
-     *  and on resume every running member's anchor is re-seeded at NOW before the
-     *  group re-enrolls, so no member measures the pause as elapsed time. */
-    pausedChanged(v) {
-        if (!this.live || this.grouped)
-            return;
-        if (v) {
-            sharedClock.remove(this);
-        }
-        else {
-            this.reanchor(sharedClock.now());
-            sharedClock.add(this);
-        }
-    }
-    /** Cascade the unpause re-anchor down (Animator.reanchor). */
-    reanchor(now) {
-        for (const m of this.active) {
-            m.reanchor?.(now);
-        }
-    }
-    /** Begin the group (LZX doStart): snapshot the members to run this cycle and
-     *  register the one group ticker (unless the group is itself group-driven).
-     *  Members are NOT started here — each is started lazily when it first
-     *  becomes active (so a sequential member samples its `from` only once the
-     *  members before it have moved the slot). */
-    start() {
-        if (this.live)
-            return;
-        this.live = true;
-        setBound(this, "running", true);
-        setBound(this, "arrived", false);
-        this.cyclesLeft = this.repeat;
-        this.active = this.members();
-        // Armed-but-frozen under `paused = true`, exactly as an Animator's start
-        // (pausedChanged enrolls on resume).
-        if (!this.grouped && !this.paused)
-            sharedClock.add(this);
-        this.fire("onStart");
-    }
-    /** Stop the group (LZX stop): halt every still-running member in place, drop
-     *  the group ticker, fire onStop. Idempotent. */
-    stop() {
-        if (!this.live)
-            return;
-        if (!this.grouped)
-            sharedClock.remove(this);
-        for (const m of this.active)
-            if (m.running)
-                m.stop();
-        this.endGroup();
-    }
-    /** Retire with the host view: drop the group ticker + own bindings, then
-     *  recurse so each member animator disposes its own bindings too. */
-    teardown() {
-        disposeBindings(this);
-        this.stop();
-        super.teardown();
-    }
-    /** One group frame: drive the active members with the shared `now`, retire
-     *  the finished, replay or finish when all are done. `sequential` advances
-     *  only the head member per frame; `simultaneous` advances all. A `frozen`
-     *  group (its own pause, or an enclosing group's) keeps running members'
-     *  clocks fresh but neither starts pending members nor advances progression. */
-    rebase(delta) {
-        // The group is the enrolled ticker; the anchors live in its members.
-        for (const m of this.active)
-            m.rebase?.(delta);
-    }
-    tick(now, frozen = false) {
-        if (!this.live)
-            return false;
-        const freeze = frozen || this.paused;
-        if (freeze) {
-            for (const m of this.active)
-                if (m.running)
-                    m.tick(now, true);
-            return true;
-        }
-        if (this.process === "sequential") {
-            const head = this.active[0];
-            if (head !== undefined) {
-                if (!head.running)
-                    head.start(); // lazy start — samples `from` now
-                if (!head.tick(now))
-                    this.active.shift();
-            }
-        }
-        else {
-            let i = 0;
-            while (i < this.active.length) {
-                const m = this.active[i];
-                if (!m.running)
-                    m.start();
-                if (m.tick(now))
-                    i += 1;
-                else
-                    this.active.splice(i, 1);
-            }
-        }
-        if (this.active.length === 0)
-            return this.cycleComplete();
-        return true;
-    }
-    /** All members done: replay the whole group (repeat) or finish it. */
-    cycleComplete() {
-        if (this.cyclesLeft > 1) {
-            this.cyclesLeft -= 1;
-            this.fire("onRepeat");
-            this.active = this.members();
-            return true;
-        }
-        this.endGroup();
-        return this.live; // an onStop that restarted the group keeps the ticker alive
-    }
-    endGroup() {
-        this.live = false;
-        setBound(this, "running", false);
-        this.active = [];
-        this.fire("onStop");
-    }
-    fire(handler) {
-        const h = this[handler];
-        if (typeof h === "function")
-            h.call(this);
-    }
-}
-defineAttributes(AnimatorGroup, {
-    attribute: { def: "" },
-    to: { def: 0 },
-    from: { def: null },
-    relative: { def: false },
-    duration: { def: 1000 },
-    motion: { def: DEFAULT_MOTION },
-    process: { def: "sequential" },
-    repeat: { def: 1 },
-    started: { def: false, push: (s, v) => s.startedChanged(v) },
-    paused: { def: false, push: (s, v) => s.pausedChanged(v) },
-    running: { def: false },
-    arrived: { def: false },
-});
-/** Is this node an animation member a group can drive — an Animator or a nested
- *  AnimatorGroup? (The runtime twin of `descendsFrom(schema, "AnimatorGroup")`.) */
-function isAnimatable(n) {
-    return n instanceof Animator || n instanceof AnimatorGroup;
-}
 //# sourceMappingURL=animator.js.map

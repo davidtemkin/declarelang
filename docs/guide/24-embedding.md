@@ -85,6 +85,16 @@ it too (`el.__declareApp`), which is the embedder's way in:
   (`app.hostServices = { navigate: to => router.push(to) }`) and a link
   inside the widget routes through your SPA router instead of the browser.
 
+**A page with a strict Content-Security-Policy.** Two things a Declare app does
+fall under a policy that forbids `eval`. Compiling in the browser turns the program's
+`{ }` bodies into functions; a production build (`declarec`) ships them already compiled,
+so it needs no allowance for that. And the reactive kernel is WebAssembly by default,
+which a policy admits with `'wasm-unsafe-eval'` in `script-src` — an allowance for
+WebAssembly alone, not for JavaScript `eval`. When the policy is yours, add it; when you
+are embedding into a page whose policy you do not control, build with `--kernel js` and
+the app carries a JavaScript kernel instead, a little slower on the heaviest updates
+([Packaging and shipping](declare-docs:guide:packaging)).
+
 For where the `/declare/` platform files come from in your project — the
 mounts, the dev server, production builds — see
 [Embedding Declare in a project](declare-docs:operational:embedding); that

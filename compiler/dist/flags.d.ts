@@ -17,6 +17,12 @@ export interface CompileFlags {
      *  the `extract` REQUEST (reqtypes.ts REQ.EXTRACT / `?extract`), which returns that
      *  document ALONE. */
     crawler: boolean;
+    /** Which reactive KERNEL a build carries (`?kernel=js` / `--kernel js`): the C
+     *  kernel compiled to WebAssembly (the default, the fastest), or the JavaScript
+     *  kernel — the same results from a smaller download, with no WebAssembly bytes
+     *  or loader in the bundle (docs/system-design/kernel.md). The Mac host always
+     *  runs its native kernel. */
+    kernel: "wasm" | "js";
 }
 /** One spec per modifier — the SINGLE source of truth every surface derives from.
  *  `name` is the canonical `CompileFlags` field (also the URL/CLI name). Add a

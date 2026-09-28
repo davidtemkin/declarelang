@@ -110,9 +110,10 @@ await test("the default types a read: another kind answers the default, with a w
       isl: DOMIsland [ width = 10, height = 10, provides = ["volume"], volume: number = 3 ] ]`);
   const tenant = await boot(`App [ width = 10, loud: string = { hostProvided("volume", "quiet") } ]`, { settled: false });
   const unlink = linkIslandTenant(host.isl, tenant);
-  settle();
   let loud;
-  const w = await warnings(() => { loud = tenant.loud; });
+  // the default stands as a rule: it reads the host's value when it runs (the
+  // settle), not when the slot is read — the warning is captured across both
+  const w = await warnings(() => { settle(); loud = tenant.loud; });
   try {
     assert.equal(loud, "quiet", "a number where a string was asked for answers the default");
     assert.ok(w.some((m) => /volume/.test(m)), "…and says so, naming the value");

@@ -29,10 +29,11 @@ import { DeclareError } from "./errors.js";
 import { endChangeChain, fireChanges } from "./change-event.js";
 import {
   instantiateKernel, instantiateKernelSync, instantiateKernelNative, hasNativeKernel, decodeWasm, emptyImage,
-  KERNEL_ERR, KERNEL_KIND, KERNEL_FLAG, KERNEL_STATE, CELL_KIND,
+  KERNEL_ERR, KERNEL_KIND, KERNEL_FLAG, KERNEL_STATE, KERNEL_TRACK, CELL_KIND,
   type Kernel, type KernelCaps, type KernelHost,
 } from "./kernel-loader.js";
 import { KERNEL_WASM_B64 } from "./kernel-wasm.js";
+import { instantiateKernelJS as kernelJS } from "./kernel-js.js";
 import type { instantiateKernelJS } from "./kernel-js.js";
 import { traceKernel, traceTarget, type Trace } from "./kernel-trace.js";
 
@@ -75,14 +76,13 @@ export function touchCell(cell: number): void {
   if (!inSettle) schedule();
 }
 
-/** Capacities for the runtime-allocated tables (an empty image: every cell
- *  and rule is added at runtime until the compiler emits them). Sized for the
- *  largest program in the corpus several times over; a spent capacity is a
- *  loud error, not a silent stall. */
-/* 1M cells (a Text view takes ~30 numeric slots; the homepage with its data
- * landed holds ~4K Texts = 120K cells), 128K rules, 1M dynamic edges. Reserved,
- * not touched: the kernel initializes cells and edges as it hands them out. */
-const DEFAULT_CAPS: Required<KernelCaps> = { extra_elems: 1 << 18, extra_cells: 1 << 22, extra_rules: 1 << 18, dyn_edges: 1 << 21, ring: 1 << 16, code_words: 1 << 20, consts: 1 << 16, track_ring: 1 << 14 };
+/** THE OPENING CAPACITIES, the same for every kernel (WebAssembly, the Mac's
+ *  native one, the JavaScript one). An opening size, not a ceiling: each kernel
+ *  doubles a table on demand (kernel-loader.ts `reserve`, kernel-js.ts `grow`).
+ *  Reserved, not touched — a table's memory is written only as it is handed out,
+ *  so a small program pays for what it uses. The corpus's largest program holds
+ *  ~24K cells and ~2K rules at boot; these open at forty times that. */
+const DEFAULT_CAPS: Required<KernelCaps> = { extra_elems: 1 << 16, extra_cells: 1 << 20, extra_rules: 1 << 17, dyn_edges: 1 << 19, ring: 1 << 16, code_words: 1 << 18, consts: 1 << 14, track_ring: 1 << 14 };
 
 /** Every live Constraint by kernel rule id — the body callback's lookup. */
 const RULES: Array<Constraint | null> = [];
@@ -133,7 +133,11 @@ const HOST: KernelHost = {
   body(rule) {
     const c = RULES[rule];
     if (c === null || c === undefined) return 0;
-    try { c.runBody(); }
+    // PHASE 1 (a draw) runs on settled values, their surfaces included: what the
+    // kernel wrote so far (EXPR and kernel-landed rules) is pushed first, as a
+    // JS write would have been at write time
+    if (c.phase === 1 && pushHook !== null) { const d = K!.kdirty(); if (d.length > 0) pushHook(d); }
+    try { return c.runBody(); }
     catch (e) {
       // A body threw. NESTED (entered through a JS run() — a replicator
       // constructing a row inside its own apply): hand the error to that JS
@@ -142,8 +146,9 @@ const HOST: KernelHost = {
       // the settle, and settle() throws it once the kernel has unwound.
       if (pendingError === null) pendingError = e;
       if (outer.length === 0) K!.abort();
+      // a kernel-landed rule's cell keeps its value: the kernel lands what we return
+      return c.landedCell >= 0 ? table[c.landedCell] : 0;
     }
-    return 0;
   },
   afterSteps() {
     // THE CLOSE opens with the kernel's writes reaching their Surfaces: a JS
@@ -339,7 +344,44 @@ function armTrace(k: Kernel): Kernel {
   return t.kernel;
 }
 
+/** THE KERNEL A BUILD CARRIES (build-flags.d.ts __DECLARE_KERNEL__). A
+ *  `--kernel=js` build imports the JavaScript kernel and nothing else: the
+ *  condition folds, the WebAssembly bytes and their loader are unreferenced, and
+ *  the bundle drops them. The Mac host's runtime (`native`) binds the C kernel
+ *  linked into the app and carries no WebAssembly either. Every other build
+ *  takes the WebAssembly path below. */
 export function kernelReady(caps?: KernelCaps): Promise<void> {
+  return (typeof __DECLARE_KERNEL__ !== "undefined" && __DECLARE_KERNEL__ === "js") ? (startJsKernel(caps), Promise.resolve())
+    : (typeof __DECLARE_KERNEL__ !== "undefined" && __DECLARE_KERNEL__ === "native") ? (startNativeKernel(caps), Promise.resolve())
+    : kernelReadyCompiled(caps);
+}
+export function kernelReadySync(caps?: KernelCaps): void {
+  (typeof __DECLARE_KERNEL__ !== "undefined" && __DECLARE_KERNEL__ === "js") ? startJsKernel(caps)
+    : (typeof __DECLARE_KERNEL__ !== "undefined" && __DECLARE_KERNEL__ === "native") ? startNativeKernel(caps)
+    : kernelReadySyncCompiled(caps);
+}
+/** The Mac host's kernel: the C kernel linked into the app, which the host
+ *  installs before this runtime loads (kernel.md Phase D). The JavaScript kernel
+ *  stands in only when asked for, to debug the kernel itself (__declareKernelJS,
+ *  DECLARE_KERNEL=js). A host that installed none is a broken build, said so. */
+function startNativeKernel(caps?: KernelCaps): void {
+  if (K !== null) return;
+  if (wantsJsKernel()) { startJsKernel(caps); return; }
+  if (!hasNativeKernel()) throw new DeclareError("this is the Mac host's runtime, and the host installed no kernel — the app's build is incomplete (mac-host/build.sh links the kernel; Bridge.swift installs it)");
+  K = instantiateKernelNative(emptyImage(), HOST, { ...DEFAULT_CAPS, ...caps });
+  if (typeof __DECLARE_JS_KERNEL__ === "undefined" || __DECLARE_JS_KERNEL__) K = armTrace(K);
+  bindKernel(K);
+}
+/** A `--kernel=js` build's kernel: imported with the bundle, ready at once. */
+function startJsKernel(caps?: KernelCaps): void {
+  if (K !== null) return;
+  K = kernelJS(HOST, { ...DEFAULT_CAPS, ...caps });
+  (globalThis as { __declareKernelKind?: string }).__declareKernelKind = "js";
+  bindKernel(K);
+}
+
+/** The compiled kernel: WebAssembly in a browser or node, native on the Mac. */
+function kernelReadyCompiled(caps?: KernelCaps): Promise<void> {
   if (K !== null) return Promise.resolve();
   if ((typeof __DECLARE_JS_KERNEL__ === "undefined" || __DECLARE_JS_KERNEL__) && wantsJsKernel()) return loadJsKernel().then(() => { kernelReadySync(caps); });
   if (loading === null) {
@@ -379,12 +421,13 @@ export function kernelReady(caps?: KernelCaps): Promise<void> {
 // switch) must not compile the WASM at all.
 if (typeof document !== "undefined" && typeof WebAssembly !== "undefined"
     && !(typeof __DECLARE_NATIVE_KERNEL__ !== "undefined" && __DECLARE_NATIVE_KERNEL__)
+    && !(typeof __DECLARE_KERNEL__ !== "undefined" && __DECLARE_KERNEL__ === "js")
     && !((typeof __DECLARE_JS_KERNEL__ === "undefined" || __DECLARE_JS_KERNEL__) && wantsJsKernel())) {
   kernelReady().catch(() => { /* boot re-awaits and reports the failure itself */ });
 }
 
 /** The synchronous form, where the engine allows it (JavaScriptCore, node). */
-export function kernelReadySync(caps?: KernelCaps): void {
+function kernelReadySyncCompiled(caps?: KernelCaps): void {
   if (K !== null) return;
   // NATIVE_KERNEL is false in web builds, so the native binding folds out here
   // and `instantiateKernelNative` leaves the bundle with it.
@@ -486,9 +529,18 @@ export function isTracking(): boolean {
 /** Cell.track for a raw kernel cell — a numeric slot living in the kernel's
  *  table (attributes.ts) has no Cell object; the table cell IS its node. */
 /** Land the track ring's entries under the rule that is active NOW (before
- *  the active rule changes hands — untracked(), the apply switch). */
+ *  the active rule changes hands — untracked(), the apply switch). An owner
+ *  mark says so without a call (declare_kernel.h DK_TRACK_OWNER): the kernel
+ *  links the reads when it next drains. Writes waiting in the write ring still
+ *  flush here, so their wakes keep their place ahead of whatever runs next. */
 function drainTrack(): void {
-  if (trackCount[0] > 0) K!.flush();
+  const n = trackCount[0];
+  // nothing unattributed: no read since the ring drained or since the last mark
+  if (n === 0 || (trackRing[n - 1] & KERNEL_TRACK.OWNER) !== 0) return;
+  if (ringCount[0] > 0 || n >= trackCap) { K!.flush(); return; }
+  const a = ACTIVE[0];
+  trackRing[n] = KERNEL_TRACK.OWNER | (a < 0 ? KERNEL_TRACK.NOBODY : a);
+  trackCount[0] = n + 1;
 }
 export function trackCell(cell: number): void {
   if (S.collecting !== null) S.collecting.add(cell);
@@ -638,6 +690,34 @@ export class Constraint {
    *  body, bind.ts); this object is its handle for ownership, labels and
    *  disposal. The kernel never calls back into it. */
   private native = false;
+  /** KERNEL-LANDED: the numeric table cell this rule's value lands in, written
+   *  by the kernel from what the body returns (set_value: gate, store, wake; the
+   *  surface push follows at the settle's close, as for an EXPR rule) instead of
+   *  by the JS write path. −1: the rule lands its own value. */
+  landedCell = -1;
+  private accepts: ((v: unknown) => boolean) | null = null;
+  private landsBool = false;
+  /** @internal Land values through the kernel (attributes.ts kernelLanding):
+   *  before the rule exists, since the kernel learns its target when it is added. */
+  landInKernel(land: { cell: number; bool: boolean; accepts: (v: unknown) => boolean }): void {
+    if (this.id >= 0) return;
+    this.landedCell = land.cell; this.landsBool = land.bool; this.accepts = land.accepts;
+  }
+  /** What the kernel lands for `v`: the number itself, or — for a value the
+   *  table cannot take — the JS write lands it and the cell's own value goes
+   *  back, which the kernel's equality gate lets through as no change. The gate
+   *  is JS `===` in both kernels (NaN never gates, -0 equals 0) — the one a JS
+   *  write to a table slot already passed through: kernel.md §10a. */
+  private landing(v: unknown, tracked: boolean): number {
+    if (this.accepts!(v)) return this.landsBool ? (v ? 1 : 0) : v as number;
+    if (!tracked) { this.apply(v); return table[this.landedCell]; }
+    const mine = K!.active[0];
+    drainTrack();
+    K!.active[0] = outer.length > 0 ? outer[outer.length - 1] : -1;
+    try { this.apply(v); } finally { drainTrack(); K!.active[0] = mine; }
+    return table[this.landedCell];
+  }
+
   /** @internal Adopt a rule the kernel created (EXPR): edges and code are
    *  already in place; landing is `run()`. */
   adoptRule(id: number): void {
@@ -687,7 +767,7 @@ export class Constraint {
   private ensure(): number {
     if (this.id < 0) {
       if (this.dead) throw new DeclareError(`${this.label}: a disposed constraint cannot run`);
-      const id = need().addRule(-1, KERNEL_KIND.DYNAMIC, this.flags(), []);
+      const id = need().addRule(this.landedCell, KERNEL_KIND.DYNAMIC, this.flags(), []);
       if (id < 0) throw new DeclareError("kernel: out of rules — the program exceeds the runtime's rule capacity");
       this.id = id;
       RULES[id] = this;
@@ -715,7 +795,7 @@ export class Constraint {
     if (this.id >= 0) throw new DeclareError(`${this.label}: wire() after the constraint already ran`);
     this.probe = probe;
     const edges = this.collect(probe);
-    const id = need().addRule(-1, KERNEL_KIND.BODY, this.flags(), edges);
+    const id = need().addRule(this.landedCell, KERNEL_KIND.BODY, this.flags(), edges);
     if (id < 0) throw new DeclareError("kernel: out of rules — the program exceeds the runtime's rule capacity");
     this.id = id;
     RULES[id] = this;
@@ -728,22 +808,28 @@ export class Constraint {
   /** @internal The kernel's callback: evaluate and land. On the static path a
    *  structural wake (a child list changed under a read) re-probes the edges
    *  first — same read-paths, current cells. */
-  runBody(): void {
+  runBody(): number {
     if (this.wired) {
       if (this.probe !== null && (K!.stateOf(this.id) & KERNEL_STATE.REWIRE) !== 0) K!.rewire(this.id, this.collect(this.probe));
-      (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule apply", () => this.apply((typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule bodies", () => this.compute()) : this.compute()))) : this.apply((typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule bodies", () => this.compute()) : this.compute())));
-      return;
+      const w = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule bodies", () => this.compute()) : this.compute());
+      if (this.landedCell >= 0) return this.landing(w, false);
+      (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule apply", () => this.apply(w)) : this.apply(w));
+      return 0;
     }
     // compute under this rule (the kernel made it active); apply under the
     // OUTER tracker — the JS core restored `active = prev` before apply, so a
     // body's writes (and whatever its apply reads) never become its own reads
     const v = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule bodies", () => this.compute()) : this.compute());
+    // kernel-landed: the kernel applies after the body returns, the reads so far
+    // already this rule's and nothing of ours left to run under the outer tracker
+    if (this.landedCell >= 0) return this.landing(v, true);
     const mine = K!.active[0];
     // the track ring attributes to whoever is active when it drains: land the
     // compute's reads under this rule before the switch, the apply's under the outer
     drainTrack();
     K!.active[0] = outer.length > 0 ? outer[outer.length - 1] : -1;
     try { (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule apply", () => this.apply(v)) : this.apply(v)); } finally { drainTrack(); K!.active[0] = mine; }
+    return 0;
   }
 
   /** Evaluate now. A tracking run REPLACES the active tracker for its
@@ -761,6 +847,8 @@ export class Constraint {
       const prev = S.collecting; S.collecting = null;
       try { k.run(id); } finally { S.collecting = prev; outer.pop(); }
     }
+    // a value the kernel landed outside a settle is pushed at the next one's close
+    if (this.landedCell >= 0 && !inSettle) schedule();
     rethrow();
   }
 

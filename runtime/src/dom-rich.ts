@@ -40,6 +40,18 @@ export const richInlineSlots = true;
  *  boxes and tables as well as paragraphs — as one flowing region (RichNode). */
 export const richBlocks = true;
 
+/** Scroll a heading of the flow into view — where a reveal to its anchor lands
+ *  (location.md §0.5). The heading is a real element in the flow
+ *  (setRichContent tagged it with `data-anchor`); scroll IT. Missing ⇒ the
+ *  flow hasn't rendered that heading yet (held intent, retried later). */
+export function revealRichAnchor(h: RichHost, slug: string, inset: number): boolean {
+  const el = h.richEl?.querySelector(`[data-anchor="${slug}"]`) as HTMLElement | null;
+  if (el === null || el === undefined) return false;
+  if (inset > 0) el.style.scrollMarginTop = `${inset}px`;
+  el.scrollIntoView({ block: "start" });
+  return true;
+}
+
 /** Read back every slot placeholder's box, in flow-local coordinates, and
  *  publish the geometry fact. `offsetLeft`/`offsetTop` rather than a client
  *  rect ON PURPOSE: they are LAYOUT coordinates, so an ancestor `scale` (a CSS

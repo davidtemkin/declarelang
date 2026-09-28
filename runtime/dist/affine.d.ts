@@ -37,3 +37,22 @@ export declare function boxThrough(m: Affine, x: number, y: number, w: number, h
     height: number;
 };
 export declare const cssMatrix: (m: Affine) => string;
+/** THE PLANE TEST: does this view leave its parent's plane (a 3D rotation or a
+ *  push along Z)? Asked before anything 3D is (projective.ts), so a build whose
+ *  program sets no 3D attribute never reaches that module. */
+export interface Parts3D {
+    rotateX: number;
+    rotateY: number;
+    translateZ: number;
+}
+export declare const has3D: (p: Parts3D) => boolean;
+export declare const partsOf: (v: {
+    rotateX?: number;
+    rotateY?: number;
+    translateZ?: number;
+}) => Parts3D;
+export declare const leavesPlane: (v: {
+    rotateX?: number;
+    rotateY?: number;
+    translateZ?: number;
+}) => boolean;

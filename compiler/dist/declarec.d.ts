@@ -14,6 +14,8 @@ export interface DeclarecOptions extends CompileOptions {
      *  fingerprint, …) — isUpToDate compares them, so a flag or toolchain change
      *  invalidates like a file change. */
     props?: Record<string, string>;
+    /** Read the program's facts (ProgramBuild.facts) — a production build's input. */
+    facts?: boolean;
 }
 /** Compile a Declare source into a serializable, instantiate-ready program:
  *  resolve bare names + includes + typecheck (all the compiler's work), then

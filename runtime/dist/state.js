@@ -39,9 +39,13 @@ function pushOverride(view, slot, priority, make) {
     const map = stacksFor(view);
     let s = map.get(slot);
     if (s === undefined) {
-        // First override on this slot: displace and remember the base.
+        // First override on this slot: displace and remember the base. Suspended,
+        // not retired — so it also gives up its claim on the kernel cell, which the
+        // top claims next (a yielding claim would otherwise be disposed there, and a
+        // plain one would refuse the top); own() re-claims it at the restore below.
         const owner = ownerOf(view, slot);
         owner?.suspend();
+        owner?.releaseCell();
         s = {
             baseOwner: owner,
             baseValue: owner === null ? view[slot] : undefined,

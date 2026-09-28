@@ -401,23 +401,28 @@ await test("buildProduction emits a self-contained bundle in the expected size r
 // build at once, five suite files red. So: every value export in the source
 // must have a name in its stub. Types are not exports at runtime and are
 // skipped. A stub may export MORE (harmless); it may not export less.
-await test("the production stubs mirror every value export of the modules they replace", () => {
-  const declarec = readFileSync(resolve(HERE, "../tools/declarec.mjs"), "utf8");
-  const stubOf = (name) => {
-    const m = new RegExp(`const ${name} = \\x60([\\s\\S]*?)\\x60;`).exec(declarec);
-    assert.ok(m, `${name} not found in tools/declarec.mjs`);
-    return m[1];
-  };
-  const valueExports = (file) => [...readFileSync(resolve(HERE, "../runtime/src", file), "utf8")
-    .matchAll(/^export (?:async )?(?:function|const|let|class) ([A-Za-z_$][\w$]*)/gm)].map((m) => m[1]);
-  for (const [src, stubName] of [["draw.ts", "drawStub"], ["canvas-filter.ts", "filterStub"],
-    ["effects.ts", "effectsStub"], ["dom-effects.ts", "domEffectsStub"], ["projective.ts", "projectiveStub"],
-    ["text-measure.ts", "measureTextStub"], ["font-derive.ts", "fontDeriveStub"], ["face-literal.ts", "faceLiteralStub"],
-    ["draw-image.ts", "drawImageStub"], ["draw-text.ts", "drawTextStub"], ["change-event.ts", "changeEventStub"],
-    ["dom-rich.ts", "domRichStub"]]) {
-    const stub = stubOf(stubName);
-    const missing = valueExports(src).filter((n) => !new RegExp(`export (?:function|const|class) ${n}\\b`).test(stub));
-    assert.deepEqual(missing, [], `${stubName} lacks exports that ${src} has: ${missing.join(", ")} — add them to the stub in tools/declarec.mjs`);
+await test("every capability's stand-ins mirror the modules they replace", async () => {
+  // Generated from the real module's exports (compiler/src/capabilities.ts
+  // standIn): each value export is either inert by declaration or refuses, and
+  // a constant with no declared inert value is a build error — so what is
+  // pinned here is the manifest itself: every module exists, every stand-in
+  // generates, every export is answered, and no inert names a missing export.
+  const { CAPABILITIES, standIn, subsetModule, exportsOf } = await import("../compiler/dist/capabilities.js");
+  const noFacts = { classes: new Set(), ownClasses: new Set() };
+  for (const cap of CAPABILITIES) {
+    const names = new Set();
+    for (const m of cap.modules) {
+      const file = m.startsWith("browser/") ? resolve(HERE, "../browser", m.slice(8) + ".js") : resolve(HERE, "../runtime/dist", m + ".js");
+      const source = readFileSync(file, "utf8");
+      // a table ships as its own module, cut to the entries a program names
+      const answered = new Set(exportsOf(cap.subset !== undefined ? subsetModule(cap, m, source, noFacts) : standIn(cap, m, source, "./stand-in.js")).map((e) => e.name));
+      for (const e of exportsOf(source)) {
+        names.add(e.name);
+        assert.ok(answered.has(e.name), `${cap.id}: the stand-in for ${m} lacks '${e.name}'`);
+      }
+    }
+    const stray = Object.keys(cap.inert ?? {}).filter((n) => !names.has(n));
+    assert.deepEqual(stray, [], `${cap.id}: inert values for exports its modules do not have: ${stray.join(", ")}`);
   }
 });
 

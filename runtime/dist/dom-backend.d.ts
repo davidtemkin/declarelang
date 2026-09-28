@@ -3,6 +3,7 @@ import { type Affine } from "./affine.js";
 import { type BoxStroke, type Fill, type Inset, type Radius, type Shadow, type Filter } from "./value.js";
 import { type TextStyle } from "./measure.js";
 import { type DisplayList } from "./draw.js";
+import { type VisibilityCb } from "./dom-visibility.js";
 /** Client point → el's view-local (pre-transform layout) coordinates.
  *  Exported for the embedded-app environment wiring (boot.ts): an island's
  *  box-relative pointer must come through the same inversion, or a child app
@@ -21,16 +22,6 @@ export declare class DomBackend implements RenderBackend {
     createSurface(): Surface;
     attachRoot(host: HTMLElement, root: Surface): void;
 }
-type VisibilityCb = (v: {
-    on: boolean;
-    rect: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-    } | null;
-    scale: number;
-}) => void;
 export declare class DomSurface implements Surface {
     readonly element: HTMLDivElement;
     private textEl;
@@ -156,6 +147,8 @@ export declare class DomSurface implements Surface {
     /** A stencil asked twice with nothing to give is not still loading — warn then. */
     stencilSettled: boolean;
     setMask(spec: MaskSpec | null): void;
+    /** a mask was painted once: clearing it later still reaches the mask module */
+    private maskPainted;
     applyMask(): void;
     setClip(d: string | null): void;
     /** The Shape clip's path data / lazily-built Path2D (carved-hit testing). */
@@ -261,6 +254,7 @@ export declare class DomSurface implements Surface {
     linkBase: string | null;
     private linkEl;
     setLink(href: string, label?: string): void;
+    /** `within` is the canvas path's concern; the flow scrolls its heading (dom-rich.ts). */
     revealRichAnchor(slug: string, _within: number, inset?: number): boolean;
     private scrollYOn;
     private scrollXOn;
@@ -443,4 +437,3 @@ export declare class DomSurface implements Surface {
     private unwatchVisibility;
     destroy(): void;
 }
-export {};

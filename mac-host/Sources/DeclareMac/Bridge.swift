@@ -8,6 +8,7 @@
 
 import AppKit
 import JavaScriptCore
+import DeclareKernel
 import CoreText
 
 final class Bridge {
@@ -229,6 +230,10 @@ final class Bridge {
                 if let stack = e?.objectForKeyedSubscript("stack")?.toString() { NSLog("[Declare]   %@", stack) }
             }
             mark("ctx created")
+            // THE KERNEL (docs/system-design/kernel.md, Phase D): the C kernel in
+            // this binary, installed as `__declareNativeKernel` before the runtime
+            // loads — the runtime binds it; it carries no other.
+            declare_kernel_install(ctx.jsGlobalContextRef)
             install()
             loadScripts()
         }
@@ -582,6 +587,12 @@ final class Bridge {
             ctx.evaluateScript(src, withSourceURL: url)
             if name == "mac-env.js", ProcessInfo.processInfo.environment["DECLARE_DEBUG_HIT"] != nil {
                 ctx.evaluateScript("globalThis.__declareHitDebug = true")
+            }
+            // DECLARE_KERNEL=js — the JavaScript kernel in place of the native one,
+            // to debug the kernel itself (breakpoints in its settle); asked before
+            // the runtime loads, since it chooses its kernel as it boots
+            if name == "mac-env.js", ProcessInfo.processInfo.environment["DECLARE_KERNEL"] == "js" {
+                ctx.evaluateScript("globalThis.__declareKernelJS = true")
             }
         }
     }

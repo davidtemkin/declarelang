@@ -23,12 +23,14 @@ content-box opcode sequence rather than reading a padded extent directly.
 | C2b — the native visibility rule | `DK_VIS`: the ancestor walk in C (affine.ts term for term), 3D hands back to JS | `test/kernel-vis.test.mjs`: 40 trees × 8 perturbations ≡ `readVisibilityJS` |
 | the browser | same WASM in Chrome (async instantiate), `mac-host/profile/web.mjs` | serve-browser, perceptual green |
 | B2 — EXPR bodies | `compiler/src/expr-emit.ts` emits kernel bytecode for pure-numeric `{ }` bodies; rides in the deps list as `=E…`; `bind.ts bindKernelExpr` resolves paths to cells at bind, JS body otherwise | `test/kernel-expr.test.mjs`: 6 apps × (boot + 3 perturbations) bit-identical, 59–600 bodies/app |
-| declared defaults as rules | `name: number = { … }` was a LIVE fallback re-evaluated on every read (260–612 ns/read) and invisible to EXPR; now a standing YIELDING rule in the table (`AttrSpec.defRule`, `bindDeclDefault`), displaced by an author write, a newer owner (refreshed to its live value first) or a runtime write; a throwing default stays unapplied; an untracked read while work is pending, or a tracked read while the rule's recompute is queued, evaluates live | unit 455/0, tracker 15/0, inspect (explain still says "declaration"); reads 47–60 ns |
+| declared defaults as rules | a `{ }` default (`name: T = { … }`) stands as a YIELDING rule on each instance — one evaluation per input change, not one per read (a live default re-evaluated on every read: 260–612 ns for a number, ~1 µs for marketmap's tile `slot` record); numeric ones in the table (and EXPR where the body allows), others over the JS store (`AttrSpec.defRule`, `DeclRecord.rule`, installed per instance after its attributes — `bindDeclDefault`); not for `readonly` (its contract is the live value) or schema-typed slots; displaced by an author write, a newer owner (refreshed to its live value first) or a runtime write; a throwing default stays unapplied; a read by a rule — tracked, or any read inside a settle — evaluates live while the default's own recompute is queued, a read outside one while any work is pending | unit 467/0, kernel-expr 6/0; reads ~68 ns |
+| kernel-landed JS rules | a JS rule whose slot is a numeric table cell returns its number and the KERNEL lands it (`Constraint.landInKernel`, rule target = the cell: set_value gates, stores, wakes; the surface push follows at the close, and before any phase-1 rule) — the JS write path only for a value the table cannot take (a union slot's list, an escaped slot); no ABI change | unit 467/0; marketmap settle −6% on both kernels |
+| more bodies as EXPR | `&&`/`\|\|` as VALUES lower to SELECT (`a && b` → `a ? b : a` — the operand JS yields, JS truthiness in both kernels); `as`/`!`/`satisfies` are seen through; a bare name that is a numeric `const` of the program's script scope folds to its value | kernel-expr 6/0 (bit-identical) |
 | the kernel pull | `own()` registers the slot's owner with the kernel (`Rule.owns`); a host-initiated run (`kernel_run`, a rule's first evaluation at bind) first runs the queued owners of its inputs, in dependency order — a reader's FIRST value (a spring primes from `to = { app.targetDay }`) equals what the world settles to | kernel-expr marketmap/calendar ≡ JS |
 | `:field` data cells | a numeric cell per (view, field) that follows the record (one tracking bridge rule making the body's own `$data` read); EXPR bodies read the cell; a field that is or becomes non-numeric sends its readers back to their JS bodies | kernel-expr calendar (Cell.x/y, Ev.y/height) ≡ JS |
 | the auto-extent rule | `DK_EXTENT` (`kernel_extent_add/rewire`): a container's unset width/height as the max over its children's footprints, evaluated over the table by block base; edges = the children's geometry cells + the child-list cell (re-listed by `childrenMutated`); percent-owned child slots skipped via the owning rule's `DK_PERCENT` flag; a 3D child DECLINES to the JS derive through the new `dk_host.decline` callback | `test/kernel-extent.test.mjs`: 40 containers × 8 perturbations ≡ `extentOf`; decline path |
-| the track ring | a tracked read appends its cell to a shared ring (no call); the kernel links a run's reads to the active rule when the body returns, at the next entry and at flush; the runtime drains before every active-rule switch (apply under the outer tracker, `untracked()`); rule states and the pending flag are viewed, not fetched | unit 455/0, kernel traces ≡; Mac: −16% |
-| Phase D — native on the Mac | `kernel/src/kernel_jsc.c` (JavaScriptCore C API: the ABI as JS functions, pointers as doubles, zero-copy typed-array views, host callbacks via `setHost`), SwiftPM target `DeclareKernel` (sources mirrored by build-app.mjs), `declare_kernel_install` in Bridge.swift, the loader's `bindWith(x, Mem, …)` over either memory; `DECLARE_NO_NATIVE_KERNEL=1` = WASM for A/B | interpreter, same build: calendar 1328 → 726 ms, desktop seed 208 → 93, weather resize 854 → 634 (native vs WASM); JIT −5% |
+| the track ring | a tracked read appends its cell to a shared ring (no call); the kernel links a run's reads to the active rule when the body returns, at the next entry and at flush; where the runtime hands the active rule to another (apply under the outer tracker, `untracked()`) it appends an OWNER MARK (`DK_TRACK_OWNER | rule`, or `| DK_TRACK_NOBODY` to drop them) that closes the reads before it under that rule — a store, not a call; it flushes only when writes are waiting, so their wakes keep their place; rule states and the pending flag are viewed, not fetched | unit 455/0, kernel traces ≡; Mac: −16% |
+| Phase D — native on the Mac | `kernel/src/kernel_jsc.c` (JavaScriptCore C API: the ABI as JS functions, pointers as doubles, arguments through shared `args`/`io` blocks rather than JS values — a converted JSValue takes the API lock — zero-copy typed-array views, host callbacks via `setHost`), SwiftPM target `DeclareKernel` (sources mirrored by build-app.mjs), `declare_kernel_install` in Bridge.swift, the loader's `bindWith(x, Mem, …)` over either memory; `DECLARE_NO_NATIVE_KERNEL=1` = WASM for A/B | interpreter, same build: calendar 1328 → 726 ms, desktop seed 208 → 93, weather resize 854 → 634 (native vs WASM); JIT −5% |
 | pure method inlining | `app.lerp(a, b, t)` → the method's `return` expression with arguments substituted, for statically known receivers (`app`; `classroot`/`this` when no subclass or use site overrides the name) | kernel-expr calendar 385 → 600 bodies in the kernel |
 
 Measured across four targets (`mac-host/profile/results/MATRIX.md`, the in-page stimuli, main → opt
@@ -161,9 +163,10 @@ keep their own breaks, as today.
 ## 7. Size
 
 The kernel replaces 27 KB gz of JS on the web (reactive core 5.7, layout+springs 5.6,
-instantiate+replicate 12.8, scroll physics 2.8); a tight kernel (`-Os`, no libc, `wasm-opt`)
-should land near that. **The target is size-neutral, measured at every step**; a build option
-would reintroduce the two-implementation drift this design removes, so it is the last resort.
+instantiate+replicate 12.8, scroll physics 2.8). The C kernel as WebAssembly is about 8.2 KB
+gzipped with its loader beside it; the JavaScript kernel (`runtime/src/kernel-js.ts`) is about
+5.3 KB and needs no loader, which is what `--kernel js` (§10) trades on: a production build on the
+JavaScript kernel is about 9 KB gzipped smaller.
 
 ## 8. Phases, each with its measurement
 
@@ -178,3 +181,112 @@ would reintroduce the two-implementation drift this design removes, so it is the
 
 Baselines to beat are in `mac-host/profile/REPORT.md` (Mac, JIT and no-JIT) and the tree's
 web gates.
+
+## 9. Capacity and growth
+
+The capacities a kernel opens with (`reactive.ts` `DEFAULT_CAPS`: 1M cells, 128K rules, 512K
+read edges, 64K views, 256K code words, 16K constants) are an **opening size, not a ceiling**,
+and they are the same for every kernel. Opening large costs nothing: no kernel writes a table
+until it hands that part out, so reserved capacity is address space, not memory (measured:
+a page's footprint is the same on either kernel, and within a megabyte of the pre-kernel runtime).
+
+Every table doubles when it would be more than half full:
+
+- **The C kernel** (WebAssembly and the Mac's native build) moves its **tables** into a larger
+  arena — `kernel_grow`, sized with `kernel_arena_size` for the new capacities — and keeps its
+  own struct where it is, so its address and every pointer into its fields stay valid. Nothing
+  in the kernel holds a table address across a call to the host, so a grow may happen at any
+  time, including from inside a rule body during a settle. The loader (`kernel-loader.ts`
+  `reserve`) grows after every settle when a table is past half full; on `DK_ERR_FULL` from an
+  allocating call, for what that call needs, then retries it; and when the kernel asks — before
+  draining a rule's reads into edges, the one place the kernel allocates on its own, it calls
+  the host's `reserve` so that no read is ever dropped. A read that still finds no room is
+  reported (`DK_ERR_FULL` through `error`), never lost. The old tables stay behind: WebAssembly
+  memory cannot shrink, and on the Mac the first arena also holds the kernel.
+- **The JavaScript kernel** doubles each typed array as it fills, with no ceiling.
+
+A grow copies the used part of every table: measured on the Mac at about 5–8 ms for 4M cells,
+and about 3 ms on an M5 iPad; `memory.grow` itself costs nothing measurable. `kernel-growth.test`
+boots whole programs on kernels opened a few dozen entries wide, so they grow many times while
+building, and requires the same settled tree as a normal boot on both kernels;
+`kernel-conformance.test` drives both kernels past tiny capacities and compares everything.
+
+## 10. Two kernels, one contract
+
+`runtime/src/kernel-js.ts` implements the same ABI as `kernel.c`, written from this document
+rather than transcribed, with the same layout: rules as columns of typed arrays, every read a
+node on its cell's list (subscription order) and its rule's list (newest first), the view table
+and both built-in view rules with the same arithmetic. `kernel-conformance.test` drives both
+through identical scenarios — values, host calls in order, each rule's reads in order, the
+visibility and auto-extent rules over random view trees, growth — and requires them equal.
+
+A production build chooses its kernel with the `kernel` modifier (`compiler/src/flags.ts`):
+`declarec --kernel js`, or `?build&kernel=js` on the dev server. The default is `wasm`. A
+`js` build imports the JavaScript kernel with the bundle, and the WebAssembly bytes and loader
+fold out of it (`reactive.ts` `kernelReady`). The trade, measured on the corpus (Chrome, and an
+iPhone 15 Pro in Safari): the JavaScript kernel matches on memory and correctness and is about
+9 KB gzipped smaller; interaction is level to 35% slower (the view-heaviest settles), and
+startup on the iPhone is 12–59% slower on the larger apps (JavaScriptCore runs the kernel's
+first settle before it has optimized it), level on small ones. Hence the default. The Mac host
+always runs its native kernel — no WebAssembly in any scenario. Development bundles run the
+compiled kernel and keep the JavaScript one as a PLATFORM developer's switch, for debugging the
+kernel itself (breakpoints in its settle): a page sets `globalThis.__declareKernelJS`; the Mac
+app is launched with `DECLARE_KERNEL=js`. It is not a program author's switch — no program's
+behavior depends on which kernel runs, and author-facing docs name only the web build's
+`--kernel` choice.
+
+## 10a. What the kernel must not change: the language's meaning
+
+The kernel is an implementation of the reactive model, not a part of the language. Two of its
+optimizations move work that used to happen elsewhere into it, and each keeps a meaning the
+language documents. Reviewed 2026-09-27, when they merged into main; the evidence is a set of
+scenarios run against the tree before the merge and after it, with identical results.
+
+**Declared defaults stand as rules — the formula's meaning is unchanged.** The language says a
+declared attribute with a `{ }` default *reads as that expression until something assigns it,
+and an assignment replaces the formula* (guide ch. 3; declare.md §4). Before, that was a lazy
+fallback evaluated on read (`defBinding`); now it is a yielding constraint installed at
+construction on a slot nothing set (`bind.ts` `bindDeclDefault`), so it is evaluated once per
+input change rather than once per read. The same meaning, checked in each case: a Spring or an
+Animator taking the slot over (it keeps the value it drove); a State overriding it and lifting;
+a default that would throw but is never read (the program still boots); a read in `onInit`, and
+in a handler right after an input changed but before the settle (both see the live value — a
+stale default-owned slot is evaluated live, `attributes.ts`); an assignment (the formula is
+gone); per-instance class defaults reading `classroot`. Two slots keep the lazy form: a
+`readonly` one (its contract is the live value, never overridable) and a schema-typed one (its
+record crosses the push and tracked hooks).
+
+**The kernel lands rule values — the write path's meaning is unchanged.** A rule whose target
+is a numeric or boolean table cell returns its value and the kernel stores it; the surface push
+follows at the settle's close, and before any phase-1 rule (a `draw`), so a drawing reads the
+landed value. What stays on the JavaScript write path: any value the table cannot hold (a union
+slot's list, a slot that has escaped to `$attrs`) and any slot whose change handler is running,
+so `onChange` and `trackChanges` see exactly what they did. The table is `Float64` (a `double`
+on the Mac): no precision is lost. The kernel's equality gate is JavaScript's `===` in both
+kernels — `NaN` is never "unchanged", `-0` equals `0` — and it is the gate a JavaScript write to
+a table slot already went through. Checked: a change event on a bound number, a bound boolean, a
+union slot switching between a number and a list, `NaN`, and a chain of constraints.
+
+**Found while checking, and fixed: a take-over's hand-back lost its inputs.** A constraint a
+State or an Animator took over must be *resumed*, not reinstated with a stale output
+(animation.md §2 rule 4). On a table slot (a number or a boolean) it came back with the right
+value and then never woke again — a State lifting from `width = { app.t * 2 }`, or an Animator
+finishing over it, left `width` deaf to `t`; so did a State over a declared `{ }` default. It
+predated the merge. Two causes: `kernel_suspend` unlinked every suspended rule's edges and only a
+probe-bearing body ever re-linked them, so a static rule's edges — the compile's — were simply
+gone (now only a dynamic rule, which re-tracks on every run, is unlinked); and a State taking
+over a slot left the suspended base still claiming the kernel cell, so the State's claim made
+the kernel dispose a yielding base (a declared default) outright (the base now gives up its
+claim while suspended and re-claims it on restore). Pinned in `test/unit.test.mjs` ("a
+constraint a State or an Animator took over follows its inputs again once handed back").
+
+## 11. Closed: choosing the kernel automatically
+
+Considered and closed, 2026-09-27 (DT): no build-time heuristic reads the thing that decides
+which kernel is faster — the shape of the program's interaction at run time (how many views a
+settle touches, how often) — and program size, views or rules do not predict it. The only
+honest signal would be timing each app's own interactions under both kernels, which is costly
+and noisy, for a prize of about 9 KB gzipped that measures near noise on most interactions.
+`wasm` stays the default; `--kernel js` is chosen by hand, and the one situation that calls for
+it is an embed in a page whose Content-Security-Policy does not admit WebAssembly
+(guide ch. 24).

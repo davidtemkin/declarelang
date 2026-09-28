@@ -26,6 +26,12 @@ export declare const KERNEL_STATE: Readonly<{
     REWIRE: 8;
     UNLANDED: 16;
 }>;
+/** The track ring's owner mark (declare_kernel.h): `OWNER | rule` closes the
+ *  reads before it under `rule`; `OWNER | NOBODY` drops them. */
+export declare const KERNEL_TRACK: Readonly<{
+    OWNER: 2147483648;
+    NOBODY: 2147483647;
+}>;
 export declare const CELL_KIND: Readonly<{
     F64: 0;
     REF: 1;
@@ -59,7 +65,11 @@ export interface Kernel {
     table: Float64Array;
     /** active[0] is the running DYNAMIC rule, or -1: readable with no call. */
     active: Int32Array;
-    readonly capacity: number;
+    /** cells that fit before the next growth (updated when the kernel grows) */
+    capacity: number;
+    /** The cell table's size as the KERNEL holds it — what `capacity` and the
+     *  table view must equal after any growth (tooling and conformance). */
+    tableSize(): number;
     cells(): number;
     rules(): number;
     write(cell: number, v: number): number;

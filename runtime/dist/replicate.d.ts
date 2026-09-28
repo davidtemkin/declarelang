@@ -1,7 +1,7 @@
 import type { Element } from "./parser.js";
 import { Node } from "./node.js";
 import { View } from "./view.js";
-import { type PathSeg } from "./datapath.js";
+import { type PathSeg } from "./path-plan.js";
 /** What the Replicator needs from instantiate.ts (which imports this module;
  *  the interface keeps the dependency one-way): construct one instance of
  *  the template — tree only — and hand back `finish` (installs bindings,

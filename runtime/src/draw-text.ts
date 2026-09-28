@@ -1,6 +1,6 @@
 // `d.fillText` / `d.strokeText` with a text style (graphics-pass text round). Its
 // own file so a production build carries it only for a program that draws text
-// (declarec's slim-draw-text); a plain run never reaches it.
+// (the `draw-text` capability, compiler/src/capabilities.ts); a plain run never reaches it.
 
 import { DeclareError } from "./errors.js";
 import { fontString, transformText } from "./measure.js";

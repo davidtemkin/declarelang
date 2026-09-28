@@ -11,13 +11,13 @@
 import { deferral } from "./boot-deferrals.js";
 import { DeclareError } from "./errors.js";
 import { Constraint, kernel, touchCell } from "./reactive.js";
-import { defaultOf, markPercent, own, release, setBound, provideWrite, slotCellOf, writeOwned, isSetOrOwned, ownerOf } from "./attributes.js";
+import { defaultOf, markPercent, own, release, setBound, provideWrite, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding } from "./attributes.js";
 import { KERNEL_FLAG } from "./kernel-loader.js";
 import { compileExpr } from "./expr.js";
 import { View, inheritedCursor, withCursorDefining } from "./view.js";
 import { authoredName, onDiscard } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
-import { splitPath } from "./datapath.js";
+import { splitPath } from "./path-plan.js";
 /** Bind `name = { src }`: compile, install as the slot's owner, evaluate
  *  once now. check() already validated the syntax on the build path; a
  *  direct instantiate of an unchecked tree still fails soundly here with
@@ -363,6 +363,11 @@ yielding = false) {
     if (derived)
         markPercent(k);
     own(view, name, k);
+    // a numeric slot: the kernel lands the value (gate, store, wake; the surface
+    // push follows at the settle's close, as for an EXPR rule)
+    const land = kernelLanding(view, name);
+    if (land !== null)
+        k.landInKernel(land);
     // The static path prewires STABLE-slot edges (attribute cells, a Dataset's
     // `.value` slot — they outlive every recompute). A read of a DATA REGION
     // (`:path` or `.read([…])`) resolves to a cell on the data VALUE tree, which is
@@ -569,7 +574,9 @@ const DEFERRED = Symbol("deferred");
  *  set, YIELDING — an author write, a newer owner, or a runtime write retires
  *  it, so the rank-1 fallback the language rules (R6) keeps its rank. A slot
  *  already set or owned (a use-site literal landed, a two-way binding) gets no
- *  rule: the default never applied to it. */
+ *  rule: the default never applied to it. The meaning is the language's "a
+ *  formula until assigned", the same as the lazy fallback this replaced —
+ *  motion, states, early reads, assignment: docs/system-design/kernel.md §10a. */
 export function bindDeclDefault(view, name, src, pos, classroot, deps) {
     if (isSetOrOwned(view, name))
         return;

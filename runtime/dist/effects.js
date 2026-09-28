@@ -1,11 +1,14 @@
 // The graphics vocabulary a program has to NAME to use — the filter functions,
 // `frost`, and the radial and conic gradients — with the literal forms that
 // build them. Its own file so a production build carries it only for a program
-// that writes one of these names (declarec's slim-effects): what every program
-// can reach without naming anything — a theme's `menuBackdrop` record, the
-// linear `gradient`, the filter list's CSS — stays in value.ts.
+// that names one of these or sets a `filter` or `backdrop` (the `effects`
+// capability, compiler/src/capabilities.ts) — which is also every program that
+// needs a filter list's CSS, so that is here too. What a program can reach
+// without either — a theme's `menuBackdrop` record, the linear `gradient` —
+// stays in value.ts.
 import { diag } from "./errors.js";
-import { argColor, argNumber, coerceShadow, coerceStops, FILL } from "./value.js";
+import { argColor, argNumber, coerceShadow, coerceStops, FILL } from "./literal-parse.js";
+import { colorToCss } from "./value.js";
 const ok = (value) => ({ ok: true, value });
 const fail = (expected, found) => ({ ok: false, expected, found });
 function gradientStops(args, who) {
@@ -134,5 +137,43 @@ export function coerceFilter(lit) {
         out.push(f);
     }
     return ok(Object.freeze(out));
+}
+/** The CSS spelling of a filter list — DOM `filter:`/`backdrop-filter:` and
+ *  canvas `ctx.filter` share it. `scale` maps view units to the target's
+ *  (device px on canvas, 1 on the DOM where CSS scales with the transform).
+ *  `colorize` has no CSS function: the DOM realizes it as an SVG `feColorMatrix`
+ *  reference the backend registers (`tintRef`), canvas as a `source-in` pass
+ *  after the blit — both leave it out of this string. */
+export function filterCss(list, scale = 1, tintRef) {
+    const parts = [];
+    for (const f of list) {
+        switch (f.fn) {
+            case "blur":
+                parts.push(`blur(${f.radius * scale}px)`);
+                break;
+            case "brightness":
+            case "contrast":
+            case "saturate":
+            case "grayscale":
+            case "invert":
+            case "sepia":
+                parts.push(`${f.fn}(${f.amount})`);
+                break;
+            case "hueRotate":
+                parts.push(`hue-rotate(${f.degrees}deg)`);
+                break;
+            // CSS drop-shadow's third length is the Gaussian's σ; `shadow(…)`'s blur is
+            // the box-shadow radius (2σ) at every site, so one value looks the same
+            // on a box, on glyphs, and in a filter list — halve it here.
+            case "shadow":
+                parts.push(`drop-shadow(${f.dx * scale}px ${f.dy * scale}px ${(f.blur * scale) / 2}px ${colorToCss(f.color)})`);
+                break;
+            case "colorize":
+                if (tintRef !== undefined)
+                    parts.push(tintRef(f.color));
+                break;
+        }
+    }
+    return parts.length === 0 ? "none" : parts.join(" ");
 }
 //# sourceMappingURL=effects.js.map

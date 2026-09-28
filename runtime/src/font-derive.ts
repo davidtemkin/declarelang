@@ -1,7 +1,7 @@
 // The DERIVED FAMILIES behind OpenType features (font-features.ts): the name a
 // feature combination travels under, and its registration on the web. Its own
 // file so a production build carries it only for a program that asks for a
-// feature — `numerals`, `numeralWidth`, `slashedZero` (declarec's slim-features).
+// feature — `numerals`, `numeralWidth`, `slashedZero` (the `font-features` capability, compiler/src/capabilities.ts).
 
 import { familyChanged, loadedFontFaces } from "./face-table.js";
 

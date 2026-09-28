@@ -2,7 +2,7 @@
 // hears them. The settle (reactive.ts) calls in at its close; a node arms when it
 // goes live and disarms when it retires (view.ts, node.ts). Its own file so a
 // production build carries it only for a program that names `trackChanges`
-// (declarec's slim-change-event): without that list `onChange` never fires.
+// (the `change-event` capability, compiler/src/capabilities.ts): without that list `onChange` never fires.
 //
 // A node that names values in `trackChanges` gets one CONSTRAINT per name, read
 // like any other dependency, so the node wakes only when one of those values

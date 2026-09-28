@@ -1,7 +1,7 @@
 import { type Pos } from "./errors.js";
 import { View } from "./view.js";
 import { type Node } from "./node.js";
-import { type PathSeg } from "./datapath.js";
+import { type PathSeg } from "./path-plan.js";
 import type { AttrType } from "./value.js";
 /** Bind `name = { src }`: compile, install as the slot's owner, evaluate
  *  once now. check() already validated the syntax on the build path; a
@@ -71,5 +71,7 @@ export declare function bindAlign(view: View, name: "x" | "y", align: "center" |
  *  set, YIELDING — an author write, a newer owner, or a runtime write retires
  *  it, so the rank-1 fallback the language rules (R6) keeps its rank. A slot
  *  already set or owned (a use-site literal landed, a two-way binding) gets no
- *  rule: the default never applied to it. */
+ *  rule: the default never applied to it. The meaning is the language's "a
+ *  formula until assigned", the same as the lazy fallback this replaced —
+ *  motion, states, early reads, assignment: docs/system-design/kernel.md §10a. */
 export declare function bindDeclDefault(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[]): void;

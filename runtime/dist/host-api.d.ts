@@ -5,7 +5,7 @@ export { CanvasBackend } from "./canvas-backend.js";
 export { provideTransport, setAppDataBase } from "./data.js";
 export { provideAssetBase, setAppAssetBase, provideUrlMap, mapUrl } from "./asset-base.js";
 export { onIslandSlot } from "./backend.js";
-export { islandProvisions, linkIslandTenant } from "./view.js";
+export { islandProvisions, linkIslandTenant } from "./island.js";
 export { fontsReady } from "./font-value.js";
 export { hydrateProgram } from "./hydrate.js";
 export { setInspectionTarget, provideEvalParser } from "./inspect-service.js";

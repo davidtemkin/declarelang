@@ -42,6 +42,9 @@ export declare function encodeExpr(e: ExprCode, deps: readonly string[]): string
 export interface InlineScope {
     /** The methods visible for a receiver at this body's site, or null. */
     lookup(receiver: "app" | "classroot" | "this", name: string): Method | null;
+    /** A bare name's value when it is a numeric `const` of the program's script
+     *  scope (`const SECTOR_BAND_H = 18`) — folded as a constant. */
+    constant?(name: string): number | undefined;
 }
 /** Emit, or null when the body is not a pure numeric expression. */
 export declare function emitExpr(src: string, scope?: InlineScope | null): ExprCode | null;

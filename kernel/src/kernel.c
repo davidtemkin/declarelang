@@ -30,6 +30,7 @@ IMPORT("end_chain")    void   host_end_chain(void);
 IMPORT("error")        void   host_error(int code, uint32_t rule);
 IMPORT("schedule")     void   host_schedule(void);
 IMPORT("decline")      void   host_decline(uint32_t rule);
+IMPORT("reserve")      void   host_reserve(uint32_t nodes);
 #define CALL_BODY(k, r, e, t)   host_body((r), (e), (t))
 #define CALL_AFTER(k)           host_after_steps()
 #define CALL_CHANGES(k)         host_fire_changes()
@@ -37,6 +38,7 @@ IMPORT("decline")      void   host_decline(uint32_t rule);
 #define CALL_ERROR(k, c, r)     host_error((c), (r))
 #define CALL_SCHEDULE(k)        host_schedule()
 #define CALL_DECLINE(k, r)      host_decline((r))
+#define CALL_RESERVE(k, n)      host_reserve((n))
 #else
 #define CALL_BODY(k, r, e, t)   (k)->host.body((k)->host.ctx, (r), (e), (t))
 #define CALL_AFTER(k)           (k)->host.after_steps((k)->host.ctx)
@@ -45,6 +47,7 @@ IMPORT("decline")      void   host_decline(uint32_t rule);
 #define CALL_ERROR(k, c, r)     do { if ((k)->host.error) (k)->host.error((k)->host.ctx, (c), (r)); } while (0)
 #define CALL_SCHEDULE(k)        do { if ((k)->host.schedule) (k)->host.schedule((k)->host.ctx); } while (0)
 #define CALL_DECLINE(k, r)      do { if ((k)->host.decline) (k)->host.decline((k)->host.ctx, (r)); } while (0)
+#define CALL_RESERVE(k, n)      do { if ((k)->host.reserve) (k)->host.reserve((k)->host.ctx, (n)); } while (0)
 double sin(double); double cos(double); double tan(double);   /* libm, linked by the host */
 #define dk_sin sin
 #define dk_cos cos
@@ -261,6 +264,66 @@ dk_kernel *kernel_load(const void *image, uint32_t bytes, const dk_caps *caps,
   return k;
 }
 
+/* ── growth: the same kernel in a larger arena ──────────────────────────── */
+static void copy(void *to, const void *from, uint32_t n) {
+  uint8_t *d = (uint8_t *)to; const uint8_t *f = (const uint8_t *)from;
+  for (uint32_t i = 0; i < n; i++) d[i] = f[i];
+}
+
+dk_kernel *kernel_grow(dk_kernel *k, const void *image, uint32_t bytes, const dk_caps *caps,
+                       void *arena, uint32_t arena_bytes) {
+  Image im; dk_kernel *n = 0;
+  if (read_image(image, bytes, &im) != DK_OK) return 0;
+  /* the new capacities must hold everything in use */
+  if (im.ncells + caps->extra_cells < k->ncells || im.nrules + caps->extra_rules < k->nrules ||
+      im.nelems + caps->extra_elems < k->nelems || caps->dyn_edges < k->node_hw ||
+      im.ncode + caps->code_words < k->ncode || im.nconsts + caps->consts < k->nconsts) return 0;
+  if ((caps->ring ? caps->ring : 4096) < k->ring_count || (caps->track_ring ? caps->track_ring : 4096) < k->tring_count) return 0;
+  if (layout(&n, &im, caps, (uint8_t *)0) > arena_bytes) return 0;
+  layout(&n, &im, caps, (uint8_t *)arena);
+  /* The kernel itself stays where it is — the host holds its address, and a
+   * settle in progress holds it on the stack — and only its tables move: `n`
+   * is the new arena's copy of the struct, used here for the new table
+   * addresses and capacities, then abandoned. Nothing in the kernel holds a
+   * table address across a call to the host, so this may run mid-settle. */
+  /* the used part of every table, from k's tables into n's */
+  uint32_t c = k->ncells;
+  copy(n->slots, k->slots, 8 * c);
+  copy(n->cell_kind, k->cell_kind, c); copy(n->cell_set, k->cell_set, c); copy(n->cell_dirty, k->cell_dirty, c); copy(n->cell_kdirty, k->cell_kdirty, c);
+  copy(n->cell_owner, k->cell_owner, 4 * c); copy(n->cell_elem, k->cell_elem, 4 * c);
+  copy(n->cell_dyn, k->cell_dyn, 4 * c); copy(n->cell_dyn_tail, k->cell_dyn_tail, 4 * c); copy(n->cell_mark, k->cell_mark, 4 * c);
+  copy(n->dirty_list, k->dirty_list, 4 * k->ndirty); copy(n->kdirty_list, k->kdirty_list, 4 * k->nkdirty);
+  copy(n->elems, k->elems, sizeof(Elem) * k->nelems);
+  copy(n->rules, k->rules, sizeof(Rule) * k->nrules);
+  copy(n->sub_off, k->sub_off, 4 * (im.ncells + 1)); copy(n->sub, k->sub, 4 * im.nedges); copy(n->edges, k->edges, 4 * im.nedges);
+  copy(n->code, k->code, 4 * k->ncode); copy(n->consts, k->consts, 8 * k->nconsts);
+  copy(n->nodes, k->nodes, sizeof(Node) * k->node_hw);
+  copy(n->ring, k->ring, 4 * k->ring_count); copy(n->tring, k->tring, 4 * k->tring_count);
+  /* the queues are rings over qcap: unroll each into the new, larger one */
+  for (int ph = 0; ph < 2; ph++) {
+    uint32_t len = 0;
+    for (uint32_t i = k->qhead[ph]; i != k->qtail[ph]; i = (i + 1) % k->qcap) n->q[ph][len++] = k->q[ph][i];
+    k->qhead[ph] = 0; k->qtail[ph] = len;
+  }
+  /* k now points at the new tables, with the new capacities */
+  k->cell_cap = n->cell_cap; k->rule_cap = n->rule_cap; k->elem_cap = n->elem_cap; k->node_cap = n->node_cap;
+  k->qcap = n->qcap; k->ring_cap = n->ring_cap; k->tring_cap = n->tring_cap;
+  k->code_cap = n->code_cap; k->const_cap = n->const_cap;
+  k->slots = n->slots; k->cell_kind = n->cell_kind; k->cell_set = n->cell_set; k->cell_dirty = n->cell_dirty;
+  k->cell_owner = n->cell_owner; k->cell_elem = n->cell_elem; k->dirty_list = n->dirty_list;
+  k->cell_dyn = n->cell_dyn; k->cell_dyn_tail = n->cell_dyn_tail; k->cell_mark = n->cell_mark;
+  k->elems = n->elems; k->rules = n->rules; k->sub_off = n->sub_off; k->sub = n->sub; k->edges = n->edges;
+  k->code = n->code; k->consts = n->consts; k->nodes = n->nodes; k->q[0] = n->q[0]; k->q[1] = n->q[1];
+  k->fill = n->fill; k->ring = n->ring; k->tring = n->tring; k->cell_kdirty = n->cell_kdirty; k->kdirty_list = n->kdirty_list;
+  return k;
+}
+
+void kernel_usage(dk_kernel *k, uint32_t *out) {
+  out[0] = k->ncells; out[1] = k->cell_cap; out[2] = k->nrules; out[3] = k->rule_cap;
+  out[4] = k->node_hw; out[5] = k->node_cap; out[6] = k->nelems; out[7] = k->elem_cap;
+  out[8] = k->ncode; out[9] = k->code_cap; out[10] = k->nconsts; out[11] = k->const_cap;
+}
+
 double *kernel_table(dk_kernel *k) { return k->slots; }
 uint32_t kernel_cells(dk_kernel *k) { return k->ncells; }
 uint32_t kernel_rules(dk_kernel *k) { return k->nrules; }
@@ -310,14 +373,17 @@ static void unlink_all(dk_kernel *k, uint32_t rule) {
   r->dyn_head = NONE;
 }
 
-int kernel_track(dk_kernel *k, uint32_t cell) {
-  if (k->active < 0 || cell >= k->ncells) return DK_OK;
+static int track_for(dk_kernel *k, uint32_t rule, uint32_t cell) {
+  if (rule >= k->nrules || cell >= k->ncells) return DK_OK;
   /* coalesce: a body reading one cell many times links it once — O(1) via
    * the cell's mark (the serial of the run that last linked it) */
-  uint32_t serial = k->rules[k->active].serial;
+  uint32_t serial = k->rules[rule].serial;
   if (k->cell_mark[cell] == serial) return DK_OK;
   k->cell_mark[cell] = serial;
-  return link(k, (uint32_t)k->active, cell);
+  return link(k, rule, cell);
+}
+int kernel_track(dk_kernel *k, uint32_t cell) {
+  return k->active < 0 ? DK_OK : track_for(k, (uint32_t)k->active, cell);
 }
 
 /* ── the scheduler ──────────────────────────────────────────────────────── */
@@ -368,14 +434,31 @@ static void drain(dk_kernel *k) {
 uint32_t *kernel_ring(dk_kernel *k, uint32_t *capacity_out) { if (capacity_out) *capacity_out = k->ring_cap; return k->ring; }
 uint32_t *kernel_track_ring(dk_kernel *k, uint32_t *capacity_out) { if (capacity_out) *capacity_out = k->tring_cap; return k->tring; }
 uint32_t *kernel_track_count(dk_kernel *k) { return &k->tring_count; }
-/* Link every cell the host appended since the last drain to the ACTIVE rule. */
+/* Link every cell the host appended since the last drain: the reads before an
+ * owner mark to the rule it names, the reads after the last mark to the ACTIVE
+ * rule. */
 static void drain_track(dk_kernel *k) {
   uint32_t n = k->tring_count;
   if (n == 0) return;
   if (n > k->tring_cap) n = k->tring_cap;
+  /* ROOM FIRST: every read becomes an edge, and a read that finds no room would
+   * be a dependency lost without a sound. The host grows the tables if these
+   * reads may not fit (kernel_grow is safe here: nothing holds a table address)
+   * — and it is asked BEFORE the count resets, because a growth carries the
+   * ring's entries across by that count: reset first, the reads being drained
+   * would not survive the move. */
+  if (k->node_free == NONE && k->node_hw + n > k->node_cap) CALL_RESERVE(k, n);
   k->tring_count = 0;
-  if (k->active < 0) return;
-  for (uint32_t i = 0; i < n; i++) kernel_track(k, k->tring[i]);
+  uint32_t from = 0;
+  for (uint32_t i = 0; i <= n; i++) {
+    uint32_t owner;
+    if (i == n) owner = k->active < 0 ? NONE : (uint32_t)k->active;
+    else if (k->tring[i] & DK_TRACK_OWNER) owner = k->tring[i] & ~DK_TRACK_OWNER;
+    else continue;
+    for (uint32_t j = from; j < i; j++)
+      if (track_for(k, owner, k->tring[j]) == DK_ERR_FULL) { CALL_ERROR(k, DK_ERR_FULL, owner); return; }
+    from = i + 1;
+  }
 }
 uint32_t *kernel_ring_count(dk_kernel *k) { return &k->ring_count; }
 void kernel_flush(dk_kernel *k) { drain_track(k); drain(k); }
@@ -519,7 +602,7 @@ static int run(dk_kernel *k, uint32_t rule) {
   drain(k);   /* writes the host made since the last drain wake their dependents before this run */
   switch (r->kind) {
     case DK_EXPR: v = eval(k, r); break;
-    case DK_BODY: v = CALL_BODY(k, rule, r->elem, r->target); break;
+    case DK_BODY: v = CALL_BODY(k, rule, r->elem, r->target); r = &k->rules[rule]; break;   /* a body may grow the tables */
     case DK_VIS: v = vis_run(k, r); break;
     case DK_EXTENT: v = extent_run(k, r); break;
     case DK_DYNAMIC: {
@@ -527,6 +610,7 @@ static int run(dk_kernel *k, uint32_t rule) {
       r->serial = ++k->serial; if (r->serial == 0) r->serial = ++k->serial;   /* 0 = never */
       int32_t prev = k->active; k->active = (int32_t)rule;
       v = CALL_BODY(k, rule, r->elem, r->target);
+      r = &k->rules[rule];   /* a body may grow the tables */
       drain_track(k);   /* the body's reads, appended while it ran */
       k->active = prev;
       break;
@@ -548,12 +632,12 @@ static int run(dk_kernel *k, uint32_t rule) {
 static int run_queued(dk_kernel *k, uint32_t rule);
 static int pull(dk_kernel *k, uint32_t rule, int depth) {
   if (depth > 64) return DK_OK;
-  Rule *r = &k->rules[rule];
-  for (uint32_t i = 0; i < r->nedge; i++) {
-    int32_t o = k->cell_owner[k->edges[r->edge0 + i]];
+  /* no table pointer is held across the recursion: a run it makes may grow the tables */
+  for (uint32_t i = 0; i < k->rules[rule].nedge; i++) {
+    int32_t o = k->cell_owner[k->edges[k->rules[rule].edge0 + i]];
     if (o >= 0 && (uint32_t)o != rule && (k->rules[o].state & ST_QUEUED) && !(k->rules[o].state & (ST_DEAD | ST_SUSPENDED))) { int e = pull(k, (uint32_t)o, depth + 1); if (e != DK_OK) return e; e = run_queued(k, (uint32_t)o); if (e != DK_OK) return e; }
   }
-  for (uint32_t n = r->dyn_head; n != NONE; n = k->nodes[n].next_rule) {
+  for (uint32_t n = k->rules[rule].dyn_head; n != NONE; n = k->nodes[n].next_rule) {
     int32_t o = k->cell_owner[k->nodes[n].cell];
     if (o >= 0 && (uint32_t)o != rule && (k->rules[o].state & ST_QUEUED) && !(k->rules[o].state & (ST_DEAD | ST_SUSPENDED))) { int e = pull(k, (uint32_t)o, depth + 1); if (e != DK_OK) return e; e = run_queued(k, (uint32_t)o); if (e != DK_OK) return e; }
   }
@@ -567,12 +651,17 @@ int kernel_run(dk_kernel *k, uint32_t rule) {
   return run(k, rule);
 }
 
+/* A suspended rule keeps its place in the graph: a wake while suspended is
+ * dropped (run_queued skips it) and resume runs it against current values. Only
+ * a DYNAMIC rule's edges go — it re-tracks its reads on every run. A static
+ * rule's edges came from the compile (addRule) and nothing re-links them, so
+ * unlinking them left a resumed rule — a slot a State released, or one an
+ * Animator handed back — landing once and never waking again. */
 void kernel_suspend(dk_kernel *k, uint32_t rule) {
   if (rule >= k->nrules) return;
   Rule *r = &k->rules[rule];
   r->state |= ST_SUSPENDED; r->state &= (uint8_t)~ST_QUEUED;
-  unlink_all(k, rule);
-  r->state |= ST_REWIRE;
+  if (r->kind == DK_DYNAMIC) { unlink_all(k, rule); r->state |= ST_REWIRE; }
 }
 
 int kernel_resume(dk_kernel *k, uint32_t rule) {
@@ -954,8 +1043,9 @@ static double extent_run(dk_kernel *k, Rule *r) {
     if (percent_owned(k, base + (axis == 0 ? k->vl.x : k->vl.y)) || percent_owned(k, base + (axis == 0 ? k->vl.width : k->vl.height))) continue;
     if (VB(base, rotateX) != 0 || VB(base, rotateY) != 0 || VB(base, translateZ) != 0) {
       /* out of the plane: the host's footprint3D — decline, leave the value */
+      int32_t target = r->target;
       CALL_DECLINE(k, (uint32_t)(r - k->rules));
-      return r->target >= 0 ? k->slots[r->target] : 0;
+      return target >= 0 ? k->slots[target] : 0;   /* read after the call: the host may have grown the tables */
     }
     double wd = VB(base, width), ht = VB(base, height), lead = 0, ext = axis == 0 ? wd : ht;
     double m[6];

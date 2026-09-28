@@ -2,7 +2,8 @@ import { View } from "./view.js";
 import { Node } from "./node.js";
 import { Layout } from "./layout.js";
 import { Dataset } from "./data.js";
-import { Animator, AnimatorGroup } from "./animator.js";
+import { Animator } from "./animator.js";
+import { AnimatorGroup } from "./animator-group.js";
 import { State } from "./state.js";
 type ViewCtor = new () => View;
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can

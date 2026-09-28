@@ -21,10 +21,11 @@
 import { type MaskSpec, allowedRef, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type SlotBox, type Stretch, type Surface } from "./backend.js";
 import { domTransform3D, unproject, type Homography } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
-import { colorToCss, insetSides, isGradient, radiusIsSquare, strokeUniform, type BoxStroke, type Fill, type Inset, type Radius, type Shadow, filterCss, gradientCss, type Filter } from "./value.js";
+import { colorToCss, insetSides, isGradient, radiusIsSquare, strokeUniform, type BoxStroke, type Fill, type Inset, type Radius, type Shadow, gradientCss, type Filter } from "./value.js";
+import { filterCss } from "./effects.js";
 import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
-import { richBlocks, richInlineSlots, richMetrics, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
+import { revealRichAnchor as revealAnchorIn, richBlocks, richInlineSlots, richMetrics, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
 import { type BoxState } from "./boxpaint.js";
 import { effectiveFamily, fontMetrics, fontString, cssWeight, transformText, type TextStyle } from "./measure.js";
 import { renderClamped, type ClampRule } from "./text-clamp.js";
@@ -33,6 +34,7 @@ import { deferral, firstFramePainted, afterFirstFrame } from "./boot-deferrals.j
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
 import { lockFocusZoom } from "./viewport-lock.js";
+import { observeVisibility, refreshObserved, type VisibilityCb } from "./dom-visibility.js";
 
 /** Style a native editable element to match the view's painted text metrics, so
  *  the caret and glyphs sit exactly where the static measure would place them. */
@@ -691,71 +693,6 @@ export class DomBackend implements RenderBackend {
 // copy of the mirror for its native windows. Registration replays existing
 // slots, so a host that wires up after first render misses nothing.
 
-// ── the visibility feed (Surface.watchVisibility) ────────────────────────────
-//
-// One shared IntersectionObserver for the whole document — the browser's own
-// off-the-layout-path answer to "what of this element shows", built for
-// exactly this. Viewport-rooted (root null), so an embedded app's box scrolled
-// out of a FOREIGN page reports what the page actually shows; and a
-// display:none subtree (visible = false) reports off, which is the same answer
-// the facts mean. One observer delivers all three facts:
-//   on    — isIntersecting
-//   rect  — intersectionRect mapped back into the VIEW's own coordinates via
-//           the bounding/offset ratio (exact under uniform scale; under
-//           rotation the AABB approximates — the honest limit of rect data)
-//   scale — device pixels per local unit: the LARGEST axis ratio of
-//           boundingClientRect to layout size, × devicePixelRatio (the
-//           rasterization convention — CA's contentsScale rule)
-// Registered lazily — a page where nothing binds the facts never constructs
-// the observer.
-
-type VisibilityCb = (v: { on: boolean; rect: { x: number; y: number; width: number; height: number } | null; scale: number }) => void;
-const VISWATCH = new Map<Element, VisibilityCb>();
-let visIO: IntersectionObserver | null = null;
-function observeVisibility(el: Element, cb: VisibilityCb): () => void {
-  if (typeof IntersectionObserver === "undefined") return () => {};
-  visIO ??= new IntersectionObserver((entries) => {
-    for (const e of entries) {
-      const deliver = VISWATCH.get(e.target);
-      if (deliver === undefined) continue;
-      const t = e.target as HTMLElement;
-      const bw = e.boundingClientRect.width, bh = e.boundingClientRect.height;
-      const lw = t.offsetWidth || 1, lh = t.offsetHeight || 1;
-      const rw = bw / lw, rh = bh / lh;                       // per-axis css ratios
-      const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
-      const scale = Math.max(rw, rh) * dpr;
-      const ir = e.intersectionRect;
-      const rect = e.isIntersecting && rw > 0 && rh > 0
-        ? {
-            x: (ir.x - e.boundingClientRect.x) / rw,
-            y: (ir.y - e.boundingClientRect.y) / rh,
-            width: ir.width / rw,
-            height: ir.height / rh,
-          }
-        : null;
-      deliver({ on: e.isIntersecting, rect, scale });
-    }
-  });
-  VISWATCH.set(el, cb);
-  visIO.observe(el);
-  return () => { VISWATCH.delete(el); visIO?.unobserve(el); };
-}
-
-/** Force a fresh entry for an observed element — observe() always reports an
- *  initial intersection, so unobserve+observe is "measure NOW, through the
- *  instrument itself": same clipping math, same page context. (A hand-rolled
- *  getBoundingClientRect walk would have to re-derive ancestor overflow
- *  clipping, and get it subtly wrong.) The runtime calls this when its model
- *  walk knows the answer moved but the observer saw no edge — an
- *  IntersectionObserver reports CROSSINGS, not levels, so a fully visible box
- *  under a scaling ancestor never crosses anything and never reports
- *  (view.ts visWake, the sprung-camera fix). */
-function refreshObserved(el: Element): void {
-  if (visIO === null || !VISWATCH.has(el)) return;
-  visIO.unobserve(el);
-  visIO.observe(el);
-}
-
 // (island sinks live in backend.ts now — one registry for EVERY backend; the
 // canvas islands have no element, so the DOM-only querySelectorAll replay and
 // the element-typed sink signature both retired with the move)
@@ -1196,7 +1133,13 @@ export class DomSurface implements Surface {
     this.maskSpec = spec;
     this.applyMask();
   }
-  applyMask(): void { applyDomMask(this); }
+  /** a mask was painted once: clearing it later still reaches the mask module */
+  private maskPainted = false;
+  applyMask(): void {
+    if (this.maskSpec === null && !this.maskPainted) return;   // never masked: the mask module is not asked
+    this.maskPainted = true;
+    applyDomMask(this);
+  }
 
   setClip(d: string | null): void {
     // clip-path clips native hit-testing along with the pixels, so the
@@ -1506,15 +1449,9 @@ export class DomSurface implements Surface {
     if (label !== "") this.linkEl.setAttribute("aria-label", label);
   }
 
+  /** `within` is the canvas path's concern; the flow scrolls its heading (dom-rich.ts). */
   revealRichAnchor(slug: string, _within: number, inset = 0): boolean {
-    // The heading is a real element in the flow (setRichContent tagged it with
-    // `data-anchor`); scroll IT — `within` is the canvas path's concern. Missing
-    // ⇒ the flow hasn't rendered that heading yet (held intent, retried later).
-    const el = this.richEl?.querySelector(`[data-anchor="${slug}"]`) as HTMLElement | null;
-    if (el === null || el === undefined) return false;
-    if (inset > 0) el.style.scrollMarginTop = `${inset}px`;
-    el.scrollIntoView({ block: "start" });
-    return true;
+    return revealAnchorIn(this, slug, inset);
   }
 
   // Which axes this surface scrolls (the `scrolls` enum, per axis). The two

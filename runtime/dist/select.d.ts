@@ -1,5 +1,5 @@
 import type { Dataset } from "./data.js";
-import type { PathSeg } from "./datapath.js";
+import type { PathSeg } from "./path-plan.js";
 /** An RFC 9535 node: a value plus its location — locations are what let
  *  replication cursor each selected record at its REAL place (`:rows[2:8][]`
  *  instances point at rows 2..7, not 0..5). */

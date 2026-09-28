@@ -4,8 +4,8 @@
 // What qualifies, syntactically: number and boolean literals; property chains
 // rooted at this/parent/classroot/app (or a bare member name), read as slots;
 // unary − and !; + − * / %; comparisons; ?: ; Math.min/max/abs/floor/ceil/
-// round/sqrt; && and || only where the value is used as a CONDITION (the
-// kernel's AND/OR yield 1/0, JS's yield an operand). Whether every chain lands
+// round/sqrt; && and || — as a condition the kernel's AND/OR, as a value the
+// operand JS yields (a SELECT). Whether every chain lands
 // on a NUMERIC slot is decided by the runtime at bind time, where the views
 // exist (bind.ts): the compiler emits for every syntactic candidate and the
 // binder keeps the JS body when a path does not resolve to a numeric cell.
@@ -82,6 +82,9 @@ const BIN: Partial<Record<number, number>> = {
 export interface InlineScope {
   /** The methods visible for a receiver at this body's site, or null. */
   lookup(receiver: "app" | "classroot" | "this", name: string): Method | null;
+  /** A bare name's value when it is a numeric `const` of the program's script
+   *  scope (`const SECTOR_BAND_H = 18`) — folded as a constant. */
+  constant?(name: string): number | undefined;
 }
 interface Env {
   /** The receiver path `this` means inside an inlined body ("this.root",
@@ -110,6 +113,29 @@ function returnExprOf(m: Method): ts.Expression | null {
   return out;
 }
 
+/** `x as T`, `x!`, `x satisfies T` — type-only: the expression inside, or null. */
+function typeOnly(n: ts.Node): ts.Expression | null {
+  if (ts.isAsExpression(n) || ts.isNonNullExpression(n) || ts.isSatisfiesExpression(n) || ts.isTypeAssertionExpression(n)) return n.expression;
+  return null;
+}
+
+/** The numeric consts a script declares at its top level — `const A = 18`,
+ *  `const B = -0.5` — by name. */
+function scriptConstants(src: string): Map<string, number> {
+  const out = new Map<string, number>();
+  const sf = ts.createSourceFile("script.ts", src, ts.ScriptTarget.ES2022, true);
+  for (const st of sf.statements) {
+    if (!ts.isVariableStatement(st) || (st.declarationList.flags & ts.NodeFlags.Const) === 0) continue;
+    for (const d of st.declarationList.declarations) {
+      if (!ts.isIdentifier(d.name) || d.initializer === undefined) continue;
+      let e: ts.Expression = d.initializer, sign = 1;
+      if (ts.isPrefixUnaryExpression(e) && e.operator === K.MinusToken) { sign = -1; e = e.operand; }
+      if (ts.isNumericLiteral(e)) out.set(d.name.text, sign * Number(e.text));
+    }
+  }
+  return out;
+}
+
 /** Emit, or null when the body is not a pure numeric expression. */
 export function emitExpr(src: string, scope: InlineScope | null = null): ExprCode | null {
   const sf = ts.createSourceFile("body.ts", "(" + src + "\n)", ts.ScriptTarget.ES2022, true);
@@ -125,7 +151,12 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
   const chain = (n: ts.Node, env: Env): { path: string } | { param: { node: ts.Node; env: Env } } | null => {
     const segs: string[] = [];
     let cur: ts.Node = n;
-    while (ts.isPropertyAccessExpression(cur)) { if (cur.questionDotToken) return null; segs.unshift(cur.name.text); cur = cur.expression; }
+    for (;;) {
+      if (ts.isPropertyAccessExpression(cur)) { if (cur.questionDotToken) return null; segs.unshift(cur.name.text); cur = cur.expression; }
+      else if (ts.isParenthesizedExpression(cur)) cur = cur.expression;
+      else if (typeOnly(cur)) cur = typeOnly(cur)!;
+      else break;
+    }
     if (cur.kind === K.ThisKeyword) segs.unshift(env.prefix ?? "this");
     else if (ts.isIdentifier(cur)) {
       const arg = env.params.get(cur.text);
@@ -151,6 +182,7 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
   const value = (n: ts.Node, env: Env): void => {
     if (!ok) return;
     if (ts.isParenthesizedExpression(n)) return value(n.expression, env);
+    if (typeOnly(n)) return value(typeOnly(n)!, env);
     if (ts.isNumericLiteral(n)) { code.push(OP.CONST, constIndex(Number(n.text))); return; }
     if (n.kind === K.TrueKeyword) { code.push(OP.CONST, constIndex(1)); return; }
     if (n.kind === K.FalseKeyword) { code.push(OP.CONST, constIndex(0)); return; }
@@ -161,8 +193,17 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
       return fail();
     }
     if (ts.isBinaryExpression(n)) {
+      // && / || as a VALUE yield an OPERAND, not 1/0: `a && b` is `a ? b : a`,
+      // `a || b` is `a ? a : b` — SELECT, whose test is JS truthiness in both
+      // kernels (0, -0 and NaN are false), so `x || 10` lands x or 10 exactly
+      const logical = n.operatorToken.kind === K.AmpersandAmpersandToken ? "and" : n.operatorToken.kind === K.BarBarToken ? "or" : null;
+      if (logical !== null) {
+        cond(n.left, env);
+        if (logical === "and") { value(n.right, env); value(n.left, env); } else { value(n.left, env); value(n.right, env); }
+        code.push(OP.SELECT); return;
+      }
       const op = BIN[n.operatorToken.kind];
-      if (op === undefined) return fail();   // && / || as VALUES are not the kernel's 1/0
+      if (op === undefined) return fail();
       value(n.left, env); value(n.right, env); code.push(op); return;
     }
     if (ts.isConditionalExpression(n)) { cond(n.condition, env); value(n.whenTrue, env); value(n.whenFalse, env); code.push(OP.SELECT); return; }
@@ -195,7 +236,15 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
       return fail();
     }
     if (ts.isPropertyAccessExpression(n)) { const c = chain(n, env); if (c === null) return fail(); if ("param" in c) return value(c.param.node, c.param.env); code.push(OP.LOAD, pathIndex(c.path)); return; }
-    if (ts.isIdentifier(n)) { const arg = env.params.get(n.text); if (arg === undefined) return fail(); return value(arg.node, arg.env); }
+    if (ts.isIdentifier(n)) {
+      const arg = env.params.get(n.text);
+      if (arg !== undefined) return value(arg.node, arg.env);
+      // a numeric const of the script scope — at the top level only: an inlined
+      // method body's free names belong to ITS file
+      const k = env.prefix === null ? scope?.constant?.(n.text) : undefined;
+      if (k === undefined) return fail();
+      code.push(OP.CONST, constIndex(k)); return;
+    }
     fail();
   };
   // condition position: truthiness — && and || are fine here
@@ -269,11 +318,16 @@ function inlineScopes(program: Program): { forElement(el: Element, classroot: Ma
 export function annotateExprs(program: Program): { candidates: number; emitted: number } {
   let candidates = 0, emitted = 0;
   const scopes = inlineScopes(program);
+  // THE PROGRAM'S SCRIPT SCOPE — one, over its scripts and its includes' (a
+  // name declared twice is the runtime's error): a body's bare name that is a
+  // numeric const there folds to its value
+  const consts = new Map<string, number>();
+  for (const s of program.scripts ?? []) for (const [k, v] of scriptConstants(s.src)) consts.set(k, v);
   const visit = (v: unknown, scope: InlineScope): void => {
     const w = v as { src: string; deps?: readonly string[] };
     if (w.deps === undefined || w.deps.length === 0 || w.deps.some((d) => d.startsWith(EXPR_MARK))) return;
     candidates++;
-    const e = emitExpr(w.src, scope);
+    const e = emitExpr(w.src, consts.size === 0 ? scope : { lookup: scope.lookup.bind(scope), constant: (n) => consts.get(n) });
     if (e === null) return;
     emitted++;
     w.deps = [...w.deps, encodeExpr(e, w.deps)];

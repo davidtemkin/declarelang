@@ -37,7 +37,13 @@ const flag = (n) => { const i = argv.indexOf("--" + n); return i >= 0 && argv[i 
 const ROOT = flag("root") ? path.resolve(flag("root")) : path.resolve(HERE, "../..");
 const WEB = argv.includes("--web");
 const TAG = flag("root") ? "." + path.basename(ROOT).toLowerCase() : "";
-const OUT = path.join(HERE, `../bundles/${WEB ? "declare-boot" : "declare-mac"}${TAG}.profile.js`);
+// --kernel wasm|js: the Mac bundle with another kernel compiled in (it defaults
+// to the native one) — for measuring the kernels against each other in one host
+const KERNEL = flag("kernel") ?? "native";
+// --count: crossing counters (globalThis.__kcalls) and the drain A/B switch —
+// instruments with a cost of their own, so timing builds are made without them
+const COUNT = argv.includes("--count");
+const OUT = path.join(HERE, `../bundles/${WEB ? "declare-boot" : "declare-mac"}${TAG}${KERNEL === "native" ? "" : "." + KERNEL}${(flag("bisect") ?? "") ? "." + flag("bisect").replace(/,/g, "+") : ""}.profile.js`);
 
 /** Replace `from` with `to` exactly once, or fail loudly — a missing anchor
  *  means the runtime moved and the meter would silently measure nothing. */
@@ -48,11 +54,39 @@ function patch(file, src, from, to) {
   return src.slice(0, i) + to + src.slice(i + from.length);
 }
 
+// --bisect <names>: A/B edits to the compiled runtime, for attributing a
+// regression to one change (comma-separated; see BISECT below)
+const BISECT = (flag("bisect") ?? "").split(",").filter(Boolean);
 const PATCHES = {
+  // CROSSINGS (globalThis.__kcalls): every kernel ABI call the runtime makes,
+  // by name, and every callback the kernel makes into JS ("cb:body", …) — the
+  // count a batching change has to beat. Counted, never timed: one increment.
+  "kernel-loader.js": (s) => {
+    // every kernel settle timed from JS, whichever kernel: one clock pair per settle
+    // (globalThis.__ksettle = { ms, n }) — the outer number the native split is held against
+    s = patch("kernel-loader.js", s, "        settle: () => { const r = x.kernel_settle(k); reserve(); return r; },",
+      "        settle: () => { const KS = globalThis.__ksettle ??= { ms: 0, n: 0, depth: 0 }; const t0 = KS.depth++ === 0 ? performance.now() : 0; let r; try { r = x.kernel_settle(k); } finally { if (--KS.depth === 0) { KS.ms += performance.now() - t0; KS.n++; } } reserve(); return r; },");
+    if (!COUNT) return s;   // --count: the counters wrap every call, so a timing build leaves them out
+    s = patch("kernel-loader.js", s, "function bindWith(x, mem, image, c, hooks) {\n",
+      "function bindWith(x0, mem, image, c, hooks) {\n    const __C = globalThis.__kcalls ??= {};\n    const x = {};\n    for (const n of Object.keys(x0)) { const f = x0[n]; x[n] = typeof f !== \"function\" ? f : (...a) => { __C[n] = (__C[n] | 0) + 1; return f.apply(x0, a); }; }\n");
+    s = patch("kernel-loader.js", s, "    nk.setHost(() => { IO[3] = host.body(IO[0], IO[1], IO[2]); }, () => { IO[3] = host.afterSteps() ? 1 : 0; }, () => { IO[3] = host.fireChanges() ? 1 : 0; }, () => { host.endChain(); },",
+      "    const __C = globalThis.__kcalls ??= {}; const __n = (k) => { __C[k] = (__C[k] | 0) + 1; };\n    nk.setHost(() => { __n(\"cb:body\"); IO[3] = host.body(IO[0], IO[1], IO[2]); }, () => { __n(\"cb:after\"); IO[3] = host.afterSteps() ? 1 : 0; }, () => { __n(\"cb:changes\"); IO[3] = host.fireChanges() ? 1 : 0; }, () => { __n(\"cb:end\"); host.endChain(); },");
+    return s;
+  },
   "reactive.js": (s) => {
+    // the opening capacities 164ceecc used (4× cells, rules, edge nodes, code)
+    // TINY opening capacities: the kernel grows many times while a program boots —
+    // the growth path under test on a host that only runs the native kernel
+    if (BISECT.includes("tinycaps")) s = s.replace(/const DEFAULT_CAPS = \{[^}]*\};/, "const DEFAULT_CAPS = { extra_elems: 8, extra_cells: 64, extra_rules: 16, dyn_edges: 64, ring: 1 << 16, code_words: 64, consts: 8, track_ring: 1 << 14 };");
+    if (BISECT.includes("caps164")) s = s.replace(/const DEFAULT_CAPS = \{[^}]*\};/, "const DEFAULT_CAPS = { extra_elems: 1 << 18, extra_cells: 1 << 22, extra_rules: 1 << 18, dyn_edges: 1 << 21, ring: 1 << 16, code_words: 1 << 20, consts: 1 << 16, track_ring: 1 << 14 };");
     s = "const __P = globalThis.__prof;\n" + s;
     // the kernel handle, for the driver's crossing micro-benchmark
     s += "\nglobalThis.__declareKernel = () => { try { return K; } catch { return null; } };\n";   // main has no kernel
+    // A/B (crossings): `__declareDrainByCall(true)` restores the drain-by-call —
+    // every active-rule switch with reads pending calls K.flush() — so one
+    // binary measures owner marks against it, alternating in one window
+    if (COUNT) s = patch("reactive.js", s, "function drainTrack() {\n    const n = trackCount[0];\n",
+      "let __drainByCall = false;\nglobalThis.__declareDrainByCall = (v) => { __drainByCall = !!v; };\nfunction drainTrack() {\n    const n = trackCount[0];\n    if (__drainByCall) { if (n > 0) K.flush(); return; }\n");
     s = patch("reactive.js", s, "        this.yielding = yielding;", "        this.yielding = yielding;\n        __P.all.push(this);");
     // every evaluation lands in runBody (the kernel's callback) — settle-driven
     // and direct alike — so that is where a run is counted
@@ -425,6 +459,8 @@ const r = await build({
   // rides only in the mac variant.
   define: {
     __DECLARE_DEV_SWITCHES__: "true", __DECLARE_NATIVE_KERNEL__: WEB ? "false" : "true",
+    // the Mac variant's kernel is the app's own, as in the shipping Mac bundle
+    ...(WEB ? {} : { __DECLARE_KERNEL__: JSON.stringify(KERNEL), ...(KERNEL === "native" ? {} : { __DECLARE_NATIVE_KERNEL__: "false" }) }),
     // the WEB profile bundle matches the SHIPPING delivery — the kernel INSIDE
     // the bundle (base64; declarec.mjs has the measurement) — so the rigs
     // exercise what a deploy does; main has no kernel and no flag to set

@@ -48,11 +48,12 @@ import { DeclareError, diag } from "./errors.js";
 import { View, fireEvent } from "./view.js";
 import { Node } from "./node.js";
 import { Layout } from "./layout.js";
-import { Animator, AnimatorGroup } from "./animator.js";
+import { Animator } from "./animator.js";
+import { AnimatorGroup } from "./animator-group.js";
 import { Spring } from "./spring.js";
 import { State } from "./state.js";
 import { Constraint } from "./reactive.js";
-import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED, RichTextSchema, TextSchema } from "./schema.js";
+import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED } from "./schema.js";
 // The validators (check.js) and the schema half (program-schema.js) import
 // separately ON PURPOSE: a precompiled program was fully checked at build
 // time, so a production bundle substitutes check.js with a stub
@@ -65,17 +66,17 @@ export function provideChecker(c) { CHECKER = c; }
 const checkAttr = (schema, attr) => CHECKER.checkAttr(schema, attr);
 const checkMethod = (eff, m) => CHECKER.checkMethod(eff, m);
 const checkComponentValue = (...a) => CHECKER.checkComponentValue(...a);
-import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken } from "./program-schema.js";
+import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, provisionValue } from "./program-schema.js";
 import { fontObjectHint } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
 import { coerce, isPercent, isAlign } from "./value.js";
-import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite } from "./attributes.js";
-import { bindConstraint, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
+import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules } from "./attributes.js";
+import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
-import { staticSegs } from "./datapath.js";
+import { staticSegs } from "./path-plan.js";
 import { provideViewCreator, provideInlineViewHost } from "./view.js";
 import { toCursor } from "./data.js";
 import { validateDoc } from "./data-schema.js";
@@ -143,50 +144,16 @@ function applyProvision(r, view, attr, ctx, classroot) {
     }
     return true;
 }
-/** Coerce a LITERAL provision value. A provision has no declared slot on the
- *  providing node, but its NAME may match a text FACE value (`fontFamily`,
- *  `fontWeight`, `textColor`, …), and then it should coerce exactly as that slot
- *  would — a `fontFamily = ["Georgia", "serif"]` joins into one family chain, a
- *  `fontWeight = normal` keeps the token — so the reader
- *  (`Text`'s `provided("fontFamily")`) gets a well-formed value. A name no face
- *  value claims (`accent`, `density`) coerces by its written form. */
+/** A LITERAL provision's value (program-schema.ts provisionValue), save the one
+ *  that needs this build: a `theme` provision naming a theme (`App [ theme =
+ *  Cupertino ]`) is the record, so a descendant's `provided("theme")` reads a
+ *  token record. */
 function resolveProvisionLiteral(attr, ctx) {
     const v = attr.value;
-    // Coerce by the KNOWN face/rich type. Use the EXPORTED schemas directly, not
-    // ctx.schemas — a production runtime may not register the checker's schema
-    // registry, and `attrType(undefined, …)` would crash the whole render.
-    // The type matters where a token is ambiguous: `headingWeight = black` is the
-    // weight token, not the color 0x000000 the coerceToken fallback would misread.
-    // A `theme` provision naming a theme (`App [ theme = Cupertino ]`) → the
-    // record, so a descendant's `provided("theme")` reads a token record.
     if (attr.name === "theme" && v.kind === "ident" && ctx.themes.has(v.name)) {
         return ctx.themes.get(v.name);
     }
-    const ptype = attrType(TextSchema, attr.name) ?? attrType(RichTextSchema, attr.name);
-    if (ptype?.kind === "font" && ((v.kind === "ident" && v.name !== "null") || v.kind === "list")) {
-        // A bare list of family strings joins into one chain. A font is an object,
-        // reached in a { } — a bare name here is refused (checker), thrown (unchecked).
-        const items = v.kind === "ident" ? [v] : v.items;
-        return items.map((i) => {
-            if (i.kind === "string")
-                return i.value;
-            throw new DeclareError(i.kind === "ident" ? `'${i.name}' is not a family — ${fontObjectHint(i.name)}` : `a fontFamily list holds family strings`, i.pos);
-        }).join(", ");
-    }
-    if (ptype !== null) {
-        const c = coerce(ptype, v);
-        if (c.ok)
-            return c.value;
-    }
-    // A bare enum-like token no face type claims still reads as its string; every
-    // other written form coerces by itself (colors, numbers, value constructors).
-    if (v.kind === "ident" && v.name !== "true" && v.name !== "false" && v.name !== "null") {
-        const c = coerce({ kind: "color" }, v);
-        if (c.ok)
-            return c.value;
-        return v.name;
-    }
-    return coerceToken(v);
+    return provisionValue(attr);
 }
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
@@ -383,6 +350,10 @@ function installBatch(ordered, ctx) {
         }
         else if ("replicator" in p)
             p.replicator.arm();
+        else if ("declDefault" in p) {
+            const v = p.view;
+            bindDeclDefault(p.view, p.declDefault, p.rec.source, p.rec.pos, p.rec.outer ? (v.classroot ?? null) : p.view, p.rec.deps ?? undefined);
+        }
         else if ("align" in p)
             bindAlign(p.view, p.attr.name, p.align, p.attr.value.pos);
         else
@@ -630,13 +601,26 @@ isShapeType = () => false) {
             // the raw record; a tracked view assigned INTO the slot normalizes back
             // to raw (the Dataset.value push pattern), so identity stays one thing.
             const shapeSlot = isShapeType(d.type.endsWith("[]") ? d.type.slice(0, -2) : d.type);
+            // DECLARED DEFAULTS STAND AS RULES (kernel.md): a `{ }` default is a
+            // yielding rule on each instance — one evaluation per input change, not
+            // one per read — installed at construction on a slot nothing set. Not for
+            // a `readonly` slot (its contract is the live value, un-overridable) or a
+            // schema-typed one (its record crosses through the push/tracked hooks).
+            const rule = defBinding !== undefined && !d.readOnly && !shapeSlot;
+            // A numeric or boolean slot whose default is a `{ }` has no literal to
+            // start from; standing as a rule, it lives in the kernel TABLE (a cell
+            // EXPR bodies read and the kernel lands), starting at 0/false — a value
+            // no reader sees: until the rule lands, a read evaluates the `{ }` live
+            const literal = Object.hasOwn(defs, d.name) ? defs[d.name] : undefined;
+            const tableStart = rule && literal === undefined ? (d.type === "number" ? 0 : d.type === "boolean" ? false : undefined) : undefined;
             specs[d.name] = {
-                def: Object.hasOwn(defs, d.name) ? defs[d.name] : undefined,
+                def: literal !== undefined ? literal : tableStart,
                 // The runtime half of the slot's identity: a `readonly` declaration
                 // makes the accessor's setter throw (its `{ }` default is the value,
                 // evaluated live and un-overridable).
                 readOnly: d.readOnly || undefined,
                 defBinding,
+                defRule: rule || undefined,
                 defOuter: outer || undefined,
                 ...(shapeSlot ? {
                     push: (self, v) => {
@@ -659,6 +643,8 @@ isShapeType = () => false) {
                 deps: d.def?.kind === "code" ? (d.def.deps ?? null) : null,
                 type: d.type,
                 readOnly: d.readOnly || undefined,
+                rule: rule || undefined,
+                outer: (rule && outer) || undefined,
             };
         }
         // The static mapped type on defineAttributes serves hand-declared
@@ -809,7 +795,7 @@ function mergeAttrs(sources) {
  *  should appear to change. check.ts vetted the item kinds. */
 function literalList(items) {
     return Object.freeze(items.map((it) => {
-        if (it.kind === "number" || it.kind === "string")
+        if (it.kind === "number" || it.kind === "string" || it.kind === "value")
             return it.value;
         if (it.kind === "hexColor") {
             const c = coerce({ kind: "color" }, it);
@@ -1071,6 +1057,10 @@ function construct(el, outer, ctx, parentSchema = null) {
                 noteUseSiteSet(view, attr.name, attr.value.pos);
         }
     }
+    // Its declared defaults' rules, after its own attributes: one installs only
+    // on a slot none of them set or bound (bindDeclDefault).
+    for (const [n, rec] of declaredRules(view))
+        ctx.pending.push({ view: view, declDefault: n, rec });
     // THE LAYOUT INSTALLS AFTER THE VIEW'S OWN GEOMETRY. A strategy's first
     // probe decides which slots it claims — ResponsiveLayout picks its tier from
     // the room it is given — and until 2026-09-21 this arm was pushed BEFORE the
@@ -1447,7 +1437,7 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
                     policy = () => !!fn.call(parentView, parentView.parent, croot);
                 }
                 else {
-                    policy = wv.name === "true";
+                    policy = wv.kind === "value" ? wv.value === true : wv.name === "true"; // a compiled program carries the value
                 }
             }
             const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);

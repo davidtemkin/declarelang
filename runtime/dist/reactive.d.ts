@@ -38,8 +38,13 @@ export declare function isSettling(): boolean;
  *  read evaluates live while this holds (attributes.ts declStale). */
 export declare function workPending(): boolean;
 export declare function loadJsKernel(): Promise<void>;
+/** THE KERNEL A BUILD CARRIES (build-flags.d.ts __DECLARE_KERNEL__). A
+ *  `--kernel=js` build imports the JavaScript kernel and nothing else: the
+ *  condition folds, the WebAssembly bytes and their loader are unreferenced, and
+ *  the bundle drops them. The Mac host's runtime (`native`) binds the C kernel
+ *  linked into the app and carries no WebAssembly either. Every other build
+ *  takes the WebAssembly path below. */
 export declare function kernelReady(caps?: KernelCaps): Promise<void>;
-/** The synchronous form, where the engine allows it (JavaScriptCore, node). */
 export declare function kernelReadySync(caps?: KernelCaps): void;
 export declare function kernelLoaded(): boolean;
 /** Tooling: the kernel's occupancy — cells and rules allocated (high-water,
@@ -170,6 +175,26 @@ export declare class Constraint {
      *  body, bind.ts); this object is its handle for ownership, labels and
      *  disposal. The kernel never calls back into it. */
     private native;
+    /** KERNEL-LANDED: the numeric table cell this rule's value lands in, written
+     *  by the kernel from what the body returns (set_value: gate, store, wake; the
+     *  surface push follows at the settle's close, as for an EXPR rule) instead of
+     *  by the JS write path. −1: the rule lands its own value. */
+    landedCell: number;
+    private accepts;
+    private landsBool;
+    /** @internal Land values through the kernel (attributes.ts kernelLanding):
+     *  before the rule exists, since the kernel learns its target when it is added. */
+    landInKernel(land: {
+        cell: number;
+        bool: boolean;
+        accepts: (v: unknown) => boolean;
+    }): void;
+    /** What the kernel lands for `v`: the number itself, or — for a value the
+     *  table cannot take — the JS write lands it and the cell's own value goes
+     *  back, which the kernel's equality gate lets through as no change. The gate
+     *  is JS `===` in both kernels (NaN never gates, -0 equals 0) — the one a JS
+     *  write to a table slot already passed through: kernel.md §10a. */
+    private landing;
     /** @internal Adopt a rule the kernel created (EXPR): edges and code are
      *  already in place; landing is `run()`. */
     adoptRule(id: number): void;
@@ -211,7 +236,7 @@ export declare class Constraint {
     /** @internal The kernel's callback: evaluate and land. On the static path a
      *  structural wake (a child list changed under a read) re-probes the edges
      *  first — same read-paths, current cells. */
-    runBody(): void;
+    runBody(): number;
     /** Evaluate now. A tracking run REPLACES the active tracker for its
      *  duration (the JS core set `active = this`): a wire() probe that
      *  transitively runs one — the visibility feed arming on a first tracked

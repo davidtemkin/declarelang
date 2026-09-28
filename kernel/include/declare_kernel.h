@@ -93,6 +93,10 @@ typedef struct dk_host {
   /* A built-in rule met a case it does not compute (an auto-extent over a 3D
    * child): the host replaces it with its own computation. May be NULL. */
   void (*decline)(void *ctx, uint32_t rule);
+  /* The reads a rule just made need `nodes` more edges than are free: the host
+   * grows the tables now (kernel_grow). May be NULL; the kernel then reports
+   * DK_ERR_FULL through `error` rather than drop a dependency. */
+  void (*reserve)(void *ctx, uint32_t nodes);
 } dk_host;
 
 typedef struct dk_kernel dk_kernel;
@@ -110,6 +114,22 @@ uint32_t kernel_arena_size(const void *image, uint32_t bytes, const dk_caps *cap
 
 dk_kernel *kernel_load(const void *image, uint32_t bytes, const dk_caps *caps,
                        void *arena, uint32_t arena_bytes, const dk_host *host);
+
+/* GROWTH. The capacities are an opening size, not a ceiling: the host watches
+ * kernel_usage and moves the kernel's TABLES into a larger arena laid out for
+ * bigger capacities (kernel_arena_size with the new caps); every table's used
+ * part is copied. The kernel itself does not move — its address, and every
+ * pointer into its own fields, stays valid — and nothing in the kernel holds a
+ * table address across a call to the host, so this may run at any time,
+ * including from inside a host body during a settle. The image must be the one
+ * the kernel was loaded from. Returns k, or 0 (a capacity smaller than what is in
+ * use, or an arena too small). The old tables are left unused. */
+dk_kernel *kernel_grow(dk_kernel *k, const void *image, uint32_t bytes, const dk_caps *caps,
+                       void *arena, uint32_t arena_bytes);
+/* What is used and what fits, per table, into out[12]:
+ * cells, cell_cap, rules, rule_cap, nodes, node_cap, elems, elem_cap,
+ * code, code_cap, consts, const_cap. `nodes` is the high-water mark. */
+void kernel_usage(dk_kernel *k, uint32_t *out);
 
 /* The slot table (F64 cells; REF cells hold nothing the host reads). */
 double *kernel_table(dk_kernel *k);
@@ -181,7 +201,16 @@ uint32_t *kernel_ring(dk_kernel *k, uint32_t *capacity_out);
  * cell`, no call — while a DYNAMIC rule's body runs; the kernel drains it
  * (linking each cell to the active rule, coalesced) when the body returns,
  * at the next run's entry, and at kernel_flush. The same ring serves the WASM
- * host (a call saved per read) and a native host (where a call is ~1 µs). */
+ * host (a call saved per read) and a native host (where a JavaScriptCore call
+ * into C costs 130–220 ns, against ~15 ns within JavaScript).
+ * AN OWNER MARK — `DK_TRACK_OWNER | rule` — closes the reads before it (back to
+ * the previous mark) under `rule`; `DK_TRACK_OWNER | DK_TRACK_NOBODY` drops
+ * them. The host appends one where it hands the active rule to another (a
+ * body's apply under the outer tracker, an untracked read), so the switch costs
+ * a store, not a call. Reads after the last mark link to the rule active when
+ * the ring drains. */
+#define DK_TRACK_OWNER  0x80000000u
+#define DK_TRACK_NOBODY 0x7fffffffu
 uint32_t *kernel_track_ring(dk_kernel *k, uint32_t *capacity_out);
 uint32_t *kernel_track_count(dk_kernel *k);
 uint32_t *kernel_ring_count(dk_kernel *k);

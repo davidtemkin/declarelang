@@ -7,7 +7,8 @@
 // (footprints, overlays). Conventions are CSS's: x right, y down, z toward the
 // viewer; rotateX(a)·rotateY(b) as matrices, applied to a point right-to-left;
 // the eye sits `perspective` px in front of the parent's perspective origin.
-export const has3D = (p) => p.rotateX !== 0 || p.rotateY !== 0 || p.translateZ !== 0;
+import { has3D, partsOf } from "./affine.js";
+export { has3D } from "./affine.js";
 /** local (u, v) on the plane → the PARENT's coordinates, as a homography.
  *  `affine` is the view's 2D matrix (about its pivot), `x`/`y` its position in
  *  the parent, `pivot` the 3D rotation's centre (the same pivot), `P` the
@@ -108,7 +109,6 @@ export function frontFacing(h, w, hgt) {
     const cross = (q[1][0] - q[0][0]) * (q[2][1] - q[0][1]) - (q[1][1] - q[0][1]) * (q[2][0] - q[0][0]);
     return cross >= 0;
 }
-const partsOf = (v) => ({ rotateX: v.rotateX ?? 0, rotateY: v.rotateY ?? 0, translateZ: v.translateZ ?? 0 });
 /** The seam spec for `v` under `parent`, or null for a view that stays in its plane. */
 export function spec3DOf(v, parent) {
     const p3 = partsOf(v);

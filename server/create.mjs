@@ -424,22 +424,22 @@ bootHost(cfg);
   // the url (so distro mode's two aliases of one file share a single entry).
   // (embeddable-server.md §1, §5)
   const prodMem = new Map();
-  function buildKey(srcPath, backend, toolchain) {
+  function buildKey(srcPath, backend, kernel, toolchain) {
     return createHash("sha256")
-      .update([`main=${srcPath}`, `render=${backend}`, `slim=true`, `stripPos=true`, `typecheck=true`, `crawler=false`, `tc=${toolchain}`].join("\n"))
+      .update([`main=${srcPath}`, `render=${backend}`, `kernel=${kernel}`, `slim=true`, `stripPos=true`, `typecheck=true`, `crawler=false`, `tc=${toolchain}`].join("\n"))
       .digest("hex").slice(0, 16);
   }
 
-  async function ensureProdBuild(srcPath, backend = "dom") {
+  async function ensureProdBuild(srcPath, backend = "dom", kernel = "wasm") {
     if (!existsSync(srcPath)) return null;
     const source = readFileSync(srcPath, "utf8");
     const name = path.basename(srcPath).replace(/\.declare$/, "");
     const dir = path.dirname(srcPath);
     const tc = toolchain.fingerprint();
-    const key = buildKey(srcPath, backend, tc);
+    const key = buildKey(srcPath, backend, kernel, tc);
     const outDir = path.join(buildCache, key);
     const manPath = path.join(outDir, "manifest.json");
-    const propsNow = { render: backend, slim: "true", stripPos: "true", typecheck: "true", crawler: "false", toolchain: tc };
+    const propsNow = { render: backend, slim: "true", stripPos: "true", typecheck: "true", crawler: "false", kernel, toolchain: tc };
     const fresh = async (m) => {
       if (!m || !m.closure || !m.moduleName || !existsSync(path.join(outDir, m.moduleName))) return false;
       try { return await toolchain.fresh(m.closure, propsNow); } catch { return false; }
@@ -449,7 +449,7 @@ bootHost(cfg);
     if (existsSync(manPath)) {
       try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (await fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
     }
-    const built = await toolchain.production({ source, name, srcDir: dir, outDir, render: backend, props: { toolchain: tc } });
+    const built = await toolchain.production({ source, name, srcDir: dir, outDir, render: backend, kernel, props: { toolchain: tc } });
     if (!built.ok) return { error: built.errors, report: built.report };
     man = { closure: built.closure, dir: outDir, moduleName: built.moduleName, sizes: built.sizes,
       assets: built.assets, used: built.usedComponents, source: srcPath, builtAt: null };
@@ -464,7 +464,7 @@ bootHost(cfg);
   // url in the mount space, so it composes with every mount identically.
   // `req` rides along because everything static now goes out through sendFile,
   // which answers byte ranges — and a range is a property of the REQUEST.
-  async function serveBuild(req, res, buildPath, urlPath, backend = "dom") {
+  async function serveBuild(req, res, buildPath, urlPath, backend = "dom", kernel = "wasm") {
     // buildPath = "/build/my-apps/lzx-weather/foo.js" → the PROGRAM directory is
     // the longest prefix holding its own <dir>/<dir>.declare (the directory-
     // program rule), and everything after it is the tail — which may be a
@@ -481,7 +481,7 @@ bootHost(cfg);
     }
     if (hit === null) return send(res, 404, "no such program under: " + afterBuild, "text/plain");
 
-    const man = await ensureProdBuild(hit.abs, backend);
+    const man = await ensureProdBuild(hit.abs, backend, kernel);
     if (man === null) return send(res, 404, "no such program", "text/plain");
     if (man.error) return send(res, 500, "declarec build failed:\n" + (man.report ?? man.error.map((e) => e.message).join("\n")), "text/plain");
     const t = tail.replace(/^\/+/, "");
@@ -694,7 +694,7 @@ bootHost(cfg);
       if (p === "/build" || p.startsWith("/build/")) {
         const q = new URL(req.url, "http://x").searchParams;
         const flags = parseFlags(q, DEFAULT_FLAGS);
-        serveBuild(req, res, p, p, flags.render).catch((e) => {
+        serveBuild(req, res, p, p, flags.render, flags.kernel).catch((e) => {
           if (!res.headersSent) send(res, 500, String((e && e.stack) || e), "text/plain");
         });
         return;

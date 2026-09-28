@@ -213,12 +213,13 @@ export function explain(node, attr) {
         };
     }
     const owner = ownerOf(node, attr);
-    // An author DECLARATION's `{ }` default is served by a live defBinding, not
-    // a standing Constraint — its provenance comes from the declaration record
+    // An author DECLARATION's `{ }` default explains itself AS a declaration —
+    // whether its standing rule serves it (the owner, marked declDefault) or it
+    // is evaluated live (no owner yet) — from the declaration record
     // (attributes.ts DECLARED), so the slots the program is made of explain
-    // themselves exactly as the platform's do (they didn't, until 2026-08-19:
-    // View.width had deps/source/pos and the author's fitS had null).
-    const decl = owner === null && decls[attr] !== undefined && decls[attr].source !== null ? decls[attr] : undefined;
+    // themselves exactly as the platform's do.
+    const declOwned = owner === null || owner.declDefault === true;
+    const decl = declOwned && decls[attr] !== undefined && decls[attr].source !== null ? decls[attr] : undefined;
     let spring = null;
     for (const c of node.children) {
         const s = c;
@@ -231,7 +232,7 @@ export function explain(node, attr) {
         attr,
         value: safeAttr(node[attr]),
         set: isSet(node, attr),
-        constraint: owner !== null
+        constraint: owner !== null && decl === undefined
             ? {
                 // Composed fresh rather than echoing owner.label: that string is baked
                 // at bind time from the raw constructor name, which a bundler may have

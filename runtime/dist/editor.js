@@ -22,7 +22,7 @@ import { Constraint } from "./reactive.js";
 import { View, onDiscard, inheritedCursor } from "./view.js";
 import { setBound, defineAttributes } from "./attributes.js";
 import { coerceData } from "./data.js";
-import { splitPath } from "./datapath.js";
+import { splitPath } from "./path-plan.js";
 import { compileExpr } from "./expr.js";
 import { DeclareError } from "./errors.js";
 /** Per-editor map of draft-slot → its two-way session. A WeakMap so a discarded

@@ -35,7 +35,7 @@
 
 import { Cell, Constraint } from "./reactive.js";
 import { affineFit, childHomography, unprojectChild, type Homography, type View3D } from "./projective.js";
-import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
+import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
 import { diag } from "./errors.js";
 import { insetLead, type Inset } from "./value.js";
 
@@ -187,7 +187,7 @@ function localAffine(v: InteractionView): Affine {
 /** The homography of a child that leaves its plane (rotateX/rotateY/translateZ),
  *  local → parent, or null for one that stays in it. */
 function homographyOf(parent: InteractionView | null, c: InteractionView): Homography | null {
-  return childHomography(parent as unknown as View3D | null, c as unknown as View3D, () => localAffine(c));
+  return leavesPlane(c as unknown as View3D) ? childHomography(parent as unknown as View3D | null, c as unknown as View3D, () => localAffine(c)) : null;
 }
 
 function toChildLocal(v: InteractionView, c: InteractionView, lx: number, ly: number): [number, number] {

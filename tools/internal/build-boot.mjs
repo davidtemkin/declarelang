@@ -19,9 +19,10 @@
 // server's /compile, the in-browser worker's compileProgram. So the parser,
 // the checker and the teaching text ride in the lazily fetched compiler bundle
 // and nowhere here — the host imports the runtime through runtime/host-api.js,
-// and the checker is the same stand-in a production build ships
-// (tools/internal/stubs.mjs). test/boot-bundle.test.mjs holds the line, from
-// this file's own build options.
+// and the checker is the same stand-in a production build ships, generated
+// from the one manifest (compiler/src/capabilities.ts, the `checker`
+// capability). test/boot-bundle.test.mjs holds the line, from this file's own
+// build options.
 //
 // Two runtime-resolved references survive bundling by construction:
 //   • the compiler bundle stays LAZY (external) — the ~1 MB gz compiler is
@@ -39,7 +40,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { mkdirSync, copyFileSync, statSync, readFileSync, writeFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { build } from "esbuild";
-import { CHECK_STUB_SRC } from "./stubs.mjs";
+import { CAPABILITIES, standIn } from "../../compiler/dist/capabilities.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -61,6 +62,8 @@ export function bootBuildOptions(overrides = {}) {
       // before first paint waits on a second fetch (see declarec.mjs for the
       // measurement that decided it)
       __DECLARE_INLINE_KERNEL__: "true",
+      // the platform page runs the compiled kernel; the JavaScript one stays the on-demand debug switch
+      __DECLARE_KERNEL__: '"wasm"',
     },
     bundle: true,
     format: "esm",
@@ -89,11 +92,15 @@ export function bootBuildOptions(overrides = {}) {
     // in the profiler — by setting `__declareKernelJS` and reloading.
     external: ["*declare-compiler.js", "*kernel-js.js"],
     // THE CHECKER IS NOT ABOARD (see the header): the same stand-in a
-    // production build ships, from the one shared text.
+    // production build ships, generated from the manifest.
     plugins: [{
-      name: "slim-check",
+      name: "no-checker",
       setup(b) {
-        b.onLoad({ filter: /[/\\]runtime[/\\]dist[/\\]check\.js$/ }, () => ({ contents: CHECK_STUB_SRC, loader: "js", resolveDir: RUNTIME }));
+        const checker = CAPABILITIES.find((c) => c.id === "checker");
+        b.onLoad({ filter: /[/\\]runtime[/\\]dist[/\\]check\.js$/ }, () => ({
+          contents: standIn(checker, "check", readFileSync(path.join(RUNTIME, "check.js"), "utf8"), "./stand-in.js"),
+          loader: "js", resolveDir: RUNTIME,
+        }));
       },
     }],
     ...overrides,

@@ -39,7 +39,7 @@ const kb = (n) => (n / 1024).toFixed(0) + " KB";
 //
 // Safe by precedent: build-boot.mjs and build-compiler.mjs both minify, so
 // every browser user already runs this runtime and this compiler mangled.
-async function bundle(entry, outfile, globalName, { keepNames = false } = {}) {
+async function bundle(entry, outfile, globalName, { keepNames = false, define = {} } = {}) {
   const r = await build({
     entryPoints: [entry],
     bundle: true,
@@ -59,6 +59,7 @@ async function bundle(entry, outfile, globalName, { keepNames = false } = {}) {
     // Nothing keys a LOOKUP on a JS name (every `.name` in the runtime is a
     // parsed-program field), so this is legibility, not correctness.
     keepNames,
+    define,
     legalComments: "none",
     logLevel: "silent",
   });
@@ -76,8 +77,11 @@ globalThis.__declareCompiler = { compile, compileTracked, setDefaultLibrary, hig
 `);
 
 console.log("build-mac:");
+// THE KERNEL IS THE ONE LINKED INTO THE APP (build-flags.d.ts __DECLARE_KERNEL__):
+// the runtime binds it, keeps the JavaScript kernel for debugging the kernel
+// itself, and carries no WebAssembly.
 await bundle(path.join(ROOT, "browser/mac-boot.js"), path.join(OUT, "declare-mac.js"), "DeclareMac",
-             { keepNames: true });
+             { keepNames: true, define: { __DECLARE_KERNEL__: '"native"' } });
 // No keepNames for the compiler: its input is the web bundle, already minified
 // without them, so there are no original names left to preserve — asking would
 // cost 220 KB to pin identifiers esbuild had already mangled upstream.

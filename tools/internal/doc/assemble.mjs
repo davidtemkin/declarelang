@@ -40,7 +40,7 @@ import { RESERVED, programSchemas } from "../../../runtime/dist/program-schema.j
 import { parseLibrary } from "../../../runtime/dist/parser.js";
 import { CODE_PREFIX } from "../../../runtime/dist/diagnostics.js";
 import { catalogFor, HOST_SOURCES } from "../error-codes.mjs";
-import { MOTION_TOKENS } from "../../../runtime/dist/animate.js";
+import { MOTION_TOKENS } from "../../../runtime/dist/easing.js";
 import { OPS } from "../ops.mjs";
 import { buildRegistry, scan } from "./links.mjs";
 

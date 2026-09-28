@@ -58,9 +58,11 @@ import {
 import { scanDatapaths, rewriteDatapaths, fillDatapaths } from "../runtime/dist/datapath.js";
 import { provideTransport } from "../runtime/dist/data.js";
 import { explain } from "../runtime/dist/inspect.js";
-import { sample, motionToken, MOTION_TOKENS, Clock, setClock, sharedClock } from "../runtime/dist/animate.js";
+import { Clock, setClock, sharedClock } from "../runtime/dist/animate.js";
+import { sample, motionToken, MOTION_TOKENS } from "../runtime/dist/easing.js";
 import { setTimeHost } from "../runtime/dist/time.js";
-import { Animator, AnimatorGroup } from "../runtime/dist/animator.js";
+import { Animator } from "../runtime/dist/animator.js";
+import { AnimatorGroup } from "../runtime/dist/animator-group.js";
 
 const SAMPLE = `App [ width=240, height=160, fill=#1E3A49,
   View [ x=20, y=20, width=80, height=60, fill=#FFFFFF ] ]`;
@@ -1096,6 +1098,40 @@ await test("the State verbs are reachable from source — gate XOR verbs", async
     } catch (e) { return String(e); }
   })();
   assert.match(errs, /did you mean 'toggle'/);
+});
+
+await test("a constraint a State or an Animator took over follows its inputs again once handed back", async () => {
+  // The base a take-over suspends is RESUMED, not reinstated with a stale
+  // output: after the State lifts (or the Animator finishes) the slot's formula
+  // must keep answering its inputs. It stopped doing so for table slots
+  // (numbers, booleans): suspending a static rule unlinked the edges the
+  // compile gave it (kernel.c kernel_suspend), and a State's claim on the cell
+  // let the kernel dispose a suspended yielding default (state.ts pushOverride).
+  const run = async (decl, over, read, after) => {
+    const r = await compile(`App [ width = 10, height = 10, t: number = 5, on: boolean = false,
+      box: View [ ${decl}, State [ applied = { app.on }, ${over} ] ] ]`, {});
+    assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+    const app = settleHeadless(r.source, { deps: r.deps });
+    app.on = true; settle(); app.on = false; settle(); app.t = 8; settle();
+    assert.deepEqual(read(app.box), after, decl);
+  };
+  await run("s: number = { app.t * 2 }", "s = 7", (b) => b.s, 16);
+  await run("s: boolean = { app.t > 6 }", "s = false", (b) => b.s, true);
+  await run("s: string = { 'v' + app.t }", "s = 'x'", (b) => b.s, "v8");
+  await run("width = { app.t * 2 }", "width = 7", (b) => b.width, 16);
+  // an Animator's slide over a bound slot hands it back, and the formula stays live
+  let tNow = 0, pending = null;
+  setClock(new Clock({ now: () => tNow, request: (cb) => { pending = cb; return 1; }, cancel: () => { pending = null; } }));
+  try {
+    const r = await compile(`App [ width = 10, height = 10, t: number = 5,
+      box: View [ width = { app.t * 2 }, an: Animator [ attribute = width, to = 100, duration = 100 ] ] ]`, {});
+    const app = settleHeadless(r.source, { deps: r.deps });
+    app.box.an.start(); settle();
+    for (let i = 0; i < 40; i++) { tNow += 16.7; const cb = pending; pending = null; if (cb) cb(tNow); }
+    assert.equal(app.box.width, 10, "handed back to the formula");
+    app.t = 8; settle();
+    assert.equal(app.box.width, 16, "…which still follows its input");
+  } finally { setClock(new Clock()); }
 });
 
 await test("element-typed arrays (`Window[]`) and the literal-tag createView", async () => {

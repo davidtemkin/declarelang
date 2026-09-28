@@ -1,7 +1,7 @@
 // A FACE'S LITERAL FORMS — the weights and sources a `Face [ … ]` is written
 // with, shared by the checker, the coercion and the Font class so the three
 // cannot disagree. Its own file so a production build carries it only for a
-// program that declares a Face (declarec's slim-face).
+// program that declares a Face (the `faces` capability, compiler/src/capabilities.ts).
 
 import type { Literal } from "./parser.js";
 

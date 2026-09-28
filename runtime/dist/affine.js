@@ -65,4 +65,7 @@ export function boxThrough(m, x, y, w, h) {
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 export const cssMatrix = (m) => `matrix(${m.join(",")})`;
+export const has3D = (p) => p.rotateX !== 0 || p.rotateY !== 0 || p.translateZ !== 0;
+export const partsOf = (v) => ({ rotateX: v.rotateX ?? 0, rotateY: v.rotateY ?? 0, translateZ: v.translateZ ?? 0 });
+export const leavesPlane = (v) => has3D(partsOf(v));
 //# sourceMappingURL=affine.js.map

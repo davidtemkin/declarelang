@@ -38,6 +38,8 @@ export interface DeclarecOptions extends CompileOptions {
    *  fingerprint, …) — isUpToDate compares them, so a flag or toolchain change
    *  invalidates like a file change. */
   props?: Record<string, string>;
+  /** Read the program's facts (ProgramBuild.facts) — a production build's input. */
+  facts?: boolean;
 }
 
 /** Compile a Declare source into a serializable, instantiate-ready program:
@@ -51,7 +53,7 @@ export async function compileProgram(source: string, opts: DeclarecOptions = {})
   // compile.ts runs the checker directly; `typecheck: false` is the caller's
   // explicit opt-out). The runtime schema `check()` in the shared tail
   // remains the always-on structural gate.
-  const { mainId, props, stripPos: strip, ...compileOpts } = opts;
+  const { mainId, props, stripPos: strip, facts, ...compileOpts } = opts;
   const c = await compileTracked(source, { ...compileOpts, mainId, props });
-  return programFromCompiled(c as typeof c & { closure: Closure }, { stripPos: strip });
+  return programFromCompiled(c as typeof c & { closure: Closure }, { stripPos: strip, facts });
 }

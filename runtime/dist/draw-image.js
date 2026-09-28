@@ -1,6 +1,6 @@
 // `d.drawImage(imageView, …)` — the recording's image handles and the bitmaps
 // they resolve to (graphics-pass.md §7a). Its own file so a production build
-// carries it only for a program that calls drawImage (declarec's slim-draw-image).
+// carries it only for a program that calls drawImage (the `draw-image` capability, compiler/src/capabilities.ts).
 /** handle → bitmap, wherever a recording is replayed: the loaded element on
  *  the page (registered by the recorder), an ImageBitmap in the raster worker
  *  (registered by its `image` message). */

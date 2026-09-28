@@ -5,13 +5,14 @@
 // then drops the rest (the rich-text engine, etc.) from the bundle. instantiate.ts
 // consumes these tables unchanged; the dev / source-compiling path imports this
 // full module, while `declarec` (and the server's prod cache) swap it for a
-// generated subset at bundle time (tools/declarec.mjs, the `slimRegistry` plugin).
+// generated subset at bundle time (tools/declarec.mjs, the `slim-registry` plugin).
 //
 // It is ALSO the name-keyed registry instantiation.md §8 calls for: the single
 // place an imperative `new Markdown()` in a body — or a future create-by-string —
 // resolves its class. Keep the table names in sync with schema.ts's SCHEMAS.
 
-import { View, App, DOMIsland } from "./view.js";
+import { View, App } from "./view.js";
+import { DOMIsland } from "./island.js";
 import { Node } from "./node.js";
 import { Text } from "./text.js";
 import { Image } from "./image.js";
@@ -20,9 +21,11 @@ import { Audio } from "./audio.js";
 import { TextInput } from "./text-input.js";
 import { Markdown } from "./markdown.js";
 import { HTMLText } from "./html-text.js";
-import { Layout, TweenLayout } from "./layout.js";
+import { Layout } from "./layout.js";
+import { TweenLayout } from "./tween-layout.js";
 import { Dataset, DataSource } from "./data.js";
-import { Animator, AnimatorGroup } from "./animator.js";
+import { Animator } from "./animator.js";
+import { AnimatorGroup } from "./animator-group.js";
 import { Spring } from "./spring.js";
 import { Time } from "./time.js";
 import { Font, Face } from "./font.js";
@@ -110,7 +113,7 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Image", table: "TAGS", module: "image.js", export: "Image" },
   { name: "Video", table: "TAGS", module: "video.js", export: "Video" },
   { name: "Audio", table: "TAGS", module: "audio.js", export: "Audio" },
-  { name: "DOMIsland", table: "TAGS", module: "view.js", export: "DOMIsland" },
+  { name: "DOMIsland", table: "TAGS", module: "island.js", export: "DOMIsland" },
   { name: "TextInput", table: "TAGS", module: "text-input.js", export: "TextInput" },
   { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },
   { name: "HTMLText", table: "TAGS", module: "html-text.js", export: "HTMLText" },
@@ -119,7 +122,7 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Font", table: "TAGS", module: "font.js", export: "Font" },
   { name: "Face", table: "TAGS", module: "font.js", export: "Face" },
   { name: "Layout", table: "LAYOUT_BASES", module: "layout.js", export: "Layout" },
-  { name: "TweenLayout", table: "LAYOUT_BASES", module: "layout.js", export: "TweenLayout" },
+  { name: "TweenLayout", table: "LAYOUT_BASES", module: "tween-layout.js", export: "TweenLayout" },
   { name: "Dataset", table: "DATA", module: "data.js", export: "Dataset" },
   { name: "DataSource", table: "DATA", module: "data.js", export: "DataSource" },
   { name: "Animator", table: "ANIMATORS", module: "animator.js", export: "Animator" },
@@ -129,6 +132,6 @@ export const REGISTRY_MANIFEST: readonly RegistryEntry[] = [
   { name: "Tip", table: "SOURCES", module: "sources.js", export: "TipSource" },
   { name: "EventStream", table: "SOURCES", module: "streams.js", export: "EventStream" },
   { name: "Socket", table: "SOURCES", module: "streams.js", export: "Socket" },
-  { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator.js", export: "AnimatorGroup" },
+  { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator-group.js", export: "AnimatorGroup" },
   { name: "State", table: "STATES", module: "state.js", export: "State" },
 ];

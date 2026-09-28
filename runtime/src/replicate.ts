@@ -43,7 +43,7 @@ import { Node } from "./node.js";
 import { View, inheritedCursor, onDiscard, markWindowedBlock, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree, nodeLabel } from "./view.js";
 import { Constraint, Cell } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, armDivergence, nodeDiverged } from "./attributes.js";
-import { splitPath, isSelective, type PathSeg } from "./datapath.js";
+import { splitPath, isSelective, type PathSeg } from "./path-plan.js";
 import { Focus } from "./focus.js";
 import { arriveSubtree } from "./spring.js";
 import { selectNodes, type PathNode } from "./select.js";

@@ -20,10 +20,11 @@
 import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { domTransform3D, unproject } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
-import { colorToCss, insetSides, isGradient, radiusIsSquare, strokeUniform, filterCss, gradientCss } from "./value.js";
+import { colorToCss, insetSides, isGradient, radiusIsSquare, strokeUniform, gradientCss } from "./value.js";
+import { filterCss } from "./effects.js";
 import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
-import { richBlocks, richInlineSlots, richMetrics, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
+import { revealRichAnchor as revealAnchorIn, richBlocks, richInlineSlots, richMetrics, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";
 import {} from "./boxpaint.js";
 import { effectiveFamily, fontMetrics, fontString, cssWeight, transformText } from "./measure.js";
 import { renderClamped } from "./text-clamp.js";
@@ -32,6 +33,7 @@ import { deferral, firstFramePainted, afterFirstFrame } from "./boot-deferrals.j
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
 import { lockFocusZoom } from "./viewport-lock.js";
+import { observeVisibility, refreshObserved } from "./dom-visibility.js";
 /** Style a native editable element to match the view's painted text metrics, so
  *  the caret and glyphs sit exactly where the static measure would place them. */
 /** Field-wise equality over exactly what applyEditStyle writes — the spec
@@ -678,53 +680,26 @@ export class DomBackend {
         }
     }
 }
-const VISWATCH = new Map();
-let visIO = null;
-function observeVisibility(el, cb) {
-    if (typeof IntersectionObserver === "undefined")
-        return () => { };
-    visIO ??= new IntersectionObserver((entries) => {
-        for (const e of entries) {
-            const deliver = VISWATCH.get(e.target);
-            if (deliver === undefined)
-                continue;
-            const t = e.target;
-            const bw = e.boundingClientRect.width, bh = e.boundingClientRect.height;
-            const lw = t.offsetWidth || 1, lh = t.offsetHeight || 1;
-            const rw = bw / lw, rh = bh / lh; // per-axis css ratios
-            const dpr = typeof devicePixelRatio === "number" ? devicePixelRatio : 1;
-            const scale = Math.max(rw, rh) * dpr;
-            const ir = e.intersectionRect;
-            const rect = e.isIntersecting && rw > 0 && rh > 0
-                ? {
-                    x: (ir.x - e.boundingClientRect.x) / rw,
-                    y: (ir.y - e.boundingClientRect.y) / rh,
-                    width: ir.width / rw,
-                    height: ir.height / rh,
-                }
-                : null;
-            deliver({ on: e.isIntersecting, rect, scale });
-        }
-    });
-    VISWATCH.set(el, cb);
-    visIO.observe(el);
-    return () => { VISWATCH.delete(el); visIO?.unobserve(el); };
-}
-/** Force a fresh entry for an observed element — observe() always reports an
- *  initial intersection, so unobserve+observe is "measure NOW, through the
- *  instrument itself": same clipping math, same page context. (A hand-rolled
- *  getBoundingClientRect walk would have to re-derive ancestor overflow
- *  clipping, and get it subtly wrong.) The runtime calls this when its model
- *  walk knows the answer moved but the observer saw no edge — an
- *  IntersectionObserver reports CROSSINGS, not levels, so a fully visible box
- *  under a scaling ancestor never crosses anything and never reports
- *  (view.ts visWake, the sprung-camera fix). */
-function refreshObserved(el) {
-    if (visIO === null || !VISWATCH.has(el))
-        return;
-    visIO.unobserve(el);
-    visIO.observe(el);
-}
+// Scrollbars are the platform's own. An earlier build injected a persistent,
+// space-reserving `::-webkit-scrollbar` (+ `scrollbar-gutter: stable`) so a bar was
+// always visible — but styling `::-webkit-scrollbar` opts Safari OUT of its native
+// overlay bar and into a wide, always-on legacy one — a downgrade from what the
+// platform gives for free. We now inject nothing: `overflow: auto` gives each pane
+// the OS default — an overlay bar where the platform draws one, or the classic
+// bar the OS/user setting dictates elsewhere.
+// ── island slot notifications (the host's registration seam) ─────────────────
+//
+// The host used to DISCOVER islands by scanning `[data-declare-slot]` every
+// frame (host-client's mtick), and a second polling loop here mirrored a
+// mounted child's `appName` up to the island's `childName`. Both questions are
+// answered by events the runtime itself performs: `setEmbed` runs at slot mark
+// AND re-mark (the slot string carries the env segment, so an env change
+// re-marks), so a registered sink hears about every island the moment it
+// exists — no scan, no standing frame. The childName mirror moved to the host
+// (an `observe` on the mounted child's `appName`, host-client renderChild),
+// where the child's lifetime is actually known; the mac backend keeps its own
+// copy of the mirror for its native windows. Registration replays existing
+// slots, so a host that wires up after first render misses nothing.
 // (island sinks live in backend.ts now — one registry for EVERY backend; the
 // canvas islands have no element, so the DOM-only querySelectorAll replay and
 // the element-typed sink signature both retired with the move)
@@ -1172,7 +1147,14 @@ export class DomSurface {
         this.maskSpec = spec;
         this.applyMask();
     }
-    applyMask() { applyDomMask(this); }
+    /** a mask was painted once: clearing it later still reaches the mask module */
+    maskPainted = false;
+    applyMask() {
+        if (this.maskSpec === null && !this.maskPainted)
+            return; // never masked: the mask module is not asked
+        this.maskPainted = true;
+        applyDomMask(this);
+    }
     setClip(d) {
         // clip-path clips native hit-testing along with the pixels, so the
         // clipped-away part of an interactive box falls through — the same
@@ -1496,17 +1478,9 @@ export class DomSurface {
         if (label !== "")
             this.linkEl.setAttribute("aria-label", label);
     }
+    /** `within` is the canvas path's concern; the flow scrolls its heading (dom-rich.ts). */
     revealRichAnchor(slug, _within, inset = 0) {
-        // The heading is a real element in the flow (setRichContent tagged it with
-        // `data-anchor`); scroll IT — `within` is the canvas path's concern. Missing
-        // ⇒ the flow hasn't rendered that heading yet (held intent, retried later).
-        const el = this.richEl?.querySelector(`[data-anchor="${slug}"]`);
-        if (el === null || el === undefined)
-            return false;
-        if (inset > 0)
-            el.style.scrollMarginTop = `${inset}px`;
-        el.scrollIntoView({ block: "start" });
-        return true;
+        return revealAnchorIn(this, slug, inset);
     }
     // Which axes this surface scrolls (the `scrolls` enum, per axis). The two
     // setters below each own one axis and share this state so `both` composes:

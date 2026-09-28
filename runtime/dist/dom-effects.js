@@ -1,8 +1,8 @@
 // The DOM renderer's realization of the effects a program has to NAME: the
 // `colorize` filter (an SVG colour matrix CSS can reference) and the `mask`
 // slot (CSS mask-image). Its own file so a production build carries it only for
-// a program that writes `colorize` or sets a `mask` (declarec's slim-dom-effects);
-// the filter and backdrop lists themselves are plain CSS in dom-backend.ts.
+// a program that writes `colorize` or sets a `mask` (the `dom-effects` capability, compiler/src/capabilities.ts);
+// the filter and backdrop lists' CSS is effects.ts's.
 import { colorToCss, gradientCss } from "./value.js";
 import { rasterPad, replay } from "./draw.js";
 let maskWarned = false;

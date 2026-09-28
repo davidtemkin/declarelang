@@ -23,36 +23,12 @@
 // regex-literal gap (a `/}/`-style regex defeats any heuristic short of full
 // lexing — HANDOFF §R4); real lexing arrives with the tsc front-end.
 
-/** One segment of a compiled path PLAN (data-paths.md §5 emitted plans;
- *  jsonpath-spelling.md — RULED 2026-07-30). A plain string is a NAME
- *  (quoted-name selectors collapse to strings — `['my-key']` is the name
- *  "my-key"); the tagged forms are the RFC 9535 v1 selectors. */
-export type PathSeg =
-  | string                                              // name
-  | { i: number }                                       // index (negative from the end)
-  | { s: [number | null, number | null, number | null] } // slice start:end:step (null = RFC default)
-  | { w: 1 }                                            // wildcard
-  | { c: number };                                      // a computed key `[( expr )]` — the island's computed[c]
-
-/** Does this plan select MANY (slice/wildcard present)? Names and indices are
- *  singular; a selective path is legal in reads and `:path[]` replication,
- *  refused on `<->` and bare `datapath =` (the D4 §4 table). */
-export const isSelective = (plan: readonly PathSeg[]): boolean =>
-  plan.some((s) => typeof s !== "string" && !("i" in s) && !("c" in s));
-
-/** A singular plan's STATIC segments — names pass, a non-negative index is
- *  its string key. Null when the place needs the data to resolve (a negative
- *  index reads the array's length) or the plan selects many — the cases a
- *  cursor or write target refuses with a pointed error. */
-export function staticSegs(plan: readonly PathSeg[]): string[] | null {
-  const out: string[] = [];
-  for (const s of plan) {
-    if (typeof s === "string") out.push(s);
-    else if ("i" in s && s.i >= 0) out.push(String(s.i));
-    else return null;
-  }
-  return out;
-}
+// The plan currency — PathSeg, splitPath, isSelective, staticSegs — lives in
+// path-plan.ts, which every build carries; this module is the scanner.
+export { isSelective, staticSegs, splitPath } from "./path-plan.js";
+export type { PathSeg } from "./path-plan.js";
+import type { PathSeg } from "./path-plan.js";
+import { splitPath, staticSegs } from "./path-plan.js";
 
 /** One `:path` occurrence in a body, offsets in body-source coordinates.
  *  `many` marks the replication form `:items[]`. `plan` is present exactly
@@ -136,10 +112,6 @@ export function parsePathSpec(raw: string): { seg: PathSeg; text: string } | { e
   return { seg: { s: nums as [number | null, number | null, number | null] }, text };
 }
 
-/** Split a dot-path into segments ("" → the cursor itself: no segments).
- *  Array indices are ordinary string segments — JS containers index
- *  identically with "2" and 2, so the path currency stays one type. */
-export const splitPath = (path: string): string[] => (path === "" ? [] : path.split("."));
 
 // Identifier-shaped words that may directly PRECEDE an expression — after
 // these, a `:` still opens a datapath (`return :title`, `yield :x`).

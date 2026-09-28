@@ -50,7 +50,7 @@ async function buildExample(name) {
   // Validate demos too (the site + docs ship a demos/ dir; the flagship apps don't).
   // No manifest is emitted: a page seeds only the demos it names in boot(), and every
   // other preview is fetched from its demos/ dir ON DEMAND when it first goes live
-  // (host-client.js mountPreviews) — the in-process echo of browse-to-run.
+  // (host-islands.js mountPreview) — the in-process echo of browse-to-run.
   let demos = 0;
   const demoDir = path.join(dir, "demos");
   if (existsSync(demoDir)) {

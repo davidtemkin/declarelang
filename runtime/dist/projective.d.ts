@@ -1,12 +1,8 @@
-import type { Affine } from "./affine.js";
+import { type Affine, type Parts3D } from "./affine.js";
+export { has3D } from "./affine.js";
+export type { Parts3D } from "./affine.js";
 /** Row-major 3×3: [x-row, y-row, w-row]. */
 export type Homography = readonly [number, number, number, number, number, number, number, number, number];
-export interface Parts3D {
-    rotateX: number;
-    rotateY: number;
-    translateZ: number;
-}
-export declare const has3D: (p: Parts3D) => boolean;
 /** local (u, v) on the plane → the PARENT's coordinates, as a homography.
  *  `affine` is the view's 2D matrix (about its pivot), `x`/`y` its position in
  *  the parent, `pivot` the 3D rotation's centre (the same pivot), `P` the

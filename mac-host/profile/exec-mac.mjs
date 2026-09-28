@@ -101,7 +101,13 @@ async function doInput(step, env) {
     // host extent, which is what a browser has to settle for.
     if (step.resize.frames) {
       const [w0, h0] = step.resize.from ?? [1280, 828];
-      await ctl(`liveresize ${w0} ${h0} ${w1} ${h1} ${step.resize.frames}`, { timeout: 30 });
+      const n = step.resize.frames, hz = step.resize.hz ?? 60;
+      await ctl(`resize ${w0} ${h0}`, { timeout: 20 });                    // the start size
+      // the host's verb is `liveresize W1 H1 N HZ`: from the current size to
+      // W1×H1 in N steps at HZ. It returns at once — the steps run on the
+      // host's run loop — so the case waits them out.
+      await ctl(`liveresize ${w1} ${h1} ${n} ${hz}`, { timeout: 30 });
+      await sleep(n / hz + 0.1);
     } else {
       await ctl(`resize ${w1} ${h1}`, { timeout: 20 });
     }
@@ -165,7 +171,8 @@ async function doInput(step, env) {
 }
 
 /** Run one case against the running Mac host. */
-export async function runCaseOnMac(desc, { settle = 2500, tree = null, pipe = null, origin = null } = {}) {
+export async function runCaseOnMac(desc, opts = {}) {
+  const { settle = 2500, tree = null, pipe = null, origin = null, fresh = false } = opts;
   if (pipe) usePipe(pipe);
   else if (tree) usePipe(pipeForTree(tree));
   // LIVENESS IS A PING, not a file test. The control pipe is written by the
@@ -190,7 +197,11 @@ export async function runCaseOnMac(desc, { settle = 2500, tree = null, pipe = nu
     // reason, and the reason was visible the whole time. Captured BEFORE the
     // navigation, because the value persists: only a CHANGE belongs to this one.
     const errBefore = await ctl("lasterror", { timeout: 10 });
-    await evalIn(`__declareBoot(${JSON.stringify(url)}); "ok"`, { timeout: 60 });
+    // A FRESH HOST (`fresh`: launched on this program for this one case) is
+    // already clean — booting it again would compile and mount it twice.
+    const showing = fresh ? await evalIn(`String(globalThis.__declareMain || "")`, { timeout: 20 }).catch(() => "") : "";
+    if (!(fresh && String(showing).split("?")[0] === url.split("?")[0]))
+      await evalIn(`__declareBoot(${JSON.stringify(url)}); "ok"`, { timeout: 60 });
     // ⚠ THE HOST IS SINGLE-THREADED WHILE IT COMPILES. A cold `desktop.declare`
     // compile can run past a 20 s control timeout, and the probe below queues
     // BEHIND it — so a healthy host looked dead and the round aborted on its
@@ -232,8 +243,12 @@ export async function runCaseOnMac(desc, { settle = 2500, tree = null, pipe = nu
   await evalIn(`globalThis.__caseB = {}; globalThis.__caseCtx = null; if (globalThis.__M) globalThis.__M.resetAll(); "ok"`);
   await sleep(settle / 1000);
 
-  // start the frame/meter window the same way the page does
+  // start the frame/meter window the same way the page does — and the HOST's:
+  // the program was booted above, so without this its frame stats would carry
+  // the mount (a multi-second gap, a commit of the whole tree) into every case
   await evalIn(`(() => { globalThis.__caseGaps = []; return "ok"; })()`);
+  await ctl("statsreset", { timeout: 20 });
+  await opts.onWindowStart?.();                     // a caller's own meter starts where the host's does
 
   const t0 = Date.now();
   let failure = null;
@@ -261,6 +276,7 @@ export async function runCaseOnMac(desc, { settle = 2500, tree = null, pipe = nu
     };
     for (const step of desc.steps) {
       if (INPUT_STEP(step)) { await flush(); await doInput(step, env); }
+      else if (step.reset) { await flush(); await ctl("statsreset", { timeout: 20 }); batch.push(step); }   // the host's window starts where the page's does
       else batch.push(step);
     }
     await flush();

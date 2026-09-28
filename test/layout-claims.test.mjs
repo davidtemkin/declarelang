@@ -16,7 +16,8 @@ import { test, summarize } from "./harness.mjs";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { instantiate } from "../runtime/dist/instantiate.js";
 import { settle, provideMeasurer } from "../runtime/dist/index.js";
-import { Layout, TweenLayout } from "../runtime/dist/layout.js";
+import { Layout } from "../runtime/dist/layout.js";
+import { TweenLayout } from "../runtime/dist/tween-layout.js";
 import { approximateMeasurer } from "../compiler/dist/headless.js";
 import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
 

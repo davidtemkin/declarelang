@@ -16,7 +16,7 @@ import { fontsReady } from "./font-value.js";
 import { setAppAssetBase } from "./asset-base.js";
 import { setAppDataBase } from "./data.js";
 import type { RenderBackend } from "./backend.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, notAboard } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
 import { bridgeFor } from "./inspect.js";
@@ -100,7 +100,8 @@ export function wireInput(app: App, host: HTMLElement, chrome = false): void {
   // The inspect bridge (inspect.ts): the tree, provenance, and the driven
   // clock as page-queryable data — verify's rung 5 drives it; a human pokes
   // it in the console. Top-level apps only (one page, one bridge).
-  (window as unknown as { __declare?: unknown }).__declare = bridgeFor(app);
+  // a build without the bridge says so, rather than leaving an empty object that reads as breakage
+  (window as unknown as { __declare?: unknown }).__declare = bridgeFor(app) ?? { stub: notAboard("bridgeFor", "bridge").message };
 }
 
 /** Feed `app.dark` from the OS color scheme and keep it live as the system theme

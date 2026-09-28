@@ -31,8 +31,8 @@ export async function compileProgram(source, opts = {}) {
     // compile.ts runs the checker directly; `typecheck: false` is the caller's
     // explicit opt-out). The runtime schema `check()` in the shared tail
     // remains the always-on structural gate.
-    const { mainId, props, stripPos: strip, ...compileOpts } = opts;
+    const { mainId, props, stripPos: strip, facts, ...compileOpts } = opts;
     const c = await compileTracked(source, { ...compileOpts, mainId, props });
-    return programFromCompiled(c, { stripPos: strip });
+    return programFromCompiled(c, { stripPos: strip, facts });
 }
 //# sourceMappingURL=declarec.js.map

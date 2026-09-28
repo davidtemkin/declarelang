@@ -67,6 +67,18 @@ export declare function programSchemas(classes: readonly ClassDecl[], shapes?: R
  *  the one the corpus needed most, a font stack, was written as a comma-joined
  *  string and parsed back into a list at the other end. ONE LEVEL: a list of
  *  lists is refused, which keeps "bounded" a fact rather than a hope. */
+/** The value a LITERAL provision provides (`View [ textColor = navy ]`). A
+ *  provision has no declared slot on the providing node, but its NAME may match
+ *  a text FACE value (`fontFamily`, `fontWeight`, `textColor`, …), and then it
+ *  coerces exactly as that slot would — a `fontFamily = ["Georgia", "serif"]`
+ *  joins into one family chain, a `fontWeight = normal` keeps the token — so the
+ *  reader (`Text`'s `provided("fontFamily")`) gets a well-formed value. A name
+ *  no face value claims (`accent`, `density`) coerces by its written form.
+ *  Undefined when no form admits the literal. The one context-dependent
+ *  provision, a `theme` naming a theme, is the instantiation's (instantiate.ts);
+ *  the checker computes every other one here, so the compile can ship it as its
+ *  value (compiler/src/lower-literals.ts). */
+export declare function provisionValue(attr: Attr): unknown;
 export declare function coerceToken(lit: Literal): unknown;
 /** One checked attribute declaration: its resolved type and coerced default
  *  — or a default BINDING (`labelColor: Color =

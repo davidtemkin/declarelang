@@ -33,9 +33,18 @@ BIN=".build/release/DeclareMac"
 # The fix is the rule this script already applies to codesign one line down:
 # verify what actually happened, never what was asked for. Fail if an input is
 # newer than the artifact.
+# THE NATIVE KERNEL (docs/system-design/kernel.md, Phase D): the one C source
+# the browsers run as WebAssembly, linked into this binary as the DeclareKernel
+# target. SwiftPM builds only what lives inside the package, so the kernel's
+# sources are MIRRORED in — a build product, never edited (gitignored). `cp -p`
+# keeps their times, so an unchanged kernel does not recompile.
+mkdir -p Sources/DeclareKernel/include
+cp -p ../kernel/src/kernel.c ../kernel/src/kernel_jsc.c Sources/DeclareKernel/
+cp -p ../kernel/include/declare_kernel.h ../kernel/include/declare_kernel_jsc.h Sources/DeclareKernel/include/
+
 BEFORE=$(stat -f %m "$BIN" 2>/dev/null || echo 0)
 swift build -c release "$@"
-NEWEST=$(find Sources -name '*.swift' -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)
+NEWEST=$(find Sources \( -name '*.swift' -o -name '*.c' -o -name '*.h' \) -exec stat -f %m {} + 2>/dev/null | sort -rn | head -1)
 AFTER=$(stat -f %m "$BIN" 2>/dev/null || echo 0)
 if [ "$AFTER" = "0" ] || { [ -n "$NEWEST" ] && [ "$NEWEST" -gt "$AFTER" ]; }; then
   echo "✗  $BIN is older than its sources — the build did not produce a new binary." >&2

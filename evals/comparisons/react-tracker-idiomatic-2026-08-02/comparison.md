@@ -98,7 +98,7 @@ therefore cannot move this comparison and is not worth doing on size grounds.
 One real defect surfaced and was FIXED: the production entry's bare
 `import "index.js"` dragged `image.js` and `text-input.js` past a correct
 `slim-registry` exclusion — 1.1 KB gz, and a hole in a mechanism the build
-relies on. See [bundle-slimming.md](../../../docs/system-design/bundle-slimming.md).
+relies on. See [app-slimming.md](../../../docs/system-design/app-slimming.md).
 
 ## What each side won
 

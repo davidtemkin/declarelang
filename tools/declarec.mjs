@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // declarec — Declare's production build (the emit half + CLI).
 //
-//   node tools/declarec.mjs <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--debug] [--quiet]
+//   node tools/declarec.mjs <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--kernel wasm|js] [--debug] [--why] [--quiet]
 //   node tools/declarec.mjs check <file.declare…> [--json]   # compile + report, emit nothing
 //
 // Precompiles an app (compiler/dist/declarec.js: parse + resolve + typecheck at
@@ -21,14 +21,9 @@ import { stripSource, HOST_SOURCES } from "./internal/error-codes.mjs";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { stripPos } from "../compiler/dist/program-build.js";
-import { CHECK_STUB_SRC } from "./internal/stubs.mjs";
+import { CAPABILITIES, neededCapabilities, standIn, subsetModule } from "../compiler/dist/capabilities.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
-import { THEME_PRESET_NAMES } from "../runtime/dist/themes.js";
 
-// A body USES the theme presets when it names one (`SanFrancisco`) or `activeTone` —
-// the trigger that keeps themes.js (the preset records) aboard a production
-// build; an app that names none tree-shakes it to the empty stub.
-const THEME_USE = new RegExp(`\\b(?:${[...THEME_PRESET_NAMES, "activeTone"].join("|")})\\b`);
 import { parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { highlight } from "../compiler/dist/highlight.js";
 import { compile as compileFull, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
@@ -139,7 +134,9 @@ function islandNames(program) {
   const walk = (el) => {
     if (isIsland(el.tag)) {
       const a = (el.attrs ?? []).find((x) => x.name === "program");
-      if (a !== undefined && a.value?.kind === "string" && a.value.value !== "" && !a.value.value.startsWith("__")) names.add(a.value.value);
+      // a compiled program carries the name as its value (compiler/src/lower-literals.ts)
+      const name = a?.value?.kind === "string" || a?.value?.kind === "value" ? a.value.value : null;
+      if (typeof name === "string" && name !== "" && !name.startsWith("__")) names.add(name);
     }
     for (const c of el.children ?? []) walk(c);
   };
@@ -409,16 +406,22 @@ export async function buildProduction(source, opts = {}) {
   const props = {
     render: opts.render === "canvas" ? "canvas" : "dom",
     slim: String(opts.slim !== false),
+    // THE KERNEL THE BUILD CARRIES (reactive.ts kernelReady): "wasm", the default,
+    // or "js" — the JavaScript kernel with the bundle and no WebAssembly at all
+    kernel: opts.kernel === "js" ? "js" : "wasm",
     stripPos: String(opts.stripPos ?? true),
     typecheck: "true",   // always on — a mandatory phase of the one compile (docs/system-design/requests.md)
     crawler: String(!!opts.crawler),
+    // the corpus gate's build: the `__declare` bridge aboard, nothing else changed
+    ...(opts.bridge ? { bridge: "true" } : {}),
+    ...(opts.keepAll ? { keepAll: "true" } : {}),
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
   // Positions ride the compile and are stripped AFTER the program's own ship
   // block is read: an inspectable package keeps them (the Inspector's "why"
   // names a line; so does an error), a plain one does not.
-  const built = await compileProgram(source, { originDir: opts.originDir, stripPos: false, mainId, props });
+  const built = await compileProgram(source, { originDir: opts.originDir, stripPos: false, mainId, props, facts: true });
   if (built.program === null) {
     return { ok: false, errors: built.errors, warnings: built.warnings, diagnostics: built.diagnostics, report: built.report, closure: built.closure, files: [], sizes: null };
   }
@@ -532,24 +535,6 @@ export async function buildProduction(source, opts = {}) {
     },
   };
 
-  // Inspector slimming (same lever, dev-tooling edition): the object-browser
-  // service (inspect-service.js, the ⌥⌘D / ?inspector substrate) is DEV tooling —
-  // a production artifact ships a no-op stand-in unless --debug keeps the real
-  // one. `explain()` (inspect.ts) stays either way — that promise is the running
-  // app's, not the browser UI's. Roughly 9 KB gz back off every app's wire.
-  const inspectStub = `
-import { notAboard } from "./errors.js";
-const ZERO = { x: 0, y: 0 };
-export function setInspectionTarget() {}
-export function provideEvalParser() {}
-export function inspectionOrigin() { return ZERO; }
-export function inspectionTarget() { return null; }
-export function evaluateIn() { return { ok: false, error: notAboard("evaluateIn", "inspector").message }; }
-export const Inspect = new Proxy({ ready: () => false }, {
-  get: (t, k) => (k in t ? t[k] : () => { throw notAboard("Inspect." + String(k), "inspector"); }),
-});
-`;
-
   // ERROR PROSE → CODES (production only; --debug keeps the sentences). Every
   // `DeclareError` message a shipped app can throw is a string literal in its
   // bundle — esbuild minifies names, never string contents — and most of that
@@ -580,605 +565,48 @@ export const Inspect = new Proxy({ ready: () => false }, {
       });
     },
   };
-  const inspectPlugin = {
-    name: "slim-inspector",
+  // ── CAPABILITIES (compiler/src/capabilities.ts) ───────────────────────────
+  // What this program reaches, read off it by ONE walk, closed over the
+  // manifest's `requires`; every capability left out has its modules replaced by
+  // a stand-in GENERATED from the real module's exports (inert where the core
+  // calls it regardless, refusing "not aboard" everywhere else). A page that
+  // hosts other programs keeps what they may need; --debug keeps everything but
+  // another renderer and an unasked-for compiler.
+  const facts = built.facts;   // read from the program as written, before its literals became values
+  const context = { render: canvas ? "canvas" : "dom", debug: !!opts.debug, inspector: !!ship.inspector, compiler: !!ship.compiler, hosts, bridge: !!opts.bridge };
+  const needed = neededCapabilities(facts, context);
+  // `keepAll`: every capability aboard — the corpus gate's reference build
+  const absent = opts.keepAll ? [] : CAPABILITIES.filter((c) => !needed.has(c.id));
+  const escapeRe = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const capabilityPlugin = {
+    name: "capabilities",
     setup(build) {
-      build.onLoad({ filter: /[/\\]inspect-service\.js$/ }, () => ({
-        contents: inspectStub,
-        loader: "js",
-        resolveDir: RUNTIME,
-      }));
+      for (const cap of absent) {
+        for (const m of cap.modules) {
+          const inBrowser = m.startsWith("browser/");
+          const base = inBrowser ? m.slice("browser/".length) : m;
+          const file = inBrowser ? join(BROWSER, base + ".js") : join(RUNTIME, base + ".js");
+          const filter = new RegExp(`[/\\\\]${inBrowser ? "browser" : "runtime[/\\\\]dist"}[/\\\\]${escapeRe(base)}\\.js$`);
+          const helpers = inBrowser ? "../runtime/dist/stand-in.js" : "./stand-in.js";
+          build.onLoad({ filter }, async () => {
+            const source = await readFile(file, "utf8");
+            // a table the program reaches only by name ships the entries it names
+            const contents = cap.subset !== undefined
+              ? subsetModule(cap, m, source, facts)
+              : standIn(cap, m, source, helpers);
+            return { contents, loader: "js", resolveDir: inBrowser ? BROWSER : RUNTIME };
+          });
+        }
+      }
     },
   };
-
-  // Three more used-set substitutions, gated on PROGRAM FACTS the compile
-  // already knows (the same lever as slim-registry — never a heuristic):
-  //  - the `__declare` page bridge (inspect.ts, ~6.5 KB min) is dev tooling;
-  //    production ships a stub unless --debug.
-  //  - the Themes preset service + its city records tree-shake when no body in
-  //    the program ever says `Themes` (value.ts's DEFAULT_THEME imports the one
-  //    SanFrancisco record directly and is unaffected).
-  //  - the Canvas2D draw-recording vocabulary (draw.js, ~9 KB min) loads only
-  //    when some element actually declares a `draw` body.
-  const walkBodies = (el, fn) => {
-    for (const a of el.attrs ?? []) if (a.value?.kind === "code") fn(a.value.src);
-    for (const d of el.decls ?? []) if (d.def?.kind === "code") fn(d.def.src);
-    for (const m of el.methods ?? []) fn(m.body ?? "");
-    for (const c of el.children ?? []) walkBodies(c, fn);
-  };
-  const programFacts = (() => {
-    let themes = false, draw = false, filter = false, focusKeys = false, tips = false, touch = false, selectors = false, schemas = false;
-    // A SELECTOR plan (any non-string segment — index/slice/wildcard) in an
-    // attribute path or an emitted body plan keeps the evaluator aboard.
-    const planful = (v) => v != null && v.kind === "path" && Array.isArray(v.plan) && v.plan.some((s) => typeof s !== "string");
-    const walkSel = (el) => {
-      for (const a of el.attrs ?? []) {
-        if (planful(a.value)) selectors = true;
-        if (a.value?.kind === "schema") schemas = true;
-        // the NAMED forms (typed data): `schema = TaskDoc` / `schema = Task[]`
-        // parse as idents and resolve at boot — the validator must ride
-        if (a.name === "schema" && a.value?.kind === "ident" && a.value.name !== "null") schemas = true;
-      }
-      for (const d of el.decls ?? []) if (planful(d.def)) selectors = true;
-      for (const c of el.children ?? []) walkSel(c);
-    };
-    const roots = [built.program.root, ...built.program.classes.map((c) => c.body)];
-    // LIVE EDITS are a feature of the programs that publish them (an app writing
-    // `liveSource`/`liveCard`, or hosting an Editor): only such a build carries
-    // the live-edit module; every other ships the no-op stand-in.
-    // Any component the program can construct whose RUNTIME class makes itself
-    // a tab stop without the source saying so (text-input.ts sets `focusable`
-    // at attach). Everything else declares focusability in source, which the
-    // walk below sees — including the library's Control (`focusable = { … }`).
-    const SELF_FOCUSING = new Set(["TextInput"]);
-    for (const name of built.usedComponents) if (SELF_FOCUSING.has(name)) focusKeys = true;
-    // The source components themselves (`Keys [ … ]`, `Focus [ … ]`, `Tip [ … ]`)
-    // — read off the used set, not the tree's tags, because the set also
-    // carries every class's `extends` base: a program whose keyboard member is
-    // `hot: Hot [ … ]` (class Hot extends Keys) needs the service as surely as
-    // one that writes `Keys [ … ]`.
-    for (const name of built.usedComponents) {
-      if (name === "Keys" || name === "Focus") focusKeys = true;
-      if (name === "Tip") tips = true;
-    }
-    const walkEl = (el) => {
-      if ((el.methods ?? []).some((m) => m.name === "draw")) draw = true;
-
-      // The focus-zoom lock (viewport-lock.js, ~1.7 KB gz) runs only for an app
-      // that claimed the raw touch family — the runtime keys it on the ROOT's
-      // wantsTouch. This walk is deliberately WIDER than that: any element
-      // anywhere declaring a touch handler keeps the module. Over-approximating
-      // costs a non-touch app nothing (it has no such handler) while making it
-      // impossible to stub the lock out of an app that turns out to need it,
-      // which would hand iOS a mid-gesture zoom and shear every coordinate.
-      if ((el.methods ?? []).some((m) => /^onTouch(Start|Move|End|Cancel)$/.test(m.name))) touch = true;
-      for (const m of el.methods ?? []) {
-        // A focused view's OWN key handlers arrive through deliverKeys (focus.ts),
-        // so they need both services; focus handlers obviously need focus.
-        if (/^on(KeyDown|KeyUp|Focus|Blur|EscapeFocus)$/.test(m.name)) focusKeys = true;
-      }
-      for (const a of el.attrs ?? []) {
-        // `focusable = …` in any form except the literal `false` makes a tab stop.
-        if (a.name === "focusable" && !(a.value?.kind === "ident" && a.value.name === "false")) focusKeys = true;
-        if (a.name === "tip") tips = true;
-        // a preset named as a literal (`theme = SanFranciscoDark`) resolves
-        // against the records at boot, as surely as one named in a body
-        if (a.value?.kind === "ident" && THEME_USE.test(a.value.name)) themes = true;
-      }
-      for (const d of el.decls ?? []) if (d.def?.kind === "ident" && THEME_USE.test(d.def.name)) themes = true;
-      for (const c of el.children ?? []) walkEl(c);
-    };
-    for (const r of roots) {
-      walkBodies(r, (src) => {
-        if (THEME_USE.test(src)) themes = true;
-        // `d.filter = …` in any body keeps the canvas `filter` fallback
-        // (canvas-filter.js, ~1.8 KB gz): Safari accepts ctx.filter and paints
-        // unfiltered, so a program that sets one needs the module to render
-        // there at all. One that never sets one does not — the DOM backend's own
-        // frost is CSS backdrop-filter. Conservative: any body, not just draw().
-        if (/\.filter\s*=[^=]/.test(src)) filter = true;
-        // A body may CALL the services (`Keys.isDown(…)`, `Focus.focus(this)`).
-        if (/\bKeys\b|\bFocus\b/.test(src)) focusKeys = true;
-        if (/\bTip\b/.test(src)) tips = true;
-        // An emitted body plan with a selector segment: $data([…{…]).
-        if (/\$data\(\[[^\]]*\{/.test(src)) selectors = true;
-      });
-      walkEl(r);
-      walkSel(r);
-    }
-    // Every constructor name reachable as a `call` node in a bare value — one
-    // walk, so a nested call (`gradient(stop(0, blur(2)))`, absurd but legal to
-    // parse) is seen too.
-    const EFFECT_CALLS = new Set(["blur", "brightness", "contrast", "saturate", "grayscale", "invert",
-      "sepia", "hueRotate", "colorize", "frost", "radialGradient", "conicGradient"]);
-    const walkCalls = (v, hit) => {
-      if (v == null || typeof v !== "object") return;
-      if (v.kind === "call" && typeof v.name === "string") hit(v.name);
-      for (const k of Object.keys(v)) {
-        const x = v[k];
-        if (Array.isArray(x)) for (const y of x) walkCalls(y, hit);
-        else if (x != null && typeof x === "object") walkCalls(x, hit);
-      }
-    };
-
-    // ── THE GRAPHICS AND TEXT VOCABULARY ────────────────────────────────────
-    //
-    // Read from the PARSE TREE, not from the program's text. The rule these must
-    // obey is one-directional: a module may be dropped only when the program
-    // CANNOT reach it, never merely when it does not appear to. A word match got
-    // that backwards for the value-carrying modules — a filter or a gradient that
-    // arrives from a remote `DataSource` is named nowhere in the program, so the
-    // match saw nothing, the module was dropped, and the production build threw
-    // on a program that worked in development.
-    //
-    // So a slot that CAN carry one of these values keeps its module whenever the
-    // value is not a literal the compiler can read. `code` is a `{ }` body and
-    // `path` is a `:path` read: both can yield anything at run time.
-    const DYNAMIC = new Set(["code", "path", "query", "subfrom"]);
-    const isDynamic = (v) => v != null && DYNAMIC.has(v.kind);
-
-    // Slots that can hold a Filter list or a Backdrop; a Shape mask; an Image
-    // tint; and a Fill (which a gradient is). Named generously: a name here only
-    // ever KEEPS a module, and the library's own fill-ish slots vary by component.
-    const FILTER_SLOTS = new Set(["filter", "backdrop"]);
-    const MASK_SLOTS = new Set(["mask"]);
-    const TINT_SLOTS = new Set(["tint"]);
-    const FILL_SLOTS = new Set(["fill", "textFill", "ink", "background", "bg", "tintUse", "hue"]);
-    // Attributes that can only be reached by NAMING them, so their presence in
-    // the tree is exact — no dynamic path can set an attribute that is not written.
-    const THREE_D = new Set(["rotateX", "rotateY", "translateZ", "perspective", "backface"]);
-    const FEATURES = new Set(["numerals", "numeralWidth", "slashedZero"]);
-
-    // ── THE PER-SIDE STROKE IS NOT GATED, AND CANNOT BE ────────────────────
-    //
-    // stroke-sides.js (the split, the uniform test, the list's equality and
-    // coercion, and the two painters) rode behind a `usesStrokeSides` fact read
-    // from a LIST LITERAL in a stroke slot. That fact was exact only while the
-    // slot's body-facing type was `Stroke | null`, which foreclosed every other
-    // way of producing four sides. It is `BoxStroke` now (scaffold.ts): a `{ }`
-    // constraint may compute the list, and so may an imperative write in a
-    // method body. Neither is a literal, so neither can be read from the tree —
-    // a method body is TypeScript this build never parses, and `stroke = { … }`
-    // holds an expression whose value is only known at run time.
-    //
-    // A slimming decision may only drop a module the program CANNOT reach. The
-    // honest answer is therefore to ship it: 213 B gzipped, against 688 B of
-    // headroom at the band, versus a `notAboard` refusal at paint time on a
-    // program that ran in development. The alternative — matching `stroke(` in
-    // body text — is the word match this file already learned not to trust.
-    let effects = false, domEffects = false, threeD = false, features = false;
-    let filterSlotSet = false, filterSlotDynamic = false, maskOrTint = false, fillDynamic = false;
-
-    const walkVocab = (el) => {
-      for (const a of el.attrs ?? []) {
-        if (THREE_D.has(a.name)) threeD = true;
-        if (FEATURES.has(a.name)) features = true;
-        if (FILTER_SLOTS.has(a.name)) { filterSlotSet = true; if (isDynamic(a.value)) filterSlotDynamic = true; }
-        if (MASK_SLOTS.has(a.name) || TINT_SLOTS.has(a.name)) maskOrTint = true;
-        if (FILL_SLOTS.has(a.name) && isDynamic(a.value)) fillDynamic = true;
-        // a BARE constructor call in a literal slot — `filter = [blur(3)]`,
-        // `fill = gradient(…)`: the name is a `call` node, read structurally
-        walkCalls(a.value, (name) => {
-          if (EFFECT_CALLS.has(name)) effects = true;
-          if (name === "colorize") domEffects = true;
-        });
-      }
-      for (const d of el.decls ?? []) {
-        if (isDynamic(d.def)) { /* a declared value can hold anything, but it only
-          reaches paint through a SET slot, which the checks above already see */ }
-        walkCalls(d.def, (name) => {
-          if (EFFECT_CALLS.has(name)) effects = true;
-          if (name === "colorize") domEffects = true;
-        });
-      }
-      for (const c of el.children ?? []) walkVocab(c);
-    };
-    for (const r of roots) walkVocab(r);
-    // A `{ }` body can CALL these by name: `fill = { gradient("90deg", a, b) }`,
-    // `d.filter = blur(2)`. Body sources are the other half of the tree.
-    let measure = false, drawImage = false, drawText = false;
-    for (const r of roots) {
-      walkBodies(r, (src) => {
-        for (const n of EFFECT_CALLS) if (new RegExp(`\\b${n}\\s*\\(`).test(src)) effects = true;
-        if (/\bcolorize\s*\(/.test(src)) domEffects = true;
-        if (/\bmeasureText\s*\(|\bprovidedTextStyle\s*\(/.test(src)) measure = true;
-        if (/\bdrawImage\s*\(/.test(src)) drawImage = true;
-        if (/\b(?:fillText|strokeText)\s*\(/.test(src)) drawText = true;
-      });
-    }
-    // THE ONE-DIRECTIONAL RULE, stated: a carrying slot whose value is not a
-    // literal keeps its module, because what that value will be is unknowable
-    // here. Dropping it would be a guess, and a wrong guess throws in production
-    // on a program that ran in development — the one failure this must not have.
-    if (filterSlotSet || fillDynamic) effects = true;
-    if (maskOrTint || filterSlotDynamic) domEffects = true;
-    const faces = built.usedComponents.includes("Face");
-    // RICH TEXT. The DOM backend's native flow (dom-rich.js — the block/run
-    // builder, the inline-view slot placement, the line clamp) is reachable from
-    // exactly one place: a RichText pushing its parsed blocks at the surface
-    // beneath it. A program that names no rich-text component drops the
-    // component itself already (slim-registry above), so the flow could never
-    // run — but a method on DomSurface is unreachable to a tree shaker, which is
-    // why it shipped to every app. The used-set answers the question exactly:
-    // it carries every class's `extends` base, so `class Note extends Markdown`
-    // (and `class Deep extends Note`) puts `Markdown` in the set, as does a body
-    // that constructs one by name or a `use [ … ]` keep-list — the same
-    // indirection the source components above read off this set.
-    const richText = ["Markdown", "HTMLText", "RichText"].some((n) => built.usedComponents.includes(n));
-    // THE LINE CLAMP (text-clamp.js) runs only for a Text whose `maxLines` is
-    // set — and `maxLines` can only be set by NAMING it: an attribute in the
-    // tree (the program's or a component's it pulls in), or a write in a `{ }`
-    // body. Either keeps the module; a program that names it nowhere cannot clamp.
-    let textClamp = false;
-    const walkClamp = (el) => {
-      if ((el.attrs ?? []).some((a) => a.name === "maxLines")) textClamp = true;
-      for (const c of el.children ?? []) walkClamp(c);
-    };
-    for (const r of roots) walkClamp(r);
-    if (!textClamp) for (const r of roots) walkBodies(r, (src) => { if (/\bmaxLines\b/.test(src)) textClamp = true; });
-    // THE RICH-TEXT LINE BUDGET (rich-views.js on a DOM build — see slim-rich-views
-    // below) runs only for a RICH TEXT whose `maxLines` is set: an attribute on an
-    // element whose class chain reaches Markdown/HTMLText (a class body's tag is its
-    // own name, so one chain walk covers instances and class bodies), or a write in
-    // a `{ }` body — whose receiver no build can see, so any body naming it keeps
-    // the module. A `maxLines` on a Text keeps the Text clamp, not this.
-    const classBases = new Map(built.program.classes.map((c) => [c.name, c.base]));
-    const isRichTag = (tag) => {
-      const seen = new Set();
-      for (let t = tag; t != null && !seen.has(t); t = classBases.get(t) ?? null) {
-        if (t === "Markdown" || t === "HTMLText" || t === "RichText") return true;
-        seen.add(t);
-      }
-      return false;
-    };
-    let richClamp = false;
-    const walkRichClamp = (el) => {
-      if (isRichTag(el.tag) && (el.attrs ?? []).some((a) => a.name === "maxLines")) richClamp = true;
-      for (const c of el.children ?? []) walkRichClamp(c);
-    };
-    if (richText) {
-      for (const r of roots) walkRichClamp(r);
-      if (!richClamp) for (const r of roots) walkBodies(r, (src) => { if (/\bmaxLines\b/.test(src)) richClamp = true; });
-    }
-    // the change event arms only through `trackChanges` (an onChange with no
-    // list never fires), so the attribute's presence is the whole fact
-    let changeEvent = false;
-    const walkChange = (el) => {
-      if ((el.attrs ?? []).some((a) => a.name === "trackChanges")) changeEvent = true;
-      for (const c of el.children ?? []) walkChange(c);
-    };
-    for (const r of roots) walkChange(r);
-    return { usesThemes: themes, usesDraw: draw, usesFilter: filter, usesFocusKeys: focusKeys, usesTips: tips, claimsTouch: touch, usesSelectors: selectors, usesSchemas: schemas,
-      usesEffects: effects, usesDomEffects: domEffects, uses3D: threeD, usesMeasureText: measure, usesDrawImage: drawImage, usesDrawText: drawText, usesFeatures: features, usesFaces: faces, usesChangeEvent: changeEvent,
-      usesRichText: richText, usesTextClamp: textClamp, usesRichClamp: richClamp };
-  })();
-  // index.js re-exports inspect's query surface by name; a stub must export
-  // every name (esbuild resolves named re-exports even when unused downstream).
-  // The stub bridge is not EMPTY: an empty `window.__declare` is
-  // indistinguishable from breakage to anyone probing a shipped artifact
-  // (found exactly that way — a bug report's "the artifact you ship is the
-  // one you cannot question"). One field says what happened and names the
-  // door; costs a string.
-  const bridgeStub = `import { notAboard } from "./errors.js";
-export function bridgeFor() { return { stub: notAboard("bridgeFor", "bridge").message }; }
-export function pickAt() { return null; }
-export function dependentsOf() { return []; }
-export function expandValue() { return null; }
-export function slotsOf() { return []; }
-export function inspect() { return null; }
-export function find() { return null; }
-export function explain() { return null; }
-export function stats() { return null; }
-export function pathOf() { return ""; }
-export function kindName() { return ""; }
-export const clock = {};
-`;
-  // The validator itself (check.js): a trusted program (compileProgram stamped
-  // it — the gate above this emit) never calls it, and program-schema.js now
-  // carries the schema half instantiate really needs — so production ships
-  // throwing stand-ins. Every name any bundled module imports must exist
-  // (esbuild resolves named imports and re-exports even when unused).
-  // the checker's stand-in is shared with the distro's boot build (stubs.mjs)
-  const checkStubSrc = CHECK_STUB_SRC;
-  // The focus + keyboard services (focus.js, keys.js — ~5 KB minified together).
-  // boot.ts wires them for EVERY app (Focus.setRoot, Keys.listen, deliverKeys),
-  // which is why they shipped everywhere; an app with nothing focusable, no key
-  // or focus handler, and no body calling either has no use for the wiring at
-  // all. Gated together because they are one mechanism: Tab navigation is the
-  // keyboard driving focus, and a focused view's own key handlers arrive
-  // through deliverKeys. The stubs keep every name the run-path imports.
-  const focusStub = `
-const NOOP = () => {};
-const OFF = () => NOOP;
-export const Focus = {
-  setRoot: NOOP, focus: NOOP, blur: NOOP, next: NOOP, prev: NOOP,
-  byKeyboard: () => false, getFocus: () => null,
-  onFocusChange: OFF, onGeometry: OFF, noteDiscarded: NOOP,
-};
-export function deliverKeys() { return NOOP; }
-export class FocusService {}
-`;
-  // (`follower` is private to the real service — a Constraint it builds
-  // internally — so it is deliberately absent here; nothing outside calls it.)
-  const keysStub = `
-const NOOP = () => {};
-const OFF = () => NOOP;
-export const Keys = {
-  listen: NOOP, isDown: () => false, held: () => [],
-  onKeyDown: OFF, onKeyUp: OFF, keyDown: NOOP, keyUp: NOOP, chord: OFF,
-};
-export function setKeysFocusProbe() {}
-export class KeysService {}
-export function normalize() { return null; }
-`;
-  // The tip service (tip.js): view.ts reports hover/press to it for any view
-  // carrying `tip = "…"`, so an app with no tips never needs it.
-  const tipStub = `
-const NOOP = () => {};
-export const Tip = { over: NOOP, out: NOOP, hide: NOOP, onTip: () => NOOP, show: NOOP };
-`;
-  // The datapath ISLAND SCANNER (datapath.js's lexical layer) is compile-time
-  // machinery since the emitted-plans change (data-paths.md §5): compile()
-  // lowers every `:path` island to `this.$data([…])` before emission, so a
-  // production program has no `:` value mode left for the runtime to scan —
-  // rewriteDatapaths is the identity on every body it will ever see here.
-  // splitPath stays REAL: the attribute-path currency (bindDatapath,
-  // replication, $data's string form) still splits at link time.
-  const datapathStub = `
-export const splitPath = (path) => (path === "" ? [] : path.split("."));
-export const isSelective = (plan) => plan.some((s) => typeof s !== "string" && !("i" in s));
-export function staticSegs(plan) {
-  const out = [];
-  for (const s of plan) {
-    if (typeof s === "string") out.push(s);
-    else if ("i" in s && s.i >= 0) out.push(String(s.i));
-    else return null;
-  }
-  return out;
-}
-export function scanDatapaths() { return []; }
-export function datapathTrouble() { return null; }
-export function rewriteDatapaths(src) { return { src }; }
-export function fillDatapaths(src) { return src; }
-`;
-  // The selector EVALUATOR (select.js — slices/wildcards/indices, B3) rides
-  // only when the program's plans actually contain a selector segment — the
-  // §7 pay-for-what-you-write table. A name-only program ships today's walk.
-  const selectStub = `
-import { notAboard } from "./errors.js";
-const REFUSE = () => { throw notAboard("select", "selectors"); };
-export const selectNodes = REFUSE, selectValue = REFUSE, evaluatePlan = REFUSE;
-`;
-  // The data-shape validator (data-schema.js, B4) rides only when the
-  // program declares a schema — the same pay-per-use lever.
-  const dataSchemaStub = `
-export function validateShape() { return null; }
-export function validateDoc() { return null; }
-export function fieldValueError() { return null; }
-`;
-  // shape-resolve (typed data): the schema-declaration resolver — pure
-  // declaration machinery a schema-less program never exercises.
-  const shapeResolveStub = `
-const EMPTY = new Map();
-export function resolveShapes() { return { table: EMPTY, errors: [] }; }
-export function shapeNames() { return new Set(); }
-export function isArrayDoc() { return false; }
-`;
-  // themes.js is imported unconditionally by services.js (body scope) and
-  // instantiate.js (theme resolution), so the stub keeps their named imports
-  // resolvable while dropping the preset records: an empty preset table and an
-  // identity tone. A program that names a preset or `activeTone` keeps the real one.
-  const themesStub = `export const THEME_PRESETS = Object.freeze({});\nexport const THEME_PRESET_NAMES = [];\nexport function activeTone(accent) { return accent; }\n`;
-  const viewportStub = `export function lockFocusZoom() {}\n`;
-  // canvas-filter.js: the Safari ctx.filter fallback. Stubbed to "the engine
-  // supports it" so replay() takes the direct path — correct for a program that
-  // never sets d.filter, since no filter op ever reaches the fallback. ⚠ NOT for
-  // a canvas-backend build: frost there filters a backdrop snapshot through this
-  // module with no d.filter in the program at all.
-  const filterStub = `export function parseFilter() { return { blur: 0, saturate: 1, brightness: 1, contrast: 1, grayscale: 0, invert: 0, unsupported: [] }; }\nexport function isIdentity() { return true; }\nexport function ctxFilterSupported() { return true; }\nexport function forceFilterFallback() {}\nexport function applyFilterFallback(src) { return src; }\n`;
-  const drawStub = `export function record() { return null; }\nexport function replay() {}\nexport class Draw {}\nexport class DrawGradient {}\nexport function replayArea() { return 0; }\nexport function listIsolated() { return false; }\nexport function rasterLooksBlank() { return false; }\nexport function rasterPad() { return 0; }\nexport function rasterEntryCap() { return 0; }\nexport function rasterTotalCap() { return 0; }\nexport const RASTER_MAX_DIM = 0;\nexport const RASTER_MAX_AREA = 0;\nexport const RASTER_GRACE_MS = 0;\nexport function makeCanvas() { return null; }\nexport function registerDrawImage() {}\nexport function drawImageBitmap() { return undefined; }\nexport function drawImageHandles() { return []; }\n`;
-  // The named-vocabulary stubs (programFacts above): each keeps its module's
-  // export list and refuses through notAboard, so a program that reaches one
-  // anyway fails with the name it used instead of painting wrong.
-  const effectsStub = `import { notAboard } from "./errors.js";
-const refuse = (n) => () => { throw notAboard(n, "unused"); };
-export const blur = refuse("blur");
-export const brightness = refuse("brightness");
-export const contrast = refuse("contrast");
-export const saturate = refuse("saturate");
-export const grayscale = refuse("grayscale");
-export const invert = refuse("invert");
-export const sepia = refuse("sepia");
-export const hueRotate = refuse("hueRotate");
-export const colorize = refuse("colorize");
-export const frost = refuse("frost");
-export const radialGradient = refuse("radialGradient");
-export const conicGradient = refuse("conicGradient");
-export function coerceRadialConic(lit) { throw notAboard(lit.name, "unused"); }
-export function coerceFilter(lit) { if (lit.kind === "ident" && lit.name === "null") return { ok: true, value: null }; throw notAboard("filter", "unused"); }
-`;
-  const domEffectsStub = `import { notAboard } from "./errors.js";
-export function tintFilterRef() { throw notAboard("colorize", "unused"); }
-export function applyDomMask(s) { if (s.maskSpec !== null) throw notAboard("mask", "unused"); }
-`;
-  const projectiveStub = `import { notAboard } from "./errors.js";
-const refuse = () => { throw notAboard("rotateX", "unused"); };
-const flat = (v) => { if ((v.rotateX ?? 0) !== 0 || (v.rotateY ?? 0) !== 0 || (v.translateZ ?? 0) !== 0) refuse(); return null; };
-export const has3D = (p) => { flat(p); return false; };
-export const spec3DOf = (v) => flat(v);
-export const childHomography = (parent, c) => flat(c);
-export const unprojectChild = refuse;
-export const unproject = refuse;
-export const footprint3D = refuse;
-export const domTransform3D = refuse;
-export const homography = refuse;
-export const applyH = refuse;
-export const invertH = refuse;
-export const inFront = refuse;
-export const quadThrough = refuse;
-export const boxThroughH = refuse;
-export const affineFit = refuse;
-export const frontFacing = refuse;
-`;
-  const measureTextStub = `import { notAboard } from "./errors.js";
-export function measureText() { throw notAboard("measureText", "unused"); }
-`;
-  const fontDeriveStub = `import { notAboard } from "./errors.js";
-export function derivedName() { throw notAboard("numerals", "unused"); }
-export function splitDerived() { throw notAboard("numerals", "unused"); }
-export function ensureDerived() { throw notAboard("numerals", "unused"); }
-`;
-  const faceLiteralStub = `import { notAboard } from "./errors.js";
-export const FONT_WEIGHTS = Object.freeze({});
-export const FACE_WEIGHT_FORMS = "";
-export function faceWeight() { throw notAboard("Face", "unused"); }
-export function faceWeightLiteral() { throw notAboard("Face", "unused"); }
-export function faceWeightDescriptor() { throw notAboard("Face", "unused"); }
-export function faceSourceLiteral() { throw notAboard("Face", "unused"); }
-export function faceSourceCss() { throw notAboard("Face", "unused"); }
-`;
-  const drawImageStub = `import { notAboard } from "./errors.js";
-export function registerDrawImage() {}
-export function drawImageBitmap() { return undefined; }
-export function drawImageHandles() { return []; }
-export function drawImageOp() { throw notAboard("drawImage", "unused"); }
-`;
-  const drawTextStub = `import { notAboard } from "./errors.js";
-export function styledRun() { throw notAboard("fillText", "unused"); }
-`;
-  // The DOM backend's native rich-text FLOW (dom-rich.js): only a RichText
-  // reaches it, so an app that names none refuses the whole module. `false`
-  // for the slot and document capabilities is the honest answer from a build
-  // with no flow at all — nothing reads them, and a backend that says it cannot
-  // place inline views or lay out a document is the documented fallback.
-  const domRichStub = `import { notAboard } from "./errors.js";
-const refuse = () => { throw notAboard("Markdown", "unused"); };
-export const richInlineSlots = false;
-export const richBlocks = false;
-export const measureRichSlots = refuse;
-export const richMetrics = refuse;
-export const setRichWidth = refuse;
-export const setRichClamp = refuse;
-export const setRichContent = refuse;
-`;
-  // The rich text's two ways to lay a document out. The DOM lays the whole
-  // document out natively (rich-doc.js), so a DOM build reaches the VIEW PATH
-  // (rich-views.js — the manual flow, the block builders) only to spend a line
-  // budget, which only a rich text with `maxLines` has (usesRichClamp); a
-  // canvas build never reaches the document path at all.
-  const richViewsStub = `import { notAboard } from "./errors.js";
-const refuse = () => { throw notAboard("maxLines", "unused"); };
-export const startBudget = refuse;
-export const budgetTruncated = refuse;
-export const flowRichCanvas = refuse;
-export const layoutBlocks = refuse;
-`;
-  const richDocStub = `import { notAboard } from "./errors.js";
-export function docNodes() { throw notAboard("Markdown", "unused"); }
-`;
-  const textClampStub = `import { notAboard } from "./errors.js";
-export function renderClamped() { throw notAboard("maxLines", "unused"); }
-`;
-  const changeEventStub = `import { notAboard } from "./errors.js";
-export function setChangeDispatcher() {}
-export function trackNode(node, names) { if (names !== null && names.length > 0) throw notAboard("trackChanges", "unused"); }
-export function untrackNode() {}
-export function fireChanges() { return false; }
-export function endChangeChain() {}
-`;
-  // The Inspector's wiring (browser/inspector-boot.js: ⌥⌘D, ?inspector) is dev
-  // tooling — it compiles the Inspector app with the compiler bundle and reads
-  // its subject through the Inspect service, which a production build stubs. A
-  // keystroke that downloads a megabyte to throw on its first query is not a
-  // feature; --debug keeps it.
-  const inspectorBootStub = `export async function openInspector() {}
-export function provideInspectorProgram() {}
-export function closeInspector() {}
-export function originOfElement() { return undefined; }
-export function wireInspector() {}
-`;
-  const canvasBackendStub = `import { notAboard } from "./errors.js";
-export class CanvasBackend { constructor() { throw notAboard("CanvasBackend", "unused"); } }
-`;
-  const stubFor = (name, filterRe, contents) => ({
-    name,
-    setup(build) {
-      build.onLoad({ filter: filterRe }, () => ({ contents, loader: "js", resolveDir: RUNTIME }));
-    },
-  });
-  // A page that HOSTS other programs (opts.hosts — a site page with islands)
-  // keeps every fact-gated module: the facts below are this program's, and
-  // a child it mounts may need what this one never names. The checker and
-  // the bridge still go — a hosted program arrives checked, like the host.
-  const factPlugins = opts.debug ? [] : [
-    stubFor("slim-check", /[/\\]check\.js$/, checkStubSrc),
-    ...(ship.inspector ? [] : [stubFor("slim-bridge", /[/\\]inspect\.js$/, bridgeStub)]),
-    ...(hosts ? [] : [
-    stubFor("slim-datapath", /[/\\]datapath\.js$/, datapathStub),
-    ...(programFacts.usesThemes ? [] : [stubFor("slim-themes", /[/\\]themes\.js$/, themesStub)]),
-    ...(programFacts.usesDraw ? [] : [stubFor("slim-draw", /[/\\]draw\.js$/, drawStub)]),
-    ...(programFacts.usesFilter || (canvas) ? [] : [stubFor("slim-filter", /[/\\]canvas-filter\.js$/, filterStub)]),
-    ...(programFacts.usesFocusKeys ? [] : [
-      stubFor("slim-focus", /[/\\]focus\.js$/, focusStub),
-      stubFor("slim-keys", /[/\\]keys\.js$/, keysStub),
-    ]),
-    ...(programFacts.usesTips ? [] : [stubFor("slim-tip", /[/\\]tip\.js$/, tipStub)]),
-    ...(programFacts.claimsTouch ? [] : [stubFor("slim-viewport", /[/\\]viewport-lock\.js$/, viewportStub)]),
-    ...(programFacts.usesSelectors ? [] : [stubFor("slim-select", /[/\\]select\.js$/, selectStub)]),
-    ...(programFacts.usesSchemas ? [] : [stubFor("slim-dataschema", /[/\\]data-schema\.js$/, dataSchemaStub)]),
-    ...(programFacts.usesSchemas ? [] : [stubFor("slim-shapes", /[/\\]shape-resolve\.js$/, shapeResolveStub)]),
-    ...(programFacts.usesEffects ? [] : [stubFor("slim-effects", /[/\\]effects\.js$/, effectsStub)]),
-    ...(programFacts.usesDomEffects ? [] : [stubFor("slim-dom-effects", /[/\\]dom-effects\.js$/, domEffectsStub)]),
-    ...(programFacts.uses3D ? [] : [stubFor("slim-3d", /[/\\]projective\.js$/, projectiveStub)]),
-    ...(programFacts.usesMeasureText ? [] : [stubFor("slim-measure-text", /[/\\]text-measure\.js$/, measureTextStub)]),
-    ...(programFacts.usesFeatures ? [] : [stubFor("slim-features", /[/\\]font-derive\.js$/, fontDeriveStub)]),
-    ...(programFacts.usesFaces ? [] : [stubFor("slim-face", /[/\\]face-literal\.js$/, faceLiteralStub)]),
-    ...(programFacts.usesDrawImage ? [] : [stubFor("slim-draw-image", /[/\\]draw-image\.js$/, drawImageStub)]),
-    ...(programFacts.usesDrawText ? [] : [stubFor("slim-draw-text", /[/\\]draw-text\.js$/, drawTextStub)]),
-    ...(programFacts.usesChangeEvent ? [] : [stubFor("slim-change-event", /[/\\]change-event\.js$/, changeEventStub)]),
-    ...(programFacts.usesRichText ? [] : [stubFor("slim-dom-rich", /[/\\]dom-rich\.js$/, domRichStub)]),
-    // The 2026-09-26 set (text-clamp, rich-views, rich-doc, and dom-rich's new
-    // exports) — listed with the placement-only exclusions in
-    // docs/system-design/slimming-gates.md and pinned in test/slim.test.mjs.
-    ...(programFacts.usesTextClamp ? [] : [stubFor("slim-text-clamp", /[/\\]text-clamp\.js$/, textClampStub)]),
-    ...(canvas || programFacts.usesRichClamp ? [] : [stubFor("slim-rich-views", /[/\\]rich-views\.js$/, richViewsStub)]),
-    ...(canvas ? [stubFor("slim-rich-doc", /[/\\]rich-doc\.js$/, richDocStub)] : []),
-    ]),
-  ];
-  // The page host's two substitutions: the Inspector's wiring (above), and the
-  // backend the page does not render with — host-client names both, the build
-  // ships one. The host imports the runtime through runtime/host-api.js, so
-  // nothing pins the parser or the checker (test/boot-bundle.test.mjs).
-  // A PACKAGE COMPILES ONLY WHEN ITS PROGRAM SAYS SO (hosting.md, model 1;
-  // `ship [ compiler = true ]`). Otherwise the compiler client is a stand-in
-  // that says so, and the page boot turns "no artifact, no compiler" into a
-  // reported error rather than a retry; live editing goes with the compiler.
-  const compilerClientStub = `export const COMPILER_ABOARD = false;
-const gone = () => Promise.reject(new Error("the compiler is not aboard this package — a build runs what it was built with (an island's program is compiled ahead: ship [ islands = […] ]; a program that compiles at run time declares ship [ compiler = true ])"));
-export function loadCompiler() { return gone(); }
-export function loadCompilerInline() { return gone(); }
-export function ensureLibrary(c) { return Promise.resolve(c); }
-export function loadLibraryOnce() { return Promise.resolve({}); }
-`;
-  const liveEditStub = `export function installLiveEdit() { return { watchAll() {}, watchChild() {} }; }\n`;
-  const browserStub = (name, filterRe, contents) => ({
-    name, setup(b) { b.onLoad({ filter: filterRe }, () => ({ contents, loader: "js", resolveDir: BROWSER })); },
-  });
-  const hostPlugins = [
-    ...(ship.compiler ? [] : [
-      browserStub("slim-compiler-client", /[/\\]browser[/\\]compiler-client\.js$/, compilerClientStub),
-      browserStub("slim-live-edit", /[/\\]browser[/\\]live-edit\.js$/, liveEditStub),
-    ]),
-    ...(opts.debug || ship.inspector ? [] : [stubFor("slim-inspector-boot", /[/\\]browser[/\\]inspector-boot\.js$/, inspectorBootStub)]),
-    ...(canvas ? [] : [stubFor("slim-canvas-backend", /[/\\]canvas-backend\.js$/, canvasBackendStub)]),
-  ];
 
   const result = await esbuild.build({
     stdin: { contents: entry, resolveDir: RUNTIME, loader: "js", sourcefile: name + ".entry.js" },
     bundle: true, minify: true, format: "esm", target: "es2020",
     // the compiler stays a lazy, external fetch (compiler-client) — a live edit's,
     // never on the path to first paint
-    external: ["*kernel-js.js", "*declare-compiler.js"],
+    external: ["*declare-compiler.js"],
     // no runtime-development switches, no native-kernel binding (build-flags.d.ts)
     define: {
       // `opts.marks` keeps the dev switches so the boot stamps wall-clock marks —
@@ -1191,9 +619,10 @@ export function loadLibraryOnce() { return Promise.resolve({}); }
       // One file, one request; the decode is measured in the boot stages.
       __DECLARE_INLINE_KERNEL__: "true",
       __DECLARE_JS_KERNEL__: "false",   // a production build carries no debug kernel, not even its switch
+      __DECLARE_KERNEL__: JSON.stringify(props.kernel),
     },
     write: false, legalComments: "none", metafile: true,
-    plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug || ship.inspector ? [] : [inspectPlugin]), ...hostPlugins, ...factPlugins, ...(opts.debug || ship.inspector ? [] : [errorCodePlugin])],
+    plugins: [...(slim ? [slimPlugin] : []), capabilityPlugin, ...(opts.debug || ship.inspector ? [] : [errorCodePlugin])],
   });
   const appJs = result.outputFiles[0].text;
   const moduleName = `app.${shortHash(appJs)}.js`;
@@ -1270,7 +699,12 @@ export function loadLibraryOnce() { return Promise.resolve({}); }
   return {
     ok: true, errors: [], warnings: built.warnings, diagnostics: built.diagnostics, report: built.report,
     closure: built.closure, program: built.program, sizes, metafile: result.metafile,
-    usedComponents: built.usedComponents, slim,
+    usedComponents: built.usedComponents, slim, kernel: props.kernel,
+    // what the build carries beyond its core, and why; what it left out
+    // `absent`: left out, a stand-in in their place; `cut`: tables shipped with
+    // only the entries the program names
+    capabilities: { needed: Object.fromEntries(needed), absent: absent.filter((c) => c.subset === undefined).map((c) => c.id),
+      cut: absent.filter((c) => c.subset !== undefined).map((c) => c.id) },
     // code → prose for every DeclareError this build coded (empty under
     // --debug, which keeps the sentences). `declare-help E42` reads the
     // committed catalog; this rides out for a caller that wants the build's own.
@@ -1319,15 +753,15 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, moduleName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, crawler = false, props }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, crawler, props });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, crawler = false, kernel, props }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, crawler, kernel, props });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
   for (const f of out.files) { await mkdir(dirname(join(outDir, f.name)), { recursive: true }); await writeFile(join(outDir, f.name), f.contents); }
   const assets = srcDir ? await copyAssets(srcDir, outDir) : [];
   const moduleName = out.files.find((f) => f.name.startsWith("app."))?.name;
-  if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets, metafile: out.metafile, shipped: out.shipped.files.map((f) => f.abs) });
+  if (srcDir) await writeBuildClosure({ outDir, srcDir, closure: out.closure, assets, metafile: out.metafile, shipped: out.shipped.files.map((f) => f.abs), capabilities: out.capabilities });
   return { ...out, outDir, moduleName, assets };
 }
 
@@ -1363,7 +797,7 @@ async function walkFiles(dir, base = "") {
   return out;
 }
 
-async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile, shipped = [] }) {
+async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile, shipped = [], capabilities }) {
   if (!closure) return;
   const repoRoot = resolve(HERE, "..");
   const rel = (abs) => relative(repoRoot, abs).split(sep).join("/");
@@ -1405,7 +839,7 @@ async function writeBuildClosure({ outDir, srcDir, closure, assets, metafile, sh
     entries.push({ id: rel(abs), kind: "file", v: hashValidator(abs) });
   }
   await writeFile(join(outDir, "BUILD.json"),
-    JSON.stringify({ closure: { entries, props: closure.props }, built: rel(srcDir) }, null, 1));
+    JSON.stringify({ closure: { entries, props: closure.props }, built: rel(srcDir), capabilities }, null, 1));
 }
 
 /** `declarec check <files…> [--json]` — the COMPILE without the build: parse,
@@ -1470,13 +904,13 @@ async function checkFiles(files, { json, quiet }) {
 
 async function cli(argv) {
   // CLI-only switches (output dir, quiet, and the artifacts --highlight / --extract);
-  // the two MODIFIERS --render/--canvas and --crawler share the canonical model (flags.ts),
+  // the three MODIFIERS --render/--canvas, --crawler and --kernel share the canonical model (flags.ts),
   // so they mean exactly what the same names mean as server/browser URL modifiers. A
   // build always slims + strips positions + typechecks (docs/system-design/requests.md §"Removed
   // knobs"); --debug is the one escape hatch, for debugging the emitter — it keeps
   // source positions AND the full registry.
   const passthrough = [];
-  let outDir = null, quiet = false, doHighlight = false, doExtract = false, debug = false, json = false;
+  let outDir = null, quiet = false, doHighlight = false, doExtract = false, debug = false, json = false, why = false;
   const raw = argv.slice(2);
   // `check` is a SUBCOMMAND (first positional), not a flag: it does a different
   // job — report, emit nothing — and takes many files where a build takes one.
@@ -1489,6 +923,7 @@ async function cli(argv) {
     else if (a === "--extract") doExtract = true;
     else if (a === "--debug") debug = true;
     else if (a === "--json") json = true;
+    else if (a === "--why") why = true;
     else passthrough.push(a);
   }
   if (isCheck) {
@@ -1502,7 +937,7 @@ async function cli(argv) {
   const { flags, rest } = parseArgvFlags(passthrough, DEFAULT_FLAGS); // declarec is always a build
   const input = rest.find((a) => !a.startsWith("-")) ?? null;
   if (input === null) {
-    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--debug] [--quiet]");
+    console.error("usage: declarec <app.declare> [-o dist] [--canvas] [--crawler] [--extract] [--kernel wasm|js] [--debug] [--why] [--quiet]");
     console.error("       declarec check <file.declare…> [--json]            # compile + report, emit nothing");
     console.error("       declarec --highlight <app.declare> [-o out.json]   # the reader's segments (JSON)");
     process.exit(2);
@@ -1536,7 +971,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, render: flags.render, crawler: flags.crawler, stripPos: !debug, slim: !debug });
+  const out = await writeProduction({ source, name, srcDir, outDir, render: flags.render, crawler: flags.crawler, stripPos: !debug, slim: !debug, kernel: flags.kernel });
   const ms = Date.now() - t0;
 
   if (!out.ok) {
@@ -1572,6 +1007,7 @@ async function cli(argv) {
     console.log(`    app bundle     ${kb(out.sizes.appRaw)} raw   ${kb(out.sizes.appGzip)} gzip`);
     console.log(`    index.html     ${kb(out.sizes.htmlRaw)} raw   ${kb(out.sizes.htmlGzip)} gzip`);
     console.log(`    ── total over the wire (gzip): ${kb(out.sizes.totalGzip)} ──`);
+    console.log(`    kernel: ${out.kernel === "js" ? "JavaScript (--kernel=js)" : "WebAssembly"}`);
     if (out.slim) {
       // Count only the RUNTIME components (the registry names) — the used-set also
       // carries the app's own classes (always bundled, never in the registry), so
@@ -1580,6 +1016,12 @@ async function cli(argv) {
       const kept = [...out.usedComponents].filter((n) => builtins.has(n)).sort();
       console.log(`    registry: ${kept.length} of ${builtins.size} runtime components kept — ${kept.join(", ")}`);
     } else console.log(`    registry: FULL (slimming off)`);
+    // what the build carries of the optional runtime (compiler/src/capabilities.ts);
+    // --why says what in the program brought each one aboard
+    const aboard = Object.entries(out.capabilities.needed);
+    const { absent: out_, cut } = out.capabilities;
+    console.log(`    capabilities: ${aboard.length} of ${aboard.length + out_.length + cut.length} aboard${cut.length ? `, ${cut.length} cut to what the program names (${cut.join(", ")})` : ""}${out_.length ? ` — left out: ${out_.join(", ")}` : ""}`);
+    if (why) for (const [id, reason] of aboard) console.log(`      ${id}: ${reason}`);
     if (assets.length) console.log(`  assets: ${assets.join(", ")}`);
     if (out.islands.length) console.log(`  islands: ${out.islands.map((i) => `${i.name} → ${i.file} (${kb(i.gzip)} gzip)`).join(", ")}`);
     for (const f of out.shipped.files) console.log(`  ship files: ${f.path} → ${f.file} (${kb(f.gzip)} gzip)`);

@@ -263,6 +263,17 @@ export async function macBoot(url) {
   // Source mode is what needed it: the window boots
   // `library/platform-apps/viewer/viewer.declare?subject=<the program>`, and the
   // Viewer reads `hostProvided("subject", "")` to know what to read.
+  // ONE PROGRAM PER WINDOW. The program this one replaces is discarded before
+  // it is built: its rules leave the kernel, its Time leaves the shared clock,
+  // its surfaces leave the host's tree. A replaced program left standing keeps
+  // running unseen — a Time's onTick, and every rule it wakes, committing
+  // under the program on screen.
+  if (currentApp !== null) {
+    const prev = currentApp;
+    currentApp = null; liveApps.delete(prev);
+    try { prev.discard(); settle(); flushOps(); }
+    catch (e) { H.log("error", "discarding the previous program: " + ((e && e.message) || e)); }
+  }
   const app = build(source, { deps, provides: launchParams(base) });
   currentApp = app;
   globalThis.__app = app;

@@ -39,3 +39,13 @@ declare const __DECLARE_KERNEL_BYTES__: number;
 //     server's bundle, the platform tree and the tests can all run on it, which
 //     is where breakpoints and the profiler are wanted.
 declare const __DECLARE_JS_KERNEL__: boolean;
+//   __DECLARE_KERNEL__  which kernel a build carries. A web build: "wasm" (the
+//     default — the C kernel compiled to WebAssembly) or "js" (`declarec
+//     --kernel=js`: the JavaScript kernel imported with the bundle, and no
+//     WebAssembly bytes or loader at all — a smaller download, the same
+//     results). The Mac host's runtime: "native" — the C kernel linked into the
+//     app, with the JavaScript kernel kept for debugging the kernel itself
+//     (__declareKernelJS), and no WebAssembly. Absent (a `tsc` build, the tests)
+//     means the compiled kernel, with the JavaScript one reachable through the
+//     __DECLARE_JS_KERNEL__ debugging switch.
+declare const __DECLARE_KERNEL__: "wasm" | "js" | "native";

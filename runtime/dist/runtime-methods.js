@@ -21,11 +21,10 @@
 import { SCHEMAS, RichTextSchema } from "./schema.js";
 export const RUNTIME_METHODS = {
     Node: ["watchChildList", "childListChanged", "appendChild", "insertChild", "removeChild", "discard", "teardown", "childrenMutated", "chainMoved", "structureCellId"],
-    View: ["is3D", "localTransform", "applyMask", "attach", "contentExtent", "bindExtent", "extentOf", "contentOrigin", "contentBox", "positionLead", "bounds", "footprint", "tabDefault", "focusChanged", "alignBand", "flush", "viewAt", "containsPoint", "rootBounds", "armVisibility", "readVisibility", "startVisibility", "scheduleVisFlush", "deliverVisibility", "rootTransform", "rootOrigin", "travelWith", "applyTravel", "repushPosition", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "inputSink", "rewireInput", "inputWants", "bindDraw", "invalidateDraw", "applyClip",
+    View: ["is3D", "localTransform", "applyMask", "attach", "contentExtent", "bindExtent", "extentOf", "contentOrigin", "contentBox", "positionLead", "bounds", "footprint", "tabDefault", "focusChanged", "alignBand", "flush", "viewAt", "containsPoint", "rootBounds", "armVisibility", "rootTransform", "rootOrigin", "travelWith", "applyTravel", "repushPosition", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "inputSink", "rewireInput", "inputWants", "bindDraw", "invalidateDraw", "applyClip",
         // THE KERNEL's view wiring (kernel.md): the native auto-extent rule and
-        // its word list, the view's kernel identity, and the native visibility rule
-        // with its output plumbing and its fallback.
-        "installKernelExtent", "extentWords", "kernelElem", "relinkKernelVis", "installKernelVis", "visOutputRule", "visFallbackToJS"],
+        // its word list.
+        "installKernelExtent", "extentWords"],
     App: ["post", "navigate", "destinationOf", "follow", "destinationOfAnchor", "inspect", "openWindow", "resolveReveal", "hasArrive", "destinationView", "reveal", "rearmReveal", "hookPumpRetire", "scheduleReveal", "cancelReveal", "bindPageScroll", "provide", "exposed", "watchExposed"],
     Text: ["lineAdvance"],
     Image: ["load"],
@@ -45,7 +44,7 @@ export const RUNTIME_METHODS = {
     TweenLayout: ["retarget"],
     Dataset: ["cursorAt", "read", "set", "insert", "removeAt", "move", "declaredField", "writeError", "segs", "locate", "array", "wakeChain", "adopt"],
     DataSource: ["maybeAuto", "requestInit", "fetch", "clear"],
-    Animator: ["markGrouped", "resolveTarget", "autoStart", "startedChanged", "pausedChanged", "reanchor", "start", "stop", "rebase", "tick", "releaseSlot", "end", "fire"],
+    Animator: ["markGrouped", "resolveTarget", "autoStart", "startedChanged", "pausedChanged", "reanchor", "start", "stop", "rebase", "tick", "fire"],
     AnimatorGroup: ["markGrouped", "members", "autoStart", "startedChanged", "pausedChanged", "reanchor", "start", "stop", "rebase", "tick", "cycleComplete", "endGroup", "fire"],
     Spring: ["wake", "prime", "arrive"],
     Time: ["autoStart"],
@@ -68,7 +67,7 @@ export const RUNTIME_METHODS = {
  *  schema, as above; PINNED by test/override-runtime.test.mjs, which constructs
  *  each class and recomputes the lists (minus `$`-names and attributes). */
 export const RUNTIME_FIELDS = {
-    View: ["_navLink", "backend", "drawing", "exposes", "extentRelistQueued", "insetX", "insetY", "maskUsers", "scrollsOn", "surface", "travelHost", "visArmed", "visElem", "visFlushTimer", "visGeneric", "visH", "visMode", "visOn", "visPending", "visRule", "visScale", "visStale", "visUnwatch", "visW", "visWake", "visX", "visY"],
+    View: ["_navLink", "backend", "drawing", "exposes", "extentRelistQueued", "insetX", "insetY", "maskUsers", "scrollsOn", "surface", "travelHost", "visH", "visMode", "visOn", "visScale", "visW", "visX", "visY"],
     App: ["demoSources", "hostServices", "hostSink", "hostValues", "lastRevealLocation", "liveReport", "pageScroll", "pageWeight", "pendingAnchor", "pendingHistoryVerb", "pendingInspect", "pendingNav", "pendingOpen", "pumpOn", "pumpRetireHooked", "readyDelivered", "revealPump", "sourceLines"],
     Image: ["bitmap", "loadSeq", "natural"],
     Media: ["el", "loadSeq"],
@@ -79,7 +78,7 @@ export const RUNTIME_FIELDS = {
     TweenLayout: ["from", "to", "tween"],
     Dataset: ["cursors"],
     DataSource: ["autoUrl", "seq"],
-    Animator: ["autoStarted", "cyclesLeft", "elapsed", "fromJump", "grouped", "lastNow", "live", "perpetual", "runAttr", "runDelta", "runDuration", "runMotion", "runTarget", "traveled"],
+    Animator: ["autoStarted", "grouped", "perpetual", "run"],
     AnimatorGroup: ["active", "autoStarted", "cyclesLeft", "grouped", "live"],
     Spring: ["arriving", "primed", "springLastNow", "springRunning", "vel"],
     Keys: ["wired"],

@@ -198,42 +198,24 @@ the speed benefit banked for exactly the workload B5/B8 create.
 
 ## 7. Tree-shaking
 
-The precedent is already in the repo. `tools/declarec.mjs:342`:
-
-```js
-plugins: [...(slim ? [slimPlugin] : []), ...(opts.debug ? [] : [inspectPlugin]), ...factPlugins]
-```
-
-The 492-line inspect service is already stubbed out of production builds by plugin
-substitution. The three pieces here shake differently:
-
-- **Schema validation** has the cleanest seam: reachable only from a `DataSource`
-  that declares a shape, so a program with no schemas leaves it unreferenced and
-  esbuild drops it with no plugin at all. Most programs will never use schemas.
-- **JSONPath segments** shake only if the compiler emits plans (§5). Given plans,
-  the compiler knows which segment kinds a program uses and can substitute a
-  minimal walker — dropping the filter engine and functions for the common case,
-  which the LZX corpus study suggests is name-and-index.
-- **JSON Pointer** is too small to bother shaking.
-
-**Concretely (2026-07-30, now that §5 is landed):** the lever exists and is
-proven — `slim-datapath` joined declarec's `factPlugins` with the emitted-plans
-change, and the compiler parses every path in the program, so it knows the
-exact union of segment kinds. Extend `programFacts` (the `usesThemes` /
-`usesDraw` mechanism) with `pathKinds`, and the cost becomes
-pay-for-what-you-write:
+A production build leaves out what a program cannot reach
+([app-slimming.md](app-slimming.md)), and two of its capabilities are this
+design's. `selectors` is the path-selector evaluator (`select.ts`): aboard only
+when a path in the program has a selector segment, which the build sees in the
+emitted plans (§5). `schemas` is the shape validator and resolver: aboard only
+for a program that declares a data shape. Everything else a path needs is the
+name walk every data program uses, and JSON Pointer is too small to bother. So
+the cost is pay-for-what-you-write:
 
 | the program writes | it ships |
 |---|---|
-| names only (today's entire corpus) | today's walk — zero added bytes |
-| + index / slice | the segment evaluator (~0.5–1 KB) |
-| + wildcard | + nodelist accumulation |
-| + filters | + compiled closures + only the comparison helpers used |
-| + `schema` | + the validator (esbuild drops it unreferenced — no plugin needed) |
+| names only | the name walk — nothing added |
+| any selector segment (index, slice, wildcard, filter) | + the selector evaluator |
+| a data shape (`schema`) | + the validator and resolver |
 | Pointer writes | always (~0.3–0.6 KB) |
 
-A runtime parser would have had to ship everything always; this table is what
-moving resolution to compile time bought.
+A runtime parser would ship all of it always; resolving paths at compile time
+is what lets the build decide.
 
 ## 8. Which features are actually wanted
 

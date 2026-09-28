@@ -24,7 +24,7 @@
 // Ownership is the other half: an author `{ }` constraint owns its slot and a
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
-import { ACTIVE, Cell, Constraint, S, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending } from "./reactive.js";
+import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage } from "./errors.js";
 // Class → its attribute tables. All are prototype-chained objects mirroring
 // the class hierarchy (Text's defaults chain to View's), so "nearest declared
@@ -109,6 +109,25 @@ export function slotCellOf(self, name) {
     if (c.$base === -1 || (c.$esc !== undefined && c.$esc.has(name)))
         return -1;
     return ensureBase(c) + slot;
+}
+/** A rule whose value the KERNEL lands in `self.name`'s table cell
+ *  (Constraint.landInKernel): the cell, and which values the kernel can take —
+ *  a number (0/1 for a boolean slot), while the slot is still in the table and
+ *  no change handler is running for it. Anything else — a union slot's list, a
+ *  value arriving after the slot escaped, a declared default not yet
+ *  evaluable — the rule lands through write() as before. null: not a table slot. */
+export function kernelLanding(self, name) {
+    const cell = slotCellOf(self, name);
+    if (cell < 0)
+        return null;
+    const c = self;
+    const bool = slotIsBoolean(self, name);
+    return {
+        cell, bool,
+        accepts: (v) => (bool ? typeof v === "boolean" : typeof v === "number")
+            && (c.$esc === undefined || !c.$esc.has(name))
+            && (c.$changing === undefined || !c.$changing.has(name)),
+    };
 }
 /** Is `self.name` a boolean slot (a kernel-written 0/1 lands as true/false)? */
 export function slotIsBoolean(self, name) {
@@ -322,7 +341,7 @@ export function defineAttributes(ctor, specs) {
                             if (defRule && declStale(self, name, true))
                                 return evalDefault(self, name, defBinding, defOuter);
                         }
-                        else if (defRule && declStale(self, name, false)) {
+                        else if (defRule && declStale(self, name, isSettling())) {
                             return evalDefault(self, name, defBinding, defOuter);
                         }
                         const n = table[c];
@@ -339,6 +358,14 @@ export function defineAttributes(ctor, specs) {
                 }
                 else if (live !== undefined) {
                     return live(self);
+                }
+                if (defRule) {
+                    // A declared default standing as a rule over the JS store: its stored
+                    // value, unless the rule has not caught up (declStale — the table
+                    // path's own test, asked the same way)
+                    const o = self.$owners?.[name];
+                    if (o !== undefined && o.declDefault && declStale(self, name, isTracking() || isSettling()))
+                        return evalDefault(self, name, defBinding, defOuter);
                 }
                 if (defBinding !== undefined && !provided(self, name)) {
                     // A declaration default that is a binding (`fontSize = provided(
@@ -624,7 +651,7 @@ export function providedRead(self, name, hasDefault, dflt) {
 }
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */
-function write(self, name, v) {
+function write(self, name, v, deep = false) {
     const carrier = self;
     const L = tableFor(LAYOUT, self.constructor);
     const slot = L?.index[name];
@@ -640,7 +667,7 @@ function write(self, name, v) {
             // store from now on, and the kernel cell it may already have — with
             // subscribers — becomes the slot's wake-only dependency node.
             escape(carrier, name, slot, kind);
-            writeRef(carrier, name, v);
+            writeRef(carrier, name, v, deep);
             return;
         }
         const c = ensureBase(carrier) + slot;
@@ -655,7 +682,7 @@ function write(self, name, v) {
         tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
         return;
     }
-    writeRef(carrier, name, v);
+    writeRef(carrier, name, v, deep);
 }
 function escape(carrier, name, slot, kind) {
     (carrier.$esc ??= new Set()).add(name);
@@ -672,12 +699,16 @@ function escape(carrier, name, slot, kind) {
         (carrier.$attrs ??= Object.create(tableFor(DEFAULTS, carrier.constructor)))[name] = kind === "b" ? n !== 0 : n;
     }
 }
-/** The JS-store write: equality-gate (=== or the slot's equal), store, push, wake. */
-function writeRef(carrier, name, v) {
+/** The JS-store write: equality-gate (=== or the slot's equal), store, push, wake.
+ *  `deep`: a declared default's rule re-ran — its inputs moved — and an OBJECT
+ *  it yields is a change even at the same identity (a record changed in place
+ *  under `:@`): its readers re-run, as they did when the default was evaluated
+ *  live inside them and subscribed to what it read. */
+function writeRef(carrier, name, v, deep = false) {
     const self = carrier;
     const defaults = tableFor(DEFAULTS, self.constructor);
     const cur = (carrier.$attrs ?? defaults)[name];
-    if (cur === v)
+    if (cur === v && !(deep && typeof v === "object" && v !== null))
         return;
     // Decoration values (Fill/Stroke/Shadow — immutable plain-data records)
     // gate on shallow structural equality, so a constraint re-producing an
@@ -716,10 +747,12 @@ function displaceDeclDefault(self, name) {
     }
 }
 /** Should a read of a declared-default slot evaluate the `{ }` live rather
- *  than trust the table? Yes while its rule has not landed yet (the install
- *  batch); for a TRACKED read, while the rule's own recompute is queued; for
- *  an UNTRACKED one (a handler), while ANY work is pending — the table lags
- *  the world until the settle. No once displaced or author-set: storage wins. */
+ *  than trust its stored value? Yes while its rule has not landed yet (the
+ *  install batch); for a read by a rule — TRACKED, or any read inside a settle
+ *  (a static-edge rule reads untracked) — while the rule's own recompute is
+ *  queued, the freshness any bound slot gives its readers; for a read outside
+ *  one (a handler), while ANY work is pending — the store lags the world until
+ *  the settle. No once displaced or author-set: storage wins. */
 function declStale(self, name, tracked) {
     const o = self.$owners?.[name];
     if (o === undefined)
@@ -729,7 +762,7 @@ function declStale(self, name, tracked) {
     return tracked ? o.isQueued() : workPending();
 }
 /** The rule's OWN apply: the table write without the displacement check. */
-export function writeOwned(self, name, v) { write(self, name, v); }
+export function writeOwned(self, name, v) { write(self, name, v, true); }
 /** Is the slot set directly or owned by a constraint — the rank-1 fallback's
  *  "unset" test (a declared default rule installs only on an unset slot). */
 export function isSetOrOwned(self, name) { return provided(self, name); }
@@ -858,6 +891,17 @@ const DECLARED = new WeakMap();
 /** Record a class's author declarations (instantiate.ts makeClass). */
 export function recordDeclarations(ctor, table) {
     DECLARED.set(ctor, table);
+}
+/** The declared defaults that stand as rules on an instance of this class —
+ *  its own and its user superclasses' (declarationsOf), computed once per class. */
+const DEF_RULE_LISTS = new WeakMap();
+export function declaredRules(self) {
+    let l = DEF_RULE_LISTS.get(self.constructor);
+    if (l === undefined) {
+        l = Object.entries(declarationsOf(self)).filter(([, r]) => r.rule === true && r.source !== null);
+        DEF_RULE_LISTS.set(self.constructor, l);
+    }
+    return l;
 }
 /** Every author-declared slot visible on this instance — the class's own and
  *  its user superclasses', merged up the prototype chain (runtime base
@@ -1003,9 +1047,8 @@ function refreshDeclDefault(self, name) {
     }
     catch {
         return;
-    } // not evaluable yet: the table stands
-    if (typeof v === "number" || typeof v === "boolean")
-        write(self, name, v);
+    } // not evaluable yet: the stored value stands
+    write(self, name, v);
 }
 /** Release `c`'s ownership of `self.name` — the uninstall half of `own`,
  *  for owners that retire as a unit (a layout strategy detaching). Guarded on
@@ -1026,6 +1069,9 @@ export function release(self, name, c) {
 export function bindDerived(self, name, compute) {
     const c = new Constraint(`${self.constructor.name}.${name} (runtime derive)`, compute, (v) => write(self, name, v), 0, true);
     own(self, name, c);
+    const land = kernelLanding(self, name);
+    if (land !== null)
+        c.landInKernel(land);
     c.run();
     return c;
 }

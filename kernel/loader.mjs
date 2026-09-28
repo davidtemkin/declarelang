@@ -22,6 +22,7 @@ export async function loadKernel(wasmBytes, image, host, caps = {}) {
       schedule: () => host.schedule?.(),
 
       decline: () => {},
+      reserve: () => {},   // this loader's capacities are fixed: a full edge table is reported through `error`
       sin: Math.sin, cos: Math.cos, tan: Math.tan,
     },
   };

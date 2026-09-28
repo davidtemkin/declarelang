@@ -110,7 +110,7 @@ export class Node {
         while (top.parent !== null)
             top = top.parent;
         const hv = top.hostValues;
-        if (hv === undefined) {
+        if (hv == null) {
             if (dflt.length > 0)
                 return dflt[0];
             throw new Error(`hostProvided("${name}"): this node is not in a running app`);
@@ -321,7 +321,11 @@ defineAttributes(Node, {
     trackChanges: { def: null, push: (n, v) => {
             if (n.$live !== true)
                 return;
-            trackNode(n, Array.isArray(v) ? v.map((x) => String(x)) : null);
+            const names = Array.isArray(v) ? v.map((x) => String(x)) : [];
+            if (names.length > 0)
+                trackNode(n, names);
+            else
+                untrackNode(n); // no list: nothing tracked, and the change module is never asked
         } },
 });
 //# sourceMappingURL=node.js.map

@@ -1,6 +1,6 @@
 // A clamped Text on the DOM — `maxLines` — cut by the shared rule and laid out
 // so the whole text stays in the page. Its own module so a program that never
-// names `maxLines` carries none of it (declarec's slim-text-clamp).
+// names `maxLines` carries none of it (the `text-clamp` capability, compiler/src/capabilities.ts).
 //
 // The browser's own `-webkit-line-clamp` places its ellipsis after aligning the
 // whole line: under `textAlign = center` the ellipsis was half cut, under

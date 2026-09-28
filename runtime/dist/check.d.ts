@@ -2,7 +2,7 @@ import type { Element, Attr, Method, Program } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { type ComponentSchema } from "./schema.js";
 import { type AttrValue } from "./value.js";
-import { type PathSeg } from "./datapath.js";
+import { type PathSeg } from "./path-plan.js";
 export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
 export type { ClassInfo, CheckedDecl } from "./program-schema.js";
 /** The styling declarations in scope while an element tree checks: the

@@ -22,11 +22,11 @@ final class TextLayer: CALayer {
     /// a cache of this layer's rendition (the frost sampler's) can key on
     /// identity + version instead of re-running Core Text per walk.
     private(set) var version = 0
-    var attributed: NSAttributedString? { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
-    var wrap = false { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
+    var attributed: NSAttributedString? { didSet { lines = nil; wholeMeasured = false; version &+= 1; setNeedsDisplay() } }
+    var wrap = false { didSet { lines = nil; wholeMeasured = false; version &+= 1; setNeedsDisplay() } }
     /// LINE CLAMP (measure.ts clampLines): at most this many lines, the last
     /// truncated with an ellipsis; a non-wrapping clamped run is one line.
-    var maxLines = 0 { didSet { lines = nil; version &+= 1; setNeedsDisplay() } }
+    var maxLines = 0 { didSet { lines = nil; wholeMeasured = false; version &+= 1; setNeedsDisplay() } }
     var align: NSTextAlignment = .left { didSet { version &+= 1; setNeedsDisplay() } }
     /// Font ascent/descent for the run's style — the baseline contract.
     var ascent: CGFloat = 0 { didSet { version &+= 1; setNeedsDisplay() } }
@@ -47,6 +47,11 @@ final class TextLayer: CALayer {
     var fillGradient: TextGradient? = nil { didSet { version &+= 1; setNeedsDisplay() } }
 
     private var lines: [CTLine]?
+    /// A one-line clamp's whole text as one line, typeset once per text, and
+    /// the width it shows at (BrowserBreaker's rule: trailing spaces hang). nil
+    /// when there is no text or it holds a hard break (the clamp always cuts).
+    private var whole: (line: CTLine, width: CGFloat)?
+    private var wholeMeasured = false
 
     override init() {
         super.init()
@@ -65,7 +70,16 @@ final class TextLayer: CALayer {
     /// whatever masksToBounds says: the bounds grow to the ink on both sides.
     func fit(box: CGSize, origin: CGPoint = .zero) {
         let w = max(box.width, 1), h = max(box.height, 1)
-        if wrap, w != bounds.width { lines = nil }     // the breaks were taken at the old width
+        if w != bounds.width {
+            if wrap { lines = nil }                  // the breaks were taken at the old width
+            else if maxLines > 0 {
+                // a one-line clamp at a new width: its whole text while that fits —
+                // no typesetting per width — and its ellipsis re-taken at the new
+                // width only when it cuts (one fitted before the box was laid out
+                // must not keep a bare "…" after the box grows)
+                if let wl = wholeLine(), wl.width <= w { lines = [wl.line] } else { lines = nil }
+            }
+        }
         bounds = CGRect(origin: .zero, size: CGSize(width: w, height: h))
         let ls = lines ?? buildLines()
         lines = ls
@@ -79,6 +93,20 @@ final class TextLayer: CALayer {
         } else {
             position = origin
         }
+    }
+
+    private func wholeLine() -> (line: CTLine, width: CGFloat)? {
+        if wholeMeasured { return whole }
+        wholeMeasured = true
+        whole = nil
+        guard let a = attributed, a.length > 0 else { return nil }
+        let s = a.string as NSString
+        if s.rangeOfCharacter(from: .newlines).location != NSNotFound { return nil }
+        let line = CTTypesetterCreateLine(CTTypesetterCreateWithAttributedString(a), CFRange(location: 0, length: a.length))
+        var e = s.length
+        while e > 0, s.character(at: e - 1) == 32 || s.character(at: e - 1) == 9 { e -= 1 }
+        whole = (line, abs(CTLineGetOffsetForStringIndex(line, e, nil) - CTLineGetOffsetForStringIndex(line, 0, nil)))
+        return whole
     }
 
     /// Break into lines once per (text, width) — CTTypesetter answers the same
@@ -269,18 +297,54 @@ final class TextLayer: CALayer {
 /// text, less the spaces it ends with, fits the width; a word wider than the
 /// line overflows on a line of its own (`overflow-wrap: normal`), as a box of
 /// text does on the web. Hard breaks end a line wherever they fall.
-struct BrowserBreaker {
+final class BrowserBreaker {
     private let text: NSString
     private let full: CTLine
-    private let opps: [Int]
+    /// THE COMMON CASE ANSWERED FIRST: a left-to-right line with no hard break
+    /// and no trailing space fits whole when its typographic width does — a
+    /// label, most text on screen. That width is the line's end offset but for
+    /// the last bits of a double (~1e-14), so it decides only when it is clearly
+    /// on one side of the limit; nearer than FIT_EPS, and for every other line,
+    /// the offsets decide exactly as below. nil: not such a line.
+    private let wholeWidth: CGFloat?
+    private static let FIT_EPS: CGFloat = 1e-6
+    private lazy var opps: [Int] = LineBreaks.opportunities(text as String)
+    /// Every string index's caret offset, taken in ONE pass over the line —
+    /// built only when a line has to break. `CTLineGetOffsetForStringIndex`
+    /// walks the line's carets on each call, and a break asks it twice per
+    /// candidate, so a long line cost its length × its breaks. The pass gives
+    /// the same number at every index it reports (held against the per-index
+    /// answer over emoji, combining marks, CJK, Thai, tabs, bidi); an index it
+    /// does not report (a line's end, the inside of a cluster) is asked the
+    /// per-index way, and a line with a right-to-left run is asked that way
+    /// throughout (xs nil).
+    private lazy var xs: [CGFloat]? = BrowserBreaker.carets(full, text.length, ltr: ltr)
+    private let ltr: Bool
 
     init(_ a: NSAttributedString, typesetter: CTTypesetter) {
         text = a.string as NSString
         full = CTTypesetterCreateLine(typesetter, CFRange(location: 0, length: a.length))
-        opps = LineBreaks.opportunities(a.string)
+        ltr = !(CTLineGetGlyphRuns(full) as! [CTRun]).contains { CTRunGetStatus($0).contains(.rightToLeft) }
+        let n = text.length
+        let plain = ltr && n > 0
+            && text.rangeOfCharacter(from: .newlines).location == NSNotFound
+            && text.character(at: n - 1) != 32 && text.character(at: n - 1) != 9
+        wholeWidth = plain ? CGFloat(CTLineGetTypographicBounds(full, nil, nil, nil)) : nil
     }
 
-    private func x(_ i: Int) -> CGFloat { CTLineGetOffsetForStringIndex(full, i, nil) }
+    private static func carets(_ line: CTLine, _ n: Int, ltr: Bool) -> [CGFloat]? {
+        guard ltr else { return nil }
+        var t = [CGFloat](repeating: .nan, count: n + 1)
+        CTLineEnumerateCaretOffsets(line) { off, i, leading, _ in
+            if leading, i >= 0, i < n, t[i].isNaN { t[i] = CGFloat(off) }
+        }
+        return t
+    }
+
+    private func x(_ i: Int) -> CGFloat {
+        if let xs, i < xs.count, !xs[i].isNaN { return xs[i] }
+        return CTLineGetOffsetForStringIndex(full, i, nil)
+    }
     private func isSpace(_ i: Int) -> Bool { let c = text.character(at: i); return c == 32 || c == 9 }
 
     /// The width of [start, end) as a line shows it: trailing spaces hang.
@@ -293,6 +357,7 @@ struct BrowserBreaker {
     /// How many UTF-16 units the line starting at `start` takes.
     func next(from start: Int, width limit: CGFloat) -> Int {
         let n = text.length
+        if start == 0, let w = wholeWidth, abs(w - limit) > BrowserBreaker.FIT_EPS, w <= limit { return n }
         // a hard break ends the line (the newline goes with it)
         let nl = text.rangeOfCharacter(from: .newlines, options: [], range: NSRange(location: start, length: n - start))
         let hard = nl.location == NSNotFound ? n : nl.location
