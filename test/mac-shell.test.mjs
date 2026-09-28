@@ -29,7 +29,7 @@ import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdtempSync } from
 import { tmpdir } from "node:os";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
-import { hostBinary, NO_HOST } from "../mac-host/app.mjs";
+import { hostBinary, NO_HOST, stopStrayHosts } from "../mac-host/app.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 // THE INSTALLED APP, not a bare binary reading the tree — see mac-host/app.mjs.
@@ -42,12 +42,9 @@ if (process.platform !== "darwin" || BIN === null) {
   process.exit(0);
 }
 
-// A stray host owns the control channel and would answer for the one under
-// test. The installed app is "Declare Mac" WITH A SPACE, which `pkill -f
-// DeclareMac` does not match — an hour was lost to exactly that.
-for (const pat of [APP_NAME]) {
-  try { execFileSync("/usr/bin/pkill", ["-f", pat]); } catch { /* none */ }
-}
+// A stray host listening on this control pipe would answer for the one under
+// test: stopped by PID, and only if it is one (app.mjs stopStrayHosts).
+stopStrayHosts(IN);
 await sleep(1);
 
 const server = createDeclareServer({
@@ -170,6 +167,16 @@ try {
   await test("a window still opens after the last one closed", async () => {
     assert.match(await ctl(`newwindow ${PROBE}`), /^ok windows=1/);
     assert.equal(await countWindows(), 1);
+  });
+
+  // A drawing whose arithmetic went NaN reached Core Animation as a NaN layer
+  // position, which throws — the whole app went down with it.
+  await test("a drawing with NaN coordinates does not take the app down", async () => {
+    assert.match(await ctl(`newwindow ${B}/test/probe/nan-draw.declare`), /^ok windows=2/);
+    await ctl("waitload 20", 1100);
+    for (let i = 0; i < 10; i++) await sleep(0.1);
+    assert.equal(alive(), true, "the host process exited");
+    assert.equal(await ctl("ping"), "ok");
   });
 
 } finally {

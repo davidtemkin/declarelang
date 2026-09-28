@@ -1,0 +1,33 @@
+// Drawings whose arithmetic went NaN — a coordinate computed from a value that
+// is not a number. The recording's bounds come out NaN too. A renderer must
+// draw what it can and carry on; the Mac host once handed the NaN to Core
+// Animation, which throws on a NaN position and took the app down.
+// (test/mac-shell.test.mjs opens this and asks the host to answer after.)
+
+App [ width = 400, height = 250, fill = #202020,
+    // a path: the host takes it as layers
+
+    shape: View [ x = 0, y = 0, width = 200, height = 250,
+        draw(d: Draw) {
+            const bad = Math.sqrt(-1)
+            d.fillStyle = "#FFFFFF"
+            d.beginPath()
+            d.moveTo(bad, 20)
+            d.lineTo(150, bad)
+            d.lineTo(40, 200)
+            d.closePath()
+            d.fill()
+            }
+        ],
+
+    // text: the host makes a bitmap
+
+    label: View [ x = 200, y = 0, width = 200, height = 250,
+        draw(d: Draw) {
+            const bad = Math.sqrt(-1)
+            d.fillStyle = "#FFFFFF"
+            d.font = "16px sans-serif"
+            d.fillText("not a number", bad, bad)
+            }
+        ]
+    ]

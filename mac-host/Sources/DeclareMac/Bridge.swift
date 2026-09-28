@@ -34,6 +34,19 @@ final class Bridge {
     private var caLink: CADisplayLink?
     private var images: [Int: CGImage] = [:]
     private let imagesLock = NSLock()
+    /// A drawing finished on the runtime thread (`drawRaster`): its recording
+    /// decoded once, and the bitmap when the render server cannot take it as
+    /// layers. Taken by main when its DRAW op is applied — each exactly once.
+    struct FinishedDrawing {
+        let list: Recording
+        let bitmap: (image: CGImage, geom: (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, scale: CGFloat))?
+    }
+    private var drawings: [Int: FinishedDrawing] = [:]
+    private var nextDrawing = 1
+    private let drawingsLock = NSLock()
+    /// What making drawings cost, for the stats window (under drawingsLock):
+    /// how many, the time, and per view the time and the pixels.
+    private var drawStats = (n: 0, ms: 0.0, msByNode: [Int: Double](), pxByNode: [Int: Double]())
     private var pathCache: [String: CGPath] = [:]
     private let pathLock = NSLock()
 
@@ -310,6 +323,55 @@ final class Bridge {
             guard let img = self?.image(handle) else { return [0, 0] }
             return [Double(img.width), Double(img.height)]
         } as @convention(block) (Int) -> [Double], forKeyedSubscript: "imageSize")
+
+        // A DRAWING IS FINISHED HERE, on the runtime thread — the Declare side
+        // of the line, as a canvas is drawn on the page's thread in a browser.
+        // A recording the render server can take as layers answers 0 and main
+        // describes it (LayerDescribe); anything else is replayed into a bitmap
+        // now and answered by handle, which its DRAW op carries to main. Main
+        // only shows pictures: a slow drawing slows the settle, never the app.
+        // The recording crosses ONCE, as its binary form (mac-backend.ts encodeRecording):
+        // the typed arrays are read in place through JavaScriptCore's C API and
+        // decoded here, and the DRAW op carries only the handle this returns —
+        // positive when a bitmap was made, negative when main will describe the
+        // recording as layers, 0 when there was nothing to make.
+        host.setObject({ [weak self] (id: Int, nums: JSValue, at: JSValue, strs: JSValue,
+                                      bx: Double, by: Double, bw: Double, bh: Double, density: Double) -> Double in
+            guard let self else { return 0 }
+            let t0 = CFAbsoluteTimeGetCurrent()
+            // copied out once (two memcpys): the recording is read here, and later
+            // on main when it is described, long after this call has returned
+            guard let q = Self.withTypedArray(nums, kJSTypedArrayTypeFloat64Array, as: Double.self, { Array($0) }),
+                  let a = Self.withTypedArray(at, kJSTypedArrayTypeUint32Array, as: UInt32.self, { Array($0) })
+            else { return 0 }
+            let list = Recording(nums: q, at: a, strs: (strs.toArray() as? [String]) ?? [],
+                                 bx: CGFloat(bx), by: CGFloat(by), bw: CGFloat(bw), bh: CGFloat(bh))
+            var bitmap: (image: CGImage, geom: (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, scale: CGFloat))?
+            if !(LayerTree.layersOn && LayerDescribe.describable(list, scale: self.cachedScale)) {
+                guard let made = DrawReplay.bitmap(list, density: CGFloat(density), bridge: self) else { return 0 }
+                bitmap = made
+                if let dumpId = ProcessInfo.processInfo.environment["DECLARE_DUMP_DRAW"], Int(dumpId) == id {
+                    let url = URL(fileURLWithPath: "/tmp/draw-\(id).png")
+                    if let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) {
+                        CGImageDestinationAddImage(dest, made.image, nil); CGImageDestinationFinalize(dest)
+                        NSLog("[draw] dumped id=%d to %@", id, url.path)
+                    }
+                }
+            }
+            let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+            self.drawingsLock.lock(); defer { self.drawingsLock.unlock() }
+            if let b = bitmap {
+                self.drawStats.n += 1
+                self.drawStats.ms += ms
+                self.drawStats.msByNode[id, default: 0] += ms
+                self.drawStats.pxByNode[id, default: 0] += Double(b.image.width * b.image.height)
+            }
+            let h = self.nextDrawing
+            self.nextDrawing += 1
+            self.drawings[h] = FinishedDrawing(list: list, bitmap: bitmap)
+            return Double(bitmap != nil ? h : -h)
+        } as @convention(block) (Int, JSValue, JSValue, JSValue, Double, Double, Double, Double, Double) -> Double,
+           forKeyedSubscript: "drawRaster")
 
         // Timers — run-loop timers on the RUNTIME thread's loop (this block
         // runs there), so a fire lands in JS with no hop.
@@ -746,10 +808,9 @@ final class Bridge {
         geomGaps.removeAll(); lastGeomCommitAt = 0
         tickLog.removeAll(); firstCommits.removeAll(); statsTracing = true
         resizeN = 0; resizeMs = 0; resizeJsMs = 0; resizeSettleMs = 0; resizePumpMs = 0; resizeMaxMs = 0
-        tree.opHist.removeAll(); tree.rasterCount = 0; tree.drawNodes.removeAll(); tree.rasterMsTotal = 0; tree.overlayMsTotal = 0; tree.opMs.removeAll(); tree.caCommitMsTotal = 0; tree.caCommitCpuMsTotal = 0; tree.richLayoutCount = 0; tree.richLayoutMs = 0; tree.richLayoutBytes = 0; tree.richParseMs = 0; RichOverlay.RichStats.reset()
-        tree.rasterMsNodes.removeAll(); tree.rasterPxNodes.removeAll()
+        tree.opHist.removeAll(); tree.rasterCount = 0; tree.drawNodes.removeAll(); tree.drawShowMsTotal = 0; tree.overlayMsTotal = 0; tree.opMs.removeAll(); tree.caCommitMsTotal = 0; tree.caCommitCpuMsTotal = 0; tree.richLayoutCount = 0; tree.richLayoutMs = 0; tree.richLayoutBytes = 0; tree.richParseMs = 0; RichOverlay.RichStats.reset()
+        drawingsLock.lock(); drawStats = (0, 0, [:], [:]); drawingsLock.unlock()
         tree.describedN = 0; tree.rasterizedN = 0
-        tree.skippedRasterN = 0; tree.revealedRasterN = 0; tree.revealedRasterMs = 0
         TextLayer.drawCount = 0; TextLayer.drawMs = 0; TextLayer.buildCount = 0; TextLayer.statsOn = true
         RichOverlay.redrawCount = 0; RichOverlay.redrawMP = 0; RichOverlay.redrawMs = 0; RichOverlay.statsOn = true; tree.statsOn = true
         statsStart = CFAbsoluteTimeGetCurrent()
@@ -785,7 +846,7 @@ final class Bridge {
           + "\n  first commits:\n    " + firstCommits.joined(separator: "\n    ")
           + "\n  ticks: " + tickLog.map { "\($0.0)@\(Int($0.1))ms\($0.2 ? "✓\($0.3)b" : "·")" }.joined(separator: " ")
           + "  worstGapAtCommit=" + (g.firstIndex(where: { $0 > budget * 1.5 }).map { String($0 + 1) } ?? "-") + "/\(commitCount)"
-          + String(format: "\n  rasters=%d  rasterMs total=%.1f avg=%.2f (%.0f%% of commit) overlayMs total=%.1f (%.0f%% of commit)   ops: ", tree.rasterCount, tree.rasterMsTotal, tree.rasterCount > 0 ? tree.rasterMsTotal / Double(tree.rasterCount) : 0, commitMsTotal > 0 ? 100 * tree.rasterMsTotal / commitMsTotal : 0, tree.overlayMsTotal, commitMsTotal > 0 ? 100 * tree.overlayMsTotal / commitMsTotal : 0) + opNames()
+          + String(format: "\n  drawings shown=%d  showMs total=%.1f (%.0f%% of commit) overlayMs total=%.1f (%.0f%% of commit)   ops: ", tree.rasterCount, tree.drawShowMsTotal, commitMsTotal > 0 ? 100 * tree.drawShowMsTotal / commitMsTotal : 0, tree.overlayMsTotal, commitMsTotal > 0 ? 100 * tree.overlayMsTotal / commitMsTotal : 0) + opNames()
           + String(format: "\n  CATransaction.commit total=%.0fms (%.0f%% of commit)  of which CPU=%.0fms, WAITING=%.0fms",
                    tree.caCommitMsTotal, commitMsTotal > 0 ? 100 * tree.caCommitMsTotal / commitMsTotal : 0,
                    tree.caCommitCpuMsTotal, max(0, tree.caCommitMsTotal - tree.caCommitCpuMsTotal))
@@ -812,17 +873,21 @@ final class Bridge {
           // WHOSE raster, and how many pixels of it. "888 rasters" is not a
           // plan until you know whether it is one huge surface forty times or
           // eight hundred cheap ones — the two want opposite fixes.
-          + "\n  rasterMs by node: " + tree.rasterMsNodes.sorted { $0.value > $1.value }.prefix(8).map {
+          + drawReport()
+    }
+
+    /// What making drawings cost on the runtime thread (drawRaster), by view.
+    private func drawReport() -> String {
+        drawingsLock.lock(); let d = drawStats; drawingsLock.unlock()
+        return String(format: "\n  rasters (runtime thread)=%d  rasterMs total=%.1f avg=%.2f", d.n, d.ms, d.n > 0 ? d.ms / Double(d.n) : 0)
+          + "\n  rasterMs by node: " + d.msByNode.sorted { $0.value > $1.value }.prefix(8).map {
                 let box = tree.node($0.key)?.box ?? .zero
-                let mp = (tree.rasterPxNodes[$0.key] ?? 0) / 1_000_000
+                let mp = (d.pxByNode[$0.key] ?? 0) / 1_000_000
                 return String(format: "#%d=%.0fms/%.1fMpx[%dx%d]", $0.key, $0.value, mp, Int(box.width), Int(box.height))
             }.joined(separator: " ")
           + String(format: "\n    LAYERS: described=%d  rasterized=%d", tree.describedN, tree.rasterizedN)
-          + String(format: "\n    hidden: skipped=%d  paid back on reveal=%d (%.0fms)  still owed=%d",
-                   tree.skippedRasterN, tree.revealedRasterN, tree.revealedRasterMs, tree.deferredCount)
           + String(format: "\n    (top node is %.0f%% of all raster time; %d nodes rastered)",
-                   tree.rasterMsTotal > 0 ? 100 * (tree.rasterMsNodes.values.max() ?? 0) / tree.rasterMsTotal : 0,
-                   tree.rasterMsNodes.count)
+                   d.ms > 0 ? 100 * (d.msByNode.values.max() ?? 0) / d.ms : 0, d.msByNode.count)
     }
 
     /// The views that re-rastered, most first, with their box — so a per-frame
@@ -1257,6 +1322,25 @@ final class Bridge {
     }
 
     func image(_ handle: Int) -> CGImage? { imagesLock.lock(); defer { imagesLock.unlock() }; return images[handle] }
+    /// A finished drawing, for its DRAW op (main). Taken, not read: each
+    /// handle belongs to one op.
+    func takeDrawing(_ handle: Int) -> FinishedDrawing? {
+        drawingsLock.lock(); defer { drawingsLock.unlock() }
+        return drawings.removeValue(forKey: handle)
+    }
+
+    /// A typed array's elements, read in place (no copy) for the length of
+    /// `body`; nil when `v` is not a typed array of `kind`.
+    static func withTypedArray<T, R>(_ v: JSValue, _ kind: JSTypedArrayType, as: T.Type,
+                                     _ body: (UnsafeBufferPointer<T>) -> R) -> R? {
+        guard let ctx = v.context?.jsGlobalContextRef, let ref = v.jsValueRef else { return nil }
+        var exc: JSValueRef?
+        guard JSValueGetTypedArrayType(ctx, ref, &exc) == kind, let obj = JSValueToObject(ctx, ref, &exc) else { return nil }
+        let count = JSObjectGetTypedArrayLength(ctx, obj, &exc)
+        guard count > 0 else { return body(UnsafeBufferPointer(start: nil, count: 0)) }
+        guard let p = JSObjectGetTypedArrayBytesPtr(ctx, obj, &exc) else { return nil }
+        return body(UnsafeBufferPointer(start: p.assumingMemoryBound(to: T.self), count: count))
+    }
 
     // ── SVG path data → CGPath (clips, and draw()'s Path2D ops) ─────────────
 

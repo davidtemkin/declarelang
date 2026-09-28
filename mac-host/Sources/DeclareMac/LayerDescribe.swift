@@ -51,7 +51,7 @@ enum LayerDescribe {
         /// cannot say that (it never falls inside the union). The nonce makes
         /// two shadowed paints unequal even when everything else matches.
         var nonce: Int = 0
-        var gradient: NSDictionary? = nil
+        var gradient: Gradient? = nil
         var lineWidth: CGFloat = 1
         var cap: CGLineCap = .butt
         var join: CGLineJoin = .miter
@@ -63,8 +63,8 @@ enum LayerDescribe {
     }
 
     private struct State {
-        var fill: Any = "#000"
-        var stroke: Any = "#000"
+        var fill: Style = .color("#000")
+        var stroke: Style = .color("#000")
         var lineWidth: CGFloat = 1
         var cap: CGLineCap = .butt
         var join: CGLineJoin = .miter
@@ -82,12 +82,10 @@ enum LayerDescribe {
     /// Can a gradient be expressed as a CAGradientLayer at all? Checked at
     /// MARK time, not at layer-construction time — see `failed` below for why
     /// that distinction cost a probe.
-    private static func expressible(_ g: [String: Any]) -> Bool {
-        guard let kind = g["kind"] as? String,
-              let coords = (g["coords"] as? [NSNumber])?.map({ CGFloat($0.doubleValue) }),
-              let stops = g["stops"] as? [[Any]], stops.count >= 2
-        else { return false }
-        switch kind {
+    private static func expressible(_ g: Gradient) -> Bool {
+        let coords = g.coords
+        guard g.stops.count >= 2 else { return false }
+        switch g.kind {
         case "linear": return coords.count >= 4
         case "radial":
             // ⚠ CAGradientLayer's radial is ONE circle grown from a centre.
@@ -105,15 +103,19 @@ enum LayerDescribe {
     /// Try to express `list` as layers sized to the recording's own bounds.
     /// Returns nil when the recording uses anything not yet expressible, and
     /// the caller must rasterize.
-    static func describe(_ list: [String: Any], scale: CGFloat) -> (layers: [CALayer], w: CGFloat, h: CGFloat,
+    /// Can `list` be described at all? The same walk and the same refusals as
+    /// `describe`, building nothing — the runtime thread asks this for every
+    /// drawing it finishes (Bridge `drawRaster`), and building layers there only
+    /// to throw them away was most of what finishing a drawing cost.
+    static func describable(_ rec: Recording, scale: CGFloat) -> Bool {
+        describe(rec, scale: scale, build: false) != nil
+    }
+
+    static func describe(_ rec: Recording, scale: CGFloat, build: Bool = true) -> (layers: [CALayer], w: CGFloat, h: CGFloat,
                                                                     bx: CGFloat, by: CGFloat)? {
-        let ops = (list["ops"] as? [[String: Any]]) ?? []
-        guard !ops.isEmpty else { return nil }
-        let b = list["bounds"] as? [String: Any]
-        let bx = CGFloat((b?["x"] as? NSNumber)?.doubleValue ?? 0)
-        let by = CGFloat((b?["y"] as? NSNumber)?.doubleValue ?? 0)
-        let w = max(1, CGFloat((b?["w"] as? NSNumber)?.doubleValue ?? 0))
-        let h = max(1, CGFloat((b?["h"] as? NSNumber)?.doubleValue ?? 0))
+        guard rec.count > 0 else { return nil }
+        let bx = rec.bx, by = rec.by
+        let w = max(1, rec.bw), h = max(1, rec.bh)
 
         // The recording is y-DOWN from its own origin; a layer's own space is
         // y-up from its bottom-left. Bake the flip into every point, which is
@@ -135,9 +137,12 @@ enum LayerDescribe {
         /// wearing the costume of a rounding error. All or nothing.
         var failed = false
 
+        var runs = 0
         func flush() {
             guard let p = runPaint, !runPath.isEmpty else { runPaint = nil; runPath = CGMutablePath(); return }
-            if let l = makeLayer(p, runPath, w: w, h: h, flip: flip, scale: scale) { layers.append(l) }
+            if !build {
+                if canMake(p, runPath, flip: flip) { runs += 1 } else { failed = true }
+            } else if let l = makeLayer(p, runPath, w: w, h: h, flip: flip, scale: scale) { layers.append(l) }
             else { failed = true }
             runPaint = nil
             runPath = CGMutablePath()
@@ -161,17 +166,18 @@ enum LayerDescribe {
                st.shadowBlur > 0 || st.shadowDx != 0 || st.shadowDy != 0 {
                 // a gradient paint is a mask over a gradient layer, and the mask
                 // draws no shadow of its own; that shape keeps the raster path
-                if src is [String: Any] { return nil }
+                if src.gradient != nil { return nil }
                 shadowNonce += 1
                 p.shadow = ShadowSpec(color: sc, blur: st.shadowBlur, dx: st.shadowDx, dy: st.shadowDy)
                 p.nonce = shadowNonce
             }
-            if let g = src as? [String: Any] {
+            switch src {
+            case .gradient(let g):
                 guard expressible(g) else { return nil }
-                p.gradient = g as NSDictionary
-            } else if let s = src as? String {
+                p.gradient = g
+            case .color(let s):
                 p.color = s
-            } else { return nil }
+            }
             if stroke {
                 // ⚠ A STROKE IS SCALED BY THE CTM. The rasterizer concatenates
                 // the CTM into the context, so `strokePath()` widens the pen
@@ -196,82 +202,79 @@ enum LayerDescribe {
             return p
         }
 
-        for o in ops {
-            let op = (o["op"] as? String) ?? ""
-            func d(_ k: String) -> CGFloat { CGFloat((o[k] as? NSNumber)?.doubleValue ?? 0) }
+        for i in 0..<rec.count {
+            func d(_ k: Int) -> CGFloat { rec.num(i, k) }
 
-            if DrawReplay.pathOp(o, &path, &cur, &start, transform: st.ctm) { continue }
+            if DrawReplay.pathOp(rec, i, &path, &cur, &start, transform: st.ctm) { continue }
 
-            switch op {
-            case "save": stack.append(st)
-            case "restore": if let s = stack.popLast() { st = s }
-            case "fillStyle": st.fill = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
-            case "strokeStyle": st.stroke = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
-            case "translate": st.ctm = CGAffineTransform(translationX: d("x"), y: d("y")).concatenating(st.ctm)
-            case "scale": st.ctm = CGAffineTransform(scaleX: d("x"), y: d("y")).concatenating(st.ctm)
-            // ⚠ The op keys are `angle` and `m` (draw.ts). This read "a" for both,
-            // so a described drawing lost its rotation while the RASTERED one kept
-            // it — the same picture, two answers, depending which path it took.
-            case "rotate": st.ctm = CGAffineTransform(rotationAngle: d("angle")).concatenating(st.ctm)
-            case "transform":
-                guard let m = o["m"] as? [NSNumber], m.count == 6 else { return nil }
-                st.ctm = CGAffineTransform(a: CGFloat(m[0].doubleValue), b: CGFloat(m[1].doubleValue),
-                                           c: CGFloat(m[2].doubleValue), d: CGFloat(m[3].doubleValue),
-                                           tx: CGFloat(m[4].doubleValue), ty: CGFloat(m[5].doubleValue))
-                    .concatenating(st.ctm)
-            case "setLineDash":
-                st.dash = ((o["segments"] as? [NSNumber]) ?? []).map { CGFloat($0.doubleValue) }
-            case "set":
-                switch (o["k"] as? String) ?? "" {
-                case "lineWidth": st.lineWidth = d("v")
+            switch rec.code(i) {
+            case DrawOp.save: stack.append(st)
+            case DrawOp.restore: if let s = stack.popLast() { st = s }
+            case DrawOp.fillStyle, DrawOp.fillGrad: st.fill = rec.style(i)
+            case DrawOp.strokeStyle, DrawOp.strokeGrad: st.stroke = rec.style(i)
+            case DrawOp.translate: st.ctm = CGAffineTransform(translationX: d(1), y: d(2)).concatenating(st.ctm)
+            case DrawOp.scale: st.ctm = CGAffineTransform(scaleX: d(1), y: d(2)).concatenating(st.ctm)
+            case DrawOp.rotate: st.ctm = CGAffineTransform(rotationAngle: d(1)).concatenating(st.ctm)
+            case DrawOp.transform: st.ctm = rec.matrix(i).concatenating(st.ctm)
+            case DrawOp.setLineDash: st.dash = rec.numbers(i, from: 2, count: Int(d(1)))
+            case DrawOp.set:
+                switch rec.setKey(i) {
+                case "lineWidth": st.lineWidth = rec.setNumber(i)
                 case "lineCap":
-                    let v = o["v"] as? String
+                    let v = rec.setString(i)
                     st.cap = v == "round" ? .round : (v == "square" ? .square : .butt)
                 case "lineJoin":
-                    let v = o["v"] as? String
+                    let v = rec.setString(i)
                     st.join = v == "round" ? .round : (v == "bevel" ? .bevel : .miter)
-                case "miterLimit": st.miterLimit = d("v")
-                case "lineDashOffset": st.dashOffset = d("v")
-                case "globalAlpha": st.alpha = d("v")
+                case "miterLimit": st.miterLimit = rec.setNumber(i)
+                case "lineDashOffset": st.dashOffset = rec.setNumber(i)
+                case "globalAlpha": st.alpha = rec.setNumber(i)
                 case "globalCompositeOperation":
                     // Only the default composite has a plain layer equivalent.
-                    guard ((o["v"] as? String) ?? "source-over") == "source-over" else { return nil }
+                    guard (rec.setString(i) ?? "source-over") == "source-over" else { return nil }
                 case "textAlign", "textBaseline", "font", "letterSpacing":
                     break                                   // harmless unless text is drawn
-                // SHADOWS ARE DESCRIBED, not refused (2026-08-26). Refusing them
-                // sent every shadowed recording to the CG rasterizer, where a
-                // shadow is a CPU blur per mark: measured ~4.7 ms per shadowed
-                // mark against 61 µs on Chrome, the largest per-engine cliff in
-                // the raster tracking doc §C.3. CAShapeLayer carries a shadow
-                // natively and the render server draws it.
-                case "shadowColor": st.shadowColor = o["v"] as? String
-                case "shadowBlur": st.shadowBlur = d("v")
-                case "shadowOffsetX": st.shadowDx = d("v")
-                case "shadowOffsetY": st.shadowDy = d("v")
+                // SHADOWS ARE DESCRIBED, not refused. Refusing them sent every
+                // shadowed recording to the CG rasterizer, where a shadow is a
+                // CPU blur per mark: measured ~4.7 ms per shadowed mark against
+                // 61 µs on Chrome, the largest per-engine cliff in the raster
+                // tracking doc §C.3. CAShapeLayer carries a shadow natively and
+                // the render server draws it.
+                case "shadowColor": st.shadowColor = rec.setString(i)
+                case "shadowBlur": st.shadowBlur = rec.setNumber(i)
+                case "shadowOffsetX": st.shadowDx = rec.setNumber(i)
+                case "shadowOffsetY": st.shadowDy = rec.setNumber(i)
                 default: return nil                         // filter, …
                 }
-            case "fill":
-                guard let p = paintFor(stroke: false, evenOdd: (o["rule"] as? String) == "evenodd")
-                else { return nil }
+            case DrawOp.fill:
+                guard let p = paintFor(stroke: false, evenOdd: rec.evenOdd(i, 1)) else { return nil }
                 mark(p, path)
-            case "stroke":
+            case DrawOp.stroke:
                 guard let p = paintFor(stroke: true) else { return nil }
                 mark(p, path)
-            case "fillRect":
+            case DrawOp.fillRect:
                 guard let p = paintFor(stroke: false) else { return nil }
-                mark(p, CGPath(rect: CGRect(x: d("x"), y: d("y"), width: d("w"), height: d("h")),
-                               transform: &st.ctm))
-            case "strokeRect":
+                mark(p, CGPath(rect: CGRect(x: d(1), y: d(2), width: d(3), height: d(4)), transform: &st.ctm))
+            case DrawOp.strokeRect:
                 guard let p = paintFor(stroke: true) else { return nil }
-                mark(p, CGPath(rect: CGRect(x: d("x"), y: d("y"), width: d("w"), height: d("h")),
-                               transform: &st.ctm))
+                mark(p, CGPath(rect: CGRect(x: d(1), y: d(2), width: d(3), height: d(4)), transform: &st.ctm))
             default:
-                return nil        // fillText, drawImage, clearRect, clip, filter …
+                return nil        // fillText, drawImage, clearRect, clip, setTransform, …
             }
         }
         flush()
-        guard !failed, !layers.isEmpty else { return nil }
+        guard !failed, build ? !layers.isEmpty : runs > 0 else { return nil }
         return (layers, w, h, bx, by)
+    }
+
+    /// Would `makeLayer` build this run? Exactly its two refusals: a path the
+    /// flip cannot carry, and a gradient without its kind, coordinates and two
+    /// colours it can read.
+    private static func canMake(_ p: Paint, _ raw: CGMutablePath, flip: CGAffineTransform) -> Bool {
+        var f = flip
+        guard raw.copy(using: &f) != nil else { return false }
+        guard let g = p.gradient else { return true }
+        return g.stops.compactMap({ CSSColor.parse($0.color) }).count >= 2
     }
 
     // ── building one layer for a run ────────────────────────────────────────
@@ -333,14 +336,11 @@ enum LayerDescribe {
         // GRADIENT: the shape becomes a MASK and a gradient layer supplies the
         // paint — the compositor generates the ramp, so it is re-rendered at
         // whatever size the layer has rather than resampled from a bitmap.
-        guard let g = p.gradient as? [String: Any],
-              let kind = g["kind"] as? String,
-              let coords = (g["coords"] as? [NSNumber])?.map({ CGFloat($0.doubleValue) }),
-              let stops = g["stops"] as? [[Any]]
-        else { return nil }
-        let colors = stops.compactMap { ($0.count > 1 ? $0[1] as? String : nil).flatMap { CSSColor.parse($0)?.cgColor } }
+        guard let g = p.gradient else { return nil }
+        let kind = g.kind, coords = g.coords, stops = g.stops
+        let colors = stops.compactMap { CSSColor.parse($0.color)?.cgColor }
         guard colors.count >= 2 else { return nil }
-        let locs = stops.map { NSNumber(value: Double(($0.first as? NSNumber)?.doubleValue ?? 0)) }
+        let locs = stops.map { NSNumber(value: Double($0.offset)) }
 
         let grad = CAGradientLayer()
         grad.contentsScale = scale

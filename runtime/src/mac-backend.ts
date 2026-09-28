@@ -26,7 +26,7 @@ import { applyH, frontFacing, homography, inFront, invertH } from "./projective.
 import type { MaskSpec,
   Surface, RenderBackend, InputSink, EditableSpec, RichBlock, Stretch, InputWants,
 } from "./backend.js";
-import type { DisplayList } from "./draw.js";
+import type { DisplayList, DrawOp } from "./draw.js";
 import { effectiveFamily, type TextStyle } from "./measure.js";
 import { colorToCss, insetSides, isGradient, strokeUniform, type BoxStroke, type Fill, type Filter, type Gradient, type Inset, type Radius, type Shadow } from "./value.js";
 import { routeInput, type HitTarget } from "./input.js";
@@ -61,7 +61,6 @@ export const OP = {
   SCROLLX: 30, SCROLLXPOS: 31, PAGEFILL: 32,
   IGNORESCROLL: 33, RICHWIDTH: 34, BLEND: 35, BACKDROP: 36, TINT: 37,
   ROTATE: 38, MEDIA: 39,
-  RASTERSCALE: 40,
   EDITSEL: 41,
   /** The host's scroll process (scrolling.md "The scroll process"): a view
    *  that claims the wheel (`onWheel`) so the host's walk hands it the stream
@@ -115,6 +114,13 @@ export interface MacHost {
   measure(text: string, font: string, letterSpacing: number): number[];
   /** Natural size of a loaded image handle: [w, h]. */
   imageSize(handle: number): number[];
+  /** Finish a drawing, handed over in its binary form (encodeRecording) with its
+   *  bounds, at `density` device px per view unit. Answers a handle for the
+   *  DRAW op to carry: > 0 = a bitmap made now, < 0 = the host describes the
+   *  recording as layers, 0 = nothing could be made. Runs on the calling
+   *  (runtime) thread; the recording crosses once. */
+  drawRaster?(id: number, nums: Float64Array, at: Uint32Array, strs: readonly string[],
+              bx: number, by: number, bw: number, bh: number, density: number): number;
   /** Read back a native editable's current value (focus/blur sync). */
   editValue?(id: number): string;
   /** Lay a rich-text flow out natively and answer its height (cold path). */
@@ -158,6 +164,7 @@ export function countOps(): number { return ops.length + geomN; }
 export function peekOps(): number { return JSON.stringify(ops).length; }
 
 export function flushOps(): void {
+  payOwedDrawings();        // before the flag drops: its DRAW ops ride this flush
   flushScheduled = false;
   // LAYOUT HAS SETTLED — re-clamp every scroller before the ops cross. An
   // empty buffer means nothing moved, so there is nothing to re-clamp.
@@ -199,6 +206,16 @@ function commitOps(json: string): void {
 /** Every live scrolling surface, so the post-settle sweep can find them
  *  without walking the tree. Membership follows setScroll/setScrollX. */
 const scrollers = new Set<MacSurface>();
+
+/** Surfaces whose drawing waits to be seen (MacSurface.setDrawing). */
+const owedDrawings = new Set<MacSurface>();
+/** Make every owed drawing that is now shown — once per flush, which catches
+ *  every way back into view: its own flag, an ancestor's, a move into a shown
+ *  subtree. A parent walk per owed surface, against a raster of milliseconds. */
+function payOwedDrawings(): void {
+  if (owedDrawings.size === 0) return;
+  for (const s of [...owedDrawings]) if (s.shownAnywhere()) s.finishDrawing();
+}
 
 /** The browser's half of the scroll contract, which this backend has to do by
  *  hand: WHEN THE CONTENT OR THE BOX CHANGES, THE OFFSET IS RE-CLAMPED AND THE
@@ -259,6 +276,112 @@ let nextId = 1;
 /** One view's retained state. The fields are the SCENE MODEL (the same one the
  *  canvas backend keeps) — every setter both records the value and emits the
  *  op that mirrors it into the layer tree. */
+// ── A RECORDING, AS THE HOST READS IT ───────────────────────────────────────
+//
+// A recording crosses to the host once per drawing (MacHost.drawRaster), and
+// the host reads NUMBERS: each op its opcode and arguments in one Float64Array,
+// `at` saying where each op starts, strings (colours, text, fonts) in a table
+// beside it. Swift reads that in place (Recording.swift) — no JSON on either
+// side and nothing boxed per op. The web renderers replay the recording's own
+// objects and never see this form.
+//
+//   fillStyle / strokeStyle      [code, s]                    s = index into strs
+//   fillGrad / strokeGrad        [code, kind, nc, …coords, ns, …(offset, s)]
+//                                  kind 0 linear · 1 radial · 2 conic
+//   set                          [code, key, tag, v]          key = SET_KEYS index;
+//                                  tag 0 number · 1 string (v = s) · 2 boolean (v = 0/1)
+//   setLineDash                  [code, n, …segments]
+//   fillRect / strokeRect / clearRect / rect   [code, x, y, w, h]
+//   moveTo / lineTo / translate / scale        [code, x, y]
+//   arc                          [code, x, y, r, a0, a1, ccw]
+//   arcTo                        [code, x1, y1, x2, y2, r]
+//   ellipse                      [code, x, y, rx, ry, rot, a0, a1, ccw]
+//   roundRect                    [code, x, y, w, h, list, n, …radii]   list 0 = one number
+//   quadraticCurveTo             [code, cpx, cpy, x, y]
+//   bezierCurveTo                [code, cp1x, cp1y, cp2x, cp2y, x, y]
+//   fill / clip                  [code, rule]                 0 none · 1 nonzero · 2 evenodd
+//   fillText / strokeText        [code, s, x, y, maxWidth]    maxWidth NaN = none
+//   drawImage                    [code, h, sx, sy, sw, sh, dx, dy, dw, dh]
+//   rotate                       [code, angle]
+//   transform / setTransform     [code, a, b, c, d, e, f]
+//   beginPath closePath stroke save restore resetTransform   [code]
+//
+// The opcodes and the key order are part of the host contract: Recording.swift
+// names the same numbers.
+const OPCODE: Readonly<Record<string, number>> = {
+  fillStyle: 1, strokeStyle: 3, set: 5, setLineDash: 6,
+  fillRect: 7, strokeRect: 8, clearRect: 9,
+  beginPath: 10, moveTo: 11, lineTo: 12, arc: 13, arcTo: 14, ellipse: 15, rect: 16, roundRect: 17,
+  quadraticCurveTo: 18, bezierCurveTo: 19, closePath: 20,
+  fill: 21, stroke: 22, clip: 23, fillText: 24, strokeText: 25, drawImage: 26,
+  save: 27, restore: 28, translate: 29, rotate: 30, scale: 31, transform: 32, setTransform: 33, resetTransform: 34,
+};
+const GRAD_OF: Readonly<Record<string, number>> = { fillStyle: 2, strokeStyle: 4 };
+const SET_KEYS = [
+  "lineWidth", "lineCap", "lineJoin", "miterLimit", "lineDashOffset",
+  "globalAlpha", "globalCompositeOperation",
+  "shadowBlur", "shadowColor", "shadowOffsetX", "shadowOffsetY",
+  "filter", "font", "textAlign", "textBaseline", "direction",
+  "letterSpacing", "wordSpacing", "fontKerning",
+  "imageSmoothingEnabled", "imageSmoothingQuality",
+];
+const SET_INDEX = new Map(SET_KEYS.map((k, i) => [k, i]));
+const GRAD_KIND: Readonly<Record<string, number>> = { linear: 0, radial: 1, conic: 2 };
+
+/** A recording in the form the host reads. */
+export function encodeRecording(list: DisplayList): { nums: Float64Array; at: Uint32Array; strs: string[] } {
+  const nums: number[] = [];
+  const at = new Uint32Array(list.ops.length);
+  const strs: string[] = [];
+  const index = new Map<string, number>();
+  const s = (v: string): number => {
+    let i = index.get(v);
+    if (i === undefined) { i = strs.length; strs.push(v); index.set(v, i); }
+    return i;
+  };
+  const rule = (r: CanvasFillRule | undefined): number => (r === "evenodd" ? 2 : r === "nonzero" ? 1 : 0);
+  list.ops.forEach((o: DrawOp, i) => {
+    at[i] = nums.length;
+    switch (o.op) {
+      case "fillStyle": case "strokeStyle":
+        if (o.grad) {
+          const g = o.grad;
+          nums.push(GRAD_OF[o.op], GRAD_KIND[g.kind] ?? 0, g.coords.length, ...g.coords, g.stops.length);
+          for (const [off, col] of g.stops) nums.push(off, s(col));
+        } else nums.push(OPCODE[o.op], s(o.v ?? "#000"));
+        break;
+      case "set": {
+        const v = o.v;
+        nums.push(OPCODE.set, SET_INDEX.get(o.k) ?? -1,
+          typeof v === "string" ? 1 : typeof v === "boolean" ? 2 : 0,
+          typeof v === "string" ? s(v) : typeof v === "boolean" ? (v ? 1 : 0) : v);
+        break;
+      }
+      case "setLineDash": nums.push(OPCODE.setLineDash, o.segments.length, ...o.segments); break;
+      case "fillRect": case "strokeRect": case "clearRect": case "rect": nums.push(OPCODE[o.op], o.x, o.y, o.w, o.h); break;
+      case "moveTo": case "lineTo": case "translate": case "scale": nums.push(OPCODE[o.op], o.x, o.y); break;
+      case "arc": nums.push(OPCODE.arc, o.x, o.y, o.r, o.a0, o.a1, o.ccw ? 1 : 0); break;
+      case "arcTo": nums.push(OPCODE.arcTo, o.x1, o.y1, o.x2, o.y2, o.r); break;
+      case "ellipse": nums.push(OPCODE.ellipse, o.x, o.y, o.rx, o.ry, o.rot, o.a0, o.a1, o.ccw ? 1 : 0); break;
+      case "roundRect": {
+        const r = o.radii;
+        if (typeof r === "number") nums.push(OPCODE.roundRect, o.x, o.y, o.w, o.h, 0, 1, r);
+        else nums.push(OPCODE.roundRect, o.x, o.y, o.w, o.h, 1, r.length, ...r);
+        break;
+      }
+      case "quadraticCurveTo": nums.push(OPCODE.quadraticCurveTo, o.cpx, o.cpy, o.x, o.y); break;
+      case "bezierCurveTo": nums.push(OPCODE.bezierCurveTo, o.cp1x, o.cp1y, o.cp2x, o.cp2y, o.x, o.y); break;
+      case "fill": case "clip": nums.push(OPCODE[o.op], rule(o.rule)); break;
+      case "fillText": case "strokeText": nums.push(OPCODE[o.op], s(o.text), o.x, o.y, o.maxWidth ?? NaN); break;
+      case "drawImage": nums.push(OPCODE.drawImage, o.h, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh); break;
+      case "rotate": nums.push(OPCODE.rotate, o.angle); break;
+      case "transform": case "setTransform": nums.push(OPCODE[o.op], ...o.m); break;
+      default: nums.push(OPCODE[o.op]); break;   // beginPath, closePath, stroke, save, restore, resetTransform
+    }
+  });
+  return { nums: Float64Array.from(nums), at, strs };
+}
+
 class MacSurface implements Surface {
   readonly id = nextId++;
   x = 0;
@@ -374,7 +497,10 @@ class MacSurface implements Surface {
     if (sh === null) emit(OP.SHADOW, this.id, null);
     else emit(OP.SHADOW, this.id, sh.dx, sh.dy, sh.blur, colorToCss(sh.color));
   }
-  setVisible(v: boolean): void { this.visible = v; emit(OP.VISIBLE, this.id, v ? 1 : 0); }
+  setVisible(v: boolean): void {
+    this.visible = v;
+    emit(OP.VISIBLE, this.id, v ? 1 : 0);   // its flush pays any drawing below that is seen now
+  }
   setOpacity(o: number): void { this.opacity = o; emit(OP.OPACITY, this.id, o); }
   /** The schema token rides the wire verbatim; the Swift side maps it to a
    *  CIFilter for `layer.compositingFilter` (public on macOS — LayerTree
@@ -410,6 +536,9 @@ class MacSurface implements Surface {
     }
     const st = spec.stencil.surface as MacSurface | null;
     if (st === null) return;
+    // a mask renders its stencil's layers whether or not the stencil is shown,
+    // so the stencil's drawing is never owed
+    if (!st.isStencil) { st.isStencil = true; if (owedDrawings.has(st)) st.finishDrawing(); }
     emit(OP.MASK, this.id, "view", st.id, spec.stencil.x + spec.stencil.positionLead("x"),
       spec.stencil.y + spec.stencil.positionLead("y"), spec.stencil.width, spec.stencil.height);
   }
@@ -476,7 +605,10 @@ class MacSurface implements Surface {
    *  under a view scale. This hands the host the density to raster that
    *  remainder at, the same fix the DOM backend makes for the same softness. */
   setRasterScale(k: number): void {
-    emit(OP.RASTERSCALE, this.id, k);
+    this.rasterScale = k;
+    // a described drawing is exact at any scale; only a bitmap is remade
+    if (this.drawing === null || this.bitmapK === 0 || Math.abs(this.bitmapK - k) <= 1e-3 * Math.max(1, k)) return;
+    if (this.shownAnywhere()) this.finishDrawing(); else owedDrawings.add(this);
   }
 
   setClip(pathData: string | null): void {
@@ -707,8 +839,61 @@ class MacSurface implements Surface {
     });
   }
 
+  // ── THE DRAWING IS FINISHED HERE, on the runtime thread ─────────────────
+  // As the DOM surface draws its canvas on the page's thread, this surface has
+  // the host finish the drawing now (MacHost.drawRaster): the host either takes
+  // it as layers or makes the bitmap, and the DRAW op carries the result — so
+  // main only shows it, and a slow drawing slows the settle, never the app.
+  //
+  // A drawing nobody can see is OWED, not made: hidden itself or under a
+  // hidden ancestor (`visible` hides the subtree on every renderer). A parked
+  // weather CityView keeps a drawn sky that a resize re-records every step;
+  // making it would be most of the resize's raster time. `payOwedDrawings`
+  // makes it once the surface is shown, in the flush that shows it.
+  /** The recording last handed down. */
+  private drawing: DisplayList | null = null;
+  /** The density the visibility feed last reported (ancestor scales × dpr); 0 = dpr. */
+  private rasterScale = 0;
+  /** The density of the bitmap on screen; 0 = described, or none. */
+  private bitmapK = 0;
+  /** A mask renders this surface: its drawing is made even while hidden. */
+  isStencil = false;
+
   setDrawing(list: DisplayList | null): void {
-    emit(OP.DRAW, this.id, list === null ? null : { ops: list.ops, bounds: list.bounds });
+    this.drawing = list;
+    if (list === null || list.bounds === null) {
+      owedDrawings.delete(this);
+      this.bitmapK = 0;
+      emit(OP.DRAW, this.id, null);
+      return;
+    }
+    if (this.shownAnywhere()) this.finishDrawing(); else owedDrawings.add(this);
+  }
+
+  /** Shown on screen as far as the tree says: itself and every ancestor visible. */
+  shownAnywhere(): boolean {
+    if (this.isStencil) return true;
+    for (let s: MacSurface | null = this; s !== null; s = s.parent) if (!s.visible) return false;
+    return true;
+  }
+
+  finishDrawing(): void {
+    owedDrawings.delete(this);
+    const list = this.drawing;
+    if (list === null || list.bounds === null) return;
+    const h = host();
+    const density = this.rasterScale > 0 ? this.rasterScale : (typeof devicePixelRatio === "number" ? devicePixelRatio : 2);
+    // A bound the recording could not compute (NaN from arithmetic on an unset
+    // value) takes the host's defaults — the origin, the view's own size — as it
+    // always has: a non-finite number reaches Core Animation as a thrown exception.
+    const b = list.bounds, fin = (v: number, d: number): number => (Number.isFinite(v) ? v : d);
+    let made = 0;
+    if (h.drawRaster) {
+      const r = encodeRecording(list);
+      made = h.drawRaster(this.id, r.nums, r.at, r.strs, fin(b.x, 0), fin(b.y, 0), fin(b.w, this.width), fin(b.h, this.height), density);
+    }
+    this.bitmapK = made > 0 ? density : 0;
+    emit(OP.DRAW, this.id, made === 0 ? null : { h: made });
   }
 
   setImage(image: unknown | null): void {
@@ -910,6 +1095,7 @@ class MacSurface implements Surface {
       this.parent = null;
     }
     scrollers.delete(this);       // a destroyed scroller must not be swept
+    owedDrawings.delete(this);
     richCallbacks.delete(this.id);
     editCallbacks.delete(this.id);
     surfaces.delete(this.id);

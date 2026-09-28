@@ -44,7 +44,6 @@ export declare const OP: {
     readonly TINT: 37;
     readonly ROTATE: 38;
     readonly MEDIA: 39;
-    readonly RASTERSCALE: 40;
     readonly EDITSEL: 41;
     /** The host's scroll process (scrolling.md "The scroll process"): a view
      *  that claims the wheel (`onWheel`) so the host's walk hands it the stream
@@ -81,6 +80,12 @@ export interface MacHost {
     measure(text: string, font: string, letterSpacing: number): number[];
     /** Natural size of a loaded image handle: [w, h]. */
     imageSize(handle: number): number[];
+    /** Finish a drawing, handed over in its binary form (encodeRecording) with its
+     *  bounds, at `density` device px per view unit. Answers a handle for the
+     *  DRAW op to carry: > 0 = a bitmap made now, < 0 = the host describes the
+     *  recording as layers, 0 = nothing could be made. Runs on the calling
+     *  (runtime) thread; the recording crosses once. */
+    drawRaster?(id: number, nums: Float64Array, at: Uint32Array, strs: readonly string[], bx: number, by: number, bw: number, bh: number, density: number): number;
     /** Read back a native editable's current value (focus/blur sync). */
     editValue?(id: number): string;
     /** Lay a rich-text flow out natively and answer its height (cold path). */
@@ -94,9 +99,12 @@ export declare function countOps(): number;
 /** The serialized size of the pending buffer, for measuring the crossing. */
 export declare function peekOps(): number;
 export declare function flushOps(): void;
-/** One view's retained state. The fields are the SCENE MODEL (the same one the
- *  canvas backend keeps) — every setter both records the value and emits the
- *  op that mirrors it into the layer tree. */
+/** A recording in the form the host reads. */
+export declare function encodeRecording(list: DisplayList): {
+    nums: Float64Array;
+    at: Uint32Array;
+    strs: string[];
+};
 declare class MacSurface implements Surface {
     readonly id: number;
     x: number;
@@ -317,7 +325,18 @@ declare class MacSurface implements Surface {
     private revealX;
     setText(text: string): void;
     setTextStyle(style: TextStyle): void;
+    /** The recording last handed down. */
+    private drawing;
+    /** The density the visibility feed last reported (ancestor scales × dpr); 0 = dpr. */
+    private rasterScale;
+    /** The density of the bitmap on screen; 0 = described, or none. */
+    private bitmapK;
+    /** A mask renders this surface: its drawing is made even while hidden. */
+    isStencil: boolean;
     setDrawing(list: DisplayList | null): void;
+    /** Shown on screen as far as the tree says: itself and every ancestor visible. */
+    shownAnywhere(): boolean;
+    finishDrawing(): void;
     setImage(image: unknown | null): void;
     setImageStretch(stretch: Stretch): void;
     setImageAlign(ax: string, ay: string): void;

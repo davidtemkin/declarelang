@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "a1df5604bc21",
+  "buildId": "60dd438965fb",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -3702,119 +3702,119 @@
    },
    "E75F7A7": {
     "message": "….…: this precompiled program does not match its runtime (rebuild the artifact)",
-    "at": "instantiate.ts:193"
+    "at": "instantiate.ts:194"
    },
    "E1F2C20": {
     "message": "the root must be a view, not a …",
-    "at": "instantiate.ts:359"
+    "at": "instantiate.ts:360"
    },
    "ED99BD2": {
     "message": "style …: a bundle carries attribute sets only — a look, not a component",
-    "at": "instantiate.ts:576"
+    "at": "instantiate.ts:577"
    },
    "E99FB68": {
     "message": "….…: '…' is a built-in member of the runtime … — choose another name",
-    "at": "instantiate.ts:650"
+    "at": "instantiate.ts:651"
    },
    "E9CD504": {
     "message": "….…'s default = { … } …",
-    "at": "instantiate.ts:659"
+    "at": "instantiate.ts:660"
    },
    "E067112": {
     "message": "….…: '…' is a built-in field of the runtime …, not a method — a method may not take its name",
-    "at": "instantiate.ts:812"
+    "at": "instantiate.ts:813"
    },
    "E536F21": {
     "message": "….…: '…' is a member of every object — choose another name",
-    "at": "instantiate.ts:817"
+    "at": "instantiate.ts:818"
    },
    "ECBF1B8": {
     "message": "….…: '…' is runtime plumbing (a $-member) — choose another name",
-    "at": "instantiate.ts:820"
+    "at": "instantiate.ts:821"
    },
    "E7E2E60": {
     "message": "….…(…) …",
-    "at": "instantiate.ts:829"
+    "at": "instantiate.ts:830"
    },
    "ECE4353": {
     "message": "….… = :…: …",
-    "at": "instantiate.ts:925"
+    "at": "instantiate.ts:926"
    },
    "EB5CD6B": {
     "message": "….…: no axis to resolve a percent against",
-    "at": "instantiate.ts:928"
+    "at": "instantiate.ts:929"
    },
    "E0AC949": {
     "message": "unknown component '…'",
-    "at": "instantiate.ts:948"
+    "at": "instantiate.ts:949"
    },
    "ED46990": {
     "message": "':…[]' makes many instances — a replication belongs on a child element, not here",
-    "at": "instantiate.ts:1099"
+    "at": "instantiate.ts:1100"
    },
    "EA9624C": {
     "message": "datapath = :… — a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :…[]",
-    "at": "instantiate.ts:1108"
+    "at": "instantiate.ts:1109"
    },
    "E526053": {
     "message": "'… <-> :…' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it",
-    "at": "instantiate.ts:1121"
+    "at": "instantiate.ts:1122"
    },
    "E0CEFC8": {
     "message": "class … contains itself — a class may not appear inside its own body",
-    "at": "instantiate.ts:1170"
+    "at": "instantiate.ts:1171"
    },
    "E6D26FF": {
     "message": "a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'",
-    "at": "instantiate.ts:1205"
+    "at": "instantiate.ts:1206"
    },
    "EBDD8CF": {
     "message": "…: the embedded data does not match the schema — …",
-    "at": "instantiate.ts:1227"
+    "at": "instantiate.ts:1228"
    },
    "ECC636A": {
     "message": "a … overrides its enclosing view's slots, but '…' has no view to target here",
-    "at": "instantiate.ts:1388"
+    "at": "instantiate.ts:1389"
    },
    "EAC3FD7": {
     "message": "….…: a state override is a value or a { }, not a data read",
-    "at": "instantiate.ts:1402"
+    "at": "instantiate.ts:1403"
    },
    "E95A703": {
     "message": "….…: a layout attribute takes a literal or { }",
-    "at": "instantiate.ts:1454"
+    "at": "instantiate.ts:1455"
    },
    "EB3EBF7": {
     "message": "a replicated child cannot be named — ':…[]' makes one instance per record, and '…' can only name one; reach the instances through their data",
-    "at": "instantiate.ts:1515"
+    "at": "instantiate.ts:1516"
    },
    "E418372": {
     "message": "virtualize = { … } …",
-    "at": "instantiate.ts:1536"
+    "at": "instantiate.ts:1537"
    },
    "EF86534": {
     "message": "'…' is already a member of the running … — choose another name for this child",
-    "at": "instantiate.ts:1562"
+    "at": "instantiate.ts:1563"
    },
    "EEF1C34": {
     "message": "createView: this tree was not built from a program (no registry to resolve '…' against)",
-    "at": "instantiate.ts:1585"
+    "at": "instantiate.ts:1586"
    },
    "E0580F5": {
     "message": "— declare the class, include its library, or keep it with 'use [ … ]'",
-    "at": "instantiate.ts:1588"
+    "at": "instantiate.ts:1589"
    },
    "EE1ADC3": {
     "message": "createView: no component named '…'…",
-    "at": "instantiate.ts:1589"
+    "at": "instantiate.ts:1590"
    },
    "ED8CD97": {
     "message": "a … cannot replicate — it is not a view",
-    "at": "instantiate.ts:1631"
+    "at": "instantiate.ts:1632"
    },
    "E367A91": {
     "message": "evaluate: this tree was not built from a program (no registry to resolve against)",
-    "at": "instantiate.ts:1673"
+    "at": "instantiate.ts:1674"
    },
    "E78A7D6": {
     "message": "skipped — visible = false",
@@ -73923,6 +73923,14 @@
      "label": "Markdown file",
      "path": "docs/system-design/composition.md",
      "preview": "How a Declare file relates to other files. There are two mechanisms, and they do genuinely different jobs, so they compose rather than compete: - include composes Declare declarations (classes, script, stylesheets) — Declare's own source-me…"
+    },
+    {
+     "name": "A compositor thread for the Mac host",
+     "subtitle": "",
+     "kind": "doc",
+     "label": "Markdown file",
+     "path": "docs/system-design/compositor-thread.md",
+     "preview": "Status: DEFERRED (2026-09-27). Main keeps compositing for now. A browser-like compositor thread is clean only when nothing on the page is a separate OS view, and today the editables (and a selectable rich flow while mounted) are NSTextViews…"
     },
     {
      "name": "Constraints",

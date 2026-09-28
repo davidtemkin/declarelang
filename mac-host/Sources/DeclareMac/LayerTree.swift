@@ -140,10 +140,12 @@ final class Node {
     /// children (case 49, CA's sublayerTransform perspective).
     var rot3D: (rx: CGFloat, ry: CGFloat, tz: CGFloat, backfaceHidden: Bool)?
     var perspective: CGFloat = 0
-    /// Device px per view unit a RASTERIZED drawing should be made at — the
-    /// composed scale from the runtime's at-rest feed (RASTERSCALE). 0 = the
-    /// backing scale, which is what a drawing under no view scale wants.
-    var rasterK: CGFloat = 0
+    /// The recording its latest DRAW op carried, in its binary form
+    /// (Recording.swift), when the drawing is described as layers.
+    var drawList: Recording?
+    /// The finished bitmap its latest DRAW op carried (made on the runtime
+    /// thread, Bridge `drawRaster`); nil when the drawing is described.
+    var drawBitmap: (image: CGImage, geom: (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, scale: CGFloat))?
     /// Rotation in model degrees (clockwise on screen); folded with scale
     /// into one layer transform by applyScale.
     var rotation: CGFloat = 0
@@ -203,44 +205,7 @@ final class LayerTree {
     private(set) var root: Node?
     /// Surfaces whose drawing must be re-rasterized after a geometry change.
     private var pendingDraw = Set<Int>()
-    /// Surfaces whose recording arrived while nothing could see them. Their
-    /// bitmap is missing or stale ON PURPOSE; `flushDeferred` owes them a raster
-    /// the moment they are shown. See the raster loop in `apply` for why.
-    private var deferredDraw = Set<Int>()
-    /// Outstanding debt, for the stats window.
-    var deferredCount: Int { deferredDraw.count }
     private var dumped = false
-
-    /// Pay what the hidden-skip owes: raster any deferred surface that can now
-    /// be seen, in the same commit that reveals it, so nothing is ever shown
-    /// blank or stale for a frame.
-    ///
-    /// Checked once per commit rather than hooked onto the VISIBLE op, because
-    /// a surface re-enters rendering by several routes — its own flag, an
-    /// ancestor's, a reparent into a shown tree, a new root — and one uniform
-    /// check at the end cannot miss one. It costs a parent walk per owed node,
-    /// against a raster that is milliseconds.
-    private func flushDeferred() {
-        guard !deferredDraw.isEmpty else { return }
-        var paid: [Int] = []
-        for id in deferredDraw {
-            // Gone, or its recording was cleared while it was away: nothing owed.
-            guard let n = nodes[id], n.drawList != nil else { paid.append(id); continue }
-            if hiddenAnywhere(n) { continue }
-            let t0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
-            rasterize(n)
-            if statsOn {
-                let dt = (CFAbsoluteTimeGetCurrent() - t0) * 1000
-                rasterCount += 1
-                rasterMsTotal += dt
-                rasterMsNodes[id, default: 0] += dt
-                revealedRasterN += 1
-                revealedRasterMs += dt
-            }
-            paid.append(id)
-        }
-        for id in paid { deferredDraw.remove(id) }
-    }
 
     /// Model box vs where the layer actually lands (converted back into model
     /// coordinates) — the two must agree, and any node where they don't is a
@@ -360,31 +325,14 @@ final class LayerTree {
         frostTotalN += fr.n; frostTotalMs += fr.ms
 
         let rt0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
+        // Finished drawings only: the runtime thread made each bitmap (and owes
+        // what nobody can see — MacSurface.setDrawing), so this shows them.
         for id in pendingDraw {
             guard let n = nodes[id] else { continue }
-            // A hidden subtree is OUT of rendering — `visible=false` is the DOM
-            // backend's display:none — so a bitmap made for it now is a bitmap
-            // nobody can see. Owe it instead, and pay on the way back in.
-            //
-            // This is where resize was going: a parked CityView holds a DRAWN
-            // sky, and a resize re-records it (the art bakes in d.w/d.h) at full
-            // window size every step. Measured on weather's 40-step sweep: 580
-            // of 888 rasters and 1872 of 1916ms — 98% of all raster time — for
-            // a sky that is `visible=false` and sitting at x=-1100. WSky's own
-            // doc names the hazard; making photographic skies record nothing
-            // only ever fixed it for the photographs.
-            if hiddenAnywhere(n) {
-                deferredDraw.insert(id)
-                if statsOn { skippedRasterN += 1 }
-                continue
-            }
-            let t0 = statsOn ? CFAbsoluteTimeGetCurrent() : 0
-            rasterize(n)
-            if statsOn { rasterMsNodes[id, default: 0] += (CFAbsoluteTimeGetCurrent() - t0) * 1000 }
+            showDrawing(n)
         }
-        if statsOn { rasterMsTotal += (CFAbsoluteTimeGetCurrent() - rt0) * 1000 }
+        if statsOn { drawShowMsTotal += (CFAbsoluteTimeGetCurrent() - rt0) * 1000 }
         pendingDraw.removeAll()
-        flushDeferred()
         // Geometry is final now — this is the first moment a flow's band is
         // worth rastering, and it is still inside the transaction below.
         flushBands()
@@ -429,21 +377,13 @@ final class LayerTree {
     /// never per frame", and a dock icon whose draw body reads its own width
     /// breaks it — that was the Safari jank, and it would cost far more here.
     var opHist: [Int: Int] = [:]
-    /// How many display lists were actually re-rastered in the window — the cost
-    /// that a per-frame DRAW would multiply.
+    /// How many drawings were shown in the window — the cost a per-frame DRAW
+    /// would multiply — and whose. (What making them cost is the runtime
+    /// thread's: Bridge `drawStats`.)
     var rasterCount = 0
     var drawNodes: [Int: Int] = [:]
-    /// Wall time spent re-rastering display lists in the window.
-    var rasterMsTotal = 0.0
-    /// Wall time spent rasterizing each node, and the pixels it cost.
-    var rasterMsNodes: [Int: Double] = [:]
-    var rasterPxNodes: [Int: Double] = [:]
-    /// Rasters NOT spent, because the node was hidden — and the ones paid later
-    /// when it was revealed. The second number is the honest price of the first:
-    /// deferring is only a win if far fewer are ever actually shown.
-    var skippedRasterN = 0
-    var revealedRasterN = 0
-    var revealedRasterMs = 0.0
+    /// Wall time main spent SHOWING drawings (setting bitmaps, building layers).
+    var drawShowMsTotal = 0.0
     /// Time in repositionOverlays (visibleRect + occluders + bands) per window.
     var overlayMsTotal = 0.0
     /// Wall time per opcode — which op is actually costing the frame.
@@ -669,20 +609,15 @@ final class LayerTree {
             // An editable already configured must pick up the new face: the two
             // ops are independent and TEXTSTYLE often lands after EDIT.
             n.editable?.restyle(st)
-        case 40: // RASTERSCALE — the at-rest composed density for a rasterized drawing
-            guard let n = nodes[id] else { return }
-            let k = num(a(0))
-            if abs(k - n.rasterK) > 0.001 {
-                n.rasterK = k
-                // a described drawing re-rasterizes in the render server under any
-                // transform and needs nothing; a RASTERIZED one is a bitmap made at
-                // one density, and a new density means a new bitmap
-                if n.drawList != nil, n.draw?.name != "described" { pendingDraw.insert(id) }
-            }
         case 18: // DRAW
+            // The drawing was finished on the runtime thread (Bridge drawRaster):
+            // the op carries its handle — positive for a bitmap, negative for a
+            // recording to describe as layers — taken even when the node is gone,
+            // since each handle belongs to one op.
+            let made = ((a(0) as? [String: Any])?["h"] as? NSNumber).flatMap { bridge.takeDrawing(abs($0.intValue)) }
             guard let n = nodes[id] else { return }
-            if a(0) == nil || a(0) is NSNull {
-                n.draw?.removeFromSuperlayer(); n.draw = nil; n.drawList = nil
+            if made == nil {
+                n.draw?.removeFromSuperlayer(); n.draw = nil; n.drawList = nil; n.drawBitmap = nil
             } else {
                 // NOT worth a content check. The obvious cheap fix for a resize
                 // storm is to notice the recording did not change and skip the
@@ -691,7 +626,8 @@ final class LayerTree {
                 // `bounds`, and 806 differed in their ops. Draw bodies bake
                 // d.w/d.h into what they record, so a resize genuinely produces
                 // new art and a hash buys 9%.
-                n.drawList = a(0) as? [String: Any]
+                n.drawList = made!.list
+                n.drawBitmap = made!.bitmap
                 pendingDraw.insert(id)
             }
         case 19: // IMAGE
@@ -980,17 +916,9 @@ final class LayerTree {
             m.position = CGPoint(x: st.x, y: n.box.size.height - st.y - st.h)
             if n.maskEpoch != frostEpoch, let stencil = nodes[st.id] {
                 n.maskEpoch = frostEpoch
-                payOwedDrawings(stencil)
                 m.contents = renderStencil(stencil, size: CGSize(width: st.w, height: st.h))
             }
         }
-    }
-
-    /// A hidden stencil's drawings were owed (the hidden-raster skip); a mask
-    /// needs them now.
-    private func payOwedDrawings(_ n: Node) {
-        if n.drawList != nil, deferredDraw.contains(n.id) { rasterize(n); deferredDraw.remove(n.id) }
-        for k in n.children { payOwedDrawings(k) }
     }
 
     /// A stencil's painted alpha as a bitmap: its subtree rendered at its own
@@ -1968,53 +1896,26 @@ final class LayerTree {
         return true            // legible if it counts the LOAD, not just a gesture
     }
 
-    private func rasterize(_ n: Node) {
+    /// Show a finished drawing: the bitmap the runtime thread made for it
+    /// (Bridge `drawRaster`, carried by its DRAW op), or its recording as
+    /// layers. Nothing is rasterized here — main only shows pictures.
+    private func showDrawing(_ n: Node) {
+        guard n.drawList != nil else { return }   // cleared later in the same commit
+        if let made = n.drawBitmap {
+            rasterizedN += 1
+            land(n, made.image, made.geom)
+            return
+        }
         if LayerTree.layersOn, describe(n) { return }
-        rasterizedN += 1
-        guard let list = n.drawList else { return }
-        if ProcessInfo.processInfo.environment["DECLARE_DEBUG_DRAW"] != nil {
-            let opsList = (list["ops"] as? [[String: Any]]) ?? []
-            let names = opsList.map { o -> String in
-                let k = (o["op"] as? String) ?? "?"
-                if k == "set" { return "set:" + ((o["k"] as? String) ?? "") }
-                return k
-            }.joined(separator: ",")
-            NSLog("[draw] id=%d ops=%d box=%@ | %@", n.id, opsList.count, NSStringFromRect(n.box), names)
-        }
-        let b = list["bounds"] as? [String: Any]
-        let bx = CGFloat((b?["x"] as? NSNumber)?.doubleValue ?? 0)
-        let by = CGFloat((b?["y"] as? NSNumber)?.doubleValue ?? 0)
-        let bw = CGFloat((b?["w"] as? NSNumber)?.doubleValue ?? Double(n.box.width))
-        let bh = CGFloat((b?["h"] as? NSNumber)?.doubleValue ?? Double(n.box.height))
-        let w = max(1, bw), h = max(1, bh)
-        // EXACT UNDER A VIEW SCALE. The bitmap is w×h points on a layer that the
-        // ancestor's transform then scales; at the backing scale it is stretched
-        // by that transform, the softness the DOM backend also had. The runtime
-        // hands the composed density at rest (RASTERSCALE) and the bitmap is made
-        // at it — contentsScale carries the extra pixels through CA unchanged.
-        let s = n.rasterK > 0 ? n.rasterK : scale
-        guard let cs = CGColorSpace(name: CGColorSpace.sRGB),
-              let cg = CGContext(data: nil, width: Int(w * s), height: Int(h * s), bitsPerComponent: 8,
-                                 bytesPerRow: 0, space: cs,
-                                 bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
-        else { return }
-        if statsOn { rasterPxNodes[n.id, default: 0] += Double(Int(w * s) * Int(h * s)) }
-        cg.scaleBy(x: s, y: s)
-        // Flip into the model's y-down space, then shift so the recording's
-        // own origin lands at the raster's corner.
-        cg.translateBy(x: 0, y: h)
-        cg.scaleBy(x: 1, y: -1)
-        cg.translateBy(x: -bx, y: -by)
-        DrawReplay.run(list["ops"] as? [[String: Any]] ?? [], in: cg, bridge: bridge,
-                       geom: (x: bx, y: by, w: w, h: h, scale: s))
-        guard let img = cg.makeImage() else { NSLog("[draw] id=%d makeImage FAILED", n.id); return }
-        if let dumpId = ProcessInfo.processInfo.environment["DECLARE_DUMP_DRAW"], Int(dumpId) == n.id {
-            let url = URL(fileURLWithPath: "/tmp/draw-\(n.id).png")
-            if let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) {
-                CGImageDestinationAddImage(dest, img, nil); CGImageDestinationFinalize(dest)
-                NSLog("[draw] dumped id=%d to %@", n.id, url.path)
-            }
-        }
+        // the runtime thread asked the same question (drawRaster) and was told
+        // the render server could take it; say so if the two ever disagree
+        NSLog("[draw] id=%d: a described drawing could not be described", n.id)
+    }
+
+    /// Put a finished bitmap on the node's drawing layer, at the frame it was
+    /// made for.
+    private func land(_ n: Node, _ img: CGImage, _ geom: (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, scale: CGFloat)) {
+        let (bx, by, w, h, s) = geom
         let l: CALayer
         // ⚠ NOT a described container. `describe` leaves shape/gradient
         // SUBLAYERS on n.draw; reusing that as a bitmap host sets `contents`
@@ -2650,7 +2551,6 @@ final class LayerTree {
         n.layer.removeFromSuperlayer()
         pendingBand.remove(n.id)
         pendingDraw.remove(n.id)
-        deferredDraw.remove(n.id)
         nodes.removeValue(forKey: n.id)
     }
 
@@ -2665,7 +2565,6 @@ final class LayerTree {
             tearDown(n, recurse: false)   // the loop already visits every dead id
         }
         pendingDraw.formIntersection(live)
-        deferredDraw.formIntersection(live)
     }
 
     /// Bring a flow's rastered band up to date for where it is RIGHT NOW.
@@ -2775,13 +2674,6 @@ final class LayerTree {
     }
 }
 
-extension Node {
-    private static var drawKey: UInt8 = 0
-    var drawList: [String: Any]? {
-        get { objc_getAssociatedObject(self, &Node.drawKey) as? [String: Any] }
-        set { objc_setAssociatedObject(self, &Node.drawKey, newValue, .OBJC_ASSOCIATION_RETAIN) }
-    }
-}
 
 
 // ── the filter vocabulary, off the wire (graphics-pass.md §1) ───────────────

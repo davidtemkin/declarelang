@@ -61,6 +61,12 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
                                  styleMask: [.titled, .closable, .miniaturizable, .resizable],
                                  backing: .buffered, defer: false)
         window = pw
+        // ONE COLOUR SPACE. Declare's colours are CSS colours — sRGB — and every
+        // bitmap the host makes is sRGB, so the window composites in sRGB and the
+        // window server converts the finished window to the display once, on the
+        // GPU. Left at the display's space (P3 on a modern Mac), Core Animation
+        // converted every new bitmap on the CPU as it committed it, on main.
+        pw.colorSpace = .sRGB
         view = DeclareView(frame: NSRect(origin: .zero, size: frame.size))
         bridge = Bridge(view: view)
         super.init()

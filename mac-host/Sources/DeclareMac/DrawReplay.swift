@@ -19,8 +19,8 @@ enum DrawReplay {
     private static let ciContext = CIContext(options: [.workingColorSpace: NSNull()])
 
     private struct State {
-        var fill: Any = "#000"           // String or gradient dict
-        var stroke: Any = "#000"
+        var fill: Style = .color("#000")
+        var stroke: Style = .color("#000")
         var lineWidth: CGFloat = 1
         var lineCap: CGLineCap = .butt
         var lineJoin: CGLineJoin = .miter
@@ -57,45 +57,39 @@ enum DrawReplay {
     /// `transform` is baked into each point as it is added. The rasterizer
     /// passes `.identity` because it concatenates the CTM into the context
     /// instead; the describer has no context and passes the live CTM.
-    static func pathOp(_ o: [String: Any], _ path: inout CGMutablePath,
+    static func pathOp(_ r: Recording, _ i: Int, _ path: inout CGMutablePath,
                        _ cur: inout CGPoint, _ start: inout CGPoint,
                        transform m: CGAffineTransform) -> Bool {
-        func d(_ k: String) -> CGFloat { CGFloat((o[k] as? NSNumber)?.doubleValue ?? 0) }
+        func d(_ k: Int) -> CGFloat { r.num(i, k) }
         let t = m
-        switch (o["op"] as? String) ?? "" {
-        case "beginPath": path = CGMutablePath()
-        case "closePath": path.closeSubpath(); cur = start
-        case "moveTo": cur = CGPoint(x: d("x"), y: d("y")); start = cur; path.move(to: cur, transform: t)
-        case "lineTo": cur = CGPoint(x: d("x"), y: d("y")); path.addLine(to: cur, transform: t)
-        case "bezierCurveTo":
-            cur = CGPoint(x: d("x"), y: d("y"))
-            path.addCurve(to: cur, control1: CGPoint(x: d("cp1x"), y: d("cp1y")),
-                          control2: CGPoint(x: d("cp2x"), y: d("cp2y")), transform: t)
-        case "quadraticCurveTo":
-            cur = CGPoint(x: d("x"), y: d("y"))
-            path.addQuadCurve(to: cur, control: CGPoint(x: d("cpx"), y: d("cpy")), transform: t)
-        case "arc":
-            // The recorder's angle keys are a0/a1 (draw.ts). Reading them as
-            // "start"/"end" silently produced a ZERO-LENGTH arc at angle 0 —
-            // every rounded corner in the app collapsed to its own start point,
-            // which is why the dock's folder came out as a chevron.
-            //
+        switch r.code(i) {
+        case DrawOp.beginPath: path = CGMutablePath()
+        case DrawOp.closePath: path.closeSubpath(); cur = start
+        case DrawOp.moveTo: cur = CGPoint(x: d(1), y: d(2)); start = cur; path.move(to: cur, transform: t)
+        case DrawOp.lineTo: cur = CGPoint(x: d(1), y: d(2)); path.addLine(to: cur, transform: t)
+        case DrawOp.bezierCurveTo:                          // [cp1x, cp1y, cp2x, cp2y, x, y]
+            cur = CGPoint(x: d(5), y: d(6))
+            path.addCurve(to: cur, control1: CGPoint(x: d(1), y: d(2)),
+                          control2: CGPoint(x: d(3), y: d(4)), transform: t)
+        case DrawOp.quadraticCurveTo:                       // [cpx, cpy, x, y]
+            cur = CGPoint(x: d(3), y: d(4))
+            path.addQuadCurve(to: cur, control: CGPoint(x: d(1), y: d(2)), transform: t)
+        case DrawOp.arc:                                    // [x, y, r, a0, a1, ccw]
             // Canvas's flag is `counterclockwise` and CGPath's is `clockwise`,
             // but both mean "increasing angle" when false, and the path is built
             // in the recording's own numeric coordinates, so the flag passes
             // through.
-            path.addArc(center: CGPoint(x: d("x"), y: d("y")), radius: d("r"),
-                        startAngle: d("a0"), endAngle: d("a1"),
-                        clockwise: (o["ccw"] as? NSNumber)?.boolValue ?? false, transform: t)
-        case "arcTo":
-            path.addArc(tangent1End: CGPoint(x: d("x1"), y: d("y1")),
-                        tangent2End: CGPoint(x: d("x2"), y: d("y2")), radius: d("r"), transform: t)
-        case "ellipse":
-            let e = CGAffineTransform(translationX: d("x"), y: d("y"))
-                .rotated(by: d("rot"))
-                .scaledBy(x: max(d("rx"), 0.0001), y: max(d("ry"), 0.0001))
-            let a0 = d("a0"), a1 = d("a1")
-            let ccw = (o["ccw"] as? NSNumber)?.boolValue ?? false
+            path.addArc(center: CGPoint(x: d(1), y: d(2)), radius: d(3),
+                        startAngle: d(4), endAngle: d(5), clockwise: r.flag(i, 6), transform: t)
+        case DrawOp.arcTo:                                  // [x1, y1, x2, y2, r]
+            path.addArc(tangent1End: CGPoint(x: d(1), y: d(2)),
+                        tangent2End: CGPoint(x: d(3), y: d(4)), radius: d(5), transform: t)
+        case DrawOp.ellipse:                                // [x, y, rx, ry, rot, a0, a1, ccw]
+            let e = CGAffineTransform(translationX: d(1), y: d(2))
+                .rotated(by: d(5))
+                .scaledBy(x: max(d(3), 0.0001), y: max(d(4), 0.0001))
+            let a0 = d(6), a1 = d(7)
+            let ccw = r.flag(i, 8)
             // Canvas's normalisation: sweep in the requested direction, and a
             // wrap of more than a full turn is clamped to a full turn.
             var delta = a1 - a0
@@ -103,21 +97,46 @@ enum DrawReplay {
             else { if delta < 0 { delta += 2 * .pi }; delta = min(delta, 2 * .pi) }
             path.addRelativeArc(center: .zero, radius: 1, startAngle: a0,
                                 delta: delta, transform: e.concatenating(t))
-        case "rect":
-            path.addRect(CGRect(x: d("x"), y: d("y"), width: d("w"), height: d("h")), transform: t)
-        case "roundRect":
-            let r = roundRadii(o["radii"])
-            path.addPath(roundedPath(CGRect(x: d("x"), y: d("y"), width: d("w"), height: d("h")), r),
+        case DrawOp.rect:
+            path.addRect(CGRect(x: d(1), y: d(2), width: d(3), height: d(4)), transform: t)
+        case DrawOp.roundRect:
+            path.addPath(roundedPath(CGRect(x: d(1), y: d(2), width: d(3), height: d(4)), r.radii(i)),
                          transform: t)
         default: return false
         }
         return true
     }
 
+    /// A recording as a bitmap at `density` device pixels per view unit, with
+    /// the frame it covers (the recording's bounds). Runs on the RUNTIME
+    /// thread: a drawing is finished on the Declare side of the line, as a
+    /// canvas is on the page's thread in a browser, and main only shows it
+    /// (Bridge `drawRaster`, LayerTree case 18).
+    static func bitmap(_ rec: Recording, density: CGFloat, bridge: Bridge)
+        -> (image: CGImage, geom: (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, scale: CGFloat))? {
+        let bx = rec.bx, by = rec.by, w = max(1, rec.bw), h = max(1, rec.bh)
+        let s = density
+        guard let cs = CGColorSpace(name: CGColorSpace.sRGB),
+              let cg = CGContext(data: nil, width: Int(w * s), height: Int(h * s), bitsPerComponent: 8,
+                                 bytesPerRow: 0, space: cs,
+                                 bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue)
+        else { return nil }
+        cg.scaleBy(x: s, y: s)
+        // Flip into the model's y-down space, then shift so the recording's
+        // own origin lands at the raster's corner.
+        cg.translateBy(x: 0, y: h)
+        cg.scaleBy(x: 1, y: -1)
+        cg.translateBy(x: -bx, y: -by)
+        let geom = (x: bx, y: by, w: w, h: h, scale: s)
+        run(rec, in: cg, bridge: bridge, geom: geom)
+        guard let img = cg.makeImage() else { return nil }
+        return (img, geom)
+    }
+
     /// `geom` is the raster's own frame in the recording's user space
     /// (origin + size + backing scale) — a filter layer must be built with the
     /// SAME setup so its pixels line up when composited back.
-    static func run(_ ops: [[String: Any]], in cg: CGContext, bridge: Bridge,
+    static func run(_ rec: Recording, in cg: CGContext, bridge: Bridge,
                     geom: (x: CGFloat, y: CGFloat, w: CGFloat, h: CGFloat, scale: CGFloat)) {
         var st = State()
         // A filter layer is part of the graphics STATE, not a separate stack:
@@ -184,7 +203,6 @@ enum DrawReplay {
             return ciContext.createCGImage(out.cropped(to: ci.extent), from: ci.extent)
         }
 
-        func d(_ o: [String: Any], _ k: String) -> CGFloat { CGFloat((o[k] as? NSNumber)?.doubleValue ?? 0) }
         func target() -> CGContext { filterLayers.last?.0 ?? cg }
 
         /// Canvas applies `filter` to EACH drawing operation, not to a run of
@@ -229,18 +247,10 @@ enum DrawReplay {
             }
         }
 
-        func paintGradient(_ c: CGContext, _ rec: [String: Any], clipTo: CGPath?, stroke: Bool) {
-            if ProcessInfo.processInfo.environment["DECLARE_DEBUG_GRAD"] != nil {
-                NSLog("[grad] keys=%@ kind=%@ coords=%@ stops=%@",
-                      rec.keys.joined(separator: ","), String(describing: rec["kind"]),
-                      String(describing: rec["coords"]).prefix(60) as CVarArg,
-                      String(describing: rec["stops"]).prefix(80) as CVarArg)
-            }
-            guard let kind = rec["kind"] as? String,
-                  let coords = (rec["coords"] as? [NSNumber])?.map({ CGFloat($0.doubleValue) }),
-                  let stops = rec["stops"] as? [[Any]] else { return }
-            let colors = stops.compactMap { ($0.count > 1 ? $0[1] as? String : nil).flatMap { CSSColor.parse($0)?.cgColor } }
-            let locs = stops.map { CGFloat(($0.first as? NSNumber)?.doubleValue ?? 0) }
+        func paintGradient(_ c: CGContext, _ g: Gradient, clipTo: CGPath?, stroke: Bool) {
+            let kind = g.kind, coords = g.coords, stops = g.stops
+            let colors = stops.compactMap { CSSColor.parse($0.color)?.cgColor }
+            let locs = stops.map { $0.offset }
             // NOT resampled into premultiplied space. CSS gradients interpolate
             // premultiplied, but CANVAS gradients do not — Skia's canvas shader
             // interpolates the components straight, which is what CGGradient
@@ -248,17 +258,7 @@ enum DrawReplay {
             // desktop from 10.4% differing to 18.7%.
             guard colors.count >= 2,
                   let grad = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors as CFArray, locations: locs)
-            else {
-                if ProcessInfo.processInfo.environment["DECLARE_DEBUG_GRAD"] != nil {
-                    let raw = stops.map { s -> String in
-                        let off = String(describing: s.first ?? "?")
-                        let col = (s.count > 1 ? s[1] as? String : nil) ?? "?"
-                        return off + "→" + col
-                    }.joined(separator: " ")
-                    NSLog("[grad] BAILED kind=%@ colors=%d stops=%d raw=%@", kind, colors.count, stops.count, raw)
-                }
-                return
-            }
+            else { return }
             c.saveGState()
             if let p = clipTo { c.addPath(p); if stroke { c.replacePathWithStrokedPath() }; c.clip() }
             if kind == "linear", coords.count >= 4 {
@@ -306,12 +306,12 @@ enum DrawReplay {
             c.restoreGState()
         }
 
-        func interpolate(stops: [[Any]], at t: CGFloat) -> NSColor {
+        func interpolate(stops: [Gradient.Stop], at t: CGFloat) -> NSColor {
             var lo: (CGFloat, NSColor) = (0, .black), hi: (CGFloat, NSColor) = (1, .black)
             var found = false
             for s in stops {
-                let off = CGFloat((s.first as? NSNumber)?.doubleValue ?? 0)
-                let col = (s.count > 1 ? s[1] as? String : nil).flatMap { CSSColor.parse($0) } ?? .black
+                let off = s.offset
+                let col = CSSColor.parse(s.color) ?? .black
                 if off <= t { lo = (off, col) }
                 if off >= t && !found { hi = (off, col); found = true }
             }
@@ -328,18 +328,19 @@ enum DrawReplay {
         }
 
         func setFillPaint(_ c: CGContext) {
-            if let s = st.fill as? String, let col = CSSColor.parse(s) { c.setFillColor(col.cgColor) }
+            if let s = st.fill.color, let col = CSSColor.parse(s) { c.setFillColor(col.cgColor) }
         }
         func setStrokePaint(_ c: CGContext) {
-            if let s = st.stroke as? String, let col = CSSColor.parse(s) { c.setStrokeColor(col.cgColor) }
+            if let s = st.stroke.color, let col = CSSColor.parse(s) { c.setStrokeColor(col.cgColor) }
             c.setLineWidth(st.lineWidth)
             c.setLineCap(st.lineCap); c.setLineJoin(st.lineJoin); c.setMiterLimit(st.miterLimit)
             if st.dash.isEmpty { c.setLineDash(phase: 0, lengths: []) }
             else { c.setLineDash(phase: st.dashOffset, lengths: st.dash) }
         }
 
-        for o in ops {
-            guard let op = o["op"] as? String else { continue }
+        for i in 0..<rec.count {
+            let op = rec.code(i)
+            func d(_ k: Int) -> CGFloat { rec.num(i, k) }
             let c = target()
             c.setAlpha(st.alpha)
             switch op {
@@ -348,55 +349,48 @@ enum DrawReplay {
             // open under it. A transform made while a filter is in force still
             // holds after `filter = "none"`, and a layer opened after a save is
             // closed (not restored) by the matching restore.
-            case "save":
+            case DrawOp.save:
                 stack.append((st, filterLayers.count))
                 for x in contexts() { x.saveGState() }
-            case "restore":
+            case DrawOp.restore:
                 if let saved = stack.popLast() {
                     while filterLayers.count > saved.filterDepth { _ = filterLayers.popLast() }
                     st = saved.state
                 }
                 for x in contexts() { x.restoreGState() }
-            case "translate": for x in contexts() { x.translateBy(x: d(o, "x"), y: d(o, "y")) }
-            case "scale": for x in contexts() { x.scaleBy(x: d(o, "x"), y: d(o, "y")) }
-            case "rotate": for x in contexts() { x.rotate(by: d(o, "angle")) }
-            case "transform", "setTransform":
-                // the op carries `m: [a,b,c,d,e,f]` (draw.ts). Reading keys "a"…"f"
-                // gave a ZERO matrix and collapsed the drawing — silently.
-                if let m = o["m"] as? [NSNumber], m.count == 6 {
-                    let t = CGAffineTransform(a: CGFloat(m[0].doubleValue), b: CGFloat(m[1].doubleValue),
-                                              c: CGFloat(m[2].doubleValue), d: CGFloat(m[3].doubleValue),
-                                              tx: CGFloat(m[4].doubleValue), ty: CGFloat(m[5].doubleValue))
-                    for x in contexts() { if op == "transform" { x.concatenate(t) } else { setCTM(x, t.concatenating(origin(x))) } }
-                }
-            case "resetTransform":
+            case DrawOp.translate: for x in contexts() { x.translateBy(x: d(1), y: d(2)) }
+            case DrawOp.scale: for x in contexts() { x.scaleBy(x: d(1), y: d(2)) }
+            case DrawOp.rotate: for x in contexts() { x.rotate(by: d(1)) }
+            case DrawOp.transform, DrawOp.setTransform:
+                let t = rec.matrix(i)
+                for x in contexts() { if op == DrawOp.transform { x.concatenate(t) } else { setCTM(x, t.concatenating(origin(x))) } }
+            case DrawOp.resetTransform:
                 for x in contexts() { setCTM(x, origin(x)) }
-            case "fillStyle": st.fill = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
-            case "strokeStyle": st.stroke = (o["grad"] as? [String: Any]) ?? (o["v"] as? String ?? "#000")
-            case "set":
-                let k = o["k"] as? String ?? ""
-                switch k {
-                case "lineWidth": st.lineWidth = d(o, "v")
-                case "lineCap": st.lineCap = (o["v"] as? String) == "round" ? .round : ((o["v"] as? String) == "square" ? .square : .butt)
-                case "lineJoin": st.lineJoin = (o["v"] as? String) == "round" ? .round : ((o["v"] as? String) == "bevel" ? .bevel : .miter)
-                case "miterLimit": st.miterLimit = d(o, "v")
-                case "lineDashOffset": st.dashOffset = d(o, "v")
-                case "globalAlpha": st.alpha = d(o, "v")
-                case "shadowBlur": st.shadowBlur = d(o, "v")
-                case "shadowColor": st.shadowColor = (o["v"] as? String).flatMap { CSSColor.parse($0) }
-                case "shadowOffsetX": st.shadowDx = d(o, "v")
-                case "shadowOffsetY": st.shadowDy = d(o, "v")
-                case "font": st.font = o["v"] as? String ?? st.font
-                case "textAlign": st.textAlign = o["v"] as? String ?? "left"
-                case "textBaseline": st.textBaseline = o["v"] as? String ?? "alphabetic"
-                case "imageSmoothingEnabled": st.smoothing = (o["v"] as? Bool ?? true) ? st.smoothingQuality : .none
+            case DrawOp.fillStyle, DrawOp.fillGrad: st.fill = rec.style(i)
+            case DrawOp.strokeStyle, DrawOp.strokeGrad: st.stroke = rec.style(i)
+            case DrawOp.set:
+                switch rec.setKey(i) {
+                case "lineWidth": st.lineWidth = rec.setNumber(i)
+                case "lineCap": let v = rec.setString(i); st.lineCap = v == "round" ? .round : (v == "square" ? .square : .butt)
+                case "lineJoin": let v = rec.setString(i); st.lineJoin = v == "round" ? .round : (v == "bevel" ? .bevel : .miter)
+                case "miterLimit": st.miterLimit = rec.setNumber(i)
+                case "lineDashOffset": st.dashOffset = rec.setNumber(i)
+                case "globalAlpha": st.alpha = rec.setNumber(i)
+                case "shadowBlur": st.shadowBlur = rec.setNumber(i)
+                case "shadowColor": st.shadowColor = rec.setString(i).flatMap { CSSColor.parse($0) }
+                case "shadowOffsetX": st.shadowDx = rec.setNumber(i)
+                case "shadowOffsetY": st.shadowDy = rec.setNumber(i)
+                case "font": st.font = rec.setString(i) ?? st.font
+                case "textAlign": st.textAlign = rec.setString(i) ?? "left"
+                case "textBaseline": st.textBaseline = rec.setString(i) ?? "alphabetic"
+                case "imageSmoothingEnabled": st.smoothing = (rec.setBool(i) ?? true) ? st.smoothingQuality : .none
                 case "imageSmoothingQuality":
-                    let q: CGInterpolationQuality = { switch o["v"] as? String { case "high": return .high; case "medium": return .medium; default: return .low } }()
+                    let q: CGInterpolationQuality = { switch rec.setString(i) { case "high": return .high; case "medium": return .medium; default: return .low } }()
                     if st.smoothing != .none { st.smoothing = q }
                     st.smoothingQuality = q
-                case "letterSpacing": st.letterSpacing = CGFloat(Double((o["v"] as? String ?? "0").replacingOccurrences(of: "px", with: "")) ?? 0)
+                case "letterSpacing": st.letterSpacing = CGFloat(Double((rec.setString(i) ?? "0").replacingOccurrences(of: "px", with: "")) ?? 0)
                 case "globalCompositeOperation":
-                    st.blend = blendMode(o["v"] as? String ?? "source-over")
+                    st.blend = blendMode(rec.setString(i) ?? "source-over")
                     // The blend applies INSIDE a filter layer as well. Canvas
                     // draws each filtered shape straight onto the canvas with
                     // this operator, so blobs must combine by the operator
@@ -404,7 +398,7 @@ enum DrawReplay {
                     // compositing — which is what made the wallpaper dim.
                     c.setBlendMode(st.blend)
                 case "filter":
-                    let v = o["v"] as? String ?? "none"
+                    let v = rec.setString(i) ?? "none"
                     if v == "none" || v.isEmpty {
                         // The marker carries no pixels (paint() composited each
                         // op already) — just drop it.
@@ -422,65 +416,66 @@ enum DrawReplay {
                     }
                 default: break
                 }
-            case "setLineDash":
-                st.dash = ((o["segments"] as? [NSNumber]) ?? []).map { CGFloat($0.doubleValue) }
-            case "beginPath", "closePath", "moveTo", "lineTo", "bezierCurveTo", "quadraticCurveTo",
-                 "arc", "arcTo", "ellipse", "rect", "roundRect":
-                _ = pathOp(o, &path, &cur, &start, transform: .identity)
-            case "fill":
+            case DrawOp.setLineDash:                        // [n, …segments]
+                st.dash = rec.numbers(i, from: 2, count: Int(d(1)))
+            case DrawOp.beginPath, DrawOp.closePath, DrawOp.moveTo, DrawOp.lineTo, DrawOp.bezierCurveTo,
+                 DrawOp.quadraticCurveTo, DrawOp.arc, DrawOp.arcTo, DrawOp.ellipse, DrawOp.rect, DrawOp.roundRect:
+                _ = pathOp(rec, i, &path, &cur, &start, transform: .identity)
+            case DrawOp.fill:
+                let evenOdd = rec.evenOdd(i, 1)
                 paint { t in
                     applyShadow(t); setFillPaint(t)
-                    if let g = st.fill as? [String: Any] { paintGradient(t, g, clipTo: path, stroke: false) }
+                    if let g = st.fill.gradient { paintGradient(t, g, clipTo: path, stroke: false) }
                     else {
                         t.addPath(path)
-                        if (o["rule"] as? String) == "evenodd" { t.fillPath(using: .evenOdd) } else { t.fillPath() }
+                        if evenOdd { t.fillPath(using: .evenOdd) } else { t.fillPath() }
                     }
                 }
-            case "stroke":
+            case DrawOp.stroke:
                 paint { t in
                     applyShadow(t); setStrokePaint(t)
-                    if let g = st.stroke as? [String: Any] { paintGradient(t, g, clipTo: path, stroke: true) }
+                    if let g = st.stroke.gradient { paintGradient(t, g, clipTo: path, stroke: true) }
                     else { t.addPath(path); t.strokePath() }
                 }
-            case "clip":
+            case DrawOp.clip:
                 c.addPath(path)
-                if (o["rule"] as? String) == "evenodd" { c.clip(using: .evenOdd) } else { c.clip() }
-            case "fillRect":
-                let r = CGRect(x: d(o, "x"), y: d(o, "y"), width: d(o, "w"), height: d(o, "h"))
+                if rec.evenOdd(i, 1) { c.clip(using: .evenOdd) } else { c.clip() }
+            case DrawOp.fillRect:
+                let r = CGRect(x: d(1), y: d(2), width: d(3), height: d(4))
                 paint { t in
                     applyShadow(t); setFillPaint(t)
-                    if let g = st.fill as? [String: Any] { paintGradient(t, g, clipTo: CGPath(rect: r, transform: nil), stroke: false) }
+                    if let g = st.fill.gradient { paintGradient(t, g, clipTo: CGPath(rect: r, transform: nil), stroke: false) }
                     else { t.fill(r) }
                 }
-            case "strokeRect":
+            case DrawOp.strokeRect:
+                let r = CGRect(x: d(1), y: d(2), width: d(3), height: d(4))
                 paint { t in
                     applyShadow(t); setStrokePaint(t)
-                    t.stroke(CGRect(x: d(o, "x"), y: d(o, "y"), width: d(o, "w"), height: d(o, "h")))
+                    t.stroke(r)
                 }
-            case "clearRect":
-                c.clear(CGRect(x: d(o, "x"), y: d(o, "y"), width: d(o, "w"), height: d(o, "h")))
-            case "fillText", "strokeText":
-                let stroke = op == "strokeText"
+            case DrawOp.clearRect:
+                c.clear(CGRect(x: d(1), y: d(2), width: d(3), height: d(4)))
+            case DrawOp.fillText, DrawOp.strokeText:        // [s, x, y, maxWidth]
+                let stroke = op == DrawOp.strokeText
                 // a gradient style paints THROUGH the glyphs (they become the clip)
-                let grad = (stroke ? st.stroke : st.fill) as? [String: Any]
+                let grad = (stroke ? st.stroke : st.fill).gradient
+                let text = rec.str(i, 1), at = CGPoint(x: d(2), y: d(3))
                 paint { t in
                     applyShadow(t)
-                    drawText(o["text"] as? String ?? "", at: CGPoint(x: d(o, "x"), y: d(o, "y")),
-                             state: st, in: t, stroke: stroke,
+                    drawText(text, at: at, state: st, in: t, stroke: stroke,
                              gradient: grad.map { g in { ctx in paintGradient(ctx, g, clipTo: nil, stroke: false) } })
                 }
-            case "drawImage":
+            case DrawOp.drawImage:                          // [h, sx, sy, sw, sh, dx, dy, dw, dh]
                 // the handle is the bridge's own (the Mac env's <img> shim
                 // carries it); the source rect is bitmap pixels, y-DOWN from
                 // the top as canvas states it — and `CGImage.cropping(to:)`
                 // takes its rect from the image's TOP-left too, so it passes
                 // straight through (mirroring it cut the wrong band)
-                guard let full = bridge.image(Int(d(o, "h"))) else { break }
-                let sw = d(o, "sw"), sh = d(o, "sh")
-                let src = CGRect(x: d(o, "sx"), y: d(o, "sy"), width: sw, height: sh)
+                guard let full = bridge.image(Int(d(1))) else { break }
+                let src = CGRect(x: d(2), y: d(3), width: d(4), height: d(5))
                 let whole = src == CGRect(x: 0, y: 0, width: CGFloat(full.width), height: CGFloat(full.height))
                 guard let img = whole ? full : full.cropping(to: src) else { break }
-                let dst = CGRect(x: d(o, "dx"), y: d(o, "dy"), width: d(o, "dw"), height: d(o, "dh"))
+                let dst = CGRect(x: d(6), y: d(7), width: d(8), height: d(9))
                 paint { t in
                     applyShadow(t)
                     t.saveGState()
@@ -530,12 +525,6 @@ enum DrawReplay {
         return ci
     }
 
-    private static func roundRadii(_ v: Any?) -> [CGFloat] {
-        if let n = v as? NSNumber { return [CGFloat(n.doubleValue)] }
-        if let a = v as? [NSNumber] { return a.map { CGFloat($0.doubleValue) } }
-        return [0]
-    }
-
     private static func roundedPath(_ r: CGRect, _ radii: [CGFloat]) -> CGPath {
         let all = radii.count == 1 ? Array(repeating: radii[0], count: 4) : radii
         let tl = all.count > 0 ? all[0] : 0, tr = all.count > 1 ? all[1] : tl
@@ -559,12 +548,12 @@ enum DrawReplay {
         guard !text.isEmpty else { return }
         let f = TextEngine.nsFont(TextEngine.parse(st.font))
         var attrs: [NSAttributedString.Key: Any] = [.font: f]
-        if let s = st.fill as? String, let col = CSSColor.parse(s) { attrs[.foregroundColor] = col }
+        if let s = st.fill.color, let col = CSSColor.parse(s) { attrs[.foregroundColor] = col }
         if st.letterSpacing != 0 { attrs[.kern] = st.letterSpacing }
         // STROKED text strokes the outline in strokeStyle at lineWidth; it does not
         // fill. Core Text takes that from the context's text drawing mode.
         if stroke {
-            if let s = st.stroke as? String, let col = CSSColor.parse(s) { c.setStrokeColor(col.cgColor) }
+            if let s = st.stroke.color, let col = CSSColor.parse(s) { c.setStrokeColor(col.cgColor) }
             c.setLineWidth(st.lineWidth)
             c.setTextDrawingMode(.stroke)
             // Core Text strokes in the run's own colour (black by default) unless
@@ -646,13 +635,20 @@ enum DrawReplay {
 /// strings (colorToCss), so this covers exactly what it emits: #rgb, #rrggbb,
 /// #rrggbbaa, rgb()/rgba(), and the named set the language allows.
 enum CSSColor {
+    // reached from main and from the runtime thread (DrawReplay.bitmap), so
+    // one lock guards the cache
     private static var cache: [String: NSColor] = [:]
+    private static let lock = NSLock()
 
     static func parse(_ s: String) -> NSColor? {
-        if let c = cache[s] { return c }
+        lock.lock()
+        if let c = cache[s] { lock.unlock(); return c }
+        lock.unlock()
         guard let c = compute(s) else { return nil }
+        lock.lock()
         if cache.count > 1024 { cache.removeAll() }
         cache[s] = c
+        lock.unlock()
         return c
     }
 

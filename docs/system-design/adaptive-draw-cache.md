@@ -126,8 +126,9 @@ about not holding what cannot be seen.
 and strokes, gradient layers, and **shadows** on the shape layer — and the render
 server rasterizes those under any transform, exact at every scale with nothing
 to cache. What it cannot express (text, focal radials, filters) goes to a Core
-Graphics raster, and that bitmap is made at the **composed density** the runtime
-hands over at rest (`RASTERSCALE`), so it too is exact under a view scale.
+Graphics raster, made on the runtime thread (`MacHost.drawRaster`) at the
+**composed density** the visibility feed reports at rest, so it too is exact
+under a view scale; main only shows the bitmap.
 Filters run through Core Image with the radius carried across unscaled; shadow
 offsets are negated into CA's y-up space; conic gradients are swept without
 antialiasing between tiling wedges. Per-op conformance against Chrome is 30 of
