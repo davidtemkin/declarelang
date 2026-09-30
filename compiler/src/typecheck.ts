@@ -1,5 +1,5 @@
 // typecheck — the tsc-over-{ }-bodies phase (APPROACH §5). The scaffold
-// (scaffold.ts) turns the component schemas into an ambient TypeScript surface;
+// (scaffold.ts) turns the class schemas into an ambient TypeScript surface;
 // this module appends a CHECK-BLOCK per resolved `{ }` body and runs stock tsc
 // over the whole, then maps each TS diagnostic back to a `.declare` LINE through
 // the diagnostics mechanism (diagnostics.ts, code DECLARE6001). HOST-AGNOSTIC: it
@@ -59,7 +59,7 @@ import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas } from "../../runtime/dist/check.js";
 import { resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText } from "./scaffold.js";
-import { attrType, descendsFrom, SCHEMAS, type ComponentSchema } from "../../runtime/dist/schema.js";
+import { attrType, descendsFrom, SCHEMAS, type ClassSchema } from "../../runtime/dist/schema.js";
 import { declaredType, type AttrType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 
@@ -349,10 +349,10 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         // is a property test — `Array.isArray` does NOT narrow the other arm out
         // of a readonly tuple union, so the corpus idiom is `"width" in …`.
         if (/readonly \[Stroke \| null/.test(m[2])) {
-          return `'${m[1]}' is not a member of a stroke — the slot holds one Stroke on all four sides OR four of them, ` +
+          return `'${m[1]}' is not a member of a stroke — the attribute holds one Stroke on all four sides OR four of them, ` +
             `so ask which before reading into it: { v.stroke && "width" in v.stroke ? v.stroke.width : 0 }`;
         }
-        // "declare it" is only advice on a COMPONENT, where a declaration is
+        // "declare it" is only advice on a CLASS, where a declaration is
         // the fix. On a primitive (a typed parameter's `number`, a `string`)
         // there is nothing to declare — the name is simply wrong, or the
         // parameter's written type is.
@@ -373,7 +373,7 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
     case 2540:
       m = msg.match(/Cannot assign to '(.+?)'/s);
       if (m?.[1] === "value") return `'value' is read-only — data changes through the verbs: set(path, v) writes one place, set([], v) replaces the whole document, insert/removeAt/move reshape arrays; a source's value changes by arrival (fetch/reload)`;
-      if (m !== null) return `'${m[1]}' is read-only — a fact the component maintains; write the thing it derives from, not the fact`;
+      if (m !== null) return `'${m[1]}' is read-only — a fact the class maintains; write the thing it derives from, not the fact`;
       return msg;
     case 1308:
       return `a { } body is synchronous — there is no 'await' (and no async handler). A request is a DataSource: its fetch() sends it, the screen derives from .value / .loading / .failed, and work that must follow the reply goes in its onLoad() — a POST and then a write is a DataSource with method = "POST" whose onLoad does the write`;
@@ -467,7 +467,7 @@ class CaseEmitter {
   private instType = new Map<Element, string>();
 
   constructor(
-    private readonly schemas: Readonly<Record<string, ComponentSchema>>,
+    private readonly schemas: Readonly<Record<string, ClassSchema>>,
     /** The program's schema declarations (typed data) — record-slot decl
      *  resolution and the Dataset `.value` narrowing ask these. */
     shapes: readonly SchemaDecl[] = []
@@ -576,7 +576,7 @@ class CaseEmitter {
       members.push(`  readonly children: ${exact ? `${[...childTypes][0]}[]` : "any[]"};`);
     }
     for (const d of el.decls) {
-      // A declared attribute may be typed by a COMPONENT CLASS (`w: Menu = null`),
+      // A declared attribute may be typed by a CLASS CLASS (`w: Menu = null`),
       // not only by the value vocabulary — same fallback program-schema's
       // checkDecl makes, or this path would silently under-report the slot as
       // `any` and a typo through it would compile.
@@ -824,7 +824,7 @@ class CaseEmitter {
 /** A slot's TypeScript type, resolved through the schema chain (the value
  *  check's teeth). Unknown slots — a typo — fall to `unknown`; the TS2339 that
  *  names the missing property is the real report. */
-function tsSlotType(schemas: Readonly<Record<string, ComponentSchema>>, tag: string, slot: string): string {
+function tsSlotType(schemas: Readonly<Record<string, ClassSchema>>, tag: string, slot: string): string {
   const schema = schemas[tag];
   if (schema === undefined) return "unknown";
   const t = attrType(schema, slot);

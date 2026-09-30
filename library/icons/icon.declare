@@ -25,7 +25,7 @@ class SparkIcon extends Icon [
 
 Overriding a **method** is how a subclass refines an icon — a subclass cannot
 re-declare a child it inherits (the compiler refuses it) — so the shape lives in
-`draw` and everything adjustable is a slot.
+`draw` and everything adjustable is an attribute.
 
 ### Size changes the drawing, not the shape
 
@@ -85,7 +85,7 @@ menu row's check inverting on the hot row) simply sets it.
 
 ## ink
 The mark's colour. Follows the provided `textColor`, so an icon beside a muted
-label goes muted on its own. **The trap: that slot falls back to black platform-wide**,
+label goes muted on its own. **The trap: that attribute falls back to black platform-wide**,
 so an icon in a context that never states a text colour renders black and vanishes on a
 dark surface. State `ink` unless you know the context sets one — `IconHost` does it for
 every icon built by name.
@@ -166,7 +166,7 @@ The size the built icon takes — a **provided value** (a menu row 16, a button 
 defaults to the nearest provided `iconSize`.
 */
 
-class IconHost extends View [
+class IconHost [
     kind: string = "",
 
     // Size from the context: `iconSize` defaults to the nearest provided value
@@ -196,7 +196,7 @@ class IconHost extends View [
     ]
 
 
-class Icon extends View [
+class Icon [
     // The marker a layout keys on, so a control can place its icon without
     // caring which shape it is.
 

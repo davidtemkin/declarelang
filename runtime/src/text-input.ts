@@ -76,7 +76,7 @@ export class TextInput extends Editor {
     // the slot. Surface fill, a 1px line edge that turns accent when the
     // field holds keyboard focus, the theme's controlRadius geometry token.
     const tok = (name: string, fallback: number): number => {
-      // The house field chrome reads the PROVIDED theme (a component-library
+      // The house field chrome reads the PROVIDED theme (a class-library
       // value now — off View); unprovided it is null and the fallbacks below
       // stand in, so a bare, library-free TextInput still renders articulated.
       // Read inside the derives, so a provided theme change re-styles the field.

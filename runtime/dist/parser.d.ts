@@ -68,7 +68,7 @@ export interface Attr {
     bind?: "two";
 }
 /** One parameter of a method signature. `type` is the WRITTEN type name —
- *  resolving it against the value vocabulary (a primitive, or a component
+ *  resolving it against the value vocabulary (a primitive, or a class
  *  class) is the checker's job, exactly as for an attribute declaration's
  *  `type`. Absent means the author wrote a bare name; scaffold emits `any` for
  *  it, which under-reports both typechecking AND dep-extraction (they are one
@@ -77,7 +77,7 @@ export interface Attr {
 export interface Param {
     name: string;
     type?: string;
-    /** Written `c: Menu?` — the value may be absent. A component-typed SLOT is
+    /** Written `c: Menu?` — the value may be absent. A class-typed SLOT is
      *  null-defaulted, so passing one to a non-null parameter is an error; this
      *  is how a method says it accepts that. TypeScript's narrowing then does the
      *  rest: a body that checks (`c != null && c.shown`) reads cleanly, and one
@@ -107,7 +107,7 @@ export interface Method {
     bodyPos: Pos;
 }
 /** `name: Type = default` — declare a NEW typed, reactive attribute on this
- *  component (language §4: "`name = value` *sets*; `name: Type = value`
+ *  class (language §4: "`name = value` *sets*; `name: Type = value`
  *  *declares*"). `type` is the written type name — resolving it against the
  *  value vocabulary is the checker's job, like every other literal meaning.
  *  `def` is null when no default was written ("starts undefined until set"). */
@@ -134,7 +134,7 @@ export type LinkTarget = {
 } | {
     read: string;
 };
-/** A component instance: a tag with attributes, declarations, methods, and
+/** A class instance: a tag with attributes, declarations, methods, and
  *  child instances. `name` is the member name when the instance was written
  *  `name: Type [ … ]` — a named child is a member of its parent (language
  *  §4: "reachable as `bg` / `this.bg`"), null when anonymous. */
@@ -233,7 +233,7 @@ export interface Span {
     start: number;
     end: number;
 }
-/** A top-level `script { … }` block: free TypeScript that is not a component —
+/** A top-level `script { … }` block: free TypeScript that is not a class —
  *  models, helpers, the stateless logic shared across unrelated parts of the
  *  tree (declare-language.md §5's fourth home for code). The body is captured
  *  RAW, exactly like a `Dataset`'s literal body: the parser proves only that
@@ -267,7 +267,7 @@ export interface Program {
     /** The source spans of the `include [ … ]` directives (one per directive) —
      *  what the source-merge excises to emit a self-contained program. */
     includeSpans: Span[];
-    /** The `use [ … ]` keep-list: component NAMES the app may construct by a name
+    /** The `use [ … ]` keep-list: class NAMES the app may construct by a name
      *  static analysis can't trace (create-by-string, instantiation.md §8), so the
      *  build force-includes them — a built-in runtime class, an autoinclude
      *  library, or a developer class alike (one declaration, all three backends).
@@ -311,7 +311,7 @@ export interface Ship {
     inspector: boolean;
 }
 /** Two ship declarations as one — lists unioned, facts OR-ed. A program may
- *  state its block before or after the root, and each included component may
+ *  state its block before or after the root, and each included class may
  *  bring its own. */
 export declare function mergeShip(a: Ship | undefined, b: Ship | undefined): Ship | undefined;
 /** An included file (composition.md §1): a library of top-level declarations
@@ -331,7 +331,7 @@ export interface Library {
     /** A library may carry its OWN `use [ … ]` keep-list (its dynamic deps); the
      *  source-merge folds these into the program's `uses`. */
     uses: string[];
-    /** …and its own `ship [ … ]`, folded the same way (a component that reads
+    /** …and its own `ship [ … ]`, folded the same way (a class that reads
      *  a file or mounts a program says so where it lives). */
     ship?: Ship;
     /** A library may declare its own `script { … }` helpers; the source-merge
@@ -342,7 +342,7 @@ export interface Library {
     scriptFiles?: IncludeRef[];
     scriptFileSpans?: Span[];
 }
-/** Parse a component fragment — one element, no class declarations. The
+/** Parse a class fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through
  *  parseProgram (which build()/render() call). */
 export declare function parse(source: string): Element;

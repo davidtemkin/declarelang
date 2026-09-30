@@ -13,7 +13,7 @@ straight into the transcript — in the blue the original gave your own
 messages.
 */
 
-class ChatPanel extends View [
+class ChatPanel [
     width = 100%, height = 100%,
 
     send() {
@@ -71,29 +71,23 @@ at a time, clicking the open one closes it — over a slide-out form for adding
 another. A row flashes white when that person comes online.
 */
 
-class ContactRow extends View [
+class ContactRow [
     width = 100%,
+
+    // Whether this row is the open one — the list decides, and a click on the
+    // header asks it (`picked`). A change of `open` slides the row to its new
+    // height.
+
     open: boolean = false,
+    picked() { },
     height = { open ? 224 : 34 },
-    slide: Animator [ attribute = height, duration = 333, motion = laszloBoth ],
+    slide: Animator [ attribute = height, to = { classroot.open ? 224 : 34 }, duration = 333, motion = laszloBoth ],
+    trackChanges = ["open"],
+    onChange() { slide.start() },
     clip = true,
 
-    setOpen(on: boolean) {
-        if (on === open) return
-        open = on
-        slide.to = on ? 224 : 34
-        slide.start()
-        },
-
     header: View [ width = 100%, height = 34, fill = #88B29D,
-        // Opening a row closes its siblings; clicking the open row closes it.
-
-        onClick() {
-            for (const sib of classroot.parent.children) {
-                if (sib !== classroot) sib.setOpen(false)
-                }
-            classroot.setOpen(!classroot.open)
-            },
+        onClick() { classroot.picked() },
         edgeT: View [ width = 100%, height = 1, fill = #B0DEC9 ],
         edgeL: View [ width = 1, height = 34, fill = #B0DEC9 ],
         edgeB: View [ y = 33, width = 100%, height = 1, fill = #568A70 ],
@@ -150,7 +144,7 @@ class ContactRow extends View [
     ]
 
 
-class ContactsPanel extends View [
+class ContactsPanel [
     width = 100%, height = 100%,
     formOpen: boolean = false,
 
@@ -257,6 +251,12 @@ class ContactsPanel extends View [
     */
 
     scrollPos: number = 0,
+
+    // the open contact, by user: one row open at a time, and clicking the
+    // open one closes it
+
+    openUser: string = "",
+
     contentH() -> number { return Math.max(1, list.rows.height) },
     maxScroll() -> number { return Math.max(0, contentH() - list.height) },
     scrollList(dy: number) { scrollPos = Math.max(0, Math.min(maxScroll(), scrollPos + dy)) },
@@ -270,14 +270,16 @@ class ContactsPanel extends View [
         rows: View [ x = 0, y = { -classroot.scrollPos }, width = 100%,
             datapath = { app.contactsData.value },
             layout: SimpleLayout [ axis = y ],
-            ContactRow [ datapath = :contacts[] ]
+            ContactRow [ datapath = :contacts[], open = { classroot.openUser == :user },
+                picked() { classroot.openUser = classroot.openUser == :user ? "" : "" + :user }
+                ]
             ]
         ],
 
     /*
     ### The scrollbar
 
-    A classic one, drawn to the component the original mounts here — the stock
+    A classic one, drawn to the widget the original mounts here — the stock
     `<scrollbar axis="y">` from `runtime/components/lz/vscrollbar.lzx`, tinted
     sage. An arrow at each end; a light thumb, proportional to how much of the
     list is visible, carrying a ribbed gripper down its middle; and two track
@@ -381,21 +383,21 @@ transport between them — and the transport is one class serving both.
 Nothing here is a media widget. The scrubber's position, the time readout, the
 load bar and the volume ramp are all derived from `Audio` and `Video`'s own
 attributes — `position`, `duration`, `loaded`, `volume` — which is what those
-components are for: they carry the transport and leave the chrome to the app.
+classes are for: they carry the transport and leave the chrome to the app.
 */
 
-class TrackCell extends View [
+class TrackCell [
     width = 68, height = 68,
     kind: string = "audio",
     art: Image [ x = 12, y = 9, width = 40, height = 40, stretches = both,
         source = :imageurl ],
     caption: Text [ y = 50, width = 100%, fontFamily = { app.kroe }, fontSize = 8,
         textColor = #000000, textAlign = center, text = :label ],
-    onClick() { app.stage.popup.show(art, :label, :info, :imageurl, :url, kind) }
+    onClick() { app.stage.popup.show(art, :@, kind) }
     ]
 
 
-class MediaTransport extends View [
+class MediaTransport [
     width = 100%, height = 74,
     idleLabel: string = "Choose a track below.",
 
@@ -414,7 +416,7 @@ class MediaTransport extends View [
 
     info: Text [ y = 5, width = 100%, textAlign = center,
         fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #222222,
-        text = { app.nowPlayingInfo !== "" ? app.nowPlayingInfo : classroot.idleLabel } ],
+        text = { app.nowPlaying != null ? "" + app.nowPlaying.info : classroot.idleLabel } ],
 
     prev: Image [ x = 5, y = 25, width = 18, height = 18,
         source = { pressed ? "resources/img/prevdown.png"
@@ -520,21 +522,21 @@ class MediaTransport extends View [
     ]
 
 
-class MusicPanel extends View [
+class MusicPanel [
     width = 100%, height = 100%, fill = #BB95C0,
 
     // A clip that ends has to clear the want, not just its own state: since
     // `playing` is derived from `mediaWants`, leaving that true would
     // re-assert play the instant the element reported the end.
 
-    song: Audio [ source = { app.nowPlayingUrl },
+    song: Audio [ source = { app.nowAudio != null ? "" + app.nowAudio.url : "" },
         playing = { app.nowPlayingKind === "audio" && app.mediaWants },
         onEnded() { app.mediaWants = false }
         ],
 
     iconWell: Image [ x = 4, y = 3, width = 32, height = 32, stretches = both,
         shadow = shadow(2, 2, 0, #826886),
-        source = { app.nowPlayingIcon } ],
+        source = { app.nowPlaying != null ? "" + app.nowPlaying.imageurl : "" } ],
 
     transport: MediaTransport [ y = 32, player = { song } ],
 
@@ -549,14 +551,14 @@ class MusicPanel extends View [
     ]
 
 
-class VideoPanel extends View [
+class VideoPanel [
     width = 100%, height = 100%, fill = #BB95C0,
 
     // black behind the picture only; the transport band below stays mauve
 
     backing: View [ width = 100%, height = { parent.height - 74 - 65 }, fill = #000000 ],
 
-    reel: Video [ source = { app.nowPlayingVideoUrl }, muted = false,
+    reel: Video [ source = { app.nowVideo != null ? "" + app.nowVideo.url : "" }, muted = false,
         playing = { app.nowPlayingKind === "video" && app.mediaWants },
         height = { parent.height - 74 - 65 },
         width = { this.height * 240 / 135 },

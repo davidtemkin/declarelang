@@ -5,7 +5,7 @@ import { Node } from "./node.js";
  *  compiled Declare body, typed by the checker, not by TypeScript here. */
 type Handler = (arg: unknown) => void;
 type Channel = readonly [member: string, subscribe: (fn: Handler) => () => void];
-/** The shared half of every source component: at init, wire each channel whose
+/** The shared half of every source class: at init, wire each channel whose
  *  handler this instance actually declares; at discard, drop them all. Nothing
  *  subscribes for a handler nobody wrote — pay-per-use, like every other member
  *  in the language. */

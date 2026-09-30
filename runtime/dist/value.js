@@ -257,7 +257,7 @@ const DECLARED_TYPES = {
     // and an Inset's four start at the TOP), and only a kind carries that to the
     // scaffold and from there to the reference.
     Inset: { kind: "inset" },
-    // The records door (planes.md §4 — components arrange records): a slot
+    // The records door (planes.md §4 — classes arrange records): a slot
     // holding an ARRAY of records (`items`), a plain OBJECT record, or a VIEW
     // reference (`opener`). Literal defaults are null-only — structured values
     // arrive from `{ }` bindings and runtime writes; the names stay precise
@@ -372,7 +372,7 @@ function parseLiteral(type, lit) {
             // One value, or four clockwise — the house pattern (a Radius's four are
             // corners from the top-left, an Inset's edges from the top). On a view's
             // own attribute a bare list is routed around coercion like every list
-            // slot (check.ts / instantiate.ts); inside a component-valued member —
+            // slot (check.ts / instantiate.ts); inside a class-valued member —
             // `layout: SimpleLayout [ padding = [ 8, 12, 16, 20 ] ]` — this IS the
             // path, so the four-item form is admitted here too.
             if (lit.kind === "number")
@@ -417,7 +417,7 @@ function parseLiteral(type, lit) {
                 if (lit.kind === "string" && type.tokens.includes(lit.value))
                     return ok(lit.value);
                 if (lit.kind === "ident" && type.tokens.includes(lit.name)) {
-                    return fail(diag `one of ${members} — a literal union's member is written in quotes, in a slot as in { }: "${lit.name}"`);
+                    return fail(diag `one of ${members} — a literal union's member is written in quotes, as a bare value as in { }: "${lit.name}"`);
                 }
                 return fail(diag `one of ${members}`);
             }
@@ -432,19 +432,19 @@ function parseLiteral(type, lit) {
             // Vowel-aware article: R7's Axis is the first enum that needs "an".
             return fail(diag `${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""})`);
         case "fn":
-            // Like a component slot: `null` is the one literal form ("no callback").
+            // Like a class slot: `null` is the one literal form ("no callback").
             // A real function arrives by assignment from a { } body, never as a
             // literal in the declarative layer.
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
             return fail(diag `a function ${type.written}, or null for none`);
-        case "component":
+        case "class":
             // `null` is the one literal form ("no layout"); the instance form is
             // the member shape `layout: SimpleLayout [ … ]`, which never reaches
-            // coercion (check.ts routes it to the component-value path).
+            // coercion (check.ts routes it to the class-value path).
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
-            return fail(diag `a ${type.of} component (a member like 'layout: SimpleLayout [ … ]'), or null for none`);
+            return fail(diag `a ${type.of} (a member like 'layout: SimpleLayout [ … ]'), or null for none`);
         case "cursor":
             // `null` is the one coercible form ("no cursor"); `:path` and `{ }`
             // are standing relationships check.ts routes before coercion.
@@ -474,11 +474,11 @@ function parseLiteral(type, lit) {
             // checked against the TARGET's schema at the element walk (check.ts).
             if (lit.kind === "ident" && lit.name !== "null")
                 return ok(lit.name);
-            return fail(diag `a slot name written as a bare token (like height or x)`);
+            return fail(diag `an attribute name written as a bare token (like height or x)`);
         case "record":
             // A DATA record (schema-typed, `sel: Task = null`): null is the one
             // literal form — the slot may be empty before anything feeds it, exactly
-            // like a component slot. A token record (Theme) arrives as a named theme
+            // like a class slot. A token record (Theme) arrives as a named theme
             // (`theme = Cupertino` — an ident routed and resolved before coercion), a
             // `{ }` binding, or an inline `Theme [ … ]` record.
             if (type.data === true) {
@@ -583,7 +583,7 @@ function warnBadColor(c) {
     const hex = /^#([0-9a-fA-F]{6})$/.exec(key);
     // one sentence, one code: the form the value should have taken is a hole,
     // itself a diagnostic sentence, never a concatenation the strip would skip
-    const form = hex ? diag `write 0x${hex[1].toUpperCase()}` : diag `0xRRGGBB (named colors are bare-slot vocabulary only)`;
-    console.error(diag `[Declare] a color slot received ${JSON.stringify(key)} (a ${typeof c}) — inside { } a color is a NUMBER: ${form}. Nothing was painted.`);
+    const form = hex ? diag `write 0x${hex[1].toUpperCase()}` : diag `0xRRGGBB (named colors are bare-value vocabulary only)`;
+    console.error(diag `[Declare] a color attribute received ${JSON.stringify(key)} (a ${typeof c}) — inside { } a color is a NUMBER: ${form}. Nothing was painted.`);
 }
 //# sourceMappingURL=value.js.map

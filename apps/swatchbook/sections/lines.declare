@@ -5,20 +5,6 @@ A paragraph's leading, alignment and clamp; a single line's box; baseline
 alignment across faces and sizes. Rules mark each text box's measured edges.
 */
 
-script {
-    function lineLeading(): Record<string, unknown>[] {
-        return cross({ lh: [0, 0.8, 1, 1.2, 1.5, 2], size: [12, 18] },
-            (r) => "lineHeight " + (r.lh === 0 ? "natural" : r.lh) + " · " + r.size + "px")
-    }
-    function lineAlign(): Record<string, unknown>[] {
-        return cross({ align: ["left", "center", "right"], wrap: [true, false] },
-            (r) => r.align + (r.wrap ? " · wraps" : " · one line"))
-    }
-    function lineClamp(): Record<string, unknown>[] {
-        return cross({ clamp: [1, 2, 3], align: ["left", "center", "right"] }, (r) => r.clamp + " line" + (r.clamp > 1 ? "s" : "") + " · " + r.align)
-    }
-    }
-
 
 class LeadSwatch extends Swatch [ name = :name,
     top: View [ x = 10, y = 8, width = 192, height = 1, fill = #2E6FE066 ],
@@ -50,16 +36,31 @@ class LinesSection extends Section [ title = "Lines",
     tabs = { [ ({ id: "leading", label: "Leading" }), ({ id: "align", label: "Align" }), ({ id: "clamp", label: "Clamp" }),
                ({ id: "box", label: "Box" }), ({ id: "baseline", label: "Baseline" }) ] },
     sub = "leading",
+
+    // this section's rows, by sub-page, built from its axes
+
+    lineLeading() -> array {
+        return cross({ lh: [0, 0.8, 1, 1.2, 1.5, 2], size: [12, 18] },
+            (r) => "lineHeight " + (r.lh === 0 ? "natural" : r.lh) + " · " + r.size + "px")
+        },
+    lineAlign() -> array {
+        return cross({ align: ["left", "center", "right"], wrap: [true, false] },
+            (r) => r.align + (r.wrap ? " · wraps" : " · one line"))
+        },
+    lineClamp() -> array {
+        return cross({ clamp: [1, 2, 3], align: ["left", "center", "right"] }, (r) => r.clamp + " line" + ((r.clamp as number) > 1 ? "s" : "") + " · " + r.align)
+        },
+    rows: Dataset [ contents = { { lineLeading: classroot.lineLeading(), lineAlign: classroot.lineAlign(), lineClamp: classroot.lineClamp() } } ],
     SubHead [ visible = { app.matrix }, text = "Leading" ],
-    Grid [ visible = { classroot.showing("leading") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("leading") }, datapath = { classroot.rows.value },
         LeadSwatch [ datapath = :lineLeading[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Align" ],
-    Grid [ visible = { classroot.showing("align") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("align") }, datapath = { classroot.rows.value },
         AlignSwatch [ datapath = :lineAlign[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Clamp" ],
-    Grid [ visible = { classroot.showing("clamp") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("clamp") }, datapath = { classroot.rows.value },
         ClampSwatch [ datapath = :lineClamp[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Box" ],

@@ -128,12 +128,19 @@ const wakeAll = (container) => {
 /** Wake every cell registered inside `v` — the readers of a region being
  *  replaced or removed. Proportional to the OLD subtree, which is exactly
  *  the region that changed. */
-function wakeTree(v) {
+function wakeTree(v, data) {
     if (!isContainer(v))
+        return;
+    // a derived dataset (`data`) wakes only what it made: a record it held from
+    // a source did not change by leaving it, and the source's readers — its own
+    // computation among them — must not wake for it. A row reading that record
+    // THROUGH the derived dataset also tracks the slot that held it (read), so
+    // it wakes with the container it sat in.
+    if (data !== undefined && foreign(data, v))
         return;
     wakeAll(v);
     for (const k of Object.keys(v))
-        wakeTree(v[k]);
+        wakeTree(v[k], data);
 }
 function tagTree(data, v, path) {
     if (!isContainer(v))
@@ -141,6 +148,42 @@ function tagTree(data, v, path) {
     TAGS.set(v, { data, path });
     for (const k of Object.keys(v))
         tagTree(data, v[k], [...path, k]);
+}
+// ── Derived datasets hold their sources' records ────────────────────────────
+// A derived dataset (`contents = { … }`) usually SELECTS records — filter,
+// sort, group, slice — and wraps them in containers its code made. A record it
+// selected already lives in its source and stays there: the derived dataset
+// refers to it without re-tagging it, so its region cells are the source's,
+// a read through either dataset tracks the same cell, and a write through the
+// derived dataset goes to the source (Dataset.home). What its code MADE — a
+// copy, a group wrapper, a summary, a new array — belongs to the derived
+// dataset and is read-only: the next recompute would replace a write there.
+/** The datasets whose value is computed by `contents`. */
+const DERIVED = new WeakSet();
+/** A container another dataset owns (it arrived there first). */
+const foreign = (data, v) => {
+    if (!isContainer(v))
+        return false;
+    const t = TAGS.get(v);
+    return t !== undefined && t.data !== data;
+};
+/** Land `v` in the derived dataset `data` at `path`, returning what to store:
+ *  a tracked view unwraps to the record it views (a projection built from a
+ *  `.value` read holds the source's records, never the wrappers); a record
+ *  that already lives in another dataset stays home, untagged; everything
+ *  else — what the code made — is tagged to `data`, its children landed the
+ *  same way. */
+function adoptTree(data, v, path) {
+    v = unwrapValue(v);
+    if (!isContainer(v) || foreign(data, v))
+        return v;
+    TAGS.set(v, { data, path });
+    for (const k of Object.keys(v)) {
+        const c = v[k], raw = adoptTree(data, c, [...path, k]);
+        if (raw !== c)
+            v[k] = raw;
+    }
+    return v;
 }
 /** Own-key read — data lookups must never climb prototypes (the R2 own-key
  *  discipline: a field named "constructor" is data, not Object.prototype). */
@@ -210,6 +253,11 @@ export class Dataset extends Node {
         let cur = unwrapValue(this.value); // the machinery navigates the RAW tree (tracked views are the { } boundary's) // tracked: whole-value replacement wakes every reader
         let container = null;
         let key = "";
+        // in a derived dataset, the last slot of ITS OWN a walk passed through
+        // before entering a source's record: a reader of that record through this
+        // dataset rides the slot too, so replacing what sits there wakes it
+        let edge = null, edgeKey = "";
+        const derived = DERIVED.has(this);
         for (const seg of toSegs(path)) {
             if (!isContainer(cur)) {
                 cur = undefined;
@@ -218,9 +266,21 @@ export class Dataset extends Node {
             container = cur;
             key = seg;
             cur = getOwn(cur, seg);
+            if (derived && edge === null && foreign(this, cur)) {
+                edge = container;
+                edgeKey = seg;
+            }
         }
-        if (isTracking() && container !== null)
+        if (isTracking() && container !== null) {
             cellAt(container, key).track();
+            if (edge !== null && edge !== container)
+                cellAt(edge, edgeKey).track();
+            // a source's LIST held here: its membership and order change in the
+            // source (insert/remove/move wake every cell on the array), so a reader
+            // of the list through this dataset — a replicator — rides one of them
+            if (derived && Array.isArray(cur) && foreign(this, cur))
+                cellAt(cur, "length").track();
+        }
         return cur;
     }
     // ── The mutation API — THE structural-mutation authoring surface (D7,
@@ -245,6 +305,11 @@ export class Dataset extends Node {
         // arrival. (Field report 2026-08-21: this threw advice to "assign
         // .value", which the typechecker refuses as read-only — a dead end.)
         if (toSegs(path).length === 0) {
+            if (DERIVED.has(this) && isContainer(unwrapValue(this.value))) {
+                const h = homeOf(this, unwrapValue(this.value), [], "set");
+                h.data.set(h.path, v);
+                return;
+            }
             if (this.schema !== null) {
                 const err = validateDoc(v, this.schema);
                 if (err !== null)
@@ -255,6 +320,11 @@ export class Dataset extends Node {
         }
         const segs = this.segs(path);
         const { chain, container, key: at } = this.locate(segs);
+        if (DERIVED.has(this)) {
+            const h = homeOf(this, container, segs, "set");
+            h.data.set([...h.path, at], v);
+            return;
+        }
         // `/-` append: resolve to the real index so the tag, the wake, and the
         // write all speak the element's actual location.
         const key = at === "-" && Array.isArray(container) ? String(container.length) : at;
@@ -280,6 +350,11 @@ export class Dataset extends Node {
     insert(path, index, v) {
         v = unwrapValue(v); // never store a tracked view
         const { arr, chain, segs } = this.array(path);
+        if (DERIVED.has(this)) {
+            const h = homeOf(this, arr, segs, "insert");
+            h.data.insert(h.path, index, v);
+            return;
+        }
         const werr = this.writeError(segs, v, "insert");
         if (werr !== null) {
             throw new DeclareError(`'${showPath(segs)}' refuses this insert — ${werr} (the write is held to the dataset's schema)`);
@@ -291,7 +366,11 @@ export class Dataset extends Node {
     }
     /** Remove (and return) the element at `index` of the array at `path`. */
     removeAt(path, index) {
-        const { arr, chain } = this.array(path);
+        const { arr, chain, segs } = this.array(path);
+        if (DERIVED.has(this)) {
+            const h = homeOf(this, arr, segs, "removeAt");
+            return h.data.removeAt(h.path, index);
+        }
         const [removed] = arr.splice(index, 1);
         wakeAll(arr);
         this.wakeChain(chain);
@@ -306,7 +385,12 @@ export class Dataset extends Node {
     move(path, from, to) {
         if (from === to)
             return;
-        const { arr, chain } = this.array(path);
+        const { arr, chain, segs } = this.array(path);
+        if (DERIVED.has(this)) {
+            const h = homeOf(this, arr, segs, "move");
+            h.data.move(h.path, from, to);
+            return;
+        }
         const [item] = arr.splice(from, 1);
         arr.splice(to, 0, item);
         wakeAll(arr);
@@ -412,7 +496,9 @@ export class Dataset extends Node {
     adopt(v) {
         const next = unwrapValue(v);
         const old = unwrapValue(this.value);
-        if (isContainer(old) && isContainer(next) && old !== next) {
+        // merge only into this dataset's own tree: a whole value taken from a
+        // source (`contents = { app.raw.value }`) is that source's, never merged into
+        if (isContainer(old) && isContainer(next) && old !== next && !foreign(this, old) && !foreign(this, next)) {
             if (Array.isArray(old) && Array.isArray(next)) {
                 const r = mergeRows(this, old, next, [], []);
                 if (r === true)
@@ -443,7 +529,10 @@ defineAttributes(Dataset, {
                 setBound(d, "value", raw);
                 return;
             }
-            tagTree(d, v, []);
+            if (DERIVED.has(d))
+                adoptTree(d, v, []);
+            else
+                tagTree(d, v, []);
         },
         // a TRACKED reader gets the tracking view (see trackedView above);
         // untracked readers — handlers, methods — keep the raw tree
@@ -455,7 +544,7 @@ defineAttributes(Dataset, {
     // recompute tags the new tree and wakes every `:path` reader and replicator,
     // exactly as a wholesale `.value` replacement does. `contents` itself is
     // never read back (nothing tracks it); it is the author-facing write slot.
-    contents: { def: null, push: (d, v) => { d.adopt(v); } },
+    contents: { def: null, push: (d, v) => { DERIVED.add(d); d.adopt(v); } },
 });
 /** STRUCTURAL MERGE for a derived dataset's recompute (2026-09-12, from the
  *  Murmur run-2 profile: one appended message re-ran every constraint in a
@@ -480,10 +569,13 @@ function mergeTree(data, old, next, path, chain) {
     let structural = false;
     const nextKeys = Object.keys(next);
     for (const k of nextKeys) {
-        const a = getOwn(old, k), b = getOwn(next, k);
+        const a = getOwn(old, k), b = unwrapValue(getOwn(next, k));
         if (Object.is(a, b))
             continue;
-        if (Array.isArray(a) && Array.isArray(b)) {
+        // a record or list selected from a source is never merged into or from: it
+        // is the source's, so a different one here is a replacement
+        const mine = !foreign(data, a) && !foreign(data, b);
+        if (mine && Array.isArray(a) && Array.isArray(b)) {
             const r = mergeRows(data, a, b, [...path, k], [...chain, [old, k]]);
             if (r === true)
                 continue; // rows merged in place, order and membership unchanged
@@ -500,15 +592,14 @@ function mergeTree(data, old, next, path, chain) {
             }
             // r === false: not a keyed list — falls through to the wholesale landing below
         }
-        else if (isContainer(a) && isContainer(b) && mergeTree(data, a, b, [...path, k], [...chain, [old, k]]))
+        else if (mine && isContainer(a) && isContainer(b) && mergeTree(data, a, b, [...path, k], [...chain, [old, k]]))
             continue;
         // a changed leaf, or a container whose shape changed: land the new value here
         const had = Object.prototype.hasOwnProperty.call(old, k);
-        old[k] = b;
-        tagTree(data, b, [...path, k]);
+        old[k] = adoptTree(data, b, [...path, k]);
         wake(old, k);
         if (isContainer(a))
-            wakeTree(a);
+            wakeTree(a, data);
         if (!had)
             structural = true;
         for (const [c, ck] of chain)
@@ -520,7 +611,7 @@ function mergeTree(data, old, next, path, chain) {
             delete old[k];
             wake(old, k);
             if (isContainer(a))
-                wakeTree(a);
+                wakeTree(a, data);
             structural = true;
         }
     if (structural) {
@@ -562,31 +653,37 @@ function mergeRows(data, old, next, path, chain) {
     const merged = new Array(next.length);
     let structural = old.length !== next.length;
     for (let i = 0; i < next.length; i++) {
-        const nv = next[i];
+        const nv = unwrapValue(next[i]);
         const k = keyOf(nv);
         if (k === null || seen.has(k))
             return false;
         seen.add(k);
         const ov = byKey.get(k);
         const at = [...path, String(i)];
-        if (ov !== undefined) {
-            if (!mergeTree(data, ov, nv, at, [...chain, [old, String(i)]]))
+        if (ov !== undefined && (ov === nv || (!foreign(data, ov) && !foreign(data, nv)))) {
+            if (ov !== nv && !mergeTree(data, ov, nv, at, [...chain, [old, String(i)]]))
                 return false;
             if (ov !== old[i]) {
                 structural = true;
-                tagTree(data, ov, at);
-            } // moved: re-tag its place
+                if (!foreign(data, ov))
+                    tagTree(data, ov, at);
+            } // moved: re-tag its place (a source's record keeps its own)
             merged[i] = ov;
         }
         else {
-            tagTree(data, nv, at);
-            merged[i] = nv;
+            // new here — or a source's record replaced by another with the same key,
+            // whose readers here held the old one
+            if (ov !== undefined) {
+                byKey.delete(k);
+                wakeTree(ov, data);
+            }
+            merged[i] = adoptTree(data, nv, at);
             structural = true;
         }
     }
     for (const [k, ov] of byKey)
         if (!seen.has(k)) {
-            wakeTree(ov);
+            wakeTree(ov, data);
             structural = true;
         }
     // A structural change yields a NEW array — the rows keep their objects, the
@@ -894,6 +991,36 @@ function resolveTracked(data, path) {
     }
     return cur;
 }
+/** Where a write to `container` (in the DERIVED dataset `data`, at `segs`) goes:
+ *  the source it was selected from, at its current place there — or a
+ *  refusal, when its own code made it. The home's path is
+ *  re-verified and, when the source's structure shifted, healed by identity
+ *  (writes are rare; the walk is paid only then). */
+function homeOf(data, container, segs, verb) {
+    const t = TAGS.get(container);
+    const name = authoredName(data) ?? "this dataset";
+    if (t === undefined || t.data === data) {
+        throw new DeclareError(`'${showPath(segs)}' refuses this ${verb} — ${name} computes its value with contents, and this part was made by that computation, not taken from a source; the next recompute would replace it. Write the source dataset instead (what a row needs beyond its record, compute in the row)`);
+    }
+    if (resolveRaw(t.data, t.path) !== container) {
+        const healed = locateByIdentity(unwrapValue(t.data.value), container, []);
+        if (healed === null) {
+            throw new DeclareError(`'${showPath(segs)}' refuses this ${verb} — the record ${name} holds is no longer in ${authoredName(t.data) ?? "its source"}`);
+        }
+        t.path = healed;
+    }
+    return t;
+}
+/** Navigate `path` in the raw tree, untracked. */
+function resolveRaw(data, path) {
+    let cur = unwrapValue(data.value);
+    for (const seg of path) {
+        if (!isContainer(cur))
+            return undefined;
+        cur = getOwn(cur, seg);
+    }
+    return cur;
+}
 function locateByIdentity(cur, target, path) {
     if (cur === target)
         return path;
@@ -957,7 +1084,7 @@ export function coerceData(type, v, def) {
             // house token records (Theme) never arrive from data
             return type.data === true && typeof v === "object" && !Array.isArray(v) ? v : def;
         case "cursor":
-        case "component":
+        case "class":
         case "fn":
         case "stroke":
         case "outline":

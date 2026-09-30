@@ -1,16 +1,16 @@
-<!-- nav: Custom components and drawing -->
+<!-- nav: Your own views and drawing -->
 <!-- part: Building -->
 
-# Custom components and drawing
+# Your own views and drawing
 
 Everything you have used so far — [`Button`](declare-docs:Button), [`Slider`](declare-docs:Slider), [`Table`](declare-docs:Table), [`Menu`](declare-docs:Menu) — is written in
 Declare, in `library/`, in the language you have been reading. No library class name
 appears anywhere in the compiler or the runtime; the compiler cannot tell a library
-component from yours, because it never asks. This chapter is what it takes to build a
+class from yours, because it never asks. This chapter is what it takes to build a
 piece that behaves like the ones you were given: a control that answers the keyboard, a
 mark that draws itself, an arrangement nobody wrote for you.
 
-> **The library is ordinary Declare that happens to ship in the box. Your components are
+> **The library is ordinary Declare that happens to ship in the box. Your classes are
 > its equals.**
 
 ## View or Control
@@ -18,7 +18,8 @@ mark that draws itself, an arrangement nobody wrote for you.
 One question decides the base class: **does it have a value the user changes, and a
 place in the keyboard focus order?**
 
-- **`extends View`** — structure: a card, a badge, a panel. Most of what you write.
+- **A plain class** (no `extends`, so a `View`) — structure: a card, a badge, a panel.
+  Most of what you write.
 - **`extends Control`** — a control: it takes focus, answers Space and Enter, and has
   interaction states that respect `disabled`.
 
@@ -65,7 +66,7 @@ hover tracking, and the focus ring that travels to it was declared by nobody.
 - **`theme`**: `Control` declares an attribute named `theme` that reads the provided theme,
   which is why the body above writes `theme.control` directly. A class that extends
   [`View`](declare-docs:View) reads `provided("theme").control` instead. Either way, read tokens rather than
-  literal colors, and the component follows any app's theme and dark mode.
+  literal colors, and the view follows any app's theme and dark mode.
 
 A method you declare in a subclass replaces the base's method of the same name, handlers
 included. To keep the base's behavior as well, call it — `super.press()` — before your
@@ -91,10 +92,10 @@ subclass cannot declare a child the base already has — the compiler refuses it
 when a subclass needs a child to look or behave differently, the base exposes that as
 an attribute the child reads (a color, a label, a size) or as a method to override.
 
-## The contract is the one you already know
+## Delivering a control's value
 
 `press()` above calls `input()`; it does **not** write `value`. That is the value pattern
-of [Controls](declare-docs:guide:controls@contract-one-the-value-pattern) from the other side. The use site constrained
+of [Controls](declare-docs:guide:controls@the-value-pattern) from the other side. The use site constrained
 `value = { app.n }` and overrode `input`, so the control's edit lands in `app.n` and comes
 back down through the constraint. Had `press` written `value` directly, it would have
 been assigning to a constrained attribute, and the runtime would have refused it.
@@ -104,7 +105,7 @@ been assigning to a constrained attribute, and the runtime would have refused it
 Written that way, a control works both standalone and owned by the app, with no branch —
 which is why every library control does it.
 
-## Drawing what attributes cannot say
+## Custom drawing
 
 Boxes, rounding, strokes and shadows cover most of an interface. For the rest — a gauge
 arc, a sparkline, a mark no font will give you — a view defines a **[`draw`](declare-docs:View.method.draw)** method and
@@ -169,7 +170,7 @@ Canvas2D's argument shapes) and draws nothing until the bitmap arrives. Reading
 `Image [ visible = false, source = … ]` is the usual holder.
 
 **Text in a drawing.** `d.fillText` and `d.strokeText` take a style after the position — a
-`style` bundle ([Text and fonts](declare-docs:guide:text@reusing-a-look-a-class-or-a-named-style)) or an inline record with
+`style` bundle ([Text and fonts](declare-docs:guide:text@reusing-a-text-style)) or an inline record with
 [`Text`](declare-docs:Text)'s attribute names — and `measureText` measures with the same record, so a drawing
 can size a run before painting it:
 
@@ -193,7 +194,7 @@ inherited value, so a measurement means the same wherever it is taken. When a dr
 should match the text around it, ask for the face in force with
 `providedTextStyle(overrides?)`.
 
-## Drawing your own marks: Icon
+## Icons
 
 Small single-color marks are **drawn, not typed**. Font glyphs may be missing, render
 differently per platform, and are the wrong shapes — a `✓` sits on the baseline and reads
@@ -238,7 +239,7 @@ family. `ink` follows the provided text color, so an icon beside a muted label g
 on its own; where no text color is provided it falls back to black, so state `ink` when
 you are not sure. A control names its icons by class — `Button [ iconLeft = "PlusIcon" ]`.
 
-## An arrangement nobody wrote for you
+## Writing a layout
 
 [`SimpleLayout`](declare-docs:SimpleLayout), [`WrappingLayout`](declare-docs:WrappingLayout) and [`ResponsiveLayout`](declare-docs:ResponsiveLayout) are [`Layout`](declare-docs:Layout) subclasses, each
 essentially one method. The method is `place()`: return one box per child the layout
@@ -275,9 +276,9 @@ less its padding. Note the one permission a layout has that a constraint does no
 layout may aggregate over its children** — total their widths, find the longest row —
 because arranging children is its job. For an arrangement that glides between two
 layouts, extend [`TweenLayout`](declare-docs:TweenLayout) instead
-([Animated arrangements](declare-docs:guide:animated-arrangements@a-layout-that-glides)).
+([Animated arrangements](declare-docs:guide:animated-arrangements@tweenlayout)).
 
-## The runtime tools the library uses
+## Runtime services for overlays
 
 When you build something the library has no equivalent for — a popover, a palette, a
 window — you reach for the same short list its own overlays use:
@@ -298,8 +299,8 @@ closed your panel reopens it.
 
 [`createView`](declare-docs:View.method.createView) is for the rare structure that has no data to drive it; a collection comes
 from replication, which reconciles, keys and removes for you. A view you create is yours
-to [`discard()`](declare-docs:View.method.discard). A component you only ever name as a string needs `use [ Name ]` at the top
-level, or a production build, which drops components nothing names, leaves it out.
+to [`discard()`](declare-docs:View.method.discard). A class you only ever name as a string needs `use [ Name ]` at the top
+level, or a production build, which drops classes nothing names, leaves it out.
 
 ---
 
@@ -307,7 +308,7 @@ The proof is readable: open `library/`. [`Checkbox`](declare-docs:Checkbox) is u
 `SimpleLayout` is one method, and nothing in either is a move you cannot make.
 
 **What you can now do:** build a control on equal terms with the library's, extend a
-component and still reach its base, draw what attributes cannot say, author crisp icons,
+class and still reach its base, draw what attributes cannot say, author crisp icons,
 write a layout, and use the runtime services overlays need.
 
 [Next: **Menus, dialogs and overlays** →](declare-docs:guide:overlays)

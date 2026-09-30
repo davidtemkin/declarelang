@@ -38,7 +38,7 @@
 // into one reconcile, whose Surface work lands in the backends' single rAF.
 import { diag } from "./errors.js";
 import { Node } from "./node.js";
-import { View, inheritedCursor, onDiscard, markWindowedBlock, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree, nodeLabel } from "./view.js";
+import { View, inheritedCursor, onDiscard, markWindowedBlock, setRowIndex, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree, nodeLabel } from "./view.js";
 import { Constraint, Cell } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, armDivergence, nodeDiverged } from "./attributes.js";
 import { splitPath, isSelective } from "./path-plan.js";
@@ -311,9 +311,9 @@ export class Replicator {
             ...element,
             attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) &&
                 !(a.name === "key" && a.value.kind === "path") &&
-                a.name !== "virtualize"),
+                a.name !== "virtualize" && a.name !== "classFor"),
         };
-        this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.match(), (m) => this.reconcile(m));
+        this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.classify(this.match()), (m) => this.reconcile(m));
     }
     /** The live policy answer. A literal is itself; a `{ }` constraint is called
      *  — and callers must only do that from inside match(), so the read lands in
@@ -342,7 +342,7 @@ export class Replicator {
     }
     /** The realized instances, each with its LOGICAL index — the live
      *  window under the mechanism's name-of-art, spoken as `realized` so the
-     *  API never collides with Window-the-component. */
+     *  API never collides with Window-the-class. */
     realized() {
         const out = [];
         this.views.forEach((view, i) => out.push({ view, index: this.winStart + i }));
@@ -414,6 +414,18 @@ export class Replicator {
      *  nothing — zero instances, re-matched the moment the region becomes an
      *  array. A SELECTIVE plan (`:rows[2:8][]`) replicates the selection
      *  itself — windowing over selections is a later increment. */
+    // ── The class of a record. A block builds every record as the template's
+    //    own class; `classFor` (class-for.ts, KindedReplicator) overrides these
+    //    four so each record is built as the class its body names, and an
+    //    instance serves only records of its own class. ─────────────────────
+    /** Tag the matched nodes with their classes (runs inside the match). */
+    classify(m) { return m; }
+    /** The class matched node `i` is built as. */
+    kindAt(_m, _i) { return ""; }
+    /** The class a live instance was built as. */
+    kindOf(_v) { return ""; }
+    /** Build an instance of class `kind`. */
+    build(_kind) { return this.make(this.template, this.classroot); }
     match() {
         const none = { data: null, nodes: [], items: [], arrayPath: null, logical: 0, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
         const base = inheritedCursor(this.parent);
@@ -676,8 +688,10 @@ export class Replicator {
             else
                 pool.set(id, [e]);
         });
-        const take = (q) => {
-            const e = q?.find((p) => !p.used);
+        // An instance serves only a record of its own class: a record whose
+        // class changed gets a new instance of its new class.
+        const take = (q, kind) => {
+            const e = q?.find((p) => !p.used && this.kindOf(p.view) === kind);
             if (e === undefined)
                 return undefined;
             e.used = true;
@@ -691,7 +705,7 @@ export class Replicator {
         // miss happens, and costs only the miss set. A declared `key` IS the
         // identity, so keyed blocks never consult it.
         let byContent = null;
-        const contentMatch = (value) => {
+        const contentMatch = (value, kind) => {
             if (this.keyPath !== null || typeof value !== "object" || value === null)
                 return undefined;
             if (byContent === null) {
@@ -710,31 +724,33 @@ export class Replicator {
                 }
             }
             const k = safeStringify(value);
-            return k === null ? undefined : take(byContent.get(k));
+            return k === null ? undefined : take(byContent.get(k), kind);
         };
         const next = [];
         const fresh = new Map();
         const misses = [];
-        for (const node of nodes) {
-            const id = this.idOf(node.value);
-            let v = take(pool.get(id));
+        const matched = new Set();
+        nodes.forEach((node, i) => {
+            const id = this.idOf(node.value), kind = this.kindAt(m, i);
+            matched.add(id);
+            let v = take(pool.get(id), kind);
             if (v === undefined) {
                 const kept = this.retained.get(id);
-                if (kept !== undefined) {
+                if (kept !== undefined && this.kindOf(kept) === kind) {
                     this.retained.delete(id);
                     v = kept;
                 }
             }
             if (v === undefined)
-                v = contentMatch(node.value);
+                v = contentMatch(node.value, kind);
             if (v !== undefined) {
                 next.push(v);
             }
             else {
                 next.push(null);
-                misses.push({ slot: next.length - 1, id });
+                misses.push({ slot: next.length - 1, id, kind });
             }
-        }
+        });
         // RECYCLING (the §5 deferred move, forced by the scrub bench: a fast
         // scrollbar drag was rebuilding ~2,000 DOM nodes — ~70ms/frame): a
         // window shift's LEAVERS re-point at its ARRIVERS instead of a
@@ -748,14 +764,22 @@ export class Replicator {
         const recycledNewMember = [];
         if (windowed && misses.length > 0) {
             const harvest = [];
+            // only leavers some arriver of their class wants are harvested
+            const want = new Map();
+            for (const miss of misses)
+                want.set(miss.kind, (want.get(miss.kind) ?? 0) + 1);
             for (const [id, q] of pool) {
                 if (harvest.length >= misses.length)
                     break;
                 for (const e of q) {
                     if (e.used || harvest.length >= misses.length)
                         continue;
+                    const k = this.kindOf(e.view);
+                    if ((want.get(k) ?? 0) === 0)
+                        continue;
                     const stillMember = !dataChanged || this.indexCache?.has(id) === true;
                     if (!subtreeDiverged(e.view) && !focusedWithin(e.view)) {
+                        want.set(k, want.get(k) - 1);
                         // DEPARTURE RECYCLING (the tracker filter change: a narrowed
                         // projection sends most of the window's records away and brings
                         // as many new ones — a discard+construct round trip per row,
@@ -778,11 +802,18 @@ export class Replicator {
             // arriver leaves every instance at the child index it already holds. A
             // window that misses ENTIRELY (a dragged scrollbar) is then a pure
             // re-point — the re-link below sees an unchanged set and moves nothing.
-            let hAt = 0;
+            // A leaver serves only an arriver of its own class.
             for (const miss of misses) {
-                const r = hAt < harvest.length ? harvest[hAt++] : this.unpark();
+                const j = harvest.findIndex((h) => h !== null && this.kindOf(h) === miss.kind);
+                let r;
+                if (j >= 0) {
+                    r = harvest[j];
+                    harvest[j] = null;
+                }
+                else
+                    r = this.unpark(miss.kind);
                 if (r === undefined)
-                    break;
+                    continue;
                 next[miss.slot] = r;
                 recycled.push(r);
                 if (!this.inited.has(miss.id))
@@ -792,7 +823,7 @@ export class Replicator {
         for (const miss of misses) {
             if (next[miss.slot] !== null)
                 continue;
-            const made = this.make(this.template, this.classroot);
+            const made = this.build(miss.kind);
             // The membership-anchored lifecycle (D5): a member whose init
             // already fired gets a silent reconstruction — onInit is once per
             // record-membership, never per physical construct.
@@ -811,6 +842,7 @@ export class Replicator {
         // wave dies at the attribute layer's gate.
         next.forEach((v, i) => {
             setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
+            setRowIndex(v, rowIndexOf(nodes[i].path));
         });
         // Provisions land BEFORE attach (instantiate's partitionPending): attach
         // first-runs a Text's face push, and a face read that missed a provision
@@ -836,7 +868,8 @@ export class Replicator {
                 if (e.used)
                     continue;
                 const stillMember = windowed && (!dataChanged || this.indexCache?.has(id) === true);
-                if (stillMember && (subtreeDiverged(e.view) || focusedWithin(e.view))) {
+                // a record now shown by an instance of another class is not kept twice
+                if (stillMember && !matched.has(id) && (subtreeDiverged(e.view) || focusedWithin(e.view))) {
                     this.retained.set(id, e.view);
                 }
                 else {
@@ -925,6 +958,7 @@ export class Replicator {
                 const idx = this.indexCache?.get(id);
                 if (idx !== undefined && data !== null) {
                     setBound(v, "datapath", data.cursorAt([...m.arrayPath, String(idx)]));
+                    setRowIndex(v, idx);
                 }
             }
         }
@@ -1129,10 +1163,14 @@ export class Replicator {
         this.spares.push(v);
     }
     /** Take a spare back into service (visible again; the caller re-points). */
-    unpark() {
-        const v = this.spares.pop();
-        if (v !== undefined)
-            setBound(v, "visible", true);
+    unpark(kind) {
+        let i = this.spares.length - 1;
+        while (i >= 0 && this.kindOf(this.spares[i]) !== kind)
+            i--;
+        if (i < 0)
+            return undefined;
+        const [v] = this.spares.splice(i, 1);
+        setBound(v, "visible", true);
         return v;
     }
     leadingAnchor() {
@@ -1157,6 +1195,11 @@ export class Replicator {
     last() {
         return this.allViews.length > 0 ? this.allViews[this.allViews.length - 1] : lastNodeOf(this.prev);
     }
+}
+/** A record's index in its array: the last step of its path. */
+function rowIndexOf(path) {
+    const n = Number(path[path.length - 1]);
+    return Number.isInteger(n) ? n : -1;
 }
 function lastNodeOf(prev) {
     if (prev === null)

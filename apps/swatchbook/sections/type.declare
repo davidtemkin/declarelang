@@ -4,64 +4,6 @@
 A face and everything a run can do to it, one line of sample per swatch.
 */
 
-script {
-    const TYPE_BASE = { family: "sans-serif", weight: "normal", italic: false, size: 22, tracking: 0,
-        transform: "none", caps: false, numerals: "normal", figures: "normal", zero: false,
-        under: false, strike: false, outline: 0, shadow: "none", fill: "none", color: "text", sample: "Handgloves 0123" }
-
-    function typeFaces(): Record<string, unknown>[] {
-        return over(TYPE_BASE, cross({ family: ["sans-serif", "serif", "monospace", "system-ui", "Helvetica Neue", "Georgia", "Avenir Next", "roboto"],
-                                      weight: ["light", "normal", "medium", "semibold", "bold"] },
-            (r) => r.family + " · " + r.weight))
-    }
-    function typeItalic(): Record<string, unknown>[] {
-        return over({ ...TYPE_BASE, italic: true }, cross({ family: ["sans-serif", "serif", "monospace", "system-ui", "Georgia", "roboto"], weight: ["normal", "bold"] },
-            (r) => r.family + " · " + r.weight + " · italic"))
-    }
-    function typeSizes(): Record<string, unknown>[] {
-        const sizes = [9, 11, 13, 16, 20, 28, 40, 64].map((s) => ({ size: s, sample: s >= 40 ? (s >= 60 ? "Hg" : "Hg 01") : s >= 28 ? "Hg 0123" : "Handgloves 0123", name: "size " + s }))
-        const track = [-2, -0.5, 1, 3, 6].map((t) => ({ tracking: t, sample: "Handgloves", name: "tracking " + t }))
-        return over(TYPE_BASE, [...sizes, ...track])
-    }
-    function typeCase(): Record<string, unknown>[] {
-        return over(TYPE_BASE, [
-            { transform: "uppercase", sample: "Handgloves", name: "uppercase" },
-            { transform: "lowercase", sample: "HANDGLOVES", name: "lowercase" },
-            { transform: "capitalize", sample: "hand and wool", name: "capitalize" },
-            { caps: true, name: "small caps" },
-            { caps: true, weight: "bold", name: "small caps · bold" },
-            { numerals: "lining", sample: "Year 1987", name: "lining figures" },
-            { numerals: "oldstyle", sample: "Year 1987", name: "old-style figures" },
-            { figures: "tabular", sample: "1111 0000 7777", name: "tabular figures" },
-            { figures: "proportional", sample: "1111 0000 7777", name: "proportional figures" },
-            { zero: true, family: "monospace", sample: "0O 100 0.50", name: "slashed zero" },
-            { numerals: "oldstyle", figures: "tabular", sample: "1987 2026", name: "old-style · tabular" },
-            { family: "roboto", figures: "tabular", sample: "1111 0000", name: "roboto · tabular" },
-        ])
-    }
-    function typeDecoration(): Record<string, unknown>[] {
-        return over(TYPE_BASE, [
-            { under: true, name: "underline" }, { strike: true, name: "strike" },
-            { under: true, strike: true, name: "underline · strike" },
-            { under: true, size: 40, sample: "Hgy", name: "underline · 40" },
-            { outline: 1, weight: "bold", size: 32, sample: "Outline", name: "outline 1" },
-            { outline: 3, weight: "bold", size: 32, sample: "Outline", name: "outline 3" },
-            { shadow: "soft", name: "shadow · soft" }, { shadow: "hard", name: "shadow · hard" },
-            { shadow: "glow", color: "white", weight: "bold", name: "shadow · glow" },
-            { outline: 2, shadow: "soft", weight: "bold", size: 32, sample: "Both", name: "outline · shadow" },
-        ])
-    }
-    function typeFill(): Record<string, unknown>[] {
-        return over({ ...TYPE_BASE, weight: "bold", size: 30, sample: "Filled" }, [
-            { fill: "solid", name: "solid fill" }, { fill: "linear", name: "linear fill" },
-            { fill: "vertical", name: "vertical fill" }, { fill: "radial", name: "radial fill" },
-            { fill: "conic", name: "conic fill" }, { fill: "linear", outline: 1, name: "fill · outline" },
-            { fill: "linear", shadow: "soft", name: "fill · shadow" }, { fill: "linear", italic: true, name: "fill · italic" },
-            { color: "accent", weight: "normal", name: "text colour" }, { color: "translucent", weight: "normal", name: "translucent colour" },
-        ])
-    }
-    }
-
 
 class TypeSwatch extends Swatch [ name = :name,
     t: Text [ x = 12, y = { (classroot.stageH - this.height) / 2 }, width = 188, wrap = false,
@@ -86,28 +28,87 @@ class TypeSection extends Section [ title = "Type",
     tabs = { [ ({ id: "faces", label: "Faces" }), ({ id: "italic", label: "Italic" }), ({ id: "sizes", label: "Size" }),
                ({ id: "case", label: "Figures" }), ({ id: "decoration", label: "Decoration" }), ({ id: "fill", label: "Fill" }) ] },
     sub = "faces",
+
+    // this section's rows, by sub-page, built from its axes
+
+    typeBase() -> object { return { family: "sans-serif", weight: "normal", italic: false, size: 22, tracking: 0,
+        transform: "none", caps: false, numerals: "normal", figures: "normal", zero: false,
+        under: false, strike: false, outline: 0, shadow: "none", fill: "none", color: "text", sample: "Handgloves 0123" } },
+
+    typeFaces() -> array {
+        return over(this.typeBase(), cross({ family: ["sans-serif", "serif", "monospace", "system-ui", "Helvetica Neue", "Georgia", "Avenir Next", "roboto"],
+                                      weight: ["light", "normal", "medium", "semibold", "bold"] },
+            (r) => r.family + " · " + r.weight))
+        },
+    typeItalic() -> array {
+        return over({ ...this.typeBase(), italic: true }, cross({ family: ["sans-serif", "serif", "monospace", "system-ui", "Georgia", "roboto"], weight: ["normal", "bold"] },
+            (r) => r.family + " · " + r.weight + " · italic"))
+        },
+    typeSizes() -> array {
+        const sizes = [9, 11, 13, 16, 20, 28, 40, 64].map((s) => ({ size: s, sample: s >= 40 ? (s >= 60 ? "Hg" : "Hg 01") : s >= 28 ? "Hg 0123" : "Handgloves 0123", name: "size " + s }))
+        const track = [-2, -0.5, 1, 3, 6].map((t) => ({ tracking: t, sample: "Handgloves", name: "tracking " + t }))
+        return over(this.typeBase(), [...sizes, ...track])
+        },
+    typeCase() -> array {
+        return over(this.typeBase(), [
+            { transform: "uppercase", sample: "Handgloves", name: "uppercase" },
+            { transform: "lowercase", sample: "HANDGLOVES", name: "lowercase" },
+            { transform: "capitalize", sample: "hand and wool", name: "capitalize" },
+            { caps: true, name: "small caps" },
+            { caps: true, weight: "bold", name: "small caps · bold" },
+            { numerals: "lining", sample: "Year 1987", name: "lining figures" },
+            { numerals: "oldstyle", sample: "Year 1987", name: "old-style figures" },
+            { figures: "tabular", sample: "1111 0000 7777", name: "tabular figures" },
+            { figures: "proportional", sample: "1111 0000 7777", name: "proportional figures" },
+            { zero: true, family: "monospace", sample: "0O 100 0.50", name: "slashed zero" },
+            { numerals: "oldstyle", figures: "tabular", sample: "1987 2026", name: "old-style · tabular" },
+            { family: "roboto", figures: "tabular", sample: "1111 0000", name: "roboto · tabular" },
+        ])
+        },
+    typeDecoration() -> array {
+        return over(this.typeBase(), [
+            { under: true, name: "underline" }, { strike: true, name: "strike" },
+            { under: true, strike: true, name: "underline · strike" },
+            { under: true, size: 40, sample: "Hgy", name: "underline · 40" },
+            { outline: 1, weight: "bold", size: 32, sample: "Outline", name: "outline 1" },
+            { outline: 3, weight: "bold", size: 32, sample: "Outline", name: "outline 3" },
+            { shadow: "soft", name: "shadow · soft" }, { shadow: "hard", name: "shadow · hard" },
+            { shadow: "glow", color: "white", weight: "bold", name: "shadow · glow" },
+            { outline: 2, shadow: "soft", weight: "bold", size: 32, sample: "Both", name: "outline · shadow" },
+        ])
+        },
+    typeFill() -> array {
+        return over({ ...this.typeBase(), weight: "bold", size: 30, sample: "Filled" }, [
+            { fill: "solid", name: "solid fill" }, { fill: "linear", name: "linear fill" },
+            { fill: "vertical", name: "vertical fill" }, { fill: "radial", name: "radial fill" },
+            { fill: "conic", name: "conic fill" }, { fill: "linear", outline: 1, name: "fill · outline" },
+            { fill: "linear", shadow: "soft", name: "fill · shadow" }, { fill: "linear", italic: true, name: "fill · italic" },
+            { color: "accent", weight: "normal", name: "text colour" }, { color: "translucent", weight: "normal", name: "translucent colour" },
+        ])
+        },
+    rows: Dataset [ contents = { { typeFaces: classroot.typeFaces(), typeItalic: classroot.typeItalic(), typeSizes: classroot.typeSizes(), typeCase: classroot.typeCase(), typeDecoration: classroot.typeDecoration(), typeFill: classroot.typeFill() } } ],
     SubHead [ visible = { app.matrix }, text = "Faces" ],
-    Grid [ visible = { classroot.showing("faces") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("faces") }, datapath = { classroot.rows.value },
         TypeSwatch [ datapath = :typeFaces[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Italic" ],
-    Grid [ visible = { classroot.showing("italic") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("italic") }, datapath = { classroot.rows.value },
         TypeSwatch [ datapath = :typeItalic[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Size" ],
-    Grid [ visible = { classroot.showing("sizes") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("sizes") }, datapath = { classroot.rows.value },
         TypeSwatch [ datapath = :typeSizes[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Case & figures" ],
-    Grid [ visible = { classroot.showing("case") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("case") }, datapath = { classroot.rows.value },
         TypeSwatch [ datapath = :typeCase[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Decoration" ],
-    Grid [ visible = { classroot.showing("decoration") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("decoration") }, datapath = { classroot.rows.value },
         TypeSwatch [ datapath = :typeDecoration[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Fill & colour" ],
-    Grid [ visible = { classroot.showing("fill") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("fill") }, datapath = { classroot.rows.value },
         TypeSwatch [ datapath = :typeFill[] ]
         ]
     ]

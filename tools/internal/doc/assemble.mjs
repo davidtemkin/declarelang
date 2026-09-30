@@ -53,7 +53,7 @@ const CHECK = process.argv.includes("--check");
  *  kernel and the library can never encode the same type two ways. */
 const attrTypeTag = (t) =>
   t.kind === "enum" ? (t.name.startsWith('"') ? `union(${t.name})` : `enum(${t.tokens.join("|")})`)
-  : t.kind === "component" ? `component(${t.of})`
+  : t.kind === "class" ? `class(${t.of})`
   : t.kind === "record" ? `record(${t.name})`
   : t.kind;
 
@@ -73,13 +73,13 @@ function schemaSpine() {
 
 /** The LIBRARY tier's schemas, in the same shape as `schemas` — synthesized by
  *  the checker's own `programSchemas()` over the parsed `library/*.declare`
- *  sources, so a component's published attribute surface is the one the checker
+ *  sources, so a class's published attribute surface is the one the checker
  *  enforces, not a hand-listed copy. `library` (tag → file) stays as it is; this
  *  is the surface a tool needs to KNOW that `Button` takes a `label`.
  *
  *  Kept SEPARATE from `schemas` (ruled 2026-07-29) because the tiers differ in
  *  kind: `schemas` is the kernel, read from live code and load-bearing;
- *  library components are Declare source and explicitly scaffolding
+ *  library classes are Declare source and explicitly scaffolding
  *  (composition.md §1a). A consumer that wants either can merge the two; one
  *  that must not confuse them is not forced to.
  *
@@ -137,7 +137,7 @@ function eventSpine() {
 
 /** The TYPE vocabulary a written signature or declaration may name: the
  *  built-in declarable types, plus the reserved value-constructor names a
- *  generated attribute or class name must avoid. (A component class in the
+ *  generated attribute or class name must avoid. (A class in the
  *  program is also legal — that part is per-program, not projectable.) */
 function typeSpine() {
   return { declarable: [...DECLARED_TYPE_NAMES].sort(), reserved: [...RESERVED].sort(), shared: sharedTypes() };
@@ -261,15 +261,15 @@ function sharedTypes() {
   return out;
 }
 
-/** The THEME TOKEN vocabulary, measured rather than asserted. Library components
- *  read `theme.<token>`; a token read BARE is required (miss it and the component
+/** The THEME TOKEN vocabulary, measured rather than asserted. Library classes
+ *  read `theme.<token>`; a token read BARE is required (miss it and the class
  *  breaks), a token always behind a `typeof`/null guard has a built-in fallback
  *  and is tuning. The preset states the required set; the guarded ones are the
  *  extension surface a city theme reaches for.
  *
  *  Derived from the library sources and the SanFrancisco preset — the authored
  *  truth (gen-themes.mjs projects the same presets into the runtime) — so the
- *  documented vocabulary cannot drift from what the components actually consult. */
+ *  documented vocabulary cannot drift from what the classes actually consult. */
 function themeTokenSpine() {
   const files = [...readdirSync(join(ROOT, "library")).filter((f) => f.endsWith(".declare")).map((f) => "library/" + f),
                  ...readdirSync(join(ROOT, "library/icons")).filter((f) => f.endsWith(".declare")).map((f) => "library/icons/" + f)];
@@ -348,7 +348,7 @@ function runtimeErrorSpine() {
 
 function librarySpine() {
   const manifest = JSON.parse(readFileSync(join(ROOT, "library/autoincludes.json"), "utf8"));
-  // Tag -> file only. `$`-prefixed keys are manifest DIRECTIVES, not components
+  // Tag -> file only. `$`-prefixed keys are manifest DIRECTIVES, not classes
   // ($provide is an array of provision rules), and concatenating one onto a path
   // shipped `"library/[object Object],[object Object]"` in the published model.
   return Object.fromEntries(Object.entries(manifest)
@@ -473,7 +473,7 @@ const listDocs = (dir, label) => {
 // the page rather than the raw JSON. This is where the docs consolidation lives.
 function elementDoc(id, ref) {
   const c = ref[id];
-  const kind = c.origin === "library" ? "Component" : c.abstract ? "Abstract element" : "Built-in element";
+  const kind = c.origin === "library" ? "Class" : c.abstract ? "Abstract element" : "Built-in element";
   const link = (n) => (ref[n] ? `[${n}](declare-docs:${n})` : `\`${n}\``);
   const chain = c.chain ?? [c.name];
   const L = [`# ${c.name}`, ""];
@@ -586,7 +586,7 @@ const VOCAB_NOTE = {
   Fill: "what paints a box: a `Color` or a `Gradient`",
   Stroke: "a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke",
   Shadow: "offset, blur and colour — build it with `shadow(dx, dy, blur, c)`",
-  Theme: "a design-token record; see **Theme tokens** for the vocabulary components read",
+  Theme: "a design-token record; see **Theme tokens** for the vocabulary classes read",
   tint: "`tint(color, dark)` — an active tone derived from an accent (22% over the surface), for a theme that overrides the accent.",
   Inspect: "The running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.",
   Cursor: "a datapath's resolved position — `.data` and `.path`",
@@ -919,7 +919,7 @@ const themeTokensDoc = (spine) => {
   const row = (r) => `| \`${r.name}\` | ${r.read.slice(0, 6).join(", ")}${r.read.length > 6 ? ", …" : ""} |`;
   return ["# Theme tokens", "",
     "*The vocabulary the standard library reads off the `theme` provided value. Measured from",
-    "the library sources, so it cannot drift from what the components actually consult.*", "",
+    "the library sources, so it cannot drift from what the classes actually consult.*", "",
     "A `theme` is a plain record, a **provided value**: set it high in the tree and every",
     "descendant reads it with `provided(\"theme\")` until one overrides it. Start from a preset and",
     "spread to change a token — **an empty record is not a theme**, because the library reads",
@@ -931,7 +931,7 @@ const themeTokensDoc = (spine) => {
     `Presets, each with a light record and a \`…Dark\` companion: ${spine.themeTokens.presets.map((p) => `[\`${p}\`](declare-docs:${p})`).join(" · ")}.`, "",
     "## Required — the contract", "",
     `**${t.required.length} tokens are read bare**, with no fallback. A record missing one of these`,
-    "breaks the components that read it, which is why a theme is built from a preset rather than",
+    "breaks the classes that read it, which is why a theme is built from a preset rather than",
     "from scratch.", "",
     "| token | read by |", "|---|---|", ...t.required.map(row), "",
     "## Optional — the tuning surface", "",
@@ -950,7 +950,7 @@ function buildBrowse(dm, spine, types) {
   const ref = dm.reference;
   const cat = (name, children, subtitle = "") => ({ name, subtitle, kind: "category", children });
   const elementLeaf = (id) => ({ name: ref[id].name, subtitle: ref[id].extends ? "extends " + ref[id].extends : "", kind: "element",
-    label: ref[id].origin === "library" ? "Component" : "Built-in element",
+    label: ref[id].origin === "library" ? "Class" : "Built-in element",
     doc: elementDoc(id, ref), preview: preview(ref[id].doc || "") });
   const hydrated = (name, md) => ({ name, subtitle: "", kind: "reference", label: "Reference", doc: md, preview: preview(md) });
   const tenetLeaf = (t) => ({ name: t.name ?? t.title, subtitle: "", kind: "tenet", label: "Tenet", doc: segMd(t.segs), preview: preview(segText(t.segs)) });

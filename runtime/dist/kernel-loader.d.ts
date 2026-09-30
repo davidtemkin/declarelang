@@ -122,7 +122,8 @@ export interface Kernel {
     addRule(target: number, kind: number, flags: number, edges: ArrayLike<number>, body?: number): number;
     /** Views and the built-in visibility rule (kernel.md; view.ts). */
     /** Runtime EXPR rules: code words → their offset, a constant → its index,
-     *  and the cells rules wrote since the last call (for the push sweep). */
+     *  and the cells rules wrote since the last call (for the push sweep) — a
+     *  list the caller owns. */
     addCode(words: ArrayLike<number>): number;
     addConst(v: number): number;
     kdirty(): Uint32Array;

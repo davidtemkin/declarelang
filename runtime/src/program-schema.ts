@@ -15,7 +15,7 @@
 
 import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
 import { DeclareError, diag, insetOrRadiusMessage, type Pos } from "./errors.js";
-import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, TextSchema, RichTextSchema, type ComponentSchema } from "./schema.js";
+import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, TextSchema, RichTextSchema, type ClassSchema } from "./schema.js";
 import { fontObjectHint } from "./font-value.js";
 import { coerce, declaredType, describeLiteral, noteLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
 
@@ -65,12 +65,12 @@ export function structuralReason(name: string): string | null {
  *  until set"). instantiate.ts synthesizes the runtime twin from this. */
 export interface ClassInfo {
   decl: ClassDecl;
-  schema: ComponentSchema;
+  schema: ClassSchema;
   defaults: Record<string, AttrValue | undefined>;
 }
 
 /** Register a program's classes: validate each declaration and produce the
- *  program's schema table — the built-ins plus one ComponentSchema per class,
+ *  program's schema table — the built-ins plus one ClassSchema per class,
  *  chained to its base exactly like the built-ins chain (the R2 "R6 plug-in
  *  shape", now plugged in). Per-PROGRAM on purpose: the global SCHEMAS stays
  *  built-ins only, so two programs' classes can never collide.
@@ -83,28 +83,28 @@ export interface ClassInfo {
  *  contains itself (it could never finish instantiating). */
 export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySet<string> = EMPTY_SHAPES): {
   infos: ClassInfo[];
-  schemas: Record<string, ComponentSchema>;
+  schemas: Record<string, ClassSchema>;
   errors: DeclareError[];
 } {
   const infos: ClassInfo[] = [];
-  const schemas: Record<string, ComponentSchema> = { ...SCHEMAS };
+  const schemas: Record<string, ClassSchema> = { ...SCHEMAS };
   const errors: DeclareError[] = [];
   const isShape = (n: string): boolean => shapes.has(n);
   // Every class NAME up front, so an attribute may be typed by a class declared
-  // later — or by its own (`class Menu [ child: Menu = null ]`, the shape a
-  // submenu chain needs). A component AttrType stores only the name, so no
+  // later — or by its own (`class Menu extends Node [ child: Menu = null ]`, the shape a
+  // submenu chain needs). A class AttrType stores only the name, so no
   // schema has to exist yet; the scaffold emits the classes base-before-derived
   // regardless of source order. `extends` needs the base's ATTRIBUTES to build
   // the chain, so the loop below runs base-before-derived too — by RECURSING
   // into a not-yet-built user base, never by demanding the author sort the file.
   const classNames = new Set(classes.map((c) => c.name));
-  const isComponentName = (n: string): boolean => Object.hasOwn(schemas, n) || classNames.has(n);
+  const isKnownClass = (n: string): boolean => Object.hasOwn(schemas, n) || classNames.has(n);
   // Duplicate names report in FILE order (stable messages), before build order
   // reshuffles anything; later duplicates drop out of the build entirely.
   const byName = new Map<string, ClassDecl>();
   for (const decl of classes) {
     if (Object.hasOwn(SCHEMAS, decl.name) || byName.has(decl.name)) {
-      errors.push(new DeclareError(`there is already a component named '${decl.name}'`, decl.pos));
+      errors.push(new DeclareError(`there is already a class named '${decl.name}'`, decl.pos));
       continue;
     }
     byName.set(decl.name, decl);
@@ -136,7 +136,7 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
       // would bury the real message under position-sorted noise.
       if (!byName.has(decl.base)) {
         errors.push(new DeclareError(
-          `unknown base '${decl.base}' — a class extends a built-in component or a class declared in this program`,
+          `unknown base '${decl.base}' — a class extends a library class or one declared in this program`,
           decl.basePos
         ));
       }
@@ -144,7 +144,7 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
       return; // no schema to chain to; uses of this class report as unknown
     }
     const base = schemas[decl.base];
-    // Any built-in component is a base. A class extends View, Layout, Node,
+    // Any built-in class is a base. A class extends View, Layout, Node,
     // Dataset, Spring, Keys, State — every family alike — and gets the base's
     // attributes and behaviour plus its own declared attributes, constraints
     // and methods; the runtime builds every family through the one class-chain
@@ -153,7 +153,7 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
     // to construct, so a class extends a concrete member of that family.
     if (ABSTRACT_SCHEMAS.has(decl.base)) {
       errors.push(new DeclareError(
-        `'${decl.base}' is an abstract base — it names no component to construct; extend one of its concrete members (${ABSTRACT_CONCRETE[decl.base] ?? "a built-in that descends from it"})`,
+        `'${decl.base}' is an abstract base — it names no class to construct; extend one of its concrete members (${ABSTRACT_CONCRETE[decl.base] ?? "a built-in that descends from it"})`,
         decl.basePos
       ));
       state.set(decl.name, "done");
@@ -163,14 +163,14 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
     const defaults: Record<string, AttrValue | undefined> = {};
     const readOnly: string[] = [];
     for (const d of decl.body.decls) {
-      const r = checkDecl(base, d, decl.name, isComponentName, isShape);
+      const r = checkDecl(base, d, decl.name, isKnownClass, isShape);
       if (!r.ok) { errors.push(r.error); continue; }
       if (Object.hasOwn(attrs, d.name)) continue; // the namespace pass reports the duplicate
       attrs[d.name] = r.type;
       defaults[d.name] = r.value;
       if (d.readOnly) readOnly.push(d.name);
     }
-    const schema: ComponentSchema = { name: decl.name, base, attrs, readOnly };
+    const schema: ClassSchema = { name: decl.name, base, attrs, readOnly };
     schemas[decl.name] = schema;
     infos.push({ decl, schema, defaults });
     state.set(decl.name, "done");
@@ -331,7 +331,7 @@ export type CheckedDecl =
  *  TS member signature). They were separate copies until 2026-09-04, when a
  *  literal union taught to one and not the other fell to assignTypes' `t ===
  *  null` arm, was emitted `readonly … : any`, and made every assignment to it
- *  report "read-only — a fact the component maintains" — a diagnostic blaming
+ *  report "read-only — a fact the class maintains" — a diagnostic blaming
  *  the wrong thing entirely. One function now, so a new type can only be added
  *  once.
  *
@@ -342,7 +342,7 @@ export type CheckedDecl =
  *  test here is exact. */
 export function resolveWrittenType(
   written: string,
-  isComponent: (n: string) => boolean,
+  isClassName: (n: string) => boolean,
   isShape: (n: string) => boolean
 ): AttrType | null {
   const literalUnion = (n: string): AttrType | null => {
@@ -352,31 +352,31 @@ export function resolveWrittenType(
   const arrayOf = (n: string): AttrType | null => {
     if (!n.endsWith("[]")) return null;
     const base = n.slice(0, -2);
-    // the element must itself be a sayable type — a primitive, a component, a
+    // the element must itself be a sayable type — a primitive, a class, a
     // declared schema, or a deeper array; fn-element arrays wait for a need
-    const okBase = declaredType(base) !== null || isComponent(base) || isShape(base) || (base.endsWith("[]") && arrayOf(base) !== null);
+    const okBase = declaredType(base) !== null || isClassName(base) || isShape(base) || (base.endsWith("[]") && arrayOf(base) !== null);
     return okBase ? ({ kind: "array", of: base } as AttrType) : null;
   };
   return declaredType(written)
     ?? literalUnion(written)
     ?? arrayOf(written)
     ?? (written.startsWith("(") ? { kind: "fn", written } as AttrType : null)
-    ?? (isComponent(written) ? { kind: "component", of: written } as AttrType : null)
+    ?? (isClassName(written) ? { kind: "class", of: written } as AttrType : null)
     ?? (isShape(written) ? { kind: "record", name: written, data: true } as AttrType : null);
 }
 
 export function checkDecl(
-  schema: ComponentSchema,
+  schema: ClassSchema,
   d: AttrDecl,
   owner: string = schema.name,
-  /** Is this name a component in the program? A declared attribute may be typed
-   *  by a component class (`child: Menu = null`), not only by the value
+  /** Is this name a class in the program? A declared attribute may be typed
+   *  by a class (`child: Menu = null`), not only by the value
    *  vocabulary — without it a slot holding an instance can say no more than
    *  `View`, and then NO parameter can be typed more precisely than the slot it
-   *  is fed from. The asymmetry was accidental: the `component` AttrType and its
+   *  is fed from. The asymmetry was accidental: the `class` AttrType and its
    *  coercion already existed for schema slots (`layout: Layout`); only the
    *  DECLARATION path could not name one. */
-  isComponent: (n: string) => boolean = () => false,
+  isClassName: (n: string) => boolean = () => false,
   /** Is this name a declared SCHEMA (typed data)? A record slot (`sel: Task
    *  = null`) and an array of records (`picked: Task[]`) are ordinary
    *  declarations whose type is the schema — the projection makes the name
@@ -409,10 +409,10 @@ export function checkDecl(
       d.pos
     );
   }
-  const type = resolveWrittenType(d.type, isComponent, isShape);
+  const type = resolveWrittenType(d.type, isClassName, isShape);
   if (type === null) {
     return err(
-      diag`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a component class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R'`,
+      diag`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R'`,
       d.typePos
     );
   }
@@ -421,7 +421,7 @@ export function checkDecl(
     // A default BINDING (the ruled R6 unlock): a live
     // per-instance fallback — in effect only while nothing provides the
     // slot, so it never contends with any offer (`labelColor: Color =
-    // { theme.buttonText }` is what lets components defer to tokens).
+    // { theme.buttonText }` is what lets classes defer to tokens).
     const e = validateExpr(d.def.src);
     if (e !== null) {
       return err(diag`${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);
@@ -491,15 +491,15 @@ export function checkDecl(
  *  subclass of language §5, in the checker's currency. Validation of the
  *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
 export function withDecls(
-  schema: ComponentSchema,
+  schema: ClassSchema,
   decls: readonly AttrDecl[],
-  isComponent: (n: string) => boolean = () => false,
+  isClassName: (n: string) => boolean = () => false,
   isShape: (n: string) => boolean = () => false
-): ComponentSchema {
+): ClassSchema {
   if (decls.length === 0) return schema;
   const attrs: Record<string, AttrType> = {};
   for (const d of decls) {
-    const r = checkDecl(schema, d, schema.name, isComponent, isShape);
+    const r = checkDecl(schema, d, schema.name, isClassName, isShape);
     if (r.ok && !Object.hasOwn(attrs, d.name)) {
       attrs[d.name] = r.type;
     }
@@ -512,7 +512,7 @@ export function withDecls(
  *  cursor-typed slot — today, View.datapath — is what replicates. */
 export function manyPathOf(
   el: Element,
-  schemas: Readonly<Record<string, ComponentSchema>>
+  schemas: Readonly<Record<string, ClassSchema>>
 ): Attr | null {
   const schema = Object.hasOwn(schemas, el.tag) ? schemas[el.tag] : null;
   if (schema === null) return null;

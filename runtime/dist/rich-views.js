@@ -542,7 +542,7 @@ export function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
                     const d = dirOf(p.text);
                     blockViews.push({ v: t, line, boff: -fm.ascent, run: r, w: p.w, dir: d });
                     // The strike rule, CENTER-anchored ~0.31·size ABOVE the baseline — the
-                    // same font-metric position the Text component and the DOM backend use,
+                    // same font-metric position the Text class and the DOM backend use,
                     // so `~~struck~~` prose lines up across all three. (The old
                     // `-ascent + 0.55·size` sat ~0.1·size too low.) Thickness tracks size
                     // like the Text rule; at prose sizes that is the 1px hairline as before.

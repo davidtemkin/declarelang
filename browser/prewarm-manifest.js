@@ -57,7 +57,7 @@ export const PREWARMED = [
   // the homepage's live demo panels (index.html `demos: […]`): prewarmed, the
   // previews mount the moment the page paints — no compiler download on the path
   // at all. Islands always render on the DOM backend, so render:dom is the one key.
-  { main: "apps/homepage/demos/components.declare", props: { render: "dom" } },
+  { main: "apps/homepage/demos/from-data.declare", props: { render: "dom" } },
   { main: "apps/homepage/demos/reactivity.declare", props: { render: "dom" } },
   { main: "apps/homepage/demos/spring.declare", props: { render: "dom" } },
   { main: "apps/homepage/demos/states.declare", props: { render: "dom" } },

@@ -18,7 +18,7 @@
 // PINNED: test/override-runtime.test.mjs recomputes every list from the
 // actual runtime classes (`Object.getOwnPropertyNames(C.prototype)`, functions
 // only, minus `constructor` and `$`-names) and fails on any drift.
-import { SCHEMAS, RichTextSchema, type ComponentSchema } from "./schema.js";
+import { SCHEMAS, RichTextSchema, type ClassSchema } from "./schema.js";
 
 export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   Node: ["watchChildList", "childListChanged", "appendChild", "insertChild", "removeChild", "discard", "teardown", "childrenMutated", "chainMoved", "structureCellId"],
@@ -95,7 +95,7 @@ export const RUNTIME_FIELDS: Readonly<Record<string, readonly string[]>> = {
 /** Every schema the table can be asked about: the SCHEMAS table plus RichText,
  *  the documented-but-uninstantiable base Markdown and HTMLText share (the
  *  schema chain passes through it, so its methods must sit somewhere). */
-function schemaOf(name: string): ComponentSchema | null {
+function schemaOf(name: string): ClassSchema | null {
   if (name === RichTextSchema.name) return RichTextSchema;
   return Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name] : null;
 }
@@ -106,10 +106,10 @@ const FIELD_CHAIN = new Map<string, ReadonlySet<string>>();
 /** The runtime fields a schema's instances carry — its own and every base's up
  *  the schema chain (RUNTIME_FIELDS). By name for a built-in, or by schema
  *  object for any schema, a program class's included. */
-export function runtimeFieldsOf(schema: string | ComponentSchema): ReadonlySet<string> {
+export function runtimeFieldsOf(schema: string | ClassSchema): ReadonlySet<string> {
   if (typeof schema !== "string") {
     const names = new Set<string>();
-    for (let s: ComponentSchema | null = schema; s !== null; s = s.base) for (const n of RUNTIME_FIELDS[s.name] ?? []) names.add(n);
+    for (let s: ClassSchema | null = schema; s !== null; s = s.base) for (const n of RUNTIME_FIELDS[s.name] ?? []) names.add(n);
     return names;
   }
   let set = FIELD_CHAIN.get(schema);
@@ -127,10 +127,10 @@ export function runtimeFieldsOf(schema: string | ComponentSchema): ReadonlySet<s
  *  (cached; empty for a name that is no schema), or by SCHEMA for any schema
  *  object, a program class's included — it resolves through its bases to the
  *  built-in that implements them. */
-export function runtimeMethodsOf(schema: string | ComponentSchema): ReadonlySet<string> {
+export function runtimeMethodsOf(schema: string | ClassSchema): ReadonlySet<string> {
   if (typeof schema !== "string") {
     const names = new Set<string>();
-    for (let s: ComponentSchema | null = schema; s !== null; s = s.base) for (const n of RUNTIME_METHODS[s.name] ?? []) names.add(n);
+    for (let s: ClassSchema | null = schema; s !== null; s = s.base) for (const n of RUNTIME_METHODS[s.name] ?? []) names.add(n);
     return names;
   }
   let set = CHAIN.get(schema);

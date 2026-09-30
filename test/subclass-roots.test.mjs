@@ -233,7 +233,7 @@ class Live extends EventStream [ url = "https://x.test/live", retry = 3, seen: n
 App [ width = 1, height = 1, live: Live [ ] ]`), []);
     const errs = await errorsOf(`class S extends Stream [ ]\nApp [ width = 1, height = 1 ]`);
     assert.equal(errs.length, 1);
-    assert.match(errs[0], /'Stream' is an abstract base — it names no component to construct; extend one of its concrete members \(EventStream, Socket\)/);
+    assert.match(errs[0], /'Stream' is an abstract base — it names no class to construct; extend one of its concrete members \(EventStream, Socket\)/);
     const media = await errorsOf(`class M extends Media [ ]\nApp [ width = 1, height = 1 ]`);
     assert.match(media[0], /'Media' is an abstract base.*\(Video, Audio\)/);
   });
@@ -255,7 +255,7 @@ App [ width = 1, height = 1, v: View [ g: Glide [ attribute = x, to = 1 ] ] ]`),
     const errs = await errorsOf(`
 class Glide extends Spring [ damping = 30 ]
 App [ width = 1, height = 1, v: View [ g: Glide [ to = 1 ] ] ]`);
-    assert.match(errs[0], /needs 'attribute = <slot>'/);
+    assert.match(errs[0], /needs 'attribute = <name>'/);
   });
   await test("a Dataset subclass without data is refused at the use site, not at the class", async () => {
     const errs = await errorsOf(`
@@ -290,13 +290,13 @@ App [ width = 1, height = 1, v: View [ r: Reveal [ attribute = x, to = 1 ] ] ]`)
 
 // ── The slimmer keeps the base module for a subclass ──────────────────────────
 await (async () => {
-  await test("usedComponents of a Spring subclass includes Spring (the slim registry keeps the animation module)", async () => {
+  await test("usedClasses of a Spring subclass includes Spring (the slim registry keeps the animation module)", async () => {
     const b = await compileProgram(`
 class Reveal extends Spring [ damping = 30 ]
 App [ width = 1, height = 1, v: View [ r: Reveal [ attribute = x, to = 1 ] ] ]`, { stripPos: false });
     assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
-    assert.ok(b.usedComponents.includes("Spring"), `used: ${b.usedComponents.join(",")}`);
-    assert.ok(b.usedComponents.includes("Reveal"));
+    assert.ok(b.usedClasses.includes("Spring"), `used: ${b.usedClasses.join(",")}`);
+    assert.ok(b.usedClasses.includes("Reveal"));
   });
 })();
 

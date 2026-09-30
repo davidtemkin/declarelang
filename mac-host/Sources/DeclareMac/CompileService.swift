@@ -139,7 +139,7 @@ final class CompileService {
     //   1. THE TOOLCHAIN — bundles/version.json's BUILD_ID, which is a content
     //      hash of `bundles/` (the compiler itself), `runtime/dist`, `browser/`
     //      AND `library/` (tools/internal/stamp-version.mjs INPUTS). So every
-    //      auto-included component's source is already covered by this one
+    //      auto-included class's source is already covered by this one
     //      string, and the cache does not re-read the library at all. That is
     //      the difference between validating ~1 file and ~10.
     //   2. THE PROGRAM'S OWN SOURCE, by content hash — not mtime, which a
@@ -378,7 +378,7 @@ final class CompileService {
     /// The one entry point Swift calls. `compileTracked`, not `compile`, because
     /// the dependency closure it returns IS the cache's validation set — the
     /// files the walk actually read, rather than a guess made from the text.
-    /// `trackLibrary: false` leaves library components out of that set on
+    /// `trackLibrary: false` leaves library classes out of that set on
     /// purpose: they are covered wholesale by the toolchain id, so tracking them
     /// would only make every boot re-read and re-hash ten files to learn what
     /// one string already said.

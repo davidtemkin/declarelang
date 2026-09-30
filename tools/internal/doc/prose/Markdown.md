@@ -13,12 +13,12 @@ Markdown [ width = { parent.width }, text = { :body } ]
 stays the characters you typed — with a single exception: a self-closing tag naming a view class
 the program declares is one real **inline view** of that class, flowed in the line (the family's
 `RichText` entry states the whole of it). So a document keeps Markdown's promise that markup is
-text, while still carrying the components your program defines. Its attributes are read and
+text, while still carrying the classes your program defines. Its attributes are read and
 converted by the class's declared types; Markdown has no `unsupported` attribute, so an attribute
 that will not apply is dropped and the document renders on.
 
 ```declare
-class Chip extends View [ label: string = "",
+class Chip [ label: string = "",
     height = 19, width = { this.t.width + 18 }, cornerRadius = 9,
     fill = 0xDDF4E4,
     t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]

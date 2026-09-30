@@ -2,7 +2,7 @@
 //
 //   node inputleak.mjs <url> <W> <H> <out.png>
 //
-// Loads a component-sampler-style app, waits until built+settled, then MOVES the draggable
+// Loads a class-sampler-style app, waits until built+settled, then MOVES the draggable
 // "Frosty" window (id=fw) UP so it covers the two <edittext> fields, settles, and screenshots.
 // BEFORE the kernel change the fields are DOM overlays that float ABOVE the canvas-drawn window
 // (their text leaks on top of the window chrome); AFTER, they are static canvas text the window

@@ -1,7 +1,7 @@
 The list collection, componentized: the selection-bearing, scroll-owning frame around a
 replicated (or written) set of `TableRow` children — the selection model in one
 place, so no app hand-rolls it. Selection is the Table's **value**: `selected` (the
-primary member) and `selection` (all of them, presented order) hold **members** — the
+primary item) and `selection` (all of them, presented order) hold **items** — the
 record for a replicated row, the row view itself for a written one — identified by the
 same convention the reconciler uses (a record's `id`, else the object). `active` is the
 keyboard position, distinct from selection; `selects = "none" | "single" | "multi"`
@@ -21,17 +21,17 @@ the position alone with Space toggling (discontiguous selection by keyboard). Ra
 travel read the **data**, never the instances, so `virtualize = true` on the row
 template composes: a range can cross 500 unmaterialized rows and arrow travel scrolls
 its destination into existence. One tab stop; `input(sel)` delivers when the app owns
-the value (the default writes the slots).
+the value (the default writes the attributes).
 
 ## selected
-The primary selected member, or null — the detail panel's anchor. Reactive.
+The primary selected item, or null — the detail panel's anchor. Reactive.
 
 ## selection
-Every selected member, presented order (null = none). Reactive; assign through the
+Every selected item, presented order (null = none). Reactive; assign through the
 protocol or `input`, never mutated in place.
 
 ## active
-The member the keyboard stands on — moved by arrows, independent of selection (the
+The item the keyboard stands on — moved by arrows, independent of selection (the
 ⌘-walk). Reactive.
 
 ## selects

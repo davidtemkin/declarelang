@@ -42,18 +42,25 @@ The architecture is the example's real subject:
 
 
 /*
-## Market — the model
+## Market — the feed, and what it means
 
-Owns the baked dataset (`marketmap-data.json`: per-stock closes, a share count
-anchored to current caps, sector/industry) and the derived grouping tree. The
-close series travel delta-coded — integer cents, first entry absolute, the
-rest day-over-day changes (see `decodeCloses`) — and are decoded once here, so
-the rest of the program only ever sees dollar prices. Data enters as state
-through `onLoad` — the one place arrival must *cause* rather than merely be
-derived from. Everything else is a pure query over that state.
+The baked dataset itself (`marketmap-data.json`: per-stock closes, a share
+count anchored to current caps, sector/industry), as a class of `DataSource`,
+with everything the program asks of it. The close series travel delta-coded —
+integer cents, first entry absolute, the rest day-over-day changes (see
+`decodeCloses`) — and are decoded once, on arrival, into plain tables the
+layouts read every frame, so the rest of the program only ever sees dollar
+prices. `onLoad` is the one place arrival must *cause* rather than merely be
+derived from. Everything else is a pure query over those tables.
 */
 
-class Market extends Node [
+class Market extends DataSource [
+
+    // beside this program on its own page; beside its home when a host (the
+    // desktop) mounts it as an island and provides that home as `base`
+
+    url = { hostProvided("base", "") + "marketmap-data.json" },
+    auto = true,
 
     stocks: object[] = [],
     days: string[] = [],
@@ -63,27 +70,22 @@ class Market extends Node [
     nDays: number = 0,
     ready: boolean = false,
 
-    // beside this program on its own page; beside its home when a host (the
-    // desktop) mounts it as an island and provides that home as `base`
-
-    src: DataSource [ url = { hostProvided("base", "") + "marketmap-data.json" }, auto = true,
-        onLoad() {
-            const v = this.value as { days: string[], stocks: Stock[],
-                industries: object[], sectors: object[] }
-            const stocks = v.stocks.map(s => ({ ...s, closes: decodeCloses(s.closes) }))
-            classroot.days = v.days
-            classroot.stocks = stocks as unknown as object[]
-            classroot.industries = v.industries
-            classroot.sectors = v.sectors
-            classroot.tree = buildTree(stocks) as unknown as object[]
-            classroot.nDays = v.days.length
-            classroot.ready = true
-            classroot.landed(v.days.length)
-            }
-        ],
+    onLoad() {
+        const v = this.value as { days: string[], stocks: Stock[],
+            industries: object[], sectors: object[] }
+        const stocks = v.stocks.map(s => ({ ...s, closes: decodeCloses(s.closes) }))
+        this.days = v.days
+        this.stocks = stocks as unknown as object[]
+        this.industries = v.industries
+        this.sectors = v.sectors
+        this.tree = buildTree(stocks) as unknown as object[]
+        this.nDays = v.days.length
+        this.ready = true
+        this.landed(v.days.length)
+        },
 
     // the decoded table the view replicates from. Consumers never touch
-    // `src.value` — that is the wire payload, closes still delta-coded.
+    // `value` — that is the wire payload, closes still delta-coded.
 
     tableValue() -> object {
         return { stocks: this.stocks, industries: this.industries, sectors: this.sectors }
@@ -249,7 +251,7 @@ enough — the name gates on its own measured width, so it appears exactly when
 it fits.
 */
 
-class Tile extends View [ cursor = "pointer",
+class Tile [ cursor = "pointer",
 
     pid: string = { :sym },
     slot: object = { rectFor(mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH) as Record<string, Rect>, :sym) },
@@ -294,7 +296,7 @@ cleared by pointer-out events — when the pointer leaves the grid, the derived
 gate drops and every highlight follows.
 */
 
-class SectorBand extends View [ cursor = "pointer", clip = true,
+class SectorBand [ cursor = "pointer", clip = true,
 
     pid: string = { "sector:" + (:id as string) },
     hot: boolean = { app.hotGroup == "sec:" + (:id as string) && app.zoom < 0.05 && app.fieldHover },
@@ -311,7 +313,7 @@ class SectorBand extends View [ cursor = "pointer", clip = true,
     ]
 
 
-class IndustryBand extends View [ cursor = "pointer", clip = true,
+class IndustryBand [ cursor = "pointer", clip = true,
 
     pid: string = { "ind:" + (:id as string) },
     hot: boolean = { app.hotGroup == (:id as string) && app.zoom < 0.05 && app.fieldHover },
@@ -345,7 +347,7 @@ Staged tiles replicate from the roster, so every instance here is on stage (or
 departing mid-drill — `mine` keeps the leavers laid until the morph lands).
 */
 
-class StageTile extends View [ cursor = "pointer", clip = true,
+class StageTile [ cursor = "pointer", clip = true,
     x = -900, y = -900,                             // parked until the layout places it
 
     pid: string = { :sym },
@@ -495,7 +497,7 @@ yellow treatment as the map bands, driven by the same `hotStaged` key the
 staged tiles write, gated on the popup being under the pointer.
 */
 
-class StageBand extends View [ cursor = "pointer", clip = true,
+class StageBand [ cursor = "pointer", clip = true,
     x = -900, y = -900,                             // parked until the layout places it
 
     pid: string = { "stgband:" + (:id as string) },
@@ -528,7 +530,7 @@ Console furniture. A chip flies the map to a date (nearest trading day — LAST
 DAY simply names a far-future date); a swatch shows the color scale.
 */
 
-class EraChip extends View [ height = 20, cornerRadius = 10, cursor = "pointer",
+class EraChip [ height = 20, cornerRadius = 10, cursor = "pointer",
     label: string = "",
     iso: string = "",
     fill = { hovered ? provided("theme").chipHover : provided("theme").chip },
@@ -539,7 +541,7 @@ class EraChip extends View [ height = 20, cornerRadius = 10, cursor = "pointer",
     ]
 
 
-class LegendSwatch extends View [ height = 18, cornerRadius = 2,
+class LegendSwatch [ height = 18, cornerRadius = 2,
     pct: number = 0,
     width = { app.narrow ? 40 : 52 },
     fill = { changeColor(this.pct / 100) },

@@ -36,8 +36,8 @@ const BROWSER = resolve(HERE, "../browser");      // the web host (boot-uniform,
 const TABLES = ["TAGS", "LAYOUTS", "LAYOUT_BASES", "DATA", "ANIMATORS", "ANIMATOR_GROUPS", "SOURCES", "STATES"];
 
 /** Generate a SLIM registry.js — the name→class tables carrying ONLY the
- *  component classes `usedNames` covers. Substituted for the full registry.js at
- *  bundle time (the esbuild plugin below), so every unused component class —
+ *  classes `usedNames` covers. Substituted for the full registry.js at
+ *  bundle time (the esbuild plugin below), so every unused class —
  *  and the modules reachable only through it (the Markdown/HTML parsers, etc.) —
  *  is dropped by tree-shaking. The dev path keeps the full module untouched. */
 function slimRegistrySource(usedNames) {
@@ -227,7 +227,7 @@ async function buildProgramFile(file, name, keepPos) {
   await minifyBodies(built.program);
   const programJson = JSON.parse(JSON.stringify(built.program, compactValue));
   const contents = JSON.stringify(programJson);
-  return { key: shortHash(contents), contents, usedComponents: built.usedComponents, program: built.program };
+  return { key: shortHash(contents), contents, usedClasses: built.usedClasses, program: built.program };
 }
 
 /** THE FILES — what the program declares it reads that no literal names, or
@@ -275,7 +275,7 @@ const buildInspector = (keepPos) => buildProgramFile(INSPECTOR_SRC, "the Inspect
 
 /** THE COMPILER, mirrored into the package (`ship [ compiler = true ]`): the
  *  distro's layout — bundles/declare-compiler.js, bundles/compile-worker.js,
- *  library/ (the auto-include manifest and every component it can reach) —
+ *  library/ (the auto-include manifest and every class it can reach) —
  *  under the package root, which the entry names once (compiler-client
  *  provideCompilerRoot). The whole library rides: what source typed at run
  *  time will name is not knowable ahead. */
@@ -458,7 +458,7 @@ export async function buildProduction(source, opts = {}) {
   if (!keepPos && !ship.inspector) stripPos(built.program);
   const inspector = ship.inspector ? await buildInspector(keepPos) : null;
   const hosts = !!opts.hosts || tenants.length > 0 || ship.inspector;
-  const alsoUses = [...(opts.alsoUses ?? []), ...tenants.flatMap((t) => t.usedComponents), ...(inspector ? inspector.usedComponents : [])];
+  const alsoUses = [...(opts.alsoUses ?? []), ...tenants.flatMap((t) => t.usedClasses), ...(inspector ? inspector.usedClasses : [])];
   if (!opts.debug) await minifyBodies(built.program);
   // PRECOMPILED BODIES (on by default; opts.precompile === false ships text):
   // every `{ }` body, method body and script block leaves as a FUNCTION in the
@@ -518,7 +518,7 @@ export async function buildProduction(source, opts = {}) {
 
   // Registry slimming (on by default; opts.slim === false keeps the full set):
   // substitute the runtime's registry.js with a subset carrying only the
-  // component classes this app can instantiate (built.usedComponents), so esbuild
+  // classes this app can instantiate (built.usedClasses), so esbuild
   // drops the rest. The used-set is sound — every construction path is a static
   // reference (tags, class bases, `{ }`-body `new X()`, or the `use` list).
   const slim = opts.slim !== false;
@@ -526,9 +526,9 @@ export async function buildProduction(source, opts = {}) {
     name: "slim-registry",
     setup(build) {
       build.onLoad({ filter: /[/\\]registry\.js$/ }, () => ({
-        // `alsoUses`: components the page must carry for programs it HOSTS —
+        // `alsoUses`: classes the page must carry for programs it HOSTS —
         // a site page's islands run in its runtime (prewarm.mjs unions them)
-        contents: slimRegistrySource([...new Set([...built.usedComponents, ...alsoUses])]),
+        contents: slimRegistrySource([...new Set([...built.usedClasses, ...alsoUses])]),
         loader: "js",
         resolveDir: RUNTIME,
       }));
@@ -699,7 +699,7 @@ export async function buildProduction(source, opts = {}) {
   return {
     ok: true, errors: [], warnings: built.warnings, diagnostics: built.diagnostics, report: built.report,
     closure: built.closure, program: built.program, sizes, metafile: result.metafile,
-    usedComponents: built.usedComponents, slim, kernel: props.kernel,
+    usedClasses: built.usedClasses, slim, kernel: props.kernel,
     // what the build carries beyond its core, and why; what it left out
     // `absent`: left out, a stand-in in their place; `cut`: tables shipped with
     // only the entries the program names
@@ -1009,12 +1009,12 @@ async function cli(argv) {
     console.log(`    ── total over the wire (gzip): ${kb(out.sizes.totalGzip)} ──`);
     console.log(`    kernel: ${out.kernel === "js" ? "JavaScript (--kernel=js)" : "WebAssembly"}`);
     if (out.slim) {
-      // Count only the RUNTIME components (the registry names) — the used-set also
+      // Count only the RUNTIME classes (the registry names) — the used-set also
       // carries the app's own classes (always bundled, never in the registry), so
-      // they don't belong in an "N of M runtime components" figure.
+      // they don't belong in an "N of M runtime classes" figure.
       const builtins = new Set(REGISTRY_MANIFEST.map((e) => e.name));
-      const kept = [...out.usedComponents].filter((n) => builtins.has(n)).sort();
-      console.log(`    registry: ${kept.length} of ${builtins.size} runtime components kept — ${kept.join(", ")}`);
+      const kept = [...out.usedClasses].filter((n) => builtins.has(n)).sort();
+      console.log(`    registry: ${kept.length} of ${builtins.size} runtime classes kept — ${kept.join(", ")}`);
     } else console.log(`    registry: FULL (slimming off)`);
     // what the build carries of the optional runtime (compiler/src/capabilities.ts);
     // --why says what in the program brought each one aboard

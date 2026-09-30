@@ -212,10 +212,10 @@ async function inlineClient() {
     },
     compileProgram: async (source, opts) => {
       const r = await mod.compileProgram(source, opts ?? {});
-      return { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure, usedComponents: r.usedComponents };
+      return { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure, usedClasses: r.usedClasses };
     },
     parseProgram: (src) => mod.parseProgram(src),
-    checker: { checkAttr: mod.checkAttr, checkMethod: mod.checkMethod, checkComponentValue: mod.checkComponentValue },
+    checker: { checkAttr: mod.checkAttr, checkMethod: mod.checkMethod, checkClassValue: mod.checkClassValue },
     highlight: async (src) => mod.highlight(src),
     setDefaultLibrary: (lib) => mod.setDefaultLibrary(lib),
   };

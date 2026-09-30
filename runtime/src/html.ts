@@ -174,7 +174,7 @@ function inlineOf(kids: HNode[]): Inline[] {
       case "a": out.push({ t: "link", href: k.attrs.href ?? "", inline: inlineOf(k.kids) }); break;
       case "br": out.push({ t: "br" }); break;
       // A classed span carries a NAMED style (resolved to a bundle of Text style
-      // attributes by the flow engine against the component's `styles`); an
+      // attributes by the flow engine against the class's `styles`); an
       // unknown/absent class just unwraps. The one styling hook — reference to a
       // style the app defines, no CSS in the content itself.
       case "span": k.attrs.class ? out.push({ t: "styled", name: k.attrs.class.trim(), inline: inlineOf(k.kids) }) : out.push(...inlineOf(k.kids)); break;

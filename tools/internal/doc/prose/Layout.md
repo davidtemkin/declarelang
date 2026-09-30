@@ -37,12 +37,12 @@ come and go. And the boxes it returns land as the children's ordinary
 `x`/`y`/`width`/`height` — readable by any handler or constraint, hit-tested by
 `viewAt`, like geometry from any other source. Return one box per laid child,
 aligned by index — a plain object naming any of `x`, `y`, `w`, `h`, `vis`.
-The boxes' shape declares ownership: carry exactly the slots the strategy
+The boxes' shape declares ownership: carry exactly the attributes the strategy
 manages, uniformly across children — a `{ x }` box owns each child's
 horizontal position and nothing else, so sizes, fills, and the cross axis
 stay the children's own (a child centers itself across a row with the
 ordinary `y = center`) — until the strategy's `align` claims the cross axis,
-when its boxes carry that slot too and own it the same way. Invisible children keep their slot in the array (skip
+when its boxes carry that attribute too and own it the same way. Invisible children keep their place in the array (skip
 them inside `place()`), so a re-shown child needs no special case. Read the
 room to divide through `contentExtent` — the arranged view's **content box**,
 its extent less its own `View.padding` — and a strategy that answers its own
@@ -55,11 +55,11 @@ written before padding existed honours it by doing nothing at all. Divide
 `contentExtent(size)`, never `this.view.width`, and the inset costs you
 nothing to respect.
 
-Assign a strategy to a view's `layout` slot as a member (`layout: Rail [ gap
+Assign a strategy to a view's `layout` attribute as a member (`layout: Rail [ gap
 = 12 ]`). The runtime re-runs `place()` whenever anything it read changes —
-the child set, their sizes, your knobs — and claims exactly the slots the
+the child set, their sizes, your knobs — and claims exactly the attributes the
 returned boxes name, restoring any authored value when the layout detaches or
-stops naming them (one slot, one owner: arranging a child whose `x` is
+stops naming them (one attribute, one owner: arranging a child whose `x` is
 already bound is a pointed error, not a silent fight).
 
 **Replication composes.** A layout is not only for children you write out by
@@ -76,10 +76,10 @@ contract, interpolated through its scalar `t`.
 **The method a strategy is.** Declare it in your subclass and the runtime calls it
 whenever anything it read changes: return one box per child of `laid()`, aligned by index,
 computed from your own attributes, the children's sizes, and the room `contentExtent(size)`
-reports. Nothing else — no time, no side effects, no writing a child's slots by hand.
+reports. Nothing else — no time, no side effects, no writing a child's attributes by hand.
 
 **A box says only what you decide.** Give it `x`, `y`, `w`, `h`, or any subset, and the
-slots you name are the slots this strategy owns for that child: a box of `{ y }` alone
+attributes you name are the attributes this strategy owns for that child: a box of `{ y }` alone
 positions a stack and leaves every width to the children, which is how a child sizes itself
 inside an arrangement. What you omit stays the author's.
 
@@ -90,7 +90,7 @@ are already the view's content coordinates.
 ## laid()
 The children this layout manages, in order — **the one definition of what a strategy is
 responsible for**, and the list your `place()` must return boxes for, aligned by index.
-Invisible children are included so a skipped child still gets the slot it would occupy;
+Invisible children are included so a skipped child still gets the place it would occupy;
 that is what makes re-showing one need no special case. Replicated children are included
 too: a `datapath` stamp is an ordinary child here, so a custom layout arranges a
 data-driven list with no extra wiring.
@@ -153,7 +153,7 @@ parent that resizes re-places its aligned children.
 
 ## attachTo()
 Attaches this strategy to a view. Setting a `layout:` member does it for you; a strategy
-swapped in at runtime is attached by the slot assignment, not by hand.
+swapped in at runtime is attached by the attribute assignment, not by hand.
 
 ## rearm()
 Requests a fresh arrangement pass. The layout re-runs on its own when anything `place()`

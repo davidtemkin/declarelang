@@ -15,7 +15,7 @@
 // color from `hue` (written by the page), height from `beats` (written by the
 // click handler). Either write lands, the whole row re-derives.
 
-class Bar extends View [ i: number = 0,
+class Bar [ i: number = 0,
     width = 26, cornerRadius = 4,
     height = { 24 + 90 * Math.abs(Math.sin((this.i + 1) * (app.beats + 1) * 0.83)) },
     y = { 120 - height },

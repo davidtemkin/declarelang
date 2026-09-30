@@ -60,7 +60,7 @@ detail: DataSource [ auto = true, url = { "/api/issue/" + app.selectedId } ]
 
 ## method
 The HTTP verb — `"GET"` by default; one of `"GET" | "POST" | "PUT" | "PATCH" | "DELETE"`,
-checked at compile in a slot and in a `{ }` body alike. A body-carrying verb (`"POST"`,
+checked at compile as a bare value and in a `{ }` body alike. A body-carrying verb (`"POST"`,
 `"PUT"`, `"PATCH"`) sends `body` with the request. A DataSource stays a *source* either way: the response lands
 in `value` and the flags exactly as a GET's would, so a POST that returns the created
 record leaves you reading it like anything else.
@@ -75,7 +75,7 @@ next `fetch()`.
 Request headers, as a plain record: `headers = { { "x-api-key": app.key } }`. They merge
 *over* the ones the source sets for itself, so a JSON `body`'s `Content-Type` is there by
 default and an explicit entry overrides it. Like `url` and `body` this is an ordinary
-reactive slot, which is what keeps an authenticated endpoint declarative rather than
+reactive attribute, which is what keeps an authenticated endpoint declarative rather than
 imperative — the header re-derives when what it reads changes:
 
 ```declare-fragment
@@ -133,7 +133,7 @@ is the screen that shows once there is something to show, and it stays put while
 data refreshes.
 
 ## loading
-A request is in flight — the slot to hang a spinner on. Independent of `loaded`: a
+A request is in flight — the attribute to hang a spinner on. Independent of `loaded`: a
 source is `loaded && loading` for the whole of a refresh, the old document showing and
 the new one on its way.
 
@@ -151,7 +151,7 @@ schema mismatch with its pointed path. `null` when nothing has gone wrong. It is
 ## statusCode
 The HTTP status of the last reply — `404`, `422`, `200`. **`0` means no reply arrived**:
 nothing asked yet, or the request never reached a server at all. That distinction is the
-point of the slot, since it separates "retry" from "report" without parsing `error`.
+point of the attribute, since it separates "retry" from "report" without parsing `error`.
 
 ## errorBody
 What the server said when it refused — parsed if it was JSON, the raw text otherwise,

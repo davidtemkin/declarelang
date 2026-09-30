@@ -1,4 +1,4 @@
-class Chip extends View [
+class Chip [
     label: string = "",
     height = 19, width = { this.t.width + 18 }, cornerRadius = 9, fill = #DDF4E4,
     t: TextLabel [ x = 9, fontSize = 12, textColor = #1A5B2E, text = { classroot.label } ]

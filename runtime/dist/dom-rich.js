@@ -3,8 +3,8 @@
 //
 // Everything here is reachable from exactly one place in the runtime: a
 // RichText (Markdown / HTMLText) pushing its parsed blocks at the surface
-// beneath it (rich-text.ts). An app that names no rich-text component drops the
-// component modules already (the used-set registry slim), so this code could
+// beneath it (rich-text.ts). An app that names no rich-text class drops the
+// class modules already (the used-set registry slim), so this code could
 // never run in such a bundle — yet it shipped in every one of them, because a
 // method on DomSurface is unreachable to a tree shaker. It lives in its own
 // module so tools/declarec.mjs can substitute a refusing stub (programFacts

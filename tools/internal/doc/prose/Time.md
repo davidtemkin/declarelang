@@ -3,7 +3,7 @@ The **clock as a member**: declare one and the current time becomes reactive fac
 components `year month day hour minute second weekday` — plus `onTick(dt)`, the one
 per-frame handler, for integration. The world outside the program comes in as a member
 (`Keys`, `DataSource`, a `Stream`), and so does the clock: a `{ }` that reads
-`new Date()` is a stopped clock — nothing it read has a cell behind it, so it evaluates
+`new Date()` is a stopped clock — nothing it read is reactive, so it evaluates
 once and never again (the compiler warns) — while a `{ }` that reads `clock.minute`
 wakes when the minute turns.
 

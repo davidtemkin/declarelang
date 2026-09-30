@@ -15,7 +15,7 @@
 //     rewritten for the browser: every FILE read becomes a DEPLOY-RELATIVE id with a
 //     CONTENT-HASH validator the browser re-derives by GET-and-hash. That is what
 //     makes the tier self-validating and drift-proof. (Library reads are KEPT — a
-//     component's source shapes the output like any include, and the browser's own
+//     class's source shapes the output like any include, and the browser's own
 //     compile records them too. Only the runtime/compiler BUNDLE stays out, gated by
 //     BUILD_ID. An earlier note here claimed they were dropped; they never were.)
 //   • segments — { path, segments, metrics } for the code viewer, served by the
@@ -67,10 +67,10 @@ function browserEntry(e) {
 }
 
 /** The browser-shaped closure for a compile: every FILE the compile read — the
- *  main source, its `include`s, the auto-included component library it actually
+ *  main source, its `include`s, the auto-included class library it actually
  *  resolved, and the manifest — each a deploy-relative content-hash entry. This is
  *  the SAME set compileTracked records on both hosts; the browser re-probes it by
- *  content hash exactly as the Node side re-probes by disk stat, so a component edit
+ *  content hash exactly as the Node side re-probes by disk stat, so a class edit
  *  invalidates uniformly with no build step. Only the runtime/compiler BUNDLE stays
  *  out (a load-time artifact, BUILD_ID-gated). Dirs carry no source, so drop them. */
 function browserClosure(closure, props) {

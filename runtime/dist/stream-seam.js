@@ -1,5 +1,5 @@
 // stream-seam — the streams' injectable transport seam (streams.md §4), split
-// from the component classes for one reason: index.ts must export the seam
+// from the classes for one reason: index.ts must export the seam
 // (the compiler's headless/crawl refusers swap it, tests stub it, the mac host
 // injects its native pair), but the production entry imports index.js
 // wholesale — so anything reachable from it ships in EVERY build. This module

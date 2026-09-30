@@ -2,7 +2,7 @@ import { Node } from "./node.js";
 import { View } from "./view.js";
 import { type MaterializationDiag } from "./replicate.js";
 export interface InspectNode {
-    /** The component kind — the class's name (`Checkbox`, `View`, `Spring`…). */
+    /** The class kind — the class's name (`Checkbox`, `View`, `Spring`…). */
     kind: string;
     /** The member name this node is reachable by, when named; else null. */
     name: string | null;

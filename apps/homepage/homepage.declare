@@ -2,7 +2,7 @@
 # The Declare homepage
 
 The page you are reading, written in Declare. The design tokens live once as
-semantic type components, and the page is a vertical **flow** of auto-sizing
+semantic type classes, and the page is a vertical **flow** of auto-sizing
 sections — no absolute-y. Each section's height falls out of its content, so
 the page stacks and re-flows on its own at any width. The full-bleed chrome —
 the blueprint grid, the sticky header, the pointer dot — sits absolutely
@@ -109,11 +109,11 @@ class BannerLead extends Lead [ measure: number = 620,
 
 // the short accent rule the closer wears above and below its line
 
-class BandRule extends View [ x = center, width = 140, height = 2, fill = { provided("theme").accent } ]
+class BandRule [ x = center, width = 140, height = 2, fill = { provided("theme").accent } ]
 
 // The site's prose lives beside this program, not inside it: why.md, the
 // getting-started guide, the FAQ and the language document are all fetched as
-// text and flowed by the Markdown component, so every article on the site is
+// text and flowed by the Markdown view, so every article on the site is
 // one rendition with one set of numbers.
 
 
@@ -127,7 +127,7 @@ The 12px each side is the view's own `padding`, so the label starts at the
 content origin and the pill's width is simply what it holds.
 */
 
-class NavLink extends View [ height = 33, cornerRadius = 8, padding = [0, 12, 0, 12],
+class NavLink [ height = 33, cornerRadius = 8, padding = [0, 12, 0, 12],
     label:   string = "",
 
     // a pill WITH children opens the dropdown instead of following a link —
@@ -176,7 +176,7 @@ reach the thing you came for. One `navItems` list, two renditions, which is
 what these two surfaces already were.
 */
 
-class MobileNavRow extends View [ width = 100%, height = 44, cornerRadius = 8,
+class MobileNavRow [ width = 100%, height = 44, cornerRadius = 8,
     label:   string = "",
 
     // a child row: same type size and the same thumb height as its parent —
@@ -205,7 +205,7 @@ class MobileNavRow extends View [ width = 100%, height = 44, cornerRadius = 8,
 // so a childless destination is simply its own row — there is no branch here
 // and no second rendition to keep in step.
 
-class MobileNavGroup extends View [ width = 100%,
+class MobileNavGroup [ width = 100%,
     height = { this.contentHeight },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
     MobileNavRow [ label = { :label }, link = { :link } ],
@@ -233,7 +233,7 @@ crawler gets the edge; the stroke lifts to the accent rule on hover so the
 plate reads as a door rather than a picture.
 */
 
-class Shot extends View [
+class Shot [
     src: string = "",
 
     // An optional MOVING version. `clip` is taken — it is View's own attribute —
@@ -312,7 +312,7 @@ that goes full-width on a narrow page would stack the three into a tower. The
 40 is the two 20px gaps its row's layout puts between them.
 */
 
-class MiniMetric extends View [
+class MiniMetric [
     value: string = "",
     note:  string = "",
     width = { (parent.width - 40) / 3 },
@@ -336,7 +336,7 @@ not accent: the discs must read as counters against the noise, not as three
 more accent-colored controls.
 */
 
-class AppNum extends View [ width = 30,
+class AppNum [ width = 30,
     n: string = "",
 
     // the row's hover fact, handed in by the use site — the disc answers the
@@ -387,7 +387,7 @@ because it is a class each part reads the row's hover state as `classroot.hot`
 — the depth it sits at is not part of the arithmetic.
 */
 
-class CardHead extends View [ width = 100%, height = { this.contentHeight },
+class CardHead [ width = 100%, height = { this.contentHeight },
     num:   string = "",
     title: string = "",
     url:   string = "",
@@ -412,7 +412,7 @@ class CardHead extends View [ width = 100%, height = { this.contentHeight },
     ]
 
 
-class AppCard extends View [
+class AppCard [
     title:   string = "",
     num:     string = "",
     shot:    string = "",
@@ -456,7 +456,7 @@ class AppCard extends View [
 // simply the two things a Point holds. (A per-side stroke tapers into a
 // rounded corner rather than mitring; this box has square corners.)
 
-class Point extends View [ width = { Math.min(357, parent.width) },
+class Point [ width = { Math.min(357, parent.width) },
     ptitle: string = "",
     body:   string = "",
     stroke = { [ stroke(2, provided("theme").pointRule), null, null, null ] },
@@ -530,7 +530,7 @@ class FootSep extends FootLabel [ text = "·", textColor = { provided("theme").f
 // that left a large dead band. With the inset counted into the unset height,
 // the box is exactly the row plus the air under it.
 
-class Footer extends View [ width = 100%,
+class Footer [ width = 100%,
     padding = [0, 0, 36, 0],
     layout: WrappingLayout [ justify = center, spacing = { parent.width >= 620 ? 10 : 18 }, rowSpacing = 10 ],
 
@@ -580,7 +580,7 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
 // preview beside it takes the same height. Revert restores the pristine `src`
 // and asks the host to recompile.
 
-class SourcePanel extends View [
+class SourcePanel [
     editName: string = "",
     src: string = "",
     fill = { provided("theme").panel }, cornerRadius = 12, stroke = { stroke(1, provided("theme").panelLine) },
@@ -648,7 +648,7 @@ class SourcePanel extends View [
 // the running demo is transparent: it sits on the stage colour, which follows
 // the page, and draws only in colours that read on either ground
 
-class PreviewFrame extends View [ cornerRadius = 12, clip = true, fill = { provided("theme").stage },
+class PreviewFrame [ cornerRadius = 12, clip = true, fill = { provided("theme").stage },
     stroke = { stroke(1, provided("theme").line) },
     runName: string = "",
     run: AppIsland [ width = 100%, height = 100%, program = { classroot.runName } ]
@@ -670,7 +670,7 @@ source panel's height, so the code is never a scrolling listing and the picture
 beside it is always the same size as the code that makes it.
 */
 
-class DemoSection extends View [ width = 100%,
+class DemoSection [ width = 100%,
     num:     string = "",
     head:    string = "",
     lead:    string = "",
@@ -728,7 +728,7 @@ document-tall version did too, and it is not a cycle: the content never reads
 the backdrop.
 */
 
-class GridBg extends View [
+class GridBg [
 
     // the bottom of the content this paper backs, in the same space as this
     // view's own y — the one number a use site supplies
@@ -747,7 +747,7 @@ class GridBg extends View [
     ]
 
 
-class SectionHead extends View [ width = 100%,
+class SectionHead [ width = 100%,
     num:  string = "",
     head: string = "",
     lead: string = "",
@@ -774,7 +774,7 @@ serve every use site: the arithmetic does not depend on how deep the spring
 happens to sit.
 */
 
-class ScrollReveal extends View [ width = 100%, opacity = 0,
+class ScrollReveal [ width = 100%, opacity = 0,
     reveal: Spring [ attribute = opacity, stiffness = 90, damping = 22, epsilon = 0.004,
         to = { app.scrollY + app.height > classroot.parent.y + classroot.y + 90 ? 1 : 0 } ]
     ]
@@ -799,7 +799,7 @@ view in the flow: an unset height counts both insets, so the column is exactly
 its content plus the room under it, and the page's scroll extent follows.
 */
 
-class DocView extends View [ width = { app.width }, fill = { provided("theme").ink },
+class DocView [ width = { app.width }, fill = { provided("theme").ink },
     eyebrow: string = "",
     waiting: string = "",
     trouble: string = "",
@@ -1319,7 +1319,7 @@ App [ tagline: string = "a UI language for you and your AI",
             s4: DemoSection [ num = "03", head = "Declare the shape, not the loop.",
                 lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says.",
                 caption = "One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it.",
-                demo = "components" ],
+                demo = "from-data" ],
 
             s5: DemoSection [ num = "04", head = "Motion you declare, not schedule.",
                 lead = "You say where a thing belongs; a Spring finds the path there and settles by physics — motion you declare, not a timeline you sequence.",
@@ -1462,7 +1462,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 Marker [ text = "WHY DECLARE" ],
 
                 // The essay is a document, so it arrives as one: why.md, fetched
-                // as text and flowed by the Markdown component — the same
+                // as text and flowed by the Markdown view — the same
                 // pipeline the FAQ, the guide and the language doc use.
 
                 essay: Markdown [ visible = { app.why.loaded }, width = 100%, lineHeight = 1.35,
@@ -1517,7 +1517,7 @@ App [ tagline: string = "a UI language for you and your AI",
     /* ## The "Language" view
 
        The one-file core doc (docs/declare.md), rendered in-app by the native
-       Markdown component — same skin and same location machinery as the Why
+       Markdown view — same skin and same location machinery as the Why
        article, so it deep-links (#language) and is crawled into the static
        document like any other reachable location. The text arrives as the
        app's own material — docs/declare.md fetched directly, format = "text":

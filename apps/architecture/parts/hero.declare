@@ -11,11 +11,10 @@ it is one number moving and everything reading it.
 
 // a responsibility — sits in the browser band at k = 0, in the runtime band at k = 1
 
-class Chip extends View [ height = 30, cornerRadius = 7,
-    idx: number = 0,
+class Chip [ height = 30, cornerRadius = 7,
     label: string = "",
     k: number = 0,
-    stagger: number = { unit((this.k - this.idx * 0.035) / 0.72) },
+    stagger: number = { unit((this.k - rowIndex * 0.035) / 0.72) },
     fill = { this.stagger > 0.5 ? provided("theme").runSoft : provided("theme").hostSoft },
     stroke = { stroke(1, this.stagger > 0.5 ? provided("theme").run : provided("theme").hostLine) },
     t: Label [ x = 10, y = center, fontSize = 13.5, fontWeight = medium, text = { classroot.label } ]
@@ -25,7 +24,7 @@ class Chip extends View [ height = 30, cornerRadius = 7,
 // one band of the stack: a name on the left, a note on the right, both of
 // which can say two things (the assumption, the reality) crossfaded by k
 
-class Band extends View [ cornerRadius = 9,
+class Band [ cornerRadius = 9,
     hue: Color = gray,
     soft: Color = gray,
     nameA: string = "",
@@ -44,7 +43,7 @@ class Band extends View [ cornerRadius = 9,
     ]
 
 
-class HostBox extends View [ cornerRadius = 6,
+class HostBox [ cornerRadius = 6,
     label: string = "",
     sub: string = "",
     fill = { provided("theme").panel }, stroke = { stroke(1, provided("theme").hostLine) },
@@ -57,7 +56,7 @@ class HostBox extends View [ cornerRadius = 6,
     ]
 
 
-class HeroStage extends View [ height = { this.H },
+class HeroStage [ height = { this.H },
     k: number = 0,
 
     // one height for both states: the taller of the two, so the page below
@@ -148,16 +147,16 @@ class HeroStage extends View [ height = { this.H },
         ],
 
     chipData: Dataset { { "rows": [
-        { "i": 0, "label": "Layout" }, { "i": 1, "label": "Styling" },
-        { "i": 2, "label": "Hit-testing" }, { "i": 3, "label": "Hover & press" },
-        { "i": 4, "label": "Click vs. drag" }, { "i": 5, "label": "Gesture claims" },
-        { "i": 6, "label": "Focus & Tab order" }, { "i": 7, "label": "Text measurement" } ] } },
+        { "label": "Layout" }, { "label": "Styling" },
+        { "label": "Hit-testing" }, { "label": "Hover & press" },
+        { "label": "Click vs. drag" }, { "label": "Gesture claims" },
+        { "label": "Focus & Tab order" }, { "label": "Text measurement" } ] } },
 
     // the responsibilities, declared last so they paint over the bands
 
     chips: View [ width = 100%, height = 100%, datapath = { classroot.chipData.value },
-        Chip [ datapath = :rows[], idx = :i, label = :label, k = { classroot.k }, width = { classroot.chipW },
-            x = { classroot.chipX(:i) },
-            y = { mix(classroot.chipY(:i, 0), classroot.chipY(:i, 1), this.stagger) } ]
+        Chip [ datapath = :rows[], label = :label, k = { classroot.k }, width = { classroot.chipW },
+            x = { classroot.chipX(rowIndex) },
+            y = { mix(classroot.chipY(rowIndex, 0), classroot.chipY(rowIndex, 1), this.stagger) } ]
         ]
     ]

@@ -1,5 +1,5 @@
 /*
-# The component sampler
+# The control sampler
 
 The library's controls under four switchable stylings — San Francisco (the
 default), Mountain View, Cupertino, and Redmond. One machinery, four token
@@ -22,7 +22,7 @@ use [ TintRow ]   // the styling menu names its tint row in data
 // own click (deepest sink wins), applies the accent, and closes the menu; the
 // row wrapper suppresses its own pick and highlight for kind rows.
 
-class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
+class TintDot [ width = 16, height = 16, cornerRadius = 8,
     c: Color = #2E6FE0,
 
     // the hovered dot enlarges in place — scale is painted-only (no layout
@@ -41,7 +41,7 @@ class TintDot extends View [ width = 16, height = 16, cornerRadius = 8,
 // menu's row host aligns it to the text edge, the rollover enlarges the
 // hovered dot, a re-click clears the tint.
 
-class TintRow extends View [
+class TintRow [
     height = 22,
 
     dots: View [ x = 0, y = 3,

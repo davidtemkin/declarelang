@@ -8,7 +8,7 @@ images, transforms, shadows and filters.
 
 // The drawing surface inside a swatch: 180 × 96.
 
-class Stage extends View [ x = 16, y = 12, width = 180, height = 96 ]
+class Stage [ x = 16, y = 12, width = 180, height = 96 ]
 
 class DrawingSection extends Section [ title = "Drawing",
     caption = "A view's own draw(): shapes, paths, joins, caps and dashes, curves, clipping, compositing, gradients, text, images, transforms, shadows and filters — one operation or setting per swatch.",

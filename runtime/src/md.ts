@@ -6,7 +6,7 @@
 // to expand literals at build and the runtime imports it (only when dynamic
 // Markdown is used) to parse at render — owned by neither.
 //
-// Output is the two-tier tree the `Markdown` component renders: a list of
+// Output is the two-tier tree the `Markdown` class renders: a list of
 // block nodes, each carrying inline nodes (or nested blocks). Raw HTML is NOT
 // interpreted — every `<tag>` renders as literal text (the one documented
 // deviation); character entities still decode (they are characters).
@@ -57,7 +57,7 @@ export type Inline =
   | { t: "view"; name: string; attrs: Readonly<Record<string, string | true>>; key?: string }
   // A named style — the Markdown reader never emits this; HTMLText does, for
   // `<span class="…">`, and the flow engine resolves the name to a bundle of Text
-  // style attributes against the component's `styles` map. Presentation, not a role.
+  // style attributes against the class's `styles` map. Presentation, not a role.
   | { t: "styled"; name: string; inline: Inline[] };
 
 // ── entry ──────────────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ export interface ReadOptions {
   isClass?: (name: string) => boolean;
   /** A refused inline view (a class tag that is not self-closing — this
    *  version places only self-closing tags): the reader keeps going and hands
-   *  the sentence here, for the component's `unsupported` policy to report. */
+   *  the sentence here, for the class's `unsupported` policy to report. */
   refuse?: (message: string) => void;
 }
 

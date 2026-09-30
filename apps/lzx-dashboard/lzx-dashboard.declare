@@ -81,15 +81,15 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
     userName: string = "guest",
     flashUser: string = "",
 
-    // The one selection the popup sets and both transports read. `mediaWants`
+    // The one selection the popup sets and both transports read: the track
+    // record each player last took, and which kind is playing now. `mediaWants`
     // is the play/pause fact: each player's `playing` is derived from it, so
     // the transport buttons move this rather than the player.
 
-    nowPlayingUrl: string = "",
-    nowPlayingVideoUrl: string = "",
-    nowPlayingIcon: string = "",
-    nowPlayingInfo: string = "",
+    nowAudio: object = null,
+    nowVideo: object = null,
     nowPlayingKind: string = "",
+    nowPlaying: object = { app.nowPlayingKind == "audio" ? app.nowAudio : app.nowPlayingKind == "video" ? app.nowVideo : null },
     mediaWants: boolean = false,
 
     contactsData: DataSource [ url = "data/contacts.json" ],
@@ -256,15 +256,12 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
 
         Click a track in either media tab and this balloon opens over it,
         naming the track and offering to play it. One popup serves both tabs;
-        it carries the clicked track's fields until you either play or dismiss
-        it, and hands them to the app's now-playing slots on play.
+        it holds the clicked track's record until you either play or dismiss
+        it, and hands it to the app's now-playing selection on play.
         */
 
         popup: View [ width = 139, height = 43, visible = false,
-            trackLabel: string = "",
-            trackInfo: string = "",
-            trackIcon: string = "",
-            trackUrl: string = "",
+            track: object = null,
             trackKind: string = "",
 
             // Placed once, when it opens. Every gesture that could move the
@@ -272,21 +269,18 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
             // with a press, and a press dismisses the popup, so there is
             // nothing for a live position constraint to track.
 
-            show(icon: View, label: string, info: string, art: string, url: string, kind: string) {
+            show(icon: View, rec: object, kind: string) {
                 const o = icon.rootOrigin()
                 x = o.x + icon.width / 2 - 70 - parent.x
                 y = o.y + 33 - parent.y
-                trackLabel = label; trackInfo = info
-                trackIcon = art; trackUrl = url; trackKind = kind
+                track = rec; trackKind = kind
                 visible = true; this.raise()
                 },
             hide() { visible = false },
             playSelected() {
                 app.nowPlayingKind = trackKind
-                app.nowPlayingIcon = trackIcon
-                app.nowPlayingInfo = trackInfo
-                if (trackKind === "audio") app.nowPlayingUrl = trackUrl
-                else app.nowPlayingVideoUrl = trackUrl
+                if (trackKind === "audio") app.nowAudio = track
+                else app.nowVideo = track
                 app.mediaWants = true
                 hide()
                 },
@@ -300,7 +294,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
                 ],
             infoText: Text [ x = 3, y = 25, width = 100, fontFamily = { app.vera }, fontWeight = bold,
                 fontSize = 10, textColor = #FFFFFF, textAlign = center,
-                text = { parent.trackLabel } ]
+                text = { parent.track != null ? "" + parent.track.label : "" } ]
             ]
         ],
 

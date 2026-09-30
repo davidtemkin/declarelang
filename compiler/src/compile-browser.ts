@@ -40,7 +40,7 @@ export { parseProgram } from "../../runtime/dist/parser.js";
 // …and the checker the evaluator validates a live element with (instantiate.ts
 // provideChecker): the boot ships check.js as a stand-in, so the Inspector hands
 // the runtime this copy's when it opens.
-export { checkAttr, checkMethod, checkComponentValue } from "../../runtime/dist/check.js";
+export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/check.js";
 
 // Static extraction — the same block compile-node.ts exports (parity: the
 // browser compiler does everything the Node one can, as architecture and as
@@ -111,7 +111,7 @@ export function memoryHost(opts: BrowserFiles = {}): AutoIncludeHost {
 //
 //   • the page fetched the WHOLE auto-include library up front — manifest plus
 //     every source file — on the chance a compile would want some of it. A
-//     program that uses two components paid for all of them, on every load.
+//     program that uses two classes paid for all of them, on every load.
 //   • an app's OWN includes could not be known up front at all, so the client
 //     REGEXED the source for `include [ … ]` and prefetched what it found — a
 //     second, cruder include discovery running ahead of the real parser, blind
@@ -157,7 +157,7 @@ export interface FetchOrigins {
  *  SUCCESSES ONLY. A failure is not an answer worth keeping — the same rule
  *  compiler-client's loadCompiler states and for the same reason. Caching a miss
  *  here made ONE blocked or dropped request permanent for the life of the page:
- *  every later compile re-read the null, the component stayed unresolvable, and
+ *  every later compile re-read the null, the class stayed unresolvable, and
  *  a live-edit loop kept failing with no retry and nothing to explain it. The
  *  cost of not caching a miss is re-asking for a file that is genuinely absent,
  *  which is rare and cheap; the cost of caching one is unbounded. */
@@ -313,12 +313,12 @@ export interface BrowserTrackedOptions extends CompileOptions, BrowserFiles {
   /** Compiler properties that also gate cache staleness (e.g. `{ backend:
    *  "dom" }`). Frozen into the closure and compared by isUpToDate. */
   props?: Record<string, string>;
-  /** Whether to record auto-included LIBRARY components in the closure. Default
-   *  true: a component's SOURCE is a compile-time dependency — its text shapes the
+  /** Whether to record auto-included LIBRARY classes in the closure. Default
+   *  true: a class's SOURCE is a compile-time dependency — its text shapes the
    *  compiled output exactly like an `include`d file — so it belongs in the closure
    *  and is modification-checked by the same isUpToDate + probe as every other read
    *  (the referenced set only, after auto-include resolution — never the whole
-   *  library). This is what keeps a component edit fresh on BOTH hosts without a
+   *  library). This is what keeps a class edit fresh on BOTH hosts without a
    *  build step: the polymorphic probe (disk / fetch) catches it uniformly. Only the
    *  RUNTIME/compiler BUNDLE stays out of the closure, gated by BUILD_ID — it is a
    *  load-time artifact, not a compiled-in source dep. Pass false for a lightweight

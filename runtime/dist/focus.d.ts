@@ -37,7 +37,7 @@ export declare class FocusService {
     /** Whether the LAST focus change was keyboard-driven (Tab traversal). The
      *  focus-visible modality: a ring/indicator shows only for keyboard focus —
      *  a pointer press focuses silently (the click itself is the feedback).
-     *  A REACTIVE fact: `byKeyboard()` is a tracked read, so a component's
+     *  A REACTIVE fact: `byKeyboard()` is a tracked read, so a class's
      *  styling constraint (a Tab header's focus edge) re-derives when the
      *  modality flips — same slot, event handlers and constraints alike. */
     private keyboard;

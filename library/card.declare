@@ -18,7 +18,7 @@ Card [ x = 20, y = 20, width = 280,
 
 **Use `Text`, not `TextLabel`, as a direct child.** A `TextLabel` positions itself
 vertically — that cap-centering `y` is the whole of what it adds — and the card's layout
-places the children it holds, so the two would own the same slot. `TextLabel` belongs
+places the children it holds, so the two would own the same attribute. `TextLabel` belongs
 inside a control or a row that leaves `y` alone; a card's own lines are `Text`.
 
 **Give it a width, not a height.** A Card has no height of its own: it takes the one its
@@ -62,7 +62,7 @@ a card into a row with a rule under it.
 
 include [ "control.declare" ]
 
-class Card extends View [
+class Card [
     // the design-token record, a provided value: the app provides it once and
     // this widget reads it. Default = the house look.
 

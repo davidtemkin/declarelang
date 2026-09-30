@@ -36,7 +36,7 @@ prose.** Rank what's left by value:
    (few-shot beats prose). One tight, *correct*, idiomatic snippet — not a toy. Include
    one whenever the shape isn't obvious from a word.
 
-If, after cutting restatement, an entry has none of the above — it's a plain slot, and
+If, after cutting restatement, an entry has none of the above — it's a plain attribute, and
 one clause is the right length. Don't pad it to look thorough.
 
 ## Cut
@@ -56,7 +56,7 @@ single sentence about a previous design costs more than it explains: it introduc
 second candidate answer and no way to choose. One authoritative version, uncomplicated
 by history, is a large part of what Declare is offering.
 
-So in any entry, and in any component's own `/* # Name … */` header:
+So in any entry, and in any class's own `/* # Name … */` header:
 
 - **No former designs, renames or migrations.** Not "used to sit on `View`", not
   "replaces the old `accents`", not "this was three mechanisms before". If the old form
@@ -70,7 +70,7 @@ So in any entry, and in any component's own `/* # Name … */` header:
   pointer — that the directory exists and is background, not truth — is the exception,
   and exists to steer readers away.)
 - **No prior-art framing.** "OpenLaszlo's `basetabslider`, reborn" tells a newcomer
-  nothing and tells a model to go looking. Describe the component.
+  nothing and tells a model to go looking. Describe the class.
 
 **Emphasis is a word, not a case.** ALL-CAPS mid-sentence reads as shouting to a person
 and is noise to a tokenizer, and it spreads: one entry in capitals invites the next.
@@ -82,7 +82,7 @@ not emphasis and are fine.
 explaining why a thing is shaped the way it is — including the bug that shaped it — is
 valuable and should stay: that reader is the next maintainer, and the cost of
 re-deriving it is real. The line is the audience, not the repository. Anything a
-program author or an agent reads — this prose, a component's header, the guide, the
+program author or an agent reads — this prose, a class's header, the guide, the
 language file, a diagnostic — carries the current truth only.
 
 ## Two facts that change how you write
@@ -111,7 +111,7 @@ language file, a diagnostic — carries the current truth only.
 
 ---
 
-### The same slot, done twice
+### The same attribute, done twice
 
 **Description (near-worthless to a model, thin for a human):**
 > `fill` — sets the fill of the view. A `Fill` value; defaults to `null`.

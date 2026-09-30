@@ -13,7 +13,7 @@ top.
 > right now is the runtime's business.**
 
 ```declare
-class Row extends View [ width = 288, height = 24,
+class Row [ width = 288, height = 24,
     t: Text [ y = 4, width = 260, text = :task ]
     ]
 
@@ -50,7 +50,7 @@ lifecycle and selection below are about *records and instances*, whatever shape 
 take. Virtualization is the one exception — it is vertical-list shaped — so there,
 "row" is meant literally.
 
-## Identity is inferred, not declared
+## Record identity
 
 When the data changes, the runtime must decide which instance belongs to which record —
 otherwise a sort would rebuild every instance, and an instance's own state would follow
@@ -74,23 +74,42 @@ Reach for `key` only when the convention does not fit:
 View [ datapath = :people[], key = :email ]
 ```
 
+## Row position: rowIndex
+
+An instance reads its record's index in the array through **`rowIndex`**: 0 for the
+first record, following the record as others arrive, leave or reorder. It is a fact,
+so it is never assigned, and a constraint that reads it re-runs when the place changes.
+Stripes, ranks and "3 of 12" come from it; the records carry no position fields.
+
+```declare-fragment
+class Row [ height = 24,
+    fill = { rowIndex % 2 == 0 ? 0xFFFFFF : 0xF4F4F4 },
+    rank: Text [ text = { (rowIndex + 1) + "." } ],
+    name: Text [ x = 32, text = :name ]
+    ]
+```
+
+The index is within the array the row presents: a group's own array for a nested list,
+the logical index under `virtualize` (never a position in the window). A view that no replication
+made reads `-1`.
+
 ## Records of different kinds
 
-A feed mixes headings, notes and photos; one path still replicates **one** class. The
-kinds differ by state, not by class: each kind is a [`State`](declare-docs:State) whose `applied` reads the
-record, and what only that kind has is the state's conditional children.
+A feed mixes headings, notes and photos in one list. They are different things, so each
+is its own class, and **`classFor`** picks the class for each record from the record. The
+class written on the replicated view is the **base** — what every kind shares, and what
+the rest of the line is checked against — and `classFor` names it or a subclass:
 
 ```declare
-class Entry extends View [ width = 288, height = 28,
-    t: Text [ y = 5, width = 288, text = :text,
-        State [ applied = { :kind == "heading" }, fontWeight = bold ]
-        ],
-    heading: State [ applied = { :kind == "heading" }, height = 40,
-        rule: View [ y = 38, width = 288, height = 1, fill = #D5DCE3 ]
-        ],
-    photo: State [ applied = { :kind == "photo" }, height = 92,
-        pic: View [ y = 28, width = 120, height = 60, cornerRadius = 6, fill = #9FB8CC ]
-        ]
+class Entry [ width = 288, height = 28,
+    t: Text [ y = 5, width = 288, text = :text ]
+    ]
+class Note extends Entry [ ]
+class Heading extends Entry [ height = 40,
+    rule: View [ y = 38, width = 288, height = 1, fill = #D5DCE3 ]
+    ]
+class Photo extends Entry [ height = 92,
+    pic: View [ y = 28, width = 120, height = 60, cornerRadius = 6, fill = #9FB8CC ]
     ]
 
 App [ width = 320, height = 300, fill = white, textColor = #1B2733,
@@ -102,17 +121,33 @@ App [ width = 320, height = 300, fill = white, textColor = #1B2733,
         ] } } ],
     list: View [ x = 16, y = 12, width = 288, datapath = { d.value },
         layout: SimpleLayout [ axis = y, spacing = 4 ],
-        Entry [ datapath = :items[] ]
+        Entry [ datapath = :items[],
+            classFor = { :kind == "heading" ? Heading : :kind == "photo" ? Photo : Note } ]
         ]
     ]
 ```
 
-A state's children exist only while it applies, so a note builds no rule and no picture
-— twelve views for these four records — and a record whose `kind` changes swaps its
-parts in place, keeping its instance. A state overrides its own view's slots, so the
-bold heading is a state on the `Text`, not on the row.
+Each record builds exactly its own class: a note has no rule and no picture — nothing
+hidden, nothing built and never shown. `classFor` reads only the record, so the choice is
+the record's own; a record whose `kind` changes is rebuilt as its new class in place, and
+under `virtualize` each class keeps its own recycled rows.
 
-## Virtualization is one word
+**What a row *is* is its class; what state it is *in* is a [`State`](declare-docs:State).**
+A heading that is merely bold is a note in a different state, not a different thing — a
+state on the one class, whose children exist only while it applies:
+
+```declare-fragment
+t: Text [ y = 5, width = 288, text = :text,
+    State [ applied = { :pinned }, fontWeight = bold ]
+    ]
+```
+
+A value that changes while you watch — pending to sent, unread to read — is always a
+state: the row keeps its instance, and a motion can carry it from one look to the other.
+The two nest. A chat thread is a class per kind of message — text, photo, voice note —
+and each class has states for "mine or theirs", "pending", and "first of a run".
+
+## Virtualization
 
 Here is the part that is a library in every other stack. A large collection should
 **materialize a window** — build the rows near the viewport, leave the rest logical
@@ -174,7 +209,7 @@ a feed, a table over a real dataset. Leave it off for a menu, a palette, a form,
 every record is going to be built anyway. Virtualizing a small collection is not harmful,
 just unnecessary; the cost of not virtualizing a large one is a stall at construction.
 
-## Arriving and departing
+## Row lifecycle
 
 A replicated instance has a lifetime tied to its record's **membership**, not to any
 scroll position. `onInit` fires once when a record joins; `onRetire` fires once when it
@@ -187,14 +222,14 @@ View [ datapath = :rows[],
     ]
 ```
 
-The pairing is exact and it is *membership*, not materialization: scrolling a row out of
-the window does not retire it, because the record is still a member. An instance that was
+The pairing is exact and it is *presence in the data*, not materialization: scrolling a row out
+of the window does not retire it, because the record is still there. An instance that was
 never built does not fire either hook until it is — lazily, the symmetric of lazy init.
 This is the law again, in lifecycle form: presence in the data is what is real.
 
-## Selection means records
+## Selection
 
-A collection control's selection holds **members** — the records themselves, not the
+A collection control's selection holds **items** — the records themselves, not the
 views showing them. Which is why selection survives everything that rearranges the
 presentation.
 
@@ -207,7 +242,7 @@ Table [ width = 300, height = 400, datapath = { app.d.value },
 
 Note the shape: the table *owns* `selected` and [`selection`](declare-docs:Table.selection), and hands them out through
 `input` — the derive-down/deliver-up pair from
-[Controls](declare-docs:guide:controls@contract-one-the-value-pattern). You do not write into its slots.
+[Controls](declare-docs:guide:controls@the-value-pattern). You do not write into its attributes.
 
 Sort the table, flip the direction, apply a filter, scroll a selected record out of the
 window — the selection is unchanged, because it was never a set of views. A selected
@@ -218,7 +253,7 @@ Three facts travel together in a collection: the **selection**, the **anchor** a
 extends from, and `active`, the keyboard position. [`selects`](declare-docs:Table.selects) declares the mode —
 `none`, `single` (the default), or `multi`.
 
-## Columns are declarations too
+## DataGrid columns
 
 `Table` gives a collection selection and keyboard travel. `DataGrid` adds the other half a
 real data table needs — headers that sort, columns you can drag to reorder and resize —
@@ -272,9 +307,9 @@ column layout, which is how you persist a user's arrangement. Widths are plain v
 nothing measures cells. And a width of `0` **drops** a column, so a responsive table is a
 constraint: `widths = { app.narrow ? ({ notes: 0 }) : null }` — priority, not squish.
 
-## What you did not write
+## What the runtime handles
 
-Worth naming, because the absence is the point. No list component. No `key` prop
+Worth naming, because the absence is the point. No list view to install. No `key` prop
 discipline. No virtualizer to install, no row-height measurement, no scroll listener, no
 overscan tuning. No memoization to stop siblings re-rendering. No selection state
 machine, and no bug where sorting scrambles what was selected.
@@ -288,4 +323,4 @@ runtime that owns enough of the stack to keep the rest invisible.
 and lifecycle that follow records rather than scroll position, keep selections that
 survive sorting and filtering, and give a data table sortable, resizable columns.
 
-[Next: **Custom components and drawing** →](declare-docs:guide:custom-components)
+[Next: **Your own views and drawing** →](declare-docs:guide:your-own-views)

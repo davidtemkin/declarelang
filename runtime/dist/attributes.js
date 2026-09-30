@@ -1,5 +1,5 @@
 // Reactive attributes — the bridge between "a typed field on a View" and the
-// reactive core. Each component class declares its attributes once (default
+// reactive core. Each class declares its attributes once (default
 // value + which Surface call a change pushes), and this module installs them
 // as prototype accessors so that, per the language (§7):
 //

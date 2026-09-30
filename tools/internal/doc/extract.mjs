@@ -1,7 +1,7 @@
 // tools/internal/doc/extract.mjs — THE EXTRACTOR: source ──► docs-model.json (tools/internal/doc/model.ts).
 //
 // Vertical slice: the three canonical view classes (View, Text, Image). Structure
-// is read losslessly from the runtime's own `ComponentSchema` chain (runtime/dist)
+// is read losslessly from the runtime's own `ClassSchema` chain (runtime/dist)
 // so it CANNOT drift from the checker; defaults are read from the `defineAttributes`
 // specs in the runtime source via the TypeScript compiler API (docs/system-design/doc-system.md
 // §"Structure generation" — schema ⨝ decoration ⨝ tsc). Prose + the @api surface
@@ -39,7 +39,7 @@ import { parseProgram, parseLibrary } from "../../../runtime/dist/parser.js";
 const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const TARGETS = [                                        // the documented component surface
+const TARGETS = [                                        // the documented class surface
   "View", "App", "Text", "Font", "Face", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
@@ -194,7 +194,7 @@ function renderType(t) {
     // an authored-style union's NAME is its quoted member list — the spelling
     // the ruling requires at every use site; a named vocabulary lists tokens
     case "enum": return t.name.startsWith('"') ? t.name : t.tokens.join(" | ") + (t.numeric ? " | number" : "");
-    case "component": return t.of;
+    case "class": return t.of;
     case "cursor": return "datapath";
     case "slotref": return "slot";
     case "record": return t.name;
@@ -369,7 +369,7 @@ const INSTANTIABLE = new Set([TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_
 // `LANGUAGE_API` and `LANGUAGE_STATICS` (compiler/src/scaffold.ts) are the
 // AUTHORITATIVE statement of what user code can call: the scaffold emits them
 // into every program's check block, so they are typechecked for an app exactly
-// as they are for a library component. Until 2026-08-05 the reference did not
+// as they are for a library class. Until 2026-08-05 the reference did not
 // read them, and the consequence was the thing the library charter promises
 // against (§2a): `App.createView` is taught four times in declare.md, `View.raise`
 // is what every overlay in `library/` calls, `Layout.laid` is what every `place()`
@@ -397,7 +397,7 @@ for (const [cls, lines] of Object.entries(LANGUAGE_API)) {
   for (const line of lines) {
     // `readonly` entries are host-fed PROPERTIES, not calls (App.demoSources /
     // liveReport — the interim live-demo channels scaffold.ts rules will dissolve
-    // into a per-instance component). Projecting them as methods would document
+    // into a per-instance class). Projecting them as methods would document
     // the wrong kind of thing, and they are not authoring surface either way.
     // …and a PROPERTY signature (`view: View;`) is not a call either. Only real
     // call signatures become method nodes; a property's meaning belongs in the
@@ -585,7 +585,7 @@ for (const name of TARGETS) {
   roots.push(clsId);
 }
 
-// ── the standard library: components authored as .declare (library/*.declare).
+// ── the standard library: classes authored as .declare (library/*.declare).
 // Their doc surface is not in the runtime SCHEMAS — it lives in the source: the
 // header /* # Name … */ block is the class prose, and the DECLARED members
 // (body.decls, body.methods) are the public interface (body.attrs are internal
@@ -708,7 +708,7 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
 
 // ── the THEME PRESETS — one reference entry per declared record ──
 // The library's themes live in `library/themes/*.declare` as `theme Name [ … ]`
-// declarations, not components, so the manifest-driven loop above never sees
+// declarations, not classes, so the manifest-driven loop above never sees
 // them — and the reference carried none of the eight names the glossary and the
 // guide point a reader at (`CupertinoDark` was a help-tool miss). Each file
 // declares a light record and its `…Dark` companion under one header, so both
@@ -1179,7 +1179,7 @@ for (const [id, n] of Object.entries(nodes)) {
 }
 for (const c of tree) {
   const has = (c.example && c.example.length) || (c.docSegs || []).some((sg) => (sg.code || []).length);
-  // a theme preset is a record, not a component: its whole usage is `theme = Name`
+  // a theme preset is a record, not a class: its whole usage is `theme = Name`
   if (!c.abstract && !has && c.kind !== "theme") coverage.push(`${c.id}: no usage example (apps/docs/demos/${c.id}.declare, or a compiling \`\`\`declare fence in its prose)`);
   for (const a of c.attributes) if (a.overrides && !a.doc && /^\{/.test("" + a.default)) coverage.push(`${c.id}.${a.name}: an expression override with no intent — add '## ${a.name}' to the class's prose`);
 }

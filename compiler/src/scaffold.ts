@@ -3,7 +3,7 @@
 // bodies and typechecking to the TypeScript compiler API *as a library* — it
 // does not reimplement TypeScript, and "typechecking largely falls out given
 // the right typed scaffolding." This module builds that scaffolding: it turns
-// the component schemas (schema.ts) + the value vocabulary (value.ts) into an
+// the class schemas (schema.ts) + the value vocabulary (value.ts) into an
 // ambient TypeScript surface — a source STRING of `type`/`declare` shapes —
 // against which stock tsc can check a resolved `{ }` body.
 //
@@ -74,7 +74,7 @@
 // MOTION_TOKENS and declaredType — read the runtime's own vocabulary tables so
 // the scaffold cannot drift from them; everything else is `import type`.
 
-import type { ComponentSchema } from "../../runtime/dist/schema.js";
+import type { ClassSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
 import type { ClassDecl, Method, Param, SchemaDecl } from "../../runtime/dist/parser.js";
 import { MOTION_TOKENS } from "../../runtime/dist/easing.js";
@@ -488,7 +488,7 @@ declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearInterval(id: number): void;
 declare const console: { log(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };
 /* The network and URL globals, declared by hand — the checker loads no DOM lib
- * (its Text / Image would collide with the components). A \`script\` block uses
+ * (its Text / Image would collide with the classes). A \`script\` block uses
  * them; a { } body is refused \`fetch\` and the timers by the resolver, which
  * names DataSource / afterDelay / Time (compile.ts isKnownGlobal). */
 interface Headers { get(name: string): string | null; has(name: string): boolean; forEach(fn: (value: string, key: string) => void): void }
@@ -521,7 +521,7 @@ export const PRELUDE_NAMES: ReadonlySet<string> = new Set(
 /** The HOST's surface, not the language's. These are declared in the prelude so a
  *  handler typechecks against the real shape each has in every host Declare runs
  *  in — the checker loads no DOM lib, because its `Text`/`Image` would collide
- *  with the components. They are documented as a POLICY (what a body may reach
+ *  with the classes. They are documented as a POLICY (what a body may reach
  *  for, and why script is the place for the rest), never name by name: Declare
  *  does not own `fetch`, and restating MDN here would go stale.
  *
@@ -544,7 +544,7 @@ const PRELUDE_RECORDS: ReadonlySet<string> = new Set(["Theme", "TextStyles", "Ri
 
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
- *  emitted in the prelude / near-use; component references the peer
+ *  emitted in the prelude / near-use; class references the peer
  *  `declare class`. The nullable decoration slots (stroke/shadow) and the two
  *  styling channels carry their `| null` here, matching what coercion admits. */
 export function tsType(t: AttrType): string {
@@ -564,11 +564,11 @@ export function tsType(t: AttrType): string {
     // `type <Name> = …` alias. Both are `t.name` — the difference is whether
     // an alias is generated for it (see generateScaffold's `enums`).
     case "enum": return t.name;
-    case "component": return `${t.of} | null`; // the only literal is `null` for "none"
+    case "class": return `${t.of} | null`; // the only literal is `null` for "none"
     case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
     case "cursor": return "Cursor"; // reads see the place; writes are widened in memberSig
     case "slotref": return "string"; // a bare slot name, a string at runtime
-    case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a component slot) / Theme-class token record
+    case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a class slot) / Theme-class token record
     case "fill": return "Fill";
     case "stroke": return "BoxStroke"; // one Stroke, four clockwise from the top, or null
     case "outline": return "Outline | null";
@@ -593,12 +593,12 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
- *  component classes, every one of which is emitted here as a peer
+ *  classes, every one of which is emitted here as a peer
  *  `declare class`. Returns null when the name is neither, so the caller can
  *  report it positioned against the author's text.
  *
  *  Nullability is the OPEN QUESTION here, and the reason some corpus signatures
- *  stay bare. A component-typed SLOT is `| null` (declared `= null` — how the
+ *  stay bare. A class-typed SLOT is `| null` (declared `= null` — how the
  *  corpus holds instances), so passing one to a non-null parameter is an error;
  *  make the parameter nullable instead and every use inside the body becomes
  *  "possibly null". Measured on library/menu.declare: non-null costs 3 call
@@ -606,12 +606,12 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
  *  has no nullable/optional parameter spelling (`c: Menu?`) — when it gets one,
  *  this is the line that changes. Non-null is kept meanwhile: it keeps bodies
  *  clean and pushes the check to the caller, where the knowledge is. */
-export function signatureTsType(written: string, isComponent: (n: string) => boolean, nullable = false): string | null {
+export function signatureTsType(written: string, isClassName: (n: string) => boolean, nullable = false): string | null {
   const nul = (t: string): string => (nullable ? `${t} | null` : t);
   // `Window[]` — an element-typed array. Resolve the ELEMENT and append; the
   // spelling is already TypeScript's.
   if (written.endsWith("[]")) {
-    const base = signatureTsType(written.slice(0, -2), isComponent, false);
+    const base = signatureTsType(written.slice(0, -2), isClassName, false);
     return base === null ? null : nul(`${base}[]`);
   }
   // A FUNCTION type — `(id: string) -> void`, what a method IS (language §4).
@@ -627,8 +627,8 @@ export function signatureTsType(written: string, isComponent: (n: string) => boo
   if (isAuthoredUnion(written)) return nul(written);
   if (PAYLOAD_TYPES.has(written)) return nul(written);   // `onPointerUp(e: PointerUpEvent)`
   const t = declaredType(written);
-  if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t));
-  return isComponent(written) ? nul(written) : null;
+  if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "class" ? t.of : tsType(t));
+  return isClassName(written) ? nul(written) : null;
 }
 
 /** A method member's ambient signature — what a CALLER checks against (the
@@ -645,9 +645,9 @@ export function signatureTsType(written: string, isComponent: (n: string) => boo
  *  An omitted return stays `any` — NOT `void`: methods do yield constraint
  *  values (`width = { app.lerp(4, 9, t) }` is the calendar's idiom throughout),
  *  and `void` would flag every such use of a correct program. */
-function methodSig(m: Method, isComponent: (n: string) => boolean): string {
+function methodSig(m: Method, isClassName: (n: string) => boolean): string {
   const params = m.params.map((p, i) => {
-    const ts = p.type === undefined ? null : signatureTsType(p.type, isComponent, p.nullable === true);
+    const ts = p.type === undefined ? null : signatureTsType(p.type, isClassName, p.nullable === true);
     // `?` means MAY BE ABSENT — omittable as well as null, matching TypeScript's
     // own `?:` and how the corpus already guards (`if (selKey != null) …`). An
     // UNTYPED parameter is likewise omittable (no declared contract to keep).
@@ -658,7 +658,7 @@ function methodSig(m: Method, isComponent: (n: string) => boolean): string {
     if (ts === null) return `${p.name}${omittable ? "?" : ""}: any`;
     return `${p.name}${omittable ? "?" : ""}: ${ts}`;
   }).join(", ");
-  const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isComponent, m.returnsNullable === true) ?? "any");
+  const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isClassName, m.returnsNullable === true) ?? "any");
   return `  ${m.name}(${params}): ${ret};`;
 }
 
@@ -677,11 +677,11 @@ function methodSig(m: Method, isComponent: (n: string) => boolean): string {
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
-/** The CALLABLE surface of a service that is also a component. `Keys` and
+/** The CALLABLE surface of a service that is also a class. `Keys` and
  *  `Focus` name one concept each — the keyboard, the focus service — which a
  *  body can either ASK (`Keys.isDown("KeyA")`, `Focus.focus(this)`) or LISTEN
  *  to (`Keys [ onKeyDown(e) { … } ]`). Emitted as STATIC members of the
- *  component's class so both readings typecheck under the one name; at runtime
+ *  generated class so both readings typecheck under the one name; at runtime
  *  they never meet, since a tag and a body identifier are different namespaces
  *  (the body's `Keys` is the injected service object — expr.ts setBodyServices). */
 export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
@@ -746,7 +746,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // demo-hosting site apps still read — `demoSources` (host-seeded name→source
     // map, host-client.js) and `liveReport` (the last live recompile's rendered
     // report). Host-fed, read-only, never set in `[ ]`. RULED to dissolve into a
-    // per-instance `LiveDemo` component (shape 3 — each instance owns its own
+    // per-instance `LiveDemo` class (shape 3 — each instance owns its own
     // `source`/`report`); until that rework these ride here so App's schema stays
     // clean of editing knowledge. `any` values, the same under-report as Theme.
     `  readonly demoSources: Readonly<Record<string, any>>;`,
@@ -913,11 +913,11 @@ export function memberSig(name: string, t: AttrType, nonNullColor = false, readO
  *  base (View / Layout / Dataset / Animator / AnimatorGroup roots) → no
  *  `extends`; an empty class → `{}`. */
 function emitClass(
-  s: ComponentSchema,
+  s: ClassSchema,
   decl: ClassDecl | undefined,
   rootType: string,
   extras: readonly string[] | undefined,
-  isComponent: (n: string) => boolean
+  isClassName: (n: string) => boolean
 ): string {
   const ext = s.base !== null ? ` extends ${s.base.name}` : "";
   const lines: string[] = [];
@@ -985,7 +985,7 @@ function emitClass(
   if (api !== undefined) lines.push(...api);
   const statics = LANGUAGE_STATICS[s.name];
   if (statics !== undefined) lines.push(...statics);
-  if (decl !== undefined) for (const m of decl.body.methods) lines.push(methodSig(m, isComponent));
+  if (decl !== undefined) for (const m of decl.body.methods) lines.push(methodSig(m, isClassName));
   // Instance members the EMITTER computed from the class BODY (its named
   // children, typed by their instance types) — on the class itself, so a
   // cross-reference through the class NAME (`section.area`) sees them too.
@@ -1016,7 +1016,7 @@ export function runtimePlumbing(schema: string): ReadonlySet<string> {
   let set = PLUMBING.get(schema);
   if (set === undefined) {
     const documented = new Set<string>();
-    for (let s: ComponentSchema | null = Object.hasOwn(SCHEMAS, schema) ? SCHEMAS[schema] : null; s !== null; s = s.base) {
+    for (let s: ClassSchema | null = Object.hasOwn(SCHEMAS, schema) ? SCHEMAS[schema] : null; s !== null; s = s.base) {
       for (const line of LANGUAGE_API[s.name] ?? []) {
         const m = line.trim().match(/^([A-Za-z_$][\w$]*)\s*[<(]/);
         if (m !== null) documented.add(m[1]);
@@ -1049,7 +1049,7 @@ const PROSE_DOCUMENTED: Readonly<Record<string, readonly string[]>> = {
  *  product. `schemas` is `programSchemas(program.classes).schemas`; `classDecls`
  *  is `program.classes` (their methods). */
 export function generateScaffold(
-  schemas: Readonly<Record<string, ComponentSchema>>,
+  schemas: Readonly<Record<string, ClassSchema>>,
   classDecls: readonly ClassDecl[],
   rootType: string = "App",
   classExtras?: ReadonlyMap<string, readonly string[]>,
@@ -1073,9 +1073,9 @@ export function generateScaffold(
   // registry omits (the `Layout` base is deliberately not a name-table key,
   // schema.ts, yet `layout: Layout | null` and `SimpleLayout extends Layout`
   // both need it declared). Walk each entry's base chain; first name wins.
-  const all = new Map<string, ComponentSchema>();
-  const collect = (s: ComponentSchema): void => {
-    for (let c: ComponentSchema | null = s; c !== null && !all.has(c.name); c = c.base) all.set(c.name, c);
+  const all = new Map<string, ClassSchema>();
+  const collect = (s: ClassSchema): void => {
+    for (let c: ClassSchema | null = s; c !== null && !all.has(c.name); c = c.base) all.set(c.name, c);
   };
   for (const s of Object.values(schemas)) collect(s);
 
@@ -1136,7 +1136,7 @@ export function generateScaffold(
 
   // Base-before-derived: a stable sort by chain depth (roots at 0). Ambient
   // declarations hoist, so this is for readability, not resolution.
-  const depth = (s: ComponentSchema): number => (s.base === null ? 0 : 1 + depth(s.base));
+  const depth = (s: ClassSchema): number => (s.base === null ? 0 : 1 + depth(s.base));
   // Signature types may name a schema too (`advance(t: Task)`) — the widened
   // predicate lets the written name pass through to the interface above.
   const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name), (n) => all.has(n) || shapeNameSet.has(n)));
@@ -1153,7 +1153,7 @@ export function generateScaffold(
   const themeLine = [...new Set([...THEME_PRESET_NAMES, ...themeNames])].map((n) => `declare const ${n}: Theme;`).join("\n")
     + styles.map((s) => {
       const textAttr = (name: string): AttrType | null => {
-        for (let sc: ComponentSchema | null | undefined = schemas["Text"]; sc; sc = sc.base) if (Object.hasOwn(sc.attrs, name)) return sc.attrs[name];
+        for (let sc: ClassSchema | null | undefined = schemas["Text"]; sc; sc = sc.base) if (Object.hasOwn(sc.attrs, name)) return sc.attrs[name];
         return null;
       };
       // A bundle's literal family is a string (a Font is an object in the tree).

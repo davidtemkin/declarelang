@@ -2,7 +2,7 @@
 # Declare Inspector
 
 A live object browser for a running Declare app — written in Declare, about
-another Declare program. It answers three questions that no component
+another Declare program. It answers three questions that no class
 devtool can: what object is this, **why** is that value what it is, and what
 happens if I change it right now.
 
@@ -17,7 +17,7 @@ overlay take it back: the app being inspected must stay fully usable while you
 inspect it.
 */
 
-// ── small type components ────────────────────────────────────────────────────
+// ── small type classes ────────────────────────────────────────────────────
 
 class Label extends Text [ fontSize = 12, fontFamily = ["system-ui", "sans-serif"],
     textColor = { app.c.muted }, wrap = false
@@ -31,7 +31,7 @@ class Code extends Text [ fontSize = 11.5, fontFamily = ["ui-monospace", "monosp
 
 // ── a toolbar button ─────────────────────────────────────────────────────────
 
-class Tool extends View [ height = 22, cornerRadius = 6,
+class Tool [ height = 22, cornerRadius = 6,
     glyph: string = "",
     on: boolean = false,
     width = { this.g.width + 16 },
@@ -51,7 +51,7 @@ class Tool extends View [ height = 22, cornerRadius = 6,
 // view is a full row-height box with the arrow centered in it — the affordance
 // is small, the target is not.
 
-class Twisty extends View [ width = 18, height = 19,
+class Twisty [ width = 18, height = 19,
     open: boolean = false,
     shown: boolean = true,
     draw(d: Draw) {
@@ -70,7 +70,7 @@ class Twisty extends View [ width = 18, height = 19,
 // announces itself. Vertical for the columns; the console divider is its
 // horizontal twin below.
 
-class Seam extends View [ width = 8, y = 0,
+class Seam [ width = 8, y = 0,
     which: string = "a",
     cursor = "col-resize",
     fill = { classroot.hovered || app.seam == classroot.which ? app.c.seamOn : null },
@@ -82,7 +82,7 @@ class Seam extends View [ width = 8, y = 0,
 
 // ── the window's traffic light (close only — there is nowhere to minimise) ───
 
-class Dot extends View [ width = 11, height = 11, cornerRadius = 6,
+class Dot [ width = 11, height = 11, cornerRadius = 6,
     fill = #FF5F57,
     stroke = { stroke(0.5, 0xD1443B) },
     onClick() { app.shown = false },

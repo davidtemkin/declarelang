@@ -28,7 +28,7 @@ script {
         d.fillStyle = g
         d.fillRect(0, 0, w, h)
         // the sun: a layered radial glow, high right. The radius is clamped
-        // because a negative radial radius throws — and a drawn component
+        // because a negative radial radius throws — and a drawn view
         // that throws takes the whole boot with it, which is too sharp an
         // edge for the zero-width moment before a box has been measured.
         const sx = w * 0.82, sy = h * 0.10
@@ -175,7 +175,7 @@ script {
 // One icon = one view; `kind` picks the glyph, and because draw() reads it,
 // the glyph redraws whenever kind changes.
 
-class WIcon extends View [
+class WIcon [
     kind: string = "sun",
     draw(d: Draw) { artIcon(d, this.kind, this.width, this.height) }
     ]
@@ -188,7 +188,7 @@ class WIcon extends View [
 // that pauses while the sky is hidden and never jumps on return, which no
 // clock fact gives — integration, not a formula over the wall clock.
 
-class SkyPhoto extends View [ clip = true,
+class SkyPhoto [ clip = true,
     source: string = "",
     driftT: number = 0,
     driftAcc: number = 0,
@@ -244,7 +244,7 @@ records nothing, and an empty recording has no bounds, so no canvas exists at
 all. One canvas or one image, never both, never four.
 */
 
-class WSky extends View [ clip = true,
+class WSky [ clip = true,
     cond: string = "cloudy",
     hasPhoto: boolean = { this.cond == "cloudy" || this.cond == "cumulus" },
 
@@ -265,7 +265,7 @@ class WSky extends View [ clip = true,
 // The 10-day range bar: a dark track, a warm gradient segment spanning
 // lo..hi within the ten days' min..max, and (optionally) a "now" dot.
 
-class RangeBar extends View [
+class RangeBar [
     lo: number = 0,
     hi: number = 1,
     min: number = 0,
@@ -299,7 +299,7 @@ class RangeBar extends View [
 
 // The UV ramp: the full spectrum with a marker at value/11.
 
-class UVRamp extends View [
+class UVRamp [
     value: number = 0,
     draw(d: Draw) {
         const w = d.w, h = d.h, r = h / 2
@@ -322,7 +322,7 @@ class UVRamp extends View [
 
 // The air-quality hairline: the same spectrum, thinner, dot at value/300.
 
-class AQILine extends View [
+class AQILine [
     value: number = 0,
     draw(d: Draw) {
         const w = d.w, h = d.h, mid = h / 2
@@ -346,7 +346,7 @@ class AQILine extends View [
 // The sunset curve: a sine arc over a horizon line, the sun-dot riding at
 // `frac` (0 = sunrise, 1 = sunset).
 
-class SunCurve extends View [
+class SunCurve [
     frac: number = 0.5,
     draw(d: Draw) {
         const w = d.w, h = d.h
@@ -381,7 +381,7 @@ class SunCurve extends View [
 // The wind dial: a ring of ticks, cardinal letters, and a needle at `deg`
 // (meteorological: the direction the wind comes from).
 
-class WindDial extends View [
+class WindDial [
     deg: number = 0,
     draw(d: Draw) {
         const w = d.w, h = d.h
@@ -443,7 +443,7 @@ class WindDial extends View [
 // The pressure gauge: a 240° tick arc, a needle at `frac` 0..1, and the
 // equals-mark above the readout.
 
-class PressureGauge extends View [
+class PressureGauge [
     frac: number = 0.5,
     draw(d: Draw) {
         const w = d.w, h = d.h
@@ -483,7 +483,7 @@ class PressureGauge extends View [
 // going to earn; the terminator must move with the data, so that half is
 // drawn.
 
-class MoonDisc extends View [
+class MoonDisc [
     illum: number = 0.22,
     waning: boolean = true,
     disc: Image [ width = 100%, height = 100%, source = "art/moon.png", stretches = both ],
@@ -499,7 +499,7 @@ class MoonDisc extends View [
 // past the limb because the clip is the limb.
 //   `illum` is the lit fraction 0..1; `waning` puts the lit limb on the left.
 
-class MoonShadow extends View [ opacity = 0.88,
+class MoonShadow [ opacity = 0.88,
     illum: number = 0.22,
     waning: boolean = true,
     draw(d: Draw) {
@@ -555,7 +555,7 @@ class MoonShadow extends View [ opacity = 0.88,
 // the same city always paints the same weather, because the seed is its own
 // data.
 
-class RadarBlobs extends View [
+class RadarBlobs [
     amount: number = 0,
     seed: number = 7,
     draw(d: Draw) {
@@ -585,7 +585,7 @@ class RadarBlobs extends View [
 // The temperature bubble pinned on the map — drawn, so it sits in map space
 // rather than being another laid-out view.
 
-class MapPin extends View [
+class MapPin [
     label: string = "",
     draw(d: Draw) {
         const w = d.w, h = d.h
@@ -734,7 +734,7 @@ class MasonryLayout extends Layout [
 
 // the city-list glyph — three rows of a list, drawn
 
-class ListIcon extends View [
+class ListIcon [
     draw(d: Draw) {
         const w = d.w, h = d.h
         d.strokeStyle = "#FFFFFF"

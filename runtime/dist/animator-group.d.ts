@@ -3,7 +3,7 @@ import { type Motion } from "./animate.js";
 import { type Animatable } from "./animator.js";
 /** AnimatorGroup — coordinates several animators (or nested groups) in
  *  `sequential` or `simultaneous` order (animation.md §1, LzAnimatorGroup.lzs).
- *  A twin-table component exactly like Animator: it carries the same
+ *  A twin-table class exactly like Animator: it carries the same
  *  started/paused/start()/stop()/repeat surface, and it — not its children —
  *  is the driver (a member's own `started` is ignored; the group starts them).
  *  It registers ONE ticker with the shared clock and forwards the same `now`

@@ -65,7 +65,7 @@ async function handle(m) {
         ok: built.ok, report: built.report ?? null,
         errors: (built.errors ?? []).map((e) => ({ message: String(e.message ?? e) })),
         closure: built.closure, moduleName: built.moduleName, sizes: built.sizes,
-        assets: built.assets, usedComponents: built.usedComponents,
+        assets: built.assets, usedClasses: built.usedClasses,
       };
     }
     case "fresh":

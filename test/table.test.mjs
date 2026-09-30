@@ -140,7 +140,7 @@ await test("windowed: ranges cross the window and arrow travel materializes the 
   app.t.onKeyDown(KEY("ArrowDown"));
   settle();
   assert.equal(app.t.active.id, 801);
-  const inst = rowsOf(app.t).find((r) => r.rowIndex() === 801);
+  const inst = rowsOf(app.t).find((r) => r.tableIndex() === 801);
   assert.ok(inst !== undefined, "the destination materialized on arrival");
   assert.equal(inst.selected, true);
 });

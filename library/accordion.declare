@@ -50,7 +50,7 @@ house look. See `Control.theme`.
 
 include [ "control.declare", "icons/core.declare" ]
 
-class Accordion extends View [
+class Accordion [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.

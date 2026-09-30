@@ -89,8 +89,9 @@ const SUITE_INPUTS = {
   "materialization": [], "dataschema": [], "datasource-failure": [], "table": [],
   "dep-extract": [], "dep-projection": [], "script-block": [], "static-constraint": [],
   "highlight": [], "inspect": [], "md": [], "themes": [], "html": [], "richtext": [],
-  "components": [], "streams": ["server"], "schema-completeness": ["docs/declare-model.json", "tools/internal/doc"],
+  "library": [], "streams": ["server"], "schema-completeness": ["docs/declare-model.json", "tools/internal/doc"],
   // the doc corpus
+  "briefs": ["docs/briefs", "docs/guide", "docs/declare-model.json", "tools/declare-help.mjs", "tools/internal/doc/briefs.mjs", "apps", "library"],
   "docs": ["docs", "tools/internal/doc", "tools/internal/ops.mjs", "skill", ".claude/skills",
            "apps/homepage/getstarted.md", "apps/homepage/declare-faq.md", "apps/docs", "bundles/version.json"],
   "ops": ["tools", "docs", "skill", ".claude/skills", "apps/homepage/getstarted.md", "apps/homepage/declare-faq.md"],
@@ -153,12 +154,13 @@ const suiteHash = (s) => {
   return setHash(ROOT, fileSet(ROOT, [...CORE, s.path, ...extra]));
 };
 
-const LOG = resolve(ROOT, "gates.log");
+const LOG = resolve(ROOT, ".derive/gates.log");
+mkdirSync(dirname(LOG), { recursive: true });
 writeFileSync(LOG, `# gates ${new Date().toISOString()}\n`);
 const line = (s) => { process.stdout.write(s + "\n"); appendFileSync(LOG, s + "\n"); };
 
 const list = suites();
-line(`gates: ${list.length} suite(s) — live log at gates.log`);
+line(`gates: ${list.length} suite(s) — live log at .derive/gates.log`);
 
 const env = { ...process.env, ...(has("--timing") ? { DECLARE_TIMING: "1" } : {}) };
 const results = [];

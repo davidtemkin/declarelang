@@ -697,7 +697,7 @@ final class Bridge {
     /// Refuse to run half a platform. Every file bundle.sh bakes is required at
     /// launch, because the alternative is what this host used to do: start
     /// anyway, fall back to whatever tree it could find, and fail later as
-    /// "unknown component 'Button'" or "no distro: cannot load the compiler" —
+    /// "unknown class 'Button'" or "no distro: cannot load the compiler" —
     /// symptoms that name the program, never the broken app.
     static func assertPlatform() {
         guard let res = Bundle.main.resourceURL else { return }

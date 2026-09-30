@@ -71,7 +71,7 @@ they do different jobs:
 |---|---|---|
 | a model standing on one record — the rules for a kind of record | ch14 `TaskModel` (`overdue = { :due < app.today }`, `finish() { :done = true }`) | the record itself; the model reads `:field` like a view |
 | a read-only data service — decode, derive, answer queries | marketmap `Market` | its derived `table` dataset |
-| shared client state with invariants | desktop `WinManager` (window records; an open goes before the minimized tail) | its `list` dataset, replicated by `WinSlot` |
+| shared client state with invariants | desktop `WinManager` (window records; an open goes before the minimized tail) | its `list` dataset, each record built as the window class it names (`classFor`) |
 | a roster of things with behaviour | desktop `DesktopApp` subclasses (per-kind icon art, launch policy) | a projection of the roster to records, each icon looking its node back up by id |
 
 The last row is a real tension, and not about projections: **records carry no behaviour, and a

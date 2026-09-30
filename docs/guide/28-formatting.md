@@ -47,7 +47,7 @@ A body's *first* member may open on the header line whatever its kind — this i
 with one declaration reads best:
 
 ```declare-fragment
-class Screen extends View [ shown: boolean = false,
+class Screen [ shown: boolean = false,
     opacity = { shown ? 1 : 0 },
     visible = { opacity > 0 }
     ]
@@ -80,7 +80,7 @@ row: View [ width = { parent.width }, height = 28, clip = true,
     ],
 ```
 
-## Wrapped leaves
+## Wrapping long lines
 
 When a leaf's attributes don't fit, the continuation sits at **block indent** — the
 member's own indent plus one level — not visually aligned under the first attribute.
@@ -92,7 +92,7 @@ therefore share a column; you tell them apart by syntax (`attr = value` versus
 
 Attributes stay in the order you wrote them. The formatter never reorders them.
 
-## Breathing
+## Blank lines
 
 Class and `App` bodies breathe. A blank line after the header, blank lines between member
 *groups* — declarations, then layout, then each multi-line child, then states, then
@@ -221,7 +221,7 @@ Aligned columns re-flow every sibling when the longest item changes: adding one 
 rewrites all three rows, where single-space touches only the line you edited. The diff then
 shows what you changed rather than what the alignment did.
 
-## Grouping is yours
+## Grouping members
 
 How attributes group into lines is a judgment call. The canon recommends by example and
 never legislates it — there are more useful arrangements than a rule could anticipate, and

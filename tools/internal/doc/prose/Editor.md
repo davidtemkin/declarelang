@@ -12,7 +12,7 @@ real record for autosave, or at a working copy you commit on a Save button for a
 
 ## error
 **Read-only.** The current validation message for the draft, or `""` when valid — the edit
-session recomputes it on every edit, so what you own is `validate()`, not this slot. Show
+session recomputes it on every edit, so what you own is `validate()`, not this attribute. Show
 it with a label that reads it (`text = { app.field.error }`).
 
 ## valid

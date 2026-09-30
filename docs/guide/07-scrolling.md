@@ -13,7 +13,7 @@ content that scroller first.
 
 > **An app scrolls by default, and its scroller is the page.**
 
-## The page is the app's scroller
+## The page scroll
 
 An [`App`](declare-docs:App) fills its window. When its content is taller than the window, the page itself
 scrolls, and [`app.scrollY`](declare-docs:App.scrollY) reports where it is — the same fact every scroller reports.
@@ -25,7 +25,7 @@ axis becomes scroll range; overflow along any other axis is out of frame — not
 not reachable, contributing nothing. That is why nothing can hand the page a sideways
 scrollbar by accident.
 
-## Panes that scroll
+## Scrolling panes
 
 Any view can scroll its own content: [`scrolls`](declare-docs:View.scrolls) is an axis — `y`, `x`, or `both`
 (`none` is a view's default; an App's is `y`).
@@ -47,7 +47,7 @@ laid over other content hides that content from clicks as well as from the eye.
 Anything that must stay clickable goes in front of the pane — later in the body — or
 outside it.
 
-## Chrome that stays put: `ignoreScroll`
+## Fixed headers: `ignoreScroll`
 
 A header that must not scroll away is a child that opts out of its scroller's scroll:
 
@@ -83,12 +83,12 @@ overlay: View [ ignoreScroll = true, width = { app.hostWidth }, height = { app.h
 
 The page sees one frame-sized layer; the panel sliding in and out of it adds no scroll
 range. The [`Spring`](declare-docs:Spring) drives `away`, a number of the panel's own,
-rather than `x`: a spring owns the slot it moves, so the slot it moves carries no
+rather than `x`: a spring owns the attribute it moves, so that attribute carries no
 constraint, while `x` stays one and keeps the panel against the edge as the window
 resizes. `away` starts at its closed value, so the panel waits offstage from the first
 frame ([Motion and states](declare-docs:guide:motion)).
 
-## Moving a scroller: requests, not assignments
+## Moving a scroller
 
 [`scrollY`](declare-docs:View.scrollY) and [`scrollX`](declare-docs:View.scrollX) are **facts**: the platform writes them as the user scrolls, and
 you read them — a header that fades as the page scrolls is
@@ -104,7 +104,7 @@ scroller, ask:
 A request is clamped to the real range, and a pane that cannot take it yet (hidden, not
 laid out) holds it until it can.
 
-## Your scroll and theirs
+## Scrolling while the user scrolls
 
 Scrolling is a process the platform runs, and the user's hand is in it at the same time
 as your program. A request made mid-gesture can be overtaken by momentum or, worse,
@@ -125,7 +125,7 @@ What never works is re-asserting a position every frame. The gesture wins, and t
 program spends the whole gesture losing.
 
 Which gesture a draggable thing on a scrolling surface gets — and how press-and-hold
-lets a quick swipe still scroll — is [Touch and gestures](declare-docs:guide:touch@taking-a-drag-from-a-scroll).
+lets a quick swipe still scroll — is [Touch and gestures](declare-docs:guide:touch@dragging-on-a-scrolling-surface).
 
 ---
 

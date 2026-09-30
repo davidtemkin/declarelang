@@ -1,22 +1,20 @@
 schema Session [ id: number, day: number, minutes: number ]
 schema Week [ count: number, minutes: number ]
 
-class Log [
-    sessions: Dataset [ schema = [ rows[]: Session ] ] { { "rows": [
-        { "id": 1, "day": 1, "minutes": 30 }, { "id": 2, "day": 2, "minutes": 45 } ] } },
+class Log extends Dataset [ schema = [ rows[]: Session ],
     week: Dataset [ schema = Week, contents = { classroot.weekOf(3) } ],
     weekOf(today: number) -> Week {
-        const rows = this.sessions.value.rows.filter((s) => s.day > today - 7)
+        const rows = this.value.rows.filter((s) => s.day > today - 7)
         return ({ count: rows.length, minutes: rows.reduce((n, s) => n + s.minutes, 0) })
         },
     add(minutes: number) {
-        this.sessions.set(["rows", "-"], ({ id: this.sessions.value.rows.length + 1, day: 3, minutes: minutes }))
+        this.set(["rows", "-"], ({ id: this.value.rows.length + 1, day: 3, minutes: minutes }))
         }
     ]
 
 
 App [ width = 320, height = 110, fill = white, textColor = #172530,
-    log: Log [ ],
+    log: Log [ ] { { "rows": [ { "id": 1, "day": 1, "minutes": 30 }, { "id": 2, "day": 2, "minutes": 45 } ] } },
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         Text [ text = { app.log.week.value.count + " sessions, " + app.log.week.value.minutes + " minutes" } ],

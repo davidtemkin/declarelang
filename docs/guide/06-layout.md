@@ -62,14 +62,14 @@ App [ width = 280, height = 120, fill = white,
 
 Narrow the `tags` width and the pills re-wrap. When the arrangement you need is
 genuinely your own — masonry, a radial menu, a timeline — you write a layout class with
-one method; [Custom components](declare-docs:guide:custom-components@an-arrangement-nobody-wrote-for-you) shows how.
+one method; [Your own views](declare-docs:guide:your-own-views@writing-a-layout) shows how.
 
 > **From CSS:** there is no flexbox, no grid, no document flow and no z-index.
 > Children sit at their own `x`/`y` unless a `layout` arranges them; stacking is
 > declaration order; "responsive" is a plan or a constraint reading a width, not a
 > media query. Your spatial intuitions transfer; the negotiation machinery stays behind.
 
-## What a layout places belongs to the layout
+## What a layout controls
 
 A row places each child's [`x`](declare-docs:View.x); with `align` it places [`y`](declare-docs:View.y) too. What a layout places, the
 child must not also set — in any spelling, a number, `center`, or a `{ }`. Declaring it
@@ -115,7 +115,7 @@ App [ width = 260, height = 150, fill = white, textColor = black,
 Change the limit to `scrolls = y` on the box instead, and the extra content scrolls
 ([Scrolling](declare-docs:guide:scrolling)).
 
-## Padding, and the card it makes
+## Padding and Card
 
 An inset is an attribute of the **view**: [`padding`](declare-docs:View.padding), one number for all four sides or
 `[top, right, bottom, left]`. A padded view has an inside, and every child is measured
@@ -163,7 +163,7 @@ its parent, or push it flush to the far edge, and follow as sizes change.
 
 Hand placement is the right tool on free-form surfaces — a diagram, a canvas of cards,
 an overlay, the cells of a calendar whose geometry is a formula — and in a few small
-spots, like the examples in this guide that park one component on a page. For anything
+spots, like the examples in this guide that park one view on a page. For anything
 that is a row, a column, a flow or a grid of parts, use a layout: a ladder of hand-set
 `y` values is a layout written out by hand, and it breaks the first time a size changes.
 
@@ -201,11 +201,11 @@ or `axis = { app.narrow ? "y" : "x" }` on a `SimpleLayout` when only the directi
 changes. In a row whose children keep their natural widths, a `Spacer [ ]` absorbs the
 slack: one between two groups pushes them apart, one on each side centers the run. A
 wholly different configuration at a width is a [`State`](declare-docs:State)
-([Motion and states](declare-docs:guide:motion@a-state-is-a-reversible-bundle-of-overrides)). And often the cleanest answer is a
+([Motion and states](declare-docs:guide:motion@states)). And often the cleanest answer is a
 floor: [`App [ minWidth = 360 ]`](declare-docs:App) holds the design at that width and lets a narrower
 window pan, instead of reflowing a layout below the width where it works.
 
-## The app fills its host
+## App size and the host window
 
 An `App` with no size fills its host — the window, or the element it is embedded in —
 and resizes with it, which is why responsive code reads `app.width`. Give an app

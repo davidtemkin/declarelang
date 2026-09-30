@@ -1,4 +1,4 @@
-import type { ComponentSchema } from "../../runtime/dist/schema.js";
+import type { ClassSchema } from "../../runtime/dist/schema.js";
 import type { AttrType } from "../../runtime/dist/value.js";
 import type { ClassDecl, SchemaDecl } from "../../runtime/dist/parser.js";
 /** Every name the PRELUDE declares — the resolver's second tier of "known
@@ -11,7 +11,7 @@ export declare const PRELUDE_NAMES: ReadonlySet<string>;
 /** The HOST's surface, not the language's. These are declared in the prelude so a
  *  handler typechecks against the real shape each has in every host Declare runs
  *  in — the checker loads no DOM lib, because its `Text`/`Image` would collide
- *  with the components. They are documented as a POLICY (what a body may reach
+ *  with the classes. They are documented as a POLICY (what a body may reach
  *  for, and why script is the place for the rest), never name by name: Declare
  *  does not own `fetch`, and restating MDN here would go stale.
  *
@@ -21,19 +21,19 @@ export declare const PRELUDE_NAMES: ReadonlySet<string>;
 export declare const HOST_GLOBALS: ReadonlySet<string>;
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
- *  emitted in the prelude / near-use; component references the peer
+ *  emitted in the prelude / near-use; class references the peer
  *  `declare class`. The nullable decoration slots (stroke/shadow) and the two
  *  styling channels carry their `| null` here, matching what coercion admits. */
 export declare function tsType(t: AttrType): string;
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
- *  component classes, every one of which is emitted here as a peer
+ *  classes, every one of which is emitted here as a peer
  *  `declare class`. Returns null when the name is neither, so the caller can
  *  report it positioned against the author's text.
  *
  *  Nullability is the OPEN QUESTION here, and the reason some corpus signatures
- *  stay bare. A component-typed SLOT is `| null` (declared `= null` — how the
+ *  stay bare. A class-typed SLOT is `| null` (declared `= null` — how the
  *  corpus holds instances), so passing one to a non-null parameter is an error;
  *  make the parameter nullable instead and every use inside the body becomes
  *  "possibly null". Measured on library/menu.declare: non-null costs 3 call
@@ -41,7 +41,7 @@ export declare function tsType(t: AttrType): string;
  *  has no nullable/optional parameter spelling (`c: Menu?`) — when it gets one,
  *  this is the line that changes. Non-null is kept meanwhile: it keeps bodies
  *  clean and pushes the check to the caller, where the knowledge is. */
-export declare function signatureTsType(written: string, isComponent: (n: string) => boolean, nullable?: boolean): string | null;
+export declare function signatureTsType(written: string, isClassName: (n: string) => boolean, nullable?: boolean): string | null;
 /** LANGUAGE-API members — the runtime surface a `{ }` body may READ or CALL
  *  that is deliberately NOT in the schemas: a schema models what an author can
  *  SET in `[ ]` ("lifecycle state (value, status, error) is runtime surface
@@ -57,11 +57,11 @@ export declare function signatureTsType(written: string, isComponent: (n: string
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
-/** The CALLABLE surface of a service that is also a component. `Keys` and
+/** The CALLABLE surface of a service that is also a class. `Keys` and
  *  `Focus` name one concept each — the keyboard, the focus service — which a
  *  body can either ASK (`Keys.isDown("KeyA")`, `Focus.focus(this)`) or LISTEN
  *  to (`Keys [ onKeyDown(e) { … } ]`). Emitted as STATIC members of the
- *  component's class so both readings typecheck under the one name; at runtime
+ *  generated class so both readings typecheck under the one name; at runtime
  *  they never meet, since a tag and a body identifier are different namespaces
  *  (the body's `Keys` is the injected service object — expr.ts setBodyServices). */
 export declare const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>>;
@@ -88,7 +88,7 @@ export declare function runtimePlumbing(schema: string): ReadonlySet<string>;
  *  + user), base-before-derived. Pure — the returned STRING is the whole
  *  product. `schemas` is `programSchemas(program.classes).schemas`; `classDecls`
  *  is `program.classes` (their methods). */
-export declare function generateScaffold(schemas: Readonly<Record<string, ComponentSchema>>, classDecls: readonly ClassDecl[], rootType?: string, classExtras?: ReadonlyMap<string, readonly string[]>, 
+export declare function generateScaffold(schemas: Readonly<Record<string, ClassSchema>>, classDecls: readonly ClassDecl[], rootType?: string, classExtras?: ReadonlyMap<string, readonly string[]>, 
 /** Written signature type names from INLINE elements too (the caller walks
  *  the whole tree; `classDecls` covers only `class` bodies). Enum/record
  *  aliases are collected from these as well as from attributes. */

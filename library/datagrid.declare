@@ -21,7 +21,7 @@ resizable by drag, touch-correct, over a windowed collection.
 - **Order and widths are the grid's value-pattern state**: `order` (column
   ids, presented order) and `widths` (id → width overrides). Reorder delivers
   through `arrangeInput(order)`, resize through `resizeInput(id, w)` — the
-  defaults write the slots; an app override owns them (persisted layouts).
+  defaults write the attributes; an app override owns them (persisted layouts).
   Widths are plain values — nothing measures cells.
 - **Header interactions**: click sorts — a delivery (`sortInput(on, dir)`,
   writing `sortOn`/`sortDir` by default): sort names a derivation, the truth
@@ -220,7 +220,7 @@ The provided design-token record a `Column` styles its cells off — a **provide
 the app provides once (`App [ theme = { … } ]`) and the grid reads. See `Control.theme`.
 */
 
-class Column extends View [
+class Column [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.
@@ -359,11 +359,11 @@ class DataGrid extends Table [
     // given. By the next frame the rows have re-seated.
 
     editStep(row: View, field: string, d: number) {
-        const i = (row as TableRow).rowIndex() + d
-        if (i < 0 || i >= this.memberCount()) return
+        const i = (row as TableRow).tableIndex() + d
+        if (i < 0 || i >= this.itemCount()) return
         this.showRow(i)
         afterDelay(0, () => {
-            const inst = this.children.find((c) => (c as TableRow).isTableRow === true && (c as TableRow).rowIndex() == i)
+            const inst = this.children.find((c) => (c as TableRow).isTableRow === true && (c as TableRow).tableIndex() == i)
             if (inst == null) return
             const cell = (inst as GridRow).cells.children.find((c) => "" + (c as any).fld == field) as any
             if (cell != null && cell.ed != null) Focus.focus(cell.ed)
@@ -568,7 +568,7 @@ class DataGrid extends Table [
     ]
 
 
-// The row: TableRow's whole contract (selection, member, the click wiring),
+// The row: TableRow's whole contract (selection, item, the click wiring),
 // generating one cell per column record. The use site writes it bare over
 // its rows path — the cells come from the grid's column model.
 
@@ -591,7 +591,7 @@ App [ width = 400, height = 200,
 ```
 
 ## rec
-The row's record, as a derived slot. **A slot rather than a method call, so cells
+The row's record, as a derived attribute. **An attribute rather than a method call, so cells
 re-derive when the record's fields change** — a method read would go stale. `null` on a
 written (unreplicated) row.
 

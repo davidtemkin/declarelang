@@ -14,7 +14,7 @@ has to obey. Together they are the whole runtime model.
 Read a reactive value inside `{ }` and the constraint depends on it. Assign one with
 plain `=` and everything that read it follows.
 
-## Predict, then click
+## How a constraint updates
 
 Read this program before you run it. One handler changes `v`. **Which of the three
 things below it change when you click — the number, the bar's length, the bar's
@@ -71,7 +71,7 @@ any value read.
 > property wrappers. `count: number = 0` is `@State`; an attribute set from outside is
 > a binding in SwiftUI's sense; a computed value is `{ }`.
 
-## `=` is the setter
+## Assignment and constraints
 
 Inside any `{ }` body, assigning an attribute is the reactive write: `count = count + 1`
 updates the value and notifies everything that read it. There is no `setState`, no
@@ -137,7 +137,7 @@ showNewest() {
 closed, and before that state reaches the screen, so whatever it writes lands in
 the same frame. It is tied to your change, not to a clock. (Work that genuinely is about
 the clock — dismiss a notice after eight seconds — is `afterDelay(ms, fn)`, in
-[Time and change events](declare-docs:guide:time@later-once-afterdelay).) If you find yourself
+[Time and change events](declare-docs:guide:time@one-later-call-afterdelay).) If you find yourself
 wanting it to wait for something else — data arriving, motion finishing — those are
 values changing (`source.loaded`, `spring.arrived`), and a value changing is what a
 constraint is for.
@@ -147,7 +147,7 @@ One settle has no handler inside it: the first, when the program boots. The App'
 measured, before the first paint. Most apps never need it; keep it for things that are
 genuinely once-and-imperative, like opening a socket or starting a tour.
 
-## The one rule constraints obey
+## What a constraint may read
 
 A constraint must read *named* things — an attribute, a record field written as a
 path — so the compiler can wire it. When it cannot name what an expression reads,
@@ -156,7 +156,7 @@ that is a compile error (`DECLARE7001`) that names the rewrite. The common cases
 - **Indexing by a runtime key**, `this[someName]` — name the attribute, or move the
   lookup into a method the compiler can read through.
 - **Aggregating over the live view tree**, `children.map((c) => c.width)` — arranging
-  children is a layout's job ([Size, position and layout](declare-docs:guide:layout@what-a-layout-places-belongs-to-the-layout)),
+  children is a layout's job ([Size, position and layout](declare-docs:guide:layout@what-a-layout-controls)),
   and counts come from data, not from views.
 - **Passing a node into a `script` function** — script is outside the reactive
   system, so a constraint depends only on the values it passes. Pass the values

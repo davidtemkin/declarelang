@@ -33,7 +33,7 @@ Gates sound without touching `volume`, exactly as the platform has it. **The def
 differs by leaf, and each default is the honest one**: `Video` mutes (browsers refuse
 audible video autoplay, so an unmuted default would make the common declaration silently
 not run); `Audio` does not (sound is its only product — shipped silent it would be a
-component that appears broken until you find the flag).
+class that appears broken until you find the flag).
 
 ## position
 The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is

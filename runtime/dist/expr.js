@@ -283,7 +283,7 @@ function refineBodyError(src, raw, expression) {
     // (#f00, #ff0000) lexes as a private identifier — both are the same color mistake.
     const hash = src.match(/#([0-9a-fA-F]{3,8})(?![0-9a-fA-F])/);
     if (hash && /invalid character|private identifier/i.test(raw)) {
-        return diag `${head} — inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #… and named-color forms work only in bare slots)`;
+        return diag `${head} — inside { } a color is written ${hashToOx(hash[1])}, not ${hash[0]} (the #… and named-color forms work only as bare values)`;
     }
     // A CSS percentage. `width = { 100% }` is the mistake the language map itself
     // highlights, and TS answers it with "Expression expected" — true, and useless.

@@ -4,7 +4,7 @@
 // (server/CLI) and in the browser (composition.md §3, [[openlaszlo-compiler-packaging]]).
 //
 // The model: every file a compile reads (main source, includes, auto-included
-// component libraries, the manifest) is recorded with a VALIDATOR — a cheap
+// class libraries, the manifest) is recorded with a VALIDATOR — a cheap
 // change signal — and a cached compile is fresh iff every recorded validator
 // still matches AND the compiler properties are unchanged. The validator is
 // whatever the environment cheaply supplies: mtime+size on disk, ETag /

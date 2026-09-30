@@ -36,7 +36,7 @@ colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
 rowH: number = { (app.bodyH - app.headH) / app.nr }
 ```
 
-You built exactly this in [Animated arrangements](declare-docs:guide:animated-arrangements@a-month-becomes-a-week), with two
+You built exactly this in [Animated arrangements](declare-docs:guide:animated-arrangements@sprung-scalars-driving-a-layout), with two
 scalars and twenty-one cells. Here it is with four and forty-two. Switching views is
 one assignment to `mode`; the targets re-derive, the springs chase, and every cell's
 geometry — a constraint reading `colW`/`rowH` — follows in lock-step. Now connect it
@@ -45,7 +45,7 @@ when you click **Week**, watch what your eyes do. Nothing. You never lose the da
 you were looking at, because it never ceases to exist — *that* is continuity keeping
 the user oriented, delivered by a mechanism you can now write from memory.
 
-## 2. A mode is a number you derive, not a flag you manage
+## 2. The view mode
 
 There is no `isTimeView` boolean anywhere in the file. Whether the calendar shows
 month-style chips or day/week time-blocks is itself *derived from the sprung
@@ -59,12 +59,12 @@ gutter:    number = { app.blockness * 52 }                        // the hour gu
 `blockness` reads `rowH`, which reads `nr`, which is sprung — so as the view zooms,
 "how much of a time view is this?" slides continuously from 0 to 1, and everything
 keyed off it (the hour gutter, each event's shape, its label) morphs *with* the
-motion instead of snapping at a threshold. This is [Animated arrangements](declare-docs:guide:animated-arrangements@deriving-character-not-just-geometry)' "derive character,
+motion instead of snapping at a threshold. This is [Animated arrangements](declare-docs:guide:animated-arrangements@deriving-appearance-from-the-scalars)' "derive character,
 not just geometry," and it is why the transitions have no seams — and why an event
 mid-morph is *telling you what it's becoming*: motion carrying meaning, not
 decoration.
 
-## 3. The model is derived; navigation just sets state
+## 3. The derived model
 
 The grid's data is never built and rebuilt by navigation code. It is a **derived
 dataset** recomputing from the visible month, with keyed replication so a recompute
@@ -77,11 +77,11 @@ cal: Dataset [ contents = { app.buildModel() } ]
 ```
 
 Paging to the next month sets one number; `buildModel` re-derives; keyed replication
-reconciles. This is [Data](declare-docs:guide:data@the-shape-of-a-real-app)'s board — raw truth,
+reconciles. This is [Data](declare-docs:guide:data@data-in-a-whole-app)'s board — raw truth,
 derived model, edits as writes — at full scale. "Navigation," which in your current
 stack is a subsystem, is here three assignments and a derivation.
 
-## 4. A drop is just an edit
+## 4. Drag and drop
 
 Drag-to-reschedule looks like the most imperative thing in the app. It is the drag
 pattern from [Pointer and keyboard](declare-docs:guide:pointer-and-keyboard@dragging) — down, move past a
@@ -105,7 +105,7 @@ event *during* a view transition and the app never stumbles — interruptibility
 respecting intent, all the way down, because nothing anywhere is a scheduled
 sequence that could be caught halfway.
 
-## What you just did
+## Summary
 
 Read the rest of the file at `?viewer=reader`; it is written to be read, and none of
 it will surprise you now. Then sit with what happened here. Four mechanisms — sprung
@@ -121,10 +121,10 @@ with less machinery. This was the ceiling.
 ## Where next
 
 Write something. `my-apps/` is yours, [Running and checking](declare-docs:guide:run-and-check)
-has the setup, and the board from [Data](declare-docs:guide:data@the-shape-of-a-real-app) is a good skeleton to grow. Keep
+has the setup, and the board from [Data](declare-docs:guide:data@data-in-a-whole-app) is a good skeleton to grow. Keep
 [`declare.md`](declare-docs:spec:core) at hand — the whole language, one file, for
 you and your LLM both. The [reference](declare-docs:reference:index) has every
-attribute of every component. And when you hit something rough or wrong — the
+attribute of every class. And when you hit something rough or wrong — the
 language is young, and shaped by exactly this — [say
 so](https://github.com/davidtemkin/declarelang/issues). The corpus will come. You're
 early. That's the fun of it.

@@ -122,7 +122,7 @@ open -a "Declare Mac" http://…             # or point it at a URL
 Three sources, and the app picks by what it is given:
 
 - **A `.declare` file, anywhere on disk.** Its own `include`s and assets resolve beside
-  it; its library components and the compiler come from *inside the app*. No dev server
+  it; its library classes and the compiler come from *inside the app*. No dev server
   and no checkout needed — copy a program's folder to the Desktop and it runs.
 - **A URL.** The program is fetched from wherever it is served and compiled on device,
   against the app's own library. This is the path `npm start` gives you.

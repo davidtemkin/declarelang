@@ -81,8 +81,9 @@ what it means.**
 
 Some things to look for, because an LLM arriving from other stacks drifts toward them:
 
-- state piled on [`App`](declare-docs:App) instead of in datasets and model classes
-  ([Data](declare-docs:guide:data), [Components](declare-docs:guide:components));
+- state piled on [`App`](declare-docs:App) instead of in datasets — or data wrapped in a class's getters
+  and verbs instead of bound and written directly
+  ([Data](declare-docs:guide:data), [Classes](declare-docs:guide:classes));
 - hand-set `x`/`y` ladders where a layout belongs
   ([Size, position and layout](declare-docs:guide:layout));
 - clickable plain views where a library control or a [`Control`](declare-docs:Control) subclass belongs
@@ -95,10 +96,10 @@ Each one works, and each one quietly costs what the language was for.
 [Coming from other frameworks](declare-docs:guide:coming-from) lists the reflexes and the
 Declare answers.
 
-## Tested, not assumed
+## How LLM results are measured
 
 "Designed for LLMs" is a sentence anyone can type. Declare's version is measured: an
-evaluation harness in `evals/` hands LLMs an application brief and the language reference
+evaluation harness in `evals/` hands LLMs an application spec and the language reference
 alone — no repository, no examples — has them write the program, and scores the result with
 the same verify ladder. Failures feed back into the language, the diagnostics and the
 documentation; several language changes exist because evals showed LLMs tripping.

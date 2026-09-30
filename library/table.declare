@@ -4,8 +4,8 @@
 The list collection, componentized: the selection-bearing, scroll-owning frame around a replicated (or
 written) collection, carrying the selection model so no app hand-rolls it again:
 
-- **Selection is the Table's value** — `selected` (the primary member) and
-  `selection` (all of them, presented order), holding **members**: the record
+- **Selection is the Table's value** — `selected` (the primary item) and
+  `selection` (all of them, presented order), holding **items**: the record
   for a replicated row, the row view itself for a written one. App-ownable via
   `input`; identity by the usual ladder (a record's `id` by convention, else
   the object itself — the reconciler's own rule).
@@ -17,7 +17,7 @@ written) collection, carrying the selection model so no app hand-rolls it again:
   reaching their table as `parent`, replicated over data or written by hand.
   The row template stays free of any selection wiring.
 - Windowing composes: put `virtualize` on the row template and selection,
-  ranges, and keyboard travel keep working — members are read from the data
+  ranges, and keyboard travel keep working — items are read from the data
   through any row's cursor, never from instances, so an unmaterialized row
   can be range-selected and arrow travel scrolls it into existence (rows are
   assumed uniform in height).
@@ -43,17 +43,17 @@ App [ width = 320, height = 200,
 ```
 
 ## selected
-The primary selected *member* — the record most recently selected, or `null`.
-Members, not views: **selection survives sorts, filters, and windowing** because it was
+The primary selected *item* — the record most recently selected, or `null`.
+Items, not views: **selection survives sorts, filters, and windowing** because it was
 never a set of instances.
 
 ## selection
-Every selected member, in presented order — `null` when nothing is selected. Records
+Every selected item, in presented order — `null` when nothing is selected. Records
 for a replicated table, the row views themselves for a written one. **Never assign it;
 deliver through `input`.**
 
 ## active
-The member the keyboard stands on — moved by arrows, and distinct from the selection,
+The item the keyboard stands on — moved by arrows, and distinct from the selection,
 which is what makes ⌘-walk-then-Space possible.
 
 ## selects
@@ -78,7 +78,7 @@ Backspace is never mistaken for it. Does nothing by default: refusal by inertnes
 under the same focus condition. The list idiom's other half.
 
 ## rowClick()
-The click protocol: plain click selects exactly one member, ⌘/Ctrl toggles, Shift
+The click protocol: plain click selects exactly one item, ⌘/Ctrl toggles, Shift
 extends from the anchor. Called by a `TableRow`; override to change what a click means.
 
 ## step()
@@ -90,30 +90,30 @@ Scrolls a row into view by index — **using its instance when one exists, and a
 when it does not**, so arrow travel into unmaterialized rows works and materializes on
 arrival.
 
-## memberArray()
-The full member universe, read from the **data** through any row's cursor — never from
+## itemArray()
+The full item universe, read from the **data** through any row's cursor — never from
 instances. This is the windowing contract: a table over a virtualized collection can
 range-select rows that have never been built.
 
-## memberAt()
-The member at a logical index.
+## itemAt()
+The item at a logical index.
 
-## memberCount()
-How many members there are — the full logical count, not what is materialized.
+## itemCount()
+How many items there are — the full logical count, not what is materialized.
 
 ## isSelected()
-Whether a member is in the selection, by identity.
+Whether a item is in the selection, by identity.
 
 ## isActive()
-Whether a member is the keyboard position, by identity.
+Whether a item is the keyboard position, by identity.
 
 ## idOf()
-A member's identity: its scalar `id` field by convention, else the object itself — the
+A item's identity: its scalar `id` field by convention, else the object itself — the
 same ladder the reconciler uses, so **nothing needs declaring for selection to survive
 a re-sort**.
 
 ## same()
-Whether two members are the same one, by `idOf`.
+Whether two items are the same one, by `idOf`.
 
 ## anchorIndex
 **Internal.** Where a shift-range extends from.
@@ -140,10 +140,10 @@ class Table extends Control [
 
     // ── the value ─────────────────────────────────────────────────────────
 
-    selected:  object = null,   // the primary selected member, or null
-    selection: array  = null,   // every selected member, presented order (null = none)
+    selected:  object = null,   // the primary selected item, or null
+    selection: array  = null,   // every selected item, presented order (null = none)
 
-    // the keyboard position — the member the keyboard stands on
+    // the keyboard position — the item the keyboard stands on
 
     active: object = null,
 
@@ -175,24 +175,24 @@ class Table extends Control [
 
     clearSelection() { input(null) },
 
-    // ── the member universe, read from data (never instances — the
+    // ── the item universe, read from data (never instances — the
     //    windowing contract). A replicated table reaches its array through
-    //    any row's cursor; a written table's members are its TableRow
+    //    any row's cursor; a written table's items are its TableRow
     //    children. Handlers only — presentation code derives from the value.
 
-    memberAt(i: number) -> object {
-        const arr = this.memberArray()
+    itemAt(i: number) -> object {
+        const arr = this.itemArray()
         return arr != null ? arr[i] : null
         },
-    memberArray() -> array {
+    itemArray() -> array {
         // the probe must be a row (a subclass may hold other cursor-bearing
         // children — DataGrid's header island rides a different dataset)
         const probe = this.children.find(c => (c as TableRow).isTableRow === true && c.datapath != null && (c.datapath as Cursor).data != null) as any
         if (probe != null) return probe.datapath.data.read(probe.datapath.path.slice(0, -1))
         return this.children.filter(c => (c as TableRow).isTableRow === true)
         },
-    memberCount() -> number {
-        const arr = this.memberArray()
+    itemCount() -> number {
+        const arr = this.itemArray()
         return arr != null ? arr.length : 0
         },
 
@@ -203,7 +203,7 @@ class Table extends Control [
         activeIndex = i
         active = m
         if (selects == "multi" && range && anchorIndex >= 0) {
-            const arr = this.memberArray() ?? []
+            const arr = this.itemArray() ?? []
             const lo = Math.min(anchorIndex, i), hi = Math.max(anchorIndex, i)
             input(arr.slice(lo, hi + 1))
             return
@@ -214,7 +214,7 @@ class Table extends Control [
             input(this.isSelected(m) ? cur.filter(s => !this.same(s, m)) : cur.concat([m]))
             return
             }
-        // plain click: exactly this member (⌘-click on single deselects)
+        // plain click: exactly this item (⌘-click on single deselects)
         input(toggle && this.isSelected(m) ? null : [m])
         },
 
@@ -223,16 +223,16 @@ class Table extends Control [
     // selection. Home/End jump, same modifiers.
 
     step(to: number, e: KeyEvent) {
-        const n = this.memberCount()
+        const n = this.itemCount()
         if (n == 0) return
         const i = Math.max(0, Math.min(n - 1, to))
         activeIndex = i
-        active = this.memberAt(i)
+        active = this.itemAt(i)
         this.showRow(i)
         if (e.meta || e.ctrl) return                       // the ⌘-walk: position only
         if (selects == "none") return
         if (selects == "multi" && e.shift && anchorIndex >= 0) {
-            const arr = this.memberArray() ?? []
+            const arr = this.itemArray() ?? []
             const lo = Math.min(anchorIndex, i), hi = Math.max(anchorIndex, i)
             input(arr.slice(lo, hi + 1))
             return
@@ -246,7 +246,7 @@ class Table extends Control [
     // uniform in height) and materializes on arrival.
 
     showRow(i: number) {
-        const inst = this.children.find(c => (c as TableRow).isTableRow === true && (c as TableRow).rowIndex() == i)
+        const inst = this.children.find(c => (c as TableRow).isTableRow === true && (c as TableRow).tableIndex() == i)
         if (inst != null) { inst.scrollIntoView("nearest"); return }
         const some = this.children.find(c => (c as TableRow).isTableRow === true)
         const unit = some != null && some.height > 0 ? some.height : 24
@@ -260,10 +260,10 @@ class Table extends Control [
         if (e.key == "ArrowDown")      step(activeIndex + 1, e)
         else if (e.key == "ArrowUp")   step(activeIndex - 1, e)
         else if (e.key == "Home")      step(0, e)
-        else if (e.key == "End")       step(this.memberCount() - 1, e)
+        else if (e.key == "End")       step(this.itemCount() - 1, e)
         else if (e.key == " " && selects == "multi" && activeIndex >= 0) {
             // toggle at the position — the ⌘-walk's other half
-            const m = this.memberAt(activeIndex)
+            const m = this.itemAt(activeIndex)
             const cur = selection ?? []
             anchorIndex = activeIndex
             input(this.isSelected(m) ? cur.filter(s => !this.same(s, m)) : cur.concat([m]))
@@ -321,20 +321,20 @@ App [ width = 320, height = 170,
 ```
 
 ## selected
-Whether this row's member is in its table's selection — derived from the table, never
+Whether this row's item is in its table's selection — derived from the table, never
 stored.
 
 ## active
 Whether this row is its table's keyboard position.
 
-## member()
-The member this row presents: its **record** when replicated, the row view itself when
+## item()
+The item this row presents: its **record** when replicated, the row view itself when
 written by hand.
 
-## rowIndex()
-This row's logical index in data order — read from the cursor when replicated, so it is
-true under windowing. A method rather than a slot because its consumers are gestures,
-and the written-row fallback walks children, which no constraint may do.
+## tableIndex()
+This row's logical index in data order — its `rowIndex` when replicated, so it is true
+under windowing. A method rather than an attribute because its consumers are gestures, and the
+written-row fallback walks children, which no constraint may do.
 
 ## onPointerDown
 Focuses the **table**, not the row — rows are never tab stops, so the arrow keys must
@@ -362,19 +362,19 @@ class TableRow extends Control [
 
     isTableRow: boolean = true,
 
-    // The member this row presents: its record when replicated (the whole
+    // The item this row presents: its record when replicated (the whole
     // region at its cursor), the row view itself when written.
 
-    member() -> object { return this.datapath != null ? :@ : this },
+    item() -> object { return this.datapath != null ? :@ : this },
 
-    // the row's logical index — the cursor path's last segment when
-    // replicated (true data order, windowing included); a written row asks
-    // its position among its table's row children. A method, not a derived
-    // slot: its consumers are gestures (handlers), and the written-member
+    // the row's logical index — its rowIndex when replicated (true data
+    // order, windowing included); a written row asks its position among its
+    // table's row children. A method, not a derived
+    // slot: its consumers are gestures (handlers), and the written-item
     // fallback walks children, which no constraint may aggregate.
 
-    rowIndex() -> number {
-        if (this.datapath != null) return parseInt(this.datapath.path[this.datapath.path.length - 1])
+    tableIndex() -> number {
+        if (rowIndex >= 0) return rowIndex
         if ((parent as Table).isTable !== true) return -1
         return (parent as Table).children.filter(c => (c as TableRow).isTableRow === true).indexOf(this as any)
         },
@@ -382,8 +382,8 @@ class TableRow extends Control [
     // the selection facts, derived from the table's value — a row presents
     // membership, it never stores it
 
-    selected: boolean = { (parent as Table).isTable === true && (parent as Table).isSelected(this.member()) },
-    active:   boolean = { (parent as Table).isTable === true && (parent as Table).isActive(this.member()) },
+    selected: boolean = { (parent as Table).isTable === true && (parent as Table).isSelected(this.item()) },
+    active:   boolean = { (parent as Table).isTable === true && (parent as Table).isActive(this.item()) },
 
     // rows are never tab stops (the one-stop policy): the table is the stop
     // and the keyboard position moves inside it. A pointer press on a row
@@ -398,7 +398,7 @@ class TableRow extends Control [
 
     onClick() {
         if (disabled || (parent as Table).isTable !== true) return
-        (parent as Table).rowClick(this.rowIndex(), this.member(),
+        (parent as Table).rowClick(this.tableIndex(), this.item(),
             Keys.isDown("MetaLeft") || Keys.isDown("MetaRight") || Keys.isDown("ControlLeft") || Keys.isDown("ControlRight"),
             Keys.isDown("ShiftLeft") || Keys.isDown("ShiftRight"))
         },

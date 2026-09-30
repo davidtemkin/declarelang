@@ -35,7 +35,7 @@ Whether a key is physically down right now, by `code` (`"ShiftLeft"`, `"MetaLeft
 How a table decides whether a click extends a range or toggles one member.
 
 ```declare-fragment
-onClick() { (parent as Table).rowClick(this.rowIndex(), this.member(),
+onClick() { (parent as Table).rowClick(this.tableIndex(), this.item(),
     Keys.isDown("MetaLeft") || Keys.isDown("ControlLeft"),
     Keys.isDown("ShiftLeft")) }
 ```

@@ -30,7 +30,7 @@ export interface TrackedOptions extends CompileOptions {
     props?: Record<string, string>;
 }
 /** `compile`, additionally returning the compile's full dependency CLOSURE
- *  (closure.ts) — the main file, every `include`, every auto-included component
+ *  (closure.ts) — the main file, every `include`, every auto-included class
  *  library, and the manifest, each with a disk validator. The caller owns it:
  *  feed it to isUpToDate()/contentTag() for a disk or HTTP cache, or to fs.watch
  *  for live reload. The disk/browser CACHE layers (get/put, 304s) build on this

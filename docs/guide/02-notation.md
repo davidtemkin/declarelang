@@ -8,8 +8,8 @@ are reading:
 
 > **`[ ]` holds structure. `{ }` holds TypeScript.**
 
-Square brackets hold a component's **members**: its attributes, its children, its
-methods. Nesting the brackets nests the components, so the indentation of a program is
+Square brackets hold a node's **members**: its attributes, its children, its
+methods. Nesting the brackets nests the nodes, so the indentation of a program is
 the shape of its interface, and you read it the way you read an outline. From any `{`
 to its matching `}` you are writing ordinary TypeScript: an expression, or a method's
 statements. There is no third language and no new expression syntax. If you know
@@ -49,11 +49,11 @@ Edit the `"name"` in the data and the card follows. Change the card's `width` an
 last line follows, because its text is a constraint on the width, not a number
 computed once.
 
-## Where the two worlds meet
+## Where `[ ]` and `{ }` meet
 
 Each world has its own vocabulary, and the boundary between them is exact.
 
-- **In a bare slot** the compiler owns a small literal language: `#1C3A4F` and `navy`
+- **In a bare value** the compiler owns a small literal language: `#1C3A4F` and `navy`
   are colors, `100%` is a length, `center` is a position, `bold` is a font weight,
   `x` or `y` is an axis. A string in `"…"` ends at its line; a longer one is a
   `"""` block.
@@ -76,12 +76,12 @@ is written `0x2E6BE6`. The general rule shows here too. Where Declare looks like
 something you know, it behaves the way you would expect; where it is different, it
 looks different, and the compiler holds the line instead of guessing.
 
-## Members, told apart by shape
+## The kinds of member
 
 No keywords separate the kinds of member. Their shape does:
 
 ```declare-fragment
-width = 100%,                          // SET an attribute the component already has
+width = 100%,                          // SET an attribute the class already has
 label: string = "",                    // DECLARE a new attribute (name: Type = default)
 select() { classroot.pick(this) },     // a METHOD
 total(n: number) -> number { return n * 2 },   // a method that returns a value
@@ -91,7 +91,7 @@ Text [ text = "OK" ]                   // an anonymous child
 ```
 
 The distinction to hold onto: **`name = value` sets an attribute that already exists;
-`name: Type = value` declares a new one.** Declaring is how a component gets state of
+`name: Type = value` declares a new one.** Declaring is how an instance gets state of
 its own. A method's parameters are typed name-first, and `-> R` states what it
 returns. A handler is an ordinary method whose name is `on` plus an event; there is no
 `addEventListener`, and events do not bubble.
@@ -116,13 +116,13 @@ where it is used, but here is the whole list so nothing later looks like new syn
 
 | declaration | what it is | taught in |
 |---|---|---|
-| `class Name extends Base [ … ]` | a component of your own | [Components](declare-docs:guide:components) |
+| `class Name extends Base [ … ]` | a class of your own | [Classes](declare-docs:guide:classes) |
 | `schema Name [ field: type, … ]` | the shape of data you rely on | [Typed data](declare-docs:guide:schemas) |
 | `theme Name [ token = value, … ]` | a named set of design tokens | [Paint and themes](declare-docs:guide:paint-and-themes) |
 | `style Name [ … ]` | a named text style for runs of prose | [Text and fonts](declare-docs:guide:text) |
-| `include [ "file.declare" ]` | another file's declarations, merged in | [Components](declare-docs:guide:components) |
-| `script { … }` / `script [ "file.ts" ]` | plain TypeScript outside the tree | [Components](declare-docs:guide:components) |
-| `use [ Name ]` | keep a component the build would drop | [Custom components](declare-docs:guide:custom-components) |
+| `include [ "file.declare" ]` | another file's declarations, merged in | [Classes](declare-docs:guide:classes) |
+| `script { … }` / `script [ "file.ts" ]` | plain TypeScript outside the tree | [Classes](declare-docs:guide:classes) |
+| `use [ Name ]` | keep a class the build would drop | [Your own views](declare-docs:guide:your-own-views) |
 | `ship [ … ]` | what a production package must carry | [Packaging](declare-docs:guide:packaging) |
 
 One construct breaks the "braces are TypeScript" rule, and it is easy to recognize: a

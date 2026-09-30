@@ -79,7 +79,7 @@ A numbered section: the number is information (the sections follow the
 program from source to pixels), then the title.
 */
 
-class SectionHead extends View [ width = 100%,
+class SectionHead [ width = 100%,
     num: string = "",
     head: string = "",
     layout: SimpleLayout [ axis = y, spacing = 12 ],
@@ -96,7 +96,7 @@ A numbered section of the article: its head, then whatever it holds. A use
 site adds its own children after the head.
 */
 
-class Section extends View [ width = 100%,
+class Section [ width = 100%,
     num: string = "",
     head: string = "",
     layout: SimpleLayout [ axis = y, spacing = 22 ],
@@ -114,7 +114,7 @@ column's measure, then the drawing — stacked and sized by `Run`, with the air
 above and below as the figure's own `padding`.
 */
 
-class Figure extends View [ width = { app.wide }, x = center,
+class Figure [ width = { app.wide }, x = center,
     air: number = 36,
     padding = { [this.air, 0, this.air, 0] },   // air above and below, none at the sides
     layout: Run [ spacing = 16 ]
@@ -124,7 +124,7 @@ class Figure extends View [ width = { app.wide }, x = center,
 // the figure's label and its caption, together above the drawing, at the
 // reading column's measure and centred over the figure
 
-class Caption extends View [
+class Caption [
     fig: string = "",
     text: string = "",
     measure: number = { app.col },
@@ -173,7 +173,7 @@ class Run extends Layout [
 
 // a plate: the figure's ground
 
-class Plate extends View [ cornerRadius = 14,
+class Plate [ cornerRadius = 14,
     pad: number = 22,
     gap: number = 16,
     padding = { this.pad },                     // the inset is the view's own
@@ -193,9 +193,9 @@ A small square in a layer's hue with its name. The legend under the hero
 teaches the code; every later figure just uses the colors.
 */
 
-class Swatch extends View [ width = 12, height = 12, cornerRadius = 3 ]
+class Swatch [ width = 12, height = 12, cornerRadius = 3 ]
 
-class Key extends View [ height = 18,
+class Key [ height = 18,
     hue: Color = gray,
     label: string = "",
     layout: SimpleLayout [ axis = x, spacing = 7, align = center ],

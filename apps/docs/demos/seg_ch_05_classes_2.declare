@@ -1,4 +1,4 @@
-class Figure extends View [ width = 100%, height = { contentHeight },
+class Figure [ width = 100%, height = { contentHeight },
     layout: SimpleLayout [ axis = y, spacing = 8 ]
     ]
 

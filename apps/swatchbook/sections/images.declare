@@ -5,19 +5,6 @@ Every fit of a tall image and of a wide one; alignment within the box; tint;
 and the box's own paint around an image.
 */
 
-script {
-    function imgFit(): Record<string, unknown>[] {
-        return cross({ fit: ["none", "width", "height", "both", "cover", "contain"], shape: ["tall", "wide"] }, (r) => r.fit + " · " + r.shape + " box")
-    }
-    function imgAlign(): Record<string, unknown>[] {
-        return cross({ ax: ["start", "center", "end"], ay: ["start", "center", "end"] }, (r) => "contain · " + r.ax + " / " + r.ay)
-            .concat(cross({ ax: ["start", "end"], ay: ["start", "end"] }, (r) => "cover · " + r.ax + " / " + r.ay).map((r) => ({ ...r, cover: true })))
-    }
-    function imgTint(): Record<string, unknown>[] {
-        return [0x2E6FE0, 0xE4572E, 0x17A34A, 0x111111].map((c, i) => ({ tint: c, name: "tint " + ["blue", "orange", "green", "black"][i] }))
-    }
-    }
-
 
 class FitSwatch extends Swatch [ name = :name,
     frame: View [ x = { :shape == "tall" ? 76 : 16 }, y = 12, width = { :shape == "tall" ? 60 : 180 }, height = 96, clip = true,
@@ -44,16 +31,30 @@ class ImagesSection extends Section [ title = "Images",
     caption = "A tall image fitted into a tall box and a wide one, every way it can be; aligned within its box; tinted; and inside a box's own corners, stroke and shadow.",
     tabs = { [ ({ id: "fit", label: "Fit" }), ({ id: "align", label: "Align" }), ({ id: "tint", label: "Tint" }), ({ id: "boxed", label: "Boxed" }) ] },
     sub = "fit",
+
+    // this section's rows, by sub-page, built from its axes
+
+    imgFit() -> array {
+        return cross({ fit: ["none", "width", "height", "both", "cover", "contain"], shape: ["tall", "wide"] }, (r) => r.fit + " · " + r.shape + " box")
+        },
+    imgAlign() -> array {
+        return cross({ ax: ["start", "center", "end"], ay: ["start", "center", "end"] }, (r) => "contain · " + r.ax + " / " + r.ay)
+            .concat(cross({ ax: ["start", "end"], ay: ["start", "end"] }, (r) => "cover · " + r.ax + " / " + r.ay).map((r) => ({ ...r, cover: true })))
+        },
+    imgTint() -> array {
+        return [0x2E6FE0, 0xE4572E, 0x17A34A, 0x111111].map((c, i) => ({ tint: c, name: "tint " + ["blue", "orange", "green", "black"][i] }))
+        },
+    rows: Dataset [ contents = { { imgFit: classroot.imgFit(), imgAlign: classroot.imgAlign(), imgTint: classroot.imgTint() } } ],
     SubHead [ visible = { app.matrix }, text = "Fit" ],
-    Grid [ visible = { classroot.showing("fit") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("fit") }, datapath = { classroot.rows.value },
         FitSwatch [ datapath = :imgFit[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Align" ],
-    Grid [ visible = { classroot.showing("align") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("align") }, datapath = { classroot.rows.value },
         AlignSwatch2 [ datapath = :imgAlign[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Tint" ],
-    Grid [ visible = { classroot.showing("tint") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("tint") }, datapath = { classroot.rows.value },
         TintSwatch [ datapath = :imgTint[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Boxed" ],

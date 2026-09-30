@@ -5,7 +5,7 @@ this file is the first:*
 
 1. ***this file*** *— the **language**: every form the grammar accepts and every rule the compiler
    enforces;*
-2. ***the map*** *— where the rest lives: components and their attributes, real programs, the guide;*
+2. ***the map*** *— where the rest lives: classes and their attributes, real programs, the guide;*
 3. ***the compiler*** *— every error carries a code, a position, and the rewrite that resolves it
    (§12), so nothing here needs to enumerate edge cases.*
 
@@ -20,13 +20,43 @@ compiler disagree, the compiler is right. Status: pre-1.0, under active design.*
 answers any class, attribute, concept, enum or diagnostic code in one exact reply, did-you-mean
 included; a true miss exits 1, so silence is trustworthy. A guessed attribute is a compile
 error, and a hand-built widget is usually one the library already ships. The standard
-components are in `library/`, complete programs in `apps/`, the narrative course in
+library classes are in `library/`, complete programs in `apps/`, the narrative course in
 [`docs/guide/`](guide/01-what-declare-is.md), and running and shipping in
 [`docs/operational/`](operational/). (`docs/system-design/` is the design record, superseded
 decisions included — background, not truth.)
 
-One boundary makes the rest of this file readable. **Every capitalized tag is a component** —
-`View`, `Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. Components
+**Take the brief for your task before writing** (`npx declare-help brief <name>`, or
+[`docs/briefs/`](briefs/)): one task each — a verified example, the rules that bite, and where
+to look next.
+
+<!-- briefs:start -->
+```
+  shape-of-an-app       starting a program; where state, views and classes go
+  lists-from-data       many of something from records; rowIndex, identity, derived lists
+  editing-records       toggles, renames, forms, working copies
+  kinds-of-rows         different things in one list (classFor) vs one thing in states (State)
+  loading-and-saving    DataSource: fetch, auto, onLoad, failure, POST, schema
+  derived-values        computed values: constraint vs formula, summaries as methods
+  layout-and-sizing     layouts first, size per axis, padding and Card, reflow
+  scrolling             scrollers, fixed chrome, following new content, scrollTo
+  using-controls        the library's controls and the value pattern
+  your-own-control      extends Control: press(), hot/down, focus, delivering a value
+  pointer-and-drag      hover, press, click vs drag, touch claims, drop targets, pinch
+  keyboard-and-focus    keys, shortcuts, focus order, focus traps
+  motion                springs toward a target, animators, states, arrival
+  moving-arrangements   a few sprung scalars driving a whole layout; TweenLayout
+  overlays              menus, context menus, dialogs, tooltips
+  urls-and-navigation   location, shows, links, deep links, back and forward
+  time                  clocks, repeating jobs, afterDelay, one-time actions on change
+  text-and-themes       theme tokens, dark mode, fonts, rich text, named styles
+  drawing               draw(), icons, when attributes can't say it
+  tables-and-selection  Table and DataGrid: selection as items, sorting, editable columns
+  when-it-misbehaves    compiles but wrong: verify, explain, explainHit, the wake trace
+```
+<!-- briefs:end -->
+
+One boundary makes the rest of this file readable. **Every capitalized tag is a class** —
+`View`, `Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. Classes
 are surface, and the reference lists them all. The language is the grammar that declares,
 instantiates, configures, and relates them, and that grammar is what follows.
 
@@ -34,7 +64,7 @@ instantiates, configures, and relates them, and that grammar is what follows.
 
 ## 1. The model
 
-A Declare program is a tree of components whose attributes are related to each other by
+A Declare program is a tree of nodes whose attributes are related to each other by
 standing expressions the runtime keeps true.
 
 **A constraint is a relationship, not a callback.** Read a reactive value inside one and you are
@@ -58,7 +88,7 @@ applied to structure, space, data, style, and time.
 
 ### Seven differences
 
-1. **`{ }` is TypeScript, and only TypeScript.** Bare slots have their own literal vocabulary,
+1. **`{ }` is TypeScript, and only TypeScript.** Bare values have their own literal vocabulary,
    and it stops at the brace: `width = { 100% }` is a syntax error, and a color inside braces is
    `0x4169E1`, not `royalblue` or `#4169E1`. (§2)
 2. **Assignment is the whole update model.** `count = count + 1` sets *and* notifies. There is
@@ -73,7 +103,7 @@ applied to structure, space, data, style, and time.
    collection comes from *replication* over a datapath, and conditional presence is `visible`.
    (Both are ordinary TypeScript inside a `{ }` value, and a handler can build views with
    `createView`; the tree is simply not where either happens.) (§7)
-5. **There is no CSS and no DOM.** No selectors, cascade, specificity, media queries, z-index,
+5. **There is no CSS, and no DOM to program.** No selectors, cascade, specificity, media queries, z-index,
    flexbox, or grid. Style is attributes, stacking is declaration order, and responsiveness is
    constraints on `app.width`. (§6, §9)
 6. **Events do not bubble.** A handler fires on the node that declares it, and a child reports
@@ -85,34 +115,34 @@ applied to structure, space, data, style, and time.
 
 ## 2. Two delimiters
 
-Two brackets carry the entire syntax. **`[ … ]` holds a component's members** — attributes,
+Two brackets carry the entire syntax. **`[ … ]` holds a node's members** — attributes,
 declarations, methods, children — and the bracket nesting *is* the tree. **`{ … }` is
-TypeScript**, type-checked against every component's real API.
+TypeScript**, type-checked against every class's real API.
 
-A value slot accepts four things, and the spelling tells you which:
+An attribute's value takes four forms, and the spelling tells you which:
 
 | you write | it is | example |
 |---|---|---|
 | a **bare** value | a literal, set once | `width = 100%`, `fill = navy` |
-| a **bare list** | a literal list, for an array-typed slot | `listenTo = ["delta", "done"]` |
+| a **bare list** | a literal list, for an array-typed attribute | `listenTo = ["delta", "done"]` |
 | a **`{ … }`** value | a live expression — a **constraint** | `width = { parent.width - 10 }` |
 | a **`:`-prefixed** path | a read from bound data — a **datapath** | `text = :title` |
 
-A bare literal is the value itself, so a name is *not* one: `fill = accent` fails in a bare
-slot. Reach a named value through braces — `fill = { provided("theme").accent }`.
+A bare literal is the value itself, so a name is *not* one: `fill = accent` fails as a bare
+value. Reach a named value through braces — `fill = { provided("theme").accent }`.
 
 ### The vocabulary stops at the brace
 
-Bare slots have a small literal vocabulary the compiler owns: Lengths (`100%`), colors (`navy`,
+Bare values have a small literal vocabulary the compiler owns: Lengths (`100%`), colors (`navy`,
 `#336699`), and keywords (`center`, `x`). Inside `{ }` none of it exists. You are in plain
 TypeScript, an identifier means what TypeScript says it means, and the compiler never
 reinterprets it.
 
 ```declare-fragment
-fill  = cornflowerblue,                           // ✓ bare slot, a named color
+fill  = cornflowerblue,                           // ✓ bare value, a named color
 fill  = { hovered ? 0x6495ED : 0x4169E1 },        // ✓ in braces, TypeScript number
 fill  = { hovered ? #6495ED : 0x4169E1 },         // ✗ no such syntax in TypeScript
-width = 100%,                                     // ✓ bare slot, Length literal
+width = 100%,                                     // ✓ bare value, Length literal
 width = { 100% },                                 // ✗ compute it instead:
 width = { parent.width - 40 }                    // ✓
 ```
@@ -129,7 +159,7 @@ how anything conditional over replicated data gets written. `text = { :on ? :tit
 the datapath exactly as the bare form does, then computes with it in TypeScript. Read `{ }` as
 "TypeScript, plus datapath reads."
 
-Two lexical notes. A `"…"` string ends at its line, in a bare slot as in a `{ }` body; a
+Two lexical notes. A `"…"` string ends at its line, in a bare value as in a `{ }` body; a
 `"""` block is the form for long text. And a `Dataset`'s literal body is strict JSON (§7) —
 the one place `{ }` is not TypeScript at all.
 
@@ -148,7 +178,7 @@ selected: boolean = false,
 tint:     Color   = navy,              //   any value type, bare-literal default
 count:    number,                      //   no default — undefined until written
 rows:     number[] = [],               //   an array, element-typed
-panel:    Menu    = null,              //   a component class — the slot holds an instance
+panel:    Menu    = null,              //   a class — the attribute holds an instance
 
 select() { selected = !selected },     // a METHOD
 
@@ -170,12 +200,12 @@ calls (`fillStyle`, `beginPath`, `moveTo`, `stroke`, …); what it records, ever
 
 **`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
 Declaring is how reactive state enters a program; setting is how it is wired. A declaration's
-type comes from the same vocabulary a signature's does (below): a primitive, a component class,
+type comes from the same vocabulary a signature's does (below): a primitive, a class,
 a function, or an array of any of them.
 
 **A method's signature is typed, name-first**: `select() { … }`, `input(v: boolean) { … }`,
 `quant(v: number) -> number { … }`. Every parameter carries a written type — a primitive, a
-component class, an event payload (`onPointerUp(e: PointerUpEvent)`), a function
+class, an event payload (`onPointerUp(e: PointerUpEvent)`), a function
 (`f: (id: string) -> void`), or an array of one (`Window[]`); a `?` after the type
 (`c: Menu?`) says the value may be absent, and the body must check. Omit `-> Ret` for a
 method that returns nothing. A computed *value* is still not a method but an attribute with
@@ -184,9 +214,9 @@ runs when called. A subclass's method, handlers included, **replaces** the base'
 name, a built-in's own runtime methods (`fetch`, `start`, `scrollTo`) among them; `super.name(args)`
 calls the replaced one, wherever in the body it is written, or never.
 
-**Events from outside the tree arrive as children.** `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node
-app-wide keyboard handling regardless of focus. There is no subscription syntax and nothing to
-unregister: a source is a child, so it lives and dies with the node that declares it.
+**Events from outside the tree come through a member you declare.** `Keys [ onKeyUp(e: KeyEvent) { … } ]`
+gives a node app-wide keyboard handling regardless of focus. There is no subscription syntax and
+nothing to unregister: the source is a child, so it lives and dies with the node that declares it.
 
 **Members are separated by commas**, and the compiler names the spot when one is
 missing. A *trailing* comma before a closing `]` is legal; the formatter
@@ -196,7 +226,7 @@ missing. A *trailing* comma before a closing `]` is legal; the formatter
 
 **A bare name resolves outward through the enclosing brackets, innermost first** — the brackets
 are the scope exactly as they are the tree. Each `[ ]` you are nested inside is a level whose
-surface is that component's whole member set, and the nearest level owning the name wins. The
+surface is that node's whole member set, and the nearest level owning the name wins. The
 compiler rewrites the read to an explicit path, so this is settled at compile time. One consequence to hold on to: every view carries
 the built-in attributes, so a bare `width` always means *this* node's `width` — built-ins never
 resolve outward.
@@ -204,15 +234,16 @@ resolve outward.
 Three reserved words say it explicitly, and nothing else may take their names: **`this`** (the
 node the code is written on), **`parent`**, and **`app`** (the running application, from any depth
 — the home of the few values the whole app shares). Bare `App` is the class; `app` is the
-instance. A fourth, `classroot`, belongs to authoring a component and arrives in §4.
+instance. A fourth, `classroot`, belongs to authoring a class and arrives in §4.
 
 ## 4. Composition
 
-A component is a class. Instantiate one by naming a type with a `[ ]` body; define one with
-`class Name extends Base [ … ]`.
+Instantiate a class by naming it with a `[ ]` body; define one with `class Name [ … ]`. A class
+with no base is a **view**; any other base is named — `extends Node` for a class with no view,
+`extends Dataset` for a document, `extends Control` or any class of yours or the library's.
 
 ```declare
-class Chip extends View [ height = 30, cornerRadius = 10, fill = darkslategray,
+class Chip [ height = 30, cornerRadius = 10, fill = darkslategray,
     label: string = "",
     width = { this.t.width + 20 },
     t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ]
@@ -230,7 +261,10 @@ App [ width = 400, height = 100, fill = black,
 **Any instance may declare its own members** — state, methods, handlers — with no class at all,
 because the compiler synthesizes an anonymous subclass, and the instance remains a subtype of
 its base. Promote a one-off to a named `class` when you instantiate it twice, or when pulling
-it out keeps its parent readable.
+it out keeps its parent readable. The same holds for what has no view: state and logic can live
+on the App, and when a group of it becomes a thing in its own right — a document's rules, a
+service, a piece of machinery — it moves into a class of its own, extending `Dataset` for a
+document and `Node` otherwise.
 
 Besides `class`, the top level holds `script`, `include`, `use`, `theme`, `style`, `schema`
 and `ship` — the complete set, **in any order**, before or after the root instance;
@@ -245,7 +279,7 @@ spelling difference: a file is written module-style (`export` allowed, and optio
 inline block refuses `export` — its top-level names are already visible to every `{ }`.
 Imports resolve at the build toolchain's bundler; the in-browser compile refuses them by name. **`include
 [ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
-a component the build would otherwise drop, for when your code constructs it by name at runtime
+a class the build would otherwise drop, for when your code constructs it by name at runtime
 (`createView`, §7). **`ship [ … ]`** states what a
 self-contained package of the program must carry beyond what its source names — `islands = [ "name", … ]`, the
 programs an `AppIsland` may mount when its `program` is computed; `files = [ "path", … ]`, files it reads that no
@@ -258,12 +292,12 @@ literal values — a token record, and the style of a run of text with no view (
 
 **`classroot` is legal only inside the body of a `class` you are defining, and nowhere else** —
 if you are not writing `class Name extends Base [ … ]`, you do not want it. It names **the
-component instance itself**, from any depth inside the class: the reach for a handler or a deep
-subview acting on the component, and the explicit spelling when a nearer child shadows a bare
+instance itself**, from any depth inside the class: the reach for a handler or a deep
+subview acting on the instance, and the explicit spelling when a nearer child shadows a bare
 name.
 
 ```declare-fragment
-class WeatherTab extends View [ selected: boolean = false,
+class WeatherTab [ selected: boolean = false,
     label: string = "",
     select() { selected = !selected },
     header: View [
@@ -274,16 +308,16 @@ class WeatherTab extends View [ selected: boolean = false,
 ```
 
 A **direct** child of the class body can reach the same instance as `parent`, and that is
-legal — `parent` is the enclosing view, which for a direct child is the component itself. The
+legal — `parent` is the enclosing view, which for a direct child is the instance itself. The
 difference shows up later: nest that child one level deeper and `parent` now means the new
-wrapper, while `classroot` still means the component. Reach for `classroot` when you mean the
-component, and keep `parent` for when you mean *whatever encloses me*.
+wrapper, while `classroot` still means the instance. Reach for `classroot` when you mean the
+instance, and keep `parent` for when you mean *whatever encloses me*.
 
 ### Layout is an attribute
 
 There is no `<Stack>`, no `<Row>`, no flexbox, and no grid. A view positions its children
 absolutely by `x`/`y` until you set a `layout:` member — and because that member is an ordinary
-reactive slot, it can be swapped, derived, or animated. **A layout places its children, and what it
+reactive attribute, it can be swapped, derived, or animated. **A layout places its children, and what it
 places a child does not declare**: a row places `x`, `align` adds `y`, a `ResponsiveLayout` places
 both; a child that declares one anyway is refused at its line, in any spelling.
 
@@ -308,7 +342,7 @@ chrome that must float above everything is declared last.
 
 ## 5. Constraints
 
-A `{ }` in a value slot is a **constraint**: re-evaluated when, and only when, its inputs change.
+A `{ }` as an attribute's value is a **constraint**: re-evaluated when, and only when, its inputs change.
 
 ```declare-fragment
 x    = { parent.width - width - 20 },               // stays 20 from the right edge
@@ -372,29 +406,29 @@ frame the user sees. Ask first whether you need it at all — readiness is usual
 and keep it for the genuinely once-and-imperative: seed the camera, start the tour, open
 the socket.
 
-### What owns a cell
+### What you can assign
 
 A `{ }` can appear on either member kind from §3 — **setting** an existing attribute, or
-**declaring** a new one — and one mechanical difference decides everything: whether the slot gets
-a cell of its own. A **set** attribute owns a cell: a standing constraint the runtime keeps
-current, and guards — a direct write is refused, with a message naming the fix. A **computed
-default** (`segIndex: number = { … }`, a *declaration* whose default is an expression) is a
-formula with no cell: reading it inlines the expression, and an assignment simply replaces it —
+**declaring** a new one — and one difference decides everything: who owns the value. A **set** attribute is owned by its
+constraint, which the runtime keeps current and guards — a direct write is refused, with a
+message naming the fix. A **computed
+default** (`segIndex: number = { … }`, a *declaration* whose default is an expression) is only a
+formula: reading it inlines the expression, and an assignment simply replaces it —
 the right tool for a value you may take over later, which is why `TextInput` offers
 `initial = { … }`, the editable twin of a read-only `text = { … }` (a control's `input(v)`, §11,
 is the same idea).
 
-| you wrote | owns a cell? | reading it | assigning to it | reach for it when |
+| you wrote | owned by its constraint? | reading it | assigning to it | reach for it when |
 |---|---|---|---|---|
-| `width = { … }` — **set** an existing attribute | yes | subscribes to the slot | **refused** at runtime | the value is simply derived and should stay that way |
+| `width = { … }` — **set** an existing attribute | yes | subscribes to it | **refused** at runtime | the value is simply derived and should stay that way |
 | `segIndex: number = { … }` — **declare** with a default | no | inlines the expression, so its deps become yours | lands, and the formula is gone | you may want to take the value over later |
 
 Use both; know which you wrote. One rule covers every case: **derived state is never assigned —
 change its inputs instead.**
 
-One mechanism takes over a cell-owning slot without assigning to it. An `Animator`, a `Spring`, or
+One mechanism takes over a constraint-owned attribute without assigning to it. An `Animator`, a `Spring`, or
 a `State` override **suspends** the driver and **resumes it, re-evaluated,** on completion — the
-sanctioned path, and why a state may override a `{ }`-owned slot at all.
+sanctioned path, and why a state may override a `{ }`-owned attribute at all.
 
 ### The one rule constraints must obey
 
@@ -406,10 +440,10 @@ them:
 
 - **Aggregating the rendered tree** — `this.children.map(…)`. The number you want lives in the
   data, not the views: count the Dataset (§7).
-- **Indexing a slot by a runtime value** — `this[k]`. Name the slot, or move the lookup into a
+- **Indexing an attribute by a runtime value** — `this[k]`. Name the attribute, or move the lookup into a
   method the compiler reads through.
-- **A slot deriving from itself** — `total = { total + tax }` reads like a harmless adjustment
-  and is a cycle by construction. Derive from a base slot, not the slot you are setting. (A
+- **An attribute deriving from itself** — `total = { total + tax }` reads like a harmless adjustment
+  and is a cycle by construction. Derive from a base attribute, not the one you are setting. (A
   provided value avoids this: `theme = { { ...provided("theme"), accent: red } }` reads the
   *ancestor's* theme — `provided(…)` walks up, never to itself — so a subtree can extend the
   theme above it without a cycle.)
@@ -509,10 +543,12 @@ attribute.
 
 ## 7. Data
 
-A `datapath` selects a place in the data. Descendants read fields relative to it with `:path`
-— every member, not only the visible ones: a `Spring`'s target, a `Time`'s gate, or a model
-class (no `extends`: a plain `Node`) standing on a record of its own — and a path matching many records **replicates** its node
-— one instance per record. This is the
+**Data is JSON, held in the tree.** A `Dataset` holds a document — written inline, derived from
+other state, or fetched by a `DataSource` — as a named member of the node whose subtree uses it.
+A view's `datapath` points it at a place in that document, and its descendants read fields
+relative to it with `:path` — every member, not only the visible ones: a `Spring`'s target, a
+`Time`'s gate, or a class that extends `Node`, standing on a record of its own — and a path
+matching many records **replicates** its view, one instance per record. This is the
 replacement for React's `{items.map(…)}`: a collection of children comes from data, never from
 code in the tree.
 
@@ -547,7 +583,8 @@ A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing comma
 replicated node is anonymous, but names inside it resolve per instance. **Identity is
 inferred** — a record's `id` field is its identity by convention, so reconciliation reuses
 instances across sorts, filters and edits with nothing declared; when identity lives under
-another name, `key = :email` on the replicated node says which.
+another name, `key = :email` on the replicated node says which. An instance reads its record's
+index in the array as **`rowIndex`**, a fact, so records carry no position fields.
 
 **Count the data, not the tree.** A Dataset's `.value` is the parsed data, so a count is ordinary
 TypeScript on it, never a walk of rendered rows.
@@ -579,7 +616,7 @@ declares what the program relies on.
 **Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`:
 the right-hand side names a *place in data*, either a datapath or a `{ }` yielding a field name,
 resolved against the nearest enclosing `datapath` — an editor with none is a compile error. To
-drive an ordinary slot, use the value pattern: `text = { app.note }` plus
+drive an ordinary attribute, use the value pattern: `text = { app.note }` plus
 `input(v: string) { app.note = v }`. One-way `:path` everywhere else.
 
 **Datasets are mutable from handlers** — `:done = v` writes the record under the cursor;
@@ -588,7 +625,13 @@ drive an ordinary slot, use the value pattern: `text = { app.note }` plus
 read the changed region.
 
 **A derived dataset recomputes from its inputs** — `cal: Dataset [ contents = { app.buildModel() } ]`,
-a method the compiler reads through; with a `schema`, its `.value` is typed.
+a method the compiler reads through; with a `schema`, its `.value` is typed. One that selects —
+filter, sort, group — **holds its source's records**, so a row bound to it writes its record as
+anywhere; what its code *made* is read-only. To add a computed field to a record, **wrap it, don't
+copy it**: `{ ev: e, lane: n }` holds the record itself, and a row bound through `:ev` edits the source.
+
+**Records of different kinds are different classes** — `classFor = { :kind == "photo" ? Photo : Note }`
+on the replicated node; what state a row is *in* stays a `State`.
 
 **Large collections virtualize on one word.** `virtualize = true` on a replicated node builds
 only the rows near the viewport and leaves the rest logical — same records, same paths, same
@@ -597,11 +640,11 @@ full materialization keeps browser find working over every record. Nothing else 
 write: no row heights, no scroll wiring, no keys.
 
 **When structure is genuinely imperative**, build it from a handler:
-`parent.createView(tag, props)` instantiates a component by name into the receiver — a full
+`parent.createView(tag, props)` instantiates a class by name into the receiver — a full
 citizen, and the parent's arrangement and auto-size take it in on arrival. Its pair is
 `view.discard()`: one verb unlinks the view, retires its whole subtree, and re-packs what it
 leaves behind. Reach for replication first — it reconciles, keys, and tears down for you — but
-the imperative door is open (`use [ Name ]`, §4, keeps a string-named component in the build).
+the imperative door is open (`use [ Name ]`, §4, keeps a string-named class in the build).
 
 **Data that keeps arriving is a stream** — `EventStream` and `Socket`, connected exactly while
 `active` and a `url` say so, delivering `onMessage` and a reactive `last`. Same lifecycle shape as
@@ -733,7 +776,7 @@ that has no view, which a `<span class>` inside `HTMLText`/`Markdown` wears. Lik
 it holds literals only: it has no place in the tree, so nothing in it can depend on where it is
 used, and its name is a value in any `{ }`, typed by the fields it sets. A look that follows the
 theme is written where it is used. To reuse a look across whole views you **subclass** instead
-(`class Card extends View [ … ]`).
+(`class PriceTag [ … ]`).
 
 ```declare-fragment
 style Keyword [ textColor = #C678DD, fontWeight = bold ]   // a <span class='Keyword'> in prose wears it
@@ -771,7 +814,7 @@ While the condition holds, the overrides — and any children declared inside th
 when it lifts, everything reverts. The "set it on enter, forget to unset it on exit" bug is
 unrepresentable, because an attribute's value is a pure function of its base plus the active
 states. That is what lets states compose and interrupt. When two active states override the same
-slot, the later declaration wins.
+attribute, the later declaration wins.
 
 **A state overrides its own element's attributes only.** It cannot reach into a child —
 `top.bg.opacity = 0.5` is a compile error, because a member always sets its own element's
@@ -813,19 +856,21 @@ a few geometry scalars and every constraint derived from them moves in lock-step
 
 ## 11. The standard library
 
-Declare ships a standard component library in `library/`, written in Declare itself with no
+Declare ships a standard library of classes in `library/`, written in Declare itself with no
 privileged API underneath. It **auto-includes by bare tag** — no import, no module ceremony —
-components read the provided `theme`, and focus behavior (Tab traversal, activation, a
-traveling focus indicator) is provided undeclared. Check there before building a control by hand.
+its classes read the provided `theme`, and focus behavior (Tab traversal, activation, a
+traveling focus indicator) is provided undeclared. Check there before building a control by hand;
+one you build **extends `Control`**, which makes it focusable and keyboard-activated, styles it off
+`hot`/`down`, and routes pointer and keys alike to the `press()` you override.
 
-Two contracts are worth learning because your own components should obey them too.
+Two contracts are worth learning because your own classes should obey them too.
 
 **The value pattern.** A control's value is a plain reactive attribute, in one of three forms:
 standalone, where the control owns its state and you read it by name; **app-owned, deriving down
 and delivering up**; or data-owned, `<->`, editors only. The second is a *pair*, and splitting it
 is the §5 rule biting. A control's default `input` writes its **own** attribute, so
 `checked = { app.muted }` with no `input` override makes the control's own edit an assignment to a
-cell-owning slot — refused (§5). Override `input` and the edit goes where the value actually
+constraint-owned attribute — refused (§5). Override `input` and the edit goes where the value actually
 lives.
 
 ```declare-fragment
@@ -838,11 +883,11 @@ Slider   [ value = { app.volume },
     ]
 ```
 
-**What a component arranges, it takes as records.** If the component arranges it — menu items, a
+**What a class arranges, it takes as records.** If the class arranges it — menu items, a
 dialog's buttons — it takes plain record arrays and hands the choice back through a method. If
-*you* arrange it, it is not a component feature at all: it is views, a layout, and replication.
+*you* arrange it, it is not a class's feature at all: it is views, a layout, and replication.
 
-→ what ships and how it is built: `library/` · each component's attributes: the model reference
+→ what ships and how it is built: `library/` · each class's attributes: the model reference
 
 ## 12. Working
 
@@ -863,7 +908,7 @@ dialog's buttons — it takes plain record arrays and hands the choice back thro
 5. **Ask the running program.** A clean compile means the checker found nothing, not that nothing
    is wrong: layout, fonts, paint, and input routing do not exist until the program runs. When
    something compiles yet misbehaves, stop re-reading the source. `__declare.explain(path, attr)`
-   answers *why* a slot holds its value, giving the expression, the read-paths it was wired to,
+   answers *why* an attribute holds its value, giving the expression, the read-paths it was wired to,
    and their live values. (Dev tooling: a production build ships a stub unless you pass
    `declarec --debug`.) `npx declare-verify <file>` climbs the same ladder the test suite
    does, from parse to real input in a headless browser.

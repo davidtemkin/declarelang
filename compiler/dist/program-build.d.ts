@@ -20,10 +20,10 @@ export interface ProgramBuild {
      *  build is still current. Present even on failure (a failed compile's
      *  closure says what to watch to retry). */
     closure: Closure;
-    /** The built-in component NAMES this app can instantiate — the used-set a
+    /** The built-in class NAMES this app can instantiate — the used-set a
      *  production build keeps (∩ the runtime registry), dropping every other
-     *  component module (rich-text, etc.). Empty when the source did not compile. */
-    usedComponents: readonly string[];
+     *  class module (rich-text, etc.). Empty when the source did not compile. */
+    usedClasses: readonly string[];
     /** What the program reaches, read from it AS WRITTEN (capabilities.ts
      *  programFacts), before its literals become values — present when asked for
      *  (a production build decides what it carries from these). */
@@ -35,17 +35,17 @@ export interface ProgramBuild {
         why: string;
     }>;
 }
-/** The component NAMES a program may instantiate: its STATIC tree references
- *  (tags + class bases) ∪ any component a `{ }` body constructs BY NAME
+/** The class NAMES a program may instantiate: its STATIC tree references
+ *  (tags + class bases) ∪ any class a `{ }` body constructs BY NAME
  *  (`new Markdown()`, scanned via free-idents) ∪ the classes a LITERAL rich-text
  *  document names as inline-view tags ∪ the explicit `use [ … ]` keep-list.
  *  Sound because Declare has no reflective new-by-value: every construction path
  *  is a compile-time literal, so this set is complete (create-by-STRING — an
  *  `iconLeft = "TrashIcon"`, a fetched document — is what `use` covers). The
  *  scan vocabulary is the built-in registry plus the program's own class names,
- *  so only real component identifiers count — `Math`, `console`, locals, etc.
+ *  so only real class identifiers count — `Math`, `console`, locals, etc.
  *  are ignored, and a name shadowed by a local is (correctly) not free. */
-export declare function usedComponentNames(program: Program): string[];
+export declare function usedClassNames(program: Program): string[];
 /** Recursively delete position keys. Mutates in place and returns the value. */
 export declare function stripPos<T>(node: T): T;
 /** The program-shaped tail of a compile: parse the resolved source into the

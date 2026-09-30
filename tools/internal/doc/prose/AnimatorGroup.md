@@ -23,7 +23,7 @@ How the members run — `sequential` (each starts when the previous finishes) or
 `simultaneous` (all together). The one control unique to a group.
 
 ## attribute
-A default target slot cascaded to any member that omits its own (see `Animator.attribute`).
+A default target attribute cascaded to any member that omits its own (see `Animator.attribute`).
 
 ## to
 The default destination, inherited by members that omit `to`.

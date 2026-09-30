@@ -38,7 +38,7 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
 ```
 <!-- /generated:flagship-example -->
 
-Two delimiters carry the whole model: **`[ … ]`** is the view tree — components, attributes, children; **`{ … }`** is TypeScript — a value, a handler body. The `{ }` lines are *constraints*, standing relationships the runtime keeps true: click the view and the text updates, resize and it re-centers — you wrote no update logic for either. (The hand-built button above shows the composition model; a themed `Button` also ships in the small standard library.)
+Two delimiters carry the whole model: **`[ … ]`** is the view tree — views, attributes, children; **`{ … }`** is TypeScript — a value, a handler body. The `{ }` lines are *constraints*, standing relationships the runtime keeps true: click the view and the text updates, resize and it re-centers — you wrote no update logic for either. (The hand-built button above shows the composition model; a themed `Button` also ships in the small standard library.)
 
 ## Where everything is
 

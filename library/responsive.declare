@@ -123,7 +123,7 @@ children — managing a grandchild is the child's own plan's business.)
 
 This is the answer to most things a plan cannot say by itself, and it wants no
 class: an **ordinary inline child** carries its own `layout:` like any other
-view. A component nested this way answers to **its allocation, not the
+view. A class nested this way answers to **its allocation, not the
 window** — the same child reads correctly in a sidebar, a dialog, or a
 full-bleed row, and picks its own flow in each. One thing to get right: the
 parent's plan must actually **give** the child a width in every tier. A tier

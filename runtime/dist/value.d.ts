@@ -148,10 +148,10 @@ export declare function backdropEqual(a: Backdrop | null, b: Backdrop | null): b
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
  *  wholesale-swapped, never mutated in place). `theme.role` in library
- *  components ALWAYS resolves: `Control` declares `theme: Theme = { provided(
+ *  classes ALWAYS resolves: `Control` declares `theme: Theme = { provided(
  *  "theme", SanFrancisco) }`, so no provider means San Francisco, never a
- *  fallback expression in component source. `depth` (0 = flat … 1 =
- *  dimensional) is the treatment dial components translate in their decoration
+ *  fallback expression in class source. `depth` (0 = flat … 1 =
+ *  dimensional) is the treatment dial classes translate in their decoration
  *  constraints. Partial reskin is explicit-base spread:
  *  `theme = { { ...provided("theme"), accent: 0xE05252 } }`. */
 export type Theme = Readonly<Record<string, unknown>>;
@@ -222,10 +222,10 @@ export type AttrValue = number | boolean | string | null | Percent | Align | Gra
 /** Narrow an AttrValue to the Percent arm (no longer the only object in the
  *  union since decoration values landed — the key is the discriminant). */
 export declare function isPercent(v: AttrValue): v is Percent;
-/** An attribute's declared type — the currency of the component schemas
+/** An attribute's declared type — the currency of the class schemas
  *  (schema.ts). The enum arm carries its name and full token set so a schema
- *  line reads as the union declaration it stands for. The component arm (R7)
- *  types a slot whose VALUE is a component instance — View.layout: a Layout —
+ *  line reads as the union declaration it stands for. The class arm (R7)
+ *  types a slot whose VALUE is a class instance — View.layout: a Layout —
  *  written as the member `layout: SimpleLayout [ … ]` (the checker routes
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType = {
@@ -246,7 +246,7 @@ export type AttrType = {
      *  on the 1–1000 line). The scaffold alias gains `| number`. */
     readonly numeric?: readonly [number, number];
 } | {
-    readonly kind: "component";
+    readonly kind: "class";
     readonly of: string;
 } | {
     readonly kind: "fn";

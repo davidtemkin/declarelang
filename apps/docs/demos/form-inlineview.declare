@@ -4,7 +4,7 @@
 // to its label and carries its own state — click one and watch the line re-flow around its
 // new width, which no styled run of text could do.
 
-class Chip extends View [
+class Chip [
     label: string = "",
     picked: boolean = false,
     height = 20, width = { this.t.width + 20 }, cornerRadius = 10,

@@ -1,4 +1,4 @@
-class StatRow extends View [ width = 260, height = 22,
+class StatRow [ width = 260, height = 22,
     label: string = "",
     value: string = "",
     layout: SimpleLayout [ axis = x, spacing = 8 ],

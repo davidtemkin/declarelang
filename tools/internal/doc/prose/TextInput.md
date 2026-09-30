@@ -38,7 +38,7 @@ value arriving from elsewhere):
 
 The keystroke never writes `text` directly — the constraint is the value's source, so an edit
 that diverges from it reverts. It arrives as **`onInput`** instead, and the handler writes
-the slot the constraint reads; the value returns through the constraint. That round trip is
+the attribute the constraint reads; the value returns through the constraint. That round trip is
 what makes `app.who = ""` clear the field, which nothing else can do.
 
 ## placeholder
@@ -109,5 +109,5 @@ A field and the label beside it stay in step because both read the same provisio
 
 ## selectable
 Whether the text can be selected. A field's own content is always
-editable and therefore selectable while focused; this is the slot that opts a
+editable and therefore selectable while focused; this is the attribute that opts a
 read-only field's text into ordinary selection, or out of it.

@@ -79,10 +79,10 @@ for the life of the run.
 
 ## FontWeight
 
-The named weights, and a **number from 1 to 1000 is the same slot** — the
+The named weights, and a **number from 1 to 1000 is the same attribute** — the
 keywords are the names of the hundreds. That is what puts a variable font's weight
 axis in reach at any point between the names — `fontWeight = 480` is as legal as
-`fontWeight = regular`, and there is no second slot to learn for it.
+`fontWeight = regular`, and there is no second attribute to learn for it.
 
 ## Justify
 

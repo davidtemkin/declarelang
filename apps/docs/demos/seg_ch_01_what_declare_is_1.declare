@@ -1,6 +1,6 @@
 schema Task [ id: number, title: string, done: boolean ]
 
-class TaskRow extends View [ width = 100%, height = 32,
+class TaskRow [ width = 100%, height = 32,
     layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
     Checkbox [ checked = :done,
         input(v: boolean) { :done = v }

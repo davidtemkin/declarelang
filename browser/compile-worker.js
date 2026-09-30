@@ -46,7 +46,7 @@ self.onmessage = async (e) => {
         // checked, deps-applied program the runtime instantiates with no parser —
         // what a live edit on a static host renders, and what a deploy ships
         const r = await compileProgram(m.source, m.opts ?? {});
-        self.postMessage({ id: m.id, result: { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure, usedComponents: r.usedComponents } });
+        self.postMessage({ id: m.id, result: { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure, usedClasses: r.usedClasses } });
         return;
       }
       case "highlight":

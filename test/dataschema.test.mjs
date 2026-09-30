@@ -331,7 +331,7 @@ await test("typed data: the crossings a TS arrival types first each name their r
   assert.match(await say(`schema A [ x: string ]\nschema B extends A [ y: string ]`), /schemas do not extend — a schema is composed by NESTING/);
   assert.match(await say(`schema T [ a: 1 | "b" ]`), /a literal union is all strings or all numbers/);
   const tag = await compile(`schema Task [ id: string ]\nApp [ width=1, height=1, Task [ ] ]`);
-  assert.match(tag.errors[0].message, /'Task' is a schema — a data shape, not a component/);
+  assert.match(tag.errors[0].message, /'Task' is a schema — a data shape, not a class/);
   const q = await compile(`App [ width=1, height=1, f(c?: number) { return 1 } ]`);
   assert.match(q.errors[0].message, /in a signature the '\?' marks the TYPE: write 'c: number\?'/);
 });
@@ -363,7 +363,7 @@ await test("typed data: one namespace of type names — collisions and unknown r
     class Task extends View [ ]
     schema Task [ x: string ]
     App [ width=1, height=1 ]`);
-  assert.match(collide.errors[0].message, /'Task' is already a component — schemas and classes share one namespace/);
+  assert.match(collide.errors[0].message, /'Task' is already a class — schemas and classes share one namespace/);
   const unknownRef = await compile(`
     schema Card [ owner: Person ]
     App [ width=1, height=1 ]`);
@@ -453,7 +453,7 @@ await test("spell a member the way its declaration spells it — an authored uni
   assert.deepEqual(quoted.errors.map((e) => e.message), [], "the quoted member is the spelling");
   const bare = await compile(H + `App [ width=1, height=1, f: Fetcher [ phase = loading ] ]`);
   assert.equal(bare.errors.length, 1, "the bare token is refused");
-  assert.match(bare.errors[0].message, /written in quotes, in a slot as in \{ \}: "loading"/, "…and the refusal names the spelling");
+  assert.match(bare.errors[0].message, /written in quotes, as a bare value as in \{ \}: "loading"/, "…and the refusal names the spelling");
   // a built-in vocabulary is unchanged: token only
   const axisTok = await compile(`App [ width=1, height=1, layout: SimpleLayout [ axis = y ] ]`);
   assert.deepEqual(axisTok.errors.map((e) => e.message), []);

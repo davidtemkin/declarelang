@@ -19,7 +19,7 @@ values *is* rearranging the interface — and every in-between frame is a real l
 because the same constraints hold at every instant. Nothing "transitions." The truth
 just moves, and the interface stays true to it.
 
-## A month becomes a week
+## Sprung scalars driving a layout
 
 Here is the calendar's signature view-morph, at toy scale so you can see the whole
 mechanism at once. Twenty-one cells, and exactly **two sprung scalars**: `r0` (which
@@ -28,7 +28,7 @@ its row into a "week"; click again to fall back to the "month" — and, as alway
 interrupt it mid-flight:
 
 ```declare
-class Cell extends View [ cornerRadius = 10, fill = darkslategray, clip = true,
+class Cell [ cornerRadius = 10, fill = darkslategray, clip = true,
     x = { :col * app.colW + 2 },
     y = { (:row - app.r0) * app.rowH + 2 },
     width = { app.colW - 4 },
@@ -81,12 +81,12 @@ This is precisely how the real calendar works — four sprung scalars instead of
 chips into time-blocks as their row grows. Not a different technique at scale; the
 same one, with more constraints reading the same few moving numbers.
 
-## A layout that glides
+## `TweenLayout`
 
 The toy above positions every cell with its own constraints, which is the right tool when
 the geometry is a formula. When the arrangement is a *layout* — a row that becomes a
 stack, a grid that becomes a list — extend [`TweenLayout`](declare-docs:TweenLayout) instead. Its `place()` is an
-ordinary layout method ([Custom components](declare-docs:guide:custom-components@an-arrangement-nobody-wrote-for-you)) that
+ordinary layout method ([Your own views](declare-docs:guide:your-own-views@writing-a-layout)) that
 reads the layout's own state; change the state, call [`retarget(true)`](declare-docs:TweenLayout.method.retarget), and the children
 glide from where they are to where `place()` now puts them:
 
@@ -120,7 +120,7 @@ from wherever the children are, the same interruption a spring has. `duration` s
 glide's length, and `t`, the layout's 0-to-1 blend between arrangements, can also be
 driven by a constraint or an [`Animator`](declare-docs:Animator).
 
-## Deriving character, not just geometry
+## Deriving appearance from the scalars
 
 The idiom's second power: *qualities* can derive from the same scalars. The calendar
 never stores "are we in a time view?" — it derives a continuous `blockness` from the
@@ -130,7 +130,7 @@ snapping at a threshold. A managed flag flips; a derived scalar flows. When you 
 yourself about to declare `isExpanded: boolean` next to a spring, ask whether the
 truth you want is already a function of the motion.
 
-## Designing for continuity
+## Continuity between views
 
 Now the honest part: the language lowers the cost of building this, not the design bar. The mechanism is three declarations; the *thinking* is
 where the craft lives, and it has a discipline:

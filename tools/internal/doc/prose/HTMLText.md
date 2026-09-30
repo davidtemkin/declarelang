@@ -22,7 +22,7 @@ the program declares, a document loaded from elsewhere can place any of them —
 program contains are the boundary.
 
 ```declare
-class Chip extends View [ label: string = "",
+class Chip [ label: string = "",
     height = 19, width = { this.t.width + 18 }, cornerRadius = 9,
     fill = 0xDDF4E4,
     t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]

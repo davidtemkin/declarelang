@@ -6,18 +6,18 @@
 <link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
 <link rel="icon" type="image/png" sizes="256x256" href="../../assets/favicon.png">
 <link rel="preload" href="../../bundles/cache/8bd320428a6e6f32.json" as="fetch" crossorigin>
-<link rel="preload" href="../../apps/homepage/demos/components.declare" as="fetch" crossorigin>
 <link rel="preload" href="../../apps/homepage/demos/derived.declare" as="fetch" crossorigin>
+<link rel="preload" href="../../apps/homepage/demos/from-data.declare" as="fetch" crossorigin>
 <link rel="preload" href="../../apps/homepage/demos/reactivity.declare" as="fetch" crossorigin>
 <link rel="preload" href="../../apps/homepage/demos/spring.declare" as="fetch" crossorigin>
 <link rel="preload" href="../../apps/homepage/demos/states.declare" as="fetch" crossorigin>
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <div id="host"></div>
 <script type="module">
-  import boot from "../../bundles/declare-boot.js?v=60dd438965fb";
+  import boot from "../../bundles/declare-boot.js?v=cb468b2e7743";
   import { requestType, REQ, directoryProgram } from "../../browser/serve-core.js";
   const q = new URLSearchParams(location.search);
   if (requestType(q) !== REQ.RUN && "serviceWorker" in navigator)
     navigator.serviceWorker.ready.then(() => location.reload());
-  boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined, demos: ["components","derived","reactivity","spring","states"] });
+  boot({ main: directoryProgram(location.pathname) ?? location.pathname, backend: q.get("render") === "canvas" ? "CanvasBackend" : undefined, demos: ["derived","from-data","reactivity","spring","states"] });
 </script>

@@ -1,7 +1,7 @@
 // Declare runtime — public surface for R0–R8.
 //
 // The pipeline: parse the source (classes + root) → typecheck it against the
-// component schemas (reporting every error, not just the first) → instantiate
+// class schemas (reporting every error, not just the first) → instantiate
 // a Node/View tree → attach it to a render backend → root it on the page.
 // `build` stops before rendering (used by tools and tests); `render` runs
 // the whole pipeline. `check` alone is the compiler-facing pass.
@@ -92,7 +92,7 @@ export async function renderAsync(source, host, backend, opts = {}) {
 }
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
-export { check, checkAttr, checkMethod, checkComponentValue } from "./check.js";
+export { check, checkAttr, checkMethod, checkClassValue } from "./check.js";
 export { checkDecl, programSchemas } from "./program-schema.js";
 export { hydrateProgram } from "./hydrate.js";
 export { instantiate } from "./instantiate.js";

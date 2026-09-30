@@ -32,37 +32,6 @@ style rMono    [ fontFamily = "Menlo" ]
 
 style rSmall   [ fontSize = 9 ]
 
-script {
-    function richRuns(): Record<string, unknown>[] {
-        return cross({ run: ["rBold", "rItalic", "Warm", "Big", "rGrad", "rUnder", "rStrike", "rCaps", "rOutline", "rShadow", "rTrack", "rUpper", "rSerif", "rMono", "rSmall"],
-                       lh: [1, 1.5] }, (r) => String(r.run).replace(/^r/, "").toLowerCase() + " run · lineHeight " + r.lh)
-            .filter((r) => !(r.run === "Big" && (r.lh as number) > 1))   // a 38px run at 1.5 outgrows the card
-    }
-
-    const BLOCKS: Record<string, string[]> = {
-        paragraphs: ["A first paragraph that wraps.\n\nAnd a second one after it.", "<p>A first paragraph that wraps.</p><p>And a second one after it.</p>"],
-        bullets: ["- one\n- a second that wraps onto a line\n- three", "<ul><li>one</li><li>a second that wraps onto a line</li><li>three</li></ul>"],
-        ordered: ["1. first\n2. second\n3. third", "<ol><li>first</li><li>second</li><li>third</li></ol>"],
-        nested: ["- outer\n  - inner\n  - inner two\n- outer two", "<ul><li>outer<ul><li>inner</li><li>inner two</li></ul></li><li>outer two</li></ul>"],
-        table: ["| Face | Size |\n| :-- | --: |\n| Serif | 14 |\n| Mono | 12 |", ""],
-        code: ["```\nApp [ width = 200 ]\n```", "<pre><code>App [ width = 200 ]</code></pre>"],
-        inlineCode: ["Set `width` and `height`, then `fill`.", "Set <code>width</code> and <code>height</code>, then <code>fill</code>."],
-        quote: ["> A quotation sits in from the edge and wraps.", "<blockquote>A quotation sits in from the edge and wraps.</blockquote>"],
-        h1: ["# Heading one\n\nBody.", "<h1>Heading one</h1><p>Body.</p>"],
-        h2: ["## Heading two\n\nBody.", "<h2>Heading two</h2><p>Body.</p>"],
-        h3: ["### Heading three\n\nBody text after.", "<h3>Heading three</h3><p>Body text after.</p>"],
-        rule: ["Above\n\n---\n\nBelow", "<p>Above</p><hr><p>Below</p>"],
-        link: ["Read [the guide](https://example.com) first.", "Read <a href='https://example.com'>the guide</a> first."],
-        emphasis: ["Plain, **bold**, *italic* and ***both***.", "Plain, <b>bold</b>, <i>italic</i> and <b><i>both</i></b>."],
-    }
-    function richBlocks(): Record<string, unknown>[] {
-        return cross({ block: Object.keys(BLOCKS), fmt: ["markdown", "html"] }, (r) => r.block + " · " + r.fmt)
-            .map((r) => ({ ...r, src: BLOCKS[r.block as string][r.fmt === "markdown" ? 0 : 1] }))
-            .filter((r) => r.src !== "")   // HTMLText has no table
-    }
-    }
-
-
 class RunSwatch extends Swatch [ name = :name,
     p: HTMLText [ x = 10, y = 8, width = 192, fontSize = 14, lineHeight = { :lh },
         html = { "Before the <span class='" + :run + "'>styled run</span> and after it, wrapping on." } ],
@@ -70,9 +39,17 @@ class RunSwatch extends Swatch [ name = :name,
     ]
 
 
-class BlockSwatch extends Swatch [ name = :name,
-    md: Markdown [ x = 10, y = 6, width = 192, fontSize = 12, visible = { :fmt == "markdown" }, text = { :fmt == "markdown" ? :src : "" } ],
-    ht: HTMLText [ x = 10, y = 6, width = 192, fontSize = 12, visible = { :fmt == "html" }, html = { :fmt == "html" ? :src : "" } ]
+// one block, written as Markdown or as HTML — a class for each
+
+class BlockSwatch extends Swatch [ name = :name ]
+
+class MarkdownBlock extends BlockSwatch [
+    md: Markdown [ x = 10, y = 6, width = 192, fontSize = 12, text = :src ]
+    ]
+
+
+class HTMLBlock extends BlockSwatch [
+    ht: HTMLText [ x = 10, y = 6, width = 192, fontSize = 12, html = :src ]
     ]
 
 
@@ -81,8 +58,39 @@ class RichSection extends Section [ title = "Rich text",
     tabs = { [ ({ id: "runs", label: "Runs" }), ({ id: "blocks", label: "Blocks" }), ({ id: "structure", label: "Structure" }),
                ({ id: "inline", label: "Inline views" }), ({ id: "size", label: "Size" }) ] },
     sub = "runs",
+
+    // this section's rows, by sub-page, built from its axes
+
+    richRuns() -> array {
+        return cross({ run: ["rBold", "rItalic", "Warm", "Big", "rGrad", "rUnder", "rStrike", "rCaps", "rOutline", "rShadow", "rTrack", "rUpper", "rSerif", "rMono", "rSmall"],
+                       lh: [1, 1.5] }, (r) => String(r.run).replace(/^r/, "").toLowerCase() + " run · lineHeight " + r.lh)
+            .filter((r) => !(r.run === "Big" && (r.lh as number) > 1))   // a 38px run at 1.5 outgrows the card
+        },
+
+    blocks() -> object { return {
+        paragraphs: ["A first paragraph that wraps.\n\nAnd a second one after it.", "<p>A first paragraph that wraps.</p><p>And a second one after it.</p>"],
+        bullets: ["- one\n- a second that wraps onto a line\n- three", "<ul><li>one</li><li>a second that wraps onto a line</li><li>three</li></ul>"],
+        ordered: ["1. first\n2. second\n3. third", "<ol><li>first</li><li>second</li><li>third</li></ol>"],
+        nested: ["- outer\n  - inner\n  - inner two\n- outer two", "<ul><li>outer<ul><li>inner</li><li>inner two</li></ul></li><li>outer two</li></ul>"],
+        table: ["| Face | Size |\n| :-- | --: |\n| Serif | 14 |\n| Mono | 12 |", ""],
+        code: ["\u0060\u0060\u0060\nApp [ width = 200 ]\n\u0060\u0060\u0060", "<pre><code>App [ width = 200 ]</code></pre>"],
+        inlineCode: ["Set \u0060width\u0060 and \u0060height\u0060, then \u0060fill\u0060.", "Set <code>width</code> and <code>height</code>, then <code>fill</code>."],
+        quote: ["> A quotation sits in from the edge and wraps.", "<blockquote>A quotation sits in from the edge and wraps.</blockquote>"],
+        h1: ["# Heading one\n\nBody.", "<h1>Heading one</h1><p>Body.</p>"],
+        h2: ["## Heading two\n\nBody.", "<h2>Heading two</h2><p>Body.</p>"],
+        h3: ["### Heading three\n\nBody text after.", "<h3>Heading three</h3><p>Body text after.</p>"],
+        rule: ["Above\n\n---\n\nBelow", "<p>Above</p><hr><p>Below</p>"],
+        link: ["Read [the guide](https://example.com) first.", "Read <a href='https://example.com'>the guide</a> first."],
+        emphasis: ["Plain, **bold**, *italic* and ***both***.", "Plain, <b>bold</b>, <i>italic</i> and <b><i>both</i></b>."],
+        } },
+    richBlocks() -> array {
+        return cross({ block: Object.keys(this.blocks()), fmt: ["markdown", "html"] }, (r) => r.block + " · " + r.fmt)
+            .map((r) => ({ ...r, src: this.blocks()[r.block as string][r.fmt === "markdown" ? 0 : 1] }))
+            .filter((r) => r.src !== "")   // HTMLText has no table
+        },
+    rows: Dataset [ contents = { { richRuns: classroot.richRuns(), richBlocks: classroot.richBlocks() } } ],
     SubHead [ visible = { app.matrix }, text = "Runs" ],
-    Grid [ visible = { classroot.showing("runs") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("runs") }, datapath = { classroot.rows.value },
         RunSwatch [ datapath = :richRuns[] ]
         ],
     Grid [ visible = { classroot.showing("runs") },
@@ -111,8 +119,8 @@ class RichSection extends Section [ title = "Rich text",
         ],
 
     SubHead [ visible = { app.matrix }, text = "Blocks" ],
-    Grid [ visible = { classroot.showing("blocks") }, datapath = { app.book.value },
-        BlockSwatch [ datapath = :richBlocks[] ]
+    Grid [ visible = { classroot.showing("blocks") }, datapath = { classroot.rows.value },
+        BlockSwatch [ datapath = :richBlocks[], classFor = { :fmt == "html" ? HTMLBlock : MarkdownBlock } ]
         ],
 
     SubHead [ visible = { app.matrix }, text = "Structure" ],

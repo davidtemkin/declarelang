@@ -9,7 +9,7 @@ import type { DisplayList } from "./draw.js";
  *  paths that bypass follow — copy-link, middle-click — stay shut too). */
 export declare function allowedRef(ref: string): boolean;
 /** One styled run of rich text (or a hard line break). Fully RESOLVED — the
- *  RichText component bakes the effective font/color into each run so a backend
+ *  RichText class bakes the effective font/color into each run so a backend
  *  just realizes what it is told (no palette knowledge across the seam). */
 export type RichRun = {
     text: string;
@@ -251,7 +251,7 @@ export interface InputWants {
 /** A native editable text field over a surface's box (input.md, Layer 3). The
  *  backend owns the native element (`<input>`/`<textarea>`) — its creation,
  *  geometry sync, and DOM focus — and reports the user's edits and focus
- *  changes back through these callbacks; the TextInput component owns the model
+ *  changes back through these callbacks; the TextInput class owns the model
  *  `text`. Both backends realize it as real DOM (the DOM surface hosts it
  *  in-box; the Canvas backend overlays it on the shared canvas at the surface's
  *  screen box) — native caret, selection, IME, and a11y for free (the ruled
@@ -459,7 +459,7 @@ export interface Surface {
      *  — one element per block, inline runs in normal flow — so selection, copy,
      *  find, a11y, and baselines are the platform's, and returns the measured
      *  content height. A backend that can't (Canvas, today) returns -1, and the
-     *  RichText component falls back to laying the runs out as child views itself.
+     *  RichText class falls back to laying the runs out as child views itself.
      *  `selectable` mirrors the provided value onto the native content; `width`
      *  is the flow width (px) the runs wrap within — passed explicitly so the
      *  measure never depends on the surface's box width having been flushed.
@@ -544,7 +544,7 @@ export interface Surface {
      *  DOM's ResizeObserver reports the flowed height after layout, a frame
      *  behind the render — §12.1's measured mechanism). The reveal machinery
      *  reads it to HOLD an anchored arrival while any flow's measurement is
-     *  outstanding (location.md §0.5.3, the component-sourced veto). Absent =
+     *  outstanding (location.md §0.5.3, the class-sourced veto). Absent =
      *  synchronous (headless synthetic metrics, canvas font-metric flow). */
     deferredRichMeasure?: boolean;
     /** OPTIONAL — a windowed block's LOGICAL extent when this surface IS the

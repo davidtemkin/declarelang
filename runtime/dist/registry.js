@@ -1,7 +1,7 @@
 // registry — the name → built-in-class tables (the runtime half of the twin
 // registry; schema.ts holds the checker half). Split OUT of instantiate.ts for
 // one reason: a PRODUCTION build can substitute a SLIM copy of this module —
-// one that imports only the component classes an app actually uses — and esbuild
+// one that imports only the classes an app actually uses — and esbuild
 // then drops the rest (the rich-text engine, etc.) from the bundle. instantiate.ts
 // consumes these tables unchanged; the dev / source-compiling path imports this
 // full module, while `declarec` (and the server's prod cache) swap it for a
@@ -32,8 +32,8 @@ import { KeysSource, FocusSource, TipSource } from "./sources.js";
 import { EventStream, Socket } from "./streams.js";
 import { State } from "./state.js";
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
- *  subclass it for a non-visual node (`class Store [ … ]`); `Time` (time.ts) is
- *  a Node component on the same generic path — carrying declarations and
+ *  subclass it for a non-visual node (`class Store extends Node [ … ]`); `Time` (time.ts) is
+ *  a Node class on the same generic path — carrying declarations and
  *  subclassable — rather than a SOURCE, which the source path would seal. */
 export const TAGS = {
     App, View, Text, Image, Video, Audio, DOMIsland, TextInput, Markdown, HTMLText,
@@ -43,12 +43,12 @@ export const TAGS = {
     Font: Font,
     Face: Face,
 };
-/** Tag → buildable layout-strategy class (R7) — built only as a component-typed
+/** Tag → buildable layout-strategy class (R7) — built only as a class-typed
  *  attribute value, never a tree tag. */
 // The built-in strategy table is EMPTY: SimpleLayout, WrappingLayout, and
 // ResponsiveLayout are library classes (library/*.declare) pulled by
 // auto-include — strategies are place() over the Layout kernel, authorable in
-// Declare like any component. Only the kernel bases below are native.
+// Declare like any class. Only the kernel bases below are native.
 export const LAYOUTS = {};
 /** Layout classes by name for BASE resolution + user-layout synthesis: the
  *  buildable strategies plus the abstract bases a user layout extends. */
@@ -60,7 +60,7 @@ export const ANIMATORS = { Animator, Spring };
 /** SOURCES — non-visual members whose handlers are called by something OUTSIDE
  *  the tree: the frame clock, the keyboard, the focus service, the tip service.
  *  Their own table because none of the animator paths' `attribute`/`to`
- *  checking applies, and because being ordinary components is what lets an app
+ *  checking applies, and because being ordinary classes is what lets an app
  *  that never listens drop the service code entirely (slim-registry). */
 export const SOURCES = {
     Keys: KeysSource,
@@ -76,7 +76,7 @@ export const ANIMATOR_GROUPS = { AnimatorGroup };
 /** Tag → state class (docs/system-design/states.md) — captures its body's overrides
  *  for the enclosing view. */
 export const STATES = { State };
-/** Every built-in component NAME the tables register — the vocabulary the used-
+/** Every built-in class NAME the tables register — the vocabulary the used-
  *  set intersects to decide which classes a production bundle keeps. (Includes
  *  each name maps to its export.) Consumed by the compiler side (declarec), never by the
  *  slimmed runtime, so it stays out of instantiate.ts's import surface. */

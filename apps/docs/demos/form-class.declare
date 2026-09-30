@@ -1,7 +1,7 @@
 // Declare once, instantiate by name
 // A `Chip` with a declared attribute, a derived width, a handler, and a child. Three instances; the third re-sets `fill` at its use site, which any instance may do with any attribute.
 
-class Chip extends View [ height = 30, cornerRadius = 10, fill = { hovered ? 0x4682B4 : 0x2F4F4F },
+class Chip [ height = 30, cornerRadius = 10, fill = { hovered ? 0x4682B4 : 0x2F4F4F },
     label: string = "",
     picks: number = 0,
     width = { this.t.width + 20 },

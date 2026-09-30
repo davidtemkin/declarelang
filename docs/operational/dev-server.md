@@ -119,7 +119,7 @@ next reload, so the dev loop always asks the second question. This is the one pl
 hosts differ, and they differ in *which question is asked* — not in what either answer means.
 
 **2. Resolve a source.** Compile it, unless a previous compile is still good. "Still good" is
-the dependency closure: the main file plus every `include` and component the compile actually
+the dependency closure: the main file plus every `include` and class the compile actually
 read, each with a validator. If nothing in it moved, the previous compile is reused.
 
 - **On the dev server the compile runs on the server** (`POST /compile`), and so does the

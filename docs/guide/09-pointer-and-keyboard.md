@@ -10,7 +10,7 @@ directly by calling a method.
 
 > **Handlers fire where they are declared. A child tells its owner by calling a method.**
 
-## Hover and press are facts
+## Hover and press
 
 Every view carries two read-only facts, [`hovered`](declare-docs:View.hovered) and [`pressed`](declare-docs:View.pressed), and the runtime keeps
 them true. `hovered` is true while the pointer is over the view and nothing covers it;
@@ -47,21 +47,21 @@ App [ width = 340, height = 150, fill = white, textColor = #172530,
 
 Hover, press, click, then Tab to a tile and press Space. The keyboard reaches each tile
 because it is a [`Control`](declare-docs:Control): `press()` is the one activation path, shared by click and
-keyboard ([Custom components](declare-docs:guide:custom-components@what-extends-control-gives-you) covers what
+keyboard ([Your own views](declare-docs:guide:your-own-views@what-extends-control-gives-you) covers what
 `Control` provides). On a plain view, `hovered` and `pressed` are there for
 non-interactive effects — a card that lifts under the pointer, a hover reveal.
 
-## Telling another node: call a method
+## Calling another node
 
 When a handler must affect something beyond its own node, it does not dispatch an event
 upward. It **calls a method** on the node that owns the behavior. In the example, each
 tile calls `app.choose(label)`, and `picked` on every tile is a constraint on
 `app.choice`. The call is the notification, and because the method's assignments are
 reactive, one call updates everything that read the changed state. Invisible event
-routing — capture phases, propagation stops, a listener three components up — is a
+routing — capture phases, propagation stops, a listener three levels up — is a
 class of bug this model does not have.
 
-## Two layers: what happened, and what it meant
+## Raw and resolved events
 
 Every pointer handler belongs to one of two layers, and choosing between them is the
 whole skill.
@@ -162,7 +162,7 @@ that follows the pointer, becoming an invisible box over the very targets you ar
 dragging onto. If a target never highlights, `__declare.explainHit(x, y)` in the console
 names what actually takes the press.
 
-## The keyboard
+## Keyboard events
 
 A focused view receives `onKeyDown` and `onKeyUp` — right for keys that belong to one
 widget. For app-wide shortcuts that work regardless of focus, add a [`Keys`](declare-docs:Keys) member. Like

@@ -6,33 +6,19 @@ mode over two kinds of ground; masks of every gradient kind and a view stencil;
 opacity; the frosted backdrop.
 */
 
-script {
-    function effectFilters(): Record<string, unknown>[] {
-        return cross({ fx: ["blur", "brightness", "contrast", "saturate", "grayscale", "invert", "sepia", "hueRotate", "colorize", "shadow", "dim", "halfGray"],
-                       content: ["box", "text", "image"] }, (r) => r.fx + " · " + r.content)
-    }
-    function effectChains(): Record<string, unknown>[] {
-        return cross({ fx: ["grayContrast", "blurShadow", "sepiaHue", "invertBlur", "shadowTwice", "saturateBright"], content: ["box", "image"] },
-            (r) => r.fx + " · " + r.content)
-    }
-    function effectBlends(): Record<string, unknown>[] {
-        return cross({ mode: ["normal", "multiply", "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn", "hardLight",
-                              "softLight", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plusLighter"],
-                       ground: ["gradient", "image"] }, (r) => r.mode + " · over " + r.ground)
-    }
-    function effectMasks(): Record<string, unknown>[] {
-        return cross({ mask: ["linear", "vertical", "radial", "conic"], content: ["box", "text", "image"] }, (r) => r.mask + " mask · " + r.content)
-    }
-    }
 
-
-class Subject extends View [ width = 140, height = 88,
+class Subject [ width = 140, height = 88,
     content: string = "box",
-    box: View [ width = 140, height = 88, cornerRadius = 12, visible = { classroot.content == "box" },
-        fill = gradient(90, #2E6FE0, #E4572E) ],
-    word: Text [ y = 20, width = 140, textAlign = center, fontSize = 34, fontWeight = bold, wrap = false,
-        visible = { classroot.content == "text" }, textColor = 0xE4572E, text = "Aa 12" ],
-    pic: Image [ width = 140, height = 88, stretches = contain, source = "assets/badge.png", visible = { classroot.content == "image" } ]
+    asBox: State [ applied = { classroot.content == "box" },
+        box: View [ width = 140, height = 88, cornerRadius = 12, fill = gradient(90, #2E6FE0, #E4572E) ]
+        ],
+    asText: State [ applied = { classroot.content == "text" },
+        word: Text [ y = 20, width = 140, textAlign = center, fontSize = 34, fontWeight = bold, wrap = false,
+            textColor = 0xE4572E, text = "Aa 12" ]
+        ],
+    asImage: State [ applied = { classroot.content == "image" },
+        pic: Image [ width = 140, height = 88, stretches = contain, source = "assets/badge.png" ]
+        ]
     ]
 
 
@@ -42,9 +28,12 @@ class FilterSwatch extends Swatch [ name = :name,
 
 
 class BlendSwatch extends Swatch [ name = :name,
-    ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, visible = { :ground == "gradient" },
-        fill = gradient(90, #17A34A, #FDE68A) ],
-    pic: Image [ x = 20, y = 14, width = 172, height = 92, stretches = cover, source = "assets/badge.png", visible = { :ground == "image" } ],
+    overGradient: State [ applied = { :ground == "gradient" },
+        ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = gradient(90, #17A34A, #FDE68A) ]
+        ],
+    overImage: State [ applied = { :ground == "image" },
+        pic: Image [ x = 20, y = 14, width = 172, height = 92, stretches = cover, source = "assets/badge.png" ]
+        ],
     over: View [ x = 56, y = 28, width = 100, height = 64, cornerRadius = 32, fill = 0xE4572E, blend = { :mode } ]
     ]
 
@@ -63,20 +52,40 @@ class EffectsSection extends Section [ title = "Effects",
     tabs = { [ ({ id: "filters", label: "Filters" }), ({ id: "chains", label: "Chains" }), ({ id: "blend", label: "Blend" }),
                ({ id: "masks", label: "Masks" }), ({ id: "opacity", label: "Opacity" }), ({ id: "backdrop", label: "Backdrop" }) ] },
     sub = "filters",
+
+    // this section's rows, by sub-page, built from its axes
+
+    effectFilters() -> array {
+        return cross({ fx: ["blur", "brightness", "contrast", "saturate", "grayscale", "invert", "sepia", "hueRotate", "colorize", "shadow", "dim", "halfGray"],
+                       content: ["box", "text", "image"] }, (r) => r.fx + " · " + r.content)
+        },
+    effectChains() -> array {
+        return cross({ fx: ["grayContrast", "blurShadow", "sepiaHue", "invertBlur", "shadowTwice", "saturateBright"], content: ["box", "image"] },
+            (r) => r.fx + " · " + r.content)
+        },
+    effectBlends() -> array {
+        return cross({ mode: ["normal", "multiply", "screen", "overlay", "darken", "lighten", "colorDodge", "colorBurn", "hardLight",
+                              "softLight", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plusLighter"],
+                       ground: ["gradient", "image"] }, (r) => r.mode + " · over " + r.ground)
+        },
+    effectMasks() -> array {
+        return cross({ mask: ["linear", "vertical", "radial", "conic"], content: ["box", "text", "image"] }, (r) => r.mask + " mask · " + r.content)
+        },
+    rows: Dataset [ contents = { { effectFilters: classroot.effectFilters(), effectChains: classroot.effectChains(), effectBlends: classroot.effectBlends(), effectMasks: classroot.effectMasks() } } ],
     SubHead [ visible = { app.matrix }, text = "Filters" ],
-    Grid [ visible = { classroot.showing("filters") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("filters") }, datapath = { classroot.rows.value },
         FilterSwatch [ datapath = :effectFilters[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Chains" ],
-    Grid [ visible = { classroot.showing("chains") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("chains") }, datapath = { classroot.rows.value },
         FilterSwatch [ datapath = :effectChains[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Blend" ],
-    Grid [ visible = { classroot.showing("blend") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("blend") }, datapath = { classroot.rows.value },
         BlendSwatch [ datapath = :effectBlends[] ]
         ],
     SubHead [ visible = { app.matrix }, text = "Masks" ],
-    Grid [ visible = { classroot.showing("masks") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("masks") }, datapath = { classroot.rows.value },
         MaskSwatch [ datapath = :effectMasks[] ]
         ],
     Grid [ visible = { classroot.showing("masks") },

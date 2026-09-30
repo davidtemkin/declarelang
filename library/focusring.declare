@@ -16,14 +16,14 @@ The model:
 - **Roles, theme-elected** — `theme.focusRing`: `"both"` (or `true`, the
   default) · `"travel"` (flight, then an idle fade) · `"rest"` (no flight —
   the ring appears in place and stays) · `false` (no ring; the theme's
-  components carry the at-rest indication — the invariant lives with the
-  theme-and-components pair). While keyboard modality holds and the role
+  classes carry the at-rest indication — the invariant lives with the
+  theme-and-classes pair). While keyboard modality holds and the role
   includes rest, the ring rests — no idle fade; a pointer press clears
   modality and the ring hides (web :focus-visible semantics).
 - **The flight is the flourish** — `theme.focusAnimate = false` snaps every
   move; the underdamped travel is default-on.
 
-It arrives automatically with any Control-descended component; declare your
+It arrives automatically with any Control-descended class; declare your
 own `FocusRing [ ]` (or subclass) to replace it. Pure chrome: never focusable,
 never a pointer target. The silhouette is the target's `focusShape()` when it
 declares one, else its bounds at its `cornerRadius`.
@@ -54,7 +54,7 @@ because a flight from nowhere is a streak across the app.
 The theme's election, from `theme.focusRing`: `"both"` (the default), `"travel"`
 (flight, then fading once it settles), `"rest"` (appears in place and stays, no
 flight), or `"off"`. **`"off"` is legitimate only when the theme's own controls carry
-an at-rest focus indication** — the invariant belongs to the theme-and-components pair,
+an at-rest focus indication** — the invariant belongs to the theme-and-classes pair,
 not to the ring alone.
 
 ## restRole()
@@ -118,7 +118,7 @@ widgets read it). Reads `theme.accent` and its kin as typed members; defaults to
 house look. See `Control.theme`.
 */
 
-class FocusRing extends View [
+class FocusRing [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.

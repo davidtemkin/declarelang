@@ -38,7 +38,7 @@ const SUITE = [
   "test/dataschema.test.mjs",
   "test/datasource-failure.test.mjs",
   "test/table.test.mjs",
-  "test/components.test.mjs",
+  "test/library.test.mjs",
   "test/layout-padding.test.mjs", // padding on the Layout base, per-side stroke on both backends, Card + Divider
   "test/layout-claims.test.mjs",  // a claim meeting an author value: the literal is reported, a refused size drops the child, every message is positioned and names the strategy
   "test/responsive-share.test.mjs", // what a ResponsiveLayout share divides (naturals first), "auto", and the two refusals
@@ -51,6 +51,7 @@ const SUITE = [
   "test/script-module.test.mjs",
   "test/static-constraint.test.mjs",
   "test/highlight.test.mjs",
+  "test/briefs.test.mjs",          // the task briefs: snippets compile, every name and pointer resolves
   "test/inspect.test.mjs",
   "test/format.test.mjs",
   "test/md.test.mjs",

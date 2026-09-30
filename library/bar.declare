@@ -30,7 +30,7 @@ The caption column's width, derived from whether there is a `label` at all. Set 
 align several bars whose captions differ in length.
 */
 
-class Bar extends View [ height = 28,
+class Bar [ height = 28,
     label: string = "",
     value: number = 0,
     tint:  Color  = #4C8DFF,

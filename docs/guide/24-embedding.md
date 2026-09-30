@@ -19,7 +19,7 @@ element, and runs on every renderer.
 One boundary this chapter does *not* own: bringing foreign **code** into a
 program, rather than a foreign **rendering** into a box. A JS/TS library —
 date math, a physics engine, a parser — enters through `script { }` and its
-`import`, or `script [ "file.ts" ]` ([Components and the tree](declare-docs:guide:components@where-a-piece-of-code-lives)):
+`import`, or `script [ "file.ts" ]` ([Classes and the tree](declare-docs:guide:classes@where-code-goes)):
 it computes for the program, opaquely, and renders nothing. Reach for an
 island or a hosted box only when the foreign thing *draws*; reach for script
 when it *computes*.
@@ -241,7 +241,7 @@ tenant cannot write what the host provides, and the host cannot write what
 the tenant exposes. [`post(topic, payload)`](declare-docs:App.method.post) / `onPost(m)` are **verbs** —
 consumed once, ordered, never re-readable: "do this", never "this is so".
 Only data crosses: numbers, strings, booleans, arrays, plain objects. A
-component is an identity in one program's graph and cannot cross.
+view is an identity in one program's graph and cannot cross.
 
 **The page is the topmost host.** A top-level app reads what its *page*
 provides with the same `hostProvided`: pass `boot({ …, provides: { dark: true } })`,
@@ -270,7 +270,7 @@ canvas, its view — (the Declare tenant an island mounted). Everything else a
 backend or host plants is internal and may vanish without notice. None of
 them is a global: a page's own scripts share no names with Declare.
 
-## A tenant that loads itself
+## Loading foreign code at runtime
 
 An island's interior is not Declare's to ship — that is the whole point of the
 boundary, and it has a consequence worth stating outright: **a heavy foreign
@@ -312,7 +312,7 @@ specifier defers: a **URL** stays external and is genuinely fetched later,
 while a **bare** specifier (`import("some-package")`) resolves from
 `node_modules` and is bundled whole at build time, deferred in appearance only.
 
-## The same rule, three ways
+## The one boundary rule
 
 Each direction draws the border in the same place: **a box, owned by the
 outside; a world, owned by the inside**. A page gives Declare a sized div

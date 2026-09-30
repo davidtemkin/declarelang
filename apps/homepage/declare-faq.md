@@ -4,7 +4,7 @@
 
 ### What is Declare?
 
-Declare is a programming language for user interfaces — a domain-specific language, the way SQL is a domain-specific language for querying data. You describe an interface as a tree of components with attributes; any attribute can be a live expression, and when the things it reads change, everything that depends on it updates. All real logic is ordinary TypeScript. Programs compile in the browser or ahead of time, and one program renders either to the DOM or directly to pixels on a canvas.
+Declare is a programming language for user interfaces — a domain-specific language, the way SQL is a domain-specific language for querying data. You describe an interface as a tree of views with attributes; any attribute can be a live expression, and when the things it reads change, everything that depends on it updates. All real logic is ordinary TypeScript. Programs compile in the browser or ahead of time, and one program renders either to the DOM or directly to pixels on a canvas.
 
 ### Why should I use it?
 
@@ -32,19 +32,19 @@ It's a language, not a framework inside JavaScript. In React and its relatives, 
 
 ### What does the compiler do, and what are the benefits of Declare being a compiled language?
 
-The compiler parses the declarations, statically extracts every constraint's dependencies, type-checks every `{ }` body as real TypeScript against the components' typed APIs, resolves the components you use (the standard library auto-includes by name), and emits a self-contained program. The benefits: errors surface before the program runs, with messages that name the fix; reactivity is *derived by the compiler*, not guessed at runtime, so behavior is predictable and analyzable by tools; production output is small; and programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing. The compiler itself runs anywhere — in Node, or in the browser.
+The compiler parses the declarations, statically extracts every constraint's dependencies, type-checks every `{ }` body as real TypeScript against every class's typed API, resolves the components you use (the standard library auto-includes by name), and emits a self-contained program. The benefits: errors surface before the program runs, with messages that name the fix; reactivity is *derived by the compiler*, not guessed at runtime, so behavior is predictable and analyzable by tools; production output is small; and programs are data — the same compiler powers the documentation system, static extraction for crawlers, and live editing. The compiler itself runs anywhere — in Node, or in the browser.
 
 ### What is the relationship of Declare's declarative elements to TypeScript?
 
-The `[ ]` structure is Declare; everything inside `{ }` — expressions, event handlers, methods — is ordinary TypeScript, type-checked with full knowledge of every component's attributes. There is no new expression language to learn. The declarative layer contributes structure and reactivity; TypeScript contributes logic — and everything you (or your model) already know about it carries over.
+The `[ ]` structure is Declare; everything inside `{ }` — expressions, event handlers, methods — is ordinary TypeScript, type-checked with full knowledge of every class's attributes. There is no new expression language to learn. The declarative layer contributes structure and reactivity; TypeScript contributes logic — and everything you (or your model) already know about it carries over.
 
 ### How do encapsulation and composition work in Declare?
 
-A component is a class: `class Card extends View [ … ]`. Its attributes are its public interface — parents set them, and values *derive down* through constraints. Information travels back *up* through events a component declares and fires; events are delivered to the handler that declared interest, never bubbled through the tree. Inside a component, code reaches other parts through explicit scopes — `this`, `parent`, `classroot` (the component instance the code belongs to), and `app` — so a component's internals stay its own. Composition is just nesting: your classes are used exactly like built-ins, including replication over data.
+A reusable view is a class: `class PriceTag [ … ]`. Its attributes are its public interface — parents set them, and values *derive down* through constraints. Information travels back *up* through events a view declares and fires; events are delivered to the handler that declared interest, never bubbled through the tree. Inside a class, code reaches other parts through explicit scopes — `this`, `parent`, `classroot` (the component instance the code belongs to), and `app` — so a component's internals stay its own. Composition is just nesting: your classes are used exactly like built-ins, including replication over data.
 
-### How are Declare's UI components created?
+### How are Declare's controls and views created?
 
-By writing classes in Declare. The entire standard library — Button, Slider, Checkbox, Switch, RadioGroup, ProgressBar, and the rest — is written in Declare itself, in readable source you can open (and live-edit) on this site. There is no privileged component API underneath: the library components are the same kind of thing your components are.
+By writing classes in Declare. The entire standard library — Button, Slider, Checkbox, Switch, RadioGroup, ProgressBar, and the rest — is written in Declare itself, in readable source you can open (and live-edit) on this site. There is no privileged API underneath: the library's classes are the same kind of thing yours are.
 
 ### Can I use CSS to style a Declare app?
 
@@ -52,7 +52,7 @@ No — and that's a feature. Styling is part of the language: paint attributes o
 
 ### Can I intermix React and Declare code?
 
-Side by side, yes; interleaved, no. A Declare app embeds in any page — including a React page. And inside a Declare program, the `DOMIsland` component hosts foreign content — a video player, a code editor, a React widget — in a box the Declare tree sizes and positions. What you can't do is put a React component *inside* the Declare tree as if it were a Declare view, or vice versa. The boundary is always an island, which is what keeps both sides comprehensible.
+Side by side, yes; interleaved, no. A Declare app embeds in any page — including a React page. And inside a Declare program, the `DOMIsland` view hosts foreign content — a video player, a code editor, a React widget — in a box the Declare tree sizes and positions. What you can't do is put a React component *inside* the Declare tree as if it were a Declare view, or vice versa. The boundary is always an island, which is what keeps both sides comprehensible.
 
 ### How do I deep-link into an app? Is there a router?
 
@@ -76,8 +76,8 @@ One program renders through managed DOM elements, directly to a single canvas, o
 
 Concretely, measured from the deployed production artifacts:
 
-- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->114<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
-- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,550<!--/stat--> lines: <!--stat:tracker.code-->1,109<!--/stat--> of code and <!--stat:tracker.comment-->223<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->130<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
+- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->115<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
+- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,566<!--/stat--> lines: <!--stat:tracker.code-->1,115<!--/stat--> of code and <!--stat:tracker.comment-->228<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->131<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
 - **Responsiveness**: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 
@@ -99,7 +99,7 @@ Two ways. First, the language is small enough that its *entire definition* fits 
 
 ### What does Declare do to optimize for reliability and correctness of LLM-generated code?
 
-- **Mandatory type-checking** — every `{ }` body, every compile, no opt-out; the checker is held to zero false positives across the repository's own corpus (every app, library component, and documentation example it ships), so an error always means something is actually wrong.
+- **Mandatory type-checking** — every `{ }` body, every compile, no opt-out; the checker is held to zero false positives across the repository's own corpus (every app, library class, and documentation example it ships), so an error always means something is actually wrong.
 - **Diagnostics that name the fix** — messages are written to steer the *next* attempt, including "did you mean" guidance for common instincts from other frameworks (e.g., reaching for a CSS property).
 - **No magic** — Declare consistently chooses predictability over cleverness: dependencies are extracted statically, events don't bubble, there's one way to say most things. Code that looks right *is* right more often, and code that's wrong fails loudly.
 - **Verification tooling** — a `verify` command compiles, type-checks, and actually boots a program headlessly, so an agent can prove its output runs before handing it back.

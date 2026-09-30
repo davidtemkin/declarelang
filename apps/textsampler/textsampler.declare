@@ -45,7 +45,7 @@ style gone  [ strike = true, textColor = #9AA4AE ]
 // inside rich-text content places one real view of it in the flowing line, so
 // each sizes itself to its label, wears the run's face, and keeps its own state.
 
-class Chip extends View [ label: string = "",
+class Chip [ label: string = "",
     height = 19,
     width = { this.t.width + 18 },
     cornerRadius = 9,
@@ -56,7 +56,7 @@ class Chip extends View [ label: string = "",
     ]
 
 
-class Pill extends View [ label: string = "",
+class Pill [ label: string = "",
     picked: boolean = false,
     height = 20,
     width = { this.t.width + 22 },
@@ -72,7 +72,7 @@ class Pill extends View [ label: string = "",
 // A recessed code snippet — the illustrative Declare source under a specimen,
 // in its card's inset column.
 
-class Snippet extends View [ code: string = "",
+class Snippet [ code: string = "",
     width = 100%,
     cornerRadius = 7,
     fill = { provided("theme").bg },
@@ -295,7 +295,7 @@ App [ minWidth = 340,
                         Specimen [ label = "A VIEW IN A SENTENCE",
                             HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> this morning." ],
-                            Snippet [ code = "class Chip extends View [ label: string = \"\",\n    height = 19, width = { this.t.width + 18 },\n    cornerRadius = 9,\n    t: TextLabel [ x = 9, fontSize = 11.5,\n        text = { classroot.label } ]\n    ]\n\nHTMLText [ html = \"Filed under <Chip label='docs'/>\n    and <Chip label='runtime'/> this morning.\" ]" ]
+                            Snippet [ code = "class Chip [ label: string = \"\",\n    height = 19, width = { this.t.width + 18 },\n    cornerRadius = 9,\n    t: TextLabel [ x = 9, fontSize = 11.5,\n        text = { classroot.label } ]\n    ]\n\nHTMLText [ html = \"Filed under <Chip label='docs'/>\n    and <Chip label='runtime'/> this morning.\" ]" ]
                             ],
 
                         // …and because it is a real view it has state: hover one,
@@ -304,7 +304,7 @@ App [ minWidth = 340,
                         Specimen [ label = "A VIEW, NOT A RUN",
                             HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "Click <Pill label='either'/> or <Pill label='this one'/> — each keeps its own state, and the line re-flows." ],
-                            Snippet [ code = "class Pill extends View [ label: string = \"\",\n    picked: boolean = false,\n    fill = { picked ? provided(\"theme\").accent\n        : hovered ? provided(\"theme\").line\n        : provided(\"theme\").bg },\n    onClick() { picked = !picked },\n    t: TextLabel [ text = { classroot.picked\n        ? classroot.label + \" ✓\" : classroot.label } ]\n    ]" ]
+                            Snippet [ code = "class Pill [ label: string = \"\",\n    picked: boolean = false,\n    fill = { picked ? provided(\"theme\").accent\n        : hovered ? provided(\"theme\").line\n        : provided(\"theme\").bg },\n    onClick() { picked = !picked },\n    t: TextLabel [ text = { classroot.picked\n        ? classroot.label + \" ✓\" : classroot.label } ]\n    ]" ]
                             ]
                         ]
                     ],

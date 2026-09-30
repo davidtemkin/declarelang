@@ -12,7 +12,7 @@ costs to take all of it.
 > **The browser owns every gesture until a view claims it — and declaring the handler
 > is the claim.**
 
-## Designing for fingers
+## Mouse and touch differences
 
 The same handlers fire for mouse and finger, and the runtime absorbs most of the
 difference: a finger that moves does not click, a tap never leaves a view stuck in a
@@ -41,7 +41,7 @@ layout from the live pointer type: targets that resize as the user alternates tr
 and finger are worse than either size. And a hit region need not match a visual one, so
 a hybrid can keep compact chrome and generous touch targets at the same time.
 
-## Who owns a gesture
+## Gesture claims
 
 The same handlers hear mouse and finger, but the browser does not compete for
 them equally. A dragged mouse was always yours: the page does nothing with it —
@@ -112,7 +112,7 @@ back to the browser — which is why the habit to build is:
 
 > **Claim the least you need, on the smallest view that needs it.**
 
-## Taking a drag from a scroll
+## Dragging on a scrolling surface
 
 One row of the table deserves its own telling, because it resolves a conflict the
 others never face. A slider claims the finger from its first movement, and
@@ -144,7 +144,7 @@ a mouse drag was never the browser's, so on desktop the same handlers drag
 immediately — hold your visible pick-up until `onHold` if you want the two to
 feel alike.
 
-## Full gesture control
+## Raw touch events
 
 Some apps need it all. A map, a drawing canvas, a game — an app that requires
 full gesture control, because no browser primitive exists for its pan and its

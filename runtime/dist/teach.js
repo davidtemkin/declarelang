@@ -6,7 +6,7 @@
 // exists HERE and nowhere else, so the compiler and the lookup tool cannot
 // drift apart. (Acceptance: zero duplicated hint strings in the tree.)
 //
-// `nearestName` itself stays in diagnostics.ts (it serves codes and components
+// `nearestName` itself stays in diagnostics.ts (it serves codes and classes
 // too); this module re-exports it so a front end needs only one import.
 import { nearestName } from "./diagnostics.js";
 export { nearestName };

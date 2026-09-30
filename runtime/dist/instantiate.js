@@ -60,12 +60,12 @@ import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED } from "./schema.j
 // (tools/declarec.mjs) and runs entirely on the trusted paths below — the
 // schema half is all it needs. The dev path takes the same code with
 // `trusted` false and validates every step, exactly as before.
-import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkComponentValue as checkComponentValueAboard } from "./check.js";
-let CHECKER = { checkAttr: checkAttrAboard, checkMethod: checkMethodAboard, checkComponentValue: checkComponentValueAboard };
+import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkClassValue as checkClassValueAboard } from "./check.js";
+let CHECKER = { checkAttr: checkAttrAboard, checkMethod: checkMethodAboard, checkClassValue: checkClassValueAboard };
 export function provideChecker(c) { CHECKER = c; }
 const checkAttr = (schema, attr) => CHECKER.checkAttr(schema, attr);
 const checkMethod = (eff, m) => CHECKER.checkMethod(eff, m);
-const checkComponentValue = (...a) => CHECKER.checkComponentValue(...a);
+const checkClassValue = (...a) => CHECKER.checkClassValue(...a);
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, provisionValue } from "./program-schema.js";
 import { fontObjectHint } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
@@ -76,6 +76,7 @@ import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provide
 import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
+import { classOfFor, KindedReplicator } from "./class-for.js";
 import { staticSegs } from "./path-plan.js";
 import { provideViewCreator, provideInlineViewHost } from "./view.js";
 import { toCursor } from "./data.js";
@@ -340,7 +341,7 @@ function installBatch(ordered, ctx) {
             provideBind(p.view, p.attr.name, p.provideCode, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
         else if ("layoutEl" in p) {
             if (!ctx.trusted) {
-                const errs = checkComponentValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name, p.of, p.layoutEl);
+                const errs = checkClassValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name, p.of, p.layoutEl);
                 if (errs.length > 0)
                     throw errs[0];
             }
@@ -513,7 +514,7 @@ function collectBundles(program) {
     for (const s of program.styles) {
         const b = s.body;
         if (b.decls.length > 0 || b.methods.length > 0 || b.children.length > 0 || b.raw !== undefined) {
-            throw new DeclareError(`style ${s.name}: a bundle carries attribute sets only — a look, not a component`, s.pos);
+            throw new DeclareError(`style ${s.name}: a bundle carries attribute sets only — a look, not a class`, s.pos);
         }
         bundles.set(s.name, b);
     }
@@ -659,7 +660,7 @@ isShapeType = () => false) {
  *  element instantiates once per class *instance*, and they all share the
  *  same prototype accessors, exactly as if the compiler had named the class. */
 const ANON = new WeakMap();
-function ctorWithDecls(el, base, schema, isComponent, isShape = () => false) {
+function ctorWithDecls(el, base, schema, isClassName, isShape = () => false) {
     if (el.decls.length === 0)
         return base;
     let ctor = ANON.get(el);
@@ -667,7 +668,7 @@ function ctorWithDecls(el, base, schema, isComponent, isShape = () => false) {
         const defaults = () => {
             const defs = {};
             for (const d of el.decls) {
-                const r = checkDecl(schema, d, schema.name, isComponent, isShape);
+                const r = checkDecl(schema, d, schema.name, isClassName, isShape);
                 if (!r.ok)
                     throw r.error;
                 defs[d.name] = r.value;
@@ -859,12 +860,12 @@ function beginNode(el, schema, outer, ctx) {
     }
     const baseCtor = Object.hasOwn(ctx.tags, el.tag) ? ctx.tags[el.tag] : null;
     if (baseCtor === null)
-        throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
-    const isComponent = (n) => ctx.schemas[n] !== undefined;
+        throw new DeclareError(`unknown class '${el.tag}'`, el.pos);
+    const isClassName = (n) => ctx.schemas[n] !== undefined;
     const isShape = (n) => ctx.shapes.has(n);
-    const node = new (ctorWithDecls(el, baseCtor, schema, isComponent, isShape))();
+    const node = new (ctorWithDecls(el, baseCtor, schema, isClassName, isShape))();
     node.classroot = outer;
-    const eff = withDecls(schema, el.decls, isComponent, isShape);
+    const eff = withDecls(schema, el.decls, isClassName, isShape);
     const sources = memberSources(el, node, outer, ctx.classes.get(el.tag));
     installMethods(node, sources, eff, ctx);
     return { node, eff, sources };
@@ -901,7 +902,7 @@ function construct(el, outer, ctx, parentSchema = null) {
         return constructState(el, schema, outer, ctx, parentSchema);
     }
     if (baseCtor === null || schema === null)
-        throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
+        throw new DeclareError(`unknown class '${el.tag}'`, el.pos);
     const user = ctx.classes.get(el.tag);
     const view = new (ctorWithDecls(el, baseCtor, schema, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n)))();
     view.classroot = outer;
@@ -930,7 +931,7 @@ function construct(el, outer, ctx, parentSchema = null) {
     // and subclassing replace it; `style` bundles survive only as the `<span
     // class>` run vehicle in RichText.)
     const attrs = mergeAttrs(sources);
-    // Component-typed provisions (View.layout): the nearest provider wins across
+    // Class-typed provisions (View.layout): the nearest provider wins across
     // class bodies → use site, in either form — the member `layout: SimpleLayout
     // [ … ]` or the cancelling literal `layout = null` (how a use site turns an
     // inherited arrangement off; the null itself lands through the ordinary
@@ -942,11 +943,11 @@ function construct(el, outer, ctx, parentSchema = null) {
     let layoutCroot = croot;
     for (const s of sources) {
         for (const a of s.el.attrs) {
-            if (attrType(eff, a.name)?.kind === "component")
+            if (attrType(eff, a.name)?.kind === "class")
                 layoutEl = null;
         }
         for (const c of s.el.children) {
-            if (c.name !== null && attrType(eff, c.name)?.kind === "component") {
+            if (c.name !== null && attrType(eff, c.name)?.kind === "class") {
                 layoutEl = c;
                 layoutCroot = s.croot ?? croot;
             }
@@ -1076,7 +1077,7 @@ function construct(el, outer, ctx, parentSchema = null) {
     // precede the claim.
     if (layoutEl !== null) {
         const t = attrType(eff, layoutEl.name);
-        if (t !== null && t.kind === "component")
+        if (t !== null && t.kind === "class")
             ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
     }
     // Children: the class bodies' (they belong to every instance, scoped to
@@ -1108,9 +1109,16 @@ function construct(el, outer, ctx, parentSchema = null) {
  *  checkDataNode for unchecked trees. */
 function constructData(el, schema, outer, ctx) {
     const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+    // Members: a data node holds no views, but non-visual members — a derived
+    // Dataset over its records, a Time — construct under it like any node's.
+    const slot = { prev: null };
     for (const s of sources) {
-        for (const c of s.el.children)
-            throw new DeclareError(`a data node has no children — its structure is its data`, c.pos);
+        for (const c of s.el.children) {
+            const cs = Object.hasOwn(ctx.schemas, c.tag) ? ctx.schemas[c.tag] : null;
+            if (cs !== null && (descendsFrom(cs, "View") || descendsFrom(cs, "Layout")))
+                throw new DeclareError(`a data node holds no views — its structure is its data; a non-visual member (a derived Dataset over its records, a Time) is welcome`, c.pos);
+        }
+        appendChildren(s.el, node, s.croot ?? node, ctx, eff, slot);
     }
     for (const { attr, croot } of mergeAttrs(sources).values()) {
         landNodeAttr(node, attr, croot, eff, ctx, "a data node is where data lives — a :path reads a view's cursor");
@@ -1162,7 +1170,7 @@ function constructAnimator(el, schema, outer, ctx) {
     const { node, eff, sources } = beginNode(el, schema, outer, ctx);
     for (const s of sources) {
         for (const c of s.el.children)
-            throw new DeclareError(`an animator drives a slot — it has no children`, c.pos);
+            throw new DeclareError(`an animator drives an attribute — it has no children`, c.pos);
     }
     for (const { attr, croot } of mergeAttrs(sources).values()) {
         landNodeAttr(node, attr, croot, eff, ctx, "an animator attribute is a value or a { }, not a data read");
@@ -1286,7 +1294,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
             continue;
         }
         if (parentSchema === null) {
-            throw new DeclareError(`a ${el.tag} overrides its enclosing view's slots, but '${a.name}' has no view to target here`, a.value.pos);
+            throw new DeclareError(`a ${el.tag} overrides its enclosing view's attributes, but '${a.name}' has no view to target here`, a.value.pos);
         }
         const r = routeAttr(parentSchema, a, ctx.trusted);
         if (!r.ok)
@@ -1306,7 +1314,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
             throw new DeclareError(`${el.tag}.${slot}: a state override is a value or a { }, not a data read`, a.value.pos);
         }
         else if ("provision" in r) {
-            throw new DeclareError(`${el.tag}.${slot}: a state override sets a declared slot of the view, not a provided value`, a.value.pos);
+            throw new DeclareError(`${el.tag}.${slot}: a state override sets a declared attribute of the view, not a provided value`, a.value.pos);
         }
         else {
             const value = r.value;
@@ -1324,7 +1332,7 @@ function constructState(el, schema, outer, ctx, parentSchema) {
     node.materialize = materializer(ctx);
     return node;
 }
-/** Build a layout strategy from its element (checkComponentValue has just
+/** Build a layout strategy from its element (checkClassValue has just
  *  validated it): construct the class, land the literal attributes through
  *  its reactive setters — axis and spacing get the full attribute lifecycle,
  *  which is what makes `strategy.spacing = 12` a live re-flow later. */
@@ -1401,13 +1409,13 @@ function installLayoutClass(layout, el, uc, croot, ctx) {
 /** Construct and link `from`'s child elements under `parentView`. A named
  *  child becomes a real member of its parent (language §4: reachable as
  *  `bg` / `this.bg`) — a plain property, structure like the tree itself.
- *  A member whose name is a component-typed attribute (`layout:`) is that
+ *  A member whose name is a class-typed attribute (`layout:`) is that
  *  attribute's VALUE, not a child — construct() consumed it above. A child
  *  whose datapath matches many (R8) is a TEMPLATE: it never constructs
  *  here — the parent gets a Replicator holding this pipeline as a value. */
 function appendChildren(from, parentView, croot, ctx, eff, slot) {
     for (const childEl of from.children) {
-        if (childEl.name !== null && attrType(eff, childEl.name)?.kind === "component")
+        if (childEl.name !== null && attrType(eff, childEl.name)?.kind === "class")
             continue;
         const many = manyPathOf(childEl, ctx.schemas);
         if (many !== null && many.value.kind === "path") {
@@ -1440,7 +1448,12 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
                     policy = wv.kind === "value" ? wv.value === true : wv.name === "true"; // a compiled program carries the value
                 }
             }
-            const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath, many.value.plan ?? null, policy);
+            // `classFor = { … }` — a class per record (class-for.ts, its own
+            // capability: reached only when the program writes it).
+            const classOf = childEl.attrs.some((a) => a.name === "classFor") ? classOfFor(childEl, parentView, croot) : null;
+            const args = [parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath,
+                many.value.plan ?? null, policy];
+            const replicator = classOf === null ? new Replicator(...args) : new KindedReplicator(classOf, ...args);
             ctx.pending.push({ replicator });
             slot.prev = replicator;
             continue;
@@ -1455,7 +1468,7 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
         if (childEl.name !== null) {
             if (childEl.name in parentView) {
                 // The BACKSTOP. The checker refuses this in the source — both the
-                // runtime's own surface and a member the component declares, the
+                // runtime's own surface and a member the class declares, the
                 // second with the attribute door named — so what reaches here is a
                 // path that skipped the checker (a direct instantiate).
                 throw new DeclareError(`'${childEl.name}' is already a member of the running ${parentView.constructor.name} — choose another name for this child`, childEl.pos);
@@ -1481,7 +1494,7 @@ export function createViewIn(root, tag, parent, props) {
     }
     if (!Object.hasOwn(ctx.tags, tag)) {
         const hint = tag in TAGS ? "" : diag ` — declare the class, include its library, or keep it with 'use [ ${tag} ]'`;
-        throw new DeclareError(`createView: no component named '${tag}'${hint}`);
+        throw new DeclareError(`createView: no class named '${tag}'${hint}`);
     }
     const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } };
     const made = materializer(ctx)(el, parent);

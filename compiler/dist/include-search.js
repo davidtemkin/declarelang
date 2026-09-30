@@ -3,7 +3,7 @@
 // host and the browser fetch/map host). This mirrors the OpenLaszlo model, whose
 // browser, server, and `lzc` compilers all resolve an `<include>` by searching a
 // list of directories in order — the including file's own dir FIRST, then a fixed
-// component/library root — over one surface-agnostic core.
+// class/library root — over one surface-agnostic core.
 //
 // The pure resolve phase (runtime/include.ts) and the IncludeHost interface are
 // untouched: a host's `resolve(fromDir, path)` simply delegates here, passing its

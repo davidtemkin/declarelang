@@ -1,4 +1,4 @@
-class Thread extends View [ scrolls = y, fill = #F2F5F8,
+class Thread [ scrolls = y, fill = #F2F5F8,
     atEnd: boolean = { scrollY >= contentHeight - height - 1 },
     trackChanges = ["atEnd"],
     onChange(e: ChangeEvent) {

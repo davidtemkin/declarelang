@@ -11,11 +11,11 @@ export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
  *  not as a class's base (`class X extends Stream` is refused, naming the
  *  concrete members). Every other schema is a base a program class may
  *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
- *  so it cannot drift when a component joins either table. */
+ *  so it cannot drift when a class joins either table. */
 export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Editor", "Stream"]);
-// Component schemas — the typed-attribute declarations of the built-in
-// components, shared by the checker (check.ts) and the runtime bridge
-// (instantiate.ts). A schema is pure data: the component's name, its base
+// Class schemas — the typed-attribute declarations of the built-in
+// classes, shared by the checker (check.ts) and the runtime bridge
+// (instantiate.ts). A schema is pure data: the class's name, its base
 // schema, and its *own* attributes' types drawn from the value vocabulary
 // (value.ts). Inheritance is a chain walk — exactly the shape a user-defined
 // `class X extends Y` plugs into at R6, with no new mechanism.
@@ -34,16 +34,16 @@ import { enumType, numericEnumType, type AttrType } from "./value.js";
 const FONT_WEIGHT = numericEnumType("FontWeight", [1, 1000], "thin", "extralight", "light", "regular",
   "normal", "medium", "semibold", "bold", "extrabold", "black");
 
-export interface ComponentSchema {
+export interface ClassSchema {
   readonly name: string;
-  readonly base: ComponentSchema | null;
+  readonly base: ClassSchema | null;
   readonly attrs: Readonly<Record<string, AttrType>>;
   /** Which of this schema's OWN attrs are `readonly` — a computed/intrinsic
    *  value a constraint may READ but nothing may set (checkAttr refuses an
    *  assignment; the runtime accessor's setter throws). Part of the slot's
    *  identity. Absent = none of its own. */
   readonly readOnly?: readonly string[];
-  /** Events this component itself fires — a handler member `on<Event>` must
+  /** Events this class itself fires — a handler member `on<Event>` must
    *  answer one (language §8: a class *declares* the events it fires, and
    *  the checker verifies against the declaration, so a typo'd handler is a
    *  compile error, not a silent no-op). Inherited events come from the
@@ -74,7 +74,7 @@ export interface ComponentSchema {
 // runtime has always had, finally recorded here too (2026-07-28) — before
 // this, every one of them was a schema ROOT and Node's members were
 // unreachable through any of them.
-const NodeSchema: ComponentSchema = {
+const NodeSchema: ClassSchema = {
   name: "Node",
   base: null,
   attrs: {
@@ -97,7 +97,7 @@ const NodeSchema: ComponentSchema = {
   events: ["init", "change"],
 };
 
-const ViewSchema: ComponentSchema = {
+const ViewSchema: ClassSchema = {
   name: "View",
   base: NodeSchema,
   attrs: {
@@ -287,11 +287,11 @@ const ViewSchema: ComponentSchema = {
     // decoration over live content — a highlight rectangle, a full-viewport
     // chrome overlay — declares "none" so presses reach what is beneath it.
     pointerEvents: { kind: "string" },
-    // R7: how the view arranges its children — a component-typed slot
+    // R7: how the view arranges its children — a class-typed slot
     // (language §5: "a reactive Layout attribute you set on the view",
     // Appendix A: "Layout is an attribute, not a child"), written as the
     // member `layout: SimpleLayout [ … ]`, or `layout = null` for none.
-    layout: { kind: "component", of: "Layout" },
+    layout: { kind: "class", of: "Layout" },
     // Keyboard focus (docs/system-design/input.md, Layer 2): `focusable` = a tab stop;
     // `focusTrap` = a self-contained focus group (Tab cycles within, escapes at
     // the boundary). Traversal order is the view tree (no numeric tabindex),
@@ -324,6 +324,9 @@ const ViewSchema: ComponentSchema = {
     contentWidth: { kind: "length" },
     childViews: { kind: "array" },
     virtualized: { kind: "boolean" },
+    // A replicated view's index in the array it presents (-1 on a view no
+    // replication made) — a fact the replicator keeps, never set.
+    rowIndex: { kind: "number" },
     // Replication metadata, declared on the replicated child and consumed by
     // the Replicator (stripped from the template — not a live slot on the
     // instance). It is in the schema so it DOCUMENTS ITSELF (the reference is
@@ -338,6 +341,10 @@ const ViewSchema: ComponentSchema = {
     // `key` stays a special case in check.ts and is taught in the guide's
     // identity ladder rather than the reference.
     virtualize: { kind: "boolean" },
+    // `classFor = { … }` picks each record's class: the written class is the
+    // base, and the body names it or a subclass (check.ts gates it to a
+    // replication template; compile.ts lowers the class names it reads).
+    classFor: { kind: "string" },
     contentHeight: { kind: "length" },
   },
   // `scrollX`, `scrollY` and `scrolling` are PLATFORM FACTS (platform-
@@ -349,7 +356,7 @@ const ViewSchema: ComponentSchema = {
   // Nothing writes the facts — not an assignment, not an Animator (an animator
   // drives a slot; a fact is not one — the checker refuses both, naming the
   // verb). This is what makes "who scrolls" invisible to a program.
-  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "hovered", "pressed", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "scrolling"],
+  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "rowIndex", "hovered", "pressed", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "scrolling"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
   // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -381,7 +388,7 @@ const ViewSchema: ComponentSchema = {
 // chrome) and the free pointer (cursor effects, hover-at-a-distance). All are
 // plain reactive attributes fed from window/container listeners at mount
 // (index.ts); read the App from any depth via the `app` noun (`app.scrollY`).
-const AppSchema: ComponentSchema = {
+const AppSchema: ClassSchema = {
   name: "App",
   base: ViewSchema,
   attrs: {
@@ -478,7 +485,7 @@ const AppSchema: ComponentSchema = {
     // where data goes.
     waypoint: { kind: "string" },
     // NOTE: live demo editing is NOT a base-App concern (capabilities.md §7 —
-    // RULED shape 3, a component). The app-authored state (editing / liveCard /
+    // RULED shape 3, a class). The app-authored state (editing / liveCard /
     // liveSource) is instance-declared on the demo-hosting apps; the host-fed
     // channels the apps still read (demoSources / liveReport) are interim App
     // runtime surface in scaffold.ts LANGUAGE_API (like navigate), never schema
@@ -603,7 +610,7 @@ export const BUILTIN_PROVIDED: ReadonlySet<string> = new Set([
 // aren't given. Its FACE (textColor/fontSize/fontFamily/fontWeight/letterSpacing)
 // comes from FACE_ATTRS above — each a provided read, so a bare run inherits its
 // region's style; the glyph color is the one `textColor` slot.
-export const TextSchema: ComponentSchema = {
+export const TextSchema: ClassSchema = {
   name: "Text",
   base: ViewSchema,
   attrs: {
@@ -674,7 +681,7 @@ export const TextSchema: ComponentSchema = {
 // enum-typed attribute — exactly the doc's `value Stretch = none | width |
 // height | both` (language §6). The doc sketches `stretches` on View; it
 // lives on Image until a plain View has something to stretch.
-const ImageSchema: ComponentSchema = {
+const ImageSchema: ClassSchema = {
   name: "Image",
   base: ViewSchema,
   attrs: {
@@ -716,7 +723,7 @@ const ImageSchema: ComponentSchema = {
 // the `scrollY` pattern); `duration`/`buffering` are facts to derive from. No
 // player chrome ships here: a scrubber is an application. Video adds the
 // picture; Audio adds nothing, which is the point.
-const MediaSchema: ComponentSchema = {
+const MediaSchema: ClassSchema = {
   name: "Media",
   base: ViewSchema,
   attrs: {
@@ -740,7 +747,7 @@ const MediaSchema: ComponentSchema = {
 
 // Video: Media plus the picture — Image's twin. The natural size arrives with
 // the metadata; `stretches` is Image's vocabulary, same meanings.
-const VideoSchema: ComponentSchema = {
+const VideoSchema: ClassSchema = {
   name: "Video",
   base: MediaSchema,
   attrs: {
@@ -752,7 +759,7 @@ const VideoSchema: ComponentSchema = {
 // nothing. Its one schema-visible difference is behavioral, not structural:
 // `muted` defaults FALSE (sound is its only product; autoplay refusal is
 // handled by `playing` snapping back, not by shipping it silent).
-const AudioSchema: ComponentSchema = {
+const AudioSchema: ClassSchema = {
   name: "Audio",
   base: MediaSchema,
   attrs: {},
@@ -766,7 +773,7 @@ const AudioSchema: ComponentSchema = {
 // tenant's size with no coordinate sync (canvas realizes it as a positioned
 // DOM overlay — deferred). The one sanctioned escape to raw DOM, kept behind a
 // named view so bodies stay DOM-free.
-const DOMIslandSchema: ComponentSchema = {
+const DOMIslandSchema: ClassSchema = {
   name: "DOMIsland",
   base: ViewSchema,
   attrs: {
@@ -800,11 +807,11 @@ const DOMIslandSchema: ComponentSchema = {
 // caret/selection/IME/a11y are native (D-5). Two-way bound with `text <-> :path`:
 // the draft reads the datapath and commits edits back into the dataset. Fires
 // `input` on each edit and `enter` on a single-line submit.
-// Editor (language §9, the leaf-input exception): the base for a component that
+// Editor (language §9, the leaf-input exception): the base for a class that
 // two-way edits a dataset value via `<->`. Carries the edit-session surface — the
 // draft's validity/error/dirtiness and WHEN it commits — so any editor (TextInput
 // today, a Picker/DatePopup tomorrow) inherits it. Not written directly.
-const EditorSchema: ComponentSchema = {
+const EditorSchema: ClassSchema = {
   name: "Editor",
   base: ViewSchema,
   attrs: {
@@ -824,7 +831,7 @@ const EditorSchema: ComponentSchema = {
   readOnly: ["error", "valid", "dirty", "focused"],
 };
 
-const TextInputSchema: ComponentSchema = {
+const TextInputSchema: ClassSchema = {
   name: "TextInput",
   base: EditorSchema,
   attrs: {
@@ -851,11 +858,11 @@ const TextInputSchema: ComponentSchema = {
 
 // RichText (docs/system-design/text-and-markdown.md): the ABSTRACT family of flowing,
 // structured, styled text. Like `Layout`, it names no format — `RichText [ ]` is
-// deliberately NOT in the name table (writing it reports "unknown component") —
+// deliberately NOT in the name table (writing it reports "unknown class") —
 // but it anchors the chain and holds what `Markdown` and `HTMLText` share: the
 // prose tuning attributes and the `link` event. You always write one of its two
 // concrete formats, which differ ONLY in how they parse their source.
-export const RichTextSchema: ComponentSchema = {
+export const RichTextSchema: ClassSchema = {
   name: "RichText",
   base: ViewSchema,
   attrs: {
@@ -895,7 +902,7 @@ export const RichTextSchema: ComponentSchema = {
 
 // Markdown: rich content authored in Markdown (`text`), parsed (md.ts) to the
 // block tree the RichText engine renders — literal or computed/streamed, reactive.
-const MarkdownSchema: ComponentSchema = {
+const MarkdownSchema: ClassSchema = {
   name: "Markdown",
   base: RichTextSchema,
   attrs: {
@@ -908,7 +915,7 @@ const MarkdownSchema: ComponentSchema = {
 // set (html.ts) into the SAME block tree Markdown renders. `unsupported` chooses
 // the behaviour for a tag outside the set — `strip` (unwrap, keep text) or
 // `error` (throw) — so loaded/untrusted content is never silently mangled.
-const HTMLTextSchema: ComponentSchema = {
+const HTMLTextSchema: ClassSchema = {
   name: "HTMLText",
   base: RichTextSchema,
   attrs: {
@@ -920,10 +927,10 @@ const HTMLTextSchema: ComponentSchema = {
 // Layout strategies (R7). The abstract base IS in the name table so a class
 // may extend it (`class X extends Layout [ place() { … } ]` — a strategy
 // authored in Declare, library or app); writing `layout: Layout [ ]` as a USE
-// names no arrangement and reports a pointed error (checkComponentValue).
+// names no arrangement and reports a pointed error (checkClassValue).
 // SimpleLayout is the stacking idiom: siblings along `axis`, `spacing` apart
 // (negative overlaps), invisible skipped.
-const LayoutSchema: ComponentSchema = {
+const LayoutSchema: ClassSchema = {
   name: "Layout",
   base: NodeSchema,
   attrs: {},
@@ -939,7 +946,7 @@ const LayoutSchema: ComponentSchema = {
 // which is where DataSource's lifecycle differed, being taught in the guide and
 // read across the corpus while declared nowhere.) `t` and `duration` are the knobs. The primary
 // forcing case for user-written layouts (§5 "…and ones you write").
-const TweenLayoutSchema: ComponentSchema = {
+const TweenLayoutSchema: ClassSchema = {
   name: "TweenLayout",
   base: LayoutSchema,
   attrs: {
@@ -961,7 +968,7 @@ const TweenLayoutSchema: ComponentSchema = {
 // guide teaches. Neither is a View: they
 // sit in the tree as named members with no visual incarnation (descendsFrom
 // "Dataset" is the checker's data-node test, like "Layout" for strategies).
-const DatasetSchema: ComponentSchema = {
+const DatasetSchema: ClassSchema = {
   name: "Dataset",
   base: NodeSchema,
   // `contents` is a derived Dataset's value, always a `{ }` constraint (the
@@ -985,8 +992,7 @@ const DatasetSchema: ComponentSchema = {
 };
 
 // Node — the plain object-graph atom, exposed as a user-subclassable base. A
-// `class X [ … ]` (base defaulting to Node) or `class X extends Node [ … ]` is
-// a non-visual node with author-declared attributes and methods: a controller,
+// `class X extends Node [ … ]` is a non-visual node with author-declared attributes and methods: a controller,
 // a service, a coordinator (the base schema is empty; the CLASS supplies its
 // own decls, exactly as a View subclass does). `descendsFrom "Node"` is the
 // test that admits these — and ONLY these: View/Layout have their own roots,
@@ -1003,7 +1009,7 @@ const DatasetSchema: ComponentSchema = {
 const literalUnion = (...members: readonly string[]): AttrType =>
   ({ kind: "enum", name: members.map((m) => JSON.stringify(m)).join(" | "), tokens: [...members] });
 
-const DataSourceSchema: ComponentSchema = {
+const DataSourceSchema: ClassSchema = {
   name: "DataSource",
   base: DatasetSchema,
   attrs: {
@@ -1027,7 +1033,7 @@ const DataSourceSchema: ComponentSchema = {
     // itself (a JSON body's Content-Type). Reactive, so an auth token that
     // lands later is an ordinary value change: the API-keyed and Bearer-token
     // endpoints that ARE most real GraphQL/REST services were unreachable
-    // through this component until it existed (field report, 2026-09-04).
+    // through this class until it existed (field report, 2026-09-04).
     headers: { kind: "object" },
     // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
     // Two kinds of fact. `loaded` is about the VALUE: a document is present,
@@ -1053,7 +1059,7 @@ const DataSourceSchema: ComponentSchema = {
 };
 
 // Animation v1 (animation.md §1). An Animator is an ordinary twin-table
-// component — schema here, runtime class in instantiate.ts — NOT a keyword.
+// class — schema here, runtime class in instantiate.ts — NOT a keyword.
 // Like Dataset it is a non-visual node (base null: it descends from nothing,
 // and `descendsFrom(schema, "Animator")` is the checker's animator test), but
 // unlike Dataset it carries the on* handlers (its `events`) and built-in
@@ -1061,7 +1067,7 @@ const DataSourceSchema: ComponentSchema = {
 // numeric-checked against the target at the element walk); `target` is not
 // surface in v1 (it defaults to the parent node). `from` is number-typed —
 // omit it to sample the target's current value; the runtime default is null.
-const AnimatorSchema: ComponentSchema = {
+const AnimatorSchema: ClassSchema = {
   name: "Animator",
   base: NodeSchema,
   attrs: {
@@ -1096,7 +1102,7 @@ const AnimatorSchema: ComponentSchema = {
 // "AnimatorGroup")`; the checker routes a group to checkAnimatorGroupNode (its
 // members are animators, not arbitrary children) with the group's target in
 // context, and cascades the target through to its members.
-const AnimatorGroupSchema: ComponentSchema = {
+const AnimatorGroupSchema: ClassSchema = {
   name: "AnimatorGroup",
   base: NodeSchema,
   attrs: {
@@ -1117,12 +1123,12 @@ const AnimatorGroupSchema: ComponentSchema = {
   events: ["start", "stop", "repeat"],
 };
 
-// Spring (the follow half of the animation family) — a twin-table component
+// Spring (the follow half of the animation family) — a twin-table class
 // that DESCENDS FROM Animator (base below), so the checker validates its
 // `attribute` slotref against the target through the same animator path and it
 // inherits `attribute`/`to`. Unlike Animator it drives its slot toward a LIVE,
 // reactive `to` via spring physics; its own controls are the spring constants.
-const SpringSchema: ComponentSchema = {
+const SpringSchema: ClassSchema = {
   name: "Spring",
   base: AnimatorSchema,
   attrs: {
@@ -1133,7 +1139,7 @@ const SpringSchema: ComponentSchema = {
   },
 };
 
-// Time (time.ts) — the clock as a component: a non-visual member whose FACTS
+// Time (time.ts) — the clock as a class: a non-visual member whose FACTS
 // (`now`, and the local-zone `year month day hour minute second weekday`) are
 // reactive inputs any { } derives from, and whose `onTick(dt)` is the one
 // per-frame handler, for integration. `tick` names the resolution — `frame`
@@ -1143,7 +1149,7 @@ const SpringSchema: ComponentSchema = {
 // TAGS, like Node), so it is subclassable — `class DesktopClock extends Time
 // [ tick = minute, text: string = { … this.now … } ]`. Heartbeat folded in
 // here 2026-08-29: it was exactly `Time [ tick = frame ]`.
-const TimeSchema: ComponentSchema = {
+const TimeSchema: ClassSchema = {
   name: "Time",
   base: NodeSchema,
   attrs: {
@@ -1162,12 +1168,12 @@ const TimeSchema: ComponentSchema = {
   events: ["tick"],
 };
 
-// The runtime SERVICES as components (sources.ts): non-visual members whose
+// The runtime SERVICES as classes (sources.ts): non-visual members whose
 // handlers are called from outside the tree. Each declares the events it calls;
 // a handler for one it doesn't is the ordinary typo'd-handler error. Fan-out is
 // by instance — a menu, a dialog, and a menubar each holding a `Keys` member
 // all hear the keyboard at once.
-const KeysSchema: ComponentSchema = {
+const KeysSchema: ClassSchema = {
   name: "Keys",
   base: NodeSchema,   // via the abstract Source (sources.ts)
   attrs: {},
@@ -1176,14 +1182,14 @@ const KeysSchema: ComponentSchema = {
   events: ["keyDown", "keyUp", "navClaim"],
 };
 
-const FocusSchema: ComponentSchema = {
+const FocusSchema: ClassSchema = {
   name: "Focus",
   base: NodeSchema,   // via the abstract Source (sources.ts)
   attrs: {},
   events: ["focusChange", "geometry"],
 };
 
-const TipSchema: ComponentSchema = {
+const TipSchema: ClassSchema = {
   name: "Tip",
   base: NodeSchema,   // via the abstract Source (sources.ts)
   attrs: {},
@@ -1200,7 +1206,7 @@ const TipSchema: ComponentSchema = {
 // error to assign. `retry` is
 // the ruled reconnect policy: seconds between attempts after a loss the
 // platform won't repair itself, visible in the declaration; 0 = none.
-const StreamSchema: ComponentSchema = {
+const StreamSchema: ClassSchema = {
   name: "Stream",
   base: NodeSchema,
   attrs: {
@@ -1216,7 +1222,7 @@ const StreamSchema: ComponentSchema = {
   events: ["message", "open", "close", "error"],
 };
 
-const EventStreamSchema: ComponentSchema = {
+const EventStreamSchema: ClassSchema = {
   name: "EventStream",
   base: StreamSchema,
   attrs: {
@@ -1229,13 +1235,13 @@ const EventStreamSchema: ComponentSchema = {
   },
 };
 
-const SocketSchema: ComponentSchema = {
+const SocketSchema: ClassSchema = {
   name: "Socket",
   base: StreamSchema,
   attrs: {},
 };
 
-// State (docs/system-design/states.md) — a twin-table component like Animator:
+// State (docs/system-design/states.md) — a twin-table class like Animator:
 // non-visual (base null; family test descendsFrom(schema, "State")), carrying
 // the one control attribute `applied` and the built-in verbs apply()/remove()/
 // toggle() + on* handlers. Its BODY is special and does NOT check through the
@@ -1243,7 +1249,7 @@ const SocketSchema: ComponentSchema = {
 // ENCLOSING view's schema, and `id: Type [ … ]` entries are a conditional
 // child subtree destined for that view — so the checker routes a State node to
 // checkStateNode (increment 1b), with the enclosing view's schema in context.
-const StateSchema: ComponentSchema = {
+const StateSchema: ClassSchema = {
   name: "State",
   base: NodeSchema,
   attrs: {
@@ -1255,7 +1261,7 @@ const StateSchema: ComponentSchema = {
 // Font — a typeface as an object in the tree (font.ts). A Font owns Face
 // children; with none it is a system font naming `family`. `wait` and `late` are
 // the loading policy; `loaded`/`failed` are the facts the runtime writes.
-const FontSchema: ComponentSchema = {
+const FontSchema: ClassSchema = {
   name: "Font",
   base: NodeSchema,
   attrs: {
@@ -1269,7 +1275,7 @@ const FontSchema: ComponentSchema = {
 };
 
 // Face — one file of a Font: where it comes from, the weight(s) it covers, italic.
-const FaceSchema: ComponentSchema = {
+const FaceSchema: ClassSchema = {
   name: "Face",
   base: NodeSchema,
   attrs: {
@@ -1279,11 +1285,11 @@ const FaceSchema: ComponentSchema = {
   },
 };
 
-/** Tag → schema: the checker's component registry. Must stay in step with
+/** Tag → schema: the checker's class registry. Must stay in step with
  *  instantiate.ts's tag → class table (layout strategies with its layout
  *  table, data nodes with its data table, animators with its animator table);
  *  R6 registers user classes into both. */
-export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
+export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   View: ViewSchema,
   App: AppSchema,
   Text: TextSchema,
@@ -1328,12 +1334,12 @@ export const SCHEMAS: Readonly<Record<string, ComponentSchema>> = {
   Node: NodeSchema,
 };
 
-/** Does `schema`'s inheritance chain pass through a component named
+/** Does `schema`'s inheritance chain pass through a class named
  *  `ancestor`? The checker's kind test — "is this tag a Layout?", "may a
  *  class extend this base?" — kept name-based so per-program schema copies
  *  need no object identity discipline (names are unique per program). */
-export function descendsFrom(schema: ComponentSchema, ancestor: string): boolean {
-  for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
+export function descendsFrom(schema: ClassSchema, ancestor: string): boolean {
+  for (let s: ClassSchema | null = schema; s !== null; s = s.base) {
     if (s.name === ancestor) return true;
   }
   return false;
@@ -1342,8 +1348,8 @@ export function descendsFrom(schema: ComponentSchema, ancestor: string): boolean
 /** The declared type of `name` on `schema`, walking the inheritance chain;
  *  null when no ancestor declares it. Own-key lookups, so an attribute named
  *  `toString` can't resolve through Object.prototype. */
-export function attrType(schema: ComponentSchema, name: string): AttrType | null {
-  for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
+export function attrType(schema: ClassSchema, name: string): AttrType | null {
+  for (let s: ClassSchema | null = schema; s !== null; s = s.base) {
     if (Object.hasOwn(s.attrs, name)) return s.attrs[name];
   }
   return null;
@@ -1352,8 +1358,8 @@ export function attrType(schema: ComponentSchema, name: string): AttrType | null
 /** Is `name` a read-only attribute anywhere on this schema's base chain — a
  *  computed/intrinsic slot a constraint may read but nothing may set? Walks the
  *  chain exactly like attrType (a subclass inherits its base's read-only slots). */
-export function isReadOnly(schema: ComponentSchema, name: string): boolean {
-  for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
+export function isReadOnly(schema: ClassSchema, name: string): boolean {
+  for (let s: ClassSchema | null = schema; s !== null; s = s.base) {
     if (s.readOnly?.includes(name)) return true;
   }
   return false;
@@ -1430,9 +1436,9 @@ export function eventOfHandler(name: string): string | null {
 
 /** Every event `schema` answers, base-first — the inheritance walk of
  *  attrType, over the events half of the declaration. */
-export function eventsOf(schema: ComponentSchema): string[] {
+export function eventsOf(schema: ClassSchema): string[] {
   const out: string[] = [];
-  for (let s: ComponentSchema | null = schema; s !== null; s = s.base) {
+  for (let s: ClassSchema | null = schema; s !== null; s = s.base) {
     if (s.events !== undefined) out.unshift(...s.events);
   }
   return out;

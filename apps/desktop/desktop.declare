@@ -32,16 +32,14 @@ the desktop carries no image payload at all — pure description. (The one
 bitmap is a certain music-video still, and it earns its keep.)
 */
 
-// The window classes below are created only at runtime, by name — a window
-// record carries its class as a string, and WinSlot (the replication hinge)
-// creates it — never as a declared tag; the menu icons and the menu `kind:`
-// rows are named the same way, in the menu records. Class reachability is
-// otherwise a static fact (unused classes are dropped, which is what
-// tree-shakes production builds), and a name inside a runtime string is
-// invisible to that analysis. `use` is the explicit bridge: keep these
-// classes registered for creation by name.
+// The menu icons and the menu `kind:` rows are created only at runtime, by
+// name — the menu records carry them as strings — never as declared tags.
+// Class reachability is otherwise a static fact (unused classes are dropped,
+// which is what tree-shakes production builds), and a name inside a runtime
+// string is invisible to that analysis. `use` is the explicit bridge: keep
+// these classes registered for creation by name.
 
-use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, FilesWindow, ViewerWindow, AppWindow, AboutWindow, JotWindow, BrandMark, HelpSearch ]
+use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, BrandMark, HelpSearch ]
 
 // What a package of the desktop carries beyond what its source names: the
 // programs the dock can open — each an AppIsland whose `program` is computed
@@ -72,7 +70,7 @@ magnification swell as the icons, blended by `miniT` from a free window
 (0) to a docked one (1).
 */
 
-class Window extends View [ width = 560, height = 400, clip = true,
+class Window [ width = 560, height = 400, clip = true,
     fill = { provided("theme").surface },
     stroke = { stroke(1, provided("theme").line) },
 
@@ -106,9 +104,9 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // shade, no zoom — the strips vanish and the yellow/green lights go inert
 
     plain: boolean = false,
-    recId: string = "",                          // my window record's id (wm.list) — the slot sets it at creation
-    forApp: DesktopApp = null,                   // the application this window belongs to; the slot sets it from the record
-    appPath: string = "",                        // an AppWindow's program path; "" elsewhere
+    recId: string = { "" + (:id ?? "") },       // my window record's id (wm.list)
+    forApp: DesktopApp = { app.launcher.byId("" + (:appId ?? "")) },   // the application this window belongs to
+    appPath: string = { :props.appPath ?? "" },  // an AppWindow's program path; "" elsewhere
     homing: boolean = false,                     // mid restore flight: leaving the dock, slot still held
 
     // custom-chrome windows (Jots) keep the base's behavior — drag
@@ -123,8 +121,8 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // in window coordinates (-1 = no origin, so the window zooms gently from its
     // own center instead).
 
-    bornX: number = -1,
-    bornY: number = -1,
+    bornX: number = { :props.bornX ?? -1 },
+    bornY: number = { :props.bornY ?? -1 },
     bornFrom: View = null,                       // the view the open came from, for the return trip
 
     // ── the tilt easter egg (rotation road-tested where everyone lives) ──
@@ -170,8 +168,8 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // does: not a placed thumbnail but a member of the wave. `miniT` (the
     // blend, animated 0↔1) is the whole minimize journey.
 
-    wx: number = 0,
-    wy: number = 0,
+    wx: number = { :props.wx ?? 0 },
+    wy: number = { :props.wy ?? 0 },
     baseScale: number = 1,                       // the free-window scale — the zoom animators drive this
 
     // ≥0 = my slot in the dock's minimized section: my record's place among
@@ -326,6 +324,11 @@ class Window extends View [ width = 560, height = 400, clip = true,
     // reaches the window's edges would eat the resize strips' events — the
     // chrome re-promotes above everything (order is a slot). A subclass that
     // overrides onInit calls `super.onInit()`.
+    //
+    // Birth also takes what a record cannot carry: a size the opener chose
+    // (`width` and `height` are the window's own to resize from here on), and
+    // the origin view, collected from the launcher's side channel — a node
+    // reference never enters data-shaped state.
 
     raiseChrome() {
         this.halo.raise()                        // above all content: the inner `inset` px of the band beat
@@ -334,7 +337,12 @@ class Window extends View [ width = 560, height = 400, clip = true,
         this.veil.raise()                        // topmost of all — a background window's first-click catcher
         },
 
-    onInit() { this.raiseChrome() },
+    onInit() {
+        if (:props.width != null) width = :props.width
+        if (:props.height != null) height = :props.height
+        bornFrom = app.launcher.takeBorn(recId)
+        this.raiseChrome()
+        },
 
     // Shade collapses the window down to just its title bar; zoom fills the
     // desktop, leaving the dock's band clear at the bottom.
@@ -632,7 +640,7 @@ a glyph drawn in a dark tone of the same hue — a thick rounded ×, a minus
 bar, and a pair of triangles split along the diagonal for zoom.
 */
 
-class TrafficLight extends View [ y = 0, width = 14, height = 14, cornerRadius = 7,
+class TrafficLight [ y = 0, width = 14, height = 14, cornerRadius = 7,
     c:   Color = #EC6A5E,
     rim: Color = #D25349,
     ink: Color = #7B1006,
@@ -688,7 +696,7 @@ A white disc carrying Declare's `[ ]` brackets in black monospace. It reads
 cleanly on any wallpaper and is a calm counterpart to the colored dock icons.
 */
 
-class BrandMark extends View [ width = 18, height = 18, cornerRadius = 9,
+class BrandMark [ width = 18, height = 18, cornerRadius = 9,
     fill = #FFFFFF,
 
     Text [ x = center, y = center, fontSize = 9, fontWeight = bold,
@@ -751,7 +759,7 @@ wherever it appears: the dock, an About box, the alert sheet, a minimized
 window's badge.
 */
 
-class AppGlyph extends View [ width = { this.edge }, height = { this.edge },
+class AppGlyph [ width = { this.edge }, height = { this.edge },
     edge: number = 64,
 
     // the application — a pointer slot: the { } computes which launcher
@@ -786,7 +794,7 @@ A rounded yellow triangle with a `!`, over a white halo so it reads against
 any app icon behind it. Drawn in a 48-unit box.
 */
 
-class CautionBadge extends View [ width = { this.edge }, height = { this.edge },
+class CautionBadge [ width = { this.edge }, height = { this.edge },
     edge: number = 30,
     draw(d: Draw) {
         d.scale(this.edge / 48, this.edge / 48)
@@ -819,13 +827,13 @@ The Help menu's search field, rendered as a menu `kind:` row: the row's chrome (
 highlight, no pick) is the menu's, and inside sits a live `TextInput` — a genuine test
 of keyboard focus inside a raised layer.
 
-The search *look* is two attributes, not a component: a capsule is
+The search *look* is two attributes, not a class of its own: a capsule is
 `cornerRadius = height / 2`, and `padding` opens the room the magnifier sits in. The
 field keeps its own derived chrome (surface fill, and the 1px edge that turns accent
 while focused), which a wrapper drawing the box itself would have displaced.
 */
 
-class HelpSearch extends View [ height = 40,
+class HelpSearch [ height = 40,
     width = 100%,
 
     // The capsule is a view, and the field sits inside it: a leading glyph
@@ -915,7 +923,7 @@ strokes. (The .5 offsets put 1px strokes on pixel centers, for crisp
 hairlines.)
 */
 
-class FolderIcon extends View [ width = 17, height = 13,
+class FolderIcon [ width = 17, height = 13,
     draw(d: Draw) {
         d.fillStyle = 0x4E9FEA
         d.beginPath(); d.roundRect(0, 0, 7.5, 4, 1.5); d.fill()       // the back tab
@@ -927,7 +935,7 @@ class FolderIcon extends View [ width = 17, height = 13,
     ]
 
 
-class FileIcon extends View [ width = 13, height = 16,
+class FileIcon [ width = 13, height = 16,
     draw(d: Draw) {
         d.fillStyle = 0xFFFFFF
         d.strokeStyle = 0xB4B4BA
@@ -941,6 +949,125 @@ class FileIcon extends View [ width = 13, height = 16,
         d.moveTo(8.5, 0.5); d.lineTo(8.5, 4.5); d.lineTo(12.5, 4.5)
         d.closePath(); d.fill(); d.stroke()
         }
+    ]
+
+
+/*
+## FilesColumn — one column of a Files window
+
+A column is one level of the browse — its nodes as selectable rows — or, at
+the end of a drill into a document, that document's detail. The two share a
+width, a seam to drag, and the reveal a new column runs; what they show is
+their own class. `win` is the window the column browses for.
+*/
+
+class FilesColumn [ height = 100%, clip = true, fill = { provided("theme").bg },
+    win: FilesWindow = null,
+    width = { this.win == null ? 250 : this.win.widths[:depth] != null ? this.win.widths[:depth] : this.win.colW },
+
+    // a freshly-opened column reveals itself — if the window's
+    // frame occludes it, the strip glides to a new left position,
+    // animated (not a pop). Occlusion is judged here, against the
+    // strip's own viewport, and only `strip.scrollX` moves: the
+    // reveal can never touch any other scroller, however this app
+    // is hosted. Deferred past the double-click window (400ms) so
+    // a second click still lands on the same, un-moved row. A
+    // window opened onto a folder (focusDepth >= 0) instead pins
+    // that column to the left edge, so its contents lead.
+    //
+    // A subclass's content attaches after the seam, so the seam
+    // raises itself above it (order is a slot).
+
+    onInit() {
+        this.grip.raise()
+        afterDelay(440, () => {
+            if (this.win == null) return
+            const strip = this.win.body.strip
+            const fd = this.win.focusDepth
+            const left = this.x, right = left + this.width
+            let to = -1
+            if (fd < 0) {
+                if (right > strip.scrollX + strip.width) to = right - strip.width
+                else if (left < strip.scrollX) to = left
+            } else if (:depth == fd) to = left
+            if (to >= 0) {
+                // no clamp here: the scroll write is clamped by the
+                // platform to the strip's contained extent, exactly
+                // like a user scroll — the app states the intent
+                strip.scrollToX(to, { duration: 260, motion: "cubicOut" })
+            }
+        }) },
+
+    // drag any seam to resize the columns (fixed width, Finder-style)
+
+    grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = 100%, cursor = "col-resize",
+        onPointerDown() { const w = classroot.win!; w.activateOnPress(); w.cwk = :depth; w.cw0 = parent.width; w.cpx0 = app.pointerX },
+        onPointerMove() { const w = classroot.win!; if (w.cwk == :depth) { const nw = Math.max(150, Math.min(460, w.cw0 + app.pointerX - w.cpx0)); const a = [...w.widths]; a[:depth] = nw; w.widths = a } },
+        onPointerUp() { classroot.win!.cwk = -1 }
+        ]
+    ]
+
+
+// a list column — this level's nodes as selectable rows
+
+class ListColumn extends FilesColumn [
+    lst: View [ x = 0, y = 0, width = 100%, height = 100%, scrolls = y,
+
+        // a second click that lands on dead space (the reveal slide moved
+        // the rows out from under the pointer) still completes a pointer-
+        // anchored double-click — rows don't bubble, so this fires only
+        // when no row took the hit
+
+        onClick() { classroot.win!.secondClick(this) },
+        inner: View [ x = 0, y = 6, width = 100%, height = { this.contentHeight + 12 },
+            layout: SimpleLayout [ axis = y, spacing = 1 ],
+            View [ datapath = :items[], width = 100%, height = { classroot.win!.rowH },
+                on: boolean = { classroot.win!.selPath != "" && (("" + classroot.win!.selPath) + "\n").indexOf(("" + :at) + "\n") == 0 },
+                onClick() {
+                    const w = classroot.win!
+                    w.activate()
+                    const at = "" + :at
+                    // the data-level double-click (FilesWindow.secondClick); a
+                    // first click arms the pending item and selects
+                    if (!w.secondClick(this)) {
+                        w.pendingAt = at
+                        w.pendingItem = ({ name: "" + :name, path: "" + :path, doc: "" + :doc, hasKids: !!:hasKids, at: at })
+                        w.pendingPX = app.pointerX
+                        w.pendingPY = app.pointerY
+                        w.selPath = at
+                        afterDelay(550, () => { if (w.pendingAt == at) w.pendingAt = "" })
+                    }
+                    },
+                hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.win!.rowH - 4 }, cornerRadius = 5,
+                    visible = { parent.on }, fill = { provided("theme").accent } ],
+                fo: FolderIcon [ x = 11, y = center, visible = { :hasKids } ],
+                fi: FileIcon [ x = 12, y = center, visible = { !:hasKids } ],
+                nm: Text [ x = 34, y = center, fontSize = 13, wrap = false, width = { parent.width - 52 },
+                    textColor = { parent.on ? provided("theme").accentText : provided("theme").text }, text = { "" + :name } ],
+                chev: Text [ x = { parent.width - 15 }, y = center, fontSize = 12, visible = { :hasKids },
+                    textColor = { parent.on ? provided("theme").accentText : provided("theme").textFaint }, text = "›" ]
+                ]
+            ],
+        edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = 100%, fill = { provided("theme").line } ]
+        ]
+    ]
+
+
+// the leaf detail column — name, kind, a preview, and Open
+
+class LeafColumn extends FilesColumn [
+    det: View [ x = 18, y = 20, width = { parent.width - 36 },
+        layout: SimpleLayout [ axis = y, spacing = 11 ],
+        dn: Text [ fontSize = 14, fontWeight = semibold, wrap = true, width = 100%,
+            textColor = { provided("theme").text }, text = { "" + :leaf.name } ],
+        dk: Text [ fontSize = 11, wrap = false, textColor = { provided("theme").textFaint },
+            text = { "" + :leaf.label } ],
+        dp: Text [ fontSize = 12, wrap = true, width = 100%,
+            textColor = { provided("theme").text }, text = { "" + :leaf.preview } ],
+        Button [ width = 92, label = "Open", primary = true, visible = { :leaf.path != "" || :leaf.doc != "" },
+            onClick() { classroot.win!.openLeaf(:leaf, this) }
+            ]
+        ]
     ]
 
 
@@ -961,7 +1088,7 @@ class FilesWindow extends Window [
     // (app.docsModel.value.browse, the one documentation model); this window
     // chooses no categories of its own.
 
-    selPath: string = "",
+    selPath: string = { :props.selPath ?? "" },
     rootPath: string = "",                       // the folder this window is rooted at ("" = the whole tree); a double-clicked folder opens a new window rooted at itself
     colW: number = 250,                          // default column width (fixed; drag a seam to resize)
     widths: number[] = [],                       // per-column width overrides by depth — Finder resizes one column
@@ -979,7 +1106,7 @@ class FilesWindow extends Window [
     pendingPX: number = 0,
     pendingPY: number = 0,
 
-    focusDepth: number = -1,                     // >=0: open pinned to this column at the left edge (a folder opened into a new window), ancestors scroll-left; -1: reveal the deepest column
+    focusDepth: number = { :props.focusDepth ?? -1 },                     // >=0: open pinned to this column at the left edge (a folder opened into a new window), ancestors scroll-left; -1: reveal the deepest column
 
     // the window's name is the deepest open node, or "Documentation"
 
@@ -1096,7 +1223,8 @@ class FilesWindow extends Window [
                 layout: SimpleLayout [ axis = x, spacing = 0 ],
 
                 // One column per browse level (its child nodes), then the final
-                // leaf-detail column once the deepest selection has no children.
+                // leaf-detail column once the deepest selection has no children —
+                // two kinds of column, so two classes (see FilesColumn).
                 // Each column keeps its own width (Finder: drag one seam, one column).
 
                 // Keyed by depth — the stable identity of a column. columnData
@@ -1105,100 +1233,8 @@ class FilesWindow extends Window [
                 // scroller, and only a genuinely new (deeper) column runs its
                 // reveal.
 
-                View [ datapath = :list[], key = :depth, height = 100%, clip = true, fill = { provided("theme").bg },
-                    width = { classroot.widths[:depth] != null ? classroot.widths[:depth] : classroot.colW },
-
-                    // a freshly-opened column reveals itself — if the window's
-                    // frame occludes it, the strip glides to a new left position,
-                    // animated (not a pop). Occlusion is judged here, against the
-                    // strip's own viewport, and only `strip.scrollX` moves: the
-                    // reveal can never touch any other scroller, however this app
-                    // is hosted. Deferred past the double-click window (400ms) so
-                    // a second click still lands on the same, un-moved row. A
-                    // window opened onto a folder (focusDepth >= 0) instead pins
-                    // that column to the left edge, so its contents lead.
-
-                    onInit() { afterDelay(440, () => {
-                        const strip = classroot.body.strip
-                        const fd = classroot.focusDepth
-                        const left = this.x, right = left + this.width
-                        let to = -1
-                        if (fd < 0) {
-                            if (right > strip.scrollX + strip.width) to = right - strip.width
-                            else if (left < strip.scrollX) to = left
-                        } else if (:depth == fd) to = left
-                        if (to >= 0) {
-                            // no clamp here: the scroll write is clamped by the
-                            // platform to the strip's contained extent, exactly
-                            // like a user scroll — the app states the intent
-                            strip.scrollToX(to, { duration: 260, motion: "cubicOut" })
-                        }
-                    }) },
-
-                    // a list column — this level's nodes as selectable rows
-
-                    lst: View [ visible = { :items != null }, x = 0, y = 0, width = 100%, height = 100%, scrolls = y,
-
-                        // a second click that lands on dead space (the reveal slide moved
-                        // the rows out from under the pointer) still completes a pointer-
-                        // anchored double-click — rows don't bubble, so this fires only
-                        // when no row took the hit
-
-                        onClick() { classroot.secondClick(this) },
-                        inner: View [ x = 0, y = 6, width = 100%, height = { this.contentHeight + 12 },
-                            layout: SimpleLayout [ axis = y, spacing = 1 ],
-                            View [ datapath = :items[], width = 100%, height = { classroot.rowH },
-                                on: boolean = { classroot.selPath != "" && (("" + classroot.selPath) + "\n").indexOf(("" + :at) + "\n") == 0 },
-                                onClick() {
-                                    classroot.activate()
-                                    const at = "" + :at
-                                    // the data-level double-click (secondClick above); a first
-                                    // click arms the pending item and selects
-                                    if (!classroot.secondClick(this)) {
-                                        classroot.pendingAt = at
-                                        classroot.pendingItem = ({ name: "" + :name, path: "" + :path, doc: "" + :doc, hasKids: !!:hasKids, at: at })
-                                        classroot.pendingPX = app.pointerX
-                                        classroot.pendingPY = app.pointerY
-                                        classroot.selPath = at
-                                        afterDelay(550, () => { if (classroot.pendingAt == at) classroot.pendingAt = "" })
-                                    }
-                                    },
-                                hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.rowH - 4 }, cornerRadius = 5,
-                                    visible = { parent.on }, fill = { provided("theme").accent } ],
-                                fo: FolderIcon [ x = 11, y = center, visible = { :hasKids } ],
-                                fi: FileIcon [ x = 12, y = center, visible = { !:hasKids } ],
-                                nm: Text [ x = 34, y = center, fontSize = 13, wrap = false, width = { parent.width - 52 },
-                                    textColor = { parent.on ? provided("theme").accentText : provided("theme").text }, text = { "" + :name } ],
-                                chev: Text [ x = { parent.width - 15 }, y = center, fontSize = 12, visible = { :hasKids },
-                                    textColor = { parent.on ? provided("theme").accentText : provided("theme").textFaint }, text = "›" ]
-                                ]
-                            ],
-                        edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = 100%, fill = { provided("theme").line } ]
-                        ],
-
-                    // the leaf detail column — name, kind, a preview, and Open
-
-                    det: View [ visible = { :leaf != null }, x = 18, y = 20, width = { parent.width - 36 },
-                        layout: SimpleLayout [ axis = y, spacing = 11 ],
-                        dn: Text [ fontSize = 14, fontWeight = semibold, wrap = true, width = 100%,
-                            textColor = { provided("theme").text }, text = { "" + :leaf.name } ],
-                        dk: Text [ fontSize = 11, wrap = false, textColor = { provided("theme").textFaint },
-                            text = { "" + :leaf.label } ],
-                        dp: Text [ fontSize = 12, wrap = true, width = 100%,
-                            textColor = { provided("theme").text }, text = { "" + :leaf.preview } ],
-                        Button [ width = 92, label = "Open", primary = true, visible = { :leaf.path != "" || :leaf.doc != "" },
-                            onClick() { classroot.openLeaf(:leaf, this) }
-                            ]
-                        ],
-
-                    // drag any seam to resize the columns (fixed width, Finder-style)
-
-                    grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = 100%, cursor = "col-resize",
-                        onPointerDown() { classroot.activateOnPress(); classroot.cwk = :depth; classroot.cw0 = parent.width; classroot.cpx0 = app.pointerX },
-                        onPointerMove() { if (classroot.cwk == :depth) { const nw = Math.max(150, Math.min(460, classroot.cw0 + app.pointerX - classroot.cpx0)); const a = [...classroot.widths]; a[:depth] = nw; classroot.widths = a } },
-                        onPointerUp() { classroot.cwk = -1 }
-                        ]
-                    ]
+                FilesColumn [ datapath = :list[], key = :depth, win = { classroot },
+                    classFor = { :leaf != null ? LeafColumn : ListColumn } ]
                 ]
             ]
         ]
@@ -1218,14 +1254,14 @@ environment it hands the island.
 */
 
 class AppWindow extends Window [ width = 880, height = 560,
-    base: string = "",                           // provided: the hosted app's home, in this app's transport
-    subject: string = "",                        // provided: the program a viewer window shows
+    base: string = { :props.base ?? "" },       // provided: the hosted app's home, in this app's transport
+    subject: string = { :props.subject ?? "" },  // provided: the program a viewer window shows
 
     // the window's name is the hosted app's name, reflected up from the embedded
     // child (`island.childName`): the viewer titles by the file it shows and
     // follows its navigation. `appTitle` is the fallback until the child is up.
 
-    appTitle: string = "",
+    appTitle: string = { :props.appTitle ?? "" },
     title = { this.island.childName != "" ? this.island.childName : this.appTitle },
 
     // the window provides its tenant the desktop's appearance (below), live:
@@ -1264,7 +1300,7 @@ file as text. Its title is the file's basename.
 */
 
 class ViewerWindow extends Window [ width = 640, height = 460,
-    path: string = "",
+    path: string = { :props.path ?? "" },
 
     // the window's name is the file being viewed — its basename, not the path
     // (a "ref:" page names the element). The same basename rule the standalone
@@ -1275,8 +1311,8 @@ class ViewerWindow extends Window [ width = 640, height = 460,
     // an element's reference). `docName` titles a hydrated doc; a file titles by
     // its basename.
 
-    inlineDoc: string = "",
-    docName: string = "",
+    inlineDoc: string = { :props.inlineDoc ?? "" },
+    docName: string = { :props.docName ?? "" },
     title = { this.inlineDoc != "" ? this.docName : (this.path.split("/").pop() || "") },
 
     src: DataSource [ format = "text", url = { classroot.path } ],
@@ -1339,7 +1375,7 @@ through `chrome = false`, so here chrome is a skin, not the skeleton.
 class JotWindow extends Window [ width = 300, height = 250, chrome = false,
     baseRadius = 0, barH = 12, minW = 160, minH = 90,
     title = "",                                  // untitled — labels fall back to the app's name
-    note: string = "",                           // the note's seed text
+    note: string = { :props.note ?? "" },       // the note's seed text
 
     // the note's palette: paper #FEF49C, active strip #FEEA3D, widget
     // linework #DBC501 dark olive over #FFF49C pale, and a half-pixel
@@ -1416,13 +1452,13 @@ the parked window, so a click restores it instead of poking its tiny content.
 Its pill is the `DockIcon`'s, showing the window's title.
 */
 
-class MiniTile extends View [
+class MiniTile [
 
     // replicated over the WM's parked records (wm.miniData, one tile per
     // record, keyed by the window's id) — so there is no cap on how many
     // windows the dock can hold
 
-    ix: number = { Number(:ix ?? 0) },
+    ix: number = { rowIndex },
     recId: string = { "" + (:id ?? "") },
     lbl: string = { "" + (:label ?? "") },
     appId: string = { "" + (:appId ?? "") },
@@ -1500,7 +1536,7 @@ and displaces their neighbors. The magnification is layout, not paint: the
 widths really change and the plate stretches to hold them.
 */
 
-class DockIcon extends View [
+class DockIcon [
 
     // per-icon inputs, fed at the use site
 
@@ -1986,54 +2022,26 @@ class DeskApp extends DesktopApp [ id = "desktop", label = "Declare Desktop", ti
 
 
 /*
-### WinSlot — the one imperative hinge of windows-as-data
-
-Replication cannot vary a class per record (the tag is structure, fixed at
-compile time), so every window record replicates this one fixed slot, and the
-slot creates its record's class by name — `createView(:cls)`, the string door
-`use` holds open. Everything else about a window is data: which windows
-exist, their stacking (record order **is** paint order — a raise is `list.move`),
-and which are parked (the `mini` tail). The slot fills the layer and declares
-no handlers, so it is transparent to the pointer; the window inside is the
-citizen. The slot also resolves the record's non-data companions at birth:
-the application instance (by id) and the origin view (the launcher's
-`takeBorn` side channel — a node reference never enters data-shaped state).
-*/
-
-class WinSlot extends View [ width = 100%, height = 100%,
-    recId: string = { "" + (:id ?? "") },
-    win: Window = null,
-    onInit() {
-        const props = ({ ...((:props ?? ({})) as object),
-            recId: "" + (:id ?? ""),
-            forApp: app.launcher.byId("" + (:appId ?? "")),
-            bornFrom: app.launcher.takeBorn("" + (:id ?? "")) })
-        this.win = this.createView("" + (:cls ?? "View"), props as Record<string, unknown>) as Window
-        }
-    ]
-
-
-/*
 ### The window manager
 
 The desktop's core model, faceless: the set of windows as it exists — who is
 front, who is parked in the dock — with no pixels of its own. **The window
 list is data** (`list`): one record per window { id, cls, appId, mini, props… },
 whose order is the paint order — a raise is a `move`, an open an `insert`
-(before the minimized tail), a close a `removeAt`, and the replicated WinSlots
-reconcile the views to match. No counter is bumped anywhere: consumers derive
+(before the minimized tail), a close a `removeAt`, and the replicated windows
+reconcile to match: each record is built as the window class it names. No counter is bumped anywhere: consumers derive
 from the records (through the tracked `read`) and from the windows the slots
 carry.
 
 The surface:
 
   facts   `list` (the records) · `frontWin` · `activeApp` · `miniCount` ·
-          `miniData` (the parked records, ix-stamped, for the dock's tiles)
+          `miniData` (the parked records, for the dock's tiles)
   verbs   `focusWin` · `bringFront` · `closeWin` · `quitApp` · `minimizeWin` ·
           `restoreMini`/`restoreMiniAt` · `dockOpen` (raise-or-restore-or-
           launch) · `addWin`/`raiseWin`/`focusNew` (the record verbs the
           launcher opens through) · `windows()`/`miniList()`/`winOf` (the live
-          views, resolved through the slots)
+          windows)
 */
 
 class WinManager extends Node [
@@ -2061,26 +2069,21 @@ class WinManager extends Node [
     minis() -> array { return this.recs().filter((r) => r.mini == true) },
     miniCount: number = { this.minis().length },
 
-    // the parked records as declared data for the dock's tile replication,
-    // stamped with their band index (which is also each window's dockSlot)
+    // the parked records as declared data for the dock's tile replication — a
+    // tile's rowIndex is its band index, which is also its window's dockSlot
 
-    miniData: Dataset [ contents = { { minis: app.wm.minis().map((r, i) => ({ ...(r as object), ix: i })) } } ],
+    miniData: Dataset [ contents = { { minis: app.wm.minis() } } ],
 
     appOf(w: Window?) -> DesktopApp { return w != null && w.forApp != null ? w.forApp : app.launcher.files },
 
     activeApp: DesktopApp = { this.appOf(app.wm.frontWin) },
 
-    // ── the live views, resolved through the slots (order = record order) ──
+    // ── the live windows (order = record order) ──
 
-    windows() -> Window[] {
-        const out = []
-        for (const s of app.wins.childViews) { const w = (s as WinSlot).win; if (w != null) out.push(w) }
-        return out as Window[]
-        },
+    windows() -> Window[] { return app.wins.childViews as Window[] },
     miniList() -> Window[] { return this.windows().filter((w) => this.isMin(w)).sort((a, b) => this.ixOf(a) - this.ixOf(b)) },
     winOf(id: string) -> Window {
-        for (const s of app.wins.childViews) { const sl = s as WinSlot; if (sl.recId == id && sl.win != null) return sl.win }
-        return null
+        return this.windows().find((w) => w.recId == id) ?? null
         },
     idxOf(id: string) -> number { return this.recs().findIndex((r) => r.id == id) },
 
@@ -2227,11 +2230,11 @@ class WinManager extends Node [
         // decrements the viewer count
         if (!w.plain && w.forApp != null) w.forApp.count = w.forApp.count - 1
         if (frontId == w.recId) frontId = ""
-        this.removeWin(w.recId)                  // the record goes; replication discards slot + window
+        this.removeWin(w.recId)                  // the record goes; replication discards the window
         },
 
     // seatedness for a tile's badge: the window's visual width equals the
-    // slot's — pure geometry, read live off the window the slot resolves
+    // slot's — pure geometry, read live off the window by its record's id
     // (per-frame during a journey, via tracking; no journey bookkeeping)
 
     seated(id: string, slotW: number) -> boolean {
@@ -2262,7 +2265,7 @@ back from the id (a node reference never enters data-shaped state).
 The surface:
 
   facts   the instances (`files` … `terminal`, plus `desk`, the desktop
-          itself) · `roster` (the dock's order) · `data` (id + ix, for the
+          itself) · `roster` (the dock's order) · `data` (id + running, for the
           datapath) · `byId`
   verbs   each app's own `launch(v)` · `gated` (the launch bounce, once) ·
           `openHosted` · `openViewer`/`openDoc`/`openMarkdown` · `newFiles`/
@@ -2302,7 +2305,7 @@ class Launcher extends Node [
     // can see but not name (`a.running`, through the map) put this constraint
     // on the runtime-tracking path, where every one of them wakes it.
 
-    data: Dataset [ contents = { { apps: classroot.roster.map((a, i) => ({ id: a.id, ix: i, running: a.running })) } } ],
+    data: Dataset [ contents = { { apps: classroot.roster.map((a) => ({ id: a.id, running: a.running })) } } ],
 
     // The launch gate, once for every application. A first open (not running,
     // not launching) is a launch: the dock icon bounces and the window
@@ -2325,10 +2328,10 @@ class Launcher extends Node [
 
     // ── the one door every window opens through (windows-as-data): mint the
     // record, stash the origin view in the side channel (a node reference
-    // never enters data-shaped state — the slot collects it at birth), insert
+    // never enters data-shaped state — the window collects it at birth), insert
     // before the minimized tail, and focus the window the settle materializes.
 
-    borns: object,                               // id → origin view, until the slot takes it
+    borns: object,                               // id → origin view, until the window takes it
     onInit() { this.borns = ({}) },
     putBorn(id: string, v: View?) { if (v != null && this.borns != null) this.borns[id] = v },
     takeBorn(id: string) -> View {
@@ -2784,13 +2787,16 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             }
         ],
 
-    // ── the windows layer: windows as data — the WM's records replicate into
-    // slots (each WinSlot creates its record's class); record order is paint
-    // order, so a raise is a data move and the minimized band is the tail ──
+    // ── the windows layer: windows as data — each of the WM's records is
+    // built as the window class it names; record order is paint order, so a
+    // raise is a data move and the minimized band is the tail ──
 
     wins: View [ x = 0, y = { app.menuBarH }, width = { app.width }, height = { app.height - app.menuBarH },
         datapath = { app.wm.list.value },
-        WinSlot [ datapath = :wins[], key = :id ]
+        Window [ datapath = :wins[], key = :id,
+            classFor = { :cls == "FilesWindow" ? FilesWindow : :cls == "ViewerWindow" ? ViewerWindow
+                : :cls == "AppWindow" ? AppWindow : :cls == "AboutWindow" ? AboutWindow
+                : :cls == "JotWindow" ? JotWindow : Window } ]
         ],
 
     // No background: the menu bar's words render straight on the wallpaper.
@@ -2864,8 +2870,8 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             },
 
         // the Window menu is live state as records: the active application's
-        // open windows, front one checked — derived straight off the slots'
-        // windows and the front slot; the reads are live
+        // open windows, front one checked — derived straight off the windows
+        // and the front one; the reads are live
 
         windowItems() -> array {
             const a = app.wm.activeApp!
@@ -2873,7 +2879,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             const ws = app.wm.windows()
             const out = []
             for (let i = 0; i < ws.length; i++) {
-                if (app.wm.isPlain(ws[i]) || app.wm.appOf(ws[i]) != a) continue
+                if (ws[i].plain || (ws[i].forApp ?? app.launcher.files) != a) continue
                 out.push(({ id: "win:" + i, label: app.wm.titleOf(ws[i]) || a.title, checked: ws[i] == front }))
                 }
             if (out.length == 0) out.push(({ id: "nowin", label: "No Windows", enabled: false }))
@@ -3094,12 +3100,12 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
             // (the launch gate decides bounce vs instant). One icon,
             // replicated over the whole roster — launchables, Files (always
             // running), and the four inert quips alike. The data carries only
-            // id + order; the icon resolves its application instance and
+            // the id and the running flag, in dock order; the icon resolves its application instance and
             // reads everything — face, hues, dot, pill, click — off it.
 
             DockIcon [ datapath = :apps[], key = :id,
                 hotGate = { app.dock.hotGate },
-                ix = { Number(:ix ?? 0) },
+                ix = { rowIndex },
                 appId = { "" + (:id ?? "") },
                 running = { :running == true },
                 onClick() { const a = this.ap; if (a != null) app.wm.dockOpen(a, () => a.launch(this)) }

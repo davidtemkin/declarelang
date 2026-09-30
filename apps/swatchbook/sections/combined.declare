@@ -6,37 +6,39 @@ not; clipping under a transform; masks and filters over children; opacity and
 blending nested; 3D with effects.
 */
 
-script {
-    function comboRows(): Record<string, unknown>[] {
-        return cross({ content: ["text", "rich", "image", "drawing"], fx: ["shadow", "blur", "opacity", "multiply", "mask", "grayscale"], rot: [0, 12] },
-            (r) => r.content + " · " + r.fx + (r.rot ? " · rotated" : ""))
-    }
-    }
-
 
 class ComboSwatch extends Swatch [ name = :name,
-    ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, visible = { :fx == "multiply" },
-        fill = gradient(90, #17A34A, #FDE68A) ],
+    blending: State [ applied = { :fx == "multiply" },
+        ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = gradient(90, #17A34A, #FDE68A) ]
+        ],
     body: View [ x = 36, y = 16, width = 140, height = 88, rotation = { :rot },
         filter = { :fx == "shadow" ? [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))] : :fx == "blur" ? [blur(2)] : :fx == "grayscale" ? [grayscale(1)] : null },
         opacity = { :fx == "opacity" ? 0.45 : 1 },
         blend = { :fx == "multiply" ? "multiply" : "normal" },
         mask = { :fx == "mask" ? gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0)) : null },
-        word: Text [ y = 24, width = 140, textAlign = center, fontSize = 30, fontWeight = bold, wrap = false,
-            visible = { :content == "text" }, textColor = 0x2E6FE0, text = "Swatch" ],
-        doc: HTMLText [ width = 140, fontSize = 15, visible = { :content == "rich" },
-            html = "<b>Rich</b> text, <span class='Warm'>styled</span> in runs across a line." ],
-        pic: Image [ width = 140, height = 88, stretches = contain, source = "assets/badge.png", visible = { :content == "image" } ],
-        art: View [ width = 140, height = 88, visible = { :content == "drawing" },
-            draw(d: Draw) {
-                d.fillStyle = 0xFDE68A
-                d.fillRect(0, 0, 140, 88)
-                d.strokeStyle = 0xE4572E
-                d.lineWidth = 6
-                d.beginPath()
-                d.arc(70, 44, 30, 0, 6.2832)
-                d.stroke()
-                }
+        asText: State [ applied = { :content == "text" },
+            word: Text [ y = 24, width = 140, textAlign = center, fontSize = 30, fontWeight = bold, wrap = false,
+                textColor = 0x2E6FE0, text = "Swatch" ]
+            ],
+        asRich: State [ applied = { :content == "rich" },
+            doc: HTMLText [ width = 140, fontSize = 15,
+                html = "<b>Rich</b> text, <span class='Warm'>styled</span> in runs across a line." ]
+            ],
+        asImage: State [ applied = { :content == "image" },
+            pic: Image [ width = 140, height = 88, stretches = contain, source = "assets/badge.png" ]
+            ],
+        asDrawing: State [ applied = { :content == "drawing" },
+            art: View [ width = 140, height = 88,
+                draw(d: Draw) {
+                    d.fillStyle = 0xFDE68A
+                    d.fillRect(0, 0, 140, 88)
+                    d.strokeStyle = 0xE4572E
+                    d.lineWidth = 6
+                    d.beginPath()
+                    d.arc(70, 44, 30, 0, 6.2832)
+                    d.stroke()
+                    }
+                ]
             ]
         ]
     ]
@@ -47,8 +49,16 @@ class CombinedSection extends Section [ title = "Combined",
     tabs = { [ ({ id: "content", label: "Content" }), ({ id: "clip", label: "Clip" }),
                ({ id: "layers", label: "Layers" }), ({ id: "depth", label: "3D" }) ] },
     sub = "content",
+
+    // this section's rows, by sub-page, built from its axes
+
+    comboRows() -> array {
+        return cross({ content: ["text", "rich", "image", "drawing"], fx: ["shadow", "blur", "opacity", "multiply", "mask", "grayscale"], rot: [0, 12] },
+            (r) => r.content + " · " + r.fx + (r.rot ? " · rotated" : ""))
+        },
+    rows: Dataset [ contents = { { comboRows: classroot.comboRows() } } ],
     SubHead [ visible = { app.matrix }, text = "Content × effect" ],
-    Grid [ visible = { classroot.showing("content") }, datapath = { app.book.value },
+    Grid [ visible = { classroot.showing("content") }, datapath = { classroot.rows.value },
         ComboSwatch [ datapath = :comboRows[] ]
         ],
 

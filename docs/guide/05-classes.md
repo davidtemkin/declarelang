@@ -1,24 +1,24 @@
-<!-- nav: Components and the tree -->
+<!-- nav: Classes and the tree -->
 <!-- part: Building -->
 
-# Components and the tree
+# Classes and the tree
 
-Most of what you write in Declare is composition: taking components, nesting and
-configuring them, and naming your own when a part of the design deserves a name. This
-chapter covers how components are defined and used, how code refers to other parts of
+Most of what you write in Declare is composition: taking the library's classes, nesting
+and configuring them, and naming your own when a part of the design deserves a name. This
+chapter covers how classes are defined and used, how code refers to other parts of
 the tree, which things in the tree have no pixels at all, and how a program is split
 into files.
 
-> **The brackets are the tree.** A component's children sit inside its `[ ]`, and the
+> **The brackets are the tree.** A node's children sit inside its `[ ]`, and the
 > nesting in the source is the nesting on screen.
 
-## Components are classes
+## Classes and instances
 
-You use a component by naming its type with a `[ ]` body. You define one with
+You use a class by naming it with a `[ ]` body, which makes an instance. You define one with
 `class Name extends Base [ … ]`:
 
 ```declare
-class StatRow extends View [ width = 260, height = 22,
+class StatRow [ width = 260, height = 22,
     label: string = "",
     value: string = "",
     layout: SimpleLayout [ axis = x, spacing = 8 ],
@@ -39,9 +39,9 @@ App [ width = 320, height = 120, fill = white, textColor = black,
 `StatRow [ … ]` can go anywhere a [`View`](declare-docs:View) fits: the class *is* a `View` plus the members
 it adds. Add a third row to the example and the column grows.
 
-The children reach the component through **`classroot`**, which means "the instance of
+The children reach the instance through **`classroot`**, which means "the instance of
 the class being defined" from any depth inside it. `this` inside a child is that child,
-so `classroot` is how a nested handler or constraint reaches the component's own state.
+so `classroot` is how a nested handler or constraint reaches the instance's own state.
 A bare name such as `label` also resolves outward to the class's attribute;
 `classroot.label` is the explicit spelling, and the one to use when a nearer child has
 an attribute of the same name.
@@ -55,7 +55,7 @@ Anything a class sets is a default. A use site may set any attribute again —
 
 ## Any instance can have members of its own
 
-You do not need a class to give one component some state or a handler. Any instance may
+You do not need a class to give one instance some state or a handler. Any instance may
 declare members inline, and the compiler gives it an anonymous subclass:
 
 ```declare
@@ -87,15 +87,15 @@ do that. What does *not* earn a class is a single computed value: a URL built fr
 record is a function call in a constraint, [`Image [ source = { iconFor(:code) } ]`](declare-docs:Image),
 not a `class Icon` wrapped around it.
 
-## Components that take content
+## Classes that take content
 
-Some components own all of their children. Others are handed their children by the use
+Some classes own all of their children. Others are handed their children by the use
 site — a figure with a caption, a panel with whatever goes in it. An instance may carry
 anonymous children, and they arrive as the class's children, arranged by the class's
 layout:
 
 ```declare
-class Figure extends View [ width = 100%, height = { contentHeight },
+class Figure [ width = 100%, height = { contentHeight },
     layout: SimpleLayout [ axis = y, spacing = 8 ]
     ]
 
@@ -120,47 +120,57 @@ the explicit form says it out loud.)
 
 Configuration goes the other way. A use site does **not** reach into a class's own
 named children: writing `StatRow [ Text [ … ] ]` adds a *new* child, and redeclaring a
-child the class already names is an error. What a component exposes is attributes, and
+child the class already names is an error. What a class exposes is attributes, and
 its children read them.
 
 > **A class owns its members. A use site speaks to it through attributes and content.**
 
-## Models: classes with no view
+## Classes with no view
 
-Not everything in an app is visible. A cart, a selection, a session, a coordinator —
-state and behavior that belong together but paint nothing. That is a **model class**,
-and it is simply a class that does not extend `View`. A class with no `extends` at all
-is a [`Node`](declare-docs:Node), the base of everything in the tree:
+A class with no `extends` is a view. One that paints nothing names its base:
+`extends Node` — [`Node`](declare-docs:Node), the base of everything in the tree — or
+`extends Dataset` for a document ([Data](declare-docs:guide:data@deriving-summaries-methods-and-a-typed-result)).
+
+Not everything in an app is visible, but most of what is invisible is **data**, and data
+lives in the tree where its scope is — on the App, or on the node whose part of the tree
+uses it — with views binding to it and writing it directly ([Data](declare-docs:guide:data)).
+The state and logic around it can live on the App too. When a group of it becomes a thing
+in its own right — the rules for a kind of record, a service that answers queries, state
+shared across the app with rules it must keep, a piece of machinery several views drive —
+it moves into a class that extends `Node`, for the same reason a view class is promoted:
+the App reads better without it.
 
 ```declare
-class Cart [
-    count: number = 0,
-    add() { count = count + 1 },
-    clear() { count = 0 }
+class Stopwatch extends Node [
+    running: boolean = false,
+    elapsed: number = 0,
+    clock: Time [ tick = frame, running = { classroot.running },
+        onTick(dt: number) { classroot.elapsed = classroot.elapsed + dt }
+        ],
+    toggle() { running = !running },
+    reset() { running = false; elapsed = 0 }
     ]
 
 App [ width = 340, height = 90, fill = white, textColor = black,
-    cart: Cart [ ],
+    watch: Stopwatch [ ],
     row: View [ x = 20, y = 24,
         layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
-        Button [ label = "Add", primary = true, onClick() { app.cart.add() } ],
-        Button [ label = "Clear", onClick() { app.cart.clear() } ],
-        Text [ text = { app.cart.count + " in the cart" } ]
+        Button [ label = { app.watch.running ? "Stop" : "Start" }, primary = true,
+            onClick() { app.watch.toggle() } ],
+        Button [ label = "Reset", onClick() { app.watch.reset() } ],
+        Text [ text = { app.watch.elapsed.toFixed(1) + " s" } ]
         ]
     ]
 ```
 
-The model lives in the tree as a named member, so it has the same reach and lifetime as
-anything else, and views read it and call it like any component. Prefer a model class to
-a pile of attributes on `App`: an app whose every value hangs off the root has a data
-model; it just has not been allowed to say so. A model can also stand on a record of its
-own — [Data](declare-docs:guide:data@models-on-a-record) shows how.
+The stopwatch lives in the tree as a named member, so it has the same reach and lifetime
+as anything else, and views read it and call it like any other member. What it is *not* is
+a wrapper around data: a list of records does not hide behind a class's getters and
+verbs, it sits in a `Dataset` that views bind to — and when that document's logic
+outgrows the App, the document itself becomes the class. A class with no view can also stand on
+a record — [Data](declare-docs:guide:data@a-node-class-on-a-record) shows how.
 
-Because a class with no `extends` is a `Node`, a class meant to be a box needs
-`extends View`: `class Box [ width = 40 ]` is an error ("Box has no attribute
-'width'").
-
-## Members with no pixels
+## Non-visual children
 
 The same idea covers the platform's own non-visual pieces. A [`Dataset`](declare-docs:Dataset) holding data, a
 [`Spring`](declare-docs:Spring) driving an attribute, a [`Time`](declare-docs:Time) giving the clock, [`Keys`](declare-docs:Keys) hearing the keyboard,
@@ -169,7 +179,7 @@ created with that node and removed with it, so there is nothing to subscribe to 
 nothing to clean up. Where you declare one says who owns it; inside a class with no
 view it runs exactly as it does inside one.
 
-## Arriving and leaving
+## Lifecycle: onInit and onRetire
 
 Every node fires `onInit` once, when it and its subtree exist. That is the place for
 setup that needs the built tree. A view fires `onRetire` once when its presence ends —
@@ -180,7 +190,7 @@ closed ([Constraints](declare-docs:guide:constraints@the-settle-when-writes-take
 Most programs need none of these: a value that should be true is a constraint, and a
 view that should exist comes from data.
 
-## Stacking is declaration order
+## Stacking order
 
 Siblings that overlap paint in the order they are written — **later members draw on
 top**. There is no z-index; you restack by reordering, so reading order is paint order.
@@ -200,20 +210,22 @@ explicitly:
 Named children are reached by name: `app.card.list`, `parent.title`. `App`, capitalized,
 is the class; the running instance is always `app`.
 
-## Where a piece of code lives
+## Where code goes
 
 - A value that should stay true → a **constraint** on the attribute.
 - A computed value used in several places → a **declared attribute** with a `{ }`
   default.
-- Behavior on a component's own state → a **method** on the component.
-- State and behavior with no view → a **model class**.
+- Behavior on an instance's own state → a **method** on its class.
+- Data → a **`Dataset`** in the tree, where its scope is; logic about that one document →
+  a class that extends `Dataset`.
+- A job with no view that is not a document → a class that extends **`Node`**.
 - Structure that repeats, or that makes its parent hard to read → a **class**.
 - Logic that is not about the tree at all → a **`script`** block.
 
 A `script { … }` block is plain TypeScript outside the reactive system: functions of
 their arguments — date arithmetic, formatting, parsing — and imported libraries. It is
 not where the app's model or its look lives: a derivation over your data is a method
-([Data](declare-docs:guide:data@models-on-a-record)), and a repeated color or size is a
+on the data ([Data](declare-docs:guide:data@deriving-summaries-methods-and-a-typed-result)), and a repeated color or size is a
 theme token. A program may have several blocks, inline or
 loaded from files with `script [ "helpers.ts" ]`; they share one scope, in source order.
 A block may `import` a relative file or an npm package when a Node host compiles the
@@ -230,9 +242,9 @@ through members — a `DataSource` for a request, a `Time` for a repeating call,
 `globalThis` there. A script block is not a body: when a program genuinely needs a host
 API the language does not cover, a script function wraps it and a handler calls that.
 
-## Growing past one file
+## Splitting a program into files
 
-`include [ "components.declare" ]` merges another file's declarations — its classes,
+`include [ "parts.declare" ]` merges another file's declarations — its classes,
 schemas, themes, styles and scripts — into the program, once, however many times it is
 named. It is not a module system: there are no exports and no namespaces, just one
 program. An included file declares no `App` of its own. Declarations can appear above
@@ -240,13 +252,13 @@ or below the `App`, and a class may extend one declared later. The standard libr
 needs no include; a bare [`Button [ … ]`](declare-docs:Button) finds it.
 
 Use `include` to partition your own program, not only to share libraries: the theme in
-one file, the components in another, the model in a third, and the `App` left holding
+one file, the classes in another, the model in a third, and the `App` left holding
 the tree it shows.
 
 ---
 
-**What you can now do:** define components and models, decide when a part of the
-design deserves a class, build components that take content, reach any node from any
+**What you can now do:** define classes — with a view or without — decide when a part of
+the design deserves one, build classes that take content, reach any node from any
 code, and split a program into files.
 
 [Next: **Size, position and layout** →](declare-docs:guide:layout)

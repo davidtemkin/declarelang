@@ -75,7 +75,7 @@ theme Tracker [
 // trio, a person is an avatar. Text codes ("P2", "in-progress") retreat
 // to the places prose belongs — menus and the detail panel.
 
-class StatusIcon extends View [ width = 14, height = 14,
+class StatusIcon [ width = 14, height = 14,
     s: string = "open",
     ring: View [ x = 0, y = 0, width = 14, height = 14, cornerRadius = 7,
         fill = { s == "blocked" || s == "closed" ? app.statusColor(classroot.s) : null },
@@ -89,7 +89,7 @@ class StatusIcon extends View [ width = 14, height = 14,
     ]
 
 
-class PrioIcon extends View [ width = 13, height = 12,
+class PrioIcon [ width = 13, height = 12,
     p: string = "P3",
     tip = { p == "P0" ? "Priority · P0 Urgent" : p == "P1" ? "Priority · P1 High" : p == "P2" ? "Priority · P2 Medium" : "Priority · P3 Low" },
     lit: number = { p == "P0" || p == "P1" ? 3 : p == "P2" ? 2 : 1 },
@@ -103,7 +103,7 @@ class PrioIcon extends View [ width = 13, height = 12,
     ]
 
 
-class Avatar extends View [ width = 22, height = 22, cornerRadius = 11,
+class Avatar [ width = 22, height = 22, cornerRadius = 11,
     name: string = "",
     capSize: number = 8.5,
     fill = { name == "" ? null : trkHue(name) },
@@ -119,7 +119,7 @@ class Avatar extends View [ width = 22, height = 22, cornerRadius = 11,
 
 // a label pill: a color-keyed dot and the name, outline-quiet
 
-class Tag extends View [ height = 18, cornerRadius = 9,
+class Tag [ height = 18, cornerRadius = 9,
     t: string = "",
     width = { this.cap.width + 26 },
     stroke = { stroke(1, provided("theme").line) },
@@ -162,15 +162,13 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
     ]
 
 
-// the issue row — one calm line: icons carry status and priority, the
-// title is the row's single strong element, everything else recedes to
-// the right (labels, the avatar, the date). Group headers are the
-// taller face. The row never mentions how many of it exist.
+// A list row is one of two things: an issue, or the header of a status
+// group in the grouped view. Each is its own class over one base — what
+// they share is TableRow's protocol, the height spring and the row fill;
+// the list builds each record as the class its `kind` names.
 
-class IssueRow extends TableRow [
-    isHdr: boolean = { ("" + :kind) == "hdr" },
-
-    exp: boolean = { !isHdr && ("" + :id) == ("" + app.expandedId) },
+class ListRow extends TableRow [
+    exp: boolean = false,
 
     // Opening and closing an issue animates — the one deliberate act in the
     // list, and the motion is what says "this row became a pane" rather than
@@ -184,15 +182,25 @@ class IssueRow extends TableRow [
     // row scrolled out and back returns at its open height with no motion,
     // and a recycled row never slides from the departed record's geometry.
 
-    targetH: number = { isHdr ? 42 : exp ? 356 : 44 },
+    targetH: number = 44,
     height = 44,
     Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34,
         onStop() { if (classroot.exp) app.revealOpen() }
         ],
 
-    // ── the group header face ─────────────────────────────────────────────
+    fill = { selected ? theme.controlSelected : hot ? theme.surface : null },
+    stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
+    ]
 
-    hdrRow: View [ visible = { parent.isHdr }, x = 0, y = 12, width = 100%, height = 24,
+
+// the group header — a status, its count, and the chevron that collapses
+// the group; a click collapses instead of selecting
+
+class GroupRow extends ListRow [
+    targetH = 42,
+    fill = { theme.bg },
+
+    hdrRow: View [ x = 0, y = 12, width = 100%, height = 24,
         // collapsed points right, open points down — one class, turned: the
         // same chevron the rest of the chrome discloses with
 
@@ -206,7 +214,20 @@ class IssueRow extends TableRow [
             n = { (:count ?? 0) + 0 } ]
         ],
 
-    // ── the issue face: a fixed column map, left to right ─────────────────
+    onClick() { if (!disabled) app.toggleGroup("" + :status) }
+    ]
+
+
+// the issue row — one calm line: icons carry status and priority, the
+// title is the row's single strong element, everything else recedes to
+// the right (labels, the avatar, the date). The row never mentions how
+// many of it exist.
+
+class IssueRow extends ListRow [
+    exp = { ("" + :id) == ("" + app.expandedId) },
+    targetH = { exp ? 356 : 44 },
+
+    // ── a fixed column map, left to right ─────────────────────────────────
     //
     //   inset ▸ status ring ▸ priority bars ▸ title … labels ▸ avatar ▸ date
     //
@@ -218,30 +239,30 @@ class IssueRow extends TableRow [
     colPrio: number = { 50 + ind },      // the priority bars'
     colTitle: number = { 76 + ind },     // the title's
 
-    stat: StatusIcon [ visible = { !parent.isHdr }, y = 15, x = { parent.colStat }, s = { "" + :status } ],
+    stat: StatusIcon [ y = 15, x = { parent.colStat }, s = { "" + :status } ],
 
-    prio: PrioIcon [ visible = { !parent.isHdr }, y = 16, x = { parent.colPrio }, p = { "" + :priority } ],
+    prio: PrioIcon [ y = 16, x = { parent.colPrio }, p = { "" + :priority } ],
 
     // an over-long title ellipsizes rather than being cut mid-glyph by the clip
 
-    title: Text [ visible = { !parent.isHdr }, y = 14, fontSize = 13.5, wrap = false, maxLines = 1,
+    title: Text [ y = 14, fontSize = 13.5, wrap = false, maxLines = 1,
         x = { parent.colTitle },
         width = { parent.tags.x - parent.colTitle - 16 },
         text = { "" + :title } ],
 
-    when: Text [ visible = { !parent.isHdr }, y = 15, fontSize = 11.5, wrap = false, textAlign = right,
+    when: Text [ y = 15, fontSize = 11.5, wrap = false, textAlign = right,
         x = { parent.width - 24 - 40 }, width = 40,
         textColor = { theme.textFaint },
         text = { trkDate(:updated ?? 0) } ],
 
-    avatar: Avatar [ visible = { !parent.isHdr }, y = 11,
+    avatar: Avatar [ y = 11,
         x = { parent.when.x - 34 },
         name = { "" + (:assignee ?? "") } ],
 
     // the first two labels ride inline (slice replication); "+n" carries
     // the rest — the detail panel shows them all
 
-    tags: View [ visible = { !parent.isHdr && !app.compact && (:labels ?? []).length > 0 }, height = 18, y = 13,
+    tags: View [ visible = { !app.compact && (:labels ?? []).length > 0 }, height = 18, y = 13,
         x = { this.parent.avatar.x - 12 - this.contentWidth },
         layout: SimpleLayout [ axis = x, spacing = 6 ],
         Tag [ datapath = :labels[0:2][], t = { "" + :@ } ],
@@ -252,7 +273,7 @@ class IssueRow extends TableRow [
 
     // selection announces itself with the accent bar, not a heavy fill
 
-    bar: View [ visible = { !parent.isHdr && parent.selected && !parent.exp }, x = 0, y = 6, width = 3, cornerRadius = 1.5,
+    bar: View [ visible = { parent.selected && !parent.exp }, x = 0, y = 6, width = 3, cornerRadius = 1.5,
         height = { Math.min(parent.height, 44) - 12 },
         fill = { theme.accent } ],
 
@@ -268,24 +289,18 @@ class IssueRow extends TableRow [
         onClick() { }
         ],
 
-    // a header row collapses its group instead of selecting; an issue row
-    // keeps TableRow's whole selection protocol and adds the context menu
+    // an issue row keeps TableRow's whole selection protocol and adds the
+    // context menu
 
     onClick() {
         if (disabled) return
-        if (isHdr) { app.toggleGroup("" + :status); return }
         if (exp) { app.closeDetail(); return }
         super.onClick()
         app.openDetail()
         },
 
-    onContextMenu(e: PointerEvent) { if (!isHdr) app.rowMenu(this, e) },
-    onHold(e: PointerEvent) { if (!isHdr) app.rowMenu(this, e) },
-
-    fill = { isHdr ? theme.bg
-           : selected ? theme.controlSelected
-           : hot ? theme.surface : null },
-    stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
+    onContextMenu(e: PointerEvent) { app.rowMenu(this, e) },
+    onHold(e: PointerEvent) { app.rowMenu(this, e) }
     ]
 
 
@@ -345,7 +360,7 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
 // the undo toast — one at a time, rises from the bottom, waits eight
 // seconds, honors its word
 
-class Toast extends View [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10,
+class Toast [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10,
     shown: boolean = false,
     msg: string = "",
     gen: number = 0,
@@ -379,7 +394,7 @@ class Toast extends View [ visible = { shown || lift > 0.02 }, height = 40, corn
 
 // an editable label tag for the detail panel — the list Tag plus a remove ×
 
-class EditTag extends View [ height = 22, cornerRadius = 7,
+class EditTag [ height = 22, cornerRadius = 7,
     t: string = "",
     width = { this.cap.width + 30 },
     fill = { provided("theme").control },
@@ -401,7 +416,7 @@ class EditTag extends View [ height = 22, cornerRadius = 7,
 // the way. One class, two hosts: the expanded row, and the New-issue
 // strip above the list.
 
-class EditorCard extends View [
+class EditorCard [
     datapath = { app.draft.value },
 
     // the card's own content box — the column is simply the room inside it
@@ -1035,7 +1050,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         ] } ],
 
     rowMenu(row: View, e: PointerEvent) {
-        const rec = (row as TableRow).member()
+        const rec = (row as TableRow).item()
         if (selection == null || !(selection as any).some((r) => (r as any).id == (rec as any).id)) this.takeSelection([rec])
         const m = this.ctx as any
         m.picked = (id) => {
@@ -1288,7 +1303,8 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         input(sel: object) { app.takeSelection(sel) },
         deleteRequested() { app.deleteSelection() },
         activateRequested() { app.openDetail() },
-        IssueRow [ datapath = :rows[], virtualize = true ]
+        ListRow [ datapath = :rows[], virtualize = true,
+            classFor = { :kind == "hdr" ? GroupRow : IssueRow } ]
         ],
 
     // ── the rail: an instrument, not a sidebar. Every number below is a

@@ -1,6 +1,6 @@
 The base of every visual thing in Declare — a rectangular **box** with a position, a
 size, and decoration (fill, corner radius, border, shadow). Everything you see
-descends from `View`: `Text`, `Image`, your own `class … extends View`. A plain
+descends from `View`: `Text`, `Image`, and every class of yours that names no other base. A plain
 `View` is a colored box; give it children and it becomes a container.
 
 Its geometry is set two ways that read the same: literal (`width = 200`) or a reactive
@@ -20,12 +20,12 @@ Every attribute below can be asked about in a **running** program:
 See `docs/operational/introspection.md`.
 
 **Text styling is not here.** The font, color, weight, and `theme` a region of text
-renders with are **provided values**, not `View` slots — they live on the text leaves
+renders with are **provided values**, not `View` attributes — they live on the text leaves
 (`Text`, `RichText`, `TextInput`) and `Control`, each declared `= provided("name", default)`.
 A `View` draws no glyphs, so it carries none of them; writing `fontFamily`, `textColor`, or
 `theme` on a container **provides** the value, and the nearest descendant leaf **reads** it
-(nearest-wins, live). See `Text`/`RichText` for the slots and `provided(…)` for the
-mechanism. The geometry and paint slots below are the ones a `View` actually owns.
+(nearest-wins, live). See `Text`/`RichText` for the attributes and `provided(…)` for the
+mechanism. The geometry and paint attributes below are the ones a `View` actually owns.
 
 ## width
 The box's width, in **pixels** (`Length`). Left unset, a view is as wide as its content —
@@ -44,7 +44,7 @@ its content. A `Text` left unsized takes its natural measured height, so you usu
 **The view's content box** — the inset between this box and the room its children live in.
 One number insets all four sides; four are `[top, right, bottom, left]`, clockwise from the
 top, the one-or-four house pattern `cornerRadius` and `stroke` share. A negative number is
-clamped to 0. This is the slot a fixed inset wants — not a wrapper view, and not the
+clamped to 0. This is the attribute a fixed inset wants — not a wrapper view, and not the
 layout.
 
 **A padded view has an *inside*, and `x = 0` / `y = 0` mean that inside's origin — for
@@ -91,7 +91,7 @@ App [ fill = white, textColor = black,
 ```
 
 ## fill
-What paints the box: a solid `Color` or a `gradient(…)` — the one slot, subsuming a
+What paints the box: a solid `Color` or a `gradient(…)` — the one attribute, subsuming a
 plain background color. `null` (the default) paints **nothing** — an unfilled box is
 invisible but still lays out and still catches clicks. In a `[ ]` literal a color is
 `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).
@@ -115,7 +115,7 @@ other length is a mistake, never a shorthand. Radii that would overlap along an 
 together, so a radius past half the box is a pill, never a fold. It shapes fill, border,
 and shadow — but not hit-testing or clipping: the box stays a rectangle for layout and
 clicks. To clip children to the rounded shape, set `clip = true` as well. A `Spring` on
-this slot animates the number form.
+this attribute animates the number form.
 
 ## stroke
 A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the
@@ -152,7 +152,7 @@ The functions are `blur(radius)`, `brightness(k)`, `contrast(k)`, `saturate(k)`,
 `grayscale(k)`, `invert(k)`, `sepia(k)`, `hueRotate(deg)`, `colorize(color)` — the group's
 alpha in one colour, what `Image.tint` is sugar for — and `shadow(dx, dy, blur, color)`, which
 here shadows the painted **alpha** (a badge with a transparent background casts its own
-outline) where the box `shadow` slot casts the rectangle. Lengths are **view units** and
+outline) where the box `shadow` attribute casts the rectangle. Lengths are **view units** and
 scale with the view's transform; the output may bleed past the box (a blur's 3σ, a shadow's
 reach) and layout ignores the bleed. A filtered view isolates blending and backdrops inside
 it. Paint only, never input — a blurred button is still its box. `null` (the default) is none.
@@ -235,7 +235,7 @@ chains to the page, and sibling panes overscroll independently. On canvas the ru
 manages the offset (clip+translate+wheel), as a single element must.
 
 ## scrollY
-**A fact, not a slot.** The current vertical scroll offset in pixels of a `scrolls` view —
+**A fact, not a settable attribute.** The current vertical scroll offset in pixels of a `scrolls` view —
 the **platform writes it** as the user scrolls (and as a glide moves); **read it** for
 scroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.
 Nothing may set it: an assignment and an `Animator [ attribute = scrollY ]` are both
@@ -254,7 +254,7 @@ declared twin of a `scrollTo(y)` on arrival (`scrollStartX` for the other axis).
 be shot mid-scroll declares this rather than gesturing.
 
 ## scrolling
-**A fact, not a slot.** True while this scroller is in motion — a wheel or trackpad
+**A fact, not a settable attribute.** True while this scroller is in motion — a wheel or trackpad
 stream, its momentum, a scrollbar drag, or a glide — and false once it settles. Read it
 in a constraint to hold work off until the user is done, or to keep a heavy effect cheap
 mid-gesture. Read it, rather than acting on its edges: a trackpad's momentum pauses and a
@@ -317,6 +317,40 @@ Read `virtualized` on the container to see whether it engaged.
 Row [ datapath = :rows[], virtualize = true ]
 ```
 
+## classFor
+The class each record is built as, when the records of one collection are different
+things — a text message, a photo, a voice note. **Replication metadata**, like `virtualize`:
+it belongs on the node whose `datapath` matches many, beside that path.
+
+The class written at the use site is the **base**: the default, and the type the rest of
+the line is checked against. The body reads the record and names that class or one of its
+subclasses, and the checker holds it to exactly that. It reads only the record — its choice
+is the record's own — so a record whose kind changes gets a new instance of the new class in
+place of the old one.
+
+```declare-fragment
+Message [ datapath = :messages[],
+    classFor = { :kind == "photo" ? PhotoMessage : :kind == "voice" ? VoiceMessage : TextMessage } ]
+```
+
+A class per kind is for rows that *are* different things. A row that varies by what state it
+is *in* — mine or theirs, sent or pending — keeps one class and a
+[`State`](declare-docs:State) for each variation; a state's children exist only while it
+applies. The two nest: a class per kind, with states inside.
+
+## rowIndex
+**Read-only** fact: this instance's index in the array its replication presents. It is 0
+for the first record and follows the record as others arrive, leave or reorder, so a
+constraint reading it re-runs when the place changes. For a nested list it is the index
+within the group's own array; under `virtualize` it is the logical index, never a window
+attribute. A view that no replication made reads `-1`.
+
+```declare-fragment
+Row [ datapath = :rows[], fill = { rowIndex % 2 == 0 ? 0xFFFFFF : 0xF4F4F4 } ]
+```
+
+Stripes, ranks and "3 of 12" read it; records need no position fields.
+
 ## virtualized
 Whether **this view's replicated content** is virtualized right now — a content intrinsic,
 like `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the
@@ -344,7 +378,7 @@ which can happen mid-run, since the policy accepts a `{ }`. And it is what makes
 the auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)
 to size to content with a cap; assigning it is a compile error.
 
-Its other use is a component that takes content. A class whose instances receive children
+Its other use is a class that takes content. A class whose instances receive children
 from the use site sizes itself to what it was handed with `width = { contentWidth }` — the
 children are not the class's own, so nothing else knows their extent.
 
@@ -391,7 +425,7 @@ scale.
 `bounds()` minus the position: the same transformed box **relative to this view's own
 origin** — `x`/`y` are the lead offsets the transform introduces (0 untransformed),
 `width`/`height` the footprint extents. It never reads the view's `x`/`y`, which is why
-a layout's `place()` consumes this form: a strategy must never read the slots it
+a layout's `place()` consumes this form: a strategy must never read the attributes it
 writes. A view tipped in 3D (`rotateX`, `rotateY`, `translateZ`) is measured as if the
 vanishing point sat at its own pivot — the exact projection depends on where the view
 lands in its parent and on the parent's size, which the layout is deciding — so an
@@ -402,7 +436,7 @@ projection. Reach for `bounds()` everywhere else.
 This view's transformed box in **root-content space** — every ancestor's position,
 scale, rotation, and scroll composed (the hit walk's own math). A one-shot query for
 handlers, deliberately not a reactive fact: absolute geometry depends on every
-ancestor, and a live slot would re-derive on each scrolled pixel. For the reactive
+ancestor, and a live attribute would re-derive on each scrolled pixel. For the reactive
 question — "am I visible?" — read `onScreen` or `visibleRect` instead.
 
 ## rootTransform()
@@ -630,7 +664,7 @@ whole gesture losing.
 `duration` milliseconds on the platform's own motion: the browser's smooth scroll, the
 native host's tween, the canvas runtime's loop. `motion` names a Declare curve
 (`"cubicOut"`, the default; any family token) where the provider can honor one. This is
-not an Animator: no Animator semantics, no slot — the scroller glides, `scrollY` reports
+not an Animator: no Animator semantics, no driven attribute — the scroller glides, `scrollY` reports
 as it goes, and a **gesture cancels it** (the user always wins). A request that arrives
 while a gesture or its momentum owns the pane is dropped.
 
@@ -655,7 +689,7 @@ at any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this ins
 A uniform transform — the view's subtree renders scaled about its pivot, and **every
 reader agrees on the one geometry**: paint, hit-testing, `rootOrigin`, the parent's
 auto-size, and layouts all compose the same transform, so a `scale = 0.5` child really
-occupies half its slot (the fractal idiom) — where CSS makes transform paint-only and
+occupies half its space (the fractal idiom) — where CSS makes transform paint-only and
 lets layout disagree with what you see. The view's **own** `width`/`height` stay local
 (its interior world is untouched — that is what makes scale mean "the same world,
 smaller"); the parent packs the transformed **footprint** (`bounds()`). Pair with
@@ -753,7 +787,7 @@ input — hit-testing and focus are unchanged. A token string in a `{ }` body, l
 `scrolls` — so a blend can be state: `blend = { active ? "multiply" : "normal" }`.
 
 ## scrollX
-**A fact, not a slot.** The live horizontal offset of a `scrolls = x` (or `both`) view,
+**A fact, not a settable attribute.** The live horizontal offset of a `scrolls = x` (or `both`) view,
 mirrored from the platform's scroll — `scrollY`'s twin, with the same enforcement: the
 platform owns it, and an assignment or an Animator aimed at it is a compile error.
 **`scrollToX(x)` is the verb** — a clamped, held request, with an optional glide
@@ -763,7 +797,7 @@ a paging strip's position or scroll-driven effects.
 
 ## anchor
 Names this view as a **reveal target** for a location's `@name` suffix
-(`#guide/05-components@intro` scrolls to the view with `anchor = "intro"`).
+(`#guide/05-classes@intro` scrolls to the view with `anchor = "intro"`).
 The anchor namespace is named views (this attribute) plus heading slugs inside
 rendered rich text, so a heading needs nothing from you. Resolution prefers views over
 slugs, preorder-first.
@@ -817,7 +851,7 @@ The tree answers **what is under a root-space point** — the deepest visible vi
 by the same scroll-aware, clip-aware, transform-aware walk that routes the pointer
 itself, so what a handler computes and what a press would hit can never disagree.
 This is the language's hit-testing: never measure geometry by hand, ask.
-Its defining use is **drag and drop** — the dragger asks, one reactive slot fans
+Its defining use is **drag and drop** — the dragger asks, one reactive attribute fans
 out, every target derives:
 
 ```declare-fragment
@@ -872,14 +906,14 @@ or method — or `:@[(key)] = v` when the field is chosen at run time: it lands 
 constraints that read the changed region.
 
 ## createView()
-Instantiates a component **by tag name** into this view — the receiver is the parent, and
+Instantiates a class **by tag name** into this view — the receiver is the parent, and
 with it the new instance's scope and data anchor. Returns the created view, a full
 citizen: constraints installed, `onInit` fired, and the parent's arrangement and auto-size
 take it in on arrival. The imperative door, for structure that genuinely cannot be
 declared; reach for replication over a datapath first — it reconciles, keys, and tears
 down for you.
 
-**The build drops components nothing statically references**, so a component you only
+**The build drops classes nothing statically references**, so a class you only
 ever name as a *string* needs `use [ Name ]` at the top level to survive. That is the one
 non-obvious requirement, and forgetting it fails at runtime, not compile time. The
 returned view is yours: `discard()` it when done.

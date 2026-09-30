@@ -16,7 +16,7 @@ lists forms (by slug), classes, and guide chapters (`NN-slug · Title`).
 Not forms, and not here: `afterSettle` (a shared function — Types and functions),
 `onReady` (App's `ready` event — the App page), `draw()` (a method with a reserved name a
 view may define — the View page). The settle itself is a concept the guide teaches. And
-`<-` is not a form: a runtime service is an ordinary component member
+`<-` is not a form: a runtime service is an ordinary member
 (`Keys [ onKeyUp(e) { … } ]`), and the parser recognizes `<-` only to name that spelling.
 
 ## app
@@ -49,10 +49,10 @@ not meant to hold every value.
   > says: expected end of input, got 'App'
   > probe: App [ ]\nApp [ ]
 - A program without a root is not a program — a file of classes alone has nothing to run.
-  > says: expected a component name, got 'eof'
-  > probe: class A extends View [ ]
+  > says: expected a class name, got 'eof'
+  > probe: class A [ ]
 - `classroot` has no meaning on the App: it names the root of a *class* you define. From the App, reach values by a bare name, `this`, or `app`.
-  > says: 'classroot' is the root of a component you define — valid only inside a class body. This code is in the App, not a class. Reach values here by a bare name, 'this', or 'app'.
+  > says: 'classroot' is the root of a class you define — valid only inside a class body. This code is in the App, not a class. Reach values here by a bare name, 'this', or 'app'.
   > probe: App [ w: number = { classroot.width } ]
 
 ### related
@@ -74,13 +74,13 @@ syntax:
     name: Type [ members ]
 usage: form-instance
 
-Square brackets hold a component's members — attributes, declarations, methods, handlers,
+Square brackets hold a node's members — attributes, declarations, methods, handlers,
 children — and the nesting of brackets *is* the tree. Naming a type with a bracketed body
 instantiates it: `Text [ text = "OK" ]` is a Text, `bg: View [ … ]` a View reachable as `bg`.
 Every member inside is one of the five shapes (set, declare, child, method, handler),
 separated by commas.
 
-An instance is a full component in its own right: it may declare new attributes and methods
+An instance is a full node in its own right: it may declare new attributes and methods
 without a class, because the compiler synthesizes an anonymous subclass for it. Name a
 `class` when you instantiate it more than once or need to name its type — or when a long
 instance declaration makes its parent hard to read, so pulling it out (possibly into its
@@ -88,8 +88,8 @@ own file) keeps the program's structure visible.
 
 ### rules
 
-- A type must exist: a built-in, a library component, or a class this program declares or includes.
-  > says: unknown component 'Widget'
+- A type must exist: a built-in, a library class, or a class this program declares or includes.
+  > says: unknown class 'Widget'
   > probe: App [ Widget [ ] ]
 - Members are separated by commas; the compiler names the spot when one is missing. A trailing comma before `]` is legal, and the formatter removes it.
   > says: members are separated by commas — add ',' before 'height'
@@ -115,11 +115,11 @@ family: declaration
 spec: §4 Composition
 terms: class, declare a class, define a component, component definition
 syntax:
-    class Name extends Base [ members ]
-    class Name [ members ]                    // extends Node — a model, no box
+    class Name [ members ]                    // a view
+    class Name extends Base [ members ]       // any other base
 usage: form-class, form-classroot
 
-A component is a class, and this is the one way to define one. Everything inside the
+This is the one way to define a class. Everything inside the
 brackets is a **member**: `name = value` sets an attribute the base already has,
 `name: Type = value` declares a new one, `name: Type [ … ]` is a named child, `name() { … }`
 a method, `onThing() { … }` a handler for an event the node fires. Instantiate the class by
@@ -132,27 +132,27 @@ nothing to export. Any instance may declare members with no class at all, becaus
 compiler synthesizes an anonymous subclass. Name a class when you instantiate it more than
 once or need to name its type, or when pulling a long instance out keeps its parent readable.
 
-With no `extends`, the base is `Node`: a model class — state and behaviour with no box. A
-class meant to be a view says `extends View`.
+With no `extends`, the base is `View`: a class that draws. A class with no view names its
+base: `extends Node`, or `extends Dataset` for a document.
 
 ### rules
 
-- A class extends a built-in component or a class declared in this program — declared anywhere in it, later in the file included. Omit `extends` and the base is `Node`.
-  > says: unknown base 'Widget' — a class extends a built-in component or a class declared in this program
+- A class extends a library class or one declared in this program — declared anywhere in it, later in the file included. Omit `extends` and the base is `View`.
+  > says: unknown base 'Widget' — a class extends a library class or one declared in this program
   > probe: class Chip extends Widget [ ]\nApp [ Chip [ ] ]
 - A class may not contain itself, directly or through another class: the tree it describes would never finish.
   > says: class Chip contains itself — a class may not appear inside its own body (directly or through another class)
-  > probe: class Chip extends View [ Chip [ ] ]\nApp [ Chip [ ] ]
+  > probe: class Chip [ Chip [ ] ]\nApp [ Chip [ ] ]
 - One name, one class. A second declaration of the same name is refused, and so is a class named like a built-in.
-  > says: there is already a component named 'Chip'
-  > probe: class Chip extends View [ ]\nclass Chip extends View [ ]\nApp [ Chip [ ] ]
+  > says: there is already a class named 'Chip'
+  > probe: class Chip [ ]\nclass Chip [ ]\nApp [ Chip [ ] ]
 - `root` and `children` are structural members of every View and cannot be a class's own member. `root` is the sharp one: shadowing it makes every `{ app.… }` in the class resolve against the shadow.
   > says: 'root' is the node reference `app` compiles to (`app` is `this.root`) — a child cannot take its name; choose another
-  > probe: class Chip extends View [ root: View [ ] ]\nApp [ Chip [ ] ]
+  > probe: class Chip [ root: View [ ] ]\nApp [ Chip [ ] ]
 - A bare `name = value` sets an attribute the base has; an attribute the base does not have must be **declared**, with a type — `name: Type = value`.
   > says: Chip has no attribute 'labl'
-  > probe: class Chip extends View [ labl = "x" ]\nApp [ Chip [ ] ]
-- A class is instantiated where its base fits: a `layout:` slot takes a Layout, a View slot a View.
+  > probe: class Chip [ labl = "x" ]\nApp [ Chip [ ] ]
+- A class is instantiated where its base fits: a `layout:` member takes a Layout, a view's place a View.
   > says: App.layout expects a Layout — 'Model' is not one
   > probe: class Model extends Node [ ]\nApp [ layout: Model [ ] ]
 
@@ -173,7 +173,7 @@ syntax:
     class Name extends Base [ … ]
 usage: form-extends
 
-Single inheritance from another component — a library class or one of your own. The
+Single inheritance from another class — a library class or one of your own. The
 subclass sees every attribute, child, method, and event of the base. Re-stating an
 attribute with `name = value` **overrides** its default; re-stating a method replaces it;
 and a base's named child is reached by name, not redeclared. Omit `extends` altogether and
@@ -187,15 +187,15 @@ the rest — as is any class descending from one; only the abstract bases (`Stre
 
 ### rules
 
-- The base must be a component: a built-in or a declared class.
-  > says: unknown base 'Widget' — a class extends a built-in component or a class declared in this program
+- The base must be a class: a built-in or a declared one.
+  > says: unknown base 'Widget' — a class extends a library class or one declared in this program
   > probe: class Chip extends Widget [ ]\nApp [ Chip [ ] ]
-- Any built-in component is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media, Editor), which no runtime class implements, is refused.
-  > says: 'Stream' is an abstract base — it names no component to construct; extend one of its concrete members (EventStream, Socket)
+- Any built-in class is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media, Editor), which no runtime class implements, is refused.
+  > says: 'Stream' is an abstract base — it names no class to construct; extend one of its concrete members (EventStream, Socket)
   > probe: class S extends Stream [ ]\nApp [ ]
 - A subclass may not take a built-in's name.
-  > says: there is already a component named 'View'
-  > probe: class View extends View [ ]\nApp [ ]
+  > says: there is already a class named 'View'
+  > probe: class View [ ]\nApp [ ]
 
 ### related
 
@@ -225,15 +225,15 @@ formats (`HTMLText`'s `html` and `Markdown`'s `text`). A tag naming no class of 
 the meaning it already had — the HTML whitelist, an autolink, a literal `<` — and a
 `<span class>` stays a style, never a view.
 
-The tag's attributes are the class's, each converted from its string by the slot's
+The tag's attributes are the class's, each converted from its string by the attribute's
 **declared** type, exactly as a source literal is: `id='142'` is the number in a `number`
-slot, `tint='#DDF4E4'` a `Color`, `align='center'` an enum member, `width='50%'` a percent of
+attribute, `tint='#DDF4E4'` a `Color`, `align='center'` an enum member, `width='50%'` a percent of
 the width the text flows in, a bare `hot` is `true`. The tag **is the use site**, so an
-attribute takes use-site precedence over what the class body sets for that slot — a literal
-or a `{ }` constraint — and only the winner installs; a slot the tag does not mention keeps
+attribute takes use-site precedence over what the class body sets for that attribute — a literal
+or a `{ }` constraint — and only the winner installs; an attribute the tag does not mention keeps
 the class's own behaviour. `x`/`y` are refused — the flow places the view, as a layout places
-its children — and an unknown attribute, a value that will not convert, a read-only slot, or
-a percent on a slot with no axis goes to the component's `unsupported` policy. The view owns
+its children — and an unknown attribute, a value that will not convert, a read-only attribute, or
+a percent on an attribute with no axis goes to the class's `unsupported` policy. The view owns
 its `width`/`height` while the flow owns its `x`/`y`, it never splits
 across a line, a taller one grows its line, a size change re-flows the text, and it reads the
 surrounding run's text face as provided values. Content is reactive: a tag still present keeps
@@ -247,19 +247,19 @@ inside the class from an identity the content names.
 
 - Placement belongs to the flow, so a tag may not set `x` or `y`.
   > says: the text flow places an inline view — 'x' is not yours to set here
-  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip x='4'/> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip x='4'/> b" ] ]
 - A tag names attributes the class actually has; anything else goes to `unsupported`.
   > says: Chip has no attribute 'nope'
-  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip nope='1'/> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip nope='1'/> b" ] ]
 - An inline view is self-closing: a tag with content between it and a closing tag is not one.
   > says: is an inline view, and an inline view must be self-closing
-  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip>hi</Chip> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip>hi</Chip> b" ] ]
 - A percent needs an axis to resolve against, so it belongs on a width or a height.
   > says: no axis to resolve a percent against
-  > probe: class Chip extends View [ pad: Length = 4, width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip pad='50%'/> b" ] ]
-- A read-only slot is computed from its declaration, so no tag may set it.
+  > probe: class Chip [ pad: Length = 4, width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip pad='50%'/> b" ] ]
+- A read-only attribute is computed from its declaration, so no tag may set it.
   > says: is read-only
-  > probe: class Chip extends View [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip hovered='true'/> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip hovered='true'/> b" ] ]
 
 ### related
 
@@ -280,33 +280,33 @@ syntax:
     name = :path
 usage: form-set
 
-Sets an attribute the component already has. The right-hand side is one of three things,
+Sets an attribute the class already has. The right-hand side is one of three things,
 and the spelling says which: a **bare literal** (a number, a percent, a color, a string, a
 keyword — set once), a **`{ }` constraint** (TypeScript that stays true), or a **`:path`**
-read from bound data. A bare `[ … ]` list fills an array-typed slot.
+read from bound data. A bare `[ … ]` list fills an array-typed attribute.
 
-One family of names may be set on a component that does not declare them: the built-in
+One family of names may be set on a node that does not declare them: the built-in
 **provided values** — the text face (`fontSize`, `fontFamily`, `fontWeight`, `textColor`,
-`letterSpacing`), `theme`, `iconSize`, and the rich-text slots. Setting one on a container
+`letterSpacing`), `theme`, `iconSize`, and the rich-text attributes. Setting one on a container
 *provides* it to every descendant that reads it (see `provided`).
 
-A set attribute with a `{ }` **owns a cell**: the runtime keeps it current, and a direct
+A set attribute with a `{ }` is **owned by its constraint**: the runtime keeps it current, and a direct
 write to it is refused with a message naming the fix — derived state is never assigned;
 change its inputs. In a handler, `name = value` is the setter: the write lands when the
 handler returns, together with every other write it made, in one settle.
 
 ### rules
 
-- The attribute must exist on the component — to introduce a new one, declare it with a type.
+- The attribute must exist on the class — to introduce a new one, declare it with a type.
   > says: App has no attribute 'widht' — did you mean 'width'?
   > probe: App [ widht = 10 ]
-- A bare value must be of the slot's kind; the message names the vocabulary the slot takes.
+- A bare value must be of the attribute's kind; the message names the vocabulary it takes.
   > says: App.width expects a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y), got the string "ten"
   > probe: App [ width = "ten" ]
 - A `script { }` constant is not a bare literal — reach it through braces.
   > says: got 'W' — write { W } to read it in a constraint
   > probe: script { const W = 10 }\nApp [ width = W ]
-- A list belongs to an array-typed slot; a scalar slot refuses one.
+- A list belongs to an array-typed attribute; a scalar one refuses it.
   > says: got the list […, …]
   > probe: App [ width = [1, 2] ]
 
@@ -327,29 +327,29 @@ syntax:
     name: Type = value
     name: Type                                 // no default: undefined until written
     rows: Row[] = []
-    panel: Menu = null                         // a component class — the slot holds an instance
+    panel: Menu = null                         // a class — the attribute holds an instance
 usage: form-declare
 
 Declares a new reactive attribute — the way state enters a program. The type comes from the
 same vocabulary a signature uses: a primitive (`number`, `string`, `boolean`), `Color`,
-`Length`, `Radius`, a component class, a declared schema, a literal union
+`Length`, `Radius`, a class, a declared schema, a literal union
 (`"open" | "closed"`), an array of any of these, or a function type. The default is a bare
 literal or a `{ }` expression.
 
-A declaration's `{ }` default is a **formula with no cell**: reading it inlines the
+A declaration's `{ }` default is only a **formula**: reading it inlines the
 expression, and an assignment simply replaces it — the right tool for a value you may take
 over later, which is how `TextInput.initial` differs from its read-only `text = { … }` twin.
-Compare `set`: a set attribute's `{ }` owns a cell and refuses assignment.
+Compare `set`: a set attribute is owned by its `{ }` and refuses assignment.
 
 ### rules
 
 - A declaration carries a type; the colon is not optional.
-  > says: expected a type or component name, got '='
+  > says: expected a type or class name, got '='
   > probe: App [ other: = 1 ]
 - The type must be one the language knows; the message lists them.
   > says: unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape, Inset, array, object, View, Theme
   > probe: App [ x2: Widget = null ]
-- An attribute the component already has is set, not declared again.
+- An attribute the class already has is set, not declared again.
   > says: App already has an attribute 'width' — a declaration introduces a new one; write 'width = …' to set the existing one
   > probe: App [ width: number = 10 ]
 - A built-in read-only intrinsic (`hovered`, `pressed`, `dark`, …) is computed for you and cannot be shadowed by a declaration.
@@ -414,7 +414,7 @@ syntax:
 usage: form-method
 
 A method is a typed signature, name first, and a statement body. Every parameter carries a
-written type — a primitive, a component class, an event payload, a function type
+written type — a primitive, a class, an event payload, a function type
 (`f: (id: string) -> void`), or an array of one; a `?` after the type says the value may be
 absent, and the body must check. Omit `-> R` for a method that returns nothing.
 
@@ -432,7 +432,7 @@ compiler never reads.
 - Type annotations do not live in bodies: a local takes no annotation (contextual typing covers it); narrow with a cast (`x as T`), and put declared types on attributes.
   > says: annotates a name ('x') — names declared in a body take no type annotation (contextual typing covers them); a cast narrows an expression (x as T), and declared types live on the attribute (name: type = …)
   > probe: App [ f() { const x: number = 1 } ]
-- A value slot takes one expression; statements live in methods.
+- An attribute's value is one expression; statements live in methods.
   > says: an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })
   > probe: App [ width = { const w = 10; w } ]
 
@@ -463,8 +463,8 @@ constraint that reads those attributes follows, which is the whole update model.
 
 Nothing bubbles. A handler runs on the node that declares it, for events that node fires;
 a parent that wants a child's click declares the handler on the child (or the child calls
-up through `parent` or `classroot`). Events from outside the tree arrive as children — a
-`Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node app-wide keyboard handling.
+up through `parent` or `classroot`). Events from outside the tree come through a member you
+declare — a `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node app-wide keyboard handling.
 
 ### rules
 
@@ -511,16 +511,16 @@ class's with `super` the same way. A constraint that calls a method stays live t
 
 - `super` reaches a method up the chain: one written in this program or the library, or the built-in's own runtime method.
   > says: super.go(): no class beneath B extends A declares go()
-  > probe: class A extends View [ ]\nclass B extends A [ go() { super.go() } ]\nApp [ B [ ] ]
+  > probe: class A [ ]\nclass B extends A [ go() { super.go() } ]\nApp [ B [ ] ]
 - A built-in fires its events; a handler has no base body to call.
   > says: no class beneath App declares onInit()
   > probe: App [ onInit() { super.onInit() } ]
 - `super` is a call, not a value.
   > says: super is a call up the class chain — write super.name(…)
-  > probe: class A extends View [ f() { } ]\nclass B extends A [ f() { const g = super.f } ]\nApp [ B [ ] ]
+  > probe: class A [ f() { } ]\nclass B extends A [ f() { const g = super.f } ]\nApp [ B [ ] ]
 - A `{ }` value has no base method to reach.
   > says: super is for a method body
-  > probe: class A extends View [ f() -> number { return 1 } ]\nclass B extends A [ w: number = { super.f() } ]\nApp [ B [ ] ]
+  > probe: class A [ f() -> number { return 1 } ]\nclass B extends A [ w: number = { super.f() } ]\nApp [ B [ ] ]
 
 ### related
 
@@ -573,14 +573,14 @@ syntax:
     name: Type = { expression }
 usage: form-constraint, form-constraint-deps
 
-Braces hold TypeScript, and in a value slot the expression is a **constraint** —
+Braces hold TypeScript, and as an attribute's value the expression is a **constraint** —
 re-evaluated when, and only when, something it reads changes, and kept true from then on. `width = {
 parent.width - 40 }` stays true through every resize; nothing subscribes, diffs, or
 re-renders. Dependencies are extracted statically by the compiler, which reads *through* the
 methods you call — a script function is the one opaque call.
 
 Inside the braces you are in plain TypeScript at full expression strength: ternaries,
-template literals, array chains, closures, casts. The bare-slot vocabulary stops at the
+template literals, array chains, closures, casts. The bare-value vocabulary stops at the
 brace — a color is `0x4169E1`, not `navy`; a size is computed from the parent, not written
 as a percent. A `:path` may appear inside a body, which is how anything conditional over
 replicated data is written.
@@ -591,22 +591,22 @@ replicated data is written.
   > says: there are no percentages: read the parent and scale, so 100% is { parent.width * 1 }
   > probe: App [ width = { 100% } ]
 - No `#hex` in braces: a color in TypeScript is a number.
-  > says: inside { } a color is written 0x336699, not #336699 (the #… and named-color forms work only in bare slots)
+  > says: inside { } a color is written 0x336699, not #336699 (the #… and named-color forms work only as bare values)
   > probe: App [ fill = { #336699 } ]
 - No named colors in braces either; the message gives the number.
-  > says: 'navy' is a named color — the name form works only in a bare slot; inside { } write it as 0x000080.
+  > says: 'navy' is a named color — the name form works only as a bare value; inside { } write it as 0x000080.
   > probe: App [ fill = { navy } ]
 - A body is one expression; statements belong in a method.
   > says: an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })
   > probe: App [ width = { const w = 10; w } ]
-- A slot may not derive from itself — that is a cycle by construction; derive from a base.
-  > says: 'width' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead
+- An attribute may not derive from itself — that is a cycle by construction; derive from a base.
+  > says: 'width' reads itself — a { } cannot depend on the attribute it defines; name the base it derives from instead
   > probe: App [ width = { width + 1 } ]
 - A bare name must resolve: a member up the enclosing brackets, a parameter, or one of the few globals a body may use.
   > says: cannot resolve 'nothingHere' — not a member of t: Text → App, a parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …)
   > probe: App [ t: Text [ text = { nothingHere } ] ]
-- A script `let` has no cell, so a constraint cannot notice it change; hold changing state in an attribute.
-  > says: 'n' is mutable state in a script { } block — a module variable has no cell, so nothing can notice it change; hold the value in a reactive attribute (declare it on the app) and read that instead
+- A constraint cannot notice a script `let` change; hold changing state in an attribute.
+  > says: 'n' is mutable state in a script { } block — nothing can notice a module variable change; hold the value in a reactive attribute (declare it on the app) and read that instead
   > probe: script { let n = 1 }\nApp [ w: number = { n } ]
 - A script call is opaque: pass values, never a node.
   > says: a script call is opaque: this constraint depends on the VALUES it passes, and a node reference never changes
@@ -725,7 +725,7 @@ syntax:
     TextInput [ text <-> { fieldName } ]       // a { } yielding a field name
 usage: form-twoway
 
-Two-way binding, opt-in and for leaf editors only. The left side is an editor's value slot;
+Two-way binding, opt-in and for leaf editors only. The left side is an editor's value;
 the right names a **place in data** — a `:path`, or a `{ }` yielding a field name — resolved
 against the nearest enclosing `datapath`. Edits in the field write back through the cursor,
 and a change in the data shows in the field. It is the only arrow in the language that
@@ -737,8 +737,8 @@ so data flow stays traceable. One-way `:path` everywhere else.
 
 ### rules
 
-- The left side is an editor's value slot; a Text is not an editor.
-  > says: the two-way arrow edits a dataset value through an editor's value slot (e.g. 'TextInput.text') — Text is not an editor
+- The left side is an editor's value; a Text is not an editor.
+  > says: the two-way arrow edits a dataset value through an editor's value (e.g. 'TextInput.text') — Text is not an editor
   > probe: App [ d: Dataset { { "title": "x" } }, datapath = { d.value }, t: Text [ text <-> :title ] ]
 - There must be data to edit: a `datapath` above the editor.
   > says: has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one
@@ -770,14 +770,14 @@ syntax:
     backdrop = frost(26, 1.5)                  // blur, saturate
 usage: form-constructors
 
-The value constructors build the composite values decoration slots take: a gradient, a
+The value constructors build the composite values decoration attributes take: a gradient, a
 stroke, a shadow, a frosted backdrop, a gradient `stop`. They are the only call forms a bare
-slot admits, and each has one shape — the message names it when the call is wrong. Inside
+value admits, and each has one shape — the message names it when the call is wrong. Inside
 a `{ }` the same names are ordinary functions, with colors written as numbers.
 
 Their names are reserved: no member may be called `gradient`, `stroke`, `shadow`, `stop`,
 or `frost`. A stroke is drawn **inside** the box, so it never enlarges the layout; a shadow
-is cast outside it, escaping any clip, as a CSS box-shadow does. A `stroke` slot also takes
+is cast outside it, escaping any clip, as a CSS box-shadow does. A `stroke` attribute also takes
 **four** of them — `[top, right, bottom, left]`, clockwise from the top, `null` for a bare
 side — which is the one-or-four shape `cornerRadius` and `padding` share. All three take
 either form from a `{ }` constraint as readily as from a literal, which is how a border in a
@@ -786,7 +786,7 @@ stroke(1, provided("theme").line), null ] }` rules a row top and bottom.
 
 ### rules
 
-- A fill slot takes a color, a gradient, or null; an unknown call is not a fill.
+- A fill takes a color, a gradient, or null; an unknown call is not a fill.
   > says: got 'plaid(…)' (not a fill constructor)
   > probe: App [ fill = plaid(1) ]
 - Each constructor has one arity; a short call is refused with the shape.
@@ -820,9 +820,9 @@ syntax:
     axis = y                                   // an enum token
 usage: form-literals
 
-The bare-slot vocabulary the compiler owns: numbers, percents, the position literals
+The bare-value vocabulary the compiler owns: numbers, percents, the position literals
 `center` and `end`, colors by name or hex, strings, booleans, `null`, and the enum tokens
-each slot names. A bare literal is the value itself, set once. Inside `{ }` none of this
+each attribute names. A bare literal is the value itself, set once. Inside `{ }` none of this
 exists — there you are in TypeScript, where a color is `0x336699` and a size is arithmetic
 on the parent.
 
@@ -832,7 +832,7 @@ and a Length refuses it.
 
 ### rules
 
-- An enum slot takes one of its tokens; the message lists them.
+- An enum attribute takes one of its tokens; the message lists them.
   > says: SimpleLayout.axis expects an Axis (one of x | y), got 'z'
   > probe: App [ v: View [ layout: SimpleLayout [ axis = z ] ] ]
 - An 8-digit 0x is an alpha color, not a number.
@@ -877,7 +877,7 @@ or attribute named `root` would shadow every `app.…` in the same class.
 ### rules
 
 - `classroot` names the root of a class you define; it has no meaning on the App.
-  > says: 'classroot' is the root of a component you define — valid only inside a class body. This code is in the App, not a class. Reach values here by a bare name, 'this', or 'app'.
+  > says: 'classroot' is the root of a class you define — valid only inside a class body. This code is in the App, not a class. Reach values here by a bare name, 'this', or 'app'.
   > probe: App [ t: Text [ text = { classroot.name } ] ]
 - A scope noun cannot name a child.
   > says: 'app' is a scope noun (language §11) — a child cannot take its name
@@ -887,7 +887,7 @@ or attribute named `root` would shadow every `app.…` in the same class.
   > probe: App [ parent: number = 1 ]
 - `root` is the node reference `app` compiles to; nothing may take its name.
   > says: 'root' is the node reference `app` compiles to (`app` is `this.root`) — a child cannot take its name; choose another
-  > probe: class Chip extends View [ root: View [ ] ]\nApp [ Chip [ ] ]
+  > probe: class Chip [ root: View [ ] ]\nApp [ Chip [ ] ]
 - A bare name must resolve up the enclosing brackets.
   > says: cannot resolve 'nothingHere' — not a member of t: Text → App
   > probe: App [ t: Text [ text = { nothingHere } ] ]
@@ -917,7 +917,7 @@ Everything merges into one program, and a class in an included file may extend o
 here.
 
 The path resolves relative to the including file. The standard library needs no include —
-its components are auto-included by name — but a library file may be included explicitly,
+its classes are auto-included by name — but a library file may be included explicitly,
 as the library's own files include each other.
 
 ### rules
@@ -946,19 +946,19 @@ syntax:
     use [ Name, Other ]
 usage: form-use
 
-Keeps components the production build would otherwise drop. The build tree-shakes anything
-no tag instantiates; a component your code constructs **by name** at runtime —
+Keeps classes the production build would otherwise drop. The build tree-shakes anything
+no tag instantiates; a class your code constructs **by name** at runtime —
 `app.createView("Badge")`, an icon named by a string in a control's `iconLeft` — is mentioned
 nowhere in the tree, so it would be removed. `use` says it is still needed.
 
-The symptom without it is a component that works in dev, where everything is present, and
+The symptom without it is a class that works in dev, where everything is present, and
 is missing from the built app. A menu's `kind` or `icon` record field, an `IconHost`'s
 `kind`, and every `createView` call are the places to look.
 
 ### rules
 
 - An entry names a built-in or a declared or included class.
-  > says: use [ Nope ]: unknown component 'Nope' — a use entry names a built-in or a declared/included class
+  > says: use [ Nope ]: unknown class 'Nope' — a use entry names a built-in or a declared/included class
   > probe: use [ Nope ]\nApp [ ]
 
 ### related
@@ -996,13 +996,13 @@ program, never a build option:
   highlighted reader form too, so a viewer in the package reads it as on the site. A literal `url = "data.json"` beside
   the program needs no entry.
 - `compiler = true` — the program compiles source at run time (live editing, programs typed
-  in). The package carries the compiler and the component library; otherwise it carries
+  in). The package carries the compiler and the library's source; otherwise it carries
   neither, and an island naming an unbuilt program is a reported error.
 - `inspector = true` — the program answers questions about itself in production: the
   Inspector (compiled ahead), the `__declare` bridge, source positions, and error prose all
   ship. It does not imply the compiler.
 
-The block may appear before or after the root, and an included component may carry its own —
+The block may appear before or after the root, and an included class may carry its own —
 a help panel that reads the docs model says so where it lives — and the program's merged
 block is the union.
 
@@ -1053,7 +1053,7 @@ npm package by bare specifier — bundled at compile by a Node host (the dev ser
 
 A constraint may call into script, **opaquely**: it depends on the values it passes, never on
 what the function does inside. So pass values, not nodes, and hold state that changes in an
-attribute — a script `let` has no cell. This is where arithmetic, formatting, and imported
+attribute — nothing notices a script `let` change. This is where arithmetic, formatting, and imported
 JavaScript live, so the tree stays about the tree.
 
 What does **not** belong here is anything the program's look or model depends on. A
@@ -1070,7 +1070,7 @@ cannot see inside a script function, and its results arrive untyped.
   > says: 'export' has no meaning in a script { } block — drop the keyword; a top-level name here is already visible to every { } in the program
   > probe: script { export const x = 1 }\nApp [ ]
 - A script `let` is not reactive state; a constraint reading it is refused.
-  > says: 'n' is mutable state in a script { } block — a module variable has no cell, so nothing can notice it change
+  > says: 'n' is mutable state in a script { } block — nothing can notice a module variable change
   > probe: script { let n = 1 }\nApp [ w: number = { n } ]
 - A body may not write a script variable — each body holds a copy, so the write lands nowhere.
   > says: 'n' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute
@@ -1100,7 +1100,7 @@ usage: form-font
 
 A typeface is an **object in the tree**, not a top-level declaration: a `Font` with `Face`
 children, usually on the App, or a `Font [ family = "…" ]` with no faces for a system font.
-A family slot holds it — `fontFamily = { app.brand }`, or a list in a `{ }`,
+A family attribute holds it — `fontFamily = { app.brand }`, or a list in a `{ }`,
 `{ [app.brand, "sans-serif"] }` — so switching fonts is an assignment. `loaded` and
 `failed` are the font's facts; `wait` and `late` say what loading is worth. A Face's
 `weight` is a keyword, a number 1–1000, or `range(lo, hi)` for a variable font file. See
@@ -1166,8 +1166,8 @@ View [ … ]`), and provide values downward with `theme` and the face attributes
   > says: style Keyword.textColor: a style holds literal values only
   > probe: style Keyword [ textColor = { provided("theme").accent } ]\nApp [ ]
 - Its name shares one namespace with classes, themes, and fonts.
-  > says: there is already a component, theme, style, or font named 'Keyword'
-  > probe: style Keyword [ textColor = #336699 ]\nclass Keyword extends View [ ]\nApp [ ]
+  > says: there is already a class, theme, style, or font named 'Keyword'
+  > probe: style Keyword [ textColor = #336699 ]\nclass Keyword [ ]\nApp [ ]
 
 ### related
 
@@ -1216,8 +1216,8 @@ preset rather than an empty record.
   > says: theme T.accent: a token is a number, string, boolean, color, a value constructor (gradient/stroke/shadow/frost), or a list of them — got the datapath :x
   > probe: theme T [ accent = :x ]\nApp [ ]
 - Its name shares one namespace with classes, styles, and fonts.
-  > says: there is already a component, theme, style, or font named 'T'
-  > probe: theme T [ accent = #336699 ]\nclass T extends View [ ]\nApp [ ]
+  > says: there is already a class, theme, style, or font named 'T'
+  > probe: theme T [ accent = #336699 ]\nclass T [ ]\nApp [ ]
 
 ### related
 
@@ -1244,7 +1244,7 @@ The one explicit **up-the-tree read**: `provided("name")` is the value the neare
 makes available under that name — bare in `[ ]` like `gradient(…)`, or a call in `{ }`.
 *Providing* is just holding a value: declare a typed attribute on an ancestor
 (`density: number = 2`) and every descendant may read it; the built-in provided names —
-the text face, `theme`, `iconSize`, the rich-text slots — need no declaration at all, so
+the text face, `theme`, `iconSize`, the rich-text attributes — need no declaration at all, so
 `fontSize = 13` on a container provides it to every `Text` beneath. A value set locally
 always outranks a provided one.
 

@@ -19,7 +19,7 @@ size: RadioGroup [ x = 20, y = 20, value = "m",
 ```
 
 ## value
-**The group's value — the chosen `choice`, and the only value slot in the pair.** A
+**The group's value — the chosen `choice`, and the only value in the pair.** A
 `Radio` has none of its own; it derives `on` from this. Standalone the group owns it;
 constrained, override `input` beside it as with any control.
 
@@ -41,7 +41,7 @@ house look. See `Control.theme`.
 
 include [ "control.declare" ]
 
-class RadioGroup extends View [
+class RadioGroup [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.

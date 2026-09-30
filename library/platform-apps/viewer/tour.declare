@@ -14,14 +14,14 @@ indented line.
 
 
 /*
-## A component
+## A class
 
-`class` declares a reusable component. Attributes are `name = value`; a `{ … }`
+`class` declares a reusable class. Attributes are `name = value`; a `{ … }`
 body is a reactive expression — it re-runs when anything it reads changes. Here a
 counter keeps a number and a label that follows it, and a click bumps the count:
 */
 
-class Counter extends View [ width = 200, height = 40,
+class Counter [ width = 200, height = 40,
     n: number = 0,
 
     label: Text [ fontSize = 22, fontWeight = semibold, textColor = 0x2E6FE0,
@@ -42,7 +42,7 @@ A `Dataset` holds records; `datapath` replicates one child per record, and a
 quoted, and `:paths` point into data.
 */
 
-class Row extends View [ width = 300, height = 24,
+class Row [ width = 300, height = 24,
     label: string = "",
     value: number = 0,
 

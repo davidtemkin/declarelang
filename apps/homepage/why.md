@@ -42,7 +42,7 @@ will assume: assignment is assignment, and there is no bypass to forget. Where
 it’s genuinely new, it looks new — brackets for structure, :path for data — a
 visible cue to consult the spec instead of autocompleting from memory.
 
-And because a UI’s real structure — components, state, data, what reacts to
+And because a UI’s real structure — views, state, data, what reacts to
 what — is expressed in the language, the compiler can see all of it: it
 extracts every binding’s dependencies statically, checks the shape of the
 tree, and types the seams. What a model reasons about is exactly what the
@@ -66,7 +66,7 @@ platform. It is also the least machine-writable code there is; the corpus is
 thin, custom, and wrong in ways nothing catches.
 
 Declare makes continuity the grain, not the garnish. Motion is a Spring on an
-attribute; layout is a reactive slot; a mode is a reversible state — so the
+attribute; layout is a reactive attribute; a mode is a reversible state — so the
 continuous version of an interface is often less code than the discrete one.
 The reference app is a calendar whose four views are one surface seen through
 a moving, zooming rectangle — normally a bespoke project of its own, here a

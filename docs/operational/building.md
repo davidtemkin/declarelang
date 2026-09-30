@@ -14,9 +14,9 @@ The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`
 data assets copied alongside (a program's `tests/` folder stays behind — verify fixtures,
 never read by the running program), and whatever the program's `ship` block names (below): a
 `programs/` folder with one compiled program per island, a `files/` folder for what it reads
-from elsewhere, the compiler and the component library when it compiles at run time.
+from elsewhere, the compiler and the library's source when it compiles at run time.
 Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->114<!--/stat--> KB gzipped** — and that is the figure the
+around **<!--stat:calendar.wireKB-->115<!--/stat--> KB gzipped** — and that is the figure the
 homepage prints, measured on the build its own calendar page ships. The module carries
 everything a page needs and nothing else: the runtime's run path, your program, and the web
 host — the URL and history mirror (`app.location` ↔ the fragment, Back and Forward), island
@@ -30,15 +30,15 @@ for one. Five things keep it small:
   parser, checker, and typechecker never ship.
 - **One backend.** DOM by default, or `--canvas` for the single-`<canvas>` renderer; only the
   chosen one is bundled.
-- **Slim registry.** Only the components the app can actually instantiate are included. If a
-  component appears *nowhere* statically (built by name from loaded data), keep it with a
+- **Slim registry.** Only the classes the app can actually instantiate are included. If a
+  class appears *nowhere* statically (built by name from loaded data), keep it with a
   top-level `use [ Name ]` list, or slimming will drop it.
 - **Coded errors.** Error *prose* is developer text — you read it once while building. A
   production build ships the code instead (see below); the sentences stay in dev.
 
 ## What the program says it needs: `ship`
 
-A build reads the source and collects what it can see: the components the tree names, the
+A build reads the source and collects what it can see: the classes the tree names, the
 data a literal `url` names beside the program, the island programs a literal `program`
 names. What it cannot see, the program states, in one top-level block — each member a fact
 about the program, never a build option:
@@ -59,7 +59,7 @@ ship [
 | `compiler = true` | the program compiles source at run time — live editing, programs typed in | `bundles/declare-compiler.js`, `bundles/compile-worker.js`, `library/` — the distro's layout inside the folder, fetched lazily on the first compile |
 | `inspector = true` | the program answers questions about itself in production | the Inspector as a compiled program, the `__declare` bridge, source positions, error prose. Not the compiler: the Inspector's evaluate strip says so when it needs one |
 
-An included component may carry its own block — a help panel that reads the docs model says
+An included class may carry its own block — a help panel that reads the docs model says
 so where it lives — and the program's merged block is the union. The dev server and the
 static site, which carry every source and a compiler, read none of this.
 
@@ -67,7 +67,7 @@ static site, which carry every source and a compiler, read none of this.
 
 An `AppIsland` mounts another Declare program inside yours — the desktop's windows, a
 player in a panel. The tenant runs in your app's runtime, as its own app, so the build
-carries three things for it: its compiled program, any components it uses that yours
+carries three things for it: its compiled program, any classes it uses that yours
 doesn't, and everything it would carry if it were packaged on its own — its data and
 assets, and whatever its own `ship` block names. `declarec` does both for every island program it can name: a literal
 `program = "player"` is found in the tree; a computed one is in the `ship` block. Names are

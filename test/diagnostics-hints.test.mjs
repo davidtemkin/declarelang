@@ -19,21 +19,21 @@ const says = async (src, needle) => assert.ok((await errText(src)).includes(need
 const silent = async (src, needle) => assert.ok(!(await errText(src)).includes(needle),
   `expected NO ${JSON.stringify(needle)}, got:\n  ${await errText(src)}`);
 
-// ── unknown component: the near-miss must see the auto-includable LIBRARY ────
+// ── unknown class: the near-miss must see the auto-includable LIBRARY ────
 // A misspelled tag never matches the manifest, so it is never pulled and never
 // reaches `schemas`. Before this, `Tex` found `Text` (a runtime schema, always
 // present) and `Buton` found nothing — and every control lives in the library.
-await test("unknown component: a misspelled runtime tag names its fix", async () => {
+await test("unknown class: a misspelled runtime tag names its fix", async () => {
   await says(`App [ Tex [ text = "x" ] ]`, "did you mean 'Text'?");
 });
 
-await test("unknown component: a misspelled LIBRARY tag names its fix", async () => {
+await test("unknown class: a misspelled LIBRARY tag names its fix", async () => {
   await says(`App [ Buton [ label = "x" ] ]`, "did you mean 'Button'?");
   await says(`App [ Slidr [ value = 1 ] ]`, "did you mean 'Slider'?");
   await says(`App [ Checkbo [ ] ]`, "did you mean 'Checkbox'?");
 });
 
-await test("unknown component: a name that is a typo for nothing gets no guess", async () => {
+await test("unknown class: a name that is a typo for nothing gets no guess", async () => {
   await silent(`App [ Zork [ ] ]`, "did you mean");
   await silent(`App [ Widget [ ] ]`, "did you mean");
 });
@@ -313,7 +313,7 @@ await test("4005 for an authored union names ONLY the quoted spelling — there 
     App [ width=1, height=1, busy: boolean = false, f: Fetcher [ phase = { app.busy ? loading : idle } ] ]`, { originDir: process.cwd() });
   const e = r.errors.find((x) => x.code === "DECLARE4005");
   assert.ok(e, "4005 fires on the bare token in a body");
-  assert.match(e.message, /written in quotes, in a slot as in \{ \}: "loading"/);
+  assert.match(e.message, /written in quotes, as a bare value as in \{ \}: "loading"/);
   assert.doesNotMatch(e.message, /phase = loading/, "must not recommend the bare slot spelling the ruling forbids");
   // the built-in message is unchanged (the diagnostic's own documented case —
   // NOT axis, whose tokens x/y are also every View's attribute names and so
@@ -321,7 +321,7 @@ await test("4005 for an authored union names ONLY the quoted spelling — there 
   const b = await compile(`App [ width=1, height=1, strong: boolean = true, t: Text [ text = "a", fontWeight = { app.strong ? semibold : regular } ] ]`, { originDir: process.cwd() });
   const be = b.errors.find((x) => x.code === "DECLARE4005");
   assert.ok(be, "4005 fires for a built-in too");
-  assert.match(be.message, /bare only as the whole slot \(fontWeight = semibold\)/);
+  assert.match(be.message, /bare only as the whole value \(fontWeight = semibold\)/);
 });
 
 await test("a class named like a whitelisted rich-text tag warns ONCE, and only where there is rich text", async () => {

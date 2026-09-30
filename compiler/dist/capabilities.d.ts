@@ -149,7 +149,7 @@ interface ProgramLike {
     }>;
 }
 /** ONE walk over the program — its tree, its classes, every `{ }` body. */
-export declare function programFacts(program: ProgramLike, usedComponents: Iterable<string>): ProgramFacts;
+export declare function programFacts(program: ProgramLike, usedClasses: Iterable<string>): ProgramFacts;
 /** The capabilities a program needs, closed over `requires`, each with why. */
 export declare function neededCapabilities(f: ProgramFacts, b: BuildContext, manifest?: readonly Capability[]): Map<string, string>;
 /** A module's exports, read with TypeScript's parser from its built JavaScript. */

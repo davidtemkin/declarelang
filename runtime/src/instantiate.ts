@@ -55,14 +55,14 @@ import { AnimatorGroup } from "./animator-group.js";
 import { Spring } from "./spring.js";
 import { State, type Override } from "./state.js";
 import { Constraint } from "./reactive.js";
-import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED, type ComponentSchema } from "./schema.js";
+import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED, type ClassSchema } from "./schema.js";
 // The validators (check.js) and the schema half (program-schema.js) import
 // separately ON PURPOSE: a precompiled program was fully checked at build
 // time, so a production bundle substitutes check.js with a stub
 // (tools/declarec.mjs) and runs entirely on the trusted paths below — the
 // schema half is all it needs. The dev path takes the same code with
 // `trusted` false and validates every step, exactly as before.
-import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkComponentValue as checkComponentValueAboard, type CheckedAttr } from "./check.js";
+import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkClassValue as checkClassValueAboard, type CheckedAttr } from "./check.js";
 
 // THE CHECKER SEAM. A trusted program (compiler-checked and stamped) never
 // reaches these; an UNTRUSTED element does — the Inspector's live `Tag [ … ]`
@@ -76,13 +76,13 @@ import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkCo
 export interface Checker {
   checkAttr: typeof checkAttrAboard;
   checkMethod: typeof checkMethodAboard;
-  checkComponentValue: typeof checkComponentValueAboard;
+  checkClassValue: typeof checkClassValueAboard;
 }
-let CHECKER: Checker = { checkAttr: checkAttrAboard, checkMethod: checkMethodAboard, checkComponentValue: checkComponentValueAboard };
+let CHECKER: Checker = { checkAttr: checkAttrAboard, checkMethod: checkMethodAboard, checkClassValue: checkClassValueAboard };
 export function provideChecker(c: Checker): void { CHECKER = c; }
 const checkAttr: typeof checkAttrAboard = (schema, attr) => CHECKER.checkAttr(schema, attr);
 const checkMethod: typeof checkMethodAboard = (eff, m) => CHECKER.checkMethod(eff, m);
-const checkComponentValue: typeof checkComponentValueAboard = (...a) => CHECKER.checkComponentValue(...a);
+const checkClassValue: typeof checkClassValueAboard = (...a) => CHECKER.checkClassValue(...a);
 import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, provisionValue, type ClassInfo } from "./program-schema.js";
 import { fontObjectHint } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
@@ -94,6 +94,7 @@ import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provide
 import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator, type VirtualizePolicy } from "./replicate.js";
+import { classOfFor, KindedReplicator } from "./class-for.js";
 import { staticSegs, type PathSeg } from "./path-plan.js";
 import { provideViewCreator, provideInlineViewHost } from "./view.js";
 import { toCursor, type Dataset } from "./data.js";
@@ -149,7 +150,7 @@ interface Ctx {
   /** Layout classes by name (built-in bases + synthesized user layouts) — the
    *  layout-side twin of `tags`, since a strategy is never a tree tag. */
   layoutCtors: Record<string, abstract new () => Layout>;
-  schemas: Record<string, ComponentSchema>;
+  schemas: Record<string, ClassSchema>;
   classes: Map<string, UserClass>;
   bundles: Map<string, Element>;
   /** Theme records by name — the built-in presets plus any `theme Name [ … ]`
@@ -173,7 +174,7 @@ interface Ctx {
  *  through the value vocabulary — validity was the compiler's job); the
  *  untrusted path is checkAttr, validation and all. One result shape, so every
  *  consumer downstream is unchanged. */
-function routeAttr(schema: ComponentSchema, attr: Attr, trusted: boolean): CheckedAttr {
+function routeAttr(schema: ClassSchema, attr: Attr, trusted: boolean): CheckedAttr {
   if (!trusted) return checkAttr(schema, attr);
   const v = attr.value;
   if (v.kind === "path") return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos, plan: v.plan } };
@@ -231,7 +232,7 @@ function resolveProvisionLiteral(attr: Attr, ctx: Ctx): unknown {
 }
 
 /** A pass-two work item: one relationship to install on a built node. The
- *  layout arm builds a strategy and assigns the component-typed slot; the
+ *  layout arm builds a strategy and assigns the class-typed slot; the
  *  replicate arm arms a Replicator — both in pass two because installing
  *  reads the linked tree (like a binding's first evaluation). */
 type ProvisionPending = { view: Node; attr: Attr; provideCode: string; classroot: View | null };
@@ -422,7 +423,7 @@ function installBatch(ordered: readonly Pending[], ctx: Ctx): void {
     else if ("provideCode" in p) provideBind(p.view, p.attr.name, p.provideCode, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
     else if ("layoutEl" in p) {
       if (!ctx.trusted) {
-        const errs = checkComponentValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name!, p.of, p.layoutEl);
+        const errs = checkClassValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name!, p.of, p.layoutEl);
         if (errs.length > 0) throw errs[0];
       }
       // The assignment is the install: the slot's pusher (view.ts) attaches
@@ -574,7 +575,7 @@ function collectBundles(program: Program): Map<string, Element> {
   for (const s of program.styles) {
     const b = s.body;
     if (b.decls.length > 0 || b.methods.length > 0 || b.children.length > 0 || b.raw !== undefined) {
-      throw new DeclareError(`style ${s.name}: a bundle carries attribute sets only — a look, not a component`, s.pos);
+      throw new DeclareError(`style ${s.name}: a bundle carries attribute sets only — a look, not a class`, s.pos);
     }
     bundles.set(s.name, b);
   }
@@ -728,14 +729,14 @@ function synthesize(
  *  same prototype accessors, exactly as if the compiler had named the class. */
 const ANON = new WeakMap<Element, ViewCtor>();
 
-function ctorWithDecls(el: Element, base: ViewCtor, schema: ComponentSchema, isComponent: (n: string) => boolean, isShape: (n: string) => boolean = () => false): ViewCtor {
+function ctorWithDecls(el: Element, base: ViewCtor, schema: ClassSchema, isClassName: (n: string) => boolean, isShape: (n: string) => boolean = () => false): ViewCtor {
   if (el.decls.length === 0) return base;
   let ctor = ANON.get(el);
   if (ctor === undefined) {
     const defaults = (): Record<string, unknown> => {
       const defs: Record<string, unknown> = {};
       for (const d of el.decls) {
-        const r = checkDecl(schema, d, schema.name, isComponent, isShape);
+        const r = checkDecl(schema, d, schema.name, isClassName, isShape);
         if (!r.ok) throw r.error;
         defs[d.name] = r.value;
       }
@@ -797,7 +798,7 @@ function memberSources(el: Element, node: Node, outer: View | null, user: UserCl
  *  node, its parent, and the scope the member was written in. The runtime-
  *  member facts are instantiation-context facts (the checker is runtime-free
  *  by design); the compiler's static twin is runtime-methods.ts. */
-function installMethods(node: Node, sources: readonly MemberSource[], eff: ComponentSchema, ctx: Ctx): void {
+function installMethods(node: Node, sources: readonly MemberSource[], eff: ClassSchema, ctx: Ctx): void {
   const methods = new Map<string, (...args: unknown[]) => unknown>();
   for (const s of sources) {
     const saysSuper = s.el.methods.some((m) => m.body.includes("$base"));
@@ -905,7 +906,7 @@ function landNodeAttr(
   node: Node,
   attr: Attr,
   croot: View | null,
-  eff: ComponentSchema,
+  eff: ClassSchema,
   ctx: Ctx,
   pathRefusal: string
 ): { literal: unknown } | null {
@@ -939,19 +940,19 @@ function landNodeAttr(
  *  schema, gather the member sources, install the methods. What differs per
  *  family — a data node's JSON body, a group's members, a state's overrides —
  *  is that path's own business after this. */
-function beginNode(el: Element, schema: ComponentSchema, outer: View | null, ctx: Ctx): {
-  node: Node; eff: ComponentSchema; sources: MemberSource[];
+function beginNode(el: Element, schema: ClassSchema, outer: View | null, ctx: Ctx): {
+  node: Node; eff: ClassSchema; sources: MemberSource[];
 } {
   if (el.raw !== undefined && !descendsFrom(schema, "Dataset")) {
     throw new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
   }
   const baseCtor = Object.hasOwn(ctx.tags, el.tag) ? ctx.tags[el.tag] : null;
-  if (baseCtor === null) throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
-  const isComponent = (n: string): boolean => ctx.schemas[n] !== undefined;
+  if (baseCtor === null) throw new DeclareError(`unknown class '${el.tag}'`, el.pos);
+  const isClassName = (n: string): boolean => ctx.schemas[n] !== undefined;
   const isShape = (n: string): boolean => ctx.shapes.has(n);
-  const node = new (ctorWithDecls(el, baseCtor, schema, isComponent, isShape))() as unknown as Node;
+  const node = new (ctorWithDecls(el, baseCtor, schema, isClassName, isShape))() as unknown as Node;
   node.classroot = outer;
-  const eff = withDecls(schema, el.decls, isComponent, isShape);
+  const eff = withDecls(schema, el.decls, isClassName, isShape);
   const sources = memberSources(el, node, outer, ctx.classes.get(el.tag));
   installMethods(node, sources, eff, ctx);
   return { node, eff, sources };
@@ -960,11 +961,11 @@ function beginNode(el: Element, schema: ComponentSchema, outer: View | null, ctx
 /** Is this schema a SOURCE — a non-visual member whose handlers are called
  *  from outside the tree (sources.ts: Keys, Focus, Tip; streams.ts: the
  *  transports)? Chain-based, so a program's `class Hot extends Keys` is one. */
-function isSourceSchema(schema: ComponentSchema): boolean {
+function isSourceSchema(schema: ClassSchema): boolean {
   return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tip") || descendsFrom(schema, "Stream");
 }
 
-function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: ComponentSchema | null = null): Node {
+function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: ClassSchema | null = null): Node {
   // Own-key lookups: a tag named `constructor` must not resolve through
   // Object.prototype.
   const baseCtor = Object.hasOwn(ctx.tags, el.tag) ? ctx.tags[el.tag] : null;
@@ -992,7 +993,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   if (schema !== null && descendsFrom(schema, "State")) {
     return constructState(el, schema, outer, ctx, parentSchema);
   }
-  if (baseCtor === null || schema === null) throw new DeclareError(`unknown component '${el.tag}'`, el.pos);
+  if (baseCtor === null || schema === null) throw new DeclareError(`unknown class '${el.tag}'`, el.pos);
   const user = ctx.classes.get(el.tag);
   const view = new (ctorWithDecls(el, baseCtor, schema, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n)))();
   view.classroot = outer;
@@ -1021,7 +1022,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   // class>` run vehicle in RichText.)
   const attrs = mergeAttrs(sources);
 
-  // Component-typed provisions (View.layout): the nearest provider wins across
+  // Class-typed provisions (View.layout): the nearest provider wins across
   // class bodies → use site, in either form — the member `layout: SimpleLayout
   // [ … ]` or the cancelling literal `layout = null` (how a use site turns an
   // inherited arrangement off; the null itself lands through the ordinary
@@ -1033,10 +1034,10 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   let layoutCroot: View = croot;
   for (const s of sources) {
     for (const a of s.el.attrs) {
-      if (attrType(eff, a.name)?.kind === "component") layoutEl = null;
+      if (attrType(eff, a.name)?.kind === "class") layoutEl = null;
     }
     for (const c of s.el.children) {
-      if (c.name !== null && attrType(eff, c.name)?.kind === "component") { layoutEl = c; layoutCroot = s.croot ?? croot; }
+      if (c.name !== null && attrType(eff, c.name)?.kind === "class") { layoutEl = c; layoutCroot = s.croot ?? croot; }
     }
   }
   // Methods first (installMethods: the super rule, the runtime-member guard),
@@ -1159,7 +1160,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
   // precede the claim.
   if (layoutEl !== null) {
     const t = attrType(eff, layoutEl.name!);
-    if (t !== null && t.kind === "component") ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
+    if (t !== null && t.kind === "class") ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
   }
   // Children: the class bodies' (they belong to every instance, scoped to
   // it), then the use site's — concatenated, never merged: tree order is
@@ -1187,10 +1188,17 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Comp
  *  methods with the super rule); only the JSON body is the family's own. A
  *  data node has no children: its structure is its data. Mirrors
  *  checkDataNode for unchecked trees. */
-function constructData(el: Element, schema: ComponentSchema, outer: View | null, ctx: Ctx): Node {
+function constructData(el: Element, schema: ClassSchema, outer: View | null, ctx: Ctx): Node {
   const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+  // Members: a data node holds no views, but non-visual members — a derived
+  // Dataset over its records, a Time — construct under it like any node's.
+  const slot: ChildSlot = { prev: null };
   for (const s of sources) {
-    for (const c of s.el.children) throw new DeclareError(`a data node has no children — its structure is its data`, c.pos);
+    for (const c of s.el.children) {
+      const cs = Object.hasOwn(ctx.schemas, c.tag) ? ctx.schemas[c.tag] : null;
+      if (cs !== null && (descendsFrom(cs, "View") || descendsFrom(cs, "Layout"))) throw new DeclareError(`a data node holds no views — its structure is its data; a non-visual member (a derived Dataset over its records, a Time) is welcome`, c.pos);
+    }
+    appendChildren(s.el, node as unknown as View, s.croot ?? (node as unknown as View), ctx, eff, slot);
   }
   for (const { attr, croot } of mergeAttrs(sources).values()) {
     landNodeAttr(node, attr, croot, eff, ctx, "a data node is where data lives — a :path reads a view's cursor");
@@ -1246,10 +1254,10 @@ function constructData(el: Element, schema: ComponentSchema, outer: View | null,
  *  here mirror checkAnimatorNode so a direct instantiate of an unchecked tree
  *  still fails soundly. `target` defaults to the parent — resolved at start()
  *  (this.parent) — so nothing to wire here. */
-function constructAnimator(el: Element, schema: ComponentSchema, outer: View | null, ctx: Ctx): Node {
+function constructAnimator(el: Element, schema: ClassSchema, outer: View | null, ctx: Ctx): Node {
   const { node, eff, sources } = beginNode(el, schema, outer, ctx);
   for (const s of sources) {
-    for (const c of s.el.children) throw new DeclareError(`an animator drives a slot — it has no children`, c.pos);
+    for (const c of s.el.children) throw new DeclareError(`an animator drives an attribute — it has no children`, c.pos);
   }
   for (const { attr, croot } of mergeAttrs(sources).values()) {
     landNodeAttr(node, attr, croot, eff, ctx, "an animator attribute is a value or a { }, not a data read");
@@ -1263,7 +1271,7 @@ function constructAnimator(el: Element, schema: ComponentSchema, outer: View | n
  *  slot, so none of the animator's target checking applies. Its subscriptions
  *  are wired by initTree's autoStart — the same lifecycle hook an animator uses,
  *  which is also why a source costs nothing for a handler nobody declared. */
-function constructSource(el: Element, schema: ComponentSchema, outer: View | null, ctx: Ctx): Node {
+function constructSource(el: Element, schema: ClassSchema, outer: View | null, ctx: Ctx): Node {
   const { node, eff, sources } = beginNode(el, schema, outer, ctx);
   for (const s of sources) {
     for (const c of s.el.children) {
@@ -1302,7 +1310,7 @@ const CASCADE_ATTRS: ReadonlySet<string> = new Set([
  *  fails soundly. */
 function constructAnimatorGroup(
   el: Element,
-  schema: ComponentSchema,
+  schema: ClassSchema,
   outer: View | null,
   ctx: Ctx,
   inherited: Record<string, unknown> = {}
@@ -1364,12 +1372,12 @@ function constructAnimatorGroup(
  *  instantiate of an unchecked tree still fails soundly. */
 function constructState(
   el: Element,
-  schema: ComponentSchema,
+  schema: ClassSchema,
   outer: View | null,
   ctx: Ctx,
-  parentSchema: ComponentSchema | null
+  parentSchema: ClassSchema | null
 ): Node {
-  const { node, eff, sources } = beginNode(el, schema, outer, ctx) as { node: State; eff: ComponentSchema; sources: MemberSource[] };
+  const { node, eff, sources } = beginNode(el, schema, outer, ctx) as { node: State; eff: ClassSchema; sources: MemberSource[] };
   const label = el.name ?? el.tag;
   // Attributes: the state's OWN slots — `applied`, the control (a literal now,
   // a `{ }` gate in pass two), and any attribute its class declares — land on
@@ -1386,7 +1394,7 @@ function constructState(
       continue;
     }
     if (parentSchema === null) {
-      throw new DeclareError(`a ${el.tag} overrides its enclosing view's slots, but '${a.name}' has no view to target here`, a.value.pos);
+      throw new DeclareError(`a ${el.tag} overrides its enclosing view's attributes, but '${a.name}' has no view to target here`, a.value.pos);
     }
     const r = routeAttr(parentSchema, a, ctx.trusted);
     if (!r.ok) throw r.error;
@@ -1402,7 +1410,7 @@ function constructState(
     } else if ("datapath" in r) {
       throw new DeclareError(`${el.tag}.${slot}: a state override is a value or a { }, not a data read`, a.value.pos);
     } else if ("provision" in r) {
-      throw new DeclareError(`${el.tag}.${slot}: a state override sets a declared slot of the view, not a provided value`, a.value.pos);
+      throw new DeclareError(`${el.tag}.${slot}: a state override sets a declared attribute of the view, not a provided value`, a.value.pos);
     } else {
       const value = r.value;
       overrides.push({
@@ -1420,7 +1428,7 @@ function constructState(
   return node;
 }
 
-/** Build a layout strategy from its element (checkComponentValue has just
+/** Build a layout strategy from its element (checkClassValue has just
  *  validated it): construct the class, land the literal attributes through
  *  its reactive setters — axis and spacing get the full attribute lifecycle,
  *  which is what makes `strategy.spacing = 12` a live re-flow later. */
@@ -1502,13 +1510,13 @@ interface ChildSlot {
 /** Construct and link `from`'s child elements under `parentView`. A named
  *  child becomes a real member of its parent (language §4: reachable as
  *  `bg` / `this.bg`) — a plain property, structure like the tree itself.
- *  A member whose name is a component-typed attribute (`layout:`) is that
+ *  A member whose name is a class-typed attribute (`layout:`) is that
  *  attribute's VALUE, not a child — construct() consumed it above. A child
  *  whose datapath matches many (R8) is a TEMPLATE: it never constructs
  *  here — the parent gets a Replicator holding this pipeline as a value. */
-function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, eff: ComponentSchema, slot: ChildSlot): void {
+function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, eff: ClassSchema, slot: ChildSlot): void {
   for (const childEl of from.children) {
-    if (childEl.name !== null && attrType(eff, childEl.name)?.kind === "component") continue;
+    if (childEl.name !== null && attrType(eff, childEl.name)?.kind === "class") continue;
     const many = manyPathOf(childEl, ctx.schemas);
     if (many !== null && many.value.kind === "path") {
       if (childEl.name !== null) {
@@ -1541,8 +1549,12 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
           policy = wv.kind === "value" ? wv.value === true : wv.name === "true";   // a compiled program carries the value
         }
       }
-      const replicator = new Replicator(parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath,
-        (many.value as { plan?: readonly PathSeg[] }).plan ?? null, policy);
+      // `classFor = { … }` — a class per record (class-for.ts, its own
+      // capability: reached only when the program writes it).
+      const classOf = childEl.attrs.some((a) => a.name === "classFor") ? classOfFor(childEl, parentView, croot) : null;
+      const args = [parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath,
+        (many.value as { plan?: readonly PathSeg[] }).plan ?? null, policy] as const;
+      const replicator = classOf === null ? new Replicator(...args) : new KindedReplicator(classOf, ...args);
       ctx.pending.push({ replicator });
       slot.prev = replicator;
       continue;
@@ -1556,7 +1568,7 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
     if (childEl.name !== null) {
       if (childEl.name in parentView) {
         // The BACKSTOP. The checker refuses this in the source — both the
-        // runtime's own surface and a member the component declares, the
+        // runtime's own surface and a member the class declares, the
         // second with the attribute door named — so what reaches here is a
         // path that skipped the checker (a direct instantiate).
         throw new DeclareError(
@@ -1587,7 +1599,7 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
   }
   if (!Object.hasOwn(ctx.tags, tag)) {
     const hint = tag in TAGS ? "" : diag` — declare the class, include its library, or keep it with 'use [ ${tag} ]'`;
-    throw new DeclareError(`createView: no component named '${tag}'${hint}`);
+    throw new DeclareError(`createView: no class named '${tag}'${hint}`);
   }
   const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } } as unknown as Element;
   const made = materializer(ctx)(el, parent);

@@ -53,7 +53,7 @@ onClick() { count = count + 1 }
 describe the whole UI as a function of state, run it again on every change, and let a
 diff find what moved. Declare never runs your tree again. The compiler reads each `{ }`
 body — *through* the methods it calls — and extracts its dependencies statically, so the
-runtime knows which cells feed which expressions before the program starts and
+runtime knows which values feed which expressions before the program starts and
 re-evaluates exactly those. That is why there is no `useMemo`, no dependency array, no
 `React.memo`, and no "why did this re-render": nothing re-renders, so nothing has to be
 prevented from re-rendering.
@@ -69,7 +69,7 @@ for, which is a narrower job than React context usually ends up doing.
 | your reflex | the Declare answer |
 |---|---|
 | `<div>` | [`View [ … ]`](declare-docs:View) — a box with a `fill`, or nothing at all |
-| a stylesheet rule, a class name | none: every visual value is an attribute on the view it affects. A repeated look is a **class** in the component sense — subclass `View` and set the attributes once |
+| a stylesheet rule, a class name | none: every visual value is an attribute on the view it affects. A repeated look is a **class** in Declare's sense — subclass `View` and set the attributes once |
 | a CSS custom property | a `theme` token, read with `provided("theme").accent` |
 | `display: flex` | `layout: SimpleLayout [ axis = x, spacing = 12 ]` |
 | `flex-wrap` | [`WrappingLayout`](declare-docs:WrappingLayout) |
@@ -86,7 +86,7 @@ for, which is a narrower job than React context usually ends up doing.
 | `overflow: auto` | `scrolls = y` (an [`App`](declare-docs:App) already scrolls `y`) |
 | `border` | `stroke(width, color)` — drawn **inside** the box, so it never changes the layout rectangle |
 | `border-radius`, `box-shadow` | `cornerRadius`, `shadow(dx, dy, blur, color)` |
-| a card/button from a CSS framework | the library's own components, and [`Card`](declare-docs:Card) for the card case |
+| a card/button from a CSS framework | the library's own classes, and [`Card`](declare-docs:Card) for the card case |
 
 ```declare-fragment
 row: View [ width = 100%, height = 44, fill = { hovered ? 0xEEF2F6 : null },
@@ -106,7 +106,7 @@ is the thing you opt into; here it is exactly the other way round. A view with n
 places its children at their own `x`/`y` — that is the base case, and it is right for a
 diagram, an overlay, a badge on a corner. Arranging is a *job*, done by a [`Layout`](declare-docs:Layout) you
 attach to the container. So the CSS instinct "wrap it in a flex container and let the
-box model sort it out" becomes "give the container a layout, and let it own the slots" —
+box model sort it out" becomes "give the container a layout, and let it own the placing" —
 and a child that must stay put inside one says `ignoreLayout = true`.
 → [Size, position and layout](declare-docs:guide:layout)
 
@@ -124,10 +124,10 @@ and a child that must stay put inside one says `ignoreLayout = true`.
 | `onAppear` / `onDisappear` | `onReady` (App, first settle), `onRetire` (a view's presence ending) |
 | `VStack` / `HStack` | `layout: SimpleLayout [ axis = y ]` / `[ axis = x ]`, with `spacing` and `align` |
 | `Spacer()` | [`Spacer [ ]`](declare-docs:Spacer) — same idea, same name |
-| `.padding(16)` | `padding = 16` on the view — a slot, not a wrapper, so there is no before-or-after-`.background()` to get right: the fill covers the inset either way |
+| `.padding(16)` | `padding = 16` on the view — an attribute, not a wrapper, so there is no before-or-after-`.background()` to get right: the fill covers the inset either way |
 | `.frame(maxWidth: .infinity)` | `width = 100%` — the parent's content box, so inside a padded parent it already stops at the inset |
 | size classes, `GeometryReader` | read the geometry directly (`parent.width`, [`contentHeight`](declare-docs:View.contentHeight)) — it is always available, no reader view required; `ResponsiveLayout` for whole arrangement changes |
-| `withAnimation`, `.animation(…)` | `Spring` on the slot that moves; one spring per motion, with everything else constrained to its value |
+| `withAnimation`, `.animation(…)` | `Spring` on the attribute that moves; one spring per motion, with everything else constrained to its value |
 | a chain of `.foregroundColor(…).background(…)` | the attributes themselves: [`textColor`](declare-docs:Text.textColor), `fill`, `cornerRadius`, `stroke`, `shadow` |
 
 ```declare-fragment
@@ -138,7 +138,7 @@ card: View [ width = 220, cornerRadius = 8, fill = #FFFFFF, shadow = shadow(0, 1
 ```
 
 **The structural difference: attributes, not modifier chains.** A view's configuration is
-a set of named slots, not a pipeline — so there is no order to get right, no wondering
+a set of named attributes, not a pipeline — so there is no order to get right, no wondering
 whether `.padding()` goes before or after `.background()`, and no wrapper view
 materializing between the one you wrote and the one you meant. Everything you set stays
 visible in the header line of the thing it describes.
@@ -150,7 +150,7 @@ case into `GeometryReader` arithmetic. Here `layout` is a reactive attribute hol
 `ResponsiveLayout`, and when an arrangement is genuinely yours you subclass `Layout` and
 override `place()` — the same seam every library layout is built on. Reaching for a
 `Layout` subclass is normal practice, not an escape hatch.
-→ [Custom components and drawing](declare-docs:guide:custom-components)
+→ [Your own views and drawing](declare-docs:guide:your-own-views)
 
 ## Jetpack Compose
 
@@ -160,7 +160,7 @@ override `place()` — the same seam every library layout is built on. Reaching 
 | `derivedStateOf` | a `{ }` constraint: `total = { count * price }` |
 | `rememberSaveable` | no equivalent: there is no state-restoration mechanism, and a value that must outlive the process is yours to store |
 | `CompositionLocal`, `CompositionLocalProvider` | `provided("name")` — and *providing* is holding the value on an ancestor, not wrapping the subtree in anything |
-| `Modifier.padding(16.dp)` | `padding = 16` on the view — one slot, so a padding "before" and a padding "after" `background` are the same thing: the fill is always the full box |
+| `Modifier.padding(16.dp)` | `padding = 16` on the view — one attribute, so a padding "before" and a padding "after" `background` are the same thing: the fill is always the full box |
 | `Modifier.fillMaxWidth()` | `width = 100%` — the parent's content box, the inset already taken off |
 | `Column` / `Row` | `layout: SimpleLayout [ axis = y ]` / `[ axis = x ]` on the container |
 | `Box` | a plain `View` — children at their own `x`/`y` is the base case, with no layout attached |
@@ -174,7 +174,7 @@ override `place()` — the same seam every library layout is built on. Reaching 
 | `LaunchedEffect(key)` | usually a constraint. `onReady` for the first settle; `onChange` with `trackChanges = [ … ]` when a change is genuinely an event the program must act on |
 | `DisposableEffect` | `onRetire` |
 | `MaterialTheme`, `MaterialTheme.colorScheme` | `theme Name [ … ]` set on an ancestor, read anywhere below with `provided("theme")` |
-| `Modifier.background(…)`, `.clip(…)` | `fill`, `cornerRadius`, [`clip`](declare-docs:View.clip) — named slots on the view, set in any order |
+| `Modifier.background(…)`, `.clip(…)` | `fill`, `cornerRadius`, [`clip`](declare-docs:View.clip) — named attributes on the view, set in any order |
 | `BoxWithConstraints` | `parent.width` and friends, read directly in any `{ }` |
 | recomposition, `@Stable`, `@Immutable`, skipping | there is none — no recomposition scope, no stability to annotate, and nothing to skip |
 
@@ -190,14 +190,14 @@ panel: View [ width = 100%, fill = { provided("theme").surface },
 composable function, re-invoked when the state it read changes, with the runtime skipping
 subtrees whose inputs it can prove stable. Declare's unit is the **attribute**. The
 compiler extracts each `{ }` body's dependencies statically — through the methods it
-calls — so the runtime re-evaluates one slot, not a function body, and never calls your
+calls — so the runtime re-evaluates one attribute, not a function body, and never calls your
 tree again. That removes the whole apparatus around recomposition: no `remember` to keep
 a value across invocations (nothing is re-invoked), no positional memoization to reason
 about, no stability annotations, no "why did this recompose".
 
 The second difference is that `Modifier` has no counterpart. A chain is a pipeline, so its
 order is semantic and a padding before a background means something different from a
-padding after it; here `padding`, `fill` and `cornerRadius` are named slots on the view,
+padding after it; here `padding`, `fill` and `cornerRadius` are named attributes on the view,
 and setting them has no order at all. What a shared `Modifier` is for — one look, applied
 in many places — is a subclass that sets those attributes once, or a `theme` token that
 several views read. → [Paint and themes](declare-docs:guide:paint-and-themes)
@@ -206,12 +206,12 @@ several views read. → [Paint and themes](declare-docs:guide:paint-and-themes)
 
 | your reflex | the Declare answer |
 |---|---|
-| `let count = 0` and assignment, or `$state(0)` | a declared attribute: `count: number = 0`. Every attribute is a reactive slot already, so there is no rune to opt a value into and no distinction between a plain local and a reactive one |
+| `let count = 0` and assignment, or `$state(0)` | a declared attribute: `count: number = 0`. Every attribute is reactive already, so there is no rune to opt a value into and no distinction between a plain local and a reactive one |
 | `$derived(…)`, or a `$:` reactive assignment | a `{ }` constraint: `total = { count * price }` |
 | `$:` as a *statement* | usually nothing at all — see below |
 | `$effect` | `onChange` with `trackChanges = [ … ]` when a change is an event the program must act on; `afterSettle(…)` when the work is irreducibly a reading of new geometry |
 | `$props()`, `export let` | the attributes the class declares; the instance site sets them by name |
-| `bind:this`, a component reference | the child's own name — there are no refs. A slot typed by a component class (`panel: Menu = null`) holds an instance |
+| `bind:this`, a component reference | the child's own name — there are no refs. An attribute typed by a class (`panel: Menu = null`) holds an instance |
 | a `writable` store, `$store` | an attribute on the `App` or any common ancestor, read by its path (`app.count`); a [`Dataset`](declare-docs:Dataset) when the shared thing is a JSON collection |
 | `setContext` / `getContext` | `provided("name")` |
 | `{#each items as item (item.id)}` | `datapath = :items[]` on the node — one instance per record, keyed by `id`, or `key = :field` |
@@ -222,7 +222,7 @@ several views read. → [Paint and themes](declare-docs:guide:paint-and-themes)
 | `transition:fade`, `in:` / `out:` | a `Spring` on `opacity` — the view persists rather than being removed, so there is no outro to coordinate; `Animator` for a timed run, `State` for a bundle of overrides that snaps on and off together |
 | `class:` and `style:` directives | the attributes themselves — `fill`, `textColor`, `cornerRadius`, `opacity` |
 | `use:action` | no equivalent: there is no element to attach to, and `{ }` bodies never touch the DOM. [`DOMIsland`](declare-docs:DOMIsland) is the door when foreign content is genuinely the point |
-| a snippet, `<slot>` | children written inside the instance's own `[ ]`; a component-typed attribute when a subtree is handed over by name |
+| a snippet, `<slot>` | children written inside the instance's own `[ ]`; a class-typed attribute when a subtree is handed over by name |
 | `<svelte:window bind:innerWidth>` | `app.width`, read directly |
 
 ```declare-fragment
@@ -236,10 +236,10 @@ DOM — and it is the reason this is the shortest jump on the list. What differs
 output. Svelte's compiler works out which nodes a variable touches and emits imperative
 statements that poke them; the dependency knowledge is spent at build time and is gone by
 the time the program runs. Declare's compiler extracts, from each `{ }` body and *through*
-the methods it calls, the set of cells it reads, and hands that graph to the runtime as
+the methods it calls, the set of values it reads, and hands that graph to the runtime as
 data the running program holds.
 
-That is what makes a running Declare program answerable. Ask it why a slot holds its
+That is what makes a running Declare program answerable. Ask it why an attribute holds its
 value and it tells you — `__declare.explain("app.dock.calendar", "width")` returns the
 expression, every read-path it was wired to, and their live values — because the wiring is
 still there to inspect rather than having been compiled away into assignments. The
@@ -251,7 +251,7 @@ value, not a statement.** `$:` is a block that *runs*, in an order, possibly mor
 once, possibly with side effects; `width = { parent.width - 40 }` says what `width`
 equals, for the life of the program. So there is no execution order to hold in your head,
 no question of what else a re-run touched, and exactly one answer to "who set this" — a
-set slot owns its cell, and a direct assignment to it is refused rather than quietly
+set attribute is owned by its constraint, and a direct assignment to it is refused rather than quietly
 winning. → [Constraints](declare-docs:guide:constraints)
 
 ## Vue
@@ -275,12 +275,12 @@ winning. → [Constraints](declare-docs:guide:constraints)
 
 **The structural difference: there is no template/script/style split.** One file, one
 tree, two brackets — `[ ]` holds structure, `{ }` holds a TypeScript expression — and a
-component's markup, its state, its methods and its look are all members of the same class
+class's markup, its state, its methods and its look are all members of the same class
 body. There is also no directive vocabulary to learn: `v-if`, `v-for` and `v-model` are
 not special syntax here, they are ordinary attributes ([`visible`](declare-docs:View.visible), [`datapath`](declare-docs:Node.datapath)) and one
 operator (`<->`).
 
-And reactivity is not a wrapper you opt a value into. Every attribute is a reactive slot
+And reactivity is not a wrapper you opt a value into. Every attribute is reactive
 already, so "did I forget to make this reactive?" is not a question the language lets you
 ask. → [Notation](declare-docs:guide:notation)
 
@@ -289,10 +289,10 @@ ask. → [Notation](declare-docs:guide:notation)
 | your reflex | the Declare answer |
 |---|---|
 | `StatefulWidget` + `setState` | a declared attribute and a plain assignment in a handler: `onClick() { count = count + 1 }` |
-| `StatelessWidget` | there is no distinction — every component is a `class`, and holding state costs nothing |
+| `StatelessWidget` | there is no distinction — every view's kind is a `class`, and holding state costs nothing |
 | a `build()` method | there is none: the tree is written once, in `[ ]`, and its values change |
 | `ValueListenableBuilder`, a derived value | a `{ }` constraint |
-| `TextEditingController` | `text <-> :path`, or the editor's own value slot with an `input` override |
+| `TextEditingController` | `text <-> :path`, or the editor's own value with an `input` override |
 | `InheritedWidget`, Provider | `provided("name")` |
 | `ListView.builder` | `datapath = :items[]`, plus `virtualize` when the collection is large |
 | `Visibility` / a conditional in `build` | `visible = { … }` |
@@ -313,7 +313,7 @@ Flutter is usually one `View` here with five attributes set on it.
 
 It also removes `const` constructors, keys-for-performance, and the question of where to
 put a rebuild boundary. Identity is structural: a written child is that child for the life
-of the program, and a replicated one is identified by its record. → [Components and the tree](declare-docs:guide:components)
+of the program, and a replicated one is identified by its record. → [Classes and the tree](declare-docs:guide:classes)
 
 The sharpest contrast is the layout model itself. Flutter sizes a tree in one pass —
 constraints down, sizes up, parent positions — so a child cannot see the width it is
@@ -340,7 +340,7 @@ direction, and the runtime settles the arithmetic. Sizing to content is a constr
 | `signal` + `onClicked`, `Connections` | the view's own events, answered by `on…` methods. There are no custom signals and nothing bubbles: a child tells its owner by calling a method |
 | a context property, a QML singleton | `provided("name")`, or an attribute on the `App` |
 | `Loader` | usually a `visible` constraint on a subtree that is already written. [`createView(…)`](declare-docs:View.method.createView) with `use [ Name ]` when structure genuinely has to be built at runtime |
-| `Qt.binding(…)` to restore a broken binding | nothing to restore: a set slot owns its cell for the life of the program, and a direct assignment to it is refused rather than silently replacing the binding |
+| `Qt.binding(…)` to restore a broken binding | nothing to restore: a set attribute is owned by its constraint for the life of the program, and a direct assignment to it is refused rather than silently replacing the binding |
 
 **What is the same:** a dedicated language for a tree of objects, each with named
 properties; a value written as an expression over other properties and kept true; states
@@ -365,7 +365,7 @@ what the language is for.
 
 | the reflex | what it was for | the Declare form |
 |---|---|---|
-| state as a pile of variables on the root | somewhere to keep it | records in a **dataset**, other state in a **model class** ([Data](declare-docs:guide:data)) |
+| state as a pile of variables on the root | somewhere to keep it | records in a **dataset** where their scope is, a document's logic on the document, machinery in a class that extends **`Node`** ([Data](declare-docs:guide:data)) |
 | a loop that creates views | a list | a path that matches many: `Row [ datapath = :items[] ]` |
 | hand-set `x`/`y` for a row or a column | arrangement | a **layout** ([Size, position and layout](declare-docs:guide:layout)) |
 | a clickable plain view as a button | a command | a library control, or a class extending `Control` ([Controls](declare-docs:guide:controls)) |
@@ -392,7 +392,7 @@ that instead:
 | refresh or poll a server on a schedule | a period | `Time [ tick = 30000 ]` with `onTick` calling the source's [`fetch()`](declare-docs:DataSource.method.fetch) |
 | debounce input, dismiss a notice later | a timing rule | `afterDelay(ms, fn)` — owned by its node, cancelled with it ([Time and change events](declare-docs:guide:time)) |
 
-## When the phrasebook runs out
+## Beyond the tables
 
 These tables are deliberately shallow. They exist to get you from "I know what I want" to
 "I know what it is called", and no further — every row has a chapter behind it, and the

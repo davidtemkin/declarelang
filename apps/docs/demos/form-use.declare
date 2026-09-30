@@ -4,7 +4,7 @@
 
 use [ Badge ]
 
-class Badge extends View [ width = 24, height = 24, cornerRadius = 12, fill = 0xC93B47 ]
+class Badge [ width = 24, height = 24, cornerRadius = 12, fill = 0xC93B47 ]
 
 App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
     made: number = 0,

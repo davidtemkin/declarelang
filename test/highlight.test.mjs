@@ -57,7 +57,7 @@ test("Uppercase idents are types; attribute names (before =) are attrs", () => {
 });
 
 test("strings, numbers, hex colors, datapaths, keywords each get a role", () => {
-  const segs = highlight('class Box [ readonly n = 42, tint = #ff0, label = "hi", at = :rec.name ]');
+  const segs = highlight('class Box extends Node [ readonly n = 42, tint = #ff0, label = "hi", at = :rec.name ]');
   const r = new Set(roles(segs[0].html));
   for (const want of ["t", "a", "n", "h", "s", "p", "k"]) assert.ok(r.has(want), "missing role " + want + " in " + [...r]);
 });

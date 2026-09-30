@@ -37,7 +37,7 @@
 // keyword-free inside `[ ]`. The one deliberate ambiguity: `name: Type`
 // *without* brackets is always an attribute declaration; a named child needs
 // its `[ ]` (even empty). The parser stays pure syntax — whether `Type` names
-// a value type or a component is the checker's question, and this rule keeps
+// a value type or a class is the checker's question, and this rule keeps
 // it out of the grammar (recorded in HANDOFF §R6).
 //
 // A `{ }` value is captured as raw source (language §3: "when you see `{`,
@@ -52,7 +52,7 @@
 import { DeclareError, DeclareErrors } from "./errors.js";
 import { Diag } from "./diagnostics.js";
 /** Two ship declarations as one — lists unioned, facts OR-ed. A program may
- *  state its block before or after the root, and each included component may
+ *  state its block before or after the root, and each included class may
  *  bring its own. */
 export function mergeShip(a, b) {
     if (a === undefined)
@@ -216,7 +216,7 @@ function tokenize(src) {
             tokens.push({ kind: "bindtwo", text: "<->", pos: start });
             continue;
         }
-        // `<-` is NO LONGER LANGUAGE (subscriptions became components, 2026-07-26).
+        // `<-` is NO LONGER LANGUAGE (subscriptions became classes, 2026-07-26).
         // It is still LEXED so the parser can answer a program written against the
         // old form with the rewrite instead of a bare syntax error — the diagnostics
         // rule (name the fix) applied to a removed feature.
@@ -405,16 +405,6 @@ class Parser {
         }
         return this.tokens[this.i++];
     }
-    /** `'class' Name ('extends' Base)? '[' members ']'` — `extends` is a
-     *  contextual ident; the caller has already seen `class` + a name.
-     *
-     *  The base is OPTIONAL, and its omission is not a shorthand — it is the
-     *  uniform rule made visible: a class you declare is a Node, and the ones
-     *  that say `extends View` are the visible ones. A class with no base IS a
-     *  Node — the plain object-graph atom: a non-visual controller / service /
-     *  coordinator (reactive state + methods). So the ordinary case a newcomer
-     *  reaches for reads as a plain class, with no ceremony that presupposes the
-     *  graph; the graph is learned later, when reaching one from a view. */
     /** Read a type reference and return it AS WRITTEN. Two shapes (language §4):
      *  a name (`number`, `Menu`, either optionally `?`-marked), or a FUNCTION type
      *  `(params) -> Ret` — the type a method IS ("a method is a named field of
@@ -513,15 +503,19 @@ class Parser {
         }
         return { text, pos: name.pos };
     }
+    /** `'class' Name ['extends' Base] '[' members ']'` — `extends` is a contextual
+     *  ident. A class with no base is a View, the common case; any other base
+     *  is named: `extends Node` for a class with no view, `extends Dataset` for a
+     *  document, or any class of the program or the library. */
     parseClass() {
         const kw = this.expect("ident", "'class'");
         const name = this.expect("ident", "the class's name");
-        let base = "Node";
+        let base = "View";
         let basePos = name.pos;
         const ext = this.peek();
         if (ext.kind === "ident" && ext.text === "extends") {
             this.next();
-            const b = this.expect("ident", "the base component's name");
+            const b = this.expect("ident", "the base class's name");
             base = b.text;
             basePos = b.pos;
         }
@@ -535,7 +529,7 @@ class Parser {
         return { name: name.text, base, basePos, body, pos: kw.pos };
     }
     parseElement() {
-        const tag = this.expect("ident", "a component name");
+        const tag = this.expect("ident", "a class name");
         const el = { tag: tag.text, name: null, attrs: [], decls: [], methods: [], children: [], pos: tag.pos };
         if (this.peek().kind === "lbracket") {
             this.next();
@@ -612,7 +606,7 @@ class Parser {
                 // `name: Type …` — a declaration (R6): with `[ ]` it is a named child
                 // instance; without, an attribute declaration (optionally defaulted).
                 // See the header note on this rule — the parser never asks whether
-                // `Type` names a component or a value type.
+                // `Type` names a class or a value type.
                 this.next();
                 if (this.peek().kind === "lbracket") {
                     // `Button: [ … ]` — a class-keyed ENTRY; the checker refuses it
@@ -628,7 +622,7 @@ class Parser {
                     }
                     break;
                 }
-                const type = this.parseTypeRef("a type or component name");
+                const type = this.parseTypeRef("a type or class name");
                 if (this.peek().kind === "lbracket") {
                     if (readOnly) {
                         throw new DeclareError(`readonly marks an attribute declaration — a child instance cannot carry it`, declPos);
@@ -702,7 +696,7 @@ class Parser {
                                 ptype = tr.text;
                         }
                         else
-                            this.errors.push(new DeclareError(`'${pname}:' needs a type name — write '${pname}: number' (a primitive or a component class), or drop the ':' for an untyped parameter`, this.peek().pos));
+                            this.errors.push(new DeclareError(`'${pname}:' needs a type name — write '${pname}: number' (a primitive or a class), or drop the ':' for an untyped parameter`, this.peek().pos));
                     }
                     params.push(ptype === undefined ? { name: pname }
                         : pnullable ? { name: pname, type: ptype, typePos: ptypePos, nullable: true }
@@ -732,7 +726,7 @@ class Parser {
                         this.errors.push(new DeclareError(`'${marker.text}' needs a return type name — write '${name.text}(…) -> number { … }', or drop the '${marker.text}' for a method that returns nothing`, this.peek().pos));
                 }
                 // The removed subscription form: `member(params) <- Source { body }`.
-                // A service is an ordinary component member now, so name that rewrite
+                // A service is an ordinary class member now, so name that rewrite
                 // with the author's own source and member filled in.
                 if (this.peek().kind === "subfrom") {
                     const arrow = this.peek();
@@ -741,7 +735,7 @@ class Parser {
                     // Echo the signature back AS WRITTEN — `params` carries types now, so
                     // a bare join would print "[object Object]" into the author's face.
                     const sig = params.map((prm) => (prm.type === undefined ? prm.name : `${prm.name}: ${prm.type}`)).join(", ");
-                    throw new DeclareError(`'<-' is not a Declare operator — a runtime service is a component member: write '${src} [ ${name.text}(${sig}) { … } ]' as a child, in place of '${name.text}(${sig}) <- ${src} { … }'`, arrow.pos);
+                    throw new DeclareError(`'<-' is not a Declare operator — a runtime service is a class member: write '${src} [ ${name.text}(${sig}) { … } ]' as a child, in place of '${name.text}(${sig}) <- ${src} { … }'`, arrow.pos);
                 }
                 const body = this.peek();
                 if (body.kind !== "code") {
@@ -1038,7 +1032,7 @@ class Parser {
     }
     atClass() {
         // Contextual: `class` followed by another identifier opens a class
-        // declaration; a bare component happens never to be named `class` in
+        // declaration; a bare class happens never to be named `class` in
         // practice, and `class [ … ]` would still parse as one.
         const t = this.tokens[this.i];
         const u = this.tokens[this.i + 1];
@@ -1046,7 +1040,7 @@ class Parser {
     }
     /** At a `schema Name [ … ]` top-level declaration (typed data) — the same
      *  contextual-keyword rule as atClass; the `[` disambiguates from a
-     *  component that happens to be named `schema`. */
+     *  class that happens to be named `schema`. */
     atSchemaDecl() {
         const t = this.tokens[this.i];
         const u = this.tokens[this.i + 1];
@@ -1084,7 +1078,7 @@ class Parser {
     }
     /** At a `script { … }` block — contextual, like every other top-level
      *  keyword: the ident `script` followed by a `{ … }` body. (`script`
-     *  followed by anything else is an ordinary component name.) */
+     *  followed by anything else is an ordinary class name.) */
     atScript() {
         const t = this.tokens[this.i];
         const u = this.tokens[this.i + 1];
@@ -1130,23 +1124,23 @@ class Parser {
     }
     /** At an `include [ … ]` directive (composition.md §1) — contextual: the
      *  ident `include` followed by `[`. (`include` followed by anything else is
-     *  an ordinary component name, exactly as `class`/`theme` are.) */
+     *  an ordinary class name, exactly as `class`/`theme` are.) */
     atInclude() {
         const t = this.tokens[this.i];
         const u = this.tokens[this.i + 1];
         return t.kind === "ident" && t.text === "include" && u.kind === "lbracket";
     }
     /** At a `use [ … ]` directive — the dependency KEEP-LIST (composition.md §1c):
-     *  contextual, the ident `use` followed by `[`. Names components the app may
+     *  contextual, the ident `use` followed by `[`. Names classes the app may
      *  construct by a name static analysis can't see (create-by-string, §8), so the
-     *  build keeps them. `use` followed by anything else is an ordinary component
+     *  build keeps them. `use` followed by anything else is an ordinary class
      *  name, exactly as `include`/`class`/`theme` are. */
     atUse() {
         const t = this.tokens[this.i];
         const u = this.tokens[this.i + 1];
         return t.kind === "ident" && t.text === "use" && u.kind === "lbracket";
     }
-    /** `'use' '[' IDENT ( ',' IDENT )* ','? ']'` — the keep-list: bare component
+    /** `'use' '[' IDENT ( ',' IDENT )* ','? ']'` — the keep-list: bare class
      *  NAMES (not quoted paths — these are types, like a `class` base). A non-ident
      *  entry is a positioned error. Returns the names; the used-set folds them in. */
     parseUseDirective() {
@@ -1156,7 +1150,7 @@ class Parser {
         while (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
             const t = this.peek();
             if (t.kind !== "ident") {
-                throw new DeclareError("a use entry is a component name", t.pos);
+                throw new DeclareError("a use entry is a class name", t.pos);
             }
             this.next();
             names.push(t.text);
@@ -1260,7 +1254,7 @@ class Parser {
         return { name: name.text, body, pos: kw.pos };
     }
 }
-/** Parse a component fragment — one element, no class declarations. The
+/** Parse a class fragment — one element, no class declarations. The
  *  entry tools and tests use for pieces; a whole source goes through
  *  parseProgram (which build()/render() call). */
 export function parse(source) {

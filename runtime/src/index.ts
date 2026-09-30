@@ -1,7 +1,7 @@
 // Declare runtime — public surface for R0–R8.
 //
 // The pipeline: parse the source (classes + root) → typecheck it against the
-// component schemas (reporting every error, not just the first) → instantiate
+// class schemas (reporting every error, not just the first) → instantiate
 // a Node/View tree → attach it to a render backend → root it on the page.
 // `build` stops before rendering (used by tools and tests); `render` runs
 // the whole pipeline. `check` alone is the compiler-facing pass.
@@ -122,7 +122,7 @@ export async function renderAsync(source: string, host: HTMLElement, backend: Re
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export type { IncludeHost } from "./include.js";
-export { check, checkAttr, checkMethod, checkComponentValue } from "./check.js";
+export { check, checkAttr, checkMethod, checkClassValue } from "./check.js";
 export { checkDecl, programSchemas } from "./program-schema.js";
 export { hydrateProgram } from "./hydrate.js";
 export { instantiate } from "./instantiate.js";
@@ -190,7 +190,7 @@ export type { RenderBackend, Surface, Stretch, PointerType, InputSink, EditableS
 export type { LayoutStrategy } from "./view.js";
 export type { DrawOp, DisplayList, Bounds } from "./draw.js";
 export type { FontWeight, TextStyle } from "./measure.js";
-export type { ComponentSchema } from "./schema.js";
+export type { ClassSchema } from "./schema.js";
 export type { ClassInfo } from "./check.js";
 export type { Color, Length, Percent, AttrType, AttrValue, Coerced, Fill, Gradient, GradientStop, Stroke, Shadow, Theme } from "./value.js";
 export type { Pos } from "./errors.js";

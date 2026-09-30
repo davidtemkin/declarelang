@@ -6,7 +6,7 @@ import type { Closure, Validator } from "./closure.js";
 export { provideLib } from "./typecheck.js";
 export { highlight } from "./highlight.js";
 export { parseProgram } from "../../runtime/dist/parser.js";
-export { checkAttr, checkMethod, checkComponentValue } from "../../runtime/dist/check.js";
+export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/check.js";
 export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
@@ -73,12 +73,12 @@ export interface BrowserTrackedOptions extends CompileOptions, BrowserFiles {
     /** Compiler properties that also gate cache staleness (e.g. `{ backend:
      *  "dom" }`). Frozen into the closure and compared by isUpToDate. */
     props?: Record<string, string>;
-    /** Whether to record auto-included LIBRARY components in the closure. Default
-     *  true: a component's SOURCE is a compile-time dependency — its text shapes the
+    /** Whether to record auto-included LIBRARY classes in the closure. Default
+     *  true: a class's SOURCE is a compile-time dependency — its text shapes the
      *  compiled output exactly like an `include`d file — so it belongs in the closure
      *  and is modification-checked by the same isUpToDate + probe as every other read
      *  (the referenced set only, after auto-include resolution — never the whole
-     *  library). This is what keeps a component edit fresh on BOTH hosts without a
+     *  library). This is what keeps a class edit fresh on BOTH hosts without a
      *  build step: the polymorphic probe (disk / fetch) catches it uniformly. Only the
      *  RUNTIME/compiler BUNDLE stays out of the closure, gated by BUILD_ID — it is a
      *  load-time artifact, not a compiled-in source dep. Pass false for a lightweight

@@ -1,4 +1,4 @@
-// Time — the clock as a component (docs/system-design/open-items.md L-25,
+// Time — the clock as a class (docs/system-design/open-items.md L-25,
 // RULED 2026-08-29). A non-visual member that brings the current time into
 // the tree as reactive FACTS and, through a handler, as a TICK:
 //
@@ -45,7 +45,7 @@
 // visibility gates layout and input, never derivation, and an author who
 // wants that pause writes it — `running = { this.visible }`.
 //
-// A Node component on the GENERIC construction path (registry.ts TAGS, like
+// A Node class on the GENERIC construction path (registry.ts TAGS, like
 // Node itself), not the source path: that is what lets it carry declarations
 // and be subclassed — `class DesktopClock extends Time [ tick = minute,
 // text: string = { … this.now … } ]` is the intended way to make it yours.

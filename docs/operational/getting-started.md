@@ -46,7 +46,7 @@ the root the server hands out. `my-apps/` is gitignored, so everything you write
 there rides across every `git pull` and never collides with the repo.
 
 Start with one file per app — `my-apps/hello.declare`. When an app outgrows a
-single file (its own data, images, components), graduate it to the directory
+single file (its own data, images, classes), graduate it to the directory
 convention the bundled apps use, `my-apps/<name>/<name>.declare`; relative paths
 inside it — a `data/` folder, say — resolve against the program URL for free.
 
@@ -106,7 +106,7 @@ misbehavior — they are written to be trusted, applied, and recompiled. That lo
 *is* the first lesson.
 
 When the question is a fact rather than a failure — an attribute's name, an
-enum's tokens, what a library component carries, what a diagnostic code means —
+enum's tokens, what a library class carries, what a diagnostic code means —
 ask the platform instead of reading for it:
 
 ```

@@ -111,7 +111,7 @@ export declare function base(size: number, weight: FontWeight, color: number, tr
  *  font, color, and (for `code`) chip are baked in so a backend just realizes
  *  what it is told. Mirrors `flatten`, then bakes the per-run family. */
 export declare function richRunsOf(inline: Inline[], style: Style, family: string): RichRun[];
-/** TextFlow — the internal native-flow renderer (NOT a user component; see the
+/** TextFlow — the internal native-flow renderer (NOT a user class; see the
  *  RichText family below). A flowing block of styled text: `content` (resolved
  *  runs) and `flowWidth` are set by its owner before attach; it renders natively
  *  (DOM) or manually (canvas) and auto-sizes its height to the flowed content. */
@@ -198,7 +198,7 @@ export declare class TextFlow extends View {
      *  (§12.1: the DOM's ResizeObserver reports a frame after layout; a flow
      *  inside a display:none subtree measures 0 until re-shown). The reveal
      *  machinery HOLDS an anchored arrival while any flow reports true
-     *  (location.md §0.5.3 — the component-sourced veto). Set at render and at
+     *  (location.md §0.5.3 — the class-sourced veto). Set at render and at
      *  visibility-flip (view.ts markRichPending); cleared by the measurement
      *  callback. Synchronous backends (headless, canvas) never set it. */
     measurePending: boolean;

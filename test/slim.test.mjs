@@ -13,7 +13,7 @@ import {
   REGISTRY_MANIFEST, REGISTRY_NAMES,
   TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES,
 } from "../runtime/dist/registry.js";
-import { compileProgram, usedComponentNames } from "../compiler/dist/declarec.js";
+import { compileProgram, usedClassNames } from "../compiler/dist/declarec.js";
 import { buildProduction } from "../tools/declarec.mjs";
 import { parseFlags, parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { inlineAppPage } from "./harness.mjs";
@@ -23,7 +23,7 @@ function test(name, fn) {
   try { const r = fn(); if (r instanceof Promise) return r.then(() => { pass++; console.log("  ok —", name); }, (e) => { fail++; console.log("  FAIL —", name, "\n     ", e.message); }); pass++; console.log("  ok —", name); }
   catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); }
 }
-const used = async (src) => { const b = await compileProgram(src, { stripPos: false }); assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; ")); return new Set(b.usedComponents); };
+const used = async (src) => { const b = await compileProgram(src, { stripPos: false }); assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; ")); return new Set(b.usedClasses); };
 
 // ── the `use` directive ──────────────────────────────────────────────────────
 test("use [ … ] parses into program.uses", () => {
@@ -36,14 +36,14 @@ test("use of a built-in / declared class passes check", () => {
 test("use of an unknown name is a checker error", () => {
   const errs = check(parseProgram(`use [ Nope ]\nApp [ width = 10 ]`));
   assert.equal(errs.length, 1);
-  assert.match(errs[0].message, /unknown component 'Nope'/);
+  assert.match(errs[0].message, /unknown class 'Nope'/);
 });
 test("use of an abstract base (RichText/Layout) is rejected", () => {
   assert.equal(check(parseProgram(`use [ RichText ]\nApp [ width = 10 ]`)).length, 1);
   assert.equal(check(parseProgram(`use [ Layout ]\nApp [ width = 10 ]`)).length, 1);
 });
 test("a non-identifier use entry is a parse error", () => {
-  assert.throws(() => parseProgram(`use [ "x" ]\nApp [ width = 10 ]`), /a use entry is a component name/);
+  assert.throws(() => parseProgram(`use [ "x" ]\nApp [ width = 10 ]`), /a use entry is a class name/);
 });
 
 // ── the used-set ─────────────────────────────────────────────────────────────
@@ -164,7 +164,7 @@ await test("registry exclusion holds through the entry (no barrel import)", asyn
   const out = await buildProduction(`App [ width = 200, Text [ text = "a" ] ]`, {});
   assert.ok(out.ok, "build failed");
   const modules = Object.keys(Object.values(out.metafile.outputs)[0].inputs).map((p) => p.split(/[/\\]/).pop());
-  assert.ok(!out.usedComponents.includes("Image") && !out.usedComponents.includes("TextInput"),
+  assert.ok(!out.usedClasses.includes("Image") && !out.usedClasses.includes("TextInput"),
     "fixture must use neither Image nor TextInput for this test to mean anything");
   assert.ok(!modules.includes("image.js"),
     "image.js is bundled though Image is unused — something in the entry is pinning it (a barrel import?)");
@@ -189,7 +189,7 @@ async function renders(src) {
     const n = await page.evaluate(() => document.getElementById("host")?.querySelectorAll("*").length ?? -1);
     assert.equal(errs.length, 0, "page errors: " + errs.slice(0, 2).join(" | "));
     assert.ok(n > 1, "host has no rendered content");
-    return { used: b.usedComponents, gz: b.sizes.appGzip };
+    return { used: b.usedClasses, gz: b.sizes.appGzip };
   } finally { await browser.close(); }
 }
 

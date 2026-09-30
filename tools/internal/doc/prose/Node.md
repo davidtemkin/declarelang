@@ -1,29 +1,30 @@
-The plain object-graph atom — a **non-visual** node you subclass for logic that isn't a
-view: a controller, a coordinator, a service. A bare `class X [ … ]` **defaults its base to
-`Node`**, so a class with attributes and methods but no box *is* a Node subclass. It lives in
-the tree as a named member, shares the reactive core and the `classroot`/`app` reach, and
-fires `init` — but it paints nothing. Reach for it instead of a View when a wrapper class
-would be visual in name only.
+The plain object-graph atom — a **non-visual** node you subclass, with
+`class X extends Node [ … ]`, for a job that paints nothing and is not a document: the rules
+for a kind of record, a service, shared state with rules to keep, machinery several views
+drive. It lives in the tree as a named member, shares the reactive core and the
+`classroot`/`app` reach, and fires `init` — but it paints nothing. Data itself is not
+wrapped in one: records live in a `Dataset` that views bind to, and a document with logic
+of its own is a class that extends `Dataset`.
 
 ```declare
-class Cart [ count: number = 0,
-    add()    { count = count + 1 },
-    clear()  { count = 0 }
+class Stopwatch extends Node [ running: boolean = false, elapsed: number = 0,
+    clock: Time [ tick = frame, running = { classroot.running },
+        onTick(dt: number) { classroot.elapsed = classroot.elapsed + dt } ],
+    toggle() { running = !running }
     ]
 ```
 
-A view then holds one as a named member (`cart: Cart [ ]`) and reads/drives it reactively —
-state and behaviour with no pixels of its own. A Node may also stand on a **record** with a
-`datapath` of its own: its `:path` reads and `:field = v` writes resolve against that
-record, so a model class owns the rules for a kind of data with no view involved. A class
-meant to be a box needs `extends View` — `class Box [ width = 40 ]` is refused ("Box has no
-attribute 'width'").
+A view then holds one as a named member (`watch: Stopwatch [ ]`) and reads/drives it
+reactively. A Node may also stand on a **record** with a `datapath` of its own: its `:path`
+reads and `:field = v` writes resolve against that record, so a class owns the rules for a
+kind of data with no view involved. A class with no `extends` is a view, so a class of
+this kind always says `extends Node`.
 
 ## datapath
 The data cursor: the place in a dataset this node and its descendants read and write
 relative to. Written as a `:path` (extending the inherited cursor), a `{ }` expression
 yielding a place (`datapath = { app.d.value.tasks[app.pick] }`), or null. The nearest
-ancestor-or-self cursor wins, so a model class with its own `datapath` stands on that
+ancestor-or-self cursor wins, so a Node class with its own `datapath` stands on that
 record, and views inside it read the same one. A `:path` ending in `[]` replicates — and
 only a view replicates; on any other node that form is a compile error naming the
 single-record spelling.
@@ -73,7 +74,7 @@ spelling in ordinary code; reach for this when the path is computed, or when you
 record itself rather than a field of it.
 
 ```declare-fragment
-member() -> object { return this.datapath != null ? this.$data("") : this }
+item() -> object { return this.datapath != null ? this.$data("") : this }
 ```
 
 ## $cell()

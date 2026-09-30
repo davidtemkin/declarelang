@@ -34,7 +34,7 @@ rule — a URL belongs to exactly one line, and the banner shows you which.
 - **Your app** is at its own path. `frontend/shop.declare` is `/shop.declare`, and a
   program in a subdirectory, `frontend/admin/admin.declare`, is `/admin/admin.declare`
   (or `/admin/`). Take the file's path in your project, put a slash in front.
-- **The platform** — the runtime, the component library, the boot bundle — is under
+- **The platform** — the runtime, the class library, the boot bundle — is under
   `/declare/`, served straight from the installation. Your app boots it from there without
   your project holding a copy. The distro's own example apps are there too, so
   `/declare/apps/calendar/` runs the calendar for reference.

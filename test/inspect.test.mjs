@@ -226,7 +226,7 @@ await test("explain: an unknown slot answers loudly, never with placid nothing",
   try {
     const p = explain(app, "fitZ");
     assert.ok(p.error, "the miss is an error, not undefined");
-    assert.match(p.error, /no slot 'fitZ'/);
+    assert.match(p.error, /no attribute 'fitZ'/);
     assert.match(p.error, /fitS/, "with the near name suggested");
   } finally { app.discard(); }
 });

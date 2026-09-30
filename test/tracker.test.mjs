@@ -52,14 +52,14 @@ await test("criterion 1: mixed-height rows scroll both directions fast — place
   const deep = listRows(app).filter((r) => r.visible).sort((a, b) => a.y - b.y);
   assert.ok(deep.length > 4, "deep window materialized");
   for (let i = 0; i + 1 < deep.length; i++) {
-    if (deep[i + 1].rowIndex() === deep[i].rowIndex() + 1) {
+    if (deep[i + 1].tableIndex() === deep[i].tableIndex() + 1) {
       assert.equal(Math.round(deep[i + 1].y - deep[i].y), Math.round(deep[i].height),
         "consecutive rows sit exactly their MEASURED heights apart");
     }
   }
   app.list.scrollY = 0;
   settle(); settle();
-  const top = listRows(app).filter((r) => r.visible && r.rowIndex() === 0);
+  const top = listRows(app).filter((r) => r.visible && r.tableIndex() === 0);
   assert.equal(top.length, 1, "back at the top, row 0 stands");
 });
 
@@ -68,14 +68,14 @@ await test("criterion 2: insert at top while scrolled deep — the viewport hold
   app.list.scrollY = 60000;
   settle(); settle();
   const anchor = listRows(app).filter((r) => r.visible).find((r) => r.y >= app.list.scrollY);
-  const before = { id: anchor.rec?.id ?? anchor.member().id, screenY: anchor.y - app.list.scrollY };
+  const before = { id: anchor.rec?.id ?? anchor.item().id, screenY: anchor.y - app.list.scrollY };
   // 50 fresh issues arrive at the top of the newest-first sort
   for (let i = 0; i < 50; i++) {
     app.db.insert(["issues"], 0, { id: 900000 + i, title: "hotfix " + i, description: "", status: "open", priority: "P1", labels: [], assignee: null, created: 999, updated: 99999999999999, comments: 0 });
   }
   app.rev = app.rev + 1;
   settle(); settle();
-  const after = listRows(app).find((r) => (r.member() ?? {}).id === before.id);
+  const after = listRows(app).find((r) => (r.item() ?? {}).id === before.id);
   assert.ok(after !== undefined, "the row being read is still materialized");
   assert.ok(Math.abs((after.y - app.list.scrollY) - before.screenY) <= 1,
     "…at the same place on screen (the prepend anchored)");
@@ -102,7 +102,7 @@ await test("criterion 3: edit an unmaterialized row from the detail panel; scrol
   assert.equal(t.title, "edited far away");
   app.list.scrollY = 0;
   settle(); settle();
-  const row = listRows(app).find((r) => (r.member() ?? {}).id === rec.id);
+  const row = listRows(app).find((r) => (r.item() ?? {}).id === rec.id);
   assert.ok(row !== undefined, "scrolled back, the row is right there");
   assert.equal(row.title.text, "edited far away", "…showing the committed edit");
 });
@@ -152,7 +152,7 @@ await test("criterion 6: search NARROWS the projection; Enter/arrows walk the ma
   settle(); settle();
   const rec = app.shown.value.rows[2];
   assert.equal(app.selected.id, rec.id, "the third match is selected");
-  const row = listRows(app).find((r) => (r.member() ?? {}).id === rec.id);
+  const row = listRows(app).find((r) => (r.item() ?? {}).id === rec.id);
   assert.ok(row !== undefined, "…materialized");
   assert.ok(row.y >= app.list.scrollY - row.height && row.y <= app.list.scrollY + app.list.height, "…on screen");
   // clearing the query restores the full projection
@@ -201,7 +201,7 @@ await test("criterion 9: ragged data renders — nothing throws, defaults apply"
     app.list.scrollY = y;
     settle();
   }
-  const unassigned = listRows(app).filter((r) => !r.isHdr && r.avatar.name === "");
+  const unassigned = listRows(app).filter((r) => r.avatar !== undefined && r.avatar.name === "");
   assert.ok(unassigned.length >= 0, "unassigned rows render the hollow avatar");
   assert.ok(app.issuesOf(app.rev).some((it) => it.assignee === null), "ragged records exist");
   assert.ok(true, "walked four windows without a throw");

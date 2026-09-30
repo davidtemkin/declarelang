@@ -78,7 +78,7 @@ keyboard edge while a tabbed one does. What a `Pane` header's focus edge reads.
 A decorative icon for the leading slot, **named by class** (`iconLeft = "TrashIcon"`),
 not nested as a child — a control is a leaf, and a name is the one form where authored
 and data-bound are the same mechanism (`iconLeft = { "" + :icon }` in a replicated
-toolbar). Control only declares the slot; the concrete control lays it out. A
+toolbar). Control only declares the attribute; the concrete control lays it out. A
 **computed** name needs `use [ Name ]` to survive the build, since no static reference
 reaches it. The name is read once, when the control is built: a name read from data gives
 each row its own icon, but changing the name later does not swap the icon (see `IconHost`).
@@ -122,7 +122,7 @@ The seam a concrete control calls from its own `press()`.
 land here — a click through `onClick`, Space and Enter through the keyboard — so one
 override serves all three. The base opens `menu` when
 there is one. A value control delivers through `input` from here and **never writes its
-own value slot directly**, which is what lets a constrained control avoid fighting its
+own value directly**, which is what lets a constrained control avoid fighting its
 constraint.
 
 ## focusShape()
@@ -160,7 +160,7 @@ it the use site's action slot.
 A control takes focus unless it is disabled — one rule, so a disabled control drops out of the Tab order without saying so twice.
 */
 
-class Control extends View [
+class Control [
     // The design-token record every widget styles off — a provided value: the
     // app provides it once (`App [ theme = { … } ]`) and Control reads it here,
     // so a widget body reads `theme.accent` as a plain, typed member. The

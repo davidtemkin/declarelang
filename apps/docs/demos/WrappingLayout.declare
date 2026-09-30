@@ -1,7 +1,7 @@
 // A flow of chips that wraps
 // Left to right, `spacing` apart; when the next chip would overflow, a new row `rowSpacing` down.
 
-class Chip extends View [ height = 30, cornerRadius = 15, fill = steelblue,
+class Chip [ height = 30, cornerRadius = 15, fill = steelblue,
     label: string = "",
     Text [ x = 10, y = 5, fontSize = 13, fontWeight = semibold,
         textColor = whitesmoke, text = { classroot.label } ]

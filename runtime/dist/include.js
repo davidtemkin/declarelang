@@ -141,7 +141,7 @@ export async function resolveIncludes(program, host, originDir) {
     // The keep-list folds across libraries too: a library declaring its own
     // `use [ … ]` contributes its dynamic deps to the merged program's list.
     const uses = [...program.uses];
-    // …and its `ship [ … ]`: a component that reads a file or mounts a program
+    // …and its `ship [ … ]`: a class that reads a file or mounts a program
     // says so where it lives, and the merged program carries the union.
     let ship = program.ship;
     // A library's `script { … }` helpers travel with it, in include order — the
@@ -256,9 +256,9 @@ export async function resolveIncludes(program, host, originDir) {
  *  the runtime names, which is the behaviour that was there before. */
 let autoIncludable = [];
 export function autoIncludableNames() { return autoIncludable; }
-/** The component TAGS a tree references — every child element's tag (named and
+/** The class TAGS a tree references — every child element's tag (named and
  *  anonymous alike live in `children`), plus each class's `extends` base.
- *  Attribute declarations (`decls`) carry value-type names, not component tags,
+ *  Attribute declarations (`decls`) carry value-type names, not class tags,
  *  so they are not references. Deduped, in encounter order. */
 function referencedTags(root, classes) {
     const out = [];
@@ -283,25 +283,25 @@ function referencedTags(root, classes) {
     }
     return out;
 }
-/** The component NAMES a program STATICALLY references — its tree tags (children,
- *  including component-valued members like `layout:`/`data:`/animators/states)
+/** The class NAMES a program STATICALLY references — its tree tags (children,
+ *  including class-valued members like `layout:`/`data:`/animators/states)
  *  and every class's `extends` base. The static half of the used-set a production
  *  build keeps (the compiler adds `{ }`-body construction refs and the `use`
  *  list). The same walk `resolveAutoIncludes` trusts to pull libraries — so it is
  *  proven to see every static reference. Deduped. */
-export function referencedComponentNames(program) {
+export function referencedClassNames(program) {
     const names = referencedTags(program.root, program.classes).map((r) => r.tag);
     names.push(program.root.tag); // the root's OWN tag (App) — walk() adds children, not the root itself
     return [...new Set(names)];
 }
-/** Pull the libraries that define a program's bare component tags — the
+/** Pull the libraries that define a program's bare class tags — the
  *  auto-include phase, run AFTER explicit includes (composition.md §1a). A
  *  referenced tag that is neither provided (main or explicit include) nor a
  *  built-in is looked up in the manifest; if found, its library is spliced in
  *  exactly like an explicit include — dependency-first (a library's own magic
  *  bases/children are pulled before it is emitted), include-once through the
  *  shared `visited` set. A tag absent from the manifest is left alone: it is a
- *  genuine unknown component the checker reports after the merge.
+ *  genuine unknown class the checker reports after the merge.
  *
  *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
  *  make this a no-op returning the program unchanged. */
@@ -361,13 +361,13 @@ export async function resolveAutoIncludes(program, root, host, visited) {
     // explicit includes). `origin` reserves the file's names before recursion so
     // a self/mutual reference does not re-pull. The ROOT's own tag is pulled too
     // (referencedTags walks children only) — a root-position library tag then
-    // reports its precise misplacement, not "unknown component".
+    // reports its precise misplacement, not "unknown class".
     const pull = async (tag, pos) => {
         if (origin.has(tag))
             return;
         const path = manifest[tag];
         if (path === undefined)
-            return; // not a magic tag → unknownComponent, post-merge
+            return; // not a magic tag → unknownClass, post-merge
         const resolved = await auto.resolveLibrary(path);
         if (resolved === null) {
             errors.push(Diag.missingInclude(path, pos));
@@ -425,14 +425,14 @@ export async function resolveAutoIncludes(program, root, host, visited) {
     // unknown name isn't in the manifest, so pull() no-ops — the checker validates
     // the name against the merged program afterwards. Indexed loop on purpose:
     // a pulled library can CONTRIBUTE uses (line ~139), and those pull too —
-    // a component that `use`s what it createView's (Combobox → Menu) keeps its
+    // a class that `use`s what it createView's (Combobox → Menu) keeps its
     // dependency even when no static tag references it.
     for (let i = 0; i < uses.length; i++)
         await pull(uses[i], program.root.pos);
     return {
         // `uses` is the FOLDED list — the root's plus every included library's
         // (returning the root's alone silently dropped a library's keep-list,
-        // which broke by-name construction inside components).
+        // which broke by-name construction inside classes).
         program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], ...(ship === undefined ? {} : { ship }), scripts, root: program.root },
         sources,
         sourceIds,

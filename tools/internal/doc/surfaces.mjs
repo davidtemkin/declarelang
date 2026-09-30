@@ -56,8 +56,8 @@ const railNames = (model) => {
 
 export const SURFACES = [
   {
-    id: "components",
-    label: "every component class — runtime and library",
+    id: "classes",
+    label: "every class — runtime and library",
     source: "runtime SCHEMAS + library/autoincludes.json",
     docsLive: "the reference, and the browse rail",
     spineKeys: ["schemas", "librarySchemas", "library"],
@@ -270,7 +270,7 @@ export const SURFACES = [
     docsLive: "operational/help.md",
     spineKeys: [],
     gated: false,
-    why: "gated by EXECUTION instead — declare-help.test asserts that no hint key which is ALSO a real Declare name is answered with 'is not a Declare name'. Six keys had quietly become real (scaleX, perspective and blur with the graphics pass; gap, padding and position are attributes on particular components) and the tool denied all six while naming the answer in the same sentence. A collision is now SUPPORTED — the real name answers as itself and the instinct rides along — so the invariant to hold is the behaviour, not the absence of overlap",
+    why: "gated by EXECUTION instead — declare-help.test asserts that no hint key which is ALSO a real Declare name is answered with 'is not a Declare name'. Six keys had quietly become real (scaleX, perspective and blur with the graphics pass; gap, padding and position are attributes on particular classes) and the tool denied all six while naming the answer in the same sentence. A collision is now SUPPORTED — the real name answers as itself and the instinct rides along — so the invariant to hold is the behaviour, not the absence of overlap",
   },
   {
     id: "concepts", label: "declare-help's concept table", source: "tools/internal/doc/concepts.json",

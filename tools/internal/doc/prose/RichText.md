@@ -24,20 +24,20 @@ a view class the program declares (`<Chip label='docs'/>`) is **one real view of
 placed in the flowing line as an atomic box the words wrap around — not a styled run. Nothing
 declares the capability: the class existing is what makes the tag mean it, matched by the name
 exactly as written, and a tag naming no class of yours keeps the meaning it already had. The
-tag's attributes are the class's, converted from their strings by each slot's **declared** type
-(`id='142'` is the number in a `number` slot, `width='50%'` a percent of the width the text
+tag's attributes are the class's, converted from their strings by each attribute's **declared** type
+(`id='142'` is the number in a `number` attribute, `width='50%'` a percent of the width the text
 flows in) — **the tag is the use site**, so an attribute beats what the class body sets for
-that slot, a `{ }` constraint included, and only the winner installs; a slot the tag does not
+that attribute, a `{ }` constraint included, and only the winner installs; an attribute the tag does not
 mention keeps the class's own behaviour. `x`/`y` are refused, because the flow places the
 view as a layout places its children; an unknown attribute, a value that will not convert, a
-read-only slot, or a percent with no axis to resolve against goes to `unsupported` — nothing
+read-only attribute, or a percent with no axis to resolve against goes to `unsupported` — nothing
 a tag says is quietly ignored. The view owns its `width`/`height` and the flow owns its `x`/`y` (real
 values, readable); it never splits across a line, sits on the line by the first baseline inside
 it — or by its bottom edge when nothing in it claims one — grows the line
 when it is taller, re-flows the text when its size changes, and reads the surrounding run's
 face as provided values. Content is reactive, and a tag still present **keeps its view** — its hover,
 its focus, a running spring — with only changed attributes rewritten and a dropped attribute
-handing that slot back to the class (a tag that gains or loses one is built again, since what
+handing that attribute back to the class (a tag that gains or loses one is built again, since what
 the tag claims is settled at build); `key='…'` is the identity (never passed to the class), else the
 class name plus that tag's ordinal. **Only view classes, only self-closing tags**, and no
 expression inside markup: build content in a `{ }` and `escapeHtml` every interpolated value.
@@ -45,7 +45,7 @@ A `<span class>` stays a style and is never a view. The guide's Style chapter ("
 sentence") teaches the whole of it.
 
 ```declare
-class Chip extends View [ label: string = "",
+class Chip [ label: string = "",
     height = 19, width = { this.t.width + 18 }, cornerRadius = 9,
     fill = 0xDDF4E4,
     t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]
@@ -151,7 +151,7 @@ still open a new tab natively. Same on every renderer.
 The ink of the running text and of the headings, defaulting to the provided value — so prose
 takes its region's ink like any other text — and, where nothing provides one, to the theme's
 `text` token, so a document reads on a light or a dark theme alike. Links, code, quotes and rules take the provided
-theme's tokens instead, and each part has its own slot below. `bodyColor` overrides the
+theme's tokens instead, and each part has its own attribute below. `bodyColor` overrides the
 running text alone when the flow should differ from what it provides onward.
 
 ## fontScale

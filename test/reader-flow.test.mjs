@@ -95,11 +95,11 @@ await test("the viewer inside the CANVAS desktop gets its host's data", async ()
   // the string spelling stays as the older trees' fallback
   await page.evaluate(`(() => { const L = window.__app.launcher ?? window.__app; L.openSource(L.desk ?? "desktop"); })()`);
   await page.waitForFunction(`(() => {
-    const isl = window.__declare.find("app.wins").children.map((w) => (w.win ?? w).island).filter(Boolean).find((i) => i.__childApp);
+    const isl = window.__declare.find("app.wins").childViews.map((w) => w.island).filter(Boolean).find((i) => i.__childApp);
     return isl && (isl.__childApp.segSrc.loaded || isl.__childApp.segSrc.failed);
   })()`, { timeout: 30000 });
   const st = await page.evaluate(`(() => {
-    const isl = window.__declare.find("app.wins").children.map((w) => (w.win ?? w).island).filter(Boolean).find((i) => i.__childApp);
+    const isl = window.__declare.find("app.wins").childViews.map((w) => w.island).filter(Boolean).find((i) => i.__childApp);
     const t = isl.__childApp;
     return { seg: t.segSrc.loaded ? "loaded" : t.segSrc.failed ? "failed" : "pending", len: String(t.segSrc.value || "").length };
   })()`);
@@ -128,7 +128,7 @@ await test("viewer: an include path is a link that views the included file in pl
   await sleep(800);
   const edit = await page.evaluate(() => { const a = window.__declare.find("app"); return { noRun: a.noRun.visible, live: a.live.visible, l1: a.noRun.l1.text, rowOn: a.noRun.row.visible, name: a.noRun.row.name.text, altOn: a.noRun.alt.visible }; });
   assert.equal(edit.noRun, true); assert.equal(edit.live, false);
-  assert.equal(edit.l1, "This file declares components — there is no App to run.");
+  assert.equal(edit.l1, "This file declares classes — there is no App to run.");
   assert.equal(edit.rowOn, true); assert.equal(edit.name, "weather.declare"); assert.equal(edit.altOn, false);
   assert.equal((await st()).loc, "edit/apps/weather/weather-art.declare", "the tab kept the viewed file");
   // the walk is the HOST's: one browser Back returns to the program (the tab

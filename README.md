@@ -24,7 +24,7 @@ App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
     ]
 ```
 
-Two delimiters carry the whole model: **`[ … ]`** is the view tree — components,
+Two delimiters carry the whole model: **`[ … ]`** is the view tree — views,
 attributes, children; **`{ … }`** is TypeScript — a value, a handler body. The `{ }`
 lines are *constraints*, standing relationships the runtime keeps true: click and the
 text updates, resize and it stays centered — you wrote no update logic for either. There is
@@ -63,7 +63,7 @@ Handing the writing to a machine doesn't make the language irrelevant. It makes 
 load-bearing.
 
 A language isn't only a cost to learn; it's a *lens*. A user interface has a real
-structure — a tree of components, the state they hold, views that must stay current as it
+structure — a tree of views, the state they hold, views that must stay current as it
 changes, layout relating them in space. In a general-purpose language none of those are
 language concepts, so the compiler can't see them and they're kept correct by hand.
 Declare makes them first-class. What the compiler can then *see* it checks ahead of time,
@@ -80,7 +80,7 @@ is. Specific where that pays, general everywhere else.
 ### Everyday interfaces, and the kind you usually only see in the best native apps
 
 Most of what anyone builds is everyday — forms, lists, panels, dashboards, settings — and
-Declare is deliberately unremarkable at those: components, attributes, data, events, and a
+Declare is deliberately unremarkable at those: views, attributes, data, events, and a
 compiler checking your work. That has to be true first, and it is. Nothing here asks you to
 be ambitious to be productive.
 
@@ -92,7 +92,7 @@ machine-writable code there is; the corpus for it is thin, custom, and wrong in 
 nothing catches.
 
 Declare makes continuity the grain, not the garnish. Motion is a `Spring` on an attribute;
-layout is a reactive slot; a mode is a reversible `State` — so the continuous version of an
+layout is a reactive attribute; a mode is a reversible `State` — so the continuous version of an
 interface is often *less* code than the discrete one, and it is the same declarations you
 were already writing. Next-level UX stops being a project of its own: it becomes something
 you can reach for casually, and trust, because the compiler checks it like everything else.
@@ -101,7 +101,7 @@ zooming rectangle — normally a bespoke project on its own:
 
 | <!--stat:calendar.code-->494<!--/stat--> | lines of Declare — four views, continuous zoom, drag, and edit |
 |----:|:---|
-| **<!--stat:calendar.wireKB-->114<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
+| **<!--stat:calendar.wireKB-->115<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
 | **0** | lines written by hand — an LLM wrote it; the compiler kept it honest |
 
 → How to think in it: [the guide](docs/guide/01-what-declare-is.md). The language in
@@ -166,7 +166,7 @@ the hooks refuse is one page:
 |-----|------|
 | `runtime/` | the framework — parser, reactive core, layout, animation, DOM/Canvas backends (zero external deps) |
 | `compiler/` | the thin `.declare` → JS compiler; depends one-way on `runtime/` |
-| `library/` | components and theme records authored in `.declare` |
+| `library/` | classes and theme records authored in `.declare` |
 | `apps/` | the complete applications — `calendar`, `tracker`, `desktop`, `birds`, `weather` and more |
 | `tools/` | the command-line tools (`declare-dev`, `declare-verify`, `declare-format`, `declare-help`, and `declarec` for production builds) and the internal doc/build pipeline |
 | `docs/` | [`declare.md`](docs/declare.md) — the whole language in one file — the [guide](docs/guide/01-what-declare-is.md), [operational pages](docs/operational/), the machine model [`declare-model.json`](docs/declare-model.json), and the [design record](docs/system-design/) (non-authoritative; the docs win) |

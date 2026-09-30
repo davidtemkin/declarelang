@@ -58,7 +58,7 @@ overwritten on the next derive.
 ## Documenting what you add
 
 The reference is **generated, never authored.** `tools/internal/doc/extract.mjs` reads the
-runtime source with the TypeScript compiler, the component schemas, and the prose files;
+runtime source with the TypeScript compiler, the class schemas, and the prose files;
 `assemble.mjs` adds the spine and links.
 
 - **A new attribute, event, method, or class documents itself.** Name, type, and signature
@@ -149,9 +149,9 @@ read by people changing the code, who need the reasoning; the surface is read by
 using it, who need one answer.
 
 **The line is the audience, not the directory.** The trap is the file that looks internal
-and is not. A library component's doc header lives in `library/*.declare` beside its code
-and is *published* as that component's reference entry. The code around that header is
-read too — a component is the worked example of the thing it implements — and so is every
+and is not. A library class's doc header lives in `library/*.declare` beside its code
+and is *published* as that class's reference entry. The code around that header is
+read too — a class is the worked example of the thing it implements — and so is every
 app in the corpus. Source that ships as teaching material is user-facing however much it
 looks like implementation.
 

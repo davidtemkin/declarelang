@@ -18,7 +18,7 @@ name the same thing, the one here is the one the platform means.
 - **binding** — reserved for data: **data binding** is pointing views at data with
   [`datapath`](declare-docs:Node.datapath) and `:path`; **two-way binding** is `<->`, a text field editing a record.
   A one-way `{ }` is a constraint, not a binding. → [Data](declare-docs:guide:data)
-- **attribute** — a named value on a component, set (`width = 300`) or declared
+- **attribute** — a named value on a node, set (`width = 300`) or declared
   (`count: number = 0`). **Declared** attributes are how state enters a program.
 - **formula** — a declared attribute whose default is a `{ }`: it reads as the expression
   until something assigns it, and an assignment replaces it. Contrast a *set* constraint
@@ -42,21 +42,25 @@ name the same thing, the one here is the one the platform means.
 
 ## The tree
 
-- **component** — anything a capitalized tag creates: [`View`](declare-docs:View), [`Button`](declare-docs:Button), your own class.
-- **class** — how a component is defined: `class Name extends Base [ … ]`. A class with no
-  `extends` is a [`Node`](declare-docs:Node). → [Components and the tree](declare-docs:guide:components)
-- **control** — an interactive component with a value and a place in the keyboard focus
+- **class** — what a capitalized tag names: [`View`](declare-docs:View), [`Button`](declare-docs:Button), your own, defined with
+  `class Name [ … ]`, a view, or `class Name extends Base [ … ]`; one that extends [`Node`](declare-docs:Node) has no view. → [Classes and the tree](declare-docs:guide:classes)
+- **instance** — one use of a class: a tag with a `[ ]` body, such as `Button [ … ]`.
+- **control** — an interactive view with a value and a place in the keyboard focus
   order; the library's controls, and any class extending [`Control`](declare-docs:Control). → [Controls](declare-docs:guide:controls)
 - **member** — anything declared inside `[ ]`: an attribute set or declared, a method, a
-  handler, a child. Inside a [`Table`](declare-docs:Table), the word also names what a selection holds.
-- **model class** — a class that does not extend `View`: state and behavior with no pixels.
-  It may stand on a record of its own with a `datapath`. → [Data](declare-docs:guide:data)
-- **non-visual member** — a child with no pixels that lives and dies with its node: a
+  handler, a child.
+- **item** — one entry of a [`Table`](declare-docs:Table)'s collection, and what its selection holds: the
+  record behind a replicated row, or the row itself when written by hand.
+- **class with no view** — a class that extends [`Node`](declare-docs:Node): a job that paints nothing and is not a
+  document. It may stand on a record of its own with a `datapath`. → [Classes and the tree](declare-docs:guide:classes@classes-with-no-view)
+- **document class** — a class that extends [`Dataset`](declare-docs:Dataset) or [`DataSource`](declare-docs:DataSource): the data itself, with its
+  derivations and rules as members; views bind to it directly. → [Data](declare-docs:guide:data@deriving-summaries-methods-and-a-typed-result)
+- **non-visual child** — a child with no pixels that lives and dies with its node: a
   [`Dataset`](declare-docs:Dataset), [`DataSource`](declare-docs:DataSource), [`Spring`](declare-docs:Spring), [`Animator`](declare-docs:Animator), [`Time`](declare-docs:Time), [`Keys`](declare-docs:Keys), [`Focus`](declare-docs:Focus), a stream, a
-  model.
+  class with no view.
 - **classroot** — the instance of the class being defined, reachable from any depth inside
   its body.
-- **use site** — where a component is instantiated. It configures the component through
+- **use site** — where a class is instantiated. It configures the instance through
   attributes and content, never by redeclaring its named children.
 - **retire** — a view's presence ending: its record leaves the data or it is discarded,
   and `onRetire` fires once. A virtualized row scrolling out of view does not retire.
@@ -82,8 +86,13 @@ name the same thing, the one here is the one the platform means.
   replacement for generating views from code. Only views replicate.
 - **identity** — which instance belongs to which record: the record's `id` by convention,
   `key = :field` otherwise.
+- **rowIndex** — a replicated instance's index in the array it presents, kept by the
+  runtime; `-1` on a view no replication made.
 - **derived dataset** — a dataset whose document is a constraint over other data: the view
-  model. Write the raw truth, not the derivation.
+  model. The records it selects are its source's, and a row writes them as it would
+  anywhere; what it makes is read-only, so a record it decorates is wrapped, not copied.
+- **classFor** — on a replicated view, the class each record is built as, read from the
+  record: records that are different things are different classes. → [Collections](declare-docs:guide:collections@records-of-different-kinds)
 - **schema** — a top-level `schema Name [ … ]`: the shape of data a program relies on, a
   real type, checked by the compiler where it can see and by the runtime at every
   boundary. → [Typed data](declare-docs:guide:schemas)

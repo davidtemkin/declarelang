@@ -30,7 +30,7 @@ and `edge` are the whole variation: sage in the contacts bar, rust on the
 login. The label is engraved — a dark copy sitting just above a white one.
 */
 
-class DashButton extends View [
+class DashButton [
     label: string = "",
     height = 16,
     cornerRadius = 8,
@@ -64,7 +64,7 @@ the one shared number — what the closed tabs take together — and writes it t
 each tab as a plain slot. Each tab's own height then reads only its own state.
 */
 
-class TabStack extends View [
+class TabStack [
     width = 100%, height = 100%,
 
     layout: SimpleLayout [ axis = y ],
@@ -95,7 +95,7 @@ class TabStack extends View [
 // plate uses `btnBase`, the rest of the row `barBase`, split by a white and a
 // black hairline.
 
-class DashTab extends View [
+class DashTab [
     width = 100%,
     label: string = "",
     selected: boolean = false,
@@ -168,7 +168,7 @@ original did), resizes from the grip in the bottom-right, and maximizes or
 restores by animating x, y, width and height together over 500ms.
 */
 
-class DashWindow extends View [
+class DashWindow [
     winLabel: string = "",
     icon: string = "",
     tint: Color = #999999,             // the body fill (the original's windowTintColor)

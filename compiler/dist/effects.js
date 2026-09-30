@@ -1,9 +1,9 @@
-// effects — reactive-effect signatures for LANGUAGE-supplied component methods
+// effects — reactive-effect signatures for LANGUAGE-supplied class methods
 // (docs/system-design/constraints.md, the 2026-07-13 revision, point 1).
 //
 // A `{ }` constraint's dependency analysis (dep-extract.ts) follows a call into a
 // USER method's body to infer the reactive cells it reads. A LANGUAGE-supplied
-// method — a runtime View/component method like `navigate` — has no Declare body
+// method — a runtime View/class method like `navigate` — has no Declare body
 // to follow (its body is runtime TS), so its reactive effect is DECLARED here
 // instead. This is the effect analog of a typed library signature:
 // a user method's effect is INFERRED from its body, a language method's is

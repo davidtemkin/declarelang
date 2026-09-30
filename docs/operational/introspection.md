@@ -1,7 +1,7 @@
 # Introspection — asking a running program about itself
 
 A running Declare app can be **queried as data**: its tree, each node's geometry, every
-slot's live value, and — the payoff of static dependency extraction — *why* a slot has
+attribute's live value, and — the payoff of static dependency extraction — *why* an attribute has
 the value it has. One vocabulary serves three consumers: [`verify`](declare-docs:operational:verify)'s
 behavior rung, the Inspector, and any program or agent driving a browser.
 
@@ -35,10 +35,11 @@ window.__declare.explain("app.dock.row.calIcon", "width")
 |---|---|
 | `inspect(path?)` | the subtree as data — see **InspectNode** below. No path = the root. |
 | `find(path)` | the live node, or `null` |
-| `explain(path, attr)` | **why** a slot holds its value — see **Provenance** |
-| `slots(path)` | every slot with its live value and origin (`constraint` / `set` / `default`) |
+| `explain(path, attr)` | **why** an attribute holds its value — see **Provenance** |
+| `slots(path)` | every attribute with its live value and origin (`constraint` / `set` / `default`) |
 | `expand(path, attr, trail?)` | one level of a record/array/`Dataset` value — lazy, for deep data |
 | `at(x, y)` | `{ path, kind }` of the topmost view at a point — the same coordinates `rootX`/`rootY` report, so `at(rootX, rootY)` names the node back |
+| `explainHit(x, y)` | what a press at that point lands on, and why — each view on the walk and what made it the target or passed it by |
 | `dependents(attr)` | every `(path, attr)` whose constraint reads that name |
 | `evaluate(path, src)` | evaluate Declare in a node's scope — read, set, bind, or add a view (adding a view needs the parser, which rides the compiler bundle: open the Inspector first — `⌥⌘D`, or `?inspector`) |
 | `stats()` | `{ nodes, ownedSlots, motionBusy }` — leak and perf canaries |
@@ -55,13 +56,13 @@ in `inspect().path`, so a result can be fed straight back as a query.
 { kind, name, path,
   x, y, width, height,        // local
   rootX, rootY,               // where it is SEEN, relative to the root
-  visible, shown,              // own slot / effective (ancestors too)
+  visible, shown,              // own attribute / effective (ancestors too)
   text?,
   attrs,                      // own values, JSON-reduced
   children[] }
 ```
 
-`kind` is the authored component name (`DockIcon`, `App`) — resolved so it survives
+`kind` is the authored class name (`DockIcon`, `App`) — resolved so it survives
 minification, which a bare `constructor.name` does not.
 
 `rootX/rootY` is where the view is **seen**, with every enclosing scroll taken out — so
@@ -110,7 +111,7 @@ any instant is a coin flip.
 ### The wake trace — what changed, and why
 
 `explain()` is the provenance of a *value*. The trace is the provenance of a *change*:
-which user code ran, what its writes changed, and every slot the settle changed in
+which user code ran, what its writes changed, and every attribute the settle changed in
 response — each named by the rule that wrote it. It is the question a reactive program
 otherwise leaves you to infer from symptoms, since nothing here is on a stack.
 
@@ -134,10 +135,10 @@ window.__declare.trace.text()
 | `trace.stop()` · `trace.clear()` | stop recording (what was recorded stays readable) · forget it |
 
 Each settle: **`origin`** — the user code that ran before it (`"onClick on Button 'go'"`,
-`"onTick on Time 'clock'"`, `"DataSource 'live' arrived"`); **`triggers`** — the slots that
-code wrote, with values; **`changes`** — the slots the settle changed in response, each with
+`"onTick on Time 'clock'"`, `"DataSource 'live' arrived"`); **`triggers`** — the attributes that
+code wrote, with values; **`changes`** — the attributes the settle changed in response, each with
 `by: { rule, source, line }`; **`runs`** — how many rules the kernel ran (a settle can run
-hundreds and change nothing, which is itself an answer). A slot holding a number, a
+hundreds and change nothing, which is itself an answer). A attribute holding a number, a
 boolean, or a short string carries `from`/`to`; anything else is named and left to
 `explain()`. Off, the trace costs one null check per write; on, a copy of the value table
 per settle — a reading, never a debugger.
@@ -174,7 +175,7 @@ what you meant; that is the point.
 `count(path, kind, n)` · `explain(path, name)` · `fail(msg)`.
 
 Because `explain` is available, an assertion can be **structural** rather than only
-about a value — "this slot is owned by a constraint that reads `hot`" is checkable, and
+about a value — "this attribute is owned by a constraint that reads `hot`" is checkable, and
 stays true when the number changes.
 
 ## Fidelity — what each tier can and cannot see
@@ -198,7 +199,7 @@ those rungs. Everything else runs in **headless Chromium**, which is fully real.
 Rungs 1–4 are the cheap gate: sub-second, no browser engine at all, run them constantly. But a class
 of bug is *structurally invisible* to them — anything that only exists once pixels, CSS,
 real fonts, or a bundler do. Real cases: a transparent overlay swallowing presses; an
-element with `pointer-events: none` starving an app's pointer environment; a component
+element with `pointer-events: none` starving an app's pointer environment; a class
 name minified out from under code that compared `constructor.name`. Each looked fine at
 rung 4 and failed on a live page.
 
@@ -222,6 +223,6 @@ The host names the subject once (`setInspectionTarget`); everything else is a qu
 ## Cost
 
 `inspect()` on a large tree is a big object — the desktop is ~600 nodes and ~1,950
-constraint-owned slots. Ask narrowly: `inspect(path)` on a subtree, `slots(path)` for one
+constraint-owned attributes. Ask narrowly: `inspect(path)` on a subtree, `slots(path)` for one
 object, `expand()` one level at a time. `stats()` is cheap and is usually the right first
 question.

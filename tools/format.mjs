@@ -387,7 +387,7 @@ function analyze(tokens) {
           if (tok().kind === "code") end = nc[p++]; // `[ … ] { json }` — a raw body after the attrs
           kind = "child";
         } else {
-          const type = readTypeRef("a type or component name");
+          const type = readTypeRef("a type or class name");
           if (tok().kind === "lb") {
             end = parseBody(false).close;
             if (tok().kind === "code") end = nc[p++]; // `name: Dataset [ schema = … ] { json }`
@@ -412,10 +412,10 @@ function analyze(tokens) {
           p++;
           readTypeRef("a return type name");
         }
-        // `<-` subscriptions were removed (2026-07-26 — services are components
+        // `<-` subscriptions were removed (2026-07-26 — services are classes
         // now). Still lexed, so the formatter fails with the same pointed
         // message the parser gives rather than a bare shape error.
-        if (tok().kind === "subfrom") fail("'<-' is not a Declare operator — write the source as a component member, e.g. 'Keys [ onKeyDown(e) { … } ]'");
+        if (tok().kind === "subfrom") fail("'<-' is not a Declare operator — write the source as a class member, e.g. 'Keys [ onKeyDown(e) { … } ]'");
         if (tok().kind !== "code") fail("expected the method body '{ … }'");
         end = nc[p++];
         kind = "method";
@@ -457,7 +457,7 @@ function analyze(tokens) {
   }
 
   function parseElement(topLevel) {
-    const at = expect("ident", "a component name");
+    const at = expect("ident", "a class name");
     if (tok().kind === "lb") return parseBody(topLevel).close;
     if (tok().kind === "code") return nc[p++]; // raw-bodied element
     return at;
@@ -473,7 +473,7 @@ function analyze(tokens) {
       else if (at("class", "ident")) {
         p++;
         expect("ident", "the class's name");
-        if (tok().kind === "ident" && tok().raw === "extends") { p++; expect("ident", "the base component's name"); }
+        if (tok().kind === "ident" && tok().raw === "extends") { p++; expect("ident", "the base class's name"); }
         parseBody(true);
       } else if (at("theme", "ident") || at("style", "ident") || at("font", "ident")) {
         p++;

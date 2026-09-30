@@ -23,7 +23,7 @@ import { compile } from "../compiler/dist/compile-node.js";
 
 // ── rung model ────────────────────────────────────────────────────────────
 const RUNGS = [
-  { n: 1, name: "structure", phases: ["syntax", "structure", "type", "module"], what: "parse, includes, component/attribute shape, value coercion" },
+  { n: 1, name: "structure", phases: ["syntax", "structure", "type", "module"], what: "parse, includes, class/attribute shape, value coercion" },
   { n: 2, name: "resolution", phases: ["name"], what: "every bare name resolves" },
   { n: 3, name: "analysis", phases: ["constraint", "typecheck"], what: "constraint deps statically known; { } bodies typecheck" },
   { n: 4, name: "boot", phases: [], what: "headless instantiate + settle (synthetic text metrics)" },
@@ -76,12 +76,12 @@ try {
   process.exit(2);
 }
 
-// Component-probe mode: a bare component-library file (classes, no `App` root)
+// Class-probe mode: a bare class-library file (classes, no `App` root)
 // isn't a runnable program, so it can't climb the ladder on its own — the known
 // gap that let library/*.declare drift unverified. `--wrap` synthesizes a
 // minimal probe App instantiating each top-level `class … extends` in the file,
-// so a component's own source compiles, typechecks, and boots standalone. (An
-// abstract base or a child-requiring component may not boot from an empty tag —
+// so a class's own source compiles, typechecks, and boots standalone. (An
+// abstract base or a child-requiring class may not boot from an empty tag —
 // that's rung 4's honest report; rungs 1–3 are the real win here.)
 let probeNote = null;
 // Both probe decisions below read the SOURCE, so they must not read the doc
@@ -94,9 +94,9 @@ let probeNote = null;
 const bare = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 const hasApp = /^\s*App\s*\[/m.test(bare);
 // A file that declares classes but no App is an INCLUDE, not a program, and the
-// parser's honest "expected a component name, got 'eof'" says nothing an author
+// parser's honest "expected a class name, got 'eof'" says nothing an author
 // can act on. Name the two real moves instead.
-if (!flags.wrap && !hasApp && /^\s*class\s+[A-Za-z_]\w*\s+extends\b/m.test(bare)) {
+if (!flags.wrap && !hasApp && /^\s*class\s+[A-Za-z_]\w*\s*(extends\b|\[)/m.test(bare)) {
   console.error(`verify: ${file} declares classes but no App — it is an include, not a program.`);
   console.error(`  verify the program that includes it (add --only ${file} to see just this file's diagnostics),`);
   console.error(`  or --wrap to probe its classes standalone in a synthesized App.`);
@@ -105,10 +105,10 @@ if (!flags.wrap && !hasApp && /^\s*class\s+[A-Za-z_]\w*\s+extends\b/m.test(bare)
 if (flags.wrap && !hasApp) {
   // A layout strategy is an ATTRIBUTE, not a child (language §5) — probe it in
   // the `layout:` slot of a view with a couple of children to arrange.
-  const decls = [...bare.matchAll(/^\s*class\s+([A-Za-z_]\w*)\s+extends\s+([A-Za-z_]\w*)/gm)]
-    .map((m) => ({ name: m[1], base: m[2] }));
+  const decls = [...bare.matchAll(/^\s*class\s+([A-Za-z_]\w*)(?:\s+extends\s+([A-Za-z_]\w*))?\s*\[/gm)]
+    .map((m) => ({ name: m[1], base: m[2] ?? "View" }));
   if (decls.length === 0) {
-    console.error(`verify --wrap: no top-level 'class … extends' found in ${file}`);
+    console.error(`verify --wrap: no top-level class found in ${file}`);
     process.exit(2);
   }
   const probe = decls.map((d) =>
@@ -117,7 +117,7 @@ if (flags.wrap && !hasApp) {
       : `    ${d.name} [ ],`
   ).join("\n");
   source = `${source}\n\nApp [ width = 480, height = 320,\n${probe}\n    ]\n`;
-  probeNote = `component probe: App wrapping ${decls.map((d) => d.name).join(", ")}`;
+  probeNote = `class probe: App wrapping ${decls.map((d) => d.name).join(", ")}`;
 }
 
 // originDir = the app file's own directory, so `include [ "sibling.declare" ]`

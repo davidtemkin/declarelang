@@ -96,7 +96,7 @@ export function buildRegistry(program: Program): RegistryResult {
       const sh = el.attrs.find((a) => a.name === "shows");
       if (sh !== undefined) {
         errors.push(new DeclareError(
-          `shows in a class body — a destination is an app-level fact, and a class instantiated twice would declare the same place twice. Declare shows on the view in the App tree (a use-site 'shows = "…"' on this component works)`,
+          `shows in a class body — a destination is an app-level fact, and a class instantiated twice would declare the same place twice. Declare shows on the view in the App tree (a use-site 'shows = "…"' on this class works)`,
           sh.pos));
       }
       for (const c of el.children) reject(c);

@@ -1,4 +1,4 @@
-/** The two-way **edit session** — the reusable core an Editor component owns
+/** The two-way **edit session** — the reusable core an Editor class owns
  *  (language §9, the leaf-input exception). `TextInput` is the first editor; a
  *  `Picker` or a `DatePopup` reuses the same functions, differing only in how a
  *  user gesture produces a new draft.
@@ -202,7 +202,7 @@ export function revertDraft(view: View, name: string): void {
   refresh(view, name);
 }
 
-/** @api The base class for an **editor** — a component that two-way edits a
+/** @api The base class for an **editor** — a class that two-way edits a
  *  dataset value via `<->`. It owns the edit-session slots (`commitOn` / `error`
  *  / `valid` / `dirty`) and the `commit()` / `revert()` verbs; a subclass only
  *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,

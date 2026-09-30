@@ -34,7 +34,7 @@ export { parseProgram } from "../../runtime/dist/parser.js";
 // …and the checker the evaluator validates a live element with (instantiate.ts
 // provideChecker): the boot ships check.js as a stand-in, so the Inspector hands
 // the runtime this copy's when it opens.
-export { checkAttr, checkMethod, checkComponentValue } from "../../runtime/dist/check.js";
+export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/check.js";
 // Static extraction — the same block compile-node.ts exports (parity: the
 // browser compiler does everything the Node one can, as architecture and as
 // principle). browser/boot-extract.js composes these with compileTracked below for
@@ -90,7 +90,7 @@ export function memoryHost(opts = {}) {
  *  SUCCESSES ONLY. A failure is not an answer worth keeping — the same rule
  *  compiler-client's loadCompiler states and for the same reason. Caching a miss
  *  here made ONE blocked or dropped request permanent for the life of the page:
- *  every later compile re-read the null, the component stayed unresolvable, and
+ *  every later compile re-read the null, the class stayed unresolvable, and
  *  a live-edit loop kept failing with no retry and nothing to explain it. The
  *  cost of not caching a miss is re-asking for a file that is genuinely absent,
  *  which is rare and cheap; the cost of caching one is unbounded. */

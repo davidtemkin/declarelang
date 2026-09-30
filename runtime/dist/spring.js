@@ -7,7 +7,7 @@
 // pusher WAKES the spring whenever the target moves, and the spring sleeps the
 // moment it comes to rest, so the idle-zero-rAF invariant holds exactly.
 //
-// It is a twin-table component like Animator (schema in schema.ts, class here,
+// It is a twin-table class like Animator (schema in schema.ts, class here,
 // registered in instantiate.ts's animator table), and it descends from Animator
 // so the checker validates its `attribute` slotref against the target through
 // the same path — but it OWNS its slot outright (no additive ledger, no

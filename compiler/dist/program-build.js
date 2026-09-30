@@ -1,6 +1,6 @@
 // program-build — from a compiled (source-to-source) result to the PROGRAM the
 // runtime instantiates: the parse of the merged source, the structural check,
-// the extracted dependencies zipped on, the used-component set, and the
+// the extracted dependencies zipped on, the used-class set, and the
 // trusted stamp. This is the tail every program-shaped build shares — the
 // declarec CLI in Node (declarec.ts) and the in-browser compiler
 // (compile-browser.ts compileProgram) — so a live edit on a static host lands
@@ -10,7 +10,7 @@
 import { applyDeps } from "../../runtime/dist/deps.js";
 import { freeIdentifiers } from "./free-idents.js";
 import { parseProgram } from "../../runtime/dist/parser.js";
-import { resolveIncludes, NO_INCLUDES, referencedComponentNames } from "../../runtime/dist/include.js";
+import { resolveIncludes, NO_INCLUDES, referencedClassNames } from "../../runtime/dist/include.js";
 import { REGISTRY_NAMES } from "../../runtime/dist/registry.js";
 import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
 import { check } from "../../runtime/dist/check.js";
@@ -56,20 +56,20 @@ function inlineViewNames(el, classNames, schemaOf) {
     }
     return out;
 }
-/** The component NAMES a program may instantiate: its STATIC tree references
- *  (tags + class bases) ∪ any component a `{ }` body constructs BY NAME
+/** The class NAMES a program may instantiate: its STATIC tree references
+ *  (tags + class bases) ∪ any class a `{ }` body constructs BY NAME
  *  (`new Markdown()`, scanned via free-idents) ∪ the classes a LITERAL rich-text
  *  document names as inline-view tags ∪ the explicit `use [ … ]` keep-list.
  *  Sound because Declare has no reflective new-by-value: every construction path
  *  is a compile-time literal, so this set is complete (create-by-STRING — an
  *  `iconLeft = "TrashIcon"`, a fetched document — is what `use` covers). The
  *  scan vocabulary is the built-in registry plus the program's own class names,
- *  so only real component identifiers count — `Math`, `console`, locals, etc.
+ *  so only real class identifiers count — `Math`, `console`, locals, etc.
  *  are ignored, and a name shadowed by a local is (correctly) not free. */
-export function usedComponentNames(program) {
+export function usedClassNames(program) {
     const classNames = new Set(program.classes.map((c) => c.name));
     const vocab = new Set([...REGISTRY_NAMES, ...classNames]);
-    const used = new Set(referencedComponentNames(program));
+    const used = new Set(referencedClassNames(program));
     for (const name of program.uses)
         used.add(name);
     // A tag's BUILT-IN schema: walk the declared-class chain to its terminal base,
@@ -144,7 +144,7 @@ export function stripPos(node) {
  *  diagnostic (nothing is emitted). */
 export async function programFromCompiled(c, opts = {}) {
     if (c.source === null) {
-        return { program: null, errors: c.errors, warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents: [] };
+        return { program: null, errors: c.errors, warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedClasses: [] };
     }
     // Parse the resolved source into a program. Includes are already inlined,
     // so NO_INCLUDES is a guard, not a resolver.
@@ -161,7 +161,7 @@ export async function programFromCompiled(c, opts = {}) {
     const errors = [...incErrors, ...withLiteralSink(literals.note, () => check(program))];
     if (errors.length > 0) {
         const diagnostics = errors.map((e) => toDiagnostic(e, "error", "structure"));
-        return { program: null, errors, warnings: c.warnings, diagnostics, report: renderReport(diagnostics), closure: c.closure, usedComponents: [] };
+        return { program: null, errors, warnings: c.warnings, diagnostics, report: renderReport(diagnostics), closure: c.closure, usedClasses: [] };
     }
     // Zip the extracted constraint dependencies (docs/system-design/constraints.md §5) onto
     // the program we ship, so it boots on the runtime's static-constraint path.
@@ -171,9 +171,9 @@ export async function programFromCompiled(c, opts = {}) {
     applyDeps(program, c.deps ?? []);
     // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
     // needs nothing positional, but order it here so it reads the same program).
-    const usedComponents = usedComponentNames(program);
+    const usedClasses = usedClassNames(program);
     // Facts are read from the program as written, before its literals become values.
-    const facts = opts.facts ? programFacts(program, usedComponents) : undefined;
+    const facts = opts.facts ? programFacts(program, usedClasses) : undefined;
     const { kept } = lowerLiterals(program, literals);
     lowerThemeNames(program);
     if (facts !== undefined && kept.length > 0)
@@ -184,6 +184,6 @@ export async function programFromCompiled(c, opts = {}) {
     program.trusted = true;
     if (opts.stripPos ?? true)
         stripPos(program);
-    return { program, errors: [], warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedComponents, facts, unlowered: kept };
+    return { program, errors: [], warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedClasses, facts, unlowered: kept };
 }
 //# sourceMappingURL=program-build.js.map

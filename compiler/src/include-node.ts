@@ -72,7 +72,7 @@ export function nodeIncludeHost(libraryRoot?: string, tracker?: Tracker): Includ
   return {
     ...base,
     autoincludes: load,
-    // The canonical key is the absolute component-file path — the SAME key an
+    // The canonical key is the absolute class-file path — the SAME key an
     // explicit include of that file resolves to (resolveAt over srcDir), so the
     // two dedup through one visited set.
     resolveLibrary: (path) => resolveAt(srcDir, path),

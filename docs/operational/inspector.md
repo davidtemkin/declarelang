@@ -3,7 +3,7 @@
 The Inspector opens over any running Declare program and answers the question a
 compiler cannot: **why does this value look like that?** Click a number and it shows
 the expression that produced it, every input that expression read, and each of their
-live values. Then you can type at it — set a slot, replace a constraint, add a view —
+live values. Then you can type at it — set an attribute, replace a constraint, add a view —
 and watch the running program change.
 
 It is the [Computed Styles](https://developer.chrome.com/docs/devtools/css) idea, for
@@ -31,9 +31,9 @@ your system setting.
 
 ## The three panes
 
-**Tree** — the program's view tree, member name and component kind, with the
+**Tree** — the program's view tree, member name and class, with the
 disclosure arrow on anything that has children. Hovering a row outlines that view *on
-screen*. A dot marks an object with at least one constraint-owned slot; a `◈` marks one
+screen*. A dot marks an object with at least one constraint-owned attribute; a `◈` marks one
 a spring or animator is driving right now. Invisible views are dimmed rather than
 hidden — the thing that *isn't* showing is usually what you came to find.
 
@@ -53,14 +53,14 @@ Ev [
 Each row says where its value came from — `⟵ constraint` (derived), `← set` (a handler
 wrote it), or dim and unmarked (riding the class default, which is itself an answer).
 Records, arrays and a `Dataset`'s value fold open one level at a time; a **View**-valued
-slot is a link rather than an expansion, because the view graph is cyclic and one
+attribute is a link rather than an expansion, because the view graph is cyclic and one
 subject at a time is what you want anyway. A view under a `datapath` leads with its
 **data record**, since that is where its `:fields` actually read.
 
-**Why** — for the selected slot: its live value, whether it is a constraint / set / a
+**Why** — for the selected attribute: its live value, whether it is a constraint / set / a
 default, **the authored expression and its line**, and every read-path with its current
 value. Hovering a dependency outlines *that* view on screen, so you can see, in space,
-what this number depends on. If a spring or animator is driving the slot, its target and
+what this number depends on. If a spring or animator is driving the attribute, its target and
 tuning appear here.
 
 ## Selecting things
@@ -87,10 +87,10 @@ The prompt at the bottom evaluates **in the scope of the selected object** — `
 
 | you type | what happens |
 |---|---|
-| `width` | reads the slot |
+| `width` | reads the attribute |
 | `{ app.width / 2 }` | evaluates the expression here |
-| `width = 700` | sets the slot |
-| `width = { parent.width / 3 }` | **replaces the constraint** — the slot now tracks |
+| `width = 700` | sets the attribute |
+| `width = { parent.width / 3 }` | **replaces the constraint** — the attribute now tracks |
 | `Text [ text = "hi", x = 20 ]` | instantiates a view into the selected object |
 
 Mistakes come back as ordinary Declare diagnostics — the same message, code and named
@@ -99,7 +99,7 @@ refused, and the Inspector lists the fields it *does* have, rather than answerin
 and letting you read an absent field as an empty one.
 
 **Live edits are temporary.** A typed constraint or an added view lives in the running
-program and does **not** survive a reload; the Why pane marks such slots
+program and does **not** survive a reload; the Why pane marks such attributes
 `live-bound · temporary`. There is no write-back to source — carry a value you like
 back to the file yourself. Treat the Inspector as a probe and a tuning surface, not an
 editor.

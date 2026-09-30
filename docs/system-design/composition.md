@@ -27,7 +27,7 @@ the dev-env rung** (§3).
 
 A top-level directive whose body is a `[ ]` list of quoted, relative paths —
 Declare's list grammar, so it reads as another `keyword [ … ]` heading alongside
-`App [ … ]` and `class X [ … ]`:
+`App [ … ]` and `class X extends View [ … ]`:
 
 ```
 include [ "weather-components.declare" ]

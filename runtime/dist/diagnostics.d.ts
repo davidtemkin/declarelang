@@ -49,7 +49,7 @@ export declare function nearestName(name: string, candidates: readonly string[],
 export declare const Diag: {
     syntax: (message: string, pos?: Pos) => DeclareError;
     redundantParens: (inner: string, pos: Pos) => DeclareError;
-    unknownComponent: (tag: string, pos: Pos, candidates?: readonly string[]) => DeclareError;
+    unknownClass: (tag: string, pos: Pos, candidates?: readonly string[]) => DeclareError;
     duplicateName: (message: string, pos: Pos) => DeclareError;
     misplaced: (message: string, pos: Pos) => DeclareError;
     namespace: (message: string, pos: Pos) => DeclareError;

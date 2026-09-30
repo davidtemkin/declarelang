@@ -319,7 +319,7 @@ self.addEventListener("activate", (event) => event.waitUntil((async () => {
       assetBase: "/" + relPath.replace(/^\/+/, "").replace(/[^/]*$/, ""),
       seeds: { __source__: JSON.stringify(segments), __raw__: rawSource, __path__: relPath,
         __metrics__: JSON.stringify(await toolchain.metrics(rawSource)),
-        // the component library's tag → file manifest, with the URL the files are
+        // the class library's tag → file manifest, with the URL the files are
         // served at, so the viewer can link a bare `Button [` to button.declare
         __library__: JSON.stringify({ base: platURL("library/"), manifest: libraryManifest() }) },
     };
@@ -452,7 +452,7 @@ bootHost(cfg);
     const built = await toolchain.production({ source, name, srcDir: dir, outDir, render: backend, kernel, props: { toolchain: tc } });
     if (!built.ok) return { error: built.errors, report: built.report };
     man = { closure: built.closure, dir: outDir, moduleName: built.moduleName, sizes: built.sizes,
-      assets: built.assets, used: built.usedComponents, source: srcPath, builtAt: null };
+      assets: built.assets, used: built.usedClasses, source: srcPath, builtAt: null };
     mkdirSync(outDir, { recursive: true });
     writeFileSync(manPath, JSON.stringify(man, null, 2));
     prodMem.set(key, man);
@@ -644,7 +644,7 @@ bootHost(cfg);
         let out = null;
         const hit = key === null ? undefined : COMPILE_CACHE.get(key);
         if (hit !== undefined) {
-          // The body matched, so only the INCLUDES and components can have moved.
+          // The body matched, so only the INCLUDES and classes can have moved.
           // That is exactly what the stored closure answers, from disk.
           try { if (await toolchain.fresh(hit.closure, {})) out = hit.out; }
           catch { /* fall through and recompile */ }

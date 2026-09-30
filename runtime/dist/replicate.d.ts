@@ -2,6 +2,8 @@ import type { Element } from "./parser.js";
 import { Node } from "./node.js";
 import { View } from "./view.js";
 import { type PathSeg } from "./path-plan.js";
+import { type PathNode } from "./select.js";
+import type { Dataset } from "./data.js";
 /** What the Replicator needs from instantiate.ts (which imports this module;
  *  the interface keeps the dependency one-way): construct one instance of
  *  the template — tree only — and hand back `finish` (installs bindings,
@@ -36,7 +38,7 @@ export interface Materialize {
  *
  *  NAMING (2026-08-02, superseding the 07-30 ruling's spelling). The slot was
  *  ruled as `windowed`, renamed the same day to `materialize` to clear the
- *  word for Window-the-component. Both options named the thing from the
+ *  word for Window-the-class. Both options named the thing from the
  *  RUNTIME's side — which is right for the mechanism and wrong for a knob.
  *  `virtualize` is the word an author arrives with, and a knob should be
  *  spelled in its audience's vocabulary even when the mechanism is not:
@@ -66,11 +68,38 @@ export interface MaterializationDiag {
      *  with the structural fallback beneath the keyless modes. */
     identity: "key" | "id" | "object";
 }
+export interface Match {
+    data: Dataset | null;
+    /** The nodes to MATERIALIZE — value + real location (select.ts): the whole
+     *  match in full mode, the window slice (+ buffer) in windowed mode; a
+     *  selective `:rows[2:8][]` yields the selected elements at their TRUE
+     *  indices, so each instance's cursor points at the record's actual place. */
+    nodes: readonly PathNode[];
+    /** The LOGICAL membership values (the full array in windowed mode — what
+     *  membership-anchored init and retained-index bookkeeping read). */
+    items: readonly unknown[];
+    /** The array region's path (windowed bookkeeping: retained cursors). */
+    arrayPath: readonly string[] | null;
+    logical: number;
+    start: number;
+    unit: number;
+    windowed: boolean;
+    /** Did the logical membership change shape since the last match (array
+     *  identity or length) — as opposed to a scroll-driven window move? The
+     *  O(N) bookkeeping passes run only when this is true. */
+    dataChanged: boolean;
+    /** The y where the block STARTS inside its parent — the bottom of the
+     *  preceding sibling (a grid's header) plus one gap; 0 with no leader. */
+    leading: number;
+    /** Each node's class (`classFor`), read inside the match so a record whose
+     *  kind changes re-matches; null when the block has one class. */
+    classes?: readonly string[] | null;
+}
 export declare class Replicator {
     private readonly parent;
     private readonly path;
-    private readonly classroot;
-    private readonly make;
+    protected readonly classroot: View;
+    protected readonly make: Materialize;
     /** The block's position anchor: the sibling just before it — a Node, a
      *  preceding Replicator (possibly empty), or null at the front. */
     private readonly prev;
@@ -129,7 +158,7 @@ export declare class Replicator {
      *  after creating rows while the unit is still predicted). */
     private readonly measureCell;
     private indexCache;
-    private readonly template;
+    protected readonly template: Element;
     private readonly constraint;
     /** The record field that identifies an instance across re-derivations
      *  (`key = :field`), split into segments — or null to reconcile by object
@@ -159,7 +188,7 @@ export declare class Replicator {
     logicalCount(): number;
     /** The realized instances, each with its LOGICAL index — the live
      *  window under the mechanism's name-of-art, spoken as `realized` so the
-     *  API never collides with Window-the-component. */
+     *  API never collides with Window-the-class. */
     realized(): readonly {
         view: View;
         index: number;
@@ -185,6 +214,14 @@ export declare class Replicator {
      *  nothing — zero instances, re-matched the moment the region becomes an
      *  array. A SELECTIVE plan (`:rows[2:8][]`) replicates the selection
      *  itself — windowing over selections is a later increment. */
+    /** Tag the matched nodes with their classes (runs inside the match). */
+    protected classify(m: Match): Match;
+    /** The class matched node `i` is built as. */
+    protected kindAt(_m: Match, _i: number): string;
+    /** The class a live instance was built as. */
+    protected kindOf(_v: View): string;
+    /** Build an instance of class `kind`. */
+    protected build(_kind: string): ReturnType<Materialize>;
     private match;
     /** A record's pooling identity, per the REVISED ladder (ruled 2026-07-30,
      *  the invisible version): the explicit `key = :field` override first,

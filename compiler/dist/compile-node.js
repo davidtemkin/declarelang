@@ -35,7 +35,7 @@ export { highlight, lineMetrics } from "./highlight.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
-/** The bundled component library root (`declarelang/library`) — its `autoincludes.json`
+/** The bundled class library root (`declarelang/library`) — its `autoincludes.json`
  *  + `src/*.declare` are what make bare tags like `Bar [ … ]` resolve with no
  *  `include`. Resolved from this module's location (compiler/dist/…), so it is
  *  correct wherever the distro is checked out. Callers may override with
@@ -95,7 +95,7 @@ async function nodeBundleScripts(entry, resolveDir) {
     }
 }
 /** `compile`, additionally returning the compile's full dependency CLOSURE
- *  (closure.ts) — the main file, every `include`, every auto-included component
+ *  (closure.ts) — the main file, every `include`, every auto-included class
  *  library, and the manifest, each with a disk validator. The caller owns it:
  *  feed it to isUpToDate()/contentTag() for a disk or HTTP cache, or to fs.watch
  *  for live reload. The disk/browser CACHE layers (get/put, 304s) build on this

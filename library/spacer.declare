@@ -3,7 +3,7 @@
 
 When a row (or stack) does not fill its container, the leftover space has to
 go somewhere — and the laid children cannot take it themselves (their
-flow-axis slot is owned by the layout). A Spacer says where, structurally: put one between two
+flow-axis size is owned by the layout). A Spacer says where, structurally: put one between two
 groups and they push apart ("logo left, actions right"); put one on each
 side of a run and it centers; put one first and the run right-aligns.
 Several spacers split the slack evenly. When there is no slack — a plan
@@ -22,7 +22,7 @@ what makes `Spacer [ ]` push its siblings apart. Set it false for a fixed gap yo
 size yourself.
 */
 
-class Spacer extends View [
+class Spacer [
     flexes: boolean = true,
     width = 0,
     height = 0

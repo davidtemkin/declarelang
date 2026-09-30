@@ -97,7 +97,7 @@ export default async ({ drive, expect }) => {
 `settleMotion` takes the app's clock and runs animation to rest deterministically, so a
 spring's end state can be asserted at all.
 
-## When it checks clean and still misbehaves
+## Debugging a running program
 
 A green rung means that rung found nothing. The first four run without a browser —
 approximate text metrics, no real layout engine, no input routing — so some problems
@@ -128,4 +128,4 @@ fixes indentation, commas and spacing. `--check` makes it a CI gate.
 fix, check a program up the six rungs, and question a running program when reading its
 source is not enough.
 
-[Next: **Components and the tree** →](declare-docs:guide:components)
+[Next: **Classes and the tree** →](declare-docs:guide:classes)

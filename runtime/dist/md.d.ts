@@ -81,7 +81,7 @@ export interface ReadOptions {
     isClass?: (name: string) => boolean;
     /** A refused inline view (a class tag that is not self-closing — this
      *  version places only self-closing tags): the reader keeps going and hands
-     *  the sentence here, for the component's `unsupported` policy to report. */
+     *  the sentence here, for the class's `unsupported` policy to report. */
     refuse?: (message: string) => void;
 }
 /** Scan a self-closing INLINE VIEW tag at `at` (where `src[at]` is `<`): a tag

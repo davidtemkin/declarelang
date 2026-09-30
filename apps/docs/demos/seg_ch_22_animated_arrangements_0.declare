@@ -1,4 +1,4 @@
-class Cell extends View [ cornerRadius = 10, fill = darkslategray, clip = true,
+class Cell [ cornerRadius = 10, fill = darkslategray, clip = true,
     x = { :col * app.colW + 2 },
     y = { (:row - app.r0) * app.rowH + 2 },
     width = { app.colW - 4 },

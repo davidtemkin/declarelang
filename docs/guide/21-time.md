@@ -12,7 +12,7 @@ program must *act* because something crossed into a new state.
 > **Time is an input, never a loop. A value that should follow is a constraint; only an
 > action that must happen once is a change event.**
 
-## The clock as a member
+## The clock: `Time`
 
 [`Time`](declare-docs:Time) brings the clock into your program as a member, the way [`Keys`](declare-docs:Keys) brings the
 keyboard and [`DataSource`](declare-docs:DataSource) brings a server. Declare one, and the current time becomes a
@@ -90,7 +90,7 @@ App [ width = 240, height = 120, fill = midnightblue, textColor = whitesmoke,
 `dt` is the elapsed step in seconds, clamped — a tab returning from the background
 resumes with a plausible step, not a sixty-second leap — and it rides the same clock
 every [`Spring`](declare-docs:Spring) and [`Animator`](declare-docs:Animator) uses, so there is no second frame loop. `running` is a
-live slot (`running = { app.simulating }`), so the loop pauses and resumes
+live attribute (`running = { app.simulating }`), so the loop pauses and resumes
 declaratively. `onTick` exists on every tier: at `tick = minute` it means "when the
 minute turns" — an event, not a loop.
 
@@ -127,7 +127,7 @@ that moment — the change event below. **Nothing in a Declare program waits or 
 checks whether something has happened is waiting for a specific value, and depending on
 that value directly is both simpler and exact.
 
-## Later, once: `afterDelay`
+## One later call: `afterDelay`
 
 `afterDelay(ms, fn)` runs `fn` once, `ms` milliseconds from now. It is for the few
 things that really are timing rules — a notice that dismisses itself after eight
@@ -164,7 +164,7 @@ motion finishing is `spring.arrived`, and all of those are values a constraint c
 The host's `setTimeout` and `setInterval` are not available in a `{ }` body; the
 compiler names `afterDelay` and `Time` instead.
 
-## When a change must cause an action: `onChange`
+## Change events: `onChange`
 
 Almost everything in a Declare program *follows*. A value reads another, the other changes,
 and the first one is already right — the constraint is the notification. That is why the
@@ -179,7 +179,7 @@ this" — the doing is the point.
 For those, a node names the values it wants to hear about, and answers `onChange`:
 
 ```declare
-class Thread extends View [ scrolls = y, fill = #F2F5F8,
+class Thread [ scrolls = y, fill = #F2F5F8,
     atEnd: boolean = { scrollY >= contentHeight - height - 1 },
     trackChanges = [ "atEnd" ],
     onChange(e: ChangeEvent) {
@@ -227,7 +227,7 @@ the ones you would want. A handler may not assign a value it was told about, whi
 with a name, and it is refused. A ring — mine moves yours, yours moves mine — ends on its
 own, because a value is delivered at most once per settle chain.
 
-### Declare the condition; handle only the action
+### Conditions as attributes
 
 Notice that `atEnd` is an attribute, not a test written inside the handler. That is the same
 discipline a state's condition follows, for the same reason: the *what* stays readable, other
@@ -238,7 +238,7 @@ makes `atEnd`'s consequence — the unread count — zero, so nothing is left to
 handler runs again. When an action cannot be written that way, because it posts a message or
 appends to a log, give that concern its own node rather than letting one handler carry two.
 
-### Only when you really need a state change
+### When to use `onChange`
 
 This is the one place a Declare program acts instead of describing, and the bar is that high.
 A value that should follow another is a constraint. A value that should arrive somewhere is a

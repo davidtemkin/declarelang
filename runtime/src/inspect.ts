@@ -23,7 +23,7 @@ import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from
 // ── the tree as data ────────────────────────────────────────────────────────
 
 export interface InspectNode {
-  /** The component kind — the class's name (`Checkbox`, `View`, `Spring`…). */
+  /** The class kind — the class's name (`Checkbox`, `View`, `Spring`…). */
   kind: string;
   /** The member name this node is reachable by, when named; else null. */
   name: string | null;
@@ -65,10 +65,10 @@ export interface InspectNode {
 
 const isView = (n: Node): n is View => n instanceof View;
 
-/** The component name to SHOW for a node. A named user class carries its own
+/** The class name to SHOW for a node. A named user class carries its own
  *  (`FinderWindow`); an instance-declared anonymous subclass carries whatever
  *  the bundler left behind (`je`, `t`), which is noise. So: take the first name
- *  up the prototype chain that reads like a component name, and fall back to
+ *  up the prototype chain that reads like a class name, and fall back to
  *  the registry's own name→class table, which is authoritative and survives
  *  minification because its KEYS are strings. */
 const REGISTRY_NAME = new WeakMap<object, string>();
@@ -273,7 +273,7 @@ export function explain(node: Node, attr: string): Provenance {
     });
     return {
       attr, value: undefined, set: false, constraint: null, spring: null,
-      error: `no slot '${attr}' on ${kindName(node)}${near.length > 0 ? ` — did you mean ${near.slice(0, 3).map((n) => `'${n}'`).join(", ")}?` : ""}`,
+      error: `no attribute '${attr}' on ${kindName(node)}${near.length > 0 ? ` — did you mean ${near.slice(0, 3).map((n) => `'${n}'`).join(", ")}?` : ""}`,
     };
   }
   const owner = ownerOf(node, attr);
@@ -300,7 +300,7 @@ export function explain(node: Node, attr: string): Provenance {
       ? {
           // Composed fresh rather than echoing owner.label: that string is baked
           // at bind time from the raw constructor name, which a bundler may have
-          // minified to `t`. kindName() recovers the component's real name.
+          // minified to `t`. kindName() recovers the class's real name.
           label: `${kindName(node)}.${attr}`,
           static: owner.isStatic,
           live: owner.live === true,

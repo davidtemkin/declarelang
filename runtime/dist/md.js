@@ -6,7 +6,7 @@
 // to expand literals at build and the runtime imports it (only when dynamic
 // Markdown is used) to parse at render — owned by neither.
 //
-// Output is the two-tier tree the `Markdown` component renders: a list of
+// Output is the two-tier tree the `Markdown` class renders: a list of
 // block nodes, each carrying inline nodes (or nested blocks). Raw HTML is NOT
 // interpreted — every `<tag>` renders as literal text (the one documented
 // deviation); character entities still decode (they are characters).

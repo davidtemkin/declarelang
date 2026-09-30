@@ -58,7 +58,7 @@ async function openReader(url) {
   });
   await page.mouse.click(icon.x, icon.y);
   await page.waitForFunction(
-    () => globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).some((c) => c.constructor.name === "ViewerWindow"),
+    () => globalThis.__declare.find("app.wins").childViews.some((c) => c.constructor.name === "ViewerWindow"),
     { timeout: 15000 });
   await new Promise((r) => setTimeout(r, 1500)); // open animation + content fetch
 }
@@ -67,7 +67,7 @@ async function openReader(url) {
  *  wins layer sits below the 32px menu bar). */
 function readerGeo() {
   return page.evaluate(() => {
-    const w = globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).find((c) => c.constructor.name === "ViewerWindow");
+    const w = globalThis.__declare.find("app.wins").childViews.find((c) => c.constructor.name === "ViewerWindow");
     globalThis.__w = w;
     const walk = (v) => { if (v.scrolls === "y" || v.scrolls === "both") return v; for (const c of v.children ?? []) { const r = walk(c); if (r) return r; } return null; };
     globalThis.__body = walk(w);
@@ -100,13 +100,13 @@ async function filesReveal(url) {
   // tree with each scrolling ancestor's offset subtracted, so a click aimed at a
   // revealed column lands only if paint and hit really shifted with scrollX.
   const probe = () => page.evaluate(() => {
-    const w = globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).find((c) => c.constructor.name === "FilesWindow");
+    const w = globalThis.__declare.find("app.wins").childViews.find((c) => c.constructor.name === "FilesWindow");
     const kids = (v) => v.childViews ?? v.children ?? [];
     const walk = (v, pred) => { if (pred(v)) return v; for (const c of kids(v)) { const r = walk(c, pred); if (r) return r; } return null; };
     const strip = walk(w, (v) => v.scrolls === "x");
     const cols = kids(kids(strip)[0]);
     const abs = (v) => { let x = 0, y = 0; for (let n = v; n; n = n.parent) { x += n.x ?? 0; y += n.y ?? 0; if (n.parent) { x -= n.parent.scrollX ?? 0; y -= n.parent.scrollY ?? 0; } } return { x, y }; };
-    const rows = (col) => kids(col.lst.inner).map((r) => { const a = abs(r); return { name: r.nm.text, x: Math.round(a.x + r.width / 2), y: Math.round(a.y + r.height / 2) }; });
+    const rows = (col) => (col.lst === undefined ? [] : kids(col.lst.inner)).map((r) => { const a = abs(r); return { name: r.nm.text, x: Math.round(a.x + r.width / 2), y: Math.round(a.y + r.height / 2) }; });
     return { cols: cols.map((c) => ({ x: c.x, w: c.width, rows: rows(c) })), scrollX: strip.scrollX, stripW: strip.width, depth: w.selPath === "" ? 0 : String(w.selPath).split("\n").length };
   });
   const clickRow = async (col, name) => {
@@ -275,7 +275,7 @@ try {
     await new Promise((r) => setTimeout(r, 800));
     await zoomOn();
     const r = await page.evaluate(() => {
-      const aw = globalThis.__declare.find("app.wins").children.map((c) => c.win ?? c).find((c) => c.constructor.name === "AppWindow");
+      const aw = globalThis.__declare.find("app.wins").childViews.find((c) => c.constructor.name === "AppWindow");
       const box = document.querySelector('[data-declare-slot^="run:"]');
       const rect = box.getBoundingClientRect();
       return { rectW: rect.width, rectCx: rect.left + rect.width / 2, rectCy: rect.top + rect.height / 2,

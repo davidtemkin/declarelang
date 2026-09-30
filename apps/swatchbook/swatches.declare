@@ -6,7 +6,9 @@ unit a person looks at and the unit the conformance gate compares across
 renderers. A section is a title, a caption, its own switch between sub-pages,
 and the sub-pages themselves; in the matrix (`#matrix`) every sub-page shows at
 once. Where a sub-page is data — a list of rows, the values of its axes — a
-replicated swatch class draws a row; the rows live in the App's `book`.
+replicated swatch class draws a row; each section builds its own rows, in a
+dataset its grids bind to. `cross` and `over` below are the two ways a
+section makes rows from axes.
 */
 
 script {
@@ -35,7 +37,7 @@ Fixed size, so a grid is a grid and a difference between renderers is never
 absorbed by a neighbour. The stage is the top 120px; the name sits under it.
 */
 
-class Swatch extends View [ width = 212, height = 152, cornerRadius = 10, clip = true,
+class Swatch [ width = 212, height = 152, cornerRadius = 10, clip = true,
     fill = { provided("theme").surface },
     stroke = { stroke(1, provided("theme").line) },
     name: string = "",
@@ -47,7 +49,7 @@ class Swatch extends View [ width = 212, height = 152, cornerRadius = 10, clip =
 
 // A wrapping grid of swatches.
 
-class Grid extends View [ width = 100%,
+class Grid [ width = 100%,
     layout: WrappingLayout [ spacing = 12, rowSpacing = 12 ]
     ]
 
@@ -60,7 +62,7 @@ one, and for every one in the matrix. A sub-page is any view under the section
 whose `visible` reads `classroot.showing("…")`.
 */
 
-class Section extends View [ width = 100%,
+class Section [ width = 100%,
     title: string = "",
     caption: string = "",
     tabs: object = null,
@@ -89,14 +91,14 @@ class SubHead extends Text [ fontSize = 13, fontWeight = semibold, wrap = false,
 
 // A view placed inside a line of rich text: the tag names the class.
 
-class Chip extends View [ label: string = "",
+class Chip [ label: string = "",
     height = 19, width = { this.t.width + 18 }, cornerRadius = 9, fill = 0xDDF4E4,
     baseline: number = { this.t.y + this.t.baseline },
     t: TextLabel [ x = 9, fontSize = 11.5, textColor = 0x1B5E36, text = { classroot.label } ]
     ]
 
 
-class TallChip extends View [ label: string = "",
+class TallChip [ label: string = "",
     height = 30, width = { this.t.width + 20 }, cornerRadius = 6, fill = 0xDDE7F9,
     t: TextLabel [ x = 10, fontSize = 16, textColor = 0x1D3F8F, text = { classroot.label } ]
     ]

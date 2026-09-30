@@ -59,7 +59,7 @@ export declare function resolveIncludes(program: Program, host: IncludeHost, ori
     visited: Set<string>;
 }>;
 export declare function autoIncludableNames(): readonly string[];
-/** A host that ALSO auto-includes component libraries by bare tag — the LZX
+/** A host that ALSO auto-includes class libraries by bare tag — the LZX
  *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Bar [ … ]`
  *  with no `include` and no inline `class Bar` pulls in the library that
  *  declares `Bar`. `autoincludes()` is the tag→library-path manifest;
@@ -71,21 +71,21 @@ export interface AutoIncludeHost extends IncludeHost {
     autoincludes(): Record<string, string>;
     resolveLibrary(path: string): Resolved | null | Promise<Resolved | null>;
 }
-/** The component NAMES a program STATICALLY references — its tree tags (children,
- *  including component-valued members like `layout:`/`data:`/animators/states)
+/** The class NAMES a program STATICALLY references — its tree tags (children,
+ *  including class-valued members like `layout:`/`data:`/animators/states)
  *  and every class's `extends` base. The static half of the used-set a production
  *  build keeps (the compiler adds `{ }`-body construction refs and the `use`
  *  list). The same walk `resolveAutoIncludes` trusts to pull libraries — so it is
  *  proven to see every static reference. Deduped. */
-export declare function referencedComponentNames(program: Program): string[];
-/** Pull the libraries that define a program's bare component tags — the
+export declare function referencedClassNames(program: Program): string[];
+/** Pull the libraries that define a program's bare class tags — the
  *  auto-include phase, run AFTER explicit includes (composition.md §1a). A
  *  referenced tag that is neither provided (main or explicit include) nor a
  *  built-in is looked up in the manifest; if found, its library is spliced in
  *  exactly like an explicit include — dependency-first (a library's own magic
  *  bases/children are pulled before it is emitted), include-once through the
  *  shared `visited` set. A tag absent from the manifest is left alone: it is a
- *  genuine unknown component the checker reports after the merge.
+ *  genuine unknown class the checker reports after the merge.
  *
  *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
  *  make this a no-op returning the program unchanged. */

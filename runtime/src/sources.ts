@@ -1,18 +1,18 @@
-// sources — the runtime's event SOURCES, as components. A source is a
+// sources — the runtime's event SOURCES, as classes. A source is a
 // non-visual member you put in a tree whose handlers are called by something
 // OUTSIDE the tree: the keyboard, the focus service, the tip service.
 //
 //     keys: Keys [ onKeyUp(e) { if (e.key == "Escape") classroot.close() } ],
 //
-// WHY COMPONENTS, not a `<-` operator. The language rules that an event is just
+// WHY CLASSES, not a `<-` operator. The language rules that an event is just
 // a function-typed member that gets called when the thing happens — the `on`
 // prefix is a naming convention, not syntax. A second, syntactically distinct
 // way to receive an event contradicted that ruling: one category, two
 // spellings. Non-visual members are a category the language already has
 // (Dataset, Animator, Spring, State, Time), so a source needs no operator, no
 // grammar production, and no subscribable-source table. The classes below are
-// ordinary registry components, so the ones an app never mentions are dropped
-// from its bundle like any other component. (Measured caveat, so nobody repeats
+// ordinary registry classes, so the ones an app never mentions are dropped
+// from its bundle like any other class. (Measured caveat, so nobody repeats
 // an over-claim: that shakes out these thin WRAPPERS only. The SERVICES they
 // wrap ship regardless — boot.ts wires Keys, index.ts injects Keys/Focus into
 // body scope for `Keys.isDown(…)`, view.ts uses Tip, text-input.ts uses Focus.
@@ -38,7 +38,7 @@ import { Tip } from "./tip.js";
 type Handler = (arg: unknown) => void;
 type Channel = readonly [member: string, subscribe: (fn: Handler) => () => void];
 
-/** The shared half of every source component: at init, wire each channel whose
+/** The shared half of every source class: at init, wire each channel whose
  *  handler this instance actually declares; at discard, drop them all. Nothing
  *  subscribes for a handler nobody wrote — pay-per-use, like every other member
  *  in the language. */

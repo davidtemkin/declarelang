@@ -3,7 +3,7 @@
 // internal debt. Three surfaces:
 //
 //   1. markdown ```declare fences   → must COMPILE   (```declare-fragment → must PARSE)
-//   2. .declare source files        → must COMPILE   (component files get an App root appended,
+//   2. .declare source files        → must COMPILE   (class files get an App root appended,
 //                                                     the declarec.mjs:625 convention)
 //   3. .declare docstring examples  → must PARSE     (the C3 blind spot: indented blocks inside
 //                                                     the leading /* */ comment, covered by nothing)
@@ -108,10 +108,10 @@ for (const f of files.filter((f) => f.endsWith(".md"))) {
 for (const f of files.filter((f) => f.endsWith(".declare"))) {
   counts.source++;
   const src = readFileSync(f, "utf8");
-  const isComponent = !/^\s*App\s*\[/m.test(src);
+  const isClassName = !/^\s*App\s*\[/m.test(src);
   let out;
   try {
-    out = await compile(isComponent ? `${src}\nApp [ ]\n` : src, { originDir: dirname(f) });
+    out = await compile(isClassName ? `${src}\nApp [ ]\n` : src, { originDir: dirname(f) });
   } catch (e) {
     // A THROW is not a diagnostic: the compiler fell over instead of reporting.
     // That is a worse finding than a broken example and gets its own severity.
@@ -119,7 +119,7 @@ for (const f of files.filter((f) => f.endsWith(".declare"))) {
     continue;
   }
   if (out.errors.length) {
-    note("source", f, isComponent ? "(component file, App root appended)" : "(program)",
+    note("source", f, isClassName ? "(class file, App root appended)" : "(program)",
       out.errors.slice(0, 3).map((e) => `${e.message}${e.line ? ` (line ${e.line})` : ""}`).join(" | "));
   }
 }
@@ -142,7 +142,7 @@ for (const f of files.filter((f) => f.endsWith(".declare"))) {
       if (!/^[A-Z][\w]*\s*(\[|\{)/.test(first) || !text.includes("[")) return;
       counts.docstring++;
       const head = first.slice(0, 60);
-      // Docstring examples name their OWN component, which lives in this file —
+      // Docstring examples name their OWN class, which lives in this file —
       // so compile the file's source ahead of the excerpt, the way a reader
       // would use it. This is the C3 blind spot: covered by nothing today.
       const asRoot = /^\s*App\s*\[/.test(text);

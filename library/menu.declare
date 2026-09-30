@@ -1,7 +1,7 @@
 /*
 # Menu
 
-The record-driven menu: **items are data** — the component arranges; the
+The record-driven menu: **items are data** — the class arranges; the
 author never composes rows. The standard record covers real OS menus:
 
     { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props?, minWidth? }
@@ -28,7 +28,7 @@ Declared once, opened by many: rows carry
 constraint derives from `opener` — per-row variation with zero per-row
 instances, live while open. `openAt` point-positions (the context-menu
 rule); `openFor` drops below a control (the attached-menu rule); both
-raise the menu (promotion — order is a slot) and clamp inside the app.
+raise the menu (promotion — order is an attribute) and clamp inside the app.
 
 Dismissal: the backdrop (a full-app child under the panel) — a press
 outside closes **and** is swallowed, the Mac rule; Escape closes; pick closes after delivery.
@@ -144,7 +144,7 @@ settle, which is why this exists.
 ## place()
 Positions the panel from **root-space** coordinates, converting into the parent's space
 and clamping inside the app — so a menu works declared at App level or inside a
-component. The chain offset is snapshotted at open: menu chrome does not move while a
+class. The chain offset is snapshotted at open: menu chrome does not move while a
 menu is up.
 
 ## isRoot
@@ -231,7 +231,7 @@ house look. See `Control.theme`.
 
 include [ "control.declare" ]
 
-class Menu extends View [
+class Menu [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.
@@ -356,7 +356,7 @@ class Menu extends View [
     // `rootOrigin()` — the one scroll-aware walk, so a serving view inside a
     // scrolled pane anchors where the user sees it) and converts to
     // parent-space, so a Menu works declared at App level or inside a
-    // component (MenuBar owns one). The chain offset is snapshotted at
+    // class (MenuBar owns one). The chain offset is snapshotted at
     // open — menu chrome doesn't move while a menu is up.
 
     offX: number = 0,

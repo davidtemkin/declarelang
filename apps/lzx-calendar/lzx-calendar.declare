@@ -22,7 +22,7 @@ white top hairline and a #555 bottom one, drawn — then the short time ("9a")
 and the title. `TimeEvent`, below, is the same event on the open timeline.
 */
 
-class EventBar extends View [
+class EventBar [
     width = 100%, height = 22,
     clip = true,
 
@@ -54,7 +54,7 @@ class EventBar extends View [
 
     info:  InfoButton [ x = 2, y = 4, visible = { classroot.selected } ],
     time:  Text [ x = { classroot.selected ? 19 : 4 }, y = 6, fontSize = 10,
-        textColor = #4B5D6C, text = :timeLabel ],
+        textColor = #4B5D6C, text = { app.shortTime(:start) } ],
     title: Text [ x = { parent.time.x + parent.time.width + 5 }, y = 6,
         width = { parent.width - this.x - 2 }, fontSize = 10,
         textColor = #4B5D6C, text = :title ],
@@ -70,7 +70,7 @@ class EventBar extends View [
 // drawn 14px disc with an italic-ish "i"; inherits the event cursor so its
 // click knows which event (:id) to open.
 
-class InfoButton extends View [
+class InfoButton [
     width = 14, height = 14, cornerRadius = 7,
     fill = gradient(stop(0, 0xF4F4F4), stop(1, 0xAEB6BD)),
     stroke = stroke(1, #7C8A92),
@@ -86,7 +86,7 @@ class InfoButton extends View [
 // `+` opens the selected day in place; `−` (when already open) collapses it /
 // returns to the month. A drawn glyph — the original used button bitmaps.
 
-class PlusMinus extends View [
+class PlusMinus [
     isOpen: boolean = false,
     width = 11, height = 11, cornerRadius = 2,
     fill = gradient(stop(0, 0xE8ECEC), stop(0.5, 0xC2CBCE), stop(1, 0x8A9BA3)),
@@ -114,10 +114,11 @@ duration), and `label` is the formatted value, set at the instance site.
 `AccordionSection` is one collapsible panel tab (Notes / Location /
 Attendees), one open at a time (`app.openTab`): the open section's multiline
 field fills the area and pushes the sections below it down (SPEC §7), under a
-header with drawn bevel hairlines and a disclosure triangle.
+header with drawn bevel hairlines and a disclosure triangle. The field edits
+`field` of the record at its cursor — the panel's working copy.
 */
 
-class Stepper extends View [
+class Stepper [
     field: string = "",
     label: string = "",
     width = 120, height = 16,
@@ -141,9 +142,10 @@ class Stepper extends View [
     ]
 
 
-class AccordionSection extends View [
+class AccordionSection [
     idx: number = 0,
     label: string = "",
+    field: string = "",
     width = 197,
     y = { 90 + this.idx * 20 + (this.idx > app.openTab ? 330 : 0) },
 
@@ -166,6 +168,7 @@ class AccordionSection extends View [
 
     area: TextInput [ x = 2, y = 20, width = { parent.width - 4 }, height = 326,
         multiline = true, fill = #FFFFFF, fontSize = 10, textColor = #333333,
+        text <-> { classroot.field },
         visible = { app.openTab == classroot.idx } ]
     ]
 
@@ -174,16 +177,17 @@ class AccordionSection extends View [
 ## The open timeline
 
 `HourLabel` is one hour marker down the open timeline's left gutter (SPEC
-§3), replicated over the store's `hours` records ({ num, ampm, y, bold }):
+§3), replicated over the `hours` dataset's records ({ num, ampm, y, bold }):
 the number 10px (bold on 12a/12p), the am/pm a 7px subscript, centered on the
 hour rule at :y. `TimeEvent` is an event placed on that timeline (SPEC §3–4),
 positioned and sized by time — y = start·(22/60)+11, height = max(22,
 dur·22/60) — with the category fill, a category-tinted time gutter (29px, 30%
 opacity) at the left, and the title only (the closed form's leading time is
-redundant on a timeline).
+redundant on a timeline). Its record is a lane wrapper — `{ ev, lane, lanes }`,
+the event itself plus where it sits among the events it overlaps.
 */
 
-class HourLabel extends View [
+class HourLabel [
     num:  Text [ x = 2, fontSize = 10, textColor = #4B5D6C,
         fontWeight = { :bold ? "bold" : "normal" }, text = :num ],
     ampm: Text [ x = { parent.num.x + parent.num.width }, y = 3, fontSize = 7,
@@ -191,11 +195,12 @@ class HourLabel extends View [
     ]
 
 
-class TimeEvent extends View [
+class TimeEvent [
     category: string = "",
     clip = true,
     selected: boolean = false,
     dayKey: string = "",
+    evId: number = { :ev.id ?? -1 },
 
     fill = { selected ? 0xFAFAFA
            : category == "holiday"   ? 0xCBD1C5
@@ -204,10 +209,10 @@ class TimeEvent extends View [
            :                           0xC6CEDC },
 
     // Placed by time; overlapping events share the width by lane (§12-E — the
-    // store hands each event its lane index and the cluster's lane count).
+    // wrapper carries the event's lane index and its cluster's lane count).
 
-    y = { :start * 22 / 60 + 11 },
-    height = { Math.max(22, (:end - :start) * 22 / 60) },
+    y = { :ev.start * 22 / 60 + 11 },
+    height = { Math.max(22, (:ev.end - :ev.start) * 22 / 60) },
     x = { :lane * (parent.width / :lanes) },
     width = { parent.width / :lanes },
 
@@ -231,16 +236,16 @@ class TimeEvent extends View [
             }
         },
 
-    info:  InfoButton [ x = 2, y = 4, visible = { classroot.selected } ],
+    info:  InfoButton [ x = 2, y = 4, datapath = :ev, visible = { classroot.selected } ],
     time:  Text [ x = 19, y = 4, fontSize = 10, textColor = #4B5D6C,
-        visible = { classroot.selected }, text = :timeLabel ],
+        visible = { classroot.selected }, text = { app.shortTime(:ev.start) } ],
     title: Text [ x = { classroot.selected ? 36 : 10 }, y = 4, fontSize = 10,
-        textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :title ],
+        textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :ev.title ],
 
-    onPointerDown() { app.startDrag(:id) },
+    onPointerDown() { app.startDrag(evId) },
     onPointerMove(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
     onPointerUp()   { app.endDrag() },
-    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
+    onClick() { if (!app.dragOccurred) app.selectEvent(evId, this.dayKey) }
     ]
 
 
@@ -248,8 +253,8 @@ class TimeEvent extends View [
 ## DayCell
 
 One day of the grid (SPEC §3). Closed form: a drawn frame — day number on the
-dark strip, body colored by kind, events stacked in start order (the store
-pre-sorts, so a plain vertical stack is the sorted list). Open form (in place
+dark strip, body colored by kind, events stacked in start order (the month
+model sorts them, so a plain vertical stack is the sorted list). Open form (in place
 in month, widened column in week, the day view): the closed list gives way to
 an hour timeline — the `opened` state on the body swaps them, so only open
 cells build a timeline. Geometry (x/y/width/height/visible) is owned by the
@@ -257,7 +262,7 @@ grid's CalendarGrid layout, not the cell — it carries none of the slide
 machinery.
 */
 
-class DayCell extends View [
+class DayCell [
     dayKey: string = "",
     selected: boolean = false,
     open: boolean = false,
@@ -307,7 +312,7 @@ class DayCell extends View [
 
         // Open form: an hour timeline, built only while the cell is open. The
         // hour rules are drawn (22px/hour, +11px half-hour zero); labels ride
-        // the store's `hours` records down a 28px gutter; events sit by time.
+        // the `hours` records down a 28px gutter; events sit by time, in lanes.
 
         opened: State [ applied = { classroot.open },
             // The scrolling content (611px = 24·22 + 11). It opens scrolled to
@@ -324,12 +329,12 @@ class DayCell extends View [
                     d.fillStyle = 0x8C9AA3
                     d.fillRect(28, 0, 1, height)
                     },
-                labels: View [ width = 28,
+                labels: View [ width = 28, datapath = { app.hours.value },
                     HourLabel [ datapath = :hours[], y = { :y - 6 } ]
                     ],
                 events: View [ x = 28, width = { parent.width - 38 },
-                    TimeEvent [ datapath = :events[], category = :category,
-                        dayKey = { classroot.dayKey }, selected = { app.selectedEvent == :id } ]
+                    TimeEvent [ datapath = :laned[], category = :ev.category,
+                        dayKey = { classroot.dayKey }, selected = { app.selectedEvent == this.evId } ]
                     ]
                 ],
 
@@ -355,11 +360,11 @@ class DayCell extends View [
 
 
 // DayName — a weekday column title, tracking its column's live geometry:
-// replicated over the `cols` records relayout maintains (x/width per column, per
-// mode) — the original constrained each label to its top-row cell for the
+// replicated over the `names` records relayout maintains (x/width per column,
+// per mode) — the original constrained each label to its top-row cell for the
 // same effect. Day mode shows only the open day's label (SPEC §12-D).
 
-class DayName extends View [
+class DayName [
     t: Text [ fontSize = 10, fontWeight = bold, textColor = #B7BEC1,
         x = center, text = :label ]
     ]
@@ -436,7 +441,7 @@ class CalendarGrid extends TweenLayout [
 // CalButton — the pill button, drawn (SPEC §13: kills the button slices):
 // gradient face, rounded caps, white bold label; pressed = darker face.
 
-class CalButton extends View [
+class CalButton [
     label: string = "",
     height = 17,
     cornerRadius = 8,
@@ -466,10 +471,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     /* ## The store (SPEC §9)
        All months' events in one fetch (the original lazy-loaded per-month
-       XML; the corpus is tiny and edits are in-memory by scope). `cal.days`
-       is the displayed month: one record per visible day, events pre-sorted;
-       `cal.cols` is the seven column boxes relayout maintains for the
-       day-name labels. */
+       XML; the corpus is tiny and edits are in-memory by scope). `data` is
+       the truth, and every edit is a write to it. `cal` is the displayed
+       month, derived: one record per visible day, holding that day's events
+       in start order. `names` is the seven column boxes relayout maintains
+       for the day-name labels; `hours` the open timeline's gutter. */
 
     data: DataSource [ url = "data/events.json",
         onLoad() {
@@ -479,11 +485,13 @@ App [ width = 835, height = 600, fill = #1E3A49,
             app.grid.fadeIn.start()
             }
         ],
-    cal: Dataset { { "days": [], "cols": [] } },
+    cal: Dataset [ contents = { app.buildMonth() } ],
+    names: Dataset { { "cols": [] } },
+    hours: Dataset [ contents = { { hours: app.buildHours() } } ],
 
     year: number = 0,
     month: number = 0,                    // 1-based, like the data
-    rows: number = 5,
+    rows: number = { app.month == 0 ? 5 : Math.ceil((new Date(app.year, app.month - 1, 1).getDay() + new Date(app.year, app.month, 0).getDate()) / 7) },
     selectedKey: string = "",
     selectedEvent: number = -1,           // the selected event's id, or -1
     panelOpen: boolean = false,           // the info panel is showing (SPEC §7)
@@ -524,29 +532,23 @@ App [ width = 835, height = 600, fill = #1E3A49,
         return new Date(p[0], p[1] - 1, p[2])
         },
 
-    // Build the displayed month: 35 or 42 day records starting the Sunday of
-    // the week containing the 1st (SPEC §2). Each record carries its events,
-    // sorted by start. Selection: an explicit key (mode-aware nav), else
-    // today when visible, else the 1st (§12-A).
+    // The displayed month: 35 or 42 day records starting the Sunday of the
+    // week containing the 1st (SPEC §2). Each day holds its events, sorted by
+    // start — the data's own records, so a row reads what an edit wrote — and
+    // `laned`, the same events wrapped with their lanes for the timeline.
 
-    setMonth(y: number, m: number, selKey: string?) {
-        this.year = y
-        this.month = m
+    buildMonth() -> object {
+        const y = this.year, m = this.month
+        if (m == 0) return { days: [] }
         const first = new Date(y, m - 1, 1)
         const start = new Date(y, m - 1, 1 - first.getDay())
-        const daysInMonth = new Date(y, m, 0).getDate()
-        this.rows = Math.ceil((first.getDay() + daysInMonth) / 7)
-
         const all = app.data.value != null ? app.data.value.events : []
-        const hours = app.buildHours()    // shared ref: the open timeline's gutter
         const days = []
         for (let i = 0; i < this.rows * 7; i++) {
             const dt = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
             const events = all
                 .filter(e => e.y == dt.getFullYear() && e.m == dt.getMonth() + 1 && e.d == dt.getDate())
                 .sort((a, b) => a.start - b.start || b.id - a.id)
-                .map(e => Object.assign({}, e, { timeLabel: app.shortTime(e.start) }))
-            app.assignLanes(events)
             days.push({
                 key: this.keyOf(dt),
                 num: dt.getDate(),
@@ -555,12 +557,19 @@ App [ width = 835, height = 600, fill = #1E3A49,
                 inMonth: dt.getMonth() == m - 1,
                 weekend: dt.getDay() == 0 || dt.getDay() == 6,
                 events: events,
-                hours: hours,
+                laned: app.lanesOf(events),
                 firstStart: events.length > 0 ? events[0].start : 450,
                 })
             }
-        this.cal.set(["days"], days)
+        return { days: days }
+        },
 
+    // Show a month. Selection: an explicit key (mode-aware nav), else today
+    // when visible, else the 1st (§12-A).
+
+    setMonth(y: number, m: number, selKey: string?) {
+        this.year = y
+        this.month = m
         if (selKey != null) this.selectedKey = selKey
         else {
             const now = new Date()
@@ -623,6 +632,13 @@ App [ width = 835, height = 600, fill = #1E3A49,
             }
         const d = this.parseKey(this.selectedKey)
         d.setDate(d.getDate() + dir * (this.mode == "week" ? 7 : 1))
+        this.goTo(d)
+        },
+
+    // Select a date, showing its month if it is another one; in day view the
+    // open day follows.
+
+    goTo(d: object) {
         const key = this.keyOf(d)
         if (this.mode == "day") this.openKey = key
         if (d.getFullYear() != this.year || d.getMonth() + 1 != this.month) {
@@ -636,11 +652,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     /* ## The grid-layout bridge (SPEC §2)
        Geometry lives in the grid's CalendarGrid layout; `relayout` pushes
-       the App's mode + focus col/row (known from the selection / open day and
-       the day records) onto the layout, retargets it (animate = slide, else
-       snap), and refreshes the day-name columns from the layout's own
-       geometry. Cell arrival is handled by the layout itself, which re-arms
-       when its children change. */
+       the App's mode + focus col/row (known from the selection / open day)
+       onto the layout, retargets it (animate = slide, else snap), and
+       refreshes the day-name columns from the layout's own geometry. Cell
+       arrival is handled by the layout itself, which re-arms when its
+       children change. */
 
     relayout(animate: boolean) {
         const L = this.grid.layout
@@ -658,16 +674,19 @@ App [ width = 835, height = 600, fill = #1E3A49,
         L.focusCol = fCol
         L.focusRow = fRow
         L.retarget(animate)
-        this.cal.set(["cols"], L.colBoxes())
+        this.names.set(["cols"], L.colBoxes())
         },
 
-    // a day key's grid position (col/row) in the displayed month, or -1/-1
+    // a day key's grid position (col/row) in the displayed month, or -1/-1 —
+    // counted in days from the grid's first Sunday
 
     cellPos(key: string) -> object {
-        for (const rec of this.cal.value.days) {
-            if (rec.key == key) return { col: rec.col, row: rec.row }
-            }
-        return { col: -1, row: -1 }
+        if (key == "" || this.month == 0) return { col: -1, row: -1 }
+        const first = new Date(this.year, this.month - 1, 1)
+        const start = new Date(this.year, this.month - 1, 1 - first.getDay())
+        const i = Math.round((this.parseKey(key).getTime() - start.getTime()) / 86400000)
+        if (i < 0 || i >= this.rows * 7) return { col: -1, row: -1 }
+        return { col: i % 7, row: Math.floor(i / 7) }
         },
 
     // A cell is "open" (hour timeline, not the list) iff it is the open day —
@@ -684,7 +703,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
     selectEvent(id: number, key: string) {
         this.selectedKey = key
         this.selectedEvent = id
-        if (this.panelOpen) this.syncPanelFields()   // retarget the open panel (§5)
+        if (this.panelOpen) this.startDraft()   // retarget the open panel (§5)
         },
 
     /* ## Event drag (SPEC §6)
@@ -727,16 +746,16 @@ App [ width = 835, height = 600, fill = #1E3A49,
         const e = this.srcEvent(id)
         if (e == null) return
         const d = this.parseKey(key)
-        const dur = e.end - e.start
-        e.y = d.getFullYear(); e.m = d.getMonth() + 1; e.d = d.getDate()
+        this.setDate(id, d)
         // Dropping on an open day sets the time from the drop-y (15-min snap,
         // duration preserved, end ≤ 23:45 — SPEC §6 time-drag).
         if (this.isOpen(key)) {
             const t = this.timeAtPoint(key, this.dragY)
-            if (t >= 0) { e.start = Math.max(0, Math.min(t, 1425)); e.end = e.start + dur }
+            if (t >= 0) this.setStart(id, t)
             }
-        this.setMonth(this.year, this.month, key)     // selects the target day
+        this.selectedKey = key
         this.selectedEvent = id
+        this.relayout(false)
         },
 
     // The 15-min-snapped minute-of-day at an app-relative y inside an open day's
@@ -779,7 +798,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         this.grid.width = 600
         this.relayout(false)
         this.infoPanel.slideIn.start()
-        this.syncPanelFields()
+        this.startDraft()
         },
 
     // Close. A panel opened by Add Event on an unapplied new event deletes it on
@@ -794,21 +813,20 @@ App [ width = 835, height = 600, fill = #1E3A49,
         this.infoPanel.slideOut.start()
         },
 
-    // The selected event's display record (reactive over the store), or null.
+    // The selected event's record, or null — the panel's cursor.
 
-    selRec() {
-        if (this.selectedEvent < 0) return null
-        for (const day of this.cal.value.days)
-            for (const e of day.events)
-                if (e.id == this.selectedEvent) return e
-        return null
+    selRec() -> object {
+        return this.selectedEvent < 0 ? null : this.srcEvent(this.selectedEvent)
         },
 
-    // The selected event's source record (what edits mutate; the display copies
-    // are re-derived by setMonth). Edits are in-memory only (SPEC §9).
+    // An event's record in the data, and its index — what the verbs write
+    // through. Edits are in-memory only (SPEC §9).
 
     srcEvent(id: number) -> object {
-        return this.data.value.events.find(e => e.id == id)
+        return this.data.value.events.find(e => e.id == id) ?? null
+        },
+    eventIndex(id: number) -> number {
+        return this.data.value.events.findIndex(e => e.id == id)
         },
 
     longDate(rec: object) -> string {
@@ -830,64 +848,69 @@ App [ width = 835, height = 600, fill = #1E3A49,
         const es = this.data.value.events
         const id = 1 + es.reduce((mx, e) => Math.max(mx, e.id), 0)
         const d = this.parseKey(this.selectedKey)
-        es.push({ id: id, y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(),
+        this.data.insert(["events"], es.length, { id: id, y: d.getFullYear(), m: d.getMonth() + 1, d: d.getDate(),
                   start: 540, end: 600, title: "New Event",
                   notes: "", location: "", attendees: "", category: "" })
-        this.setMonth(this.year, this.month, this.selectedKey)
         this.selectedEvent = id
         this.newEvent = true
         this.applied = false
         this.openPanel()
         },
 
-    // Push the selected event's text into the (editable, unbound) panel fields —
-    // on open and on retarget. Date/times stay bound to the record (spinners).
+    // The panel's text fields edit a working copy of the selected event —
+    // filled when the panel opens or retargets, committed by Apply (SPEC §7).
+    // The date/time steppers edit the record itself, live.
 
-    syncPanelFields() {
+    draft: Dataset { { } },
+
+    startDraft() {
         const e = this.selRec()
         if (e == null) return
-        this.infoPanel.titleF.text = e.title
-        this.infoPanel.notesSec.area.text = e.notes != null ? e.notes : ""
-        this.infoPanel.locSec.area.text = e.location != null ? e.location : ""
-        this.infoPanel.attSec.area.text = e.attendees != null ? e.attendees : ""
+        this.draft.set([], { title: e.title, notes: e.notes ?? "", location: e.location ?? "", attendees: e.attendees ?? "" })
         },
-
-    // Apply commits the four text fields from the panel (SPEC §7).
 
     apply() {
-        this.applyText(this.infoPanel.titleF.text, this.infoPanel.notesSec.area.text,
-                       this.infoPanel.locSec.area.text, this.infoPanel.attSec.area.text)
+        const i = this.eventIndex(this.selectedEvent)
+        if (i < 0) return
+        const t = this.draft.value
+        for (const f of ["title", "notes", "location", "attendees"]) this.data.set(["events", i, f], t[f])
+        this.applied = true
         },
 
-    // Commit the text fields (title/notes/location/attendees) — Apply (SPEC §7).
+    // The edits the steppers and the drop make, each a write to the event's
+    // record: its day, and its start (duration preserved, end ≤ 23:45).
 
-    applyText(title: string, notes: string, location: string, attendees: string) {
-        const e = this.srcEvent(this.selectedEvent)
+    setDate(id: number, d: object) {
+        const i = this.eventIndex(id)
+        if (i < 0) return
+        this.data.set(["events", i, "y"], d.getFullYear())
+        this.data.set(["events", i, "m"], d.getMonth() + 1)
+        this.data.set(["events", i, "d"], d.getDate())
+        },
+    setStart(id: number, t: number) {
+        const e = this.srcEvent(id), i = this.eventIndex(id)
         if (e == null) return
-        e.title = title; e.notes = notes; e.location = location; e.attendees = attendees
-        this.applied = true
-        this.setMonth(this.year, this.month, this.selectedKey)
+        const dur = e.end - e.start
+        const start = Math.max(0, Math.min(t, 1425))
+        this.data.set(["events", i, "start"], start)
+        this.data.set(["events", i, "end"], start + dur)
         },
 
     // Date ‹›: move the event ±1 day (crosses months by navigating — SPEC §7).
 
     moveDay(delta: number) {
-        const e = this.srcEvent(this.selectedEvent)
+        const e = this.selRec()
         if (e == null) return
         const d = new Date(e.y, e.m - 1, e.d + delta)
-        e.y = d.getFullYear(); e.m = d.getMonth() + 1; e.d = d.getDate()
-        this.setMonth(e.y, e.m, this.keyOf(d))
+        this.setDate(e.id, d)
+        this.goTo(d)
         },
 
-    // Start ‹›: ±15m moves the event (duration preserved), end clamped ≤ 23:45.
+    // Start ‹›: ±15m moves the event.
 
     moveStart(delta: number) {
-        const e = this.srcEvent(this.selectedEvent)
-        if (e == null) return
-        const dur = e.end - e.start
-        e.start = Math.max(0, Math.min(e.start + delta, 1425))
-        e.end = e.start + dur
-        this.setMonth(this.year, this.month, this.selectedKey)
+        const e = this.selRec()
+        if (e != null) this.setStart(e.id, e.start + delta)
         },
 
     // Dispatch a Stepper's nudge to the right edit (SPEC §7).
@@ -901,24 +924,21 @@ App [ width = 835, height = 600, fill = #1E3A49,
     // End ‹›: ±15m changes duration (min 15m, max < 24h — SPEC §7).
 
     moveEnd(delta: number) {
-        const e = this.srcEvent(this.selectedEvent)
+        const e = this.selRec(), i = this.eventIndex(this.selectedEvent)
         if (e == null) return
-        e.end = Math.max(e.start + 15, Math.min(e.end + delta, 1439))
-        this.setMonth(this.year, this.month, this.selectedKey)
+        this.data.set(["events", i, "end"], Math.max(e.start + 15, Math.min(e.end + delta, 1439)))
         },
 
     deleteEvent() {
-        const es = this.data.value.events
-        const i = es.findIndex(e => e.id == this.selectedEvent)
-        if (i >= 0) es.splice(i, 1)
+        const i = this.eventIndex(this.selectedEvent)
+        if (i >= 0) this.data.removeAt(["events"], i)
         this.selectedEvent = -1
-        this.setMonth(this.year, this.month, this.selectedKey)
         },
 
     // The 24 hour-gutter markers for the open timeline (SPEC §3): number, am/pm,
     // the y of its hour rule (22px/hour, +11px half-hour zero), bold on 12a/12p.
 
-    buildHours() {
+    buildHours() -> array {
         const hours = []
         for (let h = 0; h < 24; h++)
             hours.push({ num: "" + (h % 12 == 0 ? 12 : h % 12),
@@ -928,18 +948,21 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     // Side-by-side lanes for overlapping open-timeline events (SPEC §12-E).
     // `events` is start-sorted; each disjoint cluster shares its own lane count
-    // so non-overlapping events stay full width (lane 0 of 1).
+    // so non-overlapping events stay full width (lane 0 of 1). A lane depends
+    // on the other events, so it rides a wrapper around each event, never a
+    // copy of it: `{ ev, lane, lanes }`.
 
-    assignLanes(events: array) {
+    lanesOf(events: array) -> array {
+        const out = []
         const flush = (cluster) => {
-            const laneEnd = []
+            const laneEnd = [], lane = []
             for (const e of cluster) {
                 let ln = 0
                 while (ln < laneEnd.length && laneEnd[ln] > e.start) ln++
                 laneEnd[ln] = e.end
-                e.lane = ln
+                lane.push(ln)
                 }
-            for (const e of cluster) e.lanes = laneEnd.length
+            cluster.forEach((e, k) => out.push({ ev: e, lane: lane[k], lanes: laneEnd.length }))
             }
         let cluster = [], clusterEnd = 0
         for (const e of events) {
@@ -948,6 +971,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
             clusterEnd = Math.max(clusterEnd, e.end)
             }
         if (cluster.length > 0) flush(cluster)
+        return out
         },
 
     // Startup (SPEC §10): once data is in — the source's own `onLoad` — the
@@ -965,7 +989,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
         slideDown: Animator [ attribute = y, to = 0, duration = 500, motion = laszloBoth ],
 
         weekbar: View [ y = 26, width = 808, height = 26, fill = #354D5B,
-            datapath = { app.cal.value },
+            datapath = { app.names.value },
             rule: View [ y = 25, width = 100%, height = 1, fill = #708A94 ],
 
             names: View [ y = 11, width = 100%, height = 12,
@@ -1082,8 +1106,9 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
     /* ## The info panel (SPEC §7)
        Slides in from the right over the grid. Beveled body drawn in Declare (the
-       original was 9-slice bitmaps); bound to the selected event's record;
-       date/time ‹› nudges edit it live. */
+       original was 9-slice bitmaps); bound to the selected event's record, so
+       the date/time ‹› nudges edit it live. The text fields edit the working
+       copy (`draft`), which Apply commits. */
 
     infoPanel: View [ x = 852, y = 57, width = 205, height = 516, opacity = 0,
         visible = { opacity > 0 },
@@ -1115,7 +1140,8 @@ App [ width = 835, height = 600, fill = #1E3A49,
             ],
 
         titleF: TextInput [ x = 6, y = 24, width = 193, height = 17, fill = #FFFFFF,
-            fontSize = 11, textColor = #333333 ],
+            fontSize = 11, textColor = #333333,
+            datapath = { app.draft.value }, text <-> :title ],
 
         dateStep:  Stepper [ x = 8, y = 47, width = 189, field = "date",
             label = { app.monthName(:m) + " " + :d + ", " + :y } ],
@@ -1125,9 +1151,9 @@ App [ width = 835, height = 600, fill = #1E3A49,
         endStep:   Stepper [ x = 115, y = 66, width = 82, field = "end",
             label = { app.longTime(:end) } ],
 
-        notesSec: AccordionSection [ x = 4, idx = 0, label = "Notes" ],
-        locSec:   AccordionSection [ x = 4, idx = 1, label = "Location" ],
-        attSec:   AccordionSection [ x = 4, idx = 2, label = "Attendees" ],
+        notesSec: AccordionSection [ x = 4, idx = 0, label = "Notes",     field = "notes",     datapath = { app.draft.value } ],
+        locSec:   AccordionSection [ x = 4, idx = 1, label = "Location",  field = "location",  datapath = { app.draft.value } ],
+        attSec:   AccordionSection [ x = 4, idx = 2, label = "Attendees", field = "attendees", datapath = { app.draft.value } ],
 
         applyBtn:  CalButton [ x = 8, y = 486, width = 82, label = "Apply",
             onClick() { app.apply() }

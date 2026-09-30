@@ -36,7 +36,7 @@ deterministic by the driven clock.
 | `--fixtures <dir>` | data fixtures the app consumes |
 | `--states <script.mjs>` · `--baselines <dir>` | rung-6 named states and their baseline images (default: `baselines/` beside the states script) |
 | `--bless` | write current renders as the baselines |
-| `--wrap` | wrap a bare `class … extends` in a probe app, so a library component verifies standalone |
+| `--wrap` | wrap a bare `class … extends` in a probe app, so a library class verifies standalone |
 | `--only <file>` | verify the whole program, print only the diagnostics positioned in that one file (an include, by the path you would write it). The others are counted, and still fail the rung |
 
 Positions name their file: an error in the program file reads `(line 12, col 7)`;
@@ -105,7 +105,7 @@ Three facts assert scripts learn the hard way, recorded here instead:
 **`drive.attr(path, name, expected)` is the real check** for any attribute —
 including formula-valued ones. It reads `find(path)[name]` live inside the page
 and falls back to `explain()`, where `inspect().attrs` carries only *written*
-slots and reports a formula attribute as absent. To take a value **into** the
+attributes and reports a formula attribute as absent. To take a value **into** the
 script rather than assert one, go through the page yourself:
 `drive.page.evaluate((p, a) => window.__declare.find(p)[a], path, name)`.
 `evaluate()` returns an Inspector **transcript object** that serializes to `{}`,
@@ -120,7 +120,7 @@ Two suites, split at the browser boundary — and one more split by *subject*, b
 
 | command | what it climbs | cost |
 |---|---|---|
-| `npm test` | everything that tests the SOURCES, plus rungs **1–4** for every app and component | seconds for the first two dozen files, no derive needed |
+| `npm test` | everything that tests the SOURCES, plus rungs **1–4** for every app and library class | seconds for the first two dozen files, no derive needed |
 | `npm run test:derived` | the suites whose subject IS a derived artifact — run it straight after `npm run derive` | seconds |
 | `npm run test:ladder` | rungs **5–6** for every app that ships one of the scripts below | minutes, headless Chromium |
 | `npm run test:all` | `npm test` + the ladder | |

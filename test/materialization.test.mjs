@@ -557,4 +557,119 @@ await test("a genuinely throwing member costs exactly its own instance — repor
   assert.ok(errors.some((e) => e.includes("Row") && e.includes("app.list")), "the throw surfaced once, with the node's path: " + errors.join(" | "));
 });
 
+// ── classFor: a class per record ────────────────────────────────────────────
+// One replicated block whose records are different things: each record is
+// built as the class `classFor` names from it — the written class is the base —
+// so a note builds no picture, and a record whose kind changes is rebuilt as
+// its new class in place.
+const KINDS = `class Entry extends View [ width = 300, height = 30, t: Text [ text = :text ] ]
+class Note extends Entry [ ]
+class Photo extends Entry [ height = 90, pic: View [ y = 30, width = 120, height = 60 ] ]
+class Heading extends Entry [ height = 40, rule: View [ y = 38, width = 300, height = 1 ] ]`;
+const kindOf = (v) => v.pic !== undefined ? "photo" : v.rule !== undefined ? "heading" : "note";
+
+async function kindsApp(n, virtualize) {
+  const r = await compile(`${KINDS}
+App [ width = 400, height = 400,
+  d: Dataset { { "rows": [] } },
+  sc: View [ scrolls = y, width = 300, height = 300,
+    content: View [ width = 300, datapath = { d.value },
+      layout: SimpleLayout [ axis = y ],
+      Entry [ datapath = :rows[], virtualize = ${virtualize},
+        classFor = { :kind == "photo" ? Photo : :kind == "heading" ? Heading : Note } ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "compiles");
+  const app = build(r.source);
+  const kinds = ["heading", "note", "photo", "note"];
+  app.d.value = { rows: Array.from({ length: n }, (_, i) => ({ id: i, kind: kinds[i % 4], text: "r" + i })) };
+  settle();
+  return app;
+}
+
+await test("classFor: each record is built as its own class, and only its parts exist", async () => {
+  const app = await kindsApp(8, false);
+  const views = app.sc.content.childViews;
+  assert.deepEqual(views.map(kindOf), ["heading", "note", "photo", "note", "heading", "note", "photo", "note"]);
+  assert.deepEqual(views.map((v) => v.t.text), ["r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7"], "the base's parts are in every class");
+  assert.deepEqual(views.map((v) => v.height), [40, 30, 90, 30, 40, 30, 90, 30], "each class's own attributes");
+});
+
+await test("classFor: a record whose kind changes is rebuilt as its new class; the others keep their instances", async () => {
+  const app = await kindsApp(4, false);
+  const before = app.sc.content.childViews;
+  app.d.set(["rows", 1, "kind"], "photo"); settle();
+  const after = app.sc.content.childViews;
+  assert.deepEqual(after.map(kindOf), ["heading", "photo", "photo", "note"]);
+  assert.notEqual(after[1], before[1], "the changed record has a new instance");
+  for (const i of [0, 2, 3]) assert.equal(after[i], before[i], `record ${i} kept its instance`);
+});
+
+await test("classFor: a virtualized block builds each window row as its record's class, scrolled or not", async () => {
+  const app = await kindsApp(400, true);
+  assert.equal(materializationInfo(app.sc.content).windowed, true);
+  const check = () => {
+    for (const w of block(app).realized()) {
+      const rec = app.d.value.rows[w.index];
+      assert.equal(kindOf(w.view), rec.kind, `row ${w.index} is a ${rec.kind}`);
+      assert.equal(w.view.t.text, rec.text);
+    }
+  };
+  check();
+  app.sc.scrollTo(9000); settle();
+  check();
+  app.sc.scrollTo(4000); settle();
+  check();
+});
+
+await test("check: classFor names the class or its subclasses, reads only the record, and belongs on a template", async () => {
+  const errs = async (body) => (await compile(`${KINDS}
+class Other extends View [ ]
+App [ width = 100, height = 100, pick: string = "", d: Dataset { { "rows": [] } },
+  col: View [ datapath = { d.value }, ${body} ] ]`)).errors.map((e) => e.message).join(" | ");
+  assert.match(await errs(`Entry [ datapath = :rows[], classFor = { :kind == "x" ? Other : Note } ]`), /'Other', which does not extend Entry/);
+  assert.match(await errs(`Entry [ datapath = :rows[], classFor = { app.pick == "x" ? Photo : Note } ]`), /classFor reads the record and names classes — 'app' is neither/);
+  assert.match(await errs(`Entry [ datapath = :rows[], classFor = Photo ]`), /classFor = \{ … \} picks each record's class/);
+  assert.match(await errs(`Entry [ classFor = { Photo } ]`), /'classFor' is replication metadata/);
+  assert.equal(await errs(`Entry [ datapath = :rows[], classFor = { :kind == "photo" ? Photo : Entry } ]`), "", "the base itself is a legal answer");
+});
+
+// ── rowIndex: a row's place in its array ─────────────────────────────────────
+// A fact the replicator keeps: the record's index in the array it presents —
+// the group's own array for a nested list, the logical index under virtualize,
+// -1 on a view no replication made. Constraints reading it follow the record.
+await test("rowIndex: each row's index in its array, following inserts, removes and nested groups", async () => {
+  const r = await compile(`class Row extends View [ height = 20, label: string = { rowIndex + ":" + :id } ]
+App [ width = 300, height = 300, d: Dataset { { "rows": [], "groups": [] } },
+  list: View [ datapath = { d.value }, Row [ datapath = :rows[] ] ],
+  groups: View [ datapath = { d.value }, View [ datapath = :groups[], Row [ datapath = :items[] ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "compiles");
+  const app = build(r.source);
+  app.d.value = { rows: [{ id: "a" }, { id: "b" }, { id: "c" }],
+    groups: [{ items: [{ id: "x" }, { id: "y" }] }, { items: [{ id: "z" }] }] };
+  settle();
+  const labels = () => app.list.childViews.map((v) => v.label);
+  assert.deepEqual(labels(), ["0:a", "1:b", "2:c"]);
+  app.d.insert(["rows"], 0, { id: "n" }); settle();
+  assert.deepEqual(labels(), ["0:n", "1:a", "2:b", "3:c"], "every shifted sibling re-reads its place");
+  app.d.removeAt(["rows"], 1); settle();
+  assert.deepEqual(labels(), ["0:n", "1:b", "2:c"]);
+  const nested = app.groups.childViews.map((g) => g.childViews.map((v) => v.label));
+  assert.deepEqual(nested, [["0:x", "1:y"], ["0:z"]], "a nested row counts within its group's array");
+  assert.deepEqual(app.groups.childViews.map((g) => g.rowIndex), [0, 1]);
+  assert.equal(app.list.rowIndex, -1, "a written view has no row place");
+});
+
+await test("rowIndex: under virtualize it is the logical index, not the window slot", async () => {
+  const app = await kindsApp(400, true);
+  const check = () => { for (const w of block(app).realized()) assert.equal(w.view.rowIndex, w.index); };
+  check();
+  app.sc.scrollTo(9000); settle();
+  check();
+  assert.ok(block(app).realized().every((w) => w.index > 50), "the window moved");
+});
+
+await test("check: rowIndex is a fact — never assigned", async () => {
+  const r = await compile(`App [ width = 100, height = 100, v: View [ rowIndex = 3 ] ]`);
+  assert.ok(r.errors.some((e) => /rowIndex/.test(e.message)), r.errors.map((e) => e.message).join(" | "));
+});
+
 summarize("materialization");

@@ -6,9 +6,9 @@ documenting Declare. It loads `docs/declare-model.json` — the extractor's
 output (tools/internal/doc/extract.mjs), one walkable data structure — and
 renders three modes over it: the guide, chapter by chapter; the language, one
 page per form the grammar accepts; and the class reference, a page per
-component with its prose, members, and live examples. A left rail navigates
+class with its prose, members, and live examples. A left rail navigates
 the mode, a detail pane reads it, and every doc string is rendered by the
-runtime's own Markdown component.
+runtime's own Markdown view.
 
 `{ }` bodies are TypeScript → `0x…` colors and expressions; `[ ]` literal
 slots take `#…` / named colors. Every color reads `theme.<token>` — one
@@ -31,11 +31,11 @@ class Muted extends Text [ textColor = { provided("theme").textMuted } ]
 
 class Mono extends Text [ fontFamily = { app.mono } ]
 
-// a component tab in the left rail — selection is one App attribute
+// a class tab in the left rail — selection is one App attribute
 // (`app.selected`, the class name); a tab lights when it matches and writes
 // the location on click, so the whole navigator is one string
 
-class ClassTab extends View [ width = 100%, height = 30, cornerRadius = 6,
+class ClassTab [ width = 100%, height = 30, cornerRadius = 6,
     cname:   string = "",
     lit: boolean = { app.mode == "reference" && app.selected == classroot.cname },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
@@ -62,7 +62,7 @@ class ClassTab extends View [ width = 100%, height = 30, cornerRadius = 6,
    One class serves the guide's parts, the language's form groups, and the class
    groups alike. */
 
-class FoldHead extends View [ width = 100%, height = 28, cornerRadius = 6, cursor = "pointer",
+class FoldHead [ width = 100%, height = 28, cornerRadius = 6, cursor = "pointer",
     label:    string  = "",
     contains: boolean = false,             // does this group hold the current page?
     opened:   boolean = false,             // it has been open — this does not expire
@@ -97,7 +97,7 @@ class FoldHead extends View [ width = 100%, height = 28, cornerRadius = 6, curso
 
 // one topic of classes in the reference rail (model.classGroups — extract's CLASS_GROUPS)
 
-class ClassGroup extends View [ width = 100%,
+class ClassGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :name },
         contains = { app.mode == "reference" && (:classes as any[]).some(c => c.name == app.selected) } ],
@@ -126,7 +126,7 @@ class Eyebrow extends Mono [ fontSize = { 11 * app.fontScale }, letterSpacing = 
 
 // a section: a rule above, the heading, one line on what the section holds
 
-class SectionHead extends View [ width = 100%,
+class SectionHead [ width = 100%,
     head: string = "",
     note: string = "",
     layout: SimpleLayout [ axis = y, spacing = 18 ],
@@ -139,7 +139,7 @@ class SectionHead extends View [ width = 100%,
     ]
 
 
-class Chip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
+class Chip [ height = { 24 * app.fontScale }, cornerRadius = 6,
     baseline: number = { this.lbl.y + this.lbl.baseline },
     label: string = "",
     kind:  "attribute" | "method" | "event" | "class" | "token" = "attribute",
@@ -179,7 +179,7 @@ class MemberChip extends Chip [
 // the index itself — every member of a section as a chip, when there is more
 // than one to choose between
 
-class MemberIndex extends View [ width = 100%,
+class MemberIndex [ width = 100%,
     layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ]
     ]
 
@@ -199,7 +199,7 @@ exactly as it did: the same face, the same tint, no cursor and no link.
 names a page carrying it and everything between them left alone.
 */
 
-class LocChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
+class LocChip [ height = { 24 * app.fontScale }, cornerRadius = 6,
     baseline: number = { this.lbl.y + this.lbl.baseline },
     label: string = "",
     to:    string = "",                    // a docs location ("type/Color", "reference/View"), or "" for no link
@@ -215,7 +215,7 @@ class LocChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
     ]
 
 
-class SigRun extends View [
+class SigRun [
     sig:    string = "",
     size:   number = 15,
     weight: number = 400,                  // the hundreds ARE the weight keywords (FontWeight)
@@ -242,7 +242,7 @@ class SigRun extends View [
 
 // one step of the ancestry: `→` before every ancestor but the first, then its chip
 
-class Link extends View [
+class Link [
     baseline: number = { this.chip.y + this.chip.baseline },
     width = { this.contentWidth },
     layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
@@ -256,7 +256,7 @@ class Link extends View [
 // (`reference/View@attributes`), Back returns to where the reader was, and the
 // section can be linked to from anywhere
 
-class JumpLink extends View [
+class JumpLink [
     baseline: number = { this.row.y + this.row.name.y + this.row.name.baseline },
     label: string = "",
     count: number = 0,
@@ -292,7 +292,7 @@ across lines. (A single word wider than the column still overflows; breaking
 inside a word is the text engine's, not a flow's.)
 */
 
-class WrapChip extends View [
+class WrapChip [
     kind:  "attribute" | "method" | "event" = "attribute",
     cls:   string = "",
     label: string = "",
@@ -315,8 +315,8 @@ class WrapChip extends View [
         datapath = { classroot.words.value },
         layout: WrappingLayout [ spacing = 0, rowSpacing = 4, hangingIndent = 24 ],
         View [ datapath = :items[], height = { 24 * app.fontScale },
-            first: boolean = { :i == 0 },
-            last:  boolean = { :i == classroot.n - 1 },
+            first: boolean = { rowIndex == 0 },
+            last:  boolean = { rowIndex == classroot.n - 1 },
             width = { this.t.width + (first ? 8 : 0) + (last ? 8 : 0) },
             cornerRadius = { [first ? 6 : 0, last ? 6 : 0, last ? 6 : 0, first ? 6 : 0] },
             fill = { classroot.hovered ? provided("theme").chipHov
@@ -344,7 +344,7 @@ there), then its prose — for an override, the INTENT. `MethodRow` and
 `EventRow` are the method and event forms.
 */
 
-class OverrideLine extends View [ width = 100%,
+class OverrideLine [ width = 100%,
     from:  string = "",
     slot:  string = "",
     was:   string = "",
@@ -356,7 +356,7 @@ class OverrideLine extends View [ width = 100%,
     ]
 
 
-class AttrRow extends View [ width = 100%,
+class AttrRow [ width = 100%,
     anchor = { "" + :name },                // the member's address on its page
     live:  boolean = false,                 // page-active, threaded down to any inline island
 
@@ -416,7 +416,7 @@ class AttrRow extends View [ width = 100%,
 // the path), so the datapath values are captured into plain attributes first
 // and sliced in TypeScript.
 
-class MethodRow extends View [ width = 100%,
+class MethodRow [ width = 100%,
     anchor = { "" + :name },
     aname:    string = { :name },
     sigfull:  string = { :signature },
@@ -437,7 +437,7 @@ class MethodRow extends View [ width = 100%,
     ]
 
 
-class EventRow extends View [ width = 100%,
+class EventRow [ width = 100%,
     anchor = { "" + :name },
     live:  boolean = false,
     layout: SimpleLayout [ axis = y, spacing = 6 ],
@@ -459,7 +459,7 @@ from above of its own (`ReadStrip`, under Provided — present only for an
 ancestor that reads something).
 */
 
-class ReadStrip extends View [ width = 100%, cornerRadius = 10, visible = { :n > 0 },
+class ReadStrip [ width = 100%, cornerRadius = 10, visible = { :n > 0 },
     open:  boolean = false,
     cname: string = { "" + :name },
     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
@@ -492,7 +492,7 @@ class ReadStrip extends View [ width = 100%, cornerRadius = 10, visible = { :n >
     ]
 
 
-class Strip extends View [ width = 100%, cornerRadius = 10,
+class Strip [ width = 100%, cornerRadius = 10,
     open:  boolean = false,                    // a declaration default: yields to the click
     cname: string = { "" + :name },
     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
@@ -564,7 +564,7 @@ class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = 
 // Rendered by datapath replication over the class's 0-or-1 `example` array, so the
 // whole island (editor + preview) is constructed only for classes that ship a demo.
 
-class Example extends View [ width = 100%,
+class Example [ width = 100%,
     cname:  string = { :name },
     elines: number = { :lines },
     esrc:   string = { :source },
@@ -679,7 +679,7 @@ preview's slot empty until its page is the one on screen, so only the visible
 page's islands ever compile.
 */
 
-class RunIsland extends View [ width = 100%,
+class RunIsland [ width = 100%,
     rid:    string  = { :id },
     rsrc:   string  = { :source },
     rlines: number  = { :lines },
@@ -760,7 +760,7 @@ class RunIsland extends View [ width = 100%,
 // block that didn't compile stays folded into the Markdown as a static code fence.
 // `tone`/`lead` let a caller dim the prose (the reference runs dimmer than the guide).
 
-class Block extends View [ width = 100%,
+class Block [ width = 100%,
     live: boolean = false,
     tone: Color   = { provided("theme").body },
     lead: number  = 1.6,
@@ -796,7 +796,7 @@ switching classes re-roots this subtree and constructs exactly the page being
 read, and a boot never pays for the pages it is not showing.
 */
 
-class ClassDetail extends View [ width = 100%,
+class ClassDetail [ width = 100%,
     cname: string = "",
     docPage: string = { "reference/" + classroot.cname },   // provided: the address of this page
     visible = { app.selected == classroot.cname },
@@ -953,7 +953,7 @@ shows the index: every form, grouped, one line each.
 
 // a form tab in the rail — the form's display name, lit when it is the location's cursor
 
-class FormTab extends View [ width = 100%, height = 28, cornerRadius = 6,
+class FormTab [ width = 100%, height = 28, cornerRadius = 6,
     slug: string = "",
     lit: boolean = { app.mode == "language" && app.form == classroot.slug },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
@@ -965,7 +965,7 @@ class FormTab extends View [ width = 100%, height = 28, cornerRadius = 6,
     ]
 
 
-class FormGroup extends View [ width = 100%,
+class FormGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :name },
         contains = { app.mode == "language" && (:forms as any[]).some(f => f.slug == app.form) } ],
@@ -979,7 +979,7 @@ class FormGroup extends View [ width = 100%,
 
 // a syntax box: the form's grammar lines, as written, in the code tint
 
-class SyntaxBox extends View [ width = 100%, fill = { provided("theme").chipBg }, cornerRadius = 8,
+class SyntaxBox [ width = 100%, fill = { provided("theme").chipBg }, cornerRadius = 8,
     lines: string = "",
     height = { this.t.height + 28 },
     bar: View [ x = 0, y = 0, width = 3, height = 100%, fill = { provided("theme").accentSecondary } ],
@@ -991,7 +991,7 @@ class SyntaxBox extends View [ width = 100%, fill = { provided("theme").chipBg }
 // one rule: what it is, then the sentence the checker says at the site — quoted
 // verbatim, and re-checked by the docs gate against the rule's own probe
 
-class RuleRow extends View [ width = 100%,
+class RuleRow [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 6 ],
     md: Markdown [ width = 100%, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale },
         text = { "" + :rule } ],
@@ -1007,7 +1007,7 @@ class RuleRow extends View [ width = 100%,
 
 // a form link in an index row or a related row — a location write, like a class chip
 
-class FormChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6, cursor = "pointer",
+class FormChip [ height = { 24 * app.fontScale }, cornerRadius = 6, cursor = "pointer",
     baseline: number = { this.lbl.y + this.lbl.baseline },
     slug: string = "",
     label: string = "",
@@ -1022,7 +1022,7 @@ class FormChip extends View [ height = { 24 * app.fontScale }, cornerRadius = 6,
 
 // the index: one form per row — its name as a link, its gist beside it
 
-class FormRow extends View [ width = 100%,
+class FormRow [ width = 100%,
     height = { Math.max(this.syn.height, this.gist.height) },
     cursor = "pointer",
     link = { "#language/" + :slug },
@@ -1034,7 +1034,7 @@ class FormRow extends View [ width = 100%,
     ]
 
 
-class FormIndex extends View [ width = 100%,
+class FormIndex [ width = 100%,
     visible = { app.mode == "language" && app.form == "" },
     layout: SimpleLayout [ axis = y, spacing = 36 ],
     header: View [ width = 100%,
@@ -1055,7 +1055,7 @@ class FormIndex extends View [ width = 100%,
     ]
 
 
-class FormDetail extends View [ width = 100%,
+class FormDetail [ width = 100%,
     slug: string = "",
     docPage: string = { "language/" + classroot.slug },     // provided: the address of this page
     visible = { app.mode == "language" && app.form == classroot.slug },
@@ -1144,7 +1144,7 @@ return it. All of it derived from the model; nothing on the page is hand-listed.
 
 // a type tab in the rail — lit when it is the location's cursor
 
-class TypeTab extends View [ width = 100%, height = 28, cornerRadius = 6,
+class TypeTab [ width = 100%, height = 28, cornerRadius = 6,
     tname: string = "",
     lit: boolean = { app.mode == "type" && app.tname == classroot.tname },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
@@ -1156,7 +1156,7 @@ class TypeTab extends View [ width = 100%, height = 28, cornerRadius = 6,
     ]
 
 
-class TypeGroup extends View [ width = 100%,
+class TypeGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :name },
         contains = { app.mode == "type" && (:types as any[]).some(t => t.name == app.tname) } ],
@@ -1171,7 +1171,7 @@ class TypeGroup extends View [ width = 100%,
 // one use of the type: what carries it, of what kind, and the signature or
 // default that carries it. The chip is a link wherever the thing has a page.
 
-class UseRow extends View [ width = 100%,
+class UseRow [ width = 100%,
     layout: WrappingLayout [ spacing = 10, rowSpacing = 6, align = baseline ],
     LocChip [ label = { "" + :label }, to = { "" + :loc } ],
     Muted [ fontSize = { 12 * app.fontScale }, wrap = false, text = { "" + :kind } ],
@@ -1180,7 +1180,7 @@ class UseRow extends View [ width = 100%,
     ]
 
 
-class TypeDetail extends View [ width = 100%,
+class TypeDetail [ width = 100%,
     tname: string = "",
     docPage: string = { "type/" + classroot.tname },        // provided: the address of this page
     visible = { app.mode == "type" && app.tname == classroot.tname },
@@ -1250,7 +1250,7 @@ control for the content pane; the rail keeps its designed sizes.
 
 // one chapter link in the guide rail — lights when it is the current chapter
 
-class ChapterTab extends View [ width = 100%, height = 32, cornerRadius = 6,
+class ChapterTab [ width = 100%, height = 32, cornerRadius = 6,
     cid: string = { :id },
     cnum: number = { :num },
     ctitle: string = { :short },
@@ -1268,7 +1268,7 @@ class ChapterTab extends View [ width = 100%, height = 32, cornerRadius = 6,
 
 // one Part in the guide rail — an eyebrow over that part's chapter links
 
-class PartGroup extends View [ width = 100%,
+class PartGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :part },
         contains = { app.mode == "guide" && (:chapters as any[]).some(c => c.id == app.chapter) } ],
@@ -1283,7 +1283,7 @@ class PartGroup extends View [ width = 100%,
 // one chapter page — the chapter as ordered segments (prose + inline runnable islands),
 // then its optional flagship demo. Every ```declare block that compiles is a live island.
 
-class ChapterDetail extends View [ width = 100%,
+class ChapterDetail [ width = 100%,
     cid: string = { :id },
     docPage: string = { "guide/" + classroot.cid },         // provided: the address of this page
     visible = { app.mode == "guide" && app.chapter == classroot.cid },
@@ -1337,7 +1337,7 @@ reads `{ N * app.fontScale }` (and Markdown takes `scale`), so one attribute
 zooms the whole document.
 */
 
-class SizeBtn extends View [ width = 32, height = 30, cornerRadius = 6,
+class SizeBtn [ width = 32, height = 30, cornerRadius = 6,
     glyph: number = 14,
     delta: number = 0,          // delta 0 = reset to the default
     fill = { hovered ? provided("theme").control : null },
@@ -1366,9 +1366,9 @@ index (onFocus writes it) so the selection highlight and the field's ↓ have
 one fact to read.
 */
 
-class SearchHit extends View [ width = 100%, cornerRadius = 8,
+class SearchHit [ width = 100%, cornerRadius = 8,
     loc: string = { :loc },
-    idx: number = { :i },
+    idx: number = { rowIndex },
     focusable = true,
     fill = { app.searchSel == idx ? provided("theme").sel : hovered ? provided("theme").control : null },
     onClick() { app.openResult(classroot.loc) },
@@ -1417,8 +1417,8 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     mono: Font [ family = "ui-monospace, SFMono-Regular, monospace" ],
 
     /* Navigation is one string — `location`, the URL fragment. The grammar is
-       this app's own: `<mode>/<cursor>[@heading]` (`guide/05-components`,
-       `reference/Slider`, `guide/05-components@models-classes-with-no-view`). The declared initial is the
+       this app's own: `<mode>/<cursor>[@heading]` (`guide/05-classes`,
+       `reference/Slider`, `guide/05-classes@classes-with-no-view`). The declared initial is the
        default, so a fresh `docs.declare` shows the first guide chapter with a clean
        URL. mode/chapter/selected derive from it and are never assigned — every
        tab and link writes `location`, back/forward writes it back, state follows
@@ -1479,7 +1479,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
 
     /* ## Typed signatures
        The model's link index: a printed type name → the location that
-       documents it (a type page, or a class page for a component type), plus
+       documents it (a type page, or a class page for a class type), plus
        the token-list spelling a named enum prints as. One lookup answers for
        every signature the reference renders, and a name the index does not
        carry answers "" — which is what keeps an unlinkable type rendering
@@ -1503,13 +1503,11 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
     typeParts(s: string) -> array {
         const text = "" + s
         const whole = app.typeLoc(text)
-        if (whole != "") return [({ i: 0, t: text, to: whole })]
+        if (whole != "") return [({ t: text, to: whole })]
         const out = []
-        let i = 0
         for (const p of text.split(/([A-Za-z_$][A-Za-z0-9_$]*)/)) {
             if (p == "") continue
-            out.push({ i: i, t: p, to: /^[A-Za-z_$]/.test(p) ? app.typeLoc(p) : "" })
-            i++
+            out.push({ t: p, to: /^[A-Za-z_$]/.test(p) ? app.typeLoc(p) : "" })
         }
         return out
         },
@@ -1573,7 +1571,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
 
     wordsOf(label: string) -> array {
         const ws = ("" + label).match(/\S+\s*/g) || [label]
-        return ws.map((w, i) => ({ i: i, w: w }))
+        return ws.map((w) => ({ w: w }))
         },
 
     // Match + rank + snippet, in one pass per query. Terms AND — every term
@@ -1610,12 +1608,10 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
                     snip = snip.replace(new RegExp(safe, "ig"), (m) => "**" + m + "**")
                 }
             }
-            out.push({ loc: e.loc, title: e.title, crumb: e.crumb, snip: snip, score: score, i: 0 })
+            out.push({ loc: e.loc, title: e.title, crumb: e.crumb, snip: snip, score: score })
         }
         out.sort((a, b) => b.score - a.score)
-        const top = out.slice(0, 40)
-        for (let i = 0; i < top.length; i++) top[i].i = i   // the row's index — keyboard walk + selection highlight key on it
-        return top
+        return out.slice(0, 40)
         },
 
     // A result opens like a rail tab: location write + cursor memory + scroll
@@ -1876,7 +1872,7 @@ App [ fill = { provided("theme").bg }, appName = "Declare Docs",
             // model.types.groups), then the classes (by topic:
             // model.classGroups). Each group folds. Types sit on the language
             // side because that is what they are — the words the grammar and
-            // every signature are written in, not components you instantiate —
+            // every signature are written in, not classes you instantiate —
             // and they keep their own eyebrow so a page with tokens and members
             // is never mistaken for a form with syntax and rules.
 

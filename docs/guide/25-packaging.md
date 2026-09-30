@@ -36,16 +36,16 @@ npx declarec apps/calendar/calendar.declare -o dist
 ```
 
 The folder that comes out is self-contained. It needs nothing outside itself — no
-compiler, no component library, no server — and nothing beyond it is ever asked for:
+compiler, no source library, no server — and nothing beyond it is ever asked for:
 
 - **`index.html`**, which boots the app;
 - **`app.<hash>.js`**, one file carrying the runtime, the program with every `{ }` body
   already a function, and the page host that runs it — the address bar and Back, islands,
-  the window title. It holds only the components your program can construct and one
+  the window title. It holds only the classes your program can construct and one
   renderer (DOM, or `--canvas`), and one reactive kernel — the WebAssembly one by default, or
   with `--kernel js` the JavaScript one, about 9 KB gzipped smaller and somewhat slower on
   view-heavy work. For the flagship calendar it is about
-  <!--stat:calendar.wireKB-->114<!--/stat--> KB gzipped, the figure the homepage reports;
+  <!--stat:calendar.wireKB-->115<!--/stat--> KB gzipped, the figure the homepage reports;
 - **your program's folder, swept in** — its data, images, fonts, anything beside the
   `.declare` file — minus its sources and its `tests/` folder of verify fixtures;
 - **`BUILD.json`**, what the package was built from, so a committed build can say whether
@@ -57,7 +57,7 @@ so you can try it before you deploy it. `--crawler` bakes the extracted document
 
 ## What your program says it needs: `ship`
 
-A build reads your source for everything a literal names: the components the tree uses,
+A build reads your source for everything a literal names: the classes the tree uses,
 the data a `url` names beside the program, the programs an island's [`program`](declare-docs:AppIsland.program) names.
 What no literal says, your program states in one top-level block. The desktop's reads:
 
@@ -78,12 +78,12 @@ option:
 |---|---|---|
 | `islands` | mounts these by a computed `program` | each one compiled ahead, in `programs/` |
 | `files` | reads these, and no literal names them or they sit outside its folder | a copy of each in `files/`, answered at the address the program asks for — its own paths are untouched |
-| `compiler = true` | compiles source while it runs — live editing, programs typed in | the compiler and the component library, fetched on the first compile |
+| `compiler = true` | compiles source while it runs — live editing, programs typed in | the compiler and the library's source, fetched on the first compile |
 | `inspector = true` | answers questions about itself where it runs | the Inspector, the `__declare` bridge, source positions, and error sentences |
 
 A `.declare` file in `files` arrives ready to read: the build adds its highlighted form,
 so the Viewer in the desktop's package shows its source exactly as it does on the site.
-A block may sit before or after the root, and a component can carry its own — a help
+A block may sit before or after the root, and a class can carry its own — a help
 panel that reads a docs model states that file where it lives — and the program's block
 is the union. The dev server and the static site hold every source and a compiler, so
 they read none of it. The reference's page for the `ship` form has the rules.
@@ -98,7 +98,7 @@ ships once, however many hosts name it — a program that embeds itself included
 
 A tenant reads its *own* files through its host. Its relative `url` resolves in its
 host's space, so it asks where home is — `hostProvided("base", "")` — and falls back to
-beside itself when it runs alone ([Embedding](declare-docs:guide:embedding@a-tenant-that-loads-itself) has the
+beside itself when it runs alone ([Embedding](declare-docs:guide:embedding@loading-foreign-code-at-runtime) has the
 pattern). The desktop provides each app window's `base`; the package answers those same
 addresses from the copies it carries, so Calendar, Birds, and Market Map open with their
 data in the desktop's package as on the site.
@@ -135,7 +135,7 @@ program URL and read what a crawler gets; `declarec --crawler` bakes it into the
 shelf to all fifty bird pages, prose and all. It also finds the quiz *room* —
 that is an address — but not a single question, score, or answer, because a
 round lives in a waypoint and the crawl boots every location at its declared
-initial — the rule from [URLs, links and history](declare-docs:guide:urls@what-the-crawler-sees-is-what-a-stranger-sees),
+initial — the rule from [URLs, links and history](declare-docs:guide:urls@what-crawlers-see),
 enforced by the build.)
 
 Two honest rules. Crawlable data is **build-time data** — a relative [`DataSource`](declare-docs:DataSource)

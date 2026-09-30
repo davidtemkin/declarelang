@@ -7,19 +7,19 @@ export declare const ABSTRACT_CONCRETE: Readonly<Record<string, string>>;
  *  not as a class's base (`class X extends Stream` is refused, naming the
  *  concrete members). Every other schema is a base a program class may
  *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
- *  so it cannot drift when a component joins either table. */
+ *  so it cannot drift when a class joins either table. */
 export declare const ABSTRACT_SCHEMAS: ReadonlySet<string>;
 import { type AttrType } from "./value.js";
-export interface ComponentSchema {
+export interface ClassSchema {
     readonly name: string;
-    readonly base: ComponentSchema | null;
+    readonly base: ClassSchema | null;
     readonly attrs: Readonly<Record<string, AttrType>>;
     /** Which of this schema's OWN attrs are `readonly` — a computed/intrinsic
      *  value a constraint may READ but nothing may set (checkAttr refuses an
      *  assignment; the runtime accessor's setter throws). Part of the slot's
      *  identity. Absent = none of its own. */
     readonly readOnly?: readonly string[];
-    /** Events this component itself fires — a handler member `on<Event>` must
+    /** Events this class itself fires — a handler member `on<Event>` must
      *  answer one (language §8: a class *declares* the events it fires, and
      *  the checker verifies against the declaration, so a typo'd handler is a
      *  compile error, not a silent no-op). Inherited events come from the
@@ -34,26 +34,26 @@ export interface ComponentSchema {
  *  first provided (`density: number = 2`) — an ordinary instance-declared slot —
  *  so it is never a bare unknown name. */
 export declare const BUILTIN_PROVIDED: ReadonlySet<string>;
-export declare const TextSchema: ComponentSchema;
-export declare const RichTextSchema: ComponentSchema;
-/** Tag → schema: the checker's component registry. Must stay in step with
+export declare const TextSchema: ClassSchema;
+export declare const RichTextSchema: ClassSchema;
+/** Tag → schema: the checker's class registry. Must stay in step with
  *  instantiate.ts's tag → class table (layout strategies with its layout
  *  table, data nodes with its data table, animators with its animator table);
  *  R6 registers user classes into both. */
-export declare const SCHEMAS: Readonly<Record<string, ComponentSchema>>;
-/** Does `schema`'s inheritance chain pass through a component named
+export declare const SCHEMAS: Readonly<Record<string, ClassSchema>>;
+/** Does `schema`'s inheritance chain pass through a class named
  *  `ancestor`? The checker's kind test — "is this tag a Layout?", "may a
  *  class extend this base?" — kept name-based so per-program schema copies
  *  need no object identity discipline (names are unique per program). */
-export declare function descendsFrom(schema: ComponentSchema, ancestor: string): boolean;
+export declare function descendsFrom(schema: ClassSchema, ancestor: string): boolean;
 /** The declared type of `name` on `schema`, walking the inheritance chain;
  *  null when no ancestor declares it. Own-key lookups, so an attribute named
  *  `toString` can't resolve through Object.prototype. */
-export declare function attrType(schema: ComponentSchema, name: string): AttrType | null;
+export declare function attrType(schema: ClassSchema, name: string): AttrType | null;
 /** Is `name` a read-only attribute anywhere on this schema's base chain — a
  *  computed/intrinsic slot a constraint may read but nothing may set? Walks the
  *  chain exactly like attrType (a subclass inherits its base's read-only slots). */
-export declare function isReadOnly(schema: ComponentSchema, name: string): boolean;
+export declare function isReadOnly(schema: ClassSchema, name: string): boolean;
 /** The handler member name for an event: click → onClick (language §8's
  *  `on` prefix — the one naming rule, shared by the checker and dispatch). */
 export declare const handlerName: (event: string) => string;
@@ -82,4 +82,4 @@ export declare const PAYLOAD_TYPE_NAMES: ReadonlySet<string>;
 export declare function eventOfHandler(name: string): string | null;
 /** Every event `schema` answers, base-first — the inheritance walk of
  *  attrType, over the events half of the declaration. */
-export declare function eventsOf(schema: ComponentSchema): string[];
+export declare function eventsOf(schema: ClassSchema): string[];

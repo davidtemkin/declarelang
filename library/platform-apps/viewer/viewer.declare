@@ -4,7 +4,7 @@
 // over a `.declare` file and hands the resulting segments to this app through
 // the host→app seed channel (app.demoSources), so the Viewer is a plain
 // consumer. Each segment is either prose — the Markdown carried in a block
-// comment, rendered by the Markdown component — or code — a run of
+// comment, rendered by the Markdown class — or code — a run of
 // syntax-highlighted <pre> HTML whose per-token <span> classes this app's
 // `textStyles` map colors (theme-aware, so the same segments render light or
 // dark).
@@ -29,7 +29,7 @@
 // inset (a narrower reading column); code spans the full width, so the two read as
 // distinct — commentary vs. program — and code gets the room.
 
-class Block extends View [ kind: string = "",
+class Block [ kind: string = "",
     md: string = "",
     html: string = "",
     nested: boolean = false,                     // born inside a declaration's body: an aside, not a section break
@@ -112,7 +112,7 @@ class Block extends View [ kind: string = "",
 
 // small / reset / large "A" — steps the reader font zoom (docs' SizeBtn).
 
-class SizeBtn extends View [ width = 34, height = 30, cornerRadius = 6,
+class SizeBtn [ width = 34, height = 30, cornerRadius = 6,
 
     glyph: number = 14,
     delta: number = 0,
@@ -513,7 +513,7 @@ App [ fill = { provided("theme").bg },
     // render while it shows). A file with no App declaration reports instead of
     // running — honest, if unglamorous.
 
-    // An include on the Edit tab: it declares components and no App, so there
+    // An include on the Edit tab: it declares classes and no App, so there
     // is nothing to run — one centered line points at the one program this
     // page actually knows, the one it opened on. (Which programs include a
     // file is unknowable in general — any program may — so the message claims
@@ -527,7 +527,7 @@ App [ fill = { provided("theme").bg },
 
         l1: Text [ x = center, y = { parent.height / 2 - 44 * app.fontScale }, wrap = false,
             fontSize = { 15 * app.fontScale }, textColor = { provided("theme").textMuted },
-            text = "This file declares components — there is no App to run." ],
+            text = "This file declares classes — there is no App to run." ],
 
         row: View [ visible = { app.seededRunnable }, x = center, y = { parent.l1.y + 44 * app.fontScale },
             layout: SimpleLayout [ axis = x, spacing = 0 ],

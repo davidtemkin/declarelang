@@ -1,4 +1,4 @@
-class Row extends View [ width = 288, height = 24,
+class Row [ width = 288, height = 24,
     t: Text [ y = 4, width = 260, text = :task ]
     ]
 

@@ -143,10 +143,10 @@ export const Diag = {
     // `{ { … } }`) is the only form — the paren idiom the object-literal
     // diagnostic once taught is retired (DT ruling, 2026-09-08).
     redundantParens: (inner, pos) => err(code4(1002), `redundant parentheses — the { } already delimits the expression, so the outer ( ) do nothing here; write { ${inner} }`, pos),
-    // 2xxx structure. `unknownComponent` takes the known-component names and
+    // 2xxx structure. `unknownClass` takes the known-class names and
     // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
     // (diagnostics.md §4); the rule rides the hint.
-    unknownComponent: (tag, pos, candidates = []) => {
+    unknownClass: (tag, pos, candidates = []) => {
         // A name that other names EXTEND is offered whole — see extensionsOf. This
         // replaces a table of former spellings: the language ships one current
         // surface, so a diagnostic states what IS, never what a name used to be.
@@ -159,12 +159,12 @@ export const Diag = {
         const ext = typo === null ? extensionsOf(tag, candidates) : [];
         if (ext.length > 0) {
             const list = ext.length === 1 ? `'${ext[0]}'` : ext.map((e) => `'${e}'`).join(" or ");
-            return err(code4(2001), `unknown component '${tag}' — did you mean ${list}?`, pos);
+            return err(code4(2001), `unknown class '${tag}' — did you mean ${list}?`, pos);
         }
         const near = nearestName(tag, candidates);
         return near === null
-            ? err(code4(2001), `unknown component '${tag}'`, pos)
-            : err(code4(2001), `unknown component '${tag}' — did you mean '${near}'?`, pos, `a tag names a built-in component or a class declared in the program`);
+            ? err(code4(2001), `unknown class '${tag}'`, pos)
+            : err(code4(2001), `unknown class '${tag}' — did you mean '${near}'?`, pos, `a tag names a library class or one declared in the program`);
     },
     duplicateName: (message, pos) => err(code4(2002), message, pos),
     misplaced: (message, pos) => err(code4(2003), message, pos),
@@ -186,7 +186,7 @@ export const Diag = {
         // which the class cannot name because it does not own it. It can measure
         // it: that is what the content intrinsics are for, and nothing else in the
         // message points at them.
-        (sizing ? `. To size to children the use site handed this component, read 'contentWidth' / 'contentHeight'` : ``), pos),
+        (sizing ? `. To size to children the use site handed this class, read 'contentWidth' / 'contentHeight'` : ``), pos),
     shadowing: (message, pos) => err(code4(4002), message, pos),
     // A body assigns a `let`/`var` a script { } block declared. Each body gets
     // its own const copy of every script binding, so the write throws at runtime
@@ -199,8 +199,8 @@ export const Diag = {
     enumTokenInExpr: (token, slot, pos, quoted = false) => quoted
         // an AUTHORED literal union: the member is quoted EVERYWHERE — there is
         // no bare slot form to point at (DT's spelling ruling, 2026-09-05)
-        ? err(code4(4005), `'${token}' is one of ${slot}'s values — a literal union's member is written in quotes, in a slot as in { }: "${token}"`, pos)
-        : err(code4(4005), `'${token}' is one of ${slot}'s values — bare only as the whole slot (${slot} = ${token}); inside { } write it as a string: "${token}"`, pos),
+        ? err(code4(4005), `'${token}' is one of ${slot}'s values — a literal union's member is written in quotes, as a bare value as in { }: "${token}"`, pos)
+        : err(code4(4005), `'${token}' is one of ${slot}'s values — bare only as the whole value (${slot} = ${token}); inside { } write it as a string: "${token}"`, pos),
     // A WARNING: a per-frame onTick that never reads its dt is not integrating —
     // it is polling, the one imperative habit the language exists to retire
     // (declare.md §1, "nothing waits").
@@ -229,7 +229,7 @@ export const Diag = {
     // boot refuses it. (An Animator may drive a bound slot: it takes the slot for
     // its run and the constraint takes it back — the LZX slide.) Always wrong for
     // a Spring, so an error, and the message gives the form that works.
-    springsBoundSlot: (owner, slot, spring, pos) => err(code4(2005), `${owner}.${slot} is bound by a constraint, so this ${spring} cannot drive it — a spring owns its slot for as long as it lives, and a bound slot belongs to its constraint. Put the target in the spring and leave ${slot} unbound: ${spring} [ attribute = ${slot}, to = { … } ]`, pos),
+    springsBoundSlot: (owner, slot, spring, pos) => err(code4(2005), `${owner}.${slot} is bound by a constraint, so this ${spring} cannot drive it — a spring owns the attribute it drives for as long as it lives, and a bound attribute belongs to its constraint. Put the target in the spring and leave ${slot} unbound: ${spring} [ attribute = ${slot}, to = { … } ]`, pos),
     overridesPlumbing: (owner, name, base, pos) => err(code4(4009), `${owner}.${name}() replaces ${base}'s ${name}(), which is runtime plumbing — the reference documents no contract for it: the runtime calls it when and how it needs to, and a later version may change either. The override stands (super.${name}(…) reaches the runtime's); if this was meant as a method of your own, choose another name`, pos),
     // A WARNING: a class named exactly like a tag the rich-text whitelist owns.
     // Inside `Markdown`/`HTMLText` content a tag is resolved against the program's
@@ -253,13 +253,13 @@ export const Diag = {
     buttonPressOverride: (owner, pos) => err(code4(4013), `press() on ${owner} replaces Button's activation path — every other control routes the pointer through press(), and Button inverts that: its own press() delivers to onClick, which is the use site's action slot. An override here answers Space and Enter, and a click still runs the untouched onClick — so the action never fires from the pointer. Put the action in onClick()`, pos),
     afterInValue: (pos) => err(code4(4014), `afterDelay() waits, and a { } value computes — it runs whenever what it reads changes, so a wait here would be scheduled again on every change. Call afterDelay(ms, fn) from a handler or a method; a value that should change over time derives from a Time's facts or moves with a Spring or an Animator`, pos),
     scriptWrite: (name, pos) => err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
-    // `classroot` reaches the root of the component (class) you are defining, so it
+    // `classroot` reaches the root of the class (class) you are defining, so it
     // is meaningful ONLY inside a class body. `where` names the non-class body the
     // code is actually in ("the App", "a style bundle").
-    classrootOutsideClass: (where, pos) => err(code4(4003), `'classroot' is the root of a component you define — valid only inside a class body. This code is in ${where}, not a class. Reach values here by a bare name, 'this', or 'app'.`, pos),
+    classrootOutsideClass: (where, pos) => err(code4(4003), `'classroot' is the root of a class you define — valid only inside a class body. This code is in ${where}, not a class. Reach values here by a bare name, 'this', or 'app'.`, pos),
     // A CSS color NAME resolved as a bare identifier inside { } — the name form is
     // a bare-slot literal, not an identifier the { } world knows, so name the 0x form.
-    namedColorInExpr: (name, hex, pos) => err(code4(4004), `'${name}' is a named color — the name form works only in a bare slot; inside { } write it as ${hex}.`, pos),
+    namedColorInExpr: (name, hex, pos) => err(code4(4004), `'${name}' is a named color — the name form works only as a bare value; inside { } write it as ${hex}.`, pos),
     // 5xxx module / include
     includeCollision: (message, pos) => err(code4(5001), message, pos),
     missingInclude: (path, pos) => err(code4(5002), `cannot find include "${path}"`, pos),
@@ -329,13 +329,13 @@ export function renderReport(diagnostics) {
 export const DIAGNOSTIC_CATALOG = [
     { code: code4(1001), phase: "syntax", summary: "the parser rejected a token or shape" },
     { code: code4(2000), phase: "structure", summary: "structural error (unclassified)" },
-    { code: code4(2001), phase: "structure", summary: "unknown component tag" },
+    { code: code4(2001), phase: "structure", summary: "unknown class tag" },
     { code: code4(2002), phase: "structure", summary: "a name is declared more than once" },
     { code: code4(2003), phase: "structure", summary: "a member is placed where its node-kind forbids it" },
     { code: code4(2004), phase: "structure", summary: "a name violates the member namespace" },
-    { code: code4(2005), phase: "structure", summary: "a Spring drives a slot its view also binds — the target belongs in the Spring's to" },
+    { code: code4(2005), phase: "structure", summary: "a Spring drives an attribute its view also binds — the target belongs in the Spring's to" },
     { code: code4(3000), phase: "type", summary: "type/value error (unclassified)" },
-    { code: code4(3001), phase: "type", summary: "a value does not fit its slot's type" },
+    { code: code4(3001), phase: "type", summary: "a value does not fit its attribute's type" },
     { code: code4(3002), phase: "type", summary: "a percent with no axis to resolve against" },
     { code: code4(3003), phase: "type", summary: "a malformed datapath" },
     { code: code4(3004), phase: "type", summary: "an attribute is set twice" },

@@ -136,6 +136,25 @@ export function markWindowedBlock(v: View, on: boolean): void {
   if (was !== on) windowedCell(v).changed();
 }
 
+// A replicated view's place in the array it presents (replicate.ts sets it
+// with the cursor): the index within that array — a group's own array for a
+// grouped list, the logical index under virtualize. -1 on a view no
+// replication made.
+interface RowPlace { index: number; cell: Cell }
+const ROW_PLACES = new WeakMap<View, RowPlace>();
+/** The tracked read behind `View.rowIndex`. */
+export function readRowIndex(v: View): number {
+  const p = ROW_PLACES.get(v);
+  if (p === undefined) return -1;
+  p.cell.track();
+  return p.index;
+}
+export function setRowIndex(v: View, index: number): void {
+  const p = ROW_PLACES.get(v);
+  if (p === undefined) ROW_PLACES.set(v, { index, cell: new Cell() });
+  else if (p.index !== index) { p.index = index; p.cell.changed(); }
+}
+
 // ── onRetire — the DEPARTURE hook (D5 ruled the semantics, D8 the name) ──
 //
 // Fires when a member's PRESENCE ends — its record leaves the match, or its
@@ -700,7 +719,7 @@ export class View extends Node {
    *  insets on that axis, never below 0. It is what `100%` and every other
    *  percent resolves against (bind.ts bindPercent), what a layout divides
    *  (`Layout.contentExtent` is this, through the arranged view), and what a
-   *  component spanning its parent's content reads (library Divider).
+   *  class spanning its parent's content reads (library Divider).
    *  `{ parent.width }` deliberately still answers the parent's literal box —
    *  "the space I am given" versus "the parent's own width". */
   contentBox(size: "width" | "height"): number {
@@ -816,6 +835,12 @@ export class View extends Node {
    *  runtime enforces by refusing to answer. */
   get virtualized(): boolean { return readVirtualized(this); }
 
+  /** This view's index in the array its replication presents — 0 for the
+   *  first record, following the record as others arrive and leave; -1 on a
+   *  view no replication made. A fact: read-only, and a constraint reading it
+   *  re-runs when the row's place changes. */
+  get rowIndex(): number { return readRowIndex(this); }
+
   /** Pointer-interaction intrinsics (interaction.ts): `hovered` is true while
    *  this view is on the live hit chain — the topmost visible view under the
    *  pointer and its ancestors, occlusion-correct, false on touch; `pressed`
@@ -877,7 +902,7 @@ export class View extends Node {
 
   /** Internal focus notification, called by the focus service when this view
    *  gains (true) or loses (false) Declare focus — SEPARATE from the user's
-   *  `onFocus`/`onBlur` handlers, so a built-in component (TextInput) can drive
+   *  `onFocus`/`onBlur` handlers, so a built-in class (TextInput) can drive
    *  its native element without occupying the author's event slot. No-op on a
    *  plain view. */
   focusChanged(_focused: boolean): void {}
@@ -886,7 +911,7 @@ export class View extends Node {
    *  along the given axis, in this view's own coordinates. The base answer is
    *  the whole box (lead 0); Text overrides the y axis with its ink band (cap
    *  height to last baseline — the text-box-trim semantics). The same
-   *  component-supplies-its-shape protocol family as the focus silhouette. */
+   *  class-supplies-its-shape protocol family as the focus silhouette. */
   alignBand(axis: "x" | "y"): { lead: number; size: number } {
     return { lead: 0, size: axis === "x" ? this.width : this.height };
   }
@@ -1048,7 +1073,7 @@ export class View extends Node {
    *  (interaction.ts): translate per level MINUS every intermediate scroll
    *  offset, with the root's own scroll added back at the boundary — so an
    *  overlay anchored by it (a menu at a pointer, a popover under a control)
-   *  lands where the view is SEEN, at any scroll. Components call this
+   *  lands where the view is SEEN, at any scroll. Classes call this
    *  instead of hand-accumulating ancestor x/y, which is scroll-blind. */
   /** This view's BOX in root space — rootOrigin()'s sibling for the whole
    *  frame: the transformed axis-aligned box (ancestor scale/rotation
@@ -1202,7 +1227,7 @@ export class View extends Node {
    *  drag it home while its position slots still read the host's CONTENT
    *  coordinates — the ring painting a scroller's origin above its target.
    *  The MODEL order still moves; only the surface seat is left alone. */
-  /** Imperative creation (planes.md §7): instantiate a component by NAME
+  /** Imperative creation (planes.md §7): instantiate a class by NAME
    *  into THIS view — the receiver is the parent, and with it the new
    *  instance's scope and data anchor (`classroot` resolution and `datapath`
    *  inheritance boot against it). A full citizen: bindings installed, init
@@ -1883,7 +1908,7 @@ export class App extends View {
    *  render). Reactive slots so bindings on them settle when the host writes;
    *  read-only to user code, typed in the compiler's LANGUAGE_API (scaffold.ts),
    *  never schema attrs. RULED to dissolve into a per-instance `LiveDemo`
-   *  component; the app-authored state that once rode alongside (editing /
+   *  class; the app-authored state that once rode alongside (editing /
    *  liveCard / liveSource) is already instance-declared on the demo-hosting
    *  apps. See docs/system-design/language-learnings.md §11–12. */
   declare demoSources: Record<string, unknown>;

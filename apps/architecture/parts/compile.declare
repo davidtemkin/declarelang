@@ -9,7 +9,7 @@ reading column, as a specimen the prose points at.
 
 // one row of the trace: what it is, and the text in a well
 
-class TraceRow extends View [
+class TraceRow [
     what: string = "",
     hue: Color = gray,
     html: string = "",

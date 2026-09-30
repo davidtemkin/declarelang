@@ -2,7 +2,7 @@ A **typeface as an object in the tree**, like an `Image`: create it where it bel
 usually on the App, so it lives as long as the program — and use it anywhere a family
 goes. A `Font` owns its `Face` children, one file each. A Font with **no faces is a
 system font**: it names a `family` the machine already has, and there is nothing to
-load. Web and system fonts are the same kind of object, so a slot that holds one holds
+load. Web and system fonts are the same kind of object, so an attribute that holds one holds
 the other, and switching between them is an assignment: `app.reading = app.ui`.
 
 `fontFamily` (and `codeFamily`) takes a Font, a family string, or a list tried in order.
@@ -45,8 +45,8 @@ setting both is refused.
 ## wait
 Milliseconds (default `500`) that whatever is about to change to this font keeps its
 current look while its faces load. At start that is the first paint: the app appears
-once every font it starts with has arrived, failed, or used up its wait. When a slot
-switches to a font still inside its wait, the **slot** holds the new font at once while
+once every font it starts with has arrived, failed, or used up its wait. When an attribute
+switches to a font still inside its wait, the **attribute** holds the new font at once while
 the text it drives keeps drawing in the family it had, and changes once, when the font
 settles. When a face's `src` changes, text keeps the old face until the new one is ready.
 A face that fails ends the wait at once. `0` never holds.

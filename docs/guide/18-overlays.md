@@ -16,7 +16,7 @@ change of shape:
 
 Declare one [`Menu`](declare-docs:Menu), once, and open it from twenty places. That is most of this chapter.
 
-## Declared once, opened by many
+## Declaring a menu
 
 Here is the shape. The menu is a member of the app; the thing that opens it says *where*
 and *for whom*:
@@ -45,11 +45,11 @@ for. Because `items` is an ordinary attribute, it can be a **constraint that rea
 live while the menu is up.
 
 A menu's items, like a dialog's buttons, are **records, not children** — the contract from
-[Controls](declare-docs:guide:controls@contract-two-what-a-component-arranges-it-takes-as-records): what a component arranges, it takes as data. The
+[Controls](declare-docs:guide:controls@controls-that-take-records): what a class arranges, it takes as data. The
 record is `{ id, label, key?, icon?, enabled?, checked?, divider?, submenu? }`, and the
 choice comes back through `picked(id)`.
 
-## Two ways to open, and they mean different things
+## Opening at a view or at the pointer
 
 | verb | anchors | for |
 |---|---|---|
@@ -69,7 +69,7 @@ Row [ onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
 `onContextMenu` engages the right-click and two-finger path; `onHold` is the touch
 long-press. Neither costs anything on a view that does not declare it.
 
-## Dismissal is the part you would get wrong
+## Dismissal
 
 Two rules, and choosing between them is the real design decision:
 
@@ -89,7 +89,7 @@ That is the native platforms' contract too, and it means a slow action can never
 an open menu on screen while it works. You get it for free, and you only notice it if you assume the
 opposite and try to read the menu's state inside `picked`.
 
-## Modals and the focus you have to give back
+## Dialogs and focus
 
 A [`Dialog`](declare-docs:Dialog) is the same shape — a member you open with a verb, not a view you toggle:
 
@@ -140,7 +140,7 @@ nothing about the code.
 Its value is the chosen **member**, not the typed text: hand it records and you get a
 record back.
 
-## The ambient layers you never declare
+## Tooltips and the focus ring
 
 Two arrive on their own, and knowing they exist is the whole lesson:
 
@@ -152,10 +152,10 @@ Two arrive on their own, and knowing they exist is the whole lesson:
 Both are singletons spliced in when a program earns one, and **declaring your own by that
 name replaces it** — the customization path, not an escape hatch.
 
-## Building your own
+## Building your own overlay
 
 If you need a layer the library has no equivalent for, the runtime tools the library's own
-overlays use are listed in [Custom components](declare-docs:guide:custom-components@the-runtime-tools-the-library-uses):
+overlays use are listed in [Your own views](declare-docs:guide:your-own-views@runtime-services-for-overlays):
 [`raise()`](declare-docs:View.method.raise), [`rootOrigin()`](declare-docs:View.method.rootOrigin), [`Focus`](declare-docs:Focus), and [`Keys.navClaim`](declare-docs:Keys.method.navClaim). Three habits separate a panel
 that works from one that mostly works: claim the keys in pairs, restore focus a turn late,
 and dismiss before you deliver.

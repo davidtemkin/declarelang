@@ -15,7 +15,7 @@ rendered row is ever scanned.
 - **Items are members** (the selection model's currency): records — shown by
   their `label` (or `id`) — or plain strings. `value` holds the chosen member;
   `input(v)` is the delivery seam: the default writes `value`, a use-site
-  override redirects and the slot stays untouched.
+  override redirects and the attribute stays untouched.
 - **Typing filters live** (case-insensitive substring); opening without typing
   shows the full list (the disclosure-button path). Picking echoes the label
   into the field and closes; editing again re-filters from the new text.
@@ -49,7 +49,7 @@ The **chosen member**, not the typed text — the whole record when you supplied
 
 ## input()
 **Where the choice goes.** Receives the chosen member. The default writes `value`; an
-override redirects it and leaves the slot untouched.
+override redirects it and leaves the attribute untouched.
 
 ## placeholder
 The entry's placeholder text while empty.

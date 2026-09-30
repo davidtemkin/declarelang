@@ -2,12 +2,12 @@ schema Card [ id: number, col: 0 | 1 | 2, t: string ]
 
 class BCard extends Control [ width = 100%, height = 30, cornerRadius = 10,
     fill = { down ? 0x3E5C66 : hot ? 0x36525B : 0x2F4F4F },
-    press() { app.advance(:id) },
+    press() { :col = Math.min(:col + 1, 2) },
     TextLabel [ x = 10, fontSize = 12, wrap = false, textColor = whitesmoke, text = :t ]
     ]
 
 
-class Column extends View [ width = 130,
+class Column [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
     BCard [ datapath = :cards[] ]
@@ -30,11 +30,6 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
         },
     board: Dataset [ contents = { app.buildCols() } ],
 
-    advance(id: number) {
-        const cards = this.raw.value?.cards ?? []
-        const i = cards.findIndex(c => c.id == id)
-        if (i >= 0 && cards[i].col < 2) this.raw.set(["cards", i, "col"], cards[i].col + 1)
-        },
     add() {
         const t = this.entryRow.entry.text
         if (t == "") return

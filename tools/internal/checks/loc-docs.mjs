@@ -67,12 +67,12 @@ check("back → guide default", await state(), { mode: "guide", hash: "" });
 //    is fetched. The heading must be revealed once the model lands (held until then).
 const p2 = await b.newPage();
 await p2.setViewport({ width: 1200, height: 820 });
-await p2.goto(`${DOCS}#guide/05-components@components-are-classes`, { waitUntil: "networkidle0", timeout: 30000 });
+await p2.goto(`${DOCS}#guide/05-classes@classes-and-instances`, { waitUntil: "networkidle0", timeout: 30000 });
 await wait(2600);   // model fetch + chapter render + reveal
 const race = await p2.evaluate(() => ({
   mode: window.__app?.mode, chapter: window.__app?.chapter, hash: location.hash,
   detailScrollY: window.__app?.detail?.scrollY ?? -1,
-  anchorPresent: !!document.querySelector('[data-anchor="components-are-classes"]'),
+  anchorPresent: !!document.querySelector('[data-anchor="classes-and-instances"]'),
 }));
 check("cold #guide/04-tree@... → chapter shown, heading present", { mode: race.mode, chapter: race.chapter, anchorPresent: race.anchorPresent }, { mode: "guide", chapter: "04-tree", anchorPresent: true });
 const revealed = race.detailScrollY > 50;

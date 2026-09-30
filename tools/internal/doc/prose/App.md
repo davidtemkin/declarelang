@@ -47,7 +47,7 @@ Neither a pinch nor the software keyboard ever changes it. Size full-height pane
 scroller is the page (an interior `scrolls` container exposes its own `scrollY` the same
 way). The user's scrolling writes it; read it for scroll-driven
 chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`. **Read-only**:
-to land the page somewhere, call the target view's `scrollIntoView()`; assigning this slot is
+to land the page somewhere, call the target view's `scrollIntoView()`; assigning this attribute is
 refused.
 
 ## pointerX
@@ -81,7 +81,7 @@ attribute and read `app.dark` as the "auto" case.
 ## pageVisible
 **Read-only.** Is the page this app lives on **visible** — `false` when the tab is
 hidden, the window minimized, or the display asleep; `true` again on return (the
-Page Visibility fact; the native host feeds the same slot from its window's occlusion
+Page Visibility fact; the native host feeds the same attribute from its window's occlusion
 state, which also covers covered-by-another-window). Gate ambient motion on it —
 `running = { … && app.pageVisible }` — (a `Time` member pauses itself on it, ticks and alarms
 both) — and the frame clock empties: a page nobody can see books nothing. A browser window merely
@@ -337,7 +337,7 @@ Opens a URL in a new window or tab — the service action, so a `{ }` body never
 document. `navigate` is the same-window form.
 
 ## inspect()
-Opens the Inspector on this app, or on an embedded child app when given its slot
+Opens the Inspector on this app, or on an embedded child app when given its island key
 (`app.inspect("run:preview")`). Dev tooling: a production build ships a stub unless you
 pass `declarec --debug`.
 

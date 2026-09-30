@@ -94,7 +94,8 @@ export interface Kernel {
   addRule(target: number, kind: number, flags: number, edges: ArrayLike<number>, body?: number): number;
   /** Views and the built-in visibility rule (kernel.md; view.ts). */
   /** Runtime EXPR rules: code words → their offset, a constant → its index,
-   *  and the cells rules wrote since the last call (for the push sweep). */
+   *  and the cells rules wrote since the last call (for the push sweep) — a
+   *  list the caller owns. */
   addCode(words: ArrayLike<number>): number;
   addConst(v: number): number;
   kdirty(): Uint32Array;
@@ -457,7 +458,10 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     flush: () => { x.kernel_flush(k); },
     addCode: (words) => roomy({ code: words.length }, () => { ensureScratch(words.length); scratch.set(words); return x.kernel_add_code(k, scratchAt, words.length); }),
     addConst: (v) => roomy({ consts: 1 }, () => x.kernel_add_const(k, v)),
-    kdirty: () => { const n = x.kernel_kdirty(k, kdirtyAt, capacity); return kdirty.subarray(0, Math.min(n, capacity)); },
+    // A copy, not a view of the buffer: the push sweep runs pushes that can
+    // build views (a State applying), whose own rules drain this list again
+    // into the same buffer while the outer sweep is still reading it.
+    kdirty: () => { const n = x.kernel_kdirty(k, kdirtyAt, capacity); return kdirty.slice(0, Math.min(n, capacity)); },
     addExprRule: (target, flags, edges, codeOffset, ncode) => roomy({ rules: 1, nodes: edges.length }, () => { const n = edgesIn(edges); return x.kernel_add_rule(k, target, 0, flags, scratchAt, n, codeOffset, ncode, 0); }),
     viewLayout: (layout) => { scratch.set(VIEW_LAYOUT_FIELDS.map((f) => layout[f] ?? 0)); x.kernel_view_layout(k, scratchAt); },
     viewDprCell: (cell) => { x.kernel_view_dpr_cell(k, cell); },

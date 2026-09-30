@@ -6,13 +6,13 @@
 Text comes in two kinds. A [`Text`](declare-docs:Text) is one run in one style — a label, a heading, a number.
 [`Markdown`](declare-docs:Markdown) and [`HTMLText`](declare-docs:HTMLText) are flowing, structured prose — headings, paragraphs, lists,
 links — parsed from a string. Both read the text face their container provides
-([Paint and themes](declare-docs:guide:paint-and-themes@provided-values-set-once-read-below)), and both render identically
+([Paint and themes](declare-docs:guide:paint-and-themes@provided-values)), and both render identically
 on every renderer.
 
 > **A `Text` is one run. Structured prose is rich text. A look reused across views is a
 > class; a look for words inside prose is a named style.**
 
-## A run of text
+## Text
 
 A `Text` with no size is exactly as wide and tall as its glyphs. Give it a width and it
 wraps (`wrap = true` is the default), aligned by [`textAlign`](declare-docs:Text.textAlign). [`maxLines`](declare-docs:Text.maxLines) limits it and
@@ -30,7 +30,7 @@ the library's `TextLabel` is: a `Text` whose `y` centers its capital letters in 
 parent's height. Use `TextLabel` inside controls and rows; use `Text` for flowing copy
 and inside layouts that place `y` themselves.
 
-## Treatments
+## Text treatments
 
 Beyond color and size, each run can carry per-run paint, set on the `Text` itself:
 
@@ -54,7 +54,7 @@ App [ width = 320, height = 84, fill = #0B141B,
 
 Unlike the text face, treatments are not provided down the tree: they live on the run.
 
-## Fonts are objects
+## Fonts
 
 A typeface is an object in the tree, like an [`Image`](declare-docs:Image). Create it where it belongs —
 usually on the App, so it lives as long as the program — and use it wherever a font
@@ -145,7 +145,7 @@ App [ width = 380, height = 210, fill = white,
             not as a pile of styled `Text` views:
 
             - one source string
-            - one component
+            - one view
             """
         ]
     ]
@@ -186,7 +186,7 @@ doc: Markdown [ text = { app.article.value || "" },
 anything else does: `"strip"` (the default) keeps the text and drops the tag; `"error"`
 throws. So loaded content is never silently mangled, and never runs.
 
-## Reusing a look: a class, or a named style
+## Reusing a text style
 
 For a whole **view**, a reusable look is a subclass — the language you already have:
 
@@ -238,14 +238,14 @@ With no width it is exactly as wide as the figure it sets.
 Separate views are for things that are separate: a figure beside the caption that names
 it.
 
-## Views inside a sentence
+## Views inside text
 
 Prose sometimes carries small pieces of interface — a status chip, an avatar, a keycap.
 Inside rich text, **a self-closing tag naming one of your own view classes builds one
 real view of that class**, placed in the line as a box the words wrap around:
 
 ```declare
-class Chip extends View [
+class Chip [
     label: string = "",
     height = 19, width = { this.t.width + 18 }, cornerRadius = 9, fill = #DDF4E4,
     t: TextLabel [ x = 9, fontSize = 12, textColor = #1A5B2E, text = { classroot.label } ]

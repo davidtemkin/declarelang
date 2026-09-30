@@ -57,7 +57,7 @@ async function fresh() {
 /** One action through the window manager's verbs; returns what it did. */
 const act = (page, kind, arg) => page.evaluate((kind, arg) => {
   const A = globalThis.__app, wm = A.wm, L = A.launcher;
-  const wins = A.wins.childViews.map((s) => s.win).filter((w) => w && !w.plain);
+  const wins = A.wins.childViews.filter((w) => !w.plain);
   const free = wins.filter((w) => !wm.isMin(w));
   if (kind === "open") { L.roster.find((a) => a.id === arg).launch(null); return "open " + arg; }
   if (kind === "minimize" && free.length) { const w = free[arg % free.length]; wm.minimizeWin(w); return "minimize " + w.recId; }
@@ -76,7 +76,7 @@ const disagreements = (page) => page.evaluate(() => {
     if (w.dockSlot !== i) bad.push(`record ${r.id} is tile ${i}, its window holds slot ${w.dockSlot}`);
     if (w.miniT > 0.99 && w.x < A.dock.x) bad.push(`window ${r.id} parked left of the dock (x ${Math.round(w.x)})`);
   });
-  for (const s of A.wins.childViews) { const w = s.win; if (w && w.dockSlot >= 0 && !ms.some((r) => r.id == w.recId)) bad.push(`free window ${w.recId} holds slot ${w.dockSlot}`); }
+  for (const w of A.wins.childViews) { if (w.dockSlot >= 0 && !ms.some((r) => r.id == w.recId)) bad.push(`free window ${w.recId} holds slot ${w.dockSlot}`); }
   const tiles = [];
   const walk = (v) => { if (v.constructor?.name === "MiniTile") tiles.push(v); for (const c of v.childViews ?? []) walk(c); };
   walk(A.dock);
@@ -102,7 +102,7 @@ await test("three windows minimized in the same turn park in order, each with it
   for (const id of ["calendar", "birds", "jots"]) { await act(page, "open", id); await wait(700); }
   await page.evaluate(() => {
     const A = globalThis.__app;
-    for (const w of A.wins.childViews.map((s) => s.win).filter((w) => w && !w.plain)) A.wm.minimizeWin(w);
+    for (const w of A.wins.childViews.filter((w) => !w.plain)) A.wm.minimizeWin(w);
   });
   await wait(1200);
   assert.deepEqual(await disagreements(page), []);

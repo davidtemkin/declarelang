@@ -95,7 +95,7 @@ widgets read it). Reads `theme.accent` and its kin as typed members; defaults to
 house look. See `Control.theme`.
 */
 
-class Tooltip extends View [
+class Tooltip [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.

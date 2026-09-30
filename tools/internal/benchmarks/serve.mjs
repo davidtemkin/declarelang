@@ -64,7 +64,7 @@ http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type":"text/javascript;charset=utf-8", "Cache-Control":"no-cache", "ETag":'"'+r.tag+'"' });
     return res.end(r.js);
   }
-  // LFC runtime (all variants) + serverroot component/font assets → from the distro.
+  // LFC runtime (all variants) + serverroot class/font assets → from the distro.
   if (p.startsWith("/runtime/")) return file(res, path.join(RUNTIME, p.slice("/runtime/".length)));
   if (p.includes("/lps/resources/")) return file(res, path.join(RUNTIME, p.replace(/^.*\/lps\/resources\//, "").replace(/^lps\//, "")));
   // everything else → the app's own resources (images, data, fonts, …)

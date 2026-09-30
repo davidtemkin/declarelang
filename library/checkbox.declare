@@ -25,7 +25,7 @@ row: View [ x = 20, y = 20,
 ## checked
 Whether the box is ticked. Standalone it owns this and you read it back by name;
 constrained (`checked = { app.muted }`) it needs an `input` override to go with it — **a
-constraint with no `input` leaves the checkbox's own edit assigning to a constrained slot,
+constraint with no `input` leaves the checkbox's own edit assigning to a constrained attribute,
 which is refused at runtime.**
 
 ## label

@@ -1,4 +1,4 @@
-class Row extends View [ width = 100%, height = { 16 + 12 * provided("density") }, cornerRadius = 6, fill = white,
+class Row [ width = 100%, height = { 16 + 12 * provided("density") }, cornerRadius = 6, fill = white,
     label: string = "",
     Text [ x = 12, y = center, text = { classroot.label } ]
     ]

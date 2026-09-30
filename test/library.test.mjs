@@ -1,5 +1,5 @@
 // Combobox / ContextMenu / DataGrid (B7 — component-briefs.md §3–§5): the
-// remaining ruled briefs in component form. Protocol-driven, the table-test
+// remaining ruled briefs as library classes. Protocol-driven, the table-test
 // discipline: gestures land on the seams (pickIndex / headerClick / commitDrop
 // / resizeInput) — the pointer-to-seam wiring is inspection-pinned.
 
@@ -368,7 +368,7 @@ await test("DataGrid: windowing composes — the header offsets the window (the 
   settle();
   const rows = gridRows(app.g);
   assert.ok(rows.length < 60, "10k rows, a window's worth of instances");
-  const first = rows.find((r) => r.rowIndex() === 0);
+  const first = rows.find((r) => r.tableIndex() === 0);
   assert.ok(first !== undefined);
   assert.equal(first.y, 0, "row 0 sits at the box top — the header floats above the region");
   assert.deepEqual(cellTexts(first), ["0", "Issue 0"], "cells render in the window");
@@ -386,7 +386,7 @@ await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch 
   ]`);
   app.d.value = { rows: Array.from({ length: 1000 }, (_, i) => ({ id: i, state: i % 2 ? "open" : "done" })) };
   settle();
-  const row = app.g.children.find((c) => c.isGridRow === true && c.rowIndex() === 3);
+  const row = app.g.children.find((c) => c.isGridRow === true && c.tableIndex() === 3);
   const sel = row.cells.children.find((c) => c.k === "select").sel;
   Focus.setRoot(app);
   Focus.focus(sel);
@@ -577,4 +577,4 @@ await test("y = center centers the BOX; TextLabel cap-centers; a Button's label 
   assert.ok(Math.abs(bl.y - (bl.parent.height / 2 - bl.baseline + bl.capHeight / 2)) < 0.01, "and it cap-centers (pixel-identical to the old y = center)");
 });
 
-summarize("components");
+summarize("library");

@@ -6,7 +6,7 @@
 // `x!` → `x`, `<T>x` → `x` — by targeted SPLICES, not a re-emit: every other
 // byte (comments, spacing) survives verbatim, so the resolved source stays
 // the author's text. The unblocking case is typed parent-collaboration
-// (`(parent as RadioGroup).pick(choice)` — the component library's Radio):
+// (`(parent as RadioGroup).pick(choice)` — the class library's Radio):
 // the cast informs the typecheck, the runtime sees `(parent).pick(choice)`,
 // and dep extraction's read-path walker already sees through the parentheses
 // a stripped cast leaves behind.

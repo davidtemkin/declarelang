@@ -3,7 +3,7 @@
 // runs: below the cap it calls `super.bump()`, at the cap it never does. Nothing else about
 // the method changes — `super` is an ordinary call, placed wherever the body wants it.
 
-class Counter extends View [ height = 28,
+class Counter [ height = 28,
     count: number = 0,
     bump() { count = count + 1 },
     t: Text [ y = 5, text = { "count: " + classroot.count } ]

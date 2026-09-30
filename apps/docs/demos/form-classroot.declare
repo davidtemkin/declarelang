@@ -1,7 +1,7 @@
-// Reaching the component from inside it
+// Reaching the instance from inside it
 // `classroot` is the instance itself from any depth in the class body — here a click on the header selects the tab, and the caption reads the tab's label. `this` in that handler would be the header.
 
-class Tab extends View [ width = 120, height = 36, cornerRadius = [8, 8, 0, 0],
+class Tab [ width = 120, height = 36, cornerRadius = [8, 8, 0, 0],
     selected: boolean = false,
     label: string = "",
     fill = { selected ? 0xFFFFFF : 0xDCDCDC },

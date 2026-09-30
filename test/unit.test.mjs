@@ -150,10 +150,10 @@ await test("check() accepts every literal value type in one program", () => {
   assert.deepEqual(check(parse(src)), []);
 });
 
-await test("check() reports an unknown component, with its position", () => {
+await test("check() reports an unknown class, with its position", () => {
   const errors = check(parse("Widget [ x=1 ]"));
   assert.equal(errors.length, 1);
-  assert.match(errors[0].message, /unknown component 'Widget' \(line 1, col 1\)/);
+  assert.match(errors[0].message, /unknown class 'Widget' \(line 1, col 1\)/);
 });
 
 await test("check() suggests a near-miss component — calibrated (diagnostics.md §4)", () => {
@@ -166,10 +166,10 @@ await test("check() suggests a near-miss component — calibrated (diagnostics.m
   assert.doesNotMatch(check(parse("Widget [ ]"))[0].message, /did you mean/, "far names get no guess");
 });
 
-await test("check() keeps checking beneath an unknown component", () => {
+await test("check() keeps checking beneath an unknown class", () => {
   const errors = check(parse("Widget [ View [ zap=1 ] ]"));
   assert.equal(errors.length, 2);
-  assert.match(errors[0].message, /unknown component 'Widget'/);
+  assert.match(errors[0].message, /unknown class 'Widget'/);
   assert.match(errors[1].message, /View has no attribute 'zap'/);
 });
 
@@ -281,7 +281,7 @@ await test("check(): a Spring on a slot its view binds is refused, naming 'to'; 
 await test("check(): a state overrides its view's declared slots, never a provided value", () => {
   const errs = check(parse(`App [ on: boolean = false, v: View [ width = 10, State [ applied = { app.on }, fontWeight = bold ] ] ]`));
   assert.equal(errs.length, 1);
-  assert.match(errs[0].message, /State\.fontWeight: a state override sets a declared slot of the view, not a provided value/);
+  assert.match(errs[0].message, /State\.fontWeight: a state override sets a declared attribute of the view, not a provided value/);
   assert.deepEqual(check(parse(`App [ on: boolean = false, v: View [ width = 10, State [ applied = { app.on }, width = 20 ] ] ]`)), [], "a declared slot");
   assert.deepEqual(check(parse(`App [ on: boolean = false, t: Text [ text = "a", State [ applied = { app.on }, fontWeight = bold ] ] ]`)), [], "a slot the view declares itself");
 });
@@ -294,7 +294,7 @@ await test("check() reports EVERY error, in source order, each positioned", () =
   assert.equal(errors.length, 5);
   assert.match(errors[0].message, /App\.width expects a Length/);
   assert.match(errors[1].message, /App has no attribute 'zap'/);
-  assert.match(errors[2].message, /unknown component 'Widget'/);
+  assert.match(errors[2].message, /unknown class 'Widget'/);
   assert.match(errors[3].message, /not a CSS color name/);
   assert.match(errors[4].message, /View\.visible expects a boolean \(true or false\), got 'maybe'/);
   assert.deepEqual(errors.map((e) => e.pos.line), [1, 1, 2, 3, 3]);
@@ -313,7 +313,7 @@ await test("check() is immune to Object.prototype name collisions", () => {
   const [attrErr] = check(parse("View [ toString=1 ]"));
   assert.match(attrErr.message, /View has no attribute 'toString'/);
   const [tagErr] = check(parse("constructor [ ]"));
-  assert.match(tagErr.message, /unknown component 'constructor'/);
+  assert.match(tagErr.message, /unknown class 'constructor'/);
   const [colorErr] = check(parse("View [ fill=constructor ]"));
   assert.match(colorErr.message, /'constructor' \(not a CSS color name\)/);
 });
@@ -480,7 +480,7 @@ await test("a percent resolves against the parent; the root has none (R4)", () =
 });
 
 await test("instantiate() on an unchecked tree still fails soundly (first error)", () => {
-  assert.throws(() => instantiate(parse("Widget [ ]")), /unknown component 'Widget'/);
+  assert.throws(() => instantiate(parse("Widget [ ]")), /unknown class 'Widget'/);
   assert.throws(() => instantiate(parse("View [ visible=1 ]")), /View\.visible expects a boolean/);
 });
 
@@ -1942,17 +1942,17 @@ await test("comments are trivia: `//` lines and `/* */` blocks (literate Markdow
 });
 
 await test("parseProgram() positions class syntax errors", () => {
-  // `extends` is optional — a bare `class X [ ]` IS a Node (a non-visual
-  // controller/service). But writing `extends` commits you to naming the base.
-  assert.throws(() => parseProgram("class Tally extends [ ]"), /base component's name.*line 1, col 21/s);
-  assert.throws(() => parseProgram("class Tally extends View [ ]"), /expected a component name/, "a program still needs its root");
+  // A class with no base is a View.
+  assert.equal(parseProgram("class Tally [ ]\nApp [ ]").classes[0].base, "View");
+  assert.throws(() => parseProgram("class Tally extends [ ]"), /base class's name.*line 1, col 21/s);
+  assert.throws(() => parseProgram("class Tally extends View [ ]"), /expected a class name/, "a program still needs its root");
 });
 
-await test("a bare class is a Node — a non-visual reactive node reached from a view", async () => {
-  // No `extends` → a Node: reactive state + methods in the object graph, never
-  // drawn. A view reaches it by name (App.store) and binds to it, reactively.
+await test("a Node class is non-visual — a reactive node reached from a view", async () => {
+  // `extends Node`: reactive state + methods in the object graph, never drawn.
+  // A view reaches it by name (App.store) and binds to it, reactively.
   const r = await compile(`
-class Store [ n: number = 0, tag: string = "a", bump() { this.n = this.n + 1; this.tag = "b" } ]
+class Store extends Node [ n: number = 0, tag: string = "a", bump() { this.n = this.n + 1; this.tag = "b" } ]
 App [ store: Store [ ], out: Text [ text = { App.store.tag + App.store.n } ] ]`);
   assert.deepEqual(r.diagnostics.filter((d) => d.severity === "error"), []);
   const app = build(r.source);
@@ -1969,7 +1969,7 @@ await test("a Node subclass owns a Dataset — a view reads it by datapath, reac
   // and a view binds through it. `App.store.items.value…` resolves App→node→
   // dataset, and a node attribute change re-selects the record, live.
   const r = await compile(`
-class Store [
+class Store extends Node [
     items: Dataset { { "rows": [ { "label": "alpha" }, { "label": "beta" } ] } },
     pick: number = 0,
     next() { this.pick = 1 }
@@ -2416,7 +2416,7 @@ await test("declaration order is the author's business — decls after the App, 
 await test("check() validates class declarations, every error positioned", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
   assert.match(errs("class A extends Widget [ ]\nApp [ width=1 ]")[0], /unknown base 'Widget'.*line 1, col 17/s);
-  assert.match(errs("class View extends View [ ]\nApp [ width=1 ]")[0], /already a component named 'View'/);
+  assert.match(errs("class View extends View [ ]\nApp [ width=1 ]")[0], /already a class named 'View'/);
   assert.match(errs("class A extends View [ x: number = 1 ]\nApp [ width=1 ]")[0],
     /View already has an attribute 'x' — a declaration introduces a new one/);
   assert.match(errs("class A extends View [ k: Widget ]\nApp [ width=1 ]")[0],
@@ -2468,7 +2468,7 @@ await test("compile(): 'classroot' is valid only inside a class body — App / s
   // inside a class body. Every other { } context rejects it (DECLARE4003).
   const inApp = await compile(`App [ count: number = 0, Text [ text = { "" + classroot.count } ] ]`, {});
   assert.equal(inApp.source, null, "classroot in the App body must not compile");
-  assert.match(inApp.errors[0].message, /'classroot' is the root of a component you define — valid only inside a class body.*in the App/);
+  assert.match(inApp.errors[0].message, /'classroot' is the root of a class you define — valid only inside a class body.*in the App/);
   // a use-site classroot inside the App is equally rejected
   const useSite = await compile(`class Chip extends View [ n: number = 0 ]\nApp [ v: number = 1, Chip [ n = { classroot.v } ] ]`, {});
   assert.equal(useSite.source, null, "classroot at an App use-site must not compile");
@@ -2774,7 +2774,7 @@ await test("compile(): a bare component tag auto-includes its library — no inc
   const r = await compile(`App [ width = 360, height = 80, Bar [ x = 20, y = 20, width = 300, value = 62 ] ]`);
   assert.equal(r.errors.length, 0, "Bar resolves from the bundled library (library/autoincludes.json)");
   assert.ok(r.source, "compiled to a self-contained source");
-  assert.match(r.source, /class Bar extends View/, "the library's source is spliced into the merged program");
+  assert.match(r.source, /class Bar \[/, "the library's source is spliced into the merged program");
   assert.doesNotThrow(() => { const app = build(r.source); settle(); void app; }, "the merged source is hostless and instantiates");
 });
 
@@ -2842,11 +2842,11 @@ await test("a layout is an attribute, not a child — every misplacement is a po
     ["App [ width=1, height=1, layout: View [ ] ]",
       /App\.layout expects a Layout — 'View' is not one/],
     ["App [ width=1, height=1, layout = 5 ]",
-      /App\.layout expects a Layout component \(a member like 'layout: SimpleLayout \[ … \]'\), or null for none, got the number 5/],
+      /App\.layout expects a Layout \(a member like 'layout: SimpleLayout \[ … \]'\), or null for none, got the number 5/],
     // L-20 opened every OTHER component slot to constraints; layout alone
     // stays member-or-null (a layout attaches — lifecycle, not a pointer).
     ["App [ width=1, height=1, layout = { pick() } ]",
-      /App\.layout = \{ … \}: the layout slot takes a member .* a layout attaches/],
+      /App\.layout = \{ … \}: the layout attribute takes a member .* a layout attaches/],
   ];
   for (const [src, re] of cases) {
     const errs = await checkL((src));
@@ -3270,12 +3270,14 @@ await test("check: data nodes — named, attribute-only, JSON-validated", () => 
   const srcRaw = check(parse(`App [ s: DataSource { [1] } ]`));
   assert.match(srcRaw[0].message, /data arrives from its url/);
   // A data node's members are a component's — a declaration and a method are
-  // as legal as on a view (the same one-off subclass); only children are not.
+  // as legal as on a view (the same one-off subclass), and so is a non-visual
+  // member (a derived Dataset over its records); only a view is not.
   const members = check(parse(`App [ s: DataSource [ url = "/d.json", n: number, go() { 1 }, View [ ] ] ]`));
   assert.deepEqual(
     members.map((e) => e.message.split(" (line")[0]),
-    ["a data node has no children — its structure is its data"]
+    ["a data node holds no views — its structure is its data; a non-visual member (a derived Dataset over its records, a Time) is welcome"]
   );
+  assert.deepEqual(check(parse(`App [ s: DataSource [ url = "/d.json", top: Dataset [ contents = { 1 } ] ] ]`)), []);
   const badHandler = check(parse(`App [ s: DataSource [ url = "/d.json", onWiggle() { 1 } ] ]`));
   assert.match(badHandler[0].message, /DataSource has no 'onWiggle' event/);
   const unknown = check(parse(`App [ d: Dataset { [1] }, e: Dataset [ url = "x" ] ]`));
@@ -4592,7 +4594,7 @@ await test("check: a theme is a token record; a class-keyed entry has no home", 
     /theme S\.f: every value in a token's list is a number, string, boolean, color, or a value constructor/);
   // A name collides across the declaration namespaces.
   assert.match(errs(`theme S [ ] theme S [ ] App [ ]`)[0],
-    /already a component, theme, style, or font named 'S'/);
+    /already a class, theme, style, or font named 'S'/);
   // A `theme = Name` reference must name a declared theme (or a preset).
   assert.match(errs(`App [ theme = Nope ]`)[0],
     /no theme named 'Nope'/);
@@ -5123,22 +5125,22 @@ await test("Animator: the ONE check — `attribute` must name a NUMERIC slot on 
 
   const typo = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=heigth, to=1 ] ] ]`));
   assert.equal(typo.length, 1);
-  assert.match(typo[0].message, /Animator\.attribute = heigth: View has no slot 'heigth' to animate/);
+  assert.match(typo[0].message, /Animator\.attribute = heigth: View has no attribute 'heigth' to animate/);
   assert.equal(typo[0].pos.line, 1);
 
   const boolean = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=visible, to=1 ] ] ]`));
   assert.equal(boolean.length, 1);
-  assert.match(boolean[0].message, /only numeric slots animate — View\.visible is not a number/);
+  assert.match(boolean[0].message, /only numeric attributes animate — View\.visible is not a number/);
 
   const fill = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=fill, to=1 ] ] ]`));
-  assert.match(fill[0].message, /only numeric slots animate — View\.fill is not a number/);
+  assert.match(fill[0].message, /only numeric attributes animate — View\.fill is not a number/);
 });
 
 await test("Animator: `attribute` is a bare token — a { }, a :path, or a value is refused", () => {
   const cases = [
-    [`attribute={ x }, to=1`, /attribute names the target slot to drive as a bare token .*not a \{ … \} expression/],
-    [`attribute=:height, to=1`, /attribute names the target slot .*not the datapath :height/],
-    [`attribute=5, to=1`, /attribute names the target slot .*not the number 5/],
+    [`attribute={ x }, to=1`, /attribute names the attribute to drive as a bare token .*not a \{ … \} expression/],
+    [`attribute=:height, to=1`, /attribute names the attribute to drive .*not the datapath :height/],
+    [`attribute=5, to=1`, /attribute names the attribute to drive .*not the number 5/],
   ];
   for (const [frag, want] of cases) {
     const errs = check(parseProgram(`App [ width=1, height=1, View [ height=9, Animator [ ${frag} ] ] ]`));
@@ -5149,7 +5151,7 @@ await test("Animator: `attribute` is a bare token — a { }, a :path, or a value
 await test("Animator: a missing `attribute` is a compile error", () => {
   const errs = check(parseProgram(`App [ width=1, height=1, View [ Animator [ to=100 ] ] ]`));
   assert.equal(errs.length, 1);
-  assert.match(errs[0].message, /an Animator needs 'attribute = <slot>' — the target slot it drives/);
+  assert.match(errs[0].message, /an Animator needs 'attribute = <name>' — the attribute it drives/);
 });
 
 await test("Animator: handlers are allowed (declared events); decls, children, typo'd handlers are not", () => {
@@ -5161,7 +5163,7 @@ await test("Animator: handlers are allowed (declared events); decls, children, t
   const msgs = errs.map((e) => e.message).join("\n");
   assert.doesNotMatch(msgs, /foo/, "a declaration on an animator is a member like any node's");
   assert.match(msgs, /Animator has no 'onWiggle' event — its handlers: onInit, onChange, onStart, onStop, onRepeat/);
-  assert.match(msgs, /an animator drives a slot — it has no children/);
+  assert.match(msgs, /an animator drives an attribute — it has no children/);
 });
 
 await test("build(): a named animator is a reachable member with coerced attrs; target = parent", () => {
@@ -5833,7 +5835,7 @@ await test("A2 AnimatorGroup: check accepts groups + member cascade; rejects non
       Animator [ to=10 ] ] ] ]`)), [], "members inherit the group's `attribute` (the LZX default-cascade)");
 
   const typo = check(parseProgram(`App [ width=1, height=1, View [ AnimatorGroup [ attribute=heigth, Animator [ to=1 ] ] ] ]`));
-  assert.ok(typo.some((e) => /attribute = heigth: View has no slot 'heigth'/.test(e.message)),
+  assert.ok(typo.some((e) => /attribute = heigth: View has no attribute 'heigth'/.test(e.message)),
     `group attribute checked against target: ${typo.map((e) => e.message).join(" | ")}`);
 
   const nonAnim = check(parseProgram(`App [ width=1, height=1, View [
@@ -5842,7 +5844,7 @@ await test("A2 AnimatorGroup: check accepts groups + member cascade; rejects non
     `non-animator child rejected: ${nonAnim.map((e) => e.message).join(" | ")}`);
 
   const noSlot = check(parseProgram(`App [ width=1, height=1, View [ AnimatorGroup [ Animator [ to=1 ] ] ] ]`));
-  assert.ok(noSlot.some((e) => /needs 'attribute = <slot>'/.test(e.message)),
+  assert.ok(noSlot.some((e) => /needs 'attribute = <name>'/.test(e.message)),
     `a member with no slot and no cascade is an error: ${noSlot.map((e) => e.message).join(" | ")}`);
 });
 
@@ -6363,6 +6365,26 @@ await test("state: a structural state attaches and destroys the child's SURFACE 
   assert.equal(backend.live, base, "the detail surface is destroyed on remove");
 });
 
+await test("state: a subtree built during the push sweep leaves the sweep's other pushes intact", () => {
+  // The kernel's written cells reach their surfaces in one sweep at the settle's
+  // close. A State applying in that sweep builds its subtree there, and the
+  // subtree's own kernel-landed gates drain the written-cell list again; the
+  // outer sweep must still push every cell it was handed.
+  const app = build(`class Card extends View [ height = 20, wide: boolean = true,
+      w: State [ applied = { classroot.wide }, r: View [ width = 100%, height = 10 ] ] ]
+    App [ width = 400, height = 400, n: number = 0,
+      s: State [ applied = { parent.n > 0 }, box: View [ width = 300, c1: Card [ width = 100 ], c2: Card [ width = 100 ] ] ],
+      a: View [ width = { parent.n * 2 }, height = 5 ],
+      b: View [ width = { parent.n * 3 }, height = 5 ],
+      c: View [ width = { parent.n * 4 }, height = 5 ] ]`);
+  app.attach(new CanvasBackend(), null);
+  app.n = 10;
+  settle();
+  assert.deepEqual([app.a, app.b, app.c].map((v) => v.width), [20, 30, 40], "the model");
+  assert.deepEqual([app.a, app.b, app.c].map((v) => v.surface.width), [20, 30, 40], "every surface got its push");
+  assert.equal(app.box.c1.r.surface.width, 100, "the nested subtree's own push");
+});
+
 await test("state: a gated state rejects the verbs (gate XOR verbs)", () => {
   const app = build(`class Gated extends View [ width = 80, height = 40, on: boolean = false,
       s: State [ applied = { parent.on }, height = 200 ],
@@ -6411,10 +6433,10 @@ await test("diagnostics: every phase's error carries a coded, phase-classified D
   let d = (await compile("App [ x= ]")).diagnostics;
   assert.equal(d[0].phase, "syntax");
   assert.match(d[0].code, /^DECLARE1/);
-  // structure (unknown component) — a coded catalog entry
+  // structure (unknown class) — a coded catalog entry
   d = (await compile("App [ Bogus [] ]")).diagnostics;
-  const unknown = d.find((x) => x.message.includes("unknown component"));
-  assert.equal(unknown.code, "DECLARE2001", "unknownComponent is DECLARE2001");
+  const unknown = d.find((x) => x.message.includes("unknown class"));
+  assert.equal(unknown.code, "DECLARE2001", "unknownClass is DECLARE2001");
   assert.equal(unknown.phase, "structure");
   // name resolution
   d = (await compile("App [ width = 100, height = 100, View [ x = { nope } ] ]")).diagnostics;
@@ -6731,7 +6753,7 @@ App [ width = 200, height = 100,
   assert.equal(app.slot.children.length, before - 1, "discard() unlinks on its own — the pair of createView");
   const builtin = app.createView("Text", { text: "raw" });
   assert.equal(builtin.constructor.name, "Text", "built-in tags resolve too");
-  assert.throws(() => app.createView("Nope"), /no component named 'Nope'.*use \[ Nope \]/s,
+  assert.throws(() => app.createView("Nope"), /no class named 'Nope'.*use \[ Nope \]/s,
     "an unknown name throws and NAMES the fix");
 });
 
@@ -7125,7 +7147,7 @@ await test("$provide reaches the fetch host: a Control program compiles in-brows
   // async the cast lied, `lib` was a Promise, `lib.canonical` undefined, and
   // `libSources.push(lib.source)` pushed undefined. The component was silently
   // never spliced and the compile died with the self-contradicting
-  // "unknown component 'FocusRing' — did you mean 'FocusRing'?".
+  // "unknown class 'FocusRing' — did you mean 'FocusRing'?".
   //
   // It survived the whole conversion because the NODE host answers
   // synchronously — every Node test and every prewarmed artifact was unaffected —
@@ -7933,7 +7955,7 @@ await test("center/end: the geometric box on EVERY view — Text too (centering 
   assert.equal(app.corner.x, 370); assert.equal(app.corner.y, 170);
   // Text y = center now centers the GEOMETRIC BOX, like every other view:
   // (200 - 21)/2 = 89.5. Cap-band optical centering moved to the library's
-  // TextLabel (pinned in components.test) — the surprising per-Text default is
+  // TextLabel (pinned in library.test) — the surprising per-Text default is
   // retired (2026-09-06).
   assert.equal(app.lbl.y, 89.5);
   app.discard();
@@ -8073,7 +8095,7 @@ await test("provided: a replicated instance's provisions land BEFORE it attaches
   // the face push happens at attach, and this test reads what it pushed.
   const r = await compile(`class Row extends View [ ink: Color = #00ff00, textColor = { ink }, t: Text [ text = "a" ] ]
 App [ width = 100, height = 100,
-  ds: Dataset [ contents = { { items: [] } } ],
+  ds: Dataset { { "items": [] } },
   col: View [ datapath = { app.ds.value }, Row [ datapath = :items[] ] ]
   ]`, {});
   if (r.errors.length > 0) throw new DeclareErrors(r.errors);
@@ -8111,7 +8133,7 @@ await test("check(): redeclaring a component's own child is refused in the SOURC
     App [ width = 400, height = 100, Heading [ label: Text [ text = "Hello" ] ] ]`);
   const m = (r.errors ?? []).map((e) => e.message).join("\n");
   assert.match(m, /'label' is already a member of Heading/);
-  assert.match(m, /configures a component through its attributes/, "the message names what to write instead");
+  assert.match(m, /configures a class through its attributes/, "the message names what to write instead");
   assert.match(m, /classroot\.text/, "…and the spelling that reads it back");
 
   const ok = await compile(`class Heading extends View [ width = { parent.width }, height = { label.height },
@@ -8247,7 +8269,7 @@ const T0 = new Date(2026, 7, 26, 10, 15, 42, 0).getTime();
 
 await test("a derived Dataset inside a model class derives, re-derives on a write, and drives replication", () => {
   const app = build(`schema Row [ n: number ]
-    class Log [
+    class Log extends Node [
       sessions: Dataset { { "rows": [ { "n": 1 }, { "n": 2 } ] } },
       total() -> number { return (this.sessions.value?.rows ?? []).reduce((a, r) => a + r.n, 0) },
       week: Dataset [ schema = [ rows[]: Row, sum: number ], contents = { ({ rows: classroot.sessions.value?.rows ?? [], sum: classroot.total() }) } ]
@@ -8270,7 +8292,7 @@ await test("a MODEL CLASS starts its members as a view does — a Time ticks, an
   const h = fakeTimeHost(T0);
   setTimeHost(h);
   try {
-    const app = build(`class Model [
+    const app = build(`class Model extends Node [
         ticks: number = 0,
         poll: Time [ tick = minute, onTick(dt: number) { classroot.ticks = classroot.ticks + 1 } ],
         target: number = 40,

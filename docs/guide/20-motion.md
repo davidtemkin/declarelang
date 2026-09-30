@@ -30,7 +30,7 @@ mandatory: continuity is a capability standing by, not a house style.
 > **Motion is a target, not a timeline. A state is a bundle of values you are in or not
 > in.**
 
-## A spring drives an attribute toward a target
+## Springs
 
 A [`Spring`](declare-docs:Spring) is physics on one attribute, toward a **reactive target**. You declare
 where the thing belongs; the spring finds the path and arrives:
@@ -73,7 +73,7 @@ would roll up from zero — a change the reader never lived through. Take the fi
 value outright, and let every later one animate:
 
 ```declare-fragment
-class Figure [
+class Figure extends Node [
     value: number = 0,                          // the truth
     shown: number = 0,                          // what the screen reads
     seeded: boolean = false,
@@ -133,7 +133,7 @@ changes nothing a sleeping spring watches — the strip stays where the finger l
 > `AnimatePresence`, no variants, no exit choreography. The graph you already have
 > is the animation system.
 
-## A state is a reversible bundle of overrides
+## States
 
 The other primitive is about *configurations*. A [`State`](declare-docs:State) is a named set of attribute
 overrides — and even conditional children — applied while a condition holds,
@@ -165,7 +165,7 @@ overrides its own element's attributes only: `bg.opacity = 0.5` inside one is a
 compile error. A child that should follow the same condition declares its own state
 on it, or a constraint that reads the flag.
 
-## Animator: motion on a clock
+## Animators
 
 Some motion really is clock-shaped: a progress sweep, a replay cursor moving through a day
 in ninety seconds, an entrance that runs once. An `Animator` drives one attribute from
@@ -200,7 +200,7 @@ derived. Choose by the shape of the motion: a value that should *arrive* somewhe
 may be redirected on the way, is a `Spring`; a value that should *advance* over a known
 time is an `Animator`.
 
-## One mechanism, two faces
+## How springs and states relate
 
 Springs and states look like two features. They are one idea seen twice: **a
 reversible, interruptible declaration about how things should be.** A state names a

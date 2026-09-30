@@ -13,8 +13,8 @@ stale.
 > Edits are writes to the data.**
 
 This chapter covers where data lives, how views read and repeat over it, how handlers
-write it, how a model class stands on a record, how data arrives from a server or a
-stream, and how text fields edit it. [Typed data](declare-docs:guide:schemas) adds the
+write it, how a class stands on a record, how a document carries its own logic, how data
+arrives from a server or a stream, and how text fields edit it. [Typed data](declare-docs:guide:schemas) adds the
 schemas that make the compiler check all of it.
 
 ## Datasets, cursors and paths
@@ -44,7 +44,7 @@ App [ width = 300, height = 150, fill = midnightblue, textColor = gainsboro,
 
 The inner view is written once, against an abstract record, and instantiated per row.
 Add a record to the data and a row appears; delete one and its row leaves. There is no
-`.map()`, no loop to maintain, no list component — replication is simply what a path
+`.map()`, no loop to maintain, no list view — replication is simply what a path
 that matches many does. Replicated rows are anonymous; you reach them through their
 data, not by name.
 
@@ -60,7 +60,7 @@ A `:path` reaches through structure the way you would expect: `:owner.name` read
 nested field, `:images[0]` an element, `:images[-1]` the last one. Paths also support
 slices and wildcards (`:rows[1:4]`, `:rows[*].label`) and quoted names for keys with
 dashes; the reference page for `:path` lists them. A `:path` works inside a `{ }` too —
-`text = { :done ? "✓ " + :title : :title }` — and a non-visual member such as a
+`text = { :done ? "✓ " + :title : :title }` — and a non-visual child such as a
 [`Spring`](declare-docs:Spring) or a [`DataSource`](declare-docs:DataSource) reads the cursor of the view it belongs to.
 
 One current limit: when an array holds bare values (`"tags": ["new", "sale"]`),
@@ -94,7 +94,7 @@ App [ width = 320, height = 170, fill = white, textColor = #172530,
 know where in the list it sits. `:stars += 1` reads and writes the same field. The
 write lands in the dataset, so everything reading that data follows in the same step:
 the count at the top, the checkbox, any other screen showing the same record. The value
-pattern of [Controls](declare-docs:guide:controls@contract-one-the-value-pattern) applies unchanged: the checkbox shows
+pattern of [Controls](declare-docs:guide:controls@the-value-pattern) applies unchanged: the checkbox shows
 `:done` and delivers its edit through `input`.
 
 A write names one place — a field, a nested field, or a non-negative index. Changes to
@@ -145,14 +145,14 @@ It works anywhere in a path — `:rows[(app.pick)].title` is the title of the re
 read follows. Like any `:path`, both forms are read in a `{ }` and written in a handler:
 `:@[(f)] = v` writes one field, and `:@ = r` replaces the record.
 
-## Models on a record
+## A Node class on a record
 
-A model class ([Components and the tree](declare-docs:guide:components@models-classes-with-no-view)) can stand on a
+A class with no view ([Classes and the tree](declare-docs:guide:classes@classes-with-no-view)) can stand on a
 record of its own. Give it a `datapath`, and its declarations derive from the record
 and its methods write back to it — with no view involved:
 
 ```declare
-class TaskModel [
+class TaskModel extends Node [
     title: string = { "" + :title },
     overdue: boolean = { :due < app.today },
     finish() { :done = true }
@@ -185,37 +185,36 @@ A model that owns the rules for a kind of record — what "overdue" means, what 
 does — keeps those rules in one place instead of scattered across the views that show
 it.
 
-(A model stands on *one* record. Replicating a model class over a collection, the way
-rows replicate, is not supported; only views replicate.)
+(A class like this stands on *one* record. Replicating it over a collection, the way rows
+replicate, is not supported; only views replicate.)
 
 ### Deriving summaries: methods, and a typed result
 
 Most apps also compute things *from* the whole collection — this week's totals, a
-streak, the next likely entry. Those computations are the app's model, and they belong
-as **methods** on the node that holds the data, not as `script` functions: the compiler
-reads through a method, so what a constraint depends on is known and `explain` can show
-it, while a script function is opaque to both. Give the result a `schema` and it arrives
-typed, with no casts:
+streak, the next likely entry. They are **methods**, on the App while there are a few of
+them; when a document's logic grows into a thing in its own right, the document becomes a
+class that extends `Dataset` (or `DataSource`, when it arrives from a server), carrying its
+derivations, its queries and the few writes that are more than a field. The compiler reads through a method, so what a constraint
+depends on is known and `explain` can show it, while a `script` function is opaque to
+both. Give a result a `schema` and it arrives typed, with no casts:
 
 ```declare
 schema Session [ id: number, day: number, minutes: number ]
 schema Week [ count: number, minutes: number ]
 
-class Log [
-    sessions: Dataset [ schema = [ rows[]: Session ] ] { { "rows": [
-        { "id": 1, "day": 1, "minutes": 30 }, { "id": 2, "day": 2, "minutes": 45 } ] } },
+class Log extends Dataset [ schema = [ rows[]: Session ],
     week: Dataset [ schema = Week, contents = { classroot.weekOf(3) } ],
     weekOf(today: number) -> Week {
-        const rows = this.sessions.value.rows.filter((s) => s.day > today - 7)
+        const rows = this.value.rows.filter((s) => s.day > today - 7)
         return ({ count: rows.length, minutes: rows.reduce((n, s) => n + s.minutes, 0) })
         },
     add(minutes: number) {
-        this.sessions.set(["rows", "-"], ({ id: this.sessions.value.rows.length + 1, day: 3, minutes: minutes }))
+        this.set(["rows", "-"], ({ id: this.value.rows.length + 1, day: 3, minutes: minutes }))
         }
     ]
 
 App [ width = 320, height = 110, fill = white, textColor = #172530,
-    log: Log [ ],
+    log: Log [ ] { { "rows": [ { "id": 1, "day": 1, "minutes": 30 }, { "id": 2, "day": 2, "minutes": 45 } ] } },
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         Text [ text = { app.log.week.value.count + " sessions, " + app.log.week.value.minutes + " minutes" } ],
@@ -224,11 +223,20 @@ App [ width = 320, height = 110, fill = white, textColor = #172530,
     ]
 ```
 
-`week` is a derived dataset: its contents are whatever `weekOf(3)` returns, re-derived
-when the sessions change, and its `schema` makes `app.log.week.value.count` a `number` to
-every body. It lives in `Log`, beside the sessions it reads: a summary belongs to the node
-that holds its data, so everything that uses the log reaches the week through it. What
-stays in `script` is code that knows nothing about your model — date arithmetic,
+`app.log` *is* the sessions: a view binds to it directly (`datapath = { app.log.value }`)
+and a row writes its own session as it would in any dataset. `week` is a derived dataset
+declared on it: its contents are whatever `weekOf(3)` returns, re-derived when the
+sessions change, and its `schema` makes `app.log.week.value.count` a `number` to every
+body. A data class holds members that paint nothing — a derived dataset, a `Time` — and
+never views.
+
+When logic moves out of the App, where it goes follows what it is about: a document's own
+logic — its derivations, queries over its records, how a record is created, the rules a
+write must keep — moves onto the document; the application's own state and machinery — a
+service, a connection feeding several datasets, an undo history — moves into a class that
+extends `Node`. What the user is looking at — the selection, the page, the mode — is never
+on the data.
+What stays in `script` is code that knows nothing about your model — date arithmetic,
 formatting — functions of their arguments alone.
 
 ## Where data comes from
@@ -236,6 +244,11 @@ formatting — functions of their arguments alone.
 A **`Dataset`** holds embedded or computed data. Its literal body is strict JSON —
 quoted keys, no trailing commas. A derived dataset computes its document with
 `contents = { … }` and recomputes when what it reads changes.
+
+Views bind to every kind the same way, and write them the same way: data fetched from a
+server, a working copy or excerpt of it (the page of records on screen), a derived
+dataset, or data the app creates for itself. An app that only manages its own data writes
+it directly — there is no server to imitate and nothing to buffer.
 
 A **`DataSource`** is a dataset whose document arrives over HTTP, and its lifecycle is
 reactive state:
@@ -307,7 +320,7 @@ Four facts make this work without choreography:
   user edits what was loaded, copy it into a `Dataset` in `onLoad` and edit that — the
   working copy — so a refresh does not overwrite work in progress.
 
-**Writing to one record** takes a slot that says which record, and a source whose `url`
+**Writing to one record** takes an attribute that says which record, and a source whose `url`
 reads it:
 
 ```declare-fragment
@@ -347,7 +360,7 @@ the failure is not that case; a constraint on `failed` does it.
 The host's `fetch` is not available in a `{ }` body; the compiler names `DataSource`
 instead. A request a `DataSource` genuinely cannot express belongs in a
 `script [ "file.ts" ]` module, which is plain TypeScript
-([Components](declare-docs:guide:components@where-a-piece-of-code-lives)).
+([Classes](declare-docs:guide:classes@where-code-goes)).
 
 ## Streams
 
@@ -432,12 +445,14 @@ object, no submit handler.
 Drafts belong to text fields because an in-progress value can be unrepresentable in the
 data (`"12/3"` is not a date). A checkbox or slider writes immediately. When *nothing*
 should be written until Save, move the buffer into the data instead: point the form at a
-working copy — `draft: Dataset [ contents = { app.record.value } ]` — let every control
-write to it freely, and copy it across on Save with `app.record.set([], app.draft.value)`.
-Validate the model, not the widgets: a `canSave` computed over the draft covers controls
-that have no `valid` of their own.
+working copy — a plain `draft: Dataset { { } }`, filled when editing starts with
+`app.draft.set([], structuredClone(app.record.value))` — let every control write to it
+freely, and copy it across on Save with `app.record.set([], structuredClone(app.draft.value))`.
+The copy is what makes it a draft: a derived dataset would hold the record itself, and
+its writes would land in the record at once. Validate the model, not the widgets: a
+`canSave` computed over the draft covers controls that have no `valid` of their own.
 
-## The shape of a real app
+## Data in a whole app
 
 Here is the pattern that carries real applications, and the one the calendar runs at
 scale: **keep the raw data flat and typed, derive the view model from it, and make every
@@ -449,12 +464,12 @@ schema Card [ id: number, col: 0 | 1 | 2, t: string ]
 
 class BCard extends Control [ width = 100%, height = 30, cornerRadius = 10,
     fill = { down ? 0x3E5C66 : hot ? 0x36525B : 0x2F4F4F },
-    press() { app.advance(:id) },
+    press() { :col = Math.min(:col + 1, 2) },
     TextLabel [ x = 10, fontSize = 12, wrap = false, textColor = whitesmoke, text = :t ]
     ]
 
 
-class Column extends View [ width = 130,
+class Column [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
     BCard [ datapath = :cards[] ]
@@ -477,11 +492,6 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
         },
     board: Dataset [ contents = { app.buildCols() } ],
 
-    advance(id: number) {
-        const cards = this.raw.value?.cards ?? []
-        const i = cards.findIndex(c => c.id == id)
-        if (i >= 0 && cards[i].col < 2) this.raw.set(["cards", i, "col"], cards[i].col + 1)
-        },
     add() {
         const t = this.entryRow.entry.text
         if (t == "") return
@@ -510,14 +520,37 @@ number, and typed — its schema holds every write that follows ([Typed
 data](declare-docs:guide:schemas)). `board` is a **derived dataset**:
 `contents = { app.buildCols() }` recomputes when anything `buildCols` reads changes,
 because the compiler reads through the method. Columns and cards replicate over the
-derived shape. Both user actions are one write each to `raw`; no handler touches a view.
+derived shape. Both user actions are one write each; no handler touches a view.
 
-Note where the card's click writes: `app.advance(:id)`, which finds the card in `raw` —
-not `:col = …` on the card itself. The card is attached to the *derived* board, and a
-write there would land in the projection, which the next recompute replaces. **Write the
-truth, not the view of it.** A row attached to raw data writes its own record directly;
-a row attached to a projection sends its record's identity to the method that owns the
-truth.
+Note where the card's click writes: `:col = :col + 1`, on the card itself, although the
+card is attached to the *derived* board. `buildCols` groups the cards — it does not copy
+them — so the board holds `raw`'s own records, and writing one writes `raw`. The board
+re-derives from that write and the card moves to its new column. **A derived dataset that
+selects records — filter, sort, group — holds its source's records, and a row writes its
+record as it would anywhere.**
+
+What a derived dataset *makes* is its own, and read-only: the column objects here, a copy
+(`{ ...c }`), a summary. A write to one is refused, with an error saying to write the
+source, because the next recompute would replace it. So what a row needs beyond its
+record comes one of three ways:
+
+- **Computed in the row**, when it follows from the record alone: a label, a colour —
+  a constraint on the row.
+- **`rowIndex`**, when it is the row's position: stripes, ranks, "3 of 12"
+  ([Large collections](declare-docs:guide:collections@row-position-rowindex)).
+- **A wrapper**, when it depends on the other records, like a lane that avoids
+  overlapping events. Wrap the record, don't copy it:
+
+```declare-fragment
+lanes() -> array { return app.laneOf(raw.value.events).map((e, n) => ({ ev: e, lane: n })) },
+laid: Dataset [ contents = { { blocks: app.lanes() } } ],
+
+Block [ datapath = :blocks[], x = { :lane * 80 },
+    t: Text [ datapath = :ev, text = :title ]    // :ev is raw's own record — edits land there
+    ]
+```
+
+The wrapper is made, so `:lane` is read-only; the record inside it is still the source's.
 
 That division — typed raw truth, a derived model, edits as writes — is the deepest habit
 this chapter can leave you with. In the calendar it is what makes navigation three

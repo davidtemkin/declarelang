@@ -1,7 +1,7 @@
 // Animator / AnimatorGroup — imperative motion over a target's numeric slot
 // (animation.md §1–§4). LZX's animation vocabulary, applied imperatively: a
 // `start()` call drives one slot through an easing curve, sampled once at start
-// (no live retarget in v1). They are ordinary twin-table components (schema +
+// (no live retarget in v1). They are ordinary twin-table classes (schema +
 // runtime class, registered like Dataset or SimpleLayout), NOT keywords —
 // written as ordinary child-instance members (`slide: Animator [ attribute =
 // height, to = 255 ]`).

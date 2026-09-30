@@ -43,7 +43,7 @@ export abstract class Media extends View {
    *  Video mutes (browsers refuse audible video autoplay, so an unmuted
    *  default would make the common declaration silently not run); Audio does
    *  not (sound is its only product — an Audio muted by default is a
-   *  component that appears broken until you find the flag). */
+   *  class that appears broken until you find the flag). */
   declare muted: boolean;
 
   /** The playhead, in seconds. Writing it seeks. The runtime writes it back as

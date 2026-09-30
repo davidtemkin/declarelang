@@ -206,7 +206,7 @@ function inlineOf(kids) {
                 out.push({ t: "br" });
                 break;
             // A classed span carries a NAMED style (resolved to a bundle of Text style
-            // attributes by the flow engine against the component's `styles`); an
+            // attributes by the flow engine against the class's `styles`); an
             // unknown/absent class just unwraps. The one styling hook — reference to a
             // style the app defines, no CSS in the content itself.
             case "span":

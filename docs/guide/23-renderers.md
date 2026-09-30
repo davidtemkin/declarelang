@@ -40,7 +40,7 @@ solves. Today it is a proof about the language, at full fidelity; the
 interesting potential is what it points at: an Electron-shaped shell with no
 Chromium in it.
 
-## The program, the graph, and the seam
+## What every renderer shares
 
 The realization strategy is the *only* thing that changes. **DOM**: every view
 is a `<div>` whose geometry Declare drives directly; hit-testing is the
@@ -67,7 +67,7 @@ behavioral questions — where does this press land, what does this scroll move,
 what does the wheel-claim walk decide, where does keyboard focus go — and
 requires byte-identical answers.
 
-## Where they genuinely differ
+## Where renderers differ
 
 **Performance.** Once running, DOM and canvas are indistinguishable in latency, frame
 rate and memory, because the reactive graph doing the work is the same. The canvas pays
@@ -138,7 +138,7 @@ Once installed it opens a program three ways: a URL served by the dev server (th
 server compiles, nothing is downloaded), a directory holding a built artifact, or
 a `.declare` file **anywhere on disk** — double-clicked, dropped on the app, or
 `open`ed from a shell. A file outside the tree still resolves its own `include`s
-beside itself and its library components from the Declare tree the app was
+beside itself and its library classes from the Declare tree the app was
 stamped with, so you can copy a program's folder to the Desktop and run it.
 
 What it is not is a way to *ship* an application. It runs Declare programs with
@@ -148,7 +148,7 @@ integration, no per-program installer. `declarec --render mac` refuses for that
 reason. The full operational detail — the build chain, the stamp, the gates — is in
 [The Mac host](declare-docs:operational:mac-host).
 
-## Why this matters even if you never leave the DOM
+## Why the other renderers matter
 
 A language that owns its whole semantics — with no substrate assumptions
 leaking into programs — can retarget. That property already bought you the
@@ -159,7 +159,7 @@ keeps every behavior in this guide meaning exactly one thing. The discipline
 that makes the program portable is the same discipline that makes it
 trustworthy.
 
-## Choosing
+## Choosing a renderer
 
 Default to DOM: accessibility, native selection, and instant first
 paint. Reach for canvas when the surface must be sealed and uniform — pixels

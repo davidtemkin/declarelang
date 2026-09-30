@@ -2315,7 +2315,7 @@ class CanvasSurface implements Surface {
     this.compositor.invalidate(this);
   }
 
-  // Native rich-text flow is a DOM affordance; on canvas the RichText component lays
+  // Native rich-text flow is a DOM affordance; on canvas the RichText class lays
   // the runs out as child views itself. -1 signals "not handled, fall back".
   setRichContent(): number { return -1; }
 

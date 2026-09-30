@@ -23,7 +23,7 @@ import { programFromCompiled, type ProgramBuild } from "./program-build.js";
 // the in-browser compiler (compile-browser.ts compileProgram) and lives in
 // program-build.ts; this module is the Node front: it compiles from the
 // filesystem and hands the result to that tail.
-export { usedComponentNames, stripPos, type ProgramBuild } from "./program-build.js";
+export { usedClassNames, stripPos, type ProgramBuild } from "./program-build.js";
 
 export interface DeclarecOptions extends CompileOptions {
   /** Drop `pos` source-offset fields from the shipped program. They exist only

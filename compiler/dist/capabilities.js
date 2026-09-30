@@ -24,7 +24,7 @@
 // gets a decision.
 //
 // A SUBSET capability is a table a program reaches only by the names it writes
-// (the built-in component schemas): left out, its module ships as itself with
+// (the built-in class schemas): left out, its module ships as itself with
 // the table cut to the entries the program names.
 //
 // docs/system-design/app-slimming.md is the account of all this, and
@@ -138,7 +138,7 @@ export const CAPABILITIES = [
     { id: "literal-parsing", describe: "the literal parsers: colors and their names, decoration constructors, motion, shapes",
         modules: ["literal-parse"], requires: ["easing", "effects"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["RichText"] }, { syntax: ["raw-literal"] }], inert: { FILL: "empty-string" } },
-    { id: "schema-table", describe: "the built-in component schemas, whole (a build ships the ones its program constructs)",
+    { id: "schema-table", describe: "the built-in class schemas, whole (a build ships the ones its program constructs)",
         modules: ["schema"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "SCHEMAS", keys: "classes" } },
     { id: "size-report", describe: "the authoring report of a child sized from a parent with no size to give",
         modules: ["size-report"], when: [{ build: { debug: true } }], refusal: "unused",
@@ -149,6 +149,8 @@ export const CAPABILITIES = [
         inert: { unwrapValue: "identity", trackedView: "identity", setAppDataBase: "noop", provideTransport: "identity" } },
     { id: "replication", describe: "replication: one instance per record", modules: ["replicate"], requires: ["data"],
         hostsKeep: true, refusal: "unused", when: [{ syntax: ["replication"] }], inert: { materializationInfo: "null" } },
+    { id: "class-for", describe: "classFor: a class per record in replication", modules: ["class-for"], requires: ["replication"],
+        hostsKeep: true, refusal: "unused", when: [{ attributes: ["classFor"] }] },
     { id: "state", describe: "State: a named set of overrides", modules: ["state"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["State"] }] },
     { id: "editor", describe: "editing: TextInput's draft and two-way binding", modules: ["editor"], hostsKeep: true, refusal: "unused",
@@ -233,8 +235,8 @@ function literalCalls(v, into) {
     }
 }
 /** ONE walk over the program — its tree, its classes, every `{ }` body. */
-export function programFacts(program, usedComponents) {
-    const f = { classes: new Set(usedComponents), ownClasses: new Set(usedComponents), methods: new Set(), attributes: new Map(), mentions: new Set(),
+export function programFacts(program, usedClasses) {
+    const f = { classes: new Set(usedClasses), ownClasses: new Set(usedClasses), methods: new Set(), attributes: new Map(), mentions: new Set(),
         calls: new Set(), writes: new Set(), dynamicSlots: new Set(), syntax: new Set(), attributeOn: new Map() };
     // a tag's built-in class chain: a program class through its `extends`, then the built-in's bases
     const baseOf = new Map(program.classes.filter((c) => c.name).map((c) => [c.name, c.base ?? null]));

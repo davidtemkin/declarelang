@@ -56,7 +56,7 @@ export const OPS = {
         expect: { exitCode: 0 }, test: true,
         docs: "declare-docs:operational:format" },
       { id: "test", cmd: "npm test",
-        description: "Everything that tests the SOURCES, and rungs 1–4 for every app and component in the corpus. Needs no `npm run derive` and is meaningful on any tree — no suite here reads a derived artifact.",
+        description: "Everything that tests the SOURCES, and rungs 1–4 for every app and class in the corpus. Needs no `npm run derive` and is meaningful on any tree — no suite here reads a derived artifact.",
         test: false, docs: "declare-docs:operational:verify" },
       { id: "test-derived", cmd: "npm run derive && npm run test:derived",
         description: "The suites whose SUBJECT is a derived artifact — the assembled doc model, declare-help's knowledge base, the committed prewarm cache, the production builds. Only meaningful straight after a derive, which is why the command carries it: run alone on a stale tree it tests yesterday's artifact.",

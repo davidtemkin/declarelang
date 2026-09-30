@@ -23,7 +23,7 @@ export class Audio extends Media {
 defineAttributes(Audio, {
     // Video mutes by default because browsers refuse audible video autoplay and
     // a silent frame is still a picture. Audio's ONLY product is sound: muted by
-    // default it would be a component that appears broken until you find the
+    // default it would be a class that appears broken until you find the
     // flag. Autoplay policy still holds — a refused play() lands `playing` back
     // at false — so the polite default here is the audible one.
     muted: { def: false, push: (v, on) => { const e = v.el; if (e !== null)

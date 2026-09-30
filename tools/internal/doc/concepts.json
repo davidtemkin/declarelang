@@ -232,7 +232,7 @@
         "css grid",
         "grid layout"
       ],
-      "answer": "No grid layout strategy — `WrappingLayout` flows and wraps; a fixed N-column grid is a small `Layout` subclass of your own (`place()` is ~15 lines of arithmetic over `this.laid()` and `this.view.width`); and tabular DATA wants `Table` or `DataGrid`, which are components, not layouts."
+      "answer": "No grid layout strategy — `WrappingLayout` flows and wraps; a fixed N-column grid is a small `Layout` subclass of your own (`place()` is ~15 lines of arithmetic over `this.laid()` and `this.view.width`); and tabular DATA wants `Table` or `DataGrid`, which are classes, not layouts."
     },
     {
       "terms": [
@@ -252,7 +252,7 @@
         "badge",
         "avatar"
       ],
-      "answer": "No dedicated component — the library is deliberately small, and these are compositions: a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
+      "answer": "No dedicated class — the library is deliberately small, and these are compositions: a toast is an `ignoreScroll` View a `Spring` slides in; a drawer is a panel whose `x` follows one sprung scalar; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
     },
     {
       "terms": [

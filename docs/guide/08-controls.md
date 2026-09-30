@@ -6,11 +6,11 @@
 The standard library ships the controls an interface needs — buttons, checkboxes,
 sliders, text fields, menus — themed, keyboard-ready, and available by name with no
 import. Use them. The catalog is short; what is worth learning is the two contracts
-every control follows, because your own components should follow them too.
+every control follows, because your own controls should follow them too.
 
-Three words, used precisely: a **component** is anything a capitalized tag creates —
-`View`, `Button`, your own `TaskRow`. A **class** is how you define one. A **control**
-is an interactive component with a value and a place in the keyboard focus order —
+Three words, used precisely: a **class** is what a capitalized tag names —
+`View`, `Button`, your own `TaskRow` — and an **instance** is one you made. A **control**
+is an interactive view with a value and a place in the keyboard focus order —
 what the library ships, and what `extends Control` makes yours.
 
 > **Derive the value down; deliver the edit up.**
@@ -32,18 +32,18 @@ what the library ships, and what `extends Control` makes yours.
 Every control also takes `disabled`, which makes it inert and removes it from the tab
 order. Constrain it (`disabled = { app.muted }`) rather than assigning it.
 
-The library also has components that are not controls — they have no value of their
+The library also has classes that are not controls — they have no value of their
 own: [`ProgressBar`](declare-docs:ProgressBar) (the read-only sibling of `Slider`), [`Bar`](declare-docs:Bar) (a captioned value bar for
 demos and dashboards), [`Field`](declare-docs:Field) (a labeled form row),
-[`Card`](declare-docs:Card) and [`Divider`](declare-docs:Divider) ([Size, position and layout](declare-docs:guide:layout@padding-and-the-card-it-makes)),
+[`Card`](declare-docs:Card) and [`Divider`](declare-docs:Divider) ([Size, position and layout](declare-docs:guide:layout@padding-and-card)),
 [`Accordion`](declare-docs:Accordion) with [`Pane`](declare-docs:Pane) children, [`Table`](declare-docs:Table) and [`DataGrid`](declare-docs:DataGrid)
 ([Large collections](declare-docs:guide:collections)), the overlay family — [`Menu`](declare-docs:Menu),
 [`MenuBar`](declare-docs:MenuBar), [`ContextMenu`](declare-docs:ContextMenu), [`Dialog`](declare-docs:Dialog), [`Tooltip`](declare-docs:Tooltip)
 ([Menus, dialogs and overlays](declare-docs:guide:overlays)) — and [`Icon`](declare-docs:Icon) with its set
-of drawn marks ([Custom components](declare-docs:guide:custom-components@drawing-your-own-marks-icon)). All of it is
+of drawn marks ([Your own views](declare-docs:guide:your-own-views@icons)). All of it is
 written in Declare, in `library/`, and none of it uses anything you cannot.
 
-## Contract one: the value pattern
+## The value pattern
 
 A control's value is an ordinary attribute, and it is used in one of three ways.
 
@@ -74,7 +74,7 @@ App [ width = 360, height = 210, theme = { SanFrancisco }, fill = { provided("th
 ```
 
 `checked = { app.muted }` shows the value; `input(v)` is where the control's own edits
-go. The two travel together. A control never writes its own value slot directly — it
+go. The two travel together. A control never writes its own value directly — it
 calls `input` — so a constrained control never fights its constraint. Without the
 `input` override the control's edit would be an assignment to a constrained attribute,
 and the runtime refuses it.
@@ -114,9 +114,9 @@ written, and it can wait for Enter or a Save button before it lands.
 [Data](declare-docs:guide:data@editing-text-and-forms) covers drafts and forms. `<->` is for text fields only;
 the compiler refuses it on a checkbox or a slider and names the value pattern instead.
 
-## Contract two: what a component arranges, it takes as records
+## Controls that take records
 
-> **If the component arranges it, hand it data. If you arrange it, build it from views.**
+> **If the class arranges it, hand it data. If you arrange it, build it from views.**
 
 A `Segmented` control's choices, a `Menu`'s items, a `Dialog`'s buttons, a `DataGrid`'s
 columns: all plain lists of records, with the choice handed back through a method.
@@ -137,7 +137,7 @@ App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("th
 ```
 
 You cannot nest rows inside a `Menu` — there is nowhere to put them. That is the
-contract, not a gap: a component that owns its arrangement owns how it draws, and can
+contract, not a gap: a class that owns its arrangement owns how it draws, and can
 change either without any use site noticing. A list of cards that *you* position and
 style is yours: views, a layout, and data.
 
@@ -163,7 +163,7 @@ When you need more:
   before a modal opens and restoring after. Restore on a later turn, not immediately:
   a keystroke still in flight should finish against the old focus.
 
-## When there is no control for it
+## Building a missing control
 
 There is no tab bar or date picker in the library yet — and that is the normal case, not
 a gap. Check the tables first: a modal is `Dialog`, one-open-at-a-time panes are
@@ -176,12 +176,12 @@ the same `press()` a click does, `hot` and `down` to style against, and a label 
 never selects as text; a plain `View` with an `onClick` has none of them, so a keyboard
 user cannot reach it. A `View` with pointer handlers is for what is not a button: a
 surface you drag or draw on, or a scrim a click dismisses. The two contracts above make
-a control behave like the ones you were given. [Custom components](declare-docs:guide:custom-components@what-extends-control-gives-you) shows how.
+a control behave like the ones you were given. [Your own views](declare-docs:guide:your-own-views@what-extends-control-gives-you) shows how.
 
 ---
 
 **What you can now do:** wire any control to your state or to a record with the one
-value pattern, feed arranging components data instead of children, and rely on focus and
+value pattern, feed arranging classes data instead of children, and rely on focus and
 keyboard behavior you did not have to write.
 
 [Next: **Pointer and keyboard** →](declare-docs:guide:pointer-and-keyboard)

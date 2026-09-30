@@ -2533,7 +2533,7 @@ class CanvasSurface {
         this.onScrollXCb?.(next);
         this.compositor.invalidate(this);
     }
-    // Native rich-text flow is a DOM affordance; on canvas the RichText component lays
+    // Native rich-text flow is a DOM affordance; on canvas the RichText class lays
     // the runs out as child views itself. -1 signals "not handled, fall back".
     setRichContent() { return -1; }
     /** Reveal a heading anchor inside a flow (location.md §6). On canvas there is no

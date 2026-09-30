@@ -7,7 +7,7 @@
 // Semantically a layout is nothing but standing computations over the
 // children's geometry, riding the R4 reactive core — no delegate lists, no
 // update() methods, no bespoke invalidation (the LZX LzLayout family in
-// ../runtime/components/utils/layouts/ was read for intent; its
+// ../runtime/classes/utils/layouts/ was read for intent; its
 // updateDelegate machinery is exactly what Cells/Constraints replaced).
 //
 // THE SEAM — a strategy IS its `place()`: pure geometry, one Box per laid

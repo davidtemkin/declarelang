@@ -52,7 +52,7 @@ or lighter than the theme's edges — a section break against a row separator.
 
 include [ "control.declare" ]
 
-class Divider extends View [
+class Divider [
     theme: Theme = { provided("theme", SanFrancisco) },
 
     axis: Axis = x,

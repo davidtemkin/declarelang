@@ -1,6 +1,6 @@
-// RichText — the engine under the rich content components, Markdown (markdown.ts)
+// RichText — the engine under the rich content classes, Markdown (markdown.ts)
 // and HTMLText (html-text.ts); docs/system-design/text-and-markdown.md. Each
-// component reads its own source into the one block tree (md.ts, html.ts) and
+// class reads its own source into the one block tree (md.ts, html.ts) and
 // this module renders it: styled by the `prose` defaults and the face slots,
 // REACTIVE (a Constraint over the source and the width re-renders when either
 // changes, so a computed or streamed value renders live and a resize re-flows).
@@ -156,7 +156,7 @@ export let CODESIZE = 0, CODEFAM = "";
 // themed tint and a `<pre>` stays bare; CODERULE null ⇒ no left bar on either.
 export let CODEBG: number | null = null, CODERULE: number | null = null;
 // Resolve an inline image's `src` against the document's asset base (the same
-// rebase an `Image [ source ]` gets), set per rebuild from the component's root.
+// rebase an `Image [ source ]` gets), set per rebuild from the class's root.
 // Absolute/protocol-relative/root-relative/data: srcs pass through untouched.
 let RESOLVE_SRC: (src: string) => string = (s) => s;
 // Per-block-type layout geometry (the richTextLayout map), set per rebuild — an
@@ -373,7 +373,7 @@ class SlotHost {
     return { isClass: (n) => this.declares(n), refuse: (m) => this.refuse(m) };
   }
 
-  /** Refused, through the component's own `unsupported` policy: `error` throws
+  /** Refused, through the class's own `unsupported` policy: `error` throws
    *  naming the offence, `strip` drops it, keeps going, and says so once. */
   private refuse(message: string): void {
     if (this.policy === "error") throw new DeclareError(message);
@@ -630,7 +630,7 @@ export function richRunsOf(inline: Inline[], style: Style, family: string): Rich
   });
 }
 
-/** TextFlow — the internal native-flow renderer (NOT a user component; see the
+/** TextFlow — the internal native-flow renderer (NOT a user class; see the
  *  RichText family below). A flowing block of styled text: `content` (resolved
  *  runs) and `flowWidth` are set by its owner before attach; it renders natively
  *  (DOM) or manually (canvas) and auto-sizes its height to the flowed content. */
@@ -790,7 +790,7 @@ export class TextFlow extends View {
    *  (§12.1: the DOM's ResizeObserver reports a frame after layout; a flow
    *  inside a display:none subtree measures 0 until re-shown). The reveal
    *  machinery HOLDS an anchored arrival while any flow reports true
-   *  (location.md §0.5.3 — the component-sourced veto). Set at render and at
+   *  (location.md §0.5.3 — the class-sourced veto). Set at render and at
    *  visibility-flip (view.ts markRichPending); cleared by the measurement
    *  callback. Synchronous backends (headless, canvas) never set it. */
   measurePending = false;
@@ -1153,7 +1153,7 @@ export function tableCells(b: Extract<Block, { t: "table" }>, cells: Inline[][],
   return out;
 }
 
-// ── the components ───────────────────────────────────────────────────────────
+// ── the classes ───────────────────────────────────────────────────────────
 // `RichText` is the ABSTRACT family: flowing, structured, styled text. You never
 // write `RichText [ ]` (like `Layout`, it names no format) — you write `Markdown`
 // or `HTMLText`, which differ ONLY in how they parse their source into the block

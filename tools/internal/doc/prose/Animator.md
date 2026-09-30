@@ -1,6 +1,6 @@
 Drives one numeric attribute from `from` to `to` over `duration`, on a motion curve — the
 **timed** half of the animation family. A non-visual node you place *inside* the view it
-animates, naming the target slot with `attribute`. For motion toward a **live, reactive**
+animates, naming the target attribute with `attribute`. For motion toward a **live, reactive**
 target (one that keeps moving), reach for `Spring` instead — an Animator runs a fixed
 `from`→`to` and stops.
 
@@ -14,9 +14,8 @@ App [
 ```
 
 ## attribute
-The target slot this animator drives — a **bare attribute name** of the enclosing view
-(`attribute = opacity`), checked to be numeric. Not a string, not a path; the raw slot
-reference.
+The target attribute this animator drives — a **bare attribute name** of the enclosing view
+(`attribute = opacity`), checked to be numeric. Not a string, not a path; the attribute itself.
 
 ## to
 The value to animate **to**.

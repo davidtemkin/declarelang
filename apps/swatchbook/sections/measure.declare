@@ -7,8 +7,38 @@ their line — each as one line in its measured box, as a wrapped paragraph, and
 as rich text. The ring is the box the runtime measured.
 */
 
-script {
-    const SAMPLES: Record<string, string[]> = {
+
+// a sample measured three ways — one line in its box, a wrapped paragraph,
+// rich text — each its own class
+
+class MeasureSwatch extends Swatch [ name = :name ]
+
+class LineMeasure extends MeasureSwatch [
+    line: Text [ x = 14, y = 40, fontSize = 22, wrap = false, text = { :one } ],
+    ring: View [ x = 14, y = 40, width = { parent.line.width }, height = { parent.line.height }, stroke = stroke(1, #E4572E) ]
+    ]
+
+
+class WrapMeasure extends MeasureSwatch [
+    para: Text [ x = 10, y = 8, width = 192, fontSize = 14, wrap = true, text = { :para } ],
+    bottom: View [ x = 10, width = 192, height = 1, fill = #E4572E66, y = { parent.para.y + parent.para.height } ]
+    ]
+
+
+class RichMeasure extends MeasureSwatch [
+    rich: Markdown [ x = 10, y = 8, width = 192, fontSize = 14, text = { "**" + :one + "** " + :para } ],
+    bottom: View [ x = 10, width = 192, height = 1, fill = #E4572E66, y = { parent.rich.y + parent.rich.height } ]
+    ]
+
+
+class MeasureSection extends Section [ title = "Measure",
+    caption = "Other scripts, right-to-left and mixed direction, emoji and their sequences, combining marks, and words too long for their line — as one line in its measured box, a wrapped paragraph, and rich text.",
+    tabs = { [ ({ id: "line", label: "One line" }), ({ id: "wrap", label: "Wrapped" }), ({ id: "rich", label: "Rich" }), ({ id: "fit", label: "Fit" }) ] },
+    sub = "line",
+
+    // this section's rows, by sub-page, built from its axes
+
+    samples() -> object { return {
         latin: ["Handgloves", "Measure wraps a paragraph at the width it is given."],
         cjk: ["漢字かなカナ한글", "日本語の文章は単語の間に空白がなく、どこでも折り返せます。"],
         arabic: ["مرحبا بالعالم", "النص العربي يُكتب من اليمين إلى اليسار ويلتف في السطر."],
@@ -21,31 +51,16 @@ script {
         devanagari: ["नमस्ते दुनिया", "हिन्दी पाठ संयुक्ताक्षरों के साथ पंक्ति में लपेटा जाता है।"],
         longword: ["Donaudampfschifffahrt", "A Donaudampfschifffahrtsgesellschaftskapitän won't fit its line."],
         url: ["example.com/a/b", "Visit https://example.com/a/really/long/path/that/never/breaks today."],
-    }
-    function measureRows(): Record<string, unknown>[] {
-        return cross({ script: Object.keys(SAMPLES), kind: ["line", "wrap", "rich"] }, (r) => r.script + " · " + r.kind)
-            .map((r) => ({ ...r, one: SAMPLES[r.script as string][0], para: SAMPLES[r.script as string][1] }))
-    }
-    }
-
-
-class MeasureSwatch extends Swatch [ name = :name,
-    line: Text [ x = 14, y = 40, fontSize = 22, wrap = false, visible = { :kind == "line" }, text = { :one } ],
-    ring: View [ visible = { :kind == "line" }, x = 14, y = 40, width = { parent.line.width }, height = { parent.line.height }, stroke = stroke(1, #E4572E) ],
-    para: Text [ x = 10, y = 8, width = 192, fontSize = 14, wrap = true, visible = { :kind == "wrap" }, text = { :para } ],
-    rich: Markdown [ x = 10, y = 8, width = 192, fontSize = 14, visible = { :kind == "rich" }, text = { "**" + :one + "** " + :para } ],
-    bottom: View [ x = 10, width = 192, height = 1, fill = #E4572E66, visible = { :kind != "line" },
-        y = { :kind == "wrap" ? parent.para.y + parent.para.height : parent.rich.y + parent.rich.height } ]
-    ]
-
-
-class MeasureSection extends Section [ title = "Measure",
-    caption = "Other scripts, right-to-left and mixed direction, emoji and their sequences, combining marks, and words too long for their line — as one line in its measured box, a wrapped paragraph, and rich text.",
-    tabs = { [ ({ id: "line", label: "One line" }), ({ id: "wrap", label: "Wrapped" }), ({ id: "rich", label: "Rich" }), ({ id: "fit", label: "Fit" }) ] },
-    sub = "line",
+        } },
+    measureRows() -> array {
+        return cross({ script: Object.keys(this.samples()), kind: ["line", "wrap", "rich"] }, (r) => r.script + " · " + r.kind)
+            .map((r) => ({ ...r, one: this.samples()[r.script as string][0], para: this.samples()[r.script as string][1] }))
+        },
+    rows: Dataset [ contents = { { measureRows: classroot.measureRows() } } ],
     SubHead [ visible = { app.matrix }, text = "Scripts" ],
-    Grid [ visible = { app.matrix || classroot.sub == "line" || classroot.sub == "wrap" || classroot.sub == "rich" }, datapath = { app.book.value },
-        MeasureSwatch [ datapath = :measureRows[], visible = { app.matrix || :kind == classroot.sub } ]
+    Grid [ visible = { app.matrix || classroot.sub == "line" || classroot.sub == "wrap" || classroot.sub == "rich" }, datapath = { classroot.rows.value },
+        MeasureSwatch [ datapath = :measureRows[], visible = { app.matrix || :kind == classroot.sub },
+            classFor = { :kind == "line" ? LineMeasure : :kind == "wrap" ? WrapMeasure : RichMeasure } ]
         ],
     SubHead [ visible = { app.matrix }, text = "Fit" ],
     Grid [ visible = { classroot.showing("fit") },

@@ -70,7 +70,7 @@ letters; overrides `textColor` when set. `textFill = { gradient("90deg", 0xFFFFF
 
 ## textShadow
 A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box
-`shadow` slot, applied to the text instead of the box.
+`shadow` attribute, applied to the text instead of the box.
 
 ## outline
 Strokes the glyph **edges** in `outline(width, color)` — outlined letters, **not** a box
@@ -116,7 +116,7 @@ A slash through the zero, where the face has one — for serial numbers, codes a
 ## underline
 A rule under the baseline. A **decoration**, drawn in the text colour and independent of
 `textFill` — a gradient-filled word still underlines in its base colour. (Rich-text links
-underline via `RichText.linkUnderline`; this is the plain per-`Text` slot.)
+underline via `RichText.linkUnderline`; this is the plain per-`Text` attribute.)
 
 ## strike
 A rule through the x-height — a struck run. Same decoration contract as `underline`.
@@ -179,6 +179,6 @@ told about when measuring a run that should match this one.
 
 ## selectable
 Whether this run's text can be selected by the reader. It is a **provided**
-value as much as a slot: setting it on a container opts a whole subtree in, and a leaf
+value as much as an attribute: setting it on a container opts a whole subtree in, and a leaf
 declares it so one run can opt back out. A caption you never want dragged over sets it
 false; a code block sets it true on the container above it.

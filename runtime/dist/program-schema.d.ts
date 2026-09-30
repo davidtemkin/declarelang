@@ -1,6 +1,6 @@
 import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
-import { type ComponentSchema } from "./schema.js";
+import { type ClassSchema } from "./schema.js";
 import { type AttrType, type AttrValue } from "./value.js";
 /** The scope nouns of language §11 — never legal as member or parameter names.
  *  `app` is the running-App noun (compiles to `this.root`); reserving it here
@@ -35,11 +35,11 @@ export declare function structuralReason(name: string): string | null;
  *  until set"). instantiate.ts synthesizes the runtime twin from this. */
 export interface ClassInfo {
     decl: ClassDecl;
-    schema: ComponentSchema;
+    schema: ClassSchema;
     defaults: Record<string, AttrValue | undefined>;
 }
 /** Register a program's classes: validate each declaration and produce the
- *  program's schema table — the built-ins plus one ComponentSchema per class,
+ *  program's schema table — the built-ins plus one ClassSchema per class,
  *  chained to its base exactly like the built-ins chain (the R2 "R6 plug-in
  *  shape", now plugged in). Per-PROGRAM on purpose: the global SCHEMAS stays
  *  built-ins only, so two programs' classes can never collide.
@@ -52,7 +52,7 @@ export interface ClassInfo {
  *  contains itself (it could never finish instantiating). */
 export declare function programSchemas(classes: readonly ClassDecl[], shapes?: ReadonlySet<string>): {
     infos: ClassInfo[];
-    schemas: Record<string, ComponentSchema>;
+    schemas: Record<string, ClassSchema>;
     errors: DeclareError[];
 };
 /** Coerce a theme-record token to its runtime value (checkThemeRecord vetted
@@ -104,7 +104,7 @@ export type CheckedDecl = {
  *  TS member signature). They were separate copies until 2026-09-04, when a
  *  literal union taught to one and not the other fell to assignTypes' `t ===
  *  null` arm, was emitted `readonly … : any`, and made every assignment to it
- *  report "read-only — a fact the component maintains" — a diagnostic blaming
+ *  report "read-only — a fact the class maintains" — a diagnostic blaming
  *  the wrong thing entirely. One function now, so a new type can only be added
  *  once.
  *
@@ -113,16 +113,16 @@ export type CheckedDecl = {
  *  checked against the set and the scaffold projects the TS union it already
  *  is. The parser normalizes the spelling (JSON.stringify each member), so the
  *  test here is exact. */
-export declare function resolveWrittenType(written: string, isComponent: (n: string) => boolean, isShape: (n: string) => boolean): AttrType | null;
-export declare function checkDecl(schema: ComponentSchema, d: AttrDecl, owner?: string, 
-/** Is this name a component in the program? A declared attribute may be typed
- *  by a component class (`child: Menu = null`), not only by the value
+export declare function resolveWrittenType(written: string, isClassName: (n: string) => boolean, isShape: (n: string) => boolean): AttrType | null;
+export declare function checkDecl(schema: ClassSchema, d: AttrDecl, owner?: string, 
+/** Is this name a class in the program? A declared attribute may be typed
+ *  by a class (`child: Menu = null`), not only by the value
  *  vocabulary — without it a slot holding an instance can say no more than
  *  `View`, and then NO parameter can be typed more precisely than the slot it
- *  is fed from. The asymmetry was accidental: the `component` AttrType and its
+ *  is fed from. The asymmetry was accidental: the `class` AttrType and its
  *  coercion already existed for schema slots (`layout: Layout`); only the
  *  DECLARATION path could not name one. */
-isComponent?: (n: string) => boolean, 
+isClassName?: (n: string) => boolean, 
 /** Is this name a declared SCHEMA (typed data)? A record slot (`sel: Task
  *  = null`) and an array of records (`picked: Task[]`) are ordinary
  *  declarations whose type is the schema — the projection makes the name
@@ -131,8 +131,8 @@ isShape?: (n: string) => boolean): CheckedDecl;
 /** An element's schema plus its inline declarations — the anonymous one-off
  *  subclass of language §5, in the checker's currency. Validation of the
  *  decls themselves is the caller's (checkDecl); this only shapes the chain. */
-export declare function withDecls(schema: ComponentSchema, decls: readonly AttrDecl[], isComponent?: (n: string) => boolean, isShape?: (n: string) => boolean): ComponentSchema;
+export declare function withDecls(schema: ClassSchema, decls: readonly AttrDecl[], isClassName?: (n: string) => boolean, isShape?: (n: string) => boolean): ClassSchema;
 /** The many-path attribute (`datapath = :items[]`) that makes an element a
  *  replication template, or null. Type-directed: a many-path on a
  *  cursor-typed slot — today, View.datapath — is what replicates. */
-export declare function manyPathOf(el: Element, schemas: Readonly<Record<string, ComponentSchema>>): Attr | null;
+export declare function manyPathOf(el: Element, schemas: Readonly<Record<string, ClassSchema>>): Attr | null;

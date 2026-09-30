@@ -14,10 +14,10 @@ song: Audio [ source = { player.track?.url ?? "" },
 bar: View [ width = { parent.width * (song.duration > 0 ? song.position / song.duration : 0) } ]
 ```
 
-One default is reversed from `Video`: **`muted` is `false`**. Sound is this component's
+One default is reversed from `Video`: **`muted` is `false`**. Sound is this class's
 only product — shipped silent it would appear broken until you found the flag. Autoplay
 policy is handled where it belongs: a `play` the platform refuses lands `playing` back at
-`false`, so the slot never lies about silence.
+`false`, so the attribute never lies about silence.
 
 A player's chrome — the scrubber, the volume thumb, the track grid — is an application.
 Build it out of these attributes, in Declare.

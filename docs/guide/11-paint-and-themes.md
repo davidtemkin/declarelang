@@ -41,7 +41,7 @@ App [ width = 320, height = 170, fill = whitesmoke, textColor = #172530,
 - `clip = true` clips children to the box.
 
 There is no CSS `border` and no `box-shadow` string; the constructors are the only call
-forms a bare slot accepts. Inside `{ }` they are ordinary functions, so their colors are
+forms a bare value accepts. Inside `{ }` they are ordinary functions, so their colors are
 numbers (`0x…`).
 
 Past the basics, each compositing stage is an attribute too, and every renderer realizes
@@ -63,7 +63,7 @@ the view, inside its own shape, which is how menus and sheets get their frosted 
 [`blend`](declare-docs:View.blend) sets the compositing operator (the usual blend modes, camelCased). All of it is
 paint: clicks and focus are unaffected. The [`View`](declare-docs:View) reference entry has the details.
 
-## Provided values: set once, read below
+## Provided values
 
 Text attributes do not need repeating on every [`Text`](declare-docs:Text). The **text face** — [`textColor`](declare-docs:Text.textColor),
 [`fontSize`](declare-docs:Text.fontSize), [`fontFamily`](declare-docs:Text.fontFamily), [`fontWeight`](declare-docs:Text.fontWeight), [`letterSpacing`](declare-docs:Text.letterSpacing) — is made of **provided values**:
@@ -90,7 +90,7 @@ You can provide your own values the same way. Declare a typed attribute on an an
 and any descendant reads it with `provided("name")`:
 
 ```declare
-class Row extends View [ width = 100%, height = { 16 + 12 * provided("density") }, cornerRadius = 6, fill = white,
+class Row [ width = 100%, height = { 16 + 12 * provided("density") }, cornerRadius = 6, fill = white,
     label: string = "",
     Text [ x = 12, y = center, text = { classroot.label } ]
     ]
@@ -150,10 +150,10 @@ the app can be re-skinned, darkened or varied for one subtree without touching a
 The same values written as `script` constants, or repeated as hex literals, can do
 none of that — nothing above them can provide a different value. A repeated *text* look
 — a caption, a label voice — is a `style` or a small class
-([Text and fonts](declare-docs:guide:text@reusing-a-look-a-class-or-a-named-style)).
+([Text and fonts](declare-docs:guide:text@reusing-a-text-style)).
 
-**Your tokens are yours; the library's are a contract.** Your own components can read
-whatever token names you invent. The library's components read specific names —
+**Your tokens are yours; the library's are a contract.** Your own classes can read
+whatever token names you invent. The library's classes read specific names —
 `accent`, `control`, `surface`, `text`, `line` and a few more — so a theme used with
 library controls should start from a preset and change what it needs, never from an
 empty record:
@@ -167,15 +167,15 @@ Four presets ship, each as a light record and a `…Dark` companion: **SanFranci
 (the house look), **Cupertino**, **MountainView** and **Redmond**, with
 [`SanFranciscoDark`](declare-docs:SanFranciscoDark), [`CupertinoDark`](declare-docs:CupertinoDark), [`MountainViewDark`](declare-docs:MountainViewDark) and [`RedmondDark`](declare-docs:RedmondDark). The reference
 page *Theme tokens* lists which tokens are required, which are optional, and which
-components read each one, generated from the library's own source.
+classes read each one, generated from the library's own source.
 
-**Reading tokens in your own components.** Library controls and a few library views
+**Reading tokens in your own classes.** Library controls and a few library views
 declare an attribute named `theme`, so inside a class that extends [`Control`](declare-docs:Control) you can
 write `theme.accent` directly. Anywhere else, read `provided("theme").accent`. Either
-way, read tokens rather than writing literal colors: that is what lets a component drop
+way, read tokens rather than writing literal colors: that is what lets a view drop
 into someone else's app and follow its theme and dark mode without being edited.
 
-## Dark mode is opt-in
+## Dark mode
 
 An app that never mentions a theme renders the house look — [`SanFrancisco`](declare-docs:SanFrancisco), light —
 always, even on a machine set to dark mode. That is deliberate: dark mode done well is a

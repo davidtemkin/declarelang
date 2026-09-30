@@ -30,7 +30,7 @@ name marks an array — `tags[]: string` — the same spelling as the path that 
 facts that can be checked against each document as it arrives. It is where an API
 contract's prose — "`col` is 0, 1, or 2" — becomes a check.
 
-## Pointing data at it
+## Attaching a schema
 
 ```declare
 schema Task [ id: string, title: string, done: boolean, due: number, note?: string ]
@@ -80,7 +80,7 @@ the schema; a record-typed attribute may be null until something sets it, so rea
 attribute is live past its identity: a constraint reading `app.sel.title` follows when
 that record's title is edited, not only when `sel` points at a different record.
 
-## Schemas are optional, and partial is normal
+## Optional and partial schemas
 
 Nothing here changes the untyped layer: a dataset with no schema reads, replicates and
 writes exactly as before, and plenty of real payloads — mixed feeds, converted trees,
@@ -101,7 +101,7 @@ are checked.
 > not reach. One declaration serves both sides because it is limited to what both sides
 > can enforce.
 
-## Who checks what
+## Compile-time and runtime checks
 
 | data crosses… | checked by | when | a violation… |
 |---|---|---|---|

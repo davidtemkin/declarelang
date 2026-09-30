@@ -24,22 +24,6 @@ style Big  [ fontSize = 38, fontWeight = bold ]
 
 style Unit [ fontSize = 18, fontWeight = medium ]
 
-script {
-    /** Every data sub-page's rows, by the key its grid replicates over. */
-    function allRows(): Record<string, unknown> {
-        return { typeFaces: typeFaces(), typeItalic: typeItalic(), typeSizes: typeSizes(), typeCase: typeCase(),
-                 typeDecoration: typeDecoration(), typeFill: typeFill(),
-                 lineLeading: lineLeading(), lineAlign: lineAlign(), lineClamp: lineClamp(),
-                 richRuns: richRuns(), richBlocks: richBlocks(),
-                 paintFills: paintFills(), paintCorners: paintCorners(), paintStrokes: paintStrokes(), paintShadows: paintShadows(), paintAll: paintAll(),
-                 effectFilters: effectFilters(), effectChains: effectChains(), effectBlends: effectBlends(), effectMasks: effectMasks(),
-                 xfScale: xfScale(), xfRotate: xfRotate(), xfSkew: xfSkew(), xfPivot: xfPivot(), xfCombined: xfCombined(), xf3d: xf3d(),
-                 imgFit: imgFit(), imgAlign: imgAlign(), imgTint: imgTint(),
-                 measureRows: measureRows(), comboRows: comboRows() }
-    }
-    }
-
-
 App [ minWidth = 340,
     fill = { provided("theme").bg },
     textColor = { provided("theme").text },
@@ -85,14 +69,6 @@ App [ minWidth = 340,
         if (fx == "shadowTwice") return [shadow(3, 3, 0, 0xE4572E), shadow(-3, -3, 0, 0x2E6FE0)]
         if (fx == "saturateBright") return [saturate(2), brightness(1.3)]
         return null
-        },
-
-    // THE ROWS, as data: every data sub-page's list, built once at start.
-
-    book: Dataset { { } },
-    onInit() {
-        const rows = allRows()
-        for (const k of Object.keys(rows)) book.set([k], rows[k])
         },
 
     bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, ignoreScroll = true,

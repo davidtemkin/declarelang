@@ -5,7 +5,7 @@ The record-driven menu bar: **whole menus are data** —
 
     menus = { [ ({ id, label, bold?, items: [ …menu records… ] }), … ] }
 
-— and the component arranges. One internal Menu serves every title; its
+— and the class arranges. One internal Menu serves every title; its
 `items` constraint derives from the open title's record, so item state
 (enabled, checked, labels) stays live while the menu is up. Because the
 records are the single declaration, an app can derive its key registry
@@ -94,7 +94,7 @@ house look. See `Control.theme`.
 
 include [ "menu.declare" ]
 
-class MenuBar extends View [
+class MenuBar [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.

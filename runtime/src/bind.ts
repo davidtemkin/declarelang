@@ -461,7 +461,7 @@ function sourceAt(pos: Pos | null | undefined): { line: number; col: number; fil
 /** The axis `name` resolves a percent against, or null when it has none — the
  *  one reading of the table above, so a caller that must REFUSE a percent
  *  before binding it (rich text's inline views: a tag attribute is refused
- *  through the component's `unsupported` policy, never thrown mid-render) asks
+ *  through the class's `unsupported` policy, never thrown mid-render) asks
  *  the same question bindPercent answers. */
 // The kernel's EXPR opcodes this module writes by hand (declare_kernel.h's enum,
 // as compiler/src/expr-emit.ts's OP — kept in step by kernel/test).

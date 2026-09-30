@@ -145,7 +145,7 @@ segments instead of popping.
 Whether this segment is the group's current choice, derived from the parent by identity.
 
 ## ink
-This segment's text and icon colour, brightening when it is on or hot. One slot, so a
+This segment's text and icon colour, brightening when it is on or hot. One attribute, so a
 label and an icon can never disagree.
 
 ## location
@@ -193,7 +193,7 @@ Disabled with the control; an item never disables alone.
 
 include [ "control.declare", "icons/icon.declare" ]
 
-class Segmented extends View [
+class Segmented [
     // The design-token record, a provided value: the app provides it once and
     // this widget reads it, so `theme.x` reads below are plain typed members.
     // Default = the house look.

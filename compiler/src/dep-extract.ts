@@ -86,7 +86,7 @@ function isPureNodeNav(n: ts.Node): boolean {
  *  CARRIES the member — the receiver: `this.year` → `<receiver>.year`,
  *  `classroot.x` → `<receiver>.x` (a member's classroot IS the instance it
  *  is declared on), and `parent.x` → `<receiver>.parent.x` (2026-07-13: the
- *  left-as-is "rare" case became common and WRONG with the component library —
+ *  left-as-is "rare" case became common and WRONG with the class library —
  *  Radio's computed default reads `parent.value`, inlined into a grandchild's
  *  constraint where a literal `parent` means the wrong node; the un-rebased
  *  path silently tracked a nonexistent slot and the constraint never re-fired). */
@@ -582,7 +582,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
         const idx = s.argumentExpression;
         if (idx && (ts.isNumericLiteral(idx) || ts.isStringLiteral(idx))) { pathEnd = s; }
         else {
-          if (isPureNodeNav(s.expression)) errors.push(new DepError(`computed attribute — this[<expr>] selects a slot at runtime; name it, or bound the key's type`, s.getStart()));
+          if (isPureNodeNav(s.expression)) errors.push(new DepError(`computed attribute — this[<expr>] selects an attribute at runtime; name it, or bound the key's type`, s.getStart()));
           break;
         }
       } else if (ts.isCallExpression(s)) {
@@ -661,7 +661,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // anywhere up the chain re-derives a measurement taken with it.
             for (const name of PROVIDED_FACE_NAMES) reads.add(`this.$provided(${JSON.stringify(name)})`);
           } else if (ITER.has(m) || PURE_METHODS.has(m)) {
-            if (ITER.has(m) && recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of slots; derive from data`, s.getStart()));
+            if (ITER.has(m) && recvName && NODE_COLLECTIONS.has(recvName)) errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of attributes; derive from data`, s.getStart()));
             // A builtin's name can also be a program's method: `app.m.find(id)`
             // on a model is not Array.prototype.find. Record the call as a method
             // too; follow1 resolves the receiver and follows the body only when a
@@ -724,7 +724,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
       // (classifyChain consumes a chain's callee without walking it), not a
       // property or declaration name (isNamePosition), not a local.
       if (SCRIPT_MUTABLE.has(n.text)) {
-        errors.push(new DepError(`'${n.text}' is mutable state in a script { } block — a module variable has no cell, so nothing can notice it change; hold the value in a reactive attribute (declare it on the app) and read that instead`, n.getStart()));
+        errors.push(new DepError(`'${n.text}' is mutable state in a script { } block — nothing can notice a module variable change; hold the value in a reactive attribute (declare it on the app) and read that instead`, n.getStart()));
       } else if (SCRIPT_FUNCTIONS.has(n.text)) {
         calls.push({ kind: "scriptValue", name: n.text });
       }
@@ -767,7 +767,7 @@ const EMPTY_ROOTS: ReadonlySet<string> = new Set<string>();
 /** The L-21 oracle (typecheck.ts): the checker's receiver types, per compile. */
 let ORACLE: TypeOracle | null = null;
 
-/** Component-typed DECL names (L-20 pointer slots): a chain THROUGH one keeps
+/** Class-typed DECL names (L-20 pointer slots): a chain THROUGH one keeps
  *  the slot as its wired edge and sends the rest to the tracking path — a
  *  prewired edge would pin the PREVIOUS node's cells across a repoint.
  *  Name-keyed (a sound over-approximation, like every name-keyed gate here). */
@@ -905,7 +905,7 @@ function rebaseIn(path: string, frame: Frame): Rebased {
     if (arg === null) {
       return { ok: false, error: new DepError(frame.asValue
         ? `${frame.who} is passed as a value, but its body reads through its '${root}' parameter — those reads can't be wired without a call site to name them; call ${frame.who}(…) here instead`
-        : `${frame.who}(…) reads through its '${root}' parameter, but the argument passed for it is not a nameable path — pass the node or slot by name (app.card, this.item) so the read can be wired`) };
+        : `${frame.who}(…) reads through its '${root}' parameter, but the argument passed for it is not a nameable path — pass the node or attribute by name (app.card, this.item) so the read can be wired`) };
     }
     return { ok: true, path: arg + path.slice(root.length) };
   }
@@ -981,7 +981,7 @@ interface ReturnShape { paths: string[]; viaParam: string[]; opaque: boolean }
  *  treating them as suspicious costs four refusals of working code and buys
  *  nothing.
  *
- *  So: a capitalized type names a component, whose attributes are cells; the
+ *  So: a capitalized type names a class, whose attributes are cells; the
  *  lowercase value types and `Color` are data. That is the language's own naming
  *  rule, not a list to maintain.
  *
@@ -1030,7 +1030,7 @@ function buildMethodSummaries(): Summaries {
   // goes stale). The machinery below already generalizes — a method summary need
   // only take its parameters as roots, exactly as the script summaries do — but
   // turning it on refuses live code in three shipped apps (desktop, inspector,
-  // component-sampler), where helpers read attributes off nodes picked at runtime
+  // class-sampler), where helpers read attributes off nodes picked at runtime
   // out of `.children.filter(…)`. Those reads genuinely cannot be wired; closing
   // this door is a migration of its own, not a side effect of phase 4.
   for (const [name, { params, body, pos }] of USER_METHODS) {
@@ -1489,7 +1489,7 @@ export function extractProgram(program: Program, oracle: TypeOracle | null = nul
     // trap in a theme provision → `this.theme`; on the App root the `app.`
     // spelling lands as `this.root.<attr>`). The dep set makes the cycle
     // statically visible, so it is refused here with the rewrite named
-    // (docs/system-design/components-baseline.md Contract 2). Dotted attrs (state overrides
+    // (docs/system-design/classes-baseline.md Contract 2). Dotted attrs (state overrides
     // targeting descendants) are skipped — their `this.` frame is the override's
     // owner, not the target slot. (The rare explicit `classroot.<attr>` spelling
     // on a class root's own slot is not caught in v1.)
@@ -1506,7 +1506,7 @@ export function extractProgram(program: Program, oracle: TypeOracle | null = nul
           if (selfPaths.some((s) => rd === s || rd.startsWith(s + "."))) canon.delete(rd);
         }
       } else if ([...canon].some((rd) => selfPaths.some((s) => rd === s || rd.startsWith(s + ".")))) {
-        errors.push({ message: `'${c.attr}' reads itself — a { } cannot depend on the slot it defines; name the base it derives from instead (e.g. a parent's or the app's '${c.attr}', or a helper such as houseTheme(…))`, offset: 0 });
+        errors.push({ message: `'${c.attr}' reads itself — a { } cannot depend on the attribute it defines; name the base it derives from instead (e.g. a parent's or the app's '${c.attr}', or a helper such as houseTheme(…))`, offset: 0 });
       }
     }
     out.push({ tag: c.tag, name: c.name, attr: c.attr, offset: c.offset, node: c.node, reads: [...canon], dynamic: dynamic || undefined, errors: errors.map((e) => ({ message: e.message, offset: e.offset })) });

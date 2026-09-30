@@ -119,6 +119,10 @@ and the accessor count shrank with the records refactor. The general ask (a cont
 declaring what it `holds`) stands; the sharper modern form of this item is now
 [L-22](#l-22) (untyped record edges), where the same disease costs more.
 
+**Update 2026-09-29:** the windows are now the replicated instances themselves
+(`classFor` builds each record as the class it names), so `windows()` is
+`wins.childViews as Window[]` again — the cast this item asks the language to remove.
+
 **Update 2026-09-01:** L-22's record half is BUILT (typed data — named schemas as
 types). What remains of L-2 proper is the typed CHILD collection (`holds:`/childViews
 synthesis) — narrower still now that record-shaped state is typed.

@@ -1676,7 +1676,7 @@ export class DomSurface implements Surface {
   // Reachable from one place only (a RichText pushing parsed blocks at the
   // surface beneath it), so it rides only with rich text: declarec substitutes
   // a refusing stub for the whole module when a program names no rich-text
-  // component. These four are the seam — the surface carries the state
+  // class. These four are the seam — the surface carries the state
   // (richEl/richObserver/onRich*), the module does the work.
   get richInlineSlots(): boolean { return richInlineSlots; }
   get richBlocks(): boolean { return richBlocks; }

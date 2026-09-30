@@ -19,7 +19,7 @@ import { programFromCompiled } from "./program-build.js";
 // the in-browser compiler (compile-browser.ts compileProgram) and lives in
 // program-build.ts; this module is the Node front: it compiles from the
 // filesystem and hands the result to that tail.
-export { usedComponentNames, stripPos } from "./program-build.js";
+export { usedClassNames, stripPos } from "./program-build.js";
 /** Compile a Declare source into a serializable, instantiate-ready program:
  *  resolve bare names + includes + typecheck (all the compiler's work), then
  *  parse the resolved source into the program the runtime's `renderProgram`

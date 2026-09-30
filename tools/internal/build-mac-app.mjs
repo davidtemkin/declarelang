@@ -102,7 +102,7 @@ const BAKE = [
   { from: "bundles/declare-compiler-mac.js", to: "Contents/Resources/bundles/declare-compiler-mac.js",
     inputs: bundleInputs("bundles/declare-compiler-mac.js") },
   // NOT bundles/version.json — that one is WRITTEN, not copied. See `toolchain`.
-  // Components, icons and themes — all .declare source, compiled on device.
+  // Classes, icons and themes — all .declare source, compiled on device.
   // Source and manifests only (.declare + .json): library/platform-apps/ carries a
   // viewer tests/ folder whose PNG baselines are no business of the bundle.
   // THE PLATFORM APPS (library/platform-apps: the Inspector mounts OVER a running

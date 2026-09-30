@@ -2,7 +2,7 @@
 // path for the code viewer). A .declare file is split into an ordered list of
 // SEGMENTS: prose (the Markdown carried in a `/* … */` comment) interleaved with
 // code (syntax-highlighted `<pre>` HTML). The viewer renders prose through the
-// Markdown component and code through HTMLText — one contiguous, selectable
+// Markdown class and code through HTMLText — one contiguous, selectable
 // monospace flow per code segment (the preformatted-flow primitive), colored by
 // the app's own `accents` map so light/dark stays a render-time decision.
 //

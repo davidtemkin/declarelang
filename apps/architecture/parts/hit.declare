@@ -15,7 +15,7 @@ child clipped by its pane, and a decoration that lets presses through.
 // Declare class: shadowing one here would make the demonstration a lie. The
 // figure still calls it a card, because that is what the reader sees.
 
-class SceneCard extends View [ cornerRadius = 12,
+class SceneCard [ cornerRadius = 12,
     title: string = "",
     sub: string = "",
     hue: Color = gray,
@@ -32,7 +32,7 @@ class SceneCard extends View [ cornerRadius = 12,
 
 // a row of the readout: a label, and the runtime's answer
 
-class Read extends View [
+class Read [
     what: string = "",
     ans: string = "",
     layout: Run [ spacing = 6 ],

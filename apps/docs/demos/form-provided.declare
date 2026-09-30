@@ -3,7 +3,7 @@
 // it with `provided("density")`. The built-in face values work the same way with no declaration:
 // `fontSize = 13` on the App provides it to every Text beneath. Click anywhere to flip the density.
 
-class Row extends View [ width = { parent.width }, height = { 16 + 12 * provided("density") }, cornerRadius = 6, fill = #FFFFFF,
+class Row [ width = { parent.width }, height = { 16 + 12 * provided("density") }, cornerRadius = 6, fill = #FFFFFF,
     label: string = "",
     Text [ x = 12, y = center, text = { classroot.label } ]
     ]

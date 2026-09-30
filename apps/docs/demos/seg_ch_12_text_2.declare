@@ -7,6 +7,6 @@ App [ width = 380, height = 210, fill = white,
             not as a pile of styled `Text` views:
 
             - one source string
-            - one component
+            - one view
             """ ]
     ]

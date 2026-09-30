@@ -24,28 +24,29 @@ Morphs between a stacked month-chip and a placed time-block as its day zooms
 (`rowBlock`), and shrinks to a single dot in the year view (`app.yearZoom`).
 */
 
-class Ev extends View [ clip = true,
+class Ev [ clip = true,
 
-    rowBlock: number = { :dayRow == app.anchorRow ? app.blockness : 0 },
+    rowBlock: number = { (parent as Cell).rowBlock },
+    timeLabel: string = { app.shortTime(:start) },
 
     cornerRadius = { app.lerp(5, 1.5, app.yearZoom) },
     fill = { app.mix(app.catFill(:category), provided("theme").accent, app.yearZoom) },
     opacity = { app.dragId == :id && app.dragging ? 0.2 : 1 },
     x = { app.lerp(4, (parent.width - 3) / 2, app.yearZoom) },
     width = { app.lerp(parent.width - 8, 3, app.yearZoom) },
-    y      = { app.lerp(app.lerp(26 + :idx * 20, :start / 1440 * parent.height, classroot.rowBlock),
+    y      = { app.lerp(app.lerp(26 + rowIndex * 20, :start / 1440 * parent.height, classroot.rowBlock),
                         parent.height - 6, app.yearZoom) },
-    height = { app.lerp(app.lerp(17, Math.max(18, :dur / 1440 * parent.height), classroot.rowBlock),
+    height = { app.lerp(app.lerp(17, Math.max(18, (:end - :start) / 1440 * parent.height), classroot.rowBlock),
                         3, app.yearZoom) },
 
     rail: View [ width = 3, height = 100%, fill = { app.catText(:category) }, opacity = { classroot.rowBlock } ],
     text: View [ x = 8, y = 2, opacity = { 1 - app.yearZoom },
         layout: SimpleLayout [ axis = x, spacing = 6 ],
-        tm: Text [ fontSize = 10, fontWeight = semibold, wrap = false, textColor = { app.catText(:category) }, text = { :timeLabel } ],
+        tm: Text [ fontSize = 10, fontWeight = semibold, wrap = false, textColor = { app.catText(:category) }, text = { classroot.timeLabel } ],
         ti: Text [ fontSize = 10, fontWeight = regular, wrap = false, textColor = { app.catText(:category) }, text = { :title } ]
         ],
 
-    onPointerDown(e: PointerEvent) { app.startDrag(:id, :title, :category, :timeLabel, this.width, this.height, e.x, e.y) },
+    onPointerDown(e: PointerEvent) { app.startDrag(:id, :title, :category, timeLabel, this.width, this.height, e.x, e.y) },
     onPointerMove()  { app.dragMove() },
     onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.rootX, e.rootY, e.canceled) },
 
@@ -68,7 +69,7 @@ In the year view (`app.yearZoom`) it re-lays-out into the current month's mini r
 scaling, keeping its text crisp.
 */
 
-class Cell extends View [ clip = true,
+class Cell [ clip = true,
 
     rowBlock: number = { :row == app.anchorRow ? app.blockness : 0 },
 
@@ -114,7 +115,7 @@ The year view's twelve small months. The current month is drawn by the main
 `board` folding into its slot, so only the other eleven come from here.
 */
 
-class MiniDay extends View [ width = { app.miniCellW }, height = { app.miniRowH },
+class MiniDay [ width = { app.miniCellW }, height = { app.miniRowH },
     x = { :col * app.miniCellW }, y = { :row * app.miniRowH },
     n: Text [ width = 100%, textAlign = center, y = 1, fontSize = 9, wrap = false,
         textColor = { :today ? provided("theme").accent : :inMonth ? provided("theme").miniDayText : provided("theme").miniDayFaint },
@@ -124,7 +125,7 @@ class MiniDay extends View [ width = { app.miniCellW }, height = { app.miniRowH 
     ]
 
 
-class MiniMonth extends View [ cornerRadius = 12, clip = true, fill = { provided("theme").miniBg },
+class MiniMonth [ cornerRadius = 12, clip = true, fill = { provided("theme").miniBg },
     width = { app.miniW }, height = { app.miniH },
     x = { app.pad + :mcol * (app.miniW + app.gap) }, y = { app.pad + :mrow * (app.miniH + app.gap) },
     visible = { :m != app.month },      // the current month is the folding board, not a mini
@@ -150,7 +151,7 @@ rest, text brightening on hover, and `controlSelected` under the chosen tab.
 // the pill the arrows and Today share — the box and its pressed fill; each
 // concrete button adds its content and its action
 
-class BarButton extends View [ height = 34, cornerRadius = 10,
+class BarButton [ height = 34, cornerRadius = 10,
     fill = { classroot.pressed ? provided("theme").controlSelected : provided("theme").control }
     ]
 
@@ -185,7 +186,7 @@ time. Its input two-way binds to the event property named by `field`, so an edit
 writes straight to the record.
 */
 
-class DetailSection extends View [ clip = true, cornerRadius = 10, fill = { provided("theme").sectionBg },
+class DetailSection [ clip = true, cornerRadius = 10, fill = { provided("theme").sectionBg },
     idx: number = 0,
     label: string = "",
     field: string = "",
@@ -502,7 +503,6 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         milestoneBg: 0xFBEFD6, milestoneText: 0x9A6A11, defaultBg: 0xDCE8FE, defaultText: 0x2456B0 }) },
     eventsOn(all: array, y: number, m: number, d: number) -> array {
         return all.filter(e => e.y == y && e.m == m && e.d == d).sort((a, b) => a.start - b.start || a.id - b.id)
-                  .map((e, i) => Object.assign({}, e, { timeLabel: app.shortTime(e.start), idx: i, dur: e.end - e.start }))
         },
     computeMonthRows() {
         const first = new Date(this.year, this.month - 1, 1)
@@ -510,8 +510,8 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         },
 
     /* ## The model
-       `buildModel` builds the visible month's grid, each day carrying a copy of its
-       events tagged with its grid row (so only the focused row morphs to blocks).
+       `buildModel` builds the visible month's grid, each day holding its events —
+       the data's own records, so an event row reads and writes its record.
        `buildMonths` builds the year's twelve minis; its only tracked input is the
        year, so it rebuilds once a year and never on a view switch. */
 
@@ -529,7 +529,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             grid.push({ key: app.keyOf(dt), num: dt.getDate(), dow: app.dowName(dt.getDay()), col: i % 7, row: row,
                         inMonth: dt.getMonth() == this.month - 1, weekend: dt.getDay() == 0 || dt.getDay() == 6,
                         today: app.keyOf(dt) == this.todayKey, current: app.keyOf(dt) == this.anchorKey,
-                        events: app.eventsOn(all, dt.getFullYear(), dt.getMonth() + 1, dt.getDate()).map(e => Object.assign({}, e, { dayRow: row })) })
+                        events: app.eventsOn(all, dt.getFullYear(), dt.getMonth() + 1, dt.getDate()) })
             }
         return { grid: grid, cols: cols, hours: hours }
         },

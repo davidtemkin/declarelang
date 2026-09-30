@@ -30,6 +30,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, hostGlobalHint, nearestName } from "../runtime/dist/teach.js";
+import { readBriefs, findBrief, briefIndex } from "./internal/doc/briefs.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -59,6 +60,7 @@ if (query === "" || args.includes("--help")) {
     rotation · bold inside a label          the entry that answers the concept
     scrolls · fontWeight tokens             the enum's tokens, and who carries them
     DECLARE7001                             the diagnostic's family and register
+    briefs · brief lists                    the task briefs; one of them, whole
 
   flags
     --example  the guide's shortest working examples that use the name, with
@@ -72,6 +74,29 @@ if (query === "" || args.includes("--help")) {
     1  a true miss: nothing anywhere answers; the output names what was searched
 
   More: docs/operational/help.md. The store is docs/declare-model.json.`);
+  process.exit(0);
+}
+
+// ── briefs: the task-shaped entry points (docs/briefs) ───────────────────────
+// `briefs` lists them, one line each; `brief <name>` prints one whole. A name
+// may be abbreviated (`brief lists`), as long as it picks out one brief.
+if (query === "briefs" || query.startsWith("brief ") || query === "brief") {
+  const briefs = readBriefs(ROOT);
+  if (query === "briefs" || query === "brief") {
+    if (JSON_OUT) console.log(JSON.stringify({ kind: "briefs", briefs: briefs.map((b) => ({ name: b.name, title: b.title, index: b.index })) }));
+    else console.log(`Take the brief for your task — declare-help brief <name>:\n${briefIndex(briefs)}`);
+    process.exit(0);
+  }
+  const asked = query.slice("brief ".length);
+  const b = findBrief(briefs, asked);
+  if (b === null) {
+    if (JSON_OUT) console.log(JSON.stringify({ kind: "miss", query, searched: "docs/briefs" }));
+    else console.log(`no brief matches '${asked}' — the briefs are:\n${briefIndex(briefs)}`);
+    process.exit(1);
+  }
+  const text = b.text.replace(/^<!-- index: .+ -->\n/m, "");
+  if (JSON_OUT) console.log(JSON.stringify({ kind: "brief", name: b.name, file: b.file, text }));
+  else console.log(text.trimEnd());
   process.exit(0);
 }
 
@@ -227,7 +252,7 @@ function sayEntry(e) {
 function sayClass(cls) {
   const s = schemaOf(cls);
   const t = TREE.get(cls);
-  // A THEME PRESET is a record, not a component: one line says how it is used,
+  // A THEME PRESET is a record, not a class: one line says how it is used,
   // and its pair is the other appearance of the same design.
   if (t?.kind === "theme") {
     say(`${cls} — a theme preset (${t.appearance}) · \`theme = ${cls}\` on the App provides it · pair: ${t.pair}`);
@@ -238,7 +263,7 @@ function sayClass(cls) {
   }
   const lib = SPINE.library[cls];
   const chain = chainOf(cls);
-  const head = [lib ? `library component (${lib})` : "component", s?.base ? `extends ${s.base}` : null]
+  const head = [lib ? `library class (${lib})` : "class", s?.base ? `extends ${s.base}` : null]
     .filter(Boolean).join(" · ");
   say(`${cls} — ${head}`);
   if (t?.doc) say(`  ${firstSentence(t.doc)}`);
@@ -314,7 +339,7 @@ function answer() {
     const [, cls, member] = dot;
     if (schemaOf(cls) !== null) return answerDotted(cls, member);
     const nearCls = nearestName(cls, CLASS_NAMES);
-    if (nearCls !== null) { say(`no component '${cls}' — did you mean '${nearCls}'? (then: declare-help ${nearCls}.${member})`); json = { kind: "near-miss", name: cls, suggestion: nearCls }; return true; }
+    if (nearCls !== null) { say(`no class '${cls}' — did you mean '${nearCls}'? (then: declare-help ${nearCls}.${member})`); json = { kind: "near-miss", name: cls, suggestion: nearCls }; return true; }
     return false;
   }
 
@@ -387,7 +412,7 @@ function answer() {
   //
   // ONLY when the word is not also a real name. Six hint keys had become real
   // (`scaleX`, `perspective`, `blur` arrived with the graphics pass; `gap`,
-  // `padding`, `position` are attributes on particular components), and because
+  // `padding`, `position` are attributes on particular classes), and because
   // this table was consulted first and returned, the tool answered "'scaleX' is
   // not a Declare name — per-axis scale is 'scaleX'": a denial and the answer in
   // one sentence. A real name now answers as itself, and the instinct rides
@@ -549,7 +574,7 @@ function answer() {
   const normTerm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
   // FORMS — the language's own vocabulary: the top-level declarations, the
   // class-level keywords, the binding operators, the scope nouns. None of them
-  // is a component, so the Class.attr model has no room for them and a lookup
+  // is a class, so the Class.attr model has no room for them and a lookup
   // fell through to substring noise ("use" matched 127 entries). These are
   // POSITIVE facts, so they answer before negative knowledge.
   for (const form of (CONCEPTS.forms ?? [])) {
@@ -626,7 +651,7 @@ function answer() {
   if (nearCls !== null) { say(`no '${query}' — did you mean '${nearCls}'?`); json = { kind: "near-miss", name: query, suggestion: nearCls }; return true; }
 
   // last: deterministic retrieval over reference prose (all query words present).
-  // Internal entries are excluded: surfacing a component's private plumbing as
+  // Internal entries are excluded: surfacing a class's private plumbing as
   // the answer to a capability question actively misleads — a real agent asked
   // "drag and drop" and was answered with DataGrid's internal drop-commit
   // methods instead of the viewAt idiom (2026-08-07).

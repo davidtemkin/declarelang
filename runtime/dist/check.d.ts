@@ -1,6 +1,6 @@
 import type { Element, Attr, Method, Program } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
-import { type ComponentSchema } from "./schema.js";
+import { type ClassSchema } from "./schema.js";
 import { type AttrValue } from "./value.js";
 import { type PathSeg } from "./path-plan.js";
 export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
@@ -18,20 +18,20 @@ export interface StyleEnv {
     readonly validated: Set<string>;
 }
 export declare function check(input: Element | Program): DeclareError[];
-export declare function checkStyleDecls(program: Program, schemas: Readonly<Record<string, ComponentSchema>>, errors: DeclareError[]): StyleEnv;
+export declare function checkStyleDecls(program: Program, schemas: Readonly<Record<string, ClassSchema>>, errors: DeclareError[]): StyleEnv;
 /** A theme's token record: `theme Cupertino [ accent = #007AFF, radius = 6 ]`
  *  — token names are free (a Theme is a schema-less record), values are plain
  *  literals or decoration constructors. `rec` is the declaration's body. */
 export declare function checkThemeRecord(where: string, rec: Element): DeclareError[];
-/** Validate a component-typed attribute's element value (R7: the `layout:`
- *  member). The element must name a component descending from `of`, and carry no
+/** Validate a class-typed attribute's element value (R7: the `layout:`
+ *  member). The element must name a class descending from `of`, and carry no
  *  children or methods (a strategy has neither by nature). Attribute values may be
  *  literals OR `{ }` constraints — a layout attribute is reactive like any other
  *  (its setter re-flows: axis re-installs via rearm, spacing is read under
  *  tracking), so a built-in strategy takes `{ }` exactly as a user layout subclass
  *  already does (installLayoutClass). Only a `:path` cursor is refused. One message
  *  source: check() collects these, instantiate() throws the first. */
-export declare function checkComponentValue(schemas: Readonly<Record<string, ComponentSchema>>, owner: string, attrName: string, of: string, el: Element): DeclareError[];
+export declare function checkClassValue(schemas: Readonly<Record<string, ClassSchema>>, owner: string, attrName: string, of: string, el: Element): DeclareError[];
 /** One checked attribute: a coerced literal value, a `{ }` binding to
  *  install, a `:path` data relationship (R8), or the (unthrown) error. */
 export type CheckedAttr = {
@@ -68,7 +68,7 @@ export type CheckedAttr = {
 /** Validate one attribute against a schema. check() collects the errors and
  *  instantiate() throws them — one message source, so the reporting and the
  *  running paths cannot drift apart. */
-export declare function checkAttr(schema: ComponentSchema, attr: Attr): CheckedAttr;
+export declare function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr;
 /** One checked method member: fine, or the (unthrown) error. */
 export type CheckedMethod = {
     ok: true;
@@ -83,4 +83,4 @@ export type CheckedMethod = {
  *  a scope noun, and the body must be valid statement syntax. Like checkAttr,
  *  check() collects these and instantiate() throws them — one message
  *  source. */
-export declare function checkMethod(schema: ComponentSchema, m: Method): CheckedMethod;
+export declare function checkMethod(schema: ClassSchema, m: Method): CheckedMethod;

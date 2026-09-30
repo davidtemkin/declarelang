@@ -3,7 +3,7 @@
 // bodies and typechecking to the TypeScript compiler API *as a library* — it
 // does not reimplement TypeScript, and "typechecking largely falls out given
 // the right typed scaffolding." This module builds that scaffolding: it turns
-// the component schemas (schema.ts) + the value vocabulary (value.ts) into an
+// the class schemas (schema.ts) + the value vocabulary (value.ts) into an
 // ambient TypeScript surface — a source STRING of `type`/`declare` shapes —
 // against which stock tsc can check a resolved `{ }` body.
 //
@@ -483,7 +483,7 @@ declare function setInterval(fn: (...args: any[]) => void, ms?: number): number;
 declare function clearInterval(id: number): void;
 declare const console: { log(...args: unknown[]): void; warn(...args: unknown[]): void; error(...args: unknown[]): void };
 /* The network and URL globals, declared by hand — the checker loads no DOM lib
- * (its Text / Image would collide with the components). A \`script\` block uses
+ * (its Text / Image would collide with the classes). A \`script\` block uses
  * them; a { } body is refused \`fetch\` and the timers by the resolver, which
  * names DataSource / afterDelay / Time (compile.ts isKnownGlobal). */
 interface Headers { get(name: string): string | null; has(name: string): boolean; forEach(fn: (value: string, key: string) => void): void }
@@ -512,7 +512,7 @@ export const PRELUDE_NAMES = new Set([...PRELUDE.matchAll(/^(?:declare\s+)?(?:in
 /** The HOST's surface, not the language's. These are declared in the prelude so a
  *  handler typechecks against the real shape each has in every host Declare runs
  *  in — the checker loads no DOM lib, because its `Text`/`Image` would collide
- *  with the components. They are documented as a POLICY (what a body may reach
+ *  with the classes. They are documented as a POLICY (what a body may reach
  *  for, and why script is the place for the rest), never name by name: Declare
  *  does not own `fetch`, and restating MDN here would go stale.
  *
@@ -533,7 +533,7 @@ export const HOST_GLOBALS = new Set([
 const PRELUDE_RECORDS = new Set(["Theme", "TextStyles", "RichTextLayout"]);
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
- *  emitted in the prelude / near-use; component references the peer
+ *  emitted in the prelude / near-use; class references the peer
  *  `declare class`. The nullable decoration slots (stroke/shadow) and the two
  *  styling channels carry their `| null` here, matching what coercion admits. */
 export function tsType(t) {
@@ -553,11 +553,11 @@ export function tsType(t) {
         // `type <Name> = …` alias. Both are `t.name` — the difference is whether
         // an alias is generated for it (see generateScaffold's `enums`).
         case "enum": return t.name;
-        case "component": return `${t.of} | null`; // the only literal is `null` for "none"
+        case "class": return `${t.of} | null`; // the only literal is `null` for "none"
         case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
         case "cursor": return "Cursor"; // reads see the place; writes are widened in memberSig
         case "slotref": return "string"; // a bare slot name, a string at runtime
-        case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a component slot) / Theme-class token record
+        case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a class slot) / Theme-class token record
         case "fill": return "Fill";
         case "stroke": return "BoxStroke"; // one Stroke, four clockwise from the top, or null
         case "outline": return "Outline | null";
@@ -580,12 +580,12 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
- *  component classes, every one of which is emitted here as a peer
+ *  classes, every one of which is emitted here as a peer
  *  `declare class`. Returns null when the name is neither, so the caller can
  *  report it positioned against the author's text.
  *
  *  Nullability is the OPEN QUESTION here, and the reason some corpus signatures
- *  stay bare. A component-typed SLOT is `| null` (declared `= null` — how the
+ *  stay bare. A class-typed SLOT is `| null` (declared `= null` — how the
  *  corpus holds instances), so passing one to a non-null parameter is an error;
  *  make the parameter nullable instead and every use inside the body becomes
  *  "possibly null". Measured on library/menu.declare: non-null costs 3 call
@@ -593,12 +593,12 @@ const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "
  *  has no nullable/optional parameter spelling (`c: Menu?`) — when it gets one,
  *  this is the line that changes. Non-null is kept meanwhile: it keeps bodies
  *  clean and pushes the check to the caller, where the knowledge is. */
-export function signatureTsType(written, isComponent, nullable = false) {
+export function signatureTsType(written, isClassName, nullable = false) {
     const nul = (t) => (nullable ? `${t} | null` : t);
     // `Window[]` — an element-typed array. Resolve the ELEMENT and append; the
     // spelling is already TypeScript's.
     if (written.endsWith("[]")) {
-        const base = signatureTsType(written.slice(0, -2), isComponent, false);
+        const base = signatureTsType(written.slice(0, -2), isClassName, false);
         return base === null ? null : nul(`${base}[]`);
     }
     // A FUNCTION type — `(id: string) -> void`, what a method IS (language §4).
@@ -617,8 +617,8 @@ export function signatureTsType(written, isComponent, nullable = false) {
         return nul(written); // `onPointerUp(e: PointerUpEvent)`
     const t = declaredType(written);
     if (t !== null)
-        return nul(t.kind === "view" ? "View" : t.kind === "component" ? t.of : tsType(t));
-    return isComponent(written) ? nul(written) : null;
+        return nul(t.kind === "view" ? "View" : t.kind === "class" ? t.of : tsType(t));
+    return isClassName(written) ? nul(written) : null;
 }
 /** A method member's ambient signature — what a CALLER checks against (the
  *  body is checked separately, in typecheck.ts's `emit`).
@@ -634,9 +634,9 @@ export function signatureTsType(written, isComponent, nullable = false) {
  *  An omitted return stays `any` — NOT `void`: methods do yield constraint
  *  values (`width = { app.lerp(4, 9, t) }` is the calendar's idiom throughout),
  *  and `void` would flag every such use of a correct program. */
-function methodSig(m, isComponent) {
+function methodSig(m, isClassName) {
     const params = m.params.map((p, i) => {
-        const ts = p.type === undefined ? null : signatureTsType(p.type, isComponent, p.nullable === true);
+        const ts = p.type === undefined ? null : signatureTsType(p.type, isClassName, p.nullable === true);
         // `?` means MAY BE ABSENT — omittable as well as null, matching TypeScript's
         // own `?:` and how the corpus already guards (`if (selKey != null) …`). An
         // UNTYPED parameter is likewise omittable (no declared contract to keep).
@@ -648,7 +648,7 @@ function methodSig(m, isComponent) {
             return `${p.name}${omittable ? "?" : ""}: any`;
         return `${p.name}${omittable ? "?" : ""}: ${ts}`;
     }).join(", ");
-    const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isComponent, m.returnsNullable === true) ?? "any");
+    const ret = m.returns === undefined ? "any" : (signatureTsType(m.returns, isClassName, m.returnsNullable === true) ?? "any");
     return `  ${m.name}(${params}): ${ret};`;
 }
 /** LANGUAGE-API members — the runtime surface a `{ }` body may READ or CALL
@@ -666,11 +666,11 @@ function methodSig(m, isComponent) {
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
-/** The CALLABLE surface of a service that is also a component. `Keys` and
+/** The CALLABLE surface of a service that is also a class. `Keys` and
  *  `Focus` name one concept each — the keyboard, the focus service — which a
  *  body can either ASK (`Keys.isDown("KeyA")`, `Focus.focus(this)`) or LISTEN
  *  to (`Keys [ onKeyDown(e) { … } ]`). Emitted as STATIC members of the
- *  component's class so both readings typecheck under the one name; at runtime
+ *  generated class so both readings typecheck under the one name; at runtime
  *  they never meet, since a tag and a body identifier are different namespaces
  *  (the body's `Keys` is the injected service object — expr.ts setBodyServices). */
 export const LANGUAGE_STATICS = {
@@ -734,7 +734,7 @@ export const LANGUAGE_API = {
         // demo-hosting site apps still read — `demoSources` (host-seeded name→source
         // map, host-client.js) and `liveReport` (the last live recompile's rendered
         // report). Host-fed, read-only, never set in `[ ]`. RULED to dissolve into a
-        // per-instance `LiveDemo` component (shape 3 — each instance owns its own
+        // per-instance `LiveDemo` class (shape 3 — each instance owns its own
         // `source`/`report`); until that rework these ride here so App's schema stays
         // clean of editing knowledge. `any` values, the same under-report as Theme.
         `  readonly demoSources: Readonly<Record<string, any>>;`,
@@ -903,7 +903,7 @@ export function memberSig(name, t, nonNullColor = false, readOnly = false) {
  *  inherits them via `extends`), then a user class's declared methods. Absent
  *  base (View / Layout / Dataset / Animator / AnimatorGroup roots) → no
  *  `extends`; an empty class → `{}`. */
-function emitClass(s, decl, rootType, extras, isComponent) {
+function emitClass(s, decl, rootType, extras, isClassName) {
     const ext = s.base !== null ? ` extends ${s.base.name}` : "";
     const lines = [];
     // A color slot is non-null unless it means inherit/absent — i.e. unless its
@@ -975,7 +975,7 @@ function emitClass(s, decl, rootType, extras, isComponent) {
         lines.push(...statics);
     if (decl !== undefined)
         for (const m of decl.body.methods)
-            lines.push(methodSig(m, isComponent));
+            lines.push(methodSig(m, isClassName));
     // Instance members the EMITTER computed from the class BODY (its named
     // children, typed by their instance types) — on the class itself, so a
     // cross-reference through the class NAME (`section.area`) sees them too.

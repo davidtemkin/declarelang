@@ -572,7 +572,7 @@ function idiomDiagnostics(program, schemas) {
  *  the compiled Function (expr.ts) and its own `arguments`. `this` is not an
  *  identifier and needs no entry. `classroot` is deliberately NOT here — it is
  *  surfaced as a free identifier so the resolver can REJECT it in the App body
- *  (there is no component to root there) and pass it through untouched in a
+ *  (there is no class to root there) and pass it through untouched in a
  *  class body, where the runtime binds it. */
 // `$base` is the resolved spelling of `super` (the super rule below): bound
 // in every method body, so resolving emitted output again is a fixpoint.
@@ -646,7 +646,7 @@ export async function compile(source, opts = {}) {
     if (resolved.errors.length > 0) {
         return { source: null, errors: resolved.errors, warnings: [], ...diagnose(resolved.errors, [], "module") };
     }
-    // Auto-include: pull the libraries that define the program's bare component
+    // Auto-include: pull the libraries that define the program's bare class
     // tags (`Bar [ … ]` with no `include`, no inline class) — after explicit
     // includes, sharing their visited set so the two dedup. A no-op on a host
     // without the manifest (single-file compiles stay byte-identical).
@@ -655,7 +655,7 @@ export async function compile(source, opts = {}) {
         return { source: null, errors: auto.errors, warnings: [], ...diagnose(auto.errors, [], "module") };
     }
     // The one self-contained source: explicit-include libraries, then auto-
-    // included component libraries (both dependency-first, their own directives
+    // included class libraries (both dependency-first, their own directives
     // cut), then the main file (its directives cut). With no includes and no
     // magic tags this is `source` unchanged, so single-file offsets are identical.
     // Script files splice in and include directives cut out in ONE pass (both
@@ -743,7 +743,7 @@ export async function compile(source, opts = {}) {
         // to declare `resolveLibrary` SYNCHRONOUS — and when the include seam went
         // async the compiler believed the cast: `lib` became a Promise, `lib.canonical`
         // undefined, and `libSources.push(lib.source)` pushed undefined, so a
-        // $provide'd component was silently never spliced. tsc could not object,
+        // $provide'd class was silently never spliced. tsc could not object,
         // because the lie was written here. Reuse AutoIncludeHost's shape instead.
         const autoHost = host;
         if (typeof autoHost.autoincludes === "function" && typeof autoHost.resolveLibrary === "function") {
@@ -771,7 +771,7 @@ export async function compile(source, opts = {}) {
                         continue;
                     libSources.push(lib.source);
                     libIds.push(lib.canonical);
-                    const comment = typeof r.comment === "string" ? r.comment : `${cls} — provided with the component library`;
+                    const comment = typeof r.comment === "string" ? r.comment : `${cls} — provided with the class library`;
                     mainSource = spliceLast(mainSource, `\n    // ${comment}\n\n    ${cls} [ ],\n`);
                 }
             }
@@ -1309,7 +1309,7 @@ function displayFile(id, originDir) {
         if (id.startsWith(dir))
             return id.slice(dir.length);
     }
-    // a component-library file (auto-included, so never under the program's
+    // a class-library file (auto-included, so never under the program's
     // directory): name it from its `library/` root, the way the map names it
     const lib = id.lastIndexOf("/library/");
     if (lib >= 0)
@@ -1443,7 +1443,7 @@ class Resolver {
      *  A script block's source is appended to the typecheck scaffold, and in
      *  TypeScript a single top-level `export` turns that whole file from a script
      *  into a MODULE — at which point every ambient declaration the scaffold made
-     *  (every component, every one of the program's own members) stops being a
+     *  (every class, every one of the program's own members) stops being a
      *  global and resolves to nothing. One `export` therefore produced a spray of
      *  unresolved-name errors naming innocent symbols at unrelated lines, with
      *  nothing at all pointing at the cause. Eighteen of them, into library source,
@@ -1544,7 +1544,7 @@ class Resolver {
      *  exact line as an example, so it is the shape an author is most likely to
      *  write first.
      *
-     *  CLASS BODIES ARE EXEMPT. A component written to be dropped into a datapath'd
+     *  CLASS BODIES ARE EXEMPT. A class written to be dropped into a datapath'd
      *  context (`class Row extends View [ TextInput [ text <-> :name ] ]`) has no
      *  datapath of its own and is entirely correct — its cursor arrives from the use
      *  site, which is not visible here. Only the main tree, where the whole chain up
@@ -1561,7 +1561,7 @@ class Resolver {
         if (levels.some(supplies))
             return;
         // The write-back spelling differs by family and the message must name the
-        // one that exists on THIS component: an Editor (TextInput) delivers through
+        // one that exists on THIS class: an Editor (TextInput) delivers through
         // the `input` EVENT (`onInput(v: string)`), a Control (Checkbox, Slider,
         // RadioGroup) through the `input` METHOD (`input(v: …)`, Contract 1). Naming
         // the wrong one sends the reader to a member that is legal to declare, never
@@ -1575,11 +1575,11 @@ class Resolver {
             return false;
         };
         const writeBack = hasInputEvent(schema)
-            ? `'onInput(v: string) { app.slot = v }'`
-            : `'input(v: …) { app.slot = v }'`;
+            ? `'onInput(v: string) { app.note = v }'`
+            : `'input(v: …) { app.note = v }'`;
         for (const a of twoWay) {
             const wrote = a.value.kind === "path" ? `:${a.value.path}` : "{ … }";
-            this.errors.push(new DeclareError(`'${a.name} <-> ${wrote}' has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { … }' over a Dataset — or, to drive an ordinary slot, use the value pattern instead: '${a.name} = { app.slot }' one-way plus ${writeBack} to write back`, a.pos));
+            this.errors.push(new DeclareError(`'${a.name} <-> ${wrote}' has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { … }' over a Dataset — or, to drive an ordinary attribute, use the value pattern instead: '${a.name} = { app.note }' one-way plus ${writeBack} to write back`, a.pos));
         }
     }
     /** A { } that reads the ambient clock is a stopped clock (open-items L-25):
@@ -1699,6 +1699,26 @@ class Resolver {
         if (idents === null)
             return; // TS could not parse what new Function did — leave the body alone
         for (const id of idents) {
+            if (slot === "classFor") {
+                // `classFor = { … }` (replication metadata): the body reads the record
+                // and names a class — the element's own, or a subclass of it, since the
+                // rest of the use site was checked against the element's class. A class
+                // name lowers to its string; nothing else is in reach, so the choice is
+                // the record's alone.
+                const pos = this.posAt(bodyStart + id.start);
+                const base = levels[0].tag;
+                const sc = Object.hasOwn(this.schemas, id.name) ? this.schemas[id.name] : undefined;
+                if (sc === undefined) {
+                    this.errors.push(new DeclareError(`classFor reads the record and names classes — '${id.name}' is neither (read a field with :field; the class is chosen from the record alone)`, pos));
+                }
+                else if (id.name !== base && !descendsFrom(sc, base)) {
+                    this.errors.push(new DeclareError(`classFor names '${id.name}', which does not extend ${base} — each record's class is ${base} or a subclass of it, the class the rest of this line is checked against`, pos));
+                }
+                else {
+                    this.edits.push({ start: bodyStart + id.start, end: bodyStart + id.end, text: JSON.stringify(id.name) });
+                }
+                continue;
+            }
             if (id.callee && CALLEE_GLOBALS.has(id.name))
                 continue; // a value constructor, not a member
             if (id.name === "app") {
@@ -1769,10 +1789,10 @@ class Resolver {
                 continue;
             }
             if (id.name === "classroot") {
-                // `classroot` reaches the root of the component (class) the code is
+                // `classroot` reaches the root of the class (class) the code is
                 // written in — meaningful ONLY inside a class body, where it passes
                 // through untouched and the runtime binds it (expr.ts). Anywhere else
-                // (the App block, a style-bundle body) there is no component to root,
+                // (the App block, a style-bundle body) there is no class to root,
                 // so it is an error naming where the code actually is.
                 if (scope !== "class") {
                     const where = scope === "app" ? "the App" : "a style bundle";
@@ -1839,7 +1859,7 @@ class Resolver {
             for (let j = k + 1; j < levels.length; j++) {
                 if (this.surfaceOf(levels[j]).declared.has(id.name)) {
                     // The outer reach the user should WRITE. In the App body the root is
-                    // `app`, never `classroot` (classroot is a component-only noun); in a
+                    // `app`, never `classroot` (classroot is a class-only noun); in a
                     // class body it stays `classroot`.
                     const outer = (mainRoot !== null && j === levels.length - 1)
                         ? `app.${id.name}`
@@ -1945,7 +1965,7 @@ class Resolver {
     }
     /** The explicit path to level `k` of `count` levels: the node itself, a
      *  parent chain, or the body root. In a CLASS body the root is `classroot`
-     *  (the component instance). In the App body (`appRoot`) it is `this.root`
+     *  (the class instance). In the App body (`appRoot`) it is `this.root`
      *  (i.e. `app`) — `classroot` never appears in App output, so a bare App-name
      *  rewrite is idempotent and cannot collide with the App-body classroot ban. */
     pathTo(k, count, appRoot = false) {

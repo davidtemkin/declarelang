@@ -1,4 +1,4 @@
-class TaskModel [
+class TaskModel extends Node [
     title: string = { "" + :title },
     overdue: boolean = { :due < app.today },
     finish() { :done = true }

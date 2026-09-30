@@ -33,7 +33,7 @@
 import { Node, onDiscard } from "./node.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { currentStreams } from "./stream-seam.js";
-// ── The components ───────────────────────────────────────────────────────────
+// ── The classes ───────────────────────────────────────────────────────────
 /** The abstract base: everything shared between SSE and WebSocket. Lifecycle
  *  is exactly the source contract (§5): node removal closes the connection,
  *  `active = false` closes it, a `url` change closes and reopens; nothing to

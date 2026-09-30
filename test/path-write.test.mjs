@@ -110,7 +110,7 @@ await (async () => {
   });
 })();
 await (async () => {
-  const app = await build(`class Mark [ seen() { :seen = true } ]
+  const app = await build(`class Mark extends Node [ seen() { :seen = true } ]
     App [ width = 300, height = 300,
       d: Dataset { { "rows": [ { "id": 1, "seen": false, "x": 0 } ] } },
       col: View [ datapath = { app.d.value },
@@ -127,7 +127,7 @@ await (async () => {
 await (async () => {
   // A model class stands on one record with no view involved: its own datapath,
   // its declarations derived from the record, its methods writing it back.
-  const app = await build(`class TaskModel [
+  const app = await build(`class TaskModel extends Node [
       overdue: boolean = { :due < app.today },
       title: string = { "" + :title },
       finish() { :done = true },
@@ -157,7 +157,7 @@ await (async () => {
   });
 })();
 await (async () => {
-  const errs = await errorsOf(`class M [ n: number = 0 ]
+  const errs = await errorsOf(`class M extends Node [ n: number = 0 ]
     App [ d: Dataset { { "rows": [ { "id": 1 } ] } }, col: View [ datapath = { app.d.value }, M [ datapath = :rows[] ] ] ]`);
   test("a model class cannot replicate (only a view does) — and says what to write instead", () => {
     assert.ok(errs.some((m) => /only a view replicates/.test(m)), errs.join(" | "));
@@ -252,6 +252,88 @@ await (async () => {
   const vErrs = await errorsOf(`App [ d: Dataset { { "r": { "a": 1 } } }, v: View [ datapath = { app.d.value.r }, n: number = { :@[("a")] = 2 } ] ]`);
   test("a { } value may not assign `:@[(k)]`", () => {
     assert.ok(vErrs.length > 0, "refused");
+  });
+})();
+
+// ── a derived dataset holds its source's records ──────────────────────────
+// A projection that SELECTS records (group, filter, sort) holds the source's
+// own records: a row on it writes its record as a row on the source would, the
+// source's readers follow, and the projection re-derives. What the
+// projection's code MADE (a copy, a group wrapper, a new array) is read-only.
+for (const read of ["value", "read"]) await (async () => {
+  const cards = read === "value" ? "this.raw.value?.cards ?? []" : `this.raw.read(["cards"]) ?? []`;
+  const app = await build(`class Card extends View [ height = 20, advance() { :col = :col + 1 }, retitle(t: string) { :title = t } ]
+    App [ width = 300, height = 300,
+      raw: Dataset { { "cards": [ { "id": 1, "title": "a", "col": 0 }, { "id": 2, "title": "b", "col": 0 }, { "id": 3, "title": "c", "col": 1 } ] } },
+      buildCols() {
+        const cards = ${cards}
+        return { cols: [0, 1, 2].map((i) => ({ name: "c" + i, cards: cards.filter((c) => c.col == i) })) }
+        },
+      board: Dataset [ contents = { app.buildCols() } ],
+      copies: Dataset [ contents = { { rows: (app.raw.value?.cards ?? []).map((c) => ({ ...c })) } } ],
+      first: View [ datapath = { app.raw.value.cards[0] }, t: Text [ text = :title ] ],
+      cols: View [ datapath = { app.board.value },
+        View [ datapath = :cols[], Card [ datapath = :cards[] ] ] ],
+      dupes: View [ datapath = { app.copies.value }, Card [ datapath = :rows[] ] ] ]`);
+  const colCards = (i) => app.cols.children[i].children.map((c) => c.datapath.data.read([...c.datapath.path, "title"]));
+  test(`(${read}) a card on the projection writes its source record, and the projection regroups`, () => {
+    assert.deepEqual([colCards(0), colCards(1)], [["a", "b"], ["c"]]);
+    app.cols.children[0].children[0].advance(); settle();
+    assert.equal(app.raw.value.cards[0].col, 1, "the source record changed");
+    assert.deepEqual([colCards(0), colCards(1)], [["b"], ["a", "c"]], "the projection regrouped");
+  });
+  test(`(${read}) …and a view bound to the source record follows a write made through the projection`, () => {
+    app.cols.children[1].children[0].retitle("A"); settle();
+    assert.equal(app.first.t.text, "A");
+  });
+  test(`(${read}) a write to a copy the projection made is refused, and says to write the source`, () => {
+    assert.throws(() => app.dupes.children[0].retitle("x"), /made by that computation.*Write the source dataset/s);
+    assert.equal(app.raw.value.cards[0].title, "A", "the source is untouched");
+  });
+  test(`(${read}) a group wrapper and a list the projection made are read-only`, () => {
+    assert.throws(() => app.board.set(["cols", 0, "name"], "x"), /refuses this set/);
+    assert.throws(() => app.board.removeAt(["cols", 1, "cards"], 0), /refuses this removeAt/);
+  });
+})();
+await (async () => {
+  const app = await build(`App [ width = 300, height = 300,
+      raw: Dataset { { "rows": [ { "id": 1, "n": 1 }, { "id": 2, "n": 2 } ] } },
+      alias: Dataset [ contents = { { rows: app.raw.read(["rows"]) } } ] ]`);
+  test("a projection that holds its source's list sends structural edits there too", () => {
+    app.alias.insert(["rows"], 0, { id: 0, n: 0 }); settle();
+    assert.deepEqual(app.raw.value.rows.map((r) => r.id), [0, 1, 2]);
+    app.alias.set(["rows", 2, "n"], 20); settle();
+    assert.equal(app.raw.value.rows[2].n, 20, "…and a record shifted by that insert is still found at its new place");
+  });
+})();
+
+await (async () => {
+  // A document as a class: the data subclass carries its derivations and its
+  // create verb; views bind to the instance directly and write its records.
+  const app = await build(`schema Session [ id: number, day: number, minutes: number ]
+    schema Week [ count: number, minutes: number ]
+    class Log extends Dataset [ schema = [ rows[]: Session ],
+      week: Dataset [ schema = Week, contents = { classroot.weekOf(3) } ],
+      weekOf(today: number) -> Week {
+        const rows = this.value.rows.filter((s) => s.day > today - 7)
+        return ({ count: rows.length, minutes: rows.reduce((n, s) => n + s.minutes, 0) })
+        },
+      add(minutes: number) { this.set(["rows", "-"], ({ id: this.value.rows.length + 1, day: 3, minutes: minutes })) }
+      ]
+    App [ width = 300, height = 300,
+      log: Log [ ] { { "rows": [ { "id": 1, "day": 1, "minutes": 30 }, { "id": 2, "day": 2, "minutes": 45 } ] } },
+      sum: Text [ text = { app.log.week.value.count + "/" + app.log.week.value.minutes } ],
+      list: View [ datapath = { app.log.value },
+        View [ datapath = :rows[], height = 20, more() { :minutes = :minutes + 5 } ] ] ]`);
+  test("a document class carries its derivations, and views bind to it directly", () => {
+    assert.equal(app.sum.text, "2/75");
+    app.log.add(20); settle();
+    assert.equal(app.sum.text, "3/95");
+    assert.equal(app.list.children.length, 3);
+  });
+  test("…and a row writes its record in it, which the derivation follows", () => {
+    app.list.children[0].more(); settle();
+    assert.equal(app.sum.text, "3/100");
   });
 })();
 

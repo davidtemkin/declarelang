@@ -1,5 +1,5 @@
 // A source position and the error types Declare raises for bad source.
-// Every syntax / unknown-component / unknown-attribute / bad-value failure
+// Every syntax / unknown-class / unknown-attribute / bad-value failure
 // carries a position so messages point at the offending text; DeclareErrors
 // aggregates a whole check pass into one throw.
 /** The position's rendered form: `(line 3, col 7)` in the main file,

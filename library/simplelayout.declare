@@ -5,7 +5,7 @@ The stacking idiom: siblings placed one after another along
 `axis`, in child order, `spacing` apart (negative overlaps). The cross axis
 and all sizes stay the children's own — a child centers itself across a row
 with the ordinary `y = center`. Invisible children are skipped and their
-space reclaimed; a skipped child still gets the slot it would occupy, so
+space reclaimed; a skipped child still gets the place it would occupy, so
 re-showing it needs no special case. A `Spacer` child flexes to absorb the
 run's slack along the axis (between two groups it pushes them apart; one on
 each side centers the run).
@@ -57,7 +57,7 @@ literal.
 ## place()
 The whole strategy: one box per laid child, positioned along the axis in child order.
 **Every size stays the children's own, and so does the cross axis unless `align` says
-otherwise** — then the boxes carry that slot too, and own it. Override it in a subclass
+otherwise** — then the boxes carry that attribute too, and own it. Override it in a subclass
 for custom geometry; a `Layout`'s `place()` **may** aggregate over children, which is the
 one place that is allowed.
 */

@@ -16,7 +16,7 @@ then its ancestors' provisions. A Declare tenant reads one with
 `hostProvided("volume", 0)`. UP: the tenant lists names in its App's `exposes`, and the
 host reads them with `island.exposed("pos", 0)`. Each value has one owner — the tenant
 cannot write what the island provides, the host cannot write what the tenant exposes —
-and only data crosses (numbers, strings, booleans, arrays, plain objects): a component is
+and only data crosses (numbers, strings, booleans, arrays, plain objects): a class is
 an identity in one program's graph and cannot cross. A foreign (raw-JS) tenant speaks
 the same words through the element's one sanctioned handle, `el.__declareIsland` —
 `provides()`, `hostProvided(name)`, `watchProvided(name, cb)`, `expose(name, value)`,

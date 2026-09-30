@@ -47,7 +47,7 @@ export declare function renderAsync(source: string, host: HTMLElement, backend: 
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export type { IncludeHost } from "./include.js";
-export { check, checkAttr, checkMethod, checkComponentValue } from "./check.js";
+export { check, checkAttr, checkMethod, checkClassValue } from "./check.js";
 export { checkDecl, programSchemas } from "./program-schema.js";
 export { hydrateProgram } from "./hydrate.js";
 export { instantiate } from "./instantiate.js";
@@ -105,7 +105,7 @@ export type { RenderBackend, Surface, Stretch, PointerType, InputSink, EditableS
 export type { LayoutStrategy } from "./view.js";
 export type { DrawOp, DisplayList, Bounds } from "./draw.js";
 export type { FontWeight, TextStyle } from "./measure.js";
-export type { ComponentSchema } from "./schema.js";
+export type { ClassSchema } from "./schema.js";
 export type { ClassInfo } from "./check.js";
 export type { Color, Length, Percent, AttrType, AttrValue, Coerced, Fill, Gradient, GradientStop, Stroke, Shadow, Theme } from "./value.js";
 export type { Pos } from "./errors.js";

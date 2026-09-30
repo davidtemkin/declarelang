@@ -15,7 +15,7 @@ by a single test:
 > belongs in `waypoint` — it is a *step*. If neither, it is an ordinary
 > attribute, and none of this chapter applies to it.
 
-## The URL is an attribute; links are declared
+## `location` and links
 
 Inside the app, "where the user is" was always just an attribute — a `tab`, a
 `chapter`, a `selectedId` — with views deriving from it. Deep linking needs exactly
@@ -58,7 +58,7 @@ re-derives; you never handle a history event. A deep link is nothing special —
 initial value, arriving before first paint. The declared initial *is* the default, so
 the bare URL stays clean.
 
-## The step: `waypoint`
+## History outside the URL: `waypoint`
 
 Some of what an interface remembers fails the stranger test but still deserves the
 Back button. The turns of a search session. Which page of a wizard you are on. When
@@ -184,14 +184,14 @@ following the reference you already stand at arrives again — no dead clicks �
 Back and Forward pass through the same door, so a camera flight written here answers
 them too. And it never waits for motion: the target arrives when it exists and has
 geometry, even if it is still moving toward how it will look. "When the motion
-lands" is a fact motion itself exposes (`arrived` — [Motion and states](declare-docs:guide:motion@a-spring-drives-an-attribute-toward-a-target)), not an arrival.
+lands" is a fact motion itself exposes (`arrived` — [Motion and states](declare-docs:guide:motion@springs)), not an arrival.
 
 > **From React:** this chapter replaces the router. No route table, no `<Link>`
 > component, no guards, no history listener — and the "router state vs app state"
 > question dissolves: the place is one reactive attribute your views derive from
 > like any other, and links are attributes the compiler can check.
 
-### Five minutes with a real one
+### Walking through the birds app
 
 `apps/birds/birds.declare` — a field guide of Audubon's plates with an
 identification quiz over it — is this whole section as a working app. Run it and
@@ -221,7 +221,7 @@ child apps, and an embedded app owns neither the page's URL nor its history —
 both belong to the page it sits in ([Embedding](declare-docs:guide:embedding)).
 That is why this is a link rather than a frame.
 
-## What the crawler sees is what a stranger sees
+## What crawlers see
 
 The crawl rule falls straight out of the stranger test, because **crawlable and
 shareable are the same property**: the build walks your app's *locations* —

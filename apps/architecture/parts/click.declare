@@ -13,34 +13,27 @@ it. Nothing here is a list written out nine times.
 
 // one step: a numbered disc on its lane
 
-class StepNode extends View [ width = 30, height = 30, cornerRadius = 15,
-    idx: number = 0,
+class StepNode [ width = 30, height = 30, cornerRadius = 15,
     head: string = "",
     ph: number = 9,
     hue: Color = gray,
-    lit: boolean = { this.ph >= this.idx + 0.5 },
+    lit: boolean = { this.ph >= rowIndex + 0.5 },
     fill = { this.lit ? this.hue : provided("theme").panel },
     stroke = { stroke(1.5, this.hue) },
-    scale = { this.ph == this.idx + 1 && this.ph < 9 ? 1.18 : 1 },
+    scale = { this.ph == rowIndex + 1 && this.ph < 9 ? 1.18 : 1 },
     pivotX = 15, pivotY = 15,
     n: Mono [ x = center, y = center, fontSize = 12, fontWeight = semibold,
-        textColor = { classroot.lit ? provided("theme").panel : classroot.hue }, text = { "" + (classroot.idx + 1) } ],
+        textColor = { classroot.lit ? provided("theme").panel : classroot.hue }, text = { "" + (classroot.rowIndex + 1) } ],
     heads: boolean = true,
     h: Label [ y = 36, x = center, visible = { classroot.heads }, fontSize = 12.5, fontWeight = medium,
         textColor = { classroot.lit ? provided("theme").ink : provided("theme").faint }, text = { classroot.head } ]
     ]
 
 
-class Lanes extends View [ height = 330,
+class Lanes [ height = 330,
     ph: number = 9,
     gutter: number = 92,
     laneH: number = { this.height / 4 },
-
-    // the step table, as the rows this view was pointed at: the drawing and
-    // the dot need a lane by index, which a replicated child cannot hand back
-
-    steps: object[] = [],
-    laneOf(i: number) -> number { const s = this.steps[i] as any; return s == null ? 0 : s.lane },
 
     colX(i: number) -> number { return this.gutter + 22 + i * (this.width - this.gutter - 60) / 8 },
     laneY(l: number) -> number { return l * this.laneH + this.laneH / 2 - 12 },
@@ -58,9 +51,10 @@ class Lanes extends View [ height = 330,
         d.lineWidth = 1.5
         d.setLineDash([3, 4])
         d.beginPath()
-        for (let i = 0; i < 9; i++) {
+        const rows = (:rows ?? []) as any[]
+        for (let i = 0; i < rows.length; i++) {
             const x = this.colX(i) + 15
-            const y = this.laneY(this.laneOf(i)) + 15
+            const y = this.laneY(rows[i].lane) + 15
             if (i == 0) d.moveTo(x, y)
             else d.lineTo(x, y)
             }
@@ -74,9 +68,9 @@ class Lanes extends View [ height = 330,
 
     // one disc per step
 
-    StepNode [ datapath = :rows[], idx = :i, head = :head, ph = { classroot.ph },
+    StepNode [ datapath = :rows[], head = :head, ph = { classroot.ph },
         heads = { classroot.width > 620 }, hue = { classroot.hueOf(:lane) },
-        x = { classroot.colX(:i) }, y = { classroot.laneY(:lane) } ]
+        x = { classroot.colX(rowIndex) }, y = { classroot.laneY(:lane) } ]
     ]
 
 
@@ -110,7 +104,7 @@ class Meter extends Plate [ pad = 18, gap = 14, cornerRadius = 12, fill = { prov
     ]
 
 
-class ClickFig extends View [
+class ClickFig [
     ph: number = 9,
     traced: boolean = false,
     layout: Run [ spacing = 18 ],
@@ -118,15 +112,15 @@ class ClickFig extends View [
     // the nine steps: which lane, and what happens
 
     steps: Dataset { { "rows": [
-        { "i": 0, "lane": 0, "head": "Pointer arrives" },
-        { "i": 1, "lane": 1, "head": "Hit walk" },
-        { "i": 2, "lane": 1, "head": "It was a click" },
-        { "i": 3, "lane": 2, "head": "onClick()" },
-        { "i": 4, "lane": 3, "head": "Settle opens" },
-        { "i": 5, "lane": 3, "head": "bar.width" },
-        { "i": 6, "lane": 2, "head": "label.text" },
-        { "i": 7, "lane": 1, "head": "Surface calls" },
-        { "i": 8, "lane": 0, "head": "Pixels" } ] } },
+        { "lane": 0, "head": "Pointer arrives" },
+        { "lane": 1, "head": "Hit walk" },
+        { "lane": 1, "head": "It was a click" },
+        { "lane": 2, "head": "onClick()" },
+        { "lane": 3, "head": "Settle opens" },
+        { "lane": 3, "head": "bar.width" },
+        { "lane": 2, "head": "label.text" },
+        { "lane": 1, "head": "Surface calls" },
+        { "lane": 0, "head": "Pixels" } ] } },
 
     datapath = { classroot.steps.value },
 
@@ -141,7 +135,7 @@ class ClickFig extends View [
                     classroot.traced = true
                     }
                 ],
-            lanes: Lanes [ ph = { classroot.ph }, steps = :rows ]
+            lanes: Lanes [ ph = { classroot.ph } ]
             ],
 
         // the reader's pace: one step per press; once the trip is complete the

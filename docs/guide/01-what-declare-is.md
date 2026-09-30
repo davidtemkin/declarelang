@@ -5,14 +5,14 @@
 
 Declare is a language for user interfaces, the way SQL is a language for queries. It
 is not a general-purpose language that UI code happens to be written in; it is a
-notation for the interface itself. You describe a tree of components, the state they
+notation for the interface itself. You describe a tree of views and the other things in it, the state they
 hold, the data they show, and how their values relate to one another, and the runtime
 keeps every relationship you stated true while the program runs.
 
 Everything inside `{ }` is ordinary TypeScript. Everything inside `[ ]` is the
 interface's structure. There is no stylesheet, no template language and no router
-library — the program is the whole interface. Nor is there a build step between an
-edit and the running result: save, reload, and the change is there. The examples in
+library — the program is the whole interface. In development there is no build step between
+an edit and the running result: save, reload, and the change is there. The examples in
 this guide are live programs, each running beneath its source.
 
 This chapter is an overview of the whole language. It shows one small program, names
@@ -20,7 +20,7 @@ the one idea the rest depends on, and then walks through a complete app layer by
 layer, so that you know what an idiomatic Declare program looks like before you learn
 any of its parts. Each layer names the chapter that teaches it.
 
-## A program, running
+## A first program
 
 Here is a complete program. It is running below its source; click the button.
 
@@ -42,8 +42,7 @@ sentence built from `count`.
 
 Now edit it. Change `darkslategray` to `midnightblue`, change the label, change
 `width = 400` to `300` and watch the pair stay centered. Break something on purpose:
-the compiler answers with a positioned error that names the rule and, for common
-mistakes, the fix. **Revert** puts any example back.
+the compiler answers with a positioned error that names the rule and the fix. **Revert** puts any example back.
 
 The line that matters is the last one:
 
@@ -60,7 +59,7 @@ handler assigns `count`, the text follows. You did not subscribe to anything, re
 a re-render, or tell the interface what to update. You said what the text should be;
 keeping it that way is the runtime's job.
 
-## The one shift
+## Relationships instead of steps
 
 In most UI stacks an interface is a *sequence of moments*: something happens, code
 runs, views update, and your job is to orchestrate the moments so nothing shows a
@@ -82,7 +81,7 @@ If you come from React: there are no hooks, no dependency arrays, and nothing to
 memoize. A re-render exists to reconcile an interface that has drifted from its state.
 Here nothing drifts, so there is nothing to reconcile.
 
-## A whole app, in Declare terms
+## A whole app
 
 The counter shows the idea. This program shows the shape of a real app: typed data, a
 list built from it, library controls editing it, a count derived from it, and a
@@ -91,7 +90,7 @@ button that adds to it. Tick a box; add a task.
 ```declare
 schema Task [ id: number, title: string, done: boolean ]
 
-class TaskRow extends View [ width = 100%, height = 32,
+class TaskRow [ width = 100%, height = 32,
     layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
     Checkbox [ checked = :done, input(v: boolean) { :done = v } ],
     Text [ text = :title, textColor = { :done ? 0x8A96A0 : 0x172530 } ]
@@ -128,10 +127,11 @@ visible in it, and each one is a habit worth taking on from the start.
 often fetched — and the [`schema`](declare-docs:Dataset.schema) states the shape the program relies on, so the
 compiler checks every read and the runtime checks every write. State that is not a
 record, such as `nextId`, is a declared attribute. Nothing else holds a copy; everything
-else reads it. When a group of state and behavior
-is a thing in its own right — a cart, a selection, a session — it becomes a model
-class with no view at all, and it can stand on a record of its own. The data chapters
-are [Data](declare-docs:guide:data) and [Typed data](declare-docs:guide:schemas).
+else reads it — and writes it: the checkbox writes its own record. When a document
+has logic of its own, the document becomes a class (`extends Dataset`) carrying it; a
+job with no view that is not a document — a clock several views drive, a connection —
+is a class that extends `Node`. The data chapters are [Data](declare-docs:guide:data)
+and [Typed data](declare-docs:guide:schemas).
 
 **Everything visible derives from that state.** `open` is a constraint over the
 dataset; the heading reads `open`; each row's text color reads its record. Tick a box
@@ -140,7 +140,7 @@ and all of them follow in the same step, because each is a relationship, not a c
 **Repeated structure comes from data, never from a loop.** `TaskRow [ datapath =
 :items[] ]` says "one row per item." Add a record and a row appears; remove one and it
 leaves; reorder them and the rows move with their records. There is no `.map()` and no
-code that creates views. A `:path` such as `:title` reads a field of the row's own
+loop that builds rows. A `:path` such as `:title` reads a field of the row's own
 record.
 
 **Layouts arrange; you rarely place.** The card stacks its contents, the list stacks
@@ -162,13 +162,13 @@ extends [`Control`](declare-docs:Control) and inherits focus, keyboard activatio
 changed — a record field, an attribute on the app, or a view's own attribute, such as
 a dragged window's `x` — and stops there. It never goes on to update what depends on
 that value: the heading's count, a row's color and the list's height all follow on
-their own. An attribute that is a constraint refuses an assignment, which keeps the
+their own. An attribute set with a `{ }` refuses an assignment, which keeps the
 two jobs apart. That is why the program has no update code.
 
 **The source is structured the way the design is.** `TaskRow` is a class because it
 is a named part of the design, not because of a rule about reuse: a class makes the
 tree read as what it is, and a long program splits into files the same way. See
-[Components and the tree](declare-docs:guide:components).
+[Classes and the tree](declare-docs:guide:classes).
 
 **Time enters as a value, and nothing polls.** A [`Spring`](declare-docs:Spring) moves an attribute toward a
 target; a [`Time`](declare-docs:Time) member makes the clock a set of facts constraints can read. There is
@@ -181,7 +181,7 @@ declare which location they show, links are attributes the compiler checks, and 
 Back button works because state derives from the location rather than the other way
 round. See [URLs, links and history](declare-docs:guide:urls).
 
-## What it opens
+## Animation from the same relationships
 
 Everything so far is about building ordinary interfaces with less machinery. The
 larger claim is about what becomes easy. Watch what three constraints do when one of
@@ -223,13 +223,13 @@ to build them. High-craft interfaces are within reach of one person. The languag
 lowers the cost of building them; it does not do the design. Deciding what should
 persist and what an in-between frame means is still design work.
 
-## Why a language
+## Why a language rather than a library
 
 A framework lives inside a general-purpose language, so the things it cares about —
-components, state, what depends on what — are invisible to that language's compiler.
+views, state, what depends on what — are invisible to that language's compiler.
 Making the interface's structure the language itself is what Declare is for. The
 compiler sees the tree, reads every constraint's dependencies from its text, and
-type-checks every expression against every component's real attributes, so most of
+type-checks every expression against every class's real attributes, so most of
 what would have been a quiet bug is an error before anything runs. What the compiler
 can see, you can see too: a program reads as a tree of named things and stated
 relationships.
@@ -256,7 +256,7 @@ LLM's write-check-revise loop converges. Every property that makes the language
 workable for a machine — small, regular, strictly checked — is a property you benefit
 from first. [Writing with an LLM](declare-docs:guide:with-an-llm) is that workflow.
 
-## What it costs
+## Costs and limits
 
 Declare is young, and this guide will not pretend otherwise. The first visit to a
 live-editing page downloads the compiler, so it is slower than a framework site's
@@ -264,7 +264,7 @@ first load; production builds are precompiled and do not pay that cost. Accessib
 has a strong baseline on the default renderer — real text, native input fields,
 keyboard focus — but deeper support such as ARIA roles and announcements is still
 growing. The
-component library is small and growing, and there is no decade of answers online. What
+library is small and growing, and there is no decade of answers online. What
 compensates is that the whole surface is small enough to know, and the compiler
 answers most of the questions a corpus would.
 
@@ -278,8 +278,8 @@ where that is taught.
   [constraints](declare-docs:guide:constraints), and
   [running and checking a program](declare-docs:guide:run-and-check) — is the whole
   model and the working loop.
-- **Building** covers real interfaces: components, layout, scrolling, controls,
-  input, style, text, media, data, collections, custom components, overlays, and
+- **Building** covers real interfaces: classes and the tree, layout, scrolling, controls,
+  input, style, text, media, data, collections, your own views and drawing, overlays, and
   addresses.
 - **Continuity** is motion, time, and arrangements that move as one.
 - **Where it runs** covers renderers, hosts, and embedding.

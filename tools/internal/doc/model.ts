@@ -7,10 +7,10 @@
 // One model, many views. The renderers — the in-browser navigable docs, the web
 // docs, and the live object browser — are all one self-hosted Declare app that
 // walks this structure and renders each node's `doc` Markdown through the runtime's
-// Markdown component; the Developer's Guide links into it by `id`. So this file is
+// Markdown class; the Developer's Guide links into it by `id`. So this file is
 // a CONTRACT, not an implementation detail: it is the wire format between the TS
 // extractor (which reads schema.ts ⨝ the attributes.ts defaults ⨝ the TypeScript
-// compiler API for TS built-ins, and the Declare parser for `.declare` components)
+// compiler API for TS built-ins, and the Declare parser for `.declare` classes)
 // and the Declare app that renders it. Keep it JSON-serializable — data only, no
 // functions, no cycles (edges are `id` references, resolved through `nodes`).
 
@@ -62,7 +62,7 @@ interface NodeBase {
   name: string;
   kind: DocNode["kind"];
   /** The captured `/* *​/` Markdown doc block, dedented (parser.ts `dedent()`) —
-   *  the node's prose, rendered verbatim by the Markdown component. `null` when
+   *  the node's prose, rendered verbatim by the Markdown class. `null` when
    *  undocumented; the coverage gate guarantees `api ⇒ doc !== null`. */
   doc: string | null;
   /** The `@api` surface marker (docs/system-design/doc-system.md §"@api"): marked = public =
@@ -93,7 +93,7 @@ export type DocNode =
   | FontNode;
 
 /** An instantiable tree citizen — `View`, `Text`, `Image`, `Layout`, a user
- *  `class X extends View`. Authored in TS (a `ComponentSchema` + runtime class) or
+ *  `class X [ … ]`. Authored in TS (a `ClassSchema` + runtime class) or
  *  in Declare (`class … [ … ]`); the model shows no seam (`origin` records which). */
 export interface ClassNode extends NodeBase {
   kind: "class";
@@ -128,7 +128,7 @@ export interface AttributeNode extends NodeBase {
   inheritedFrom: NodeId | null;
 }
 
-/** A method — a component behavior over its own `this`. Signature comes from the
+/** A method — a class behavior over its own `this`. Signature comes from the
  *  TypeScript compiler API (TS classes) or the Declare method form (`.declare`). */
 export interface MethodNode extends NodeBase {
   kind: "method";
