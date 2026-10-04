@@ -53,8 +53,20 @@ session, so a read made early, or never needed, is paid for again on every later
 ```
 <!-- briefs:end -->
 
+- **A whole program like yours** — the complete programs in `apps/` are working Declare at
+  scale: how state, classes and the tree divide a real program's work. When one is close to
+  what you're building, read its source; each opens with a comment on how it is put together.
+
+  ```
+    tracker      records searched, filtered, sorted and edited in place; a long list; undo
+    weather      data from a service; one program for phone and desktop; a row that opens into a page
+    calendar     views as one moving arrangement; drag to reschedule
+    birds        navigation: location, deep links, prev/next
+    marketmap    dense real data, drawn
+    desktop      windows, menus, a dock, drag and resize
+  ```
 - **More depth** — only the guide section (`docs/guide/`) a brief names.
-- **Real code** — the library in `library/`, complete programs in `apps/`.
+- **The library's own code** — `library/`, written in Declare.
 - **Running and building** — `docs/operational/`.
 - **Why the language is shaped as it is** — `docs/tenets/`. (`docs/system-design/` is the
   design record: background, not truth.)
