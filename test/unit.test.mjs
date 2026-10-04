@@ -227,6 +227,29 @@ await test("every pointer event carries both frames — local x/y through the vi
   app.discard();
 });
 
+await test("a dragged view sizes its container from where it was picked up — no growth, no collapse — until the release", () => {
+  const app = build(`App [ width = 400, height = 300,
+    box: View [ width = 200,
+      View [ width = 200, height = 100 ],
+      card: View [ y = 100, width = 80, height = 50,
+        sy: number = 0,
+        onPointerDown(e: PointerEvent) { this.sy = this.y },
+        onPointerMove(e: PointerEvent) { this.y = this.sy + e.deltaY },
+        onPointerUp(e: PointerUpEvent) { this.y = 60 } ] ] ]`);
+  settle();
+  const sink = app.box.card.inputSink();
+  assert.equal(app.box.contentHeight, 150, "before: the card's bottom");
+  sink("pointerDown", 10, 110, { deltaX: 0, deltaY: 0 });
+  sink("pointerMove", 10, 410, { deltaX: 0, deltaY: 300 }); settle();
+  assert.equal(app.box.card.y, 400, "the card follows the hand");
+  assert.equal(app.box.contentHeight, 150, "dragged far below: the box does not grow after it");
+  sink("pointerMove", 10, 10, { deltaX: 0, deltaY: -100 }); settle();
+  assert.equal(app.box.contentHeight, 150, "dragged up: the box does not collapse under it");
+  sink("pointerUp", 10, 10, { deltaX: 0, deltaY: -100 }); settle();
+  assert.equal(app.box.contentHeight, 110, "the drop counts: the card's new bottom");
+  app.discard();
+});
+
 await test("a datapath { } that is a literal is refused in the source — no Dataset holds a fresh value", async () => {
   for (const lit of ["[1, 2, 3]", "{ rows: [] }", "[]"]) {
     const r = await compile(`App [ row: View [ datapath = { ${lit} }, Text [ text = "x" ] ] ]`);
@@ -255,10 +278,14 @@ await test("a declared name TypeScript's standard library already owns is said p
 });
 
 await test("check(): a child may not take the name of one of the runtime's own members — a field or a method", () => {
-  for (const name of ["surface", "backend", "attach", "scrollTo"]) {
+  for (const name of ["travelHost", "maskUsers", "viewAt", "scrollTo"]) {
     const errs = check(parse(`App [ ${name}: View [ width = 10 ] ]`));
     assert.equal(errs.length, 1, name);
     assert.match(errs[0].message, new RegExp(`'${name}' is a member of the running App \\(the runtime's own\\)`));
+  }
+  // the runtime's plumbing wears `$` names, so the plain words stay the author's
+  for (const name of ["surface", "backend", "attach", "drawing", "flush"]) {
+    assert.deepEqual(check(parse(`App [ ${name}: View [ width = 10 ] ]`)), [], name);
   }
   assert.deepEqual(check(parse(`App [ strip: View [ width = 10 ] ]`)), [], "a free name");
   assert.match(check(parse(`App [ parent: View [ width = 10 ] ]`))[0].message, /scope noun/, "the sharper message still wins for a scope noun");
@@ -400,7 +427,7 @@ await test("App fills its host by default: unset width/height follow hostWidth/h
   // enclosing extent — read-only to user code, but the runtime writes it here
   // exactly as index.ts does.)
   const app = build(`App [ View [ x = 10, y = 10, width = 40, height = 20 ] ]`);
-  app.attach(mockBackend([]), null);           // installs App.bindExtent (host-tracking derive)
+  app.$attach(mockBackend([]), null);           // installs App.bindExtent (host-tracking derive)
   app.hostWidth = 500; app.hostHeight = 360;
   settle();
   assert.equal(app.width, 500, "unset width follows hostWidth, not content (50)");
@@ -411,7 +438,7 @@ await test("App fills its host by default: unset width/height follow hostWidth/h
 
   // An explicit size still wins — the derive is skipped for a set slot.
   const fixed = build(`App [ width = 480, height = 320, View [ width = 40 ] ]`);
-  fixed.attach(mockBackend([]), null);
+  fixed.$attach(mockBackend([]), null);
   fixed.hostWidth = 500; fixed.hostHeight = 500;
   settle();
   assert.equal(fixed.width, 480, "an explicit width overrides the host default");
@@ -420,7 +447,7 @@ await test("App fills its host by default: unset width/height follow hostWidth/h
 
 await test("App minWidth/minHeight floor the auto-extent; the host can go narrower, the app holds", () => {
   const app = build(`App [ minWidth = 600, minHeight = 400 ]`);
-  app.attach(mockBackend([]), null);
+  app.$attach(mockBackend([]), null);
   app.hostWidth = 900; app.hostHeight = 700;    // roomy host: floors are moot
   settle();
   assert.equal(app.width, 900, "above the floor, width follows the host");
@@ -753,7 +780,7 @@ function mockBackend(log) {
 await test("a view without a draw method never records (pay-per-use)", () => {
   const log = [];
   const v = new View();
-  v.attach(mockBackend(log), null);
+  v.$attach(mockBackend(log), null);
   assert.ok(log.some(([m]) => m === "setClip"), "clip state is part of the flush");
   assert.ok(!log.some(([m]) => m === "setDrawing"), "no draw method → no recording");
   assert.ok(!log.some(([m]) => m === "setText"), "no text on a plain view");
@@ -768,7 +795,7 @@ await test("a draw method records at attach; invalidateDraw re-records", () => {
     d.fillStyle = "#0f0";
     d.fillRect(0, 0, 8, 4);
   };
-  v.attach(mockBackend(log), null);
+  v.$attach(mockBackend(log), null);
   const pushes = () => log.filter(([m]) => m === "setDrawing");
   assert.equal(runs, 1, "draw runs on attach (invalidation), not per frame");
   assert.equal(pushes().length, 1);
@@ -895,7 +922,7 @@ await test("writes are equality-gated: re-producing a value stops the cascade", 
   const app = build(`App [ width=100, height=60,
     View [ height=40, width={ globalThis.__re++, this.height * 2 } ] ]`);
   const log = [];
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   settle();
   const evals = globalThis.__re;
   log.length = 0;
@@ -908,7 +935,7 @@ await test("writes are equality-gated: re-producing a value stops the cascade", 
 await test("a live attribute pushes exactly its own Surface call", () => {
   const app = build("App [ width=100, height=60, View [ x=1, y=2 ] ]");
   const log = [];
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   settle();
   log.length = 0;
   app.children[0].x = 33;
@@ -938,7 +965,7 @@ await test("a constraint cycle is detected and named, not spun forever", () => {
 await test("percent lengths re-resolve reactively when the parent resizes", () => {
   const app = build("App [ width=200, height=80, View [ width=50%, height=25% ] ]");
   const log = [];
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   settle();
   log.length = 0;
   app.width = 300;
@@ -953,7 +980,7 @@ await test("a draw body re-records when an attribute it read changes — after v
   const v = app.children[0];
   v.draw = function (d) { d.fillRect(0, 0, this.width, this.height); };
   const log = [];
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   settle();
   log.length = 0;
   app.width = 140; // → v.width 100 → the recording is stale
@@ -1139,7 +1166,7 @@ await test("element-typed arrays (`Window[]`) and the literal-tag createView", a
   // only the WRITTEN-type grammar had to admit the spelling (same story as
   // function types). And createView's tag is a string literal at nearly every
   // call site, with the class table in the scaffold's hands — so the return is
-  // the class the tag names, and `child = createView("Menu", …)` needs no cast.
+  // the class the tag names, and `child = createView("Popover", …)` needs no cast.
   const ok = async (src) => { const r = await compile(src, {}); assert.ok(r.source, (r.errors?.[0]?.rawMessage) ?? "expected it to compile"); };
   const errs = async (src) => {
     try { const r = await compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
@@ -1153,13 +1180,13 @@ await test("element-typed arrays (`Window[]`) and the literal-tag createView", a
   assert.match(await errs(W + `App [ width=1, height=1, n: number = 0, f(ws: Window[]) { for (const w of ws) this.n = w.dockSlott } ]`),
     /did you mean 'dockSlot'/);
   assert.match(await errs(`App [ width=1, height=1, f(xs: Nonsense[]) { } ]`), /unknown type 'Nonsense'/);
-  // adjacency is the grammar: `Menu[]` glued is a type; `Menu [ ]` spaced is a
+  // adjacency is the grammar: `Popover[]` glued is a type; `Popover [ ]` spaced is a
   // named CHILD with an empty body — both must keep working
-  await ok(`class Menu extends View [ n: number = 0 ]\nApp [ width=1, height=1, m: Menu [ ] ]`);
+  await ok(`class Popover extends View [ n: number = 0 ]\nApp [ width=1, height=1, m: Popover [ ] ]`);
 
   // createView: a literal tag returns that class; a dynamic tag honestly View
-  await ok(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", ({ })); this.n = m.shown ? 1 : 0 } ]`);
-  assert.match(await errs(`class Menu extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Menu", ({ })); this.n = m.showwn ? 1 : 0 } ]`),
+  await ok(`class Popover extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Popover", ({ })); this.n = m.shown ? 1 : 0 } ]`);
+  assert.match(await errs(`class Popover extends View [ shown: boolean = false ]\nApp [ width=1, height=1, n: number = 0, go() { const m = app.createView("Popover", ({ })); this.n = m.showwn ? 1 : 0 } ]`),
     /did you mean 'shown'/);
   await ok(`App [ width=1, height=1, k: string = "Text", go() { const v = app.createView(this.k, ({ })); v.x = 1 } ]`);
 });
@@ -1199,7 +1226,7 @@ await test("function types — `(id: string) -> void`, the type a method IS", as
     /expects a function \(id: string\) -> void, or null for none/);
 });
 
-await test("a signature type may be NULLABLE — `c: Menu?` — and TS narrowing does the rest", async () => {
+await test("a signature type may be NULLABLE — `c: Popover?` — and TS narrowing does the rest", async () => {
   // The measured problem this solves: a component SLOT is null-defaulted, so a
   // non-null parameter rejects it, and making every parameter nullable makes
   // every unchecked body read an error. Neither is right for all methods —
@@ -1210,22 +1237,22 @@ await test("a signature type may be NULLABLE — `c: Menu?` — and TS narrowing
     try { const r = await compile(src); return (r.errors ?? []).map((e) => e.message ?? String(e)).join("\n"); }
     catch (e) { return String(e?.message ?? e); }
   };
-  const M = `class Menu extends View [ shown: boolean = false, child: Menu = null, closeSelf() { } ]\n`;
+  const M = `class Popover extends View [ shown: boolean = false, child: Popover? = null, closeSelf() { } ]\n`;
 
-  await ok(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) -> boolean { return c != null && c.shown } ]`);
-  await ok(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) { if (c != null) c.closeSelf() } ]`);
-  await ok(M + `App [ width=1, height=1, m: Menu [ ], f() -> Menu? { return null } ]`);
+  await ok(M + `App [ width=1, height=1, m: Popover [ ], f(c: Popover?) -> boolean { return c != null && c.shown } ]`);
+  await ok(M + `App [ width=1, height=1, m: Popover [ ], f(c: Popover?) { if (c != null) c.closeSelf() } ]`);
+  await ok(M + `App [ width=1, height=1, m: Popover [ ], f() -> Popover? { return null } ]`);
   // a nullable slot reaches a nullable parameter…
-  await ok(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) { if (c != null) c.closeSelf() }, go() { this.f(this.m.child) } ]`);
+  await ok(M + `App [ width=1, height=1, m: Popover [ ], f(c: Popover?) { if (c != null) c.closeSelf() }, go() { this.f(this.m.child) } ]`);
   // …but not a non-null one: the caller must guarantee it
-  assert.match(await errs(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu) { c.closeSelf() }, go() { this.f(this.m.child) } ]`),
+  assert.match(await errs(M + `App [ width=1, height=1, m: Popover [ ], f(c: Popover) { c.closeSelf() }, go() { this.f(this.m.child) } ]`),
     /not assignable/);
   // an unchecked read of a nullable value names BOTH repairs
-  assert.match(await errs(M + `App [ width=1, height=1, m: Menu [ ], f(c: Menu?) { c.closeSelf() } ]`),
-    /'c' may be absent here — check it .*or drop the '\?' from its type/);
+  assert.match(await errs(M + `App [ width=1, height=1, m: Popover [ ], f(c: Popover?) { c.closeSelf() } ]`),
+    /'c' may be absent here — check it .*declare its type without '\?'/);
 });
 
-await test("a declared attribute may be typed by a COMPONENT CLASS", async () => {
+await test("a declared attribute may be typed by a CLASS", async () => {
   // The irregularity this closes: the `component` AttrType and its coercion
   // already existed for built-in slots (`layout: Layout`), but a DECLARATION
   // could name only `View`. A slot could therefore never say what it held, and
@@ -1237,20 +1264,23 @@ await test("a declared attribute may be typed by a COMPONENT CLASS", async () =>
   };
   const no = async (src, re) => assert.match(await errs(src), re);
 
-  await ok(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null ]`);
-  await ok(`App [ width=1, height=1, m: Text = null ]`);                       // built-in class too
+  await ok(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W? = null ]`);
+  await ok(`App [ width=1, height=1, m: Text? = null ]`);                       // built-in class too
   // self- and forward references: a component AttrType stores only the NAME,
   // so no schema need exist yet (the submenu-chain shape).
-  await ok(`class Menu extends View [ child: Menu = null, n: number = 0 ]\nApp [ width=1, height=1, m: Menu [ ] ]`);
-  await ok(`class A extends View [ b: B = null ]\nclass B extends View [ n: number = 0 ]\nApp [ width=1, height=1, a: A [ ] ]`);
+  await ok(`class Popover extends View [ child: Popover? = null, n: number = 0 ]\nApp [ width=1, height=1, m: Popover [ ] ]`);
+  await ok(`class A extends View [ b: B? = null ]\nclass B extends View [ n: number = 0 ]\nApp [ width=1, height=1, a: A [ ] ]`);
   // it maps to the SAME TS class every other reference does — members resolve,
   // typos are caught, and a foreign class is rejected.
-  await ok(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null, t: Text [ text = { app.w != null ? app.w.tag : "" } ] ]`);
-  await no(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null, t: Text [ text = { app.w != null ? app.w.tagg : "" } ] ]`,
+  await ok(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W? = null, t: Text [ text = { app.w != null ? app.w.tag : "" } ] ]`);
+  await no(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W? = null, t: Text [ text = { app.w != null ? app.w.tagg : "" } ] ]`,
      /'tagg' is not a member of W/);
-  await no(`class W extends View [ tag: string = "" ]\nclass Z extends View [ zed: number = 0 ]\nApp [ width=1, height=1, w: W = null, z: Z = null, go() { this.w = this.z } ]`,
+  await no(`class W extends View [ tag: string = "" ]\nclass Z extends View [ zed: number = 0 ]\nApp [ width=1, height=1, w: W? = null, z: Z? = null, go() { this.w = this.z } ]`,
      /not assignable/);
   await no(`App [ width=1, height=1, w: Nonsense = null ]`, /unknown type 'Nonsense'/);
+  // Nullability follows what is written: `W` is never empty, `W?` may be.
+  await no(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null ]`, /declared without '\?'.*'W\?'/);
+  await ok(`class W extends View [ tag: string = "" ]\nclass H extends View [ w: W, t: Text [ text = { classroot.w.tag } ] ]\nApp [ width=1, height=1, k: W [ ], h: H [ w = { app.k } ] ]`);
 });
 
 await test("scaffold: the Draw surface mirrors draw.ts — every member, no drift", async () => {
@@ -1428,13 +1458,13 @@ await test("a method may replace a runtime METHOD, not a runtime field (instanti
   // runtime installs an override of one of its own METHODS (a method is a
   // method; super reaches the runtime's) and refuses a name that is a FIELD
   // or a member of every object, like percent-on-root.
-  assert.deepEqual(check(parse("View [ surface() { } ]")), []);
+  assert.deepEqual(check(parse("View [ exposes() { } ]")), []);
   const app = build("App [ width=1, height=1, v: View [ hits: number = 0, scrollTo(y: number) { this.hits = this.hits + 1 } ] ]");
   app.v.scrollTo(10);
   assert.equal(app.v.hits, 1, "the declared scrollTo replaced the runtime's");
   assert.throws(
-    () => build("App [ width=1, height=1, View [ surface() { } ] ]"),
-    /View\.surface: 'surface' is a built-in field of the runtime View, not a method/
+    () => build("App [ width=1, height=1, View [ exposes() { } ] ]"),
+    /View\.exposes: 'exposes' is a built-in field of the runtime View, not a method/
   );
   assert.throws(
     () => build("App [ width=1, height=1, View [ toString() { } ] ]"),
@@ -1467,7 +1497,7 @@ await test("a view with a pointer handler gets an input sink; one without gets n
     })(),
     attachRoot: () => {},
   };
-  app.attach(backend, null);
+  app.$attach(backend, null);
   const sinks = logs.map((log) => log.some(([m]) => m === "setInput"));
   assert.deepEqual(sinks, [true, true, false, false],
     "the App is wired because it scrolls; among plain views only the pointer-handling one is (init alone does not make a view interactive)");
@@ -1485,7 +1515,7 @@ await test("a scroller takes the pointer with no handler of its own", () => {
     createSurface: (() => { let i = 0; return () => mockBackend(logs[i++]).createSurface(); })(),
     attachRoot: () => {},
   };
-  app.attach(backend, null);
+  app.$attach(backend, null);
   assert.deepEqual(logs.map((log) => log.some(([m]) => m === "setInput")), [true, true, false],
                    "the scrolling view is wired; its plain sibling is not");
 });
@@ -1496,7 +1526,7 @@ await test("dispatch: the sink calls the right handler with view-local {x,y}", (
     View [ onClick(e: PointerEvent) { globalThis.__ev.push(["click", e.x, e.y]); this.x = e.x },
            onPointerDown(e: PointerEvent) { globalThis.__ev.push(["down", e.x, e.y]) } ] ]`);
   const log = [];
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   // the App is wired too (it scrolls), so the CHILD's sink is the later one
   const childSink = log.filter(([m]) => m === "setInput").at(-1)[1];
   childSink("pointerDown", 7, 8);
@@ -1715,7 +1745,7 @@ await test("raw touch: a view declaring the family gets the finger list, ids sta
 await test("draw(d) { … } — the language surface — rides the recorded-draw machinery", () => {
   const app = build("App [ width=100, height=60, View [ width=8, height=10, draw(d: Draw) { d.fillRect(0, 0, this.width, 5) } ] ]");
   const log = [];
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   settle();
   const pushes = () => log.filter(([m]) => m === "setDrawing");
   assert.equal(pushes().length, 1, "recorded once at attach");
@@ -1776,7 +1806,7 @@ await test("datapath = { d.value.<branch> } still resolves through the tracked v
 await test("a code block's scroller carries its bottom padding — the scrollbar sits there, the height never changes", () => {
   const mk = (line) => {
     const app = build(`App [ width = 300, height = 200, md: Markdown [ x = 10, y = 10, width = 260 ] ]`);
-    app.attach(new CanvasBackend(), null);   // blocks build only against a surface (render() needs one)
+    app.$attach(new CanvasBackend(), null);   // blocks build only against a surface (render() needs one)
     app.md.text = "\`\`\`\n" + line + "\n\`\`\`";
     settle();
     let hit = null;
@@ -2036,6 +2066,104 @@ await test("3.2: settleMotion waits for transitions, not for life (perpetual tic
       assert.equal(clock.settling, false, "the spring's transition settled");
       assert.equal(clock.busy, true, "…while the Time keeps the clock alive");
       assert.ok(steps < 600, "settled by convergence, not by cap");
+    } finally { app.discard(); }
+  } finally { setClock(new Clock()); }
+});
+
+await test("exists = { … }: a child built while true, discarded while false, in its declared place", () => {
+  const app = build(`App [ width = 100, height = 100, on: boolean = false,
+    h: number = { 10 + (this.col.b?.height ?? 0) },
+    col: View [ width = 100,
+      a: View [ width = 10, height = 10 ],
+      b: View [ width = 10, height = 20, exists = { parent.parent.on } ],
+      c: View [ width = 10, height = 10 ] ] ]`);
+  try {
+    settle();
+    assert.equal(app.col.b, undefined, "absent while false");
+    assert.equal(app.h, 10, "a reader sees it absent");
+    app.on = true;
+    settle();
+    assert.equal(app.h, 30, "the reader hears it arrive");
+    const kids = app.col.children;
+    assert.ok(app.col.b !== undefined, "built when true");
+    assert.ok(kids.indexOf(app.col.a) < kids.indexOf(app.col.b) && kids.indexOf(app.col.b) < kids.indexOf(app.col.c), "in its declared place: between a and c");
+    app.on = false;
+    settle();
+    assert.equal(app.col.b, undefined, "discarded when false again");
+    assert.equal(app.h, 10, "and hears it leave");
+  } finally { app.discard(); }
+});
+
+await test("exists on a member that is not a view: built, initialised and started while true, discarded while false", () => {
+  const app = build(`App [ width = 100, height = 100, on: boolean = false, inits: number = 0, level: number = 0,
+    probe: Node [ exists = { parent.on }, onInit() { this.parent.inits = this.parent.inits + 1 } ],
+    lift: Spring [ exists = { this.parent.on }, attribute = level, to = 5 ] ]`);
+  try {
+    settle();
+    assert.equal(app.probe, undefined, "absent while false");
+    app.on = true;
+    settle();
+    assert.ok(app.probe !== undefined && app.lift !== undefined, "built when true — no refusal for a non-view");
+    assert.equal(app.inits, 1, "its init fired");
+    assert.equal(app.level, 5, "a Spring built late is primed like one built at boot: its first target lands outright");
+    app.on = false;
+    settle();
+    assert.equal(app.probe, undefined, "discarded when false again");
+  } finally { app.discard(); }
+});
+
+await test("exists: a named child that may be absent is typed so — its reader must check", async () => {
+  const bad = await compile(`App [ width = 100, height = 100, on: boolean = false,
+    b: View [ width = 10, height = 20, exists = { app.on } ],
+    t: Text [ text = { "" + app.b.height } ] ]`);
+  assert.match(bad.errors.map((e) => e.message).join("\\n"), /possibly 'null'|may be absent/);
+  const good = await compile(`App [ width = 100, height = 100, on: boolean = false,
+    b: View [ width = 10, height = 20, exists = { app.on } ],
+    t: Text [ text = { "" + (app.b?.height ?? 0) } ] ]`);
+  assert.deepEqual(good.errors.map((e) => e.message), []);
+});
+
+await test("defaultplacement: a subclass's and a use site's children go into the child the class names", () => {
+  const app = build(`class Sheet [ width = 200, height = 200, defaultplacement = body,
+      head: View [ width = 200, height = 20 ],
+      body: View [ y = 20, width = 200, height = 180 ] ]
+    class DetailSheet extends Sheet [ figs: View [ width = 10, height = 10 ], acts: View [ width = 10, height = 10 ] ]
+    App [ width = 300, height = 300, d: DetailSheet [ extra: View [ width = 10, height = 10 ] ] ]`);
+  try {
+    settle();
+    const d = app.d;
+    assert.deepEqual(d.children.map((c) => c === d.head ? "head" : c === d.body ? "body" : "?"), ["head", "body"], "the class's own children stay where they are");
+    assert.deepEqual(d.body.children.map((c) => c === d.figs ? "figs" : c === d.acts ? "acts" : c === d.extra ? "extra" : "?"), ["figs", "acts", "extra"], "later sources land in body, in order");
+    assert.equal(d.figs.parent, d.body, "a placed child's parent is the placement");
+    assert.equal(d.body.figs, d.figs, "…and it is a member of both");
+  } finally { app.discard(); }
+});
+
+await test("defaultplacement: the checker names a missing child, and a use of it outside a class", () => {
+  assert.match(check(parseProgram(`class Sheet [ defaultplacement = bodie, body: View [ ] ]\nApp [ ]`)).map((e) => e.message).join("\\n"), /declares no child named 'bodie'/);
+  assert.match(check(parseProgram(`App [ v: View [ defaultplacement = x, x: View [ ] ] ]`)).map((e) => e.message).join("\\n"), /defaultplacement belongs on a class/);
+});
+
+await test("Spring.arrive(): the next target is taken outright; a later change still travels", () => {
+  const clock = new Clock({ now: () => tNow, request: (cb) => { pending = cb; return 1; }, cancel: () => { pending = null; } });
+  let tNow = 0; let pending = null;
+  setClock(clock);
+  try {
+    const app = build(`App [ width = 100, height = 100,
+      count: number = 0,
+      shown: number = 0,
+      tally: Spring [ attribute = shown, to = { parent.count }, stiffness = 140, damping = 22 ],
+      land(n: number) { this.tally.arrive(); this.count = n },
+    ]`);
+    try {
+      app.land(50);
+      settle();
+      assert.equal(app.shown, 50, "the arriving value appears — no count-up from 0");
+      // the arming expires within a frame; a genuine change then travels
+      tNow += 16.7; { const cb = pending; pending = null; if (cb) cb(tNow); }
+      app.count = 80;
+      settle();
+      assert.ok(app.shown < 80, `a later change travels (shown ${app.shown})`);
     } finally { app.discard(); }
   } finally { setClock(new Clock()); }
 });
@@ -2325,6 +2453,9 @@ await test("align = baseline: the checker refuses a stack, and a laid child that
   // …and the two ways a child answers: a use-site declaration, or leaving the arrangement
   const decl = await compile(`App [ width = 100, height = 100, r: View [ layout: SimpleLayout [ axis = x, align = baseline ], Text [ text = "a" ], box: View [ width = 10, height = 10, baseline: number = 8 ] ] ]`, {});
   assert.equal(decl.errors.length, 0, decl.errors.map((e) => e.message).join("; "));
+  // a Spacer is a flow-axis thing: never aligned, so a baseline row asks it for nothing
+  const spaced = await compile(`App [ width = 100, height = 100, r: View [ width = 100, layout: SimpleLayout [ axis = x, align = baseline ], Text [ text = "a" ], Spacer [ ], Text [ fontSize = 20, text = "b" ] ] ]`, {});
+  assert.equal(spaced.errors.length, 0, spaced.errors.map((e) => e.message).join("; "));
   const out = await compile(`App [ width = 100, height = 100, r: View [ layout: SimpleLayout [ axis = x, align = baseline ], Text [ text = "a" ], box: View [ width = 10, height = 10, ignoreLayout = true ] ] ]`, {});
   assert.equal(out.errors.length, 0, out.errors.map((e) => e.message).join("; "));
 });
@@ -2416,7 +2547,7 @@ await test("declaration order is the author's business — decls after the App, 
 await test("check() validates class declarations, every error positioned", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
   assert.match(errs("class A extends Widget [ ]\nApp [ width=1 ]")[0], /unknown base 'Widget'.*line 1, col 17/s);
-  assert.match(errs("class View extends View [ ]\nApp [ width=1 ]")[0], /already a class named 'View'/);
+  assert.match(errs("class View extends View [ ]\nApp [ width=1 ]")[0], /'View' is a built-in class — a class of the program can't take its name/);
   assert.match(errs("class A extends View [ x: number = 1 ]\nApp [ width=1 ]")[0],
     /View already has an attribute 'x' — a declaration introduces a new one/);
   assert.match(errs("class A extends View [ k: Widget ]\nApp [ width=1 ]")[0],
@@ -2567,17 +2698,17 @@ await test("named children are members: real properties, on the parent, collisio
   assert.equal(app.box.cap, app.box.children[0], "the name lives on the child's parent");
   assert.equal(app.cap, undefined);
   assert.throws(
-    () => build("App [ width=1, height=1, surface: View [ ] ]"),
-    /'surface' is a member of the running App \(the runtime's own\)/,
+    () => build("App [ width=1, height=1, travelHost: View [ ] ]"),
+    /'travelHost' is a member of the running App \(the runtime's own\)/,
     "refused in the source (the instantiate backstop still stands for a direct instantiate)"
   );
 });
 
 await test("a declared attribute may not shadow a runtime built-in (instantiation-context fact)", () => {
-  const src = "class Bad extends View [ surface: number = 1 ]\nApp [ width=1, height=1, Bad [ ] ]";
+  const src = "class Bad extends View [ exposes: number = 1 ]\nApp [ width=1, height=1, Bad [ ] ]";
   const errs = check(parseProgram(src));
   assert.equal(errs.length, 1, "refused in the source, from the pinned runtime tables (the checker stays runtime-free)");
-  assert.match(errs[0].message, /'surface' is a member of the running View \(the runtime's own\) — a declared attribute cannot take its name/);
+  assert.match(errs[0].message, /'exposes' is a member of the running View \(the runtime's own\) — a declared attribute cannot take its name/);
 });
 
 await test("class methods and handlers: per-instance, extraction-safe, overridable at the use site", () => {
@@ -2771,10 +2902,10 @@ App [ width=1, height=1, a: Tally [ ], b: Tally [ count = 5 ] ]`));
 // ── auto-include: a bare component tag pulls its library (composition.md §1a) ─
 
 await test("compile(): a bare component tag auto-includes its library — no include, no inline class", async () => {
-  const r = await compile(`App [ width = 360, height = 80, Bar [ x = 20, y = 20, width = 300, value = 62 ] ]`);
-  assert.equal(r.errors.length, 0, "Bar resolves from the bundled library (library/autoincludes.json)");
+  const r = await compile(`App [ width = 360, height = 80, Gauge [ x = 20, y = 20, width = 300, value = 62 ] ]`);
+  assert.equal(r.errors.length, 0, "Gauge resolves from the bundled library (library/autoincludes.json)");
   assert.ok(r.source, "compiled to a self-contained source");
-  assert.match(r.source, /class Bar \[/, "the library's source is spliced into the merged program");
+  assert.match(r.source, /class Gauge \[/, "the library's source is spliced into the merged program");
   assert.doesNotThrow(() => { const app = build(r.source); settle(); void app; }, "the merged source is hostless and instantiates");
 });
 
@@ -2787,14 +2918,14 @@ await test("compile(): a tag absent from the manifest stays a genuine unknown-co
 await test("compile(): a program with no magic tags splices nothing (auto-include is a no-op)", async () => {
   const out = (await compile(`App [ width = 8, height = 8, Text [ text = "hi" ] ]`)).source;
   assert.ok(out);
-  assert.doesNotMatch(out, /class Bar/, "nothing is auto-included when nothing references a magic tag");
+  assert.doesNotMatch(out, /class Gauge/, "nothing is auto-included when nothing references a magic tag");
 });
 
 await test("compileTracked(): the closure captures the auto-included library + manifest; isUpToDate detects change", async () => {
-  const r = await compileTracked(`App [ width = 40, height = 40, Bar [ width = 30, value = 50 ] ]`, { props: { render: "dom" } });
+  const r = await compileTracked(`App [ width = 40, height = 40, Gauge [ width = 30, value = 50 ] ]`, { props: { render: "dom" } });
   assert.ok(r.source, "compiled");
   const ids = r.closure.entries.map((e) => e.id);
-  assert.ok(ids.some((i) => i.endsWith("/library/bar.declare")), "the auto-included Bar library is a tracked dependency");
+  assert.ok(ids.some((i) => i.endsWith("/library/gauge.declare")), "the auto-included Gauge library is a tracked dependency");
   assert.ok(ids.some((i) => i.endsWith("/library/autoincludes.json")), "the manifest is a tracked dependency");
   assert.equal(isUpToDate(r.closure, { render: "dom" }, diskProbe), true, "unchanged → fresh");
   assert.equal(isUpToDate(r.closure, { render: "canvas" }, diskProbe), false, "a compiler-prop change → stale");
@@ -2921,6 +3052,26 @@ await test("a child's size change re-flows exactly the children after it", async
 });
 
 await test("re-layout: ONE pass per change, equality-gated fan-out; a no-op write wakes nothing", async () => {
+  // the JavaScript pass itself (the kernel's stack places this case natively — below)
+  globalThis.__DECLARE_DEV_SWITCHES__ = true; globalThis.__declareNoNativeLayout = true;
+  try { await onePass(); } finally { delete globalThis.__declareNoNativeLayout; delete globalThis.__DECLARE_DEV_SWITCHES__; }
+});
+await test("the kernel's stack places the same positions, wakes nothing on a no-op, and runs no place() at all", async () => {
+  const app = await buildL(`App [ width=100, height=200,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    View [ width=10, height=10 ], View [ width=10, height=10 ],
+    View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
+  settle();
+  assert.equal(app.layout.$native, true, "an unmodified, unaligned, unflexed SimpleLayout is the kernel's");
+  app.children[1].height = 25; settle();
+  assert.deepEqual(app.children.map((c) => c.y), [0, 12, 39, 51]);
+  app.children[1].visible = false; settle();
+  assert.deepEqual(app.children.map((c) => c.y), [0, 12, 12, 24], "a hidden child keeps its slot's place and gives back its room");
+  app.layout.spacing = 5; settle();
+  assert.deepEqual(app.children.map((c) => c.y), [0, 15, 15, 30], "spacing is live");
+  app.discard();
+});
+async function onePass() {
   const app = await buildL(`App [ width=100, height=200,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     View [ width=10, height=10 ], View [ width=10, height=10 ],
@@ -2939,14 +3090,42 @@ await test("re-layout: ONE pass per change, equality-gated fan-out; a no-op writ
     get() { reads++; return desc.get.call(this); },
     set(v) { desc.set.call(this, v); },
   });
-  app.children[1].height = 25; // arrange pass + shape watcher; [2] and [3] move
+  app.children[1].height = 25; // the arrange pass; [2] and [3] move
   settle();
-  assert.equal(reads, 8, "two place() runs — the arrange pass and the shape watcher");
+  assert.equal(reads, 4, "one place() run — the arrange pass; the shape watcher reads only what decides the shape, and a height is not that");
   assert.deepEqual(app.children.map((c) => c.y), [0, 12, 39, 51]);
   reads = 0;
   app.children[0].height = 10; // unchanged value: equality-gated at the slot
   settle();
   assert.equal(reads, 0, "a no-op write wakes nothing — not even the pass");
+  assert.equal(app.layout.$native, false);
+}
+
+await test("an unmodified SimpleLayout's shape, read from its inputs, is the shape its place() returns", async () => {
+  const sig = (boxes) => boxes.map((b) => ["x", "y", "w", "h", "vis"].filter((k) => b[k] !== undefined).join()).join("|");
+  for (const axis of ["x", "y"]) for (const align of ["none", "start", "center", "end", "baseline"]) {
+    if (align === "baseline" && axis === "y") continue;      // a stack has no baseline line (refused at compile time)
+    const b = align === "baseline" ? ", baseline: number = 8" : "";
+    const app = await buildL(`App [ width=300, height=300,
+      layout: SimpleLayout [ axis = ${axis}, align = ${align}, spacing = 3 ],
+      View [ width=10, height=10${b} ], Spacer [ ], View [ width=10, height=20, visible = false${b} ],
+      Spacer [ visible = false ], View [ width=10, height=10, flexes: boolean = true${b} ], View [ width=12, height=8, flexes: boolean = false${b} ] ]`);
+    settle();
+    const L = app.layout;
+    assert.equal(L.$canon, "simple", "the library's SimpleLayout with attribute values only is canonical");
+    assert.equal(L.$shapeSignature(), sig(L.place()), `axis ${axis}, align ${align}`);
+    app.children[2].visible = true; app.children[3].visible = true; settle();
+    assert.equal(L.$shapeSignature(), sig(L.place()), `axis ${axis}, align ${align}, all shown`);
+    app.discard();
+  }
+  const custom = await buildL(`App [ width=300, height=300,
+    layout: Indented [ axis = y ],
+    View [ width=10, height=10 ] ]
+    class Indented extends SimpleLayout [ place() { return this.laid().map((c) => ({ x: 5 })) } ]`);
+  settle();
+  assert.equal(custom.layout.$canon, null, "a subclass runs as written");
+  assert.equal(custom.children[0].x, 5);
+  custom.discard();
 });
 
 await test("invisible children are skipped and their space reclaimed; re-showing restores it", async () => {
@@ -3166,7 +3345,7 @@ await test("a laid tree pushes positions across the seam like any other write", 
     layout: SimpleLayout [ axis = y ],
     View [ width=10, height=10 ], View [ width=10, height=10 ] ]`);
   const log = [];
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   settle();
   log.length = 0;
   app.children[0].height = 30;
@@ -3997,8 +4176,8 @@ await test("replication: surfaces mirror the reconciled order (canvas, Node-safe
     ],
   ]`);
   const backend = new CanvasBackend();
-  app.attach(backend, null);
-  const order = () => app.list.surface.children.map((s) => s.width);
+  app.$attach(backend, null);
+  const order = () => app.list.$surface.children.map((s) => s.width);
   assert.deepEqual(order(), [1, 2, 3, 9]);
   app.d.move(["rows"], 2, 0);
   settle();
@@ -4096,7 +4275,7 @@ await test("compile(): :paths lower to emitted plans (data-paths.md §5); resolu
 
 const attachedExtent = async (source) => {
   const app = await buildL(source);
-  app.attach(mockBackend([]), null);
+  app.$attach(mockBackend([]), null);
   settle(); // the microtask wave that runs ahead of first paint
   return app;
 };
@@ -4213,14 +4392,14 @@ await test("auto-extent: contentExtent folds intrinsic content into the max", ()
   child.width = 30;
   child.height = 40;
   v.appendChild(child);
-  v.attach(mockBackend([]), null);
+  v.$attach(mockBackend([]), null);
   assert.equal(v.width, 100, "intrinsic content wins where wider");
   assert.equal(v.height, 40, "children win where taller");
 });
 
 await test("auto-extent: childrenMutated re-derives — and installs lazily", () => {
   const p = new View();
-  p.attach(mockBackend([]), null);
+  p.$attach(mockBackend([]), null);
   assert.equal(p.width, 0, "a childless view carries no derive (pay-per-use)");
   const kid = new View();
   kid.width = 42;
@@ -4266,9 +4445,9 @@ await test("readonly: setting a computed intrinsic is a compile error", () => {
 
 await test("readonly: a user-declared computed attribute reads, and refuses writes", async () => {
   const app = await attachedExtent(`
-    class Gauge extends View [ value: number = 30, max: number = 100,
+    class Level extends View [ value: number = 30, max: number = 100,
       readonly percent: number = { classroot.value / classroot.max } ]
-    App [ width=200, height=100, g: Gauge [ value = 40 ] ]`);
+    App [ width=200, height=100, g: Level [ value = 40 ] ]`);
   assert.equal(app.g.percent, 0.4, "percent computes from its declaration");
   app.g.value = 80;
   settle();
@@ -4278,9 +4457,9 @@ await test("readonly: a user-declared computed attribute reads, and refuses writ
 
 await test("readonly: assigning a user readonly attribute is a compile error", () => {
   const errs = check(parseProgram(`
-    class Gauge extends View [ value: number = 30, max: number = 100,
+    class Level extends View [ value: number = 30, max: number = 100,
       readonly percent: number = { classroot.value / classroot.max } ]
-    App [ g: Gauge [ percent = 0.5 ] ]`));
+    App [ g: Level [ percent = 0.5 ] ]`));
   assert.ok(errs.some((e) => /read-only/.test(e.message)), "setting percent is refused");
 });
 
@@ -4307,7 +4486,7 @@ await test("Text renders through the effective style: the style derive follows a
   // re-provides, and every reading run re-styles in one settle.
   const app = build(`App [ fs: number = 9, fontSize = { this.fs }, textColor = #FFFFFF,
     t: Text [ text = "hi", width = 10, height = 10 ] ]`);
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   const styles = () => log.filter(([m]) => m === "setTextStyle").map(([, v]) => v);
   assert.equal(styles().at(-1).fontSize, 9, "the initial push carries the effective value");
   assert.equal(styles().at(-1).color, 0xffffff);
@@ -4506,7 +4685,7 @@ await test("gradient/stop are reserved member names (unreachable in call positio
 await test("flush pushes decoration pay-per-use; pushers carry post-attach changes", () => {
   const log = [];
   const plain = build("App [ width=10, height=10, fill=#EAEAEA ]");
-  plain.attach(mockBackend(log), null);
+  plain.$attach(mockBackend(log), null);
   assert.ok(log.some(([m, v]) => m === "setFill" && v === 0xeaeaea), "fill crossed the seam");
   assert.ok(!log.some(([m]) => m === "setCornerRadius" || m === "setStroke" || m === "setShadow"),
     "an undecorated box pushes nothing extra");
@@ -4514,7 +4693,7 @@ await test("flush pushes decoration pay-per-use; pushers carry post-attach chang
   assert.deepEqual(log.at(-1), ["setCornerRadius", 4], "the pusher carries a late set");
   const log2 = [];
   const fancy = build("App [ width=10, height=10, cornerRadius=6, stroke=stroke(1, #E2E2E2), shadow=shadow(0,1,2,#00000044) ]");
-  fancy.attach(mockBackend(log2), null);
+  fancy.$attach(mockBackend(log2), null);
   assert.ok(log2.some(([m, v]) => m === "setCornerRadius" && v === 6));
   assert.ok(log2.some(([m, v]) => m === "setStroke" && v.width === 1));
   assert.ok(log2.some(([m, v]) => m === "setShadow" && v.blur === 2));
@@ -4525,7 +4704,7 @@ await test("flush pushes decoration pay-per-use; pushers carry post-attach chang
 await test("cornerRadius = [tl, tr, br, bl]: the list crosses the seam whole, frozen", () => {
   const log = [];
   const app = build("App [ width=10, height=10, cornerRadius = [8, 8, 0, 0] ]");
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   assert.deepEqual(app.cornerRadius, [8, 8, 0, 0], "the slot holds the four corners");
   assert.ok(Object.isFrozen(app.cornerRadius), "a bare literal is set once");
   assert.ok(log.some(([m, v]) => m === "setCornerRadius" && Array.isArray(v) && v.join() === "8,8,0,0"),
@@ -4611,7 +4790,7 @@ await test("font: a Font in a family slot names its family — a system font's, 
   // is what rewrites `app` to this.root).
   const app = build(`App [ fontFamily = { [this.body, "sans-serif"] },
     body: Font [ family = "Helvetica, Arial" ],
-    title: Font [ Face [ src = "https://example.com/arimo-700.woff2", weight = bold ] ],
+    title: Font [ FontFace [ src = "https://example.com/arimo-700.woff2", weight = bold ] ],
     t: Text [ text = "hi", fontFamily = { this.parent.title } ] ]`);
   app.body.start(); app.title.start();
   settle();
@@ -4626,12 +4805,12 @@ await test("font: a Font in a family slot names its family — a system font's, 
   assert.equal(build(`App [ fontFamily = ["Helvetica Neue", "sans-serif"] ]`).$provides.fontFamily, "Helvetica Neue, sans-serif");
 });
 
-await test("font: a Face's literals — a url()/local() list, weight numbers and range(lo, hi) — become the CSS a face registers with", async () => {
+await test("font: a FontFace's literals — a url()/local() list, weight numbers and range(lo, hi) — become the CSS a face registers with", async () => {
   const { faceSourceCss, faceWeightDescriptor } = await import("../runtime/dist/face-literal.js");
   const app = build(`App [ f: Font [
-    a: Face [ src = [local("Work Sans Bold"), "ws.woff2"], weight = bold ],
-    b: Face [ src = url("b.woff2"), weight = 350, italic = true ],
-    c: Face [ src = "vari.woff2", weight = range(100, 900) ] ] ]`);
+    a: FontFace [ src = [local("Work Sans Bold"), "ws.woff2"], weight = bold ],
+    b: FontFace [ src = url("b.woff2"), weight = 350, italic = true ],
+    c: FontFace [ src = "vari.woff2", weight = range(100, 900) ] ] ]`);
   const same = (u) => u;
   assert.equal(faceSourceCss(app.f.a.src, same), `local("Work Sans Bold"), url("ws.woff2")`, "local() names an installed face; a list tries each");
   assert.equal(faceSourceCss(app.f.b.src, same), `url("b.woff2")`);
@@ -4640,7 +4819,7 @@ await test("font: a Face's literals — a url()/local() list, weight numbers and
   assert.equal(app.f.b.italic, true);
 });
 
-await test("numeric font weights: fontWeight = 350 beside the keywords; a Face takes a number or range(lo, hi)", async () => {
+await test("numeric font weights: fontWeight = 350 beside the keywords; a FontFace takes a number or range(lo, hi)", async () => {
   const { cssWeight } = await import("../runtime/dist/measure.js");
   const app = build(`App [ fontWeight = 350,
     a: Text [ text = "a" ],
@@ -4652,20 +4831,20 @@ await test("numeric font weights: fontWeight = 350 beside the keywords; a Face t
   assert.equal(cssWeight(app.c.fontWeight), "650", "a bound number rides the same slot");
   for (const [src, re] of [
     ["Text [ fontWeight = 1200 ]", /a FontWeight \(one of .*, or a number 1–1000\)/],
-    ["App [ f: Font [ Face [ src = \"f.woff2\", weight = 1200 ] ] ]", /a numeric weight is a whole number 1–1000/],
-    ["App [ f: Font [ Face [ src = \"f.woff2\", weight = range(900, 100) ] ] ]", /lo < hi/],
-    ["App [ f: Font [ Face [ src = \"f.woff2\", weight = \"bold\" ] ] ]", /a Face weight is a token/],
+    ["App [ f: Font [ FontFace [ src = \"f.woff2\", weight = 1200 ] ] ]", /a numeric weight is a whole number 1–1000/],
+    ["App [ f: Font [ FontFace [ src = \"f.woff2\", weight = range(900, 100) ] ] ]", /lo < hi/],
+    ["App [ f: Font [ FontFace [ src = \"f.woff2\", weight = \"bold\" ] ] ]", /a FontFace weight is a token/],
   ]) assert.throws(() => build(src), re, src);
 });
 
-await test("font: a font's shape is checked — Face placement and children, family vs faces, sources, the retired declaration", () => {
+await test("font: a font's shape is checked — FontFace placement and children, family vs faces, sources, the retired declaration", () => {
   const errs = (src) => check(parseProgram(src)).map((e) => e.message);
-  assert.match(errs(`App [ f: Font [ Face [ src = "x.woff2", weight = heavy ] ] ]`)[0], /'heavy' is not a weight — a token .*, a number 1–1000, or range/);
-  assert.match(errs(`App [ f: Font [ Face [ weight = bold ] ] ]`)[0], /a Face needs a src/);
-  assert.match(errs(`App [ f: Font [ Text [ text = "x" ] ] ]`)[0], /a Font holds Face children only — not 'Text'/);
-  assert.match(errs(`App [ Face [ src = "x.woff2" ] ]`)[0], /a Face belongs inside a Font/);
-  assert.match(errs(`App [ f: Font [ family = "X", Face [ src = "x.woff2" ] ] ]`)[0], /'family' names a system font/);
-  assert.match(errs(`App [ f: Font [ Face [ src = 12 ] ] ]`)[0], /a face source is a URL string/);
+  assert.match(errs(`App [ f: Font [ FontFace [ src = "x.woff2", weight = heavy ] ] ]`)[0], /'heavy' is not a weight — a token .*, a number 1–1000, or range/);
+  assert.match(errs(`App [ f: Font [ FontFace [ weight = bold ] ] ]`)[0], /a FontFace needs a src/);
+  assert.match(errs(`App [ f: Font [ Text [ text = "x" ] ] ]`)[0], /a Font holds FontFace children only — not 'Text'/);
+  assert.match(errs(`App [ FontFace [ src = "x.woff2" ] ]`)[0], /a FontFace belongs inside a Font/);
+  assert.match(errs(`App [ f: Font [ family = "X", FontFace [ src = "x.woff2" ] ] ]`)[0], /'family' names a system font/);
+  assert.match(errs(`App [ f: Font [ FontFace [ src = 12 ] ] ]`)[0], /a face source is a URL string/);
   assert.match(errs(`font Body [ family = "Helvetica" ] App [ ]`)[0], /'font Body \[ … \]' is not a top-level declaration — .*body: Font \[ … \]/);
 });
 
@@ -4697,12 +4876,12 @@ await test("letterSpacing: a provided text value (px tracking), coerced as a num
 await test("binding defaults: a declared attribute may default to { provided(\"theme\").token } — live, per instance", async () => {
   // The theme is a PROVIDED value: the App provides it (a { } over a slot, so a
   // swap re-derives), a widget reads it. The default binding follows.
-  const app = build(await resolved(`class Button extends View [
+  const app = build(await resolved(`class Knob extends View [
     labelColor: Color = { provided("theme").buttonText },
   ]
 App [ th: Theme = { { buttonText: 0xEEEEEE } }, theme = { th },
-    a: Button [ ],
-    b: Button [ labelColor = #123456 ] ]`));
+    a: Knob [ ],
+    b: Knob [ labelColor = #123456 ] ]`));
   assert.equal(app.a.labelColor, 0xeeeeee, "the default binding reads the provided theme");
   assert.equal(app.b.labelColor, 0x123456, "an instance set displaces the default entirely");
   app.th = { buttonText: 0x111111 };   // swap the provided record
@@ -6240,11 +6419,11 @@ await test("compile() emit: a missing include still reports (file-named), no sou
 // ── States (docs/system-design/states.md): overrides, precedence, child subtree ───
 
 await test("state: a gated override applies and reverts to the base value", () => {
-  const app = build(`class Card extends View [ width = 80, height = 40, fill = #111111,
+  const app = build(`class Tile extends View [ width = 80, height = 40, fill = #111111,
       editing: boolean = false,
       grow: State [ applied = { parent.editing }, height = 200, fill = #222222 ],
     ]
-    App [ width = 100, height = 100, card: Card [] ]`);
+    App [ width = 100, height = 100, card: Tile [] ]`);
   const card = app.card;
   assert.equal(card.height, 40, "base height before apply");
   assert.equal(card.fill, 0x111111, "base fill before apply");
@@ -6355,12 +6534,12 @@ await test("state: a structural state attaches and destroys the child's SURFACE 
     ]
     App [ width = 100, height = 100, d: Disc [] ]`);
   const backend = new MockBackend();
-  app.attach(backend, null);
+  app.$attach(backend, null);
   const base = backend.live;
   assert.ok(base >= 2, "app + Disc surfaces live after attach");
   app.d.open = true; settle();
   assert.equal(backend.live, base + 1, "the detail view's surface is created + attached on apply");
-  assert.ok(app.d.detail.surface !== null, "detail carries a live surface");
+  assert.ok(app.d.detail.$surface !== null, "detail carries a live surface");
   app.d.open = false; settle();
   assert.equal(backend.live, base, "the detail surface is destroyed on remove");
 });
@@ -6370,19 +6549,19 @@ await test("state: a subtree built during the push sweep leaves the sweep's othe
   // close. A State applying in that sweep builds its subtree there, and the
   // subtree's own kernel-landed gates drain the written-cell list again; the
   // outer sweep must still push every cell it was handed.
-  const app = build(`class Card extends View [ height = 20, wide: boolean = true,
+  const app = build(`class Tile extends View [ height = 20, wide: boolean = true,
       w: State [ applied = { classroot.wide }, r: View [ width = 100%, height = 10 ] ] ]
     App [ width = 400, height = 400, n: number = 0,
-      s: State [ applied = { parent.n > 0 }, box: View [ width = 300, c1: Card [ width = 100 ], c2: Card [ width = 100 ] ] ],
+      s: State [ applied = { parent.n > 0 }, box: View [ width = 300, c1: Tile [ width = 100 ], c2: Tile [ width = 100 ] ] ],
       a: View [ width = { parent.n * 2 }, height = 5 ],
       b: View [ width = { parent.n * 3 }, height = 5 ],
       c: View [ width = { parent.n * 4 }, height = 5 ] ]`);
-  app.attach(new CanvasBackend(), null);
+  app.$attach(new CanvasBackend(), null);
   app.n = 10;
   settle();
   assert.deepEqual([app.a, app.b, app.c].map((v) => v.width), [20, 30, 40], "the model");
-  assert.deepEqual([app.a, app.b, app.c].map((v) => v.surface.width), [20, 30, 40], "every surface got its push");
-  assert.equal(app.box.c1.r.surface.width, 100, "the nested subtree's own push");
+  assert.deepEqual([app.a, app.b, app.c].map((v) => v.$surface.width), [20, 30, 40], "every surface got its push");
+  assert.equal(app.box.c1.r.$surface.width, 100, "the nested subtree's own push");
 });
 
 await test("state: a gated state rejects the verbs (gate XOR verbs)", () => {
@@ -6398,11 +6577,11 @@ await test("state: a gated state rejects the verbs (gate XOR verbs)", () => {
 
 await test("typecheck: a cross-boundary type error is caught, mapped to its .declare line", async () => {
   const src = [
-    "class Card extends View [ width = 80,", // line 1
+    "class Tile extends View [ width = 80,", // line 1
     "  flag: boolean = false,", //             line 2
     "  height = { flag },", //                 line 3 — boolean → Length: TS2322
     "]", //                                    line 4
-    "App [ width = 100, height = 100, Card [] ]", // line 5
+    "App [ width = 100, height = 100, Tile [] ]", // line 5
   ].join("\n");
   const r = await compile(src, { typecheck: true });
   assert.equal(r.source, null, "a type error blocks emission");
@@ -6418,10 +6597,10 @@ await test("typecheck: a cross-boundary type error is caught, mapped to its .dec
 });
 
 await test("typecheck: a valid program passes and still emits source", async () => {
-  const src = `class Card extends View [ width = 80, flag: boolean = false,
+  const src = `class Tile extends View [ width = 80, flag: boolean = false,
   height = { flag ? 200 : 25 },
 ]
-App [ width = 100, height = 100, Card [] ]`;
+App [ width = 100, height = 100, Tile [] ]`;
   const r = await compile(src, { typecheck: true });
   assert.equal(r.errors.length, 0, `no errors, got ${JSON.stringify(r.errors)}`);
   assert.ok(r.source !== null, "valid program emits source");
@@ -6831,46 +7010,46 @@ await test("createView/discard notify: auto-size engages on an EMPTY parent; lay
   app.discard();
 });
 
-await test("tip: the attribute auto-provides the Tooltip singleton (the FocusRing mechanism)", async () => {
-  const r = await compile(`App [ width=100, height=100, b: View [ tip = "hello", onClick() { } ] ]`);
+await test("tooltipLabel: the attribute auto-provides the Tooltip singleton (the FocusRing mechanism)", async () => {
+  const r = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "hello", onClick() { } ] ]`);
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
   assert.ok(r.source.includes("class Tooltip"), "the library file was auto-included");
   assert.ok(r.source.includes("Tooltip [ ],"), "the singleton was spliced as the LAST App child (source order stacks)");
   const none = await compile(`App [ width=100, height=100, b: View [ onClick() { } ] ]`);
   assert.ok(!none.source.includes("class Tooltip"), "no tip anywhere -> no Tooltip");
-  const own = await compile(`App [ width=100, height=100, b: View [ tip = "x", onClick() { } ], t: Tooltip [ ] ]`);
+  const own = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "x", onClick() { } ], t: Tooltip [ ] ]`);
   assert.equal(own.errors.length, 0, "an app-declared Tooltip compiles (bare-tag auto-include)");
   assert.ok(!own.source.includes("// the tooltip singleton — provided"), "an app-declared Tooltip suppresses the auto splice");
   // The trigger is SCOPED to View descendants (the manifest's onBase): a
-  // Node-descended class owns its own attribute names — an attr named `tip`
-  // there is the author's slot (a gratuity, a pen tip), never a tooltip.
-  const node = await compile(`class Meter extends Node [ tip: number = 15 ]
-App [ width=100, height=100, m: Meter [ tip = 20 ], t: Text [ text = "x" ] ]`);
+  // Node-descended class owns its own attribute names — an attr named `tooltipLabel`
+  // there is the author's slot, never a tooltip.
+  const node = await compile(`class Meter extends Node [ tooltipLabel: number = 15 ]
+App [ width=100, height=100, m: Meter [ tooltipLabel = 20 ], t: Text [ text = "x" ] ]`);
   assert.equal(node.errors.length, 0, node.errors.map((e) => e.message).join("; "));
-  assert.ok(!node.source.includes("class Tooltip"), "tip on a NON-View node does not summon the Tooltip");
+  assert.ok(!node.source.includes("class Tooltip"), "tooltipLabel on a NON-View node does not summon the Tooltip");
 });
 
-await test("tip: the service's platform conventions — delay, warm retarget, press cools", async () => {
-  const { Tip } = await import("../runtime/dist/tip.js");
-  const a = { tip: "A", x: 5, y: 6, width: 10, height: 10, parent: null };
-  const b = { tip: "B", x: 50, y: 6, width: 10, height: 10, parent: null };
+await test("tooltips: the service's platform conventions — delay, warm retarget, press cools", async () => {
+  const { Tooltips } = await import("../runtime/dist/tooltips.js");
+  const a = { tooltipLabel: "A", x: 5, y: 6, width: 10, height: 10, parent: null };
+  const b = { tooltipLabel: "B", x: 50, y: 6, width: 10, height: 10, parent: null };
   const seen = [];
-  const un = Tip.onTip((e) => seen.push(e === null ? null : e.text));
+  const un = Tooltips.onTooltip((e) => seen.push(e === null ? null : e.text));
   try {
-    Tip.over(a);
+    Tooltips.over(a);
     assert.deepEqual(seen, [], "nothing before the delay");
     await new Promise((r) => setTimeout(r, 620));
     assert.deepEqual(seen, ["A"], "shown after the delay");
-    Tip.out(a);
+    Tooltips.out(a);
     assert.deepEqual(seen, ["A", null], "departure hides");
-    Tip.over(b);
+    Tooltips.over(b);
     assert.deepEqual(seen, ["A", null, "B"], "warm retarget shows the next tip INSTANTLY");
-    Tip.hide();
+    Tooltips.hide();
     assert.deepEqual(seen, ["A", null, "B", null], "a press dismisses");
-    Tip.over(a);
+    Tooltips.over(a);
     assert.deepEqual(seen, ["A", null, "B", null], "and COOLS - the next hover earns the delay again");
   } finally {
-    un(); Tip.hide();
+    un(); Tooltips.hide();
   }
 });
 
@@ -6958,7 +7137,7 @@ await test("textinput: installs a native editable spec and is focusable by defau
   const app = build(`App [ width = 100, height = 100,
     inp: TextInput [ text = "hi", placeholder = "name" ],
   ]`);
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   const spec = lastSpec(log);
   assert.equal(spec.value, "hi");
   assert.equal(spec.placeholder, "name");
@@ -6972,7 +7151,7 @@ await test("textinput: spellcheck = false carries to the editable spec (code fie
   const app = build(`App [ width = 100, height = 100,
     code: TextInput [ text = "x", multiline = true, spellcheck = false ],
   ]`);
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   const spec = lastSpec(log);
   assert.equal(spec.multiline, true);
   assert.equal(spec.spellcheck, false, "a code field turns native squiggles off");
@@ -6984,7 +7163,7 @@ await test("textinput: a native edit updates the model text and fires input", ()
   const app = build(`App [ width = 100, height = 100,
     inp: TextInput [ text = "hi", onInput(v: string) { globalThis.__inp.push(v) } ],
   ]`);
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   lastSpec(log).onInput("hello");
   assert.equal(app.inp.text, "hello", "the native value flows to the model");
   assert.deepEqual(globalThis.__inp, ["hello"], "the input event fired with the value");
@@ -6994,7 +7173,7 @@ await test("textinput: Declare focus activates the native caret, blur deactivate
   Focus.reset();
   const log = [];
   const app = build(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`);
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   Focus.setRoot(app);
   Focus.focus(app.inp);
   assert.equal(activations(log).at(-1), true, "focus gives the element the caret");
@@ -7006,7 +7185,7 @@ await test("textinput: a native focus routes back to Declare focus", () => {
   Focus.reset();
   const log = [];
   const app = build(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`);
-  app.attach(mockBackend(log), null);
+  app.$attach(mockBackend(log), null);
   Focus.setRoot(app);
   const spec = lastSpec(log);
   spec.onFocus();
@@ -7142,7 +7321,7 @@ await test("include resolution agrees across hosts: a `..` path names the SAME f
 await test("$provide reaches the fetch host: a Control program compiles in-browser, FocusRing and all", async () => {
   // The $provide rules (library/autoincludes.json) splice a component the program
   // never names: FocusRing whenever anything descends from Control, Tooltip
-  // whenever `tip` is used. compile.ts reached the host for those through a LOCAL
+  // whenever `tooltipLabel` is used. compile.ts reached the host for those through a LOCAL
   // CAST that declared resolveLibrary synchronous — so when the include seam went
   // async the cast lied, `lib` was a Promise, `lib.canonical` undefined, and
   // `libSources.push(lib.source)` pushed undefined. The component was silently
@@ -8104,7 +8283,7 @@ App [ width = 100, height = 100,
   settle();
   const row = app.col.children[0];
   assert.equal(row.t.textColor, 0x00ff00, "the model reads the provision");
-  assert.equal(row.t.surface.textStyle.color, 0x00ff00, "the face pushed at attach carried it too");
+  assert.equal(row.t.$surface.textStyle.color, 0x00ff00, "the face pushed at attach carried it too");
 });
 
 // ── the field report of 2026-09-13: a document written in Declare ────────────

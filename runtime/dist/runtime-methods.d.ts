@@ -4,7 +4,7 @@ export declare const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>
  *  names an instance carries that are neither methods (above) nor declared
  *  attributes — instance fields (`surface`, `backend`, `parent`) and prototype
  *  accessors. A child may not take one: the runtime refuses it at instantiate
- *  (`'surface' is already a member of the running App`), and the checker, being
+ *  (`'exposes' is already a member of the running App`), and the checker, being
  *  runtime-free, refuses it in the source from this table. OWN names per
  *  schema, as above; PINNED by test/override-runtime.test.mjs, which constructs
  *  each class and recomputes the lists (minus `$`-names and attributes). */

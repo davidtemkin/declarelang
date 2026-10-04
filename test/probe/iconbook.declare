@@ -56,7 +56,7 @@ class Strip extends View [
     ]
 
 
-App [ width = 760, height = 640, fill = { provided("theme").bg },
+App [ width = 760, height = 640, fill = { provided("theme").background },
     theme = { app.dark ? SanFranciscoDark : SanFrancisco },
 
     t1: Text [ x = 24, y = 18, fontSize = 14, fontWeight = semibold,

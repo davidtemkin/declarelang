@@ -157,6 +157,21 @@ const TABLE = {
     headless: NOT_APPLICABLE,
   },
 
+  // ── the scroll process (scroll-anchor.ts) ────────────────────────────────
+
+  userScrollByTouch: {
+    dom: true,
+    canvas: "deliberate — the canvas host moves its scroller itself, so an anchor correction mid-gesture never fights the browser; absent means 'correct at once'",
+    mac: "deliberate — the Mac host moves its scroller itself (host-owned offsets, native momentum as deltas), so corrections land in the same frame",
+    headless: NOT_APPLICABLE,
+  },
+  scrollbarHeld: {
+    dom: true,
+    canvas: true,
+    mac: true,
+    headless: NOT_APPLICABLE,
+  },
+
   // ── the windowed-collection seam (added with materialization) ────────────
 
   setRowCount: {
@@ -395,7 +410,7 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 32,   // +richMetrics (2026-09-26, the document flow): baseline + widest off the renderer's layout — DOM reports, canvas/mac use the manual flow's arithmetic
+  assert.equal(members.length, 34,   // +scrollbarHeld (2026-10-02): a held thumb maps the pointer onto the range, so a windowed list holds its range still   // +userScrollByTouch (2026-09-30): a browser-driven scroll says a finger holds it, so anchoring waits   // +richMetrics (2026-09-26, the document flow): baseline + widest off the renderer's layout — DOM reports, canvas/mac use the manual flow's arithmetic
                                      // +setPadding (2026-09-19, padding moves to the view): the TRAILING inset a padded scroller must still show — the origin shift rides the children's own setX/setY and needs no row
                                      // +setRichClamp (2026-09-13, the truncation round): maxLines on a flow — DOM/mac clamp in the host, canvas spends the budget model-side
                                      // +setFilter/setMask/setTransform/setTransform3D/setPerspective/setImageAlign (2026-09-12, the graphics pass) — all three implement

@@ -383,6 +383,12 @@ export function insetLead(i: Inset, axis: "x" | "y"): number {
 
 /** True when this inset takes nothing off any side — the zero-cost path a
  *  layout takes when nobody asked for padding. */
+/** An inset as CSS `padding` (`"0"` when there is none). */
+export function insetCss(i: Inset): string {
+  const [t, r, b, l] = insetSides(i);
+  return t === 0 && r === 0 && b === 0 && l === 0 ? "0" : `${t}px ${r}px ${b}px ${l}px`;
+}
+
 export function insetIsZero(i: Inset): boolean {
   const [t, r, b, l] = insetSides(i);
   return t === 0 && r === 0 && b === 0 && l === 0;
@@ -428,7 +434,10 @@ export type AttrType =
   // The records door (planes.md §4): structured slots — an array of records,
   // a plain record, a View reference. Literal form: null only; the values
   // arrive from `{ }` bindings (plain TS) and runtime writes.
-  | { readonly kind: "object" | "view" }
+  | { readonly kind: "object" }
+  // `required`: a DECLARED attribute written without `?` (`target: View`) —
+  // never empty, so null is not among its values. Schema slots never carry it.
+  | { readonly kind: "view"; readonly required?: true }
   // `of` = the written ELEMENT type name when declared `Window[]` — carried for
   // the typechecker (a `{ }` body sees Window[], not any[]); runtime coercion
   // is per-kind and unchanged (`null` or a whole-value binding, as ever).
@@ -438,7 +447,10 @@ export type AttrType =
        *  beside `fontWeight = medium` (CSS Fonts 4: the keywords are aliases for points
        *  on the 1–1000 line). The scaffold alias gains `| number`. */
       readonly numeric?: readonly [number, number] }
-  | { readonly kind: "class"; readonly of: string }
+  // `required`: a DECLARED attribute written without `?` (`child: Menu`) —
+  // never empty. A schema slot (`layout: Layout`) never carries it: null is
+  // its "none".
+  | { readonly kind: "class"; readonly of: string; readonly required?: true }
   // A FUNCTION type — `(id: string) -> void`, the type a method IS
   // (language §4). `written` is the source form; scaffold translates it.
   | { readonly kind: "fn"; readonly written: string }
@@ -460,7 +472,8 @@ export type AttrType =
   // forms are the ruled value CONSTRUCTORS (`gradient(…)`, `stroke(…)`,
   // `shadow(…)`) — self-naming, arity-checked, identical inside `{ }` where
   // the same names are ordinary functions in scope.
-  | { readonly kind: "record"; readonly name: string; readonly data?: true }
+  // `required` as on class: a declared data record written without `?`.
+  | { readonly kind: "record"; readonly name: string; readonly data?: true; readonly required?: true }
   | { readonly kind: "fill" }
   | { readonly kind: "stroke" }
   | { readonly kind: "outline" }
@@ -483,9 +496,9 @@ export type AttrType =
   // family string or a list of them; from a { } it also takes a Font object or a
   // list mixing both (font-value.ts resolves it where text measures and paints).
   | { readonly kind: "font" }
-  // A Face's `src`: a URL string, `url("…")`, `local("…")`, or a list of them.
+  // A FontFace's `src`: a URL string, `url("…")`, `local("…")`, or a list of them.
   | { readonly kind: "faceSource" }
-  // A Face's `weight`: a token, a number 1–1000, or `range(lo, hi)`.
+  // A FontFace's `weight`: a token, a number 1–1000, or `range(lo, hi)`.
   | { readonly kind: "faceWeight" };
 
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
@@ -692,7 +705,9 @@ function parseLiteral(type: AttrType, lit: Literal): Coerced {
       // `null` is the one literal form ("no layout"); the instance form is
       // the member shape `layout: SimpleLayout [ … ]`, which never reaches
       // coercion (check.ts routes it to the class-value path).
-      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      if (lit.kind === "ident" && lit.name === "null") {
+        return type.required === true ? fail(diag`a ${type.of} — declared without '?', so never empty; write '${type.of}?' to let it be null`) : ok(null);
+      }
       return fail(diag`a ${type.of} (a member like 'layout: SimpleLayout [ … ]'), or null for none`);
     case "cursor":
       // `null` is the one coercible form ("no cursor"); `:path` and `{ }`
@@ -711,7 +726,9 @@ function parseLiteral(type: AttrType, lit: Literal): Coerced {
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
       return fail(diag`an object — a { } constraint (plain TS), or null`);
     case "view":
-      if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      if (lit.kind === "ident" && lit.name === "null") {
+        return type.required === true ? fail(diag`a View — declared without '?', so never empty; write 'View?' to let it be null`) : ok(null);
+      }
       return fail(diag`a View reference — assigned at runtime (an opener, a target), or null`);
     case "slotref":
       // The `attribute` token names a slot on the target; it stays a bare
@@ -726,7 +743,9 @@ function parseLiteral(type: AttrType, lit: Literal): Coerced {
       // (`theme = Cupertino` — an ident routed and resolved before coercion), a
       // `{ }` binding, or an inline `Theme [ … ]` record.
       if (type.data === true) {
-        if (lit.kind === "ident" && lit.name === "null") return ok(null);
+        if (lit.kind === "ident" && lit.name === "null") {
+          return type.required === true ? fail(diag`a ${type.name} — declared without '?', so never empty; write '${type.name}?' to let it be null`) : ok(null);
+        }
         return fail(diag`a ${type.name} record (provide one with a { } constraint), or null for none`);
       }
       return fail(diag`a ${type.name} (a named theme, a { } constraint, or a Theme [ … ] record)`);

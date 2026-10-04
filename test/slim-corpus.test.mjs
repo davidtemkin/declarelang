@@ -13,9 +13,13 @@
 //      headlessly, and the two must settle to the same view tree, the same
 //      pixels and the same page errors.
 //
+//   3. `--compare target`: the corpus again, each program built at the shipped
+//      language target and at the previous one (ES2020) — the same settled tree,
+//      pixels and page errors, or the bundler's output changed what a program does.
+//
 // Not part of `npm test` (a browser, and minutes): `node test/slim-corpus.test.mjs
-// [--only <substring>] [--skip-ladder] [--skip-corpus] [--render canvas]`, and
-// before a release.
+// [--only <substring>] [--skip-ladder] [--skip-corpus] [--render canvas]
+// [--compare target]`, and before a release.
 import assert from "node:assert/strict";
 import http from "node:http";
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
@@ -25,6 +29,7 @@ import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { buildProduction } from "../tools/declarec.mjs";
 import { runBehavior, runStates } from "../tools/internal/verify-behave.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const argv = process.argv.slice(2);
@@ -32,6 +37,9 @@ const only = argv.includes("--only") ? argv[argv.indexOf("--only") + 1] : null;
 const pick = (file) => only === null || file.includes(only);
 // `--render canvas`: the same gate on canvas builds (the ladder's baselines are the DOM's)
 const render = argv.includes("--render") ? argv[argv.indexOf("--render") + 1] : "dom";
+// `--compare target`: the corpus built at the shipped language target against the
+// previous one (ES2020), slimmed both times — the same program must behave the same
+const compare = argv.includes("--compare") ? argv[argv.indexOf("--compare") + 1] : "slim";
 
 const build = (file, opts) => buildProduction(readFileSync(file, "utf8"), { name: basename(file, ".declare"), originDir: dirname(file), bridge: true, render, ...opts });
 
@@ -90,7 +98,7 @@ if (!argv.includes("--skip-corpus")) {
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const browser = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-sandbox"] });
+  const browser = await launchChrome({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-sandbox"] });
 
   /** Serve a build under its program's folder and read what it settles to. */
   const settle = async (file, built, variant) => {
@@ -127,6 +135,10 @@ if (!argv.includes("--skip-corpus")) {
         const D = window.__declare;
         if (!D?.find) return null;
         await document.fonts?.ready;   // a face still loading changes pixels, not the model
+        // a picture still decoding does too: wait until every Image has landed
+        // (or failed) — network-idle says the bytes arrived, not that they are drawn
+        const decoding = () => { let n = 0; const visit = (v) => { if ("naturalWidth" in v && v.source !== "" && !v.loaded && !v.failed) n++; (v.childViews ?? []).forEach(visit); }; visit(D.find("app")); return n; };
+        for (let i = 0; i < 100 && decoding() > 0; i++) await new Promise((r) => setTimeout(r, 30));
         D.clock?.settleMotion?.(5000);
         D.clock?.auto?.();
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -138,19 +150,25 @@ if (!argv.includes("--skip-corpus")) {
         walk(D.find("app"), "app");
         return out;
       });
+      // the DOM raster's own account (dom-backend.ts): a raster read back as
+      // blank is redrawn at half density — a different picture, so a pixel
+      // difference reports whether either build took that recovery
+      const raster = await tab.evaluate(() => window.__declareDomRasterStats?.() ?? null);
       const png = Buffer.from(await tab.screenshot({ type: "png" }));
-      return { tree, png, errors };
+      return { tree, png, errors, raster };
     } finally { await tab.close(); }
   };
 
   for (const file of corpus()) {
-    await test(`slim = full${render === "dom" ? "" : ` (${render})`}: ${relative(ROOT, file)}`, async () => {
+    const label = compare === "target" ? "es2022 = es2020" : "slim = full";
+    await test(`${label}${render === "dom" ? "" : ` (${render})`}: ${relative(ROOT, file)}`, async () => {
       let slim;
       try { slim = await build(file, {}); } catch (e) { slim = { ok: false, errors: [e] }; }
       // a program that does not build is not this gate's subject (verify-apps owns it)
       if (!slim.ok) { console.log(`    (not built: ${String(slim.errors?.[0]?.message ?? "").split("\n")[0].slice(0, 120)})`); return; }
-      const full = await build(file, { slim: false, keepAll: true });
-      assert.ok(full.ok, "the full build failed where the slim one built");
+      // the reference build: the whole registry, or the previous language target
+      const full = await build(file, compare === "target" ? { esTarget: "es2020" } : { slim: false, keepAll: true });
+      assert.ok(full.ok, "the reference build failed where the shipped one built");
       const a = await settle(file, full, "full"), b = await settle(file, slim, "slim");
       const why = `absent: ${slim.capabilities.absent.join(", ")}`;
       // a whole build that does not boot is not this gate's subject — but it is
@@ -172,7 +190,7 @@ if (!argv.includes("--skip-corpus")) {
         const i = (a.tree ?? []).findIndex((row, k) => JSON.stringify(row) !== JSON.stringify(b.tree?.[k]));
         assert.fail(`the settled tree differs at ${JSON.stringify(a.tree?.[i])} ≠ ${JSON.stringify(b.tree?.[i])} (${a.tree?.length} vs ${b.tree?.length} views) — ${why}`);
       }
-      if (!a.png.equals(b.png) && (await still()).png.equals(a.png)) assert.fail(`the pixels differ — ${why}`);
+      if (!a.png.equals(b.png) && (await still()).png.equals(a.png)) assert.fail(`the pixels differ — ${why} — DOM raster (reference / shipped): ${JSON.stringify(a.raster)} / ${JSON.stringify(b.raster)}`);
     });
   }
   await browser.close();

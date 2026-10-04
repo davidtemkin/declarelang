@@ -34,19 +34,39 @@ export class Media extends View {
     metadataArrived(_el) { }
     /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
     sourceCleared() { }
-    attach(backend, parentSurface) {
-        super.attach(backend, parentSurface);
+    $attach(backend, parentSurface) {
+        super.$attach(backend, parentSurface);
         this.load();
+    }
+    teardown() {
+        this.loadSeq++; // its late events speak for no one
+        this.$release();
+        super.teardown();
+    }
+    /** Let go of the current element. An `<audio>` never enters the document,
+     *  so nothing else would ever stop it: a re-pointed clip would play over its
+     *  successor, and a discarded one on after its view is gone. */
+    $release() {
+        const el = this.el;
+        if (el === null)
+            return;
+        this.el = null;
+        if (typeof el.pause === "function")
+            el.pause();
+        if (typeof el.removeAttribute === "function" && typeof el.load === "function") {
+            el.removeAttribute("src");
+            el.load(); // drops the buffered bytes and the connection
+        }
     }
     /** (Re)load `source` — at attach, and from the `source` pusher. */
     load() {
         const seq = ++this.loadSeq;
-        if (this.surface === null)
+        this.$release();
+        if (this.$surface === null)
             return;
         setBound(this, "failed", false);
         setBound(this, "ended", false);
         if (this.source === "") {
-            this.el = null;
             this.sourceCleared();
             return;
         }
@@ -65,7 +85,7 @@ export class Media extends View {
         el.playbackRate = this.playbackRate;
         el.preload = "metadata";
         el.onloadedmetadata = () => {
-            if (seq !== this.loadSeq || this.surface === null)
+            if (seq !== this.loadSeq || this.$surface === null)
                 return;
             setBound(this, "duration", isFinite(el.duration) ? el.duration : 0);
             this.metadataArrived(el);
@@ -75,7 +95,7 @@ export class Media extends View {
                 this.syncPlaying();
         };
         el.onerror = () => {
-            if (seq !== this.loadSeq || this.surface === null)
+            if (seq !== this.loadSeq || this.$surface === null)
                 return;
             setBound(this, "failed", true);
         };

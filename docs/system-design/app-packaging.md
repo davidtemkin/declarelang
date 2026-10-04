@@ -30,7 +30,7 @@ that belongs to the development tree or to the platform.
 That is the whole classification, and it needs no new syntax: the URL grammar already
 carries it. `https://api.example.com/rates` names another machine; `data/events.json`
 names something beside the program. It applies uniformly to every kind of resource —
-`Image.src`, a `Face`'s `src`, a `DataSource.url`, audio, video — because the question
+`Image.src`, a `FontFace`'s `src`, a `DataSource.url`, audio, video — because the question
 "does this belong to the app?" is a property of the reference, not of the medium.
 
 **This is OpenLaszlo's rule**, arrived at independently and then confirmed against the

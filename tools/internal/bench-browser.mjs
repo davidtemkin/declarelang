@@ -20,6 +20,7 @@
 
 import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
+import { launchChrome } from "./chrome.mjs";
 
 const args = process.argv.slice(2);
 const BASE = args.find((a) => !a.startsWith("--")) ?? "https://davidtemkin.github.io/declarelang/";
@@ -179,7 +180,7 @@ function printSummary(name, kind, s) {
 }
 
 const chrome = findChrome();
-const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
 const out = {};
 try {
   for (const app of APPS) {

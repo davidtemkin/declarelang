@@ -112,7 +112,7 @@ script {
 // be stretched to level the grid — see MasonryLayout in weather-art). The
 // layout reads these; the card stays the authority on its own shape.
 
-class Card [ cornerRadius = 20, clip = true,
+class Tile [ cornerRadius = 20, clip = true,
     span: number = 1,
     baseH: number = 0,
     grows: boolean = true,
@@ -122,7 +122,7 @@ class Card [ cornerRadius = 20, clip = true,
     icon: string = "",
 
     // `classroot` reaches the instance of the class being defined — here,
-    // the Card itself — so a child can read the class's own attributes.
+    // the Tile itself — so a child can read the class's own attributes.
 
     cap: View [ x = 14, y = 12, height = 14, width = { parent.width - 28 },
         visible = { classroot.label != "" },
@@ -153,7 +153,7 @@ class HourCol [ width = 58, height = 92,
     ]
 
 
-class HourStrip extends Card [ height = 196,
+class HourStrip extends Tile [ height = 196,
     label = "HOURLY FORECAST",
     summary: string = "",
     summaryText: Text [ x = 16, y = 32, width = { parent.width - 32 }, fontSize = 15,
@@ -201,7 +201,7 @@ class DayRow [ height = 42,
     ]
 
 
-class TenDay extends Card [
+class TenDay extends Tile [
     label = "10-DAY FORECAST",
     lo10: number = 0,
     hi10: number = 0,
@@ -227,7 +227,7 @@ class TenDay extends Card [
 // grid gives the card, and the caption rides the card's foot — so a card the
 // grid stretches (to level its column) still reads as designed.
 
-class UVCard extends Card [ label = "UV INDEX",
+class UVCard extends Tile [ label = "UV INDEX",
     value: number = 0,
     name: string = "",
     note: string = "",
@@ -242,7 +242,7 @@ class UVCard extends Card [ label = "UV INDEX",
     ]
 
 
-class SunsetCard extends Card [ label = "SUNSET",
+class SunsetCard extends Tile [ label = "SUNSET",
     at: string = "",
     rise: string = "",
     frac: number = 0.5,
@@ -255,7 +255,7 @@ class SunsetCard extends Card [ label = "SUNSET",
     ]
 
 
-class WindCard extends Card [ label = "WIND",
+class WindCard extends Tile [ label = "WIND",
     mph: number = 0,
     deg: number = 0,
     gusts: string = "",
@@ -270,7 +270,7 @@ class WindCard extends Card [ label = "WIND",
     ]
 
 
-class PressureCard extends Card [ label = "PRESSURE",
+class PressureCard extends Tile [ label = "PRESSURE",
     inHg: number = 0,
     frac: number = 0.5,
     gauge: PressureGauge [ x = center, y = center, width = 112, height = 112,
@@ -289,7 +289,7 @@ class PressureCard extends Card [ label = "PRESSURE",
 // The moon card: the phase in its caption, the numbers down the left, and
 // the drawn disc on the right.
 
-class MoonCard extends Card [
+class MoonCard extends Tile [
     phase: string = "",
     illum: number = 0,
     moonset: string = "",
@@ -318,7 +318,7 @@ class MoonCard extends Card [
 // The plain value-plus-sentence card — feels like, humidity, visibility.
 // One class, several uses; only the values it is given differ.
 
-class StatCard extends Card [
+class StatCard extends Tile [
     value: string = "",
     sub: string = "",
     note: string = "",
@@ -331,7 +331,7 @@ class StatCard extends Card [
     ]
 
 
-class AvgCard extends Card [ label = "AVERAGES",
+class AvgCard extends Tile [ label = "AVERAGES",
     delta: string = "",
     sign: string = "",
     today: number = 0,
@@ -353,7 +353,7 @@ class AvgCard extends Card [ label = "AVERAGES",
     ]
 
 
-class MapCard extends Card [ label = "PRECIPITATION",
+class MapCard extends Tile [ label = "PRECIPITATION",
     base: string = "",
     amount: number = 0,
     seed: number = 7,
@@ -379,7 +379,7 @@ class MapCard extends Card [ label = "PRECIPITATION",
     ]
 
 
-class AQICard extends Card [ label = "AIR QUALITY",
+class AQICard extends Tile [ label = "AIR QUALITY",
     value: number = 0,
     note: string = "",
     line: AQILine [ x = 14, y = 32, width = { parent.width - 28 }, height = 10,
@@ -389,7 +389,7 @@ class AQICard extends Card [ label = "AIR QUALITY",
     ]
 
 
-class AlertCard extends Card [ label = "WEATHER ALERT",
+class AlertCard extends Tile [ label = "WEATHER ALERT",
     fill = #FFFFFF26,
     body: string = "",
     bodyText: Text [ x = 14, y = 34, width = { parent.width - 28 }, fontSize = 15, textColor = white,
@@ -799,7 +799,7 @@ App [ textColor = whitesmoke, appName = "Weather",
     // beside the program (fonts/inter.woff2, weight and optical size; SIL OFL). An
     // Apple device never downloads it: a font loads only when text reaches it.
 
-    inter: Font [ Face [ src = "fonts/inter.woff2", weight = range(100, 900) ]
+    inter: Font [ FontFace [ src = "fonts/inter.woff2", weight = range(100, 900) ]
         ],
     fontFamily = { ["-apple-system", "BlinkMacSystemFont", app.inter, "Helvetica Neue", "Helvetica", "sans-serif"] },
 
@@ -904,7 +904,7 @@ App [ textColor = whitesmoke, appName = "Weather",
 
     // The threshold is zero, not "nearly zero". View and row are congruent
     // only at exactly 0: a thousandth of a 2289px range is still pixels, and
-    // handing back there pops. A spring drives its slot to exactly the target
+    // handing back there pops. A spring drives its attribute to exactly the target
     // on arrival, so `> 0` is a real test rather than an optimistic one.
 
     cityUp: boolean = { app.openTo == 1 || app.openT > 0 },

@@ -211,6 +211,11 @@ export function insetLead(i, axis) {
 }
 /** True when this inset takes nothing off any side — the zero-cost path a
  *  layout takes when nobody asked for padding. */
+/** An inset as CSS `padding` (`"0"` when there is none). */
+export function insetCss(i) {
+    const [t, r, b, l] = insetSides(i);
+    return t === 0 && r === 0 && b === 0 && l === 0 ? "0" : `${t}px ${r}px ${b}px ${l}px`;
+}
 export function insetIsZero(i) {
     const [t, r, b, l] = insetSides(i);
     return t === 0 && r === 0 && b === 0 && l === 0;
@@ -442,8 +447,9 @@ function parseLiteral(type, lit) {
             // `null` is the one literal form ("no layout"); the instance form is
             // the member shape `layout: SimpleLayout [ … ]`, which never reaches
             // coercion (check.ts routes it to the class-value path).
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
+            if (lit.kind === "ident" && lit.name === "null") {
+                return type.required === true ? fail(diag `a ${type.of} — declared without '?', so never empty; write '${type.of}?' to let it be null`) : ok(null);
+            }
             return fail(diag `a ${type.of} (a member like 'layout: SimpleLayout [ … ]'), or null for none`);
         case "cursor":
             // `null` is the one coercible form ("no cursor"); `:path` and `{ }`
@@ -465,8 +471,9 @@ function parseLiteral(type, lit) {
                 return ok(null);
             return fail(diag `an object — a { } constraint (plain TS), or null`);
         case "view":
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
+            if (lit.kind === "ident" && lit.name === "null") {
+                return type.required === true ? fail(diag `a View — declared without '?', so never empty; write 'View?' to let it be null`) : ok(null);
+            }
             return fail(diag `a View reference — assigned at runtime (an opener, a target), or null`);
         case "slotref":
             // The `attribute` token names a slot on the target; it stays a bare
@@ -482,8 +489,9 @@ function parseLiteral(type, lit) {
             // (`theme = Cupertino` — an ident routed and resolved before coercion), a
             // `{ }` binding, or an inline `Theme [ … ]` record.
             if (type.data === true) {
-                if (lit.kind === "ident" && lit.name === "null")
-                    return ok(null);
+                if (lit.kind === "ident" && lit.name === "null") {
+                    return type.required === true ? fail(diag `a ${type.name} — declared without '?', so never empty; write '${type.name}?' to let it be null`) : ok(null);
+                }
                 return fail(diag `a ${type.name} record (provide one with a { } constraint), or null for none`);
             }
             return fail(diag `a ${type.name} (a named theme, a { } constraint, or a Theme [ … ] record)`);

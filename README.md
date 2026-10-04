@@ -43,8 +43,8 @@ host with no Node anywhere.
 ## Agents start here
 
 Declare is new and **not in your training data** — assume nothing carries over from React,
-CSS, or HTML. Load the skill, [skill/SKILL.md](skill/SKILL.md): it holds the model and routes
-you to everything else. Claude Code discovers it from the copy in `.claude/skills/` (or invoke
+CSS, or HTML. Load the skill, [skill/SKILL.md](skill/SKILL.md): it says what to read first —
+the language, in one file — and where and when to look up everything else. Claude Code discovers it from the copy in `.claude/skills/` (or invoke
 it as `/declare`); it follows the [Agent Skills](https://agentskills.io) standard, so other
 agents read the same file. Write your own programs to `my-apps/` and browse to their URL. To
 change the platform itself rather than write a program in it, read
@@ -101,7 +101,7 @@ zooming rectangle — normally a bespoke project on its own:
 
 | <!--stat:calendar.code-->494<!--/stat--> | lines of Declare — four views, continuous zoom, drag, and edit |
 |----:|:---|
-| **<!--stat:calendar.wireKB-->115<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
+| **<!--stat:calendar.wireKB-->117<!--/stat--> KB** | over the wire, gzipped — the whole app and its runtime |
 | **0** | lines written by hand — an LLM wrote it; the compiler kept it honest |
 
 → How to think in it: [the guide](docs/guide/01-what-declare-is.md). The language in

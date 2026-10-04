@@ -1,0 +1,90 @@
+/*
+# The list
+
+Every conversation, most recent first. A row with something new in it is set
+in full ink with an ember count; a row with nothing new recedes to grey. Rows
+place themselves by their rank and spring there, so a conversation that comes
+alive glides to the top rather than jumping.
+*/
+
+class ThreadList [ fill = { provided("theme").surface },
+    rowH: number = 84,
+
+    head: View [ width = 100%, height = { 64 + app.safeTop }, ignoreScroll = true,
+        fill = { provided("theme").surface },
+        stroke = { parent.scroller.scrollY > 2 ? [null, null, stroke(1, provided("theme").line), null] : null },
+        title: Text [ x = 20, y = { app.safeTop + 18 }, fontSize = 28, fontWeight = bold, letterSpacing = -0.6,
+            text = "Murmur" ]
+        ],
+
+    scroller: View [ y = { parent.head.height }, width = 100%, height = { parent.height - parent.head.height },
+        scrolls = y,
+        rows: View [ width = 100%, datapath = { app.ordered.value },
+            height = { app.ordered.value.threads.length * classroot.rowH + 16 + app.safeBottom },
+            ThreadRow [ datapath = :threads[] ]
+            ],
+
+        // the moment before anything has arrived: the shape of the list, quietly
+
+        waiting: View [ width = 100%, visible = { !app.store.loaded },
+            layout: SimpleLayout [ axis = y ],
+            Placeholder [ ],
+            Placeholder [ ],
+            Placeholder [ ],
+            Placeholder [ ]
+            ]
+        ]
+    ]
+
+
+class Placeholder [ width = 100%, height = { app.list.rowH }, opacity = 0.7,
+    View [ x = 16, y = 18, width = 48, height = 48, cornerRadius = 24, fill = { provided("theme").control } ],
+    View [ x = 78, y = 22, width = 132, height = 12, cornerRadius = 6, fill = { provided("theme").control } ],
+    View [ x = 78, y = 44, width = { parent.width * 0.45 }, height = 10, cornerRadius = 5, fill = { provided("theme").control } ]
+    ]
+
+
+class ThreadRow extends Control [ width = 100%, height = { app.list.rowH },
+    tid: string = { "" + :id },
+    rec: Thread = { app.store.value.threads[app.store.indexOf("" + :id)] },
+    unread: number = { app.store.unread(this.rec) },
+    typing: boolean = { app.store.typers(this.rec).length > 0 },
+    current: boolean = { app.wide && app.selId == tid },
+
+    // a row's place is its rank; the spring carries it there
+
+    Spring [ attribute = y, to = { rowIndex * app.list.rowH }, stiffness = 260, damping = 30 ],
+
+    fill = { current ? theme.selected : down ? theme.controlPressed : hot ? theme.control : null },
+    press() { app.open(tid) },
+
+    face: ThreadFace [ x = 16, y = 18, size = 48, rec = { classroot.rec } ],
+
+    name: Text [ x = 78, y = 16, wrap = false, maxLines = 1, fontSize = 16.5, letterSpacing = -0.2,
+        width = { parent.width - 78 - parent.when.width - 26 },
+        fontWeight = { classroot.unread > 0 ? "bold" : "semibold" },
+        text = { app.store.titleOf(classroot.rec) } ],
+
+    when: Text [ y = 19, wrap = false, fontSize = 12.5, numeralWidth = tabular,
+        x = { parent.width - this.width - 16 },
+        fontWeight = { classroot.unread > 0 ? "semibold" : "normal" },
+        textColor = { classroot.unread > 0 ? theme.accent : theme.textFaint },
+        text = { listTime(app.store.lastAt(classroot.rec), app.today) } ],
+
+    preview: Text [ x = 78, y = 40, maxLines = 2, fontSize = 14, lineHeight = 1.3,
+        width = { parent.width - 78 - (classroot.unread > 0 ? parent.badge.width + 28 : 18) },
+        italic = { classroot.typing },
+        textColor = { classroot.typing ? theme.accent : classroot.unread > 0 ? theme.text : theme.textMuted },
+        text = { app.store.preview(classroot.rec) } ],
+
+    badge: View [ visible = { classroot.unread > 0 }, y = 44, height = 20, cornerRadius = 10,
+        width = { Math.max(20, this.n.width + 12) },
+        x = { parent.width - this.width - 16 },
+        fill = { theme.accent },
+        n: TextLabel [ x = center, fontSize = 12, fontWeight = bold, wrap = false, numeralWidth = tabular,
+            textColor = { theme.accentText }, text = { "" + classroot.unread } ]
+        ],
+
+    rule: View [ x = 78, y = { parent.height - 1 }, height = 1, width = { parent.width - 78 },
+        visible = { !classroot.current }, fill = { theme.line } ]
+    ]

@@ -49,7 +49,7 @@ class Chip [ label: string = "",
     height = 19,
     width = { this.t.width + 18 },
     cornerRadius = 9,
-    fill = { provided("theme").bg },
+    fill = { provided("theme").background },
     stroke = { stroke(1, provided("theme").line) },
     t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label },
         textColor = { provided("theme").textMuted } ]
@@ -61,11 +61,11 @@ class Pill [ label: string = "",
     height = 20,
     width = { this.t.width + 22 },
     cornerRadius = 10,
-    fill = { picked ? provided("theme").accent : (hovered ? provided("theme").line : provided("theme").bg) },
+    fill = { picked ? provided("theme").accent : (hovered ? provided("theme").line : provided("theme").background) },
     onClick() { picked = !picked },
     t: TextLabel [ x = 11, fontSize = 11.5, fontWeight = medium,
         text = { classroot.picked ? classroot.label + " ✓" : classroot.label },
-        textColor = { classroot.picked ? provided("theme").accentText : provided("theme").textMuted } ]
+        textColor = { classroot.picked ? provided("theme").accentTextColor : provided("theme").textMuted } ]
     ]
 
 
@@ -75,7 +75,7 @@ class Pill [ label: string = "",
 class Snippet [ code: string = "",
     width = 100%,
     cornerRadius = 7,
-    fill = { provided("theme").bg },
+    fill = { provided("theme").background },
     padding = [9, 12, 9, 12],
     body: Text [ width = 100%,
         fontFamily = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize = 11.5, lineHeight = 1.5,
@@ -107,7 +107,7 @@ class Specimen extends Card [ width = 100%,
 
 
 App [ minWidth = 340,
-    fill = { provided("theme").bg },
+    fill = { provided("theme").background },
     textColor = { provided("theme").text },
     selectable = true,                           // a provided value — every specimen and snippet is selectable/copyable
 
@@ -304,7 +304,7 @@ App [ minWidth = 340,
                         Specimen [ label = "A VIEW, NOT A RUN",
                             HTMLText [ width = 100%, fontSize = 16, bodyColor = { provided("theme").text },
                                 html = "Click <Pill label='either'/> or <Pill label='this one'/> — each keeps its own state, and the line re-flows." ],
-                            Snippet [ code = "class Pill [ label: string = \"\",\n    picked: boolean = false,\n    fill = { picked ? provided(\"theme\").accent\n        : hovered ? provided(\"theme\").line\n        : provided(\"theme\").bg },\n    onClick() { picked = !picked },\n    t: TextLabel [ text = { classroot.picked\n        ? classroot.label + \" ✓\" : classroot.label } ]\n    ]" ]
+                            Snippet [ code = "class Pill [ label: string = \"\",\n    picked: boolean = false,\n    fill = { picked ? provided(\"theme\").accent\n        : hovered ? provided(\"theme\").line\n        : provided(\"theme\").background },\n    onClick() { picked = !picked },\n    t: TextLabel [ text = { classroot.picked\n        ? classroot.label + \" ✓\" : classroot.label } ]\n    ]" ]
                             ]
                         ]
                     ],

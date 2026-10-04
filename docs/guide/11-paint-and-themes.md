@@ -169,6 +169,17 @@ Four presets ship, each as a light record and a `…Dark` companion: **SanFranci
 page *Theme tokens* lists which tokens are required, which are optional, and which
 classes read each one, generated from the library's own source.
 
+**Naming a token.** The library names its tokens one way, and your own read best if they
+follow it. A palette role is a short noun — `background`, `surface`, `line`, `text`,
+`accent`, `error` — with an interaction state appended as the view's own fact is spelled
+(`accentHovered`, `controlPressed`). A token for one part of a control is the part, then
+the attribute it feeds: `tooltipFill`, `menuHighlightTextColor`, `buttonCornerRadius`,
+`dialogTitleFontSize` — and a line's colour is `…StrokeColor`, since `stroke` takes a width
+and a colour. A token that chooses a look says so (`sliderHandleStyle`,
+`dialogButtonLayout`). No abbreviations. A token may also hold a list —
+`inks = [#A8445E, #3F6E8C, #6B7F2E]`, read as `provided("theme").inks[i]` — and a `script`
+function that takes the theme types it `Theme`.
+
 **Reading tokens in your own classes.** Library controls and a few library views
 declare an attribute named `theme`, so inside a class that extends [`Control`](declare-docs:Control) you can
 write `theme.accent` directly. Anywhere else, read `provided("theme").accent`. Either

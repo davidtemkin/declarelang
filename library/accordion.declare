@@ -158,7 +158,7 @@ class Pane extends Control [ width = 100%, clip = true,
     layout: SimpleLayout [ axis = y, spacing = 0 ],
 
     // headers are filled, edgeless — an edge reads as an input field. The one
-    // exception is the component channel of the focus model: while this pane
+    // exception is the control's own channel of the focus model: while this pane
     // holds keyboard focus (Control's focusVisible — the web's :focus-visible
     // rule), a darker-than-fill edge appears. A pointer click focuses silently
     // — the click is its own feedback, no edge.
@@ -174,8 +174,8 @@ class Pane extends Control [ width = 100%, clip = true,
         stiffness = 220, damping = 26, epsilon = 0.004 ],
 
     header: View [ width = 100%, height = 34,
-        cornerRadius = { theme.controlRadius },
-        fill = { classroot.open || classroot.hot || classroot.down ? theme.controlSelected : theme.control },
+        cornerRadius = { theme.controlCornerRadius },
+        fill = { classroot.open || classroot.hovered || classroot.pressed ? theme.controlSelected : theme.control },
         stroke = { classroot.focusVisible ? stroke(1, theme.textMuted) : null },
         chev: ChevronIcon [ x = 11, y = center, iconSize = 14,
             angle = { classroot.twist }, ink = { theme.textMuted } ],

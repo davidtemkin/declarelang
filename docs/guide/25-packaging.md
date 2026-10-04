@@ -45,7 +45,7 @@ compiler, no source library, no server — and nothing beyond it is ever asked f
   renderer (DOM, or `--canvas`), and one reactive kernel — the WebAssembly one by default, or
   with `--kernel js` the JavaScript one, about 9 KB gzipped smaller and somewhat slower on
   view-heavy work. For the flagship calendar it is about
-  <!--stat:calendar.wireKB-->115<!--/stat--> KB gzipped, the figure the homepage reports;
+  <!--stat:calendar.wireKB-->117<!--/stat--> KB gzipped, the figure the homepage reports;
 - **your program's folder, swept in** — its data, images, fonts, anything beside the
   `.declare` file — minus its sources and its `tests/` folder of verify fixtures;
 - **`BUILD.json`**, what the package was built from, so a committed build can say whether
@@ -120,6 +120,16 @@ it did not declare — add it to `files`, or to `islands` if it is a program. Er
 package carry a code in place of their sentence; `npx declare-help <code>` gives the sentence
 back. [Building for production](declare-docs:operational:building) is the reference for
 the build's flags and layout.
+
+## Browsers
+
+A package runs on Safari and iOS 16.4 or later, Chrome and Edge 94 or later, and Firefox 93
+or later: about 98% of the browsers people use today. That holds for a DOM build and a
+`--canvas` build alike. Below Safari 18, a canvas build draws text without its
+`letterSpacing`; everything else is the same.
+
+The same floor covers your own `script` code, which is bundled with the program: any
+JavaScript those browsers run is fine to write there.
 
 ## What crawlers see
 

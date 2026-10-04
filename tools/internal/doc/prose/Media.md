@@ -16,14 +16,20 @@ clip: Video [ source = "shots/tour.mp4", stretches = both, loop = true,
 
 ## source
 The clip URL (`string`). Literal or a `{ }` constraint — derive it from data and the media
-follows. Re-pointing it starts a fresh load; a superseded in-flight load is discarded.
+follows. Re-pointing it stops the clip that was playing and starts a fresh load; a
+superseded in-flight load is discarded. The load fetches the metadata at once, so
+`duration` and `loaded` arrive before anything plays. Discarding the view stops the clip.
 
 ## playing
 Whether the clip is running. **Two-way**: a constraint decides when it plays, and the
 element writes back when something outside the program changes it — the browser pausing a
 backgrounded tab, a media key, an autoplay the platform refused. Constrain it to a fact about
 the world (`playing = { visible && app.pageVisible }`) rather than assigning it from a
-handler, and the clip does the right thing without anything scheduling it.
+handler, and the clip does the right thing without anything scheduling it. A `true`
+that arrives before the metadata is honoured when the metadata lands.
+
+Several clips where only one may play is app state, not a stop call: hold the playing
+clip's id (`playing = { app.playing == clipId }`), and starting another changes the id.
 
 ## loop
 Restart at the end rather than stopping. Default `false`.
@@ -38,8 +44,15 @@ class that appears broken until you find the flag).
 ## position
 The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is
 `width = { parent.width * (clip.position / clip.duration) }`), assign it to seek. The
-runtime writes it back about four times a second, not once a frame; read it from a
-`Time [ tick = frame ]` member's `onTick` when you genuinely need frame accuracy.
+runtime writes it back about four times a second, not once a frame. An assignment
+within a quarter second of the clip's own playhead is not a seek, so the write-backs
+can never bounce out as seeks and stutter playback.
+
+For a playhead that moves smoothly, keep your own number and advance it in a
+`Time [ tick = frame ]` member's `onTick(dt)`, taking the clip's `position` whenever the
+two disagree by more than a fraction of a second. Reading `position` every frame
+without integrating is polling (DECLARE4006). The guide's
+[scrubber](declare-docs:guide:media@a-scrubber) has the whole pattern.
 
 ## volume
 `0`–`1`, default `1`. Independent of `muted`, which gates it — muting does not zero the

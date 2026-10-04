@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -34,7 +35,7 @@ const httpServer = http.createServer(server.handler).on("upgrade", server.upgrad
 await new Promise((r) => httpServer.listen(0, "127.0.0.1", r));
 const B = `http://127.0.0.1:${httpServer.address().port}`;
 
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage();
 const errs = [];
 page.on("pageerror", (e) => errs.push(String(e).slice(0, 140)));
@@ -99,7 +100,7 @@ try {
   // document belongs to library/platform-apps/viewer/. Its relative bitmaps and web faces mean
   // "beside my .declare" (asset-base.ts) — and a face the child could not load
   // used to reject out of renderAsync and abort the mount, so every app with a
-  // `font … Face [ src = "…" ]` showed a blank pane and said nothing.
+  // `font … FontFace [ src = "…" ]` showed a blank pane and said nothing.
   await test("the Viewer's edit pane mounts a child with a web font, at the viewed program's base", async () => {
     await page.goto(`${B}/apps/lzx-weather/lzx-weather.declare?viewer=edit`, { waitUntil: "networkidle2", timeout: 60000 });
     await page.waitForFunction(

@@ -125,7 +125,10 @@ export function createProxy(spec = {}) {
       for (const [k, v] of Object.entries(upRes.headers))
         for (const one of Array.isArray(v) ? v : [v]) lines.push(`${k}: ${one}`);
       socket.write(lines.join("\r\n") + "\r\n\r\n");
-      if (upHead && upHead.length) socket.unshift(upHead);
+      // bytes the back end sent along with its answer (a first frame) are on
+      // their way TO the client — never back into the client's own stream,
+      // which pipes to the back end and would hand it its own frame
+      if (upHead && upHead.length) socket.write(upHead);
       upSocket.on("error", () => socket.destroy());
       socket.on("error", () => upSocket.destroy());
       upSocket.pipe(socket).pipe(upSocket);

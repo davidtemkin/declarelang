@@ -17,4 +17,14 @@ Sends one text frame. **Legal only while `open`** — on a socket that is not op
 nothing and reports through the error channel (`error` + `onError`), never a silent queue:
 if the app needs buffering-until-connected, that policy belongs in app state, visibly.
 Sending the opening frame belongs in `onOpen` (which also covers every reconnect); gate
-user-triggered sends on `.open`.
+user-triggered sends on `.open`:
+
+```declare-fragment
+live: Socket [ url = "wss://chat.example.com/live", retry = 2,
+    onMessage(e: StreamMessage) { app.store.apply(JSON.parse(e.data)) } ],
+send: Button [ label = "Send", disabled = { !app.live.open || app.draft == "" },
+    onClick() { app.live.send(JSON.stringify({ t: "send", text: app.draft })); app.draft = "" } ]
+```
+
+What arrives lands in the data (`app.store.apply`), and every view reading it follows —
+the socket never touches a view.

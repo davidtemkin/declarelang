@@ -223,7 +223,7 @@ initial selection = **today** (§12-A).
 |---|---|---|
 | button slices (pill/square/circle/btn_rsrcs, 4 shapes × 3 states × 3 slices) | ~129 | **one drawn `CalButton`** (gradient + caps + states) |
 | panel/day chrome (infopanel 9-slice, day frames, grab bars, tgrid hour lines) | ~90 | **drawn** (fill/cornerRadius/hairlines/draw()) |
-| scrollbar slices | 12 | drawn (Declare scrollbar component — harvest) |
+| scrollbar slices | 12 | drawn (a Declare scrollbar class — harvest) |
 | day-name labels, view icons, arrows | ~15 | **text/draw()** (labels are just rendered text) |
 | logo, menubar overlay, loading still, splash | ~10 | **keep as bitmaps** initially; revisit later |
 
@@ -239,7 +239,7 @@ initial selection = **today** (§12-A).
 | eventselector.lzx (global chrome + idle-loop drag) | 443 | per-event `selected` state + one drag routine (time-drag ⇄ free-drag) (~80 lines) |
 | infopanel + basepanel + textbox + tabs | ~500 | `InfoPanel` (TextInput fields, spinners, accordion states) (~150 lines) |
 | cal-button (9-slice, 3 states × 4 shapes) | 300 | drawn `CalButton` (~60 lines) |
-| vscrollbar | 238 | Declare `Scrollbar` (component-library harvest) (~80 lines) |
+| vscrollbar | 238 | Declare `Scrollbar` (library harvest) (~80 lines) |
 
 Target: **≈900–1,000 lines of Declare** for behavioral+visual parity — a ~4× reduction, with zero grid
 images. The states mechanism, animators, replication, constraints, TextInput/focus, and draw() all
@@ -277,5 +277,5 @@ get exercised — this is the showcase app.
    Gates vs `oracle/07,08,12`.
 5. **Info panel + Add Event**: panel slide, fields (TextInput), spinners, accordion, apply/delete/
    cancel semantics. Gates vs `oracle/05–07,20`.
-6. **Chrome polish**: CalButton, scrollbar, selected-day bevel, startup animation; component-library
+6. **Chrome polish**: CalButton, scrollbar, selected-day bevel, startup animation; library
    harvest begins here.

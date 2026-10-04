@@ -11,7 +11,7 @@
 //                the page observes it out into an ordinary <output> element.
 //                The app never notifies anyone; it just writes its own fact.
 
-// One of the eight bars: every slot a pure function of the app's two facts —
+// One of the eight bars: every attribute a pure function of the app's two facts —
 // color from `hue` (written by the page), height from `beats` (written by the
 // click handler). Either write lands, the whole row re-derives.
 

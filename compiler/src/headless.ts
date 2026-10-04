@@ -103,7 +103,7 @@ export function settleHeadless(source: string, opts: HeadlessOptions = {}): App 
   const prevStreams = provideStreams({ eventSource: refuse, socket: refuse });
   try {
     const app = build(source, opts);
-    app.attach(new HeadlessBackend(), null);
+    app.$attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
     app.dark = env.dark;

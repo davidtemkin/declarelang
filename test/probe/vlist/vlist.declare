@@ -1,0 +1,432 @@
+/*
+# vlist
+
+Every case a virtualized list has to survive, in one program that runs on every
+host. Two lists, the two shapes real apps use:
+
+- **a chat log** (Murmur's shape): conversations replicated side by side, one
+  shown; each has its own scroller holding a padded column of messages, with
+  content after the rows. Rows run from 2 px to 2,400 px: text from one word to
+  hundreds, pictures whose size the data does not state, section headers, a
+  header line that depends on the row before and spacing on the row after,
+  labels replicated inside a row, reactions that grow a row after it was shown,
+  rows that open in place (row state), rows that spring open (app state) with a
+  text field inside.
+- **a table** (Tracker's shape): rows straight in a `Table`'s scroller, one line
+  each, labels replicated inside, opened by app state with a height spring,
+  selected and walked by the keyboard.
+
+Every row shows its record's number, so a check can tell records apart. The
+program answers its own questions (`screen()`, `blank()`, `overlaps()`,
+`pinStep(k, tol)`), so every host evaluates the same code: test/conform/vlist.test.mjs
+compares a virtualized copy against a fully built one, record for record.
+*/
+
+script [ "vlist-data.ts" ]
+
+class Row [ width = 100%,
+    num: number = { :i ?? -1 }
+    ]
+
+
+/* A record's number and author, the header line a run of one author shares,
+   and the room a run's last row leaves — both read a neighbour. */
+
+class Said extends Row [
+    rows: array = { provided("rows") },
+    starts: boolean = { rowIndex == 0 || rows[rowIndex - 1]?.author != :author || rows[rowIndex - 1]?.kind != :kind },
+    ends: boolean = { rowIndex + 1 >= rows.length || rows[rowIndex + 1]?.author != :author || rows[rowIndex + 1]?.kind != :kind },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    padding = { [starts ? 8 : 1, 0, ends ? 6 : 1, 0] },
+    head: View [ exists = { classroot.starts }, height = 18,
+        TextLabel [ x = 12, fontSize = 11, fontWeight = semibold, textColor = #6A7883, text = { "#" + :i + " · " + :author } ]
+        ]
+    ]
+
+
+class Tag [ height = 16, cornerRadius = 8, fill = #E3E8EC,
+    t: string = "",
+    width = { this.cap.width + 12 },
+    cap: TextLabel [ x = 6, y = 2, fontSize = 10, textColor = #51606C, text = { t } ]
+    ]
+
+
+class TextRow extends Said [
+    tag: TextLabel [ exists = { !classroot.starts }, x = 12, fontSize = 10, textColor = #9AA4AC, text = { "#" + :i } ],
+    body: Text [ width = { parent.width - 24 }, x = 12, fontSize = 15, text = { :text ?? "" } ],
+    labels: View [ exists = { (:tags ?? []).length > 0 }, x = 12, height = 16,
+        layout: SimpleLayout [ axis = x, spacing = 4 ],
+        Tag [ datapath = :tags[], t = { "" + :@ } ]
+        ],
+    pill: View [ exists = { (:reacts ?? 0) > 0 }, x = 12, height = 22, cornerRadius = 11, fill = #F1F3F5,
+        width = { this.t.width + 18 },
+        t: TextLabel [ x = 9, y = 4, fontSize = 12, text = { "☺ " + (:reacts ?? 0) } ]
+        ]
+    ]
+
+
+class TinyRow extends Row [ height = 2, fill = #C8CED3,
+    TextLabel [ x = 4, fontSize = 1, text = { "#" + :i } ]
+    ]
+
+
+class HugeRow extends Row [ height = { :h ?? 1200 }, fill = #E4ECF2,
+    TextLabel [ x = 12, y = 8, fontSize = 13, text = { "#" + :i + " · huge " + :h + " px" } ]
+    ]
+
+
+class ImageRow extends Said [
+    pic: Image [ x = 12, source = { vlSvg(:w ?? 100, :hh ?? 100, :hue ?? 0) },
+        width = { Math.min(:w ?? 100, parent.width - 24) },
+        height = { this.loaded ? Math.round(this.width * this.naturalHeight / Math.max(1, this.naturalWidth)) : 40 } ]
+    ]
+
+
+class HeaderRow extends Row [ height = 44,
+    TextLabel [ x = 12, y = 14, fontSize = 15, fontWeight = bold, text = { "#" + :i + " · " + (:title ?? "") } ]
+    ]
+
+
+/* Opens in place: the state is the row's own. */
+
+class ExpandRow extends Said [
+    open: boolean = false,
+    bar: View [ height = 30, fill = #F2E8DA, width = 100%,
+        onClick() { classroot.open = !classroot.open },
+        TextLabel [ x = 12, y = 7, fontSize = 13, text = { "#" + :i + " · " + (:text ?? "") + (classroot.open ? " — open" : "") } ]
+        ],
+    detail: View [ exists = { classroot.open }, height = { :dh ?? 100 }, width = 100%, fill = #FBF4EA,
+        TextLabel [ x = 12, y = 8, fontSize = 12, text = { "#" + :i + " detail" } ]
+        ]
+    ]
+
+
+/* Springs open: the state is the app's, the motion a height Spring, and the
+   open card holds a text field. */
+
+class SpringRow extends Row [
+    open: boolean = { app.isOpen(:i) },
+    targetH: number = { open ? 30 + (:dh ?? 100) : 30 },
+    height = 30, clip = true,
+    Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34 ],
+    bar: View [ height = 30, fill = #DCEBF3, width = 100%,
+        onClick() { app.toggle(:i) },
+        TextLabel [ x = 12, y = 7, fontSize = 13, text = { "#" + :i + " · " + (:text ?? "") + (classroot.open ? " — open" : "") } ]
+        ],
+    card: View [ visible = { classroot.open }, y = 30, height = { :dh ?? 100 }, width = 100%, fill = #F3F8FB,
+        input: TextInput [ x = 12, y = 10, width = 260, height = 30, fontSize = 16 ]
+        ]
+    ]
+
+
+/* One conversation: its own scroller, a padded column, content after the rows. */
+
+class Thread [ width = 100%, height = 100%,
+    isThread: boolean = true,
+    visible = { rowIndex == app.thread },
+    log: View [ width = 100%, height = 100%, scrolls = y,
+        scrollAnchor = { app.anchorEnd ? "end" : "content" },
+        col: View [ width = { Math.min(app.colW, parent.width) }, x = center, padding = [10, 0, 14, 0],
+            rows: array = { :rows ?? [] },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Row [ datapath = :rows[], virtualize = { app.virt },
+                classFor = { :kind == "tiny" ? TinyRow : :kind == "huge" ? HugeRow : :kind == "image" ? ImageRow
+                    : :kind == "header" ? HeaderRow : :kind == "expand" ? ExpandRow : :kind == "spring" ? SpringRow : TextRow } ],
+            writing: Text [ exists = { app.typing }, x = 30, fontSize = 13, padding = [8, 0, 4, 0], textColor = #6A7883,
+                text = "Ada writing…" ]
+            ]
+        ]
+    ]
+
+
+/* The table's rows: one line, labels inside, opened by app state with a spring. */
+
+class TRow extends TableRow [ width = 100%,
+    num: number = { :i ?? -1 },
+    open: boolean = { app.isOpen(:i) },
+    targetH: number = { open ? 44 + (:dh ?? 200) : 44 },
+    height = 44, clip = true,
+    Spring [ attribute = height, to = { targetH }, stiffness = 320, damping = 34 ],
+    fill = { selected ? 0xdce8f5 : null },
+    t: TextLabel [ x = 12, y = 14, fontSize = 13, text = { "#" + :i + " · " + (:title ?? "") } ],
+    labels: View [ x = 420, y = 14, height = 16,
+        layout: SimpleLayout [ axis = x, spacing = 4 ],
+        Tag [ datapath = :tags[0:2][], t = { "" + :@ } ]
+        ],
+    card: View [ visible = { classroot.open }, x = 12, y = 44, width = { parent.width - 24 }, height = { :dh ?? 200 },
+        fill = #F3F8FB, cornerRadius = 8,
+        TextLabel [ x = 12, y = 10, fontSize = 12, text = { "#" + :i + " open" } ]
+        ]
+    ]
+
+
+class TGroup extends TRow [ targetH = 42, fill = #F6F7F8 ]
+
+App [ fill = #FFFFFF, scrolls = none,
+    // the run, set by configure()
+
+    n: number = 2000,
+    seed: number = 7,
+    virt: boolean = true,
+    anchorEnd: boolean = false,
+    table: boolean = false,
+    colW: number = 760,
+    threads: number = 1,
+
+    // the lists' own height gives up `cut` px at the bottom (a keyboard opening, a pane resized)
+
+    cut: number = 0,
+
+    // live state
+
+    thread: number = 0,
+    typing: boolean = false,
+    opened: object = { {} },
+    nextI: number = 0,
+    pinJumped: boolean = false,
+    store: Dataset { { "threads": [] } },
+    onReady() { this.reset() },
+
+    configure(c: object) {
+        const o = c as any
+        app.n = o.n ?? 2000
+        app.seed = o.seed ?? 7
+        app.virt = o.virt ?? true
+        app.anchorEnd = o.end ?? false
+        app.table = o.table ?? false
+        app.colW = o.colW ?? 760
+        app.threads = o.threads ?? 1
+        app.cut = 0
+        app.reset()
+        return true
+        },
+    reset() {
+        const ts = []
+        for (let t = 0; t < app.threads; t++) ts.push({ "rows": vlGenerate(app.n, app.seed + t * 101, t * 10000000) })
+        app.nextI = 0
+        app.thread = 0
+        app.typing = false
+        app.opened = {}
+        app.store.set(["threads"], ts)
+        },
+
+    // ── where things are ──
+
+    scroller() -> object { return app.table ? app.tlist : ((app.chats as any).children.find((c) => (c as any).isThread == true && (c as any).visible) as any).log },
+    rowsParent() -> object { return app.table ? app.tlist : (app.scroller() as any).col },
+    data() -> array { return ((app.store.value as any).threads[app.thread]?.rows ?? []) as any[] },
+    built() -> array { return (app.rowsParent() as any).children.filter((c) => (c as any).visible && (c as any).num >= 0) },
+
+    // ── the questions every host answers the same way ──
+    // the rows on screen, top to bottom: record, top in the viewport, height
+
+    screen() -> array {
+        const sc = app.scroller() as any, p = app.rowsParent() as any
+        const off = app.table ? 0 : p.y
+        const out = []
+        for (const c of app.built()) {
+            const top = off + (c as any).y - sc.scrollY, h = (c as any).height
+            // (a pixel's sliver at an edge is not a row on screen: offsets are whole pixels)
+            if (top + h > 1 && top < sc.height - 1) out.push({ i: (c as any).num, top: Math.round(top * 10) / 10, h: Math.round(h * 10) / 10 })
+            }
+        out.sort((a, b) => a.top - b.top)
+        return out
+        },
+
+    // the largest band of the viewport no row covers, beyond the list's own spacing
+
+    blank() -> number {
+        const sc = app.scroller() as any, s = app.screen()
+        if (s.length == 0) return sc.height
+        // (half a pixel between rows, a pixel at the viewport's edges: a row a
+        // fraction of a pixel off a seam leaves no band anyone sees)
+        let worst = sc.scrollY <= 1 ? 0 : Math.max(0, s[0].top - 1), edge = s[0].top + s[0].h
+        for (const r of s) { worst = Math.max(worst, r.top - edge - 4.5); edge = Math.max(edge, r.top + r.h) }
+        if (sc.scrollY < sc.contentHeight - sc.height - 1) worst = Math.max(worst, sc.height - edge - 15)
+        return Math.max(0, Math.floor(worst))
+        },
+    overlaps() -> number {
+        const s = app.screen()
+        let n = 0
+        for (let k = 1; k < s.length; k++) if (s[k].top < s[k - 1].top + s[k - 1].h - 0.5) n++
+        return n
+        },
+
+    // a checkpoint in one question: the rows on screen, the invariants, and
+    // how many pictures on screen are still arriving
+
+    look() -> object { return { rows: app.screen(), blank: app.blank(), overlaps: app.overlaps(), pending: app.pending() } },
+
+    // pictures on screen still arriving — a check waits for them (their size comes with them)
+
+    pending() -> number {
+        let n = 0
+        for (const r of app.screen()) {
+            const row = app.built().find((c) => (c as any).num == r.i) as any
+            if (row.pic != null && !row.pic.loaded) n++
+            }
+        return n
+        },
+    at() -> object { const sc = app.scroller() as any; return { y: Math.round(sc.scrollY), max: Math.round(sc.contentHeight - sc.height) } },
+
+    // one step toward record k sitting exactly at the viewport's top
+
+    pinStart() { app.pinJumped = false },
+
+    // (`tol`: how close counts — a compressed range, past 16.7M px, moves rows
+    // in steps of its scale, so its pins land within a few pixels)
+
+    pinStep(k: number, tol: number) -> string {
+        const sc = app.scroller() as any, p = app.rowsParent() as any
+        const off = app.table ? 0 : p.y
+        const row = app.built().find((c) => (c as any).num == k) as any
+        if (row == null) {
+            const rows = app.data(), idx = rows.findIndex((r) => (r as any).i == k)
+            if (idx < 0) return "gone"
+            if (!app.pinJumped) {
+                app.pinJumped = true
+                sc.scrollTo(Math.max(0, (sc.contentHeight - sc.height) * idx / Math.max(1, rows.length - 1)))
+                return "jump"
+                }
+            const s = app.screen()
+            if (s.length == 0) return "empty"
+            const lo = rows.findIndex((r) => (r as any).i == s[0].i), hi = rows.findIndex((r) => (r as any).i == s[s.length - 1].i)
+            const avg = s.reduce((a, r) => a + r.h, 0) / s.length
+            const dist = idx < lo ? idx - lo : idx - hi
+            sc.scrollTo(sc.scrollY + Math.sign(dist) * Math.max(sc.height, Math.abs(dist) * avg * 0.9))
+            return "step"
+            }
+        const d = off + row.y - sc.scrollY
+        // a record near an end sits as close to the top as the range allows
+        if (Math.abs(d) < tol || (d > 0 && sc.scrollY >= sc.contentHeight - sc.height - 0.5)) return "done"
+        sc.scrollTo(sc.scrollY + d)
+        return "adjust"
+        },
+    toEnd(end: boolean) { (app.scroller() as any).scrollTo(end ? Infinity : 0) },
+    record(k: number) -> number { return app.data()[k]?.i ?? -1 },
+    count() -> number { return app.data().length },
+
+    // ── what users do ──
+
+    isOpen(i: number) -> boolean { return (app.opened as any)["" + i] == true },
+    toggle(i: number) {
+        const o = { ...(app.opened as any) }
+        if (o["" + i]) delete o["" + i]; else o["" + i] = true
+        app.opened = o
+        },
+
+    // open `count` records spread through the data (springing ones in the log; any in the table)
+
+    openSome(count: number) -> number {
+        const rows = app.data() as any[], o = { ...(app.opened as any) }
+        let n = 0
+        for (let k = 0; k < rows.length * 4 && n < count; k++) {
+            const r = rows[(k * 7919 + 13) % rows.length] as any
+            if ((app.table || r.kind == "spring") && !o["" + r.i]) { o["" + r.i] = true; n++ }
+            }
+        app.opened = o
+        return n
+        },
+    closeAll() { app.opened = {} },
+
+    // open a row's own state (the log's in-place rows) nearest the viewport's middle
+
+    openLocal() -> number {
+        const sc = app.scroller() as any, mid = sc.height / 2
+        const s = app.screen().filter((r) => (app.built().find((c) => (c as any).num == r.i) as any).bar != null && (app.built().find((c) => (c as any).num == r.i) as any).detail !== undefined)
+        if (s.length == 0) return -1
+        s.sort((a, b) => Math.abs(a.top - mid) - Math.abs(b.top - mid))
+        const row = app.built().find((c) => (c as any).num == s[0].i) as any
+        row.open = !row.open
+        return s[0].i
+        },
+    focusIn() -> number {
+        const s = app.screen()
+        for (const r of s) {
+            const row = app.built().find((c) => (c as any).num == r.i) as any
+            if (row.card != null && row.card.input != null && row.open) { Focus.focus(row.card.input); return r.i }
+            }
+        return -1
+        },
+    focusedRecord() -> number {
+        let v = Focus.getFocus() as any
+        while (v != null && !(v.num >= 0)) v = v.parent
+        return v == null ? -1 : v.num
+        },
+    fresh(count: number) -> array {
+        const out = vlGenerate(count, app.seed * 7919 + app.nextI, 5000000 + app.nextI)
+        app.nextI = app.nextI + count
+        return out
+        },
+    setRows(rows: array) { app.store.set(["threads", app.thread, "rows"], rows) },
+    insertTop(count: number) { app.setRows([...app.fresh(count), ...app.data()]) },
+    append(count: number) { app.setRows([...app.data(), ...app.fresh(count)]) },
+    removeSome(count: number) {
+        const rows = [...app.data()], r = vlRng(app.seed + rows.length)
+        for (let k = 0; k < count && rows.length > 0; k++) rows.splice(Math.floor(r() * rows.length), 1)
+        app.setRows(rows)
+        },
+    send() { app.append(1); (app.scroller() as any).scrollTo(Infinity) },
+
+    // records around the first on screen grow: more text, a reaction
+
+    grow(span: number) -> number {
+        const s = app.screen(), rows = app.data()
+        if (s.length == 0) return 0
+        const at = rows.findIndex((r) => (r as any).i == s[0].i)
+        let n = 0
+        for (let k = Math.max(0, at - span); k <= Math.min(rows.length - 1, at + span); k++) {
+            const r = rows[k] as any
+            if (r.kind != "text") continue
+            app.store.set(["threads", app.thread, "rows", k, "text"], vlMore(r.text ?? "", r.i))
+            app.store.set(["threads", app.thread, "rows", k, "reacts"], (r.reacts ?? 0) + 1)
+            n++
+            }
+        return n
+        },
+    onlyAuthor(a: string) { app.setRows(app.data().filter((r) => (r as any).author == a)) },
+    reverse() { app.setRows([...app.data()].reverse()) },
+    switchThread() { app.thread = (app.thread + 1) % app.threads },
+
+    bar: View [ width = { app.width }, height = 40, fill = #EEF1F4,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        padding = [0, 8, 0, 8],
+        Button [ label = "Open 40",
+            onClick() { app.openSome(40) }
+            ],
+        Button [ label = "Close",
+            onClick() { app.closeAll() }
+            ],
+        Button [ label = "+50 top",
+            onClick() { app.insertTop(50) }
+            ],
+        Button [ label = "Send",
+            onClick() { app.send() }
+            ],
+        Button [ label = "Grow",
+            onClick() { app.grow(3) }
+            ],
+        Button [ label = "Narrow",
+            onClick() { app.colW = app.colW == 760 ? 420 : 760 }
+            ],
+        Button [ label = "Table",
+            onClick() { app.configure({ "table": !app.table, "virt": app.virt }) }
+            ],
+        Button [ label = "Virt",
+            onClick() { app.configure({ "table": app.table, "virt": !app.virt }) }
+            ],
+        TextLabel [ fontSize = 12, textColor = #51606C,
+            text = { app.count() + " rows · " + (app.table ? "table" : "log") + " · virtualize " + (app.virt ? "on" : "off") } ]
+        ],
+
+    chats: View [ exists = { !app.table }, y = 40, width = { app.width }, height = { Math.max(60, app.height - 40 - app.cut) },
+        datapath = { app.store.value },
+        Thread [ datapath = :threads[] ]
+        ],
+
+    tlist: Table [ exists = { app.table }, y = 40, width = { app.width }, height = { Math.max(60, app.height - 40 - app.cut) },
+        datapath = { app.store.value.threads[0] },
+        TRow [ datapath = :rows[], virtualize = { app.virt },
+            classFor = { :kind == "header" ? TGroup : TRow } ]
+        ]
+    ]

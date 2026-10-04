@@ -319,6 +319,27 @@ function sizeFromParent(name, deps, src) {
     }
     return new RegExp("(?:^|[^\\w$.])(?:this\\s*\\.\\s*)?parent\\s*\\.\\s*(?:" + same + ")\\b").test(src);
 }
+const PLANS = new WeakMap();
+function planFor(name, deps, src, kernelOk) {
+    let byName = PLANS.get(deps);
+    if (byName === undefined)
+        PLANS.set(deps, (byName = new Map()));
+    const key = name + (kernelOk ? "" : "|nok") + (deferral("probe") ? "" : "|np");
+    let plan = byName.get(key);
+    if (plan === undefined) {
+        const paths = pathsOnly(deps);
+        const regionReactive = paths.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
+        plan = {
+            expr: kernelOk ? exprOf(deps) : null,
+            paths,
+            derived: sizeFromParent(name, deps, src),
+            regionReactive,
+            probes: paths.length > 0 && !regionReactive ? probeFns(paths) : null,
+        };
+        byName.set(key, plan);
+    }
+    return plan;
+}
 export function bindConstraint(view, name, src, pos, classroot, 
 /** The compiler's extracted dependency read-paths (docs/system-design/constraints.md §5).
  *  When present, the constraint is wired on the static path — edges fixed once,
@@ -327,19 +348,22 @@ export function bindConstraint(view, name, src, pos, classroot,
 deps, 
 /** A DECLARED default (bindDeclDefault): yields to an author write or a
  *  newer owner, as the live fallback it replaces did. */
-yielding = false) {
-    const derived = sizeFromParent(name, deps, src);
-    const expr = exprStats.disabled ? null : exprOf(deps);
+yielding = false, 
+/** …and is marked as one BEFORE its first run, so a read while that run is
+ *  in flight evaluates the default live instead of taking the empty slot. */
+declDefault = false) {
+    const plan = deps !== undefined ? planFor(name, deps, src, !exprStats.disabled) : null;
+    const derived = plan !== null ? plan.derived : sizeFromParent(name, deps, src);
+    const expr = plan !== null ? plan.expr : null;
     if (expr !== null) {
         if (bindKernelExpr(view, name, expr, classroot, `${view.constructor.name}.${name}`, src, pos, yielding, deps, derived)) {
             exprStats.kernel++;
             return;
         }
         exprStats.fallback++;
-        deps = pathsOnly(deps);
     }
-    else if (deps !== undefined)
-        deps = pathsOnly(deps);
+    if (plan !== null)
+        deps = plan.paths;
     const c = compileExpr(src);
     if ("error" in c) {
         throw new DeclareError(`${view.constructor.name}.${name} = { … } ${c.error}`, pos);
@@ -355,13 +379,16 @@ yielding = false) {
     }
     catch {
         return DEFERRED;
-    } } : () => fn.call(view, view.parent, classroot), yielding ? (v) => { if (v !== DEFERRED)
-        writeOwned(view, name, v); } : (v) => setBound(view, name, v), 0, yielding);
+    } } : () => fn.call(view, view.parent, classroot), yielding ? (v) => { if (v !== DEFERRED) {
+        k.applied = true;
+        writeOwned(view, name, v);
+    } } : (v) => setBound(view, name, v), 0, yielding);
     // Retain the authored text + position for the Inspector (inspect.ts explain()).
     k.source = src;
     k.sourcePos = sourceAt(pos);
     if (derived)
         markPercent(k);
+    k.declDefault = declDefault;
     own(view, name, k);
     // a numeric slot: the kernel lands the value (gate, store, wake; the surface
     // push follows at the settle's close, as for an EXPR rule)
@@ -379,11 +406,10 @@ yielding = false) {
     // dataset's tracked view (data.ts trackedView) makes such reads subscribe to
     // region cells, which live on the value tree and are recreated with it, so
     // the tracking path (re-tracked each run) is the only honest wiring here too.
-    const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
-    if (deps !== undefined && deps.length > 0 && !regionReactive) {
+    if (plan !== null && plan.probes !== null) {
         // Each read-path is an analyzable expression (`this.root.n`, `this.theme`);
-        // compile once and read it under tracking to wire the (stable) edge.
-        const probes = probeFns(deps);
+        // compiled once per template and read under tracking to wire the (stable) edge.
+        const probes = plan.probes;
         k.wire(() => {
             for (const p of probes) {
                 try {
@@ -580,7 +606,7 @@ const DEFERRED = Symbol("deferred");
 export function bindDeclDefault(view, name, src, pos, classroot, deps) {
     if (isSetOrOwned(view, name))
         return;
-    bindConstraint(view, name, src, pos, classroot, deps, true);
+    bindConstraint(view, name, src, pos, classroot, deps, true, true);
     const o = ownerOf(view, name);
     if (o !== null)
         o.declDefault = true;

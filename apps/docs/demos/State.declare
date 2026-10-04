@@ -1,5 +1,5 @@
 // A named bundle of attribute values
-// `open` picks which State applies; every slot the State names moves together, and the ones with a Spring move smoothly.
+// `open` picks which State applies; every attribute the State names moves together, and the ones with a Spring move smoothly.
 
 App [ fill = white, textColor = black,
     open: boolean = false,

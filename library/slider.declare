@@ -64,7 +64,7 @@ Rings the circular grabber — the part the arrow keys move — rather than the 
 ## barStyle()
 True when the theme asks for the Material-3 rendition: a vertical bar handle with the
 track shortened either side of it rather than drawn through. One theme token
-(`theme.sliderHandle`) selects a rendition — **data, not a fork**.
+(`theme.sliderHandleStyle`) selects a rendition — **data, not a fork**.
 
 ## dotStyle()
 True for the Fluent rendition: a round grabber with an accent dot inside that grows
@@ -140,17 +140,17 @@ class Slider extends Control [
 
     // Mountain View draws the handle as a vertical bar with a gap in the
     // track around it; every other theme uses the round thumb. One token —
-    // theme.sliderHandle == "bar" — selects the rendition; the gap is the
+    // theme.sliderHandleStyle == "bar" — selects the rendition; the gap is the
     // track being shortened to either side of the handle rather than drawn
     // through it. Data, not a fork.
 
-    barStyle() { return theme.sliderHandle == "bar" },
+    barStyle() { return theme.sliderHandleStyle == "bar" },
 
     // Redmond's thumb: a 20px round grabber, surface-filled, with an accent
     // dot inside that grows a touch on hover/press. One more value of the
     // same token — data, not a fork.
 
-    dotStyle() { return theme.sliderHandle == "dot" },
+    dotStyle() { return theme.sliderHandleStyle == "dot" },
 
     track: View [ y = 12, height = 4, cornerRadius = 2, fill = { theme.control },
         x     = { classroot.barStyle() ? classroot.thumb.x + classroot.thumb.width + 5 : 0 },
@@ -164,9 +164,9 @@ class Slider extends Control [
         cornerRadius = { this.width / 2 },
         x = { (classroot.width - 18) * frac + (classroot.barStyle() ? 6 : classroot.dotStyle() ? -1 : 0) },
         fill = { classroot.barStyle() ? theme.accent : theme.surface },
-        stroke = { classroot.barStyle() ? stroke(0, theme.accent) : stroke(1, classroot.hot || classroot.down || classroot.dragging ? theme.accent : theme.line) },
+        stroke = { classroot.barStyle() ? stroke(0, theme.accent) : stroke(1, classroot.hovered || classroot.pressed || classroot.dragging ? theme.accent : theme.line) },
         dot: View [ visible = { classroot.dotStyle() },
-            width  = { classroot.hot || classroot.down || classroot.dragging ? 14 : 12 },
+            width  = { classroot.hovered || classroot.pressed || classroot.dragging ? 14 : 12 },
             height = { this.width }, cornerRadius = { this.width / 2 },
             x = center, y = center, fill = { theme.accent } ]
         ]

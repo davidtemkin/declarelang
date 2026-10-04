@@ -103,7 +103,11 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
   // reshuffles anything; later duplicates drop out of the build entirely.
   const byName = new Map<string, ClassDecl>();
   for (const decl of classes) {
-    if (Object.hasOwn(SCHEMAS, decl.name) || byName.has(decl.name)) {
+    if (Object.hasOwn(SCHEMAS, decl.name)) {
+      errors.push(new DeclareError(`'${decl.name}' is a built-in class — a class of the program can't take its name; rename yours`, decl.pos));
+      continue;
+    }
+    if (byName.has(decl.name)) {
       errors.push(new DeclareError(`there is already a class named '${decl.name}'`, decl.pos));
       continue;
     }
@@ -164,10 +168,11 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
     const readOnly: string[] = [];
     for (const d of decl.body.decls) {
       const r = checkDecl(base, d, decl.name, isKnownClass, isShape);
-      if (!r.ok) { errors.push(r.error); continue; }
+      if (!r.ok) errors.push(r.error);
+      if (!r.ok && r.type === undefined) continue;
       if (Object.hasOwn(attrs, d.name)) continue; // the namespace pass reports the duplicate
-      attrs[d.name] = r.type;
-      defaults[d.name] = r.value;
+      attrs[d.name] = r.type!;
+      defaults[d.name] = r.ok ? r.value : undefined;
       if (d.readOnly) readOnly.push(d.name);
     }
     const schema: ClassSchema = { name: decl.name, base, attrs, readOnly };
@@ -323,7 +328,9 @@ function tokenOf(lit: Literal): unknown {
  *  source, like checkAttr. */
 export type CheckedDecl =
   | { ok: true; type: AttrType; value: AttrValue | undefined; binding?: { src: string; pos: Pos } }
-  | { ok: false; error: DeclareError };
+  // `type`, when the declaration's TYPE resolved and only its default is wrong:
+  // the attribute still exists, so its uses are not reported as unknown too.
+  | { ok: false; error: DeclareError; type?: AttrType };
 
 /** Resolve a WRITTEN type name to its AttrType — the one place that mapping
  *  lives. Two callers need it and MUST agree: checkDecl (which refuses an
@@ -357,12 +364,26 @@ export function resolveWrittenType(
     const okBase = declaredType(base) !== null || isClassName(base) || isShape(base) || (base.endsWith("[]") && arrayOf(base) !== null);
     return okBase ? ({ kind: "array", of: base } as AttrType) : null;
   };
+  // A REFERENCE type — a class, a schema, View — says whether it may be empty:
+  // `Thread?` may be null, `Thread` never is. The `?` belongs to these alone.
+  if (written.endsWith("?")) {
+    const nullable = reference(written.slice(0, -1), isClassName, isShape);
+    if (nullable !== null) return nullable;
+  }
+  const ref = reference(written, isClassName, isShape);
+  if (ref !== null) return { ...ref, required: true } as AttrType;
   return declaredType(written)
     ?? literalUnion(written)
     ?? arrayOf(written)
-    ?? (written.startsWith("(") ? { kind: "fn", written } as AttrType : null)
-    ?? (isClassName(written) ? { kind: "class", of: written } as AttrType : null)
-    ?? (isShape(written) ? { kind: "record", name: written, data: true } as AttrType : null);
+    ?? (written.startsWith("(") ? { kind: "fn", written } as AttrType : null);
+}
+
+/** The reference types a declared attribute may name: View, a class, a schema. */
+function reference(written: string, isClassName: (n: string) => boolean, isShape: (n: string) => boolean): AttrType | null {
+  if (written === "View") return { kind: "view" };
+  if (isClassName(written)) return { kind: "class", of: written };
+  if (isShape(written)) return { kind: "record", name: written, data: true };
+  return null;
 }
 
 export function checkDecl(
@@ -412,10 +433,11 @@ export function checkDecl(
   const type = resolveWrittenType(d.type, isClassName, isShape);
   if (type === null) {
     return err(
-      diag`unknown type '${d.type}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R'`,
+      diag`unknown type '${d.type.replace(/\s*\?$/, "")}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R' — and a class, schema or View that may be empty ends in '?' ('Thread?')`,
       d.typePos
     );
   }
+  const errT = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new DeclareError(message, pos), type });
   if (d.def === null) return { ok: true, type, value: undefined };
   if (d.def.kind === "code") {
     // A default BINDING (the ruled R6 unlock): a live
@@ -424,12 +446,12 @@ export function checkDecl(
     // { theme.buttonText }` is what lets classes defer to tokens).
     const e = validateExpr(d.def.src);
     if (e !== null) {
-      return err(diag`${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);
+      return errT(diag`${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);
     }
     return { ok: true, type, value: undefined, binding: { src: d.def.src, pos: d.def.pos } };
   }
   if (d.def.kind === "percent") {
-    return err(
+    return errT(
       diag`${owner}.${d.name}: a percent default would resolve against each instance's parent — set it per instance until percent defaults are designed`,
       d.def.pos
     );
@@ -446,7 +468,7 @@ export function checkDecl(
   // clockwise; the same list form the view path admits (check.ts).
   if ((type.kind === "radius" || type.kind === "inset") && d.def.kind === "list") {
     if (d.def.items.length !== 4 || d.def.items.some((it) => it.kind !== "number")) {
-      return err(insetOrRadiusMessage(owner, d.name), d.def.pos);
+      return errT(insetOrRadiusMessage(owner, d.name), d.def.pos);
     }
     return { ok: true, type, value: Object.freeze(d.def.items.map((it) => (it.kind === "number" ? it.value : 0))) as never };
   }
@@ -457,12 +479,12 @@ export function checkDecl(
       if (it.kind === "hexColor" || (it.kind === "ident" && it.name !== "null" && it.name !== "true" && it.name !== "false")) {
         const cc = coerce({ kind: "color" }, it);
         if (!cc.ok) {
-          return err(diag`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`, it.pos);
+          return errT(diag`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`, it.pos);
         }
         items.push(cc.value); continue;
       }
       if (it.kind === "ident") { items.push(it.name === "null" ? null : it.name === "true"); continue; }
-      return err(diag`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`, it.pos);
+      return errT(diag`${owner}.${d.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`, it.pos);
     }
     return { ok: true, type, value: Object.freeze(items) as never };
   }
@@ -479,7 +501,7 @@ export function checkDecl(
       : d.def.kind === "call"
         ? diag` — a default that reads a value is a { } constraint: ${d.name}: ${d.type} = { ${d.def.name}(…) }`
         : "";
-    return err(
+    return errT(
       diag`${owner}.${d.name}'s default expects ${c.expected}, got ${c.found ?? describeLiteral(d.def)}${hint}`,
       d.def.pos
     );
@@ -500,7 +522,7 @@ export function withDecls(
   const attrs: Record<string, AttrType> = {};
   for (const d of decls) {
     const r = checkDecl(schema, d, schema.name, isClassName, isShape);
-    if (r.ok && !Object.hasOwn(attrs, d.name)) {
+    if (r.type !== undefined && !Object.hasOwn(attrs, d.name)) {
       attrs[d.name] = r.type;
     }
   }

@@ -36,6 +36,7 @@ import http from "node:http";
 import { createDeclareServer } from "../../server/create.mjs";
 import { browserDriver, macDriver, macRequested, macLive } from "./driver.mjs";
 import { hostBinary, APP_NAME, NO_HOST } from "../../mac-host/app.mjs";
+import { launchChrome } from "../../tools/internal/chrome.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 // Port 0 = let the OS pick a free one. A fixed default collides with whatever
@@ -91,7 +92,7 @@ if (MAC && !macLive()) {
   process.exit(2);
 }
 
-const browser = await puppeteer.launch({
+const browser = await launchChrome({
   executablePath: findChrome(), headless: true, args: ["--no-sandbox"],
   defaultViewport: { width: W, height: H },
   // `Input.dispatchMouseEvent` for a wheel can outlast the 30s default while

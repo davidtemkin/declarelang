@@ -123,7 +123,7 @@ class Window [ width = 560, height = 400, clip = true,
 
     bornX: number = { :props.bornX ?? -1 },
     bornY: number = { :props.bornY ?? -1 },
-    bornFrom: View = null,                       // the view the open came from, for the return trip
+    bornFrom: View? = null,                       // the view the open came from, for the return trip
 
     // ── the tilt easter egg (rotation road-tested where everyone lives) ──
     // Press `r` and every window on screen springs to a random lean between
@@ -161,7 +161,7 @@ class Window [ width = 560, height = 400, clip = true,
 
     // ── the geometry split that makes a minimized window a dock citizen ──
     // Everything imperative (drag, spawn, the zoom animators) writes the base
-    // slots wx/wy/baseScale; the real x/y/scale are constraints blending base
+    // attributes wx/wy/baseScale; the real x/y/scale are constraints blending base
     // geometry toward a dock slot the window computes for itself — the same
     // wave math the icons run, over the same live inputs. So a parked window
     // magnifies, displaces, and rides the dock's widening exactly as an icon
@@ -322,7 +322,7 @@ class Window [ width = 560, height = 400, clip = true,
 
     // subclass content attaches after the base's children, so any content that
     // reaches the window's edges would eat the resize strips' events — the
-    // chrome re-promotes above everything (order is a slot). A subclass that
+    // chrome re-promotes above everything (order is an attribute). A subclass that
     // overrides onInit calls `super.onInit()`.
     //
     // Birth also takes what a record cannot carry: a size the opener chose
@@ -451,7 +451,7 @@ class Window [ width = 560, height = 400, clip = true,
 
         fill = { classroot.active
                 ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
-                : provided("theme").bg },
+                : provided("theme").background },
         onPointerDown() { classroot.beginDrag() },
         onPointerMove() { classroot.dragTo() },
         onPointerUp(e: PointerUpEvent)   { classroot.endDrag(e.canceled) },
@@ -762,7 +762,7 @@ window's badge.
 class AppGlyph [ width = { this.edge }, height = { this.edge },
     edge: number = 64,
 
-    // the application — a pointer slot: the { } computes which launcher
+    // the application — a pointer attribute: the { } computes which launcher
     // instance this glyph shows (a reference, re-derived when the id moves —
     // never creation, never ownership). Reads through it ride the tracking
     // path, so hue/glyph/drawn stay live on whichever node it points at.
@@ -961,8 +961,8 @@ width, a seam to drag, and the reveal a new column runs; what they show is
 their own class. `win` is the window the column browses for.
 */
 
-class FilesColumn [ height = 100%, clip = true, fill = { provided("theme").bg },
-    win: FilesWindow = null,
+class FilesColumn [ height = 100%, clip = true, fill = { provided("theme").background },
+    win: FilesWindow? = null,
     width = { this.win == null ? 250 : this.win.widths[:depth] != null ? this.win.widths[:depth] : this.win.colW },
 
     // a freshly-opened column reveals itself — if the window's
@@ -976,7 +976,7 @@ class FilesColumn [ height = 100%, clip = true, fill = { provided("theme").bg },
     // that column to the left edge, so its contents lead.
     //
     // A subclass's content attaches after the seam, so the seam
-    // raises itself above it (order is a slot).
+    // raises itself above it (order is an attribute).
 
     onInit() {
         this.grip.raise()
@@ -1043,9 +1043,9 @@ class ListColumn extends FilesColumn [
                 fo: FolderIcon [ x = 11, y = center, visible = { :hasKids } ],
                 fi: FileIcon [ x = 12, y = center, visible = { !:hasKids } ],
                 nm: Text [ x = 34, y = center, fontSize = 13, wrap = false, width = { parent.width - 52 },
-                    textColor = { parent.on ? provided("theme").accentText : provided("theme").text }, text = { "" + :name } ],
+                    textColor = { parent.on ? provided("theme").accentTextColor : provided("theme").text }, text = { "" + :name } ],
                 chev: Text [ x = { parent.width - 15 }, y = center, fontSize = 12, visible = { :hasKids },
-                    textColor = { parent.on ? provided("theme").accentText : provided("theme").textFaint }, text = "›" ]
+                    textColor = { parent.on ? provided("theme").accentTextColor : provided("theme").textFaint }, text = "›" ]
                 ]
             ],
         edge: View [ x = { parent.width - 1 }, y = 0, width = 1, height = 100%, fill = { provided("theme").line } ]
@@ -1197,7 +1197,7 @@ class FilesWindow extends Window [
         },
 
     body: View [ x = 0, y = { classroot.barH }, width = 100%, height = { parent.height - classroot.barH },
-        fill = { provided("theme").bg },
+        fill = { provided("theme").background },
 
         // the column strip: a horizontal row as wide as the open columns need,
         // inside a viewport that scrolls right (scrolls = x) as they accumulate — a
@@ -1215,7 +1215,7 @@ class FilesWindow extends Window [
             // through every ancestor scroller: hosted in a short viewport (the
             // Viewer's edit preview), that walk would scroll the embedding
             // island vertically. The window's interior animating itself cannot.
-            // The offset is a platform fact, not a slot, and the glide is the
+            // The offset is a platform fact, not an attribute, and the glide is the
             // platform's own motion.
 
             row: View [ x = 0, y = 0, height = 100%,
@@ -1319,7 +1319,7 @@ class ViewerWindow extends Window [ width = 640, height = 460,
 
     // the scrolling body is a real pointer target covering the whole window,
     // and subclass children attach after the base's — so the Window's resize
-    // strips re-promote above it (order is a slot) or edge drags never land
+    // strips re-promote above it (order is an attribute) or edge drags never land
 
     onInit() {
         if (this.inlineDoc == "") this.src.fetch()
@@ -1543,10 +1543,10 @@ class DockIcon [
     ix: number = 0,                              // resting slot index
     slots: number = { app.launcher.roster.length },   // total icons — derived from the catalog
 
-    // The application — a pointer slot: the { } computes which launcher
+    // The application — an attribute holding a view: the { } computes which launcher
     // instance this icon is (a reference; re-pointing when the id moves — a
     // MiniTile badge's does — and owning nothing). Face, hues, dot, pill, and
-    // the click all read the one instance through the slot; those reads ride
+    // the click all read the one instance through it; those reads ride
     // the tracking path, so they stay live on whichever node it points at.
 
     appId: string = "",
@@ -1590,7 +1590,7 @@ class DockIcon [
     // is hosted in two places — the dock row (which feeds the dock's live
     // gate at the instance) and a MiniTile badge (which feeds nothing) — and
     // the default 0 **is** the badge's contract: a host that states no gate is
-    // a host with no wave, so the badge's spring parks at 1. A typed slot with
+    // a host with no wave, so the badge's spring parks at 1. A typed attribute with
     // a stated default can never hand a spring an undefined target.
 
     hotGate: number = 0,
@@ -2030,8 +2030,7 @@ list is data** (`list`): one record per window { id, cls, appId, mini, props… 
 whose order is the paint order — a raise is a `move`, an open an `insert`
 (before the minimized tail), a close a `removeAt`, and the replicated windows
 reconcile to match: each record is built as the window class it names. No counter is bumped anywhere: consumers derive
-from the records (through the tracked `read`) and from the windows the slots
-carry.
+from the records (through the tracked `read`) and from the windows themselves.
 
 The surface:
 
@@ -2441,7 +2440,7 @@ class Launcher extends Node [
 
     // a full Declare app in a window — a hosted application: the AppWindow's
     // island mounts `a.prog` ("../../calendar/calendar" runs the real
-    // calendar; the path is demos/-relative, the slot convention). `subject`
+    // calendar; the path is demos/-relative, the island convention). `subject`
     // overrides the app's own when the caller names a different one (View &
     // Edit Source's program); "" takes the app's own.
     // Hosted apps count separately (running dots + Quit are per application),
@@ -2810,7 +2809,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         ### The menu bar — whole menus as records, contextual
 
         The `menus` array re-derives from the active application (and, for the
-        Window menu, live off the window slots and app.wm.frontWin), so the bar
+        Window menu, live off the windows and app.wm.frontWin), so the bar
         follows focus live, even while a menu is open. Keyboard shortcuts
         dispatch from these same records.
         */
@@ -3140,12 +3139,12 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     // caution triangle.
 
     alert: View [
-        // its own single slot of state: an inert app assigns itself here
+        // its own single attribute of state: an inert app assigns itself here
         // (InertApp.launch), dismiss clears it, null = no alert — the state
         // lives where the pixels are, and everything below (icon, headline,
         // message) derives from the one subject
 
-        subject: DesktopApp = null,
+        subject: DesktopApp? = null,
         dismiss() { this.subject = null },
         visible = { this.subject != null },
         x = 0, y = 0, width = { app.width }, height = { app.height },
@@ -3159,7 +3158,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
             x = center, y = { (parent.height - this.height) / 3 },
             cornerRadius = 20,
-            fill = { provided("theme").menuMaterial != null ? provided("theme").menuMaterial : provided("theme").surface },
+            fill = { provided("theme").menuFill != null ? provided("theme").menuFill : provided("theme").surface },
             stroke = stroke(1, #FFFFFF80),
             shadow = shadow(0, 16, 50, #00000059),
 

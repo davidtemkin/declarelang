@@ -2,8 +2,8 @@
 //
 //   App [ fontFamily = { [brand, "Helvetica", "sans-serif"] },
 //       brand: Font [ wait = 800,
-//           Face [ src = "brand-400.woff2" ],
-//           Face [ src = "brand-700.woff2", weight = bold ] ],
+//           FontFace [ src = "brand-400.woff2" ],
+//           FontFace [ src = "brand-700.woff2", weight = bold ] ],
 //       ui: Font [ family = "Helvetica Neue" ] ]              // a system font
 //
 // A Font owns its faces; a Font with no faces is a SYSTEM font naming a family the
@@ -119,10 +119,13 @@ export interface FontHost {
 }
 
 function browserHost(): FontHost | null {
-  if (typeof FontFace === "undefined" || typeof document === "undefined") return null;
+  // The BROWSER's FontFace, by its global name — this module's own FontFace
+  // is the language's class of that name, and shadows it here.
+  const Native = (globalThis as unknown as { FontFace?: new (family: string, src: string, d: object) => { load(): Promise<unknown> } }).FontFace;
+  if (Native === undefined || typeof document === "undefined") return null;
   const set = document.fonts as unknown as { add(f: unknown): void; delete?(f: unknown): void };
   return {
-    load: async (family, src, d) => { const face = new FontFace(family, src, d); await face.load(); return face; },
+    load: async (family, src, d) => { const face = new Native(family, src, d); await face.load(); return face; },
     add: (h) => set.add(h),
     remove: (h) => set.delete?.(h),
     setTimeout: (fn, ms) => setTimeout(fn, ms),
@@ -140,15 +143,15 @@ export function setFontHost(h: FontHost | null): void { host = h ?? undefined; }
 // client and the feature families never import this module.
 export type { LoadedFace } from "./face-table.js";
 
-// ── Face ─────────────────────────────────────────────────────────────────────
+// ── FontFace ─────────────────────────────────────────────────────────────────────
 
 /** One face of a Font: a file, the weight(s) it covers, and whether it is italic. */
-export class Face extends Node {
+export class FontFace extends Node {
   declare src: string | readonly string[];
   declare weight: string | number | readonly [number, number];
   declare italic: boolean;
 }
-defineAttributes(Face as never, {
+defineAttributes(FontFace as never, {
   src: { def: "" },
   weight: { def: "regular" },
   italic: { def: false },
@@ -252,9 +255,9 @@ export class Font extends Node {
     return this.#deferred !== null ? Promise.resolve() : this.#ready;
   }
 
-  #faces(): Face[] {
+  #faces(): FontFace[] {
     this.watchChildList();
-    return this.children.filter((c): c is Face => c instanceof Face);
+    return this.children.filter((c): c is FontFace => c instanceof FontFace);
   }
 
   #faceSignature(): string {

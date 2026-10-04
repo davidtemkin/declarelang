@@ -1,0 +1,167 @@
+{
+  "ms": null,
+  "target": "apps/desktop/desktop.declare",
+  "STIM": "seed",
+  "RENDER": "dom",
+  "LABEL": "before",
+  "root": "/private/tmp/claude-503/-Users-temkin-Code-Declare/0a045640-e7f8-4f06-bee0-3691f85d20f9/scratchpad/Declare-before",
+  "boot": {
+    "runs": 3239,
+    "wired": 2149,
+    "settleN": 185,
+    "settleMs": 38.19999995827675,
+    "settleMax": 22.5,
+    "settleRuns": 2690,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 4588,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 38.400000005960464,
+    "nfN": 344,
+    "nfMs": 5.700000047683716,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 1432,
+      "live": 1387,
+      "wired": 835,
+      "ranInWindow": 790
+    }
+  },
+  "win": {
+    "runs": 36316,
+    "wired": 33100,
+    "settleN": 868,
+    "settleMs": 101.60000023245811,
+    "settleMax": 0.6000000238418579,
+    "settleRuns": 36316,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 74226,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 2150,
+      "live": 2045,
+      "wired": 1189,
+      "ranInWindow": 65
+    }
+  },
+  "gaps": {
+    "n": 816,
+    "p50": 2.100000000000364,
+    "p95": 4.5,
+    "max": 17.700000000000728
+  },
+  "bench": {
+    "n": 65,
+    "errors": 0,
+    "body": 15.493548743186459,
+    "run": 19.17096815570708,
+    "runsCovered": 36316,
+    "deadRan": 0,
+    "deadRuns": 0,
+    "top": [
+      {
+        "label": "View.visibilityWake",
+        "n": 18,
+        "wired": 18,
+        "runs": 10744,
+        "bodyMs": 4.294,
+        "runMs": 8.677
+      },
+      {
+        "label": "FolderIcon.visibilityWake",
+        "n": 18,
+        "wired": 18,
+        "runs": 11058,
+        "bodyMs": 1.652,
+        "runMs": 4.258
+      },
+      {
+        "label": "FolderIcon.draw",
+        "n": 2,
+        "wired": 0,
+        "runs": 299,
+        "bodyMs": 0.961,
+        "runMs": 2.897
+      },
+      {
+        "label": "FileIcon.visibilityWake",
+        "n": 18,
+        "wired": 18,
+        "runs": 11058,
+        "bodyMs": 1.687,
+        "runMs": 1.687
+      },
+      {
+        "label": "FileIcon.draw",
+        "n": 1,
+        "wired": 0,
+        "runs": 512,
+        "bodyMs": 0,
+        "runMs": 1.652
+      },
+      {
+        "label": "JotWindow.scale",
+        "n": 1,
+        "wired": 0,
+        "runs": 562,
+        "bodyMs": 0,
+        "runMs": 0
+      },
+      {
+        "label": "JotWindow.zoomTarget",
+        "n": 1,
+        "wired": 1,
+        "runs": 60,
+        "bodyMs": 0,
+        "runMs": 0
+      },
+      {
+        "label": "FilesWindow.scale",
+        "n": 3,
+        "wired": 0,
+        "runs": 1843,
+        "bodyMs": 6.9,
+        "runMs": 0
+      },
+      {
+        "label": "FilesWindow.zoomTarget",
+        "n": 3,
+        "wired": 3,
+        "runs": 180,
+        "bodyMs": 0,
+        "runMs": 0
+      }
+    ]
+  },
+  "byLabel": null,
+  "text": null,
+  "perf": null,
+  "drag": null,
+  "errors": [],
+  "swapped": 1
+}

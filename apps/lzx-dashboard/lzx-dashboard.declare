@@ -64,13 +64,13 @@ the video tab all speak about one thing.
 
 App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
     vera: Font [
-        Face [ src = "resources/fonts/verabd.ttf", weight = bold ]
+        FontFace [ src = "resources/fonts/verabd.ttf", weight = bold ]
         ],
     veraRoman: Font [
-        Face [ src = "resources/fonts/vera.ttf" ]
+        FontFace [ src = "resources/fonts/vera.ttf" ]
         ],
     kroe: Font [
-        Face [ src = "resources/fonts/kroeger-6-plain-regular.ttf" ]
+        FontFace [ src = "resources/fonts/kroeger-6-plain-regular.ttf" ]
         ],
     clip = true,                       // the stage's edge clips a dragged window, as the canvas did
     fontFamily = { [app.vera, "Verdana", "sans-serif"] },

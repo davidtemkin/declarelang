@@ -49,7 +49,7 @@ class HitFig extends Plate [
 
         // Every view in this scene declares an empty `onClick()`, and each one is
         // load-bearing. Interest in the pointer derives from what a view
-        // declares: a handler, a `tip`, a `link` or `scrolls`. Reading `hovered`
+        // declares: a handler, a `tooltipLabel`, a `link` or `scrolls`. Reading `hovered`
         // is not a declaration, so a view styled only by `this.hovered` is never
         // wired, stays transparent to input, and its `hovered` stays false. The
         // empty handler is how a view here says "I am one of the things the walk

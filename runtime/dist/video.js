@@ -21,8 +21,8 @@ export class Video extends Media {
     contentExtent(size) {
         return this.loaded ? this.natural[size] : 0;
     }
-    flush(s) {
-        super.flush(s);
+    $flush(s) {
+        super.$flush(s);
         s.setImageStretch(this.stretches);
     }
     makeElement() {
@@ -41,13 +41,13 @@ export class Video extends Media {
         if (!isSet(this, "height") && ownerOf(this, "height") === null) {
             setBound(this, "height", v.videoHeight);
         }
-        this.surface?.setImage(v);
+        this.$surface?.setImage(v);
     }
     sourceCleared() {
-        this.surface?.setImage(null);
+        this.$surface?.setImage(null);
     }
 }
 defineAttributes(Video, {
-    stretches: { def: "none", push: (v, s) => v.surface?.setImageStretch(s) },
+    stretches: { def: "none", push: (v, s) => v.$surface?.setImageStretch(s) },
 });
 //# sourceMappingURL=video.js.map

@@ -196,15 +196,15 @@ Clips the subtree to a shape. `clip = true` clips to the view's **own box**
 path. `null`/unset (default) draws children unclipped, even outside the box. Kept
 explicit (not implied by `cornerRadius`) so clipping is pay-per-use.
 
-## tip
+## tooltipLabel
 The tooltip text — the layer system's floor (one attribute at the use site): a non-empty
-`tip` makes this view hover-interactive, and after the theme's delay the auto-provided
+`tooltipLabel` makes this view hover-interactive, and after the theme's delay the auto-provided
 `Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data
-(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipSize`) — so Cupertino
+(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipFontSize`) — so Cupertino
 tips appear near the cursor after ~1s at 11px (the Cupertino help tag), Redmond's above the
 control (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside
 the app. Moving between tip-carrying controls while a tip is up retargets instantly; a
-press dismisses. Look comes from `tooltipBg` / `tooltipText` / `tooltipLine`. `""` (the
+press dismisses. Look comes from `tooltipFill` / `tooltipTextColor` / `tooltipStrokeColor`. `""` (the
 default) = no tip.
 
 ## ignoreScroll
@@ -254,11 +254,33 @@ declared twin of a `scrollTo(y)` on arrival (`scrollStartX` for the other axis).
 be shot mid-scroll declares this rather than gesturing.
 
 ## scrolling
-**A fact, not a settable attribute.** True while this scroller is in motion — a wheel or trackpad
-stream, its momentum, a scrollbar drag, or a glide — and false once it settles. Read it
-in a constraint to hold work off until the user is done, or to keep a heavy effect cheap
-mid-gesture. Read it, rather than acting on its edges: a trackpad's momentum pauses and a
-mouse wheel's notches make this fact flicker by nature. Written by the platform's scroll process; never assigned.
+**A fact, not a settable attribute.** True while the **user** is scrolling this scroller: from
+its first movement until the finger has lifted or the scrollbar thumb has been let go, and any
+momentum afterwards has come to rest. A finger resting on the pane partway through is still
+scrolling. A glide your program asked for is not the user's scroll and leaves it false.
+While it is true, your `scrollTo`, `scrollBy` and `scrollIntoView` requests wait, and run
+when it turns false (only the latest counts). Read it in a constraint to keep a heavy effect
+cheap mid-gesture, rather than acting on its edges. Written by the platform's scroll process;
+never assigned.
+
+## scrollAnchor
+How this scroller keeps the reader's place as content changes size. **`content`** (the
+default) keeps the view at the top edge of the visible area where it is: when something above
+it grows or shrinks — a photograph loading, older history arriving — the offset moves by the
+same amount, before anything is drawn, so nothing on screen moves. A pane at its very start
+stays at its start. **`end`** is for a pane read from the bottom (a conversation, a log): at
+the end it stays at the end as content grows or shrinks, and away from the end it keeps the
+reader's place like `content`; it opens at its end, and `scrollTo(Infinity)` counts as being
+there while it travels. **`none`** does nothing, for content meant to move under the reader.
+A virtualized list keeps its place the same way, its rows' estimated heights included.
+
+## defaultplacement
+Written on a **class**: names one of the class's own children (at any depth), and the children
+its subclasses and use sites write go **into** that child, after the child's own, instead of
+beside it. `class Sheet [ defaultplacement = body, body: View [ … ] ]` — a `DetailSheet`
+extending it, and a `Sheet [ … ]` use site, fill `body`. The class's own children are never
+placed. A placed child's `parent` is the child it went into; it is still reachable by name
+from the class or use site that wrote it.
 
 ## layout
 How this view arranges its children — a reactive `Layout` attribute, not a child and
@@ -480,7 +502,10 @@ and the two compose.
 ## onClick
 Fires when the pointer presses **and** releases on the same view (a true click, not a
 stray press) — answered by an `onClick()` handler. The primary interaction event;
-`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases.
+`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases. The
+handler may take the event, `onClick(e: PointerEvent)`: `e.x`/`e.y` is where the click
+landed in this view's coordinates (`e.rootX`/`e.rootY` in root space) — so a chart that
+picks the nearest point reads it here, with no position kept from `onPointerDown`.
 
 ```declare
 App [
@@ -836,15 +861,18 @@ hit target, so a view with `pointerEvents = "none"` never shows its own.
 Whether **this view** takes pointer events: `"none"` or `"auto"`. Unset, it behaves as
 `"auto"`.
 `"none"` is for a view that is pure decoration over live content — a highlight rectangle,
-a full-viewport chrome overlay — so presses reach what is beneath it. It is the fix for
-the invisible-lid bug: an overlay sized to the frame that silently swallows every click.
+a full-viewport chrome overlay — so presses reach what is beneath it. Without it, an
+overlay sized to the frame takes every press, and nothing under it can be clicked.
 
-It makes the view a **corridor, not a lid**: the press passes through this view, and each
-child still answers for itself. A child carrying a handler keeps taking its own presses,
-and a child may state `"auto"` outright — which is what lets a chrome overlay hold a real
-panel (the Inspector's own window is exactly that) while the rest of it stays transparent.
-So `"none"` on a container is not a way to disable a subtree; put it where the decoration
-is, or gate the handlers.
+**It applies to this view only, not to its children.** A press on an empty part of the
+view goes to whatever is beneath it; a press on a child still goes to that child if the
+child takes presses. A child with a handler keeps taking its own presses, and a child may
+set `"auto"` outright — which is what lets a chrome overlay hold a real panel (the
+Inspector's own window is exactly that) while the rest of it lets presses through.
+So `"none"` on a container does **not** disable the views inside it: a pane faded to
+`opacity = 0` with `"none"` still takes presses on its buttons. To stop a subtree taking
+presses, set `visible = false` on it, move it out of the frame, disable its controls, or
+set `"none"` on each view that has a handler.
 
 ## viewAt()
 The tree answers **what is under a root-space point** — the deepest visible view,
@@ -859,7 +887,7 @@ out, every target derives:
 onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
 onPointerUp(e: PointerUpEvent) { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },
 // on each target — no handlers, just a standing relationship
-hot = { app.dropTarget == this }
+hovered = { app.dropTarget == this }
 ```
 
 The answer is the *deepest* view; when the dragger needs "the card, not its

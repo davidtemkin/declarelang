@@ -28,8 +28,8 @@ export class Video extends Media {
     return this.loaded ? this.natural[size] : 0;
   }
 
-  protected override flush(s: Surface): void {
-    super.flush(s);
+  protected override $flush(s: Surface): void {
+    super.$flush(s);
     s.setImageStretch(this.stretches);
   }
 
@@ -50,14 +50,14 @@ export class Video extends Media {
     if (!isSet(this, "height") && ownerOf(this, "height") === null) {
       setBound(this, "height", v.videoHeight);
     }
-    this.surface?.setImage(v);
+    this.$surface?.setImage(v);
   }
 
   protected override sourceCleared(): void {
-    this.surface?.setImage(null);
+    this.$surface?.setImage(null);
   }
 }
 
 defineAttributes(Video, {
-  stretches: { def: "none", push: (v, s) => v.surface?.setImageStretch(s) },
+  stretches: { def: "none", push: (v, s) => v.$surface?.setImageStretch(s) },
 });

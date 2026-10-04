@@ -305,7 +305,10 @@ export function referencedClassNames(program) {
  *
  *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
  *  make this a no-op returning the program unchanged. */
-export async function resolveAutoIncludes(program, root, host, visited) {
+export async function resolveAutoIncludes(program, root, host, visited, 
+/** The text being compiled — a library file compiled on its own (or under a
+ *  verify probe) declares its own names by right. */
+mainSource) {
     const auto = host;
     if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
         return { program, sources: [], sourceIds: [], errors: [] };
@@ -347,6 +350,20 @@ export async function resolveAutoIncludes(program, root, host, visited) {
         origin.set(s.name, "the app");
     for (const f of program.fonts)
         origin.set(f.name, "the app");
+    // A NAME THE LIBRARY ALREADY HAS. The author's declaration would silently
+    // win — the library's is then never pulled — so taking one is refused,
+    // naming what it replaces. Not when the file being compiled IS that library
+    // file (verifying library/card.declare declares Card by right).
+    for (const d of [...program.classes, ...(program.shapes ?? [])]) {
+        const path = manifest[d.name];
+        if (path === undefined)
+            continue;
+        const lib = await auto.resolveLibrary(path);
+        if (lib !== null && (visited.has(lib.canonical) || (mainSource !== undefined && mainSource.includes(lib.source))))
+            continue;
+        const kind = "base" in d ? "a class" : "a schema";
+        errors.push(new DeclareError(`'${d.name}' is a library class — ${kind} of the program can't take its name; rename yours (the library's is used as '${d.name} [ … ]')`, d.pos));
+    }
     const foldOne = (name, pos, from) => {
         const prev = origin.get(name);
         if (prev !== undefined) {
@@ -420,7 +437,7 @@ export async function resolveAutoIncludes(program, root, host, visited) {
     for (const r of referencedTags(root, program.classes))
         await pull(r.tag, r.pos);
     await pull(root.tag, root.pos);
-    // The keep-list is a reference too: `use [ Bar ]` pulls Bar's library even with
+    // The keep-list is a reference too: `use [ Gauge ]` pulls Gauge's library even with
     // no static tag (the escape hatch for by-name construction). A built-in or
     // unknown name isn't in the manifest, so pull() no-ops — the checker validates
     // the name against the merged program afterwards. Indexed loop on purpose:

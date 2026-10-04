@@ -277,7 +277,7 @@ continuously, so the number is the standard and the names are aliases:
   (`numericEnumType` in value.ts); coerce admits a whole number in range; the scaffold
   alias is `type FontWeight = "thin" | … | "black" | number`; `cssWeight()` passes a
   number through. Mac: LayerTree already parsed numbers; Overlays (rich runs) now does.
-- A `Face` weight is a keyword, a number, or `range(lo, hi)` for a variable file, which
+- A `FontFace` weight is a keyword, a number, or `range(lo, hi)` for a variable file, which
   becomes the `100 900` descriptor the FontFace API takes — one file for every weight.
   `faceWeightLiteral()` in font.ts is the single rule the builder and the checker share.
 - forms.md gains the forms and two probes; Text.md and guide ch. 6 a sentence each.

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
+import { launchChrome } from "../chrome.mjs";
 function findChrome(){for(const c of [process.env.PUPPETEER_EXECUTABLE_PATH,"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome","/usr/bin/google-chrome","/usr/bin/chromium"].filter(Boolean)) if(existsSync(c)) return c; throw new Error("no chrome");}
 const BASE = "http://localhost:8364";
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
@@ -9,7 +10,7 @@ function check(label, got, want) {
   if (!ok) failures++;
   console.log(`${ok ? "ok  " : "FAIL"} — ${label}\n       got  ${JSON.stringify(got)}${ok?"":"\n       want "+JSON.stringify(want)}`);
 }
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args:["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: findChrome(), headless: true, args:["--no-sandbox"] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1200, height: 900 });
 

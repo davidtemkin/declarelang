@@ -258,7 +258,7 @@ themes (switcher via RadioGroup — the missing Menu is the demo's own
 evidence). The prevailing-theme + TS-spread mechanism is SUFFICIENT
 (hierarchical, composable, per-subtree overridable); the work is COVERAGE:
 components read only color tokens today, while design-system identity is
-GEOMETRIC — so the theme record grows geometry tokens (`controlRadius`,
+GEOMETRIC — so the theme record grows geometry tokens (`controlCornerRadius`,
 `controlHeight`, `density`, border weights…) and the library learns to consult
 them. Settled before Tier 0/1 lands, or every new component bakes in more
 unsayable geometry.

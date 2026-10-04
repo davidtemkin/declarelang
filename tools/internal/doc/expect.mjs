@@ -4,6 +4,7 @@
 // afterwards — text that appears inside the island, or a change in its pixels.
 import puppeteer from "puppeteer-core";
 import { writeFileSync, mkdirSync } from "node:fs";
+import { launchChrome } from "../chrome.mjs";
 const OUT = ".derive/inspect"; mkdirSync(OUT, { recursive: true });
 const BASE = (() => { const i = process.argv.indexOf("--base"); return i >= 0 ? process.argv[i + 1] : "http://localhost:8200"; })();
 const CHECKS = [
@@ -34,7 +35,7 @@ const CHECKS = [
   { page: "reference/ProgressBar", slot: "run:ProgressBar", action: { clickAt: [200, 60] }, expect: { pixels: true } },
   { page: "reference/ResponsiveLayout", slot: "run:ResponsiveLayout", action: { clickAt: [40, 20] }, expect: { text: "stack" } },
   { page: "reference/Tooltip", slot: "run:seg_Tooltip_0", action: { hoverAt: [40, 22] }, expect: { text: "Save" } },
-  { page: "reference/Tip", slot: "run:Tip", action: { hoverAt: [40, 40] }, expect: { text: "tip requested" } },
+  { page: "reference/Tooltips", slot: "run:Tooltips", action: { hoverAt: [40, 40] }, expect: { text: "tip requested" } },
   { page: "reference/Keys", slot: "run:seg_Keys_0", action: { key: "ArrowUp" }, expect: { text: "n = 1" } },
   { page: "reference/Combobox", slot: "run:seg_Combobox_0", action: { type: "a" }, expect: { pixels: true } },
   { page: "reference/ContextMenu", slot: "run:seg_ContextMenu_0", action: { rightClickAt: [60, 40] }, expect: { pixels: true } },
@@ -63,7 +64,7 @@ const CHECKS = [
   { page: "language/schema", slot: "run:form-schema", action: { clickAt: [30, 58] }, expect: { pixels: true } },
   { page: "language/scope", slot: "run:form-scope", action: { none: true }, expect: { text: "classroot: 260" } },
 ];
-const browser = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message.slice(0, 160)));

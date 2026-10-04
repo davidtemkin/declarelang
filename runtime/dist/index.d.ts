@@ -72,7 +72,7 @@ export { Audio } from "./audio.js";
 export { Media } from "./media.js";
 export { provideStreams } from "./stream-seam.js";
 export type { StreamMessage, StreamFactories, StreamHandle, StreamCallbacks } from "./stream-seam.js";
-export { Tip } from "./tip.js";
+export { Tooltips } from "./tooltips.js";
 export { Animator } from "./animator.js";
 export { AnimatorGroup } from "./animator-group.js";
 export type { Cursor } from "./data.js";
@@ -80,7 +80,7 @@ export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoade
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export type { InspectNode, Provenance } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";
-export { Font, Face, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";
+export { Font, FontFace, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";
 export type { FontHost, LoadedFace } from "./font.js";
 export { fontString, textWidth, fontMetrics, provideMeasurer } from "./measure.js";
 export { measureText } from "./text-measure.js";

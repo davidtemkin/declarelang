@@ -136,13 +136,13 @@ test("revert discards the draft back to the committed value", async () => {
 
 test("dynamic `<-> { expr }` binds a runtime-named field (generic editor)", async () => {
   const app = await build(`
-    class Field extends View [ which: string = "",
+    class Entry extends View [ which: string = "",
       input: TextInput [ text <-> { classroot.which } ] ]
     App [
       store: Dataset { { "rec": { "notes": "N0", "location": "L0" } } },
       form: View [ datapath = { app.store.value.rec },
-        a: Field [ which = "notes" ],
-        b: Field [ which = "location" ],
+        a: Entry [ which = "notes" ],
+        b: Entry [ which = "location" ],
       ],
     ]`);
   assert.equal(app.form.a.input.text, "N0");
@@ -233,13 +233,20 @@ test("a CONTROLLED text field still delivers the edit as an event", async () => 
   assert.equal(app.f.text, "", "and can CLEAR it — the case that had no spelling");
 });
 
-test("the A2 message names the write-back that exists on THAT component", async () => {
+test("the A2 message names the write-back that exists on THAT class", async () => {
   // an Editor delivers through the `input` EVENT, a Control through the `input`
   // METHOD; naming the wrong one sends the reader to a member that is legal to
   // declare, never called, and silent — the exact failure this check ends
   const editor = await errorsOf(`App [ n: string = "s", f: TextInput [ text <-> { app.n } ] ]`);
   assert.match(editor, /onInput\(v: string\)/, `TextInput is an Editor; got: ${editor}`);
   assert.ok(!/plus 'input\(v: …\)/.test(editor), "it must not offer the Control spelling here");
+});
+
+test("a method named like an event is dead only when the author never calls it", async () => {
+  const dead = await errorsOf(`App [ f: TextInput [ input(v: string) { } ] ]`);
+  assert.match(dead, /is never called — 'input' is an EVENT here/, `an editor's input(v) saves nothing; got: ${dead}`);
+  const alive = await errorsOf(`class Row extends View [ hold() { }, onClick() { hold() } ]\nApp [ r: Row [ ] ]`);
+  assert.ok(!/never called/.test(alive), `hold() is the author's own verb, and they call it; got: ${alive}`);
 });
 
 // Re-anchoring: a `:path` island inside `datapath = { }` resolves against the

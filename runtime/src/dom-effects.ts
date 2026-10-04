@@ -69,7 +69,7 @@ export function applyDomMask(s: DomSurface): void {
   if (spec === null) { set("", "", ""); return; }
   if (spec.kind === "gradient") { set(gradientCss(spec.gradient), "100% 100%", "0 0"); return; }
   const stencil = spec.stencil;
-  const src = stencil.surface as DomSurface | null;
+  const src = stencil.$surface as DomSurface | null;
   if (src === null) { set("", "", ""); return; }          // not attached yet — the stencil's flush re-pushes
   (src.maskUsers ??= new Set()).add(s);
   const m = maskBitmap(src);

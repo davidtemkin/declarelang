@@ -5,13 +5,11 @@ The interaction-state base every stateful control extends. It owns how the point
 nothing semantic: `checked`, `value`, and their kin live on the concrete control.
 
 The pointer half is the language's: `hovered` and `pressed` are View's read-only
-interaction intrinsics (chain-based, touch-correct, cancel-safe). What Control adds is
-the control policy on top of them, as derivations every concrete control reads:
+interaction intrinsics (chain-based, touch-correct, cancel-safe), and on a control they
+answer under its policy: false while `disabled`, and `pressed` also true for a keyboard
+activation's `flash`. Style against them directly. What Control adds:
 
-- `hot` / `down` — the styling pair: the intrinsics gated by `disabled`, with the
-  keyboard-activation `flash` folded into `down`. Style against these, not the raw
-  intrinsics, and a disabled control never lights up.
-- `disabled` — inert: not focusable, no activation; concrete controls gate on it.
+- `disabled` — inert: not focusable, no activation, never hovered or pressed.
 - keyboard — Space or Enter on the focused control activates it, the same `press()`
   path a pointer uses, acknowledged by flashing the pressed look.
 
@@ -31,7 +29,7 @@ and styled off the same state pair as everything the library ships:
 ```declare
 class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
     n: number = 0,
-    fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : theme.control },
     press() { n = n + 1 },
     t: TextLabel [ x = center, fontSize = 13, text = { "" + classroot.n } ]
     ]
@@ -49,20 +47,10 @@ mentions a theme still renders. Provide a different record on a subtree to reski
 it; every `provided("theme")` below reads the nearer one.
 
 ## disabled
-Inert: not focusable, no activation, and the gate folded into `hot`/`down` so a
+Inert: not focusable, no activation, and `hovered`/`pressed` read false, so a
 disabled control never lights up. **Constrain it rather than assigning it**
 (`disabled = { app.muted }`) — it is ordinary derived state. Concrete controls also
 dim themselves against `theme.disabledOpacity`.
-
-## hot
-Hover under control policy — `hovered` gated by `disabled`. **Style against this, not
-the raw `hovered` intrinsic**, or a disabled control lights up under the pointer. Always
-false on touch, since `hovered` is.
-
-## down
-The pressed look — the `pressed` intrinsic gated by `disabled`, **with keyboard
-activation folded in**, so Space/Enter flashes the same appearance a pointer press
-gives. The other half of the styling pair with `hot`.
 
 ## focused
 True while this control holds keyboard focus. For the *ring*, you want nothing: the
@@ -106,9 +94,9 @@ implied by `menu`, else nothing. One place decides, so every menu-dropping contr
 wears the same mark.
 
 ## flash
-The keyboard-activation pulse — the control's own state, since the `pressed` intrinsic
-is the pointer's truth and is read-only. Folded into `down`, so styling needs to read
-only the pair.
+The keyboard-activation pulse — the control's own state, which `pressed` reads as a
+press, so Space/Enter shows the same look a pointer press does and styling reads only
+`hovered` and `pressed`.
 
 ## flashMs
 How long `flashPress()` holds the pressed look.
@@ -154,7 +142,7 @@ Space and Enter run `press()`; ArrowDown opens `menu`. Ignores auto-repeat.
 A click runs `press()` unless the control is disabled — so a control that overrides
 `press()` is activated by pointer and keyboard alike without writing a handler. Override
 `onClick` only when a click means something other than activation; `Button` does, making
-it the use site's action slot.
+it the use site's action.
 
 ## focusable
 A control takes focus unless it is disabled — one rule, so a disabled control drops out of the Tab order without saying so twice.
@@ -178,11 +166,6 @@ class Control [
 
     selectable = false,
 
-    // the styling pair — the interaction intrinsics under control policy
-
-    hot:  boolean = { this.hovered && !this.disabled },
-    down: boolean = { (this.pressed && !this.disabled) || this.flash },
-
     // The :focus-visible channel for the control's own styling (a Tab header's
     // focus edge): focused and the focus arrived by keyboard. Captured at the
     // focus event (the web's rule), cleared by blur — and by a pointer press on
@@ -197,13 +180,13 @@ class Control [
     // one traveling indicator, declared once in the App), not a per-control
     // ring; `focused` stays declared here for controls' own styling.
 
-    // ── content slots ──────────────────────────────────────────────────────
+    // ── icons ──────────────────────────────────────────────────────────────
     //
     // Icons by class name, resolved through the tag registry. A name rather than
     // a child because a control is a leaf — everything else about it is an
     // attribute — and because an attribute is the one form where authored and
     // bound are the same mechanism: `iconLeft = "TrashIcon"` and
-    // `iconLeft = { "" + :icon }` in a replicated toolbar are one slot.
+    // `iconLeft = { "" + :icon }` in a replicated toolbar are one attribute.
 
     iconLeft:  string = "",
     iconRight: string = "",
@@ -212,7 +195,7 @@ class Control [
     // open, and the open-state styling all follow; `openMenu()` is the seam a
     // concrete control calls from its own `press()`.
 
-    menu: View = null,
+    menu: View? = null,
 
     // Derived, not written. A flag set on open goes stale the moment the menu
     // closes some other way — Escape, a pick, a click on the backdrop — and the
@@ -248,9 +231,9 @@ class Control [
     // keyboard activation's visual acknowledgment: flash the pressed look, the
     // platform convention for buttons. Value controls whose state change is
     // the feedback (Checkbox, Switch, Radio) don't call this. `flashMs` is
-    // per-control tunable. `flash` is the control's own state — the `pressed`
-    // intrinsic is the pointer's truth and is read-only; a keyboard pulse is a
-    // different fact, folded into `down`.
+    // per-control tunable. `flash` is the control's own state — View's
+    // `pressed` reads it as a press (view.ts), so a keyboard pulse shows the
+    // same look a pointer press does.
 
     flash:   boolean = false,
     flashMs: number  = 220,
@@ -266,7 +249,7 @@ class Control [
     // A click is also a focus claim — the keyboard picks up where the pointer
     // left. A menu opens here, not from `onClick`: a control routes the
     // pointer through `press()` (the `onClick` below), but Button inverts that —
-    // its `onClick` is the use site's action slot — so a menu hung off `press()`
+    // its `onClick` is the use site's action — so a menu hung off `press()`
     // alone would open from the keyboard and never from a click. Pointer-down is also what the platform does: menus open on
     // press, not release. The keyboard keeps its own path through `press()`,
     // and the two cannot double-fire because a key press raises no pointer

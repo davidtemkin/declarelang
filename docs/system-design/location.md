@@ -740,7 +740,7 @@ view branch checks appearance, never settledness.**
 
 `findAnchor` (`runtime/src/view.ts:937`) builds two kinds of target:
 
-- a **named view** — `fire = () => { if (v.surface === null) return false;
+- a **named view** — `fire = () => { if (v.$surface === null) return false;
   v.scrollIntoView(); return true; }`
 - a **rich-text heading slug** — the component's own `anchorSlugs()` /
   `revealAnchor(slug)` pair
@@ -750,7 +750,7 @@ The second is correct by construction: `revealRichAnchor`
 so the retained intent holds and retries. The component that owns the content
 performs the reveal and can answer *not yet*.
 
-The view branch has no such veto. `v.surface === null` goes false the instant
+The view branch has no such veto. `v.$surface === null` goes false the instant
 the view is attached, whether or not anything around it has been measured, so
 `fire()` always claims success and `resolveReveal` clears the intent — once,
 against whatever layout existed that frame.

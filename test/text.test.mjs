@@ -36,7 +36,7 @@ async function boot(body) {
   const b = await compileProgram(`App [ width = 1400, height = 800, ${body} ]`, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const app = instantiate(b.program);
-  app.attach(new HeadlessBackend(), null);
+  app.$attach(new HeadlessBackend(), null);
   settle();
   return app;
 }
@@ -65,7 +65,7 @@ await test("padding insets a Text's run: auto size grows by it, wrapping and the
   assert.equal(app.auto.baseline, 6 + 12, "the baseline sits the top inset lower");
   // 70 wide less 22 of padding leaves 48: "ab ab" (40) fits, "ab ab ab" (64) does not
   assert.equal(app.wrapped.height, 2 * 16, "it wraps at the width less the horizontal insets");
-  const st = app.auto.surface.textStyle;
+  const st = app.auto.$surface.textStyle;
   assert.deepEqual([st.padTop, st.padRight, st.padBottom, st.padLeft], [6, 10, 4, 12], "the renderers are told the insets");
 });
 
@@ -105,13 +105,13 @@ await test("a face that lands late re-measures its text — even a Text with bot
   const app = await boot(`auto: Text [ fontFamily = ["Probe"], text = "abcd" ],
     fixed: Text [ y = 40, width = 45, height = 60, fontFamily = ["Probe"], text = "ab ab" ]`);
   assert.equal(app.auto.width, 32);
-  const before = app.fixed.surface.textStyle;
+  const before = app.fixed.$surface.textStyle;
   FACES.probe = 16;
   familyChanged("Probe");
   settle();
   delete FACES.probe;
   assert.equal(app.auto.width, 64, "the auto-sized Text re-measured");
-  assert.notEqual(app.fixed.surface.textStyle, before, "the fixed-size Text re-pushed its style, so a backend re-wraps it");
+  assert.notEqual(app.fixed.$surface.textStyle, before, "the fixed-size Text re-pushed its style, so a backend re-wraps it");
 });
 
 // ── fonts as objects ──────────────────────────────────────────────────────────
@@ -134,7 +134,7 @@ const landing = async (family, per) => {
 };
 
 await test("a Text in a Font measures in that font, and re-measures when its faces land", async () => {
-  const app = await boot(`brand: Font [ Face [ src = "brand.woff2" ] ],
+  const app = await boot(`brand: Font [ FontFace [ src = "brand.woff2" ] ],
     t: Text [ fontFamily = { app.brand }, text = "abcd" ]`);
   app.brand.start();
   settle();
@@ -152,12 +152,12 @@ await test("a font loads only when text reaches it: a present family before it k
   // here a family the stub measures differently from monospace.
   FACES["present face"] = 9;
   const before = loads.length;
-  const kept = await boot(`web: Font [ Face [ src = "kept.woff2" ] ],
+  const kept = await boot(`web: Font [ FontFace [ src = "kept.woff2" ] ],
     t: Text [ fontFamily = { ["Present Face", app.web, "sans-serif"] }, text = "abcd" ]`);
   await turn();
   assert.equal(loads.slice(before).filter((l) => l.src.includes("kept.woff2")).length, 0, "an available family first: nothing fetched");
   assert.equal(kept.web.loaded, false);
-  const reached = await boot(`web: Font [ Face [ src = "reached.woff2" ] ],
+  const reached = await boot(`web: Font [ FontFace [ src = "reached.woff2" ] ],
     t: Text [ fontFamily = { ["Absent Face", app.web, "sans-serif"] }, text = "abcd" ]`);
   await turn();
   assert.equal(loads.slice(before).filter((l) => l.src.includes("reached.woff2")).length, 1, "nothing before it is here: fetched");
@@ -167,7 +167,7 @@ await test("a font loads only when text reaches it: a present family before it k
 await test("switching to a font still inside its wait keeps the old family until it settles", async () => {
   FACES.alpha = 10;
   const app = await boot(`alpha: Font [ family = "Alpha" ],
-    beta: Font [ wait = 800, Face [ src = "beta.woff2" ] ],
+    beta: Font [ wait = 800, FontFace [ src = "beta.woff2" ] ],
     choice: Font = { app.alpha },
     t: Text [ fontFamily = { app.choice }, text = "abcd" ]`);
   app.alpha.start(); app.beta.start();
@@ -187,7 +187,7 @@ await test("switching to a font still inside its wait keeps the old family until
 });
 
 await test("late = keep: a face that arrives after the wait is never used this run", async () => {
-  const app = await boot(`slow: Font [ wait = 300, late = keep, Face [ src = "slow.woff2" ] ],
+  const app = await boot(`slow: Font [ wait = 300, late = keep, FontFace [ src = "slow.woff2" ] ],
     t: Text [ fontFamily = { app.slow }, text = "abcd" ]`);
   app.slow.start();
   settle();
@@ -217,7 +217,7 @@ await test("measureText agrees with a Text of the same style and width", async (
 });
 
 await test("a constraint that measures text in a Font re-runs when the font's faces land", async () => {
-  const app = await boot(`brand: Font [ Face [ src = "m.woff2" ] ],
+  const app = await boot(`brand: Font [ FontFace [ src = "m.woff2" ] ],
     pill: View [ height = 20, width = { measureText("abcd", { fontFamily: app.brand }).width + 10 } ]`);
   app.brand.start();
   settle();
@@ -227,7 +227,7 @@ await test("a constraint that measures text in a Font re-runs when the font's fa
 });
 
 await test("fillText in a style draws the face as text state for that run, and re-records when its faces land", async () => {
-  const app = await boot(`brand: Font [ Face [ src = "d.woff2" ] ],
+  const app = await boot(`brand: Font [ FontFace [ src = "d.woff2" ] ],
     plate: View [ width = 100, height = 40,
       draw(d: Draw) { d.fillText("plate", 0, 20, { fontFamily: app.brand, fontSize: 13, smallCaps: true, textColor: 0xff0000, textTransform: "uppercase" }) } ]`);
   app.brand.start();
@@ -248,7 +248,7 @@ await test("a style is a record of literals, named as a value in bodies; a { } f
 App [ t: Text [ text = "x", fontSize = { Caption.fontSize }, smallCaps = { Caption.smallCaps } ] ]`, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(ok.errors.length, 0, ok.errors.map((e) => e.message).join("; "));
   const app = instantiate(ok.program);
-  app.attach(new HeadlessBackend(), null);
+  app.$attach(new HeadlessBackend(), null);
   settle();
   assert.equal(app.t.fontSize, 13);
   assert.equal(app.t.smallCaps, true);

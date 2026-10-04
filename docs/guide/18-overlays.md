@@ -144,7 +144,7 @@ record back.
 
 Two arrive on their own, and knowing they exist is the whole lesson:
 
-- **[`Tooltip`](declare-docs:Tooltip)** — set `tip = "…"` on *any* view; the [`Tip`](declare-docs:Tip) service decides when a tip shows. Delay, placement, edge-flipping and
+- **[`Tooltip`](declare-docs:Tooltip)** — set `tooltipLabel = "…"` on *any* view; the [`Tooltips`](declare-docs:Tooltips) service decides when a tip shows. Delay, placement, edge-flipping and
   theming are nobody's problem at the use site.
 - **[`FocusRing`](declare-docs:FocusRing)** — the traveling focus indicator, spliced into any app that uses a
   library control.

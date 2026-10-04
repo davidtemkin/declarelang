@@ -26,6 +26,7 @@ import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function findChrome() {
@@ -42,7 +43,7 @@ const server = createDeclareServer({
 const httpServer = http.createServer(server.handler).on("upgrade", server.upgrade);
 await new Promise((r) => httpServer.listen(0, "127.0.0.1", r));
 const B = `http://127.0.0.1:${httpServer.address().port}`;
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage();
 await page.setViewport({ width: 600, height: 400, deviceScaleFactor: 2 });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

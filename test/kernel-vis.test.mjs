@@ -12,7 +12,8 @@ import { setBound } from "../runtime/dist/attributes.js";
 import { visibilityRule, readVisibility } from "../runtime/dist/visibility.js";
 
 let seed = 7;
-const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+// the HIGH bits: an LCG's low bits cycle in a few steps, which made every tree alike
+const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed >>> 15) % n; };
 const pick = (a) => a[rnd(a.length)];
 
 const close = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps * Math.max(1, Math.abs(a), Math.abs(b));

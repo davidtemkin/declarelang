@@ -100,7 +100,7 @@ handlers — and a blank line before the hanging close. This is what makes a bod
 outline instead of a wall.
 
 ```declare-fragment
-App [ width = 240, height = 320, fill = { provided("theme").bg },
+App [ width = 240, height = 320, fill = { provided("theme").background },
 
     zip: string = "94403",
 

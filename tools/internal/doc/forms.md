@@ -194,7 +194,7 @@ the rest — as is any class descending from one; only the abstract bases (`Stre
   > says: 'Stream' is an abstract base — it names no class to construct; extend one of its concrete members (EventStream, Socket)
   > probe: class S extends Stream [ ]\nApp [ ]
 - A subclass may not take a built-in's name.
-  > says: there is already a class named 'View'
+  > says: 'View' is a built-in class — a class of the program can't take its name
   > probe: class View [ ]\nApp [ ]
 
 ### related
@@ -228,7 +228,7 @@ the meaning it already had — the HTML whitelist, an autolink, a literal `<` �
 The tag's attributes are the class's, each converted from its string by the attribute's
 **declared** type, exactly as a source literal is: `id='142'` is the number in a `number`
 attribute, `tint='#DDF4E4'` a `Color`, `align='center'` an enum member, `width='50%'` a percent of
-the width the text flows in, a bare `hot` is `true`. The tag **is the use site**, so an
+the width the text flows in, a bare `open` is `true`. The tag **is the use site**, so an
 attribute takes use-site precedence over what the class body sets for that attribute — a literal
 or a `{ }` constraint — and only the winner installs; an attribute the tag does not mention keeps
 the class's own behaviour. `x`/`y` are refused — the flow places the view, as a layout places
@@ -327,7 +327,7 @@ syntax:
     name: Type = value
     name: Type                                 // no default: undefined until written
     rows: Row[] = []
-    panel: Menu = null                         // a class — the attribute holds an instance
+    panel: Menu? = null                         // a class — the attribute holds an instance
 usage: form-declare
 
 Declares a new reactive attribute — the way state enters a program. The type comes from the
@@ -348,7 +348,7 @@ Compare `set`: a set attribute is owned by its `{ }` and refuses assignment.
   > probe: App [ other: = 1 ]
 - The type must be one the language knows; the message lists them.
   > says: unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape, Inset, array, object, View, Theme
-  > probe: App [ x2: Widget = null ]
+  > probe: App [ x2: Widget? = null ]
 - An attribute the class already has is set, not declared again.
   > says: App already has an attribute 'width' — a declaration introduces a new one; write 'width = …' to set the existing one
   > probe: App [ width: number = 10 ]
@@ -1093,18 +1093,18 @@ family: declaration
 spec: §9 Style
 terms: font, declare a font, web font, font family, typeface, font face
 syntax:
-    brand: Font [ Face [ src = "brand-400.woff2" ], Face [ src = "brand-700.woff2", weight = bold ] ]
+    brand: Font [ FontFace [ src = "brand-400.woff2" ], FontFace [ src = "brand-700.woff2", weight = bold ] ]
     ui: Font [ family = "Helvetica Neue" ]
     fontFamily = { [app.brand, "sans-serif"] }
 usage: form-font
 
-A typeface is an **object in the tree**, not a top-level declaration: a `Font` with `Face`
+A typeface is an **object in the tree**, not a top-level declaration: a `Font` with `FontFace`
 children, usually on the App, or a `Font [ family = "…" ]` with no faces for a system font.
 A family attribute holds it — `fontFamily = { app.brand }`, or a list in a `{ }`,
 `{ [app.brand, "sans-serif"] }` — so switching fonts is an assignment. `loaded` and
-`failed` are the font's facts; `wait` and `late` say what loading is worth. A Face's
+`failed` are the font's facts; `wait` and `late` say what loading is worth. A FontFace's
 `weight` is a keyword, a number 1–1000, or `range(lo, hi)` for a variable font file. See
-the `Font` and `Face` classes.
+the `Font` and `FontFace` classes.
 
 ### rules
 
@@ -1114,17 +1114,17 @@ the `Font` and `Face` classes.
 - A font name where a family goes is not a family — name the object in a `{ }`.
   > says: 'Nope' is not a family — a font is an object in the tree
   > probe: App [ fontFamily = [Nope, "system-ui"] ]
-- A Face weight is a keyword, a whole number 1–1000, or range(lo, hi) with lo < hi.
+- A FontFace weight is a keyword, a whole number 1–1000, or range(lo, hi) with lo < hi.
   > says: a numeric weight is a whole number 1–1000, not 1200
-  > probe: App [ f: Font [ Face [ src = "f.woff2", weight = 1200 ] ] ]
-- A Face lives inside a Font, and a Font holds Face children only.
-  > says: a Face belongs inside a Font
-  > probe: App [ Face [ src = "x.woff2" ] ]
+  > probe: App [ f: Font [ FontFace [ src = "f.woff2", weight = 1200 ] ] ]
+- A FontFace lives inside a Font, and a Font holds FontFace children only.
+  > says: a FontFace belongs inside a Font
+  > probe: App [ FontFace [ src = "x.woff2" ] ]
 
 ### related
 
 forms: style, theme
-classes: Font, Face, Text
+classes: Font, FontFace, Text
 guide: 06-style · Style
 
 ## style
@@ -1151,8 +1151,8 @@ theme, dark mode — is written where it is used: a `textStyles = { … }` map o
 or a spread in a drawing, `{ ...Keyword, textColor: provided("theme").accent }`. Top-level
 declared names are capitalized by convention.
 
-For whole views there is no bundle: reuse a look by **subclassing** (`class Card extends
-View [ … ]`), and provide values downward with `theme` and the face attributes.
+For whole views there is no bundle: reuse a look by **subclassing** (`class Tile [ … ]`,
+or `class Tile extends Card [ … ]`), and provide values downward with `theme` and the face attributes.
 
 ### rules
 
@@ -1281,7 +1281,7 @@ terms: schema, declare a schema, data shape, typed data, record type, schema dec
 syntax:
     schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]
     d: DataSource [ url = "tasks.json", schema = [ tasks[]: Task ] ]
-    sel: Task = null                           // the name in any type position
+    sel: Task? = null                           // the name in any type position
 usage: form-schema
 
 A named data shape, declared at the top level like a class, and a **type** in the one type

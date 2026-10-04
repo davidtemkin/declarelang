@@ -1,6 +1,6 @@
 A **typeface as an object in the tree**, like an `Image`: create it where it belongs —
 usually on the App, so it lives as long as the program — and use it anywhere a family
-goes. A `Font` owns its `Face` children, one file each. A Font with **no faces is a
+goes. A `Font` owns its `FontFace` children, one file each. A Font with **no faces is a
 system font**: it names a `family` the machine already has, and there is nothing to
 load. Web and system fonts are the same kind of object, so an attribute that holds one holds
 the other, and switching between them is an assignment: `app.reading = app.ui`.

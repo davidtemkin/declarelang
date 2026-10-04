@@ -70,10 +70,10 @@ class Specimen extends Card [ width = 100%,
     ]
 
 
-App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, minWidth = 320,
+App [ fill = { provided("theme").background }, textColor = { provided("theme").text }, minWidth = 320,
     roboto: Font [
-        Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
-        Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
+        FontFace [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+        FontFace [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
         ],
 
     // ── the responsive facts, each scoped to what it governs ───────────────
@@ -110,7 +110,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         // says "rest"), but with the flourish switched on the role upgrades to
         // "both" — and the two-tone rectangle flies. The theme file stays
         // faithful; the demo overrides one token.
-        ...(style == "redmond" && animateFocus ? ({ focusRing: "both" }) : ({})),
+        ...(style == "redmond" && animateFocus ? ({ focusRingStyle: "both" }) : ({})),
         ...(accentPick != 0 ? ({ accent: accentPick, controlSelected: activeTone(accentPick, app.preset.surface) }) : ({})),
     } },
 
@@ -313,9 +313,9 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     Specimen [ label = "Buttons",
                         row: View [
                             layout: SimpleLayout [ axis = x, spacing = 12 ],
-                            Button [ width = { app.compact ? 94 : 110 }, label = "Primary", primary = true, tip = "The accent action" ],
+                            Button [ width = { app.compact ? 94 : 110 }, label = "Primary", primary = true, tooltipLabel = "The accent action" ],
                             Button [ width = { app.compact ? 94 : 110 }, label = "Secondary", primary = false ],
-                            Button [ width = { app.compact ? 94 : 110 }, label = "Disabled", disabled = true, tip = "Disabled — but the tip still shows" ]
+                            Button [ width = { app.compact ? 94 : 110 }, label = "Disabled", disabled = true, tooltipLabel = "Disabled — but the tip still shows" ]
                             ]
                         ],
 
@@ -336,7 +336,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     Specimen [ label = "Slider · Progress",
                         demo: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 14 ],
-                            vol: Slider [ width = { Math.min(280, parent.width) }, value = 40, tip = "Volume — arrows nudge" ],
+                            vol: Slider [ width = { Math.min(280, parent.width) }, value = 40, tooltipLabel = "Volume — arrows nudge" ],
                             ProgressBar [ width = { Math.min(280, parent.width) }, value = { parent.vol.value } ]
                             ]
                         ],
@@ -359,7 +359,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
 
                     Specimen [ label = "Context menu",
                         pad: View [ width = 100%, height = 74,
-                            cornerRadius = 8, fill = { provided("theme").bg }, stroke = { stroke(1, provided("theme").line) },
+                            cornerRadius = 8, fill = { provided("theme").background }, stroke = { stroke(1, provided("theme").line) },
                             onContextMenu(e: PointerEvent) { app.ctxMenu.open(this, e) },
                             onHold(e: PointerEvent) { app.ctxMenu.open(this, e) },
                             Text [ x = 14, y = 14, fontSize = 13, textColor = { provided("theme").textMuted },
@@ -418,17 +418,17 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                     Specimen [ label = "Accordion",
                         acc: Accordion [ width = 100%,
                             Pane [ label = "First", initial = true,
-                                View [ width = 100%, height = 64, fill = { provided("theme").bg },
+                                View [ width = 100%, height = 64, fill = { provided("theme").background },
                                     Button [ x = 12, y = center, width = 110, label = "In pane 1" ]
                                     ]
                                 ],
                             Pane [ label = "Second",
-                                View [ width = 100%, height = 64, fill = { provided("theme").bg },
+                                View [ width = 100%, height = 64, fill = { provided("theme").background },
                                     Button [ x = 12, y = center, width = 110, label = "In pane 2" ]
                                     ]
                                 ],
                             Pane [ label = "Third",
-                                View [ width = 100%, height = 56, fill = { provided("theme").bg },
+                                View [ width = 100%, height = 56, fill = { provided("theme").background },
                                     Text [ x = 12, y = 10, textColor = { provided("theme").textMuted }, text = "A taller third pane." ]
                                     ]
                                 ]

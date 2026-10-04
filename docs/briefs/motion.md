@@ -34,12 +34,12 @@ App [ width = 360, height = 240, fill = white, textColor = #172530,
   callback: `visible = { grow.arrived }`.
 - One spring per motion: things that move with it are constraints on its value. A spring
   inside a replicated class is one per row.
-- A value that arrives with its data should appear, not count up: take the first real
-  value outright (a `seeded` flag and a change on `value`), then let later changes animate.
+- A value that arrives with its data should appear, not count up: call the spring's
+  `arrive()` in the source's `onLoad`, and later changes animate.
 - Under the hand, write the value and the spring's target together, so the spring rests;
   on release set only the target.
 
-**Look up** `Spring`, `Spring.to`, `Spring.arrived`, `Animator`, `Animator.start`,
+**Look up** `Spring`, `Spring.to`, `Spring.arrived`, `Spring.arrive`, `Animator`, `Animator.start`,
 `State`, `State.applied`, `AnimatorGroup`.
 
 **Examples** `apps/weather/weather.declare`: `openSpring` and `openT`, the row-to-page

@@ -21,7 +21,7 @@
 import { type MaskSpec, allowedRef, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type InputWants, type RenderBackend, type RichBlock, type SlotBox, type Stretch, type Surface } from "./backend.js";
 import { domTransform3D, unproject, type Homography } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
-import { colorToCss, insetSides, isGradient, radiusIsSquare, strokeUniform, type BoxStroke, type Fill, type Inset, type Radius, type Shadow, gradientCss, type Filter } from "./value.js";
+import { colorToCss, insetCss, insetSides, isGradient, radiusIsSquare, strokeUniform, type BoxStroke, type Fill, type Inset, type Radius, type Shadow, gradientCss, type Filter } from "./value.js";
 import { filterCss } from "./effects.js";
 import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
@@ -568,12 +568,13 @@ export class DomBackend implements RenderBackend {
     // under the running app. A `scrollsX` pane swallows the delta where it can, but
     // a swipe over non-scrolling content (or a scroller already at its edge) still
     // reaches the page, so opt the root scroller OUT of the gesture at the source.
-    // X only: vertical rubber-band (the painted-bg overscroll above, and an
-    // exterior-scrolling app's own scroll) is left untouched. Top-level only — an
-    // embedded island must not reach up and change the host page's behavior.
+    // Vertically the page bounces only when it is the App's scroller
+    // (pageBounce). Top-level only — an embedded island must not reach up and
+    // change the host page's behavior.
     if (!embedded) {
       doc.documentElement.style.overscrollBehaviorX = "none";
       doc.body.style.overscrollBehaviorX = "none";
+      (root as DomSurface).pageBounce();
     }
     // Input: the browser's own hit-test picks the target (only sinked
     // surface elements accept pointer events — everything else is
@@ -1335,10 +1336,28 @@ export class DomSurface implements Surface {
     // and takes the ordinary path.)
     const page = this.pageScroller();
     if (page !== null) {
-      if (Math.abs(page.scrollY - t) > 0.5) page.scrollTo({ top: t, left: page.scrollX, behavior });
+      if (Math.abs(page.scrollY - t) > 0.5) { PAGE_WATCH?.program(); page.scrollTo({ top: t, left: page.scrollX, behavior }); }
       return;
     }
-    if (Math.abs(el.scrollTop - t) > 0.5) { if (glide) el.scrollTo({ top: t, behavior }); else el.scrollTop = t; }
+    if (Math.abs(el.scrollTop - t) > 0.5) { this.scrollWatch?.program(); if (glide) el.scrollTo({ top: t, behavior }); else el.scrollTop = t; }
+    // The box clamps a request past either end, and the model learns the
+    // offset it really took from the scroll event — which a request the box
+    // was already clamped to never sends, and which not every engine delivers
+    // before the next read. Say it: the model never holds an offset the box
+    // cannot show. Short of the request, though, the box may only be behind:
+    // geometry the same update computed (a virtualized block's estimated
+    // extent) reaches the element after this write. Try again once the update
+    // is over, and report what the box takes then.
+    if (!glide && el.clientHeight > 0 && Math.abs(el.scrollTop - v) > 0.5) {
+      if (el.scrollTop >= t) { this.scrollReport?.(el.scrollTop); return; }
+      queueMicrotask(() => {
+        const w = want(el).y;
+        if (w === undefined) return;
+        const again = wantY(el, w);
+        if (Math.abs(el.scrollTop - again) > 0.5) el.scrollTop = again;
+        if (el.clientHeight > 0 && Math.abs(el.scrollTop - w) > 0.5) this.scrollReport?.(el.scrollTop);
+      });
+    }
   }
   scrollToX(v: number, glide?: { duration?: number; motion?: string }): void {
     const el = this.element;
@@ -1351,6 +1370,20 @@ export class DomSurface implements Surface {
       return;
     }
     if (Math.abs(el.scrollLeft - t) > 0.5) { if (glide) el.scrollTo({ left: t, behavior }); else el.scrollLeft = t; }
+    if (!glide && el.clientWidth > 0 && Math.abs(el.scrollLeft - v) > 0.5) this.scrollXReport?.(el.scrollLeft);   // scrollToY's rule
+  }
+
+  /** A top-level App that scrolls the page is a document, and the page gives
+   *  the platform's elastic feedback at its ends. One that declares
+   *  `scrolls = none` is an application whose panes scroll and whose window
+   *  does not, so the page never bounces: Safari otherwise rubber-bands a
+   *  page that fits the window, moving the whole app under the pointer. */
+  pageBounce(): void {
+    if (this.pageScroller() === null) return;
+    const doc = this.element.ownerDocument;
+    const v = this.scrollYOn ? "" : "none";
+    doc.documentElement.style.overscrollBehaviorY = v;
+    doc.body.style.overscrollBehaviorY = v;
   }
 
   /** The window a TOP-LEVEL app root scrolls through, or null for anything
@@ -1515,6 +1548,7 @@ export class DomSurface implements Surface {
       this.applyRootSize();
       this.updateCarved();       // pointer-events back to the sink-derived state
       this.refreshTouchAction(); // the root default owns the gesture surface
+      this.pageBounce();
       return;
     }
     const any = this.scrollYOn || this.scrollXOn;
@@ -1558,6 +1592,8 @@ export class DomSurface implements Surface {
   }
 
   private scrollListener: (() => void) | undefined;
+  private scrollReport: ((y: number) => void) | undefined;
+  private scrollXReport: ((x: number) => void) | undefined;
   // Windowing-aware AT (backend.ts): the logical extent/position of a
   // windowed replication, spoken in ARIA — the browser's protocol for
   // "row N of M without M nodes". aria-rowcount on the block container,
@@ -1584,61 +1620,32 @@ export class DomSurface implements Surface {
         // makes Chrome zero it and announce that as a scroll, which would
         // overwrite the model with a number the user never scrolled to (the
         // reciprocal of the write a hidden pane refuses — see setVisible).
-        // The `scrolling` fact — the arbitration fact: true on the first scroll
-        // event of a run, false at `scrollend` (or, where the browser lacks it,
-        // 160ms of quiet). The PLATFORM's report of its own process; the
-        // program reads it, never sets it.
-        // THE WHEEL HAS NO END (2026-09-12, Murmur run 2): a wheel stream —
-        // momentum especially — is a decaying series of events with nothing
-        // that says "done", and each event's scroll is followed by its own
-        // `scrollend` in the same task. Keyed to scrollend alone, `scrolling`
-        // flipped true and false between two samples and read FALSE for the
-        // whole gesture; a program that yields to `scrolling` (the reference
-        // teaches exactly that) re-anchored between wheel events and fought
-        // the user's hand. So the fact is held by WHEEL ACTIVITY too: a wheel
-        // event marks the stream live, and neither scrollend nor the idle
-        // timer may end it until WHEEL_QUIET ms have passed with no wheel —
-        // the platform's own notion of a stream's end, the mac host's rule.
-        const WHEEL_QUIET = 160;
-        const settle = () => {
-          if (this.scrollIdleTimer !== undefined) { clearTimeout(this.scrollIdleTimer); this.scrollIdleTimer = undefined; }
-          const since = performance.now() - this.wheelLast;
-          if (since < WHEEL_QUIET) { this.scrollIdleTimer = setTimeout(settle, WHEEL_QUIET - since); return; }
-          if (this.scrollActive) { this.scrollActive = false; onScrolling?.(false); }
-        };
-        const live = () => {
-          if (!this.scrollActive) { this.scrollActive = true; onScrolling?.(true); }
-          if (this.scrollIdleTimer !== undefined) clearTimeout(this.scrollIdleTimer);
-          this.scrollIdleTimer = setTimeout(settle, 160);
-        };
-        this.scrollListener = () => {
-          if (el.clientHeight > 0) onScroll(el.scrollTop);
-          live();
-        };
-        this.scrollWheelListener = () => { this.wheelLast = performance.now(); live(); };
-        this.scrollEndListener = settle;
+        // The `scrolling` fact — the user's scroll, start to finish — is
+        // watchScrolling's (below), shared with the page scroll (boot.ts).
+        // The watcher hears each scroll FIRST: the offset the mirror reports
+        // must arrive already knowing whose scroll it is, or the settle it
+        // starts takes a finger's scroll for rest and writes against it.
+        this.scrollWatch = onScrolling !== undefined ? watchScrolling(el, onScrolling) : undefined;
+        this.scrollReport = onScroll;
+        this.scrollListener = () => { if (el.clientHeight > 0) onScroll(el.scrollTop); };
         el.addEventListener("scroll", this.scrollListener, { passive: true });
-        el.addEventListener("wheel", this.scrollWheelListener, { passive: true });
-        el.addEventListener("scrollend", this.scrollEndListener, { passive: true });
       }
     } else if (this.scrollListener !== undefined) {
       el.removeEventListener("scroll", this.scrollListener);
-      if (this.scrollWheelListener !== undefined) { el.removeEventListener("wheel", this.scrollWheelListener); this.scrollWheelListener = undefined; }
-      if (this.scrollEndListener !== undefined) { el.removeEventListener("scrollend", this.scrollEndListener); this.scrollEndListener = undefined; }
-      if (this.scrollIdleTimer !== undefined) { clearTimeout(this.scrollIdleTimer); this.scrollIdleTimer = undefined; }
-      this.scrollActive = false;
+      this.scrollWatch?.stop();
+      this.scrollWatch = undefined;
       this.scrollListener = undefined;
+      this.scrollReport = undefined;
     }
     this.applyScrollStyle();
   }
 
-  // The `scrolling` fact's plumbing (setScroll): the scrollend listener, the
-  // quiet-timer fallback, and whether a run is in progress.
-  private scrollEndListener: (() => void) | undefined;
-  private scrollWheelListener: (() => void) | undefined;
-  private wheelLast = -1e9;
-  private scrollIdleTimer: ReturnType<typeof setTimeout> | undefined;
-  private scrollActive = false;
+  // The `scrolling` fact's plumbing (setScroll → watchScrolling).
+  private scrollWatch: ScrollWatch | undefined;
+  /** Is the user's scroll of this scroller (or of the page, for the root)
+   *  finger-driven right now? (scroll-anchor.ts holds corrections then.) */
+  userScrollByTouch(): boolean { return this.pageScroller() !== null ? (PAGE_WATCH?.touchDriven() ?? false) : (this.scrollWatch?.touchDriven() ?? false); }
+  scrollbarHeld(): boolean { return this.pageScroller() !== null ? (PAGE_WATCH?.barHeld() ?? false) : (this.scrollWatch?.barHeld() ?? false); }
 
   private wheelXListener: ((e: WheelEvent) => void) | undefined;
   private scrollXListener: (() => void) | undefined;
@@ -1662,12 +1669,13 @@ export class DomSurface implements Surface {
       }
       if (this.scrollXListener === undefined && onScroll !== undefined) {
         // scrollX parity with scrollY, hidden-box guard included.
+        this.scrollXReport = onScroll;
         this.scrollXListener = () => { if (el.clientWidth > 0) onScroll(el.scrollLeft); };
         el.addEventListener("scroll", this.scrollXListener, { passive: true });
       }
     } else {
       if (this.wheelXListener !== undefined) { el.removeEventListener("wheel", this.wheelXListener); this.wheelXListener = undefined; }
-      if (this.scrollXListener !== undefined) { el.removeEventListener("scroll", this.scrollXListener); this.scrollXListener = undefined; }
+      if (this.scrollXListener !== undefined) { el.removeEventListener("scroll", this.scrollXListener); this.scrollXListener = undefined; this.scrollXReport = undefined; }
     }
     this.applyScrollStyle();
   }
@@ -2013,7 +2021,7 @@ export class DomSurface implements Surface {
     // style write invites a recalc. The scrub bench (recycled editor cells)
     // made the blanket reapply visible.
     if (prev === null || prev.spellcheck !== spec.spellcheck) el.spellcheck = spec.spellcheck;
-    if (prev === null || prev.padding !== spec.padding) el.style.padding = spec.padding > 0 ? `${spec.padding}px` : "0";
+    if (prev === null || insetCss(prev.padding) !== insetCss(spec.padding)) el.style.padding = insetCss(spec.padding);
     // no-wrap = one line per line + horizontal scroll (both native to a textarea
     // whose wrap attribute is "off"); soft = the wrapping default.
     if (el instanceof HTMLTextAreaElement && (prev === null || prev.wrap !== spec.wrap)) {
@@ -2549,3 +2557,160 @@ function naturalSize(el: Bitmap): { width: number; height: number } {
   const i = el as HTMLImageElement;
   return { width: i.naturalWidth, height: i.naturalHeight };
 }
+
+
+/** THE USER'S SCROLL, reported as one fact (`scrolling`): true from the first
+ *  movement until the scroll is completely over — the finger lifted or the
+ *  scrollbar thumb let go, and any momentum after it come to rest. A finger
+ *  resting on the pane partway through is still scrolling.
+ *
+ *  `scrollend` says exactly that where the browser has it (CSSOM View: a user
+ *  gesture is not complete "until pointers or keys have released", and
+ *  momentum is a pending update), so a touch, thumb or keyboard scroll ends on
+ *  it alone — a long backstop keeps the fact from sticking if it never comes
+ *  (a pane hidden mid-scroll). Two things it cannot settle:
+ *
+ *  - THE WHEEL HAS NO END (Murmur run 2): a wheel stream — trackpad momentum
+ *    especially — is a decaying series of events, and discrete wheel input
+ *    gets a `scrollend` after every event. So a wheel event marks the stream
+ *    live, and nothing ends it until WHEEL_QUIET ms pass with no wheel — the
+ *    Mac host's rule for a plain wheel. (`WheelEvent.momentum`, specified in
+ *    2026, would let the fingers' part be told from the momentum's.)
+ *  - A BROWSER WITHOUT `scrollend` (Safari before 26.2): touch events still
+ *    report the finger, so a touch holds the fact until it lifts; a thumb or
+ *    trackpad falls back to QUIET ms without movement.
+ *
+ *  The platform's report of its own process; the program reads it, never sets it. */
+export interface ScrollWatch {
+  /** Stop watching (the fact settles false). */
+  stop(): void;
+  /** This user's scroll began under a finger (touch) — where a scroll-offset
+   *  write mid-gesture stops the browser's momentum (scroll-anchor defers). */
+  touchDriven(): boolean;
+  /** A hand is on the scrollbar (pressed, not yet released). */
+  barHeld(): boolean;
+  /** The PROGRAM is about to move this scroller (a request, a glide): the
+   *  scroll events it causes are not the user's scroll. The mark lasts until
+   *  that motion ends (`scrollend`, or a quiet spell), and a wheel or a touch
+   *  ends it at once — the user has taken the scroller back. */
+  program(): void;
+}
+
+export function watchScrolling(target: HTMLElement | Window, report: (active: boolean) => void): ScrollWatch {
+  const WHEEL_QUIET = 160, QUIET = 160, BACKSTOP = 3000;
+  const endsItself = "onscrollend" in target;
+  let active = false, touches = 0, wheelLast = -1e9, held = false;
+  let program = false, byTouch = false;
+  let programTimer: ReturnType<typeof setTimeout> | undefined;
+  const programEnds = (): void => { program = false; if (programTimer !== undefined) { clearTimeout(programTimer); programTimer = undefined; } };
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = (ms: number): void => { if (timer !== undefined) clearTimeout(timer); timer = setTimeout(settle, ms); };
+  const settle = (): void => {
+    if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+    if (touches > 0 || held) return;                      // a finger, or a hand on the scrollbar: the release settles
+    const since = performance.now() - wheelLast;
+    if (since < WHEEL_QUIET) { arm(WHEEL_QUIET - since); return; }
+    if (active) { active = false; byTouch = false; report(false); }
+  };
+  const live = (): void => {
+    if (!active) { byTouch = touches > 0; active = true; report(true); }
+    const wheel = performance.now() - wheelLast < WHEEL_QUIET;
+    arm(endsItself && !wheel ? BACKSTOP : QUIET);
+  };
+  // THE ENGINE'S CLAMP: content shrinking under the offset moves it to the new
+  // end and fires `scroll` — and no `scrollend`. No hand is on it (no wheel,
+  // finger, bar or key), so it is not the user's scroll: marking it live would
+  // hold every program write until the backstop.
+  // (the range shrinks either way: content shrinking, or the box growing)
+  let lastHeight = target instanceof HTMLElement ? target.scrollHeight : 0, keyLast = -1e9;
+  let lastBox = target instanceof HTMLElement ? target.clientHeight : 0;
+  const onKey = (): void => { keyLast = performance.now(); };
+  const clamped = (): boolean => {
+    if (!(target instanceof HTMLElement)) return false;
+    const h = target.scrollHeight, box = target.clientHeight, was = lastHeight - lastBox;
+    lastHeight = h;
+    lastBox = box;
+    const now = performance.now();
+    if (touches > 0 || held || now - wheelLast < WHEEL_QUIET || now - keyLast < 1000) return false;
+    return h - box < was - 0.5 && target.scrollTop >= h - box - 1;
+  };
+  const onScroll = (): void => {
+    if (touches > 0) programEnds();                       // a finger is down: whatever moved, the user did
+    if (program) {
+      // the program's own motion: not the user's scroll. Without scrollend a
+      // quiet spell ends the mark (the motion has stopped).
+      if (!endsItself) { if (programTimer !== undefined) clearTimeout(programTimer); programTimer = setTimeout(programEnds, QUIET); }
+      lastHeight = target instanceof HTMLElement ? target.scrollHeight : 0;
+      lastBox = target instanceof HTMLElement ? target.clientHeight : 0;
+      return;
+    }
+    if (clamped()) return;
+    live();
+  };
+  const onWheel = (): void => { programEnds(); wheelLast = performance.now(); live(); };
+  const onTouch = (e: Event): void => {
+    programEnds();
+    touches = (e as TouchEvent).touches?.length ?? 0;
+    if (touches === 0 && active) arm(endsItself ? BACKSTOP : QUIET);
+  };
+  const onEnd = (): void => { if (program) { programEnds(); return; } settle(); };
+  // A HAND ON THE SCROLLBAR: a press on the element's own scrollbar (past its
+  // client box) holds the scroll live until the pointer lifts. The engine's
+  // `scrollend` cannot be trusted mid-drag — a program write to the offset
+  // (a correction, a payback) ends ITS motion with one, and that is not the
+  // user letting go.
+  const onRelease = (): void => {
+    held = false;
+    removeEventListener("pointerup", onRelease, true);
+    removeEventListener("pointercancel", onRelease, true);
+    if (active) arm(QUIET);
+  };
+  const onPress = (e: Event): void => {
+    if (!(target instanceof HTMLElement) || e.target !== target) return;
+    const p = e as PointerEvent;
+    // The bar: past the client box (a classic scrollbar), or — an OVERLAY
+    // scrollbar takes no room, so Safari reports its press inside the client
+    // box — the band along the far edges where an overlay bar draws. Only a
+    // press on the scroller element itself counts: a row is never the bar.
+    const BAND = 20;
+    if (p.offsetX < target.clientWidth - BAND && p.offsetY < target.clientHeight - BAND) return;
+    programEnds();
+    held = true;
+    addEventListener("pointerup", onRelease, true);
+    addEventListener("pointercancel", onRelease, true);
+    live();
+  };
+  const opts = { passive: true } as const;
+  target.addEventListener("scroll", onScroll, opts);
+  target.addEventListener("wheel", onWheel, opts);
+  target.addEventListener("scrollend", onEnd, opts);
+  for (const t of ["touchstart", "touchend", "touchcancel"]) target.addEventListener(t, onTouch, opts);
+  target.addEventListener("pointerdown", onPress, opts);
+  addEventListener("keydown", onKey, { capture: true, passive: true });
+  return {
+    stop: () => {
+      removeEventListener("keydown", onKey, true);
+      target.removeEventListener("scroll", onScroll);
+      target.removeEventListener("wheel", onWheel);
+      target.removeEventListener("scrollend", onEnd);
+      for (const t of ["touchstart", "touchend", "touchcancel"]) target.removeEventListener(t, onTouch);
+      target.removeEventListener("pointerdown", onPress);
+      if (held) onRelease();
+      if (timer !== undefined) clearTimeout(timer);
+      programEnds();
+      if (active) { active = false; report(false); }
+    },
+    touchDriven: () => active && byTouch,
+    barHeld: () => held,
+    program: () => {
+      if (active || touches > 0) return;               // the user holds it: their scroll, not ours
+      program = true;
+      if (programTimer !== undefined) clearTimeout(programTimer);
+      programTimer = setTimeout(programEnds, endsItself ? BACKSTOP : QUIET);
+    },
+  };
+}
+
+/** The page scroll's watch (boot.ts), so a request to the page marks its motion. */
+let PAGE_WATCH: ScrollWatch | null = null;
+export function setPageScrollWatch(w: ScrollWatch): void { PAGE_WATCH = w; }

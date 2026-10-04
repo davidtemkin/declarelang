@@ -5,7 +5,7 @@
 or icon.
 
 ```declare
-class Gauge [ width = 160, height = 92,
+class LevelMeter [ width = 160, height = 92,
     level: number = 0,                               // 0–100
     draw(d: Draw) {                                  // re-runs when what it reads changes, never per frame
         const frac = this.level / 100
@@ -26,7 +26,7 @@ class Gauge [ width = 160, height = 92,
 
 App [ width = 340, height = 200, fill = white,
     level: number = 62,
-    g: Gauge [ x = 20, y = 16, level = { app.level } ],
+    g: LevelMeter [ x = 20, y = 16, level = { app.level } ],
     s: Slider [ x = 20, y = 130, width = 300, value = { app.level }, input(v: number) { app.level = v } ]
     ]
 ```

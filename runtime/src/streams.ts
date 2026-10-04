@@ -1,5 +1,5 @@
 // streams — SSE and WebSocket as SOURCES (docs/system-design/streams.md,
-// RULED 2026-07-29). A stream is the ch. 7 family (Keys, Time, Tip,
+// RULED 2026-07-29). A stream is the ch. 7 family (Keys, Time, Tooltips,
 // Dataset): a non-visual member whose handlers are called by something
 // outside the tree, whose lifetime is its node's, with nothing to
 // unsubscribe. The reactive model already does the hard half — a message

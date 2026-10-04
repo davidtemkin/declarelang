@@ -60,9 +60,9 @@ export declare function resolveIncludes(program: Program, host: IncludeHost, ori
 }>;
 export declare function autoIncludableNames(): readonly string[];
 /** A host that ALSO auto-includes class libraries by bare tag — the LZX
- *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Bar [ … ]`
- *  with no `include` and no inline `class Bar` pulls in the library that
- *  declares `Bar`. `autoincludes()` is the tag→library-path manifest;
+ *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Gauge [ … ]`
+ *  with no `include` and no inline `class Gauge` pulls in the library that
+ *  declares `Gauge`. `autoincludes()` is the tag→library-path manifest;
  *  `resolveLibrary(path)` reads a library file, keyed the SAME canonical way
  *  `resolve` is so an explicit include and an auto-include of one file dedup
  *  through the shared visited set. A plain IncludeHost lacks these, so
@@ -89,7 +89,10 @@ export declare function referencedClassNames(program: Program): string[];
  *
  *  Backends without the auto-include methods (NO_INCLUDES, a plain fs host)
  *  make this a no-op returning the program unchanged. */
-export declare function resolveAutoIncludes(program: Program, root: Element, host: IncludeHost, visited: Set<string>): Promise<{
+export declare function resolveAutoIncludes(program: Program, root: Element, host: IncludeHost, visited: Set<string>, 
+/** The text being compiled — a library file compiled on its own (or under a
+ *  verify probe) declares its own names by right. */
+mainSource?: string): Promise<{
     program: Program;
     sources: string[];
     sourceIds: string[];

@@ -5,18 +5,18 @@
       "when": {
         "baseUsed": "Control"
       },
-      "comment": "the traveling focus indicator \u2014 provided with the component library"
+      "comment": "the traveling focus indicator \u2014 provided with the library"
     },
     {
       "class": "Tooltip",
       "when": {
-        "attributeUsed": "tip",
+        "attributeUsed": "tooltipLabel",
         "onBase": "View"
       },
-      "comment": "the tooltip singleton \u2014 provided with the component library (tip = attribute)"
+      "comment": "the tooltip singleton \u2014 provided with the library (tooltipLabel = attribute)"
     }
   ],
-  "Bar": "bar.declare",
+  "Gauge": "gauge.declare",
   "Card": "card.declare",
   "Divider": "divider.declare",
   "Control": "control.declare",

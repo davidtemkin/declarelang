@@ -688,8 +688,8 @@ export class TextFlow extends View {
         // fences was megabytes per drag.
         // A whole document re-wraps in place: nothing in it depends on the width,
         // so the backend takes the new width and answers the height.
-        if (this.structured && this.surface?.setRichWidth !== undefined) {
-            const h = this.surface.setRichWidth(w);
+        if (this.structured && this.$surface?.setRichWidth !== undefined) {
+            const h = this.$surface.setRichWidth(w);
             if (typeof h === "number" && h >= 0) {
                 this.height = h;
                 this.rereadBaseline();
@@ -700,8 +700,8 @@ export class TextFlow extends View {
             // ... but the HOST box must still adopt the width (it bounds the pre's
             // native horizontal scroller — stuck at a boot-time 0 it clips the flow
             // to nothing). Width-only, no re-flow; no backend hook ⇒ full render.
-            if (this.surface?.setRichWidth !== undefined) {
-                this.surface.setRichWidth(w);
+            if (this.$surface?.setRichWidth !== undefined) {
+                this.$surface.setRichWidth(w);
                 return;
             }
         }
@@ -711,7 +711,7 @@ export class TextFlow extends View {
      *  off the renderer's own layout where it offers one (richMetrics), else the
      *  manual flow's arithmetic. */
     widestLine() {
-        const m = this.surface?.richMetrics?.();
+        const m = this.$surface?.richMetrics?.();
         if (m !== undefined)
             return m.widest;
         return flowRichCanvas(this.content, this.flowWidth, undefined, undefined, { measure: true }).widest;
@@ -770,8 +770,8 @@ export class TextFlow extends View {
             im.source = src;
             this.imageViews.set(key, im);
             this.appendChild(im);
-            if (this.backend !== null && this.surface !== null)
-                im.attach(this.backend, this.surface);
+            if (this.$backend !== null && this.$surface !== null)
+                im.$attach(this.$backend, this.$surface);
             const view = im;
             const c = new Constraint("TextFlow.img", () => `${view.loaded} ${view.naturalWidth} ${view.naturalHeight} ${view.failed}`, () => this.render(), 0);
             c.run();
@@ -798,7 +798,7 @@ export class TextFlow extends View {
      *  it revealed — false before the flow has realized that heading. */
     revealAnchor(slug, inset = 0) {
         const within = this.anchorYs.has(slug) ? this.anchorYs.get(slug) : -1;
-        return this.surface?.revealRichAnchor(slug, within, inset) ?? false;
+        return this.$surface?.revealRichAnchor(slug, within, inset) ?? false;
     }
     /** True while this flow's height is a PROVISIONAL number — rendered (or just
      *  un-hidden), with the backend's asynchronous measurement still outstanding
@@ -827,8 +827,8 @@ export class TextFlow extends View {
         // a provided value, tracked, so a provision appearing later re-flows.
         return providedRead(this, "selectable", true, true);
     }
-    attach(backend, parentSurface, before = null) {
-        super.attach(backend, parentSurface, before);
+    $attach(backend, parentSurface, before = null) {
+        super.$attach(backend, parentSurface, before);
         // Re-flow when the width or the effective `selectable` changes.
         const c = new Constraint("TextFlow.flow", () => `${this.flowWidth} ${this.effSelectable()}`, () => this.render(), 0);
         c.run();
@@ -858,10 +858,14 @@ export class TextFlow extends View {
      *  after attaching under a zero-sized ancestor). Track it so the stack re-flows. */
     onMeasured(h) {
         this.measurePending = false; // the settled height has arrived (the veto lifts)
-        if (this.surface !== null && h >= 0)
+        if (this.$surface !== null && h >= 0)
             this.height = h;
         this.rereadBaseline();
+        this.onSettled?.();
     }
+    /** Told when the renderer reports this flow's settled layout — the owning
+     *  rich text fits its width then if it could not at build (fitNatural). */
+    onSettled = null;
     /** Told when `firstBaseline` changes after the render that set it — the
      *  owning rich text re-claims its `baseline` fact. */
     onBaseline = null;
@@ -871,14 +875,14 @@ export class TextFlow extends View {
      *  reports the settled layout, as its height does. */
     rereadBaseline() {
         const first = this.content[0];
-        const m = this.surface?.richMetrics?.();
+        const m = this.$surface?.richMetrics?.();
         if (m === undefined || first === undefined || isStructural(first) || m.firstBaseline === this.firstBaseline)
             return;
         this.firstBaseline = m.firstBaseline;
         this.onBaseline?.();
     }
     render() {
-        const s = this.surface;
+        const s = this.$surface;
         if (s === null)
             return;
         // The DEFAULT for a rich-text link is the app's own follow (location.md
@@ -962,8 +966,8 @@ export class TextFlow extends View {
         for (const v of views) {
             this.insertChild(v, at++);
             this.manual.push(v);
-            if (this.backend !== null)
-                v.attach(this.backend, this.surface);
+            if (this.$backend !== null)
+                v.$attach(this.$backend, this.$surface);
         }
         this.height = height;
         this.childrenMutated();
@@ -1211,8 +1215,8 @@ export class RichText extends View {
      *  kernel's native rule) read one geometry and agree, with nothing to mask.
      *  A rich text that IS transformed says so with `scale`, like any view, and
      *  every reader honours it. */
-    attach(backend, parentSurface, before = null) {
-        super.attach(backend, parentSurface, before);
+    $attach(backend, parentSurface, before = null) {
+        super.$attach(backend, parentSurface, before);
         // Reactive render: re-parse and rebuild whenever the source OR `width` changes
         // (a resize re-flows, not only an edit); `dark`/`fontScale` in the key so a theme
         // flip or font-size change re-renders.
@@ -1326,8 +1330,14 @@ export class RichText extends View {
      *  so a renderer measuring a hair wider cannot wrap a line early). The content
      *  box — and so `x = center`, a row's spacing, a ring around it — is then the
      *  text's. Only a document of running text fits; one holding a list, table,
-     *  quote or code keeps the measure. */
+     *  quote or code keeps the measure.
+     *
+     *  A flow with words in it whose widest line reads 0 has not been laid out
+     *  yet — built before the first paint, or inside a hidden view. Fitting to
+     *  that would leave the text 2px wide for good, so it keeps the measure and
+     *  fits when its renderer reports the settled layout (TextFlow.onSettled). */
     fitNatural() {
+        this.$fitWaiting = false;
         if (!this.ownWidth())
             return;
         let natural = 0;
@@ -1335,11 +1345,28 @@ export class RichText extends View {
             const f = e.view;
             if (!(f instanceof TextFlow) || f.content.some((b) => isStructural(b) || b.pre === true))
                 return;
-            natural = Math.max(natural, f.widestLine() + 2 + e.geo.ml + e.geo.mr);
+            const widest = f.widestLine();
+            if (widest <= 0 && f.content.length > 0) {
+                this.$fitWaiting = true;
+                return;
+            }
+            natural = Math.max(natural, widest + 2 + e.geo.ml + e.geo.mr);
         }
         natural = Math.ceil(natural);
         if (natural < READING_MEASURE)
             relayoutEntries(this.laid, natural);
+    }
+    /** True while the width fit waits for a flow's first real layout. */
+    $fitWaiting = false;
+    /** A flow's layout settled: the fit the build could not make, made now. */
+    $fitSettled() {
+        if (!this.$fitWaiting)
+            return;
+        this.fitNatural();
+        if (this.$fitWaiting)
+            return;
+        this.childrenMutated();
+        this.claimBaseline();
     }
     /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
      *  it is a prose flow its first line's baseline IS this box's. */
@@ -1356,7 +1383,7 @@ export class RichText extends View {
         // A renderer that lays whole documents out takes this one as ONE flow — one
         // region to wrap, select and find in — unless a line budget is in force,
         // which the view path spends block by block as it builds.
-        const whole = this.surface?.richBlocks === true && !(this.maxLines > 0);
+        const whole = this.$surface?.richBlocks === true && !(this.maxLines > 0);
         if (!whole)
             startBudget(this.maxLines);
         SCALE = this.fontScale || 1; // font-size multiplier for this render
@@ -1420,8 +1447,8 @@ export class RichText extends View {
         for (const e of children) {
             this.insertChild(e.view, at++);
             this.built.push(e.view);
-            if (this.backend !== null)
-                e.view.attach(this.backend, this.surface);
+            if (this.$backend !== null)
+                e.view.$attach(this.$backend, this.$surface);
         }
         // AN INLINE VIEW PAINTS ON TOP OF THE FLOW IT SITS IN, and its surface must
         // say so. Model order already does — the blocks above went in at 0…n, ahead
@@ -1432,14 +1459,17 @@ export class RichText extends View {
         // carries the selectable text and takes pointer events across the whole
         // line, so every click on the view landed on the text instead and no handler
         // ever ran. Re-parent them at the end, in model order, now the flows are in.
-        if (this.surface !== null)
+        if (this.$surface !== null)
             for (const v of host.views())
-                if (v.surface !== null)
-                    this.surface.insertChild(v.surface, null);
+                if (v.$surface !== null)
+                    this.$surface.insertChild(v.$surface, null);
         this.laid = children; // kept so a width change can re-width
         const opening = children[0]?.view;
         if (opening instanceof TextFlow)
             opening.onBaseline = () => this.claimBaseline();
+        for (const e of children)
+            if (e.view instanceof TextFlow)
+                e.view.onSettled = () => this.$fitSettled();
         this.fitNatural();
         // Stack the block-views, PROSE.blockGap apart; their heights (a TextFlow's
         // measured at attach, a container's derived by auto-extent) drive the stack,

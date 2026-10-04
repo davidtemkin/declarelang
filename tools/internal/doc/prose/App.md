@@ -9,7 +9,9 @@ compile error (a Shape clip keeps its meaning) — and it **scrolls by default**
 (`scrolls = y`), with its scroller being **the page itself**: content taller than the
 window makes the browser's own page scroll, and an app whose content fits simply has
 nothing to scroll (the "fixed window" is that default, idle). Chrome that must not scroll
-away declares `ignoreScroll`. The environment attributes below are fed by the runtime from
+away declares `ignoreScroll`. An application whose panes scroll and whose window never
+does declares `scrolls = none`: the page then never scrolls or bounces under it, even in
+a browser that rubber-bands a page that fits the window. The environment attributes below are fed by the runtime from
 the window (or the embedding element): you **read** them, you never set them.
 
 ```declare
@@ -48,7 +50,7 @@ scroller is the page (an interior `scrolls` container exposes its own `scrollY` 
 way). The user's scrolling writes it; read it for scroll-driven
 chrome — a fading header, a parallax hero: `opacity = { 1 - app.scrollY / 200 }`. **Read-only**:
 to land the page somewhere, call the target view's `scrollIntoView()`; assigning this attribute is
-refused.
+refused. An App with `scrolls = none` has no scroll of its own, and reads `0`.
 
 ## pointerX
 **Read-only.** The pointer's horizontal position in **viewport space**, live and

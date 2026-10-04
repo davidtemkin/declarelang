@@ -81,7 +81,8 @@ else if (signaled === 0) console.log("reload: no reachable dev server — nothin
 // the flag this block is inert — a distro user, a commit, CI never need Swift.
 const MAC_AUTO = process.env.DECLARE_MAC_AUTO === "1" || existsSync(path.join(ROOT, ".derive", "mac-auto"));
 if (MAC_AUTO) {
-  const b = spawnSync(process.execPath, [path.join(ROOT, "tools/internal/build-mac-app.mjs")],
+  // --no-stage: an automatic rebuild never touches the git index
+  const b = spawnSync(process.execPath, [path.join(ROOT, "tools/internal/build-mac-app.mjs"), "--no-stage"],
                       { cwd: ROOT, encoding: "utf8" });
   process.stdout.write((b.stdout ?? "").split("\n").filter(Boolean).map((l) => "mac: " + l).join("\n") + "\n");
   if (b.status !== 0) { process.stderr.write(b.stderr ?? ""); console.log("mac: ✗ the app did not build — see above"); process.exit(1); }

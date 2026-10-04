@@ -68,7 +68,7 @@ export declare const handlerName: (event: string) => string;
  *  across the language: `keyDown` is a KeyEvent whether it fires on a focused
  *  View or on a `Keys` member; `start`/`stop`/`repeat` mean the same on an
  *  Animator and an AnimatorGroup. The payload shapes themselves live in
- *  events.ts (the pointer family), keys.ts (KeyEvent), tip.ts (TipEvent) and
+ *  events.ts (the pointer family), keys.ts (KeyEvent), tip.ts (TooltipEvent) and
  *  focus.ts (FocusGeometry) — this table is only the mapping.
  *
  *  This is what makes a handler's parameter checkable: the scaffold emits each

@@ -4,6 +4,7 @@ import { View } from "./view.js";
 import { type PathSeg } from "./path-plan.js";
 import { type PathNode } from "./select.js";
 import type { Dataset } from "./data.js";
+import type { WindowingFactory } from "./virtualize.js";
 /** What the Replicator needs from instantiate.ts (which imports this module;
  *  the interface keeps the dependency one-way): construct one instance of
  *  the template — tree only — and hand back `finish` (installs bindings,
@@ -108,56 +109,22 @@ export declare class Replicator {
     private readonly plan;
     /** The virtualization policy (`virtualize = …`; D5). */
     private readonly policy;
+    /** Windowing (virtualize.ts) — present only when the program can ask for it. */
+    private readonly windowing;
     private views;
     private items;
-    /** Every child this block currently owns: the window instances plus the
-     *  RETAINED (touched, off-window) instances — what linking and discard
-     *  operate over. Equal to `views` when nothing is retained. */
-    private allViews;
-    /** Touched instances kept alive off-window (keep-alive, D5): member
-     *  identity → instance. Bounded by rows a human actually touched. */
-    private readonly retained;
-    /** PARKED spares (recycling's idle pool): clean instances the window no
-     *  longer needs, kept hidden instead of discarded so the next growth —
-     *  an oscillating overscan lead, a direction flip, a viewport resize —
-     *  re-points an existing row instead of constructing one (the thumb-drag
-     *  bench's spikes were exactly these discard-then-rebuild bursts). */
-    private readonly spares;
     /** Member identities whose init has fired — the membership-anchored
      *  lifecycle (D5): an identity in this set never refires onInit while its
      *  membership lasts; intersected with the live membership on data change,
      *  so leave-and-return is a NEW membership and fires again. */
-    private readonly inited;
-    private unit;
-    private measuredUnit;
-    private windowedActive;
+    readonly inited: Set<unknown>;
     private fallback;
-    private winStart;
     private logical;
-    private positioned;
-    private scale;
-    private pRel;
-    private relLogical;
-    private heightOwner;
-    private lastLeading;
-    private lastRel;
-    private readonly ledger;
-    private rowGap;
-    /** The membership signature the ledger was last rebuilt for. */
-    private ledgerShape;
-    /** The viewport-stability anchor: the first in-view member and where its
-     *  top sat relative to the scroll, captured each match — a data change
-     *  that moves it (a prepend, a measured correction above) compensates the
-     *  scroll so the user's view holds still (Tracker criterion 2). */
-    private anchorId;
-    private anchorDelta;
+    /** The windowed half (virtualize.ts), made the first time the policy asks
+     *  for it; null for a block that replicates fully. */
+    private win;
     private lastArr;
     private lastLen;
-    /** Wakes the match when the FIRST instances exist to measure — the
-     *  estimate-then-correct loop's trigger (a plain cell; reconcile pings it
-     *  after creating rows while the unit is still predicted). */
-    private readonly measureCell;
-    private indexCache;
     protected readonly template: Element;
     private readonly constraint;
     /** The record field that identifies an instance across re-derivations
@@ -174,7 +141,9 @@ export declare class Replicator {
      *  `splitPath(path)` is the plan (pure names, today's fast path). */
     plan?: readonly PathSeg[] | null, 
     /** The virtualization policy (`virtualize = …`; D5). */
-    policy?: VirtualizePolicy);
+    policy?: VirtualizePolicy, 
+    /** Windowing (virtualize.ts) — present only when the program can ask for it. */
+    windowing?: WindowingFactory | null);
     /** The live policy answer. A literal is itself; a `{ }` constraint is called
      *  — and callers must only do that from inside match(), so the read lands in
      *  the Constraint's dependency set. A throwing expression is NOT caught: every
@@ -196,16 +165,14 @@ export declare class Replicator {
     /** Navigate-to-logical-record (materialization.md §3.5 — required by the
      *  observer boundary): scroll so the record at `index` materializes —
      *  app-level search's landing and the AT-traversal path. Imperative (a
-     *  handler's verb), so reads here are untracked by design. */
+     *  handler's verb), so reads here are untracked by design. Writing the
+     *  scroll offset is the whole move: the windowed match tracks it. */
     navigateTo(index: number): void;
     /** The inspector diagnostic (§3.6). */
     info(): MaterializationDiag;
     /** The nearest scrolling ancestor (scrolls = y | both), or null. Tracked
-     *  when called from match(), plain when called imperatively. */
+     *  when called from match(). */
     private findScroller;
-    /** This block's y offset within the scroller's CONTENT coordinates: the
-     *  sum of `y` from the block's parent up to (excluding) the scroller. */
-    private offsetTo;
     /** The tracked half: the inherited cursor chain + the matched region — and
      *  in windowed mode also the scroll box (scrollY, viewport extent, the
      *  offset chain, the first row's measured height): the windowed match is
@@ -223,6 +190,8 @@ export declare class Replicator {
     /** Build an instance of class `kind`. */
     protected build(_kind: string): ReturnType<Materialize>;
     private match;
+    /** What the windowed half needs from this block. */
+    private windowHost;
     /** A record's pooling identity, per the REVISED ladder (ruled 2026-07-30,
      *  the invisible version): the explicit `key = :field` override first,
      *  then the INFERRED convention — a record's own scalar `id` field IS its
@@ -234,8 +203,6 @@ export declare class Replicator {
      *  way when keyless). */
     private identityMode;
     private reconcile;
-    /** The parent-extent the height derive publishes (windowed mode). */
-    private totalExtent;
     /** Where the block starts right now: after its anchor. */
     private start;
     /** The last VISIBLE View before the block — the GEOMETRY anchor the
@@ -243,13 +210,6 @@ export declare class Replicator {
      *  (`lastNodeOf(this.prev)`): an invisible sibling (a DataGrid Column, a
      *  hidden control) occupies no space — the SimpleLayout rule — so the
      *  walk skips it rather than offsetting below a phantom. */
-    /** The anchor member's offset under the CURRENT (pre-rebuild) ledger,
-     *  or null when it is no longer known. */
-    private anchorFind;
-    /** Hide and shelve a clean evicted instance for reuse. */
-    private park;
-    /** Take a spare back into service (visible again; the caller re-points). */
-    private unpark;
     private leadingAnchor;
     /** The first live surface after the block — the `before` reference the
      *  re-inserted surfaces stack up against (null = the parent's end). */
@@ -257,3 +217,21 @@ export declare class Replicator {
     /** @internal The block's last instance — the next block's anchor. */
     last(): Node | null;
 }
+/** A replicated instance's construction threw — surface it once, loudly,
+ *  with the node's path (the field-report contract), and let reconcile keep
+ *  going: the defect belongs to the instance whose member threw, and the
+ *  siblings' cursors and finishes must land regardless. */
+export declare function reportInstanceThrow(v: View, phase: string, e: unknown): void;
+/** Does the keyboard focus live inside this instance's subtree? A focused
+ *  row is TOUCHED by definition (focus-as-touched — the D5 deferral, forced
+ *  the day a recycled select cell dragged the focus ring to an arbitrary
+ *  record): it must never be re-pointed, parked, or discarded under the
+ *  user's cursor. */
+export declare function focusedWithin(root: Node): boolean;
+/** Has any node in this instance's subtree received a direct write since it
+ *  was armed — the §2 divergence probe (attributes.ts). Walked only at
+ *  discard decisions; proportional to one instance's subtree. */
+export declare function subtreeDiverged(root: Node): boolean;
+/** Arm divergence tracking over a finished instance's subtree —
+ *  construct-phase writes (literals, bindings, init) never count as touch. */
+export declare function armTree(root: Node): void;

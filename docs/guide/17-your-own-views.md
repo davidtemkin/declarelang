@@ -37,7 +37,7 @@ class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
     input(v: number) { value = v },
     press() { input(value + step) },
 
-    fill = { down ? theme.controlPressed : hot ? theme.controlHover : theme.control },
+    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : theme.control },
     t: Text [ x = center, y = center, fontSize = 13, textColor = { theme.text },
         text = { "" + classroot.value } ]
     ]
@@ -56,8 +56,8 @@ App [ width = 320, height = 130, theme = { SanFrancisco },
 Click it, then press Tab and Space. You wrote no key handling, no focus management and no
 hover tracking, and the focus ring that travels to it was declared by nobody.
 
-- **[`hot`](declare-docs:Control.hot) and [`down`](declare-docs:Control.down)** are hover and press, already gated by `disabled`. Style from these,
-  not from the raw [`hovered`](declare-docs:View.hovered) and [`pressed`](declare-docs:View.pressed) facts, so a disabled control never lights up.
+- **[`hovered`](declare-docs:View.hovered) and [`pressed`](declare-docs:View.pressed)** answer under the control's policy: both false while
+  it is `disabled`, and `pressed` true for a keyboard press too. Style from them, and a disabled control never lights up.
 - **`press()`** is the one activation path: Space, Enter and a click all land there.
   Override `press()` to say what activating your control does; override `onClick` only
   when a click should mean something else.
@@ -91,6 +91,34 @@ Methods and attributes are what a subclass refines; the base's children are not.
 subclass cannot declare a child the base already has — the compiler refuses it — so
 when a subclass needs a child to look or behave differently, the base exposes that as
 an attribute the child reads (a color, a label, a size) or as a method to override.
+
+## A frame around content
+
+A class is often a frame — a sheet with a title and padding, a card with a header, a message
+with its name and reactions — whose content each subclass or use site supplies. The children
+a subclass writes are appended to the instance, beside the base's own; the frame says where
+they belong instead with [`defaultplacement`](declare-docs:View.defaultplacement), naming one of
+its own children:
+
+```declare-fragment
+class Sheet [ width = 300, fill = white, cornerRadius = 16, defaultplacement = body,
+    title: Text [ x = 16, y = 12, fontSize = 18, text = { classroot.heading } ],
+    heading: string = "",
+    body: View [ y = 44, width = 100%, padding = [0, 16, 16, 16],
+        layout: SimpleLayout [ axis = y, spacing = 10 ] ]
+    ]
+class DetailSheet extends Sheet [ heading = "Session",
+    figs: Text [ fontSize = 30, text = "3h 40m" ],
+    acts: Button [ label = "Delete" ]
+    ]
+```
+
+`figs` and `acts` go into `body`, after anything `body` declares, in order — and so do the
+children written where a `DetailSheet [ … ]` is used. The base's own children (`title`,
+`body`) never move. A placed child's `parent` is the child it went into (so `parent.width` is
+the padded width); it is still reachable by name from the class that wrote it
+(`classroot.figs`). A subclass may name its own `defaultplacement` for the classes and use
+sites after it.
 
 ## Delivering a control's value
 

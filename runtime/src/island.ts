@@ -225,14 +225,14 @@ export class DOMIsland extends Island {
   declare slot: string;
   declare childName: string;
 
-  protected flush(s: Surface): void {
-    super.flush(s);
+  protected $flush(s: Surface): void {
+    super.$flush(s);
     if (this.slot !== "") s.setEmbed(this.slot, this);
   }
 }
 
 defineAttributes(DOMIsland, {
-  slot: { def: "", push: (v, id) => v.surface?.setEmbed(id, v) },
+  slot: { def: "", push: (v, id) => v.$surface?.setEmbed(id, v) },
   childName: { def: "" },
 });
 

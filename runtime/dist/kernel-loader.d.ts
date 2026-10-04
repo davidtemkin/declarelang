@@ -19,6 +19,8 @@ export declare const KERNEL_FLAG: Readonly<{
     PHASE1: 2;
     PERCENT: 4;
 }>;
+/** A layout child word's flag (kernel_layout_add): placed in the run, its slot not written. ADD it to the base. */
+export declare const LAYOUT_NOWRITE = 2147483648;
 export declare const KERNEL_STATE: Readonly<{
     QUEUED: 1;
     DEAD: 2;
@@ -135,9 +137,14 @@ export interface Kernel {
     viewRemove(view: number): void;
     visAdd(view: number, root: number): number;
     visRewire(rule: number): number;
-    /** Auto-extent: `words` = [list cell | -1, child block base…]. */
+    /** Auto-extent: `words` = [list cell | -1, inset cell | -1, child block base…]. */
     extentAdd(axis: number, target: number, words: ArrayLike<number>): number;
     extentRewire(rule: number, words: ArrayLike<number>): number;
+    /** SimpleLayout's flow positions (unaligned, unflexed): `words` = [list cell | -1,
+     *  spacing cell | -1, child block base…], a base OR'd with LAYOUT_NOWRITE when
+     *  its slot is an author's. Absent where the host binds no such rule (the Mac's
+     *  native kernel) — the layout's own pass places those. */
+    layoutAdd?(axis: number, words: ArrayLike<number>): number;
 }
 /** dk_view_layout, field order (declare_kernel.h). */
 export declare const VIEW_LAYOUT_FIELDS: readonly ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY", "scrollX", "scrollY", "ignoreScroll", "scrollsOn", "rotateX", "rotateY", "translateZ", "visOn", "visScale", "visX", "visY", "visW", "visH", "visMode", "ignoreClip"];

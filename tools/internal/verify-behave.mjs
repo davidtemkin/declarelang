@@ -11,6 +11,7 @@ import http from "node:http";
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname, extname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { launchChrome } from "./chrome.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -97,7 +98,7 @@ bootHost(cfg);
   const port = server.address().port;
 
   const { default: puppeteer } = await import(pathToFileURL(join(ROOT, "node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js")).href);
-  const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+  const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
   try {
     /** A fresh page with the app booted and the language-altitude API bound. */
     const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1 } = {}) => {

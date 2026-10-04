@@ -1,0 +1,44 @@
+/*
+# Gauge
+
+A labeled horizontal value bar: an optional caption, then a rounded track filled to
+`value`, in a colour you choose. It is for demos and dashboards that want a caption and
+their own colour; for a meter that follows the theme, use `ProgressBar`.
+
+```declare
+col: View [ x = 20, y = 20, width = 260,
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Gauge [ width = 260, label = "Storage", value = 72 ],
+    Gauge [ width = 260, label = "Memory",  value = 38, tint = #37E0C8 ]
+    ]
+```
+
+## value
+How full the track reads, **0–100 always** — a percentage, not your own units. This is
+the difference from `ProgressBar`, which takes `min`/`max` and lets you pass raw counts.
+
+## label
+The caption to the left of the track. `""` drops the caption column entirely and the
+track takes the full width.
+
+## tint
+The fill colour. **The one restyling knob** — `Gauge` carries literal colour defaults
+rather than theme tokens, so it does not follow a theme the way library controls do.
+
+## lead
+The caption column's width, derived from whether there is a `label` at all. Set it to
+align several bars whose captions differ in length.
+*/
+
+class Gauge [ height = 28,
+    label: string = "",
+    value: number = 0,
+    tint:  Color  = #4C8DFF,
+    lead:  number = { label == "" ? 0 : 96 },
+    cap: Text [ y = 5, fontSize = 14, textColor = #8A9BA6, text = { classroot.label } ],
+    rail: View [ x = { classroot.lead }, width = { parent.width - classroot.lead },
+        height = 100%, cornerRadius = 6, fill = #0A1119,
+        bar: View [ height = 100%, cornerRadius = 6, fill = { classroot.tint },
+            width = { parent.width * classroot.value / 100 } ]
+        ]
+    ]

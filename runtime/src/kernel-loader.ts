@@ -10,6 +10,8 @@
 export const KERNEL_ERR = Object.freeze({ IMAGE: -1, ARENA: -2, OWNED: -3, CYCLE: -4, AFTER: -5, BOUND: -6, FULL: -7, BAD: -8, ABORT: -9 });
 export const KERNEL_KIND = Object.freeze({ EXPR: 0, BODY: 1, DYNAMIC: 2 });
 export const KERNEL_FLAG = Object.freeze({ YIELDING: 1, PHASE1: 2, PERCENT: 4 });
+/** A layout child word's flag (kernel_layout_add): placed in the run, its slot not written. ADD it to the base. */
+export const LAYOUT_NOWRITE = 0x80000000;
 export const KERNEL_STATE = Object.freeze({ QUEUED: 1, DEAD: 2, SUSPENDED: 4, REWIRE: 8, UNLANDED: 16 });
 /** The track ring's owner mark (declare_kernel.h): `OWNER | rule` closes the
  *  reads before it under `rule`; `OWNER | NOBODY` drops them. */
@@ -107,9 +109,14 @@ export interface Kernel {
   viewRemove(view: number): void;
   visAdd(view: number, root: number): number;
   visRewire(rule: number): number;
-  /** Auto-extent: `words` = [list cell | -1, child block base…]. */
+  /** Auto-extent: `words` = [list cell | -1, inset cell | -1, child block base…]. */
   extentAdd(axis: number, target: number, words: ArrayLike<number>): number;
   extentRewire(rule: number, words: ArrayLike<number>): number;
+  /** SimpleLayout's flow positions (unaligned, unflexed): `words` = [list cell | -1,
+   *  spacing cell | -1, child block base…], a base OR'd with LAYOUT_NOWRITE when
+   *  its slot is an author's. Absent where the host binds no such rule (the Mac's
+   *  native kernel) — the layout's own pass places those. */
+  layoutAdd?(axis: number, words: ArrayLike<number>): number;
 }
 /** dk_view_layout, field order (declare_kernel.h). */
 export const VIEW_LAYOUT_FIELDS = ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY",
@@ -474,6 +481,7 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     // evaluates arguments left to right, so an inline `scratchAt` would be stale
     extentAdd: (axis, target, words) => roomy(extentNeed(words.length, 1), () => { const n = edgesIn(words); return x.kernel_extent_add(k, axis, target, scratchAt, n); }),
     extentRewire: (rule, words) => roomy(extentNeed(words.length, 0), () => { const n = edgesIn(words); return x.kernel_extent_rewire(k, rule, scratchAt, n); }),
+    layoutAdd: (axis, words) => roomy(extentNeed(words.length, 1), () => { const n = edgesIn(words); return x.kernel_layout_add(k, axis, scratchAt, n); }),
     freeCell: (cell) => { x.kernel_free_cell(k, cell); },
     state: (rule) => x.kernel_state(k, rule),
     deps: (rule) => { const n = x.kernel_deps(k, rule, scratchAt, scratchCap); return Array.from(scratch.subarray(0, Math.min(n, scratchCap))); },

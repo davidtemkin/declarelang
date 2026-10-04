@@ -1,0 +1,46 @@
+/*
+# Faces
+
+A person is their picture when they have one, and their initials on their own
+colour when they do not — the same colour their name wears in a group, so a
+face and a name are recognisably the same person. The initials sit underneath
+the picture, so a picture still loading shows who it will be.
+*/
+
+script {
+    // one of the theme's six person inks, chosen stably by id
+    function personInk(th: any, id: string): number {
+        return [th.ink0, th.ink1, th.ink2, th.ink3, th.ink4, th.ink5][hueIndex(id, 6)]
+    }
+    }
+
+class Avatar [ clip = true,
+    pid: string = "",
+    size: number = 40,
+    width = { size }, height = { size }, cornerRadius = { size / 2 },
+    fill = { personInk(provided("theme"), pid) },
+    cap: TextLabel [ width = 100%, textAlign = center, wrap = false, fontWeight = semibold,
+        fontSize = { Math.round(classroot.size * 0.38) },
+        textColor = #FFFFFF,
+        text = { initials(app.store.nameOf(classroot.pid)) } ],
+    pic: Image [ width = 100%, height = 100%, stretches = cover,
+        source = { (app.store.person(classroot.pid)?.avatar ?? "") == "" ? "" : app.api + app.store.person(classroot.pid)!.avatar },
+        visible = { this.source != "" && this.loaded } ]
+    ]
+
+
+// a conversation's face: the other person, or two of the group overlapping
+
+class ThreadFace [
+    rec: Thread = null,
+    size: number = 48,
+    width = { size }, height = { size },
+    others: string[] = { classroot.rec == null ? [] : app.store.others(classroot.rec) },
+    one: Avatar [ visible = { classroot.others.length == 1 }, pid = { classroot.others[0] ?? "" },
+        size = { classroot.size } ],
+    back: Avatar [ visible = { classroot.others.length > 1 }, x = { classroot.size * 0.36 },
+        pid = { classroot.others[1] ?? "" }, size = { classroot.size * 0.64 } ],
+    front: Avatar [ visible = { classroot.others.length > 1 }, y = { classroot.size * 0.36 },
+        pid = { classroot.others[0] ?? "" }, size = { classroot.size * 0.64 },
+        stroke = { stroke(2, provided("theme").bg) } ]
+    ]

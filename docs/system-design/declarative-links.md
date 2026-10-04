@@ -173,14 +173,14 @@ is a precedent in the same function:
 const handled = POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function");
 // A tip-carrying view is hover-interactive by that fact alone (pay-per-use
 // extends to the tip attribute)
-if (!handled && this.tip === "") return null;
+if (!handled && this.tooltipLabel === "") return null;
 ```
 
 `linksTo` grows that test by one clause and performs the navigation in the sink
-itself, exactly as the sink already calls `Tip.over` / `Tip.hide`:
+itself, exactly as the sink already calls `Tooltips.over` / `Tooltips.hide`:
 
 ```ts
-if (!handled && this.tip === "" && this.linksTo === "") return null;
+if (!handled && this.tooltipLabel === "" && this.linksTo === "") return null;
 …
 if (type === "click" && this.linksTo !== "") app.location = this.linksTo;
 if (handled) fireEvent(this, type, …);

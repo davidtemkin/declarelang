@@ -76,11 +76,4 @@ export type CheckedMethod = {
     ok: false;
     error: DeclareError;
 };
-/** Validate one method member against a schema (R5): its name must be free
- *  (not an attribute's — methods and attributes are one member namespace,
- *  language §4), a handler-shaped name must answer a declared event (the
- *  typo'd-handler compile error §8 promises), a parameter may not shadow
- *  a scope noun, and the body must be valid statement syntax. Like checkAttr,
- *  check() collects these and instantiate() throws them — one message
- *  source. */
 export declare function checkMethod(schema: ClassSchema, m: Method): CheckedMethod;

@@ -45,6 +45,18 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  the View-typed handle the arrangement uses. */
     view: View | null;
     private undo;
+    /** Set when this strategy is the library's own SimpleLayout, unmodified
+     *  (instantiate.ts buildLayout): what its place() does is then known, so the
+     *  shape below is read from its inputs rather than from a placement. */
+    $canon: "simple" | null;
+    /** True while the KERNEL places this layout's children ($installNative). */
+    $native: boolean;
+    /** Which slots each laid child's box carries, as a signature — the shape the
+     *  install was probed from. For an unmodified SimpleLayout it follows from its
+     *  inputs alone: the flow position for every child, the flowed size for a
+     *  visible flexing child, the cross position when `align` claims it for every
+     *  child but a spacer (SimpleLayout's place()). Anything else asks place(). */
+    private $shapeSignature;
     /** Each claimed (child, slot)'s AUTHORED BASE value, captured at first claim
      *  and kept across rearm. When a strategy vacates a slot (an axis flip, a
      *  layout swap) the slot reverts to this base — the authored cross-axis
@@ -237,5 +249,19 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  Transactional: on a mid-install error nothing stays owned. Children are
      *  read at install (tree mutation is R8's rearm). TweenLayout overrides
      *  this with its interpolating write path over the same place(). */
+    /** THE KERNEL'S STACK (kernel_layout_add): an unmodified SimpleLayout with
+     *  nothing aligned and nothing flexing places exactly the flow position of
+     *  every laid child — a run of footprints and spacing the kernel computes
+     *  itself, with no place() in JavaScript. The claims are the pass's own: each
+     *  child's flow slot, a child whose slot an author owns reported once and left
+     *  in the run unwritten, a literal on the slot reported as discarded. Anything
+     *  else — another strategy, alignment, a spacer, a windowed block, no kernel
+     *  rule for it — is null, and the pass below places as ever. */
+    private $installNative;
+    /** The child list changed inside a settle: a KERNEL stack's words name the
+     *  old children's blocks — one discarded this settle may already serve
+     *  another view — so its rule stops now, and the re-arm at the settle's
+     *  close (View.childrenMutated) installs it over the new list. */
+    $retireNative(): void;
     protected install(_view: View): () => void;
 }

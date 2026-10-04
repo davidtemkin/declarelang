@@ -394,14 +394,14 @@ await test("DECLARE4011: a hand-written centering is a HINT naming x = center �
   await one(`x = { parent.width / 2 - this.width / 2 }`);          // the distributed spelling
 
   // `classroot` counts as the parent exactly where it IS the parent
-  const asParent = await idiom(`class Card extends View [ width = 200, height = 100,
+  const asParent = await idiom(`class Tile extends View [ width = 200, height = 100,
       dot: View [ width = 10, height = 10, x = { (classroot.width - this.width) / 2 } ] ]
-    App [ width = 400, height = 300, Card [ ] ]`);
+    App [ width = 400, height = 300, Tile [ ] ]`);
   assert.equal(codes(asParent, "DECLARE4011").length, 1, "classroot IS the parent one level down");
-  const notParent = await idiom(`class Card extends View [ width = 200, height = 100,
+  const notParent = await idiom(`class Tile extends View [ width = 200, height = 100,
       row: View [ width = 100, height = 50,
         dot: View [ width = 10, height = 10, x = { (classroot.width - this.width) / 2 } ] ] ]
-    App [ width = 400, height = 300, Card [ ] ]`);
+    App [ width = 400, height = 300, Tile [ ] ]`);
   assert.equal(codes(notParent, "DECLARE4011").length, 0, "two levels down, classroot is not the parent — that is not a centering");
 
   // …and a hint never enters `warnings`, so a caller counting warnings counts
@@ -456,10 +456,10 @@ await test("DECLARE4012: an Animator nothing can start warns; the legitimate nev
       pulse: Animator [ attribute = opacity, to = 0.2, duration = 200, started = { app.open } ] ] ]`,
     "a bound started is driven by the fact it reads");
   await silent(anim("", `, onClick() { this.pulse.start() }`), "a handler starts it by name");
-  await silent(`class Card extends View [ width = 100, height = 100,
+  await silent(`class Tile extends View [ width = 100, height = 100,
       onInit() { classroot.pulse.start() },
       pulse: Animator [ attribute = opacity, to = 0.2, duration = 200 ] ]
-    App [ width = 400, height = 300, Card [ ] ]`, "…through any path that names it");
+    App [ width = 400, height = 300, Tile [ ] ]`, "…through any path that names it");
   // A SPRING is never start()-triggered — it wakes on its reactive `to`, so
   // "never started" is its normal life and warning there would be wrong.
   await silent(`App [ width = 400, height = 300, open: boolean = false,

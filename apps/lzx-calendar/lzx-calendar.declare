@@ -349,7 +349,7 @@ class DayCell [
                     d.fillRect(0, 0, width, height)
                     const th = Math.max(20, height * height / 611)
                     const maxS = Math.max(1, 611 - height)
-                    const ty = (0 - parent.tl.y) / maxS * (height - th)
+                    const ty = (0 - (parent.tl?.y ?? 0)) / maxS * (height - th)
                     d.fillStyle = 0x9BAAB3
                     d.fillRect(1, ty, width - 2, th)
                     }
@@ -413,7 +413,7 @@ class CalendarGrid extends TweenLayout [
         return { colX: colX, colW: colW, rowY: rowY, rowH: rowH }
         },
 
-    // one box per laid cell (SPEC §2). Same laid() order the base owns slots in.
+    // one box per laid cell (SPEC §2). Same laid() order the base places them in.
 
     place() {
         const g = this.geom(), rows = this.rows

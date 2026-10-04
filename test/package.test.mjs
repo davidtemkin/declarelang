@@ -18,6 +18,7 @@ import { tmpdir } from "node:os";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { writeProduction } from "../tools/declarec.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 console.log("package");
@@ -81,7 +82,7 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const B = `http://127.0.0.1:${server.address().port}`;
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message.slice(0, 200)));

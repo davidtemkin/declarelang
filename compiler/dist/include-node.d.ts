@@ -6,8 +6,8 @@ import type { Tracker } from "./closure.js";
  *
  *  When `libraryRoot` is given it is ALSO an AutoIncludeHost: the manifest
  *  `<libraryRoot>/autoincludes.json` (tag → path relative to `<libraryRoot>` — the library is flat)
- *  drives bare-tag auto-inclusion, so a program can use `Bar [ … ]` with no
- *  `include` and no inline `class Bar`. Manifest read is lazy + cached; a
+ *  drives bare-tag auto-inclusion, so a program can use `Gauge [ … ]` with no
+ *  `include` and no inline `class Gauge`. Manifest read is lazy + cached; a
  *  missing / malformed manifest degrades to an empty map, never a crash.
  *
  *  When `tracker` is given, EVERY read (include, auto-included library, the

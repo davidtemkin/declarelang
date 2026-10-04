@@ -78,7 +78,7 @@ export type Literal =
   | { kind: "call"; name: string; args: Literal[]; pos: Pos }
   // `[a, b, …]` — a list literal. Items are values: idents for `styles`
   // (`styles = [card, danger]`), and font names / strings / url()·local()
-  // sources for the font slots (`fontFamily = [Brand, "sans-serif"]`, a Face's
+  // sources for the font slots (`fontFamily = [Brand, "sans-serif"]`, a FontFace's
   // `src = [local("…"), "…"]`). Which item kinds a slot admits is the checker's.
   | { kind: "list"; items: Literal[]; pos: Pos }
   // A literal the compiler has already coerced: `value` is what the written
@@ -1135,7 +1135,7 @@ class Parser {
       }
       if (this.peek().kind === "query") {
         throw new DeclareError(
-          `'${name.text}: …?' — in a schema the optional marker rides the FIELD name: write '${name.text}?: ${field.ref ?? field.type ?? "[ … ]"}' (the type-suffix '?' belongs to method signatures)`,
+          `'${name.text}: …?' — in a schema the optional marker rides the FIELD name: write '${name.text}?: ${field.ref ?? field.type ?? "[ … ]"}' (the type-suffix '?' belongs to attribute and signature types)`,
           this.peek().pos);
       }
       if (this.peek().kind === "eq") {
@@ -1485,6 +1485,7 @@ export function parse(source: string): Element {
   const root = p.parseElement();
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
+  lowerExists(root);
   return root;
 }
 
@@ -1570,7 +1571,30 @@ export function parseProgram(source: string): Program {
   const shapes = [...before.shapes, ...after.shapes];
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
+  for (const c of classes) lowerExists(c.body);
+  lowerExists(root);
   return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ...(ship === undefined ? {} : { ship }), scripts, scriptFiles, scriptFileSpans, root };
+}
+
+/** `exists = { … }` on a child: the child is built while the value is true
+ *  and discarded while it is false (its state goes with it). That is exactly
+ *  what a `State`'s child subtree already is — instantiated INTO its owner at
+ *  the state's own place, so the child keeps its position in the owner's order
+ *  and layout — so the child is lowered to one: `State [ applied = <value>,
+ *  <the child, without exists> ]`. The value is decided before the child
+ *  exists, so it reads the owner, `classroot`, data and `app`, never the
+ *  child's own attributes. Lowered at parse, so every reader — checker,
+ *  typechecker, runtime — sees one tree. Idempotent. */
+function lowerExists(el: Element): void {
+  for (let i = 0; i < el.children.length; i++) {
+    const c = el.children[i];
+    lowerExists(c);
+    const k = c.attrs.findIndex((a) => a.name === "exists");
+    if (k < 0) continue;
+    const ex = c.attrs[k];
+    const inner: Element = { ...c, attrs: c.attrs.filter((_, j) => j !== k) };
+    el.children[i] = { tag: "State", name: null, attrs: [{ name: "applied", value: ex.value, pos: ex.pos }], decls: [], methods: [], children: [inner], pos: c.pos };
+  }
 }
 
 /** Parse an INCLUDED file (composition.md §1): the same top-level
@@ -1587,5 +1611,6 @@ export function parseLibrary(source: string): Library {
     );
   }
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
+  for (const c of decls.classes) lowerExists(c.body);
   return decls;
 }

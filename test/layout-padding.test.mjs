@@ -366,7 +366,7 @@ await test("auto-extent ATTACHED: the derive that runs on a live tree counts the
       b: View [ width = 30, height = 20 ],
     ],
   ]`);
-  app.attach(new HeadlessBackend(), null);
+  app.$attach(new HeadlessBackend(), null);
   settle();
   assert.equal(app.box.height, 10 + 20 + 6 + 20 + 14, "top + content + spacing + content + bottom");
   // …and it follows a padding change, whichever side of the kernel it lands on
@@ -667,7 +667,7 @@ await test("stroke: a computed list that CHANGES repaints — two sides, then on
     "setShadow", "setVisible", "setOpacity", "setClip", "setBoxClip", "setDrawing", "setText",
     "setTextStyle", "setImage", "setImageStretch", "setInput", "setEditable", "activateEditable",
     "insertChild", "destroy"];
-  app.attach({ createSurface: () => Object.fromEntries(methods.map((m) => [m, (...a) => log.push([m, ...a])])), attachRoot: () => {} }, null);
+  app.$attach({ createSurface: () => Object.fromEntries(methods.map((m) => [m, (...a) => log.push([m, ...a])])), attachRoot: () => {} }, null);
   const pushed = () => log.filter(([m]) => m === "setStroke").map(([, v]) => v);
   assert.deepEqual(pushed().at(-1), [{ width: 1, color: 0x336699 }, null, { width: 1, color: 0x336699 }, null],
     "the first flush carries the two-sided list");
@@ -705,7 +705,7 @@ await test("stroke: a re-derived list that is EQUAL never reaches the surface", 
     "setShadow", "setVisible", "setOpacity", "setClip", "setBoxClip", "setDrawing", "setText",
     "setTextStyle", "setImage", "setImageStretch", "setInput", "setEditable", "activateEditable",
     "insertChild", "destroy"];
-  app.attach({ createSurface: () => Object.fromEntries(methods.map((m) => [m, (...a) => log.push([m, ...a])])), attachRoot: () => {} }, null);
+  app.$attach({ createSurface: () => Object.fromEntries(methods.map((m) => [m, (...a) => log.push([m, ...a])])), attachRoot: () => {} }, null);
   const pushed = () => log.filter(([m]) => m === "setStroke").map(([, v]) => v);
   assert.equal(pushed().length, 1, "the first flush carries it once");
   const first = app.v.stroke;
@@ -748,7 +748,7 @@ await test("Card: theme surface, theme radius, a hairline edge, and its own cont
   ]`);
   const c = app.c;
   assert.equal(c.fill, 0xffffff, "the theme's surface");
-  assert.equal(c.cornerRadius, 7, "the theme's controlRadius");
+  assert.equal(c.cornerRadius, 7, "the theme's controlCornerRadius");
   assert.deepEqual(c.stroke, { width: 1, color: 0xdbe1e9 }, "a hairline in the theme's line token");
   assert.equal(c.padding, 16, "the inset is the CARD's, not its layout's");
   assert.equal(c.layout.align, "none", "…which is why the default stack needs no `align = start` any more");

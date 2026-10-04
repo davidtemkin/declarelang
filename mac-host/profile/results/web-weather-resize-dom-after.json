@@ -1,0 +1,255 @@
+{
+  "ms": null,
+  "target": "apps/weather/weather.declare",
+  "STIM": "resize",
+  "RENDER": "dom",
+  "LABEL": "after",
+  "root": "/Users/temkin/Code/Declare",
+  "boot": {
+    "runs": 4058,
+    "wired": 819,
+    "settleN": 29,
+    "settleMs": 79.50000002980232,
+    "settleMax": 56.20000001788139,
+    "settleRuns": 3193,
+    "settleEmpty": 1,
+    "settleEmptyMs": 0.20000001788139343,
+    "kruns": 2334,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 28.5,
+    "nfN": 166,
+    "nfMs": 3.699999988079071,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 4366,
+      "live": 4151,
+      "wired": 1901,
+      "ranInWindow": 2810
+    }
+  },
+  "win": {
+    "runs": 11848,
+    "wired": 4747,
+    "settleN": 54,
+    "settleMs": 189.09999990463257,
+    "settleMax": 37.599999994039536,
+    "settleRuns": 11848,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 36302,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 4366,
+      "live": 4151,
+      "wired": 1901,
+      "ranInWindow": 266
+    }
+  },
+  "gaps": {
+    "n": 119,
+    "p50": 17,
+    "p95": 17.800000000000182,
+    "max": 34.80000000000018
+  },
+  "bench": {
+    "n": 266,
+    "errors": 0,
+    "body": 30.31612867309202,
+    "run": 51.43870992141384,
+    "runsCovered": 11848,
+    "deadRan": 0,
+    "deadRuns": 0,
+    "top": [
+      {
+        "label": "Text.height",
+        "n": 46,
+        "wired": 0,
+        "runs": 1852,
+        "bodyMs": 5.842,
+        "runMs": 8.042
+      },
+      {
+        "label": "RangeBar.draw",
+        "n": 20,
+        "wired": 0,
+        "runs": 800,
+        "bodyMs": 0.516,
+        "runMs": 7.097
+      },
+      {
+        "label": "Text.textStyle",
+        "n": 28,
+        "wired": 0,
+        "runs": 1126,
+        "bodyMs": 5.058,
+        "runMs": 5.574
+      },
+      {
+        "label": "View's MasonryLayout → StatCard.height",
+        "n": 9,
+        "wired": 0,
+        "runs": 369,
+        "bodyMs": 3.835,
+        "runMs": 4.629
+      },
+      {
+        "label": "View's MasonryLayout",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.19,
+        "runMs": 2.777
+      },
+      {
+        "label": "SunCurve.draw",
+        "n": 3,
+        "wired": 0,
+        "runs": 120,
+        "bodyMs": 0.516,
+        "runMs": 2.323
+      },
+      {
+        "label": "MasonryLayout shape",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.984,
+        "runMs": 2.248
+      },
+      {
+        "label": "View's MasonryLayout → AvgCard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.19,
+        "runMs": 1.719
+      },
+      {
+        "label": "UVRamp.draw",
+        "n": 3,
+        "wired": 0,
+        "runs": 120,
+        "bodyMs": 0,
+        "runMs": 1.677
+      },
+      {
+        "label": "View's MasonryLayout → UVCard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.323,
+        "runMs": 1.587
+      },
+      {
+        "label": "View's MasonryLayout → MoonCard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.323,
+        "runMs": 1.587
+      },
+      {
+        "label": "View's MasonryLayout → MapCard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.323,
+        "runMs": 1.455
+      },
+      {
+        "label": "View's MasonryLayout → AQICard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.19,
+        "runMs": 1.455
+      },
+      {
+        "label": "View's MasonryLayout → PressureCard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.19,
+        "runMs": 1.455
+      },
+      {
+        "label": "AQILine.draw",
+        "n": 3,
+        "wired": 0,
+        "runs": 120,
+        "bodyMs": 0,
+        "runMs": 1.419
+      },
+      {
+        "label": "View's MasonryLayout → SunsetCard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.058,
+        "runMs": 1.323
+      },
+      {
+        "label": "View's MasonryLayout → WindCard.height",
+        "n": 3,
+        "wired": 0,
+        "runs": 123,
+        "bodyMs": 1.19,
+        "runMs": 1.323
+      },
+      {
+        "label": "WSky.draw",
+        "n": 1,
+        "wired": 0,
+        "runs": 40,
+        "bodyMs": 0,
+        "runMs": 0.645
+      },
+      {
+        "label": "Dot.width",
+        "n": 25,
+        "wired": 0,
+        "runs": 1000,
+        "bodyMs": 0,
+        "runMs": 0.645
+      },
+      {
+        "label": "View.scrollAnchor.content",
+        "n": 2,
+        "wired": 0,
+        "runs": 121,
+        "bodyMs": 0.129,
+        "runMs": 0.519
+      }
+    ]
+  },
+  "byLabel": null,
+  "text": null,
+  "perf": null,
+  "drag": null,
+  "errors": [],
+  "swapped": 1
+}

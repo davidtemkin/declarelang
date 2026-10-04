@@ -138,6 +138,7 @@ final class DeclareView: NSView {
         guard let hit = bridge?.tree?.scrollbarHit(atModel: p) else { return false }
         barDrag = hit
         bridge?.tree?.setHotBar(hit)
+        bridge?.tree?.holdScrollbar(hit.node, held: true)
         return true
     }
 
@@ -153,8 +154,9 @@ final class DeclareView: NSView {
     }
 
     func barRelease(atModel p: NSPoint) {
-        guard barDrag != nil else { return }
+        guard let d = barDrag else { return }
         barDrag = nil
+        bridge?.tree?.holdScrollbar(d.node, held: false)
         // hand the bar back to hover state (it may still be under the pointer)
         bridge?.tree?.setHotBar(bridge?.tree?.scrollbarHit(atModel: p))
     }

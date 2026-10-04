@@ -61,7 +61,7 @@ all of them with no bookkeeping.
 
 A constraint may not aggregate over a view's children, so the stack computes
 the one shared number — what the closed tabs take together — and writes it to
-each tab as a plain slot. Each tab's own height then reads only its own state.
+each tab as a plain attribute. Each tab's own height then reads only its own state.
 */
 
 class TabStack [

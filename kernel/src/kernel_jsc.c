@@ -187,6 +187,7 @@ FN(js_extent_add)   { return N(kernel_extent_add(K, U(1), U(2), (const uint32_t 
 FN(js_grow)         { return PTR(kernel_grow(K, P(1), U(2), (const dk_caps *)P(3), P(4), U(5))); }
 FN(js_usage)        { kernel_usage(K, (uint32_t *)P(1)); return JSValueMakeUndefined(ctx); }
 FN(js_extent_rewire){ return N(kernel_extent_rewire(K, U(1), (const uint32_t *)P(2), U(3))); }
+FN(js_layout_add)   { return N(kernel_layout_add(K, U(1), (const uint32_t *)P(2), U(3))); }
 FN(js_add_code)     { return N(kernel_add_code(K, (const uint32_t *)P(1), U(2))); }
 FN(js_add_const)    { return N(kernel_add_const(K, A(1))); }
 FN(js_kdirty)       { return N(kernel_kdirty(K, (uint32_t *)P(1), U(2))); }
@@ -231,7 +232,7 @@ void declare_kernel_install(JSGlobalContextRef ctx) {
   def(ctx, o, "kernel_cell_dyn_ptr", js_cell_dyn_ptr); def(ctx, o, "kernel_static_cells", js_static_cells);
   def(ctx, o, "kernel_view_layout", js_view_layout); def(ctx, o, "kernel_view_dpr_cell", js_view_dpr_cell); def(ctx, o, "kernel_view_add", js_view_add);
   def(ctx, o, "kernel_view_parent", js_view_parent); def(ctx, o, "kernel_view_remove", js_view_remove); def(ctx, o, "kernel_vis_add", js_vis_add);
-  def(ctx, o, "kernel_vis_rewire", js_vis_rewire); def(ctx, o, "kernel_extent_add", js_extent_add); def(ctx, o, "kernel_extent_rewire", js_extent_rewire);
+  def(ctx, o, "kernel_vis_rewire", js_vis_rewire); def(ctx, o, "kernel_extent_add", js_extent_add); def(ctx, o, "kernel_extent_rewire", js_extent_rewire); def(ctx, o, "kernel_layout_add", js_layout_add);
   def(ctx, o, "kernel_add_code", js_add_code); def(ctx, o, "kernel_add_const", js_add_const); def(ctx, o, "kernel_kdirty", js_kdirty);
   def(ctx, o, "kernel_add_rule", js_add_rule); def(ctx, o, "kernel_grow", js_grow); def(ctx, o, "kernel_usage", js_usage);
   const struct { const char *name; double *at; size_t n; } blocks[] = { { "args", h->args, 16 }, { "io", h->io, 8 } };

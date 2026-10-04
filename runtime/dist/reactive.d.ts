@@ -13,8 +13,7 @@ export declare const S: {
  *  kernel drains the ring before it runs anything; outside a settle we arm
  *  the microtask ourselves, exactly as a kernel write would have. */
 export declare function touchCell(cell: number): void;
-/** The Constraint standing behind a kernel rule id (a cell's `owner`), for
- *  tooling that names what wrote a value — the wake trace. */
+export declare function setOwnershipCheck(check: (c: Constraint, cell: number) => boolean): void;
 export declare function constraintOfRule(id: number): Constraint | null;
 export interface TraceHook {
     touched(cell: number, inSettle: boolean): void;
@@ -158,16 +157,28 @@ export declare class Constraint {
      *  animator, a natural size) displaces it too, as it displaced the live
      *  fallback this replaces (attributes.ts: storage wins). */
     declDefault: boolean;
+    /** A declared default's rule has landed a value. Until it has, its slot's
+     *  stored value is not the rule's answer (bind.ts: a first run still in
+     *  flight, or one that could not be evaluated yet), so a read evaluates the
+     *  default live (attributes.ts). */
+    applied: boolean;
     /** A percent binding (attributes.ts markPercent): the kernel's auto-extent
      *  skips the child slot it owns, as view.ts extentOf does. Set before wire. */
     percent: boolean;
     /** A kernel-native built-in declined its case: the host takes over. */
     onDecline: (() => void) | null;
-    /** The numeric cell this constraint OWNS (attributes.ts own()), registered
-     *  with the kernel so its pull can run this rule for a reader's first value. */
+    /** The numeric cells this constraint OWNS (attributes.ts own()), registered
+     *  with the kernel so its pull can run this rule for a reader's first value.
+     *  Usually one; a stack layout owns each child's place. */
     ownsCell: number;
+    private moreCells;
     ownCell(cell: number): void;
-    releaseCell(): void;
+    /** Give up the kernel's ownership of `cell`. */
+    releaseCell(cell?: number): void;
+    /** Every owned cell to the kernel under a (new) rule id — those still
+     *  ours: a claim made before the rule existed may name a view discarded
+     *  since, whose cells now serve another (attributes.ts answers). */
+    private ownAll;
     /** Is a recompute of this rule queued (its inputs moved; the table lags)?
      *  Pending ring writes are flushed first so the answer reflects them. */
     isQueued(): boolean;

@@ -125,7 +125,7 @@ export class Text extends View {
     return insetSides(this.padding)[0] + m.ascent + Math.floor((this.lineAdvance(m) - (m.ascent + m.descent)) / 2);
   }
 
-  override attach(backend: RenderBackend, parentSurface: Surface | null): void {
+  override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
     // A switch to a font still inside its wait keeps this run in the family it
     // had until the font settles (font-value.ts) — measure and paint alike.
     holdsFamily(this);
@@ -161,7 +161,7 @@ export class Text extends View {
         return Math.ceil(lineH * lines) + top + bottom;
       });
     }
-    super.attach(backend, parentSurface);
+    super.$attach(backend, parentSurface);
   }
 
   /** A Text's own content folds into `contentWidth`/`contentHeight` as its
@@ -190,8 +190,8 @@ export class Text extends View {
   // cap-centering constraint over baseline/capHeight); box-centering was the
   // surprising default and is retired here (2026-09-06).
 
-  protected override flush(s: Surface): void {
-    super.flush(s);
+  protected override $flush(s: Surface): void {
+    super.$flush(s);
     // Style before text: the style creates the run's rendering context, the
     // text is the hot path that changes alone under a constraint. The style
     // push is a standing derive because the four slots read provided values:
@@ -252,7 +252,7 @@ export class Text extends View {
       // face re-runs this with an identical record, and that push is the one
       // that makes a backend re-measure in the real face (see fontString above).
       (st) => {
-        const surface = this.surface;
+        const surface = this.$surface;
         if (surface === null) return;
         const gen = faceGenerationNow();
         const rec = st as Record<string, unknown>;
@@ -279,9 +279,9 @@ defineAttributes(Text, {
   selectable: {
     def: false,
     defBinding: providedDefault("selectable", false),
-    push: (v, val) => v.surface?.setSelectableRegion?.(val === true),
+    push: (v, val) => v.$surface?.setSelectableRegion?.(val === true),
   },
-  text: { def: "", push: (t, v) => t.surface?.setText(v ?? "") },
+  text: { def: "", push: (t, v) => t.$surface?.setText(v ?? "") },
   textShadow: { def: null, equal: shadowEqual },
   wrap: { def: true },
   maxLines: { def: 0 },

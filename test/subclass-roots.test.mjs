@@ -6,7 +6,7 @@
 // defaults, its own sets of base attributes (nearest provider wins), and its
 // methods — including a handler the base fires and a `super.name()` override
 // at a use site. Pinned per root: Spring, Animator, Dataset, DataSource,
-// AnimatorGroup, Keys, Focus, Tip, State, EventStream — plus the one refusal
+// AnimatorGroup, Keys, Focus, Tooltips, State, EventStream — plus the one refusal
 // (an abstract base) and the two compiler-side facts (the scaffold's `$base`
 // typing, the slimmer keeping the base module).
 import assert from "node:assert";
@@ -159,13 +159,13 @@ App [ width = 100, height = 100,
   });
 })();
 
-// ── Keys / Focus / Tip ────────────────────────────────────────────────────────
+// ── Keys / Focus / Tooltips ────────────────────────────────────────────────────────
 await (async () => {
   const app = await build(`
 class Hot extends Keys [ count: number = 0, last: string = "",
     onKeyDown(e: KeyEvent) { count = count + 1; last = e.key } ]
 class Watch extends Focus [ moves: number = 0, onFocusChange(v: View) { moves = moves + 1 } ]
-class Tips extends Tip [ seen: number = 0, onTip(e: TipEvent) { seen = seen + 1 } ]
+class Tips extends Tooltips [ seen: number = 0, onTooltip(e: TooltipEvent) { seen = seen + 1 } ]
 App [ width = 100, height = 100,
     hot: Hot [ ],
     loud: Hot [ onKeyDown(e: KeyEvent) { super.onKeyDown(e); count = count + 100 } ],
@@ -186,7 +186,7 @@ App [ width = 100, height = 100,
     assert.equal(app.watch.moves, 1);
     Focus.focus(null);
   });
-  await test("Tip: a subclass constructs and carries its declaration", () => {
+  await test("Tooltips: a subclass constructs and carries its declaration", () => {
     assert.equal(app.tips.seen, 0);
     assert.equal(app.tips.constructor.name, "Tips");
   });

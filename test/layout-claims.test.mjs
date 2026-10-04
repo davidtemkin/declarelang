@@ -118,6 +118,25 @@ await test("ignoreLayout = true takes the child out — its own x and y stand, i
   assert.equal(app.col.b.y, 70);
 });
 
+await test("a class whose body sets ignoreLayout = true is out of the arrangement — its use site places it", async () => {
+  const src = `App [ width = 400, height = 300,
+    col: View [ width = 200, height = 200,
+      layout: SimpleLayout [ axis = y ],
+      View [ width = 200, height = 20 ],
+      a: Floater [ y = 120 ],
+      b: Floater [ y = 60, ignoreLayout = false ],
+    ],
+  ]
+  class Floater [ width = 10, height = 10, ignoreLayout = true ]
+  class Sub extends Floater [ ]`;
+  const r = await compile(src);
+  const msgs = r.errors.map((e) => e.message);
+  assert.equal(msgs.length, 1, "only the use site that puts it back is refused: " + JSON.stringify(msgs));
+  assert.match(msgs[0], /Floater\.y/);
+  const ok = await compile(src.replace("b: Floater [ y = 60, ignoreLayout = false ]", "b: Sub [ y = 60 ]"));
+  assert.deepEqual(ok.errors.map((e) => e.message), [], "inherited through a subclass too");
+});
+
 // ── 2 · What a layout places is read per instance ───────────────────────────
 
 await test("a row places x; `align` adds y; a computed axis places either", async () => {

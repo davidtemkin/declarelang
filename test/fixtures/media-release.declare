@@ -1,0 +1,9 @@
+// A clip that is re-pointed, then discarded with its panel (network-browser.test.mjs).
+
+App [ width = 200, height = 100,
+    src: string = "../../apps/docs/resources/blip.wav?a",
+    on: boolean = true,
+    box: View [ exists = { app.on },
+        song: Audio [ source = { app.src }, loop = true, muted = true, playing = true ]
+        ]
+    ]

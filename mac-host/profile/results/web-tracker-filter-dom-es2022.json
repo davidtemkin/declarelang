@@ -1,0 +1,255 @@
+{
+  "ms": null,
+  "target": "apps/tracker/tracker.declare",
+  "STIM": "filter",
+  "RENDER": "dom",
+  "LABEL": "es2022",
+  "root": "/private/tmp/claude-503/-Users-temkin-Code-Declare/0a045640-e7f8-4f06-bee0-3691f85d20f9/scratchpad/Declare-es2022",
+  "boot": {
+    "runs": 35720,
+    "wired": 16861,
+    "settleN": 963,
+    "settleMs": 343.99999991059303,
+    "settleMax": 229.19999998807907,
+    "settleRuns": 34372,
+    "settleEmpty": 1,
+    "settleEmptyMs": 0,
+    "kruns": 27056,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 58.30000001192093,
+    "nfN": 392,
+    "nfMs": 8.200000137090683,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 15529,
+      "live": 14534,
+      "wired": 9530,
+      "ranInWindow": 10684
+    }
+  },
+  "win": {
+    "runs": 43361,
+    "wired": 12777,
+    "settleN": 6806,
+    "settleMs": 531.9999994635582,
+    "settleMax": 24.69999998807907,
+    "settleRuns": 43361,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 44614,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 18444,
+      "live": 14534,
+      "wired": 9530,
+      "ranInWindow": 1456
+    }
+  },
+  "gaps": {
+    "n": 6787,
+    "p50": 0.3000000000001819,
+    "p95": 0.5,
+    "max": 17.899999999999636
+  },
+  "bench": {
+    "n": 1456,
+    "errors": 0,
+    "body": 192.95483355848953,
+    "run": 230.20323313243793,
+    "runsCovered": 40027,
+    "deadRan": 2231,
+    "deadRuns": 3334,
+    "top": [
+      {
+        "label": "Dataset.contents",
+        "n": 1,
+        "wired": 0,
+        "runs": 24,
+        "bodyMs": 96,
+        "runMs": 124.8
+      },
+      {
+        "label": "Roll.text",
+        "n": 1,
+        "wired": 1,
+        "runs": 6782,
+        "bodyMs": 43.755,
+        "runMs": 65.632
+      },
+      {
+        "label": "Roll.height",
+        "n": 1,
+        "wired": 0,
+        "runs": 6681,
+        "bodyMs": 21.552,
+        "runMs": 21.552
+      },
+      {
+        "label": "View's replication",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.542,
+        "runMs": 3.019
+      },
+      {
+        "label": "Text.text",
+        "n": 142,
+        "wired": 21,
+        "runs": 2925,
+        "bodyMs": 1.858,
+        "runMs": 2.274
+      },
+      {
+        "label": "Text.height",
+        "n": 89,
+        "wired": 0,
+        "runs": 1246,
+        "bodyMs": 1.129,
+        "runMs": 1.532
+      },
+      {
+        "label": "Table's replication",
+        "n": 1,
+        "wired": 0,
+        "runs": 41,
+        "bodyMs": 0.529,
+        "runMs": 1.455
+      },
+      {
+        "label": "View.fill",
+        "n": 166,
+        "wired": 108,
+        "runs": 1263,
+        "bodyMs": 0.41,
+        "runMs": 0.997
+      },
+      {
+        "label": "StatusIcon.s",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.232,
+        "runMs": 0.697
+      },
+      {
+        "label": "IssueRow.exp",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.387,
+        "runMs": 0.697
+      },
+      {
+        "label": "Avatar.name",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.465,
+        "runMs": 0.619
+      },
+      {
+        "label": "SimpleLayout shape",
+        "n": 23,
+        "wired": 0,
+        "runs": 244,
+        "bodyMs": 0.297,
+        "runMs": 0.558
+      },
+      {
+        "label": "IssueRow.selected",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.31,
+        "runMs": 0.542
+      },
+      {
+        "label": "PrioIcon.p",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.31,
+        "runMs": 0.542
+      },
+      {
+        "label": "Table.scrollAnchor.content",
+        "n": 1,
+        "wired": 0,
+        "runs": 24,
+        "bodyMs": 0.232,
+        "runMs": 0.465
+      },
+      {
+        "label": "View.visible",
+        "n": 69,
+        "wired": 30,
+        "runs": 1191,
+        "bodyMs": 0.49,
+        "runMs": 0.465
+      },
+      {
+        "label": "TextLabel.height",
+        "n": 31,
+        "wired": 0,
+        "runs": 323,
+        "bodyMs": 0.316,
+        "runMs": 0.439
+      },
+      {
+        "label": "View.x",
+        "n": 32,
+        "wired": 32,
+        "runs": 483,
+        "bodyMs": 0.442,
+        "runMs": 0.429
+      },
+      {
+        "label": "Text.width",
+        "n": 56,
+        "wired": 0,
+        "runs": 352,
+        "bodyMs": 0.426,
+        "runMs": 0.419
+      },
+      {
+        "label": "Text.visible",
+        "n": 69,
+        "wired": 30,
+        "runs": 1191,
+        "bodyMs": 0.245,
+        "runMs": 0.387
+      }
+    ]
+  },
+  "byLabel": null,
+  "text": null,
+  "perf": null,
+  "drag": null,
+  "errors": [],
+  "swapped": 1
+}

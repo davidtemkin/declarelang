@@ -32,6 +32,12 @@
 // the uniform kernel under every place(), and the equality gate keeps the
 // expensive half — pushes and paints — exactly as precise as before.)
 //
+// The library's own SimpleLayout, unmodified (`$canon`), with nothing aligned
+// and nothing flexing is placed by the KERNEL instead ($installNative,
+// kernel_layout_add): the same run of footprints and spacing, computed over the
+// table with no place() in JavaScript, and the same claims. Every other case —
+// and every host without that rule — takes the pass.
+//
 // Child ORDER is the semantic order (the R4 ruling's deliberate exception:
 // tree order is paint order) — a stacking layout consumes exactly it, and
 // place()'s boxes align with laid() BY INDEX. Invisible children are skipped
@@ -84,10 +90,11 @@
 // null on the prototype); an idle laid tree is inert constraint data — zero
 // rAF, zero polling.
 import { Node } from "./node.js";
-import { Constraint, afterSettle } from "./reactive.js";
-import { cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound, setPosOf, useSiteSet } from "./attributes.js";
+import { Constraint, afterSettle, kernel, kernelLoaded } from "./reactive.js";
+import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound, setPosOf, slotCellOf, useSiteSet } from "./attributes.js";
+import { LAYOUT_NOWRITE } from "./kernel-loader.js";
 import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
-import { isWindowedBlock, View } from "./view.js";
+import { isWindowedBlock, View, viewLayoutReady } from "./view.js";
 /** Box key → the child slot it drives, in a stable order. */
 const BOX_SLOTS = [
     ["x", "x"],
@@ -120,6 +127,38 @@ export class Layout extends Node {
      *  the View-typed handle the arrangement uses. */
     view = null;
     undo = null;
+    /** Set when this strategy is the library's own SimpleLayout, unmodified
+     *  (instantiate.ts buildLayout): what its place() does is then known, so the
+     *  shape below is read from its inputs rather than from a placement. */
+    $canon = null;
+    /** True while the KERNEL places this layout's children ($installNative). */
+    $native = false;
+    /** Which slots each laid child's box carries, as a signature — the shape the
+     *  install was probed from. For an unmodified SimpleLayout it follows from its
+     *  inputs alone: the flow position for every child, the flowed size for a
+     *  visible flexing child, the cross position when `align` claims it for every
+     *  child but a spacer (SimpleLayout's place()). Anything else asks place(). */
+    $shapeSignature() {
+        if (this.$canon !== "simple") {
+            return this.place().map((b) => BOX_SLOTS.filter(([k]) => b[k] !== undefined).map(([k]) => k).join()).join("|");
+        }
+        const me = this;
+        const xAxis = me.axis === "x", aligned = me.align !== "none";
+        const out = [];
+        for (const c of this.laid()) {
+            const flexes = c.flexes;
+            const keys = [];
+            const cross = aligned && typeof flexes !== "boolean";
+            if (xAxis || cross)
+                keys.push("x");
+            if (!xAxis || cross)
+                keys.push("y");
+            if (c.visible && flexes === true)
+                keys.push(xAxis ? "w" : "h");
+            out.push(keys.join());
+        }
+        return out.join("|");
+    }
     /** Each claimed (child, slot)'s AUTHORED BASE value, captured at first claim
      *  and kept across rearm. When a strategy vacates a slot (an axis flip, a
      *  layout swap) the slot reverts to this base — the authored cross-axis
@@ -147,7 +186,7 @@ export class Layout extends Node {
         this.parent = view; // navigation back-ref (not a children entry: the layout lives in view.layout)
         this.undo = this.install(view);
         let lastShape = null;
-        const watcher = new Constraint(`${this.constructor.name} shape`, () => this.place().map((b) => BOX_SLOTS.filter(([k]) => b[k] !== undefined).map(([k]) => k).join()).join("|"), (sig) => {
+        const watcher = new Constraint(`${this.constructor.name} shape`, () => this.$shapeSignature(), (sig) => {
             if (lastShape === null) {
                 lastShape = sig;
             }
@@ -366,7 +405,7 @@ export class Layout extends Node {
             // browser the model settles once before the tree is attached (build →
             // settle → mount). Nothing to judge yet — the render that follows
             // changes the child's height, which re-lays the row and asks again.
-            if (c.surface == null)
+            if (c.$surface == null)
                 return;
             if (seen.has("baseline"))
                 return;
@@ -491,7 +530,114 @@ export class Layout extends Node {
      *  Transactional: on a mid-install error nothing stays owned. Children are
      *  read at install (tree mutation is R8's rearm). TweenLayout overrides
      *  this with its interpolating write path over the same place(). */
+    /** THE KERNEL'S STACK (kernel_layout_add): an unmodified SimpleLayout with
+     *  nothing aligned and nothing flexing places exactly the flow position of
+     *  every laid child — a run of footprints and spacing the kernel computes
+     *  itself, with no place() in JavaScript. The claims are the pass's own: each
+     *  child's flow slot, a child whose slot an author owns reported once and left
+     *  in the run unwritten, a literal on the slot reported as discarded. Anything
+     *  else — another strategy, alignment, a spacer, a windowed block, no kernel
+     *  rule for it — is null, and the pass below places as ever. */
+    $installNative() {
+        // DIAGNOSTIC: `globalThis.__declareLayoutTrace = []` collects why a stack
+        // stayed on the pass (dev and profiling builds only, like the EXPR trace)
+        const why = (reason) => {
+            if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) {
+                const t = globalThis.__declareLayoutTrace;
+                if (Array.isArray(t))
+                    t.push(reason);
+            }
+            return null;
+        };
+        const view = this.view;
+        if (this.$canon !== "simple")
+            return null;
+        if (view === null)
+            return why("no view");
+        if (!kernelLoaded() || !viewLayoutReady())
+            return why("no kernel");
+        if (isWindowedBlock(view))
+            return why("windowed block");
+        if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareNoNativeLayout === true)
+            return null; // the A/B switch (dev and profiling builds only)
+        this.authorSized.clear();
+        const me = this;
+        if (me.align !== "none")
+            return why("aligned");
+        const K = kernel();
+        if (K.layoutAdd === undefined)
+            return why("no kernel rule");
+        const spacingCell = slotCellOf(this, "spacing");
+        if (spacingCell < 0)
+            return why("spacing not a kernel cell");
+        const kids = this.laid();
+        if (kids.length === 0)
+            return () => { };
+        const slot = me.axis === "x" ? "x" : "y";
+        const words = [view.structureCellId(), spacingCell];
+        for (const c of kids) {
+            if (typeof c.flexes === "boolean")
+                return why("spacer"); // the pass sizes it
+            if (c.is3D())
+                return why("3D child");
+            if (blockOf(c) < 0)
+                return why("child without a block");
+        }
+        const label = this.label();
+        const arranger = `${view.constructor.name}'s ${this.constructor.name}`;
+        const claims = [];
+        const discards = [];
+        for (const c of kids) {
+            const prior = ownerOf(c, slot);
+            const author = prior !== null && !prior.yielding;
+            if (author)
+                this.reportConflict(c, slot, arranger);
+            else {
+                claims.push(c);
+                if (prior === null)
+                    discards.push(c);
+            }
+            words.push(author ? blockOf(c) + LAYOUT_NOWRITE : blockOf(c));
+        }
+        for (const c of discards)
+            this.reportDiscarded(c, slot, arranger);
+        const id = K.layoutAdd(me.axis === "x" ? 0 : 1, words);
+        if (id < 0)
+            return why("kernel refused: " + id);
+        const k = new Constraint(label, () => undefined, () => { }, 0, false);
+        k.adoptRule(id);
+        k.arrangedBy = arranger;
+        // a child went out of the plane mid-run: re-install at the settle's close,
+        // where $installNative sees the 3D child and the pass takes over
+        k.onDecline = () => { afterSettle(() => { if (this.$native)
+            this.rearm(); }); };
+        for (const c of claims)
+            this.claim(c, slot, k);
+        this.$native = true;
+        k.run();
+        return () => {
+            this.$native = false;
+            k.dispose();
+            for (const c of claims)
+                this.unclaim(c, slot, k);
+        };
+    }
+    /** The child list changed inside a settle: a KERNEL stack's words name the
+     *  old children's blocks — one discarded this settle may already serve
+     *  another view — so its rule stops now, and the re-arm at the settle's
+     *  close (View.childrenMutated) installs it over the new list. */
+    $retireNative() {
+        if (!this.$native)
+            return;
+        const undo = this.undo;
+        this.undo = null;
+        undo?.();
+    }
     install(_view) {
+        this.$native = false;
+        const native = this.$installNative();
+        if (native !== null)
+            return native;
         const label = this.label();
         const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
         // Ownership is re-derived from scratch here: a rearm is the one moment the

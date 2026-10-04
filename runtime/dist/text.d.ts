@@ -55,7 +55,7 @@ export declare class Text extends View {
      *  difference from that box above each line and half below, as the DOM's
      *  line-height does, and every renderer places glyphs by the same rule. */
     get baseline(): number;
-    attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null): void;
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its
      *  MEASURED glyph extent — the way an Image folds in its bitmap (view.ts
      *  contentExtent). Without this a Text reported the base 0, so a container
@@ -65,5 +65,5 @@ export declare class Text extends View {
      *  content-bound labels. The natural single-line width; height follows the
      *  wrapped line count when the width is bounded, matching the derives above. */
     protected contentExtent(size: "width" | "height"): number;
-    protected flush(s: Surface): void;
+    protected $flush(s: Surface): void;
 }

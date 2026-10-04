@@ -25,7 +25,7 @@ style Big  [ fontSize = 38, fontWeight = bold ]
 style Unit [ fontSize = 18, fontWeight = medium ]
 
 App [ minWidth = 340,
-    fill = { provided("theme").bg },
+    fill = { provided("theme").background },
     textColor = { provided("theme").text },
 
     page: string = "type",
@@ -37,8 +37,8 @@ App [ minWidth = 340,
     fontFamily = { ["-apple-system", "BlinkMacSystemFont", "Helvetica Neue", "Helvetica", "sans-serif"] },
     textStyles = { { Warm, Big, Unit } },
 
-    roboto: Font [ Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
-        Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
+    roboto: Font [ FontFace [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+        FontFace [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
         ],
 
     // THE MATRIX: every case of every section, on one page — the view the

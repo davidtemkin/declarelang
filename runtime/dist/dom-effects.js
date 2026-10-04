@@ -79,7 +79,7 @@ export function applyDomMask(s) {
         return;
     }
     const stencil = spec.stencil;
-    const src = stencil.surface;
+    const src = stencil.$surface;
     if (src === null) {
         set("", "", "");
         return;

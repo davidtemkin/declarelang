@@ -1,7 +1,7 @@
 // verify-apps — CI truth-maintenance for the whole corpus (docs/system-design/
 // verify-and-evals.md §2.10). Every runnable example must climb the fast rungs
 // (1–4: compile, resolve, typecheck, headless boot) on every `npm test`, and every
-// component-library source must do the same under the probe wrapper (--wrap).
+// library source must do the same under the probe wrapper (--wrap).
 // This is the mechanized version of "the examples still work" — a compiler or
 // runtime change that breaks a real program fails here, in seconds, no browser.
 //
@@ -61,15 +61,15 @@ for (const f of htmlEntryPrograms) {
   test(`example ${f} — clean through R4 (compile, typecheck, boot)`, () => assertClean(verify(f), f));
 }
 
-// ── every component-library source, under the probe wrapper ──────────────────
+// ── every library source, under the probe wrapper ───────────────────────────
 const libDir = join(ROOT, "library");
 const libFiles = existsSync(libDir)
   ? readdirSync(libDir).filter((n) => n.endsWith(".declare")).map((n) => join("library", n))
   : [];
 
 for (const f of libFiles) {
-  test(`component ${f} — clean through R4 under --wrap probe`, () => assertClean(verify(f, ["--wrap"]), f));
+  test(`library ${f} — clean through R4 under --wrap probe`, () => assertClean(verify(f, ["--wrap"]), f));
 }
 
-console.log(`\nverify-apps: ${pass} passed, ${fail} failed (${apps.length} apps, ${libFiles.length} components)`);
+console.log(`\nverify-apps: ${pass} passed, ${fail} failed (${apps.length} apps, ${libFiles.length} library files)`);
 process.exit(fail === 0 ? 0 : 1);

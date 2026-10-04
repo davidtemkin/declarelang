@@ -18,7 +18,7 @@ export interface FontHost {
 export declare function setFontHost(h: FontHost | null): void;
 export type { LoadedFace } from "./face-table.js";
 /** One face of a Font: a file, the weight(s) it covers, and whether it is italic. */
-export declare class Face extends Node {
+export declare class FontFace extends Node {
     src: string | readonly string[];
     weight: string | number | readonly [number, number];
     italic: boolean;

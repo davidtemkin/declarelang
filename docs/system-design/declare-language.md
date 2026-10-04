@@ -290,7 +290,7 @@ This replaces the `addEventListener`/`removeEventListener` (and React's `useEffe
 *(Don't confuse `<-` (event subscription) with `<->` (two-way data binding, [§9](#9-data-datapaths-replication-and-sources)).)*
 
 > **RULED AND DONE (2026-07-26): the `<-` operator is REMOVED.** The runtime services
-> are ordinary non-visual components now — `Keys [ onKeyDown(e) { … } ]`, `Focus`, `Tip`,
+> are ordinary non-visual components now — `Keys [ onKeyDown(e) { … } ]`, `Focus`, `Tooltips`,
 > and `Time` (the clock as a member; née Heartbeat) — so this section's subscription form is history, kept
 > below only as the record of why it existed. The argument that settled it: the 2026-07-13
 > ruling *already* said an event is just a function-typed member that gets called, and a
@@ -305,7 +305,7 @@ This replaces the `addEventListener`/`removeEventListener` (and React's `useEffe
 > models by folding the service's callable surface in as statics. (An expected size win
 > did NOT materialize and is recorded here so it is not re-claimed: the source COMPONENTS
 > tree-shake, but the SERVICES behind them still ship to every app — boot.ts wires Keys,
-> index.ts injects Keys/Focus into body scope, view.ts uses Tip, text-input.ts uses Focus.
+> index.ts injects Keys/Focus into body scope, view.ts uses Tooltips, text-input.ts uses Focus.
 > Measured on two keyboard-free apps: `keys.js` 1,714 B and `focus.js` 3,316 B present in
 > both. Fact-gating them, the way slim-draw gates the paint vocabulary, is a separate
 > unclaimed win.) Migration cost was 10 corpus sites; the calendar got *shorter*,

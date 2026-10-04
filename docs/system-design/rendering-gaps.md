@@ -122,7 +122,7 @@ so a capability that serves content-heavy interfaces counts as application value
 | web fonts (`Font` objects) | done | ✓ | ✓ | ✓ | | 2026-09-14: a font is an object in the tree (the top-level `font` declaration is retired); each web `Font` registers its faces under its own generated name (`declare-font-<id>-<generation>`), and that name is the key on every renderer. FIXED 2026-09-13 (`FontRegistry.swift`): Core Text reads WOFF2 directly and a descriptor built from the bytes needs no process registration, so nothing is installed system-wide; a subset file often carries no name and a variable file reports one name for every instance, which is why the registered name, not the file's, is the key |
 | fontWeight keywords | done | ✓ | ✓ | partial | | Mac approximates named-font weights through the font manager |
 | fontWeight numeric, 1 to 1000 | done | ✓ | ✓ | ✓ | | **[mirror]** |
-| Face `weight = range(lo, hi)` | done | ✓ | ✓ | ✓ | | variable-font descriptor; the Mac host varies the file's `wght` axis (FontRegistry) |
+| FontFace `weight = range(lo, hi)` | done | ✓ | ✓ | ✓ | | variable-font descriptor; the Mac host varies the file's `wght` axis (FontRegistry) |
 | smallCaps | done | ✓ | ✓ | ✓ | | FIXED 2026-09-13 (D1): the Mac parser consumes the CSS variant slot, so measure and paint agree. Still SYNTHESIZED on Mac where the web pair uses the face's own feature — §12 |
 | underline, strike | done | ✓ | partial | partial | | canvas draws its own lines; Mac loses them under a gradient text fill |
 | textShadow, outline | done | ✓ | ✓ | partial | | Mac loses both under a gradient text fill |
@@ -400,7 +400,7 @@ A PROGRAM cannot drive this by assignment today, only the runtime can: no
 author-visible slot holds the face table, and `font` declarations are static (they
 resolve to a plain family string at instantiate). Assigning `fontFamily` is an
 ordinary slot write and never touches this path. The natural program-level
-surface, if one is wanted, is a reactive `Face` — assign its `src` and every run
+surface, if one is wanted, is a reactive `FontFace` — assign its `src` and every run
 in that family re-measures through exactly this mechanism. That is a language
 change and is not built.
 

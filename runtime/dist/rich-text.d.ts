@@ -213,11 +213,14 @@ export declare class TextFlow extends View {
      *  not a flow (a `Text` is a label). The provided read is tracked, so a
      *  provision appearing later re-flows. */
     private effSelectable;
-    attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     private clearManual;
     /** The backend re-measured the native flow (font load, or becoming visible
      *  after attaching under a zero-sized ancestor). Track it so the stack re-flows. */
     private onMeasured;
+    /** Told when the renderer reports this flow's settled layout — the owning
+     *  rich text fits its width then if it could not at build (fitNatural). */
+    onSettled: (() => void) | null;
     /** Told when `firstBaseline` changes after the render that set it — the
      *  owning rich text re-claims its `baseline` fact. */
     onBaseline: (() => void) | null;
@@ -370,7 +373,7 @@ export declare abstract class RichText extends View {
      *  kernel's native rule) read one geometry and agree, with nothing to mask.
      *  A rich text that IS transformed says so with `scale`, like any view, and
      *  every reader honours it. */
-    attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** The house palette for this render: the text's ink for body and headings
      *  (`textColor`, else the theme's `text`), the provided theme's tokens for the rest (`code` and `codeBg` when a theme
      *  names them, else the ink and the neutral `control` tint). Read tracked, so
@@ -410,8 +413,17 @@ export declare abstract class RichText extends View {
      *  so a renderer measuring a hair wider cannot wrap a line early). The content
      *  box — and so `x = center`, a row's spacing, a ring around it — is then the
      *  text's. Only a document of running text fits; one holding a list, table,
-     *  quote or code keeps the measure. */
+     *  quote or code keeps the measure.
+     *
+     *  A flow with words in it whose widest line reads 0 has not been laid out
+     *  yet — built before the first paint, or inside a hidden view. Fitting to
+     *  that would leave the text 2px wide for good, so it keeps the measure and
+     *  fits when its renderer reports the settled layout (TextFlow.onSettled). */
     private fitNatural;
+    /** True while the width fit waits for a flow's first real layout. */
+    private $fitWaiting;
+    /** A flow's layout settled: the fit the build could not make, made now. */
+    private $fitSettled;
     /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
      *  it is a prose flow its first line's baseline IS this box's. */
     private claimBaseline;

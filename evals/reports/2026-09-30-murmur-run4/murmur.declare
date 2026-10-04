@@ -1,0 +1,195 @@
+/*
+# Murmur
+
+A small app for reading and taking part in ongoing conversations.
+
+The whole of it is one document (`Store`, in model.declare) and the views that
+derive from it. The live feed writes the document; so do the four things a
+person can do — send words, send a photograph, react, and read. Everything
+else — the order of the list, what is unread, who said what and when — is a
+constraint over that document.
+
+On a phone the list and a conversation are two places, and a conversation
+slides in over the list it came from. On a desk they sit side by side. Either
+way every conversation keeps its own scroller, so leaving one and coming back
+finds it exactly where it was.
+*/
+
+script [ "format.ts" ]
+
+include [ "model.declare" ]
+
+include [ "icons.declare" ]
+
+include [ "faces.declare" ]
+
+include [ "list.declare" ]
+
+include [ "conversation.declare" ]
+
+include [ "composer.declare" ]
+
+include [ "lines.declare" ]
+
+include [ "voice.declare" ]
+
+include [ "overlays.declare" ]
+
+// Warm paper and dark ink. Your own words are set in ink; everyone else's sit
+// on stone. The one bright colour is ember, and it only ever means "new".
+
+theme Murmur [
+    bg = #F3EFE7, surface = #FBF9F5, line = #E2DBCF,
+    text = #1F1C18, textMuted = #776E62, textFaint = #A99F90,
+    accent = #D4532A, accentText = #FFFFFF, accentHover = #C44A23, accentPressed = #B2411E,
+    control = #EAE4D9, controlHover = #E2DBCE, controlPressed = #D7CFC0, controlSelected = #E8DFD0,
+    depth = 1, focusRing = true, controlRadius = 10,
+    tooltipBg = #1F1C18, tooltipText = #F3EFE7,
+    menuRadius = 12, menuShadow = shadow(0, 10, 40, #00000030), menuHl = gradient(#DC5E36, #C94C25),
+    scrimColor = #14110E, scrimOpacity = 0.3, errorColor = #B23A26,
+    mine = #2A2D33, mineText = #F5F1E9, mineFaint = #A6A39C,
+    theirs = #E8E2D6, theirsText = #1F1C18,
+    selected = #E9E1D2,
+    stage = #0B0A09, stageText = #F3EFE7, stageMuted = #A99F90,
+    stageControl = #33302C, stageControlHot = #45423D, stageControlDown = #5A5650,
+    ink0 = #A8445E, ink1 = #3F6E8C, ink2 = #6B7F2E, ink3 = #8A4F86, ink4 = #2F7D6B, ink5 = #9A6A1E
+    ]
+
+
+theme MurmurDark [
+    bg = #16171A, surface = #1D1F23, line = #2C2F35,
+    text = #ECE8E1, textMuted = #9C978E, textFaint = #6A665F,
+    accent = #FF7A4A, accentText = #1B0E08, accentHover = #FF8B5F, accentPressed = #FF9C74,
+    control = #26292E, controlHover = #2E3137, controlPressed = #383B42, controlSelected = #2A2C31,
+    depth = 1, focusRing = true, controlRadius = 10,
+    tooltipBg = #ECE8E1, tooltipText = #16171A,
+    menuRadius = 12, menuShadow = shadow(0, 10, 40, #00000080), menuHl = gradient(#FF8656, #F06B3A),
+    scrimColor = #000000, scrimOpacity = 0.5, errorColor = #FF7A66,
+    mine = #ECE6DA, mineText = #1C1A17, mineFaint = #7D776C,
+    theirs = #2A2D32, theirsText = #ECE8E1,
+    selected = #25282D,
+    stage = #000000, stageText = #F3EFE7, stageMuted = #A99F90,
+    stageControl = #2A2826, stageControlHot = #3A3734, stageControlDown = #4D4945,
+    ink0 = #E88AA3, ink1 = #7FB2D4, ink2 = #A9BF63, ink3 = #CD93C8, ink4 = #6CC3AE, ink5 = #E0AE5C
+    ]
+
+
+App [ appName = "Murmur",
+    theme = { app.dark ? MurmurDark : Murmur },
+    fill = { provided("theme").bg },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "BlinkMacSystemFont", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    scrolls = none,
+
+    // ── the service ──────────────────────────────────────────────────────
+
+    api: string = "http://localhost:8330/",
+    store: Store [ url = { app.api + "threads.json" } ],
+    live: Socket [
+        url = { app.store.loaded ? app.api.replace("http", "ws") + "live" : "" },
+        onMessage(e: StreamMessage) { app.store.apply(JSON.parse(e.data) as Frame) }
+        ],
+
+    clock: Time [ tick = minute ],
+    today: string = { dayKey(app.clock.now) },
+
+    // the list, by most recent activity — the store's own records, reordered
+
+    ordered: Dataset [ schema = [ threads[]: Thread ], contents = { { threads: app.store.byRecency() } } ],
+
+    // ── where the person is ──────────────────────────────────────────────
+
+    selId: string = "",
+    nowPlaying: string = "",     // the voice message speaking, if any          // the conversation open (or last open)
+    inThread: boolean = false,   // on a phone: showing it rather than the list
+    wide: boolean = { app.width >= 760 },
+    listW: number = { app.wide ? Math.round(Math.min(400, Math.max(320, app.width * 0.3))) : app.width },
+
+    // 0 = the list, 1 = the conversation, sprung, on a phone — or, while a
+    // finger drags the conversation back from the left edge, wherever it is
+
+    slideT: number = 0,
+    dragging: boolean = false,
+    dragT: number = 1,
+    Spring [ attribute = slideT, to = { app.dragging ? app.dragT : app.inThread ? 1 : 0 }, stiffness = 380, damping = 38 ],
+
+    open(tid: string) { app.selId = tid; app.inThread = true },
+    back() { app.inThread = false },
+
+    // ── what the person does ─────────────────────────────────────────────
+
+    sendText(tid: string, text: string) {
+        const ref = app.store.send(tid, "text", text, "")
+        app.live.send(JSON.stringify({ t: "send", ref: ref, thread: tid, kind: "text", text: text }))
+        },
+
+    sendPhoto(tid: string, src: string, alt: string) {
+        const ref = app.store.send(tid, "photo", src, alt)
+        app.live.send(JSON.stringify({ t: "send", ref: ref, thread: tid, kind: "photo", src: src }))
+        },
+
+    react(tid: string, mid: string, emoji: string) {
+        app.store.addReaction(app.store.indexOf(tid), mid, app.store.me(), emoji)
+        app.live.send(JSON.stringify({ t: "react", thread: tid, message: mid, emoji: emoji }))
+        },
+
+    keys: Keys [
+        onKeyDown(e: KeyEvent) {
+            if (e.key != "Escape") return
+            if (app.viewer.open) app.viewer.close()
+            else if (app.picker.open) app.picker.close()
+            else if (!app.wide && app.inThread) app.back()
+            }
+        ],
+
+    // ── the two places ───────────────────────────────────────────────────
+
+    list: ThreadList [ height = 100%,
+        width = { app.listW },
+        x = { app.wide ? 0 : -0.3 * app.width * app.slideT } ],
+
+    convs: View [ height = 100%,
+        x = { app.wide ? app.listW : app.width * (1 - app.slideT) },
+        width = { app.wide ? app.width - app.listW : app.width },
+        visible = { app.wide || app.slideT > 0.001 },
+        fill = { provided("theme").bg },
+        stroke = { app.wide ? [null, null, null, stroke(1, provided("theme").line)] : null },
+        shadow = { app.wide ? null : shadow(-8, 0, 24, 0x0000001A) },
+        datapath = { app.store.value },
+        Conversation [ datapath = :threads[] ],
+
+        // on a phone, the left edge of a conversation drags it back to the list
+
+        edge: View [ width = 22, claim = x,
+            y = { 64 + app.safeTop }, height = { parent.height - this.y - 64 },
+            visible = { !app.wide && app.inThread },
+            onPointerMove(e: PointerEvent) {
+                if (!app.dragging && e.deltaX < 6) return
+                app.dragging = true
+                app.dragT = 1 - Math.max(0, e.deltaX) / app.width
+                app.slideT = app.dragT
+                },
+            onPointerUp(e: PointerUpEvent) {
+                if (app.dragging && !e.canceled && app.dragT < 0.72) app.back()
+                app.dragging = false
+                }
+            ],
+
+        // a desk with nothing open yet
+
+        idle: View [ width = 100%, height = 100%, visible = { app.selId == "" },
+            col: View [ x = center, y = center,
+                layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+                Text [ fontSize = 26, fontWeight = semibold, letterSpacing = -0.4, text = "Murmur",
+                    textColor = { provided("theme").textFaint } ],
+                Text [ fontSize = 14, textColor = { provided("theme").textFaint },
+                    text = { app.store.loaded ? "Choose a conversation to pick it up." : "" } ]
+                ]
+            ]
+        ],
+
+    // ── above everything ─────────────────────────────────────────────────
+
+    picker: ReactionPicker [ ],
+    viewer: PhotoViewer [ ]
+    ]

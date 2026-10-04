@@ -415,6 +415,9 @@ export async function buildProduction(source, opts = {}) {
     // the corpus gate's build: the `__declare` bridge aboard, nothing else changed
     ...(opts.bridge ? { bridge: "true" } : {}),
     ...(opts.keepAll ? { keepAll: "true" } : {}),
+    // the corpus gate's other build: the previous language target, to show the
+    // shipped one behaves the same (slim-corpus --compare target). Not a flag.
+    ...(opts.esTarget ? { esTarget: opts.esTarget } : {}),
     ...(opts.props ?? {}),
   };
   const mainId = opts.originDir ? join(opts.originDir, `${name}.declare`) : undefined;
@@ -603,7 +606,11 @@ export async function buildProduction(source, opts = {}) {
 
   const result = await esbuild.build({
     stdin: { contents: entry, resolveDir: RUNTIME, loader: "js", sourcefile: name + ".entry.js" },
-    bundle: true, minify: true, format: "esm", target: "es2020",
+    // ES2022, the target every other web bundle in the toolchain uses: class
+    // fields stay native (lowered, each field of each view was a helper call),
+    // and the floor it implies — Safari 16.4, Chrome 94, Firefox 93 — is the
+    // platform's stated one (guide: Packaging § Browsers)
+    bundle: true, minify: true, format: "esm", target: opts.esTarget ?? "es2022",
     // the compiler stays a lazy, external fetch (compiler-client) — a live edit's,
     // never on the path to first paint
     external: ["*declare-compiler.js"],

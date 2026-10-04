@@ -1,18 +1,18 @@
 # Fonts
 
-A typeface is an **object in the tree** — a `Font` owning `Face` children — and a family
+A typeface is an **object in the tree** — a `Font` owning `FontFace` children — and a family
 slot holds it. This replaced the top-level `font Name [ … ]` declaration (2026-09-14);
 the old form still parses so the checker can name the new one. Design background, not
-binding: the reference (`Font`, `Face`) and the guide's Fonts section are the contract.
+binding: the reference (`Font`, `FontFace`) and the guide's Fonts section are the contract.
 
 ## The shape
 
 ```
 App [ fontFamily = { [brand, "Helvetica", "sans-serif"] },
     brand: Font [ wait = 800,
-        Face [ src = [local("Work Sans"), "ws-400.woff2"] ],
-        Face [ src = "ws-700.woff2", weight = bold ] ],
-    serif: Font [ Face [ src = "serif-var.woff2", weight = range(200, 900) ] ],
+        FontFace [ src = [local("Work Sans"), "ws-400.woff2"] ],
+        FontFace [ src = "ws-700.woff2", weight = bold ] ],
+    serif: Font [ FontFace [ src = "serif-var.woff2", weight = range(200, 900) ] ],
     ui:    Font [ family = "Helvetica Neue" ]            // a system font: no faces
     …
 ```
@@ -23,7 +23,7 @@ App [ fontFamily = { [brand, "Helvetica", "sans-serif"] },
 - **Web and system fonts are one object type.** A Font with faces loads them; one with no
   faces names a `family` the machine has. Symmetry is the point: a slot that holds one
   holds the other, and switching between them is an assignment.
-- **`Face [ src, weight, italic ]`**: `src` is a URL, `url("…")`, `local("…")`, or a list
+- **`FontFace [ src, weight, italic ]`**: `src` is a URL, `url("…")`, `local("…")`, or a list
   tried in order; `weight` is a token, a number 1–1000, or `range(lo, hi)` for a variable
   file; `italic` marks the slanted face.
 
@@ -105,5 +105,5 @@ a tracked read, so a constraint or drawing re-runs when its faces land or the fo
 
 Preloading faces alongside the app's own code (so they usually arrive before first paint) is
 proposed, not built. Per-face `stretch`, `unicode-range` subsetting and multiple `url()` format
-alternates are further `Face` attributes when needed. Semantic type roles (Dynamic Type) are not
+alternates are further `FontFace` attributes when needed. Semantic type roles (Dynamic Type) are not
 the font primitive's job.

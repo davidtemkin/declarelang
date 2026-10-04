@@ -106,7 +106,7 @@ async function bootAt(source, opts, location, refusals, beforeSettle) {
     const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
     try {
         const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides });
-        app.attach(new HeadlessBackend(), null);
+        app.$attach(new HeadlessBackend(), null);
         app.hostWidth = env.hostWidth;
         app.hostHeight = env.hostHeight;
         app.dark = env.dark;
@@ -241,7 +241,7 @@ async function warmSession(source, opts, refusals) {
     };
     const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
     const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides });
-    app.attach(new HeadlessBackend(), null);
+    app.$attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
     app.dark = env.dark;

@@ -233,9 +233,9 @@ App [ w: number = 3, b: View [ n: number = 10, width = { twice(this) + app.w } ]
 test("the SAME helper as a METHOD stays fully analyzed — the named fix works", async () => {
   // The refusal's advice, proven: a method's parameter reads wire through the
   // call site (the phase-4 half-close), so the migration is mechanical.
-  const src = `class Card extends View [ n: number = 10 ]
-App [ w: number = 3, vOf(node: Card) -> number { return node.n },
-  b: Card [ width = { app.vOf(this) + app.w } ] ]`;
+  const src = `class Tile extends View [ n: number = 10 ]
+App [ w: number = 3, vOf(node: Tile) -> number { return node.n },
+  b: Tile [ width = { app.vOf(this) + app.w } ] ]`;
   const { before, after } = await rerendersOn(src, (app) => { app.b.n = 50; }, (app) => app.b.width);
   assert.equal(before, 13);
   assert.equal(after, 53, "the method-parameter edge re-runs the constraint");

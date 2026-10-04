@@ -24,6 +24,23 @@ replicated class is *N* springs, one per row; three hundred rows of "the same ha
 constraints" each carrying their own springs is three hundred integrators for motion that
 only one row at a time is ever in.
 
+## arrive()
+Take the **next** target outright instead of travelling to it. A figure sprung toward data
+would otherwise count up from zero when the data lands — a change the reader never lived
+through. Call `arrive()` where the data arrives, and that first value simply appears; every
+change after it travels as usual:
+
+```declare-fragment
+count: number = { app.feed.value?.total ?? 0 },
+shown: number = 0,
+tally: Spring [ attribute = shown, to = { app.count }, stiffness = 140, damping = 22 ],
+feed: DataSource [ url = "/api/week", auto = true, onLoad() { app.tally.arrive() } ]
+```
+
+It arms for one frame — long enough for the arriving value to reach `to`, short enough that a
+genuine change a moment later still animates. Replicated rows use it too: a recycled row
+takes its new record's geometry at once.
+
 ## stiffness
 Spring stiffness — higher pulls to the target faster (and can overshoot). The "how eager"
 knob.

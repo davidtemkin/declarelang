@@ -1,0 +1,9 @@
+A request that's separate from the build — please don't change anything. Now that you've built Murmur, write a candid account of what it was like to build it in Declare, for the people who make Declare. Please cover:
+
+(a) Getting up to speed — what you read, what taught you the most, what was missing or misleading.
+(b) Expressing what you wanted to express — where the language fit your intent, and where you had to work around it.
+(c) Verifying it — how you checked your work, and how well the tools served you.
+
+Then: surprises; what was good and what was bad; notable differences from the frameworks and languages you're used to; what other systems it reminded you of; where you'd most want to see improvement; and what you would use it for going forward, if you had the option.
+
+Be specific — name documents, features, diagnostics and moments from this build — and say plainly where your judgment is uncertain.

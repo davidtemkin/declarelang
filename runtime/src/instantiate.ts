@@ -95,6 +95,7 @@ import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, b
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator, type VirtualizePolicy } from "./replicate.js";
 import { classOfFor, KindedReplicator } from "./class-for.js";
+import { createWindowing } from "./virtualize.js";
 import { staticSegs, type PathSeg } from "./path-plan.js";
 import { provideViewCreator, provideInlineViewHost } from "./view.js";
 import { toCursor, type Dataset } from "./data.js";
@@ -237,7 +238,7 @@ function resolveProvisionLiteral(attr: Attr, ctx: Ctx): unknown {
  *  reads the linked tree (like a binding's first evaluation). */
 type ProvisionPending = { view: Node; attr: Attr; provideCode: string; classroot: View | null };
 type Pending =
-  | { view: Node; attr: Attr; code: string; classroot: View | null }
+  | { view: Node; attr: Attr; code: string; classroot: View | null; yielding?: true }
   | { view: View; attr: Attr; percent: number }
   | { view: View; attr: Attr; align: "center" | "end" }
   | { view: View; attr: Attr; dataPath: string; type: AttrType; plan?: readonly PathSeg[] }
@@ -414,7 +415,7 @@ function partitionPending(pending: readonly Pending[]): { provisions: Pending[];
 
 function installBatch(ordered: readonly Pending[], ctx: Ctx): void {
   for (const p of ordered) {
-    if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
+    if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined, p.yielding === true);
     else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
     else if ("twoWayCode" in p) bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
     else if ("dataPath" in p) bindData(p.view, p.attr.name, p.dataPath, p.type, p.plan);
@@ -550,21 +551,25 @@ function initTree(view: View): void {
  *  cost. Idempotent (autoStart fires once per lifetime), so a replicated
  *  subtree's own initTree covers its animators too. */
 function startMembers(owner: Node): void {
-  for (const child of owner.children) {
-    // A Spring consumes its declaration snap here — its first computed
-    // target renders outright; physics governs every change after (the
-    // boot-equal-to-default case never wakes, so priming cannot be lazy).
-    if (child instanceof Spring) child.prime();
-    // Sources (Keys/Focus/Tip; a Time joins its clock or arms its alarm) wire here, with the
-    // animators' auto-start: construction-complete, so every declared handler
-    // is installed and the source can tell which channels to subscribe.
-    if (child instanceof Animator || child instanceof AnimatorGroup) child.autoStart();
-    else if (isSourceNode(child)) child.autoStart();
-    // Apply a state's initial value once linked. A gated state has usually
-    // already synced from its gate's first run in pass two (idempotent here); a
-    // literal `applied = true` (no gate) applies now. Non-View, like animators.
-    else if (child instanceof State) child.init();
-  }
+  for (const child of owner.children) startMember(child);
+}
+
+/** Start one non-view member — at its owner's init, or on its own when a
+ *  State builds it later (nodeMaterializer). */
+function startMember(child: Node): void {
+  // A Spring consumes its declaration snap here — its first computed
+  // target renders outright; physics governs every change after (the
+  // boot-equal-to-default case never wakes, so priming cannot be lazy).
+  if (child instanceof Spring) child.prime();
+  // Sources (Keys/Focus/Tooltips; a Time joins its clock or arms its alarm) wire here, with the
+  // animators' auto-start: construction-complete, so every declared handler
+  // is installed and the source can tell which channels to subscribe.
+  if (child instanceof Animator || child instanceof AnimatorGroup) child.autoStart();
+  else if (isSourceNode(child)) child.autoStart();
+  // Apply a state's initial value once linked. A gated state has usually
+  // already synced from its gate's first run in pass two (idempotent here); a
+  // literal `applied = true` (no gate) applies now. Non-View, like animators.
+  else if (child instanceof State) child.init();
 }
 
 /** The program's style bundles, shape-guarded (a bundle is attribute sets
@@ -669,7 +674,9 @@ function synthesize(
       // a value that has since moved on. Untracked readers (handlers) keep
       // the raw record; a tracked view assigned INTO the slot normalizes back
       // to raw (the Dataset.value push pattern), so identity stays one thing.
-      const shapeSlot = isShapeType(d.type.endsWith("[]") ? d.type.slice(0, -2) : d.type);
+      // (`sel: Task?` — the nullable marker is not part of the type's name)
+      const written = d.type.endsWith("?") ? d.type.slice(0, -1) : d.type;
+      const shapeSlot = isShapeType(written.endsWith("[]") ? written.slice(0, -2) : written);
       // DECLARED DEFAULTS STAND AS RULES (kernel.md): a `{ }` default is a
       // yielding rule on each instance — one evaluation per input change, not
       // one per read — installed at construction on a slot nothing set. Not for
@@ -866,6 +873,9 @@ function runtimeMember(node: object, name: string): RuntimeMember {
  *  — so a derived body overrides its base's and the instance overrides the
  *  class's; only the winner installs, so a class-body `{ }` binding and an
  *  instance literal on one slot never fight over ownership. */
+/** The geometry a layout places — where a class's own binding is a default. */
+const CLASS_DEFAULT_GEOMETRY: ReadonlySet<string> = new Set(["x", "y", "width", "height"]);
+
 function mergeAttrs(sources: readonly MemberSource[]): Map<string, { attr: Attr; croot: View | null; useSite: boolean }> {
   const attrs = new Map<string, { attr: Attr; croot: View | null; useSite: boolean }>();
   const last = sources.length - 1; // memberSources puts the USE SITE last
@@ -959,10 +969,10 @@ function beginNode(el: Element, schema: ClassSchema, outer: View | null, ctx: Ct
 }
 
 /** Is this schema a SOURCE — a non-visual member whose handlers are called
- *  from outside the tree (sources.ts: Keys, Focus, Tip; streams.ts: the
+ *  from outside the tree (sources.ts: Keys, Focus, Tooltips; streams.ts: the
  *  transports)? Chain-based, so a program's `class Hot extends Keys` is one. */
 function isSourceSchema(schema: ClassSchema): boolean {
-  return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tip") || descendsFrom(schema, "Stream");
+  return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tooltips") || descendsFrom(schema, "Stream");
 }
 
 function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: ClassSchema | null = null): Node {
@@ -1087,6 +1097,13 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Clas
         ctx.pending.push({ view, attr, twoWayCode: r.binding.src, type: attrType(eff, attr.name)!, classroot: acroot });
       } else if (attrType(eff, attr.name)?.kind === "cursor") {
         ctx.pending.push({ view, attr, cursorCode: r.binding.src, classroot: acroot });
+      } else if (!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name)) {
+        // A CLASS'S OWN PLACE is a default, not a claim (TextLabel's optical
+        // centring, an Icon's y): it stands where nothing else places the
+        // view, and yields to a parent layout that does — as a literal does
+        // (layout-ownership.md: a literal is a base). Only what the USE SITE
+        // binds is a claim a layout conflicts with.
+        ctx.pending.push({ view, attr, code: r.binding.src, classroot: acroot, yielding: true });
       } else {
         ctx.pending.push({ view, attr, code: r.binding.src, classroot: acroot });
       }
@@ -1166,20 +1183,72 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentSchema: Clas
   // it), then the use site's — concatenated, never merged: tree order is
   // paint order, deliberately semantic. `slot` threads the block-position
   // anchor for replications across the sources (R8).
+  //
+  // DEFAULT PLACEMENT: a class body may name one of its own children
+  // (`defaultplacement = body`); the children every LATER source writes — a
+  // subclass body, the use site — go into that child instead, appended in
+  // order. The class's own children are never placed; a later class may name
+  // a placement of its own for the sources after it.
   const slot: ChildSlot = { prev: null };
+  let place: { target: View; slot: ChildSlot } | null = null;
+  const into = (from: Element, fromCroot: View): void => {
+    if (place === null) { appendChildren(from, view, fromCroot, ctx, eff, slot); return; }
+    appendChildren(from, place.target, fromCroot, ctx, eff, place.slot);
+    hoistPlacedNames(from, view, place.target, eff);
+  };
   if (user !== undefined) {
     if (ctx.expanding.has(el.tag)) {
       throw new DeclareError(`class ${el.tag} contains itself — a class may not appear inside its own body`, el.pos);
     }
     ctx.expanding.add(el.tag);
     try {
-      for (const body of user.chain) appendChildren(body, view, view, ctx, eff, slot);
+      for (const body of user.chain) {
+        into(body, view);
+        const named = placementName(body);
+        if (named !== null) {
+          const target = findNamedChild(view, named);
+          if (target === null) throw new DeclareError(`defaultplacement = ${named} — '${el.tag}' has no child named '${named}' to place children into`, body.pos);
+          place = { target, slot: { prev: target.children.length > 0 ? target.children[target.children.length - 1] : null } };
+        }
+      }
     } finally {
       ctx.expanding.delete(el.tag);
     }
   }
-  appendChildren(el, view, croot, ctx, eff, slot);
+  into(el, croot);
   return view;
+}
+
+/** The child a class body names as its `defaultplacement`, or null. */
+function placementName(body: Element): string | null {
+  const a = body.attrs.find((x) => x.name === "defaultplacement");
+  if (a === undefined) return null;
+  const v = a.value as { kind: string; name?: string; value?: unknown };
+  return v.kind === "ident" && typeof v.name === "string" ? v.name : typeof v.value === "string" ? v.value : null;
+}
+
+/** A named child anywhere under `root` (named children are properties on
+ *  their own parent) — breadth-first, so the shallowest of a name wins. */
+function findNamedChild(root: View, name: string): View | null {
+  const queue: View[] = [root];
+  while (queue.length > 0) {
+    const v = queue.shift()!;
+    const hit = (v as unknown as Record<string, unknown>)[name];
+    if (hit instanceof View && hit.parent === v) return hit;
+    for (const c of v.children) if (c instanceof View) queue.push(c);
+  }
+  return null;
+}
+
+/** A placed source's named children stay reachable from the instance that
+ *  wrote them (`classroot.figs`), not only from the child they were placed in. */
+function hoistPlacedNames(from: Element, view: View, target: View, eff: ClassSchema): void {
+  if (target === view) return;
+  for (const c of from.children) {
+    if (c.name === null || attrType(eff, c.name)?.kind === "class") continue;
+    const child = (target as unknown as Record<string, unknown>)[c.name];
+    if (child !== undefined && !(c.name in view)) (view as unknown as Record<string, unknown>)[c.name] = child;
+  }
 }
 
 /** Construct a data node (R8): a Dataset adopts its embedded JSON, a
@@ -1266,7 +1335,7 @@ function constructAnimator(el: Element, schema: ClassSchema, outer: View | null,
 }
 
 /** Construct a SOURCE node — a non-visual member whose handlers are called from
- *  outside the tree (sources.ts: `Keys`, `Focus`, `Tip`; streams.ts: the transports).
+ *  outside the tree (sources.ts: `Keys`, `Focus`, `Tooltips`; streams.ts: the transports).
  *  Like an animator it carries attributes plus handlers; unlike one it drives no
  *  slot, so none of the animator's target checking applies. Its subscriptions
  *  are wired by initTree's autoStart — the same lifecycle hook an animator uses,
@@ -1424,7 +1493,7 @@ function constructState(
   // keeps the classroot of the source it was written in — the state instance
   // for a class body's children, the use site's scope for its own.
   node.childTemplates = sources.flatMap((s) => s.el.children.map((c) => ({ el: c, croot: s.croot })));
-  node.materialize = materializer(ctx);
+  node.materialize = nodeMaterializer(ctx);
   return node;
 }
 
@@ -1441,6 +1510,12 @@ function buildLayout(el: Element, owner: View, croot: View, ctx: Ctx): Layout {
     const layout = new (ctx.layoutCtors[el.tag] as new () => Layout)();
     (layout as unknown as { parent: unknown }).parent = owner;
     installLayoutClass(layout, el, userClass, croot, ctx);
+    // THE LIBRARY'S OWN SimpleLayout, unmodified: its tag (a library name no
+    // program may take) and nothing of its own at the use site but attribute
+    // values. Its arrangement is then known exactly, and the runtime may compute
+    // what follows from it without running place() (Layout.$canon). A subclass,
+    // or a use site that declares a member or overrides a method, runs as written.
+    if (el.tag === "SimpleLayout" && el.methods.length === 0 && el.decls.length === 0 && el.children.length === 0) layout.$canon = "simple";
     return layout;
   }
   // A built-in strategy (SimpleLayout): a literal lands directly; a `{ }` binding
@@ -1552,8 +1627,10 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
       // `classFor = { … }` — a class per record (class-for.ts, its own
       // capability: reached only when the program writes it).
       const classOf = childEl.attrs.some((a) => a.name === "classFor") ? classOfFor(childEl, parentView, croot) : null;
+      // Windowing (virtualize.ts, its own capability) comes aboard only with
+      // a `virtualize` the program wrote.
       const args = [parentView, childEl, many.value.path, croot, materializer(ctx), slot.prev, keyPath,
-        (many.value as { plan?: readonly PathSeg[] }).plan ?? null, policy] as const;
+        (many.value as { plan?: readonly PathSeg[] }).plan ?? null, policy, vAttr !== undefined ? createWindowing : null] as const;
       const replicator = classOf === null ? new Replicator(...args) : new KindedReplicator(classOf, ...args);
       ctx.pending.push({ replicator });
       slot.prev = replicator;
@@ -1605,8 +1682,8 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
   const made = materializer(ctx)(el, parent);
   parent.insertChild(made.view, parent.children.length);
   made.provide();                                   // provisions before attach (partitionPending)
-  const ps = parent.surface;
-  if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
+  const ps = parent.$surface;
+  if (ps !== null && parent.$backend !== null) made.view.$attach(parent.$backend, ps, null);
   // Props land BEFORE finish — the replicator's own order ("linked, attached,
   // and cursored"): a `datapath` prop must be in place when the instance's
   // bindings first evaluate, or its `:path` reads boot against nothing. The
@@ -1635,14 +1712,24 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
  *  init fires) via `finish`, once the replicator has linked, attached, and
  *  cursored it. Identical machinery at build time and at every arrival. */
 function materializer(ctx: Ctx) {
+  const make = nodeMaterializer(ctx);
   return (template: Element, classroot: View): { view: View; provide: () => void; finish: () => void; suppressInit: () => void } => {
+    const made = make(template, classroot);
+    if (!(made.view instanceof View)) {
+      throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
+    }
+    return { ...made, view: made.view };
+  };
+}
+
+/** The same pipeline for any node — a State's conditional subtree may hold a
+ *  `Time`, a `Spring` or a media leaf as well as views. */
+function nodeMaterializer(ctx: Ctx) {
+  return (template: Element, classroot: View): { view: Node; provide: () => void; finish: () => void; suppressInit: () => void } => {
     const saved = ctx.pending;
     ctx.pending = [];
     try {
       const node = withScriptScope(ctx.scripts, () => construct(template, classroot, ctx));
-      if (!(node instanceof View)) {
-        throw new DeclareError(`a ${template.tag} cannot replicate — it is not a view`, template.pos);
-      }
       const { provisions, rest } = partitionPending(ctx.pending);
       // provide lands the instance's PROVISIONS — called by the consumer before
       // the instance attaches (see partitionPending); finish lands the rest and
@@ -1661,13 +1748,14 @@ function materializer(ctx: Ctx) {
         finish: () => {
           provide();
           withScriptScope(ctx.scripts, () => installBatch(rest, ctx));
-          initTree(node);
+          if (node instanceof View) initTree(node);
+          else { initNodeTree(node); startMember(node); }
         },
         // Membership-anchored init (the D5 ruling): the reconciler calls this
         // before finish when the record's membership already fired its init —
         // a reconstructed window row, a keyed re-derivation — so initTree
         // stays silent for the whole subtree.
-        suppressInit: () => markInited(node),
+        suppressInit: () => { if (node instanceof View) markInited(node); else INITED.add(node); },
       };
     } finally {
       ctx.pending = saved;
@@ -1694,8 +1782,8 @@ export function createElementIn(root: View, el: Element, parent: View): View {
     const made = materializer(ctx)(el, parent);
     parent.insertChild(made.view, parent.children.length);
     made.provide();                                 // provisions before attach (partitionPending)
-    const ps = parent.surface;
-    if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
+    const ps = parent.$surface;
+    if (ps !== null && parent.$backend !== null) made.view.$attach(parent.$backend, ps, null);
     made.finish();
     parent.childrenMutated(); // the arrival notify — same as createViewIn
     return made.view;
@@ -1750,8 +1838,8 @@ provideInlineViewHost((root) => {
       for (const [k, v] of Object.entries(provides)) provideWrite(made.view, k, v);
       parent.insertChild(made.view, parent.children.length);
       made.provide();
-      const ps = parent.surface;
-      if (ps !== null && parent.backend !== null) made.view.attach(parent.backend, ps, null);
+      const ps = parent.$surface;
+      if (ps !== null && parent.$backend !== null) made.view.$attach(parent.$backend, ps, null);
       // `finish` lands the rest of the use site's own channels — a percent among
       // them (`width='50%'`), which resolves against the parent's extent like
       // any child's, and needs the link `insertChild` above just made.

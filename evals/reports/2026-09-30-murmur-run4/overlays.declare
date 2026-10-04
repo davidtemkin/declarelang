@@ -1,0 +1,182 @@
+/*
+# Above the conversation
+
+Two things rise above a conversation, and both come from something in it.
+
+The reaction picker opens at the message it will mark. The six marks are a
+fixed set; one you have already given is ringed.
+
+A photograph opens by growing out of its place in the conversation to the
+whole window, and closing sends it back there. It is shown whole and
+undistorted. A panorama too wide to read at the window's width is instead
+held at a legible height and moved sideways by dragging.
+*/
+
+class ReactionPicker [ width = 100%, height = 100%,
+    open: boolean = false,
+    forId: string = "",
+    tid: string = "",
+    ax: number = 0,              // the bubble's edge the picker opens from, in root space
+    ay: number = 0,
+    below: boolean = false,      // too near the top to open above it
+    t: number = 0,
+    Spring [ attribute = t, to = { classroot.open ? 1 : 0 }, stiffness = 520, damping = 34 ],
+    visible = { open || t > 0.01 },
+
+    choices: Dataset { { "marks": [ { "id": "❤️" }, { "id": "😂" }, { "id": "👍" },
+                                    { "id": "😮" }, { "id": "🔥" }, { "id": "👀" } ] } },
+
+    given: string[] = { app.store.givenBy(classroot.tid, classroot.forId) },
+
+    openFor(said: Said, tid: string, mid: string, mine: boolean) {
+        const b = said.rootBounds()
+        this.tid = tid
+        forId = mid
+        ax = mine ? b.x + said.bodyX + said.bodyW : b.x + said.bodyX
+        ay = b.y + said.bodyY
+        below = ay < 140
+        if (below) ay = b.y + said.bodyY + said.bodyH
+        open = true
+        },
+
+    close() { open = false; forId = "" },
+
+    pick(emoji: string) {
+        if (!given.includes(emoji)) app.react(tid, forId, emoji)
+        this.close()
+        },
+
+    scrim: View [ width = 100%, height = 100%,
+        onClick() { classroot.close() }
+        ],
+
+    bar: View [ height = 52, cornerRadius = 26, padding = [0, 6, 0, 6],
+        x = { Math.max(8, Math.min(parent.width - this.width - 8, classroot.ax - this.width / 2)) },
+        y = { classroot.below ? classroot.ay + 8 : classroot.ay - 60 },
+        fill = { provided("theme").surface },
+        shadow = { shadow(0, 8, 28, 0x00000030) },
+        stroke = { stroke(1, provided("theme").line) },
+        opacity = { classroot.t },
+        scale = { 0.85 + 0.15 * classroot.t },
+        pivotY = { classroot.below ? 0 : 1 },
+        datapath = { classroot.choices.value },
+        layout: SimpleLayout [ axis = x, align = center ],
+        Mark [ datapath = :marks[],
+            given = { classroot.given.includes("" + :id) },
+            press() { classroot.pick("" + :id) }
+            ]
+        ]
+    ]
+
+
+class Mark extends Control [ width = 44, height = 44, cornerRadius = 22,
+    given: boolean = false,
+    fill = { given ? theme.controlSelected : down ? theme.controlPressed : hot ? theme.control : null },
+    stroke = { given ? stroke(1.5, theme.accent) : null },
+    scale = { down ? 0.9 : hot ? 1.12 : 1 },
+    TextLabel [ x = center, fontSize = 24, wrap = false, text = { "" + :id } ]
+    ]
+
+
+class PhotoViewer [ width = 100%, height = 100%,
+    open: boolean = false,
+    src: string = "",
+    alt: string = "",
+    aspect: number = 1,
+    source: View = null,         // the photograph in the conversation it grew from
+
+    // where it grows from
+
+    fx: number = 0,
+    fy: number = 0,
+    fw: number = 0,
+    fh: number = 0,
+
+    t: number = 0,
+    Spring [ attribute = t, to = { classroot.open ? 1 : 0 }, stiffness = 300, damping = 32 ],
+    shown: boolean = { open || t > 0.002 },
+
+    // Always standing, and inert while closed. (Gating it with `visible`
+    // leaves the drawn close mark unpainted the first time it appears.)
+
+    pointerEvents = "none",
+
+    // where it grows to: the whole picture, as large as the window allows —
+    // unless that leaves a panorama too thin to read, in which case it is held
+    // at a readable height and panned
+
+    margin: number = { app.wide ? 48 : 12 },
+    fitW: number = { Math.min(width - margin * 2, (height - margin * 2 - 64) * aspect) },
+    thin: boolean = { fitW / aspect < height * 0.3 },
+    tw: number = { thin ? Math.min(height * 0.62, 560) * aspect : fitW },
+    th: number = { tw / aspect },
+    slack: number = { Math.max(0, (tw - width) / 2 + 12) },
+    pan: number = 0,
+    tx: number = { (width - tw) / 2 + pan },
+    ty: number = { (height - th) / 2 - 20 },
+
+    show(pic: Image, alt: string) {
+        const b = pic.rootBounds()
+        source = pic
+        fx = b.x; fy = b.y; fw = b.width; fh = b.height
+        src = pic.source
+        this.alt = alt
+        aspect = pic.naturalWidth > 0 ? pic.naturalWidth / pic.naturalHeight : b.width / Math.max(1, b.height)
+        pan = 0
+        open = true
+        },
+
+    close() {
+        if (source != null) {
+            const b = source.rootBounds()
+            fx = b.x; fy = b.y; fw = b.width; fh = b.height
+            }
+        open = false
+        },
+
+    scrim: View [ width = 100%, height = 100%, fill = { provided("theme").stage },
+        opacity = { 0.97 * classroot.t },
+        pointerEvents = { classroot.open ? "auto" : "none" },
+        onClick() { classroot.close() }
+        ],
+
+    pic: Image [ stretches = both, source = { classroot.src },
+        x = { classroot.fx + (classroot.tx - classroot.fx) * classroot.t },
+        y = { classroot.fy + (classroot.ty - classroot.fy) * classroot.t },
+        width = { classroot.fw + (classroot.tw - classroot.fw) * classroot.t },
+        height = { classroot.fh + (classroot.th - classroot.fh) * classroot.t },
+        cornerRadius = { 14 * (1 - classroot.t) },
+        visible = { classroot.shown },
+        pointerEvents = { classroot.open ? "auto" : "none" },
+        claim = x,
+        start: number = 0,
+        onPointerDown(e: PointerEvent) { start = classroot.pan },
+        onPointerMove(e: PointerEvent) {
+            classroot.pan = Math.max(-classroot.slack, Math.min(classroot.slack, start + e.deltaX))
+            },
+        onClick() { classroot.close() }
+        ],
+
+    caption: View [ width = 100%, y = { parent.height - 64 - app.safeBottom }, height = 64,
+        opacity = { classroot.t },
+        layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+        Text [ fontSize = 15, textColor = { provided("theme").stageText }, wrap = false, maxLines = 1,
+            text = { classroot.alt } ],
+        Text [ fontSize = 12.5, textColor = { provided("theme").stageMuted }, visible = { classroot.slack > 0 },
+            text = "Drag to see the whole of it" ]
+        ],
+
+    closeBtn: CloseButton [ y = { app.safeTop + 12 }, x = { parent.width - 56 },
+        opacity = { classroot.t },
+        disabled = { !classroot.open },
+        pointerEvents = { classroot.open ? "auto" : "none" },
+        press() { classroot.close() }
+        ]
+    ]
+
+
+class CloseButton extends Control [ width = 44, height = 44, cornerRadius = 22,
+    tip = "Close",
+    fill = { down ? theme.stageControlDown : hot ? theme.stageControlHot : theme.stageControl },
+    CloseIcon [ x = center, y = center, iconSize = 18, weight = 2, ink = { parent.theme.stageText } ]
+    ]

@@ -1,11 +1,12 @@
 // cell kinds (declare_kernel.h)
 const F64 = 0, REF = 1;
 // rule kinds
-const K_EXPR = 0, K_BODY = 1, K_DYNAMIC = 2, K_VIS = 3, K_EXTENT = 4;
+const K_EXPR = 0, K_BODY = 1, K_DYNAMIC = 2, K_VIS = 3, K_EXTENT = 4, K_LAYOUT = 5;
+const LAYOUT_NOWRITE = 0x80000000;
 // rule flags
 const F_YIELDING = 1, F_PHASE1 = 2, F_PERCENT = 4;
 // rule states
-const ST_QUEUED = 1, ST_DEAD = 2, ST_SUSPENDED = 4, ST_REWIRE = 8, ST_UNLANDED = 16;
+const ST_QUEUED = 1, ST_DEAD = 2, ST_SUSPENDED = 4, ST_REWIRE = 8, ST_UNLANDED = 16, ST_RUNNING = 32;
 // errors
 /** the track ring's owner mark (declare_kernel.h DK_TRACK_OWNER / DK_TRACK_NOBODY) */
 const TRACK_OWNER = 0x80000000, TRACK_NOBODY = 0x7fffffff;
@@ -42,7 +43,7 @@ export function instantiateKernelJS(host, caps = {}) {
     /** A NODE is one read — kernel.c's `Node {rule, cell, next_cell, prev_cell, next_rule}`:
      *  on its cell's subscriber list (doubly linked, subscription order) and on its
      *  rule's read list (singly linked, NEWEST FIRST). Links are node + 1, 0 = none. */
-    let eRule = new Int32Array(edgeCap), eCell = new Uint32Array(edgeCap), eNext = new Uint32Array(edgeCap), ePrev = new Uint32Array(edgeCap), eNextRule = new Uint32Array(edgeCap);
+    let eRule = new Int32Array(edgeCap), eCell = new Uint32Array(edgeCap), eNext = new Uint32Array(edgeCap), ePrev = new Uint32Array(edgeCap), eNextRule = new Uint32Array(edgeCap), ePrevRule = new Uint32Array(edgeCap);
     let edgeCount = 0, edgeFree = 0; // edgeFree = edge + 1 of the first free edge (0 = none), linked through eNext
     const ownerGet = (cell) => ownerOf[cell] - 1;
     const ownerSet = (cell, rule) => { ownerOf[cell] = rule + 1; };
@@ -149,6 +150,9 @@ export function instantiateKernelJS(host, caps = {}) {
             const nr = new Uint32Array(cap);
             nr.set(eNextRule);
             eNextRule = nr;
+            const pr = new Uint32Array(cap);
+            pr.set(ePrevRule);
+            ePrevRule = pr;
             edgeCap = cap;
         }
         return edgeCount++;
@@ -165,9 +169,11 @@ export function instantiateKernelJS(host, caps = {}) {
         else
             cellTail[cell] = pv;
     };
-    const freeNode = (e) => { eRule[e] = -1; eNextRule[e] = edgeFree; eNext[e] = 0; ePrev[e] = 0; edgeFree = e + 1; };
+    const freeNode = (e) => { eRule[e] = -1; eNextRule[e] = edgeFree; ePrevRule[e] = 0; eNext[e] = 0; ePrev[e] = 0; edgeFree = e + 1; };
     /** kernel.c link: append to the cell's subscribers, PREPEND to the rule's reads */
     const link = (rule, cell) => {
+        if ((rState[rule] & ST_DEAD) !== 0)
+            return; // a dead rule takes no edges (kernel.c link)
         const e = allocEdge();
         eRule[e] = rule;
         eCell[e] = cell;
@@ -179,8 +185,21 @@ export function instantiateKernelJS(host, caps = {}) {
         else
             cellHead[cell] = e + 1;
         cellTail[cell] = e + 1;
+        ePrevRule[e] = 0;
         eNextRule[e] = rDynHead[rule];
+        if (eNextRule[e] !== 0)
+            ePrevRule[eNextRule[e] - 1] = e + 1;
         rDynHead[rule] = e + 1;
+    };
+    /** take a node out of its rule's list: O(1), both directions linked (kernel.c unlink_rule) */
+    const unlinkRule = (e) => {
+        const rule = eRule[e], nx = eNextRule[e], pv = ePrevRule[e];
+        if (pv !== 0)
+            eNextRule[pv - 1] = nx;
+        else
+            rDynHead[rule] = nx;
+        if (nx !== 0)
+            ePrevRule[nx - 1] = pv;
     };
     /** kernel.c free_cell's walk: every node on the cell leaves its rule's list and is freed */
     const detachCell = (cell) => {
@@ -188,16 +207,8 @@ export function instantiateKernelJS(host, caps = {}) {
             const e = h - 1;
             h = eNext[e];
             const rule = eRule[e];
-            if (known(rule)) {
-                if (rDynHead[rule] === e + 1)
-                    rDynHead[rule] = eNextRule[e];
-                else
-                    for (let p = rDynHead[rule]; p !== 0; p = eNextRule[p - 1])
-                        if (eNextRule[p - 1] === e + 1) {
-                            eNextRule[p - 1] = eNextRule[e];
-                            break;
-                        }
-            }
+            if (known(rule))
+                unlinkRule(e);
             freeNode(e);
         }
         cellHead[cell] = 0;
@@ -221,7 +232,7 @@ export function instantiateKernelJS(host, caps = {}) {
     };
     const trackCell = (cell) => (active[0] < 0 ? OK : trackFor(active[0], cell));
     const trackFor = (a, cell) => {
-        if (!known(a) || cell >= ncells)
+        if (!known(a) || cell >= ncells || (rState[a] & ST_DEAD) !== 0)
             return OK;
         const s = rSerial[a];
         if (markOf[cell] === s)
@@ -325,7 +336,18 @@ export function instantiateKernelJS(host, caps = {}) {
         }
     };
     // ── rules ─────────────────────────────────────────────────────────────────
-    const freeRule = (rule) => { ruleFree.push(rule); };
+    // One id on the free list once: a second free would hand it out twice. The
+    // C kernel cannot see this happen; the twin says where it would have.
+    const rFreed = new Set();
+    const freeRule = (rule) => {
+        if (rFreed.has(rule)) {
+            if ((typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) || globalThis.__declareKernelChecks === true)
+                console.error(`kernel(js): rule ${rule} freed twice\n${new Error().stack ?? ""}`);
+            return;
+        }
+        rFreed.add(rule);
+        ruleFree.push(rule);
+    };
     const dispose = (rule) => {
         if (!known(rule) || (rState[rule] & ST_DEAD) !== 0)
             return;
@@ -335,7 +357,8 @@ export function instantiateKernelJS(host, caps = {}) {
         if (owns >= 0 && ownerGet(owns) === rule)
             ownerSet(owns, -1);
         rOwns[rule] = -1;
-        if ((rState[rule] & ST_QUEUED) === 0)
+        // else freed when its queue entry drains, or when its own run ends
+        if ((rState[rule] & (ST_QUEUED | ST_RUNNING)) === 0)
             freeRule(rule);
     };
     const evalExpr = (rule) => {
@@ -489,6 +512,8 @@ export function instantiateKernelJS(host, caps = {}) {
         let v = 0;
         drainTrack(); // reads appended by whatever is active now link to IT, before we switch
         drain(); // host writes since the last drain wake their dependents first
+        const wasRunning = (rState[rule] & ST_RUNNING) !== 0;
+        rState[rule] |= ST_RUNNING;
         switch (rKind[rule]) {
             case K_EXPR:
                 v = evalExpr(rule);
@@ -515,7 +540,20 @@ export function instantiateKernelJS(host, caps = {}) {
             case K_EXTENT:
                 v = extentRun(rule);
                 break;
-            default: return ERR_BAD;
+            case K_LAYOUT:
+                v = layoutRun(rule);
+                break;
+            default:
+                rState[rule] &= ~ST_RUNNING;
+                return ERR_BAD;
+        }
+        if (!wasRunning)
+            rState[rule] &= ~ST_RUNNING;
+        if ((rState[rule] & ST_DEAD) !== 0) {
+            // disposed by its own body: nothing lands; freed now nothing runs in it
+            if (!wasRunning && (rState[rule] & ST_QUEUED) === 0)
+                freeRule(rule);
+            return OK;
         }
         rState[rule] &= ~(ST_REWIRE | ST_UNLANDED);
         apply(rule, v);
@@ -562,8 +600,8 @@ export function instantiateKernelJS(host, caps = {}) {
     const abandon = () => {
         for (const phase of q) {
             for (const rule of phase) {
-                if (!known(rule))
-                    continue;
+                if (!known(rule) || (rState[rule] & ST_QUEUED) === 0)
+                    continue; // a stale entry (kernel.c abandon)
                 rState[rule] &= ~ST_QUEUED;
                 if ((rState[rule] & ST_DEAD) !== 0)
                     freeRule(rule);
@@ -669,6 +707,9 @@ export function instantiateKernelJS(host, caps = {}) {
     let viewFree = NONE;
     const VS = (view, field) => table[elemBase[view] + vl[field]];
     const VB = (base, field) => table[base + vl[field]];
+    /** kernel.c block_ok: a child word names a block the cell table holds whole */
+    let vlSpan = 0;
+    const blockOk = (base) => base >= 0 && base < ncells && ncells - base >= vlSpan;
     const setField = (base, field, v) => { setValue(base + vl[field], v); };
     const DEG = Math.PI / 180;
     /** localAffine by block base; null when identity */
@@ -821,13 +862,18 @@ export function instantiateKernelJS(host, caps = {}) {
             return OK;
         if (code[w0] !== NONE && code[w0] < ncells)
             link(rule, code[w0]);
+        if (n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells)
+            link(rule, code[w0 + 1]);
         const L = vl;
-        for (let i = 1; i < n; i++)
+        for (let i = 2; i < n; i++) {
+            if (!blockOk(code[w0 + i]))
+                continue;
             for (const f of EXTENT_FIELDS) {
                 const e = linkChecked(rule, code[w0 + i] + L[f]);
                 if (e !== OK)
                     return e;
             }
+        }
         return OK;
     };
     const percentOwned = (cell) => {
@@ -839,8 +885,10 @@ export function instantiateKernelJS(host, caps = {}) {
         const axis = rElem[rule];
         const L = vl;
         let max = 0;
-        for (let i = 1; i < n; i++) {
+        for (let i = 2; i < n; i++) {
             const base = code[w0 + i];
+            if (!blockOk(base))
+                continue;
             if (VB(base, "visible") === 0 || VB(base, "ignoreClip") !== 0)
                 continue;
             if (percentOwned(base + (axis === 0 ? L.x : L.y)) || percentOwned(base + (axis === 0 ? L.width : L.height)))
@@ -873,7 +921,75 @@ export function instantiateKernelJS(host, caps = {}) {
             if (e > max)
                 max = e;
         }
+        // the container's own padding on this axis (kernel.c extent_run)
+        if (n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells)
+            max += table[code[w0 + 1]];
         return max;
+    };
+    // the stack layout (kernel.c layout_link / layout_run): a child's footprint
+    // fields are its edges, never its position, which the rule writes
+    const LAYOUT_FIELDS = ["width", "height", "visible", "scale", "scaleX", "scaleY",
+        "rotation", "skewX", "skewY", "pivotX", "pivotY", "rotateX", "rotateY", "translateZ"];
+    const layoutLink = (rule) => {
+        const w0 = rCode0[rule], n = rBody[rule];
+        if (code[w0] !== NONE && code[w0] < ncells)
+            link(rule, code[w0]);
+        if (n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells)
+            link(rule, code[w0 + 1]);
+        const L = vl;
+        for (let i = 2; i < n; i++) {
+            const base = code[w0 + i] >= LAYOUT_NOWRITE ? code[w0 + i] - LAYOUT_NOWRITE : code[w0 + i];
+            if (!blockOk(base))
+                continue;
+            for (const f of LAYOUT_FIELDS) {
+                const e = linkChecked(rule, base + L[f]);
+                if (e !== OK)
+                    return e;
+            }
+        }
+        return OK;
+    };
+    const layoutRun = (rule) => {
+        const w0 = rCode0[rule], n = rBody[rule];
+        const axis = rElem[rule];
+        const L = vl;
+        const spacing = n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells ? table[code[w0 + 1]] : 0;
+        let pos = 0;
+        for (let i = 2; i < n; i++) {
+            const word = code[w0 + i];
+            const write = word < LAYOUT_NOWRITE, base = write ? word : word - LAYOUT_NOWRITE;
+            if (!blockOk(base))
+                continue;
+            if (VB(base, "rotateX") !== 0 || VB(base, "rotateY") !== 0 || VB(base, "translateZ") !== 0) {
+                host.decline(rule); // out of the plane: the host's footprint3D
+                return 0;
+            }
+            const wd = VB(base, "width"), ht = VB(base, "height");
+            let lead = 0, ext = axis === 0 ? wd : ht;
+            const m = ownAffine(base);
+            if (m !== null) {
+                let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                const pxs = [0, wd, 0, wd], pys = [0, 0, ht, ht];
+                for (let c = 0; c < 4; c++) {
+                    const fx = m[0] * pxs[c] + m[2] * pys[c] + m[4], fy = m[1] * pxs[c] + m[3] * pys[c] + m[5];
+                    if (fx < minX)
+                        minX = fx;
+                    if (fx > maxX)
+                        maxX = fx;
+                    if (fy < minY)
+                        minY = fy;
+                    if (fy > maxY)
+                        maxY = fy;
+                }
+                lead = axis === 0 ? minX : minY;
+                ext = axis === 0 ? maxX - minX : maxY - minY;
+            }
+            if (write)
+                setValue(base + (axis === 0 ? L.x : L.y), pos - lead);
+            if (VB(base, "visible") !== 0)
+                pos += ext + spacing;
+        }
+        return 0;
     };
     const self = {
         table, active, capacity,
@@ -920,6 +1036,8 @@ export function instantiateKernelJS(host, caps = {}) {
         run: (rule) => {
             if (!known(rule))
                 return ERR_BAD;
+            if ((rState[rule] & ST_DEAD) !== 0)
+                return OK; // disposed: nothing to run (kernel.c kernel_run)
             drain();
             const e = pull(rule, 0);
             if (e !== OK)
@@ -1039,8 +1157,10 @@ export function instantiateKernelJS(host, caps = {}) {
                 return ERR_BAD;
             let id;
             const reused = ruleFree.pop();
-            if (reused !== undefined)
+            if (reused !== undefined) {
                 id = reused;
+                rFreed.delete(id);
+            }
             else {
                 if (nrules === ruleCap)
                     growRules();
@@ -1086,7 +1206,7 @@ export function instantiateKernelJS(host, caps = {}) {
         },
         addConst: (v) => { consts.push(v); return consts.length - 1; },
         // ── the built-in VIEW rules: the view table, visibility, auto-extent ────
-        viewLayout: (layout) => { vl = { ...layout }; },
+        viewLayout: (layout) => { vl = { ...layout }; vlSpan = Math.max(0, ...Object.values(layout).map((f) => f + 1)); },
         viewDprCell: (cell) => { dprCell = cell; },
         viewAdd: (base, parent) => {
             let id;
@@ -1133,7 +1253,7 @@ export function instantiateKernelJS(host, caps = {}) {
             return visLinkChain(rule, rBody[rule], rElem[rule]);
         },
         extentAdd: (axis, target, words) => {
-            if (vl === null || target >= ncells || words.length === 0)
+            if (vl === null || target >= ncells || words.length < 2)
                 return ERR_BAD;
             const id = self.addRule(target, K_EXTENT, F_YIELDING, [], 0);
             if (id < 0)
@@ -1148,11 +1268,26 @@ export function instantiateKernelJS(host, caps = {}) {
             return id;
         },
         extentRewire: (rule, words) => {
-            if (!known(rule) || rKind[rule] !== K_EXTENT || words.length === 0)
+            if (!known(rule) || rKind[rule] !== K_EXTENT || (rState[rule] & ST_DEAD) !== 0 || words.length < 2)
                 return ERR_BAD;
             unlinkAll(rule);
             extentStore(rule, words);
             return extentLink(rule);
+        },
+        layoutAdd: (axis, words) => {
+            if (vl === null || words.length < 2 || axis > 1)
+                return ERR_BAD;
+            const id = self.addRule(-1, K_LAYOUT, 0, [], 0);
+            if (id < 0)
+                return id;
+            rElem[id] = axis;
+            extentStore(id, Array.from(words, (w) => w >>> 0));
+            const e = layoutLink(id);
+            if (e !== OK) {
+                dispose(id);
+                return e;
+            }
+            return id;
         },
     };
     return self;

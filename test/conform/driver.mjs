@@ -83,6 +83,15 @@ export function browserDriver(page, label) {
         for (const m of a.slice(1)) await page.keyboard.up(MODS[m] ?? m);
         return;
       }
+      // a fast fling: the platform's own gesture at full speed (a wheel burst
+      // here), for checks that care what is on screen once it stops, not where
+      if (verb === "flick") {
+        await page.mouse.move(a[0], a[1]);
+        for (let i = 0; i < 30; i++) { await page.mouse.wheel({ deltaY: a[2] * 600 }); await sleep(0.008); }
+        return;
+      }
+      // the viewport changes size (a window resized, a device turned)
+      if (verb === "resize") return page.setViewport({ width: a[0], height: a[1] });
       throw new Error(`conform: unknown step ${verb}`);
     },
     ask(expr) {
@@ -136,6 +145,8 @@ export function macDriver({ inPath = CTL_IN, outPath = CTL_OUT } = {}) {
       if (verb === "click") return void (await ctl(`click ${a[0]} ${a[1]}`));
       if (verb === "scroll") return void (await ctl(`scroll ${a[0]} ${a[1]} ${a[2] ?? 0} ${a[3] ?? 0} ${a[4] ? 1 : 0}`));
       if (verb === "key") return void (await ctl(`key ${a.join(" ")}`));
+      if (verb === "flick") { for (let i = 0; i < 30; i++) await ctl(`scroll ${a[0]} ${a[1]} ${a[2] * 60} 0 0`); return; }
+      if (verb === "resize") return void (await ctl(`resize ${a[0]} ${a[1]}`));
       throw new Error(`conform: unknown step ${verb}`);
     },
     async ask(expr) {
@@ -206,4 +217,149 @@ export function macLive() {
   } catch {
     return false;
   }
+}
+
+/** WebKit (or Firefox) through Playwright: the same two verbs. Opt-in, like the
+ *  native column — Playwright is not a dependency, so the run is told where it
+ *  is (PLAYWRIGHT_CORE, a path to playwright-core's index.mjs) or finds it
+ *  installed; asked for and absent is an error. */
+export async function loadPlaywright() {
+  const at = process.env.PLAYWRIGHT_CORE;
+  try { return at ? await import(at) : await import("playwright-core"); } catch { return null; }
+}
+export function webkitRequested() {
+  return process.argv.includes("--webkit") || process.env.CONFORM_WEBKIT === "1";
+}
+export function playwrightDriver(page, label) {
+  return {
+    label,
+    page,
+    async focus() { await page.bringToFront(); },
+    async drive(step) {
+      const [verb, ...a] = step;
+      if (verb === "wait") return sleep(a[0]);
+      if (verb === "move") return page.mouse.move(a[0], a[1]);
+      if (verb === "click") { await page.mouse.move(a[0], a[1]); await sleep(0.05); return page.mouse.click(a[0], a[1]); }
+      if (verb === "scroll") { await page.mouse.move(a[0], a[1]); await sleep(0.05); return page.mouse.wheel(a[3] ?? 0, a[2] ?? 0); }
+      if (verb === "key") {
+        for (const m of a.slice(1)) await page.keyboard.down(MODS[m] ?? m);
+        await page.keyboard.press(a[0]);
+        for (const m of a.slice(1)) await page.keyboard.up(MODS[m] ?? m);
+        return;
+      }
+      if (verb === "flick") {
+        await page.mouse.move(a[0], a[1]);
+        for (let i = 0; i < 30; i++) { await page.mouse.wheel(0, a[2] * 600); await sleep(0.008); }
+        return;
+      }
+      if (verb === "resize") return page.setViewportSize({ width: a[0], height: a[1] });
+      throw new Error(`conform: unknown step ${verb}`);
+    },
+    ask(expr) { return page.evaluate(`(() => (${expr}))()`); },
+  };
+}
+
+/** Safari on the iOS simulator, through Appium (XCUITest): ask runs in the
+ *  page; a flick is a real touch flick (the simulator's own momentum). No
+ *  pointer or keyboard — `click`, `move`, `scroll` and `key` are refused, so a
+ *  test says which of its steps a touch host cannot take. Opt-in (--ios),
+ *  with an Appium server at APPIUM (default :4723) and a booted simulator
+ *  (UDID). */
+export function iosRequested() {
+  return process.argv.includes("--ios") || process.env.CONFORM_IOS === "1";
+}
+export async function iosDriver({ appium = process.env.APPIUM ?? "http://127.0.0.1:4723", udid = process.env.UDID } = {}) {
+  // The sequence is my-apps/simcheck's, which drives the simulator reliably:
+  // navigate from inside the page, wait, then take a FRESH session (navigation
+  // breaks the old one's debugger) and find the web context showing the page.
+  let base = "";
+  // every call has a deadline: a helper that stops answering (WebDriverAgent,
+  // the app Appium runs in the simulator for touches) fails the step, never hangs it
+  const req = async (method, p, body) => {
+    let res;
+    try { res = await fetch(base + p, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) }); }
+    catch (e) { throw new Error(`conform (ios): ${method} ${p} got no answer in 30 s${p.includes("context") || p.includes("orientation") || /mobile:/.test(JSON.stringify(body ?? "")) ? " — WebDriverAgent (touches, rotation) may have stopped" : ""}`); }
+    const j = await res.json();
+    if (j.value?.error) throw new Error(`conform (ios): ${p} — ${String(j.value.message).split("\n")[0].slice(0, 200)}`);
+    return j.value;
+  };
+  const session = async () => {
+    if (base !== "") await fetch(base, { method: "DELETE" }).catch(() => {});
+    // headless: the simulator runs without its window (nothing appears on screen)
+    const caps = { platformName: "iOS", "appium:automationName": "XCUITest", browserName: "Safari", "appium:newCommandTimeout": 1800, "appium:isHeadless": true };
+    if (udid) caps["appium:udid"] = udid;
+    const r = await (await fetch(appium + "/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ capabilities: { alwaysMatch: caps } }) })).json();
+    if (!r.value?.sessionId) throw new Error("conform (ios): Appium gave no session — " + JSON.stringify(r.value).slice(0, 200));
+    base = `${appium}/session/${r.value.sessionId}`;
+  };
+  // the web context showing `at` (Safari may hold other tabs)
+  let at = "", ctx = null;
+  const web = async () => {
+    if (ctx !== null) { await req("POST", "/context", { name: ctx }); return; }
+    for (let tries = 0; tries < 20; tries++) {
+      for (const c of (await req("GET", "/contexts")).filter((x) => String(x).startsWith("WEBVIEW"))) {
+        try {
+          await req("POST", "/context", { name: c });
+          const href = await req("POST", "/execute/sync", { script: "return location.href", args: [] });
+          if (at === "" || String(href).startsWith(at)) { ctx = c; return; }
+        } catch { /* the debugger is reattaching after the navigation */ }
+      }
+      await sleep(1);
+    }
+    throw new Error("conform (ios): no web context shows " + at);
+  };
+  await session();
+  // touches and rotation go through WebDriverAgent: prove it answers before any scenario needs it
+  await req("POST", "/context", { name: "NATIVE_APP" });
+  await req("GET", "/window/rect");
+  return {
+    label: "ios",
+    touch: true,
+    async open(url) {
+      // navigate inside the tab the session holds, then take a fresh session.
+      // (Open a program by its DIRECTORY: a `.declare` URL is also the address
+      // the page fetches its source from, and the tab the fresh session finds
+      // can be one Safari restored from its cache — the source, as text.)
+      ctx = null; at = "";
+      await web();
+      await req("POST", "/execute/sync", { script: "setTimeout(() => { if (location.href === arguments[0]) location.reload(); else location.href = arguments[0]; }, 50); return 1", args: [url] });
+      await sleep(8);
+      at = url; ctx = null;
+      await session();
+      await web();
+      for (let i = 0; i < 60; i++) {
+        if (await req("POST", "/execute/sync", { script: "return typeof __declare !== 'undefined' && typeof __declare.find === 'function' && __declare.find('app') != null", args: [] }) === true) { await sleep(1); return; }
+        await sleep(0.5);
+      }
+      throw new Error(`conform (ios): ${url} shows, but the program never started`);
+    },
+    async drive(step) {
+      const [verb, ...a] = step;
+      if (verb === "wait") return sleep(a[0]);
+      // (gestures and rotation are Appium's own commands, answered in the web
+      // context too: no switch to the native one, which can hang there)
+      if (verb === "flick") {
+        const up = a[2] > 0;
+        await req("POST", "/execute/sync", { script: "mobile: dragFromToWithVelocity", args: [{ fromX: 200, fromY: up ? 650 : 250, toX: 200, toY: up ? 250 : 650, pressDuration: 0.05, holdDuration: 0.01, velocity: 6000 }] });
+        return;
+      }
+      // a phone resizes by turning: wider than tall is landscape
+      if (verb === "resize") {
+        await req("POST", "/orientation", { orientation: a[0] > a[1] ? "LANDSCAPE" : "PORTRAIT" });
+        return;
+      }
+      throw new Error(`conform (ios): the touch host takes no ${verb} step`);
+    },
+    // the web context stays selected between questions (each switch is a round
+    // trip of its own); a stale one is found again and the question asked once more
+    async ask(expr) {
+      const q = () => req("POST", "/execute/sync", { script: `return (() => (${expr}))()`, args: [] });
+      try { return await q(); }
+      catch (first) {
+        try { await web(); } catch (again) { throw new Error(`${first.message} — then, finding the page again: ${again.message}`); }
+        return q();
+      }
+    },
+    async close() { await fetch(base, { method: "DELETE" }).catch(() => {}); },
+  };
 }

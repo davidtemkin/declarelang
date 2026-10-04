@@ -2,8 +2,8 @@
 //
 //   App [ fontFamily = { [brand, "Helvetica", "sans-serif"] },
 //       brand: Font [ wait = 800,
-//           Face [ src = "brand-400.woff2" ],
-//           Face [ src = "brand-700.woff2", weight = bold ] ],
+//           FontFace [ src = "brand-400.woff2" ],
+//           FontFace [ src = "brand-700.woff2", weight = bold ] ],
 //       ui: Font [ family = "Helvetica Neue" ] ]              // a system font
 //
 // A Font owns its faces; a Font with no faces is a SYSTEM font naming a family the
@@ -115,11 +115,14 @@ provideFontDemand({
     touch,
 });
 function browserHost() {
-    if (typeof FontFace === "undefined" || typeof document === "undefined")
+    // The BROWSER's FontFace, by its global name — this module's own FontFace
+    // is the language's class of that name, and shadows it here.
+    const Native = globalThis.FontFace;
+    if (Native === undefined || typeof document === "undefined")
         return null;
     const set = document.fonts;
     return {
-        load: async (family, src, d) => { const face = new FontFace(family, src, d); await face.load(); return face; },
+        load: async (family, src, d) => { const face = new Native(family, src, d); await face.load(); return face; },
         add: (h) => set.add(h),
         remove: (h) => set.delete?.(h),
         setTimeout: (fn, ms) => setTimeout(fn, ms),
@@ -130,11 +133,11 @@ let host;
 const hostNow = () => (host === undefined ? (host = browserHost()) : host);
 /** Replace the face loader (tests); null restores the environment's own. */
 export function setFontHost(h) { host = h ?? undefined; }
-// ── Face ─────────────────────────────────────────────────────────────────────
+// ── FontFace ─────────────────────────────────────────────────────────────────────
 /** One face of a Font: a file, the weight(s) it covers, and whether it is italic. */
-export class Face extends Node {
+export class FontFace extends Node {
 }
-defineAttributes(Face, {
+defineAttributes(FontFace, {
     src: { def: "" },
     weight: { def: "regular" },
     italic: { def: false },
@@ -212,7 +215,7 @@ export class Font extends Node {
     }
     #faces() {
         this.watchChildList();
-        return this.children.filter((c) => c instanceof Face);
+        return this.children.filter((c) => c instanceof FontFace);
     }
     #faceSignature() {
         const faces = this.#faces().map((f) => [f.src, f.weight, f.italic]);

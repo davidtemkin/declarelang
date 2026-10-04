@@ -16,9 +16,10 @@ import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { buildProduction } from "../tools/declarec.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const chrome = [process.env.PUPPETEER_EXECUTABLE_PATH, "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/usr/bin/google-chrome", "/usr/bin/chromium"].filter(Boolean).find(existsSync);
-const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
 
 // super through three levels, fired at boot: the log is "cab" only if every
 // `super.onInit()` reached its base

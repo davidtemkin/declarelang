@@ -1,0 +1,145 @@
+/*
+# A voice message
+
+The recording is its own picture: its loudness, drawn as a row of bars, is the
+scrubber. Its length reads before it plays; while it plays the bars fill with
+ink from the left and the clock counts up; press or drag anywhere across the
+bars and the playhead goes there — the bars are the track, there is no knob
+to find. From the keyboard, the arrows step through it five seconds at a time.
+
+Only one recording speaks at a time; starting one quiets any other.
+*/
+
+class VoiceSaid extends Said [
+    bodyW = { this.bubble.width },
+    bodyH = { this.bubble.height },
+    dur: number = { ((:m.durationMs ?? 0) as number) / 1000 },
+    peaks: number[] = { (:m.peaks ?? []) as number[] },
+
+    // the playhead, in seconds — the audio reports a few times a second; between
+    // reports it is carried forward by the frame clock so the ink moves smoothly
+
+    head: number = 0,
+    current: boolean = { app.nowPlaying == classroot.lid },
+
+    audio: Audio [ source = { app.api + :m.src },
+        trackChanges = ["position", "ended"],
+        onChange() {
+            if (this.ended) { classroot.head = 0; this.position = 0 }
+            else classroot.head = this.position
+            }
+        ],
+    run: Time [ tick = frame, running = { classroot.audio.playing },
+        onTick(dt: number) { classroot.head = Math.min(classroot.dur, classroot.head + dt) }
+        ],
+
+    trackChanges = ["current"],
+    onChange() { if (!current) audio.playing = false },
+
+    toggle() {
+        if (audio.playing) { audio.playing = false; return }
+        app.nowPlaying = lid
+        audio.position = head
+        audio.playing = true
+        },
+
+    seek(t: number) {
+        head = Math.max(0, Math.min(dur, t))
+        audio.position = head
+        },
+
+    bubble: View [ x = { classroot.bodyX }, y = { classroot.bodyY }, height = 58,
+        width = { Math.min(classroot.maxW, 320) },
+        cornerRadius = { classroot.radii },
+        fill = { classroot.ink },
+        onHold() { classroot.react() },
+
+        play: PlayButton [ x = 9, y = center,
+            playing = { classroot.audio.playing },
+            ink = { classroot.inkText },
+            ground = { classroot.ink },
+            press() { classroot.toggle() }
+            ],
+
+        wave: Scrubber [ x = 54, y = 11, height = 36,
+            width = { parent.width - 54 - 58 },
+            peaks = { classroot.peaks },
+            dur = { classroot.dur },
+            head = { classroot.head },
+            ink = { classroot.inkText },
+            input(t: number) { classroot.seek(t) }
+            ],
+
+        time: Text [ y = center, width = 44, textAlign = right, fontSize = 13, wrap = false, numeralWidth = tabular,
+            x = { parent.width - 56 },
+            textColor = { classroot.inkText },
+            opacity = 0.8,
+            text = { clock(classroot.audio.playing || classroot.head > 0 ? classroot.head : classroot.dur) } ]
+        ]
+    ]
+
+
+class PlayButton extends Control [ width = 40, height = 40, cornerRadius = 20,
+    playing: boolean = false,
+    ink: number = 0,             // the bubble's text colour: the button is a solid disc of it
+    ground: number = 0,          // the bubble's colour: the mark is cut from the disc in it
+    tip = { playing ? "Pause" : "Play" },
+    fill = { ink },
+    opacity = { down ? 0.75 : hot ? 0.9 : 1 },
+    draw(d: Draw) {
+        d.fillStyle = ground
+        if (playing) {
+            d.fillRect(14, 13, 4, 14)
+            d.fillRect(22, 13, 4, 14)
+        } else {
+            d.beginPath()
+            d.moveTo(16, 12)
+            d.lineTo(28, 20)
+            d.lineTo(16, 28)
+            d.closePath()
+            d.fill()
+        }
+        }
+    ]
+
+
+class Scrubber extends Control [ claim = x,
+    peaks: number[] = [],
+    dur: number = 0,
+    head: number = 0,
+    ink: number = 0,
+    grabbed: boolean = false,
+    tip = "Drag to move through the recording",
+
+    input(t: number) { },
+    at(px: number) -> number { return Math.max(0, Math.min(1, px / Math.max(1, width))) * dur },
+
+    onPointerDown(e: PointerEvent) { super.onPointerDown(); grabbed = true; input(this.at(e.x)) },
+    onPointerMove(e: PointerEvent) { if (grabbed) input(this.at(e.x)) },
+    onPointerUp(e: PointerUpEvent) { grabbed = false },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowRight") input(Math.min(dur, head + 5))
+        else if (e.key == "ArrowLeft") input(Math.max(0, head - 5))
+        },
+
+    // the loudness as bars, inked up to the playhead, with the playhead itself
+    // standing through them once there is somewhere to show
+
+    draw(d: Draw) {
+        const n = Math.max(1, Math.floor((d.w + 1.5) / 4))
+        const split = dur > 0 ? head / dur * d.w : 0
+        for (let i = 0; i < n; i++) {
+            const p = peaks.length == 0 ? 0 : peaks[Math.min(peaks.length - 1, Math.floor(i / n * peaks.length))]
+            const h = Math.max(3, Math.round(p * d.h))
+            const x = i * 4
+            d.globalAlpha = x + 1.25 <= split ? 1 : 0.32
+            d.fillStyle = ink
+            d.fillRect(x, (d.h - h) / 2, 2.5, h)
+        }
+        if (head > 0) {
+            d.globalAlpha = 1
+            d.fillStyle = theme.accent
+            d.fillRect(Math.min(d.w - 2, Math.max(0, split - 1)), 0, 2, d.h)
+        }
+        }
+    ]

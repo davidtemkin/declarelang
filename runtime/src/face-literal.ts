@@ -1,7 +1,7 @@
-// A FACE'S LITERAL FORMS — the weights and sources a `Face [ … ]` is written
+// A FACE'S LITERAL FORMS — the weights and sources a `FontFace [ … ]` is written
 // with, shared by the checker, the coercion and the Font class so the three
 // cannot disagree. Its own file so a production build carries it only for a
-// program that declares a Face (the `faces` capability, compiler/src/capabilities.ts).
+// program that declares a FontFace (the `faces` capability, compiler/src/capabilities.ts).
 
 import type { Literal } from "./parser.js";
 
@@ -11,7 +11,7 @@ export const FONT_WEIGHTS: Readonly<Record<string, number>> = Object.freeze({
   medium: 500, semibold: 600, bold: 700, extrabold: 800, black: 900,
 });
 
-/** A Face's weight at runtime: a token, a number 1–1000, or a variable range. */
+/** A FontFace's weight at runtime: a token, a number 1–1000, or a variable range. */
 export type FaceWeight = string | number | readonly [number, number];
 
 /** A weight token → its numeric CSS weight, or null if not a formalized token. */
@@ -22,7 +22,7 @@ export function faceWeight(token: string): string | null {
 
 export const FACE_WEIGHT_FORMS = "a token (thin … black), a number 1–1000, or range(lo, hi) for a variable font";
 
-/** What a Face's `weight` may be written as — the one rule for the checker and
+/** What a FontFace's `weight` may be written as — the one rule for the checker and
  *  the coercion. `range(lo, hi)` is a VARIABLE font whose `wght` axis spans the
  *  range: the face answers every weight in it (CSS's `font-weight: 100 900`). */
 export function faceWeightLiteral(lit: Literal): { value: FaceWeight } | { error: string } {
@@ -42,7 +42,7 @@ export function faceWeightLiteral(lit: Literal): { value: FaceWeight } | { error
     }
     return { error: `range(lo, hi) takes two whole numbers 1–1000 with lo < hi — the weights a variable font covers` };
   }
-  return { error: `a Face weight is ${FACE_WEIGHT_FORMS}` };
+  return { error: `a FontFace weight is ${FACE_WEIGHT_FORMS}` };
 }
 
 /** A runtime weight → the CSS `font-weight` descriptor a face registers with. */
@@ -53,7 +53,7 @@ export function faceWeightDescriptor(v: unknown): string {
   return "400";
 }
 
-/** What a Face's `src` may be written as: a URL string, `url("…")`, `local("…")`,
+/** What a FontFace's `src` may be written as: a URL string, `url("…")`, `local("…")`,
  *  or a list of those tried in order. The value is the CSS form of each item. */
 export function faceSourceLiteral(lit: Literal): { value: string | string[] } | { error: string } {
   const one = (l: Literal): string | { error: string } => {

@@ -36,8 +36,10 @@ App [ width = 360, height = 300, fill = white,
   refresh), `loading` and `failed` about the request. No flags to set.
 - `fetch()` settles first, so a handler can aim the request (`app.target = :id`) and send
   it in one go. `onLoad()` is what follows the reply; `fetch()` never throws.
-- A source's value is the server's: each fetch replaces it. Edit a working copy, filled
-  in `onLoad`, so a refresh can't overwrite work in progress.
+- Where edits go depends on whether the source fetches again. If it refreshes (a timer,
+  a `url` that changes, `auto`), each fetch replaces its value: edit a working copy,
+  filled in `onLoad`. If it loads once and the app keeps it current (a `Socket` feeding
+  it), editing the source's own value is fine.
 - A `schema` validates the reply on arrival: bad data lands as `failed`, not as
   `undefined` three constraints later.
 - Logic about one feed belongs on it: `class Feed extends DataSource [ … onLoad() { … } ]`.

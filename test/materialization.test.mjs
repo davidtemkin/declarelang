@@ -233,7 +233,7 @@ await test("the policy slot: a boolean, and honest fallbacks", async () => {
   const info = materializationInfo(app.sc.content);
   assert.equal(info.windowed, true, "a vertical stack windows WITH its layout");
   assert.ok(info.materialized < 60, "windowed under SimpleLayout");
-  assert.equal(app.sc.content.height, 1500 * 40, "extent folds the spacing into the unit");
+  assert.equal(app.sc.content.height, 1500 * 30 + 1499 * 10, "the extent is the full stack's: spacing between rows, none after the last");
   const w = blocksOf(app.sc.content)[0].realized();
   for (const { view, index } of w) assert.equal(view.y, index * 40, "logical placement includes the gap");
   const xsrc = `App [ width = 400, height = 400,
@@ -504,7 +504,7 @@ async function makeLate(src = LATE) {
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
   const app = build(r.source);
-  app.attach(new HeadlessBackend(), null);
+  app.$attach(new HeadlessBackend(), null);
   settle();
   return app;
 }
@@ -567,6 +567,21 @@ class Note extends Entry [ ]
 class Photo extends Entry [ height = 90, pic: View [ y = 30, width = 120, height = 60 ] ]
 class Heading extends Entry [ height = 40, rule: View [ y = 38, width = 300, height = 1 ] ]`;
 const kindOf = (v) => v.pic !== undefined ? "photo" : v.rule !== undefined ? "heading" : "note";
+
+await test("windowed rows directly in the scroller: its contentHeight reads the LOGICAL extent", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300, datapath = { d.value },
+      layout: SimpleLayout [ axis = y ],
+      View [ datapath = :rows[], virtualize = true, width = 300, height = 30 ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "compiles");
+  const app = build(r.source);
+  app.d.value = { rows: rows(1000) }; settle();
+  assert.equal(materializationInfo(app.sc).windowed, true);
+  assert.equal(app.sc.contentHeight, 1000 * 30, "the window's rows alone would read a few hundred px");
+  app.d.value = { rows: rows(400) }; settle();
+  assert.equal(app.sc.contentHeight, 400 * 30, "a shrink follows");
+});
 
 async function kindsApp(n, virtualize) {
   const r = await compile(`${KINDS}
@@ -670,6 +685,334 @@ await test("rowIndex: under virtualize it is the logical index, not the window s
 await test("check: rowIndex is a fact — never assigned", async () => {
   const r = await compile(`App [ width = 100, height = 100, v: View [ rowIndex = 3 ] ]`);
   assert.ok(r.errors.some((e) => /rowIndex/.test(e.message)), r.errors.map((e) => e.message).join(" | "));
+});
+
+// A pane read from the bottom opens at its end and stays there while its rows
+// keep changing size. Here the rows the pane reaches grow as they come on
+// screen: content moving between the anchor putting the pane at the end and
+// its next look at where the reader is. Virtualized, the block's own estimate
+// corrections must not compete with the anchor for the offset.
+for (const policy of ["false"]) {
+await test(`scrollAnchor = end (virtualize = ${policy}): rows that grow as the pane reaches them keep it at its end`, async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, scrollAnchor = end, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = ${policy}, width = 300, height = { onScreen ? 60 : 30 } ],
+      ],
+    ],
+  ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(200) };
+  for (let i = 0; i < 8; i++) settle();
+  const max = app.sc.contentHeight - app.sc.height;
+  assert.ok(max > 200 * 30 - 300, "the rows on screen grew");
+  assert.ok(Math.abs(app.sc.scrollY - max) < 1, `at the end: scrollY ${app.sc.scrollY} of ${max}`);
+});
+}
+
+// Keep-place while scrolling: rows measured above the reader (their real
+// heights differ from the estimate) must not move what is on screen. Scrolled
+// into the middle of a list loaded once — no data change since — every row on
+// screen moves exactly as far as the scroll offset did, step after step.
+await test("windowed: corrections above the reader never move what is on screen (after the first load)", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 300, height = { 24 + (:n % 7) * 13 }, n: number = { :n } ],
+      ],
+    ],
+  ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(2000) };
+  for (let i = 0; i < 4; i++) settle();
+  app.sc.scrollY = Math.round(app.sc.contentHeight / 2); for (let i = 0; i < 4; i++) settle();
+  const onScreen = () => sc().filter((v) => v.y + v.height > app.sc.scrollY && v.y < app.sc.scrollY + 300);
+  const sc = () => app.sc.content.childViews.filter((v) => v.visible);
+  for (let step = 0; step < 30; step++) {
+    // keyed by RECORD: a recycled instance shows another record
+    const before = new Map(onScreen().map((v) => [v.n, v.y - app.sc.scrollY]));
+    app.sc.scrollY = app.sc.scrollY - 40;
+    for (let i = 0; i < 3; i++) settle();
+    const now = new Map(sc().map((v) => [v.n, v.y - app.sc.scrollY]));
+    let compared = 0;
+    for (const [n, at] of before) {
+      if (!now.has(n)) continue;
+      compared++;
+      assert.ok(Math.abs(now.get(n) - (at + 40)) < 1, `step ${step}: row ${n} moved ${Math.round(now.get(n) - at - 40)} px beyond the scroll`);
+    }
+    assert.ok(compared >= 3, "rows stayed on screen to compare");
+  }
+});
+
+// Rows sized by their children have no height until they are attached (at
+// boot the app is not sized yet): the window must settle anyway, and take
+// the real unit when heights land — not re-run itself while nothing can change.
+await test("windowed: rows sized by their content settle before they have a height", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 300, View [ width = 50, height = 20 ] ],
+      ],
+    ],
+  ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.d.value = { rows: rows(500) };
+  settle();                                   // unattached: no row has a height yet
+  app.$attach(new HeadlessBackend(), null);
+  for (let i = 0; i < 4; i++) settle();
+  const info = materializationInfo(app.sc.content);
+  assert.equal(info.windowed, true, "windowing engaged");
+  assert.ok(info.materialized < 60, `a window, not every row (${info.materialized})`);
+});
+
+// Windowing turned off (a bound policy flipping): the block gives the parent's
+// height back, and the auto-extent sizes it over every row from then on.
+await test("windowed → full: the parent's height returns to its auto-extent", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    virt: boolean = true,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = { app.virt }, width = 300, height = 30 ],
+      ],
+    ],
+  ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(300) };
+  for (let i = 0; i < 4; i++) settle();
+  assert.equal(materializationInfo(app.sc.content).windowed, true, "windowing engaged");
+  app.virt = false;
+  for (let i = 0; i < 4; i++) settle();
+  assert.equal(materializationInfo(app.sc.content).windowed, false, "windowing disengaged");
+  assert.equal(app.sc.content.height, 300 * 30, "every row counts in the parent's height");
+  app.d.value = { rows: rows(310) };
+  for (let i = 0; i < 4; i++) settle();
+  assert.equal(app.sc.content.height, 310 * 30, "and it follows the rows from then on");
+});
+
+// Rows that are the SCROLLER's own children (a Table's shape): a row above the
+// reader opening is compensated once — by the block — not again by the
+// scroller's content anchor.
+await test("windowed rows directly in the scroller: a row opening above the reader moves nothing on screen", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    openN: number = -1,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300, datapath = { d.value },
+      layout: SimpleLayout [ axis = y ],
+      View [ datapath = :rows[], virtualize = true, width = 300, n: number = { :n }, height = { n == app.openN ? 330 : 30 } ],
+    ],
+  ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(1000) };
+  for (let i = 0; i < 4; i++) settle();
+  app.sc.scrollY = 9000; for (let i = 0; i < 4; i++) settle();
+  const rowsNow = () => app.sc.childViews.filter((v) => v.visible && v.rowIndex >= 0);
+  const above = rowsNow().filter((v) => v.y + v.height <= app.sc.scrollY).sort((a, b) => b.y - a.y)[0];
+  assert.ok(above !== undefined, "a built row above the reader");
+  const before = new Map(rowsNow().filter((v) => v.y >= app.sc.scrollY && v.y < app.sc.scrollY + 300).map((v) => [v.n, v.y - app.sc.scrollY]));
+  app.openN = above.n;
+  for (let i = 0; i < 4; i++) settle();
+  let compared = 0;
+  for (const v of rowsNow()) {
+    if (!before.has(v.n)) continue;
+    compared++;
+    assert.ok(Math.abs(v.y - app.sc.scrollY - before.get(v.n)) < 1, `row ${v.n} moved ${Math.round(v.y - app.sc.scrollY - before.get(v.n))} px on screen`);
+  }
+  assert.ok(compared >= 5, "rows stayed on screen to compare");
+});
+
+// A row re-pointed at another record re-derives its size from its new content:
+// a part that exists only for some records (a sender's name over the first
+// message of a run) is counted the moment it appears.
+await test("windowed: a re-pointed row takes the size of its new record's content", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 300,
+          layout: SimpleLayout [ axis = y, spacing = 3 ],
+          padding = { [:n % 3 == 0 ? 10 : 1, 0, 1, 0] },
+          who: Text [ exists = { :n % 3 == 0 }, fontSize = 12, text = { "row " + :n } ],
+          body: View [ width = 200, height = { 20 + (:n % 4) * 10 } ] ],
+      ],
+    ],
+  ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(3000) };
+  for (let i = 0; i < 4; i++) settle();
+  const whoH = app.sc.content.children.find((c) => c.rowIndex >= 0 && c.who)?.who.height ?? 15;
+  const want = (n) => (n % 3 == 0 ? 10 + whoH + 3 : 1) + 20 + (n % 4) * 10 + 1;
+  for (const y of [20000, 40000, 5000, 60000, 30000]) {
+    app.sc.scrollY = y;
+    for (let i = 0; i < 4; i++) settle();
+    for (const { view, index } of block(app).realized()) {
+      if (!view.visible) continue;
+      assert.equal(view.height, want(index), `row ${index} at scroll ${y}: ${view.height} for content of ${want(index)}`);
+    }
+  }
+});
+
+// Engaging in the SAME update as new data (records without ids: identity is
+// the record object): the full block's rows are keyed by the records it last
+// built, so each must find its record's new place or retire — never stay
+// mounted at its old index beside a fresh row for the same record.
+await test("engaging with new data in the same update: no record is shown twice", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    big: boolean = false,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = { app.big }, width = 300, height = 30 ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(400) };
+  for (let i = 0; i < 3; i++) settle();
+  app.d.value = { rows: rows(400) };   // equal records, new objects
+  app.big = true;
+  for (let i = 0; i < 4; i++) settle();
+  const seen = new Map();
+  for (const c of app.sc.content.children) if (c.visible && c.rowIndex >= 0) seen.set(c.rowIndex, (seen.get(c.rowIndex) ?? 0) + 1);
+  const twice = [...seen].filter(([, k]) => k > 1).map(([i]) => i);
+  assert.deepEqual(twice.slice(0, 5), [], `records shown by two rows: ${twice.length}`);
+  assert.ok(seen.size < 60, `a window, not the full block (${seen.size} rows shown)`);
+});
+
+// A parked row presents no record: whatever asks rows for their place (a
+// table walking to its active row) must not find it there.
+await test("windowed: a parked row has no index", async () => {
+  const app = await makeApp("true", 1000);
+  app.$attach(new HeadlessBackend(), null);
+  // a jump re-points leavers straight into the new range; a viewport that
+  // shrinks after it needs fewer rows, and the rest park
+  app.sc.scrollY = 9000;
+  for (let i = 0; i < 4; i++) settle();
+  app.sc.height = 60;
+  for (let i = 0; i < 4; i++) settle();
+  const parked = app.sc.content.children.filter((c) => c.visible === false);
+  assert.ok(parked.length > 0, "the smaller viewport parked some rows");
+  assert.deepEqual([...new Set(parked.map((c) => c.rowIndex))], [-1], "every parked row reads rowIndex -1");
+});
+
+// An end pane taken to its end (scrollTo(Infinity)) and then sent elsewhere
+// by the program stays where it was sent: the request to the end arrived, so
+// rows landing at the new place are not growth at the end to follow.
+for (const policy of ["false", "true"]) {
+await test(`scrollAnchor = end (virtualize = ${policy}): a program scroll away from the end stays away`, async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, scrollAnchor = end, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = ${policy}, width = 300, height = { 20 + (:n % 5) * 9 } ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(2000) };
+  for (let i = 0; i < 6; i++) settle();
+  app.sc.scrollTo(Infinity);
+  for (let i = 0; i < 6; i++) settle();
+  assert.ok(Math.abs(app.sc.scrollY - (app.sc.contentHeight - app.sc.height)) < 1, "at the end");
+  app.sc.scrollTo(20000);
+  for (let i = 0; i < 6; i++) settle();
+  // (windowed, the landing pays estimate corrections above the reader into the
+  // offset without moving what is on screen: near, not exact)
+  const max = app.sc.contentHeight - app.sc.height;
+  assert.ok(Math.abs(app.sc.scrollY - 20000) < 100 && app.sc.scrollY < max - 1000, `stayed where it was sent: scrollY ${app.sc.scrollY} of ${max}`);
+});
+}
+
+// The full build's place: the top edge running through a row's bottom padding
+// (nothing inside it reaches past the edge) — the row below is what is read,
+// so the row above growing grows upward, out of view, and moves nothing.
+await test("scrollAnchor = content: an edge in a row's padding keeps the row below still", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    big: number = -1,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        View [ datapath = :rows[], width = 300, padding = [4, 0, 10, 0],
+          layout: SimpleLayout [ axis = y ],
+          body: View [ width = 200, height = { :n == app.big ? 90 : 30 } ] ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(200) };
+  for (let i = 0; i < 4; i++) settle();
+  const rowsOf = () => app.sc.content.children.filter((c) => c.rowIndex >= 0);
+  const lead = (c) => c.y + c.positionLead("y");
+  // the edge 4 px into row 50's 10 px bottom padding
+  const r50 = rowsOf()[50];
+  app.sc.scrollY = lead(r50) + r50.height - 6;
+  for (let i = 0; i < 4; i++) settle();
+  const r51 = rowsOf()[51], before = lead(r51) - app.sc.scrollY, h50 = r50.height;
+  app.big = 50;
+  for (let i = 0; i < 4; i++) settle();
+  assert.equal(r50.height, h50 + 60, "row 50 grew by 60");
+  assert.ok(Math.abs(lead(r51) - app.sc.scrollY - before) < 0.5, `row 51 stayed at ${before} (now ${lead(r51) - app.sc.scrollY})`);
+});
+
+// What the parent stacks after a windowed block sits after its last row, and
+// counts in the range.
+await test("windowed: a view after the rows sits after the last row and counts in the range", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y, spacing = 5 ],
+        View [ datapath = :rows[], virtualize = true, width = 300, height = 30 ],
+        after: View [ width = 300, height = 40 ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(500) };
+  for (let i = 0; i < 4; i++) settle();
+  const rowsEnd = 500 * 30 + 499 * 5;
+  assert.equal(app.sc.content.after.y, rowsEnd + 5, "after the last row and the stack's spacing");
+  assert.equal(app.sc.content.height, rowsEnd + 5 + 40, "the range includes it");
+});
+
+// The end is held like the start: a reader taken to the end, rows near it
+// measuring other than their estimate as they arrive, stays exactly at the end.
+await test("windowed: a reader at the end stays exactly at the end as the rows there measure", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 300, height = { 20 + (:n % 7) * 13 } ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: rows(3000) };
+  for (let i = 0; i < 4; i++) settle();
+  app.sc.scrollTo(app.sc.contentHeight - app.sc.height);   // the end as estimated
+  for (let i = 0; i < 8; i++) settle();
+  const max = app.sc.contentHeight - app.sc.height;
+  assert.ok(Math.abs(app.sc.scrollY - max) < 1, `at the end: scrollY ${app.sc.scrollY} of ${max}`);
+  const last = app.sc.content.children.filter((c) => c.visible && c.rowIndex === 2999)[0];
+  assert.ok(last !== undefined && Math.abs(last.y + last.height - app.sc.content.height) < 1, "the last record ends the range");
 });
 
 summarize("materialization");

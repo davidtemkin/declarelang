@@ -1,0 +1,255 @@
+{
+  "ms": null,
+  "target": "apps/tracker/tracker.declare",
+  "STIM": "filter",
+  "RENDER": "dom",
+  "LABEL": "es2020",
+  "root": "/private/tmp/claude-503/-Users-temkin-Code-Declare/0a045640-e7f8-4f06-bee0-3691f85d20f9/scratchpad/Declare-es2020",
+  "boot": {
+    "runs": 35207,
+    "wired": 16716,
+    "settleN": 944,
+    "settleMs": 374.100000590086,
+    "settleMax": 263.19999998807907,
+    "settleRuns": 33859,
+    "settleEmpty": 1,
+    "settleEmptyMs": 0,
+    "kruns": 26555,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 1,
+    "instMs": 60.30000001192093,
+    "nfN": 392,
+    "nfMs": 7.5,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 15529,
+      "live": 14534,
+      "wired": 9530,
+      "ranInWindow": 10684
+    }
+  },
+  "win": {
+    "runs": 44160,
+    "wired": 13036,
+    "settleN": 7065,
+    "settleMs": 569.2000004053116,
+    "settleMax": 25.599999994039536,
+    "settleRuns": 44160,
+    "settleEmpty": 0,
+    "settleEmptyMs": 0,
+    "kruns": 45413,
+    "settleKernelOnly": 0,
+    "settleKernelOnlyRuns": 0,
+    "settleKernelOnlyMs": 0,
+    "stringifyN": 0,
+    "stringifyMs": 0,
+    "bytes": 0,
+    "opsN": 0,
+    "commitMs": 0,
+    "instN": 0,
+    "instMs": 0,
+    "nfN": 0,
+    "nfMs": 0,
+    "afterN": 0,
+    "afterMs": 0,
+    "changesMs": 0,
+    "constraints": {
+      "total": 18444,
+      "live": 14534,
+      "wired": 9530,
+      "ranInWindow": 1456
+    }
+  },
+  "gaps": {
+    "n": 7045,
+    "p50": 0.3000000000001819,
+    "p95": 0.5,
+    "max": 17.900000000000546
+  },
+  "bench": {
+    "n": 1456,
+    "errors": 0,
+    "body": 262.5032268281904,
+    "run": 294.51934949717133,
+    "runsCovered": 40826,
+    "deadRan": 2231,
+    "deadRuns": 3334,
+    "top": [
+      {
+        "label": "Dataset.contents",
+        "n": 1,
+        "wired": 0,
+        "runs": 24,
+        "bodyMs": 160.8,
+        "runMs": 180
+      },
+      {
+        "label": "Roll.text",
+        "n": 1,
+        "wired": 1,
+        "runs": 7041,
+        "bodyMs": 68.139,
+        "runMs": 68.139
+      },
+      {
+        "label": "Roll.height",
+        "n": 1,
+        "wired": 0,
+        "runs": 6951,
+        "bodyMs": 0,
+        "runMs": 22.423
+      },
+      {
+        "label": "Text.text",
+        "n": 142,
+        "wired": 21,
+        "runs": 2925,
+        "bodyMs": 1.161,
+        "runMs": 3.719
+      },
+      {
+        "label": "View's replication",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.774,
+        "runMs": 3.329
+      },
+      {
+        "label": "Table's replication",
+        "n": 1,
+        "wired": 0,
+        "runs": 41,
+        "bodyMs": 1.058,
+        "runMs": 3.306
+      },
+      {
+        "label": "Text.height",
+        "n": 89,
+        "wired": 0,
+        "runs": 1246,
+        "bodyMs": 1.219,
+        "runMs": 2.9
+      },
+      {
+        "label": "View.fill",
+        "n": 166,
+        "wired": 108,
+        "runs": 1263,
+        "bodyMs": 0.642,
+        "runMs": 0.932
+      },
+      {
+        "label": "Table.scrollAnchor.content",
+        "n": 1,
+        "wired": 0,
+        "runs": 24,
+        "bodyMs": 0.619,
+        "runMs": 0.929
+      },
+      {
+        "label": "IssueRow.exp",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.774,
+        "runMs": 0.852
+      },
+      {
+        "label": "Text.width",
+        "n": 56,
+        "wired": 0,
+        "runs": 352,
+        "bodyMs": 0.316,
+        "runMs": 0.706
+      },
+      {
+        "label": "IssueRow.selected",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.465,
+        "runMs": 0.697
+      },
+      {
+        "label": "SimpleLayout shape",
+        "n": 23,
+        "wired": 0,
+        "runs": 244,
+        "bodyMs": 0.374,
+        "runMs": 0.655
+      },
+      {
+        "label": "View.visible",
+        "n": 69,
+        "wired": 30,
+        "runs": 1191,
+        "bodyMs": 0.387,
+        "runMs": 0.626
+      },
+      {
+        "label": "TextLabel.height",
+        "n": 31,
+        "wired": 0,
+        "runs": 323,
+        "bodyMs": 0.345,
+        "runMs": 0.574
+      },
+      {
+        "label": "PrioIcon.p",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.465,
+        "runMs": 0.542
+      },
+      {
+        "label": "StatusIcon.s",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.31,
+        "runMs": 0.542
+      },
+      {
+        "label": "IssueRow.active",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0,
+        "runMs": 0.465
+      },
+      {
+        "label": "TextLabel.textColor",
+        "n": 31,
+        "wired": 31,
+        "runs": 332,
+        "bodyMs": 0.268,
+        "runMs": 0.426
+      },
+      {
+        "label": "Avatar.name",
+        "n": 39,
+        "wired": 0,
+        "runs": 936,
+        "bodyMs": 0.232,
+        "runMs": 0.387
+      }
+    ]
+  },
+  "byLabel": null,
+  "text": null,
+  "perf": null,
+  "drag": null,
+  "errors": [],
+  "swapped": 1
+}

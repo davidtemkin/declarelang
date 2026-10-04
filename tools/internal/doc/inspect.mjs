@@ -5,6 +5,7 @@
 // any errors. Writes inspect/<page>.<n>.png per island and inspect/report.json.
 import puppeteer from "puppeteer-core";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { launchChrome } from "../chrome.mjs";
 const model = JSON.parse(readFileSync("docs/declare-model.json", "utf8"));
 const which = process.argv.find((a, i) => i >= 2 && !a.startsWith("--") && process.argv[i - 1] !== "--base") ?? "all";                // all | reference | language | <name>
 let pages = [];
@@ -13,7 +14,7 @@ if (which === "all" || which === "language") pages.push("language/", ...model.fo
 if (!pages.length) pages = [which];
 const OUT = ".derive/inspect"; mkdirSync(OUT, { recursive: true });
 const BASE = (() => { const i = process.argv.indexOf("--base"); return i >= 0 ? process.argv[i + 1] : "http://localhost:8200"; })();
-const browser = await puppeteer.launch({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", headless: true, args: ["--no-sandbox"] });
 const page = await browser.newPage();
 const errors = [];
 page.on("pageerror", (e) => errors.push("pageerror: " + e.message.slice(0, 200)));

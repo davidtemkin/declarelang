@@ -16,6 +16,7 @@ import { compileProgram } from "../compiler/dist/declarec.js";
 import { buildProduction } from "../tools/declarec.mjs";
 import { instantiate } from "../runtime/dist/instantiate.js";
 import { settle, provideMeasurer, HeadlessBackend } from "../runtime/dist/index.js";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 // One deterministic measurer: 8px a character, 10 in a monospace face — the
 // same stub shape text.test.mjs uses, so every number below is arithmetic.
@@ -45,7 +46,7 @@ async function boot(src) {
   const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
   assert.deepEqual(b.errors.map((e) => e.message), [], "compiles");
   const app = instantiate(b.program);
-  app.attach(new HeadlessBackend(), null);
+  app.$attach(new HeadlessBackend(), null);
   settle();
   return app;
 }
@@ -596,7 +597,7 @@ if (!CHROME) {
   const dom = await (async () => {
     const b = await buildProduction(DOC, { render: "dom" });
     assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = [];
@@ -689,7 +690,7 @@ if (!CHROME) {
         ]`;
     const b = await buildProduction(src, { render: "canvas" });
     assert.ok(b.ok, "canvas build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = [];

@@ -312,7 +312,7 @@ export async function macBoot(url) {
   //   it tracks the CURRENT app, not the app that happened to mount first.
   globalThis.__declare = bridgeFor(app);
   Focus.setRoot(app);
-  Keys.listen(() => currentApp?.surface != null);
+  Keys.listen(() => currentApp?.$surface != null);
   deliverKeys(Keys, Focus);
   wireDiag();
   settle();
@@ -385,7 +385,7 @@ function wireMacHistory(app) {
     const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
     if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
     H.historyEntry(app.location, app.waypoint, verb,
-      app.surface ? app.surface.scrollOffset : 0);
+      app.$surface ? app.$surface.scrollOffset : 0);
     mirrored = app.location;
     mirroredW = app.waypoint;
   }, "host:history");
@@ -402,8 +402,8 @@ function wireMacHistory(app) {
     mirroredW = app.waypoint;
     settle();
     H.historySquare(mirrored, mirroredW);
-    if (typeof scroll === "number" && scroll >= 0 && loc.indexOf("@") < 0 && app.surface)
-      macScrollTo(app.surface.id, scroll);
+    if (typeof scroll === "number" && scroll >= 0 && loc.indexOf("@") < 0 && app.$surface)
+      macScrollTo(app.$surface.id, scroll);
     flushOps();
   };
 }
@@ -746,7 +746,7 @@ function watchLive(app, scopeBox) {
   const body = typeof app.liveSource === "string" ? app.liveSource : "";
   const sig = card + "\0" + body;
   if (liveSigs.get(app) === sig) return;
-  const id = liveIsland(card, scopeBox, app.surface);
+  const id = liveIsland(card, scopeBox, app.$surface);
   // The island may not be mounted yet — the edit pane slots its island only in
   // edit mode, and the channel can publish first. Don't burn the signature.
   if (id < 0) return;
@@ -834,12 +834,12 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
     try { embedUnlinks.set(surfaceId, linkIslandTenant(islView, child)); }
     catch (e) { log("island link: " + e.message); }
   }
-  child.attach(backend, null);
+  child.$attach(backend, null);
   // The child's RELATIVE assets live in its own program's directory, never the
   // host's (host-client's childAssetBase). Without this, birds-in-a-desktop-
   // window resolved every plate against the DESKTOP's directory — all 404.
   if (assetUrl) setAppAssetBase(child, assetUrl);
-  mountEmbed(surfaceId, child.surface);
+  mountEmbed(surfaceId, child.$surface);
   child.hostWidth = box.width;
   child.hostHeight = box.height;
   // The ISLAND is a viewport — the DOM's renderChild sets `overflow: auto` on

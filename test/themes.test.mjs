@@ -35,10 +35,10 @@ await test("themes: every preset pair is complete — same token set light and d
 
 await test("themes: the authored tokens round-tripped (spot checks through the real parser)", () => {
   assert.equal(THEME_RECORDS.SanFrancisco.accent, 0x2e6fe0);
-  assert.equal(THEME_RECORDS.MountainView.sliderHandle, "bar", "a string token");
+  assert.equal(THEME_RECORDS.MountainView.sliderHandleStyle, "bar", "a string token");
   assert.equal(THEME_RECORDS.MountainView.disabledOpacity, 0.38, "a fractional number token");
   assert.equal(THEME_RECORDS.Cupertino.focusRingGap, 0, "a zero survives");
-  assert.equal(THEME_RECORDS.SanFrancisco.focusRing, true, "a boolean token");
+  assert.equal(THEME_RECORDS.SanFrancisco.focusRingStyle, "both", "a style token");
 });
 
 summarize("themes");

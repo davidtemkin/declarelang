@@ -172,7 +172,7 @@ function startVisibility(v) {
     const f = feedOf(v);
     if (!f.armed)
         return;
-    const s = v.surface;
+    const s = v.$surface;
     if (s?.watchVisibility) {
         // backend feed available: retire any generic computer from a prior life
         if (f.generic !== null) {
@@ -202,7 +202,7 @@ function startVisibility(v) {
                     scheduleFlush(v, f);
                     return;
                 }
-                v.surface?.refreshVisibility?.();
+                v.$surface?.refreshVisibility?.();
             };
             if (installKernelVis(v, f)) {
                 f.wake = outputRule(v, f, `${v.constructor.name}.visibilityWake`, () => wake());
@@ -246,7 +246,7 @@ function scheduleFlush(v, f) {
         }
         const p = f.pending;
         f.pending = null;
-        const s = v.surface;
+        const s = v.$surface;
         if (f.stale && s?.refreshVisibility) {
             // the backend can measure current truth — ask it; the fresh entry
             // arrives through deliverVisibility on the now-idle clock
@@ -258,8 +258,8 @@ function scheduleFlush(v, f) {
         if (p !== null) {
             setBound(v, "visibleRect", p.rect);
             setBound(v, "apparentScale", p.scale);
-            if (v.drawing !== null && p.rect !== null)
-                v.surface?.setRasterScale?.(p.scale);
+            if (v.$drawing !== null && p.rect !== null)
+                v.$surface?.setRasterScale?.(p.scale);
         }
     };
     f.flushTimer = setTimeout(tick, 120);
@@ -277,7 +277,7 @@ function deliverVisibility(v, f, on, rect, scale) {
     f.pending = null;
     setBound(v, "visibleRect", shaped);
     setBound(v, "apparentScale", scale);
-    if (v.drawing !== null && on)
-        v.surface?.setRasterScale?.(scale);
+    if (v.$drawing !== null && on)
+        v.$surface?.setRasterScale?.(scale);
 }
 //# sourceMappingURL=visibility.js.map

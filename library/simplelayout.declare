@@ -51,7 +51,8 @@ child wider than the band keeps the line, so it never hangs out both sides.
 `baseline` — a row only — sits every child on one
 baseline: a `Text` reports its own, and a composite **declares** which part carries it
 (`baseline: number = { cap.y + cap.baseline }`); a laid child that declares none is
-refused by name, at the child, and the checker says so before anything runs. A bare
+refused by name, at the child, and the checker says so before anything runs. A
+`Spacer` is never aligned — it takes no part in the cross axis at all. A bare
 literal.
 
 ## place()
@@ -72,6 +73,9 @@ class SimpleLayout extends Layout [
         const size = axis == "x" ? "width" : "height"
         const kids = this.laid()
         const flexing = (c) => (c as any).flexes === true
+        // a Spacer (anything carrying the `flexes` marker) is a flow-axis thing:
+        // it takes no part in the cross axis — neither sizes the line nor is aligned
+        const spacer = (c) => typeof (c as any).flexes == "boolean"
 
         // slack, only when someone flexes: the view's extent along the axis
         // minus the rigid content and the gaps between visible children.
@@ -109,7 +113,7 @@ class SimpleLayout extends Layout [
         if (al != "none") {
             if (al == "baseline" && axis != "x") this.refuseStackBaseline()
             for (const c of kids) {
-                if (!c.visible) continue
+                if (!c.visible || spacer(c)) continue
                 line = Math.max(line, (c as any).footprint()[crossSize])
                 const b = (c as any).baseline
                 if (al == "baseline" && typeof b == "number") lineBase = Math.max(lineBase, b)
@@ -122,14 +126,14 @@ class SimpleLayout extends Layout [
         let pos = 0
         return kids.map((c) => {
             const flex = c.visible && flexing(c)
-            // footprint, never bounds: the strategy must not read the slot it
+            // footprint, never bounds: the strategy must not read the attribute it
             // writes (one-pass discipline). A flexing child's size is allocated
-            // (box.w/h), so its footprint is never consulted — lead 0, raw slot.
+            // (box.w/h), so its footprint is never consulted — lead 0, raw attribute.
             const f = flex ? null : (c as any).footprint()
             const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)
             const box = (axis == "x" ? ({ x: pos - lead }) : ({ y: pos - lead })) as any
             if (flex) box[axis == "x" ? "w" : "h"] = each
-            if (al != "none") {
+            if (al != "none" && !spacer(c)) {
                 // start = the line's origin; center/end offset the child's
                 // footprint within the line; baseline sits the child's declared
                 // baseline on the line's — a child with none is refused, once,

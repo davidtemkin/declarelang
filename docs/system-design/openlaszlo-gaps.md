@@ -50,7 +50,7 @@ not imply it, nor did the drag events (`onmousedragin` etc.), so authors wrote
 Declare's `runtime/src/view.ts` (`inputSink`) names the lineage explicitly:
 interactivity **derives from declared handlers** — "LZX's `clickable` intent,
 made automatic" — occlusion-correct, pay-per-use, with `pointerEvents = "none"`
-as the opt-out and `tip` as the one handler-free way to become
+as the opt-out and `tooltipLabel` as the one handler-free way to become
 hover-interactive. OL's residual idiom (a handler-less click-blocker) is an
 empty `onClick(){}` — the Dialog scrim. **Closed, strictly better**: the
 derivation is runtime-truthful rather than compile-time-lexical.

@@ -460,16 +460,16 @@ edit a write to the raw data.** A task board — click a card to move it along, 
 at the bottom:
 
 ```declare
-schema Card [ id: number, col: 0 | 1 | 2, t: string ]
+schema Task [ id: number, col: 0 | 1 | 2, t: string ]
 
 class BCard extends Control [ width = 100%, height = 30, cornerRadius = 10,
-    fill = { down ? 0x3E5C66 : hot ? 0x36525B : 0x2F4F4F },
+    fill = { pressed ? 0x3E5C66 : hovered ? 0x36525B : 0x2F4F4F },
     press() { :col = Math.min(:col + 1, 2) },
     TextLabel [ x = 10, fontSize = 12, wrap = false, textColor = whitesmoke, text = :t ]
     ]
 
 
-class Column [ width = 130,
+class Lane [ width = 130,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     name: Text [ fontSize = 12, fontWeight = bold, textColor = lightslategray, text = :name ],
     BCard [ datapath = :cards[] ]
@@ -477,7 +477,7 @@ class Column [ width = 130,
 
 
 App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
-    raw: Dataset [ schema = [ cards[]: Card ] ] {
+    raw: Dataset [ schema = [ cards[]: Task ] ] {
         { "cards": [ { "id": 1, "col": 0, "t": "Outline the guide" },
                      { "id": 2, "col": 0, "t": "Fix the rail" },
                      { "id": 3, "col": 1, "t": "Draft a chapter" },
@@ -502,7 +502,7 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
 
     cols: View [ x = 20, y = 20, datapath = { board.value },
         layout: SimpleLayout [ axis = x, spacing = 10 ],
-        Column [ datapath = :cols[] ]
+        Lane [ datapath = :cols[] ]
         ],
     entryRow: View [ x = 20, y = { app.height - 50 },
         layout: SimpleLayout [ axis = x, spacing = 8 ],

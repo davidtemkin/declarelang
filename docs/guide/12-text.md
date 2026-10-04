@@ -63,16 +63,16 @@ family goes:
 ```declare-fragment
 App [ fontFamily = { [brand, "Helvetica", "sans-serif"] },
     brand: Font [
-        Face [ src = "brand-400.woff2" ],
-        Face [ src = "brand-700.woff2", weight = bold ],
-        Face [ src = "brand-400i.woff2", italic = true ]
+        FontFace [ src = "brand-400.woff2" ],
+        FontFace [ src = "brand-700.woff2", weight = bold ],
+        FontFace [ src = "brand-400i.woff2", italic = true ]
         ],
-    serif: Font [ Face [ src = "serif-var.woff2", weight = range(200, 900) ] ],
+    serif: Font [ FontFace [ src = "serif-var.woff2", weight = range(200, 900) ] ],
     ui: Font [ family = "Helvetica Neue" ]
     ]
 ```
 
-A [`Font`](declare-docs:Font) owns its [`Face`](declare-docs:Face) children, one file each. [`src`](declare-docs:Face.src) is a URL, an installed face
+A [`Font`](declare-docs:Font) owns its [`FontFace`](declare-docs:FontFace) children, one file each. [`src`](declare-docs:FontFace.src) is a URL, an installed face
 (`local("Work Sans")`), or a list tried in order; `weight` is a name, a number from 1 to
 1000, or `range(lo, hi)` for a variable font. A `Font` with no faces is a **system
 font**: it names a [`family`](declare-docs:Font.family) the machine already has, and there is nothing to load.

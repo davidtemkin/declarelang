@@ -69,6 +69,8 @@ mac-host/Declare Mac.app/
 
 # rasterbench's Chrome trace scratch (--trace); each run writes and deletes its own
 mac-host/.rasterbench-traces/
+# instrumented runtime builds for profiling (mac-host/profile/build-runtime.mjs)
+mac-host/bundles/
 
 # visual-test OUTPUTS: the committed `<name>.png` baselines are the tracked truth;
 # a run writes `<name>.actual.png` (+ .actual.json diffs) beside them to inspect a

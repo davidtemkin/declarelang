@@ -16,7 +16,7 @@ the panel now caps at the room below the header and scrolls). Asking why it was 
 
 - its label is `fontSize = 13` and its key column `12`, hard-coded — the theme has no menu
   text size;
-- it has one highlight (`menuHl`) and no pressed state;
+- it has one highlight (`menuHighlightFill`) and no pressed state;
 - its panel outline and its dividers both read `theme.line`, so neither changes alone;
 - its hierarchy is cascading submenus, with no flat indented rows;
 - its rows pick an id and cannot be real links.
@@ -40,9 +40,9 @@ at the hard-coded 13 and 12.
 **A text-style type.** `TextStyle` (face, size, weight, …) exists as a record, from the
 fonts-as-objects work, and the face is a provided value.
 
-**The theme holds type only as scattered per-component sizes** — `tooltipSize`,
-`dialogTitleSize`, `dialogBodySize`, `checkboxSize` — **and geometry as fixed numbers** —
-`buttonHeight` 28 (Cupertino) / 40 (Mountain View) / 32 (Redmond), `menuRow` 24. No theme
+**The theme holds type only as scattered per-component sizes** — `tooltipFontSize`,
+`dialogTitleFontSize`, `dialogBodyFontSize`, `checkboxSize` — **and geometry as fixed numbers** —
+`buttonHeight` 28 (Cupertino) / 40 (Mountain View) / 32 (Redmond), `menuRowHeight` 24. No theme
 names a face or a style. The consistency between a preset's type and its geometry is kept
 by its author, by hand: Mountain View has 40px buttons *and* a 22pt dialog title because
 someone set both.
@@ -84,9 +84,9 @@ Windows' "Make text bigger".
 Less than full derivation from font metrics — what everyone ships, and simpler:
 
 - **Roles in the theme.** A theme names text *roles* — `menuText`, `buttonText`,
-  `tooltipText`, … — as `TextStyle` records, replacing the scattered per-component sizes.
+  `tooltipTextColor`, … — as `TextStyle` records, replacing the scattered per-component sizes.
 - **Content-driven sizes with floors.** A control sizes to its measured label plus the
-  theme's padding; today's `buttonHeight` and `menuRow` become *minimums*.
+  theme's padding; today's `buttonHeight` and `menuRowHeight` become *minimums*.
 - **Density as a coordinated set.** One setting moves padding and minimums together, so a
   preset cannot drift out of step with itself.
 - **Pinnable numbers.** An explicit number still wins, so a preset that must reproduce a
@@ -96,13 +96,13 @@ Less than full derivation from font metrics — what everyone ships, and simpler
   rest necessary rather than nice.
 
 The `Menu` token pass sketched in conversation becomes this work's first consumer rather
-than a standalone fix: `menuText` (and a key style), `menuPressed` defaulting to `menuHl`,
+than a standalone fix: `menuText` (and a key style), `menuPressed` defaulting to `menuHighlightFill`,
 `menuStroke` and `menuDivider` defaulting to `line`, and two record fields — `indent`
 (flat hierarchy, one tap) and `link` (the row becomes a real anchor while `picked(id)` still
 fires: the handler runs, then the link is followed; the crawl reads live `link` values off
 the settled tree). With those, the homepage's navigation sheet can be a `Menu`: 44px rows,
 16pt medium text, no outline, a pressed tint, link and indent records, and a scrim composed
-from the theme's existing `scrimColor` / `scrimOpacity`, shown by the menu's own `shown`.
+from the theme's existing `scrimFill` / `scrimOpacity`, shown by the menu's own `shown`.
 
 ## 6. Open questions for DT
 

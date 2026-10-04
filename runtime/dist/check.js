@@ -91,7 +91,16 @@ export function check(input) {
     const shapeResolution = resolveShapes(program);
     CHECK_SHAPES = shapeNames(program);
     CHECK_CLASSES = new Map(program.classes.map((c) => [c.name, c]));
+    AUTHOR_CALLS = authorCalls(program);
+    // A BUILT-IN CLASS NAME, taken by a program class: programSchemas refuses
+    // the declaration, and its uses then resolve to the built-in — so they are
+    // left unchecked (REFUSED_TAGS) rather than reported as if the author meant
+    // the built-in. (A LIBRARY name is refused by the include pass, which knows
+    // the manifest.)
+    REFUSED_TAGS = new Set(program.classes.filter((c) => Object.hasOwn(SCHEMAS, c.name)).map((c) => c.name));
+    const placementErrors = checkPlacements(program);
     const { infos, schemas, errors } = programSchemas(program.classes, CHECK_SHAPES);
+    errors.push(...placementErrors);
     // A class body declaring one of the runtime's own members (the instantiate
     // backstop refuses it at boot). Here, not in checkDecl: the tables are
     // checker-only, and checkDecl ships with every runtime.
@@ -151,7 +160,7 @@ export function check(input) {
                 const owner = childOwner(c.base, child.name);
                 if (owner === null)
                     continue;
-                errors.push(new DeclareError(`'${child.name}' is a child ${c.name} inherits from ${owner} — a subclass cannot declare it again. Make what varies an attribute of ${owner} that the child reads (a color, a label, a size), or a method the subclass overrides`, child.pos));
+                errors.push(new DeclareError(`'${child.name}' is a child ${c.name} inherits from ${owner} — a subclass cannot declare it again. To put views INSIDE it, write 'defaultplacement = ${child.name}' in ${owner}'s body: a subclass's children then go into ${child.name}. To vary it, make what varies an attribute of ${owner} that the child reads (a color, a label, a size), or a method the subclass overrides`, child.pos));
             }
         }
         const sets = new Map();
@@ -326,7 +335,7 @@ export function checkStyleDecls(program, schemas, errors) {
     // tree. The parser still reads the old form so this can say exactly what to write.
     for (const f of program.fonts) {
         const member = f.name.charAt(0).toLowerCase() + f.name.slice(1);
-        errors.push(new DeclareError(`'font ${f.name} [ … ]' is not a top-level declaration — ${fontObjectHint(f.name)}. Its body goes in the App as '${member}: Font [ … ]' (the same family and Face children)`, f.pos));
+        errors.push(new DeclareError(`'font ${f.name} [ … ]' is not a top-level declaration — ${fontObjectHint(f.name)}. Its body goes in the App as '${member}: Font [ … ]' (the same family and FontFace children)`, f.pos));
     }
     return { bundles, themes, fonts, validated: new Set() };
 }
@@ -443,6 +452,8 @@ parentSchema = null,
  *  layout used as a tree child or the app root — must not fire on a legitimate
  *  `class X extends TweenLayout [ … ]`. */
 classRoot = false) {
+    if (REFUSED_TAGS.has(el.tag))
+        return; // its declaration was refused; checking it as the built-in only cascades
     if (el.entry === true) {
         errors.push(new DeclareError(`'${el.tag}: [ … ]' is a class-keyed entry — no declaration admits one`, el.pos));
         return;
@@ -453,27 +464,27 @@ classRoot = false) {
     // Elements consumed as class-typed attribute VALUES (a `layout:` member)
     // are checked by checkClassValue, not as tree children.
     const consumed = new Set();
-    // A typeface's shape (font.ts): a Face lives only in a Font and holds nothing;
-    // a Font holds Face children only; `family` names a SYSTEM font (one with no
+    // A typeface's shape (font.ts): a FontFace lives only in a Font and holds nothing;
+    // a Font holds FontFace children only; `family` names a SYSTEM font (one with no
     // faces) — a font with faces is named by its object, never by a string.
-    if (schema !== null && descendsFrom(schema, "Face")) {
+    if (schema !== null && descendsFrom(schema, "FontFace")) {
         if (parentSchema === null || !descendsFrom(parentSchema, "Font")) {
-            errors.push(new DeclareError(`a Face belongs inside a Font — 'brand: Font [ Face [ src = "brand.woff2" ] ]'`, el.pos));
+            errors.push(new DeclareError(`a FontFace belongs inside a Font — 'brand: Font [ FontFace [ src = "brand.woff2" ] ]'`, el.pos));
         }
         for (const c of el.children)
-            errors.push(new DeclareError(`a Face has no children — src, weight and italic only`, c.pos));
+            errors.push(new DeclareError(`a FontFace has no children — src, weight and italic only`, c.pos));
         if (!el.attrs.some((a) => a.name === "src"))
-            errors.push(new DeclareError(`a Face needs a src — the file (or local("…") face) it is`, el.pos));
+            errors.push(new DeclareError(`a FontFace needs a src — the file (or local("…") face) it is`, el.pos));
     }
     if (schema !== null && descendsFrom(schema, "Font")) {
         let faces = 0;
         for (const c of el.children) {
             const cs = Object.hasOwn(schemas, c.tag) ? schemas[c.tag] : null;
-            if (cs !== null && descendsFrom(cs, "Face")) {
+            if (cs !== null && descendsFrom(cs, "FontFace")) {
                 faces++;
                 continue;
             }
-            errors.push(new DeclareError(`a Font holds Face children only — not '${c.tag}'`, c.pos));
+            errors.push(new DeclareError(`a Font holds FontFace children only — not '${c.tag}'`, c.pos));
         }
         const family = el.attrs.find((a) => a.name === "family");
         if (faces > 0 && family !== undefined) {
@@ -692,7 +703,7 @@ classRoot = false) {
                 errors.push(r.error);
         }
         for (const m of el.methods) {
-            const r = checkMethod(eff, m);
+            const r = checkMethodHere(eff, m);
             if (!r.ok)
                 errors.push(r.error);
         }
@@ -831,7 +842,7 @@ function checkDataNode(el, schema, errors, classRoot) {
     // hook); the built-in lifecycle (fetch, clear, set, …) is guarded at
     // instantiate, the runtime-member fact.
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
+        const r = checkMethodHere(schema, m);
         if (!r.ok)
             errors.push(r.error);
     }
@@ -864,7 +875,7 @@ function checkDataNode(el, schema, errors, classRoot) {
  *  one base: what unites them is the shape checked below, not an inheritance
  *  relationship. */
 function isSourceSchema(schema) {
-    return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tip");
+    return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tooltips");
 }
 /** A source node (`Keys [ onKeyUp(e) { … } ]`, `EventStream [ onMessage(m) { … } ]`):
  *  its own attributes and its handlers, nothing else. Deliberately NOT the
@@ -907,7 +918,7 @@ function checkSourceNode(el, schema, errors) {
             errors.push(r.error);
     }
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
+        const r = checkMethodHere(schema, m);
         if (!r.ok)
             errors.push(r.error);
     }
@@ -929,7 +940,7 @@ classRoot = false) {
     // Handlers (onStart/onStop/onRepeat) and any plain method install like a
     // View's; checkMethod verifies a handler answers a declared event.
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
+        const r = checkMethodHere(schema, m);
         if (!r.ok)
             errors.push(r.error);
     }
@@ -988,7 +999,7 @@ classRoot = false) {
     }
     // Handlers (onApply / onRemove) and methods install like a View's.
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
+        const r = checkMethodHere(schema, m);
         if (!r.ok)
             errors.push(r.error);
     }
@@ -1050,7 +1061,7 @@ function checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, attri
         errors.push(new DeclareError(`only a Dataset carries a { } body — an ${el.tag}'s members go in [ ]`, el.raw.pos));
     }
     for (const m of el.methods) {
-        const r = checkMethod(schema, m);
+        const r = checkMethodHere(schema, m);
         if (!r.ok)
             errors.push(r.error);
     }
@@ -1197,10 +1208,9 @@ function checkBaselineAlignment(schemas, layoutEl, owner) {
         const cs = schemas[c.tag];
         if (!descendsFrom(cs, "View"))
             continue; // Text and RichText carry `baseline` in their schemas
-        // `ignoreLayout` takes the child out of the arrangement — literally, or by
-        // a binding the checker cannot decide (the runtime decides that one)
-        const ig = c.attrs.find((a) => a.name === "ignoreLayout");
-        if (ig !== undefined && !(ig.value.kind === "ident" && ig.value.name === "false"))
+        if (descendsFrom(cs, "Spacer"))
+            continue; // a Spacer is a flow-axis thing: never aligned, so it claims no baseline
+        if (leavesLayout(c))
             continue;
         const eff = withDecls(cs, c.decls, (n) => schemas[n] !== undefined, (n) => CHECK_SHAPES.has(n));
         if (attrType(eff, "baseline") !== null)
@@ -1208,6 +1218,27 @@ function checkBaselineAlignment(schemas, layoutEl, owner) {
         errors.push(new DeclareError(noBaselineMessage(c.tag, layoutEl.tag), c.pos));
     }
     return errors;
+}
+/** `ignoreLayout` takes a child out of the arrangement — literally, or by a
+ *  binding the checker cannot decide (the runtime decides that one). The use
+ *  site says it first; failing that, the nearest class in the child's chain
+ *  whose body sets it (`class Chip [ ignoreLayout = true, … ]`). */
+function leavesLayout(c) {
+    const says = (el) => {
+        const ig = el.attrs.find((a) => a.name === "ignoreLayout");
+        return ig === undefined ? null : !(ig.value.kind === "ident" && ig.value.name === "false");
+    };
+    const here = says(c);
+    if (here !== null)
+        return here;
+    const seen = new Set();
+    for (let d = CHECK_CLASSES.get(c.tag); d !== undefined && !seen.has(d.name); d = CHECK_CLASSES.get(d.base)) {
+        seen.add(d.name);
+        const v = says(d.body);
+        if (v !== null)
+            return v;
+    }
+    return false;
 }
 /** THE RULE, AT COMPILE TIME (docs/system-design/layout-ownership.md §1–§3): a
  *  layout places its children, and what it places a child does not declare.
@@ -1241,10 +1272,7 @@ function checkPlacedAttributes(schemas, layoutEl, owner) {
         }
         if (!descendsFrom(schemas[c.tag], "View"))
             continue;
-        // `ignoreLayout` takes the child out of the arrangement — literally, or
-        // by a binding the checker cannot decide (the runtime decides that one)
-        const ig = c.attrs.find((a) => a.name === "ignoreLayout");
-        if (ig !== undefined && !(ig.value.kind === "ident" && ig.value.name === "false"))
+        if (leavesLayout(c))
             continue;
         for (const a of c.attrs) {
             const kind = known.placed.get(a.name) ?? (c.name !== null ? known.byName.get(c.name)?.get(a.name) : undefined);
@@ -1677,6 +1705,98 @@ export function checkAttr(schema, attr) {
  *  a scope noun, and the body must be valid statement syntax. Like checkAttr,
  *  check() collects these and instantiate() throws them — one message
  *  source. */
+/** checkMethod, plus the rule only a whole program can decide: a METHOD
+ *  named exactly like one of this class's EVENTS is a dead member unless
+ *  something calls it. The runtime fires the event, which resolves to the
+ *  `on…` handler, so a bare `input(v)` on a TextInput compiles, typechecks and
+ *  silently saves nothing (cold agent run, 2026-08-05). But the author may also
+ *  call a method of that name themselves (`hold()`, Murmur run 4) — then it is
+ *  alive, and refusing it squats an ordinary verb. So the rule fires only when
+ *  the author's own code never calls the name; library code does not count, or
+ *  a Checkbox's own `this.input(v)` would excuse every TextInput in the program.
+ *
+ *  Keyed on the schema's own event list, so it covers every such collision and
+ *  cannot fire where the event does not exist — except where the name is ALSO
+ *  the built-in's own runtime method (an Animator fires `start` AND implements
+ *  start()): then the member is an override the runtime calls. Checker-only:
+ *  the runtime's instantiate backstop has no program to ask. */
+function checkMethodHere(schema, m) {
+    const r = checkMethod(schema, m);
+    if (!r.ok)
+        return r;
+    if (eventsOf(schema).includes(m.name) && !runtimeMethodsOf(schema).has(m.name) && !AUTHOR_CALLS.has(m.name)) {
+        return { ok: false, error: new DeclareError(`${schema.name}.${m.name}(…) is never called — '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. ` +
+                `Rename it to '${handlerName(m.name)}(…)'. (The 'input(v)' value pattern belongs to CONTROLS — Checkbox, Slider, ` +
+                `Segmented — which fire no such event; an editor delivers through its event instead.)`, m.pos) };
+    }
+    return r;
+}
+/** `defaultplacement = name` (instantiate.ts DEFAULT PLACEMENT): written on a
+ *  CLASS body, and naming a child that body declares, at any depth. */
+function checkPlacements(program) {
+    const errors = [];
+    const hasNamed = (el, name) => el.children.some((c) => c.name === name || hasNamed(c, name));
+    const nameOf = (a) => (a.value.kind === "ident" ? a.value.name : null);
+    for (const c of program.classes) {
+        const a = c.body.attrs.find((x) => x.name === "defaultplacement");
+        if (a === undefined)
+            continue;
+        const name = nameOf(a);
+        if (name === null)
+            errors.push(new DeclareError(`defaultplacement names one of the class's children, written bare: 'defaultplacement = body'`, a.value.pos));
+        else if (!hasNamed(c.body, name))
+            errors.push(new DeclareError(`defaultplacement = ${name} — '${c.name}' declares no child named '${name}'; name the child its subclasses' and use sites' children should go into`, a.value.pos));
+    }
+    const elsewhere = (el) => {
+        for (const ch of el.children) {
+            const a = ch.attrs.find((x) => x.name === "defaultplacement");
+            if (a !== undefined)
+                errors.push(new DeclareError(`defaultplacement belongs on a class — it says where the children of its subclasses and use sites go; write it in the class body`, a.pos));
+            elsewhere(ch);
+        }
+    };
+    const rootAttr = program.root.attrs.find((x) => x.name === "defaultplacement");
+    if (rootAttr !== undefined)
+        errors.push(new DeclareError(`defaultplacement belongs on a class — it says where the children of its subclasses and use sites go; write it in the class body`, rootAttr.pos));
+    elsewhere(program.root);
+    for (const c of program.classes)
+        elsewhere(c.body);
+    return errors;
+}
+/** Every name the author's own code calls (`name(` anywhere in a method body
+ *  or a `{ }` value outside library/), for checkMethodHere. */
+let AUTHOR_CALLS = new Set();
+/** Built-in class names a program class tried to take (see check()). */
+let REFUSED_TAGS = new Set();
+function authorCalls(program) {
+    const out = new Set();
+    const scan = (src) => { for (const m of src.matchAll(/(?<![\w$])([A-Za-z_$][\w$]*)\s*\(/g))
+        out.add(m[1]); };
+    const ours = (pos) => !(pos?.file ?? "").startsWith("library/");
+    const walk = (v) => {
+        if (v === null || typeof v !== "object")
+            return;
+        if (Array.isArray(v)) {
+            for (const x of v)
+                walk(x);
+            return;
+        }
+        const o = v;
+        if (typeof o.body === "string" && typeof o.bodyPos === "object") {
+            if (ours(o.bodyPos))
+                scan(o.body);
+        }
+        else if (o.kind === "code" && typeof o.src === "string") {
+            if (ours(o.pos))
+                scan(o.src);
+        }
+        for (const k in o)
+            if (k !== "pos" && k !== "bodyPos")
+                walk(o[k]);
+    };
+    walk(program);
+    return out;
+}
 export function checkMethod(schema, m) {
     const err = (message, pos) => ({ ok: false, error: new DeclareError(message, pos) });
     if (attrType(schema, m.name) !== null) {
@@ -1688,27 +1808,6 @@ export function checkMethod(schema, m) {
     const structural = structuralReason(m.name);
     if (structural !== null) {
         return err(`'${m.name}' is ${structural} — a method cannot take its name; choose another`, m.pos);
-    }
-    // A METHOD named exactly like one of this class's EVENTS is a dead member:
-    // the runtime fires the event, which resolves to the `on…` handler, and nothing
-    // ever calls the bare name. It compiles, typechecks, and silently does nothing.
-    //
-    // The case that found this (cold agent run, 2026-08-05): `TextInput` fires
-    // `input`, and the value pattern the guide teaches for CONTROLS is `value = { … }`
-    // + `input(v)`. That is right for Checkbox/Slider/Segmented — which have no
-    // `input` event and really do take an `input` METHOD — and wrong for an editor,
-    // where the same spelling is a field that saves nothing, forever. Nothing named
-    // the difference, so it shipped into a finished app and was caught end-to-end.
-    //
-    // Keyed on the schema's own event list rather than on a hardcoded name, so it
-    // covers every such collision and cannot fire where the event does not exist.
-    // Except where the name is ALSO the built-in's own runtime method (an
-    // Animator fires `start` AND implements start()): then the member is not
-    // dead but an override — the runtime calls it — and the override rule holds.
-    if (eventsOf(schema).includes(m.name) && !runtimeMethodsOf(schema).has(m.name)) {
-        return err(`${schema.name}.${m.name}(…) is never called — '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. ` +
-            `Rename it to '${handlerName(m.name)}(…)'. (The 'input(v)' value pattern belongs to CONTROLS — Checkbox, Slider, ` +
-            `Segmented — which fire no such event; an editor delivers through its event instead.)`, m.pos);
     }
     const event = eventOfHandler(m.name);
     if (event !== null && !eventsOf(schema).includes(event)) {

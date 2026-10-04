@@ -145,7 +145,7 @@ segments instead of popping.
 Whether this segment is the group's current choice, derived from the parent by identity.
 
 ## ink
-This segment's text and icon colour, brightening when it is on or hot. One attribute, so a
+This segment's text and icon colour, brightening when it is on or hovered. One attribute, so a
 label and an icon can never disagree.
 
 ## location
@@ -304,15 +304,15 @@ class SegmentedItem extends Control [
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
         cornerRadius = 6,
         fill = { parent.on ? null
-               : parent.down ? theme.controlPressed
-               : parent.hot ? theme.controlHover
+               : parent.pressed ? theme.controlPressed
+               : parent.hovered ? theme.controlHovered
                : null } ],
 
     // A choice shows a label or an icon, whichever the record carries — page
     // switches are labelled, appearance switches are the sun/half-disc/moon —
     // never both. The record shape is `Menu`'s.
 
-    ink: Color = { this.on || this.hot ? theme.text : theme.textMuted },
+    ink: Color = { this.on || this.hovered ? theme.text : theme.textMuted },
 
     t: TextLabel [ wrap = false, fontSize = 13, fontWeight = medium, x = center,
         visible = { :label != null && :icon == null },

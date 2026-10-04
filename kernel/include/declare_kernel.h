@@ -36,6 +36,8 @@ extern "C" {
 #define DK_DYNAMIC  2   /* a BODY whose read set is discovered per run        */
 #define DK_VIS      3   /* built-in: a view's visibility facts (kernel_vis_add) */
 #define DK_EXTENT   4   /* built-in: a container's auto-extent on one axis (kernel_extent_add) */
+#define DK_LAYOUT   5   /* built-in: SimpleLayout's flow positions, unaligned and unflexed (kernel_layout_add) */
+#define DK_LAYOUT_NOWRITE 0x80000000u   /* a layout child word: placed in the run, its slot not written */
 
 /* rule flags (image + runtime) */
 #define DK_YIELDING   1   /* a runtime derive: an author write displaces it   */
@@ -272,13 +274,24 @@ int32_t kernel_vis_add(dk_kernel *k, uint32_t view, uint32_t root_view);
 /* AUTO-EXTENT (view.ts extentOf): a container's unset width (axis 0) or height
  * (axis 1) is the max over its visible, unclipped, non-percent children of
  * x + footprint's lead + footprint's extent — the transformed box, as paint
- * and the hit walk see it. `words` = [ the container's child-list cell (or
- * NONE), then each child's numeric BLOCK base ]; the rule's edges are those
- * cells (rewired by kernel_extent_rewire when the child list changes). A 3D
+ * and the hit walk see it — plus the container's own inset on that axis.
+ * `words` = [ the container's child-list cell (or NONE), its inset cell for
+ * the axis (or NONE), then each child's numeric BLOCK base ]; the rule's edges
+ * are those cells (rewired by kernel_extent_rewire when the child list
+ * changes). A 3D
  * child is declined to the host (dk_host.decline). YIELDING, like every
  * runtime derive. Returns the rule id. */
 int32_t kernel_extent_add(dk_kernel *k, uint32_t axis, uint32_t target, const uint32_t *words, uint32_t n);
 int kernel_extent_rewire(dk_kernel *k, uint32_t rule, const uint32_t *words, uint32_t n);
+
+/* STACK LAYOUT (library/simplelayout.declare place(), the unaligned unflexed
+ * case): along `axis` (0 = x, 1 = y) each laid child is written at the run's
+ * position less its footprint's lead, and a visible child advances the run by
+ * its footprint's extent plus the spacing. `words` = [ the arranged view's
+ * child-list cell (or NONE), the layout's spacing cell (or NONE), then each
+ * laid child's block base — with DK_LAYOUT_NOWRITE when its slot is an
+ * author's ]. Writes only; a 3D child declines to the host. Returns the rule id. */
+int32_t kernel_layout_add(dk_kernel *k, uint32_t axis, const uint32_t *words, uint32_t n);
 int kernel_vis_rewire(dk_kernel *k, uint32_t rule);
 
 /* EXPR code and constants at runtime: append words, get their offset/index.

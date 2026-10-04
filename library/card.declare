@@ -39,18 +39,18 @@ only; the card is still inset, because the inset was never the arrangement's. Wr
 
 ## fill
 The theme's `surface` — the token that means "the plane content sits on", one step off
-the window's own `bg` in every preset, light and dark. Write over it for a card that
-should sink into the page rather than rise off it (`fill = { theme.bg }`), and pair that
+the window's own `background` in every preset, light and dark. Write over it for a card that
+should sink into the page rather than rise off it (`fill = { theme.background }`), and pair that
 with a kept `stroke` so the shape still reads.
 
 ## cornerRadius
-The theme's `controlRadius`, so a card's corners match the buttons and fields inside it
+The theme's `controlCornerRadius`, so a card's corners match the buttons and fields inside it
 — 7 in the house look, 4 in `Redmond` and `MountainView`. Set a number to break with the
 preset; the box still clips nothing unless you also say `clip = true`.
 
 ## theme
 The provided design-token record the card styles off. Reads `surface` for the fill, `line`
-for the edge, and `controlRadius` for the corners — the tokens every preset carries, so a
+for the edge, and `controlCornerRadius` for the corners — the tokens every preset carries, so a
 card is the theme's surface in all four, light and dark. See `Control.theme`.
 
 ## stroke
@@ -69,7 +69,7 @@ class Card [
     theme: Theme = { provided("theme", SanFrancisco) },
 
     fill = { theme.surface },
-    cornerRadius = { theme.controlRadius },
+    cornerRadius = { theme.controlCornerRadius },
     stroke = { stroke(1, theme.line) },
 
     // The inset that saves the wrapper view: the card's own content box, so

@@ -598,7 +598,7 @@ const VOCAB_NOTE = {
   WheelEvent: "a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch",
   KeyEvent: "a key went down or up — `key`, `code`, and modifier flags; never a numeric code",
   FocusGeometry: "the focused control's live silhouette, for a focus indicator",
-  TipEvent: "a tooltip request from the `Tip` service",
+  TooltipEvent: "a tooltip request from the `Tooltips` service",
   ChangeEvent: "values this node tracks (`trackChanges`) changed in this settle — `changed`, one `ValueChange` each",
   ValueChange: "one changed value — its `name`, its `previousValue`, and its `currentValue`",
   StreamMessage: "one arrival from an `EventStream` or `Socket`",
@@ -660,7 +660,7 @@ const sharedTypesDoc = (spine) => {
   const cell = (s) => "`" + String(s).replace(/\|/g, "\\|") + "`";
   const note = (n) => (VOCAB_NOTE[n] ? " — " + VOCAB_NOTE[n] : "");
   const iface = (n) => t.interfaces.find((i) => i.name === n);
-  const PAYLOADS = ["PointerEvent", "PointerUpEvent", "WheelEvent", "TouchEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage"];
+  const PAYLOADS = ["PointerEvent", "PointerUpEvent", "WheelEvent", "TouchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage"];
   const draw = iface("Draw");
   const props = (draw?.members ?? []).filter((m) => !m.includes("("));
   const calls = (draw?.members ?? []).filter((m) => m.includes("("));
@@ -757,12 +757,12 @@ const sharedTypesDoc = (spine) => {
 const TYPE_GROUPS = [
   ["Enums", ["Axis", "Backface", "Blend", "Claim", "Credentials", "CrossAlign", "Edges",
              "FitAlign", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
-             "Process", "Scrolls", "StreamStatus", "Stretch", "TextAlign", "TextTransform", "Tick"]],
+             "Process", "ScrollAnchor", "Scrolls", "StreamStatus", "Stretch", "TextAlign", "TextTransform", "Tick"]],
   ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "Shape", "Stroke", "BoxStroke", "Outline",
               "Shadow", "Filter", "Backdrop", "Theme", "MotionCurve", "Cursor", "TextMeasure", "IslandPost", "DelayHandle"]],
   ["Text", ["TextStyle", "TextStyles", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
-                      "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "ChangeEvent", "ValueChange"]],
+                      "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange"]],
   ["Drawing", ["Draw", "DrawGradient", "DrawImageSource"]],
   ["Inspection", ["TraceSettle", "TraceChange"]],
   ["Host", ["Headers", "AbortSignal", "AbortController", "RequestInit", "Response", "Blob", "FormData",

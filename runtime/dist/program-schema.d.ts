@@ -97,6 +97,7 @@ export type CheckedDecl = {
 } | {
     ok: false;
     error: DeclareError;
+    type?: AttrType;
 };
 /** Resolve a WRITTEN type name to its AttrType — the one place that mapping
  *  lives. Two callers need it and MUST agree: checkDecl (which refuses an

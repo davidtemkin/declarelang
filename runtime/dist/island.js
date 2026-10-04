@@ -189,14 +189,14 @@ export function linkIslandTenant(island, tenant) {
  *  post/onPost verbs, reachable from the foreign side through the element's
  *  `__declareIsland`. */
 export class DOMIsland extends Island {
-    flush(s) {
-        super.flush(s);
+    $flush(s) {
+        super.$flush(s);
         if (this.slot !== "")
             s.setEmbed(this.slot, this);
     }
 }
 defineAttributes(DOMIsland, {
-    slot: { def: "", push: (v, id) => v.surface?.setEmbed(id, v) },
+    slot: { def: "", push: (v, id) => v.$surface?.setEmbed(id, v) },
     childName: { def: "" },
 });
 //# sourceMappingURL=island.js.map

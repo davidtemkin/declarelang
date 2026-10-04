@@ -4,6 +4,7 @@
 // backends) moves to the target and returns to the top for the first heading.
 import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
+import { launchChrome } from "../chrome.mjs";
 const chrome = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"].find(existsSync);
 const PROG = "http://localhost:8364/test/fixtures/anchortest.declare";
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -12,7 +13,7 @@ function check(label, cond, detail) {
   if (!cond) failures++;
   console.log(`${cond ? "ok  " : "FAIL"} — ${label}${cond ? "" : "\n       " + detail}`);
 }
-const b = await puppeteer.launch({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
+const b = await launchChrome({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
 const scrollY = (pg) => pg.evaluate(() => (window.__app && window.__app.body ? window.__app.body.scrollY : -1));
 const setLoc = async (pg, v) => { await pg.evaluate((s) => { window.__app.location = s; }, v); await wait(500); };
 

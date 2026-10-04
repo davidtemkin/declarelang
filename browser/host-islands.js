@@ -207,7 +207,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, isSto
     canvasWiring.delete(view);
     if (unseeded || isStopped()) return;
     if (!hasProgram(compiled)) { deferPreview({ view, slot: slotStr }); return; }
-    if (view.__childApp || view.surface == null) return;          // raced a re-mark / detached
+    if (view.__childApp || view.$surface == null) return;          // raced a re-mark / detached
     try {
       await kernelReady();
       const childApp = buildApp(compiled, { provides: typeof view.post === "function" ? islandProvisions(view) : undefined });

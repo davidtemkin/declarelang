@@ -54,6 +54,8 @@ wrapped around one image.
 - [`position`](declare-docs:Media.position) (seconds, assignable to seek), `duration`, `ended`, [`buffering`](declare-docs:Media.buffering), `loaded`,
   `failed` — the facts a player's chrome is built from. A progress bar is a width:
   `width = { parent.width * (clip.position / clip.duration) }`.
+- [`source`](declare-docs:Media.source) — re-pointing it stops the clip that was playing and loads the new one;
+  discarding the view stops it for good.
 - [`volume`](declare-docs:Media.volume), [`muted`](declare-docs:Media.muted), [`loop`](declare-docs:Media.loop), [`playbackRate`](declare-docs:Media.playbackRate).
 
 ```declare-fragment
@@ -82,6 +84,48 @@ App [ width = 320, height = 90, textColor = #172530,
         ]
     ]
 ```
+
+## A scrubber
+
+A clip loads its metadata as soon as it has a `source`, so `duration` and `loaded`
+arrive before anything plays, and a `playing = true` set before then is honoured when
+they do. While it plays, the clip writes `position` back about four times a second.
+That is enough for a time readout, but a bar moving in quarter-second steps looks
+broken, so a smooth playhead is the program's own number. A frame `Time` advances it
+by `dt` and takes the clip's word whenever the two disagree: a clip still loading, a
+stall, a seek.
+
+Seeking is an assignment to `position`. An assignment within a quarter second of where
+the clip already is does not seek, so the clip's own write-backs never stutter it. The
+track takes the press and the drag. `onPointerMove` also fires when the pointer merely
+passes over, so it seeks only while the track is `pressed`:
+
+```declare-fragment
+class Voice [ height = 36,
+    clipId: string = "", src: string = "",
+    head: number = 0,                                  // seconds heard, moving smoothly
+    on: boolean = { app.playing == clipId },
+    audio: Audio [ source = { classroot.src }, playing = { classroot.on },
+        onEnded() { app.playing = ""; classroot.head = 0 } ],
+    Time [ exists = { classroot.on }, tick = frame,
+        onTick(dt: number) {
+            const next = classroot.head + dt, heard = classroot.audio.position
+            classroot.head = Math.abs(next - heard) > 0.35 ? heard : next } ],
+    seek(frac: number) { head = Math.max(0, Math.min(1, frac)) * audio.duration; audio.position = head },
+    track: View [ width = 180, height = 36, fill = #E4E8EC, claim = x,
+        onPointerDown(e: PointerEvent) { classroot.seek(e.x / this.width) },
+        onPointerMove(e: PointerEvent) { if (this.pressed) classroot.seek(e.x / this.width) },
+        View [ height = 36, fill = #3A7BD5,
+            width = { classroot.audio.duration > 0 ? parent.width * classroot.head / classroot.audio.duration : 0 } ] ]
+    ]
+```
+
+Only one of these plays at a time, and nothing stops the others: `app.playing` holds one
+clip's id, and every `on` is a comparison against it. Pressing play on another note
+changes the id, and the note that was playing goes quiet because its condition stopped
+holding. The frame `Time` exists only while its note plays, so a list of a hundred
+notes runs one clock. `claim = x` leaves vertical scrolling to the list on a touch
+screen.
 
 ---
 

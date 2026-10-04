@@ -22,7 +22,7 @@ import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable, type TextStyle, type FontWeight } from "./measure.js";
 import { heldFamily, type FamilyValue } from "./font-value.js";
 import { isTwoWay, edited, commitDraft, Editor } from "./editor.js";
-import { stroke, type Color } from "./value.js";
+import { insetSides, stroke, type Color, type Inset } from "./value.js";
 
 export class TextInput extends Editor {
   // The FACE slots (off View — docs/system-design/style.md): each defaults to
@@ -39,18 +39,18 @@ export class TextInput extends Editor {
   declare multiline: boolean;
   declare spellcheck: boolean;
   declare wrap: boolean;
-  declare padding: number;
+  declare padding: Inset;
   declare initial: string;
   declare focused: boolean;
   // The editor session (commitOn / error / valid / dirty + commit()/revert())
   // is inherited from Editor; `text` is this editor's draft slot.
   protected override draftSlot(): string { return "text"; }
 
-  override attach(backend: RenderBackend, parentSurface: Surface | null): void {
+  override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
     // A text field is a tab stop by default; an explicit `focusable = false`
     // (was-set) opts out untouched, exactly like Text's auto-size.
     if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null) this.focusable = true;
-    super.attach(backend, parentSurface);
+    super.$attach(backend, parentSurface);
     // Uncontrolled seed: unless the author bound or hard-set `text`, it
     // follows `initial` via a YIELDING derive — reactive, so a source that
     // arrives late fills the field — disposed on the first edit
@@ -74,7 +74,7 @@ export class TextInput extends Editor {
     // Same YIELDING-derive pattern as the seed above: reactive on the
     // provided theme and on focus, displaced the moment the author assigns
     // the slot. Surface fill, a 1px line edge that turns accent when the
-    // field holds keyboard focus, the theme's controlRadius geometry token.
+    // field holds keyboard focus, the theme's controlCornerRadius geometry token.
     const tok = (name: string, fallback: number): number => {
       // The house field chrome reads the PROVIDED theme (a class-library
       // value now — off View); unprovided it is null and the fallbacks below
@@ -89,7 +89,7 @@ export class TextInput extends Editor {
     if (!isSet(this, "stroke") && ownerOf(this, "stroke") === null)
       bindDerived(this, "stroke", () => stroke(1, this.focused ? tok("accent", 0x2E6FE0) : tok("line", 0xDBE1E9)));
     if (!isSet(this, "cornerRadius") && ownerOf(this, "cornerRadius") === null)
-      bindDerived(this, "cornerRadius", () => tok("fieldRadius", tok("controlRadius", 7)));
+      bindDerived(this, "cornerRadius", () => tok("fieldCornerRadius", tok("controlCornerRadius", 7)));
     if (!isSet(this, "padding") && ownerOf(this, "padding") === null)
       bindDerived(this, "padding", () => tok("fieldPadding", 10));
     // An unset HEIGHT auto-sizes to the text — the same rule Text follows and
@@ -115,18 +115,19 @@ export class TextInput extends Editor {
       bindDerived(this, "height", () => {
         const font = fontString(this.editStyle());
         const met = fontMetrics(font);
-        const inner = this.width - 2 * this.padding;
+        const [t, r, b, l] = insetSides(this.padding);
+        const inner = this.width - l - r;
         const lines = !this.multiline ? 1
           : this.wrap && inner > 0
             ? wrapEditable(this.text, font, inner, this.letterSpacing).length
             : this.text.split("\n").length;
-        return Math.ceil(lines * (met.ascent + met.descent) + 2 * this.padding);
+        return Math.ceil(lines * (met.ascent + met.descent) + t + b);
       });
     }
   }
 
-  protected override flush(s: Surface): void {
-    super.flush(s);
+  protected override $flush(s: Surface): void {
+    super.$flush(s);
     // The style is the cold, provided path (like Text): a standing derive
     // over the four text slots so a provider re-rooting above re-styles the
     // field. It reads the slots under tracking; the apply re-syncs the element.
@@ -156,7 +157,7 @@ export class TextInput extends Editor {
    *  Idempotent and cheap; called on any model change (text/placeholder/
    *  multiline pushes, the style derive) and at flush. */
   syncEditable(): void {
-    const s = this.surface;
+    const s = this.$surface;
     if (s === undefined || s === null) return;
     const spec: EditableSpec = {
       value: this.text,
@@ -230,7 +231,7 @@ export class TextInput extends Editor {
    *  and that is the right ranking, because a deliberate click names a spot. */
   override focusChanged(focused: boolean): void {
     this.focused = focused; // the reactive fact themes and the house edge read
-    this.surface?.activateEditable(focused);
+    this.$surface?.activateEditable(focused);
     if (focused) this.applySelection();
   }
 
@@ -260,7 +261,7 @@ export class TextInput extends Editor {
       : p.at === "end" ? [len, len]
       : p.at === "all" ? [0, len]
       : [clamp(p.at), clamp(p.end ?? p.at)];
-    this.surface?.setSelection?.(Math.min(s, e), Math.max(s, e));
+    this.$surface?.setSelection?.(Math.min(s, e), Math.max(s, e));
   }
 }
 
@@ -276,7 +277,13 @@ defineAttributes(TextInput, {
   multiline: { def: false, push: (t) => t.syncEditable() },
   spellcheck: { def: true, push: (t) => t.syncEditable() },
   wrap: { def: true, push: (t) => t.syncEditable() },
-  padding: { def: 0, push: (t) => t.syncEditable() },
+  // the field's content box, as View's: where the text sits inside it
+  padding: { def: 0, push: (t, p) => {
+    const [top, r, b, l] = insetSides(p as Inset);
+    t.insetX = l + r;
+    t.insetY = top + b;
+    t.syncEditable();
+  } },
   initial: { def: "" },
   focused: { def: false },
   // commitOn / error / valid / dirty are declared on the Editor base.

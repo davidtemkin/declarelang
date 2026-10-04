@@ -126,9 +126,9 @@ each invented a `hover` token instead. On inspection the two cases differ:
   (`0xEAEEF2`) is *darker* than its `control` (`0xEEF1F4`). House conflates them.
 
 So the house vocabulary really does lack a hover role — but one app needing it is
-not a pattern, and inventing `controlHover` values across four presets × two
+not a pattern, and inventing `controlHovered` values across four presets × two
 modes when nothing consumes them would be speculation, not normalization.
-→ **Viewer keeps `hover` as a documented app token.** Add `controlHover` to the
+→ **Viewer keeps `hover` as a documented app token.** Add `controlHovered` to the
 house presets when a second app or a library component actually needs it.
 
 *(Recorded because I overstated this initially: two apps having the same token
@@ -136,7 +136,7 @@ name is not by itself evidence of the same need.)*
 
 → **Superseded by D8.** The second consumer turned out to be the library itself,
 which was improvising a hover tint in three components and disagreeing with
-itself about it. `controlHover` is now a house token. Viewer's `hover` folds into
+itself about it. `controlHovered` is now a house token. Viewer's `hover` folds into
 it when the components migrate in step 3.
 
 ---
@@ -167,8 +167,8 @@ Contextual and correct. `iconSize` is a prevailing default the host states, not
 a constant.
 
 **J2 · Ink differs per site.**
-`Menu.check` and `Menu.arrow` flip to `menuHlText` on the hot row; `Checkbox.mark`
-is always `accentText`. Unify the geometry, keep the ink local — that is what the
+`Menu.check` and `Menu.arrow` flip to `menuHighlightTextColor` on the hot row; `Checkbox.mark`
+is always `accentTextColor`. Unify the geometry, keep the ink local — that is what the
 `ink` slot is for.
 
 **J3 · Key legends stay text.**
@@ -211,7 +211,7 @@ symptom of one.
 
 ```
 control          resting fill of a filled control
-controlHover     hover — a filled control brightens, a bare one gains this
+controlHovered     hover — a filled control brightens, a bare one gains this
 controlPressed   transient, while the pointer is down
 controlSelected  persistent — on / current / chosen     (was controlActive)
 ```
@@ -221,7 +221,7 @@ Values derived rather than invented: hue held exactly, lightness stepped −4 L*
 in dark mode. That lands hover at ΔE ≈ 4 — just past the just-noticeable
 threshold — and pressed at ΔE ≈ 9, clearly distinct from it, in all four presets.
 
-Noted: San Francisco's `controlHover` (`#DCE0E6`) sits almost exactly on its
+Noted: San Francisco's `controlHovered` (`#DCE0E6`) sits almost exactly on its
 `line` (`#DBE1E9`). Coincidence, not a decision; the table is two constants and
 is cheap to nudge.
 

@@ -32,7 +32,7 @@ name the same thing, the one here is the one the platform means.
   `provided("name")`. The text face and `theme` work this way, and so can your own
   declared attributes. → [Paint and themes](declare-docs:guide:paint-and-themes)
 - **text face** — the five provided text attributes: [`fontFamily`](declare-docs:Text.fontFamily), [`fontSize`](declare-docs:Text.fontSize),
-  [`fontWeight`](declare-docs:Text.fontWeight), [`textColor`](declare-docs:Text.textColor), [`letterSpacing`](declare-docs:Text.letterSpacing). Distinct from a **[`Face`](declare-docs:Face)**, one file of a
+  [`fontWeight`](declare-docs:Text.fontWeight), [`textColor`](declare-docs:Text.textColor), [`letterSpacing`](declare-docs:Text.letterSpacing). Distinct from a **[`FontFace`](declare-docs:FontFace)**, one file of a
   [`Font`](declare-docs:Font).
 - **theme** — the token record a program provides once. A **preset** is a library theme
   ([`SanFrancisco`](declare-docs:SanFrancisco), [`Cupertino`](declare-docs:Cupertino), [`MountainView`](declare-docs:MountainView), [`Redmond`](declare-docs:Redmond), each with a `…Dark`); the
@@ -138,8 +138,8 @@ name the same thing, the one here is the one the platform means.
 - **capture** — a press that began on a view stays that view's until release.
 - **claim** — what declaring a handler takes from the browser on a touch screen: exactly
   the gesture that handler needs. → [Touch and gestures](declare-docs:guide:touch)
-- **hot / down** — a control's hover and press, gated by `disabled`, with keyboard
-  activation folded into [`down`](declare-docs:Control.down).
+- **hovered / pressed** — the pointer is over a view, or down on it; on a control, both
+  false while `disabled`, and [`pressed`](declare-docs:View.pressed) true for a keyboard press too.
 - **focus-visible** — focused, with the focus arrived by keyboard; what a focus ring shows
   for.
 - **light-dismiss** — an overlay closes on a press outside it, and that press is

@@ -250,7 +250,12 @@ type RichTextLayout = Readonly<Record<string, BlockGeometry>>;
 interface TextMeasure { readonly width: number; readonly height: number; readonly baseline: number; readonly capHeight: number; readonly lines: number }
 /** Measure a run of text in a style, with the measurer and wrapping a \`Text\` uses —
  *  one line, or wrapped at \`width\`. Called in a constraint or a drawing, it re-runs
- *  when anything it measured with changes, a font's faces included. */
+ *  when anything it measured with changes, a font's faces included.
+ *
+ *  The style says everything the measurement uses: a field left out takes its plain
+ *  default, never the face around it. **To measure the way a \`Text\` here would
+ *  render, pass \`providedTextStyle(…)\`** — the provided face, with your overrides:
+ *  \`measureText(words, providedTextStyle({ lineHeight: 1.3 }), 300).width\`. */
 declare function measureText(text: string, style: TextStyle, width?: number): TextMeasure;
 /** A value this program's HOST provides — the program that embeds it lists the
  *  name in its island's \`provides\`; a page embedding it calls \`app.provide\`.
@@ -395,8 +400,10 @@ interface TouchEvent extends PointerEvent { touches: readonly Touch[]; changed: 
  *  \`pinch\` true — the browser reports it as a wheel event with a modifier, and
  *  hiding that would make a zoom impossible to write. */
 interface WheelEvent extends PointerEvent { pinch: boolean }
-/** A resolved two-finger zoom: the accumulated \`scale\` and the \`center\` it
- *  pivots about, so the view can zoom about the point the fingers chose. */
+/** A resolved two-finger zoom: the accumulated \`scale\` (1 at \`onPinchStart\`) and the
+ *  point between the fingers it pivots about. \`center\` is that point in ROOT space (the
+ *  same as \`rootX\`/\`rootY\`); \`x\`/\`y\` are the same point in this view's own coordinates —
+ *  what zooming "about the fingers" on this view wants. */
 interface PinchEvent extends PointerEvent { scale: number; center: { readonly x: number; readonly y: number } }
 /** A key, both ways: \`code\` is the physical key regardless of layout (what a
  *  shortcut wants), \`key\` is the character it produced (what typing wants). Plus the
@@ -408,7 +415,7 @@ interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; a
 interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View; scroller: View; homeX: number; homeY: number; homeW: number; homeH: number; homeRad: number }
 /** A tooltip's request: the text, and the rect of the view asking, so a custom
  *  tip can place itself against the thing it describes. */
-interface TipEvent { readonly text: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly root: View }
+interface TooltipEvent { readonly text: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly root: View }
 /** One message from an \`EventStream\` or \`Socket\`: its payload, its type, and its
  *  id. \`onMessage\` receives it, and \`last\` holds the most recent. */
 interface StreamMessage { readonly data: string; readonly type: string; readonly id: string }
@@ -553,11 +560,11 @@ export function tsType(t) {
         // `type <Name> = …` alias. Both are `t.name` — the difference is whether
         // an alias is generated for it (see generateScaffold's `enums`).
         case "enum": return t.name;
-        case "class": return `${t.of} | null`; // the only literal is `null` for "none"
+        case "class": return t.required === true ? t.of : `${t.of} | null`; // a schema slot's only literal is `null` for "none"; a declared `Menu` is never empty
         case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
         case "cursor": return "Cursor"; // reads see the place; writes are widened in memberSig
         case "slotref": return "string"; // a bare slot name, a string at runtime
-        case "record": return t.data === true ? `${t.name} | null` : t.name; // data record (schema-typed, nullable like a class slot) / Theme-class token record
+        case "record": return t.data === true && t.required !== true ? `${t.name} | null` : t.name; // data record (nullable unless declared without `?`) / Theme-class token record
         case "fill": return "Fill";
         case "stroke": return "BoxStroke"; // one Stroke, four clockwise from the top, or null
         case "outline": return "Outline | null";
@@ -570,13 +577,13 @@ export function tsType(t) {
         case "faceWeight": return "FontWeight | readonly [number, number]";
         case "array": return t.of !== undefined ? `${t.of}[]` : "any[]";
         case "object": return "any";
-        case "view": return "View | null";
+        case "view": return t.required === true ? "View" : "View | null";
     }
 }
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
-const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TipEvent", "StreamMessage", "Draw", "DrawGradient"]);
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "Draw", "DrawGradient"]);
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
@@ -830,6 +837,9 @@ export const LANGUAGE_API = {
     ],
     Animator: [`  start(): void;`, `  stop(): void;`],
     AnimatorGroup: [`  start(): void;`, `  stop(): void;`],
+    // Take the NEXT target outright instead of travelling to it — for a value
+    // that arrives with its data (spring.ts arrive): called from the onLoad.
+    Spring: [`  arrive(): void;`],
     // The socket's one verb (streams.ts): a call you make; onMessage is it
     // calling you. The shared stream surface (url/active/retry + the read-only
     // intrinsics) flows from the Stream schema's attrs, not from here.
@@ -997,7 +1007,7 @@ function emitClass(s, decl, rootType, extras, isClassName) {
 }
 /** The names a built-in schema's runtime class implements as methods that the
  *  reference does NOT document as its callable surface — runtime plumbing
- *  (`DataSource.maybeAuto`, `Animator.tick`, `View.attach`). Overriding one is
+ *  (`DataSource.maybeAuto`, `Animator.tick`, `Spring.wake`). Overriding one is
  *  legal (a method is a method) and warned (Diag.overridesPlumbing): the
  *  runtime calls it on its own schedule, and the reference states no contract.
  *  Documented = named in LANGUAGE_API up the schema chain, or in

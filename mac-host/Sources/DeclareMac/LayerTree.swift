@@ -91,6 +91,13 @@ final class Node {
     /// The stream's end, when the platform names none: a lifted finger that
     /// no momentum follows, or a mouse wheel that goes quiet.
     var quietWork: DispatchWorkItem?
+    /// A HAND is on the scroller — fingers down on the trackpad (a phase that
+    /// has begun and not ended), or its scrollbar thumb grabbed. The user's
+    /// scroll is not over while it is, moving or not: no quiet timer ends it.
+    var handHeld = false
+    /// The scrollbar thumb in particular is held: the runtime keeps the range
+    /// still under it (a windowed list maps the pointer onto it).
+    var barHeld = false
     var glideY: ScrollGlide?
     var glideX: ScrollGlide?
     /// Facts to report at the next frame.
@@ -705,7 +712,8 @@ final class LayerTree {
             if vertical { n.glideY = g } else { n.glideX = g }
             gliding.insert(n.id)
             if LayerTree.scrollDebug { NSLog("[scroll] glide #%d %@ %.0f -> %.0f over %.0fms", n.id, vertical ? "y" : "x", g.from, g.to, g.duration * 1000) }
-            if !n.scrollingLive { n.scrollingLive = true; markFact(n) }
+            // a glide is the PROGRAM's motion: `scrolling` is the user's scroll
+            // alone, so it stays as it was (a request waits on the user's, not this)
             bridge.needsFrame()
         case 23: // CURSOR
             if id == 0 { view?.setCursor(str(a(0)) ?? "") }
@@ -2382,7 +2390,14 @@ final class LayerTree {
         n.quietWork?.cancel(); n.quietWork = nil
         if !n.scrollingLive { n.scrollingLive = true; markFact(n) }
         if n.gestureLive != gesture { n.gestureLive = gesture; markFact(n) }
+        // The fingers: down from .began/.changed until .ended/.cancelled, and
+        // certainly up once momentum is arriving. (A plain wheel has no phase.)
+        if !legacy {
+            if phase.contains(.began) || phase.contains(.changed) || phase.contains(.mayBegin) { n.handHeld = true }
+            if phase.contains(.ended) || phase.contains(.cancelled) || !momentum.isEmpty { n.handHeld = false }
+        }
         if momentum.contains(.ended) || momentum.contains(.cancelled) { endStream(n); return }
+        if n.handHeld { return }                       // resting fingers or a held thumb: the lift ends it
         let fingerUp = phase.contains(.ended) || phase.contains(.cancelled)
         let delay: TimeInterval = legacy ? 0.12 : (fingerUp ? 0.08 : 0.5)
         let w = DispatchWorkItem { [weak self, weak n] in
@@ -2395,6 +2410,7 @@ final class LayerTree {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: w)
     }
     private func endStream(_ n: Node) {
+        if n.handHeld { return }
         if n.gestureLive { n.gestureLive = false; markFact(n) }
         if n.scrollingLive, n.glideY == nil, n.glideX == nil { n.scrollingLive = false; markFact(n) }
     }
@@ -2461,7 +2477,7 @@ final class LayerTree {
     }
 
     /// The facts, once per frame, after the frame that showed them:
-    /// [id, y | null, x | null, scrolling, gesture] per touched scroller.
+    /// [id, y | null, x | null, scrolling, gesture, bar held] per touched scroller.
     func flushScrollFacts() {
         guard !dirtyScroll.isEmpty else { return }
         var rows: [[Any]] = []
@@ -2470,7 +2486,7 @@ final class LayerTree {
             n.factDirty = false
             rows.append([n.id, n.scrolls ? Double(n.scrollOffset) as Any : NSNull(),
                          n.scrollsX ? Double(n.scrollXOffset) as Any : NSNull(),
-                         n.scrollingLive ? 1 : 0, n.gestureLive ? 1 : 0])
+                         n.scrollingLive ? 1 : 0, n.gestureLive ? 1 : 0, n.barHeld ? 1 : 0])
         }
         dirtyScroll.removeAll()
         bridge.call("__declareScrollFacts", [rows])
@@ -2508,6 +2524,29 @@ final class LayerTree {
         } else if offset != n.scrollXOffset { n.scrollXOffset = offset; pendingMoves.insert(n.id) }
         streamEvent(n, phase: [], momentum: [], gesture: true, legacy: true)
         bridge.needsFrame()
+    }
+
+    /// The scrollbar thumb grabbed or let go. Held, the scroll is not over
+    /// however still the pointer rests; let go, it ends as a lifted finger
+    /// does — shortly, unless something else keeps it moving.
+    func holdScrollbar(_ n: Node, held: Bool) {
+        n.handHeld = held
+        if n.barHeld != held { n.barHeld = held; markFact(n) }
+        if held {
+            // grabbed and still: the scroll is live from the press, not the first move
+            if !n.scrollingLive { n.scrollingLive = true; markFact(n) }
+            bridge.needsFrame()
+        }
+        guard !held else { return }
+        n.quietWork?.cancel()
+        let w = DispatchWorkItem { [weak self, weak n] in
+            guard let self, let n else { return }
+            n.quietWork = nil
+            self.endStream(n)
+            self.bridge.needsFrame()
+        }
+        n.quietWork = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: w)
     }
 
     /// Rollover widening: at most one bar is hot at a time. Tracked rather than

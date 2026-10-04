@@ -1,5 +1,6 @@
-// test/briefs.test.mjs — the task briefs (docs/briefs) are an agent's first read
-// after declare.md, so everything in one must be true of the tree it ships in:
+// test/briefs.test.mjs — the task briefs (docs/briefs) are what an agent reads when
+// it reaches the part of a program one covers, so everything in one must be true
+// of the tree it ships in:
 // its snippet compiles and boots, every name it sends the agent to look up
 // answers in declare-help, every example it cites exists and holds the symbol
 // it names, and every guide section it points to is a real heading. A brief also

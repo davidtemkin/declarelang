@@ -39,13 +39,13 @@ export function noteNegativeSize(v: View, size: "width" | "height"): void {
   if (!percentOwned(v, size) || NEGATIVE_PENDING.has(v)) return;   // only a size derived from the parent's
   NEGATIVE_PENDING.add(v);
   // attached: judge at this settle's close; not yet: App.attach judges it
-  if ((rootOf(v) as View).surface != null) afterSettle(judgeNegativeSizes);
+  if ((rootOf(v) as View).$surface != null) afterSettle(judgeNegativeSizes);
 }
 /** Judge every pending size whose program is attached (see noteNegativeSize). */
 export function judgeNegativeSizes(): void {
   for (const v of [...NEGATIVE_PENDING]) {
     const root = rootOf(v);
-    if ((root as View).surface == null) continue;   // not attached yet — its App will ask
+    if ((root as View).$surface == null) continue;   // not attached yet — its App will ask
     NEGATIVE_PENDING.delete(v);
     const p = v.parent instanceof View ? v.parent : null;
     if (p === null) continue;

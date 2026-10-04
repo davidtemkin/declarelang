@@ -36,7 +36,7 @@ constrained switch never fights its constraint.
 Flips the appearance, by delivering `!dark` through `input`. Called by a click and by
 Space/Enter.
 
-## tip
+## tooltipLabel
 Says what a press will do — "Switch to dark" or "Switch to light" — rather than
 naming the current state, which the icon already shows.
 
@@ -61,18 +61,18 @@ include [ "icons/appearance.declare" ]
 class AppearanceSwitch extends Control [
     width  = { typeof theme.buttonHeight == "number" ? theme.buttonHeight : 32 },
     height = { this.width },
-    cornerRadius = { Math.min(theme.controlRadius, height / 2) },
+    cornerRadius = { Math.min(theme.controlCornerRadius, height / 2) },
     dark: boolean = false,
 
     input(v: boolean) { dark = v },
 
     press()   { input(!dark) },
 
-    tip  = { dark ? "Switch to light" : "Switch to dark" },
-    fill = { down ? theme.controlPressed : hot ? theme.controlHover : null },
+    tooltipLabel = { dark ? "Switch to light" : "Switch to dark" },
+    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : null },
 
     sun:  SunIcon  [ x = center, y = center, iconSize = 16, visible = { !classroot.dark },
-        ink = { classroot.hot ? classroot.theme.text : classroot.theme.textMuted } ],
+        ink = { classroot.hovered ? classroot.theme.text : classroot.theme.textMuted } ],
     moon: MoonIcon [ x = center, y = center, iconSize = 16, visible = { classroot.dark },
-        ink = { classroot.hot ? classroot.theme.text : classroot.theme.textMuted } ]
+        ink = { classroot.hovered ? classroot.theme.text : classroot.theme.textMuted } ]
     ]

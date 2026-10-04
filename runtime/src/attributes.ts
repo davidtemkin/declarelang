@@ -25,7 +25,7 @@
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
 
-import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending } from "./reactive.js";
+import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage, type Where } from "./errors.js";
 
 /** One attribute's class-level declaration: its default, the Surface push a
@@ -136,6 +136,12 @@ export function slotOfCell(cell: number): { view: object; name: string; kind: "n
   if (L === null || slot >= L.count) return null;
   return { view, name: L.names[slot], kind: L.kinds[slot] };
 }
+
+// a claim stands while the slot behind the cell still names its constraint
+setOwnershipCheck((c, cell) => {
+  const at = slotOfCell(cell);
+  return at !== null && ownerOf(at.view, at.name) === c;
+});
 
 /** The push sweep: after a settle, every cell a KERNEL rule wrote (an EXPR
  *  body, the visibility rule) gets the Surface push its slot declares —
@@ -447,10 +453,16 @@ export function defineAttributes<S extends object>(
         }
         if (defRule) {
           // A declared default standing as a rule over the JS store: its stored
-          // value, unless the rule has not caught up (declStale — the table
-          // path's own test, asked the same way)
+          // value, unless the rule has not landed one yet or has not caught up
+          // (declStale — the table path's own test, asked the same way)
           const o = self.$owners?.[name];
-          if (o !== undefined && o.declDefault && declStale(self, name, isTracking() || isSettling())) return evalDefault(self, name, defBinding!, defOuter);
+          if (o !== undefined && o.declDefault) {
+            if (!o.applied) {
+              // not evaluable yet either (its inputs have not arrived): the
+              // stored value stands, as it did before the rule existed
+              try { return evalDefault(self, name, defBinding!, defOuter); } catch { /* fall through */ }
+            } else if (declStale(self, name, isTracking() || isSettling())) return evalDefault(self, name, defBinding!, defOuter);
+          }
         }
         if (defBinding !== undefined && !provided(self, name)) {
           // A declaration default that is a binding (`fontSize = provided(
@@ -551,6 +563,11 @@ function evalDefault(
   fn: (this: unknown, parent: unknown, classroot: unknown) => unknown,
   outer: boolean
 ): unknown {
+  // A discarded node answers its LAST values (the retire path copied them
+  // out): a default evaluated now would run against a tree it has left —
+  // `app` is itself, its parent is gone — in the moment between its unlink
+  // and its bindings' disposal.
+  if ((self as { $tornDown?: boolean }).$tornDown === true) return ((self.$attrs ?? {}) as Record<string, unknown>)[name];
   let inFlight = EVALING.get(self);
   if (inFlight?.has(name) === true) {
     throw new DeclareError(
@@ -645,7 +662,7 @@ function devProvidedCensus(self: object, name: string, hops: number, provider: u
 
 export function providedRead(self: object, name: string, hasDefault: boolean, dflt: unknown): unknown {
   // A node that PROVIDES a value can also read it — `App [ theme = { … }, fill =
-  // { provided("theme").bg } ]`. Its own provision is checked first (a provision
+  // { provided("theme").background } ]`. Its own provision is checked first (a provision
   // is not a declared slot, so this never shadows a face slot's own read, which
   // resolves against ancestors). The walk below starts at the parent, so a
   // declared slot whose default IS a provided read still terminates.
@@ -895,6 +912,9 @@ export function disposeBindings(self: object): void {
   const owners = (self as Carrier).$owners;
   if (owners === undefined) return;
   for (const name of Object.keys(owners)) {
+    // a layout's claim belongs to the layout, which goes on arranging the
+    // node's siblings: the node gives the claim back, it does not end it
+    if (owners[name].arrangedBy !== null) { release(self, name, owners[name]); continue; }
     owners[name].dispose();
     delete owners[name];
   }
@@ -1113,6 +1133,13 @@ export function own(self: object, name: string, c: Constraint): void {
     if (prior.declDefault) refreshDeclDefault(self as Carrier, name);
     prior.dispose();
     delete owners[name];
+  } else if (prior !== undefined && c.yielding && prior.arrangedBy !== null) {
+    // A yielding NEWCOMER over a layout's claim — a class's own default place
+    // (instantiate.ts CLASS_DEFAULT_GEOMETRY) finishing after its parent's
+    // layout already placed the slot. The layout keeps it; the default never
+    // stands, exactly as it would have been displaced had it come first.
+    c.dispose();
+    return;
   } else if (prior !== undefined) {
     throw new DeclareError(prior.arrangedBy !== null
       // The INCOMING constraint is the author's (bind.ts records the source text
@@ -1142,7 +1169,7 @@ function refreshDeclDefault(self: Carrier, name: string): void {
 export function release(self: object, name: string, c: Constraint): void {
   const owners = (self as Carrier).$owners;
   if (owners !== undefined && owners[name] === c) {
-    delete owners[name]; c.releaseCell();
+    delete owners[name]; c.releaseCell(slotCellOf(self, name));
   }
 }
 

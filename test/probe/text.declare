@@ -11,8 +11,8 @@
 
 App [ width = 1280, height = 800, fill = white, textColor = #1A1A1A,
     roboto: Font [
-        Face [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
-        Face [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
+        FontFace [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
+        FontFace [ src = "../../assets/fonts/roboto/roboto-500.woff2", weight = medium ]
         ],
 
     doc: string = "## A heading counts too\n\nThe flow clamp counts lines across the whole document, not per block, so a preview stops where it runs out of budget regardless of which block it lands in.\n\n- and a list item is prose as well\n- so is this one\n\nA final paragraph nobody should see.",

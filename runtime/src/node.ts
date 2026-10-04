@@ -181,7 +181,7 @@ export class Node {
     this.structure.track();
   }
 
-  private childListChanged(): void {
+  protected childListChanged(): void {
     this.structure?.changed();
   }
   /** The child-list cell's kernel id (created on first need) — a native

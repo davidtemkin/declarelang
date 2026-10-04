@@ -16,6 +16,7 @@ import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -35,7 +36,7 @@ const httpServer = http.createServer(server.handler).on("upgrade", server.upgrad
 await new Promise((r) => httpServer.listen(0, "127.0.0.1", r));
 const B = `http://127.0.0.1:${httpServer.address().port}`;
 
-const browser = await puppeteer.launch({
+const browser = await launchChrome({
   executablePath: findChrome(), headless: true, args: ["--no-sandbox"],
   defaultViewport: { width: 1280, height: 800, deviceScaleFactor: 1 },
 });
@@ -141,7 +142,7 @@ try {
   await test("DOM: the halo realizes CSS-inert with no authored pointerEvents (the carved-sink rule)", async () => {
     const r = await page.evaluate(() => {
       const halo = globalThis.__w.children.find((c) => c.ignoreClip);
-      return { attr: halo.pointerEvents, css: getComputedStyle(halo.surface.element).pointerEvents };
+      return { attr: halo.pointerEvents, css: getComputedStyle(halo.$surface.element).pointerEvents };
     });
     assert.equal(r.attr, "", "the app must not need the workaround");
     assert.equal(r.css, "none", "the runtime must apply it");
@@ -163,7 +164,7 @@ try {
     // independent of `docs/declare.md`'s content: the file it renders is edited
     // often, and a geometric guess silently became a drag across blank space.
     const d = await page.evaluate((top, bottom) => {
-      const root = globalThis.__w.body.doc.surface.element;
+      const root = globalThis.__w.body.doc.$surface.element;
       const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       const runs = [];
       for (let n = walk.nextNode(); n && runs.length < 2; n = walk.nextNode()) {

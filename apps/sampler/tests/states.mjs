@@ -79,7 +79,7 @@ export default [
 
   // A HOVERED button. The interaction ladder is invisible at rest — every other
   // state here photographs controls nobody is touching — so without this the
-  // suite cannot tell `controlHover` from `control`, which is most of what the
+  // suite cannot tell `controlHovered` from `control`, which is most of what the
   // component work changes. This one hovers the secondary button.
   {
     name: "button-hover",
@@ -91,7 +91,7 @@ export default [
     },
   },
 
-  // The primary button climbs the same ladder in the accent: `accentHover`
+  // The primary button climbs the same ladder in the accent: `accentHovered`
   // under the pointer, `accentPressed` held — light and dark, since the two
   // modes step in opposite directions.
   {

@@ -20,16 +20,16 @@ The idioms — one verb each, an optional callback receiving the picked id
     dlg.error("Could not connect", "The server refused the connection.")
 
 `ask` is Cancel / No / Yes-default; `error` renders the title in the
-theme's errorColor.
+theme's error.
 
-**Platform structure is data**: `dialogWidth`, `dialogButtons` = `"end"` (a
+**Platform structure is data**: `dialogWidth`, `dialogButtonLayout` = `"end"` (a
 right-aligned row — San Francisco, Material) | `"stack"` (the stacked alert —
 full-width buttons stacked, default on top) | `"fill"` (WinUI ContentDialog —
-equal-width buttons filling the row), `dialogAlign` = `"left"` | `"center"`
-(the Cupertino centered title), `dialogTitleSize` / `dialogBodySize`. Plus
-`scrimColor` + `scrimOpacity` (Cupertino barely dims — alerts separate by
+equal-width buttons filling the row), `dialogTextAlign` = `"left"` | `"center"`
+(the Cupertino centered title), `dialogTitleFontSize` / `dialogBodyFontSize`. Plus
+`scrimFill` + `scrimOpacity` (Cupertino barely dims — alerts separate by
 shadow; Material's scrim is 32%; Fluent's smoke 30%), the `menuShadow` family,
-`errorColor`.
+`error`.
 
 **Declare one and call it.** A `Dialog` is not a view you show and hide around your
 content — it is a standing member you open with a verb, so the same instance serves
@@ -106,12 +106,12 @@ this.
 `"error"` tints the title with the theme's error colour; `""` is the ordinary tone.
 
 ## arrangement
-How the buttons lay out, elected by `theme.dialogButtons`: `"end"` (a right-aligned
+How the buttons lay out, elected by `theme.dialogButtonLayout`: `"end"` (a right-aligned
 row), `"stack"` (full-width buttons stacked, Cupertino-style, default on top), or `"fill"`
 (equal-width buttons filling the row). **Platform structure is data, not a fork.**
 
 ## centered
-Whether the title and message are centre-aligned, elected by `theme.dialogAlign`.
+Whether the title and message are centre-aligned, elected by `theme.dialogTextAlign`.
 
 ## focusDefault()
 Puts keyboard focus on the default button when the dialog opens — or the last button
@@ -166,7 +166,7 @@ class Dialog [
     message: string = "",
     tone: string = "",
     buttons: array = null,
-    saved: View = null,
+    saved: View? = null,
     cb: (id: string) -> void? = null,
 
     // the delivery seam — override declaratively, or pass a callback to a verb
@@ -257,8 +257,8 @@ class Dialog [
     // "stack" arrangement reorders: the default on top, cancel at the bottom
     // (the Cupertino stacked alert); row arrangements keep authored order.
 
-    arrangement: string = { typeof theme.dialogButtons == "string" ? theme.dialogButtons : "end" },
-    centered: boolean = { theme.dialogAlign == "center" },
+    arrangement: string = { typeof theme.dialogButtonLayout == "string" ? theme.dialogButtonLayout : "end" },
+    centered: boolean = { theme.dialogTextAlign == "center" },
 
     data: Dataset [ contents = { { b: classroot.arrangement == "stack"
         ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
@@ -267,7 +267,7 @@ class Dialog [
     // the scrim: modal input blocking — every press lands here and stops
 
     scrim: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
-        fill = { theme.scrimColor != null ? theme.scrimColor : 0x000000 },
+        fill = { theme.scrimFill != null ? theme.scrimFill : 0x000000 },
         opacity = { typeof theme.scrimOpacity == "number" ? theme.scrimOpacity : 0.32 },
         onPointerDown() { }
         ],
@@ -276,7 +276,7 @@ class Dialog [
         width = { typeof theme.dialogWidth == "number" ? theme.dialogWidth : 420 },
         y = { Math.max(40, (app.height - this.height) / 3) },
         height = { this.col.height + 40 },
-        cornerRadius = { typeof theme.menuRadius == "number" ? theme.menuRadius + 2 : 10 },
+        cornerRadius = { typeof theme.menuCornerRadius == "number" ? theme.menuCornerRadius + 2 : 10 },
         fill = { theme.surface },
         stroke = { stroke(1, theme.line) },
         shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 12, 48, 0x00000040) },
@@ -291,13 +291,13 @@ class Dialog [
             layout: SimpleLayout [ axis = y, spacing = 12 ],
 
             ttl: Text [ fontWeight = bold, wrap = true, width = 100%,
-                fontSize = { typeof theme.dialogTitleSize == "number" ? theme.dialogTitleSize : 15 },
+                fontSize = { typeof theme.dialogTitleFontSize == "number" ? theme.dialogTitleFontSize : 15 },
                 textAlign = { classroot.centered ? "center" : "left" },
-                textColor = { classroot.tone == "error" ? (theme.errorColor != null ? theme.errorColor : 0xC93429) : theme.text },
+                textColor = { classroot.tone == "error" ? (theme.error != null ? theme.error : 0xC93429) : theme.text },
                 text = { classroot.title } ],
 
             msg: Text [ wrap = true, width = 100%,
-                fontSize = { typeof theme.dialogBodySize == "number" ? theme.dialogBodySize : 13 },
+                fontSize = { typeof theme.dialogBodyFontSize == "number" ? theme.dialogBodyFontSize : 13 },
                 textAlign = { classroot.centered ? "center" : "left" },
                 visible = { classroot.message != "" },
                 textColor = { theme.textMuted }, text = { classroot.message } ],

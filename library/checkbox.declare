@@ -88,9 +88,9 @@ class Checkbox extends Control [
     box: View [ y = center,
         width  = { classroot.size > 0 ? classroot.size : typeof theme.checkboxSize == "number" ? theme.checkboxSize : 20 },
         height = { this.width },
-        cornerRadius = { typeof theme.checkboxRadius == "number" ? theme.checkboxRadius : Math.min(8, Math.max(3, theme.controlRadius - 2)) },
+        cornerRadius = { typeof theme.checkboxCornerRadius == "number" ? theme.checkboxCornerRadius : Math.min(8, Math.max(3, theme.controlCornerRadius - 2)) },
         fill   = { checked ? theme.accent : theme.control },
-        stroke = { stroke(1, checked ? theme.accent : hot || down ? theme.textMuted : theme.line) },
+        stroke = { stroke(1, checked ? theme.accent : hovered || pressed ? theme.textMuted : theme.line) },
 
         // The tick, from the shared set — drawn, so it is pixel-identical on
         // every renderer and independent of any font. Sized from the box,
@@ -99,7 +99,7 @@ class Checkbox extends Control [
         // value is a default, not a rule.
 
         mark: CheckIcon [ visible = { checked }, iconSize = { parent.width * 0.72 },
-            x = center, y = center, ink = { theme.accentText } ]
+            x = center, y = center, ink = { theme.accentTextColor } ]
         ],
 
     // the label rides the box, not a constant: its gap is box-relative (the

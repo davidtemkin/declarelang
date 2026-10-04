@@ -60,6 +60,7 @@ double sin(double); double cos(double); double tan(double);   /* libm, linked by
 #define ST_SUSPENDED  4
 #define ST_REWIRE     8
 #define ST_UNLANDED  16   /* never run: a JS Constraint subscribes only once it has run */
+#define ST_RUNNING   32   /* its body is on the stack: a dispose now frees it when the run ends */
 
 typedef struct { uint32_t base, parent, nslots; } Elem;
 
@@ -77,7 +78,7 @@ typedef struct {
 } Rule;
 
 /* A dynamic edge: on the cell's subscriber list and on the rule's dep list. */
-typedef struct { uint32_t rule, cell, next_cell, prev_cell, next_rule; } Node;
+typedef struct { uint32_t rule, cell, next_cell, prev_cell, next_rule, prev_rule; } Node;
 
 struct dk_kernel {
   dk_host host;
@@ -112,7 +113,7 @@ struct dk_kernel {
   uint32_t *fill;
   uint32_t *ring; uint32_t ring_cap; uint32_t ring_count;
   uint32_t *tring; uint32_t tring_cap; uint32_t tring_count;   /* the track ring */
-  dk_view_layout vl; int vl_set; uint32_t dpr_cell;
+  dk_view_layout vl; int vl_set; uint32_t vl_span; uint32_t dpr_cell;
   uint32_t code_cap, const_cap;            /* arenas (image + runtime) */
   uint8_t  *cell_kdirty; uint32_t *kdirty_list; uint32_t nkdirty;
   uint32_t view_free;
@@ -341,6 +342,8 @@ int32_t kernel_owner(dk_kernel *k, uint32_t cell) { return cell < k->ncells ? k-
 static void drain_track(dk_kernel *k);
 static int link(dk_kernel *k, uint32_t rule, uint32_t cell) {
   uint32_t n;
+  /* a dead rule takes no edges: a freed one's dyn_head is the free list's link */
+  if (k->rules[rule].state & ST_DEAD) return DK_OK;
   if (k->node_free != NONE) { n = k->node_free; k->node_free = k->nodes[n].next_rule; }
   else { if (k->node_hw >= k->node_cap) return DK_ERR_FULL; n = k->node_hw++; }
   Node *nd = &k->nodes[n];
@@ -348,7 +351,9 @@ static int link(dk_kernel *k, uint32_t rule, uint32_t cell) {
   nd->next_cell = NONE; nd->prev_cell = k->cell_dyn_tail[cell];
   if (k->cell_dyn[cell] == NONE) k->cell_dyn[cell] = n; else k->nodes[k->cell_dyn_tail[cell]].next_cell = n;
   k->cell_dyn_tail[cell] = n;
-  nd->next_rule = k->rules[rule].dyn_head; k->rules[rule].dyn_head = n;
+  nd->prev_rule = NONE; nd->next_rule = k->rules[rule].dyn_head;
+  if (nd->next_rule != NONE) k->nodes[nd->next_rule].prev_rule = n;
+  k->rules[rule].dyn_head = n;
   k->nodes_used++;
   return DK_OK;
 }
@@ -358,6 +363,15 @@ static void unlink_cell(dk_kernel *k, uint32_t n) {
   Node *nd = &k->nodes[n];
   if (nd->prev_cell == NONE) k->cell_dyn[nd->cell] = nd->next_cell; else k->nodes[nd->prev_cell].next_cell = nd->next_cell;
   if (nd->next_cell == NONE) k->cell_dyn_tail[nd->cell] = nd->prev_cell; else k->nodes[nd->next_cell].prev_cell = nd->prev_cell;
+}
+
+/* Take a node out of its rule's list: O(1), both directions linked — a cell
+   leaving (cleared, freed) costs its own subscribers, never the length of a
+   subscribing rule's reads. */
+static void unlink_rule(dk_kernel *k, uint32_t n) {
+  Node *nd = &k->nodes[n];
+  if (nd->prev_rule == NONE) k->rules[nd->rule].dyn_head = nd->next_rule; else k->nodes[nd->prev_rule].next_rule = nd->next_rule;
+  if (nd->next_rule != NONE) k->nodes[nd->next_rule].prev_rule = nd->prev_rule;
 }
 
 static void unlink_all(dk_kernel *k, uint32_t rule) {
@@ -374,7 +388,7 @@ static void unlink_all(dk_kernel *k, uint32_t rule) {
 }
 
 static int track_for(dk_kernel *k, uint32_t rule, uint32_t cell) {
-  if (rule >= k->nrules || cell >= k->ncells) return DK_OK;
+  if (rule >= k->nrules || cell >= k->ncells || (k->rules[rule].state & ST_DEAD)) return DK_OK;
   /* coalesce: a body reading one cell many times links it once — O(1) via
    * the cell's mark (the serial of the run that last linked it) */
   uint32_t serial = k->rules[rule].serial;
@@ -447,7 +461,9 @@ static void drain_track(dk_kernel *k) {
    * — and it is asked BEFORE the count resets, because a growth carries the
    * ring's entries across by that count: reset first, the reads being drained
    * would not survive the move. */
-  if (k->node_free == NONE && k->node_hw + n > k->node_cap) CALL_RESERVE(k, n);
+  /* what is really there: never-used capacity plus the free list — a short
+     free list does not cover a long batch */
+  if (k->node_cap - k->nodes_used < n) CALL_RESERVE(k, n);
   k->tring_count = 0;
   uint32_t from = 0;
   for (uint32_t i = 0; i <= n; i++) {
@@ -504,7 +520,9 @@ void kernel_dispose(dk_kernel *k, uint32_t rule) {
   unlink_all(k, rule);
   if (r->owns >= 0 && k->cell_owner[r->owns] == (int32_t)rule) k->cell_owner[r->owns] = -1;
   r->owns = -1;
-  if (!(r->state & ST_QUEUED)) free_rule(k, rule);   /* else: freed when its queue entry drains */
+  /* else: freed when its queue entry drains, or when its own run ends — a body
+     that tears down the view owning it disposes the rule it is running in */
+  if (!(r->state & (ST_QUEUED | ST_RUNNING))) free_rule(k, rule);
 }
 
 int kernel_write(dk_kernel *k, uint32_t cell, double v) {
@@ -588,6 +606,7 @@ done:
 /* ── run ────────────────────────────────────────────────────────────────── */
 static double vis_run(dk_kernel *k, Rule *r);
 static double extent_run(dk_kernel *k, Rule *r);
+static double layout_run(dk_kernel *k, Rule *r);
 static void apply(dk_kernel *k, Rule *r, double v) {
   if (r->target < 0) return;                          /* the host applied it */
   uint32_t cell = (uint32_t)r->target;
@@ -600,11 +619,15 @@ static int run(dk_kernel *k, uint32_t rule) {
   double v;
   drain_track(k);   /* reads appended by the rule that is active now (a nested run) link to it before we switch */
   drain(k);   /* writes the host made since the last drain wake their dependents before this run */
+  r = &k->rules[rule];
+  uint8_t wasRunning = r->state & ST_RUNNING;
+  r->state |= ST_RUNNING;
   switch (r->kind) {
     case DK_EXPR: v = eval(k, r); break;
     case DK_BODY: v = CALL_BODY(k, rule, r->elem, r->target); r = &k->rules[rule]; break;   /* a body may grow the tables */
     case DK_VIS: v = vis_run(k, r); break;
     case DK_EXTENT: v = extent_run(k, r); break;
+    case DK_LAYOUT: v = layout_run(k, r); break;
     case DK_DYNAMIC: {
       unlink_all(k, rule);
       r->serial = ++k->serial; if (r->serial == 0) r->serial = ++k->serial;   /* 0 = never */
@@ -615,7 +638,15 @@ static int run(dk_kernel *k, uint32_t rule) {
       k->active = prev;
       break;
     }
-    default: return DK_ERR_BAD;
+    default: r->state &= (uint8_t)~ST_RUNNING; return DK_ERR_BAD;
+  }
+  r = &k->rules[rule];
+  if (!wasRunning) r->state &= (uint8_t)~ST_RUNNING;
+  if (r->state & ST_DEAD) {
+    /* disposed by its own body: nothing lands, and the slot is freed now that
+       nothing is running in it (unless a queue entry still names it) */
+    if (!wasRunning && !(r->state & ST_QUEUED)) free_rule(k, rule);
+    return DK_OK;
   }
   r->state &= (uint8_t)~(ST_REWIRE | ST_UNLANDED);
   apply(k, r, v);
@@ -645,6 +676,7 @@ static int pull(dk_kernel *k, uint32_t rule, int depth) {
 }
 int kernel_run(dk_kernel *k, uint32_t rule) {
   if (rule >= k->nrules) return DK_ERR_BAD;
+  if (k->rules[rule].state & ST_DEAD) return DK_OK;   /* disposed: nothing to run (a freed rule's lists are the free list's) */
   drain(k);
   int e = pull(k, rule, 0);
   if (e != DK_OK) return e;
@@ -687,6 +719,10 @@ static void abandon(dk_kernel *k) {
   for (int ph = 0; ph < 2; ph++) {
     for (uint32_t i = k->qhead[ph]; i != k->qtail[ph]; i = (i + 1) % k->qcap) {
       Rule *r = &k->rules[k->q[ph][i]];
+      /* a stale entry (the rule ran early by a pull, or was freed — and its id
+         perhaps reused — since) is not this rule's to touch: freeing it again
+         would put one id on the free list twice (run_queued's own test) */
+      if (!(r->state & ST_QUEUED)) continue;
       r->state &= (uint8_t)~ST_QUEUED;
       if (r->state & ST_DEAD) free_rule(k, k->q[ph][i]);
     }
@@ -782,9 +818,7 @@ void kernel_free_cell(dk_kernel *k, uint32_t cell) {
   uint32_t n = k->cell_dyn[cell];
   while (n != NONE) {
     Node *nd = &k->nodes[n]; uint32_t next = nd->next_cell;
-    uint32_t *pp = &k->rules[nd->rule].dyn_head;
-    while (*pp != NONE && *pp != n) pp = &k->nodes[*pp].next_rule;
-    if (*pp == n) *pp = nd->next_rule;
+    unlink_rule(k, n);
     nd->next_rule = k->node_free; k->node_free = n; k->nodes_used--;
     n = next;
   }
@@ -842,9 +876,7 @@ void kernel_clear_cells(dk_kernel *k, uint32_t base, uint32_t n) {
     uint32_t nd = k->cell_dyn[cell];
     while (nd != NONE) {
       Node *node = &k->nodes[nd]; uint32_t next = node->next_cell;
-      uint32_t *pp = &k->rules[node->rule].dyn_head;
-      while (*pp != NONE && *pp != nd) pp = &k->nodes[*pp].next_rule;
-      if (*pp == nd) *pp = node->next_rule;
+      unlink_rule(k, nd);
       node->next_rule = k->node_free; k->node_free = nd; k->nodes_used--;
       nd = next;
     }
@@ -854,7 +886,15 @@ void kernel_clear_cells(dk_kernel *k, uint32_t base, uint32_t n) {
 }
 
 /* ── views + the visibility rule ────────────────────────────────────────── */
-void kernel_view_layout(dk_kernel *k, const dk_view_layout *layout) { k->vl = *layout; k->vl_set = 1; }
+void kernel_view_layout(dk_kernel *k, const dk_view_layout *layout) {
+  k->vl = *layout; k->vl_set = 1;
+  /* one past the deepest field: a block whose base leaves this much room is
+     a block (the extent and the stack check a child word against it) */
+  const uint32_t *f = (const uint32_t *)layout;
+  uint32_t span = 0;
+  for (uint32_t i = 0; i < sizeof *layout / sizeof f[0]; i++) if (f[i] + 1 > span) span = f[i] + 1;
+  k->vl_span = span;
+}
 void kernel_view_dpr_cell(dk_kernel *k, uint32_t cell) { k->dpr_cell = cell; }
 
 int32_t kernel_view_add(dk_kernel *k, uint32_t base, int32_t parent_view) {
@@ -987,6 +1027,13 @@ int kernel_vis_rewire(dk_kernel *k, uint32_t rule) {
 
 /* ── auto-extent ────────────────────────────────────────────────────────── */
 #define VB(base, field) (k->slots[(base) + k->vl.field])
+/* A child word names a live block: one the cell table holds whole. A word the
+ * host has not re-listed yet can outlive its child (a row discarded, its block
+ * retired, inside the settle that re-lists at its close) — never read or
+ * written through. */
+static int block_ok(const dk_kernel *k, uint32_t base) {
+  return base < k->ncells && k->ncells - base >= k->vl_span;
+}
 
 /* The child's own affine, by block base (vis_own by view id). */
 static int own_affine(dk_kernel *k, uint32_t base, double m[6]) {
@@ -1003,7 +1050,7 @@ static int own_affine(dk_kernel *k, uint32_t base, double m[6]) {
   return 1;
 }
 
-/* The words: [ list cell | NONE, child base… ]; kept in the code arena at
+/* The words: [ list cell | NONE, inset cell | NONE, child base… ]; kept in the code arena at
  * (code0, capacity ncode), count in body; a longer list moves to a fresh
  * range of twice the size (geometric, so the arena's dead space stays bounded). */
 static int extent_store(dk_kernel *k, uint32_t rule, const uint32_t *words, uint32_t n) {
@@ -1023,10 +1070,13 @@ static int extent_link(dk_kernel *k, uint32_t rule) {
   uint32_t n = r->body;
   if (n == 0) return DK_OK;
   if (w[0] != NONE && w[0] < k->ncells) { int e = link(k, rule, w[0]); if (e != DK_OK) return e; }
+  if (n > 1 && w[1] != NONE && w[1] < k->ncells) { int e = link(k, rule, w[1]); if (e != DK_OK) return e; }
   const uint32_t fields[] = { k->vl.x, k->vl.y, k->vl.width, k->vl.height, k->vl.visible, k->vl.ignoreClip, k->vl.scale, k->vl.scaleX, k->vl.scaleY,
                               k->vl.rotation, k->vl.skewX, k->vl.skewY, k->vl.pivotX, k->vl.pivotY, k->vl.rotateX, k->vl.rotateY, k->vl.translateZ };
-  for (uint32_t i = 1; i < n; i++)
+  for (uint32_t i = 2; i < n; i++) {
+    if (!block_ok(k, w[i])) continue;
     for (uint32_t f = 0; f < sizeof fields / sizeof fields[0]; f++) { int e = link(k, rule, w[i] + fields[f]); if (e != DK_OK) return e; }
+  }
   return DK_OK;
 }
 static int percent_owned(dk_kernel *k, uint32_t cell) {
@@ -1037,8 +1087,9 @@ static double extent_run(dk_kernel *k, Rule *r) {
   const uint32_t *w = &k->code[r->code0];
   uint32_t n = r->body, axis = r->elem;
   double max = 0;
-  for (uint32_t i = 1; i < n; i++) {
+  for (uint32_t i = 2; i < n; i++) {
     uint32_t base = w[i];
+    if (!block_ok(k, base)) continue;
     if (VB(base, visible) == 0 || VB(base, ignoreClip) != 0) continue;
     if (percent_owned(k, base + (axis == 0 ? k->vl.x : k->vl.y)) || percent_owned(k, base + (axis == 0 ? k->vl.width : k->vl.height))) continue;
     if (VB(base, rotateX) != 0 || VB(base, rotateY) != 0 || VB(base, translateZ) != 0) {
@@ -1062,10 +1113,13 @@ static double extent_run(dk_kernel *k, Rule *r) {
     double e = (axis == 0 ? VB(base, x) : VB(base, y)) + lead + ext;
     if (e > max) max = e;
   }
+  /* the container's own padding on this axis: children sit inside its content
+     box, so the box is their extent plus both insets (view.ts extentOf) */
+  if (n > 1 && w[1] != NONE && w[1] < k->ncells) max += k->slots[w[1]];
   return max;
 }
 int32_t kernel_extent_add(dk_kernel *k, uint32_t axis, uint32_t target, const uint32_t *words, uint32_t n) {
-  if (!k->vl_set || target >= k->ncells || n == 0) return DK_ERR_BAD;
+  if (!k->vl_set || target >= k->ncells || n < 2) return DK_ERR_BAD;
   int32_t id = kernel_add_rule(k, (int32_t)target, DK_EXTENT, DK_YIELDING, (const uint32_t *)0, 0, (const uint32_t *)0, 0, 0);
   if (id < 0) return id;
   k->rules[id].elem = axis; k->rules[id].code0 = 0; k->rules[id].ncode = 0;
@@ -1075,11 +1129,74 @@ int32_t kernel_extent_add(dk_kernel *k, uint32_t axis, uint32_t target, const ui
   return id;
 }
 int kernel_extent_rewire(dk_kernel *k, uint32_t rule, const uint32_t *words, uint32_t n) {
-  if (rule >= k->nrules || k->rules[rule].kind != DK_EXTENT || n == 0) return DK_ERR_BAD;
+  if (rule >= k->nrules || k->rules[rule].kind != DK_EXTENT || (k->rules[rule].state & ST_DEAD) || n < 2) return DK_ERR_BAD;
   unlink_all(k, rule);
   int e = extent_store(k, rule, words, n);
   if (e != DK_OK) return e;
   return extent_link(k, rule);
+}
+
+/* ── stack layout ───────────────────────────────────────────────────────── */
+/* The words: [ list cell | NONE, spacing cell | NONE, child word… ]; a child
+ * word is its block base, with DK_LAYOUT_NOWRITE set when its slot is not the
+ * layout's to write (an author owns it) — it still takes its place in the run. */
+static int layout_link(dk_kernel *k, uint32_t rule) {
+  Rule *r = &k->rules[rule];
+  const uint32_t *w = &k->code[r->code0];
+  uint32_t n = r->body;
+  if (w[0] != NONE && w[0] < k->ncells) { int e = link(k, rule, w[0]); if (e != DK_OK) return e; }
+  if (n > 1 && w[1] != NONE && w[1] < k->ncells) { int e = link(k, rule, w[1]); if (e != DK_OK) return e; }
+  /* what a child's footprint is made of — never its position, which the rule writes */
+  const uint32_t fields[] = { k->vl.width, k->vl.height, k->vl.visible, k->vl.scale, k->vl.scaleX, k->vl.scaleY,
+                              k->vl.rotation, k->vl.skewX, k->vl.skewY, k->vl.pivotX, k->vl.pivotY, k->vl.rotateX, k->vl.rotateY, k->vl.translateZ };
+  for (uint32_t i = 2; i < n; i++) {
+    uint32_t base = w[i] & ~DK_LAYOUT_NOWRITE;
+    if (!block_ok(k, base)) continue;
+    for (uint32_t f = 0; f < sizeof fields / sizeof fields[0]; f++) { int e = link(k, rule, base + fields[f]); if (e != DK_OK) return e; }
+  }
+  return DK_OK;
+}
+/* SimpleLayout's place() with nothing aligned and nothing flexing: each child
+ * sits at the run's position less its footprint's lead, and a visible child
+ * advances the run by its footprint's extent and the spacing. */
+static double layout_run(dk_kernel *k, Rule *r) {
+  const uint32_t *w = &k->code[r->code0];
+  uint32_t n = r->body, axis = r->elem;
+  double spacing = n > 1 && w[1] != NONE && w[1] < k->ncells ? k->slots[w[1]] : 0;
+  double pos = 0;
+  for (uint32_t i = 2; i < n; i++) {
+    uint32_t word = w[i], base = word & ~DK_LAYOUT_NOWRITE;
+    if (!block_ok(k, base)) continue;
+    if (VB(base, rotateX) != 0 || VB(base, rotateY) != 0 || VB(base, translateZ) != 0) {
+      CALL_DECLINE(k, (uint32_t)(r - k->rules));   /* out of the plane: the host's footprint3D */
+      return 0;
+    }
+    double wd = VB(base, width), ht = VB(base, height), lead = 0, ext = axis == 0 ? wd : ht;
+    double m[6];
+    if (own_affine(k, base, m)) {
+      double minX = 1.0 / 0.0, minY = 1.0 / 0.0, maxX = -1.0 / 0.0, maxY = -1.0 / 0.0;
+      const double px[4] = { 0, wd, 0, wd }, py[4] = { 0, 0, ht, ht };
+      for (int c = 0; c < 4; c++) {
+        double fx = m[0] * px[c] + m[2] * py[c] + m[4], fy = m[1] * px[c] + m[3] * py[c] + m[5];
+        if (fx < minX) minX = fx; if (fx > maxX) maxX = fx;
+        if (fy < minY) minY = fy; if (fy > maxY) maxY = fy;
+      }
+      lead = axis == 0 ? minX : minY; ext = axis == 0 ? maxX - minX : maxY - minY;
+    }
+    if (!(word & DK_LAYOUT_NOWRITE)) set_value(k, base + (axis == 0 ? k->vl.x : k->vl.y), pos - lead);
+    if (VB(base, visible) != 0) pos += ext + spacing;
+  }
+  return 0;
+}
+int32_t kernel_layout_add(dk_kernel *k, uint32_t axis, const uint32_t *words, uint32_t n) {
+  if (!k->vl_set || n < 2 || axis > 1) return DK_ERR_BAD;
+  int32_t id = kernel_add_rule(k, -1, DK_LAYOUT, 0, (const uint32_t *)0, 0, (const uint32_t *)0, 0, 0);
+  if (id < 0) return id;
+  k->rules[id].elem = axis; k->rules[id].code0 = 0; k->rules[id].ncode = 0;
+  int e = extent_store(k, (uint32_t)id, words, n);
+  if (e == DK_OK) e = layout_link(k, (uint32_t)id);
+  if (e != DK_OK) { kernel_dispose(k, (uint32_t)id); return e; }
+  return id;
 }
 
 int32_t kernel_add_code(dk_kernel *k, const uint32_t *words, uint32_t n) {

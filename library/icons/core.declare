@@ -8,7 +8,7 @@ host's `iconSize` inside its recording (see `icon.declare`).
 Geometry is a property of the **set**, not of the site: one stroke weight, round
 caps and joins throughout, one path per shape, so a checkmark in a `Checkbox` and
 one in a `Menu` row are the same mark. Ink stays local — a menu row inverts its
-check on the hot row, a checkbox always uses `accentText`.
+check on the hot row, a checkbox always uses `accentTextColor`.
 */
 
 include [ "icon.declare" ]

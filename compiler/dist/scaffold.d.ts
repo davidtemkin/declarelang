@@ -76,7 +76,7 @@ export declare const LANGUAGE_API: Readonly<Record<string, readonly string[]>>;
 export declare function memberSig(name: string, t: AttrType, nonNullColor?: boolean, readOnly?: boolean): string[];
 /** The names a built-in schema's runtime class implements as methods that the
  *  reference does NOT document as its callable surface — runtime plumbing
- *  (`DataSource.maybeAuto`, `Animator.tick`, `View.attach`). Overriding one is
+ *  (`DataSource.maybeAuto`, `Animator.tick`, `Spring.wake`). Overriding one is
  *  legal (a method is a method) and warned (Diag.overridesPlumbing): the
  *  runtime calls it on its own schedule, and the reference states no contract.
  *  Documented = named in LANGUAGE_API up the schema chain, or in

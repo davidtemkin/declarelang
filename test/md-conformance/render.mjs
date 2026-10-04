@@ -12,6 +12,7 @@ import puppeteer from "puppeteer-core";
 import MarkdownIt from "markdown-it";
 import { buildProduction } from "../../tools/declarec.mjs";
 import { DOC } from "./corpus.mjs";
+import { launchChrome } from "../../tools/internal/chrome.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, "out");
@@ -85,7 +86,7 @@ export async function renderBoth() {
   if (!b.ok) throw new Error("declare build failed: " + (b.errors || []).map((e) => e.message).join("; "));
   const appJs = b.files.find((f) => f.name.startsWith("app.")).contents;
 
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"], defaultViewport: { width: 700, height: 1400, deviceScaleFactor: 2 } });
+  const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"], defaultViewport: { width: 700, height: 1400, deviceScaleFactor: 2 } });
   try {
     // Declare
     const dp = await browser.newPage();

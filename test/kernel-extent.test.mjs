@@ -12,7 +12,8 @@ import { settle } from "../runtime/dist/index.js";
 import { ownerOf } from "../runtime/dist/attributes.js";
 
 let seed = 11;
-const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+// the HIGH bits: an LCG's low bits cycle in a few steps, which made every tree alike
+const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return (seed >>> 15) % n; };
 const pick = (a) => a[rnd(a.length)];
 const close = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps * Math.max(1, Math.abs(a), Math.abs(b));
 
@@ -26,7 +27,7 @@ function check(box, name, native = true) {
   assert.ok(close(box.height, box.contentHeight), `${name}: height ${box.height} vs extentOf ${box.contentHeight}`);
 }
 
-await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturbations", async () => {
+await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturbations, padded and not", async () => {
   for (let t = 0; t < 40; t++) {
     const n = 2 + rnd(6);
     const kids = [];
@@ -42,8 +43,10 @@ await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturb
       if (rnd(7) === 0) parts.push(`ignoreClip = true`);
       kids.push(`k${i}: View [ ${parts.join(", ")} ]`);
     }
-    // the container: sizes UNSET, so auto-extent derives them
-    const src = `App [ width = 800, height = 600, box: View [ x = 10, y = 10, ${kids.join(", ")} ], probe: Text [ text = { "" + app.box.width + app.box.height } ] ]`;
+    // the container: sizes UNSET, so auto-extent derives them; padded a third
+    // of the time — uniformly or per side — which the rule adds on its axis
+    const pad = rnd(3) === 0 ? `padding = ${rnd(20)}, ` : rnd(2) === 0 ? `padding = [${rnd(20)}, ${rnd(20)}, ${rnd(20)}, ${rnd(20)}], ` : "";
+    const src = `App [ width = 800, height = 600, box: View [ x = 10, y = 10, ${pad}${kids.join(", ")} ], probe: Text [ text = { "" + app.box.width + app.box.height } ] ]`;
     const r = await compile(src, { originDir: process.cwd() });
     assert.ok(r.errors.length === 0, "compile: " + (r.errors[0]?.message ?? ""));
     const app = settleHeadless(r.source, { deps: r.deps });
@@ -52,8 +55,9 @@ await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturb
     check(box, `tree ${t}`);
     for (let p = 0; p < 8; p++) {
       const c = box[`k${rnd(n)}`];
-      const what = pick(["x", "y", "width", "height", "scale", "rotation", "visible", "skewY", "pivotX", "ignoreClip"]);
-      if (what === "visible" || what === "ignoreClip") c[what] = !c[what];
+      const what = pick(["x", "y", "width", "height", "scale", "rotation", "visible", "skewY", "pivotX", "ignoreClip", "padding"]);
+      if (what === "padding") box.padding = rnd(2) === 0 ? rnd(24) : [rnd(24), rnd(24), rnd(24), rnd(24)];
+      else if (what === "visible" || what === "ignoreClip") c[what] = !c[what];
       else if (what === "scale") c.scale = 0.3 + rnd(25) / 10;
       else if (what === "rotation" || what === "skewY") c[what] = rnd(120) - 60;
       else if (ownerOf(c, what) === null) c[what] = rnd(400) - 50;

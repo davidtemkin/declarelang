@@ -68,13 +68,13 @@ export class Image extends View {
     return this.loaded ? this.natural[size] : 0;
   }
 
-  override attach(backend: RenderBackend, parentSurface: Surface | null): void {
-    super.attach(backend, parentSurface);
+  override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
+    super.$attach(backend, parentSurface);
     this.load();
   }
 
-  protected override flush(s: Surface): void {
-    super.flush(s);
+  protected override $flush(s: Surface): void {
+    super.$flush(s);
     // Pushers fire on *change*; attach's flush carries the pre-attach state
     // across (the image element itself arrives via load's async landing).
     s.setImageStretch(this.stretches);
@@ -85,7 +85,7 @@ export class Image extends View {
   /** (Re)load `source` — called at attach and by the `source` pusher. */
   load(): void {
     const seq = ++this.loadSeq;
-    const s = this.surface;
+    const s = this.$surface;
     if (s === null) return;
     // a new attempt speaks for the new source: `failed` clears here (and only
     // here), so it is always a fact about the CURRENT address
@@ -102,7 +102,7 @@ export class Image extends View {
     // global inside its own module.
     const img = document.createElement("img");
     img.onload = () => {
-      if (seq !== this.loadSeq || this.surface === null) return; // superseded or detached
+      if (seq !== this.loadSeq || this.$surface === null) return; // superseded or detached
       // Natural size lands through the reactive write path (setBound: the
       // runtime is the writer, so was-set stays false) and only into slots
       // the author left alone — explicit sizes and constraints win (an
@@ -119,10 +119,10 @@ export class Image extends View {
       }
       this.bitmap = img;
       setBound(this, "loaded", true);
-      this.surface.setImage(img);
+      this.$surface.setImage(img);
     };
     img.onerror = () => {
-      if (seq !== this.loadSeq || this.surface === null) return; // superseded or detached
+      if (seq !== this.loadSeq || this.$surface === null) return; // superseded or detached
       setBound(this, "failed", true);
     };
     img.src = resolveAsset(this.source, this.root);
@@ -131,10 +131,10 @@ export class Image extends View {
 
 defineAttributes(Image, {
   source: { def: "", push: (i) => i.load() },
-  stretches: { def: "none", push: (i, v) => i.surface?.setImageStretch(v) },
-  alignX: { def: "center", push: (i) => i.surface?.setImageAlign?.(i.alignX, i.alignY) },
-  alignY: { def: "center", push: (i) => i.surface?.setImageAlign?.(i.alignX, i.alignY) },
-  tint: { def: null, push: (i, v) => i.surface?.setImageTint?.(v) },
+  stretches: { def: "none", push: (i, v) => i.$surface?.setImageStretch(v) },
+  alignX: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },
+  alignY: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },
+  tint: { def: null, push: (i, v) => i.$surface?.setImageTint?.(v) },
   loaded: { def: false },
   failed: { def: false },
   naturalWidth: { def: 0 },

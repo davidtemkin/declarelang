@@ -35,6 +35,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const THIS_TREE = path.resolve(HERE, "..");
@@ -203,7 +204,7 @@ if (CHROME === null) {
   // both sides run THIS tree's apps; only the platform differs
   const mine = await serveTrees(THIS_TREE, THIS_TREE);
   const main = await serveTrees(THIS_TREE, MAIN_TREE);
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+  const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
   for (const sc of SCENARIOS) {
     await test(sc.name, async () => {
       const a = await runScenario(browser, main.url, sc);

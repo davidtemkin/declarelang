@@ -405,7 +405,7 @@ class MediaTransport [
     // Video. The verbs go through it, and so does everything the transport
     // displays: a constraint that reads through `player` follows the playhead.
 
-    player: Media = null,
+    player: Media? = null,
     pos: number = { player != null ? player.position : 0 },
     dur: number = { player != null ? player.duration : 0 },
     isPlaying: boolean = { player != null && player.playing },
@@ -424,7 +424,7 @@ class MediaTransport [
 
         // Each player's `playing` is derived from `app.mediaWants`, so the
         // transport moves that rather than the player: a write straight to a
-        // constrained slot is refused.
+        // constrained attribute is refused.
 
         onClick() { const p = classroot.player; if (p) p.position = 0; app.mediaWants = false }
         ],

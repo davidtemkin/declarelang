@@ -40,15 +40,16 @@
 import type { Element } from "./parser.js";
 import { diag } from "./errors.js";
 import { Node } from "./node.js";
-import { View, inheritedCursor, onDiscard, markWindowedBlock, setRowIndex, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree, nodeLabel } from "./view.js";
-import { Constraint, Cell } from "./reactive.js";
-import { setBound, bindDerived, isSet, ownerOf, armDivergence, nodeDiverged } from "./attributes.js";
+import { View, inheritedCursor, onDiscard, setRowIndex, fireRetireTree, nodeLabel } from "./view.js";
+import { Constraint } from "./reactive.js";
+import { setBound, armDivergence, nodeDiverged } from "./attributes.js";
 import { splitPath, isSelective, type PathSeg } from "./path-plan.js";
 import { Focus } from "./focus.js";
 import { arriveSubtree } from "./spring.js";
 import { selectNodes, type PathNode } from "./select.js";
 import type { Dataset } from "./data.js";
 import type { Surface } from "./backend.js";
+import type { WindowHost, Windowing, WindowingFactory } from "./virtualize.js";
 
 /** What the Replicator needs from instantiate.ts (which imports this module;
  *  the interface keeps the dependency one-way): construct one instance of
@@ -90,47 +91,6 @@ export interface Materialize {
  *  the decision the author is making. §1's doctrine is untouched — a matched
  *  record HAS an instance either way; the policy only governs construction. */
 export type VirtualizePolicy = boolean | (() => boolean);
-
-const DEFAULT_UNIT = 24;     // pre-measurement row-extent estimate (corrected by the first real row)
-const BUFFER_ROWS = 5;       // rows materialized beyond each viewport edge (reconcile-latency hiding)
-
-// ── EXTENT COMPRESSION (the 2²⁵ layout ceiling) ──────────────────────────────
-// Browsers saturate element layout at ~2²⁵ px, and they do it SILENTLY: past
-// the ceiling a strut stops growing and an absolutely-positioned row stops
-// moving. Both halves bite a windowed block — the scroll range would clamp
-// (1M × 44px rows reaches 76% of itself) and the rows past the cap would pile
-// at one y. Measured 2026-08-02: Chrome clamps `scrollHeight` at 33,554,428
-// and `top` at 33,554,432; Firefox's ceiling is lower still (~17.9M).
-//
-// So the block keeps TWO coordinate spaces once its content outgrows the cap:
-// LOGICAL (the ledger's — real row extents, what the app and the AT reason in)
-// and PHYSICAL (what the browser is told). The scroll range is compressed into
-// the physical space and mapped back; rows are placed relative to the physical
-// viewport so their own coordinates never leave it. Rows keep their REAL size
-// — only the scroll range is scaled, never a row.
-//
-// CAP is 2²⁴, comfortably under every engine's ceiling including Firefox's.
-// The mapping is proportional, which costs scroll GRANULARITY: one physical
-// pixel becomes `scale` logical pixels. That stays sub-row until scale exceeds
-// a row's height — ~16M rows at 44px, far past anything this is for. If a
-// collection ever needs finer control than that, the answer is the
-// anchor-plus-offset scheme (keep deltas 1:1, map only absolute positions),
-// not a bigger cap.
-const EXTENT_CAP = 16_777_216; // 2²⁴
-
-/** The physical extent to publish for a logical one — identity below the cap. */
-const physicalExtent = (logical: number): number => Math.min(logical, EXTENT_CAP);
-
-/** Logical-per-physical scroll ratio for a block of `logical` extent in a
- *  `viewH` viewport. Exactly 1 whenever the content fits under the cap, so
- *  every expression below reduces to its pre-compression form and an
- *  uncompressed block is bit-for-bit unaffected. */
-function extentScale(logical: number, viewH: number): number {
-  if (logical <= EXTENT_CAP) return 1;
-  const logicalRange = logical - viewH;
-  const physicalRange = EXTENT_CAP - viewH;
-  return physicalRange > 0 ? logicalRange / physicalRange : 1;
-}
 
 // parent view → its replication blocks: the KERNEL WINDOW API's registry
 // (D5: the live window — realized instances + logical positions — is
@@ -194,177 +154,23 @@ export interface Match {
   classes?: readonly string[] | null;
 }
 
-/** THE EXTENT LEDGER (variable-height windowing — the measured ladder the
- *  B5 record deferred, forced by the Tracker's criterion 1): per-row
- *  extents as an ESTIMATE baseline plus a Fenwick tree of corrections for
- *  rows whose real height has been measured. offset(i) and indexAt(y) are
- *  O(log n); a uniform collection never populates corrections and degrades
- *  to exactly the old i×unit math. Heights are remembered by MEMBER
- *  IDENTITY (indices shift under insert/remove), and the index-keyed tree
- *  rebuilds on data change — O(n) beside the bookkeeping the reconciler
- *  already does there; scroll frames never rebuild. */
-class ExtentLedger {
-  est = 0;                                  // the per-row estimate (includes the gap)
-  private estMeasured = false;              // has est ever come from real rows?
-  private n = 0;
-  private fen: Float64Array | null = null;  // Fenwick over (h_i − est); 1-based
-  private fenTotal = 0;
-  private readonly known = new Map<unknown, number>(); // member id → measured h
-  private knownSum = 0;                     // Σ known — shouldRebaseline is per-match, keep it O(1)
-
-  /** Remember a measured height (by identity). Returns the CHANGE at that
-   *  index (0 when already current) so callers can anchor-compensate. */
-  measure(index: number, id: unknown, h: number): number {
-    const prev = this.known.get(id);
-    if (prev === h) return 0;
-    this.known.set(id, h);
-    this.knownSum += h - (prev ?? 0);
-    const before = prev ?? this.est;
-    this.update(index, h - before);
-    return h - before;
-  }
-
-  measuredCount(): number { return this.known.size; }
-
-  /** Has the measured mean drifted far enough from the estimate that the
-   *  unmeasured majority is being mis-sized? (Checked per match; a rebuild
-   *  is O(n) and happens only when this fires or membership changes.) */
-  shouldRebaseline(): boolean {
-    if (this.known.size === 0) return false;
-    // a GUESSED estimate (never measured) yields to the first real rows
-    // unconditionally; a measured one re-baselines only on real drift
-    if (!this.estMeasured) return true;
-    const mean = this.knownSum / this.known.size;
-    return Math.abs(mean - this.est) > Math.max(1, this.est * 0.2);
-  }
-
-  /** Rebuild the index-keyed corrections for a NEW membership (data change).
-   *  `est` re-baselines to the measured mean when it has drifted. */
-  rebuild(ids: readonly unknown[], fallbackEst: number): void {
-    this.n = ids.length;
-    if (this.known.size > 0) {
-      const mean = this.knownSum / this.known.size;
-      if (!this.estMeasured || Math.abs(mean - this.est) > this.est * 0.2) this.est = mean;
-      this.estMeasured = true;
-    }
-    if (this.est === 0) this.est = fallbackEst;
-    this.fen = null;
-    this.fenTotal = 0;
-    for (let i = 0; i < ids.length; i++) {
-      const h = this.known.get(ids[i]);
-      if (h !== undefined && h !== this.est) this.update(i, h - this.est);
-    }
-  }
-
-  private update(index: number, delta: number): void {
-    if (delta === 0 || index < 0 || index >= this.n) return;
-    if (this.fen === null) this.fen = new Float64Array(this.n + 1);
-    for (let i = index + 1; i <= this.n; i += i & -i) this.fen[i] += delta;
-    this.fenTotal += delta;
-  }
-
-  /** Sum of corrections for rows [0, index). */
-  private prefix(index: number): number {
-    if (this.fen === null) return 0;
-    let s = 0;
-    for (let i = Math.min(index, this.n); i > 0; i -= i & -i) s += this.fen[i];
-    return s;
-  }
-
-  /** The top of row `index`, block-local (no leading). */
-  offset(index: number): number {
-    return index * this.est + this.prefix(index);
-  }
-
-  /** One row's span (measured, else the estimate) — the incremental
-   *  placement walk's step, O(1). */
-  span(id: unknown): number {
-    return this.known.get(id) ?? this.est;
-  }
-
-  /** Total extent of all n rows. */
-  total(): number {
-    return this.n * this.est + this.fenTotal;
-  }
-
-  /** The row whose span contains block-local `y` (clamped). O(log n): a
-   *  Fenwick walk over est·i + corrections, exact because spans are
-   *  positive. Uniform fast path: plain division. */
-  indexAt(y: number): number {
-    if (this.n === 0) return 0;
-    if (this.fen === null) {
-      return Math.max(0, Math.min(this.n - 1, Math.floor(y / this.est)));
-    }
-    // binary search over offset(i) ≤ y (offsets strictly increase)
-    let lo = 0;
-    let hi = this.n - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (this.offset(mid) <= y) lo = mid;
-      else hi = mid - 1;
-    }
-    return lo;
-  }
-}
-
 export class Replicator {
   private views: View[] = [];
   private items: unknown[] = [];
-  /** Every child this block currently owns: the window instances plus the
-   *  RETAINED (touched, off-window) instances — what linking and discard
-   *  operate over. Equal to `views` when nothing is retained. */
-  private allViews: View[] = [];
-  /** Touched instances kept alive off-window (keep-alive, D5): member
-   *  identity → instance. Bounded by rows a human actually touched. */
-  private readonly retained = new Map<unknown, View>();
-  /** PARKED spares (recycling's idle pool): clean instances the window no
-   *  longer needs, kept hidden instead of discarded so the next growth —
-   *  an oscillating overscan lead, a direction flip, a viewport resize —
-   *  re-points an existing row instead of constructing one (the thumb-drag
-   *  bench's spikes were exactly these discard-then-rebuild bursts). */
-  private readonly spares: View[] = [];
   /** Member identities whose init has fired — the membership-anchored
    *  lifecycle (D5): an identity in this set never refires onInit while its
    *  membership lasts; intersected with the live membership on data change,
    *  so leave-and-return is a NEW membership and fires again. */
-  private readonly inited = new Set<unknown>();
-  private unit = 0;                       // measured row extent (0 = none yet)
-  private measuredUnit = false;
-  private windowedActive = false;
+  readonly inited = new Set<unknown>();
   private fallback: string | null = null; // why windowing disengaged (diagnostic)
-  private winStart = 0;
   private logical = 0;
-  private positioned = false;             // we own instance y's (windowed placement)
-  // Extent compression (the 2²⁵ ceiling): the live logical↔physical ratio and
-  // the physical scroll offset into this block, both published by the match so
-  // placement can re-base against them. `scale === 1` is the uncompressed case
-  // and every consumer reduces to its old form there.
-  private scale = 1;
-  private pRel = 0;
-  private relLogical = 0;
-  private heightOwner: Constraint | null = null; // the parent-extent derive
-  private lastLeading = 0;                // the block-start offset (see Match.leading)
-  private lastRel: number | null = null;  // last window offset — the overscan's velocity probe
-  private readonly ledger = new ExtentLedger();
-  private rowGap = 0;
-  /** The membership signature the ledger was last rebuilt for. */
-  private ledgerShape: unknown[] | null = null;
-  /** The viewport-stability anchor: the first in-view member and where its
-   *  top sat relative to the scroll, captured each match — a data change
-   *  that moves it (a prepend, a measured correction above) compensates the
-   *  scroll so the user's view holds still (Tracker criterion 2). */
-  private anchorId: unknown = undefined;
-  private anchorDelta = 0;
+  /** The windowed half (virtualize.ts), made the first time the policy asks
+   *  for it; null for a block that replicates fully. */
+  private win: Windowing | null = null;
   private lastArr: unknown = null;        // membership-change detection
   private lastLen = -1;
-  /** Wakes the match when the FIRST instances exist to measure — the
-   *  estimate-then-correct loop's trigger (a plain cell; reconcile pings it
-   *  after creating rows while the unit is still predicted). */
-  private readonly measureCell = new Cell();
-  private indexCache: Map<unknown, number> | null = null; // identity → logical index (retained bookkeeping)
   protected readonly template: Element;
   private readonly constraint: Constraint;
-
   /** The record field that identifies an instance across re-derivations
    *  (`key = :field`), split into segments — or null to reconcile by object
    *  identity (===), the default. A derived collection produces FRESH record
@@ -387,7 +193,9 @@ export class Replicator {
      *  `splitPath(path)` is the plan (pure names, today's fast path). */
     private readonly plan: readonly PathSeg[] | null = null,
     /** The virtualization policy (`virtualize = …`; D5). */
-    private readonly policy: VirtualizePolicy = false
+    private readonly policy: VirtualizePolicy = false,
+    /** Windowing (virtualize.ts) — present only when the program can ask for it. */
+    private readonly windowing: WindowingFactory | null = null
   ) {
     this.keyPath = key === null ? null : splitPath(key);
     // The instances' element is the template MINUS its many-path attribute
@@ -441,67 +249,40 @@ export class Replicator {
    *  window under the mechanism's name-of-art, spoken as `realized` so the
    *  API never collides with Window-the-class. */
   realized(): readonly { view: View; index: number }[] {
-    const out: { view: View; index: number }[] = [];
-    this.views.forEach((view, i) => out.push({ view, index: this.winStart + i }));
-    for (const [id, view] of this.retained) {
-      const idx = this.indexCache?.get(id);
-      if (idx !== undefined) out.push({ view, index: idx });
-    }
-    return out;
+    if (this.win?.active === true) return this.win.realized();
+    return this.views.map((view, index) => ({ view, index }));
   }
 
   /** Navigate-to-logical-record (materialization.md §3.5 — required by the
    *  observer boundary): scroll so the record at `index` materializes —
    *  app-level search's landing and the AT-traversal path. Imperative (a
-   *  handler's verb), so reads here are untracked by design. */
+   *  handler's verb), so reads here are untracked by design. Writing the
+   *  scroll offset is the whole move: the windowed match tracks it. */
   navigateTo(index: number): void {
-    if (!this.windowedActive) {
-      // Fully materialized: the instance exists; use the ordinary path.
-      this.views[index]?.scrollIntoView("nearest");
-      return;
-    }
-    const scroller = this.findScroller();
-    if (scroller === null) return;
-    // The row's place is LOGICAL; scrollY is PHYSICAL, so a compressed block
-    // divides through the scale on the way out (identity below the cap).
-    const into = this.lastLeading + index * (this.unit > 0 ? this.unit : DEFAULT_UNIT);
-    const target = this.offsetTo(scroller) + into / extentScale(this.ledger.total(), scroller.height);
-    // Writing the reactive slot is the whole move: the surface pans
-    // (scrollY's pusher) and the windowed match — which tracks scrollY —
-    // rematerializes the destination in the same settle.
-    scroller.scrollY = Math.max(0, target);
+    if (this.win?.active === true) this.win.navigateTo(index);
+    else this.views[index]?.scrollIntoView("nearest");
   }
 
   /** The inspector diagnostic (§3.6). */
   info(): MaterializationDiag {
+    const windowed = this.win?.active === true;
     return {
-      windowed: this.windowedActive,
+      windowed,
       logical: this.logical,
-      materialized: this.views.length,
-      retained: this.retained.size,
-      unit: this.unit,
-      extent: this.windowedActive ? (this.measuredUnit ? "measured" : "predicted") : null,
+      ...(windowed ? this.win!.info(this.logical) : { materialized: this.views.length, retained: 0, unit: 0, extent: null }),
       fallback: this.fallback,
       identity: this.identityMode(),
     };
   }
 
   /** The nearest scrolling ancestor (scrolls = y | both), or null. Tracked
-   *  when called from match(), plain when called imperatively. */
+   *  when called from match(). */
   private findScroller(): View | null {
     for (let v: unknown = this.parent; v instanceof View; v = v.parent) {
       const ax = v.scrolls;
       if (ax === "y" || ax === "both") return v;
     }
     return null;
-  }
-
-  /** This block's y offset within the scroller's CONTENT coordinates: the
-   *  sum of `y` from the block's parent up to (excluding) the scroller. */
-  private offsetTo(scroller: View): number {
-    let off = 0;
-    for (let v: unknown = this.parent; v instanceof View && v !== scroller; v = v.parent) off += v.y;
-    return off;
   }
 
   /** The tracked half: the inherited cursor chain + the matched region — and
@@ -582,122 +363,34 @@ export class Replicator {
     if (lay !== null) {
       if (lay.axis === "y") {
         gap = typeof lay.spacing === "number" ? lay.spacing : 0;
-        this.rowGap = gap;
       } else {
         this.fallback = diag`the block's parent runs a layout windowing cannot predict (a vertical SimpleLayout composes; others fall back) — set virtualize = false or drop the layout`;
         return full();
       }
     }
+    if (this.windowing === null) {
+      this.fallback = diag`windowing is not aboard this build`;
+      return full();
+    }
     this.fallback = null;
-    // The window: tracked reads of the scroll offset, the viewport extent,
-    // the offset chain, and the first materialized row's height (the
-    // measured-extent correction — estimate, then correct, the
-    // content-visibility precedent).
-    let y = scroller.scrollY;
-    const viewH = scroller.height;
-    const offset = this.offsetTo(scroller);
-    this.measureCell.track(); // re-measure as rows materialize (the ladder's ping)
-    // TRACK the live window's heights: reconcile's measurement pass is the
-    // constraint's APPLY (untracked by design), so without these reads an
-    // ANIMATED height — a row springing open into an in-place editor — would
-    // never re-drive the ladder and the rows below would sit still. Reading
-    // them here makes the estimate-then-correct loop follow motion: height
-    // changes re-run match, reconcile re-measures, placement glides.
-    for (const v of this.views) void v.height;
-    const probe = this.views[0];
-    const measured = probe !== undefined ? probe.height + gap : 0;
-    if (measured > gap) this.measuredUnit = true;
-    const unit = measured > gap ? measured : this.unit > 0 ? this.unit : DEFAULT_UNIT + gap;
-    this.unit = unit;
-    // The LEDGER (variable extents): rebuilt when the membership changes —
-    // identity-keyed heights survive, index corrections re-seat. The
-    // rebuild also computes the PREPEND-ANCHOR compensation: if the member
-    // the viewport was resting on moved (rows inserted/removed above it, a
-    // baseline re-estimate), the scroll shifts by the same amount, so the
-    // view never yanks (criterion 2).
-    let membershipRebuilt = false;
-    if (dataChanged || this.ledgerShape === null || this.ledger.shouldRebaseline()) {
-      const ids = dataChanged || this.ledgerShape === null ? arr.map((v) => this.idOf(v)) : this.ledgerShape;
-      const oldOffset = this.anchorId !== undefined ? this.anchorFind(this.anchorId) : null;
-      this.ledger.rebuild(ids, unit);
-      this.ledgerShape = ids;
-      membershipRebuilt = dataChanged;
-      if (oldOffset !== null) {
-        const at = ids.indexOf(this.anchorId);
-        if (at >= 0) {
-          // The anchor moved by a LOGICAL amount; the scroller travels in
-          // PHYSICAL pixels, so a compressed block converts before it nudges.
-          // (Uncompressed the scale is 1 and this is the original line.)
-          const shift = (this.ledger.offset(at) - oldOffset) / extentScale(this.ledger.total(), scroller.height);
-          if (shift !== 0) {
-            y = Math.max(0, y + shift);
-            setBound(scroller, "scrollY", y);
-          }
-        }
-      }
-    }
-    if (this.ledger.est === 0) this.ledger.rebuild(arr.map((v) => this.idOf(v)), unit);
-    // The block's own start: below the preceding sibling (a header above a
-    // windowed grid), tracked so a resizing leader reflows the window.
-    const anchor = this.leadingAnchor();
-    const leading = anchor !== null ? anchor.y + anchor.height + gap : 0;
-    // A membership COLLAPSE can strand the scroll far past the new extent.
-    // A real scroller clamps at its box; the kernel's abstract scroll must
-    // agree, or headless state (and anything derived from scrollY) lives in
-    // NaN-land the browser never shows (criterion 4: position lands sane).
-    if (membershipRebuilt) {
-      // The clamp is against the PHYSICAL end — what the scroller can actually
-      // reach — so a compressed block lands sane instead of parking scrollY
-      // out past a range the browser will never honour.
-      const end = Math.max(0, offset + leading + physicalExtent(this.ledger.total()) - viewH);
-      if (y > end) {
-        y = end;
-        setBound(scroller, "scrollY", y);
-      }
-    }
-    // PHYSICAL → LOGICAL. `pRel` is how far the real scroller has travelled
-    // into this block; `rel` is where that lands in the ledger's coordinates.
-    // Below the cap the scale is 1 and the two are the same number.
-    const pRel = Math.max(0, y - offset - leading);
-    this.scale = extentScale(this.ledger.total(), viewH);
-    this.pRel = pRel;
-    const rel = this.scale === 1
-      ? pRel
-      : Math.min(Math.max(0, this.ledger.total() - viewH), pRel * this.scale);
-    this.relLogical = rel;
-    // VELOCITY-ADAPTIVE OVERSCAN (the momentum-flick answer — the recycler
-    // prefetch shape): the compositor scrolls ASYNCHRONOUSLY, painting
-    // frames before any JS runs, so a flick can outrun a fixed buffer and
-    // expose blank track. The window therefore leads in the DIRECTION of
-    // travel by ~3 frames of the observed per-frame delta (decaying to the
-    // base buffer at rest), so the compositor finds rows already painted.
-    const delta = this.lastRel === null ? 0 : rel - this.lastRel;
-    this.lastRel = rel;
-    // capped: a momentum flick moves a few rows per frame (lead ≈ 3 frames
-    // of that); a scrollbar TELEPORT is one giant delta overscan can't help
-    // with (the next frame's window is simply correct) — don't materialize
-    // four viewports for it.
-    const estRow = this.ledger.est > 0 ? this.ledger.est : unit;
-    const deltaRows = Math.ceil(Math.abs(delta) / estRow);
-    const viewRows = Math.ceil(viewH / estRow);
-    // a TELEPORT (a thumb jump past the whole viewport) gets no lead:
-    // prefetch can't help a discontinuity — the next frame's window is
-    // simply correct — and a wide window would only make each jump dearer
-    const lead = deltaRows > viewRows ? BUFFER_ROWS : Math.min(30, BUFFER_ROWS + 3 * deltaRows);
-    const before = delta >= 0 ? BUFFER_ROWS : lead;
-    const after = delta >= 0 ? lead : BUFFER_ROWS;
-    const firstIdx = this.ledger.indexAt(rel);
-    const lastIdx = this.ledger.indexAt(rel + viewH);
-    const start = Math.max(0, Math.min(logical, firstIdx - before));
-    const count = Math.max(0, Math.min(logical - start, lastIdx - firstIdx + 1 + before + after));
-    // capture the viewport-stability anchor: the first fully-in-view member
-    this.anchorId = arr.length > 0 ? this.idOf(arr[Math.min(arr.length - 1, firstIdx)]) : undefined;
-    this.anchorDelta = rel - this.ledger.offset(Math.min(Math.max(0, arr.length - 1), firstIdx));
-    const nodes: PathNode[] = [];
-    for (let i = 0; i < count; i++) {
-      nodes.push({ path: [...arrayPath, String(start + i)], value: arr[start + i] });
-    }
-    return { data: base.data, nodes, items: arr, arrayPath, logical, start, unit, windowed: true, dataChanged, leading };
+    // The window: the windowed half's tracked reads (the scroll offset, the
+    // viewport, the offset chain, the mounted rows' heights) join this match.
+    this.win ??= this.windowing(this.windowHost());
+    return this.win.match(base.data, arr, arrayPath, dataChanged, scroller, gap);
+  }
+
+  /** What the windowed half needs from this block. */
+  private windowHost(): WindowHost {
+    return {
+      parent: this.parent,
+      inited: this.inited,
+      idOf: (item) => this.idOf(item),
+      kindAt: (m, i) => this.kindAt(m, i),
+      kindOf: (v) => this.kindOf(v),
+      build: (kind) => this.build(kind),
+      start: () => this.start(),
+      leadingAnchor: () => this.leadingAnchor(),
+    };
   }
 
   /** A record's pooling identity, per the REVISED ladder (ruled 2026-07-30,
@@ -732,42 +425,34 @@ export class Replicator {
   }
 
   private reconcile(m: Match): void {
-    const { data, nodes, windowed, dataChanged } = m;
     this.logical = m.logical;
-    this.winStart = m.start;
-    this.lastLeading = m.leading;
+    if (m.windowed) {
+      // Engaging: the full block's instances become the window's rows.
+      if (this.win!.active === false && this.views.length > 0) {
+        this.win!.adopt(this.views, this.items);
+        this.views = [];
+        this.items = [];
+      }
+      this.win!.reconcile(m);
+      return;
+    }
+    // Windowing disengaged: its mounted rows are this block's instances again.
+    if (this.win?.active === true) {
+      const back = this.win.release();
+      this.views = back.views;
+      this.items = back.items;
+    }
+    const { data, nodes, dataChanged } = m;
     const items = nodes.map((n) => n.value);
 
-    // Membership bookkeeping runs only on DATA-shaped changes, never on a
-    // scroll-driven window move: the identity → index map (retained rows'
-    // logical positions) and the membership-init intersection (an identity
-    // that LEFT the match starts a fresh membership if it returns).
-    const droppedRetained: View[] = [];
-    if (dataChanged) {
-      this.indexCache = null;
-      if (this.retained.size > 0 || this.inited.size > 0) {
-        const idx = new Map<unknown, number>();
-        m.items.forEach((item, i) => {
-          const id = this.idOf(item);
-          if (!idx.has(id)) idx.set(id, i);
-        });
-        this.indexCache = idx;
-        for (const id of this.inited) if (!idx.has(id)) this.inited.delete(id);
-        for (const [id, view] of this.retained) {
-          if (!idx.has(id)) {
-            // The retained row's record left the data — its membership ended;
-            // the instance goes with it (unlinked and discarded below, with
-            // the ordinary removed set).
-            this.retained.delete(id);
-            droppedRetained.push(view);
-          }
-        }
-      }
+    // Membership bookkeeping runs only on DATA-shaped changes: an identity
+    // that LEFT the match starts a fresh membership if it returns.
+    if (dataChanged && this.inited.size > 0) {
+      const members = new Set(m.items.map((item) => this.idOf(item)));
+      for (const id of this.inited) if (!members.has(id)) this.inited.delete(id);
     }
 
-    // Match records to existing instances by identity, first-fit in order;
-    // the RETAINED (touched, off-window) set is part of the pool — a
-    // retained row scrolling back in is the SAME instance returning.
+    // Match records to existing instances by identity, first-fit in order.
     interface Pooled { item: unknown; view: View; used: boolean }
     const pool = new Map<unknown, Pooled[]>();
     const entries: Pooled[] = [];
@@ -814,84 +499,16 @@ export class Replicator {
     const next: View[] = [];
     const fresh = new Map<View, { provide: () => void; finish: () => void }>();
     const misses: { slot: number; id: unknown; kind: string }[] = [];
-    const matched = new Set<unknown>();
     nodes.forEach((node, i) => {
       const id = this.idOf(node.value), kind = this.kindAt(m, i);
-      matched.add(id);
-      let v = take(pool.get(id), kind);
-      if (v === undefined) {
-        const kept = this.retained.get(id);
-        if (kept !== undefined && this.kindOf(kept) === kind) {
-          this.retained.delete(id);
-          v = kept;
-        }
-      }
-      if (v === undefined) v = contentMatch(node.value, kind);
-      if (v !== undefined) {
-        next.push(v);
-      } else {
+      const v = take(pool.get(id), kind) ?? contentMatch(node.value, kind);
+      if (v !== undefined) next.push(v);
+      else {
         next.push(null as unknown as View);
         misses.push({ slot: next.length - 1, id, kind });
       }
     });
-    // RECYCLING (the §5 deferred move, forced by the scrub bench: a fast
-    // scrollbar drag was rebuilding ~2,000 DOM nodes — ~70ms/frame): a
-    // window shift's LEAVERS re-point at its ARRIVERS instead of a
-    // discard+construct round trip. The cursor setBound below re-derives
-    // everything downstream; eligibility is exactly eviction-eligibility
-    // (still a member, subtree clean — a touched row retains as before, so
-    // user state never leaks across records). A recycled instance serving
-    // a member whose presence episode is NEW fires that member's init
-    // (fireInitTree — the mirror of suppressInit on reconstruction).
-    const recycled: View[] = [];
-    const recycledNewMember: View[] = [];
-    if (windowed && misses.length > 0) {
-      const harvest: View[] = [];
-      // only leavers some arriver of their class wants are harvested
-      const want = new Map<string, number>();
-      for (const miss of misses) want.set(miss.kind, (want.get(miss.kind) ?? 0) + 1);
-      for (const [id, q] of pool) {
-        if (harvest.length >= misses.length) break;
-        for (const e of q) {
-          if (e.used || harvest.length >= misses.length) continue;
-          const k = this.kindOf(e.view);
-          if ((want.get(k) ?? 0) === 0) continue;
-          const stillMember = !dataChanged || this.indexCache?.has(id) === true;
-          if (!subtreeDiverged(e.view) && !focusedWithin(e.view)) {
-            want.set(k, want.get(k)! - 1);
-            // DEPARTURE RECYCLING (the tracker filter change: a narrowed
-            // projection sends most of the window's records away and brings
-            // as many new ones — a discard+construct round trip per row,
-            // ~55% of the change). A clean leaver whose record LEFT the data
-            // retires NOW — parented, cursored at its record, live: the
-            // hook's contract — and then serves an arriver like a window
-            // leaver does; its next departure fires again (clearRetiredTree).
-            // A touched leaver still retains, so user state never crosses.
-            if (!stillMember) { fireRetireTree(e.view); clearRetiredTree(e.view); }
-            e.used = true;
-            harvest.push(e.view);
-          }
-        }
-      }
-      // ORDER-PRESERVING: the harvest is collected in current-window order and
-      // the misses are in slot order, so handing the k-th leaver to the k-th
-      // arriver leaves every instance at the child index it already holds. A
-      // window that misses ENTIRELY (a dragged scrollbar) is then a pure
-      // re-point — the re-link below sees an unchanged set and moves nothing.
-      // A leaver serves only an arriver of its own class.
-      for (const miss of misses) {
-        const j = harvest.findIndex((h) => h !== null && this.kindOf(h) === miss.kind);
-        let r: View | undefined;
-        if (j >= 0) { r = harvest[j]; harvest[j] = null as unknown as View; }
-        else r = this.unpark(miss.kind);
-        if (r === undefined) continue;
-        next[miss.slot] = r;
-        recycled.push(r);
-        if (!this.inited.has(miss.id)) recycledNewMember.push(r);
-      }
-    }
     for (const miss of misses) {
-      if (next[miss.slot] !== null) continue;
       const made = this.build(miss.kind);
       // The membership-anchored lifecycle (D5): a member whose init
       // already fired gets a silent reconstruction — onInit is once per
@@ -920,68 +537,28 @@ export class Replicator {
     for (const [v, made] of fresh) {
       try { made.provide(); } catch (e) { reportInstanceThrow(v, "providing", e); }
     }
-    // Leftovers: instances whose record left the WINDOW. A clean instance
-    // discards freely (reconstruction is unobservable — §2); a TOUCHED one
-    // (the divergence bit, or one still holding cells the user typed into)
-    // is retained alive at its logical place (keep-alive, D5).
-    const removed: View[] = [...droppedRetained];
-    const evictions = new Set<View>();
-    for (const [id, q] of pool) {
-      for (const e of q) {
-        if (e.used) continue;
-        const stillMember = windowed && (!dataChanged || this.indexCache?.has(id) === true);
-        // a record now shown by an instance of another class is not kept twice
-        if (stillMember && !matched.has(id) && (subtreeDiverged(e.view) || focusedWithin(e.view))) {
-          this.retained.set(id, e.view);
-        } else {
-          // A leftover whose record REMAINS a member is a window EVICTION —
-          // its presence continues, so no onRetire fires; clean evictions
-          // PARK as spares (capped) rather than discarding, so the next
-          // window growth re-points instead of constructing.
-          if (stillMember) {
-            if (windowed && this.spares.length < 60) {
-              this.park(e.view);
-              continue;
-            }
-            evictions.add(e.view);
-            markEvicting(e.view);
-          }
-          removed.push(e.view);
-        }
-      }
-    }
-
-    // Departures fire their onRetire NOW — still parented, cursored, and
-    // live (the hook's contract); discard's own fire is a no-op after this
-    // (once per lifetime). Evictions stay silent.
-    for (const v of removed) if (!evictions.has(v)) fireRetireTree(v);
-    const retainedViews = [...this.retained.values()];
-    const nextAll = [...next, ...retainedViews, ...this.spares];
+    // Leftovers: instances whose record left. Their onRetire fires NOW —
+    // still parented, cursored, and live (the hook's contract); discard's own
+    // fire is a no-op after this (once per lifetime).
+    const removed = entries.filter((e) => !e.used).map((e) => e.view);
+    for (const v of removed) fireRetireTree(v);
     const changed =
       fresh.size > 0 || removed.length > 0 ||
-      nextAll.length !== this.allViews.length ||
-      nextAll.some((v, i) => this.allViews[i] !== v);
+      next.length !== this.views.length ||
+      next.some((v, i) => this.views[i] !== v);
     if (changed) {
-      // Re-link the block in data order at its slot among the siblings
-      // (retained rows ride after the window — placement is absolute in
-      // windowed mode, so child order is stacking only).
-      for (const v of this.allViews) this.parent.removeChild(v);
+      // Re-link the block in data order at its slot among the siblings.
       let at = this.start();
-      const end = at + nextAll.length;
-      for (const v of nextAll) this.parent.insertChild(v, at++);
+      for (const v of this.views) this.parent.removeChild(v);
+      for (const v of next) this.parent.insertChild(v, at++);
       for (const v of removed) v.discard();
       // Mirror the order across the seam: walk backwards so each surface
       // lands before its successor's (fresh attach and kept move alike).
-      // SKIPPED when windowed recycling only REORDERED an unchanged set:
-      // placement is absolute and rows never overlap, so surface order is
-      // invisible — and moving ~34 elements per scroll tick was half the
-      // scrub bench's remaining frame cost.
-      const sameSet = windowed && fresh.size === 0 && removed.length === 0;
-      const ps = this.parent.surface;
-      if (ps !== null && this.parent.backend !== null && !sameSet) {
-        let before = this.surfaceAfter(end);
-        for (let i = nextAll.length - 1; i >= 0; i--) {
-          const v = nextAll[i];
+      const ps = this.parent.$surface;
+      if (ps !== null && this.parent.$backend !== null) {
+        let before = this.surfaceAfter(at);
+        for (let i = next.length - 1; i >= 0; i--) {
+          const v = next[i];
           // CONTAINED per instance: attach first-runs member machinery (a
           // draw() recording), and a program bug throwing there must cost
           // exactly its own instance — loudly, with the node's path — never
@@ -989,186 +566,30 @@ export class Replicator {
           // report 2026-09-01: one bad row wedged the whole block, and a
           // frame-fed draw re-threw forever).
           try {
-            if (v.surface === null) v.attach(this.parent.backend, ps, before);
-            else ps.insertChild(v.surface, before);
+            if (v.$surface === null) v.$attach(this.parent.$backend, ps, before);
+            else ps.insertChild(v.$surface, before);
           } catch (e) {
             reportInstanceThrow(v, "attaching", e);
           }
-          before = v.surface ?? before;
+          before = v.$surface ?? before;
         }
       }
     }
-    // Recycled and freshly built instances are presenting a record they were
-    // not presenting before: their springs take the arriving target outright
-    // instead of sliding from the departed record's geometry (Spring.arrive).
-    // Armed, not snapped — the cursor write above invalidates lazily, so the
-    // new target is not readable yet.
-    for (const v of recycled) arriveSubtree(v);
+    // Freshly built instances are presenting a record they were not
+    // presenting before: their springs take the arriving target outright
+    // (Spring.arrive). Armed, not snapped — the cursor write above
+    // invalidates lazily, so the new target is not readable yet.
     for (const v of fresh.keys()) arriveSubtree(v);
-    // Retained rows re-point on data change (their logical index may shift).
-    if (m.arrayPath !== null && this.retained.size > 0) {
-      for (const [id, v] of this.retained) {
-        const idx = this.indexCache?.get(id);
-        if (idx !== undefined && data !== null) {
-          setBound(v, "datapath", data.cursorAt([...m.arrayPath, String(idx)]));
-          setRowIndex(v, idx);
-        }
-      }
-    }
-
-    // WINDOWED PLACEMENT + EXTENT (§3.2, uniform extents v1): the block owns
-    // its rows' y and the parent's height while windowing is engaged — the
-    // runtime arranging what the runtime materializes.
-    if (windowed) {
-      // incremental placement: one O(log n) offset for the window's first
-      // row, then O(1) spans — the scrub bench's ledger overhead reclaimed.
-      //
-      // Placement is LOGICAL-relative-to-the-viewport, then re-based into
-      // physical space: a row's distance from the top of the viewport is
-      // logical (`ledger.offset(i) - rel`), and where the viewport itself sits
-      // is physical (`pRel`). Below the cap `pRel === rel` and `base` collapses
-      // to `m.leading`, leaving the original `leading + offset(i)` exactly.
-      // Above it, rows track the physical viewport instead of running off past
-      // 2²⁵ where the browser would stop moving them.
-      const base = m.leading + this.pRel - this.relLogical;
-      let yy = base + this.ledger.offset(m.start);
-      next.forEach((v, i) => {
-        setBound(v, "y", yy);
-        yy += this.ledger.span(this.idOf(m.items[m.start + i]));
-      });
-      for (const [id, v] of this.retained) {
-        const idx = this.indexCache?.get(id);
-        if (idx !== undefined) setBound(v, "y", base + this.ledger.offset(idx));
-      }
-      this.positioned = true;
-      const total = m.leading + this.ledger.total();
-      // The block owns the parent's content extent — the same yielding
-      // discipline as auto-extent (which it displaces): an author-set or
-      // author-bound height is respected and left alone. When the authored
-      // parent IS the scroller (rows as direct children of a scrolling
-      // Table — its height is the FRAME), the logical extent publishes to
-      // the SURFACE instead: the scroll range spans all N logical rows from
-      // the first frame, so the scrollbar thumb maps the whole collection
-      // (without this the range grew only as rows materialized — the
-      // treadmill: dragging the thumb "to the end" landed mid-sequence).
-      // What the browser is told is the PHYSICAL extent — capped under the
-      // 2²⁵ ceiling. Both publication paths cap: a strut of 44M px and a
-      // parent `height` of 44M px saturate identically. Below the cap this is
-      // `total` unchanged.
-      const published = physicalExtent(total);
-      const heightAuthored = isSet(this.parent, "height") || ownerOf(this.parent, "height")?.yielding === false;
-      if (heightAuthored) {
-        this.heightOwner?.dispose();
-        this.heightOwner = null;
-        if (this.parent.scrolls !== "none") this.parent.surface?.setVirtualExtent?.(published);
-      } else if (this.heightOwner === null) {
-        this.totalExtent = published;
-        this.heightOwner = bindDerived(this.parent, "height", () => this.totalExtent);
-      } else if (this.totalExtent !== published) {
-        this.totalExtent = published;
-        this.heightOwner.run();
-      }
-    } else if (this.windowedActive) {
-      // Windowing DISENGAGED (policy/data shrink/layout arrival): release
-      // the geometry we owned; surviving rows return to declared placement,
-      // and the spare pool (windowed-only machinery) drains.
-      this.heightOwner?.dispose();
-      this.heightOwner = null;
-      this.parent.surface?.setVirtualExtent?.(null);
-      for (const v of this.spares.splice(0)) { markEvicting(v); this.parent.removeChild(v); v.discard(); }
-      if (this.positioned) {
-        for (const v of nextAll) setBound(v, "y", 0);
-        this.positioned = false;
-      }
-    }
-
-    // Windowing-aware AT (§2, ruled): logical extent on the container,
-    // logical position per materialized row — "row N of 100,000" with only
-    // the window existing. Cleared when windowing disengages.
-    this.parent.surface?.setRowCount?.(windowed ? m.logical : null);
-    next.forEach((v, i) => v.surface?.setRowIndex?.(windowed ? m.start + i + 1 : null));
-    if (windowed) {
-      for (const [id, v] of this.retained) {
-        const idx = this.indexCache?.get(id);
-        v.surface?.setRowIndex?.(idx !== undefined ? idx + 1 : null);
-      }
-    }
-
-    if (this.windowedActive !== windowed) {
-      this.windowedActive = windowed;
-      markWindowedBlock(this.parent, windowed);
-    }
 
     this.views = next;
     this.items = items;
-    this.allViews = nextAll;
-    // New instances finish (bindings + init) linked, attached, and cursored;
-    // then their init is RECORDED against the membership, and divergence
-    // tracking arms (construct-phase writes never count as touch). Contained
-    // per instance, like attach above: one instance's throwing member is that
-    // instance's defect, reported with its path.
     for (const [v, made] of fresh) {
       try { made.finish(); } catch (e) { reportInstanceThrow(v, "finishing", e); }
     }
-    // recycled instances presenting a NEW member fire that member's init on
-    // the live subtree (cursored and placed by now), then re-arm divergence
-    // exactly like fresh construction (init-handler writes never count).
-    for (const v of recycledNewMember) fireInitTree(v);
-    for (const node of nodes) {
-      const id = this.idOf(node.value);
-      if (!this.inited.has(id)) this.inited.add(id);
-    }
+    for (const node of nodes) this.inited.add(this.idOf(node.value));
     for (const view of fresh.keys()) armTree(view);
-    for (const view of recycled) armTree(view);
-    // The measured ladder: read each window row's REAL extent (text-driven
-    // heights settle with their constraints); corrections update the ledger,
-    // and a correction ABOVE the viewport's anchor compensates the scroll so
-    // the view holds still while estimates converge. Any change re-pings the
-    // match (the estimate-then-correct loop, generalized per-row).
-    if (windowed && next.length > 0) {
-      // A row materialized or re-pointed THIS pass has not resolved its
-      // height yet: its constraints (and any spring's arriving target) settle
-      // after this reconcile returns, so what it reads right now is the
-      // TEMPLATE's default. Recording that would tell the ledger a 356px
-      // expanded row is 44px — dropping its correction, shifting every offset
-      // below it, and moving the index the viewport maps to (a visible jump of
-      // several rows). It is measured on the next pass instead, which the
-      // measure ping already schedules; a row whose default happens to be
-      // right loses nothing by waiting one frame.
-      const justPointed = new Set<View>(recycled);
-      for (const v of fresh.keys()) justPointed.add(v);
-      let changed2 = false;
-      let aboveShift = 0;
-      const anchorIdx = this.anchorId !== undefined ? this.indexCache?.get(this.anchorId) : undefined;
-      for (let i = 0; i < next.length; i++) {
-        const idx = m.start + i;
-        if (justPointed.has(next[i])) { changed2 = true; continue; }
-        const h = next[i].height + this.rowGap;
-        if (h <= this.rowGap) continue;
-        const d = this.ledger.measure(idx, this.idOf(m.items[idx]), h);
-        if (d !== 0) {
-          changed2 = true;
-          if (anchorIdx !== undefined && idx < anchorIdx) aboveShift += d;
-        }
-      }
-      if (aboveShift !== 0) {
-        const sc = this.findScroller();
-        if (sc !== null) setBound(sc, "scrollY", Math.max(0, sc.scrollY + aboveShift));
-      }
-      if (changed2 || !this.measuredUnit) this.measureCell.changed();
-    }
-    if (changed) {
-      this.parent.childrenMutated(); // one re-arm per burst
-      // instances were created or re-pointed THIS pass — match's height
-      // tracking only covers the window it last saw, so ping one more run to
-      // adopt the newborns: a row materialized by the final reconcile of a
-      // burst must still hear an animating height.
-      this.measureCell.changed();
-    }
+    if (changed) this.parent.childrenMutated(); // one re-arm per burst
   }
-
-  /** The parent-extent the height derive publishes (windowed mode). */
-  private totalExtent = 0;
 
   /** Where the block starts right now: after its anchor. */
   private start(): number {
@@ -1181,31 +602,6 @@ export class Replicator {
    *  (`lastNodeOf(this.prev)`): an invisible sibling (a DataGrid Column, a
    *  hidden control) occupies no space — the SimpleLayout rule — so the
    *  walk skips it rather than offsetting below a phantom. */
-  /** The anchor member's offset under the CURRENT (pre-rebuild) ledger,
-   *  or null when it is no longer known. */
-  private anchorFind(id: unknown): number | null {
-    const shape = this.ledgerShape;
-    if (shape === null) return null;
-    const at = shape.indexOf(id);
-    return at < 0 ? null : this.ledger.offset(at) - this.anchorDelta + this.anchorDelta;
-  }
-
-  /** Hide and shelve a clean evicted instance for reuse. */
-  private park(v: View): void {
-    setBound(v, "visible", false);
-    this.spares.push(v);
-  }
-
-  /** Take a spare back into service (visible again; the caller re-points). */
-  private unpark(kind: string): View | undefined {
-    let i = this.spares.length - 1;
-    while (i >= 0 && this.kindOf(this.spares[i]) !== kind) i--;
-    if (i < 0) return undefined;
-    const [v] = this.spares.splice(i, 1);
-    setBound(v, "visible", true);
-    return v;
-  }
-
   private leadingAnchor(): View | null {
     for (let i = this.start() - 1; i >= 0; i--) {
       const sib = this.parent.children[i];
@@ -1219,14 +615,15 @@ export class Replicator {
   private surfaceAfter(index: number): Surface | null {
     for (let i = index; i < this.parent.children.length; i++) {
       const sib = this.parent.children[i];
-      if (sib instanceof View && sib.surface !== null) return sib.surface;
+      if (sib instanceof View && sib.$surface !== null) return sib.$surface;
     }
     return null;
   }
 
   /** @internal The block's last instance — the next block's anchor. */
   last(): Node | null {
-    return this.allViews.length > 0 ? this.allViews[this.allViews.length - 1] : lastNodeOf(this.prev);
+    if (this.win?.active === true) return this.win.last() ?? lastNodeOf(this.prev);
+    return this.views.length > 0 ? this.views[this.views.length - 1] : lastNodeOf(this.prev);
   }
 }
 
@@ -1245,7 +642,7 @@ function lastNodeOf(prev: Node | Replicator | null): Node | null {
  *  with the node's path (the field-report contract), and let reconcile keep
  *  going: the defect belongs to the instance whose member threw, and the
  *  siblings' cursors and finishes must land regardless. */
-function reportInstanceThrow(v: View, phase: string, e: unknown): void {
+export function reportInstanceThrow(v: View, phase: string, e: unknown): void {
   console.error(
     `[Declare] ${phase} a replicated ${v.constructor.name} instance (${nodeLabel(v)}) threw: ${(e as Error)?.message ?? e}`,
     e
@@ -1257,7 +654,7 @@ function reportInstanceThrow(v: View, phase: string, e: unknown): void {
  *  the day a recycled select cell dragged the focus ring to an arbitrary
  *  record): it must never be re-pointed, parked, or discarded under the
  *  user's cursor. */
-function focusedWithin(root: Node): boolean {
+export function focusedWithin(root: Node): boolean {
   const f = Focus.getFocus();
   if (f === null) return false;
   for (let n: Node | null = f; n !== null; n = n.parent as Node | null) {
@@ -1269,7 +666,7 @@ function focusedWithin(root: Node): boolean {
 /** Has any node in this instance's subtree received a direct write since it
  *  was armed — the §2 divergence probe (attributes.ts). Walked only at
  *  discard decisions; proportional to one instance's subtree. */
-function subtreeDiverged(root: Node): boolean {
+export function subtreeDiverged(root: Node): boolean {
   if (nodeDiverged(root)) return true;
   for (const c of (root as { children?: readonly Node[] }).children ?? []) {
     if (subtreeDiverged(c)) return true;
@@ -1279,7 +676,7 @@ function subtreeDiverged(root: Node): boolean {
 
 /** Arm divergence tracking over a finished instance's subtree —
  *  construct-phase writes (literals, bindings, init) never count as touch. */
-function armTree(root: Node): void {
+export function armTree(root: Node): void {
   armDivergence(root);
   for (const c of (root as { children?: readonly Node[] }).children ?? []) armTree(c);
 }

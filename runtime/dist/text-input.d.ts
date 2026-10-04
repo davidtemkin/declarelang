@@ -2,7 +2,7 @@ import type { RenderBackend, Surface } from "./backend.js";
 import { type FontWeight } from "./measure.js";
 import { type FamilyValue } from "./font-value.js";
 import { Editor } from "./editor.js";
-import { type Color } from "./value.js";
+import { type Color, type Inset } from "./value.js";
 export declare class TextInput extends Editor {
     textColor: Color;
     fontSize: number;
@@ -16,12 +16,12 @@ export declare class TextInput extends Editor {
     multiline: boolean;
     spellcheck: boolean;
     wrap: boolean;
-    padding: number;
+    padding: Inset;
     initial: string;
     focused: boolean;
     protected draftSlot(): string;
-    attach(backend: RenderBackend, parentSurface: Surface | null): void;
-    protected flush(s: Surface): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    protected $flush(s: Surface): void;
     private editStyle;
     /** Push the whole editable spec across the seam — value, style, callbacks.
      *  Idempotent and cheap; called on any model change (text/placeholder/

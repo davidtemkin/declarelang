@@ -80,6 +80,7 @@ export declare function initInteraction(test: (n: unknown) => n is InteractionVi
  *  question — the inspector's picker, a calendar's cell math, a window's resize
  *  zones — is how the desktop's corner bug happened.) */
 export declare function leafAt(v: InteractionView, lx: number, ly: number, pierce?: boolean, trace?: HitNote[]): InteractionView | null;
+export declare function noteUserScroll(scroller: object, active: boolean): void;
 /** The view under a point in the root's FRAME space (viewport coordinates for
  *  a top-level app) — the walk's own space. view.ts wraps it as
  *  `app.viewAt(x, y)` with the CONTENT-space contract the language documents

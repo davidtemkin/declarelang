@@ -117,13 +117,13 @@ export { Media } from "./media.js";
 // The stream SEAM only — the Stream/EventStream/Socket classes are reachable
 // through registry.js alone, so slimming can drop them (stream-seam.ts).
 export { provideStreams } from "./stream-seam.js";
-export { Tip } from "./tip.js";
+export { Tooltips } from "./tooltips.js";
 export { Animator } from "./animator.js";
 export { AnimatorGroup } from "./animator-group.js";
 export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoaded, kernelStats } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export { Draw, record, replay } from "./draw.js";
-export { Font, Face, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";
+export { Font, FontFace, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";
 export { fontString, textWidth, fontMetrics, provideMeasurer } from "./measure.js";
 export { measureText } from "./text-measure.js";
 export { validatePathData } from "./shape.js";

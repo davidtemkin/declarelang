@@ -13,7 +13,7 @@ The model:
   keyboard. A pointer focus **parks** the ring there silently (snap, no show) —
   so the next Tab's flight departs from the control the user just clicked,
   never from a stale perch.
-- **Roles, theme-elected** — `theme.focusRing`: `"both"` (or `true`, the
+- **Roles, theme-elected** — `theme.focusRingStyle`: `"both"` (or `true`, the
   default) · `"travel"` (flight, then an idle fade) · `"rest"` (no flight —
   the ring appears in place and stays) · `false` (no ring; the theme's
   classes carry the at-rest indication — the invariant lives with the
@@ -51,7 +51,7 @@ Whether the ring has ever had a target to park on. **The first appearance never 
 because a flight from nowhere is a streak across the app.
 
 ## ringRole()
-The theme's election, from `theme.focusRing`: `"both"` (the default), `"travel"`
+The theme's election, from `theme.focusRingStyle`: `"both"` (the default), `"travel"`
 (flight, then fading once it settles), `"rest"` (appears in place and stays, no
 flight), or `"off"`. **`"off"` is legitimate only when the theme's own controls carry
 an at-rest focus indication** — the invariant belongs to the theme-and-classes pair,
@@ -152,7 +152,7 @@ class FocusRing [
 
     // role helpers over the theme election
 
-    ringRole()  { const r = theme.focusRing; return r == false ? "off" : r == true || r == null ? "both" : r },
+    ringRole()  { const r = theme.focusRingStyle; return r == false ? "off" : r == true || r == null ? "both" : r },
     restRole()  { const r = this.ringRole(); return r == "both" || r == "rest" },
     travelRole() { const r = this.ringRole(); return r == "both" || r == "travel" },
 
@@ -310,7 +310,7 @@ class FocusRing [
             d.moveTo(ins + r + ax, h - ins); d.lineTo(ins + r, h - ins); d.arc(ins + r, h - ins - r, r, Q, Math.PI); d.lineTo(ins, h - ins - r - ay)
             d.stroke()
             }
-        pass(0, lw, typeof theme.focusColor == "number" ? theme.focusColor : theme.accent)
+        pass(0, lw, typeof theme.focusRingColor == "number" ? theme.focusRingColor : theme.accent)
         if (iw > 0) pass((lw + iw) / 2, iw, typeof theme.focusRingInnerColor == "number" ? theme.focusRingInnerColor : theme.surface)
         }
     ]

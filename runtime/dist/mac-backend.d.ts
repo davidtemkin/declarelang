@@ -128,7 +128,12 @@ declare class MacSurface implements Surface {
      *  a request during it is dropped (arbitration rule 1). Both arrive per
      *  frame through macScrollFacts; the model never infers them. */
     scrollingLive: boolean;
+    /** The host's scrollbar thumb is held (scrollbarHeld). */
+    private barLive;
+    scrollbarHeld(): boolean;
     gestureLive: boolean;
+    /** A program request past the end this surface knew when it came: settled at the flush. */
+    wantY: number | null;
     /** Where this surface lived before travelWith moved it (null = at home). */
     private travelHome;
     parent: MacSurface | null;
@@ -292,7 +297,7 @@ declare class MacSurface implements Surface {
     notifyScrollX(x: number): void;
     /** The host's per-frame report lands here (macScrollFacts): the offsets it
      *  moved, and the `scrolling`/gesture state of its process. */
-    hostFacts(y: number | null, x: number | null, scrolling: boolean, gesture: boolean): void;
+    hostFacts(y: number | null, x: number | null, scrolling: boolean, gesture: boolean, bar?: boolean): void;
     /** Travel with a scroller (the FocusRing's ride): re-home in the model
      *  tree — the INSERT op re-parents the layer onto the scroller's content
      *  layer, so the host's own translate carries it, last = above the rows. */
@@ -537,7 +542,7 @@ export declare function macTraceHit(x: number, y: number): void;
  *  arrives as facts (macScrollFacts). */
 export declare function macWheel(x: number, y: number, dx: number, dy: number, pinch: boolean): void;
 /** The host's per-frame scroll report (`__declareScrollFacts`): rows of
- *  [id, y|null, x|null, scrolling, gesture] for every surface its process
+ *  [id, y|null, x|null, scrolling, gesture, bar held] for every surface its process
  *  moved or whose state changed this frame — written AFTER the frame that
  *  showed them (scrolling.md: the settle never delays the motion). */
 export declare function macScrollFacts(batch: unknown): void;

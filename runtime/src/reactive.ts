@@ -88,6 +88,10 @@ const DEFAULT_CAPS: Required<KernelCaps> = { extra_elems: 1 << 16, extra_cells: 
 const RULES: Array<Constraint | null> = [];
 /** The Constraint standing behind a kernel rule id (a cell's `owner`), for
  *  tooling that names what wrote a value — the wake trace. */
+/** Does a constraint still own the slot behind a kernel cell? attributes.ts
+ *  installs the answer (the slot's owner); until it does, every claim stands. */
+let stillOwns: (c: Constraint, cell: number) => boolean = () => true;
+export function setOwnershipCheck(check: (c: Constraint, cell: number) => boolean): void { stillOwns = check; }
 export function constraintOfRule(id: number): Constraint | null { return id >= 0 ? RULES[id] ?? null : null; }
 
 // ── the wake trace's seam ───────────────────────────────────────────────────
@@ -181,7 +185,7 @@ const HOST: KernelHost = {
         ? `afterSettle: steps re-armed ${AFTER_LIMIT} times in one settle — a step (transitively) registers itself again`
         : `onChange: handlers re-armed ${AFTER_LIMIT} settles in one chain`);
     } else if (code !== KERNEL_ERR.ABORT) {
-      pendingError = new DeclareError(`kernel: settle failed (${code})`);
+      pendingError = new DeclareError(`kernel: settle failed (${code}) at ${RULES[rule]?.label ?? `rule ${rule}`}`);
     }
   },
   schedule() { schedule(); },
@@ -669,16 +673,42 @@ export class Constraint {
    *  animator, a natural size) displaces it too, as it displaced the live
    *  fallback this replaces (attributes.ts: storage wins). */
   declDefault = false;
+  /** A declared default's rule has landed a value. Until it has, its slot's
+   *  stored value is not the rule's answer (bind.ts: a first run still in
+   *  flight, or one that could not be evaluated yet), so a read evaluates the
+   *  default live (attributes.ts). */
+  applied = false;
   /** A percent binding (attributes.ts markPercent): the kernel's auto-extent
    *  skips the child slot it owns, as view.ts extentOf does. Set before wire. */
   percent = false;
   /** A kernel-native built-in declined its case: the host takes over. */
   onDecline: (() => void) | null = null;
-  /** The numeric cell this constraint OWNS (attributes.ts own()), registered
-   *  with the kernel so its pull can run this rule for a reader's first value. */
+  /** The numeric cells this constraint OWNS (attributes.ts own()), registered
+   *  with the kernel so its pull can run this rule for a reader's first value.
+   *  Usually one; a stack layout owns each child's place. */
   ownsCell = -1;
-  ownCell(cell: number): void { this.ownsCell = cell; if (this.id >= 0) K!.own(cell, this.id); }
-  releaseCell(): void { if (this.ownsCell >= 0 && this.id >= 0) K!.release(this.ownsCell, this.id); this.ownsCell = -1; }
+  private moreCells: number[] | null = null;
+  ownCell(cell: number): void {
+    if (this.ownsCell >= 0 && this.ownsCell !== cell) (this.moreCells ??= []).push(this.ownsCell);
+    this.ownsCell = cell;
+    if (this.id >= 0) K!.own(cell, this.id);
+  }
+  /** Give up the kernel's ownership of `cell`. */
+  releaseCell(cell = this.ownsCell): void {
+    if (cell >= 0 && this.id >= 0) K!.release(cell, this.id);
+    if (cell === this.ownsCell) this.ownsCell = this.moreCells?.pop() ?? -1;
+    else if (this.moreCells !== null) { const i = this.moreCells.indexOf(cell); if (i >= 0) this.moreCells.splice(i, 1); }
+  }
+  /** Every owned cell to the kernel under a (new) rule id — those still
+   *  ours: a claim made before the rule existed may name a view discarded
+   *  since, whose cells now serve another (attributes.ts answers). */
+  private ownAll(id: number): void {
+    if (this.ownsCell >= 0 && !stillOwns(this, this.ownsCell)) this.ownsCell = -1;
+    if (this.moreCells !== null) this.moreCells = this.moreCells.filter((c) => stillOwns(this, c));
+    if (this.ownsCell < 0) this.ownsCell = this.moreCells?.pop() ?? -1;
+    if (this.ownsCell >= 0) K!.own(this.ownsCell, id);
+    if (this.moreCells !== null) for (const c of this.moreCells) K!.own(c, id);
+  }
   /** Is a recompute of this rule queued (its inputs moved; the table lags)?
    *  Pending ring writes are flushed first so the answer reflects them. */
   isQueued(): boolean {
@@ -722,7 +752,7 @@ export class Constraint {
    *  already in place; landing is `run()`. */
   adoptRule(id: number): void {
     this.id = id; this.native = true; this.wired = true;
-    if (this.ownsCell >= 0) K!.own(this.ownsCell, id);
+    this.ownAll(id);
     RULES[id] = this;
   }
   /** @internal Is this a kernel-evaluated rule? */
@@ -771,7 +801,7 @@ export class Constraint {
       if (id < 0) throw new DeclareError("kernel: out of rules — the program exceeds the runtime's rule capacity");
       this.id = id;
       RULES[id] = this;
-      if (this.ownsCell >= 0) K!.own(this.ownsCell, id);
+      this.ownAll(id);
     }
     return this.id;
   }
@@ -800,7 +830,7 @@ export class Constraint {
     this.id = id;
     RULES[id] = this;
     this.wired = true;
-    if (this.ownsCell >= 0) K!.own(this.ownsCell, id);
+    this.ownAll(id);
     if (paths !== undefined) this.wiredPaths = paths;
     this.run();
   }
@@ -861,7 +891,13 @@ export class Constraint {
   /** Permanently retire (a yielding owner displaced by a direct write). */
   dispose(): void {
     this.dead = true;
-    if (this.id >= 0) { K!.dispose(this.id); RULES[this.id] = null; this.id = -1; }
+    if (this.id >= 0) {
+      // a dead rule owns nothing: its id will serve another rule
+      if (this.ownsCell >= 0) K!.release(this.ownsCell, this.id);
+      if (this.moreCells !== null) for (const c of this.moreCells) K!.release(c, this.id);
+      this.moreCells = null;
+      K!.dispose(this.id); RULES[this.id] = null; this.id = -1;
+    }
   }
 
   /** Displace this constraint without killing it: drop its dependency edges

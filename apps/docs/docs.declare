@@ -11,7 +11,7 @@ the mode, a detail pane reads it, and every doc string is rendered by the
 runtime's own Markdown view.
 
 `{ }` bodies are TypeScript → `0x…` colors and expressions; `[ ]` literal
-slots take `#…` / named colors. Every color reads `theme.<token>` — one
+attributes take `#…` / named colors. Every color reads `theme.<token>` — one
 provided record on the App (see it there), so the whole document reskins
 from one place.
 */
@@ -339,7 +339,7 @@ class WrapChip [
 One row per documented member. `AttrRow` is an attribute: the signature line
 (name : type = default), a long or multi-line default on its own indented line,
 the read-only badge, the OVERRIDE line when the class re-defaults
-an inherited slot (the ancestor's slot as a link, and what its default was
+an inherited member (the ancestor's member as a link, and what its default was
 there), then its prose — for an override, the INTENT. `MethodRow` and
 `EventRow` are the method and event forms.
 */
@@ -869,7 +869,7 @@ class ClassDetail [ width = 100%,
 
     /* ### The members, in three ruled sections — each headed by an index of its
            members; an override sits in its own section, with the ancestor's
-           slot linked under its signature */
+           member linked under its signature */
 
     attrs: View [ width = 100%, visible = { :attributes.length > 0 }, anchor = "attributes",
         layout: SimpleLayout [ axis = y, spacing = 22 ],
@@ -1210,7 +1210,7 @@ class TypeDetail [ width = 100%,
     tokens: View [ width = 100%, visible = { :nTokens > 0 }, anchor = "tokens",
         layout: SimpleLayout [ axis = y, spacing = 18 ],
         SectionHead [ head = "Tokens",
-            note = { :nTokens + " of them. Write the token itself — bare, unquoted, in the slot the type names." } ],
+            note = { :nTokens + " of them. Write the token itself — bare, unquoted, in the attribute the type names." } ],
         fams: View [ width = 100%,
             layout: SimpleLayout [ axis = y, spacing = 12 ],
             View [ datapath = :tokenGroups[], width = 100%,
@@ -1406,7 +1406,7 @@ A top chrome bar (the house header — brand · search · type-size + theme), a
 left rail below it, and a scrolling detail pane, over the model.
 */
 
-App [ fill = { provided("theme").bg }, appName = "Declare Docs",
+App [ fill = { provided("theme").background }, appName = "Declare Docs",
     revealInset = { app.barH },                // an anchor lands clear of the fixed bar
 
     // the two faces, named once: the UI face is provided from here, so every

@@ -169,7 +169,7 @@ async function bootAt(source: string, opts: CrawlOptions, location: string, refu
   const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
   try {
     const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides } as never);
-    app.attach(new HeadlessBackend(), null);
+    app.$attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
     app.dark = env.dark;
@@ -294,7 +294,7 @@ async function warmSession(source: string, opts: CrawlOptions, refusals: Map<str
   };
   const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
   const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides } as never);
-  app.attach(new HeadlessBackend(), null);
+  app.$attach(new HeadlessBackend(), null);
   app.hostWidth = env.hostWidth;
   app.hostHeight = env.hostHeight;
   app.dark = env.dark;

@@ -47,7 +47,7 @@ because layers are presentation, not ownership.)
 The layer system is deliberately near-invisible. The authoring surface is
 the same ladder as everything else in Declare:
 
-1. **An attribute** — `tip = "Saves the draft"`. The floor, and the acid
+1. **An attribute** — `tooltipLabel = "Saves the draft"`. The floor, and the acid
    test: if a tooltip costs more than one attribute, the design failed.
 2. **A component** — `Menu [ items = … ]`, Select, Dialog. The component
    manifests into the right layer; the author sees records and verbs.
@@ -71,7 +71,7 @@ attributes and constraints, no view tree. Its contract, handled once:
 
 - **Layer election** — per subclass: Tooltip/Menu/Popover → floating,
   Dialog → modal, Toast → notice. A class-level fact, not a use-site choice.
-- **Presence** — a slot (`opener: View = null`, or `open`), written by verbs
+- **Presence** — a slot (`opener: View? = null`, or `open`), written by verbs
   (`openAt(view, e)`, `close()`), derivable by constraint. Presence follows
   declared-default/runtime-write like every other slot.
 - **Manifestation** — at open, the surface is BUILT into the layer (from
@@ -88,7 +88,7 @@ attributes and constraints, no view tree. Its contract, handled once:
 - **Focus policy** — trap-and-restore (Dialog), roving (Menu), never-take
   (Tooltip); notice never steals focus.
 - **Material** — scrim, shadow, translucency from THEME TOKENS (working set:
-  `scrimColor`, `planeShadow`, `planeMaterial`), so the four cities' layer
+  `scrimFill`, `planeShadow`, `planeMaterial`), so the four cities' layer
   looks are data: SF flat shadowed cards, Mountain View elevation + scrim,
   Cupertino translucency, Redmond Acrylic. Canvas approximates blur honestly
   (dim without blur) — recorded, not hidden.
@@ -166,7 +166,7 @@ Per-row variation with zero per-row instances: `items` is a constraint over
 `opener` — live even while open (a native menu needs `validateMenuItem`
 callbacks to fake what the reactive graph does for free). Behavior routes
 back to the row (`opener.perform`), which holds its own datapath cursor.
-`opener` is declared on the Menu BASE (`opener: View = null`), written by
+`opener` is declared on the Menu BASE (`opener: View? = null`), written by
 `openAt`, nulled on dismissal; open-state ≡ `opener != null`.
 
 ## 6. Worked example 2 — the menu bar
@@ -268,7 +268,7 @@ only as each component demands it (no speculative machinery):
 
 1. **Tooltip** — forces the minimal substrate: manifestation into floating,
    live anchoring (reactive root-space box), never-focus, flip/clamp. One
-   attribute (`tip`) at the use site.
+   attribute (`tooltipLabel`) at the use site.
 2. **Menu** (context + attached) — the record schema + typecheck, `opener`,
    light-dismiss stratum, roving keyboard (closes the Redmond radio-group
    fidelity gap), per-item content classes (rung 2), `key:` display.

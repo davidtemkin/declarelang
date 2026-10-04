@@ -91,7 +91,7 @@ class StatusIcon [ width = 14, height = 14,
 
 class PrioIcon [ width = 13, height = 12,
     p: string = "P3",
-    tip = { p == "P0" ? "Priority · P0 Urgent" : p == "P1" ? "Priority · P1 High" : p == "P2" ? "Priority · P2 Medium" : "Priority · P3 Low" },
+    tooltipLabel = { p == "P0" ? "Priority · P0 Urgent" : p == "P1" ? "Priority · P1 High" : p == "P2" ? "Priority · P2 Medium" : "Priority · P3 Low" },
     lit: number = { p == "P0" || p == "P1" ? 3 : p == "P2" ? 2 : 1 },
     tone: number = { p == "P0" ? provided("theme").danger : 0 },
     b1: View [ x = 0, y = 7, width = 3, height = 5, cornerRadius = 1,
@@ -138,7 +138,7 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
     count: number = -1,         // -1 hides the count
     on: boolean = false,
     width = { this.row.contentWidth + 24 },
-    fill = { on ? theme.controlSelected : hot ? theme.control : null },
+    fill = { on ? theme.controlSelected : hovered ? theme.control : null },
 
     // the tally is a sprung number — `Spring [ attribute = … ]` animates any
     // slot, data included, so a bulk move rolls the counts over instead of
@@ -188,7 +188,7 @@ class ListRow extends TableRow [
         onStop() { if (classroot.exp) app.revealOpen() }
         ],
 
-    fill = { selected ? theme.controlSelected : hot ? theme.surface : null },
+    fill = { selected ? theme.controlSelected : hovered ? theme.surface : null },
     stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
     ]
 
@@ -198,7 +198,7 @@ class ListRow extends TableRow [
 
 class GroupRow extends ListRow [
     targetH = 42,
-    fill = { theme.bg },
+    fill = { theme.background },
 
     hdrRow: View [ x = 0, y = 12, width = 100%, height = 24,
         // collapsed points right, open points down — one class, turned: the
@@ -337,7 +337,7 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
     hueName: string = "",
     tintUse: number = { hueName != "" ? trkHue(hueName) : tint },
     on: boolean = false,
-    fill = { on ? theme.controlSelected : hot ? theme.control : null },
+    fill = { on ? theme.controlSelected : hovered ? theme.control : null },
     name: Text [ x = 30, y = center, fontSize = 12.5, wrap = false, maxLines = 1, width = 92,
         fontWeight = { classroot.on ? "semibold" : "normal" },
         textColor = { classroot.on ? theme.text : theme.textMuted },
@@ -368,16 +368,16 @@ class Toast [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10
     Spring [ attribute = lift, to = { shown ? 1 : 0 }, stiffness = 260, damping = 26 ],
     opacity = { lift },
     width = { this.cap.width + this.u.width + 46 },
-    fill = { provided("theme").tooltipBg },
+    fill = { provided("theme").tooltipFill },
     shadow = { shadow(0, 6, 24, 0x00000040) },
     cap: TextLabel [ x = 16, fontSize = 12.5, wrap = false,
-        textColor = { provided("theme").tooltipText }, text = { msg } ],
+        textColor = { provided("theme").tooltipTextColor }, text = { msg } ],
     u: Control [ y = 7, height = 26, cornerRadius = 7,
         x = { parent.cap.x + parent.cap.width + 10 },
         width = { this.t.width + 18 },
-        fill = { hot || down ? theme.accent : null },
+        fill = { hovered || pressed ? theme.accent : null },
         t: Text [ x = 9, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
-            textColor = { this.parent.hot || this.parent.down ? theme.accentText : theme.accent }, text = "Undo" ],
+            textColor = { this.parent.hovered || this.parent.pressed ? theme.accentTextColor : theme.accent }, text = "Undo" ],
         press() { app.undoDelete() }
         ],
     show(m: string) {
@@ -444,7 +444,7 @@ class EditorCard [
             layout: WrappingLayout [ spacing = 6 ],
             EditTag [ datapath = :it.labels[], t = { "" + :@ } ],
             add: Control [ height = 22, cornerRadius = 7, width = 26,
-                fill = { hot ? theme.control : null },
+                fill = { hovered ? theme.control : null },
                 stroke = { stroke(1, theme.line) },
                 t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
                 press() { app.openAddLabel(this) }
@@ -479,8 +479,8 @@ class EditorCard [
 
             del: Control [ width = 84, visible = { !app.creating },
                 height = { app.footRowH },
-                cornerRadius = { typeof theme.buttonRadius == "number" ? Math.min(theme.buttonRadius, this.height / 2) : theme.controlRadius },
-                fill = { hot || down ? theme.control : theme.surface },
+                cornerRadius = { typeof theme.buttonCornerRadius == "number" ? Math.min(theme.buttonCornerRadius, this.height / 2) : theme.controlCornerRadius },
+                fill = { hovered || pressed ? theme.control : theme.surface },
                 stroke = { stroke(1, provided("theme").danger) },
                 t: TextLabel [ x = 0, width = 84, textAlign = center, wrap = false,
                     fontSize = { app.footLabelPx },
@@ -501,7 +501,7 @@ class Facet extends Control [ height = 28, cornerRadius = 7,
     value: string = "",
     tint: number = 0,
     width = { this.v.width + (tint != 0 ? 46 : 34) },
-    fill = { hot || down ? theme.control : null },
+    fill = { hovered || pressed ? theme.control : null },
     stroke = { stroke(1, theme.line) },
     dot: View [ visible = { tint != 0 }, x = 9, y = 10, width = 8, height = 8, cornerRadius = 4, fill = { tint } ],
     v: Text [ y = center, fontSize = 12.5, wrap = false,
@@ -512,7 +512,7 @@ class Facet extends Control [ height = 28, cornerRadius = 7,
     ]
 
 
-App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, minWidth = 320, appName = "Declare Tracker",
+App [ fill = { provided("theme").background }, textColor = { provided("theme").text }, minWidth = 320, appName = "Declare Tracker",
 
     // ── the responsive facts ───────────────────────────────────────────────
 
@@ -856,7 +856,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         const rows = (this.shown.value.rows ?? [])
         const idx = rows.findIndex((r) => ("" + (r as any).id) == ("" + this.expandedId))
         if (idx < 0) return
-        const inst = this.list.children.find((c) => (c as any).isTableRow && (c as any).exp)
+        const inst = this.list.children.find((c) => (c as any).visible && (c as any).isTableRow && (c as any).exp)   // a parked row keeps its last record
         if (inst == null) return
         const top = (inst as any).y
         const bottom = top + (inst as any).targetH
@@ -1180,7 +1180,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     tools: View [ x = 0, y = { app.barH }, width = { app.width },
         wrap: boolean = { app.compact
             || this.chips.contentWidth + this.acts.contentWidth + 64 > app.width },
-        height = { this.wrap ? 96 : 56 }, fill = { provided("theme").bg },
+        height = { this.wrap ? 96 : 56 }, fill = { provided("theme").background },
         hairB: View [ x = 0, y = { parent.height - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
 
         // wrapped, the strip keeps every filter reachable by scrolling sideways
@@ -1197,7 +1197,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             gap1: View [ width = 6, height = 1 ],
             assigneeBtn: Control [ height = 28, cornerRadius = 8,
                 width = { this.t.width + 36 },   // the label's padding plus the chevron's room
-                fill = { app.fAssignee != "" ? theme.controlSelected : hot ? theme.control : null },
+                fill = { app.fAssignee != "" ? theme.controlSelected : hovered ? theme.control : null },
                 t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false,
                     fontWeight = { app.fAssignee != "" ? "semibold" : "normal" },
                     textColor = { app.fAssignee != "" ? theme.text : theme.textMuted },
@@ -1207,7 +1207,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 ],
             labelBtn: Control [ height = 28, cornerRadius = 8,
                 width = { this.t.width + 36 },   // the label's padding plus the chevron's room
-                fill = { app.fLabel != "" ? theme.controlSelected : hot ? theme.control : null },
+                fill = { app.fLabel != "" ? theme.controlSelected : hovered ? theme.control : null },
                 t: TextLabel [ x = 13, fontSize = 12.5, wrap = false,
                     fontWeight = { app.fLabel != "" ? "semibold" : "normal" },
                     textColor = { app.fLabel != "" ? theme.text : theme.textMuted },
@@ -1230,14 +1230,14 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             gapSort: View [ width = 8, height = 1 ],
             sortBtn: Control [ height = 28, cornerRadius = 8, y = 1,
                 width = { this.t.width + 36 },   // the label's padding plus the chevron's room
-                fill = { hot ? theme.control : null },
+                fill = { hovered ? theme.control : null },
                 t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
                     text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) } ],
                 c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
                 press() { app.openSort(this) }
                 ],
-            dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tip = "Toggle sort direction",
-                fill = { hot || down ? theme.control : null },
+            dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tooltipLabel = "Toggle sort direction",
+                fill = { hovered || pressed ? theme.control : null },
                 t: ArrowIcon [ iconSize = 13, ink = { theme.textMuted },
                     x = center, y = center,
                     dir = { app.sortDir == "desc" ? "down" : "up" } ],
@@ -1246,10 +1246,10 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
             gapNew: View [ width = 16, height = 1 ],
             newBtn: Control [ height = 30, cornerRadius = 8,
                 width = { this.t.width + 30 },
-                fill = { down ? theme.accentPressed : hot ? theme.accentHover : theme.accent },
+                fill = { pressed ? theme.accentPressed : hovered ? theme.accentHovered : theme.accent },
                 shadow = { shadow(0, 1, 3, 0x00000030) },
                 t: Text [ x = 15, y = center, fontSize = 12.5, fontWeight = semibold, wrap = false,
-                    textColor = { theme.accentText }, text = "New issue" ],
+                    textColor = { theme.accentTextColor }, text = "New issue" ],
                 press() { app.newIssue() }
                 ]
             ]
@@ -1497,7 +1497,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
                 : "Try a different search, or clear the filters." } ],
         clear: Control [ x = center, height = 30, cornerRadius = 8, width = 100,
             visible = { app.issuesOf().length > 0 },
-            fill = { hot || down ? theme.control : null },
+            fill = { hovered || pressed ? theme.control : null },
             stroke = { stroke(1, theme.line) },
             t: TextLabel [ x = 0, width = 100, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted }, text = "Clear all" ],
             press() { app.clearAll() }
@@ -1515,34 +1515,34 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
         width = { this.row.contentWidth + 32 },
         x = { (app.mainW - this.width) / 2 },
         y = { app.height - 92 + (1 - this.lift) * 20 },
-        fill = { provided("theme").tooltipBg },
+        fill = { provided("theme").tooltipFill },
         shadow = { shadow(0, 8, 28, 0x00000050) },
         row: View [ x = 16, y = 8, height = 28,
             layout: SimpleLayout [ axis = x, spacing = 14 ],
             cnt: View [ height = 28, width = { this.t.width + this.l.width + 6 },
                 t: Roll [ x = 0, y = center, fontSize = 13, fontWeight = semibold,
-                    textColor = { provided("theme").tooltipText }, n = { app.selCount } ],
+                    textColor = { provided("theme").tooltipTextColor }, n = { app.selCount } ],
                 l: Text [ y = center, fontSize = 13, wrap = false, x = { this.parent.t.width + 6 },
-                    textColor = { provided("theme").tooltipText }, text = "selected" ]
+                    textColor = { provided("theme").tooltipTextColor }, text = "selected" ]
                 ],
             div1: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
             act: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
-                fill = { hot ? provided("theme").bulkHover : null },
+                fill = { hovered ? provided("theme").bulkHover : null },
                 t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
-                    textColor = { theme.tooltipText }, text = "Set status ▾" ],
+                    textColor = { theme.tooltipTextColor }, text = "Set status ▾" ],
                 press() { app.openBulk(this) }
                 ],
             del: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
-                fill = { hot || down ? provided("theme").danger : null },
+                fill = { hovered || pressed ? provided("theme").danger : null },
                 t: TextLabel [ x = 10, fontSize = 12.5, fontWeight = semibold, wrap = false,
-                    textColor = { this.parent.hot || this.parent.down ? provided("theme").onFill : provided("theme").bulkDanger }, text = "Delete…" ],
+                    textColor = { this.parent.hovered || this.parent.pressed ? provided("theme").onFill : provided("theme").bulkDanger }, text = "Delete…" ],
                 press() { app.deleteSelection() }
                 ],
             div2: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
             clr: Control [ height = 28, cornerRadius = 7, width = 28,
-                fill = { hot ? provided("theme").bulkHover : null },
+                fill = { hovered ? provided("theme").bulkHover : null },
                 t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
-                    textColor = { theme.tooltipText }, text = "×" ],
+                    textColor = { theme.tooltipTextColor }, text = "×" ],
                 press() { app.takeSelection(null) }
                 ]
             ]
@@ -1554,7 +1554,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").text }, m
     // the entry screen — honest states for the one fetch
 
     entry: View [ visible = { !app.booted }, x = 0, y = 0, width = { app.width }, height = { app.height },
-        fill = { provided("theme").bg },
+        fill = { provided("theme").background },
         col: View [ x = center, y = { app.height * 0.38 }, width = 220,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
             Text [ fontSize = 22, fontWeight = semibold, textAlign = center, width = 220,

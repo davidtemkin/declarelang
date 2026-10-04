@@ -9,6 +9,9 @@
 // the shipped server carries no fixture code), and an Image loading a served
 // bitmap. Every assertion reads app state off the screen.
 //
+// A second page holds a clip that is re-pointed and then discarded: neither
+// the old element nor the last may go on playing.
+//
 // Not covered here (noted, not forgotten): declared font Faces with url()
 // sources (loadFonts → FontFace) and AppIsland's program fetch — both ride
 // the same platform loaders and deserve cases if they ever regress.
@@ -23,6 +26,7 @@ import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -58,7 +62,7 @@ const httpServer = http.createServer((req, res) => {
 await new Promise((r) => httpServer.listen(0, "127.0.0.1", r));
 const B = `http://127.0.0.1:${httpServer.address().port}`;
 
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox", "--autoplay-policy=no-user-gesture-required"] });
 const page = await browser.newPage();
 const errs = [];
 page.on("pageerror", (e) => errs.push(String(e).slice(0, 140)));
@@ -96,6 +100,24 @@ try {
 
   await test("no page errors or failed requests through the run", () => {
     assert.deepEqual(errs, []);
+  });
+
+  await test("a re-pointed clip stops the old one; a discarded clip stops altogether", async () => {
+    const media = await browser.newPage();
+    await media.evaluateOnNewDocument(() => {
+      const made = window.__audio = [];
+      const create = document.createElement.bind(document);
+      document.createElement = (tag, o) => { const e = create(tag, o); if (tag === "audio") made.push(e); return e; };
+    });
+    await media.goto(`${B}/test/fixtures/media-release.declare`, { waitUntil: "networkidle2", timeout: 60000 });
+    const sounding = () => media.evaluate(() => window.__audio.filter((e) => !e.paused).map((e) => e.src.split("?")[1]));
+    await media.waitForFunction(() => window.__declare.find("app").box.song.playing && window.__audio.some((e) => !e.paused), { timeout: 15000 });
+    await media.evaluate(() => { window.__declare.find("app").src = "../../apps/docs/resources/blip.wav?b"; });
+    await media.waitForFunction(() => window.__audio.some((e) => !e.paused && e.src.endsWith("?b")), { timeout: 15000 });
+    assert.deepEqual(await sounding(), ["b"], "only the new source plays");
+    await media.evaluate(() => { window.__declare.find("app").on = false; });
+    assert.deepEqual(await sounding(), [], "nothing plays once the panel is gone");
+    await media.close();
   });
 } finally {
   await browser.close();

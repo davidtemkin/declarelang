@@ -30,10 +30,15 @@ App [ width = 320, height = 200, fill = white,
 - A row's position is `rowIndex`. Don't stamp index fields into the records.
 - Identity is a record's `id`; name another field with `key = :field`.
 - Count the data (`.value.rows.length`), never the rendered children.
+- A row's whole record is `:@` — typed by the schema, for a method that takes it
+  (`rec: Task = { :@ }`), instead of looking it up by id.
+- A row that needs its list's geometry reads it from an ancestor with `provided`: declare
+  it there (`colW: number = { this.width / 7 }`) and read `provided("colW")` in the row —
+  no long `app.a.b.c` paths.
 - Long lists: `virtualize = true` on the replicated row, nothing else.
 
 **Look up** `Dataset`, `Dataset.contents`, `View.datapath`, `View.rowIndex`,
-`View.virtualize` (declare-help, or the reference).
+`View.virtualize`, `provided` (declare-help, or the reference).
 
 **Examples** `apps/tracker/tracker.declare`: the issue list over the derived `shown`
 dataset, virtualized · `apps/weather/weather.declare`: `CityRow` places itself by

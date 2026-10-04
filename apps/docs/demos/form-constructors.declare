@@ -1,6 +1,6 @@
 // The four decoration values
 // A gradient fill, an inside stroke, a cast shadow, and a frosted backdrop — each built by
-// its constructor, bare in a slot or as a function inside braces.
+// its constructor, bare in an attribute or as a function inside braces.
 
 App [ fill = 0xF6F8FA, textColor = 0xFFFFFF, fontSize = 13,
     row: View [ x = 20, y = 20, height = 80, width = { this.contentWidth },

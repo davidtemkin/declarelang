@@ -406,7 +406,7 @@ function explainTs(d, u, synthTags) {
         case 18048:
             m = msg.match(/'(.+?)' is possibly '(null|undefined)'/s);
             if (m !== null) {
-                return `'${m[1]}' may be absent here — check it ('if (${m[1]} != null) …'), or drop the '?' from its type so the caller must supply one`;
+                return `'${m[1]}' may be absent here — check it ('if (${m[1]} != null) …'); or, if it is always there, declare its type without '?' (an attribute or parameter written 'Thread' is never empty, 'Thread?' may be)`;
             }
             return msg;
         default:
@@ -511,9 +511,13 @@ class CaseEmitter {
             // A State's children REPARENT to the state's owner when it applies, so
             // its named children are members of THIS element at runtime — hoist them
             // (they also stay on the State's own type; both paths are addressable).
+            // Hoisted, they MAY BE ABSENT — built only while the state applies (and
+            // `exists = { … }` lowers to exactly this) — so a reader must say what
+            // happens when one is not there.
             const cs = this.schemas[child.tag];
-            if (cs !== undefined && descendsFrom(cs, "State"))
-                named.push(...(this.namedMembers.get(child) ?? []));
+            if (cs !== undefined && descendsFrom(cs, "State")) {
+                named.push(...(this.namedMembers.get(child) ?? []).map((l) => (l.endsWith("| null;") ? l : l.replace(/;$/, " | null;"))));
+            }
         }
         members.push(...named);
         this.namedMembers.set(el, named);

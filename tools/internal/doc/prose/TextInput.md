@@ -56,7 +56,11 @@ For a `multiline` field, whether long lines wrap (`true`) or scroll horizontally
 a code field wants `false`.
 
 ## padding
-Inner padding around the text, in px.
+**Where the text sits inside the field** — the field's content box, as `View.padding` is
+any view's: one number insets all four sides; four are `[top, right, bottom, left]`. An
+auto-sized field (`height` unset) counts the top and bottom insets in its height, and a
+wrapping one wraps to its width less the side insets. Unset, it is the theme's
+`fieldPadding`.
 
 ## initial
 An **uncontrolled seed** — React's `defaultValue` to `text`'s `value`: `text` starts at

@@ -102,7 +102,7 @@ So an app can restyle a Button's box freely and cannot touch its label's
 colour or weight at all, because `Button` pins those inside `cap`.
 
 **The fix is not a `quiet` flag.** Give `Button` a `labelColor` slot
-(defaulting to the existing `primary ? accentText : text` logic) and a
+(defaulting to the existing `primary ? accentTextColor : text` logic) and a
 `labelWeight`, with `cap` reading them. Then an app writes its own class and
 the library never learns the word "quiet":
 
@@ -268,7 +268,7 @@ a paragraph of prose, now `Block`.
 tinted four states with four borrowed tokens, and two of them were inverted:
 `control` was `Segment`'s hover and `TableRow`'s SELECTED; `surface` was the
 reverse. `Button` could not tell hover from press at all. Fixed by naming all
-four rungs — `control` / `controlHover` / `controlPressed` / `controlSelected`.
+four rungs — `control` / `controlHovered` / `controlPressed` / `controlSelected`.
 
 **The pixel baselines had to be built first, and they kept being wrong.** The
 corpus had one instrumented app; it now has seven, 27 states. Three times the

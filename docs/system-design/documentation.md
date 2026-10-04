@@ -269,8 +269,8 @@ and declare.md's guidance was literally "that file names them all" — a pointer
 not documentation. Now measured from the library sources into `spine.themeTokens` and
 rendered as **Vocabulary → Theme tokens**, split the way it actually behaves:
 
-- **12 required** — read bare, no fallback (`accent`, `accentText`, `control`,
-  `controlHover`, `controlPressed`, `controlRadius`, `controlSelected`, `focusRing`,
+- **12 required** — read bare, no fallback (`accent`, `accentTextColor`, `control`,
+  `controlHovered`, `controlPressed`, `controlCornerRadius`, `controlSelected`, `focusRingStyle`,
   `line`, `surface`, `text`, `textMuted`). This is the real contract, and it is small.
 - **37 optional** — always behind a `typeof`/null guard with a built-in default. The
   tuning surface a city preset reaches for.

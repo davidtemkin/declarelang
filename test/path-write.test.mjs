@@ -262,7 +262,7 @@ await (async () => {
 // projection's code MADE (a copy, a group wrapper, a new array) is read-only.
 for (const read of ["value", "read"]) await (async () => {
   const cards = read === "value" ? "this.raw.value?.cards ?? []" : `this.raw.read(["cards"]) ?? []`;
-  const app = await build(`class Card extends View [ height = 20, advance() { :col = :col + 1 }, retitle(t: string) { :title = t } ]
+  const app = await build(`class Tile extends View [ height = 20, advance() { :col = :col + 1 }, retitle(t: string) { :title = t } ]
     App [ width = 300, height = 300,
       raw: Dataset { { "cards": [ { "id": 1, "title": "a", "col": 0 }, { "id": 2, "title": "b", "col": 0 }, { "id": 3, "title": "c", "col": 1 } ] } },
       buildCols() {
@@ -273,8 +273,8 @@ for (const read of ["value", "read"]) await (async () => {
       copies: Dataset [ contents = { { rows: (app.raw.value?.cards ?? []).map((c) => ({ ...c })) } } ],
       first: View [ datapath = { app.raw.value.cards[0] }, t: Text [ text = :title ] ],
       cols: View [ datapath = { app.board.value },
-        View [ datapath = :cols[], Card [ datapath = :cards[] ] ] ],
-      dupes: View [ datapath = { app.copies.value }, Card [ datapath = :rows[] ] ] ]`);
+        View [ datapath = :cols[], Tile [ datapath = :cards[] ] ] ],
+      dupes: View [ datapath = { app.copies.value }, Tile [ datapath = :rows[] ] ] ]`);
   const colCards = (i) => app.cols.children[i].children.map((c) => c.datapath.data.read([...c.datapath.path, "title"]));
   test(`(${read}) a card on the projection writes its source record, and the projection regroups`, () => {
     assert.deepEqual([colCards(0), colCards(1)], [["a", "b"], ["c"]]);

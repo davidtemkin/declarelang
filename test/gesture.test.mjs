@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(here);
@@ -136,6 +137,13 @@ ${embedded ? '<div data-declare-app="1"><div id="host"></div></div>' : '<div id=
 
 const pageCompiled = await compile(PAGE_RAW);
 assert.deepEqual(pageCompiled.errors, [], "page fixture compiles clean");
+
+// An App that fits the window and says so: its panes scroll, its window does not.
+const FIT_RAW = `App [ scrolls = none, fill = #202830,
+    box: View [ x = 40, y = 200, width = 120, height = 40, fill = #66AA88 ]
+    ]`;
+const fitCompiled = await compile(FIT_RAW);
+assert.deepEqual(fitCompiled.errors, [], "fitting-app fixture compiles clean");
 
 // Selection realization on a COARSE pointer (claim-surface.md): explicit
 // `user-select: text` islands inside a `none` page feed iOS's pan-stealing
@@ -304,6 +312,8 @@ const pages = {
   "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled.source),
   "/dom-lock": pageHtml("DomBackend", lockCompiled.source),
   "/dom-page": pageHtml("DomBackend", pageCompiled.source),
+  "/dom-fit": pageHtml("DomBackend", fitCompiled.source),
+  "/canvas-fit": pageHtml("CanvasBackend", fitCompiled.source),
   "/canvas-page": pageHtml("CanvasBackend", pageCompiled.source),
   // the CLAIMS app (fits its box) mounted INSIDE a marked host app — the
   // embedded-island root default, both backends
@@ -336,7 +346,7 @@ const server = http.createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const B = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await puppeteer.launch({
+const browser = await launchChrome({
   executablePath: findChrome(), headless: true, args: ["--no-sandbox"],
   defaultViewport: { width: 800, height: 600, deviceScaleFactor: 1 },
 });
@@ -492,7 +502,7 @@ await test("dom: hovered/pressed hit where things PAINT — page scroll, pane sc
   // Page scrolled: the deep button paints near the viewport top — hover and press it there.
   await tp.evaluate(() => window.scrollTo(0, 800));
   const rect = await tp.evaluate(() => {
-    const r = window.__app.deep.surface.element.getBoundingClientRect();
+    const r = window.__app.deep.$surface.element.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
   await tp.mouse.move(rect.x, rect.y);
@@ -509,10 +519,10 @@ await test("dom: hovered/pressed hit where things PAINT — page scroll, pane sc
   assert.equal(f.hd, false, "the content view a scroll away does not");
   // A pane-interior view, pane scrolled while the page is too.
   await tp.evaluate(() => {
-    window.__app.column.pane.surface.element.scrollTop = 390;
+    window.__app.column.pane.$surface.element.scrollTop = 390;
   });
   const irect = await tp.evaluate(() => {
-    const r = window.__app.column.pane.inner.surface.element.getBoundingClientRect();
+    const r = window.__app.column.pane.inner.$surface.element.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
   await tp.mouse.move(irect.x, irect.y);
@@ -720,6 +730,29 @@ await test("dom: a hidden pane's scroll offset is the MODEL's, re-asserted when 
   assert.equal(r.dom, 200, "and the surface carries it once the pane is showable again");
 });
 
+await test("dom: a request past the end leaves the model at the offset the box took — once the update is over, and when already there", async () => {
+  const r = await page.evaluate(async () => {
+    const pane = window.__app.zoomer.pane;
+    const el = document.querySelector("[data-declare-scroll]");
+    const max = el.scrollHeight - el.clientHeight;
+    // the box may only be behind the update that asked (a virtualized extent
+    // lands after the write), so the clamp is reported when that update is
+    // over: a microtask, never a scroll event
+    const over = () => new Promise((f) => queueMicrotask(() => queueMicrotask(f)));
+    pane.scrollTo(max + 500);
+    await over();
+    const first = { model: Math.round(pane.scrollY), dom: Math.round(el.scrollTop) };
+    pane.scrollTo(max + 900);        // already clamped there: the box writes nothing, sends no event
+    await over();
+    const again = { model: Math.round(pane.scrollY), dom: Math.round(el.scrollTop) };
+    pane.scrollTo(0);
+    return { max: Math.round(max), first, again };
+  });
+  assert.ok(r.max > 0, "the pane scrolls");
+  assert.deepEqual(r.first, { model: r.max, dom: r.max }, "clamped, without waiting for a scroll event");
+  assert.deepEqual(r.again, { model: r.max, dom: r.max }, "a request the box was already clamped to still leaves the model true");
+});
+
 await test("dom: onHold + drag handlers = the HOLD-GATED claim — nothing at touchdown", async () => {
   // The pair claims the finger at the hold, so the element carries NO
   // touch-action of its own (the quick swipe stays the browser's pan).
@@ -886,9 +919,39 @@ await test("canvas: onWheel hears the wheel; an intervening scroller keeps its o
 
 // ── The focus-zoom lock ─────────────────────────────────────────────────────
 
+// ── An App with scrolls = none: the page is not its scroller ────────────────
+
+for (const r of ["dom", "canvas"]) {
+  await open(`/${r}-fit`);
+  await test(`${r}: a page that fits the window does not bounce, and its scroll is not the App's`, async () => {
+    const got = await page.evaluate(async () => {
+      const a = window.__app, frame = () => new Promise((f) => requestAnimationFrame(() => f()));
+      const bounce = getComputedStyle(document.documentElement).overscrollBehaviorY;
+      const before = a.box.rootBounds().y;
+      // Safari moves the document under a page like this one while it
+      // rubber-bands; a script scroll of a stretched document stands in for it
+      const tall = document.body.appendChild(document.createElement("div"));
+      tall.style.height = "3000px";
+      window.scrollTo(0, 200);
+      await frame(); await frame();
+      const out = { bounce, docY: window.scrollY, appY: a.scrollY, before, after: a.box.rootBounds().y };
+      window.scrollTo(0, 0); tall.remove();
+      return out;
+    });
+    assert.equal(got.bounce, "none", "no elastic overscroll on the page");
+    assert.equal(got.docY, 200, "the stretched document did scroll");
+    assert.equal(got.appY, 0, "the App's scrollY stays 0");
+    assert.equal(got.after, got.before, "and root-space geometry does not move with the document");
+  });
+}
+
 // ── The page shape: App scrolls as the document; ignoreScroll rides frames ──
 
 await open("/dom-page");
+
+await test("dom: a page the App scrolls keeps the platform's bounce", async () => {
+  assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).overscrollBehaviorY), "auto");
+});
 
 await test("dom: the App's content scrolls as the PAGE — the document owns the extent", async () => {
   const r = await page.evaluate(() => {
@@ -960,9 +1023,9 @@ await test("dom: a DECLARED initial scroll offset actually lands", async () => {
   await tp.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
   const r = await tp.evaluate(() => {
     const pane = window.__app.column.pane;
-    const el = pane.surface.element;
+    const el = pane.$surface.element;
     return { attr: pane.scrollY, dom: el.scrollTop,
-             innerTop: Math.round(pane.inner.surface.element.getBoundingClientRect().top),
+             innerTop: Math.round(pane.inner.$surface.element.getBoundingClientRect().top),
              paneTop: Math.round(el.getBoundingClientRect().top) };
   });
   await tp.close();
@@ -1047,7 +1110,7 @@ await test("canvas: scrolling the page moves the content but not the ignoreScrol
     await new Promise((res) => setTimeout(res, 350));
     const app = window.__app;
     // the root surface mirrors the window scroll as its pane offset
-    return { offset: app.surface.scrollOffset, scrollY: app.scrollY };
+    return { offset: app.$surface.scrollOffset, scrollY: app.scrollY };
   });
   assert.equal(r.offset, 500, "the root pane offset mirrors the window");
   assert.equal(r.scrollY, 500);
@@ -1065,7 +1128,7 @@ await test("dom: hovered/pressed hit where things PAINT — page scroll, pane sc
   // Page scrolled: the deep button paints near the viewport top — hover and press it there.
   await tp.evaluate(() => window.scrollTo(0, 800));
   const rect = await tp.evaluate(() => {
-    const r = window.__app.deep.surface.element.getBoundingClientRect();
+    const r = window.__app.deep.$surface.element.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
   await tp.mouse.move(rect.x, rect.y);
@@ -1082,10 +1145,10 @@ await test("dom: hovered/pressed hit where things PAINT — page scroll, pane sc
   assert.equal(f.hd, false, "the content view a scroll away does not");
   // A pane-interior view, pane scrolled while the page is too.
   await tp.evaluate(() => {
-    window.__app.column.pane.surface.element.scrollTop = 390;
+    window.__app.column.pane.$surface.element.scrollTop = 390;
   });
   const irect = await tp.evaluate(() => {
-    const r = window.__app.column.pane.inner.surface.element.getBoundingClientRect();
+    const r = window.__app.column.pane.inner.$surface.element.getBoundingClientRect();
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   });
   await tp.mouse.move(irect.x, irect.y);
@@ -1239,10 +1302,10 @@ await open("/dom-jump");
 await test("scrollIntoView in a scrolls=y pane with overrun width moves y only; an x strip still pins start", async () => {
   const r = await page.evaluate(() => {
     const app = window.__app;
-    const pane = app.pane.surface.element;
+    const pane = app.pane.$surface.element;
     const overran = pane.scrollWidth > pane.clientWidth;
     app.pane.target.scrollIntoView();
-    const strip = app.strip.surface.element;
+    const strip = app.strip.$surface.element;
     app.strip.b.scrollIntoView("start");
     return { overran, top: Math.round(pane.scrollTop), left: Math.round(pane.scrollLeft), stripLeft: Math.round(strip.scrollLeft) };
   });
@@ -1272,6 +1335,29 @@ await test("a momentum-shaped wheel stream keeps `scrolling` true until 160 ms o
   await new Promise((r) => setTimeout(r, 400));
   assert.equal(await page.evaluate(() => window.__app.pane.scrolling), false, "and fell false once the stream went quiet");
   await cdp.detach();
+});
+
+// A finger is down: whatever moves the pane is the user's scroll — a program
+// write landing in the same moment (a correction, a settle) must not claim
+// the stream, or the finger's scroll and its momentum pass for the program's
+// and `scrolling` never comes on (iOS: a windowed list then corrected
+// against the flick, every frame).
+await test("under a finger, a program write does not claim the scroll: `scrolling` comes on", async () => {
+  await new Promise((r) => setTimeout(r, 400));
+  const r = await page.evaluate(async () => {
+    const pane = window.__app.pane, el = pane.$surface.element;
+    const touch = (type, n) => el.dispatchEvent(new TouchEvent(type, { touches: n ? [new Touch({ identifier: 1, target: el, clientX: 10, clientY: 10 })] : [], bubbles: true }));
+    const before = pane.scrolling;
+    touch("touchstart", 1);
+    pane.$surface.scrollToY(Math.max(0, el.scrollTop - 30));   // the program moves it — marks its motion
+    el.scrollTop = Math.max(0, el.scrollTop - 50);              // and the finger's scroll arrives
+    await new Promise((f) => setTimeout(f, 30));
+    const during = pane.scrolling;
+    touch("touchend", 0);
+    return { before, during };
+  });
+  assert.equal(r.before, false, "at rest before the touch");
+  assert.equal(r.during, true, "the finger's scroll is the user's, the program's write notwithstanding");
 });
 
 await browser.close();

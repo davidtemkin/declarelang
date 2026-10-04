@@ -166,7 +166,7 @@ class Table extends Control [
     isActive(m: object)   -> boolean { return this.active != null && this.same(this.active, m) },
 
     // ── the delivery seam: every gesture lands here; the default writes
-    //    the value slots, a use-site override redirects ───────────────────
+    //    the value attributes, a use-site override redirects ───────────────────
 
     input(sel: object) {
         selection = sel
@@ -333,7 +333,8 @@ written by hand.
 
 ## tableIndex()
 This row's logical index in data order — its `rowIndex` when replicated, so it is true
-under windowing. A method rather than an attribute because its consumers are gestures, and the
+under windowing; -1 for a row windowing has parked, which presents no record. A method
+rather than an attribute because its consumers are gestures, and the
 written-row fallback walks children, which no constraint may do.
 
 ## onPointerDown
@@ -370,11 +371,12 @@ class TableRow extends Control [
     // the row's logical index — its rowIndex when replicated (true data
     // order, windowing included); a written row asks its position among its
     // table's row children. A method, not a derived
-    // slot: its consumers are gestures (handlers), and the written-item
+    // attribute: its consumers are gestures (handlers), and the written-item
     // fallback walks children, which no constraint may aggregate.
 
     tableIndex() -> number {
         if (rowIndex >= 0) return rowIndex
+        if (this.datapath != null) return -1   // replicated, presenting no record (a parked row)
         if ((parent as Table).isTable !== true) return -1
         return (parent as Table).children.filter(c => (c as TableRow).isTableRow === true).indexOf(this as any)
         },
@@ -410,6 +412,6 @@ class TableRow extends Control [
     // on the shared ladder, so a selected row and a selected segment mean the
     // same tokens
 
-    fill = { selected ? theme.controlSelected : hot ? theme.controlHover : null },
+    fill = { selected ? theme.controlSelected : hovered ? theme.controlHovered : null },
     stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
     ]

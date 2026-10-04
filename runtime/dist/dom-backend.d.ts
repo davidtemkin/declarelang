@@ -224,6 +224,12 @@ export declare class DomSurface implements Surface {
         duration?: number;
         motion?: string;
     }): void;
+    /** A top-level App that scrolls the page is a document, and the page gives
+     *  the platform's elastic feedback at its ends. One that declares
+     *  `scrolls = none` is an application whose panes scroll and whose window
+     *  does not, so the page never bounces: Safari otherwise rubber-bands a
+     *  page that fits the window, moving the whole app under the pointer. */
+    pageBounce(): void;
     /** The window a TOP-LEVEL app root scrolls through, or null for anything
      *  that owns a scroll box (a pane, an embedded root). */
     private pageScroller;
@@ -288,14 +294,16 @@ export declare class DomSurface implements Surface {
      *  root default — a separate question from the axis one. */
     applyScrollStyle(): void;
     private scrollListener;
+    private scrollReport;
+    private scrollXReport;
     setRowCount(n: number | null): void;
     setRowIndex(i: number | null): void;
     setScroll(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void;
-    private scrollEndListener;
-    private scrollWheelListener;
-    private wheelLast;
-    private scrollIdleTimer;
-    private scrollActive;
+    private scrollWatch;
+    /** Is the user's scroll of this scroller (or of the page, for the root)
+     *  finger-driven right now? (scroll-anchor.ts holds corrections then.) */
+    userScrollByTouch(): boolean;
+    scrollbarHeld(): boolean;
     private wheelXListener;
     private scrollXListener;
     setScrollX(on: boolean, onScroll?: (x: number) => void, _onScrolling?: (active: boolean) => void): void;
@@ -437,3 +445,41 @@ export declare class DomSurface implements Surface {
     private unwatchVisibility;
     destroy(): void;
 }
+/** THE USER'S SCROLL, reported as one fact (`scrolling`): true from the first
+ *  movement until the scroll is completely over — the finger lifted or the
+ *  scrollbar thumb let go, and any momentum after it come to rest. A finger
+ *  resting on the pane partway through is still scrolling.
+ *
+ *  `scrollend` says exactly that where the browser has it (CSSOM View: a user
+ *  gesture is not complete "until pointers or keys have released", and
+ *  momentum is a pending update), so a touch, thumb or keyboard scroll ends on
+ *  it alone — a long backstop keeps the fact from sticking if it never comes
+ *  (a pane hidden mid-scroll). Two things it cannot settle:
+ *
+ *  - THE WHEEL HAS NO END (Murmur run 2): a wheel stream — trackpad momentum
+ *    especially — is a decaying series of events, and discrete wheel input
+ *    gets a `scrollend` after every event. So a wheel event marks the stream
+ *    live, and nothing ends it until WHEEL_QUIET ms pass with no wheel — the
+ *    Mac host's rule for a plain wheel. (`WheelEvent.momentum`, specified in
+ *    2026, would let the fingers' part be told from the momentum's.)
+ *  - A BROWSER WITHOUT `scrollend` (Safari before 26.2): touch events still
+ *    report the finger, so a touch holds the fact until it lifts; a thumb or
+ *    trackpad falls back to QUIET ms without movement.
+ *
+ *  The platform's report of its own process; the program reads it, never sets it. */
+export interface ScrollWatch {
+    /** Stop watching (the fact settles false). */
+    stop(): void;
+    /** This user's scroll began under a finger (touch) — where a scroll-offset
+     *  write mid-gesture stops the browser's momentum (scroll-anchor defers). */
+    touchDriven(): boolean;
+    /** A hand is on the scrollbar (pressed, not yet released). */
+    barHeld(): boolean;
+    /** The PROGRAM is about to move this scroller (a request, a glide): the
+     *  scroll events it causes are not the user's scroll. The mark lasts until
+     *  that motion ends (`scrollend`, or a quiet spell), and a wheel or a touch
+     *  ends it at once — the user has taken the scroller back. */
+    program(): void;
+}
+export declare function watchScrolling(target: HTMLElement | Window, report: (active: boolean) => void): ScrollWatch;
+export declare function setPageScrollWatch(w: ScrollWatch): void;

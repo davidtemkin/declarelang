@@ -1,5 +1,5 @@
 # Rows of different kinds
-<!-- index: different things in one list (classFor) vs one thing in states (State) -->
+<!-- index: different things in one list (classFor), states (State), parts only some rows have (exists) -->
 
 **Use when** one list holds things that are not the same: headings and items, photos and
 notes, windows of different apps. Or one kind of row that looks different in different
@@ -36,12 +36,20 @@ App [ width = 340, height = 260, fill = white,
 - What state a row is **in** (sent/pending, open/closed) → one class with a `State`.
   Its overrides and children apply only while `applied` holds.
 - They nest: a class per kind, with states inside.
+- Kinds that share a frame (a name, a face and reactions around a bubble): the base class
+  names its content child, `defaultplacement = bubble`, and each kind's views go into it —
+  laid out in the frame's order, no position arithmetic.
+- A part only some rows have (a reaction pill, a status line) → `exists = { … }` on that
+  child: built while true, discarded while false, in its place. Its reader handles its
+  absence (`classroot.pill?.height ?? 0`). `visible` keeps a view built.
+- Something that sits BETWEEN records (a day header, an unread marker, "3 hours later")
+  is a row of its own: the derived dataset emits it with its own `id` and kind.
 - Don't stack every kind's children in one class and toggle `visible`: hidden views are
   still built.
 - `classFor` reads only the record (`:fields`) and names classes; no app state in it.
 - A record whose kind changes is rebuilt as its new class, in place.
 
-**Look up** `View.classFor`, `State`, `State.applied`.
+**Look up** `View.classFor`, `State`, `State.applied`, `View.defaultplacement`.
 
 **Examples** `apps/tracker/tracker.declare`: `ListRow` / `GroupRow` / `IssueRow` ·
 `apps/desktop/desktop.declare`: each window record built as its window class ·

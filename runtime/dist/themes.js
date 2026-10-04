@@ -8,7 +8,7 @@
 // picks the pair it wants (`theme = { app.dark ? CupertinoDark : Cupertino }`).
 //
 // A record carries the full vocabulary the library consults: colors, role radii
-// (buttonRadius pill-capable / fieldRadius), control heights, switch dimensions
+// (buttonCornerRadius pill-capable / fieldCornerRadius), control heights, switch dimensions
 // and grow-on-check, checkbox metrics, field insets, disabled opacities, and the
 // focus-indicator geometry. Each preset is a named value in scope inside `{ }`
 // bodies, so an app names the ones it wants directly.

@@ -89,7 +89,7 @@ shape — a note outliving its reason becomes a lie in the record — is the sam
 
 **This did not break anything, and that is the finding.** Every one of those calls is
 optional-chained at the call site — `s.setIgnoreScroll?.(true)`,
-`this.parent.surface?.setVirtualExtent?.(…)` — and `travelWith` is explicitly
+`this.parent.$surface?.setVirtualExtent?.(…)` — and `travelWith` is explicitly
 feature-detected (`typeof s.travelWith !== "function"` → return false, which the
 reference documents as the supported answer). **The Surface protocol is
 capability-negotiated, not versioned.** A backend five days behind the runtime keeps

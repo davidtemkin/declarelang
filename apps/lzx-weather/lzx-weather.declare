@@ -143,7 +143,7 @@ App [ width = 240, height = 320, fill = #EAEAEA,
     chrome: Font [ family = "Tahoma, Geneva, sans-serif" ],
     body: Font [ family = "Helvetica, Arial, sans-serif" ],
     title: Font [
-        Face [ src = "resources/fonts/work-sans-700.woff2", weight = bold ]
+        FontFace [ src = "resources/fonts/work-sans-700.woff2", weight = bold ]
         ],
     fontFamily = { app.chrome }, fontSize = 9,
     fontWeight = bold, textColor = #FFFFFF,

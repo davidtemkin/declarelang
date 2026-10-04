@@ -913,7 +913,7 @@ class Parser {
                 throw new DeclareError(`'${name.text}: …[]' — in a schema the array marker rides the NAME: write '${name.text}[]: ${field.ref ?? field.type ?? "[ … ]"}' (it rhymes with the path that reads it, ':${name.text}[]')`, this.peek().pos);
             }
             if (this.peek().kind === "query") {
-                throw new DeclareError(`'${name.text}: …?' — in a schema the optional marker rides the FIELD name: write '${name.text}?: ${field.ref ?? field.type ?? "[ … ]"}' (the type-suffix '?' belongs to method signatures)`, this.peek().pos);
+                throw new DeclareError(`'${name.text}: …?' — in a schema the optional marker rides the FIELD name: write '${name.text}?: ${field.ref ?? field.type ?? "[ … ]"}' (the type-suffix '?' belongs to attribute and signature types)`, this.peek().pos);
             }
             if (this.peek().kind === "eq") {
                 throw new DeclareError(`'${name.text} = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record`, this.peek().pos);
@@ -1263,6 +1263,7 @@ export function parse(source) {
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
         throw new DeclareErrors(p.errors);
+    lowerExists(root);
     return root;
 }
 /** Parse the top-level declarations shared by a program and a library:
@@ -1343,7 +1344,31 @@ export function parseProgram(source) {
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
         throw new DeclareErrors(p.errors);
+    for (const c of classes)
+        lowerExists(c.body);
+    lowerExists(root);
     return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ...(ship === undefined ? {} : { ship }), scripts, scriptFiles, scriptFileSpans, root };
+}
+/** `exists = { … }` on a child: the child is built while the value is true
+ *  and discarded while it is false (its state goes with it). That is exactly
+ *  what a `State`'s child subtree already is — instantiated INTO its owner at
+ *  the state's own place, so the child keeps its position in the owner's order
+ *  and layout — so the child is lowered to one: `State [ applied = <value>,
+ *  <the child, without exists> ]`. The value is decided before the child
+ *  exists, so it reads the owner, `classroot`, data and `app`, never the
+ *  child's own attributes. Lowered at parse, so every reader — checker,
+ *  typechecker, runtime — sees one tree. Idempotent. */
+function lowerExists(el) {
+    for (let i = 0; i < el.children.length; i++) {
+        const c = el.children[i];
+        lowerExists(c);
+        const k = c.attrs.findIndex((a) => a.name === "exists");
+        if (k < 0)
+            continue;
+        const ex = c.attrs[k];
+        const inner = { ...c, attrs: c.attrs.filter((_, j) => j !== k) };
+        el.children[i] = { tag: "State", name: null, attrs: [{ name: "applied", value: ex.value, pos: ex.pos }], decls: [], methods: [], children: [inner], pos: c.pos };
+    }
 }
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes, themes,
@@ -1357,6 +1382,8 @@ export function parseLibrary(source) {
     }
     if (p.errors.length > 0)
         throw new DeclareErrors(p.errors);
+    for (const c of decls.classes)
+        lowerExists(c.body);
     return decls;
 }
 //# sourceMappingURL=parser.js.map

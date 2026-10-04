@@ -510,7 +510,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 // the same gesture, so the muscle memory transfers.
 
                 Tool [ glyph = "◎ select", on = { app.picking },
-                    tip = "Click any view in the app to select it. Esc cancels.",
+                    tooltipLabel = "Click any view in the app to select it. Esc cancels.",
                     onClick() { app.picking = !app.picking; app.hoverPath = "" }
                     ],
 
@@ -519,14 +519,14 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 // read mid-flight, and step advances exactly one frame.
 
                 Tool [ glyph = { app.frozen ? "▶ resume" : "⏸ freeze" }, on = { app.frozen },
-                    tip = "Freeze the app's animation where it stands, so a spring can be read mid-flight",
+                    tooltipLabel = "Freeze the app's animation where it stands, so a spring can be read mid-flight",
                     onClick() { app.freezeToggle() }
                     ],
-                Tool [ glyph = "⏭ frame", tip = "Advance the frozen app by one animation frame",
+                Tool [ glyph = "⏭ frame", tooltipLabel = "Advance the frozen app by one animation frame",
                     onClick() { app.stepFrame() }
                     ],
                 Tool [ glyph = { app.darkUI ? "☀ light" : "☾ dark" },
-                    tip = "Switch the Inspector's own rendition",
+                    tooltipLabel = "Switch the Inspector's own rendition",
                     onClick() { app.darkUI = !app.darkUI }
                     ],
 
@@ -534,7 +534,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 // they happen — what opened each, and what it changed
 
                 Tool [ glyph = "◔ trace", on = { app.tracing },
-                    tip = "Record the app's settles into the console: what opened each one, and what it changed",
+                    tooltipLabel = "Record the app's settles into the console: what opened each one, and what it changed",
                     onClick() { app.traceToggle() }
                     ]
                 ],

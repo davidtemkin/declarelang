@@ -229,7 +229,7 @@ class SkyPhoto [ clip = true,
 
 
 /*
-# WSky — the one sky slot
+# WSky — the one sky
 
 Set `cond`, get that city's sky. A condition is either drawn (the sun and
 its glow, the star field) or photographed, so this holds one of each rather
@@ -719,7 +719,7 @@ class MasonryLayout extends Layout [
         closeBand(deepest)
 
         // size the baseH cards — every one gets its box `h`, stretched or
-        // natural, so the set of managed slots never changes shape
+        // natural, so the set of managed attributes never changes shape
         for (let i = 0; i < kids.length; i++) {
             const c = kids[i]
             if (!c.visible) continue

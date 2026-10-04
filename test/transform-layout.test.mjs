@@ -36,6 +36,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -65,7 +66,7 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const BASE = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
 
 /** Mount one program on the DOM backend and report the geometry that matters:
  *  every element's client rect, and the extent of every real scroller. */

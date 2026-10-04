@@ -17,8 +17,9 @@ export declare abstract class Media extends View {
     /** The playhead, in seconds. Writing it seeks. The runtime writes it back as
      *  the clip runs — on the platform's `timeupdate`, which fires about four
      *  times a second, NOT once a frame: a per-frame write would churn the graph
-     *  for a number almost nothing needs that finely. Read it in a `Frames`
-     *  handler when you genuinely need frame accuracy. */
+     *  for a number almost nothing needs that finely. A smooth playhead is the
+     *  program's own number, advanced in a frame `onTick(dt)` and re-synced to
+     *  this one. */
     position: number;
     /** Loudness, 0–1. HTML's default is 1 (full) and so is this; `muted` is the
      *  separate fact, exactly as the platform has it — muting does not zero the
@@ -55,7 +56,12 @@ export declare abstract class Media extends View {
     protected metadataArrived(_el: HTMLMediaElement): void;
     /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
     protected sourceCleared(): void;
-    attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    teardown(): void;
+    /** Let go of the current element. An `<audio>` never enters the document,
+     *  so nothing else would ever stop it: a re-pointed clip would play over its
+     *  successor, and a discarded one on after its view is gone. */
+    private $release;
     /** (Re)load `source` — at attach, and from the `source` pusher. */
     load(): void;
     /** Author (or constraint) asked to play or pause. `play()` can be REFUSED —

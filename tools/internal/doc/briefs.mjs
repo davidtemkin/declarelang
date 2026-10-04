@@ -1,9 +1,9 @@
-// briefs — the task-shaped entry points an agent takes before writing
-// (docs/briefs/*.md). Each brief is one task: a verified snippet, the rules
+// briefs — the task-shaped entry points an agent takes when it reaches that part
+// of a program (docs/briefs/*.md). Each brief is one task: a verified snippet, the rules
 // that bite, the names to look up, example code, and guide sections as the
 // fallback. This module reads them for the three places that use them:
 // declare-help (`briefs`, `brief <name>`), derive (the index stamped into
-// SKILL.md and docs/declare.md), and the briefs test.
+// skill/SKILL.md), and the briefs test.
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";

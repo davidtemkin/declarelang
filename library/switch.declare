@@ -51,14 +51,14 @@ class Switch extends Control [
     press()   { input(!checked) },
 
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
-    fill    = { checked ? theme.accent : hot || down ? theme.controlSelected : theme.control },
+    fill    = { checked ? theme.accent : hovered || pressed ? theme.controlSelected : theme.control },
     stroke  = { stroke(1, checked ? theme.accent : theme.line) },
 
     // the thumb derives from the track: inset 2 normally; a theme may say the
     // unchecked thumb is smaller (Mountain View's 16→24 grow-on-check)
 
     thumb: View [ cornerRadius = { this.width / 2 },
-        width  = { checked || typeof theme.switchThumbOff != "number" ? classroot.height - 4 : theme.switchThumbOff },
+        width  = { checked || typeof theme.switchThumbOffSize != "number" ? classroot.height - 4 : theme.switchThumbOffSize },
         height = { this.width },
         y = center,
         fill = { theme.surface },

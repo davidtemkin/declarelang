@@ -38,7 +38,8 @@ App [ width = 340, height = 180, fill = white,
   (or `onDblClick`, `onHold`): the runtime has watched the whole gesture, so a finger
   starting a scroll never fires it.
 - `hovered` and `pressed` are facts to read in constraints, never assigned; `hovered` is
-  false on touch. A control styles from `hot`/`down` instead.
+  false on touch. On a control they are false while `disabled`, and `pressed` includes a
+  keyboard press.
 - A drag is down, move, up on one view; the pressed view captures the pointer. Use
   `deltaX`/`deltaY` (root-frame travel since the press) and keep a small threshold of
   your own before moving.

@@ -33,7 +33,7 @@
 // own instance test at module init, so view.ts can import this module without
 // a cycle.
 
-import { Cell, Constraint } from "./reactive.js";
+import { Cell, Constraint, afterSettle, isSettling } from "./reactive.js";
 import { affineFit, childHomography, unprojectChild, type Homography, type View3D } from "./projective.js";
 import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
 import { diag } from "./errors.js";
@@ -142,6 +142,8 @@ interface AppInteraction {
   recs: Map<InteractionView, Rec>;
   press: { wasDown: boolean; chain: Set<InteractionView> };
   driver: Constraint;
+  /** A run is booked for the settle's close (records arrived mid-settle). */
+  booked: boolean;
 }
 
 const APPS = new WeakMap<InteractionApp, AppInteraction>();
@@ -286,6 +288,7 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
     for (let i = kids.length - 1; i >= 0; i--) {
       const c = kids[i];
       if (!isView(c) || !c.ignoreScroll) continue;
+      if (!c.visible && trace === undefined) continue;
       if (clipping && !inside && !c.ignoreClip) continue;
       const [cx, cy] = toChildLocal(v, c, lx, ly);
       const hit = leafAt(c, cx, cy, pierce, trace);
@@ -295,6 +298,9 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
   for (let i = kids.length - 1; i >= 0; i--) {
     const c = kids[i];
     if (!isView(c)) continue;
+    // a hidden child (a parked row among them) holds nothing to hit; the trace
+    // still visits it, to say so
+    if (!c.visible && trace === undefined) continue;
     if (v.scrolls !== "none" && c.ignoreScroll) continue; // probed above
     if (clipping && !inside && !c.ignoreClip) continue;
     const [cx, cy] = toChildLocal(v, c, lx, ly);
@@ -306,7 +312,7 @@ export function leafAt(v: InteractionView, lx: number, ly: number, pierce = fals
     return null;
   }
   // The point is in this view's box — but a pointer-transparent view is not a
-  // target, it is only a corridor. (Its children were already offered the
+  // target: the press passes over it. (Its children were already offered the
   // point above, so an `auto` descendant has taken it by now.)
   if (!pierce && v.pointerEvents === "none") {
     if (trace !== undefined) trace.push({ view: v, why: 'skipped — pointerEvents = "none" (this view is transparent; its children decide for themselves)', x: Math.round(lx), y: Math.round(ly) });
@@ -326,24 +332,43 @@ function chainAt(app: InteractionApp, x: number, y: number): Set<InteractionView
   return chain;
 }
 
+// THE USER'S SCROLL, anywhere: the scrollers whose `scrolling` fact is on
+// (view.ts reports each change). While one is, and the pointer rests, hover
+// holds what it was — the platforms' rule (a browser re-tests hover when the
+// pointer moves or the scroll ends, never on every frame of a fling), and the
+// walk it skips is the whole tree, every frame the content moves under it.
+const USER_SCROLLS = new Set<object>();
+const USER_SCROLL = new Cell();
+export function noteUserScroll(scroller: object, active: boolean): void {
+  const was = USER_SCROLLS.size > 0;
+  if (active) USER_SCROLLS.add(scroller); else USER_SCROLLS.delete(scroller);
+  if ((USER_SCROLLS.size > 0) !== was) USER_SCROLL.changed();
+}
+
 function ensureApp(app: InteractionApp): AppInteraction {
   let state = APPS.get(app);
   if (state !== undefined) return state;
   // The press chain is a SNAPSHOT at the down edge; cleared on release.
   const press = { wasDown: false, chain: new Set<InteractionView>() };
   const recs = new Map<InteractionView, Rec>();
+  let last: { x: number; y: number; down: boolean; hovering: boolean; result: { chain: Set<InteractionView>; down: boolean; hovering: boolean } } | null = null;
   const driver = new Constraint(
     "App.$interaction",
     () => {
+      USER_SCROLL.track();
       const x = app.pointerX;
       const y = app.pointerY;
       const down = app.pointerDown;
       const hovering = app.hovering;
+      // a scroll in progress under a resting pointer: hover holds (above)
+      if (USER_SCROLLS.size > 0 && last !== null && last.x === x && last.y === y && last.down === down && last.hovering === hovering) return last.result;
       const chain = hovering ? chainAt(app, x, y) : new Set<InteractionView>();
       if (down && !press.wasDown) press.chain = hovering ? new Set(chain) : chainAt(app, x, y);
       if (!down) press.chain.clear();
       press.wasDown = down;
-      return { chain, down, hovering };
+      const result = { chain, down, hovering };
+      last = { x, y, down, hovering, result };
+      return result;
     },
     (v: unknown) => {
       const { chain, down, hovering } = v as { chain: Set<InteractionView>; down: boolean; hovering: boolean };
@@ -358,7 +383,7 @@ function ensureApp(app: InteractionApp): AppInteraction {
       }
     }
   );
-  state = { recs, press, driver };
+  state = { recs, press, driver, booked: false };
   APPS.set(app, state);
   return state;
 }
@@ -372,10 +397,17 @@ function recOf(view: InteractionView): Rec {
       // A parked pre-attach rec migrates in, keeping any subscribers wired to it.
       r = ORPHANS.get(view) ?? { hovered: false, pressed: false, hCell: new Cell(), pCell: new Cell() };
       state.recs.set(view, r);
-      // The record must reflect the CURRENT chain before its first read returns —
-      // the driver re-runs (bind-time precedent: bindConstraint's k.run()), sees
-      // the new record, and lands its truth.
-      state.driver.run();
+      // The record must reflect the CURRENT chain before anything is drawn —
+      // the driver re-runs, sees the new record, and lands its truth. Records
+      // arriving inside a settle (a list building rows) share ONE run at its
+      // close — the hit walk is the whole tree, and one per row was the cost
+      // of every row a scroll builds; outside a settle the run is immediate.
+      if (!isSettling()) state.driver.run();
+      else if (!state.booked) {
+        state.booked = true;
+        const st = state;
+        afterSettle(() => { st.booked = false; st.driver.run(); });
+      }
     }
     return r;
   }

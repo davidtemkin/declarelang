@@ -1,59 +1,18 @@
 # Declare — the language, in one file, for you and your LLM
 
-*Declare is a language for building application interfaces. Writing it takes three things, and
-this file is the first:*
-
-1. ***this file*** *— the **language**: every form the grammar accepts and every rule the compiler
-   enforces;*
-2. ***the map*** *— where the rest lives: classes and their attributes, real programs, the guide;*
-3. ***the compiler*** *— every error carries a code, a position, and the rewrite that resolves it
-   (§12), so nothing here needs to enumerate edge cases.*
+*Declare is a language for building application interfaces. This file is the language: every
+form the grammar accepts and every rule the compiler enforces. The compiler completes it —
+every error carries a code, a position, and the rewrite that resolves it (§12), so nothing here
+needs to enumerate edge cases.*
 
 *Declare is new, and no LLM has been trained on it. It resembles React, CSS, and HTML in places,
 and this file is where those resemblances stop. Every complete program below is compiled by the
 test suite, so the examples are current by construction; where this file and the
 compiler disagree, the compiler is right. Status: pre-1.0, under active design.*
 
-## The map
-
-**Ask for a name rather than invent it.** [`npx declare-help <name>`](operational/help.md)
-answers any class, attribute, concept, enum or diagnostic code in one exact reply, did-you-mean
-included; a true miss exits 1, so silence is trustworthy. A guessed attribute is a compile
-error, and a hand-built widget is usually one the library already ships. The standard
-library classes are in `library/`, complete programs in `apps/`, the narrative course in
-[`docs/guide/`](guide/01-what-declare-is.md), and running and shipping in
-[`docs/operational/`](operational/). (`docs/system-design/` is the design record, superseded
-decisions included — background, not truth.)
-
-**Take the brief for your task before writing** (`npx declare-help brief <name>`, or
-[`docs/briefs/`](briefs/)): one task each — a verified example, the rules that bite, and where
-to look next.
-
-<!-- briefs:start -->
-```
-  shape-of-an-app       starting a program; where state, views and classes go
-  lists-from-data       many of something from records; rowIndex, identity, derived lists
-  editing-records       toggles, renames, forms, working copies
-  kinds-of-rows         different things in one list (classFor) vs one thing in states (State)
-  loading-and-saving    DataSource: fetch, auto, onLoad, failure, POST, schema
-  derived-values        computed values: constraint vs formula, summaries as methods
-  layout-and-sizing     layouts first, size per axis, padding and Card, reflow
-  scrolling             scrollers, fixed chrome, following new content, scrollTo
-  using-controls        the library's controls and the value pattern
-  your-own-control      extends Control: press(), hot/down, focus, delivering a value
-  pointer-and-drag      hover, press, click vs drag, touch claims, drop targets, pinch
-  keyboard-and-focus    keys, shortcuts, focus order, focus traps
-  motion                springs toward a target, animators, states, arrival
-  moving-arrangements   a few sprung scalars driving a whole layout; TweenLayout
-  overlays              menus, context menus, dialogs, tooltips
-  urls-and-navigation   location, shows, links, deep links, back and forward
-  time                  clocks, repeating jobs, afterDelay, one-time actions on change
-  text-and-themes       theme tokens, dark mode, fonts, rich text, named styles
-  drawing               draw(), icons, when attributes can't say it
-  tables-and-selection  Table and DataGrid: selection as items, sorting, editable columns
-  when-it-misbehaves    compiles but wrong: verify, explain, explainHit, the wake trace
-```
-<!-- briefs:end -->
+*The classes and their attributes are in the reference — `npx declare-help <name>` answers any of
+them by name. How to work with Declare, and where everything else is, starts at
+[`skill/SKILL.md`](../skill/SKILL.md).*
 
 One boundary makes the rest of this file readable. **Every capitalized tag is a class** —
 `View`, `Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. Classes
@@ -265,6 +224,14 @@ it out keeps its parent readable. The same holds for what has no view: state and
 on the App, and when a group of it becomes a thing in its own right — a document's rules, a
 service, a piece of machinery — it moves into a class of its own, extending `Dataset` for a
 document and `Node` otherwise.
+
+**A subclass adds children; `defaultplacement` says where they go.** A subclass's children
+(and a use site's) are appended to the instance, after the base class's own. A class that is a
+frame around content names the child the content belongs in — `class Sheet [
+defaultplacement = body, body: View [ … ] ]` — and every subclass's and use site's children go
+into `body`, in order; the base's own children never move. **A child can exist
+conditionally:** `exists = { … }` builds it while true and discards it while false, in its
+place (`visible` keeps a hidden view built — a focus sink, a definition read by its parent).
 
 Besides `class`, the top level holds `script`, `include`, `use`, `theme`, `style`, `schema`
 and `ship` — the complete set, **in any order**, before or after the root instance;
@@ -603,8 +570,9 @@ a `body`, `.fetch()` from the handler, `onLoad()` for what follows the reply.
 
 **A schema is a named type — declare it once, at the top level, and use it in any type position.**
 `schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is a
-declaration in the one type system: the name works in every type position (`sel: Task = null`,
-`advance(t: Task) -> Task`, a field of another schema — `owner: Person`), a dataset declares its
+declaration in the one type system: the name works in every type position (`sel: Task? = null`,
+`advance(t: Task) -> Task`, a field of another schema — `owner: Person`) — and there, as for a
+class or `View`, a trailing `?` is what lets it be empty: `Task?` may be null, `Task` never is, a dataset declares its
 document with it (`schema = [ tasks[]: Task ]`, or `schema = Task[]` for a bare-array response),
 and its `.value` is then *typed* — `nest.value.tasks` is `Task[]` in every `{ }` body, so a
 misspelled field dies at compile time and the `as` casts go. The runtime enforces the same
@@ -711,7 +679,7 @@ the mark it serves.
 `visible = { opacity > 0 }`, while flow content that merely fades in should stay visible and let
 opacity do the work. `pointerEvents = "none"` is the third, for a view that should be seen and
 not touched. **A view takes the pointer when it has declared an interest in it** — a handler,
-a `link`, a `tip`, or a `scrolls` axis, since a scroller answers drags and wheels with
+a `link`, a `tooltipLabel`, or a `scrolls` axis, since a scroller answers drags and wheels with
 scrolling — and content behind such a view is not reachable through it.
 
 ### Hover and press are values
@@ -725,6 +693,8 @@ chain until release. Read them anywhere a value goes, including as a state's con
 fill = { hovered ? 0x4169E1 : 0x191970 }   // royalblue when hovered, else midnightblue
 ```
 
+On a view that declares `disabled` (every `Control`), both are false while it is disabled, and
+`pressed` is also true during a keyboard press — so a control styles from the same pair.
 Declaring either is a compile error; assigning one is refused at runtime, the same guard §5
 describes. Like `contentWidth`, they are computed for you.
 
@@ -743,7 +713,7 @@ works this way (each lives on `Text`, defaulting to `provided(…)`, so setting 
 provides it to the runs below), and so does **`theme`**, a token record every color in an app
 should name once.
 
-A **typeface is an object in the tree**, like an `Image` — `brand: Font [ Face [ … ] ]`, usually
+A **typeface is an object in the tree**, like an `Image` — `brand: Font [ FontFace [ … ] ]`, usually
 on the App — and `fontFamily` takes that object as its value. So a face is a value like any
 other: choosing one is an assignment, and text, layout and drawings follow a face landing with
 no code of yours.
@@ -860,8 +830,8 @@ Declare ships a standard library of classes in `library/`, written in Declare it
 privileged API underneath. It **auto-includes by bare tag** — no import, no module ceremony —
 its classes read the provided `theme`, and focus behavior (Tab traversal, activation, a
 traveling focus indicator) is provided undeclared. Check there before building a control by hand;
-one you build **extends `Control`**, which makes it focusable and keyboard-activated, styles it off
-`hot`/`down`, and routes pointer and keys alike to the `press()` you override.
+one you build **extends `Control`**, which makes it focusable and keyboard-activated, makes its
+`hovered`/`pressed` respect `disabled`, and routes pointer and keys alike to the `press()` you override.
 
 Two contracts are worth learning because your own classes should obey them too.
 
@@ -889,32 +859,18 @@ dialog's buttons — it takes plain record arrays and hands the choice back thro
 
 → what ships and how it is built: `library/` · each class's attributes: the model reference
 
-## 12. Working
+## 12. Errors, formatting, and the running program
 
-1. **Write `.declare` source** and run the dev server — `npm start`, then open your program at
-   its path. Apps are typically one file, grown with `include` (§4).
-2. **Run it at its URL.** The program URL *is* the app's address: with the dev server up,
-   navigating to `…/<name>.declare` compiles on request and renders. The same address takes
-   modifiers — `?render=canvas`, the in-browser editor, the crawler's document (the full list:
-   `docs/operational/`). Typechecking of every `{ }` body is part of every compile; there is
-   no flag.
-3. **Read the error.** Every diagnostic carries a code, a line and column, and the fix. Apply
-   exactly the named fix, change nothing else, recompile. All independent errors in a phase are
-   reported together.
-4. **Ask the platform.** When what you need is a fact rather than a failure — a name, a
-   signature, an enum's tokens, a diagnostic code — `npx declare-help <name>`
-   answers it in one shot (the map). It is the cheapest step in this list, and the one that
-   keeps a guess from becoming a compile error.
-5. **Ask the running program.** A clean compile means the checker found nothing, not that nothing
-   is wrong: layout, fonts, paint, and input routing do not exist until the program runs. When
-   something compiles yet misbehaves, stop re-reading the source. `__declare.explain(path, attr)`
-   answers *why* an attribute holds its value, giving the expression, the read-paths it was wired to,
-   and their live values. (Dev tooling: a production build ships a stub unless you pass
-   `declarec --debug`.) `npx declare-verify <file>` climbs the same ladder the test suite
-   does, from parse to real input in a headless browser.
+**Every diagnostic carries a code, a line and column, and the fix.** Apply exactly the named fix,
+change nothing else, and compile again. All independent errors in a phase are reported together,
+and typechecking of every `{ }` body is part of every compile.
 
-The formatter (`npx declare-format`) owns the house style; run it rather than hand-aligning. What it
-cannot decide for you is naming — camelCase — and that **a leaf goes on one line**, which most of a
-UI is.
+**The formatter (`npx declare-format`) owns the house style**; run it rather than hand-aligning.
+What it cannot decide for you is naming — camelCase — and that **a leaf goes on one line**, which
+most of a UI is.
 
-→ install, dev server, build, deploy: [`docs/operational/`](operational/)
+**A running program answers questions about itself.** A clean compile means the compiler found
+nothing wrong, not that nothing is wrong: layout, fonts, paint, and input routing do not exist until the
+program runs. `__declare.explain(path, attr)` answers *why* an attribute holds its value, giving
+the expression, the read-paths it was wired to, and their live values. (It is development tooling:
+a production build ships a stub unless you pass `declarec --debug`.)

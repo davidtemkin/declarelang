@@ -181,7 +181,7 @@ export function readVisibility(v: View): { on: boolean; rect: Rect | null; scale
 function startVisibility(v: View): void {
   const f = feedOf(v);
   if (!f.armed) return;
-  const s = v.surface;
+  const s = v.$surface;
   if (s?.watchVisibility) {
     // backend feed available: retire any generic computer from a prior life
     if (f.generic !== null) { f.generic.dispose(); f.generic = null; }
@@ -204,7 +204,7 @@ function startVisibility(v: View): void {
       // small wired rule over its outputs does the waking (installKernelVis).
       const wake = (): void => {
         if (sharedClock.busy) { f.stale = true; scheduleFlush(v, f); return; }
-        v.surface?.refreshVisibility?.();
+        v.$surface?.refreshVisibility?.();
       };
       if (installKernelVis(v, f)) {
         f.wake = outputRule(v, f, `${v.constructor.name}.visibilityWake`, () => wake());
@@ -242,7 +242,7 @@ function scheduleFlush(v: View, f: Feed): void {
     if (sharedClock.busy) { f.flushTimer = setTimeout(tick, 120); return; }
     const p = f.pending;
     f.pending = null;
-    const s = v.surface;
+    const s = v.$surface;
     if (f.stale && s?.refreshVisibility) {
       // the backend can measure current truth — ask it; the fresh entry
       // arrives through deliverVisibility on the now-idle clock
@@ -254,7 +254,7 @@ function scheduleFlush(v: View, f: Feed): void {
     if (p !== null) {
       setBound(v, "visibleRect", p.rect);
       setBound(v, "apparentScale", p.scale);
-      if (v.drawing !== null && p.rect !== null) v.surface?.setRasterScale?.(p.scale);
+      if (v.$drawing !== null && p.rect !== null) v.$surface?.setRasterScale?.(p.scale);
     }
   };
   f.flushTimer = setTimeout(tick, 120);
@@ -272,5 +272,5 @@ function deliverVisibility(v: View, f: Feed, on: boolean, rect: Rect | null, sca
   f.pending = null;
   setBound(v, "visibleRect", shaped);
   setBound(v, "apparentScale", scale);
-  if (v.drawing !== null && on) v.surface?.setRasterScale?.(scale);
+  if (v.$drawing !== null && on) v.$surface?.setRasterScale?.(scale);
 }

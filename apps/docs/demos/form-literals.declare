@@ -1,6 +1,6 @@
 // The bare vocabulary
 // A percent, a position literal, a named color, a hex color with alpha, a block string, an
-// enum token — every one a bare literal in its slot, none of them meaningful inside braces.
+// enum token — every one a bare literal in its attribute, none of them meaningful inside braces.
 
 App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
     stage: View [ x = 20, y = 16, width = 90%, height = 120, cornerRadius = 8, fill = whitesmoke, stroke = stroke(1, #DCE3E9),

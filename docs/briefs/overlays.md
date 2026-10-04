@@ -11,7 +11,7 @@ class Row [ width = 100%, height = 30,
     onHold(e: PointerEvent) { app.rowMenu.open(this, e) }            // touch long-press
     ]
 
-App [ width = 360, height = 220, theme = { SanFrancisco }, fill = { provided("theme").bg },
+App [ width = 360, height = 220, theme = { SanFrancisco }, fill = { provided("theme").background },
     said: string = "",
     d: Dataset { { "files": [ { "id": 1, "name": "notes.md" }, { "id": 2, "name": "plan.md" } ] } },
 
@@ -47,12 +47,12 @@ App [ width = 360, height = 220, theme = { SanFrancisco }, fill = { provided("th
   modal: a scrim, no light dismiss, focus trapped inside, focus restored after.
 - Dismiss first, deliver second: the layer is gone before `picked` runs; don't read its
   state there.
-- `tip = "…"` on any view gives a tooltip; you never declare the service.
+- `tooltipLabel = "…"` on any view gives a tooltip; you never declare the service.
 - Building your own modal: restore focus one turn late, or the Return that closed it
   reopens it.
 
 **Look up** `Menu`, `Menu.picked`, `Menu.opener`, `Menu.openFor`, `ContextMenu`,
-`Dialog.ask`, `Dialog.notice`, `View.tip`, `Control.menu`.
+`Dialog.ask`, `Dialog.notice`, `View.tooltipLabel`, `Control.menu`.
 
 **Examples** `apps/tracker/tracker.declare`: `IssueRow`, a menu on right-click and on hold ·
 `apps/desktop/desktop.declare`: the menu bar as records, with a live Window menu ·

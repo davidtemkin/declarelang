@@ -1,9 +1,9 @@
 /*
 # Mountain View
 
-The Material 3 record: pill buttons (buttonRadius saturates at half the
+The Material 3 record: pill buttons (buttonCornerRadius saturates at half the
 height), square-ish fields, the grow-on-check switch thumb
-(switchThumbOff < the checked size), the bar-handle slider with its track
+(switchThumbOffSize < the checked size), the bar-handle slider with its track
 gap, M3's 38% disabled opacity, and the offset focus indicator
 (width 3, gap 2). Hover and pressed on the accent are Material's state layers:
 the button's ink over its fill at 8% and 16%. Roboto is the consuming app's
@@ -11,34 +11,34 @@ the button's ink over its fill at 8% and 16%. Roboto is the consuming app's
 */
 
 theme MountainView [
-    bg = #FFFBFE, surface = #FFFFFF, line = #79747E,
+    background = #FFFBFE, surface = #FFFFFF, line = #79747E,
     text = #1C1B1F, textMuted = #49454F, textFaint = #AAB4BE,
-    accent = #6750A4, accentText = #FFFFFF, accentHover = #735EAB, accentPressed = #7F6CB3,
-    control = #E7E0EC, controlHover = #DCD5E1, controlPressed = #CEC7D3, controlSelected = #E8DEF8,
-    depth = 1, focusRing = true,
-    controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,
-    buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOff = 16,
-    focusRingWidth = 3, focusRingGap = 2, sliderHandle = "bar",
-    checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38,
-    tooltipBg = #313033, tooltipText = #F4EFF4,
-    menuRadius = 4, menuShadow = shadow(0, 4, 12, #00000026), menuHl = #E8DEF8, menuHlText = #1D192B,
-    scrimColor = #000000, scrimOpacity = 0.32, errorColor = #B3261E,
-    dialogWidth = 340, dialogTitleSize = 22, dialogBodySize = 14
+    accent = #6750A4, accentTextColor = #FFFFFF, accentHovered = #735EAB, accentPressed = #7F6CB3,
+    control = #E7E0EC, controlHovered = #DCD5E1, controlPressed = #CEC7D3, controlSelected = #E8DEF8,
+    focusRingStyle = "both",
+    controlCornerRadius = 4, buttonCornerRadius = 999, fieldCornerRadius = 4, fieldPadding = 12,
+    buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOffSize = 16,
+    focusRingWidth = 3, focusRingGap = 2, sliderHandleStyle = "bar",
+    checkboxSize = 18, checkboxCornerRadius = 2, disabledOpacity = 0.38,
+    tooltipFill = #313033, tooltipTextColor = #F4EFF4,
+    menuCornerRadius = 4, menuShadow = shadow(0, 4, 12, #00000026), menuHighlightFill = #E8DEF8, menuHighlightTextColor = #1D192B,
+    scrimFill = #000000, scrimOpacity = 0.32, error = #B3261E,
+    dialogWidth = 340, dialogTitleFontSize = 22, dialogBodyFontSize = 14
     ]
 
 
 theme MountainViewDark [
-    bg = #141218, surface = #211F26, line = #938F99,
+    background = #141218, surface = #211F26, line = #938F99,
     text = #E6E0E9, textMuted = #CAC4D0, textFaint = #AAB4BE,
-    accent = #D0BCFF, accentText = #381E72, accentHover = #C4AFF4, accentPressed = #B8A3E8,
-    control = #49454F, controlHover = #524E58, controlPressed = #5E5A65, controlSelected = #4A4458,
-    depth = 1, focusRing = true,
-    controlRadius = 4, buttonRadius = 999, fieldRadius = 4, fieldPadding = 12,
-    buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOff = 16,
-    focusRingWidth = 3, focusRingGap = 2, sliderHandle = "bar",
-    checkboxSize = 18, checkboxRadius = 2, disabledOpacity = 0.38,
-    tooltipBg = #E6E1E5, tooltipText = #313033,
-    menuRadius = 4, menuShadow = shadow(0, 4, 12, #0000004D), menuHl = #4A4458, menuHlText = #E6E0E9,
-    scrimColor = #000000, scrimOpacity = 0.55, errorColor = #F2B8B5,
-    dialogWidth = 340, dialogTitleSize = 22, dialogBodySize = 14
+    accent = #D0BCFF, accentTextColor = #381E72, accentHovered = #C4AFF4, accentPressed = #B8A3E8,
+    control = #49454F, controlHovered = #524E58, controlPressed = #5E5A65, controlSelected = #4A4458,
+    focusRingStyle = "both",
+    controlCornerRadius = 4, buttonCornerRadius = 999, fieldCornerRadius = 4, fieldPadding = 12,
+    buttonHeight = 40, switchWidth = 52, switchHeight = 32, switchThumbOffSize = 16,
+    focusRingWidth = 3, focusRingGap = 2, sliderHandleStyle = "bar",
+    checkboxSize = 18, checkboxCornerRadius = 2, disabledOpacity = 0.38,
+    tooltipFill = #E6E1E5, tooltipTextColor = #313033,
+    menuCornerRadius = 4, menuShadow = shadow(0, 4, 12, #0000004D), menuHighlightFill = #4A4458, menuHighlightTextColor = #E6E0E9,
+    scrimFill = #000000, scrimOpacity = 0.55, error = #F2B8B5,
+    dialogWidth = 340, dialogTitleFontSize = 22, dialogBodyFontSize = 14
     ]

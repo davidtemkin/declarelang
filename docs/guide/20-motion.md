@@ -69,22 +69,18 @@ settles.)
 
 **A figure that arrives with its data appears; it does not count up.** A number sprung
 toward a value from a `DataSource` starts at its declared value, so when the data lands it
-would roll up from zero — a change the reader never lived through. Take the first real
-value outright, and let every later one animate:
+would roll up from zero — a change the reader never lived through. Tell the spring to take
+that value outright: [`arrive()`](declare-docs:Spring.method.arrive), called where the data
+arrives, makes the next target appear, and every later one animates:
 
 ```declare-fragment
-class Figure extends Node [
-    value: number = 0,                          // the truth
-    shown: number = 0,                          // what the screen reads
-    seeded: boolean = false,
-    Spring [ attribute = shown, to = { classroot.value } ],
-    trackChanges = ["value"],
-    onChange(e: ChangeEvent) { if (!seeded) { seeded = true; shown = value } }
-    ]
+count: number = { app.week.value?.count ?? 0 },   // the truth
+shown: number = 0,                                // what the screen reads
+tally: Spring [ attribute = shown, to = { app.count } ],
+week: DataSource [ url = "/api/week", auto = true, onLoad() { app.tally.arrive() } ]
 ```
 
-`weekCount: Figure [ value = { app.week.value.count } ]`, and a view reads
-`app.weekCount.shown`. Logging a session then rolls the count over; opening the app does not.
+A new record then rolls the count over; opening the app does not.
 
 The same shape opens a *view* on its data: a timeline that should first show the whole
 history cannot know the history's length until it arrives. Derive the fact that says it has

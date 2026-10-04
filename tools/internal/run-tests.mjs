@@ -99,6 +99,7 @@ const SUITE = [
   "test/kernel-expr.test.mjs",
   "test/kernel-extent.test.mjs",
   "test/kernel-vis.test.mjs",
+  "test/kernel-layout.test.mjs",
   "test/mac-geom-binary.test.mjs",
   "test/precompiled.test.mjs",
   "test/runtime-parity.test.mjs",
@@ -107,12 +108,20 @@ const SUITE = [
 
 const files = process.argv.slice(2).length ? process.argv.slice(2) : SUITE;
 const failed = [];
+const times = [];
 const t0 = Date.now();
 for (const f of files) {
+  const t = Date.now();
   const r = spawnSync(process.execPath, [f], { stdio: "inherit" });
+  times.push({ f, s: (Date.now() - t) / 1000 });
   if (r.status !== 0) failed.push({ f, code: r.status ?? `signal ${r.signal}` });
 }
 const mins = ((Date.now() - t0) / 60000).toFixed(1);
+// where the time went: the slowest files, so the run's cost has names
+if (files.length > 1) {
+  console.log("\nrun-tests: slowest files");
+  for (const { f, s } of [...times].sort((a, b) => b.s - a.s).slice(0, 12)) console.log(`   ${s.toFixed(1).padStart(6)} s  ${f}`);
+}
 if (failed.length === 0) {
   console.log(`\nrun-tests: all ${files.length} file(s) passed (${mins} min)`);
 } else {

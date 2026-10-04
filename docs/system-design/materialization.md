@@ -1,5 +1,56 @@
 # Materialization — logical instances, invisible virtualization
 
+> **THE WINDOWING MODEL (2026-10-02) — what runs now.** Windowing is its own
+> capability, `runtime/src/virtualize.ts` (`virtualize` in
+> compiler/src/capabilities.ts, reached only when a program writes
+> `virtualize`); `replicate.ts` keeps plain replication and the kernel window
+> API (`blocksOf`, `realized`, `navigateTo`, `materializationInfo`) and hands a
+> windowed block's passes to it. The model, against the perceptual contract
+> (exact ends; nothing moves under the reader; the range holds still under a
+> held thumb; filled at rest; no stalls):
+>
+> - **The ledger** keeps every record's extent — measured once its row has
+>   been built (by record identity), estimated until then — so a row's place
+>   is the sum of the extents above it, exact wherever rows are measured.
+> - **Rows stay mounted.** A record's row, once built, stays at its place and
+>   scrolls natively with the page while it is within two viewports of the
+>   viewport (up to a cap). Rows are built a viewport either side and two ahead
+>   in the direction of travel, so they are measured before they are seen: the
+>   rows in view first, then a few more a pass, nearest first, over the frames
+>   that follow. While the list moves, the rows as far past its leading edge as
+>   twice the last step (up to a viewport and a half) count as in view — a
+>   browser scrolling on its own thread carries the content that far before
+>   the next pass. A row out of reach is parked (hidden, a pool of 200, and
+>   presenting no record: its `rowIndex` is -1) and re-pointed at an arriving
+>   record; a touched or focused row is never parked.
+> - **What follows the rows** in their parent (a "writing…" line under a
+>   chat) is placed after the last row, and its room is part of the range.
+> - **Keeping place.** A correction above the reader (a row measuring other
+>   than its estimate, records arriving above) is absorbed where it cannot be
+>   seen. At rest the scroll offset moves with it in the same settle, to an
+>   absolute target — the reader's member back where the reader last saw it,
+>   in whole pixels — so a run of corrections never adds up the fractions an
+>   engine that holds offsets to whole pixels drops. While
+>   the user scrolls, nothing writes the offset: every row sits at its ledger
+>   offset plus one number, the deviation, so rows above grow upward out of
+>   view; when the scroll ends the deviation settles into the offset in one
+>   step, and nothing on screen moves. The reader's member is the first row
+>   wholly in view (the first record whenever it is in view); a correction
+>   below it grows downward, away.
+> - **A held thumb** freezes the range (no row is built or kept past its
+>   end), and its position maps onto the ledger so that the ends of the track
+>   are the first and last records exactly: each move covers the remaining
+>   ledger distance in proportion to the remaining track, and held at an end
+>   it stays that end as rows there measure. Let go at an end, the list lands
+>   on it.
+> - **Past 2²⁴ px** the range is published compressed: at rest the deviation
+>   pairs the physical offset with the ledger proportionally, keeping the rows
+>   near the viewport inside the range the browser honours.
+>
+> The recycling, spare, overscan and compression-placement mechanics recorded
+> further down describe earlier builds; the transparency note's spare counts
+> are now the mounted reach (a few viewports of rows) plus the pool.
+
 > **Build record (2026-07-30): B5 v1 LANDED, in §8's order, per the D5
 > rulings (the RULED block in §8).** What ships: the divergence bit
 > (attributes.ts — a WeakSet probe on the author-write path) + membership-

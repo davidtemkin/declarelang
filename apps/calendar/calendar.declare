@@ -232,7 +232,7 @@ class DetailSection [ clip = true, cornerRadius = 10, fill = { provided("theme")
 // legible columns, the same budget a phone-native month view spends.
 
 App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
-    fill = { provided("theme").bg }, fontFamily = ["system-ui", "sans-serif"],
+    fill = { provided("theme").background }, fontFamily = ["system-ui", "sans-serif"],
 
     /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
        is Light / Dark / Auto — Auto follows the environment: what the host provides as `dark` when this
@@ -451,7 +451,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         },
     dayLabel(k: string) -> string { const d = app.parseKey(k); return app.dowLong(d.getDay()) + ", " + app.monthName(d.getMonth() + 1) + " " + d.getDate() },
 
-    // -> number, not Color: these return a concrete 0xRRGGBB (theme slots are
+    // -> number, not Color: these return a concrete 0xRRGGBB (theme tokens are
     // never null at read time), and number is what mix() blends — a nullable
     // Color return would refuse every mix(catFill(…), …) call site.
 
@@ -668,7 +668,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         // its centre, so it starts full-bleed and converges by a pure scale to the mini
 
         monthBg: View [ x = { app.slotX }, y = { app.slotY }, width = { app.miniW }, height = { app.miniH },
-            cornerRadius = 12, fill = { app.mix(provided("theme").bg, provided("theme").miniCurrentBg, app.yearZoom) },
+            cornerRadius = 12, fill = { app.mix(provided("theme").background, provided("theme").miniCurrentBg, app.yearZoom) },
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
         weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.cal.value },
             View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
@@ -754,7 +754,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        left, Today + the view tabs hug the right, and the date nav floats near the
        centre, clamped so it never rides into either side. */
 
-    bar: View [ width = { app.width }, height = { app.barH }, fill = { provided("theme").bg },
+    bar: View [ width = { app.width }, height = { app.barH }, fill = { provided("theme").background },
         rule: View [ y = { parent.height - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
 
         // Row-1 items center in the first 60px band — fixed, not barH-derived,

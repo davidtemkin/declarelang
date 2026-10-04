@@ -93,7 +93,7 @@ class Meter extends Plate [ pad = 18, gap = 14, cornerRadius = 12, fill = { prov
     // A library Button, not a View with an onClick: the figure traces a real
     // activation, and a Control brings focus, Space and Enter with it. It sits
     // in a slot of its own because a Button derives its own width from its
-    // content, and `Run` claims `w` on every child it places — one slot, one
+    // content, and `Run` claims `w` on every child it places — one attribute, one
     // owner — so the row is what the layout sizes and the button fills it.
 
     btn: View [ height = 36,

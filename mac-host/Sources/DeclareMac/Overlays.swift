@@ -1039,7 +1039,17 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
     /// Does this editor WRAP? False means long lines run off to the right and
     /// the scroll view carries them, which is what `wrap = false` asks for.
     private var wraps = true
-    private var padding: CGFloat = 0
+    /// Where the text sits inside the field — the TextInput's `padding`, one
+    /// inset per side ([top, right, bottom, left] from the runtime).
+    private var pad = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+    private static func insets(_ v: Any?) -> NSEdgeInsets {
+        if let a = v as? [NSNumber], a.count == 4 {
+            return NSEdgeInsets(top: CGFloat(a[0].doubleValue), left: CGFloat(a[3].doubleValue),
+                                bottom: CGFloat(a[2].doubleValue), right: CGFloat(a[1].doubleValue))
+        }
+        let n = CGFloat((v as? NSNumber)?.doubleValue ?? 0)
+        return NSEdgeInsets(top: n, left: n, bottom: n, right: n)
+    }
     /// The last spec, kept so a LATER text style can be applied to it.
     ///
     /// The two ops are independent and arrive in either order: EDIT carries the
@@ -1063,7 +1073,7 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
     func configure(_ spec: [String: Any], style: TextStyleSpec) {
         self.spec = spec
         let ml = (spec["multiline"] as? NSNumber)?.boolValue ?? false
-        padding = CGFloat((spec["padding"] as? NSNumber)?.doubleValue ?? 0)
+        pad = Self.insets(spec["padding"])
         let value = spec["value"] as? String ?? ""
         let placeholder = spec["placeholder"] as? String ?? ""
         let font = TextEngine.nsFont(TextEngine.parse(style.fontCSS))
@@ -1071,11 +1081,10 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         if ml {
             if scroll == nil {
                 let sc = NSScrollView()
-                let tv = NSTextView()
+                let tv = InsetTextView()
                 tv.isEditable = true; tv.isSelectable = true
                 tv.drawsBackground = false
                 tv.delegate = self
-                tv.textContainerInset = NSSize(width: padding, height: padding)
                 tv.isAutomaticQuoteSubstitutionEnabled = false
                 tv.isAutomaticDashSubstitutionEnabled = false
                 // GROW WITH THE TEXT. Without this an NSTextView keeps whatever
@@ -1093,6 +1102,12 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
                 if clipBox.superview == nil { view.addSubview(clipBox) }
                 clipBox.addSubview(sc)
                 scroll = sc; textView = tv
+            }
+            // the inset, on every configure: a later `padding` lands too
+            if let tv = textView as? InsetTextView {
+                tv.insets = pad
+                tv.textContainerInset = NSSize(width: (pad.left + pad.right) / 2, height: (pad.top + pad.bottom) / 2)
+                docDirty = true
             }
             // WRAP, which crossed the bridge and was being dropped. The backend
             // sends it (mac-backend `wrap: spec.wrap !== false`) and only the
@@ -1233,9 +1248,11 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
                 sizeDocument(toViewport: r.size)
             }
         } else {
+            // centred in the content box: the frame less the inset on each side
             let h = (field?.intrinsicContentSize.height ?? r.height)
-            field?.frame = CGRect(x: off.x + padding, y: off.y + (r.height - h) / 2,
-                                  width: max(0, r.width - padding * 2), height: h)
+            let lead = clipBox.isFlipped ? pad.top : pad.bottom
+            field?.frame = CGRect(x: off.x + pad.left, y: off.y + lead + (r.height - pad.top - pad.bottom - h) / 2,
+                                  width: max(0, r.width - pad.left - pad.right), height: h)
         }
     }
 
@@ -1260,15 +1277,23 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
     /// fills the pane and clicking below the last line lands in the editor.
     private func sizeDocument(toViewport viewport: CGSize) {
         guard let tv = textView, let lm = tv.layoutManager, let tc = tv.textContainer else { return }
-        let inset = padding * 2
+        let insetW = pad.left + pad.right, insetH = pad.top + pad.bottom
         // WRAPPING is a property of the container's width: bounded re-wraps to
         // the pane, unbounded lets long lines run and the scroll view carry them.
-        tc.containerSize = NSSize(width: wraps ? max(1, viewport.width - inset) : CGFloat.greatestFiniteMagnitude,
+        tc.containerSize = NSSize(width: wraps ? max(1, viewport.width - insetW) : CGFloat.greatestFiniteMagnitude,
                                   height: CGFloat.greatestFiniteMagnitude)
         if wraps { tv.frame.size.width = viewport.width }
         lm.ensureLayout(for: tc)
         let used = lm.usedRect(for: tc)
-        tv.frame.size = NSSize(width: max(viewport.width, ceil(used.width) + inset),
-                               height: max(viewport.height, ceil(used.height) + inset))
+        tv.frame.size = NSSize(width: max(viewport.width, ceil(used.width) + insetW),
+                               height: max(viewport.height, ceil(used.height) + insetH))
     }
+}
+
+/// A text view whose text container sits at its own top-left inset, so a field
+/// padded unevenly ([top, right, bottom, left]) puts its text where the web's
+/// textarea does — `textContainerInset` alone is the same on opposite sides.
+final class InsetTextView: NSTextView {
+    var insets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
+    override var textContainerOrigin: NSPoint { NSPoint(x: insets.left, y: insets.top) }
 }

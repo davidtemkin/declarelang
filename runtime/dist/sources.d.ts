@@ -31,9 +31,9 @@ export declare class KeysSource extends Source {
 export declare class FocusSource extends Source {
     protected channels(): readonly Channel[];
 }
-/** The tip service, as a member: `onTip(e)` when a tip-carrying view asks for
+/** The tip service, as a member: `onTooltip(e)` when a tip-carrying view asks for
  *  its tooltip to show (`null` to hide). */
-export declare class TipSource extends Source {
+export declare class TooltipsSource extends Source {
     protected channels(): readonly Channel[];
 }
 export {};

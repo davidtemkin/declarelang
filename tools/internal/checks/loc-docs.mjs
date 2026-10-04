@@ -4,6 +4,7 @@
 // a fragment `@heading` reveals a chapter heading once the model has been fetched.
 import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
+import { launchChrome } from "../chrome.mjs";
 const chrome = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"].find(existsSync);
 const DOCS = "http://localhost:8364/apps/docs/docs.declare";
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -13,7 +14,7 @@ function check(label, got, want) {
   if (!ok) failures++;
   console.log(`${ok ? "ok  " : "FAIL"} — ${label}\n       got  ${JSON.stringify(got)}${ok ? "" : "\n       want " + JSON.stringify(want)}`);
 }
-const b = await puppeteer.launch({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
+const b = await launchChrome({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
 const page = await b.newPage();
 await page.setViewport({ width: 1200, height: 820 });
 const state = (pg = page) => pg.evaluate(() => ({

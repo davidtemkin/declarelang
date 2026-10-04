@@ -40,10 +40,10 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented class surface
-  "View", "App", "Text", "Font", "Face", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
+  "View", "App", "Text", "Font", "FontFace", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
   "Layout", "TweenLayout", "Editor",
   "Dataset", "DataSource",
-  "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tip",
+  "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tooltips",
   "Stream", "EventStream", "Socket",
   "State", "Node",
 ];
@@ -878,7 +878,7 @@ for (const c of Object.values(nodes)) {
 // documented class exactly once — a new class fails extract until it is placed.
 const CLASS_GROUPS = [
   ["Core",          ["View", "App", "Node"]],
-  ["Text",          ["Text", "TextLabel", "Font", "Face", "RichText", "Markdown", "HTMLText"]],
+  ["Text",          ["Text", "TextLabel", "Font", "FontFace", "RichText", "Markdown", "HTMLText"]],
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
   ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "Editor", "TextInput", "Combobox", "Segmented", "SegmentedItem", "ProgressBar", "FocusRing", "AppearanceSwitch"]],
@@ -886,13 +886,13 @@ const CLASS_GROUPS = [
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's
   // own map already uses for these — "controls, structure, layouts, embedding".
-  ["Structure",     ["Bar", "Card", "Divider", "MenuBar", "Menu", "ContextMenu", "Dialog", "Tooltip", "Accordion", "Pane"]],
+  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Menu", "ContextMenu", "Dialog", "Tooltip", "Accordion", "Pane"]],
   // Data holds what STORES or FETCHES data and paints nothing. The tables are
   // views that display it — a different kind of thing, filed with their kind.
   ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket"]],
   ["Tables",        ["Table", "TableRow", "DataGrid", "Column", "GridRow"]],
   ["Motion and state", ["Animator", "AnimatorGroup", "Spring", "State", "Time"]],
-  ["Services",      ["Keys", "Focus", "Tip"]],
+  ["Services",      ["Keys", "Focus", "Tooltips"]],
   ["Embedding",     ["DOMIsland", "AppIsland"]],
   ["Themes",        ["SanFrancisco", "SanFranciscoDark", "Cupertino", "CupertinoDark", "MountainView", "MountainViewDark", "Redmond", "RedmondDark"]],
   ["Icons",         ["Icon", "IconHost", "ArrowIcon", "ChevronIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon", "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon"]],

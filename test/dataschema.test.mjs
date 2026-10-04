@@ -218,7 +218,7 @@ await test("typed data: one declaration serves compiler and runtime — the flag
   const good = await compile(TYPED_HEAD + `
     App [ width=1, height=1,
       nest: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "title": "a", "done": false, "status": "open", "born": 1 } ] } },
-      sel: Task = null,
+      sel: Task? = null,
       pick(id: string) { app.sel = (app.nest.value?.tasks ?? []).find(t => t.id == id) ?? null },
       open: Text [ text = { (app.nest.value?.tasks ?? []).filter(t => !t.done).length + "" } ],
     ]`);
@@ -232,7 +232,7 @@ await test("typed data: one declaration serves compiler and runtime — the flag
   assert.match(chain.errors[0].message, /'don' is not a member of Task — did you mean 'done'/);
   // a Task-typed slot read
   const slot = await compile(TYPED_HEAD + `
-    App [ width=1, height=1, sel: Task = null,
+    App [ width=1, height=1, sel: Task? = null,
       t: Text [ text = { app.sel ? app.sel.titel : "" } ],
     ]`);
   assert.match(slot.errors[0].message, /'titel' is not a member of Task — did you mean 'title'/);
@@ -340,7 +340,7 @@ await test("typed data: a schema-typed slot is LIVE past its identity — the re
   const src = await compile(TYPED_HEAD + `
     App [ width=1, height=1,
       nest: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "title": "old", "done": false, "status": "open", "born": 1 } ] } },
-      sel: Task = null,
+      sel: Task? = null,
       pick(id: string) { app.sel = (app.nest.value?.tasks ?? []).find(t => t.id == id) ?? null },
       detail: Text [ text = { app.sel ? app.sel.title : "none" } ],
     ]`);
@@ -365,9 +365,19 @@ await test("typed data: one namespace of type names — collisions and unknown r
     App [ width=1, height=1 ]`);
   assert.match(collide.errors[0].message, /'Task' is already a class — schemas and classes share one namespace/);
   const unknownRef = await compile(`
-    schema Card [ owner: Person ]
+    schema Deck [ owner: Person ]
     App [ width=1, height=1 ]`);
   assert.match(unknownRef.errors[0].message, /'owner: Person' names no schema/);
+  // a name the library or the runtime already has is refused, naming the owner
+  const library = await compile(`
+    schema Button [ x: string ]
+    class Card extends View [ ]
+    App [ width=1, height=1 ]`);
+  assert.deepEqual(library.errors.map((e) => /is a library class/.test(e.message)), [true, true]);
+  const builtin = await compile(`
+    class FontFace extends View [ ]
+    App [ width=1, height=1, f: FontFace [ ] ]`);
+  assert.deepEqual(builtin.errors.map((e) => e.message.replace(/ \(line.*$/, "")), ["'FontFace' is a built-in class — a class of the program can't take its name; rename yours"]);
   const unknownDoc = await compile(`
     schema A [ x: string ]
     App [ width=1, height=1, d: Dataset [ schema = B ] { {} } ]`);

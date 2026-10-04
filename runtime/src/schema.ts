@@ -29,7 +29,7 @@ import { enumType, numericEnumType, type AttrType } from "./value.js";
 // The weight vocabulary: the nine CSS keywords (aliases for the hundreds) plus
 // `normal`/`bold`, OR any number 1–1000 — OpenType's usWeightClass line, which a
 // variable font's `wght` axis covers continuously (`fontWeight = 350`). Shared by
-// View's `fontWeight`/`headingWeight`; a `Face` weight follows the same rule
+// View's `fontWeight`/`headingWeight`; a `FontFace` weight follows the same rule
 // (font.ts) and adds `range(lo, hi)` for a variable file.
 const FONT_WEIGHT = numericEnumType("FontWeight", [1, 1000], "thin", "extralight", "light", "regular",
   "normal", "medium", "semibold", "bold", "extrabold", "black");
@@ -259,7 +259,10 @@ const ViewSchema: ClassSchema = {
     // drag and edge-resize on touch.
     claim: enumType("Claim", "both", "x", "y"),
     // the tooltip text — planes.md tier 1; "" (the default) = no tip
-    tip: { kind: "string" },
+    tooltipLabel: { kind: "string" },
+    // A class names one of its own children; the children its subclasses and
+    // use sites write go there (instantiate.ts DEFAULT PLACEMENT).
+    defaultplacement: { kind: "slotref" },
     scrollY: { kind: "number" },
     scrollX: { kind: "number" },
     // A DECLARED STARTING OFFSET — applied once at first layout, then the
@@ -267,10 +270,16 @@ const ViewSchema: ClassSchema = {
     // which made a platform fact look like a slot the program controls.)
     scrollStartY: { kind: "number" },
     scrollStartX: { kind: "number" },
-    // A gesture or momentum is moving this scroller right now — the platform's
-    // own report (DOM scroll/scrollend, the native scroll view, the runtime
-    // provider's phase). Read-only, like the offsets: the arbitration fact.
+    // THE USER'S SCROLL is under way on this scroller — from its first
+    // movement until the hand has let go and any momentum has come to rest —
+    // the platform's own report (DOM scroll/scrollend, the host's gesture
+    // phases). A glide the program asked for is not the user's scroll.
+    // Read-only, like the offsets: the arbitration fact.
     scrolling: { kind: "boolean" },
+    // How this scroller keeps the reader's place as content changes size
+    // (scroll-anchor.ts): `content` keeps the view at the top edge still,
+    // `end` stays at the end while there, `none` does nothing.
+    scrollAnchor: enumType("ScrollAnchor", "content", "end", "none"),
     // The text face and rich-text structure values
     // (textColor/fontSize/fontFamily/fontWeight/letterSpacing/iconSize/theme and
     // the heading/link/code/richTextLayout family) are provided values, not View
@@ -842,7 +851,7 @@ const TextInputSchema: ClassSchema = {
     multiline: { kind: "boolean" },
     spellcheck: { kind: "boolean" },
     wrap: { kind: "boolean" },
-    padding: { kind: "number" },
+    padding: { kind: "inset" },
     // The UNCONTROLLED seed (cf. React's defaultValue vs value): `text` follows
     // `initial` until the user edits, then holds the edit — for a field started
     // from a value (a pristine source) that must stay writable. Being one-shot
@@ -1189,11 +1198,11 @@ const FocusSchema: ClassSchema = {
   events: ["focusChange", "geometry"],
 };
 
-const TipSchema: ClassSchema = {
-  name: "Tip",
+const TooltipsSchema: ClassSchema = {
+  name: "Tooltips",
   base: NodeSchema,   // via the abstract Source (sources.ts)
   attrs: {},
-  events: ["tip"],
+  events: ["tooltip"],
 };
 
 // Streams (docs/system-design/streams.md, RULED 2026-07-29) — SSE and
@@ -1258,7 +1267,7 @@ const StateSchema: ClassSchema = {
   events: ["apply", "remove"],
 };
 
-// Font — a typeface as an object in the tree (font.ts). A Font owns Face
+// Font — a typeface as an object in the tree (font.ts). A Font owns FontFace
 // children; with none it is a system font naming `family`. `wait` and `late` are
 // the loading policy; `loaded`/`failed` are the facts the runtime writes.
 const FontSchema: ClassSchema = {
@@ -1274,9 +1283,9 @@ const FontSchema: ClassSchema = {
   readOnly: ["loaded", "failed"],
 };
 
-// Face — one file of a Font: where it comes from, the weight(s) it covers, italic.
+// FontFace — one file of a Font: where it comes from, the weight(s) it covers, italic.
 const FaceSchema: ClassSchema = {
-  name: "Face",
+  name: "FontFace",
   base: NodeSchema,
   attrs: {
     src: { kind: "faceSource" },
@@ -1319,10 +1328,10 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   Spring: SpringSchema,
   Time: TimeSchema,
   Font: FontSchema,
-  Face: FaceSchema,
+  FontFace: FaceSchema,
   Keys: KeysSchema,
   Focus: FocusSchema,
-  Tip: TipSchema,
+  Tooltips: TooltipsSchema,
   // Stream — the abstract base EventStream/Socket extend (url/active/retry +
   // the read-only lifecycle intrinsics live here). In the table so the
   // reference documents it once and subclasses inherit checkably; NOT in the
@@ -1381,7 +1390,7 @@ export const handlerName = (event: string): string =>
  *  across the language: `keyDown` is a KeyEvent whether it fires on a focused
  *  View or on a `Keys` member; `start`/`stop`/`repeat` mean the same on an
  *  Animator and an AnimatorGroup. The payload shapes themselves live in
- *  events.ts (the pointer family), keys.ts (KeyEvent), tip.ts (TipEvent) and
+ *  events.ts (the pointer family), keys.ts (KeyEvent), tip.ts (TooltipEvent) and
  *  focus.ts (FocusGeometry) — this table is only the mapping.
  *
  *  This is what makes a handler's parameter checkable: the scaffold emits each
@@ -1413,7 +1422,7 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   tick: "number",                                  // Time: dt — seconds since the previous tick, clamped
   focusChange: "View",                             // Focus: the newly focused view
   geometry: "FocusGeometry",
-  tip: "TipEvent",
+  tooltip: "TooltipEvent",
   message: "StreamMessage",                        // Stream: data/type/id (streams.ts)
   post: "IslandPost",                              // Island bridge: { topic, payload } (view.ts)
   // payload-free: focus, blur, escapeFocus, init, enter, load, ready,

@@ -17,7 +17,7 @@
 import { Node } from "./node.js";
 import { View } from "./view.js";
 import { Constraint } from "./reactive.js";
-import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound } from "./attributes.js";
+import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound, slotCellOf } from "./attributes.js";
 import { DeclareError } from "./errors.js";
 const STACKS = Symbol("overrideStacks");
 function stacksFor(view) {
@@ -45,7 +45,7 @@ function pushOverride(view, slot, priority, make) {
         // plain one would refuse the top); own() re-claims it at the restore below.
         const owner = ownerOf(view, slot);
         owner?.suspend();
-        owner?.releaseCell();
+        owner?.releaseCell(slotCellOf(view, slot));
         s = {
             baseOwner: owner,
             baseValue: owner === null ? view[slot] : undefined,
@@ -120,7 +120,25 @@ export class State extends Node {
         const parent = this.parent;
         if (parent !== null)
             this.priority = parent.children.indexOf(this);
+        if (parent instanceof View)
+            for (const t of this.childTemplates)
+                if (t.el.name !== null)
+                    this.$bindName(parent, t.el.name);
     }
+    /** A named child this state builds is reachable by its name on the target
+     *  while it exists, and reads as absent while it does not — and a constraint
+     *  reading the name hears it arrive and leave (`{ pill?.height ?? 0 }`): the
+     *  name reads the target's child list, which changes exactly then. */
+    $bindName(target, name) {
+        if (Object.prototype.hasOwnProperty.call(target, name))
+            return;
+        Object.defineProperty(target, name, {
+            configurable: true,
+            enumerable: false,
+            get: () => { target.watchChildList(); return this.$named.get(name); },
+        });
+    }
+    $named = new Map();
     /** Apply the initial value once the tree is linked (initTree). A gated state
      *  has usually already synced from its gate's first run in pass two — this is
      *  idempotent — but a literal `applied = true` (no gate) applies here. */
@@ -149,7 +167,9 @@ export class State extends Node {
      *  enclosing view is linked (the initial sync runs from init()). */
     sync(v) {
         const target = this.parent;
-        if (!(target instanceof View))
+        // a gate's last value can land after its view was discarded: a retired
+        // state builds nothing into a dead tree
+        if (!(target instanceof View) || this.retired)
             return;
         if (v === this.installed)
             return;
@@ -162,7 +182,7 @@ export class State extends Node {
         }
         else {
             this.fire("onRemove");
-            this.teardownChildren(target);
+            this.teardownChildren();
             for (const o of this.overrides)
                 popOverride(target, o.slot, this.priority);
         }
@@ -178,18 +198,21 @@ export class State extends Node {
         for (const tmpl of this.childTemplates) {
             const { view, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
             target.insertChild(view, index++);
-            if (tmpl.el.name !== null && !(tmpl.el.name in target)) {
-                target[tmpl.el.name] = view;
+            if (tmpl.el.name !== null) {
+                this.$bindName(target, tmpl.el.name);
+                this.$named.set(tmpl.el.name, view);
             }
             this.builtChildren.push(view);
             finishes.push(finish);
         }
         // Attach surfaces if the target is live (mirrors Replicator's post-link
         // attach): each child lands before the first live sibling after the block.
-        if (target.backend !== null && target.surface !== null) {
+        if (target.$backend !== null && target.$surface !== null) {
             for (const v of this.builtChildren) {
+                if (!(v instanceof View))
+                    continue;
                 const before = surfaceAfter(target, v);
-                v.attach(target.backend, target.surface, before);
+                v.$attach(target.$backend, target.$surface, before);
             }
         }
         for (const f of finishes)
@@ -200,16 +223,12 @@ export class State extends Node {
         target.childrenMutated();
     }
     /** Retire the subtree: discard each built view — the verb unlinks and
-     *  notifies the target itself now — and drop any name it bound. Per-child
-     *  notify is fine at State scale (a conditional subtree, not a burst). */
-    teardownChildren(target) {
+     *  notifies the target itself — and its name reads as absent again.
+     *  Per-child notify is fine at State scale (a conditional subtree, not a burst). */
+    teardownChildren() {
         for (const v of this.builtChildren)
             v.discard();
-        for (const tmpl of this.childTemplates) {
-            if (tmpl.el.name !== null && target[tmpl.el.name] !== undefined) {
-                delete target[tmpl.el.name];
-            }
-        }
+        this.$named.clear();
         this.builtChildren = [];
     }
     /** Retire with the host view (View.discard reaches every child now): dispose
@@ -219,9 +238,11 @@ export class State extends Node {
      *  built children spliced into the target) are torn down by the target view's
      *  own discard, so there is nothing else to undo here. */
     teardown() {
+        this.retired = true;
         disposeBindings(this);
         super.teardown();
     }
+    retired = false;
     /** Fire a carried handler if installed (onApply / onRemove) — a plain Node
      *  dispatch, like the Animator's on* firing. */
     fire(handler) {
@@ -237,8 +258,8 @@ function surfaceAfter(target, v) {
     const kids = target.children;
     for (let i = kids.indexOf(v) + 1; i < kids.length; i++) {
         const c = kids[i];
-        if (c instanceof View && c.surface !== null)
-            return c.surface;
+        if (c instanceof View && c.$surface !== null)
+            return c.$surface;
     }
     return null;
 }

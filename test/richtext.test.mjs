@@ -7,6 +7,7 @@ import puppeteer from "puppeteer-core";
 import { existsSync } from "node:fs";
 import { buildProduction } from "../tools/declarec.mjs";
 import { inlineAppPage } from "./harness.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 let pass = 0, fail = 0;
 function test(name, fn) {
@@ -38,7 +39,7 @@ An intro paragraph of several words.
 async function render(mode) {
   const b = await buildProduction(DOC, { render: mode });
   assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+  const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
   try {
     const page = await browser.newPage();
     const errs = [];
@@ -98,7 +99,7 @@ if (!CHROME) {
   const pre = await (async () => {
     const b = await buildProduction(preDoc, {});
     assert.ok(b.ok, "pre build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
@@ -143,7 +144,7 @@ Body with \`inline code\` here.
   const tok = await (async () => {
     const b = await buildProduction(tokensDoc, {});
     assert.ok(b.ok, "tokens build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
@@ -186,7 +187,7 @@ Body with \`inline code\` here.
   const pal = await (async () => {
     const b = await buildProduction(palDoc, {});
     assert.ok(b.ok, "palette build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = []; page.on("pageerror", (e) => errs.push(e.message));
@@ -233,7 +234,7 @@ Body with \`inline code\` here.
   const vb = await (async () => {
     const b = await buildProduction(varDoc, { render: "canvas" });
     assert.ok(b.ok, "var build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       // The probe reads near-black body ink: the default theme's `text`. The
@@ -279,7 +280,7 @@ Body with \`inline code\` here.
     for (const render of ["dom", "canvas"]) {
       const b = await buildProduction(featDoc, render === "canvas" ? { render: "canvas" } : {});
       assert.ok(b.ok, "feature build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-      const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+      const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
       let probe;
       try {
         const page = await browser.newPage();

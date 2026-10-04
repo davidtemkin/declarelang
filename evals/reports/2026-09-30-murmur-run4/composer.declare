@@ -1,0 +1,90 @@
+/*
+# Saying something
+
+A field for words and two marks beside it: one opens the photographs you may
+send, one sends. The photographs rise out of the bar rather than covering the
+conversation, and each is sent with one tap.
+*/
+
+class Composer [ width = 100%,
+    tid: string = "",
+    draft: string = "",
+    trayOpen: boolean = false,
+    trayH: number = 0,
+    Spring [ attribute = trayH, to = { classroot.trayOpen ? 112 : 0 }, stiffness = 420, damping = 40 ],
+    height = { trayH + 60 + app.safeBottom },
+    fill = { provided("theme").bg },
+    stroke = { [stroke(1, provided("theme").line), null, null, null] },
+
+    willSend() { },     // the use site's: what the conversation does as something goes
+
+    submit() {
+        const words = draft.trim()
+        if (words == "") return
+        willSend()
+        app.sendText(tid, words)
+        draft = ""
+        },
+
+    sendPhoto(src: string, alt: string) {
+        willSend()
+        app.sendPhoto(tid, src, alt)
+        trayOpen = false
+        },
+
+    tray: View [ width = 100%, height = { classroot.trayH }, clip = true,
+        strip: View [ y = 12, width = 100%, height = 88, scrolls = x, datapath = { app.store.value },
+            row: View [ padding = [0, 16, 0, 16],
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                TrayPhoto [ datapath = :sendable[],
+                    press() { classroot.sendPhoto("" + :src, "" + :alt) }
+                    ]
+                ]
+            ]
+        ],
+
+    bar: View [ y = { classroot.trayH }, height = 60, x = center, width = { Math.min(parent.width, 780) },
+        photos: IconButton [ x = 8, y = 8, tip = "Send a photo",
+            on = { classroot.trayOpen },
+            press() { classroot.trayOpen = !classroot.trayOpen },
+            PhotoIcon [ x = center, y = center, iconSize = 22, ink = { parent.on ? parent.theme.accent : parent.theme.textMuted } ]
+            ],
+        field: TextInput [ x = 56, y = 10, height = 40, cornerRadius = 20, padding = 14, fontSize = 16,
+            width = { parent.width - 56 - 60 },
+            fill = { provided("theme").surface },
+            stroke = { stroke(1, provided("theme").line) },
+            placeholder = "Message",
+            text = { classroot.draft },
+            onInput(v: string) { classroot.draft = v },
+            onEnter() { classroot.submit() }
+            ],
+        send: SendButton [ y = 10, x = { parent.width - 52 },
+            disabled = { classroot.draft.trim() == "" },
+            press() { classroot.submit() }
+            ]
+        ]
+    ]
+
+
+class IconButton extends Control [ width = 44, height = 44, cornerRadius = 22,
+    on: boolean = false,
+    fill = { down ? theme.controlPressed : hot || on ? theme.control : null }
+    ]
+
+
+class SendButton extends Control [ width = 40, height = 40, cornerRadius = 20,
+    tip = "Send",
+    fill = { disabled ? theme.control : down ? theme.accentPressed : hot ? theme.accentHover : theme.accent },
+    SendIcon [ x = center, y = center, iconSize = 20, weight = 2.2,
+        ink = { parent.disabled ? parent.theme.textFaint : parent.theme.accentText } ]
+    ]
+
+
+// one photograph that may be sent
+
+class TrayPhoto extends Control [ width = 88, height = 88, cornerRadius = 12, clip = true,
+    fill = { theme.control },
+    tip = { "" + :alt },
+    Image [ width = 100%, height = 100%, stretches = cover, source = { app.api + :src },
+        opacity = { this.loaded ? (classroot.down ? 0.8 : 1) : 0 } ]
+    ]

@@ -34,8 +34,9 @@ App [ width = 320, height = 220, fill = white,
 
 **Rules**
 - A focused view hears `onKeyDown`/`onKeyUp`: right for keys that belong to one widget.
-  App-wide shortcuts go on a `Keys` member, which hears every key whatever has focus
-  (text fields included, so gate on app state where that matters).
+  App-wide shortcuts go on a `Keys` member, which hears every key whatever has focus —
+  text fields included, so a single-letter shortcut returns early while a field is typing:
+  `if (app.note.focused) return`.
 - The event is `KeyEvent`: `key` is the character typed, `code` the physical key (what a
   shortcut wants: `"KeyN"`), and the modifiers are `shift`, `ctrl`, `alt`, `meta`.
   `Keys.isDown("ShiftLeft")` asks whether a key is held now.

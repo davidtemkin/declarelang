@@ -22,7 +22,7 @@ import { SCHEMAS, RichTextSchema, type ClassSchema } from "./schema.js";
 
 export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   Node: ["watchChildList", "childListChanged", "appendChild", "insertChild", "removeChild", "discard", "teardown", "childrenMutated", "chainMoved", "structureCellId"],
-  View: ["is3D", "localTransform", "applyMask", "attach", "contentExtent", "bindExtent", "extentOf", "contentOrigin", "contentBox", "positionLead", "bounds", "footprint", "tabDefault", "focusChanged", "alignBand", "flush", "viewAt", "containsPoint", "rootBounds", "armVisibility", "rootTransform", "rootOrigin", "travelWith", "applyTravel", "repushPosition", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "inputSink", "rewireInput", "inputWants", "bindDraw", "invalidateDraw", "applyClip",
+  View: ["is3D", "localTransform", "applyMask", "contentExtent", "bindExtent", "extentOf", "contentOrigin", "contentBox", "positionLead", "bounds", "footprint", "tabDefault", "focusChanged", "alignBand", "viewAt", "containsPoint", "rootBounds", "armVisibility", "rootTransform", "rootOrigin", "travelWith", "applyTravel", "repushPosition", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "inputSink", "rewireInput", "inputWants", "bindDraw", "invalidateDraw", "applyClip",
     // THE KERNEL's view wiring (kernel.md): the native auto-extent rule and
     // its word list.
     "installKernelExtent", "extentWords"],
@@ -35,7 +35,7 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   // THE BOUNDARY lives on the base Island, which is not itself a schema
   // (islands.md): the provides list going down, the exposed values coming up,
   // and the verbs both ways — so they are listed on the concrete island.
-  DOMIsland: ["exposed", "post", "receiveMessage", "providedValue", "foreignHandle"],   // `flush` is View's, overridden here
+  DOMIsland: ["exposed", "post", "receiveMessage", "providedValue", "foreignHandle"],   // `$flush` is View's, overridden here
   Editor: ["commit", "revert"],
   TextInput: ["draftSlot", "editStyle", "syncEditable", "onNativeInput", "select", "applySelection"],
   RichText: ["policy", "stylesOf", "palette", "paletteKey", "dispatchLink", "relayout", "ownWidth", "fitNatural", "claimBaseline", "rebuild"],
@@ -50,10 +50,10 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   Spring: ["wake", "prime", "arrive"],
   Time: ["autoStart"],
   Font: ["autoStart", "start", "ready"],
-  Face: [],
+  FontFace: [],
   Keys: ["channels", "autoStart"],
   Focus: ["channels", "autoStart"],
-  Tip: ["channels", "autoStart"],
+  Tooltips: ["channels", "autoStart"],
   Stream: ["autoStart", "readdressed", "gated", "sync", "connect", "ended", "drop", "fire"],
   EventStream: ["dial"],
   Socket: ["dial", "send"],
@@ -64,12 +64,12 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
  *  names an instance carries that are neither methods (above) nor declared
  *  attributes — instance fields (`surface`, `backend`, `parent`) and prototype
  *  accessors. A child may not take one: the runtime refuses it at instantiate
- *  (`'surface' is already a member of the running App`), and the checker, being
+ *  (`'exposes' is already a member of the running App`), and the checker, being
  *  runtime-free, refuses it in the source from this table. OWN names per
  *  schema, as above; PINNED by test/override-runtime.test.mjs, which constructs
  *  each class and recomputes the lists (minus `$`-names and attributes). */
 export const RUNTIME_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  View: ["_navLink", "backend", "drawing", "exposes", "extentRelistQueued", "insetX", "insetY", "maskUsers", "scrollsOn", "surface", "travelHost", "visH", "visMode", "visOn", "visScale", "visW", "visX", "visY"],
+  View: ["_navLink", "exposes", "extentRelistQueued", "insetX", "insetY", "maskUsers", "scrollsOn", "travelHost", "visH", "visMode", "visOn", "visScale", "visW", "visX", "visY"],
   App: ["demoSources", "hostServices", "hostSink", "hostValues", "lastRevealLocation", "liveReport", "pageScroll", "pageWeight", "pendingAnchor", "pendingHistoryVerb", "pendingInspect", "pendingNav", "pendingOpen", "pumpOn", "pumpRetireHooked", "readyDelivered", "revealPump", "sourceLines"],
   Image: ["bitmap", "loadSeq", "natural"],
   Media: ["el", "loadSeq"],
@@ -85,9 +85,9 @@ export const RUNTIME_FIELDS: Readonly<Record<string, readonly string[]>> = {
   Spring: ["arriving", "primed", "springLastNow", "springRunning", "vel"],
   Keys: ["wired"],
   Focus: ["wired"],
-  Tip: ["wired"],
+  Tooltips: ["wired"],
   Stream: ["gen", "handle", "timer", "wasOpen", "wired"],
-  State: ["builtChildren", "childTemplates", "installed", "materialize", "overrides", "priority"],
+  State: ["builtChildren", "childTemplates", "installed", "materialize", "overrides", "priority", "retired"],
   Node: ["children", "classroot", "exParent", "parent", "root", "structure"],
   RichText: ["built", "laid", "slotHost"],
 };

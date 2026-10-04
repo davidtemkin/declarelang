@@ -15,7 +15,7 @@ App [ width = 380, height = 240, textStyles = { { Warm } },
     theme = { app.dark ? BrandDark : Brand },          // app.dark follows the OS
     fill = { provided("theme").surface },
     fontFamily = { ["-apple-system", "Helvetica Neue", app.inter, "sans-serif"] },
-    inter: Font [ Face [ src = "fonts/inter.woff2", weight = range(100, 900) ] ],
+    inter: Font [ FontFace [ src = "fonts/inter.woff2", weight = range(100, 900) ] ],
     col: View [ x = 20, y = 20, width = 340,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         Heading [ text = "Tokens, not hex" ],
@@ -34,7 +34,7 @@ App [ width = 380, height = 240, textStyles = { { Warm } },
   `MountainView`, `Redmond`, each with a `…Dark`) and change what you need:
   `{ { ...provided("theme"), accent: 0xCC3333 } }`.
 - Dark mode is opt-in: `theme = { app.dark ? BrandDark : Brand }` follows the OS.
-- A font is an object (`Font [ Face [ src ] ]`); `fontFamily` is a list tried in order,
+- A font is an object (`Font [ FontFace [ src ] ]`); `fontFamily` is a list tried in order,
   written in `{ }` when it holds a font. Put the platform face first: a web font loads
   only when text reaches it.
 - Inside `{ }` a colour is a number (`0x336699`); `#336699` and names like `navy` are
@@ -43,9 +43,14 @@ App [ width = 380, height = 240, textStyles = { { Warm } },
   `Text` views. A styled run is a `style` bundle named by `<span class>`, registered in
   `textStyles`. Links call `onLink(href)`.
 - A repeated whole-view look is a class (`class Heading extends Text [ … ]`).
+- A token can be a list (`inks = [#A8445E, #3F6E8C]`, read `provided("theme").inks[i]`); a
+  `script` function takes the theme typed as `Theme`.
+- Wrapped text as wide as its longest line (a chat bubble):
+  `width = { Math.ceil(measureText(words, providedTextStyle(), 320).width) }`.
 
 **Look up** `theme` (and the *Theme tokens* page), `provided`, `App.dark`, `Font`,
-`Face`, `Text.fontFamily`, `Markdown`, `HTMLText`, `RichText.textStyles`.
+`FontFace`, `Text.fontFamily`, `Markdown`, `HTMLText`, `RichText.textStyles`,
+`measureText`, `providedTextStyle`.
 
 **Examples** `apps/swatchbook/swatchbook.declare`: presets, `style` bundles, every text
 treatment · `apps/weather/weather.declare`: a system face with a web fallback ·

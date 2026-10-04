@@ -325,8 +325,8 @@ class ResponsiveLayout extends Layout [
             if (!c.visible || hidden(c)) continue
             if (flexing(c)) { flexN = flexN + 1; continue }
             // natural sizes are the footprint (scale/rotation composed,
-            // position-free); a share or flex allocation stays the raw slot it
-            // claims — the strategy never reads a slot it writes
+            // position-free); a share or flex allocation stays the raw attribute it
+            // claims — the strategy never reads an attribute it writes
             rigid = rigid + (stack ? (c as any).footprint().height : (shares.has(c) ? shareW(c) : (c as any).footprint().width))
         }
         const room = stack ? this.contentExtent("height") - gap * Math.max(0, visN - 1) : avail
@@ -335,7 +335,7 @@ class ResponsiveLayout extends Layout [
         // THE CROSS AXIS. Each child's extent across the flow — its footprint,
         // unless this pass allocates the child a size (a share writes its
         // width, a spacer its flow size), in which case the footprint would
-        // read a slot this pass writes: then the raw cross slot, or in a stack
+        // read an attribute this pass writes: then the raw cross attribute, or in a stack
         // the share width itself. The LINE is the largest of them; `center`
         // and `end` widen it to the BAND — the view's own cross content
         // extent, or the line itself on a view that sizes itself from these
@@ -376,7 +376,7 @@ class ResponsiveLayout extends Layout [
                 // excluded from the flow entirely: hidden, space reclaimed
                 return stack ? ({ x: 0, y: pos, vis: false }) : ({ x: pos, y: 0, vis: false })
             }
-            // allocated children (share, flex) take their slot raw; natural
+            // allocated children (share, flex) take their attribute raw; natural
             // ones are placed by footprint, lead-compensated
             const natural = !flexing(c) && !(stack ? false : shares.has(c))
             const f = natural ? (c as any).footprint() : null

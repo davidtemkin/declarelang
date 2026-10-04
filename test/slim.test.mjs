@@ -17,6 +17,7 @@ import { compileProgram, usedClassNames } from "../compiler/dist/declarec.js";
 import { buildProduction } from "../tools/declarec.mjs";
 import { parseFlags, parseArgvFlags, DEFAULT_FLAGS } from "../compiler/dist/flags.js";
 import { inlineAppPage } from "./harness.mjs";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 let pass = 0, fail = 0;
 function test(name, fn) {
@@ -179,7 +180,7 @@ const CHROME = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", 
 async function renders(src) {
   const b = await buildProduction(src, {});
   assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+  const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
   try {
     const page = await browser.newPage();
     const errs = [];
@@ -254,9 +255,9 @@ if (!CHROME) {
 
   await test("the tip service drops without tips, and stays with one", async () => {
     const without = await buildProduction(`App [ width = 200, Text [ text = "x" ] ]`, {});
-    assert.ok((modsOf(without)["tip.js"] ?? 0) < STUBBED, "no tips → no tip service");
-    const with_ = await buildProduction(`App [ width = 200, Text [ text = "x", tip = "hello" ] ]`, {});
-    assert.ok(modsOf(with_)["tip.js"] > STUBBED, "one tip attribute keeps it");
+    assert.ok((modsOf(without)["tooltips.js"] ?? 0) < STUBBED, "no tips → no tip service");
+    const with_ = await buildProduction(`App [ width = 200, Text [ text = "x", tooltipLabel = "hello" ] ]`, {});
+    assert.ok(modsOf(with_)["tooltips.js"] > STUBBED, "one tip attribute keeps it");
   });
 
   await test("the datapath island scanner drops from EVERY production build (data-paths.md §5)", async () => {
@@ -303,7 +304,7 @@ if (!CHROME) {
     assert.ok(modsOf(with_)["data-schema.js"] > STUBBED, "a declared schema keeps the validator");
   });
 
-  await test("the named vocabulary — effects, 3D, measureText, drawn text and images, features, Face, the change event — rides only where a program names it", async () => {
+  await test("the named vocabulary — effects, 3D, measureText, drawn text and images, features, FontFace, the change event — rides only where a program names it", async () => {
     const MODS = ["effects.js", "dom-effects.js", "projective.js", "text-measure.js", "font-derive.js", "face-literal.js", "draw-image.js", "draw-text.js", "change-event.js"];
     const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
     for (const f of MODS) assert.ok((none[f] ?? 0) < STUBBED, `${f} should be stubbed for a program naming none of it, was ${none[f]}`);
@@ -319,10 +320,10 @@ if (!CHROME) {
     for (const f of MODS.filter((m) => m !== "face-literal.js" && m !== "draw-image.js")) assert.ok(kept[f] > STUBBED, `${f} should ride for a program that names it, was ${kept[f]}`);
     await renders(src);
     const faced = await buildProduction(`App [ width = 200, img: Image [ width = 10, height = 10 ],
-      f: Font [ Face [ src = "f.woff2" ] ],
+      f: Font [ FontFace [ src = "f.woff2" ] ],
       View [ width = 10, height = 10, draw(d: Draw) { d.drawImage(app.img, 0, 0) } ] ]`, {});
     assert.ok(faced.ok, "build failed: " + (faced.errors || []).map((e) => e.message).join("; "));
-    assert.ok(modsOf(faced)["face-literal.js"] > STUBBED && modsOf(faced)["draw-image.js"] > STUBBED, "a Face and a drawImage call keep their modules");
+    assert.ok(modsOf(faced)["face-literal.js"] > STUBBED && modsOf(faced)["draw-image.js"] > STUBBED, "a FontFace and a drawImage call keep their modules");
   });
 
   // The DOM backend's native rich-text flow (dom-rich.js) is reachable from one
@@ -410,7 +411,7 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
     const js = (b) => b.files.find((f) => f.name.startsWith("app.")).contents;
     const plain = await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {});
     assert.ok(!js(plain).includes(PROBE), "a program declaring no Font carries no family probe");
-    const font = await buildProduction(`App [ width = 200, f: Font [ Face [ src = "f.woff2" ] ], Text [ text = "x", fontFamily = { [app.f, "serif"] } ] ]`, {});
+    const font = await buildProduction(`App [ width = 200, f: Font [ FontFace [ src = "f.woff2" ] ], Text [ text = "x", fontFamily = { [app.f, "serif"] } ] ]`, {});
     assert.ok(font.ok, "build failed: " + (font.errors || []).map((e) => e.message).join("; "));
     assert.ok(js(font).includes(PROBE), "a declared Font carries the probe");
   });
@@ -500,7 +501,7 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
       t: Text [ x = 4, y = 4, text = { app.safe } ] ]`;
     const b = await buildProduction(src, {});
     assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
-    const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
       const page = await browser.newPage();
       const errs = [];

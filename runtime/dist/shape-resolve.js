@@ -37,7 +37,7 @@ export function resolveShapes(program) {
             continue;
         }
         if (classNames.has(s.name) || Object.hasOwn(SCHEMAS, s.name)) {
-            errors.push(new DeclareError(`'${s.name}' is already a class — schemas and classes share one namespace of type names; rename the schema`, s.pos));
+            errors.push(new DeclareError(`'${s.name}' is already ${classNames.has(s.name) ? "a class" : "a built-in class"} — schemas and classes share one namespace of type names; rename the schema`, s.pos));
             continue;
         }
         if (declaredType(s.name) !== null) {

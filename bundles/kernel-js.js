@@ -9,6 +9,8 @@ var K_BODY = 1;
 var K_DYNAMIC = 2;
 var K_VIS = 3;
 var K_EXTENT = 4;
+var K_LAYOUT = 5;
+var LAYOUT_NOWRITE = 2147483648;
 var F_YIELDING = 1;
 var F_PHASE1 = 2;
 var F_PERCENT = 4;
@@ -17,6 +19,7 @@ var ST_DEAD = 2;
 var ST_SUSPENDED = 4;
 var ST_REWIRE = 8;
 var ST_UNLANDED = 16;
+var ST_RUNNING = 32;
 var TRACK_OWNER = 2147483648;
 var TRACK_NOBODY = 2147483647;
 var OK = 0;
@@ -70,7 +73,7 @@ function instantiateKernelJS(host, caps = {}) {
   let markOf = new Uint32Array(capacity);
   let cellHead = new Uint32Array(capacity), cellTail = new Uint32Array(capacity);
   let edgeCap = Math.max(1024, caps.dyn_edges ?? 1 << 14);
-  let eRule = new Int32Array(edgeCap), eCell = new Uint32Array(edgeCap), eNext = new Uint32Array(edgeCap), ePrev = new Uint32Array(edgeCap), eNextRule = new Uint32Array(edgeCap);
+  let eRule = new Int32Array(edgeCap), eCell = new Uint32Array(edgeCap), eNext = new Uint32Array(edgeCap), ePrev = new Uint32Array(edgeCap), eNextRule = new Uint32Array(edgeCap), ePrevRule = new Uint32Array(edgeCap);
   let edgeCount = 0, edgeFree = 0;
   const ownerGet = /* @__PURE__ */ __name((cell) => ownerOf[cell] - 1, "ownerGet");
   const ownerSet = /* @__PURE__ */ __name((cell, rule) => {
@@ -181,6 +184,9 @@ function instantiateKernelJS(host, caps = {}) {
       const nr = new Uint32Array(cap);
       nr.set(eNextRule);
       eNextRule = nr;
+      const pr = new Uint32Array(cap);
+      pr.set(ePrevRule);
+      ePrevRule = pr;
       edgeCap = cap;
     }
     return edgeCount++;
@@ -199,11 +205,14 @@ function instantiateKernelJS(host, caps = {}) {
   const freeNode = /* @__PURE__ */ __name((e) => {
     eRule[e] = -1;
     eNextRule[e] = edgeFree;
+    ePrevRule[e] = 0;
     eNext[e] = 0;
     ePrev[e] = 0;
     edgeFree = e + 1;
   }, "freeNode");
   const link = /* @__PURE__ */ __name((rule, cell) => {
+    if ((rState[rule] & ST_DEAD) !== 0)
+      return;
     const e = allocEdge();
     eRule[e] = rule;
     eCell[e] = cell;
@@ -215,24 +224,28 @@ function instantiateKernelJS(host, caps = {}) {
     else
       cellHead[cell] = e + 1;
     cellTail[cell] = e + 1;
+    ePrevRule[e] = 0;
     eNextRule[e] = rDynHead[rule];
+    if (eNextRule[e] !== 0)
+      ePrevRule[eNextRule[e] - 1] = e + 1;
     rDynHead[rule] = e + 1;
   }, "link");
+  const unlinkRule = /* @__PURE__ */ __name((e) => {
+    const rule = eRule[e], nx = eNextRule[e], pv = ePrevRule[e];
+    if (pv !== 0)
+      eNextRule[pv - 1] = nx;
+    else
+      rDynHead[rule] = nx;
+    if (nx !== 0)
+      ePrevRule[nx - 1] = pv;
+  }, "unlinkRule");
   const detachCell = /* @__PURE__ */ __name((cell) => {
     for (let h = cellHead[cell]; h !== 0; ) {
       const e = h - 1;
       h = eNext[e];
       const rule = eRule[e];
-      if (known(rule)) {
-        if (rDynHead[rule] === e + 1)
-          rDynHead[rule] = eNextRule[e];
-        else
-          for (let p = rDynHead[rule]; p !== 0; p = eNextRule[p - 1])
-            if (eNextRule[p - 1] === e + 1) {
-              eNextRule[p - 1] = eNextRule[e];
-              break;
-            }
-      }
+      if (known(rule))
+        unlinkRule(e);
       freeNode(e);
     }
     cellHead[cell] = 0;
@@ -255,7 +268,7 @@ function instantiateKernelJS(host, caps = {}) {
   }, "unlinkAll");
   const trackCell = /* @__PURE__ */ __name((cell) => active[0] < 0 ? OK : trackFor(active[0], cell), "trackCell");
   const trackFor = /* @__PURE__ */ __name((a, cell) => {
-    if (!known(a) || cell >= ncells)
+    if (!known(a) || cell >= ncells || (rState[a] & ST_DEAD) !== 0)
       return OK;
     const s = rSerial[a];
     if (markOf[cell] === s)
@@ -352,7 +365,15 @@ function instantiateKernelJS(host, caps = {}) {
       kdirtyList.pop();
     }
   }, "unkdirty");
+  const rFreed = /* @__PURE__ */ new Set();
   const freeRule = /* @__PURE__ */ __name((rule) => {
+    if (rFreed.has(rule)) {
+      if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ || globalThis.__declareKernelChecks === true)
+        console.error(`kernel(js): rule ${rule} freed twice
+${new Error().stack ?? ""}`);
+      return;
+    }
+    rFreed.add(rule);
     ruleFree.push(rule);
   }, "freeRule");
   const dispose = /* @__PURE__ */ __name((rule) => {
@@ -364,7 +385,7 @@ function instantiateKernelJS(host, caps = {}) {
     if (owns >= 0 && ownerGet(owns) === rule)
       ownerSet(owns, -1);
     rOwns[rule] = -1;
-    if ((rState[rule] & ST_QUEUED) === 0)
+    if ((rState[rule] & (ST_QUEUED | ST_RUNNING)) === 0)
       freeRule(rule);
   }, "dispose");
   const evalExpr = /* @__PURE__ */ __name((rule) => {
@@ -519,6 +540,8 @@ function instantiateKernelJS(host, caps = {}) {
     let v = 0;
     drainTrack();
     drain();
+    const wasRunning = (rState[rule] & ST_RUNNING) !== 0;
+    rState[rule] |= ST_RUNNING;
     switch (rKind[rule]) {
       case K_EXPR:
         v = evalExpr(rule);
@@ -545,8 +568,19 @@ function instantiateKernelJS(host, caps = {}) {
       case K_EXTENT:
         v = extentRun(rule);
         break;
+      case K_LAYOUT:
+        v = layoutRun(rule);
+        break;
       default:
+        rState[rule] &= ~ST_RUNNING;
         return ERR_BAD;
+    }
+    if (!wasRunning)
+      rState[rule] &= ~ST_RUNNING;
+    if ((rState[rule] & ST_DEAD) !== 0) {
+      if (!wasRunning && (rState[rule] & ST_QUEUED) === 0)
+        freeRule(rule);
+      return OK;
     }
     rState[rule] &= ~(ST_REWIRE | ST_UNLANDED);
     apply(rule, v);
@@ -592,7 +626,7 @@ function instantiateKernelJS(host, caps = {}) {
   const abandon = /* @__PURE__ */ __name(() => {
     for (const phase of q) {
       for (const rule of phase) {
-        if (!known(rule))
+        if (!known(rule) || (rState[rule] & ST_QUEUED) === 0)
           continue;
         rState[rule] &= ~ST_QUEUED;
         if ((rState[rule] & ST_DEAD) !== 0)
@@ -693,6 +727,8 @@ function instantiateKernelJS(host, caps = {}) {
   let viewFree = NONE;
   const VS = /* @__PURE__ */ __name((view, field) => table[elemBase[view] + vl[field]], "VS");
   const VB = /* @__PURE__ */ __name((base, field) => table[base + vl[field]], "VB");
+  let vlSpan = 0;
+  const blockOk = /* @__PURE__ */ __name((base) => base >= 0 && base < ncells && ncells - base >= vlSpan, "blockOk");
   const setField = /* @__PURE__ */ __name((base, field, v) => {
     setValue(base + vl[field], v);
   }, "setField");
@@ -888,13 +924,18 @@ function instantiateKernelJS(host, caps = {}) {
       return OK;
     if (code[w0] !== NONE && code[w0] < ncells)
       link(rule, code[w0]);
+    if (n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells)
+      link(rule, code[w0 + 1]);
     const L = vl;
-    for (let i = 1; i < n; i++)
+    for (let i = 2; i < n; i++) {
+      if (!blockOk(code[w0 + i]))
+        continue;
       for (const f of EXTENT_FIELDS) {
         const e = linkChecked(rule, code[w0 + i] + L[f]);
         if (e !== OK)
           return e;
       }
+    }
     return OK;
   }, "extentLink");
   const percentOwned = /* @__PURE__ */ __name((cell) => {
@@ -906,8 +947,10 @@ function instantiateKernelJS(host, caps = {}) {
     const axis = rElem[rule];
     const L = vl;
     let max = 0;
-    for (let i = 1; i < n; i++) {
+    for (let i = 2; i < n; i++) {
       const base = code[w0 + i];
+      if (!blockOk(base))
+        continue;
       if (VB(base, "visible") === 0 || VB(base, "ignoreClip") !== 0)
         continue;
       if (percentOwned(base + (axis === 0 ? L.x : L.y)) || percentOwned(base + (axis === 0 ? L.width : L.height)))
@@ -940,8 +983,87 @@ function instantiateKernelJS(host, caps = {}) {
       if (e > max)
         max = e;
     }
+    if (n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells)
+      max += table[code[w0 + 1]];
     return max;
   }, "extentRun");
+  const LAYOUT_FIELDS = [
+    "width",
+    "height",
+    "visible",
+    "scale",
+    "scaleX",
+    "scaleY",
+    "rotation",
+    "skewX",
+    "skewY",
+    "pivotX",
+    "pivotY",
+    "rotateX",
+    "rotateY",
+    "translateZ"
+  ];
+  const layoutLink = /* @__PURE__ */ __name((rule) => {
+    const w0 = rCode0[rule], n = rBody[rule];
+    if (code[w0] !== NONE && code[w0] < ncells)
+      link(rule, code[w0]);
+    if (n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells)
+      link(rule, code[w0 + 1]);
+    const L = vl;
+    for (let i = 2; i < n; i++) {
+      const base = code[w0 + i] >= LAYOUT_NOWRITE ? code[w0 + i] - LAYOUT_NOWRITE : code[w0 + i];
+      if (!blockOk(base))
+        continue;
+      for (const f of LAYOUT_FIELDS) {
+        const e = linkChecked(rule, base + L[f]);
+        if (e !== OK)
+          return e;
+      }
+    }
+    return OK;
+  }, "layoutLink");
+  const layoutRun = /* @__PURE__ */ __name((rule) => {
+    const w0 = rCode0[rule], n = rBody[rule];
+    const axis = rElem[rule];
+    const L = vl;
+    const spacing = n > 1 && code[w0 + 1] !== NONE && code[w0 + 1] < ncells ? table[code[w0 + 1]] : 0;
+    let pos = 0;
+    for (let i = 2; i < n; i++) {
+      const word = code[w0 + i];
+      const write = word < LAYOUT_NOWRITE, base = write ? word : word - LAYOUT_NOWRITE;
+      if (!blockOk(base))
+        continue;
+      if (VB(base, "rotateX") !== 0 || VB(base, "rotateY") !== 0 || VB(base, "translateZ") !== 0) {
+        host.decline(rule);
+        return 0;
+      }
+      const wd = VB(base, "width"), ht = VB(base, "height");
+      let lead = 0, ext = axis === 0 ? wd : ht;
+      const m = ownAffine(base);
+      if (m !== null) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const pxs = [0, wd, 0, wd], pys = [0, 0, ht, ht];
+        for (let c = 0; c < 4; c++) {
+          const fx = m[0] * pxs[c] + m[2] * pys[c] + m[4], fy = m[1] * pxs[c] + m[3] * pys[c] + m[5];
+          if (fx < minX)
+            minX = fx;
+          if (fx > maxX)
+            maxX = fx;
+          if (fy < minY)
+            minY = fy;
+          if (fy > maxY)
+            maxY = fy;
+        }
+        lead = axis === 0 ? minX : minY;
+        ext = axis === 0 ? maxX - minX : maxY - minY;
+      }
+      if (write)
+        setValue(base + (axis === 0 ? L.x : L.y), pos - lead);
+      if (VB(base, "visible") !== 0)
+        pos += ext + spacing;
+    }
+    return 0;
+  }, "layoutRun");
   const self = {
     table,
     active,
@@ -999,6 +1121,8 @@ function instantiateKernelJS(host, caps = {}) {
     run: /* @__PURE__ */ __name((rule) => {
       if (!known(rule))
         return ERR_BAD;
+      if ((rState[rule] & ST_DEAD) !== 0)
+        return OK;
       drain();
       const e = pull(rule, 0);
       if (e !== OK)
@@ -1130,9 +1254,10 @@ function instantiateKernelJS(host, caps = {}) {
         return ERR_BAD;
       let id;
       const reused = ruleFree.pop();
-      if (reused !== void 0)
+      if (reused !== void 0) {
         id = reused;
-      else {
+        rFreed.delete(id);
+      } else {
         if (nrules === ruleCap)
           growRules();
         id = nrules++;
@@ -1182,6 +1307,7 @@ function instantiateKernelJS(host, caps = {}) {
     // ── the built-in VIEW rules: the view table, visibility, auto-extent ────
     viewLayout: /* @__PURE__ */ __name((layout) => {
       vl = { ...layout };
+      vlSpan = Math.max(0, ...Object.values(layout).map((f) => f + 1));
     }, "viewLayout"),
     viewDprCell: /* @__PURE__ */ __name((cell) => {
       dprCell = cell;
@@ -1232,7 +1358,7 @@ function instantiateKernelJS(host, caps = {}) {
       return visLinkChain(rule, rBody[rule], rElem[rule]);
     }, "visRewire"),
     extentAdd: /* @__PURE__ */ __name((axis, target, words) => {
-      if (vl === null || target >= ncells || words.length === 0)
+      if (vl === null || target >= ncells || words.length < 2)
         return ERR_BAD;
       const id = self.addRule(target, K_EXTENT, F_YIELDING, [], 0);
       if (id < 0)
@@ -1247,12 +1373,27 @@ function instantiateKernelJS(host, caps = {}) {
       return id;
     }, "extentAdd"),
     extentRewire: /* @__PURE__ */ __name((rule, words) => {
-      if (!known(rule) || rKind[rule] !== K_EXTENT || words.length === 0)
+      if (!known(rule) || rKind[rule] !== K_EXTENT || (rState[rule] & ST_DEAD) !== 0 || words.length < 2)
         return ERR_BAD;
       unlinkAll(rule);
       extentStore(rule, words);
       return extentLink(rule);
-    }, "extentRewire")
+    }, "extentRewire"),
+    layoutAdd: /* @__PURE__ */ __name((axis, words) => {
+      if (vl === null || words.length < 2 || axis > 1)
+        return ERR_BAD;
+      const id = self.addRule(-1, K_LAYOUT, 0, [], 0);
+      if (id < 0)
+        return id;
+      rElem[id] = axis;
+      extentStore(id, Array.from(words, (w) => w >>> 0));
+      const e = layoutLink(id);
+      if (e !== OK) {
+        dispose(id);
+        return e;
+      }
+      return id;
+    }, "layoutAdd")
   };
   return self;
 }

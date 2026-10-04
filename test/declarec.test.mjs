@@ -298,7 +298,7 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // program's text names them (declarec programFacts, pinned in slim.test):
   // effects.js (the filter functions, frost, radial/conic), dom-effects.js
   // (colorize, mask-image), projective.js (3D), text-measure.js, font-derive.js
-  // (numeral features), face-literal.js (Face), draw-image.js, draw-text.js
+  // (numeral features), face-literal.js (FontFace), draw-image.js, draw-text.js
   // (styled runs). Measured 89.5; 89.2 once the 3D paths left view.ts,
   // interaction.ts and dom-backend.ts for projective.ts too (spec3DOf,
   // childHomography, footprint3D, domTransform3D). 91 → 90 KB: measured 88.5 once

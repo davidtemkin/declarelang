@@ -14,7 +14,9 @@ import { Node, onDiscard, runRetire, authoredName, provideCursorRead, provideCur
 import { diag } from "./errors.js";
 import { backdropEqual, fillEqual, filterList, filtersEqual, insetIsZero, insetLead, insetSides, isMaskGradient, shadowEqual, strokeEqual, type Backdrop, type BoxStroke, type Fill, type FilterValue, type Inset, type Mask, type Radius, type Shadow } from "./value.js";
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef, type InputSink, type InputWants, type RenderBackend, type Surface } from "./backend.js";
-import { Tip } from "./tip.js";
+import { Tooltips } from "./tooltips.js";
+import { installScrollAnchor, noteScrollRequest } from "./scroll-anchor.js";
+import { dragMoved, dragEnded } from "./drag-autoscroll.js";
 
 // Imperative creation's injection seam (instantiate.ts provides; the cycle
 // view→instantiate is broken the same way focus.ts's discard hook is).
@@ -69,7 +71,7 @@ import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteOr
 import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine, leavesPlane, type Affine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
-import { initInteraction, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, rootToLocal, type InteractionView } from "./interaction.js";
+import { initInteraction, noteUserScroll, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, rootToLocal, type InteractionView } from "./interaction.js";
 import { bindDerived, blockOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
 import { type AttrType } from "./value.js";
 import { observe } from "./reactive.js";
@@ -92,6 +94,8 @@ import type { Cursor } from "./data.js";
 export interface LayoutStrategy {
   attachTo(view: View): () => void;
   rearm(): void;
+  /** A kernel-placed stack stops writing at once (its child list changed inside a settle). */
+  $retireNative?(): void;
 }
 
 // view → the installed strategy's detach. Module-private bookkeeping rather
@@ -133,7 +137,13 @@ export function markWindowedBlock(v: View, on: boolean): void {
   const was = WINDOWED_BLOCKS.has(v);
   if (on) WINDOWED_BLOCKS.add(v);
   else WINDOWED_BLOCKS.delete(v);
-  if (was !== on) windowedCell(v).changed();
+  if (was !== on) {
+    windowedCell(v).changed();
+    // a native stack writes its children's positions itself; once windowing
+    // places them, the layout re-installs on its own pass, which yields to it
+    const L = v.layout as unknown as { $native?: boolean; rearm?: () => void } | null;
+    if (on && L?.$native === true) L.rearm?.();
+  }
 }
 
 // A replicated view's place in the array it presents (replicate.ts sets it
@@ -252,6 +262,9 @@ export function fireInitTree(v: View): void {
 // reactive collection (R8's deliberate line), so the derives are held here
 // and re-run by childrenMutated — the same explicit lifecycle layouts use.
 const EXTENT = new WeakMap<View, Partial<Record<"width" | "height", Constraint>>>();
+
+/** The handler names the pointer family answers to, made once (inputSink asks every view). */
+const POINTER_HANDLERS: readonly string[] = POINTER_TYPES.map(handlerName);
 
 const AXIS_OF = { width: "x", height: "y" } as const;
 
@@ -408,7 +421,7 @@ export class View extends Node {
 
   /** Push the mask to the seam; a stencil rides as the live view itself. */
   applyMask(m: Mask | null): void {
-    const s = this.surface;
+    const s = this.$surface;
     if (s === null) return; // pre-attach: flush replays it
     if (m === null) { s.setMask?.(null); return; }
     if (isMaskGradient(m)) { s.setMask?.({ kind: "gradient", gradient: m }); return; }
@@ -426,14 +439,16 @@ export class View extends Node {
    *  attach; `both` is the whole-gesture claim drags always had. */
   declare claim: "both" | "x" | "y";
   /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
-   *  non-empty tip wires this view's hover into the Tip service; the
+   *  non-empty tip wires this view's hover into the Tooltips service; the
    *  auto-included Tooltip singleton renders it. "" = no tip. */
-  declare tip: string;
+  declare tooltipLabel: string;
+  declare defaultplacement: string;
   declare scrollY: number;
   declare scrollX: number;
   declare scrollStartY: number;
   declare scrollStartX: number;
   declare scrolling: boolean;
+  declare scrollAnchor: string;
   /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
    *  `focusTrap` = a self-contained focus group. Traversal order is the tree,
    *  overridable per view by defining a `tabOrder()` method. */
@@ -490,18 +505,18 @@ export class View extends Node {
   classroot: View | null = null;
 
   /** This view's handle on the render backend — null until attached. */
-  surface: Surface | null = null;
+  $surface: Surface | null = null;
 
   /** The backend this view attached on — what lets a view that arrives
    *  AFTER attach (a replicated instance, R8) realize itself into the live
    *  tree. Null until attached. */
-  backend: RenderBackend | null = null;
+  $backend: RenderBackend | null = null;
 
   /** The draw method's standing recording (null until one exists). Phase 1:
    *  it re-records only after value constraints settle, so a draw body
    *  always sees consistent attributes. @internal read by the visibility
    *  feed, which lands a drawing's resolution (visibility.ts). */
-  drawing: Constraint | null = null;
+  $drawing: Constraint | null = null;
 
   /** Realize this view and its subtree on a backend: create the surface,
    *  flush the current visual state across the seam, parent it (before
@@ -509,18 +524,18 @@ export class View extends Node {
    *  recurse. This is the substrate-agnostic render pass — View touches only
    *  the Surface API. After this, the attribute setters push changes to the
    *  live surface one Surface call at a time. */
-  attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
-    this.backend = backend;
+  $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
+    this.$backend = backend;
     // Auto-extent installs at attach, like every intrinsic sizing (Text's
     // measure derives — installed before super.attach — and an Image's
     // natural size already own or fill the slots they size, so a leaf's
     // intrinsics always win over this).
     this.bindExtent();
-    const s = (this.surface = backend.createSurface());
-    this.flush(s);
+    const s = (this.$surface = backend.createSurface());
+    this.$flush(s);
     parentSurface?.insertChild(s, before);
     for (const child of this.children) {
-      if (child instanceof View) child.attach(backend, s);
+      if (child instanceof View) child.$attach(backend, s);
     }
     // A travel request made before attach (the ordinary case — `onInit` runs
     // at initTree, which precedes App.attach) lands HERE, now that surfaces
@@ -555,10 +570,29 @@ export class View extends Node {
    *  as a unit — re-arm the installed arrangement and re-derive auto-extent,
    *  once per burst (the replicator calls this once per reconcile, not per
    *  child). A replicated block arriving under a never-sized view can also
-   *  make a slot newly derivable — bindExtent picks it up. */
+   *  make a slot newly derivable — bindExtent picks it up.
+   *
+   *  Inside a settle the work runs ONCE per view, at the settle's close: the
+   *  parts a row's states build arrive one at a time, and each would otherwise
+   *  tear down and reinstall the arrangement and re-derive the extent. The
+   *  close is still before anything paints, and whatever read the interim
+   *  geometry re-runs when the arrangement lands — the result is the one the
+   *  final child list gives either way. */
+  private $mutationQueued = false;
+  private $tornDown = false;
   override childrenMutated(): void {
+    if (isSettling()) {
+      this.layout?.$retireNative?.();
+      if (this.$mutationQueued) return;
+      this.$mutationQueued = true;
+      afterSettle(() => { this.$mutationQueued = false; if (!this.$tornDown) this.$applyChildrenMutated(); });
+      return;
+    }
+    this.$applyChildrenMutated();
+  }
+  private $applyChildrenMutated(): void {
     this.layout?.rearm();
-    if (this.backend !== null) this.bindExtent();
+    if (this.$backend !== null) this.bindExtent();
     const derives = EXTENT.get(this);
     if (derives !== undefined) {
       for (const size of ["width", "height"] as const) {
@@ -568,7 +602,7 @@ export class View extends Node {
           if (d.isNative && !isSettling()) {
             // outside a settle (a handler's insert, a test): re-list and
             // re-derive now, as the JS derive does
-            kernel().extentRewire(d.id, this.extentWords());
+            kernel().extentRewire(d.id, this.extentWords(size));
             d.run();
           } else if (d.isNative) {
             // inside a settle (a reconcile re-links every row): re-list ONCE
@@ -583,7 +617,7 @@ export class View extends Node {
                 for (const s of ["width", "height"] as const) {
                   const n = now[s];
                   if (n !== undefined && n.isNative && ownerOf(this, s) === n && n.id >= 0) {
-                    kernel().extentRewire(n.id, this.extentWords());
+                    kernel().extentRewire(n.id, this.extentWords(s));
                     n.run();
                   }
                 }
@@ -603,6 +637,47 @@ export class View extends Node {
    *  state (Image reads `loaded`). */
   protected contentExtent(_size: "width" | "height"): number {
     return 0;
+  }
+
+  /** A windowed block's whole logical extent when this view is the scroller
+   *  its rows sit in directly (replicate.ts): the rows that exist are only the
+   *  window, so `contentHeight` takes the block's extent as its floor — the
+   *  same range every renderer's scroll already spans. A change wakes the
+   *  child-list cell extentOf already watches, so no other view pays for it. */
+  private $virtualHeight = 0;
+
+  /** A DRAGGED VIEW SIZES ITS CONTAINERS FROM WHERE IT WAS PICKED UP. While
+   *  the press that drags it lasts, extentOf counts this view at its box at
+   *  the press, not where the hand has taken it: a container neither grows
+   *  after the drag (a scroller's range would grow ahead of autoscroll, which
+   *  would chase it into empty room) nor collapses (a box sized by the very
+   *  card being lifted). The drop is the program's: whatever the release
+   *  writes is counted from then on. */
+  private $pressHome: { x: number; y: number; width: number; height: number } | null = null;
+  private $dragHome: { x: number; y: number; width: number; height: number } | null = null;
+  private $freezeHome(on: boolean): void {
+    const p: unknown = this.parent;
+    if (on) {
+      if (this.$dragHome !== null) return;
+      this.$dragHome = this.$pressHome ?? this.bounds();
+    } else {
+      if (this.$dragHome === null) return;
+      this.$dragHome = null;
+    }
+    if (!(p instanceof View)) return;
+    // The kernel's auto-extent knows nothing of a frozen place: the
+    // container's derive goes back to JavaScript, as for a 3D child.
+    const d = EXTENT.get(p);
+    if (on && d !== undefined) for (const k of [d.width, d.height]) k?.onDecline?.();
+    p.childListChanged();
+  }
+
+  $setVirtualExtent(h: number | null): void {
+    this.$surface?.setVirtualExtent?.(h);
+    const v = h ?? 0;
+    if (v === this.$virtualHeight) return;
+    this.$virtualHeight = v;
+    this.childListChanged();
   }
 
   /** Install auto-extent derives for whichever never-set, unowned size slots
@@ -629,20 +704,18 @@ export class View extends Node {
    *  content (Image) or a child is out of the plane; a child turning 3D
    *  later DECLINES the rule and the JS derive takes over then. */
   private installKernelExtent(size: "width" | "height"): Constraint | null {
-    // PADDING IS PART OF THE EXTENT (extentOf): the kernel's rule is a max over
-    // the children's boxes and knows nothing of the insets, so a padded view
-    // keeps the JavaScript derive. Teaching the rule the inset totals is the
-    // way to take this back (kernel.md); a padded container is common enough
-    // (every Card) that guessing here would be wrong in the visible direction.
-    if (!insetIsZero(this.padding)) return null;
+    // PADDING IS PART OF THE EXTENT (extentOf): the rule reads this view's inset
+    // total on its axis — the `insetX`/`insetY` slot `padding` maintains — and
+    // adds it, as extentOf adds both insets.
     if (!kernelLoaded() || !viewLayoutReady()) return null;
     if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareNoKernelExtent?: boolean }).__declareNoKernelExtent === true) return null;   // the A/B switch (profiling builds only)
     if (this.contentExtent !== View.prototype.contentExtent) return null;
     for (const c of this.children) if (c instanceof View && c.is3D()) return null;
     const target = slotCellOf(this, size);
     if (target < 0) return null;
+    if (slotCellOf(this, size === "width" ? "insetX" : "insetY") < 0) return null;
     const K = kernel();
-    const words = this.extentWords();
+    const words = this.extentWords(size);
     if (words.length > 1000) return null;   // the scratch's reach; a JS derive walks any count
     const rule = K.extentAdd(size === "width" ? 0 : 1, target, words);
     if (rule < 0) return null;
@@ -659,10 +732,11 @@ export class View extends Node {
     K.run(rule);
     return k;
   }
-  /** The kernel auto-extent's word list: the child-list cell, then each View
-   *  child's numeric block base (the rule reads its slots by base). */
-  private extentWords(): number[] {
-    const words: number[] = [this.structureCellId()];
+  /** The kernel auto-extent's word list: the child-list cell, this view's inset
+   *  cell on the axis, then each View child's numeric block base (the rule
+   *  reads its slots by base). */
+  private extentWords(size: "width" | "height"): number[] {
+    const words: number[] = [this.structureCellId(), slotCellOf(this, size === "width" ? "insetX" : "insetY")];
     for (const c of this.children) if (c instanceof View) words.push(blockOf(c));
     return words;
   }
@@ -676,6 +750,7 @@ export class View extends Node {
     this.watchChildList();
     const axis = AXIS_OF[size];
     let max = this.contentExtent(size);
+    if (size === "height" && this.$virtualHeight > max) max = this.$virtualHeight;
     for (const c of this.children) {
       if (!(c instanceof View) || !c.visible) continue;
       if (c.ignoreClip) continue; // frame chrome: derives from the bounds, never defines them
@@ -684,7 +759,7 @@ export class View extends Node {
       // rotated child counts the box it visibly covers — the same geometry
       // paint and the hit walk already honor (one geometry, every reader
       // agrees; the 2026-08-13 scale ruling).
-      const b = c.bounds();
+      const b = c.$dragHome ?? c.bounds();
       const extent = (axis === "x" ? b.x : b.y) + b[size];
       if (extent > max) max = extent;
     }
@@ -848,9 +923,16 @@ export class View extends Node {
    *  dragged off, re-arms dragged back; a touch press holds while down).
    *  Read-only reactive intrinsics like `contentWidth` (schema readOnly — a
    *  set is a compile error); reading one from a constraint subscribes it.
-   *  Pay-per-use: a program that never reads them allocates nothing. */
-  get hovered(): boolean { return readHovered(this); }
-  get pressed(): boolean { return readPressed(this); }
+   *  Pay-per-use: a program that never reads them allocates nothing.
+   *
+   *  A view that declares `disabled` (every Control) answers under that
+   *  policy: while disabled it is neither hovered nor pressed, so a disabled
+   *  control never lights up under the pointer. And a view's own `flash` — a
+   *  Control's keyboard activation (Space/Enter) — reads as pressed, so the
+   *  keyboard shows the same look a pointer press does. One pair of facts,
+   *  styled against everywhere. */
+  get hovered(): boolean { return !isDisabled(this) && readHovered(this); }
+  get pressed(): boolean { return (!isDisabled(this) && readPressed(this)) || (this as unknown as { flash?: unknown }).flash === true; }
 
   /** Is this view ON SCREEN — inside the viewport, not scrolled away, not in
    *  a hidden subtree? A COARSE fact that flips at threshold crossings, so
@@ -941,6 +1023,7 @@ export class View extends Node {
    *  can ever wake work for a removed view. Children first; teardown ONLY —
    *  unlinking (and notifying the ex-parent) is discard's, the verb above. */
   override teardown(): void {
+    this.$tornDown = true;
     // The departure hook (D5/D8): presence is ENDING — fire onRetire down
     // the subtree while everything is still alive, unless this discard is a
     // window EVICTION (the presence continues; the replicator marked it).
@@ -963,11 +1046,11 @@ export class View extends Node {
     disposeBindings(this);
     freeCells(this);
     retireVisibility(this);   // the visibility feed dies with the view
-    this.drawing?.dispose();
-    this.drawing = null;
-    const s = this.surface;
-    this.surface = null;
-    this.backend = null;
+    this.$drawing?.dispose();
+    this.$drawing = null;
+    const s = this.$surface;
+    this.$surface = null;
+    this.$backend = null;
     s?.destroy();
   }
 
@@ -975,7 +1058,7 @@ export class View extends Node {
    *  it with their capabilities (Text, Image); it runs before the children
    *  attach, so a backend that keeps content in arrival order (the DOM) gets
    *  exactly the paint order the Canvas walk uses: content, then children. */
-  protected flush(s: Surface): void {
+  protected $flush(s: Surface): void {
     // Pushers fire on CHANGE; the attach flush carries pre-attach state
     // across (the Image.stretches discipline). Text selection is realized by
     // the text leaves themselves (Text/TextInput's `selectable` push), which
@@ -1021,13 +1104,13 @@ export class View extends Node {
     this.applyClip(this.clip);
     // The facts' read halves: the platform mirrors its offset and its
     // in-motion state in; nothing here pushes out (a request is a verb call).
-    const scrolling = (a: boolean) => { this.scrolling = a; };
+    const scrolling = (a: boolean) => { this.$scrollingChanged(a); };
     if (this.scrolls === "y" || this.scrolls === "both") s.setScroll?.(true, (y) => { this.scrollY = y; }, scrolling);
     if (this.scrolls === "x" || this.scrolls === "both") s.setScrollX?.(true, (x) => { this.scrollX = x; }, scrolling);
     // A DECLARED START, applied once as a request (a hidden pane holds it —
     // dom-backend SCROLL_WANT; boot.ts re-applies after the first layout).
-    if (this.scrollStartY !== 0) this.surface?.scrollToY?.(this.scrollStartY);
-    if (this.scrollStartX !== 0) this.surface?.scrollToX?.(this.scrollStartX);
+    if (this.scrollStartY !== 0) this.$surface?.scrollToY?.(this.scrollStartY);
+    if (this.scrollStartX !== 0) this.$surface?.scrollToX?.(this.scrollStartX);
     const sink = this.inputSink();
     if (sink !== null) s.setInput(sink, this.inputWants());
     // a linked view wears the link affordance from first paint (rewireInput
@@ -1145,7 +1228,7 @@ export class View extends Node {
   private applyTravel(): boolean {
     const scroller = this.travelHost;
     if (scroller === undefined) return false;
-    const s = this.surface as (Surface & { travelWith?(h: unknown): void }) | null;
+    const s = this.$surface as (Surface & { travelWith?(h: unknown): void }) | null;
     if (s === null || typeof s.travelWith !== "function") return false;
     const home = scroller === null || scroller === this.parent;
     if (home) {
@@ -1153,8 +1236,8 @@ export class View extends Node {
       this.repushPosition();
       return false;
     }
-    if (scroller.surface === null) return false;
-    s.travelWith(scroller.surface);
+    if (scroller.$surface === null) return false;
+    s.travelWith(scroller.$surface);
     // The position host changed, so the content origin this view's x/y is
     // measured from did too (positionLead). Nothing wrote x or y, so only an
     // explicit re-push lands it.
@@ -1167,7 +1250,7 @@ export class View extends Node {
    *  moving (a padding write on the host, a travelWith that re-hosts the
    *  surface). */
   repushPosition(): void {
-    const s = this.surface;
+    const s = this.$surface;
     if (s === null) return;
     s.setX(this.x + this.positionLead("x"));
     s.setY(this.y + this.positionLead("y"));
@@ -1180,7 +1263,21 @@ export class View extends Node {
    *  the platform primitive — `reveal` is deliberately left free as a member name,
    *  e.g. a `reveal:` fade-in Spring.) */
   scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void {
-    this.surface?.scrollIntoView(align, smooth, inset);
+    const held = userScrolling(this);
+    if (held !== null) { held.$pendingScroll = () => this.scrollIntoView(align, smooth, inset); return; }
+    this.$surface?.scrollIntoView(align, smooth, inset);
+  }
+
+  /** @internal A request made while the USER is scrolling this scroller waits
+   *  until that scroll is over; only the latest one is kept (the scroll verbs
+   *  store themselves here, $scrollingChanged runs it). */
+  $pendingScroll: (() => void) | null = null;
+
+  /** @internal The platform reported the user's scroll starting or ending. */
+  $scrollingChanged(a: boolean): void {
+    this.scrolling = a;
+    noteUserScroll(this, a);
+    if (!a && this.$pendingScroll !== null) { const f = this.$pendingScroll; this.$pendingScroll = null; f(); }
   }
 
   /** Ask this scroller to go to offset `y` — a REQUEST, not an assignment
@@ -1196,15 +1293,18 @@ export class View extends Node {
    *  deliberately unconditional — an equality-gated model write must not
    *  swallow the request (the boot-time trap applyDeclaredScroll records). */
   scrollTo(y: number, glide?: { duration?: number; motion?: string }): void {
+    if (this.scrolling) { this.$pendingScroll = () => this.scrollTo(y, glide); return; }   // the user's hand first
+    noteScrollRequest(this, y === Infinity);
     if (Number.isFinite(y) && glide === undefined) this.scrollY = y;   // a glide arrives through the mirror as it moves
-    this.surface?.scrollToY?.(y, glide);
+    this.$surface?.scrollToY?.(y, glide);
   }
 
   /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
    *  for a `scrolls = x` (or `both`) view. */
   scrollToX(x: number, glide?: { duration?: number; motion?: string }): void {
+    if (this.scrolling) { this.$pendingScroll = () => this.scrollToX(x, glide); return; }
     if (Number.isFinite(x) && glide === undefined) this.scrollX = x;
-    this.surface?.scrollToX?.(x, glide);
+    this.$surface?.scrollToX?.(x, glide);
   }
 
   /** A RELATIVE request — `scrollBy(dx, dy[, glide])`: the same contract as
@@ -1244,20 +1344,20 @@ export class View extends Node {
   raise(below?: View | null): void {
     const p = this.parent;
     if (!(p instanceof View)) return;
-    const away = (this.surface as (Surface & { isTraveling?(): boolean }) | null)?.isTraveling?.() === true;
+    const away = (this.$surface as (Surface & { isTraveling?(): boolean }) | null)?.isTraveling?.() === true;
     if (below == null || below === this || below.parent !== p) {
       if (p.children[p.children.length - 1] === this) return;         // already frontmost
       p.removeChild(this);
       p.insertChild(this, p.children.length);
-      if (!away && this.surface !== null && p.surface !== null) p.surface.insertChild(this.surface, null);
+      if (!away && this.$surface !== null && p.$surface !== null) p.$surface.insertChild(this.$surface, null);
       return;
     }
     if (p.children[p.children.indexOf(below) - 1] === this) return;   // already just beneath `below`
     p.removeChild(this);
     const at = p.children.indexOf(below);
     p.insertChild(this, at < 0 ? p.children.length : at);
-    if (!away && this.surface !== null && p.surface !== null && below.surface !== null) {
-      p.surface.insertChild(this.surface, below.surface);
+    if (!away && this.$surface !== null && p.$surface !== null && below.$surface !== null) {
+      p.$surface.insertChild(this.$surface, below.$surface);
     }
   }
 
@@ -1270,10 +1370,11 @@ export class View extends Node {
    *  this view's own coordinates. */
   private inputSink(): InputSink | null {
     const self = this as unknown as Record<string, unknown>;
-    const handled = POINTER_TYPES.some((t) => typeof self[handlerName(t)] === "function");
+    let handled = false;
+    for (const h of POINTER_HANDLERS) if (typeof self[h] === "function") { handled = true; break; }
     // A tip-carrying view is hover-interactive by that fact alone (pay-per-use
     // extends to the tip attribute): its sink reports over/out/press to the
-    // Tip service; declared handlers, when present, fire exactly as before.
+    // Tooltips service; declared handlers, when present, fire exactly as before.
     // A LINKED view is interactive by the same rule (location.md §0.4): `link`
     // grants interest the way a handler does, and a plain click follows the
     // reference — AFTER any declared onClick (handler first, then follow; the
@@ -1287,12 +1388,12 @@ export class View extends Node {
     // toolkit, and a tap on its empty area does not fall through to whatever
     // was declared beneath it.
     const scroller = this.scrolls !== "none";
-    if (!handled && !scroller && this.tip === "" && this.link === "") return null;
+    if (!handled && !scroller && this.tooltipLabel === "" && this.link === "") return null;
     return (type, x, y, extra) => {
-      if (this.tip !== "") {
-        if (type === "pointerOver") Tip.over(this);
-        else if (type === "pointerOut") Tip.out(this);
-        else if (type === "pointerDown") Tip.hide();
+      if (this.tooltipLabel !== "") {
+        if (type === "pointerOver") Tooltips.over(this);
+        else if (type === "pointerOut") Tooltips.out(this);
+        else if (type === "pointerDown") Tooltips.hide();
       }
       // One plain event argument, in both frames: `x`/`y` in this view's own
       // coordinates (through its whole transform — scale, rotation, 3D) and
@@ -1302,7 +1403,19 @@ export class View extends Node {
       // plus whatever fact this kind carries (`canceled`, the finger list).
       // Every sender hands the ROOT point, except a wheel, which each
       // renderer's own walk delivers locally with its root point beside it.
+      const drags = typeof self.onPointerMove === "function";
+      if (drags && type === "pointerDown") this.$pressHome = this.bounds();
+      else if (drags && type === "pointerMove") this.$freezeHome(true);
       if (handled) fireEvent(this, type, pointerPayload(this, type, x, y, extra));
+      // A DRAG near a scroller's edge scrolls it, and the drag hears its move
+      // again each frame (drag-autoscroll.ts).
+      if (type === "pointerMove" && drags) {
+        dragMoved(this, x, y, extra, (x2, y2, e2) => fireEvent(this, "pointerMove", pointerPayload(this, "pointerMove", x2, y2, e2)));
+      } else if (type === "pointerUp") {
+        dragEnded();
+        this.$pressHome = null;
+        this.$freezeHome(false);
+      }
       if (type === "click" && this.link !== "") {
         const app = this.root as unknown as { follow?: (ref: string, replace?: boolean) => void };
         app?.follow?.(this.link, this.replace);
@@ -1315,7 +1428,7 @@ export class View extends Node {
    *  through here too). Idempotent: attach-time flush and this call converge
    *  on the same sink/wants pair. */
   rewireInput(): void {
-    const s = this.surface;
+    const s = this.$surface;
     if (s === null) return;
     const sink = this.inputSink();
     if (sink !== null) s.setInput(sink, this.inputWants());
@@ -1347,7 +1460,7 @@ export class View extends Node {
 
   /** Stand up the draw method as a tracked, re-recording computation. */
   private bindDraw(): void {
-    this.drawing = new Constraint(
+    this.$drawing = new Constraint(
       `${this.constructor.name}.draw`,
       // The box arrives as THUNKS so `d.w`/`d.h` register a dependency only when
       // the body actually reads one (draw.ts) — a drawing that ignores its size
@@ -1355,10 +1468,10 @@ export class View extends Node {
       () => record((d) => this.draw!(d), () => this.width, () => this.height),
       // Constraint is deliberately untyped across compute→apply (reactive.ts);
       // this apply's input is exactly its compute's output.
-      (list) => this.surface?.setDrawing(list as DisplayList),
+      (list) => this.$surface?.setDrawing(list as DisplayList),
       1
     );
-    this.drawing.run();
+    this.$drawing.run();
     // A drawing has a RESOLUTION, and the resolution it should have is the
     // composed scale it is seen at — which is the apparentScale fact, delivered
     // at rest. The facts arm on tracked reads and a drawing does not read its
@@ -1371,8 +1484,8 @@ export class View extends Node {
    *  attribute-driven half is the recording's own tracked reads). Also the
    *  entry point for a draw method assigned after attach. */
   invalidateDraw(): void {
-    if (this.drawing !== null) this.drawing.run();
-    else if (this.draw && this.surface !== null) this.bindDraw();
+    if (this.$drawing !== null) this.$drawing.run();
+    else if (this.draw && this.$surface !== null) this.bindDraw();
   }
 
   /** Realize the `clip` slot across the seam (the pusher and flush both land
@@ -1389,9 +1502,9 @@ export class View extends Node {
    *      paint + hit only);
    *    - false / null   → no clip. */
   applyClip(clip: string | boolean | null): void {
-    if (this.surface === null) return; // pre-attach: flush will replay this
-    this.surface.setBoxClip(clip === true);
-    this.surface.setClip(typeof clip === "string" ? clip : null);
+    if (this.$surface === null) return; // pre-attach: flush will replay this
+    this.$surface.setBoxClip(clip === true);
+    this.$surface.setClip(typeof clip === "string" ? clip : null);
   }
 }
 
@@ -1402,7 +1515,7 @@ export class View extends Node {
 const nullIfEmpty = (l: readonly import("./value.js").Filter[]): readonly import("./value.js").Filter[] | null => (l.length === 0 ? null : l);
 
 const pushTransform = (v: View): void => {
-  const s = v.surface;
+  const s = v.$surface;
   if (s === null) return;
   // one matrix at the seam (graphics-pass.md §5); a backend without the
   // matrix member still gets the similarity pair — the seam table says which
@@ -1421,11 +1534,12 @@ const pushTransform = (v: View): void => {
 const pushScrolls = (v: View, ax: string): void => {
   setBound(v, "scrollsOn", ax !== "none");   // the kernel's numeric mirror (native visibility rule)
   // optional-called: a minimal host/mock surface may omit the scroll seam
-  const scrolling = (a: boolean) => { v.scrolling = a; };
-  v.surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; }, scrolling);
-  v.surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; }, scrolling);
+  const scrolling = (a: boolean) => { v.$scrollingChanged(a); };
+  v.$surface?.setScroll?.(ax === "y" || ax === "both", (y) => { v.scrollY = y; }, scrolling);
+  if (ax === "y" || ax === "both") installScrollAnchor(v);
+  v.$surface?.setScrollX?.(ax === "x" || ax === "both", (x) => { v.scrollX = x; }, scrolling);
   // opening (or closing) a scroll axis changes whether this view takes the
-  // pointer — the same rewire a late `link` or `tip` triggers
+  // pointer — the same rewire a late `link` or `tooltipLabel` triggers
   v.rewireInput();
 };
 
@@ -1440,10 +1554,10 @@ defineAttributes(View, {
   // its box coordinates: the leading inset is added here, once, on the way to
   // the seam (positionLead; flush does the same at attach). Writing the
   // parent's `padding` re-pushes every child through the same call.
-  x: { def: 0, push: (v, n) => v.surface?.setX(n + v.positionLead("x")) },
-  y: { def: 0, push: (v, n) => v.surface?.setY(n + v.positionLead("y")) },
-  width: { def: 0, push: (v, n) => { if (n < 0) noteNegativeSize(v, "width"); v.surface?.setWidth(n); } },
-  height: { def: 0, push: (v, n) => { if (n < 0) noteNegativeSize(v, "height"); v.surface?.setHeight(n); } },
+  x: { def: 0, push: (v, n) => v.$surface?.setX(n + v.positionLead("x")) },
+  y: { def: 0, push: (v, n) => v.$surface?.setY(n + v.positionLead("y")) },
+  width: { def: 0, push: (v, n) => { if (n < 0) noteNegativeSize(v, "width"); v.$surface?.setWidth(n); } },
+  height: { def: 0, push: (v, n) => { if (n < 0) noteNegativeSize(v, "height"); v.$surface?.setHeight(n); } },
   // THE CONTENT BOX (declared above). Three consequences, and the reactive
   // graph carries two of them by itself: every constraint that reads the
   // content box — a percent, a layout's place(), auto-extent — tracked this
@@ -1451,16 +1565,16 @@ defineAttributes(View, {
   // children whose own x/y did not change, so the pusher re-pushes them; and
   // the backends' own scroll extents, which get the inset across the seam.
   padding: { def: 0, push: (v: View, p: Inset) => {
-    // the kernel's auto-extent cannot carry an inset: re-derive this view's
-    // extents in JavaScript the moment it is padded (installKernelExtent), and
-    // let them go back to the kernel if the padding ever returns to zero
-    rebindExtents(v);
-    // the axis totals, for the kernel's content-box reads (declared above)
+    // the axis totals, for the kernel's content-box reads (declared above) —
+    // the auto-extent rule among them, which adds this view's inset
+    // — derived from `padding`, so a runtime write: a plain assignment here
+    // counted as a touch, and every padded row of a windowed list became
+    // "user state" the reconciler may never recycle
     const [t, r, b, l] = insetSides(p);
-    v.insetX = l + r;
-    v.insetY = t + b;
+    setBound(v, "insetX", l + r);
+    setBound(v, "insetY", t + b);
     for (const c of v.children) if (c instanceof View) c.repushPosition();
-    v.surface?.setPadding?.(p);
+    v.$surface?.setPadding?.(p);
   } },
   // the names this app exposes to its host (islands.md); a program sets a
   // literal list, and the host reads each through `exposed(name)`
@@ -1475,12 +1589,12 @@ defineAttributes(View, {
   visOn: { def: true }, visScale: { def: 1 }, visX: { def: 0 }, visY: { def: 0 }, visW: { def: 0 }, visH: { def: 0 },
   /** 1 = the kernel computed the facts; 0 = a 3D transform on the chain: the JS walk owns them. */
   visMode: { def: 1 },
-  fill: { def: null, push: (v, f) => v.surface?.setFill(f), equal: fillEqual },
-  cornerRadius: { def: 0, push: (v, r) => v.surface?.setCornerRadius(r) },
-  stroke: { def: null, push: (v, st) => v.surface?.setStroke(st), equal: strokeEqual },
-  shadow: { def: null, push: (v, sh) => v.surface?.setShadow(sh), equal: shadowEqual },
+  fill: { def: null, push: (v, f) => v.$surface?.setFill(f), equal: fillEqual },
+  cornerRadius: { def: 0, push: (v, r) => v.$surface?.setCornerRadius(r) },
+  stroke: { def: null, push: (v, st) => v.$surface?.setStroke(st), equal: strokeEqual },
+  shadow: { def: null, push: (v, sh) => v.$surface?.setShadow(sh), equal: shadowEqual },
   visible: { def: true, push: (v, b) => {
-    v.surface?.setVisible(b);
+    v.$surface?.setVisible(b);
     // Un-hiding re-arms the measurement veto for every rich flow underneath
     // (location.md §0.5.3): a flow inside a display:none subtree measured 0,
     // and its TRUE height arrives only after this flip, through the backend's
@@ -1498,11 +1612,11 @@ defineAttributes(View, {
   visibleRect: { def: EMPTY_RECT, equal: rectEqual, onTrack: (v: View) => v.armVisibility() },
   apparentScale: { def: 1, onTrack: (v: View) => v.armVisibility() },
   ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.childrenMutated(); } },
-  ignoreClip: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreClip?.(b) },
-  ignoreScroll: { def: false, push: (v, b: boolean) => v.surface?.setIgnoreScroll?.(b) },
-  opacity: { def: 1, push: (v, o) => v.surface?.setOpacity(o) },
-  cursor: { def: "", push: (v, c: string) => v.surface?.setCursor(c) },
-  pointerEvents: { def: "", push: (v, c: string) => v.surface?.setPointerEvents(c) },
+  ignoreClip: { def: false, push: (v, b: boolean) => v.$surface?.setIgnoreClip?.(b) },
+  ignoreScroll: { def: false, push: (v, b: boolean) => v.$surface?.setIgnoreScroll?.(b) },
+  opacity: { def: 1, push: (v, o) => v.$surface?.setOpacity(o) },
+  cursor: { def: "", push: (v, c: string) => v.$surface?.setCursor(c) },
+  pointerEvents: { def: "", push: (v, c: string) => v.$surface?.setPointerEvents(c) },
   // Scale + rotation + pivot ride one transform at the seam: any of the four
   // re-pushes the combined value (transform + transform-origin on the DOM).
   // setScale always accompanies setRotation so a backend can keep ONE
@@ -1516,16 +1630,16 @@ defineAttributes(View, {
   translateZ: { def: 0, push: pushTransform },
   backface: { def: "visible", push: pushTransform },
   // the eye: a change re-projects every child that leaves its plane
-  perspective: { def: 0, push: (v) => { v.surface?.setPerspective?.(v.perspective); for (const c of v.children) if (c instanceof View && c.is3D()) pushTransform(c); } },
+  perspective: { def: 0, push: (v) => { v.$surface?.setPerspective?.(v.perspective); for (const c of v.children) if (c instanceof View && c.is3D()) pushTransform(c); } },
   scaleX: { def: 1, push: pushTransform },
   scaleY: { def: 1, push: pushTransform },
   skewX: { def: 0, push: pushTransform },
   skewY: { def: 0, push: pushTransform },
   // optional-chained (the ignoreScroll pattern): backends adopt independently,
   // and the seam table (test/seam.test.mjs) says which have.
-  blend: { def: "normal", push: (v, b: string) => v.surface?.setBlend?.(b) },
-  backdrop: { def: null, push: (v, b: FilterValue) => v.surface?.setBackdrop?.(nullIfEmpty(filterList(b))), equal: backdropEqual },
-  filter: { def: null, push: (v, f: FilterValue) => v.surface?.setFilter?.(nullIfEmpty(filterList(f))), equal: filtersEqual },
+  blend: { def: "normal", push: (v, b: string) => v.$surface?.setBlend?.(b) },
+  backdrop: { def: null, push: (v, b: FilterValue) => v.$surface?.setBackdrop?.(nullIfEmpty(filterList(b))), equal: backdropEqual },
+  filter: { def: null, push: (v, f: FilterValue) => v.$surface?.setFilter?.(nullIfEmpty(filterList(f))), equal: filtersEqual },
   mask: { def: null, push: (v, m: Mask | null) => v.applyMask(m) },
   focusable: { def: false },
   focusTrap: { def: false },
@@ -1536,11 +1650,11 @@ defineAttributes(View, {
   // `link` — the view IS a link to this reference (location.md §0): "#name" in-app,
   // anything else out through `navigate`. "" = not a link (no interest, no focus
   // stop, nothing for the crawl). Interest derives from it exactly as from declared
-  // handlers (inputSink) — the `tip` precedent — so the push REWIRES the surface's
+  // handlers (inputSink) — the `tooltipLabel` precedent — so the push REWIRES the surface's
   // input when the value changes (empty↔non-empty flips interest itself).
   link: { def: "", push: (v) => {
     v.rewireInput();
-    v.surface?.setLink?.(v.link, (v as unknown as { label?: string }).label ?? "");
+    v.$surface?.setLink?.(v.link, (v as unknown as { label?: string }).label ?? "");
   } },
   // `replace` — this link overwrites the current history entry instead of pushing
   // (location.md §0.5.6): fine-grained movement WITHIN a place (a deck's arrows),
@@ -1557,7 +1671,8 @@ defineAttributes(View, {
   // (plain reactive writes — no push, so they never echo to the surface;
   // reads drive fades/reveals).
   scrolls: { def: "none", push: pushScrolls },
-  tip: { def: "" },
+  tooltipLabel: { def: "" },
+  defaultplacement: { def: "" },
   // FACTS (schema readOnly): the backend mirrors the platform's offset IN
   // (setScroll's callback); a program cannot write them — the checker refuses
   // an assignment and an Animator alike, naming the verbs. The push survives
@@ -1567,14 +1682,15 @@ defineAttributes(View, {
   // calls its verb — `strip.scrollToX(x, { duration, motion })` — a request
   // to THIS scroller only (scrollIntoView is axis-blind and walks ancestors,
   // which is how a strip reveal once vertically scrolled its hosting island).
-  scrollY: { def: 0, push: (v, y: number) => v.surface?.scrollToY?.(y) },
+  scrollY: { def: 0, push: (v, y: number) => v.$surface?.scrollToY?.(y) },
   claim: { def: "both" },
-  scrollX: { def: 0, push: (v, x: number) => v.surface?.scrollToX?.(x) },
+  scrollX: { def: 0, push: (v, x: number) => v.$surface?.scrollToX?.(x) },
   // the declared start (applied once at attach / after first layout) and the
   // in-motion fact — read-only, fed by the platform
   scrollStartY: { def: 0 },
   scrollStartX: { def: 0 },
   scrolling: { def: false },
+  scrollAnchor: { def: "content" },
   // The text face / rich-text / iconSize / theme values are provided, not View
   // slots — they live with the text leaves, Icon, and Control (attributes.ts
   // providedDefault). A container that sets one PROVIDES it: an undeclared set
@@ -1638,29 +1754,12 @@ export function setFocusDiscardHook(fn: (view: View) => void): void {
   focusDiscardHook = fn;
 }
 
-/** A node's address for an error message: its authored-name path up the tree
- *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
- *  a handler has already thrown. */
-/** Re-derive a view's auto-extents after something the kernel rule cannot
- *  express changed (today: padding). Each side is dropped and bound again, so
- *  installKernelExtent gets to decide afresh — kernel rule or JS derive. */
-function rebindExtents(v: View): void {
-  const derives = EXTENT.get(v);
-  if (derives === undefined) return;
-  for (const size of ["width", "height"] as const) {
-    const d = derives[size];
-    if (d === undefined || ownerOf(v, size) !== d) continue;
-    d.dispose();
-    release(v, size, d);
-    delete derives[size];
-  }
-  EXTENT.delete(v);
-  (v as unknown as { bindExtent(): void }).bindExtent();
-}
-
 /** The auto-extent, marked (reactive.ts isAutoExtent). */
 function markExtent(k: Constraint): Constraint { k.isAutoExtent = true; return k; }
 
+/** A node's address for an error message: its authored-name path up the tree
+ *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
+ *  a handler has already thrown. */
 export function nodeLabel(n: Node): string {
   const parts: string[] = [];
   let cur: Node | null = n;
@@ -1711,8 +1810,8 @@ export function fireEvent(view: Node, event: string, ...args: unknown[]): void {
  *  typed to avoid a view→markdown import cycle; deferred backends only. */
 function markRichPending(v: View): void {
   const walk = (n: Node): void => {
-    const f = n as unknown as { measurePending?: boolean; surface?: { deferredRichMeasure?: boolean } | null };
-    if (typeof f.measurePending === "boolean" && f.surface?.deferredRichMeasure === true) f.measurePending = true;
+    const f = n as unknown as { measurePending?: boolean; $surface?: { deferredRichMeasure?: boolean } | null };
+    if (typeof f.measurePending === "boolean" && f.$surface?.deferredRichMeasure === true) f.measurePending = true;
     for (const c of n.children) walk(c);
   };
   walk(v);
@@ -1757,7 +1856,7 @@ function findAnchor(root: View, name: string): AnchorHit | null {
   };
   const walk = (n: Node): void => {
     if (n instanceof View) {
-      if (n.anchor !== "") { const v = n; views.push({ base: v.anchor, view: v, fire: () => { if (v.surface === null || !shown(v)) return false; v.scrollIntoView("start", false, inset); return true; } }); }
+      if (n.anchor !== "") { const v = n; views.push({ base: v.anchor, view: v, fire: () => { if (v.$surface === null || !shown(v)) return false; v.scrollIntoView("start", false, inset); return true; } }); }
       const flow = n as unknown as { anchorSlugs?: () => string[]; revealAnchor?: (s: string, inset?: number) => boolean };
       if (typeof flow.anchorSlugs === "function" && typeof flow.revealAnchor === "function") {
         for (const s of flow.anchorSlugs()) slugs.push({ base: s, view: n, fire: () => shown(n) && flow.revealAnchor!(s, inset) });
@@ -1811,8 +1910,8 @@ export class App extends View {
    *  painted, so what the handler writes is in the first frame the user sees.
    *  Once per App instance; an embedded island's App gets its own. */
   private readyDelivered = false;
-  override attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
-    super.attach(backend, parentSurface, before);
+  override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
+    super.$attach(backend, parentSurface, before);
     if (!this.readyDelivered) {
       this.readyDelivered = true;
       afterSettle(() => fireEvent(this, "ready"));
@@ -2132,7 +2231,7 @@ export class App extends View {
     // only what "showing" means is the handler's. Same readiness gate as the
     // scroll thunk's own (attached surface), same hold-and-retry.
     if (this.hasArrive()) {
-      if (hit.view.surface === null) return null;
+      if (hit.view.$surface === null) return null;
       this.pendingAnchor = null;
       fireEvent(this, "arrive", hit.view);
       return name;
@@ -2326,8 +2425,8 @@ export class App extends View {
    *  root scroll styling, composed with `scrolls`. A Shape clip keeps its
    *  paint+hit meaning; `clip = false` is refused at compile time (check.ts). */
   override applyClip(clip: string | boolean | null): void {
-    if (this.surface === null) return;
-    this.surface.setClip(typeof clip === "string" ? clip : null);
+    if (this.$surface === null) return;
+    this.$surface.setClip(typeof clip === "string" ? clip : null);
   }
 
   /** Derive "can the page scroll right now?" from the model — a declared
@@ -2346,7 +2445,7 @@ export class App extends View {
       () => [this.contentWidth, this.contentHeight] as const,
       (wh) => {
         const [w, h] = wh as readonly [number, number];
-        this.surface?.setPageExtent?.(w, h);
+        this.$surface?.setPageExtent?.(w, h);
       },
       1
     );
@@ -2496,3 +2595,13 @@ provideCursorRead((node, path) => {
   }
   return selectValue(cursor.data, cursor.path, plan);
 });
+
+/** Is this view disabled — a declared `disabled` that is true (hovered/pressed). */
+function isDisabled(v: View): boolean { return (v as unknown as { disabled?: unknown }).disabled === true; }
+
+/** The nearest scroller at or above `v` that the USER is scrolling now, or null
+ *  (scrollIntoView's request goes to that scroller, so it waits on it). */
+function userScrolling(v: View): View | null {
+  for (let n: unknown = v; n instanceof View; n = n.parent) if (n.scrolling) return n;
+  return null;
+}

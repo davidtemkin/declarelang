@@ -247,8 +247,13 @@ function reclampScrollers(): void {
   for (const sc of scrollers) {
     if (sc.scrolls) {
       const ext = sc.pageExtentY();
-      const next = Math.min(Math.max(0, ext - sc.viewportH), Math.max(0, sc.scrollOffset));
-      if (next !== sc.scrollOffset || ext !== sc.publishedExtent) {
+      const max = Math.max(0, ext - sc.viewportH);
+      // a request scrollToY held short lands now, and always reports
+      const want = sc.wantY;
+      sc.wantY = null;
+      const next = want !== null ? Math.min(max, want) : Math.min(max, Math.max(0, sc.scrollOffset));
+      if (want !== null) { sc.publishedExtent = ext; sc.setScrollOffset(next); emit(OP.SCROLLPOS, sc.id, next, ext); }
+      else if (next !== sc.scrollOffset || ext !== sc.publishedExtent) {
         sc.publishedExtent = ext;
         // An extent-only change publishes the RANGE and leaves the offset to
         // the host (null): the host owns the offset between fact reports, and
@@ -405,7 +410,12 @@ class MacSurface implements Surface {
    *  a request during it is dropped (arbitration rule 1). Both arrive per
    *  frame through macScrollFacts; the model never infers them. */
   scrollingLive = false;
+  /** The host's scrollbar thumb is held (scrollbarHeld). */
+  private barLive = false;
+  scrollbarHeld(): boolean { return this.barLive; }
   gestureLive = false;
+  /** A program request past the end this surface knew when it came: settled at the flush. */
+  wantY: number | null = null;
   /** Where this surface lived before travelWith moved it (null = at home). */
   private travelHome: MacSurface | null = null;
   parent: MacSurface | null = null;
@@ -534,7 +544,7 @@ class MacSurface implements Surface {
         stops: g.stops.map((st) => [st.offset, colorToCss(st.color)]) });
       return;
     }
-    const st = spec.stencil.surface as MacSurface | null;
+    const st = spec.stencil.$surface as MacSurface | null;
     if (st === null) return;
     // a mask renders its stencil's layers whether or not the stencil is shown,
     // so the stencil's drawing is never owed
@@ -699,9 +709,10 @@ class MacSurface implements Surface {
   notifyScrollX(x: number): void { this.onScrollXCb?.(x); }
   /** The host's per-frame report lands here (macScrollFacts): the offsets it
    *  moved, and the `scrolling`/gesture state of its process. */
-  hostFacts(y: number | null, x: number | null, scrolling: boolean, gesture: boolean): void {
+  hostFacts(y: number | null, x: number | null, scrolling: boolean, gesture: boolean, bar = false): void {
     this.gestureLive = gesture;
-    if (y !== null && this.scrolls && y !== this.scrollOffset) this.setScrollOffset(y);
+    this.barLive = bar;
+    if (y !== null && this.scrolls && y !== this.scrollOffset) { this.wantY = null; this.setScrollOffset(y); }
     if (x !== null && this.scrollsX && x !== this.scrollXOffset) { this.scrollXOffset = x; this.onScrollXCb?.(x); }
     if (scrolling !== this.scrollingLive) { this.scrollingLive = scrolling; this.onScrollingCb?.(scrolling); }
   }
@@ -969,8 +980,16 @@ class MacSurface implements Surface {
     const ext = this.pageExtentY();
     const next = Math.min(Math.max(0, ext - this.viewportH), Math.max(0, v));
     if (glide !== undefined) { emit(OP.SCROLLGLIDE, this.id, 1, next, glide.duration ?? 260, ...glideBezier(glide.motion)); return; }
-    if (next === this.scrollOffset) return;
-    this.setScrollOffset(next);
+    // a request past the end as this surface knows it: the box may change in
+    // the same update (a pane shrinking takes its offset with it), so the flush
+    // (reclampScrollers), which sees the box as it lands, settles what was
+    // asked for — and an interim offset is not reported, or it would come back
+    // as a new request and cancel it
+    this.wantY = v > next ? v : null;
+    // already there: a request past the end still leaves the model at the offset held
+    if (next === this.scrollOffset) { if (v !== next && this.wantY === null) this.onScrollCb?.(next); return; }
+    this.scrollOffset = next;
+    if (this.wantY === null) this.onScrollCb?.(next);
     emit(OP.SCROLLPOS, this.id, next, ext);
   }
   scrollToX(v: number, glide?: Glide): void {
@@ -978,7 +997,7 @@ class MacSurface implements Surface {
     const ext = this.pageExtentX();
     const next = Math.min(Math.max(0, ext - this.viewportW), Math.max(0, v));
     if (glide !== undefined) { emit(OP.SCROLLGLIDE, this.id, 0, next, glide.duration ?? 260, ...glideBezier(glide.motion)); return; }
-    if (next === this.scrollXOffset) return;
+    if (next === this.scrollXOffset) { if (v !== next) this.onScrollXCb?.(next); return; }
     this.scrollXOffset = next;
     this.onScrollXCb?.(next);
     emit(OP.SCROLLXPOS, this.id, next, ext);
@@ -1056,7 +1075,7 @@ class MacSurface implements Surface {
     editCallbacks.set(this.id, spec);
     emit(OP.EDIT, this.id, {
       multiline: spec.multiline === true, spellcheck: spec.spellcheck !== false,
-      wrap: spec.wrap !== false, padding: spec.padding ?? 0,
+      wrap: spec.wrap !== false, padding: insetSides(spec.padding ?? 0),
       value: spec.value ?? "", placeholder: spec.placeholder ?? "",
       // An editable carries its OWN style — the DOM backend styles the element
       // from `spec.style`, not from the surface's text style. Leaving it out made
@@ -1213,7 +1232,7 @@ class MacSurface implements Surface {
       const t = this.children[i].hit(cx, cy);
       if (t !== null) return t;
     }
-    // A pointer-transparent view is a corridor, not a target.
+    // A pointer-transparent view is not a press target (its children still are).
     if (this.sink !== null && inBox && this.pe !== "none") {
       return { key: this, sink: this.sink, ...this.wants, x: lx, y: ly,
                cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
@@ -1617,7 +1636,7 @@ export function macWheel(x: number, y: number, dx: number, dy: number, pinch: bo
 }
 
 /** The host's per-frame scroll report (`__declareScrollFacts`): rows of
- *  [id, y|null, x|null, scrolling, gesture] for every surface its process
+ *  [id, y|null, x|null, scrolling, gesture, bar held] for every surface its process
  *  moved or whose state changed this frame — written AFTER the frame that
  *  showed them (scrolling.md: the settle never delays the motion). */
 export function macScrollFacts(batch: unknown): void {
@@ -1627,7 +1646,7 @@ export function macScrollFacts(batch: unknown): void {
     if (s === undefined) continue;
     const y = typeof row[1] === "number" ? row[1] : null;
     const x = typeof row[2] === "number" ? row[2] : null;
-    s.hostFacts(y, x, Boolean(row[3]), Boolean(row[4]));
+    s.hostFacts(y, x, Boolean(row[3]), Boolean(row[4]), Boolean(row[5]));
   }
 }
 export function macRichHeight(id: number, h: number): void {

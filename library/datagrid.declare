@@ -168,7 +168,7 @@ include [ "table.declare", "menu.declare" ]
 use [ Menu ]
 
 // A column declaration — a data-only member (invisible; SimpleLayout skips
-// it and reclaims its space). `width` is the View slot, reused as the
+// it and reclaims its space). `width` is the View attribute, reused as the
 // authored column width. `kind` declares what a cell is:
 //   "text"   — a static label (the default)
 //   "edit"   — a TextInput committing each edit into the record (live)
@@ -252,7 +252,7 @@ class DataGrid extends Table [
     sortOn: string = "",        // the column id the sort names ("" = unsorted)
     sortDir: string = "",       // "asc" | "desc"
 
-    // ── the delivery seams — defaults write the slots; use-site overrides
+    // ── the delivery seams — defaults write the attributes; use-site overrides
     //    own the state (persisted layouts, app-derived sorts) ──────────────
 
     sortInput(on: string, dir: string) { sortOn = on; sortDir = dir },
@@ -388,7 +388,7 @@ class DataGrid extends Table [
     //    through the row's cursor, and the cell re-derives like any other
     //    read ────────────────────────────────────────────────────────────────
 
-    selMenu: View = null,
+    selMenu: View? = null,
 
     openSelect(row: View, cell: View, field: string, current: object) {
         // the column's options are read here, at gesture time — a Column's
@@ -612,7 +612,7 @@ class GridRow extends TableRow [
 
     height = 28,
 
-    // the row's record as a derived slot — the read is analyzed, so cells
+    // the row's record as a derived attribute — the read is analyzed, so cells
     // re-render when the record's fields change (a method call would go
     // stale); null when written/unreplicated
 
@@ -676,7 +676,7 @@ class GridRow extends TableRow [
                 width = { parent.width - 4 },
                 height = { parent.height - 4 },
                 cornerRadius = 5,
-                fill = { this.hot || this.down ? classroot.theme.control : null },
+                fill = { this.hovered || this.pressed ? classroot.theme.control : null },
                 press() {
                     if ((classroot.parent as DataGrid).isDataGrid !== true) return
                     (classroot.parent as DataGrid).openSelect(classroot, this, "" + :field,

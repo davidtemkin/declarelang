@@ -104,33 +104,138 @@ scroller, ask:
 A request is clamped to the real range, and a pane that cannot take it yet (hidden, not
 laid out) holds it until it can.
 
+## Keeping the reader's place
+
+Content changes size while people read it. A photograph finishes loading and takes
+its real height, a message gains a row of reactions, older history loads in above.
+If nothing compensated, each of those would move the text the reader is looking at.
+
+So a scroller compensates. Before anything in it changes size, it notes which view
+sits at the top edge of its visible area, and how far below that edge the view
+starts. After the change, it adjusts its own `scrollY` so that the same view starts
+the same distance below the top edge. It does this before the next frame is drawn,
+so the reader never sees the content move and come back. Nothing on screen moves.
+
+What that means, case by case:
+
+| What changed | What the reader sees | What happens to `scrollY` |
+|---|---|---|
+| Something **above** the visible area grew or shrank (a photo loaded, history was inserted) | nothing moves | changes by the same amount |
+| Something **on screen** grew (the message being read gained reactions) | the text at the top stays put; what's below it moves down | unchanged |
+| Something **below** the visible area changed | nothing moves | unchanged |
+| The pane is **at its very start** (`scrollY` is 0) and something above the old first view appears | the new content comes into view at the top | stays 0 |
+
+The last row is deliberate. A pane at its start shows its beginning, and while a page
+is still loading, its beginning is where things arrive: a heading image, a banner. If
+the pane held on to the text instead, it would scroll away from the page's top as it
+loaded.
+
+This is [`scrollAnchor`](declare-docs:View.scrollAnchor), and its default value,
+`content`, is everything above. The view that stays put is the one crossing the top
+edge. Inside a long view the scroller looks for the smallest view that crosses the
+edge, so in a long post it's the paragraph being read that stays put, not the top of
+the post.
+
+`scrollAnchor = none` turns it off, for a pane whose contents are meant to move under
+the reader, such as a list the reader is reordering by hand.
+
+A [virtualized](declare-docs:guide:collections@virtualization) list works the same
+way. Rows that haven't been built yet stand in with an estimated height. When a row
+above the reader is built and turns out taller or shorter than its estimate, that's
+a size change above the visible area, the first row of the table, and nothing on
+screen moves.
+
+## Following the end
+
+A conversation, a log or a terminal is read from the bottom. When a message arrives,
+a reader who is at the bottom wants to see it, and a reader who has scrolled back to
+something from an hour ago wants to stay there. Set `scrollAnchor = end`:
+
+```declare-fragment
+log: View [ scrolls = y, height = 100%, scrollAnchor = end,
+    lines: View [ width = 100%, layout: SimpleLayout [ axis = y ],
+        Line [ datapath = :messages[], virtualize = true ]
+        ]
+    ]
+```
+
+- **When the pane is scrolled to the bottom** (within a few pixels), it stays at the
+  bottom as content grows or shrinks: a new message comes into view, and so does the
+  full height of a photo that finishes loading in the last message.
+- **When the reader has scrolled up**, the pane keeps their place as described above,
+  and new messages arrive below, out of sight. To tell the reader something is there,
+  use a constraint:
+  `newBelow: boolean = { log.contentHeight - log.scrollY - log.height > 48 }`.
+- **A pane with `scrollAnchor = end` opens at the bottom.**
+- **The top is just history here.** In a pane read from the bottom, the "very start"
+  row of the table doesn't apply: when older messages load in above a reader at the
+  top, the reader's place is kept like anywhere else.
+
+To take the reader to the bottom, ask for it: `log.scrollTo(Infinity, { duration: 250 })`.
+The pane takes a moment to get there, and messages may arrive in that moment. A pane
+that isn't at the bottom yet would normally treat them as arriving below a reader who
+has scrolled up, and stop following. Because the pane knows this movement is your
+request and that it's heading for the bottom, it keeps following, and it arrives at
+the true bottom.
+
 ## Scrolling while the user scrolls
 
-Scrolling is a process the platform runs, and the user's hand is in it at the same time
-as your program. A request made mid-gesture can be overtaken by momentum or, worse,
-honored, so the surface fights the finger holding it. Two habits keep you out of each
-other's way.
+Scrolling is something the platform does, and the user's hand is part of it. The
+fact [`scrolling`](declare-docs:View.scrolling) reports it: it becomes true when the
+pane starts moving, and becomes false only when the user's scroll is completely
+over. That means the finger has lifted or the scrollbar thumb has been let go,
+and any momentum afterwards has come to rest. A finger resting on the pane partway
+through a scroll, not moving, is still scrolling.
 
-**Ask because something grew, not because the offset looks right.** A conversation that
-follows its newest message should move when the column *gained* height, and only then.
-The version that asks "is the offset near the bottom" also asks while the user is
-reading something from an hour ago, and drags them away from it.
+**Your requests wait for the user.** A `scrollTo`, `scrollBy` or `scrollIntoView`
+made while the user is scrolling isn't carried out straight away. It's kept, and
+carried out when `scrolling` becomes false. If you make another request in the
+meantime, it replaces the one waiting. Your own glides don't make requests wait: a
+new request replaces a glide in flight.
 
-**Read [`scrolling`](declare-docs:View.scrolling) before you ask.** It is true while the platform is moving the pane —
-a wheel, its momentum, a drag, a glide. Read it as a condition on whether to ask, not as
-a moment to catch: it flickers by nature, because trackpad momentum and wheel notches
-both pause.
+**Keeping the reader's place doesn't wait,** because it isn't a request. The content
+under the reader has moved, so putting it back is what the reader expects, mid-scroll
+included.
 
-What never works is re-asserting a position every frame. The gesture wins, and the
-program spends the whole gesture losing.
+In a browser, a finger's scroll is the one exception: the browser moves the pane itself,
+and an offset written while the finger drives it would stop its momentum. So while a finger
+is scrolling a pane in a browser, a change above the reader is not corrected; when the
+scroll is over, the pane simply takes the reader's place as it now is. The reader sees one
+shift, never a jump back. A wheel, a trackpad or the scrollbar is corrected at once, and so
+is everything in the Mac app and on canvas, where Declare moves the scroller itself.
+
+What never works is doing this yourself: reading `scrollY` when something changes and
+writing a new position back with `scrollTo`. That runs a settle late, it can't tell
+a new message from a row whose estimated height was corrected, and it argues with
+the hand holding the pane. If you find yourself writing it, set `scrollAnchor`.
+
+## Dragging to an edge
+
+When something being dragged — a card, a row being reordered — reaches the edge of a
+scroller it sits in, the scroller scrolls to reveal more, faster the deeper the pointer goes
+into the edge. You write nothing: while the pointer rests there, your `onPointerMove` hears
+the move again every frame at the same root point, so its local `x`/`y` follow the content
+and the dragged thing (or a `viewAt` drop test) keeps up. It stops when the pointer leaves
+the edge, the scroller reaches its end, or the press ends. This scrolling is not the user's
+scroll: `scrolling` stays false, and the dragged view is never the one kept still.
+
+While it is dragged, a view counts toward the size of what holds it from where it was
+picked up, not from where the hand has taken it, so the range ends at the real content: a
+card dragged past the last row reaches the end and the scrolling stops there, and a box
+sized by the card it holds does not collapse when the card is lifted. Where the release puts
+it counts from then on. To keep a dragged thing inside the rows, clamp what `onPointerMove`
+writes; to let it stray a little past them and come back, write a resisting value under the
+hand and spring it home on release ([Motion and states](declare-docs:guide:motion)).
 
 Which gesture a draggable thing on a scrolling surface gets — and how press-and-hold
 lets a quick swipe still scroll — is [Touch and gestures](declare-docs:guide:touch@dragging-on-a-scrolling-surface).
 
 ---
 
-**What you can now do:** decide where scrolling lives — the page, a pane, both — keep
-chrome on screen with [`ignoreScroll`](declare-docs:View.ignoreScroll), and move a scroller by request without fighting
-the person scrolling it.
+**What you can now do:** decide where scrolling lives (the page, a pane, both), keep
+chrome on screen with [`ignoreScroll`](declare-docs:View.ignoreScroll), let a pane keep the
+reader's place or follow the bottom with [`scrollAnchor`](declare-docs:View.scrollAnchor),
+move a scroller by request without fighting the person scrolling it, and let a drag reveal
+more by reaching an edge.
 
 [Next: **Controls** →](declare-docs:guide:controls)

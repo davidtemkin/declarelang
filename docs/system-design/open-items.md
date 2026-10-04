@@ -363,7 +363,7 @@ from the other direction.
 
 `TextInput` carries **self-chrome**: `text-input.ts` derives its own `fill`, `stroke`,
 `cornerRadius` and `padding` from the prevailing theme, reading the v1 role names
-`components-baseline.md` §5 rules — `surface`, `line`, `accent`, `fieldRadius`. When the
+`components-baseline.md` §5 rules — `surface`, `line`, `accent`, `fieldCornerRadius`. When the
 theme does not carry a role, it falls back to a hardcoded constant:
 
 ```ts
@@ -577,7 +577,7 @@ component-typed attr reads scaffold as `T | null` even where provably fed
 system; dataset schemas are limited but they are a proper subset").** The elegant form
 ran the subset relation forward: a `schema Name [ … ]` top-level declaration IS a type —
 projected as an ambient TS interface (scaffold), resolvable in decl type positions
-(`sel: Task = null` → record kind, data-flagged), legal in method signatures and as a
+(`sel: Task? = null` → record kind, data-flagged), legal in method signatures and as a
 field of another schema (refs resolve by reference, so recursion is free), extended
 with literal unions (`status: "open" | "closed"` — JSON can say it, so the subset can).
 A dataset declares its document by type (`schema = [ tasks[]: Task ]`, `schema = TaskDoc`,

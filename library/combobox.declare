@@ -163,10 +163,10 @@ class Combobox extends Control [
     //    siblings. Its items are pushed on each keystroke, as Menu drives its
     //    own cascade child ──────────────────────────────────────────────────
 
-    //    (View-typed slot + any-seam driving — Menu members are invisible
+    //    (View-typed attribute + any-seam driving — Menu members are invisible
     //    across files, the seam menu.declare itself uses)
 
-    list: View = null,
+    list: View? = null,
 
     ensureList() {
         if (list != null) return

@@ -8,11 +8,12 @@ import puppeteer from "puppeteer-core";
 import { compile, crawlDocument, diskDataResolver } from "../../../compiler/dist/compile-node.js";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as presolve } from "node:path";
+import { launchChrome } from "../chrome.mjs";
 const ROOT = presolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const chrome = ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"].find(existsSync);
 let failures = 0;
 
-const b = await puppeteer.launch({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
+const b = await launchChrome({ executablePath: chrome, headless: true, args: ["--no-sandbox"] });
 const page = await b.newPage();
 await page.goto("http://localhost:8364/", { waitUntil: "domcontentloaded" });
 

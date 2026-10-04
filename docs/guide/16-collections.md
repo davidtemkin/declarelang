@@ -147,6 +147,33 @@ state: the row keeps its instance, and a motion can carry it from one look to th
 The two nest. A chat thread is a class per kind of message — text, photo, voice note —
 and each class has states for "mine or theirs", "pending", and "first of a run".
 
+**A part only some rows have exists only on those rows.** A reaction pill, a delivery
+status, a face at the end of a run: give that child `exists = { … }`, and it is built while
+the value is true and discarded while it is false, in its place in the row's order —
+three hundred messages with reactions on a dozen build a dozen pills, not three hundred
+hidden ones. The value is decided before the child exists, so it reads the row (`:reactions`,
+`classroot`), never the child's own attributes; and anything that reads the child by name
+says what happens when it is not there (`classroot.pill?.height ?? 0`):
+
+```declare-fragment
+pill: ReactionPill [ exists = { (:reactions ?? []).length > 0 }, reactions = { :reactions } ]
+```
+
+**What sits between records is a record of its own.** A day header, an unread marker, "3 hours
+later" are not parts of the message after them; the derived dataset that orders the rows
+emits them as rows with their own `id` and kind, and `classFor` builds each as its class:
+
+```declare-fragment
+lines: Dataset [ contents = { { rows: app.store.lines(app.thread) } } ],   // [{ id: "day-08-09", kind: "day", … }, { id: "m41", kind: "text", m: … }]
+Line [ datapath = :rows[], classFor = { :kind == "day" ? DayLine : :kind == "photo" ? PhotoLine : TextLine } ]
+```
+
+**Kinds that share a frame put their content into it.** When every kind has the same frame
+around it — the name above, the reactions below — the base class draws the frame and names
+where the kind's own views go, `defaultplacement = bubble`; each subclass's children then go
+into `bubble`, laid out in the frame's order
+([Your own views](declare-docs:guide:your-own-views@a-frame-around-content)).
+
 ## Virtualization
 
 Here is the part that is a library in every other stack. A large collection should
@@ -170,6 +197,13 @@ changes.
 It is off by default, so you turn it on deliberately. What you never write is everything
 *around* the word: no row heights, no scroll plumbing, no keys, no overscan tuning, no
 memoization.
+
+**What the reader sees.** Scrolling stays the browser's own: rows that have been built
+stay where they are and move with the page, and rows ahead of the viewport are built
+and measured before they come into view. A row whose real height differs from the
+estimate changes the list only where the reader can't see it, so content never jumps
+under a finger, a wheel, or a held scrollbar. A held scrollbar keeps its range while
+it is held, and its two ends are the first and last record exactly.
 
 This works because the runtime owns the pieces a windowing library never gets: the
 scroll box, live scroll position, every instance's geometry, layout itself, focus, and

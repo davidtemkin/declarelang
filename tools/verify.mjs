@@ -195,6 +195,16 @@ if (failedRung === null && flags.rung >= 4) {
   const rejections = [];
   const onRej = (reason) => rejections.push(String(reason?.message ?? reason));
   process.on("unhandledRejection", onRej);
+  // A defect CONTAINED at run time — a replicated row whose construction threw,
+  // an onLoad that threw — is reported, not raised ([Declare] on console.error),
+  // so the program keeps running. Here it is still a defect: collect it.
+  const contained = [];
+  const consoleError = console.error;
+  console.error = (...a) => {
+    const m = String(a[0] ?? "");
+    if (m.startsWith("[Declare] ")) contained.push(m.slice("[Declare] ".length));
+    else consoleError(...a);
+  };
   try {
     const { parseProgram } = await import("../runtime/dist/parser.js");
     const { instantiate, settle } = await import("../runtime/dist/index.js");
@@ -202,17 +212,66 @@ if (failedRung === null && flags.rung >= 4) {
     const app = instantiate(parseProgram(out.source));
     settle();
     boot.ms = Math.round((performance.now() - t0) * 10) / 10;
+    // DATA FROM THE NETWORK never arrives headless, so the rows it would
+    // replicate are never built and their defects never surface here (Murmur
+    // run 4: a library class placed inside a layout, refused only in a row).
+    // Each DataSource that declares a `schema` and has not loaded is handed a
+    // small sample of that shape, as its fetch would deliver it, and onLoad runs.
+    const fed = await feedSchemaSamples(app);
+    if (fed > 0) { settle(); boot.notes.push(`${fed} data source(s) fed a sample of their schema, so their rows were built`); }
     const walk = (n) => { boot.nodes++; for (const c of n.children ?? []) walk(c); };
     walk(app);
-    boot.ok = true;
+    if (contained.length > 0) { for (const c of new Set(contained)) boot.errors.push(`boot: ${c}`); failedRung = 4; }   // each row reports its own copy: once is enough
+    else boot.ok = true;
   } catch (e) {
     boot.errors.push(`boot: ${e?.message ?? e}`);
     failedRung = 4;
   } finally {
+    console.error = consoleError;
     await new Promise((r) => setImmediate(r)); // let queued rejections surface
     process.off("unhandledRejection", onRej);
     for (const r of rejections) boot.notes.push(`async during boot (expected headless; fixtures land at rung 5): ${r}`);
   }
+}
+
+/** Hand every unloaded, schema-declaring DataSource under `app` a sample
+ *  document of its schema, landed the way a fetch lands one (value, then
+ *  onLoad). Returns how many were fed. */
+async function feedSchemaSamples(app) {
+  const { DataSource } = await import("../runtime/dist/data.js");
+  const { setBound } = await import("../runtime/dist/attributes.js");
+  const sources = [];
+  const walk = (n) => { if (n instanceof DataSource) sources.push(n); for (const c of n.children ?? []) walk(c); };
+  walk(app);
+  let fed = 0;
+  for (const ds of sources) {
+    if (ds.value != null || !Array.isArray(ds.schema) || ds.format === "text") continue;
+    setBound(ds, "value", sampleOf(ds.schema, 0));
+    setBound(ds, "loading", false);
+    const h = ds.onLoad;
+    if (typeof h === "function") {
+      try { h.call(ds); } catch (e) { console.error(`[Declare] onLoad on ${ds.constructor.name} threw: ${e?.message ?? e}`); }
+    }
+    fed++;
+  }
+  return fed;
+}
+
+/** A small document of a schema's shape: every field present, two records per
+ *  list, a literal union's first member, distinct ids so rows keep identity. */
+function sampleOf(fields, depth, index = 0) {
+  const out = {};
+  for (const f of fields) {
+    const one = (i) => {
+      if (f.fields !== undefined) return depth < 3 ? sampleOf(f.fields, depth + 1, i) : {};
+      if (f.tokens !== undefined && f.tokens.length > 0) return f.tokens[0];
+      if (f.type === "number") return f.name === "id" ? i + 1 : 1;
+      if (f.type === "boolean") return false;
+      return f.name === "id" ? `id${i + 1}` : "sample";
+    };
+    out[f.name] = f.array ? [one(0), one(1)] : one(index);
+  }
+  return out;
 }
 
 // The browser rungs boot the PROGRAM form — the parsed, checked, deps-applied

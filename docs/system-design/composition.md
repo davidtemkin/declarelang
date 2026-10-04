@@ -94,16 +94,16 @@ because they share the actual component source.
 ### 1a. Auto-include — magic component tags (implemented)
 
 The tightest form drops even the `include`. Using a bare component tag —
-`Bar [ … ]`, `Button [ … ]` — with no `include` directive and no inline
-`class Bar` pulls in the library that defines it. This is LZX's
+`Gauge [ … ]`, `Button [ … ]` — with no `include` directive and no inline
+`class Gauge` pulls in the library that defines it. This is LZX's
 `lzx-autoincludes` mechanism ported: LZX shipped its whole widget set this way
 (a generated tag→file manifest; using `<button>` auto-included `button.lzx`).
 
 The pieces:
 
-- **`library/autoincludes.json`** — the manifest, `{ "Bar": "bar.declare", … }`
+- **`library/autoincludes.json`** — the manifest, `{ "Gauge": "gauge.declare", … }`
   (tag → file path, relative to `library`).
-- **`library/*.declare`** — ordinary Declare libraries, each a `class Bar …`.
+- **`library/*.declare`** — ordinary Declare libraries, each a `class Gauge …`.
 - **`resolveAutoIncludes`** (runtime/`include.ts`) runs *after* explicit
   `include`s, sharing their visited set: it collects the program's referenced
   tags, and for any that is neither provided nor a built-in but *is* in the
@@ -122,7 +122,7 @@ one component source, so they cannot drift.
 A second, stricter tier of the same manifest: some library components are not
 *referenced* into a program but *earned* by it — the `FocusRing` when any
 Control descendant is used (OL's `canvas.focusclass` default), the `Tooltip`
-when any View-descended element sets a `tip`. The associations are DATA, never
+when any View-descended element sets a `tooltipLabel`. The associations are DATA, never
 compiler code paths (ruled 2026-07-18, after David's challenge — "how can an
 attribute named tip be *known* to mean tooltip-needed?" It can't; it must be
 declared):
@@ -131,7 +131,7 @@ declared):
 "$provide": [
   { "class": "FocusRing", "when": { "baseUsed": "Control" }, "comment": "…" },
   { "class": "Tooltip",
-    "when": { "attributeUsed": "tip", "onBase": "View" }, "comment": "…" }
+    "when": { "attributeUsed": "tooltipLabel", "onBase": "View" }, "comment": "…" }
 ]
 ```
 
@@ -139,7 +139,7 @@ The compiler executes ONE generic rule over a small trigger vocabulary —
 `baseUsed` (a declared class descends from the named base) and
 `attributeUsed`/`onBase` (an element whose tag descends from `onBase` sets the
 named attribute; the scope matters — on a View descendant a schema-owned name
-like `tip` can mean only the schema's slot, since redeclaration is refused,
+like `tooltipLabel` can mean only the schema's slot, since redeclaration is refused,
 while a Node-descended class owns its own names and must never trigger
 provision). A triggered rule includes the class's manifest file and splices
 `Class [ ],` as the LAST App child — source order stacks, so last = above

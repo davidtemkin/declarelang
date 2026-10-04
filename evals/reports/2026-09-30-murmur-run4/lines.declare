@@ -1,0 +1,187 @@
+/*
+# Lines of a conversation
+
+Each line is one message and whatever its neighbours make of it. Above it,
+when they apply: the day it was said on, the unread marker, the silence since
+the last message told as distance ("3 hours later"), and — in a group, at the
+start of a run — the speaker's name in their own colour. Below it: the
+reactions, and what became of the last thing you said.
+
+A run of one person's messages reads as one voice: the corners on the
+speaker's side tighten between them, the space between them closes, and in a
+group the face appears once, at the run's foot.
+
+What the message *is* is a class — text, photograph, voice — and each supplies
+its bubble; everything around the bubble is here.
+*/
+
+class Said [ width = 100%,
+    lid: string = { "" + :id },
+    mine: boolean = { :mine == true },
+    group: boolean = { :group == true },
+    fresh: boolean = { :fresh == true },
+    runStart: boolean = { :runStart == true },
+    runEnd: boolean = { :runEnd == true },
+    mid: string = { "" + :m.id },
+    pending: boolean = { :m.pending == true },
+    reactions: Reaction[] = { (:m.reactions ?? []) as Reaction[] },
+
+    side: number = { app.wide ? 20 : 12 },
+    gutter: number = { group && !mine ? 36 : 0 },
+    maxW: number = { Math.min((width - side * 2 - gutter) * 0.8, 520) },
+
+    // the bubble's box, which each kind of line supplies
+
+    bodyW: number = 0,
+    bodyH: number = 0,
+    bodyX: number = { mine ? width - side - bodyW : side + gutter },
+    bodyY: number = { this.heads.height },
+
+    // a run's corners: round at its ends, tight between, on the speaker's side
+
+    radii: Radius = { mine
+        ? [18, runStart ? 18 : 6, runEnd ? 18 : 6, 18]
+        : [runStart ? 18 : 6, 18, 18, runEnd ? 18 : 6] },
+    ink: number = { mine ? provided("theme").mine : provided("theme").theirs },
+    inkText: number = { mine ? provided("theme").mineText : provided("theme").theirsText },
+
+    react() { if (!pending) app.picker.openFor(this, app.selId, mid, mine) },
+
+    heads: View [ width = 100%,
+        layout: SimpleLayout [ axis = y ],
+        View [ width = 1, height = { classroot.runStart ? 10 : 2 } ],
+        day: View [ width = 100%, height = 40, visible = { :day != "" },
+            TextLabel [ x = center, fontSize = 12.5, fontWeight = semibold, letterSpacing = 0.2, wrap = false,
+                textColor = { provided("theme").textMuted }, text = { "" + :day } ]
+            ],
+        fresh: View [ width = 100%, height = 34, visible = { classroot.fresh },
+            rule: View [ x = { classroot.side }, y = 17, height = 1, width = { parent.width - classroot.side * 2 },
+                fill = { provided("theme").accent }, opacity = 0.5 ],
+            tag: View [ x = center, y = 7, height = 20, width = { this.cap.width + 20 },
+                fill = { provided("theme").bg },
+                cap: TextLabel [ x = 10, fontSize = 11.5, fontWeight = bold, letterSpacing = 0.6, wrap = false,
+                    textColor = { provided("theme").accent }, text = "NEW" ]
+                ]
+            ],
+        gap: View [ width = 100%, height = 32, visible = { :gap != "" },
+            TextLabel [ x = center, fontSize = 12, wrap = false, italic = true,
+                textColor = { provided("theme").textFaint }, text = { "" + :gap } ]
+            ],
+        who: View [ width = 100%, height = 20, visible = { classroot.group && !classroot.mine && classroot.runStart },
+            Text [ y = 1, fontSize = 12.5, fontWeight = semibold, wrap = false, maxLines = 1,
+                x = { classroot.side + classroot.gutter + 12 },
+                width = { classroot.maxW },
+                textColor = { personInk(provided("theme"), "" + :m.from) },
+                text = { app.store.nameOf("" + :m.from) } ]
+            ]
+        ],
+
+    face: Avatar [ size = 28, visible = { classroot.group && !classroot.mine && classroot.runEnd },
+        x = { classroot.side }, y = { classroot.bodyY + classroot.bodyH - 28 },
+        pid = { "" + :m.from } ],
+
+    // on a desk, a way to react appears beside the bubble under the pointer;
+    // on a phone, a long press on the bubble does the same
+
+    reactBtn: ReactButton [ y = { classroot.bodyY + classroot.bodyH / 2 - 16 },
+        x = { classroot.mine ? classroot.bodyX - 38 : classroot.bodyX + classroot.bodyW + 6 },
+        visible = { !classroot.pending && !app.touchDevice },
+        opacity = { classroot.hovered || this.focused || app.picker.forId == classroot.mid ? 1 : 0 },
+        press() { classroot.react() }
+        ],
+
+    pill: ReactionPill [ y = { classroot.bodyY + classroot.bodyH + 3 },
+        x = { classroot.mine ? classroot.bodyX + classroot.bodyW - this.width - 4 : classroot.bodyX + 4 },
+        visible = { classroot.reactions.length > 0 },
+        reactions = { classroot.reactions },
+        press() { classroot.react() }
+        ],
+
+    status: Text [ fontSize = 11.5, wrap = false, visible = { :status != "" },
+        y = { classroot.bodyY + classroot.bodyH + (classroot.reactions.length > 0 ? 31 : 4) },
+        x = { parent.width - classroot.side - this.width - 4 },
+        textColor = { provided("theme").textFaint },
+        text = { "" + :status } ]
+    ]
+
+
+class TextSaid extends Said [
+    bodyW = { this.bubble.width },
+    bodyH = { this.bubble.height },
+    words: string = { "" + :m.text },
+
+    bubble: View [ x = { classroot.bodyX }, y = { classroot.bodyY }, padding = [8, 13, 9, 13],
+        cornerRadius = { classroot.radii },
+        fill = { classroot.ink },
+        onHold() { classroot.react() },
+        onDblClick() { classroot.react() },
+        body: Text [ fontSize = 16, lineHeight = 1.32, selectable = { !app.touchDevice },
+            // as wide as its widest line once wrapped to the room there is
+
+            width = { Math.ceil(measureText(classroot.words, { fontSize: 16, lineHeight: 1.32, fontFamily: provided("fontFamily") },
+                classroot.maxW - 26).width) + 1 },
+            textColor = { classroot.inkText },
+            text = { classroot.words } ]
+        ]
+    ]
+
+
+// A photograph is shown whole, never cropped: its box takes the picture's own
+// shape once the picture has told us what that is, up to the room there is.
+// Until then it holds a quiet box with the picture's description in it.
+
+class PhotoSaid extends Said [
+    bodyW = { this.bubble.width },
+    bodyH = { this.bubble.height },
+    aspect: number = { this.bubble.pic.loaded && this.bubble.pic.naturalHeight > 0
+        ? this.bubble.pic.naturalWidth / this.bubble.pic.naturalHeight : 4 / 3 },
+    roomW: number = { Math.min(width - side * 2 - gutter - 24, 460) },
+    roomH: number = { Math.min(380, Math.max(240, app.height * 0.5)) },
+
+    bubble: Photo [ x = { classroot.bodyX }, y = { classroot.bodyY },
+        width = { Math.round(Math.min(classroot.roomW, classroot.roomH * classroot.aspect)) },
+        height = { Math.round(this.width / classroot.aspect) },
+        cornerRadius = { classroot.radii },
+        src = { app.api + :m.src },
+        alt = { "" + (:m.alt ?? "") },
+        onHold() { classroot.react() },
+        press() { app.viewer.show(this.pic, this.alt) }
+        ]
+    ]
+
+
+class Photo extends Control [ clip = true,
+    src: string = "",
+    alt: string = "",
+    fill = { theme.control },
+    waiting: Text [ x = 14, y = center, width = { parent.width - 28 }, maxLines = 3, textAlign = center,
+        fontSize = 13, italic = true, visible = { !classroot.pic.loaded },
+        textColor = { classroot.theme.textFaint },
+        text = { classroot.alt } ],
+    pic: Image [ width = 100%, height = 100%, stretches = both, source = { classroot.src },
+        opacity = 0,
+        Spring [ attribute = opacity, to = { parent.loaded ? (classroot.down ? 0.85 : 1) : 0 }, stiffness = 200, damping = 26 ]
+        ]
+    ]
+
+
+// the reactions on a message, grouped, in one small pill; yours are ringed
+
+class ReactionPill extends Control [ height = 26, cornerRadius = 13,
+    reactions: Reaction[] = [],
+    mineIn: boolean = { reactions.some((r) => r.person == app.store.me()) },
+    width = { this.cap.width + 18 },
+    fill = { down ? theme.controlPressed : theme.surface },
+    stroke = { stroke(1, mineIn ? theme.accent : theme.line) },
+    tip = { reactions.map((r) => app.store.firstName(r.person) + " " + r.emoji).join(", ") },
+    cap: TextLabel [ x = 9, fontSize = 13, wrap = false, numeralWidth = tabular,
+        textColor = { classroot.theme.textMuted },
+        text = { reactionSummary(classroot.reactions.map((r) => r.emoji)) } ]
+    ]
+
+
+class ReactButton extends Control [ width = 32, height = 32, cornerRadius = 16,
+    fill = { down ? theme.controlPressed : hot ? theme.control : null },
+    tip = "React",
+    SmileIcon [ x = center, y = center, iconSize = 18, ink = { parent.theme.textMuted } ]
+    ]

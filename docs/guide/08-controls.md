@@ -33,7 +33,7 @@ Every control also takes `disabled`, which makes it inert and removes it from th
 order. Constrain it (`disabled = { app.muted }`) rather than assigning it.
 
 The library also has classes that are not controls — they have no value of their
-own: [`ProgressBar`](declare-docs:ProgressBar) (the read-only sibling of `Slider`), [`Bar`](declare-docs:Bar) (a captioned value bar for
+own: [`ProgressBar`](declare-docs:ProgressBar) (the read-only sibling of `Slider`), [`Gauge`](declare-docs:Gauge) (a captioned value bar for
 demos and dashboards), [`Field`](declare-docs:Field) (a labeled form row),
 [`Card`](declare-docs:Card) and [`Divider`](declare-docs:Divider) ([Size, position and layout](declare-docs:guide:layout@padding-and-card)),
 [`Accordion`](declare-docs:Accordion) with [`Pane`](declare-docs:Pane) children, [`Table`](declare-docs:Table) and [`DataGrid`](declare-docs:DataGrid)
@@ -54,7 +54,7 @@ elsewhere `visible = { mute.checked }`.
 back through `input`:
 
 ```declare
-App [ width = 360, height = 210, theme = { SanFrancisco }, fill = { provided("theme").bg },
+App [ width = 360, height = 210, theme = { SanFrancisco }, fill = { provided("theme").background },
     volume: number = 50,
     muted: boolean = false,
     col: View [ x = 20, y = 20, width = 320,
@@ -92,7 +92,7 @@ method. A field whose text your state owns — so that a reset button or a prese
 change it — looks like this:
 
 ```declare
-App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").bg },
+App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").background },
     textColor = { provided("theme").text },
     who: string = "",
     col: View [ x = 20, y = 20,
@@ -122,7 +122,7 @@ A `Segmented` control's choices, a `Menu`'s items, a `Dialog`'s buttons, a `Data
 columns: all plain lists of records, with the choice handed back through a method.
 
 ```declare
-App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").bg },
+App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").background },
     textColor = { provided("theme").text },
     page: string = "list",
     col: View [ x = 20, y = 20,
@@ -172,7 +172,7 @@ something is genuinely missing, compose it — and **anything that would be a bu
 anything a keyboard user must be able to reach and press — is a control**, whether or
 not it has a value: a tab, a chip, a row's delete mark, a card that opens.
 `extends Control` gives it focus and a place in the tab order, Space and Enter reaching
-the same `press()` a click does, `hot` and `down` to style against, and a label that
+the same `press()` a click does, `hovered` and `pressed` that respect `disabled`, and a label that
 never selects as text; a plain `View` with an `onClick` has none of them, so a keyboard
 user cannot reach it. A `View` with pointer handlers is for what is not a button: a
 surface you drag or draw on, or a scrim a click dismisses. The two contracts above make

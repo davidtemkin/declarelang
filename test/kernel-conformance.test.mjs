@@ -473,4 +473,40 @@ await bothAgree("tables grow past their opening capacities: cells, rules, reads,
   r("capacity is the table", K.capacity === K.tableSize() && K.table.length === K.capacity ? "yes" : `no: capacity ${K.capacity}, table ${K.tableSize()}, view ${K.table.length}`);
 }, { extra_elems: 8, extra_cells: 64, extra_rules: 16, dyn_edges: 64, ring: 256, code_words: 64, consts: 8, track_ring: 256 });
 
+// ── rule lifecycle under teardown ───────────────────────────────────────────
+// A body can tear down the view that owns it — a reconcile discarding rows, an
+// `exists` going false — and so dispose the very rule that is running. The id
+// must not be handed out again while that run is on the stack, nothing may land
+// for it, and it must reach the free list exactly once.
+
+await bothAgree("a rule disposed by its own body lands nothing, and its id is freed once, after the run", (K, h, r) => {
+  const src = K.addCell(0, false), out = K.addCell(0, false);
+  const rule = K.addRule(out, KIND.BODY, FLAG.YIELDING, [src]);
+  r("own", K.own(out, rule));
+  h.bodies.set(rule, () => {
+    K.dispose(rule);
+    assert.notEqual(r("allocated while running", K.addRule(-1, KIND.BODY, 0, [])), rule, "the running rule's id is not handed out");
+    return 42;
+  });
+  r("run", K.run(rule));
+  assert.equal(r("nothing landed", K.table[out]), 0, "a disposed rule lands nothing");
+  const a = K.addRule(-1, KIND.BODY, 0, []), b = K.addRule(-1, KIND.BODY, 0, []);
+  assert.notEqual(a, b, "the freed id is handed out once");
+  r("ids", `${a},${b}`);
+});
+
+
+// A body's reads become edges once it has run; the host grows the edge table
+// first when they may not fit. A free list holding a few nodes is not room for
+// a long batch — the batch must still land, with no capacity error.
+await bothAgree("a long batch of reads lands though only a short free list is spare", (K, h, r) => {
+  const cells = []; for (let i = 0; i < 40; i++) cells.push(K.addCell(0, false));
+  const push = (v) => { K.trackRing[K.trackCount[0]++] = v; };
+  const reader = (n) => { const rule = K.addRule(-1, KIND.DYNAMIC, 0, [], 0); h.bodies.set(rule, () => { for (let i = 0; i < n; i++) push(cells[i]); return 0; }); return rule; };
+  const a = reader(6); K.run(a); K.dispose(a);         // six nodes back on the free list
+  const b = reader(40); r("run", K.run(b));            // forty reads: more than the free list holds
+  assert.ok(!h.log.some((l) => l.startsWith("error -7")), "no capacity error: " + h.log.filter((l) => l.startsWith("error")).join(", "));
+  assert.equal(K.deps(b).length, 40, "every read became an edge");
+}, { extra_elems: 16, extra_cells: 256, extra_rules: 64, dyn_edges: 12, ring: 64, track_ring: 256, code_words: 64, consts: 16 });
+
 summarize("kernel-conformance");

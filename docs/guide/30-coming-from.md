@@ -211,7 +211,7 @@ several views read. → [Paint and themes](declare-docs:guide:paint-and-themes)
 | `$:` as a *statement* | usually nothing at all — see below |
 | `$effect` | `onChange` with `trackChanges = [ … ]` when a change is an event the program must act on; `afterSettle(…)` when the work is irreducibly a reading of new geometry |
 | `$props()`, `export let` | the attributes the class declares; the instance site sets them by name |
-| `bind:this`, a component reference | the child's own name — there are no refs. An attribute typed by a class (`panel: Menu = null`) holds an instance |
+| `bind:this`, a component reference | the child's own name — there are no refs. An attribute typed by a class (`panel: Menu? = null`) holds an instance |
 | a `writable` store, `$store` | an attribute on the `App` or any common ancestor, read by its path (`app.count`); a [`Dataset`](declare-docs:Dataset) when the shared thing is a JSON collection |
 | `setContext` / `getContext` | `provided("name")` |
 | `{#each items as item (item.id)}` | `datapath = :items[]` on the node — one instance per record, keyed by `id`, or `key = :field` |

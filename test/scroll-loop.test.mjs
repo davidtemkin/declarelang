@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(here);
@@ -63,7 +64,7 @@ const server = http.createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const B = `http://127.0.0.1:${server.address().port}`;
 
-const browser = await puppeteer.launch({
+const browser = await launchChrome({
   executablePath: findChrome(), headless: true, args: ["--no-sandbox"],
   defaultViewport: { width: 800, height: 600, deviceScaleFactor: 1 },
 });
@@ -124,8 +125,8 @@ await test("canvas: a request with a glide tweens on the loop and lands exactly 
   await frames(3);
   const mid = await facts();
   assert.ok(mid.y < 1700 && mid.y > 400, `mid-glide the offset is between (got ${mid.y})`);
-  assert.equal(mid.scrolling, true, "`scrolling` is up through a glide");
-  await settled();
+  assert.equal(mid.scrolling, false, "a glide is the program's motion: `scrolling` (the user's scroll) stays down");
+  await page.waitForFunction(() => window.__app.pane.scrollY === 400, { timeout: 5000 });
   assert.equal((await facts()).y, 400, "the glide ends on its target");
 });
 
@@ -199,14 +200,14 @@ await test("canvas: overscroll is presentation — dragging past the top rubber-
   await touch("touchmove", 200, 320, t0 + 32);
   await frames(1);
   const r = await page.evaluate(() => {
-    const s = window.__app.pane.surface;
+    const s = window.__app.pane.$surface;
     return { fact: window.__app.pane.scrollY, visual: s.scrollVisualY };
   });
   assert.equal(r.fact, 0, "the fact is clamped");
   assert.ok(r.visual !== null && r.visual < 0, `the visual offset is past the top (got ${r.visual})`);
   await touch("touchend", 200, 320, t0 + 48, { lift: true });
   await settled();
-  const back = await page.evaluate(() => window.__app.pane.surface.scrollVisualY);
+  const back = await page.evaluate(() => window.__app.pane.$surface.scrollVisualY);
   assert.equal(back, null, "at rest the visual offset retires to the fact");
 });
 

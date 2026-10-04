@@ -904,7 +904,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
     fontFamily = ["Helvetica Neue", "Helvetica", "Arial", "sans-serif"],
 
     // when the data lands, open on its last day outright — writing both the
-    // sprung slot and its target parks the flight spring on the present day, whatever
+    // sprung attribute and its target parks the flight spring on the present day, whatever
     // span the file carries
 
     market: Market [

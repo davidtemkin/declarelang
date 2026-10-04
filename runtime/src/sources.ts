@@ -15,7 +15,7 @@
 // from its bundle like any other class. (Measured caveat, so nobody repeats
 // an over-claim: that shakes out these thin WRAPPERS only. The SERVICES they
 // wrap ship regardless — boot.ts wires Keys, index.ts injects Keys/Focus into
-// body scope for `Keys.isDown(…)`, view.ts uses Tip, text-input.ts uses Focus.
+// body scope for `Keys.isDown(…)`, view.ts uses Tooltips, text-input.ts uses Focus.
 // Gating those on program facts, the way slim-draw gates the paint vocabulary,
 // is a separate and unclaimed win.)
 //
@@ -29,7 +29,7 @@
 import { Node, onDiscard } from "./node.js";
 import { Keys } from "./keys.js";
 import { Focus } from "./focus.js";
-import { Tip } from "./tip.js";
+import { Tooltips } from "./tooltips.js";
 
 /** One subscribable channel: the handler member's name, and the service call
  *  that registers a listener and hands back its unsubscribe thunk. The payload
@@ -94,13 +94,13 @@ const CHANNELS_FOCUS: readonly Channel[] = [
   ["onGeometry", (fn) => Focus.onGeometry(fn)],
 ];
 
-/** The tip service, as a member: `onTip(e)` when a tip-carrying view asks for
+/** The tip service, as a member: `onTooltip(e)` when a tip-carrying view asks for
  *  its tooltip to show (`null` to hide). */
-export class TipSource extends Source {
+export class TooltipsSource extends Source {
   protected channels(): readonly Channel[] {
     return CHANNELS_TIP;
   }
 }
 const CHANNELS_TIP: readonly Channel[] = [
-  ["onTip", (fn) => Tip.onTip(fn)],
+  ["onTooltip", (fn) => Tooltips.onTooltip(fn)],
 ];

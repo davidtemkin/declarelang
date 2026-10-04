@@ -69,6 +69,6 @@ export declare function linkIslandTenant(island: Island, tenant: App): () => voi
 export declare class DOMIsland extends Island {
     slot: string;
     childName: string;
-    protected flush(s: Surface): void;
+    protected $flush(s: Surface): void;
 }
 export {};

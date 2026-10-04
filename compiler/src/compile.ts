@@ -698,10 +698,10 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   }
 
   // Auto-include: pull the libraries that define the program's bare class
-  // tags (`Bar [ … ]` with no `include`, no inline class) — after explicit
+  // tags (`Gauge [ … ]` with no `include`, no inline class) — after explicit
   // includes, sharing their visited set so the two dedup. A no-op on a host
   // without the manifest (single-file compiles stay byte-identical).
-  const auto = await resolveAutoIncludes(resolved.program, main.root, host, resolved.visited);
+  const auto = await resolveAutoIncludes(resolved.program, main.root, host, resolved.visited, source);
   if (auto.errors.length > 0) {
     return { source: null, errors: auto.errors, warnings: [], ...diagnose(auto.errors, [], "module") };
   }
@@ -725,7 +725,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
 
   // Library-provided singletons ride in by MANIFEST RULE (`$provide` in
   // autoincludes.json): the FocusRing with any Control descendant (OL's
-  // `canvas.focusclass` default, reborn), the Tooltip with any `tip`
+  // `canvas.focusclass` default, reborn), the Tooltip with any `tooltipLabel`
   // attribute — each suppressed when the author declares that name
   // themselves (the customization path). The trigger vocabulary and the
   // executor live below; the ASSOCIATIONS are the library's data.
@@ -748,7 +748,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     // ── PROVIDED SINGLETONS — data, not code paths ────────────────────────
     // The library manifest's `$provide` rules say when a program has EARNED a
     // library-provided singleton (the FocusRing with any Control descendant;
-    // the Tooltip with any `tip` attribute). The compiler executes ONE
+    // the Tooltip with any `tooltipLabel` attribute). The compiler executes ONE
     // generic rule over a small trigger vocabulary — `baseUsed` (a declared
     // class descends from the named base) and `attributeUsed` (any element
     // sets the named attribute) — includes the class's own manifest file, and
@@ -768,9 +768,9 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     };
     // An element's tag descends from a BUILT-IN base: walk the declared-class
     // chain to its terminal name, then the schema chain. This is what scopes
-    // `attributeUsed` — on a View descendant a schema-owned name like `tip`
+    // `attributeUsed` — on a View descendant a schema-owned name like `tooltipLabel`
     // can only mean the schema's slot (redeclaration is refused), but on a
-    // Node-descended class an attribute named `tip` is the AUTHOR'S slot and
+    // Node-descended class an attribute named `tooltipLabel` is the AUTHOR'S slot and
     // must never trigger provision (David's catch).
     const tagDescendsFrom = (tag: string, base: string): boolean => {
       let name = tag;

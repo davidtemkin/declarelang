@@ -1,0 +1,82 @@
+/*
+Classes, every way a program can write or reach one: script classes with public,
+private and static fields, a static block, private methods and a brand check;
+Declare subclass chains calling super; a runtime method overridden and reached
+through super; declared attributes over built-ins; a handler that throws. The
+corpus gates build this more than one way and require the same settled tree,
+pixels and page errors.
+*/
+
+script {
+    class Counter {
+        count = 0
+        #step = 2
+        static made = 0
+        static label = ""
+        static { Counter.label = "counter#" + Counter.made }
+        constructor() { Counter.made++ }
+        #bump() { this.count += this.#step; return this.count }
+        bump() { return this.#bump() }
+        static owns(o: object): boolean { return #step in o }
+    }
+    class Doubler extends Counter {
+        twice = this.count * 2
+        bump() { super.bump(); return super.bump() }
+    }
+    const runs: string[] = []
+    function exercise(): string {
+        const a = new Counter(), b = new Doubler()
+        a.bump(); b.bump()
+        runs.push("ran")
+        return [a.count, b.count, b.twice, Counter.made, Counter.label, Counter.owns(b), Counter.owns({})].join(" ")
+    }
+    function fails(): string {
+        try { return (null as unknown as { x: number }).x + "" } catch (e) { return (e as Error).constructor.name }
+    }
+    }
+
+class Base [ width = 260, height = 30, fill = #E8E8E8,
+    tag: string = "base",
+    describe() -> string { return "base:" + tag },
+    t: Text [ x = 8, y = 6, text = { classroot.describe() } ]
+    ]
+
+
+class Middle extends Base [ tag = "middle",
+    describe() -> string { return "middle(" + super.describe() + ")" }
+    ]
+
+
+class Leaf extends Middle [ tag = "leaf", fill = #D8E8F8,
+    describe() -> string { return "leaf(" + super.describe() + ")" }
+    ]
+
+
+class Feed extends DataSource [ url = "",
+    calls: number = 0,
+    fetch() { calls = calls + 1; super.fetch() }
+    ]
+
+
+App [ width = 600, height = 260, fill = white, textColor = black,
+    feed: Feed [ ],
+    onInit() { this.feed.fetch(); this.feed.fetch() },
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Base [ ],
+        Middle [ ],
+        Leaf [ ],
+        Leaf [ tag = "use-site" ],
+        View [ width = 400, height = 22,
+            extra: number = 7,
+            Text [ text = { "script: " + exercise() } ]
+            ],
+        View [ width = 400, height = 22,
+            Text [ text = { "feed fetched " + app.feed.calls + "× · thrown: " + fails() } ]
+            ],
+        View [ width = 120, height = 24, fill = #F0D0D0,
+            onClick() { throw new RangeError("a handler that throws") },
+            Text [ x = 6, y = 4, text = "throws on click" ]
+            ]
+        ]
+    ]

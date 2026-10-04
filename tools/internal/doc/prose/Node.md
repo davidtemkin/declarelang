@@ -37,7 +37,7 @@ init walk visits non-View children too. Answered by `onInit()`.
 ## trackChanges
 The values this node reports changes to: `trackChanges = [ "loaded", "kind" ]`. Each name
 must be one of the node's own reactive values — an attribute it declares, a fact it carries
-(`scrollY`, `loaded`, `hot`), or an attribute bound to data. The checker refuses a stranger
+(`scrollY`, `loaded`, `hovered`), or an attribute bound to data. The checker refuses a stranger
 in a written list, and the runtime refuses one in a computed list when the node arms. To
 hear a record's field, declare an attribute over the path (`kind: string = { :kind }`) and
 name that — there is one door. Nothing else is tracked, so a node that names nothing costs

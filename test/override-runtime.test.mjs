@@ -167,9 +167,9 @@ App [ width = 1, height = 1, f: F [ url = "/x" ] ]`);
     assert.ok(errs.some((m) => /no class beneath F extends DataSource declares onLoad\(\) — super reaches a method written in this program or the library, or a built-in's own runtime method/.test(m)), JSON.stringify(errs));
   });
   await test("a method named after a runtime FIELD is still refused, saying field", async () => {
-    const r = await compile(`App [ width = 1, height = 1, v: View [ surface() { } ] ]`);
+    const r = await compile(`App [ width = 1, height = 1, v: View [ exposes() { } ] ]`);
     assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "the checker is runtime-free by design");
-    assert.throws(() => settleHeadless(r.source, { deps: r.deps }), /View\.surface: 'surface' is a built-in field of the runtime View, not a method/);
+    assert.throws(() => settleHeadless(r.source, { deps: r.deps }), /View\.exposes: 'exposes' is a built-in field of the runtime View, not a method/);
   });
   await test("the super call is typechecked against the runtime method's documented signature", async () => {
     const errs = await errorsOf(`
@@ -251,7 +251,7 @@ await (async () => {
       const expected = [...chainFields(s)].filter((n) => !beneath.has(n)).sort();
       assert.deepEqual([...(RUNTIME_FIELDS[s] ?? [])].sort(), expected, `RUNTIME_FIELDS.${s} drifted from a new ${classes[s].name}()`);
     }
-    assert.ok(runtimeFieldsOf("App").has("surface"), "an App reaches View's surface");
+    assert.ok(runtimeFieldsOf("App").has("exposes"), "an App reaches View's exposes");
   });
   await test("runtimeMethodsOf(schema) is the whole prototype chain", () => {
     for (const s of Object.keys(schemas)) {

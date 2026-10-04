@@ -1,4 +1,4 @@
-App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").bg },
+App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").background },
     textColor = { provided("theme").text },
     page: string = "list",
     col: View [ x = 20, y = 20,

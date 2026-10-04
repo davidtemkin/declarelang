@@ -273,9 +273,9 @@ export function autoIncludableNames(): readonly string[] { return autoIncludable
 
 
 /** A host that ALSO auto-includes class libraries by bare tag — the LZX
- *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Bar [ … ]`
- *  with no `include` and no inline `class Bar` pulls in the library that
- *  declares `Bar`. `autoincludes()` is the tag→library-path manifest;
+ *  `lzx-autoincludes` mechanism, ported (composition.md §1a). Using `Gauge [ … ]`
+ *  with no `include` and no inline `class Gauge` pulls in the library that
+ *  declares `Gauge`. `autoincludes()` is the tag→library-path manifest;
  *  `resolveLibrary(path)` reads a library file, keyed the SAME canonical way
  *  `resolve` is so an explicit include and an auto-include of one file dedup
  *  through the shared visited set. A plain IncludeHost lacks these, so
@@ -333,7 +333,10 @@ export async function resolveAutoIncludes(
   program: Program,
   root: Element,
   host: IncludeHost,
-  visited: Set<string>
+  visited: Set<string>,
+  /** The text being compiled — a library file compiled on its own (or under a
+   *  verify probe) declares its own names by right. */
+  mainSource?: string
 ): Promise<{ program: Program; sources: string[]; sourceIds: string[]; errors: DeclareError[] }> {
   const auto = host as Partial<AutoIncludeHost>;
   if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
@@ -372,6 +375,19 @@ export async function resolveAutoIncludes(
   for (const s of program.themes) origin.set(s.name, "the app");
   for (const s of program.styles) origin.set(s.name, "the app");
   for (const f of program.fonts) origin.set(f.name, "the app");
+
+  // A NAME THE LIBRARY ALREADY HAS. The author's declaration would silently
+  // win — the library's is then never pulled — so taking one is refused,
+  // naming what it replaces. Not when the file being compiled IS that library
+  // file (verifying library/card.declare declares Card by right).
+  for (const d of [...program.classes, ...(program.shapes ?? [])]) {
+    const path = manifest[d.name];
+    if (path === undefined) continue;
+    const lib = await auto.resolveLibrary(path);
+    if (lib !== null && (visited.has(lib.canonical) || (mainSource !== undefined && mainSource.includes(lib.source)))) continue;
+    const kind = "base" in d ? "a class" : "a schema";
+    errors.push(new DeclareError(`'${d.name}' is a library class — ${kind} of the program can't take its name; rename yours (the library's is used as '${d.name} [ … ]')`, d.pos));
+  }
 
   const foldOne = (name: string, pos: Element["pos"], from: string): boolean => {
     const prev = origin.get(name);
@@ -422,7 +438,7 @@ export async function resolveAutoIncludes(
 
   for (const r of referencedTags(root, program.classes)) await pull(r.tag, r.pos);
   await pull(root.tag, root.pos);
-  // The keep-list is a reference too: `use [ Bar ]` pulls Bar's library even with
+  // The keep-list is a reference too: `use [ Gauge ]` pulls Gauge's library even with
   // no static tag (the escape hatch for by-name construction). A built-in or
   // unknown name isn't in the manifest, so pull() no-ops — the checker validates
   // the name against the merged program afterwards. Indexed loop on purpose:

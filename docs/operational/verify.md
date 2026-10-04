@@ -55,10 +55,27 @@ compared it, both settle cleanly at rung 4. When a bug survives a green rung 4, 
 question is a live page, not a re-run. The tiers and their blind spots are tabulated in
 [Introspection](declare-docs:operational:introspection).
 
+## Looking at it, in one call
+
+The usual check — open the program at a size, maybe press something, read some values, take
+a picture — needs no script:
+
+```bash
+npx declare-look app.declare --size 390x844 --touch --dark \
+    --click app.toolbar.add --read app.list.contentHeight --shot phone.png
+```
+
+Flags are applied in that order (a `--click` settles motion before the next step), each
+`--read` prints `path.attr = value`, and it runs as rung 5 — the same browser and reporting.
+Anything more (a drag, a pinch, polling a live feed) is an assert script, below — and it
+stays behind as a test.
+
 ## Writing an assert script
 
-`--assert` takes a module whose default export receives `{ drive, expect }` and drives the
-app by **view path**, never by DOM selector:
+`--assert` takes a module whose default export receives `{ drive, expect, page }`. The script
+you explored with can be the test as it is: `page` is the puppeteer page with the app loaded
+(throw to fail the rung). `drive` and `expect` drive the app by **view path**, never by DOM
+selector:
 
 ```js
 export default async ({ drive, expect }) => {

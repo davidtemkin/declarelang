@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
+import { launchChrome } from "../tools/internal/chrome.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.dirname(here); // neolang/
@@ -545,8 +546,8 @@ const r3PageHtml = (backendClass) => `<!doctype html>
   };
 
   const backend = new ${backendClass}();
-  app.attach(backend, null);
-  backend.attachRoot(document.getElementById("host"), app.surface);
+  app.$attach(backend, null);
+  backend.attachRoot(document.getElementById("host"), app.$surface);
   window.__app = app;
 
   const tick = () => {
@@ -577,8 +578,8 @@ const r4PageHtml = (backendClass, source, permuted) => `<!doctype html>
   };
 
   const backend = new ${backendClass}();
-  app.attach(backend, null);
-  backend.attachRoot(document.getElementById("host"), app.surface);
+  app.$attach(backend, null);
+  backend.attachRoot(document.getElementById("host"), app.$surface);
   window.__app = app;
   window.__mutate = () => {
     const panel = app.children[0];
@@ -1052,7 +1053,7 @@ function assertColorNear(actual, expected, label, tolerance = 4) {
 
 const server = await serveDist();
 const port = server.address().port;
-const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
 const artifactsDir = path.join(here, "artifacts");
 await mkdir(artifactsDir, { recursive: true });
 
@@ -1154,7 +1155,7 @@ try {
     // surface is driven directly: View setters wire up to it at R4.)
     const scheduled = await canvas.page.evaluate(() => {
       const before = window.__rafCalls;
-      const surface = window.__app.children[0].surface;
+      const surface = window.__app.children[0].$surface;
       surface.setFill(0xc03040);
       surface.setX(20); // second change in the same burst
       return window.__rafCalls - before;

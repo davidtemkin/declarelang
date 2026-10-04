@@ -98,7 +98,7 @@ export declare class Node {
      *  reader subscribes to — and the child list's cell is created on first
      *  interest rather than up front, so a tree nobody asks about pays nothing. */
     watchChildList(): void;
-    private childListChanged;
+    protected childListChanged(): void;
     /** The child-list cell's kernel id (created on first need) — a native
      *  rule's edge on "the SET of children changed" (the auto-extent rule). */
     structureCellId(): number;

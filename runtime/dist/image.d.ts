@@ -39,8 +39,8 @@ export declare class Image extends View {
     /** Auto-extent's content hook: the bitmap's natural extent. Reads `loaded`
      *  (tracked), so an owning extent derive re-runs when the bitmap arrives. */
     protected contentExtent(size: "width" | "height"): number;
-    attach(backend: RenderBackend, parentSurface: Surface | null): void;
-    protected flush(s: Surface): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    protected $flush(s: Surface): void;
     /** (Re)load `source` — called at attach and by the `source` pusher. */
     load(): void;
 }

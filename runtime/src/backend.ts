@@ -112,7 +112,7 @@ export interface ScrollGlide { duration?: number; motion?: string }
  *  a reader placing the bitmap adds `positionLead` exactly as the seam does
  *  for the stencil's own surface. */
 export interface MaskStencil {
-  readonly surface: Surface | null;
+  readonly $surface: Surface | null;
   readonly x: number; readonly y: number; readonly width: number; readonly height: number;
   positionLead(axis: "x" | "y"): number;
 }
@@ -213,9 +213,10 @@ export interface EditableSpec {
   /** Soft-wrap long lines (true) vs. keep them on one line and scroll
    *  horizontally (false) — a code field wants no-wrap + h-scroll. */
   wrap: boolean;
-  /** Inner text inset in px (all four sides) — a code field wants breathing
-   *  room off the box edge. 0 = flush (the default). */
-  padding: number;
+  /** Where the text sits inside the field — the field's `padding`, an Inset
+   *  (one number for all four sides, or [top, right, bottom, left]). 0 = flush
+   *  (the default); a code field wants breathing room off the box edge. */
+  padding: Inset;
   placeholder: string;
   style: TextStyle;
   /** The user typed — carry the native element's value to the model. */
@@ -374,6 +375,15 @@ export interface Surface {
    *  scroll event; canvas: the wheel/touch the compositor routes here), so the
    *  runtime can mirror it into the view's reactive `scrollY`. */
   setScroll?(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void;
+  /** Is the user's scroll of this scroller finger-driven right now? A host
+   *  whose scroll the BROWSER drives says so, because a scroll-offset write
+   *  mid-gesture stops its momentum (scroll-anchor.ts holds corrections then).
+   *  Optional: a host that moves the scroller itself never needs to. */
+  userScrollByTouch?(): boolean;
+  /** Is the user holding this scroller's scrollbar right now? A held thumb
+   *  maps the pointer onto the scroll range, so the range must hold still
+   *  under it (virtualize.ts). Optional: a host without a scrollbar never is. */
+  scrollbarHeld?(): boolean;
   /** Windowing-aware AT (materialization.md §2, ruled): expose the LOGICAL
    *  extent and position of a windowed replication so assistive tech hears
    *  "row N of 100,000" without 100,000 nodes existing. `setRowCount` lands

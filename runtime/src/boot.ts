@@ -20,7 +20,7 @@ import { DeclareError, notAboard } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
 import { bridgeFor } from "./inspect.js";
-import { localPoint } from "./dom-backend.js";
+import { localPoint, watchScrolling, setPageScrollWatch } from "./dom-backend.js";
 import { kernelReady, observe } from "./reactive.js";
 // Type-only — erased by tsc, so no runtime dependency on the parser.
 import type { Program } from "./parser.js";
@@ -95,7 +95,7 @@ export function wireInput(app: App, host: HTMLElement, chrome = false): void {
   wireEnvironment(app, host, chrome ? false : embedded);
   if (chrome || embedded) return;
   Focus.setRoot(app);
-  Keys.listen(() => app.surface !== null);
+  Keys.listen(() => app.$surface !== null);
   deliverKeys(Keys, Focus);
   // The inspect bridge (inspect.ts): the tree, provenance, and the driven
   // clock as page-queryable data — verify's rung 5 drives it; a human pokes
@@ -285,7 +285,11 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
     // shown and 760 once they retract — so this reads 0, then 82.
     app.underlapBottom = Math.max(0, app.hostHeight - de.clientHeight);
   };
-  const scroll = () => { app.scrollY = w.scrollY; };
+  // The page is the App's scroller only when the App scrolls. One that
+  // declares `scrolls = none` has no offset of its own; the document's stays
+  // out of it, including the negative one Safari reports while it
+  // rubber-bands a page that fits the window.
+  const scroll = () => { app.scrollY = app.scrolls === "none" ? 0 : w.scrollY; };
   const move = (e: PointerEvent) => {
     app.pointerX = e.clientX; app.pointerY = e.clientY;
     // A mouse that merely MOVES (never presses) must flip hover affordances
@@ -316,6 +320,9 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   // Bar-chrome collapse moves the VISUAL viewport without always firing a
   // window resize — hostHeight must track it (the widening above reads it).
   w.visualViewport?.addEventListener("resize", size);
+  // the page scroll's `scrolling` — the same user-scroll fact every pane
+  // reports — hears each scroll before the offset mirror (dom-backend setScroll)
+  setPageScrollWatch(watchScrolling(w, (a) => { app.$scrollingChanged(a); }));
   w.addEventListener("scroll", scroll, { passive: true });
   // CAPTURE phase, so the coordinates land before ANY handler dispatch: the
   // input router listens at the app root (target/bubble), and a touch press
@@ -400,10 +407,10 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
  *  the DOM host keeps its element path (renderChild), where the box IS the
  *  natural mount. The island's box feeds the tenant's host extent, live. */
 export function mountEmbeddedApp(app: App, island: View): App {
-  const backend = island.backend;
-  const parent = island.surface;
+  const backend = island.$backend;
+  const parent = island.$surface;
   if (backend === null || parent === null) throw new DeclareError("mountEmbeddedApp: the island is not attached to a backend yet");
-  app.attach(backend, parent);
+  app.$attach(backend, parent);
   const sync = (): void => { app.hostWidth = island.width; app.hostHeight = island.height; };
   sync();
   observe(() => [island.width, island.height], sync, "embed:hostExtent");
@@ -416,10 +423,10 @@ export function mountApp(app: App, host: HTMLElement, backend: RenderBackend, op
   const perf = typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && typeof performance !== "undefined" && typeof performance.mark === "function";
   if (perf) performance.mark("declare:mount-attach:start");
   if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) phasesStart();
-  app.attach(backend, null);
+  app.$attach(backend, null);
   if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) phasesStop();
   if (perf) { try { performance.measure("declare:mount-attach", "declare:mount-attach:start"); } catch { /* none */ } performance.mark("declare:mount-root:start"); }
-  backend.attachRoot(host, app.surface!);
+  backend.attachRoot(host, app.$surface!);
   armFirstFrame();   // deferred boot work (boot-deferrals.ts) runs once this is on screen
   if (perf) { try { performance.measure("declare:mount-root", "declare:mount-root:start"); } catch { /* none */ } }
   applyDeclaredScroll(app);
@@ -451,8 +458,8 @@ function applyDeclaredScroll(v: View): void {
   // read-only fact now), re-applied here after the first layout so a range
   // that did not exist at attach can honor it.
   if (v.scrolls !== "none") {
-    if (v.scrollStartY !== 0) v.surface?.scrollToY?.(v.scrollStartY);
-    if (v.scrollStartX !== 0) v.surface?.scrollToX?.(v.scrollStartX);
+    if (v.scrollStartY !== 0) v.$surface?.scrollToY?.(v.scrollStartY);
+    if (v.scrollStartX !== 0) v.$surface?.scrollToX?.(v.scrollStartX);
   }
   for (const c of v.children) if (c instanceof View) applyDeclaredScroll(c);
 }

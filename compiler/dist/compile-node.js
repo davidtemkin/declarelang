@@ -36,7 +36,7 @@ export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js"
 export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 /** The bundled class library root (`declarelang/library`) — its `autoincludes.json`
- *  + `src/*.declare` are what make bare tags like `Bar [ … ]` resolve with no
+ *  + `src/*.declare` are what make bare tags like `Gauge [ … ]` resolve with no
  *  `include`. Resolved from this module's location (compiler/dist/…), so it is
  *  correct wherever the distro is checked out. Callers may override with
  *  `opts.host` (e.g. a fetch host in the browser). */

@@ -22,8 +22,9 @@ other frameworks:
 
 - **[`docs/declare.md`](declare-docs:spec:core)** — the whole language in one file, about
   <!--stat:spec.tokens-->12,000<!--/stat--> tokens.
-- **The skill** in `skill/` — the language, the library, the conventions and the working
-  loop, packaged for coding agents (Claude Code discovers it automatically; any agent can
+- **The skill** in `skill/` — how a coding agent works with Declare: what to read first,
+  where and when to look things up, the working method, and the shapes that mean a program
+  has drifted toward another framework (Claude Code discovers it automatically; any agent can
   read it as plain instructions).
 - **`npx declare-help <name>`** — any class, attribute, enum or error code, answered on
   demand from the same documentation model this guide is built from. It also answers

@@ -18,7 +18,7 @@ Three slots in a row — `iconLeft`, the label, `iconRight` — laid out by
 nothing and needs no special case: an invisible child is skipped and its space
 reclaimed. A `menu` supplies the right icon on its own (`control.declare`).
 
-The fill walks the four-rung ladder — `control` at rest, `controlHover`,
+The fill walks the four-rung ladder — `control` at rest, `controlHovered`,
 `controlPressed`, and `controlSelected` while its menu is open — so hovering a
 button never looks like pressing it.
 
@@ -27,8 +27,8 @@ The button's text. `""` (the default) leaves it iconless-and-wordless, which is
 only useful with an `icon` — a button with neither has nothing to press.
 
 ## primary
-Marks this as the affirmative action: it fills with the accent — `accentHover` and
-`accentPressed` as the pointer hovers and presses — and takes `theme.accentText`
+Marks this as the affirmative action: it fills with the accent — `accentHovered` and
+`accentPressed` as the pointer hovers and presses — and takes `theme.accentTextColor`
 for its ink. One per group of choices — a dialog's Save, not
 its Cancel. Purely a style decision; it changes nothing about behaviour.
 
@@ -80,9 +80,9 @@ theme's native control height); a theme that leaves it unset gets 40. A `height`
 the use site overrides both.
 
 ## cornerRadius
-A theme that rounds buttons by a fixed radius sets `theme.buttonRadius`; it is capped
+A theme that rounds buttons by a fixed radius sets `theme.buttonCornerRadius`; it is capped
 at half the height, so a short button goes fully pill without a squared corner.
-Otherwise the shared `controlRadius` every control uses.
+Otherwise the shared `controlCornerRadius` every control uses.
 
 ## width
 Content-sized: the run — icon, label, icon — plus `padH` each side. Give it a `width`
@@ -97,13 +97,13 @@ The state ladder, one rung per interaction fact, first match wins: an open menu
 holds the selected tint, so the button stays lit while its menu is up; pressed beats
 hovered; at rest, the quiet `control`. A primary button climbs the same ladder in
 the accent: held — pressed, or its menu open — is `accentPressed`, hovered is
-`accentHover`, at rest `accent`. Every rung is a theme token, so a theme restyles
+`accentHovered`, at rest `accent`. Every rung is a theme token, so a theme restyles
 every button's states at once; a platform whose controls do not answer a passing
 pointer states its hover tones equal to its rest tones (Cupertino does).
 
 ## stroke
 A hairline only where the theme wants one: themes that border their secondary
-buttons set `theme.buttonBorder`; flat themes leave it null and get no stroke. A
+buttons set `theme.buttonStrokeColor`; flat themes leave it null and get no stroke. A
 primary button is never bordered — the accent fill is its edge.
 
 ## press()
@@ -126,7 +126,7 @@ class Button extends Control [
 
     baseline: number = { this.run.y + this.run.cap.y + this.run.cap.baseline },
     height = { typeof theme.buttonHeight == "number" ? theme.buttonHeight : 40 },
-    cornerRadius = { typeof theme.buttonRadius == "number" ? Math.min(theme.buttonRadius, height / 2) : theme.controlRadius },
+    cornerRadius = { typeof theme.buttonCornerRadius == "number" ? Math.min(theme.buttonCornerRadius, height / 2) : theme.controlCornerRadius },
     label:   string = "",
     primary: boolean = false,
 
@@ -139,7 +139,7 @@ class Button extends Control [
 
     // one ink decision, so a primary button's icon and its label agree
 
-    inkColor: Color = { primary ? theme.accentText : theme.text },
+    inkColor: Color = { primary ? theme.accentTextColor : theme.text },
     textColor = { inkColor },
 
     // The run sizes to its own content and centers itself in the button; the
@@ -156,16 +156,16 @@ class Button extends Control [
     width   = { this.run.width + this.padH * 2 },
     opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
 
-    fill = { primary   ? (down || menuOpen ? theme.accentPressed : hot ? theme.accentHover : theme.accent)
+    fill = { primary   ? (pressed || menuOpen ? theme.accentPressed : hovered ? theme.accentHovered : theme.accent)
            : menuOpen  ? theme.controlSelected
-           : down      ? theme.controlPressed
-           : hot       ? theme.controlHover
+           : pressed      ? theme.controlPressed
+           : hovered       ? theme.controlHovered
            :             theme.control },
 
     // platforms whose secondary buttons are bordered say so in the theme
     // (Cupertino's and Redmond's hairline) — flat systems leave it null
 
-    stroke  = { !primary && theme.buttonBorder != null ? stroke(1, theme.buttonBorder) : null },
+    stroke  = { !primary && theme.buttonStrokeColor != null ? stroke(1, theme.buttonStrokeColor) : null },
 
     run: View [ height = 100%, x = center,
         width = { this.contentWidth },

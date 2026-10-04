@@ -8,7 +8,7 @@ the page stacks and re-flows on its own at any width. The full-bleed chrome —
 the blueprint grid, the sticky header, the pointer dot — sits absolutely
 around the centered column.
 
-`{ }` bodies are TypeScript, so colors there are `0x…`; `[ ]` literal slots
+`{ }` bodies are TypeScript, so colors there are `0x…`; `[ ]` literal attributes
 take `#…`. Every color on the page has a name in one of the two `theme`
 records below — the palette lives there, once, and nowhere else.
 */
@@ -483,9 +483,9 @@ on this page does.
 */
 
 class SiteButton extends Button [ height = 46, cornerRadius = 9,
-    fill = { primary ? (down ? provided("theme").accentPressed : hot ? provided("theme").accentHover : provided("theme").accent)
-                     : (down ? provided("theme").press       : hot ? provided("theme").hover       : provided("theme").surface) },
-    stroke = { primary ? null : stroke(1, down ? provided("theme").accentSecondary : provided("theme").line) },
+    fill = { primary ? (pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent)
+                     : (pressed ? provided("theme").press       : hovered ? provided("theme").hover       : provided("theme").surface) },
+    stroke = { primary ? null : stroke(1, pressed ? provided("theme").accentSecondary : provided("theme").line) },
 
     // the one ink decision, the library's own seam: the page's ground colour
     // reads on the accent, the ordinary text colour on the quiet fill
@@ -857,7 +857,7 @@ theme Ink [
     // (hover), then flash brighter still at the press — the same direction
     // FootLink's teal takes, so every text link answers a tap the same way
 
-    accent = #4C8DFF, accentHover = #63A0FF, accentPressed = #3D7BE0, linkHover = #7FB0FF, linkPress = #B2CFFF,
+    accent = #4C8DFF, accentHovered = #63A0FF, accentPressed = #3D7BE0, linkHover = #7FB0FF, linkPress = #B2CFFF,
 
     // the teal second accent; the brand gradient runs accent → accentSecondary
 
@@ -892,7 +892,7 @@ theme Ink [
 
 theme Paper [
     text = #14202A, lead = #3A4A57, muted = #5A6B78, dim = #72838F, faint = #8A99A4,
-    accent = #2F6BDE, accentHover = #1F58C4, accentPressed = #1A4AA6, linkHover = #1F58C4, linkPress = #173F8C,
+    accent = #2F6BDE, accentHovered = #1F58C4, accentPressed = #1A4AA6, linkHover = #1F58C4, linkPress = #173F8C,
     accentSecondary = #0FA38E, accentSecondaryPress = #0B7F6F,
     brand = gradient("90deg", #2F6BDE, #0FA38E),
 
@@ -1318,7 +1318,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
             s4: DemoSection [ num = "03", head = "Declare the shape, not the loop.",
                 lead = "A view can be built from data instead of laid out by hand — the shape written once, the data deciding how many there are and what each one says.",
-                caption = "One Bar, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Bar is auto-included: no import, no definition, just use it.",
+                caption = "One Gauge, instanced once per row of the data. Edit a number or add a row and the list rebuilds itself — no loop, no keys. And Gauge is auto-included: no import, no definition, just use it.",
                 demo = "from-data" ],
 
             s5: DemoSection [ num = "04", head = "Motion you declare, not schedule.",
@@ -1657,7 +1657,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
             modeBtn: View [ width = 34, height = 33, cornerRadius = 8,
                 fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
-                tip = { app.isDark ? "Switch to light" : "Switch to dark" },
+                tooltipLabel = { app.isDark ? "Switch to light" : "Switch to dark" },
                 onClick() { app.appearance = app.isDark ? "light" : "dark" },
                 SunIcon [ x = center, y = center, iconSize = 16, visible = { !app.isDark },
                     ink = { parent.hovered ? provided("theme").text : provided("theme").muted } ],

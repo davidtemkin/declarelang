@@ -15,7 +15,7 @@ measured on production DOM builds when the gates were added.
 | `rich-views` | `rich-views` — rich text laid out as views: the manual flow, the block builders, bidi, the line budget | a **canvas** build, or a clamped **rich text**: `maxLines` on an element whose class chain reaches Markdown/HTMLText, or named in a body of a program that constructs one (the `scoped` trigger) — a clamped plain Text does not keep it | ~7.8 KB |
 | `rich-doc` | `rich-doc` — the block tree as one document flow | a DOM build | ~0.7 KB on canvas |
 | `rich-dom` | `dom-rich` — lists, quotes, code boxes, rules and tables as native DOM; baseline and widest line read back | the program constructs a rich text | — |
-| `font-features`, `faces` | `font-derive`, `face-literal` | an OpenType feature is set; a Face is declared | — |
+| `font-features`, `faces` | `font-derive`, `face-literal` | an OpenType feature is set; a FontFace is declared | — |
 | `dom-effects` | `dom-effects` — tint, mask, and the mask stencil's image fit | the program uses them | ~190 B of the fit |
 
 A theme preset named as a literal (`theme = SanFranciscoDark`) needs no capability: the

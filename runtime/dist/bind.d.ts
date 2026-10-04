@@ -36,7 +36,10 @@ export declare function bindConstraint(view: Node, name: string, src: string, po
 deps?: readonly string[], 
 /** A DECLARED default (bindDeclDefault): yields to an author write or a
  *  newer owner, as the live fallback it replaces did. */
-yielding?: boolean): void;
+yielding?: boolean, 
+/** …and is marked as one BEFORE its first run, so a read while that run is
+ *  in flight evaluates the default live instead of taking the empty slot. */
+declDefault?: boolean): void;
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an

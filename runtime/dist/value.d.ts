@@ -210,6 +210,8 @@ export declare function insetSides(i: Inset): [number, number, number, number];
 export declare function insetLead(i: Inset, axis: "x" | "y"): number;
 /** True when this inset takes nothing off any side — the zero-cost path a
  *  layout takes when nobody asked for padding. */
+/** An inset as CSS `padding` (`"0"` when there is none). */
+export declare function insetCss(i: Inset): string;
 export declare function insetIsZero(i: Inset): boolean;
 export declare function radiusFit(r: Radius, w: number, h: number): [number, number, number, number];
 /** A coerced literal — ready to assign to a typed view field. Percent is the
@@ -233,7 +235,10 @@ export type AttrType = {
 } | {
     readonly kind: "dataschema";
 } | {
-    readonly kind: "object" | "view";
+    readonly kind: "object";
+} | {
+    readonly kind: "view";
+    readonly required?: true;
 } | {
     readonly kind: "array";
     readonly of?: string;
@@ -248,6 +253,7 @@ export type AttrType = {
 } | {
     readonly kind: "class";
     readonly of: string;
+    readonly required?: true;
 } | {
     readonly kind: "fn";
     readonly written: string;
@@ -259,6 +265,7 @@ export type AttrType = {
     readonly kind: "record";
     readonly name: string;
     readonly data?: true;
+    readonly required?: true;
 } | {
     readonly kind: "fill";
 } | {

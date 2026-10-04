@@ -49,7 +49,7 @@ for (const f of files) {
   }, () => {
     try {
       const app = buildProgram(b.program);
-      app.attach(new HeadlessBackend(), null);
+      app.$attach(new HeadlessBackend(), null);
       settle();
       app.discard();
     } catch { /* booting is verify's subject; only what it parsed is this test's */ }

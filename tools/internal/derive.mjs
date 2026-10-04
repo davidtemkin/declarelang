@@ -120,10 +120,10 @@ const RULES = [
     run: () => run("npx", ["tsc", "-b"]),
   },
   {
-    name: "briefs-index",            // the briefs index, stamped into SKILL.md and docs/declare.md
+    name: "briefs-index",            // the briefs index, stamped into skill/SKILL.md
     inputs: ["tools/internal/stamp-briefs.mjs", "tools/internal/doc/briefs.mjs", { dir: "docs/briefs", ext: ".md" }],
     outputs: [],
-    stamps: ["skill/SKILL.md", "docs/declare.md"],
+    stamps: ["skill/SKILL.md"],
     run: () => run("node", ["tools/internal/stamp-briefs.mjs"]),
   },
   {

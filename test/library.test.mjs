@@ -477,7 +477,7 @@ await test("DataGrid: a column added at runtime joins the column model — nothi
 await test("the library raises no warnings in a program that uses it", async () => {
   const r = await (await import("../compiler/dist/compile-node.js")).compile(`App [ width = 600, height = 600,
     col: View [ layout: SimpleLayout [ axis = y ],
-    Button [ label = "b" ], Checkbox [ label = "c" ], Switch [ ], Slider [ ], ProgressBar [ ], Bar [ ],
+    Button [ label = "b" ], Checkbox [ label = "c" ], Switch [ ], Slider [ ], ProgressBar [ ], Gauge [ ],
     Segmented [ choices = { [ ({ id: "a", label: "A", location: "a" }) ] } ], Combobox [ ], TextInput [ ], AppearanceSwitch [ ],
     RadioGroup [ Radio [ choice = "a", label = "A" ] ], Field [ ], Card [ ], Divider [ ],
     Accordion [ Pane [ ] ], Menu [ ], MenuBar [ ], ContextMenu [ ], Dialog [ ], Tooltip [ ], Icon [ ] ] ]`);

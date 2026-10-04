@@ -1,6 +1,6 @@
 // A FONT AS A VALUE — what a `fontFamily` slot, a text style or a drawing holds.
 //
-// A font is an object in the tree (font.ts: `brand: Font [ Face [ … ] ]`), and a
+// A font is an object in the tree (font.ts: `brand: Font [ FontFace [ … ] ]`), and a
 // family slot holds it: `fontFamily = { app.brand }`, `{ [app.brand, "Georgia"] }`,
 // or a plain family string for a face the machine already has. Everything that
 // measures or paints asks THIS module what family a value names right now.
@@ -144,5 +144,5 @@ export function familyOf(style: { fontFamily?: unknown }): string {
   return HOLDERS.has(style) ? heldFamily(style, "fontFamily", style.fontFamily) : familyCss(style.fontFamily);
 }
 
-// A Face's literal forms (weights, sources) live in face-literal.ts — carried by
-// a production build only when a program declares a Face.
+// A FontFace's literal forms (weights, sources) live in face-literal.ts — carried by
+// a production build only when a program declares a FontFace.

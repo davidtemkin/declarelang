@@ -18,15 +18,15 @@ it is always false on a touch screen. `pressed` is true from a press on the view
 release — slide off and it lets go, slide back and it re-arms, the way native buttons
 behave. You read them in constraints; you never assign them (the compiler says so).
 
-A control adds a pair derived from those facts, [`hot`](declare-docs:Control.hot) and [`down`](declare-docs:Control.down): the same facts, gated
-by `disabled`, with keyboard activation folded into `down`. Style a control from `hot`
-and `down`, so a disabled control never lights up:
+On a control the same two facts answer under its policy: both are false while it is
+`disabled`, and `pressed` is also true while a keyboard press (Space or Enter) activates
+it. So a control styles from `hovered` and `pressed` too, and a disabled one never lights up:
 
 ```declare
 class Tile extends Control [ width = 90, height = 70, cornerRadius = 10,
     label: string = "",
     picked: boolean = { app.choice == label },
-    fill = { down ? 0xC9D6E8 : hot ? 0xDDE6F2 : 0xEEF2F7 },
+    fill = { pressed ? 0xC9D6E8 : hovered ? 0xDDE6F2 : 0xEEF2F7 },
     stroke = { picked ? stroke(2, 0x2E6FE0) : null },
     press() { app.choose(label) },
     Text [ x = center, y = center, text = { classroot.label } ]
@@ -152,7 +152,7 @@ attribute; every target derives its look from it.
 onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
 
 // on each target — no handler, just a constraint
-hot = { app.dropTarget == this }
+hovered = { app.dropTarget == this }
 ```
 
 One thing to get right: `viewAt` answers *what a press would hit*, and your drag ghost is

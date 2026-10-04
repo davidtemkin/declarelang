@@ -19,7 +19,7 @@ schema Task [ id: string, title: string, done: boolean, due: number, note?: stri
 
 A schema is a top-level declaration. Squint past the brackets and it is a TypeScript
 interface — and it is a real type: `Task` works in any type position, in a declared
-attribute (`sel: Task = null`), a method signature (`advance(t: Task)`), or a field of
+attribute (`sel: Task? = null`), a method signature (`advance(t: Task)`), or a field of
 another schema. A schema's brackets hold fields only — no defaults, no behavior.
 
 Field types are the ones JSON can say: `string`, `number`, `boolean`, `any`, another
@@ -74,9 +74,12 @@ it does not mention pass through untouched, because real data is ragged. That ha
 consequence to know: a misspelled field name in a *write* (`:donee = true`) is not a type
 error, just a new key nothing reads.
 
-Your own state can use the same names. `sel: Task = null` is a declaration whose type is
-the schema; a record-typed attribute may be null until something sets it, so reads are
-`app.sel!.title` behind a null test, or `app.sel?.title ?? ""`. And a record-typed
+Your own state can use the same names. **The `?` says whether it may be empty.**
+`sel: Task? = null` may be null until something sets it, so reads say what happens then:
+`app.sel?.title ?? ""`. `rec: Task = { :@ }` — written without `?` — is never empty, so
+`classroot.rec.title` reads plainly; the checker holds the attribute to that (a `null`
+default is refused), and an attribute declared `rec: Task` with no default is one every
+use site must supply. The same rule holds for a class (`child: Menu?`) and for `View`. And a record-typed
 attribute is live past its identity: a constraint reading `app.sel.title` follows when
 that record's title is edited, not only when `sel` points at a different record.
 

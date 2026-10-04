@@ -34,6 +34,7 @@ final class ControlChannel {
     private let inPath: String = (Bundle.main.infoDictionary?["DeclareCtlPipe"] as? String) ?? "/tmp/declare-ctl.in"
     private var outPath: String { inPath.hasSuffix(".in") ? String(inPath.dropLast(3)) + ".out" : inPath + ".out" }
     private var timer: Timer?
+    private var activity: NSObjectProtocol?
     /// A `liveresize` still stepping. A later size command cancels it: its steps
     /// run on a main-thread timer that falls behind whenever main is busy, and a
     /// step landing after a `resize` put the window back to that step's size —
@@ -118,6 +119,12 @@ final class ControlChannel {
     ]
 
     func start() {
+        // A harness drives this host from outside, often with its window behind
+        // others: App Nap would throttle a background app's timers — this poll
+        // among them — to seconds, and the harness reads that as a dead host.
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
+            reason: "driven through the control channel")
         try? "".write(toFile: inPath, atomically: true, encoding: .utf8)
         let t = Timer(timeInterval: 0.03, repeats: true) { [weak self] _ in self?.poll(); Automation.shared.tick() }
         RunLoop.main.add(t, forMode: .common)
@@ -843,6 +850,16 @@ final class ControlChannel {
             }
             v.barRelease(atModel: to)
             return "dragged"
+        case "bargrab", "barmove", "barrelease":
+            // The thumb gesture's three calls one at a time — so a rig can hold
+            // a grabbed thumb STILL (the scroll is not over while it is held).
+            guard let v = view else { return "no view" }
+            let p = NSPoint(x: num(1), y: num(2))
+            switch a[0] {
+            case "bargrab": return v.barGrab(atModel: p) ? "grabbed" : "no scrollbar thumb at \(NSStringFromPoint(p))"
+            case "barmove": v.barMove(toModel: p); return "moved"
+            default: v.barRelease(atModel: p); return "released"
+            }
         case "lines":
             guard let n = bridge.tree?.node(Int(num(1))), let flow = n.rich else { return "no flow \(Int(num(1)))" }
             return flow.dumpLines()

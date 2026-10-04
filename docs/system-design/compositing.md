@@ -56,7 +56,7 @@ gates**:
 What does **not** exist is the view tier: a `View` cannot blend against its siblings,
 and nothing can sample what lies beneath it. Guide ch. 20 records canvas frost as
 "the one visible gap in the parity numbers"; `library/menu.declare` renders
-`theme.menuMaterial` as plain translucency with the comment *"a `backdrop` blur is
+`theme.menuFill` as plain translucency with the comment *"a `backdrop` blur is
 pending"*; Cupertino's theme says the same twice. This plan is that pending work,
 plus the blend tier that shares its bones.
 
@@ -108,11 +108,11 @@ panel: View [ backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12, … ]
   the blur radius so edges do not bleed dry.
 - The view's own `fill` then paints **over** the frosted sample, which is exactly how
   every platform's material works (a translucent wash over a blurred backdrop) and
-  what `theme.menuMaterial`'s translucent colors are already shaped for.
+  what `theme.menuFill`'s translucent colors are already shaped for.
 
 ### 3.3 Theme integration
 
-The themes already carry the wash (`menuMaterial`); frost adds the sampling. One new
+The themes already carry the wash (`menuFill`); frost adds the sampling. One new
 optional token pair per consumer, elected like every other material fact:
 `menuBackdrop` (a `frost(…)` value or null) first, then the scrim/window consumers as
 adoption reaches them (§7.4). Tokens are measured into the reference by the
@@ -204,7 +204,7 @@ For **`blend`** (a new View enum attribute):
 1. `runtime/src/schema.ts` — the attr on `ViewSchema` via `enumType(…)`; the enum
    reaches the spine's vocabulary page with no further work.
 2. `runtime/src/view.ts` — the attribute table entry with its push:
-   `blend: { def: "normal", push: (v, b) => v.surface?.setBlend?.(b) }` (the
+   `blend: { def: "normal", push: (v, b) => v.$surface?.setBlend?.(b) }` (the
    `ignoreScroll` pattern — optional-chained, so backends adopt independently).
 3. Backends: `dom-backend.ts`, `canvas-backend.ts`, `mac-backend.ts` (+ a new `OP`
    code in its numeric table and the matching `LayerTree.swift` `applyOne` arm —

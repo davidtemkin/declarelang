@@ -54,6 +54,8 @@ import type { Cursor } from "./data.js";
 export interface LayoutStrategy {
     attachTo(view: View): () => void;
     rearm(): void;
+    /** A kernel-placed stack stops writing at once (its child list changed inside a settle). */
+    $retireNative?(): void;
 }
 export { onDiscard } from "./node.js";
 /** Is this view's replicated content currently windowed? The UNTRACKED read,
@@ -240,14 +242,16 @@ export declare class View extends Node {
      *  attach; `both` is the whole-gesture claim drags always had. */
     claim: "both" | "x" | "y";
     /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
-     *  non-empty tip wires this view's hover into the Tip service; the
+     *  non-empty tip wires this view's hover into the Tooltips service; the
      *  auto-included Tooltip singleton renders it. "" = no tip. */
-    tip: string;
+    tooltipLabel: string;
+    defaultplacement: string;
     scrollY: number;
     scrollX: number;
     scrollStartY: number;
     scrollStartX: number;
     scrolling: boolean;
+    scrollAnchor: string;
     /** Keyboard focus (docs/system-design/input.md, Layer 2). `focusable` = a tab stop;
      *  `focusTrap` = a self-contained focus group. Traversal order is the tree,
      *  overridable per view by defining a `tabOrder()` method. */
@@ -295,23 +299,23 @@ export declare class View extends Node {
      *  on the root and on hand-built trees. */
     classroot: View | null;
     /** This view's handle on the render backend — null until attached. */
-    surface: Surface | null;
+    $surface: Surface | null;
     /** The backend this view attached on — what lets a view that arrives
      *  AFTER attach (a replicated instance, R8) realize itself into the live
      *  tree. Null until attached. */
-    backend: RenderBackend | null;
+    $backend: RenderBackend | null;
     /** The draw method's standing recording (null until one exists). Phase 1:
      *  it re-records only after value constraints settle, so a draw body
      *  always sees consistent attributes. @internal read by the visibility
      *  feed, which lands a drawing's resolution (visibility.ts). */
-    drawing: Constraint | null;
+    $drawing: Constraint | null;
     /** Realize this view and its subtree on a backend: create the surface,
      *  flush the current visual state across the seam, parent it (before
      *  `before` when the tree is mutating mid-list — R8; null appends), and
      *  recurse. This is the substrate-agnostic render pass — View touches only
      *  the Surface API. After this, the attribute setters push changes to the
      *  live surface one Surface call at a time. */
-    attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** Read data relative to this view's inherited cursor — the runtime form
      *  every `:path` in a `{ }` body resolves to. The COMPILER emits the
      *  pre-parsed segments (`:location.city` → `this.$data(["location","city"])`,
@@ -332,13 +336,40 @@ export declare class View extends Node {
      *  as a unit — re-arm the installed arrangement and re-derive auto-extent,
      *  once per burst (the replicator calls this once per reconcile, not per
      *  child). A replicated block arriving under a never-sized view can also
-     *  make a slot newly derivable — bindExtent picks it up. */
+     *  make a slot newly derivable — bindExtent picks it up.
+     *
+     *  Inside a settle the work runs ONCE per view, at the settle's close: the
+     *  parts a row's states build arrive one at a time, and each would otherwise
+     *  tear down and reinstall the arrangement and re-derive the extent. The
+     *  close is still before anything paints, and whatever read the interim
+     *  geometry re-runs when the arrangement lands — the result is the one the
+     *  final child list gives either way. */
+    private $mutationQueued;
+    private $tornDown;
     childrenMutated(): void;
+    private $applyChildrenMutated;
     /** This view's own content's extent on a size axis, folded into the
      *  auto-extent max — 0 for a plain view; Image overrides with the bitmap's
      *  natural size. Runs under tracking, so an override may read reactive
      *  state (Image reads `loaded`). */
     protected contentExtent(_size: "width" | "height"): number;
+    /** A windowed block's whole logical extent when this view is the scroller
+     *  its rows sit in directly (replicate.ts): the rows that exist are only the
+     *  window, so `contentHeight` takes the block's extent as its floor — the
+     *  same range every renderer's scroll already spans. A change wakes the
+     *  child-list cell extentOf already watches, so no other view pays for it. */
+    private $virtualHeight;
+    /** A DRAGGED VIEW SIZES ITS CONTAINERS FROM WHERE IT WAS PICKED UP. While
+     *  the press that drags it lasts, extentOf counts this view at its box at
+     *  the press, not where the hand has taken it: a container neither grows
+     *  after the drag (a scroller's range would grow ahead of autoscroll, which
+     *  would chase it into empty room) nor collapses (a box sized by the very
+     *  card being lifted). The drop is the program's: whatever the release
+     *  writes is counted from then on. */
+    private $pressHome;
+    private $dragHome;
+    private $freezeHome;
+    $setVirtualExtent(h: number | null): void;
     /** Install auto-extent derives for whichever never-set, unowned size slots
      *  qualify — only on views with View children (a childless view keeps its
      *  zero-cost default; Dataset children are not geometry). Protected so the
@@ -354,8 +385,9 @@ export declare class View extends Node {
      *  content (Image) or a child is out of the plane; a child turning 3D
      *  later DECLINES the rule and the JS derive takes over then. */
     private installKernelExtent;
-    /** The kernel auto-extent's word list: the child-list cell, then each View
-     *  child's numeric block base (the rule reads its slots by base). */
+    /** The kernel auto-extent's word list: the child-list cell, this view's inset
+     *  cell on the axis, then each View child's numeric block base (the rule
+     *  reads its slots by base). */
     private extentWords;
     private extentOf;
     /** THIS VIEW'S CONTENT ORIGIN, in its own coordinates: the leading insets of
@@ -459,7 +491,14 @@ export declare class View extends Node {
      *  dragged off, re-arms dragged back; a touch press holds while down).
      *  Read-only reactive intrinsics like `contentWidth` (schema readOnly — a
      *  set is a compile error); reading one from a constraint subscribes it.
-     *  Pay-per-use: a program that never reads them allocates nothing. */
+     *  Pay-per-use: a program that never reads them allocates nothing.
+     *
+     *  A view that declares `disabled` (every Control) answers under that
+     *  policy: while disabled it is neither hovered nor pressed, so a disabled
+     *  control never lights up under the pointer. And a view's own `flash` — a
+     *  Control's keyboard activation (Space/Enter) — reads as pressed, so the
+     *  keyboard shows the same look a pointer press does. One pair of facts,
+     *  styled against everywhere. */
     get hovered(): boolean;
     get pressed(): boolean;
     /** Is this view ON SCREEN — inside the viewport, not scrolled away, not in
@@ -541,7 +580,7 @@ export declare class View extends Node {
      *  it with their capabilities (Text, Image); it runs before the children
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
      *  exactly the paint order the Canvas walk uses: content, then children. */
-    protected flush(s: Surface): void;
+    protected $flush(s: Surface): void;
     /** THE HIT TEST: the view under a root-space point, or null. The same walk
      *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
      *  `pointerEvents`, and `ignoreClip` all count exactly as they do for a real
@@ -642,6 +681,12 @@ export declare class View extends Node {
      *  the platform primitive — `reveal` is deliberately left free as a member name,
      *  e.g. a `reveal:` fade-in Spring.) */
     scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void;
+    /** @internal A request made while the USER is scrolling this scroller waits
+     *  until that scroll is over; only the latest one is kept (the scroll verbs
+     *  store themselves here, $scrollingChanged runs it). */
+    $pendingScroll: (() => void) | null;
+    /** @internal The platform reported the user's scroll starting or ending. */
+    $scrollingChanged(a: boolean): void;
     /** Ask this scroller to go to offset `y` — a REQUEST, not an assignment
      *  (platform-authorship.md): the platform clamps it to the real scroll
      *  range, and a surface that cannot take it yet (a hidden pane) HOLDS it
@@ -749,6 +794,9 @@ export declare function withCursorDefining<T>(view: Node, fn: () => T): T;
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export declare function inheritedCursor(node: Node | null): Cursor | null;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
+/** A node's address for an error message: its authored-name path up the tree
+ *  (`app.pulse.card`), or its class when anonymous. Cheap, and built only once
+ *  a handler has already thrown. */
 export declare function nodeLabel(n: Node): string;
 export declare function fireEvent(view: Node, event: string, ...args: unknown[]): void;
 export declare function viewLayoutReady(): boolean;
@@ -762,7 +810,7 @@ export declare class App extends View {
      *  painted, so what the handler writes is in the first frame the user sees.
      *  Once per App instance; an embedded island's App gets its own. */
     private readyDelivered;
-    attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** `hostWidth`/`hostHeight` — the App's enclosing extent (the window at top
      *  level, the container element when embedded), fed by the runtime at mount
      *  (index.ts). READ-ONLY intrinsics (schema.ts marks them so; a set is a

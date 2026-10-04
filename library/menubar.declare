@@ -206,7 +206,7 @@ class MenuBar [
             // the open/arrow-nav title highlight — a translucent frosted capsule
             // when the theme names one (Cupertino), else the solid controlSelected
 
-            fill = { this.open ? (theme.menuTitleHl != null ? theme.menuTitleHl : theme.controlSelected) : null },
+            fill = { this.open ? (theme.menuTitleHighlightFill != null ? theme.menuTitleHighlightFill : theme.controlSelected) : null },
             onPointerOver() { classroot.trackMenu(this) },
             onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
             onInit() { if (this.kd != "") this.host.createView(this.kd, ({ })) },

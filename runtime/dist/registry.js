@@ -27,8 +27,8 @@ import { Animator } from "./animator.js";
 import { AnimatorGroup } from "./animator-group.js";
 import { Spring } from "./spring.js";
 import { Time } from "./time.js";
-import { Font, Face } from "./font.js";
-import { KeysSource, FocusSource, TipSource } from "./sources.js";
+import { Font, FontFace } from "./font.js";
+import { KeysSource, FocusSource, TooltipsSource } from "./sources.js";
 import { EventStream, Socket } from "./streams.js";
 import { State } from "./state.js";
 /** Tag → runtime View class (the tree tags). `Node` is registered so a user can
@@ -41,7 +41,7 @@ export const TAGS = {
     Time: Time,
     // A typeface as an object in the tree (font.ts): generic path, like Time.
     Font: Font,
-    Face: Face,
+    FontFace: FontFace,
 };
 /** Tag → buildable layout-strategy class (R7) — built only as a class-typed
  *  attribute value, never a tree tag. */
@@ -65,7 +65,7 @@ export const ANIMATORS = { Animator, Spring };
 export const SOURCES = {
     Keys: KeysSource,
     Focus: FocusSource,
-    Tip: TipSource,
+    Tooltips: TooltipsSource,
     // the stream family (streams.ts) — `Stream` itself is schema-only
     // (abstract, uninstantiable), so only the concrete transports register
     EventStream,
@@ -98,7 +98,7 @@ export const REGISTRY_MANIFEST = [
     { name: "Node", table: "TAGS", module: "node.js", export: "Node" },
     { name: "Time", table: "TAGS", module: "time.js", export: "Time" },
     { name: "Font", table: "TAGS", module: "font.js", export: "Font" },
-    { name: "Face", table: "TAGS", module: "font.js", export: "Face" },
+    { name: "FontFace", table: "TAGS", module: "font.js", export: "FontFace" },
     { name: "Layout", table: "LAYOUT_BASES", module: "layout.js", export: "Layout" },
     { name: "TweenLayout", table: "LAYOUT_BASES", module: "tween-layout.js", export: "TweenLayout" },
     { name: "Dataset", table: "DATA", module: "data.js", export: "Dataset" },
@@ -107,7 +107,7 @@ export const REGISTRY_MANIFEST = [
     { name: "Spring", table: "ANIMATORS", module: "spring.js", export: "Spring" },
     { name: "Keys", table: "SOURCES", module: "sources.js", export: "KeysSource" },
     { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
-    { name: "Tip", table: "SOURCES", module: "sources.js", export: "TipSource" },
+    { name: "Tooltips", table: "SOURCES", module: "sources.js", export: "TooltipsSource" },
     { name: "EventStream", table: "SOURCES", module: "streams.js", export: "EventStream" },
     { name: "Socket", table: "SOURCES", module: "streams.js", export: "Socket" },
     { name: "AnimatorGroup", table: "ANIMATOR_GROUPS", module: "animator-group.js", export: "AnimatorGroup" },

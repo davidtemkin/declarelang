@@ -121,7 +121,7 @@ const damageDisabled = (): boolean => typeof __DECLARE_DEV_SWITCHES__ !== "undef
 const damageChecking = (): boolean => typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareDamageCheck?: unknown }).__declareDamageCheck !== undefined;
 import { type MaskSpec, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, insetSides, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Inset, type Radius, type Shadow, type BoxStroke, filterBlur, type Filter, filterBleed } from "./value.js";
+import { colorToCss, insetCss, insetSides, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Inset, type Radius, type Shadow, type BoxStroke, filterBlur, type Filter, filterBleed } from "./value.js";
 import { filterCss } from "./effects.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
@@ -373,8 +373,9 @@ function evictLeastValuable(except: CanvasSurface): boolean {
 // Offsets land on the surfaces, the frame PAINTS (a translate of cached
 // rasters), and only then are the FACTS written — once per frame — so the
 // settle that follows can never delay the motion (its own paint lands a frame
-// later: the documented ≤1-frame lag). `scrolling` is true while any of the
-// three is live, plus a short quiet tail after a wheel stream.
+// later: the documented ≤1-frame lag). `scrolling` is the USER's scroll: true
+// while a wheel stream or a touch is live (plus a short quiet tail after a
+// wheel stream) — a glide, the program's own motion, never raises it.
 type Glide = { duration?: number; motion?: string };
 interface Tween { axis: "x" | "y"; from: number; to: number; start: number; duration: number; curve: Motion }
 interface TouchSession { s: CanvasSurface; physics: ScrollPhysics; started: boolean; x0: number; y0: number; last: number }
@@ -420,7 +421,7 @@ class ScrollLoop {
     const list = (this.tweens.get(s) ?? []).filter((t) => t.axis !== axis);
     list.push({ axis, from, to, start: performance.now(), duration: Math.max(1, g.duration ?? 260), curve });
     this.tweens.set(s, list);
-    this.begin(s);
+    // no begin(): a glide is the PROGRAM's motion, and `scrolling` is the user's
     this.comp.invalidate(s);
   }
   cancelGlides(s: CanvasSurface): void {
@@ -466,6 +467,7 @@ class ScrollLoop {
     if (s.scrolls) {
       s.scrollVisualY = st.contentOffsetY - st.overscrollY;
       const y = Math.min(maxY, Math.max(0, st.contentOffsetY));
+      s.wantY = null;
       if (y !== s.scrollOffset) { s.scrollOffset = y; this.mark(s); }
     }
     if (s.scrollsX) {
@@ -485,6 +487,7 @@ class ScrollLoop {
       }
       if (s.scrolls && p.dy !== 0) {
         const ny = Math.min(Math.max(0, s.contentExtent() - s.height), Math.max(0, s.scrollOffset + p.dy));
+        s.wantY = null;
         if (ny !== s.scrollOffset) { s.scrollOffset = ny; this.mark(s); }
       }
       // a wheel stream ends when it goes quiet
@@ -498,7 +501,7 @@ class ScrollLoop {
       for (const t of list) {
         const p = Math.min(1, (now - t.start) / t.duration);
         const v = t.from + (t.to - t.from) * sample(t.curve, p);
-        if (t.axis === "y") { if (v !== s.scrollOffset) { s.scrollOffset = v; this.mark(s); } }
+        if (t.axis === "y") { s.wantY = null; if (v !== s.scrollOffset) { s.scrollOffset = v; this.mark(s); } }
         else if (v !== s.scrollXOffset) { s.scrollXOffset = v; this.mark(s); }
         if (p < 1) keep.push(t);
       }
@@ -616,6 +619,13 @@ class Compositor {
       doc.documentElement.style.height = "100%";
       doc.body.style.height = "100%";
       doc.body.style.margin = "0";
+    }
+    // …and its overscroll rule: the page bounces only when it is the App's
+    // scroller (the DOM backend's pageBounce).
+    if (!embedded) {
+      const v = root.scrolls ? "" : "none";
+      host.ownerDocument.documentElement.style.overscrollBehaviorY = v;
+      host.ownerDocument.body.style.overscrollBehaviorY = v;
     }
     host.appendChild(canvas);
     // THE PAGE REALIZATION (ruled 2026-07-29): the root's scroll regime is
@@ -828,8 +838,8 @@ class Compositor {
     const dragEnd = (): void => {
       if (barDrag !== null) this.invalidate(barDrag.s);
       if (barHold !== null) this.invalidate(barHold.s);
-      if (barDrag !== null) { if (barDrag.s !== barHover) barDrag.s.barWide = false; barDrag = null; }
-      if (barHold !== null) { window.clearTimeout(barHold.timer); barHold.s.barWide = false; barHold = null; }
+      if (barDrag !== null) { if (barDrag.s !== barHover) barDrag.s.barWide = false; barDrag.s.holdBar(false); barDrag = null; }
+      if (barHold !== null) { window.clearTimeout(barHold.timer); barHold.s.barWide = false; barHold.s.holdBar(false); barHold = null; }
       window.removeEventListener("pointermove", dragMove, true);
       window.removeEventListener("pointerup", dragEnd, true);
       window.removeEventListener("pointercancel", dragEnd, true);
@@ -867,6 +877,7 @@ class Compositor {
         }
         barDrag = { s: f.s, ay: f.ay, grabDy };
         f.s.barWide = true;
+        f.s.holdBar(true);
         e.stopPropagation();
         e.preventDefault();
         armWindow();
@@ -879,6 +890,7 @@ class Compositor {
         hold.timer = window.setTimeout(() => {
           hold.engaged = true;
           hold.s.barWide = true;
+          hold.s.holdBar(true);
           this.invalidate(hold.s);
         }, 250);
         barHold = hold;
@@ -1262,6 +1274,9 @@ class CanvasSurface implements Surface {
    *  shifts by `scrollOffset` shifts by `scrollXOffset` beside it. */
   scrollsX = false;
   scrollXOffset = 0;
+  /** A program request past the end this surface knew when it came (the box
+   *  can land later in the same update): settled at the next paint. */
+  wantY: number | null = null;
   /** A windowed block's LOGICAL extent (setVirtualExtent — replicate.ts):
    *  the scroll range's floor when only a window of rows exists. */
   virtualExtent = 0;
@@ -1282,12 +1297,22 @@ class CanvasSurface implements Surface {
   }
 
   /** Drive the scroll from a bar-scrub position (frame-local thumb top). */
+  /** A hand on this scroller's bar: the scroll is live until it lets go, and
+   *  the range it maps the pointer onto must hold still (scrollbarHeld). */
+  private barHeld = false;
+  holdBar(on: boolean): void {
+    if (on === this.barHeld) return;
+    this.barHeld = on;
+    this.reportScrolling(on);
+  }
+  scrollbarHeld(): boolean { return this.barHeld; }
   scrubTo(thumbTop: number): void {
     const g = this.barGeom();
     if (g === null) return;
     const span = g.trackH - g.thumbH;
     const frac = span > 0 ? Math.min(1, Math.max(0, (thumbTop - 2) / span)) : 0;
     const next = frac * (g.ext - this.height);
+    this.wantY = null;
     if (next === this.scrollOffset) return;
     this.scrollOffset = next;
     this.onScrollCb?.(next);
@@ -2009,7 +2034,7 @@ class CanvasSurface implements Surface {
       // spellcheck election, and the wrap mode all come from the one spec —
       // the overlay is the same editable, positioned differently.
       el.spellcheck = spec.spellcheck;
-      el.style.padding = spec.padding > 0 ? `${spec.padding}px` : "0";
+      el.style.padding = insetCss(spec.padding);
       if (el instanceof HTMLTextAreaElement) {
         el.wrap = spec.wrap ? "soft" : "off";
         el.style.whiteSpace = spec.wrap ? "pre-wrap" : "pre";
@@ -2204,7 +2229,7 @@ class CanvasSurface implements Surface {
       const t = c.hit(cx, cy);
       if (t !== null) return t;
     }
-    // A pointer-transparent view is a corridor, not a target: its children were
+    // A pointer-transparent view is not a press target: its children were
     // already offered the point above, so an `auto` descendant has taken it.
     if (this.sink !== null && inBox && this.pe !== "none") {
       // the nearest PINCH OWNER up the chain (self included) — the claim
@@ -2308,7 +2333,7 @@ class CanvasSurface implements Surface {
     if (glide !== undefined) { loop.glide(this, "x", next, glide); return; }
     // equal = inert: the fact's own echo through the attribute push (view.ts
     // scrollX) must never cancel a glide or a session in progress
-    if (next === this.scrollXOffset) return;
+    if (next === this.scrollXOffset) { if (v !== next) this.onScrollXCb?.(next); return; }
     loop.cancelGlides(this);
     this.scrollXOffset = next;
     this.onScrollXCb?.(next);
@@ -2341,10 +2366,19 @@ class CanvasSurface implements Surface {
     const extent = this.contentExtent();
     const next = Math.min(Math.max(0, extent - this.height), Math.max(0, v));
     if (glide !== undefined) { loop.glide(this, "y", next, glide); return; }
-    if (next === this.scrollOffset) return;   // the fact's echo (see scrollToX)
+    // a request past the end as this surface knows it: the box may be about to
+    // change in the same update (a pane shrinking takes its offset with it) —
+    // the paint, which sees the box as it lands, settles what was asked for
+    this.wantY = v > next ? v : null;
+    // the fact's echo (see scrollToX) — though a request past the end it was
+    // already clamped to still leaves the model at the offset really held
+    if (next === this.scrollOffset) { if (v !== next && this.wantY === null) this.onScrollCb?.(next); else this.compositor.invalidate(this); return; }
     loop.cancelGlides(this);
     this.scrollOffset = next;
-    this.onScrollCb?.(next);
+    // (a request still pending reports where it lands, at the paint: reporting
+    // this interim offset now would come straight back as a new request and
+    // cancel it)
+    if (this.wantY === null) this.onScrollCb?.(next);
     this.compositor.invalidate(this);
   }
 
@@ -3064,7 +3098,7 @@ class CanvasSurface implements Surface {
       mctx.fillStyle = realizeGradient(mctx, spec.gradient, this.width, this.height);
       mctx.fillRect(0, 0, this.width, this.height);
     } else {
-      const st = spec.stencil.surface as CanvasSurface | null;
+      const st = spec.stencil.$surface as CanvasSurface | null;
       if (st === null) return;                        // not attached yet: no mask this frame
       mctx.translate(spec.stencil.x, spec.stencil.y);
       st.paintContent(mctx);
@@ -3302,6 +3336,23 @@ class CanvasSurface implements Surface {
       // outside this surface are untouched, so fixed chrome draws at its own
       // coordinates: no reposition, no jitter. (Mirror this transform in `hit`
       // and `scrollBy`.)
+      // content that shrank under the offset: the range ends sooner, and the
+      // offset with it — the browser's own clamp, which a pane on the DOM gets
+      // for free (outside a touch session, whose rubber band is its own). The
+      // fact follows after the paint, never from inside it.
+      if (this.scrolls && this.scrollVisualY === null && this.compositor.scrollLoop.touch?.s !== this) {
+        const max = Math.max(0, this.contentExtent() - this.height);
+        // a request the box held short (scrollToY) lands now, against the box as it is
+        const want = this.wantY;
+        this.wantY = null;
+        const to = want !== null ? Math.min(max, want) : this.scrollOffset > max + 0.5 ? max : null;
+        // (a settled request always reports — the model was told nothing while it was pending)
+        if (to !== null && (want !== null || Math.abs(to - this.scrollOffset) >= 0.5)) {
+          this.scrollOffset = to;
+          const report = this.onScrollCb;
+          queueMicrotask(() => report?.(to));
+        }
+      }
       ctx.save();
       ctx.beginPath();
       ctx.rect(0, 0, this.width, this.height);
