@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 // server — murmur's conversation service: history, media, and a live feed.
 //
-//   node api/server.mjs --port=8330 --seed=1 [--live]
+//   node api/server.mjs --port=8330 --seed=1 [--live] [--quiet] [--scale=N]
+//
+// SIZE. The history can be served at N times its length (api/scale.mjs), chosen
+// per request: `?scale=N` on the request itself, else a `scale` parameter on
+// the page that asked (its Referer — so `index.html?scale=30#c/t3` loads any
+// client at 30× with no change to it), else `--scale=N` (default 1). Each size
+// is built once and kept.
+//
+// MEASURING. `--quiet` sends no unbidden events, and `GET /inject` sends one to
+// every open feed: `?thread=t4&kind=message|reaction&text=…&person=…&back=N`.
 //
 // The feed is DETERMINISTIC for a seed. Every unbidden event has a fixed
 // offset from the moment a client connects, and every answer-to-a-send has a
@@ -17,6 +26,7 @@ import { readFileSync, existsSync, statSync, createReadStream } from "node:fs";
 import { join, resolve, dirname, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
+import { scaleHistory } from "./scale.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TASK = resolve(HERE, "..");
@@ -29,12 +39,28 @@ const flag = (n, d) => {
 const PORT = Number(flag("port", 8330));
 const SEED = Number(flag("seed", 1));
 const LIVE = process.argv.includes("--live");
+const QUIET = process.argv.includes("--quiet");
+const SCALE = Number(flag("scale", 1));
+const FEEDS = new Set();
 
 if (!existsSync(join(FIXTURES, "threads.json"))) {
   console.error(`no fixtures — run: node api/build-fixture.mjs`);
   process.exit(2);
 }
 const HISTORY = JSON.parse(readFileSync(join(FIXTURES, "threads.json"), "utf8"));
+const SIZED = new Map([[1, JSON.stringify(HISTORY)]]);
+// the size a request asks for: its own ?scale, else its page's, else the default
+function scaleOf(req, url) {
+  const pick = (v) => { const n = Math.round(Number(v)); return n >= 1 && n <= 200 ? n : null; };
+  const own = pick(url.searchParams.get("scale"));
+  if (own !== null) return own;
+  try { const page = pick(new URL(req.headers.referer ?? "").searchParams.get("scale")); if (page !== null) return page; } catch {}
+  return pick(SCALE) ?? 1;
+}
+function historyAt(n) {
+  if (!SIZED.has(n)) SIZED.set(n, JSON.stringify(scaleHistory(HISTORY, n)));
+  return SIZED.get(n);
+}
 
 // ── seeded rng ───────────────────────────────────────────────────────────────
 function rng(seed) {
@@ -134,8 +160,18 @@ const server = createServer((req, res) => {
   const cors = { "Access-Control-Allow-Origin": "*" };
 
   if (url.pathname === "/threads.json") {
+    const n = scaleOf(req, url);
+    res.writeHead(200, { ...cors, "content-type": "application/json", "x-murmur-scale": String(n) });
+    return res.end(historyAt(n));
+  }
+  if (url.pathname === "/inject") {
+    const q = url.searchParams, thread = q.get("thread") ?? "t4", kind = q.get("kind") ?? "message";
+    for (const f of FEEDS) {
+      if (kind === "message") f.send({ t: "message", thread, message: { id: f.idFn(), from: q.get("person") ?? "p5", at: new Date().toISOString(), kind: "text", text: q.get("text") ?? "injected" } });
+      else if (kind === "reaction") f.send({ t: "reaction", thread, message: targetMessage(thread, Number(q.get("back") ?? 0)), person: q.get("person") ?? "p7", emoji: q.get("emoji") ?? "🔥" });
+    }
     res.writeHead(200, { ...cors, "content-type": "application/json" });
-    return res.end(JSON.stringify(HISTORY));
+    return res.end(JSON.stringify({ feeds: FEEDS.size }));
   }
   if (url.pathname === "/schedule.json") {
     res.writeHead(200, { ...cors, "content-type": "application/json" });
@@ -194,7 +230,10 @@ wss.on("connection", (ws) => {
 
   send({ t: "hello", me: HISTORY.me, serverNow: Date.now() });
 
-  for (const e of buildSchedule(SEED)) {
+  const feed = { send, idFn };
+  FEEDS.add(feed);
+
+  for (const e of QUIET ? [] : buildSchedule(SEED)) {
     if (e.kind === "composing") {
       at(e.at, () => send({ t: "composing", thread: e.thread, person: e.person, state: "start" }));
     } else if (e.kind === "composing-stop-only") {
@@ -246,7 +285,7 @@ wss.on("connection", (ws) => {
     }
   });
 
-  ws.on("close", () => timers.forEach(clearTimeout));
+  ws.on("close", () => { timers.forEach(clearTimeout); FEEDS.delete(feed); });
 });
 
 server.listen(PORT, () => {
