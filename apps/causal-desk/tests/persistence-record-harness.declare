@@ -1,0 +1,79 @@
+include [ "../causal-desk-logic.declare", "../causal-desk-persistence.declare" ]
+
+App [
+    modelDocument: Dataset {
+        {
+          "factors": [
+            { "id": "baseRevenue", "label": "Base revenue", "kind": "constant", "unit": "usdMillions", "base": 10000, "column": 0, "rowY": 0, "shown": false, "description": "", "formula": "" },
+            { "id": "demandGrowth", "label": "Demand growth", "kind": "assumption", "unit": "percent", "base": 0.03, "min": -0.1, "max": 0.15, "step": 0.005, "column": 0, "rowY": 20, "shown": true, "description": "", "formula": "" },
+            { "id": "jetFuelPrice", "label": "Jet fuel price", "kind": "assumption", "unit": "usdPerGallon", "base": 2.7, "min": 1.5, "max": 5, "step": 0.05, "column": 0, "rowY": 100, "shown": true, "description": "", "formula": "" },
+            { "id": "revenue", "label": "Revenue", "kind": "derived", "unit": "usdMillions", "base": 0, "column": 1, "rowY": 20, "shown": true, "description": "", "formula": "" }
+          ],
+          "dependencies": [
+            { "from": "baseRevenue", "to": "revenue" },
+            { "from": "demandGrowth", "to": "revenue" }
+          ]
+        }
+        },
+    scenarioDocument: Dataset {
+        {
+          "scenarios": [
+            { "id": "base", "label": "Base", "description": "", "assumptions": {} },
+            { "id": "fuelShock", "label": "Fuel shock", "description": "", "assumptions": { "demandGrowth": 0.05, "jetFuelPrice": 4.1 } }
+          ]
+        }
+        },
+
+    buildRecord(working: object, sourceId: string, savedAt: string): object {
+        return buildSavedScenarioRecord(modelDocument.value, scenarioDocument.value,
+            working, sourceId, savedAt)
+        },
+    validateRecord(record: object): object {
+        return validateSavedScenarioRecord(record, modelDocument.value, scenarioDocument.value)
+        },
+    validateNonFinite(kind: string): object {
+        const value = kind == "nan" ? Number.NaN
+            : kind == "positive" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY
+        return validateSavedScenarioRecord(({
+            schemaVersion: 1,
+            modelId: "airline-operating-margin",
+            modelRevision: "1",
+            workingSourceId: "base",
+            overrides: { demandGrowth: value },
+            savedAt: "2026-09-09T19:42:00.000Z"
+        }), modelDocument.value, scenarioDocument.value)
+        },
+    mutationProbe(): object {
+        const working = { assumptions: { demandGrowth: 0.055, jetFuelPrice: 2.7 } }
+        const record = {
+            schemaVersion: 1,
+            modelId: "airline-operating-margin",
+            modelRevision: "1",
+            workingSourceId: "base",
+            overrides: { demandGrowth: 0.055 },
+            savedAt: "2026-09-09T19:42:00.000Z",
+            future: { nested: true }
+        }
+        const workingBefore = JSON.stringify(working)
+        const recordBefore = JSON.stringify(record)
+        buildSavedScenarioRecord(modelDocument.value, scenarioDocument.value,
+            working, "base", record.savedAt)
+        validateSavedScenarioRecord(record, modelDocument.value, scenarioDocument.value)
+        return {
+            workingUnchanged: JSON.stringify(working) == workingBefore,
+            recordUnchanged: JSON.stringify(record) == recordBefore
+        }
+        },
+    restoreRecord(record: object): object {
+        const result = validateSavedScenarioRecord(record,
+            modelDocument.value, scenarioDocument.value)
+        if (!result.ok || result.record == null) return { assumptions: {} }
+        return workingScenarioFromSavedRecord(modelDocument.value,
+            scenarioDocument.value, result.record)
+        },
+
+    schemaVersion: number = { SAVED_SCENARIO_SCHEMA_VERSION },
+    modelId: string = { SAVED_SCENARIO_MODEL_ID },
+    modelRevision: string = { SAVED_SCENARIO_MODEL_REVISION },
+    storageKey: string = { SAVED_SCENARIO_STORAGE_KEY }
+    ]
