@@ -78,11 +78,11 @@ export function familyPending(v: unknown): boolean {
  *  symbol, so the production floor (boot.ts, instantiate.ts) never imports the
  *  Font class: font.ts ships only when a program declares a Font. */
 export interface FontNode extends FontValue {
-  autoStart(): void;
-  ready(): Promise<void>;
+  $autoStart(): void;
+  $ready(): Promise<void>;
 }
 export function isFontNode(v: unknown): v is FontNode {
-  return isFontValue(v) && typeof (v as { ready?: unknown }).ready === "function";
+  return isFontValue(v) && typeof (v as { $ready?: unknown }).$ready === "function";
 }
 
 /** THE START-UP GATE: resolves once every font the tree starts with has settled —
@@ -102,7 +102,7 @@ export async function fontsReady(root: object): Promise<void> {
   // font a device will never draw in. (A family first used later demands its
   // font then, through the same resolution.)
   demandHook?.touch(root);
-  await Promise.all(fonts.map((f) => f.ready()));
+  await Promise.all(fonts.map((f) => f.$ready()));
 }
 
 /** The fix for a font NAME written where a family goes (`fontFamily = Serif`,

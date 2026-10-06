@@ -42,10 +42,15 @@ class Swatch [ width = 212, height = 152, cornerRadius = 10, clip = true,
     stroke = { stroke(1, provided("theme").line) },
     name: string = "",
     stageH: number = 120,
-    cap: Text [ x = 10, y = 128, width = 192, fontSize = 11, wrap = false,
+    cap: Text [ x = 10, y = { classroot.stageH + 8 }, width = { classroot.width - 20 }, fontSize = 11, wrap = false,
         textColor = { provided("theme").textMuted }, text = { classroot.name } ]
     ]
 
+
+// A card for what does not fit the standard one — a whole document. Still one
+// fixed size, still one region the gate compares.
+
+class DocSwatch extends Swatch [ width = 436, height = 352, stageH = 320 ]
 
 // A wrapping grid of swatches.
 
@@ -95,6 +100,20 @@ class Chip [ label: string = "",
     height = 19, width = { this.t.width + 18 }, cornerRadius = 9, fill = 0xDDF4E4,
     baseline: number = { this.t.y + this.t.baseline },
     t: TextLabel [ x = 9, fontSize = 11.5, textColor = 0x1B5E36, text = { classroot.label } ]
+    ]
+
+
+// A view in a line that keeps state of its own: click one and it changes
+// width, and the line re-flows around it.
+
+class Pill [ label: string = "",
+    picked: boolean = false,
+    height = 20, width = { this.t.width + 22 }, cornerRadius = 10,
+    fill = { picked ? 0x2E6FE0 : hovered ? 0xDDE7F9 : 0xEEF1F5 },
+    onClick() { picked = !picked },
+    t: TextLabel [ x = 11, fontSize = 11.5, fontWeight = medium,
+        textColor = { classroot.picked ? 0xFFFFFF : 0x1D3F8F },
+        text = { classroot.picked ? classroot.label + " ✓" : classroot.label } ]
     ]
 
 

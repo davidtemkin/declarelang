@@ -42,7 +42,7 @@ export const DEFAULT_MOTION: Motion = { k: "poly", fam: "quad", dir: "both" };
  *  and returns whether it is still running; returning false drops it, and
  *  when the last one drops the clock goes idle. */
 export interface Ticker {
-  tick(now: number): boolean;
+  $tick(now: number): boolean;
   /** Life, not transition (RULED 2026-08-06, David — verify-and-evals.md
    *  "Settle and ambient motion"): a ticker whose perpetuity is DERIVED from
    *  its own declaration — a Time (ticks while `running`, never arrives
@@ -58,7 +58,7 @@ export interface Ticker {
    *  clock's first steps then integrate a NEGATIVE dt (clamped to zero), which
    *  reads as "the animation never ran" (GitHub #17's readout). The clock
    *  calls it in `setScheduler`; a ticker with no stored times omits it. */
-  rebase?(delta: number): void;
+  $rebase?(delta: number): void;
 }
 
 /** The frame source the clock drives itself from — the one seam that makes it
@@ -171,7 +171,7 @@ export class Clock {
       this.handle = null;
     }
     const delta = s.now() - this.sched.now();
-    for (const t of this.tickers) t.rebase?.(delta);
+    for (const t of this.tickers) t.$rebase?.(delta);
     (this as unknown as { sched: FrameScheduler }).sched = s;
     if (this.tickers.size > 0 && !this.ticking) this.handle = this.sched.request(this.frame);
   }
@@ -192,7 +192,7 @@ export class Clock {
         // must not kill the frame for the rest, and must not wedge the loop —
         // it is dropped from the clock, loudly.
         try {
-          if (!t.tick(now)) this.tickers.delete(t);
+          if (!t.$tick(now)) this.tickers.delete(t);
         } catch (e) {
           this.tickers.delete(t);
           console.error(`[Declare] a ${((t as object).constructor?.name ?? "ticker")} threw during its frame and was removed from the clock: ${(e as Error)?.message ?? e}`, e);

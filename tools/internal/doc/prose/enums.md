@@ -133,7 +133,7 @@ what makes a group more than a list of animators started together.
 What a scroller keeps still while its content changes size. `content` keeps the
 reader's place: the view at the top edge stays where it is, and a pane at its very
 start stays at its start. `end` is for a pane read from the bottom, such as a
-conversation or a log: at its end it stays at the end as content grows, and away
+terminal or a build's output: at its end it stays at the end as content grows, and away
 from the end it keeps the reader's place. `none` leaves the offset alone.
 
 ## Scrolls

@@ -5,21 +5,18 @@
 // Protocol (compiler-client.js is the one caller):
 //   { type:"library", lib }                  → setDefaultLibrary(lib), no reply
 //   { type:"ping",    id }                   → { id, result:true } (readiness probe)
-//   { type:"compile", id, source, opts }     → { id, result }
-//   { type:"compileTracked", id, source, opts } → { id, result } (result.closure rides)
+//   { type:"compileProgram", id, source, opts } → { id, result }
 //   { type:"highlight", id, src }            → { id, result }
 //
-// The result crossing the boundary is the PROJECTED compile result —
-// { source, deps, diagnostics, report } — never the raw DeclareError lists:
+// The result crossing the boundary is the PROJECTED program compile —
+// { program, diagnostics, report, closure, usedClasses } — never the raw DeclareError lists:
 // structured clone would strip an Error subclass's custom fields (pos, code)
 // silently, and `diagnostics` already carries everything, structured AND
 // rendered. The inline client projects identically, so worker and inline
 // results are byte-identical — the identical-output invariant, kept by
 // construction rather than by care.
 
-import { compile, compileTracked, compileProgram, setDefaultLibrary, highlight } from "../bundles/declare-compiler.js";
-
-const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
+import { compileProgram, setDefaultLibrary, highlight } from "../bundles/declare-compiler.js";
 
 self.onmessage = async (e) => {
   const m = e.data ?? {};
@@ -31,16 +28,6 @@ self.onmessage = async (e) => {
       case "ping":
         self.postMessage({ id: m.id, result: true });
         return;
-      case "compile": {
-        const r = await compile(m.source, m.opts ?? {});
-        self.postMessage({ id: m.id, result: project(r) });
-        return;
-      }
-      case "compileTracked": {
-        const r = await compileTracked(m.source, m.opts ?? {});
-        self.postMessage({ id: m.id, result: { ...project(r), closure: r.closure } });
-        return;
-      }
       case "compileProgram": {
         // the PROGRAM-shaped result (compiler/src/program-build.ts): the parsed,
         // checked, deps-applied program the runtime instantiates with no parser —

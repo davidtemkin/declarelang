@@ -11,18 +11,24 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { test, summarize } from "./harness.mjs";
-import { compile, crawlLocations, crawlDocument, canonKey, diskDataResolver } from "../compiler/dist/compile-node.js";
+import { crawlLocations, crawlDocument, canonKey, diskDataResolver } from "../compiler/dist/compile-node.js";
+import { compileProgram } from "../compiler/dist/declarec.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (p) => readFileSync(path.join(ROOT, p), "utf8");
+// A crawl takes the compiled program with its navigation relation; the
+// compile's link registry rides beside it.
+const compile = async (src, opts) => {
+  const b = await compileProgram(src, { ...opts, links: true });
+  return { program: b.program, errors: b.errors, report: b.report, registry: b.compiled.linkRegistry };
+};
 const compileAt = async (rel) => await compile(read(rel), { originDir: path.join(ROOT, path.dirname(rel)) });
 
 await test("crawl: WARM mode matches cold byte-for-byte, with the parity gate on (location.md §0.8)", async () => {
   const r = await compileAt("apps/homepage/homepage.declare");
-  const base = { deps: r.deps, links: r.links, registry: r.linkRegistry,
-    data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
-  const cold = await crawlLocations(r.source, base);
-  const warm = await crawlLocations(r.source, { ...base, warm: true, verifyWarm: 3 });
+  const base = { registry: r.registry, data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
+  const cold = await crawlLocations(r.program, base);
+  const warm = await crawlLocations(r.program, { ...base, warm: true, verifyWarm: 3 });
   assert.equal(warm.length, cold.length, "same document set");
   for (const d of cold) {
     const w = warm.find((x) => x.key === d.key);
@@ -35,7 +41,7 @@ await test("crawl: homepage emits the #why and #language documents, linked from 
   const r = await compileAt("apps/homepage/homepage.declare");
   // registry included — the modern call (location.md §0.8): bare-anchor edges
   // ("#apps") resolve to their destinations instead of minting phantom keys
-  const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links, registry: r.linkRegistry,
+  const docs = await crawlLocations(r.program, { registry: r.registry,
     data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   const keys = docs.map((d) => d.key).sort();
   assert.deepEqual(keys, ["", "architecture", "faq", "getstarted", "language", "why"], "the default page, the architecture article, the FAQ, the get-started guide, the language doc, and the why article");
@@ -86,14 +92,14 @@ await test("crawl: output-hash aliasing collapses distinct locations with identi
   ]`;
   const r = await compile(src, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const docs = await crawlLocations(r.source, { deps: r.deps, links: r.links });
+  const docs = await crawlLocations(r.program);
   // "x" and "y" produce identical bytes to the default → one unique document.
   assert.equal(docs.length, 1, `x/y alias to the default page (got ${docs.length})`);
 });
 
 await test("crawl: ONE document — sections by location id, fragment links resolve intra-document (the ruling)", async () => {
   const r = await compileAt("apps/homepage/homepage.declare");
-  const doc = await crawlDocument(r.source, { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
+  const doc = await crawlDocument(r.program, { data: diskDataResolver(path.join(ROOT, "apps/homepage")) });
   assert.ok(doc.includes('<section id="why">'), "the why article is a section whose id IS its live location");
   assert.ok(doc.includes('href="#why"'), "the fragment link is NOT rewritten — it resolves to the section right here");
   assert.ok(doc.indexOf('href="#why"') < doc.indexOf('<section id="why">'), "default content first, then the reached sections");
@@ -109,7 +115,7 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
   const r = await compile(src, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
   await assert.rejects(
-    () => crawlDocument(r.source, { deps: r.deps, links: r.links }),
+    () => crawlDocument(r.program),
     (e) => e.message.includes("https://api.example.com/live.json") && /never indexed/.test(e.message) && /inline the data|ship it as a file/i.test(e.message),
     "the error names the url and the fix"
   );
@@ -117,7 +123,7 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
   const src2 = src.replace("https://api.example.com/live.json", "missing.json");
   const r2 = await compile(src2, {});
   await assert.rejects(
-    () => crawlDocument(r2.source, { deps: r2.deps, links: r2.links, data: () => null }),
+    () => crawlDocument(r2.program, { data: () => null }),
     (e) => e.message.includes("missing.json"),
     "a missing own-material file is named too"
   );
@@ -125,9 +131,9 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
 
 await test("crawl: deterministic — byte-identical across runs (the browser↔Node oracle discipline)", async () => {
   const r = await compileAt("apps/homepage/homepage.declare");
-  const opts = { deps: r.deps, links: r.links, data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
-  const a = await crawlLocations(r.source, opts);
-  const b = await crawlLocations(r.source, opts);
+  const opts = { data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
+  const a = await crawlLocations(r.program, opts);
+  const b = await crawlLocations(r.program, opts);
   const key = (docs) => JSON.stringify(docs.map((d) => [d.key, d.html]));
   assert.equal(key(a), key(b), "the same source + fixtures crawl to the same document set, byte for byte");
 });
@@ -158,16 +164,16 @@ await test("crawl: an AppIsland's tenant program is extracted where the island s
     other: View [ shows = "tenant-only", Text [ text = "the tenant's other place" ] ]
     ]`;
   const r = await compile(host, { originDir: ROOT });
-  assert.equal(r.source !== null, true, r.report);
+  assert.equal(r.program !== null, true, r.report);
   const resolved = [];
   const islands = async (name) => {
     resolved.push(name);
     if (name !== "tenant") return null;
-    const c = await compile(tenant, { originDir: ROOT, typecheck: false });
-    return { source: c.source, deps: c.deps, links: c.links, report: c.report };
+    const c = await compile(tenant, { originDir: ROOT });
+    return { program: c.program, report: c.report };
   };
-  const base = { deps: r.deps, links: r.links, registry: r.linkRegistry };
-  const docs = await crawlLocations(r.source, { ...base, islands });
+  const base = { registry: r.registry };
+  const docs = await crawlLocations(r.program, { ...base, islands });
   const article = docs.find((d) => d.key === "article");
   assert.ok(article !== undefined, "the host's #article location is crawled");
   assert.ok(article.html.includes("tenant, dark"), "the tenant's content is inlined, with the values its island provides");
@@ -175,11 +181,11 @@ await test("crawl: an AppIsland's tenant program is extracted where the island s
   assert.ok(!docs.some((d) => d.key === "tenant-only"), "the tenant's own fragment link is not crawled as a host location");
   assert.ok(!resolved.includes("ghost"), "an invisible island's tenant is never resolved");
 
-  const plain = await crawlLocations(r.source, base);
+  const plain = await crawlLocations(r.program, base);
   assert.ok(!plain.find((d) => d.key === "article").html.includes("tenant"), "no resolver: the island stays an empty box, as before");
 
   await assert.rejects(
-    crawlLocations(r.source, { ...base, islands: async () => null }),
+    crawlLocations(r.program, { ...base, islands: async () => null }),
     /island program 'tenant' was not found/,
     "a tenant that does not resolve fails the crawl loudly");
 });

@@ -21,13 +21,14 @@
 // (scaffold.ts), which is what makes `Task` a real type name in every { }
 // body and method signature — one declaration, both halves of the toolchain.
 import { DeclareError } from "./errors.js";
-import { SCHEMAS } from "./schema.js";
 import { declaredType } from "./value.js";
 export const isArrayDoc = (s) => !Array.isArray(s) && s.arrayRoot === true;
 /** Resolve a program's schema declarations in place. Idempotent. Returns the
  *  errors (check() reports them; instantiate() resolves for behavior and
- *  leaves reporting to the checker). */
-export function resolveShapes(program) {
+ *  leaves reporting to the checker). `isBuiltinClass` names the built-in
+ *  classes a schema may not take the name of — the checker's side passes the
+ *  schema table's; instantiation, which reports nothing, carries no table. */
+export function resolveShapes(program, isBuiltinClass = () => false) {
     const errors = [];
     const table = new Map();
     const classNames = new Set(program.classes.map((c) => c.name));
@@ -36,7 +37,7 @@ export function resolveShapes(program) {
             errors.push(new DeclareError(`schema '${s.name}' is declared twice`, s.pos));
             continue;
         }
-        if (classNames.has(s.name) || Object.hasOwn(SCHEMAS, s.name)) {
+        if (classNames.has(s.name) || isBuiltinClass(s.name)) {
             errors.push(new DeclareError(`'${s.name}' is already ${classNames.has(s.name) ? "a class" : "a built-in class"} — schemas and classes share one namespace of type names; rename the schema`, s.pos));
             continue;
         }

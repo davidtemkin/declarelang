@@ -52,7 +52,7 @@ export declare function signatureTsType(written: string, isClassName: (n: string
  *  not Declare source), a user member's is derived — same footing, no
  *  privilege tier. Signatures mirror the runtime (data.ts, animator.ts,
  *  layout.ts, backend.ts); data-shaped values are `any`, not `unknown` —
- *  a datum's shape is unknowable until the `schema` construct lands, and
+ *  datapaths are checked against declared schemas by schema-check.ts, and
  *  `unknown` would flag every correct read (the same deliberate under-report
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
@@ -74,15 +74,6 @@ export declare const LANGUAGE_API: Readonly<Record<string, readonly string[]>>;
  *  divergent accessors: `get(): number; set(v: Length)`. Symmetric kinds stay
  *  plain members. */
 export declare function memberSig(name: string, t: AttrType, nonNullColor?: boolean, readOnly?: boolean): string[];
-/** The names a built-in schema's runtime class implements as methods that the
- *  reference does NOT document as its callable surface — runtime plumbing
- *  (`DataSource.maybeAuto`, `Animator.tick`, `Spring.wake`). Overriding one is
- *  legal (a method is a method) and warned (Diag.overridesPlumbing): the
- *  runtime calls it on its own schedule, and the reference states no contract.
- *  Documented = named in LANGUAGE_API up the schema chain, or in
- *  PROSE_DOCUMENTED; test/override-runtime.test.mjs pins this set against the
- *  doc model's own api/structural split, member by member. */
-export declare function runtimePlumbing(schema: string): ReadonlySet<string>;
 /** Generate the scaffold for a program: the fixed prelude, the enum type
  *  aliases every schema references, and one `declare class` per schema (built-in
  *  + user), base-before-derived. Pure — the returned STRING is the whole

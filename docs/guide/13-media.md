@@ -101,7 +101,7 @@ track takes the press and the drag. `onPointerMove` also fires when the pointer 
 passes over, so it seeks only while the track is `pressed`:
 
 ```declare-fragment
-class Voice [ height = 36,
+class TrackRow [ height = 36,
     clipId: string = "", src: string = "",
     head: number = 0,                                  // seconds heard, moving smoothly
     on: boolean = { app.playing == clipId },
@@ -121,10 +121,10 @@ class Voice [ height = 36,
 ```
 
 Only one of these plays at a time, and nothing stops the others: `app.playing` holds one
-clip's id, and every `on` is a comparison against it. Pressing play on another note
-changes the id, and the note that was playing goes quiet because its condition stopped
-holding. The frame `Time` exists only while its note plays, so a list of a hundred
-notes runs one clock. `claim = x` leaves vertical scrolling to the list on a touch
+clip's id, and every `on` is a comparison against it. Pressing play on another track
+changes the id, and the track that was playing goes quiet because its condition stopped
+holding. The frame `Time` exists only while its track plays, so a playlist of a hundred
+tracks runs one clock. `claim = x` leaves vertical scrolling to the list on a touch
 screen.
 
 ---

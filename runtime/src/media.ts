@@ -92,24 +92,24 @@ export abstract class Media extends View {
 
   /** The leaf makes its own element — `<video>` or `<audio>` — and sets any
    *  leaf-only element facts (Video's `playsInline`) before the shared wiring. */
-  protected abstract makeElement(): HTMLMediaElement;
+  protected abstract $makeElement(): HTMLMediaElement;
 
   /** The metadata landed. The leaf takes what is its own — Video adopts the
    *  natural size and hands the element to the surface as its picture. */
-  protected metadataArrived(_el: HTMLMediaElement): void {}
+  protected $metadataArrived(_el: HTMLMediaElement): void {}
 
   /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
-  protected sourceCleared(): void {}
+  protected $sourceCleared(): void {}
 
   override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
     super.$attach(backend, parentSurface);
-    this.load();
+    this.$load();
   }
 
-  override teardown(): void {
+  override $teardown(): void {
     this.loadSeq++;                        // its late events speak for no one
     this.$release();
-    super.teardown();
+    super.$teardown();
   }
 
   /** Let go of the current element. An `<audio>` never enters the document,
@@ -127,14 +127,14 @@ export abstract class Media extends View {
   }
 
   /** (Re)load `source` — at attach, and from the `source` pusher. */
-  load(): void {
+  $load(): void {
     const seq = ++this.loadSeq;
     this.$release();
     if (this.$surface === null) return;
     setBound(this, "failed", false);
     setBound(this, "ended", false);
     if (this.source === "") {
-      this.sourceCleared();
+      this.$sourceCleared();
       return;
     }
     // A DOM-less host has no media element: the network is honestly absent,
@@ -143,7 +143,7 @@ export abstract class Media extends View {
     // same seam that backs Image there), so this path is the portable one —
     // the runtime never reaches for a browser-only constructor.
     if (typeof document === "undefined") return;
-    const el = this.makeElement();
+    const el = this.$makeElement();
     this.el = el;
     el.muted = this.muted;
     el.loop = this.loop;
@@ -154,10 +154,10 @@ export abstract class Media extends View {
     el.onloadedmetadata = () => {
       if (seq !== this.loadSeq || this.$surface === null) return;
       setBound(this, "duration", isFinite(el.duration) ? el.duration : 0);
-      this.metadataArrived(el);
+      this.$metadataArrived(el);
       setBound(this, "loaded", true);
       // a `playing = true` that arrived before the metadata did is honoured now
-      if (this.playing) this.syncPlaying();
+      if (this.playing) this.$syncPlaying();
     };
     el.onerror = () => {
       if (seq !== this.loadSeq || this.$surface === null) return;
@@ -190,7 +190,7 @@ export abstract class Media extends View {
    *  autoplay policy, a source that never loaded — and it answers with a
    *  rejected promise. When it is refused the slot goes back to false, because
    *  a `playing` that reads true over silence (or a still picture) is a lie. */
-  syncPlaying(): void {
+  $syncPlaying(): void {
     const el = this.el;
     if (el === null) return;
     // A host whose createElement answers a bare stub (the Mac env, until its
@@ -210,7 +210,7 @@ export abstract class Media extends View {
   /** Author asked to seek. Guarded by a quarter-second so the runtime's own
    *  `timeupdate` writes — which land in this same slot — cannot bounce back
    *  out as seeks and stutter the playhead. */
-  seek(): void {
+  $seek(): void {
     const el = this.el;
     if (el === null) return;
     if (Math.abs(el.currentTime - this.position) > 0.25) el.currentTime = this.position;
@@ -218,11 +218,11 @@ export abstract class Media extends View {
 }
 
 defineAttributes(Media, {
-  source: { def: "", push: (v) => v.load() },
-  playing: { def: false, push: (v) => v.syncPlaying() },
+  source: { def: "", push: (v) => v.$load() },
+  playing: { def: false, push: (v) => v.$syncPlaying() },
   loop: { def: false, push: (v, on: boolean) => { const e = (v as any).el; if (e !== null) e.loop = on; } },
   muted: { def: true, push: (v, on: boolean) => { const e = (v as any).el; if (e !== null) e.muted = on; } },
-  position: { def: 0, push: (v) => v.seek() },
+  position: { def: 0, push: (v) => v.$seek() },
   volume: { def: 1, push: (v, n: number) => { const e = (v as any).el; if (e !== null) e.volume = n; } },
   playbackRate: { def: 1, push: (v, n: number) => { const e = (v as any).el; if (e !== null) e.playbackRate = n; } },
   ended: { def: false },

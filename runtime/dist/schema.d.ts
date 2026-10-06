@@ -54,13 +54,9 @@ export declare function attrType(schema: ClassSchema, name: string): AttrType | 
  *  computed/intrinsic slot a constraint may read but nothing may set? Walks the
  *  chain exactly like attrType (a subclass inherits its base's read-only slots). */
 export declare function isReadOnly(schema: ClassSchema, name: string): boolean;
-/** The handler member name for an event: click → onClick (language §8's
- *  `on` prefix — the one naming rule, shared by the checker and dispatch). */
-export declare const handlerName: (event: string) => string;
-/** The event a handler-shaped name answers (onClick → click), or null when
- *  the name is not handler-shaped. Handler-shaped is exactly `on` + a
- *  capital (the doc's rule — what keeps handlers out of the plain-method
- *  namespace), so `once` or `onward` are plain method names. */
+/** The handler naming rule (click → onClick, and back), shared by the checker
+ *  and dispatch — it lives in its own leaf so dispatch need not import this table. */
+export { handlerName, eventOfHandler } from "./handlers.js";
 /** EVENT NAME → the payload type its handler receives, as a TYPE NAME the
  *  scaffold can emit. Absent = the handler takes nothing.
  *
@@ -79,7 +75,6 @@ export declare const EVENT_PAYLOAD: Readonly<Record<string, string>>;
 /** The payload TYPE NAMES, for "is this a legal written signature type?".
  *  Derived from the table so the two cannot drift. */
 export declare const PAYLOAD_TYPE_NAMES: ReadonlySet<string>;
-export declare function eventOfHandler(name: string): string | null;
 /** Every event `schema` answers, base-first — the inheritance walk of
  *  attrType, over the events half of the declaration. */
 export declare function eventsOf(schema: ClassSchema): string[];

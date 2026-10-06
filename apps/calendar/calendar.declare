@@ -11,11 +11,52 @@ further out, each month folding into a mini.
 */
 
 
-script {
-    // The day the program loaded — read once, before the tree is built, so it is
-    // already true when the first constraint evaluates.
-    const CAL_BOOT = new Date()
-    }
+/* ── the two palettes — every color in the app, named by role ──
+
+   Light is house San Francisco: `background`, `line`, `text`, `textMuted`,
+   `textFaint`, `accent`, `control` and `controlSelected` are the preset's own
+   values, to the byte.
+
+   Dark deliberately is not, and the reason is the grid. House dark is
+   stepped — background → surface → control each a visible rung apart (ΔE 5.4 and
+   7.7). A month is a 2D tiling of 42 equal cells, and stepped surfaces there
+   read as corduroy, so this palette is flat and deep instead (the same two
+   gaps, ΔE 2.6 and 2.5) with one bright exception: `controlSelected` sits 4 L*
+   above house so the selection still pops out of the quiet field.
+   `textMuted` drops ~8 L* to hold its hierarchy against the flatter
+   surfaces. `text` and `accent` are house exactly, in both modes.
+
+   This is the corpus's only 2D-tiled surface — the tracker is a list, with
+   rules between its rows, and runs house dark untouched. So these stay the
+   app's own records rather than a second preset: one example is not a pattern. */
+
+theme CalendarLight [
+    background = #F4F6FA, surface = #FFFFFF, cellBg = #FFFFFF, outOfMonthBg = #EDF0F5,
+    weekendBg = #F1F4F8, todayBg = #DCE9FF, dropTargetBg = #C7DDFF, dropTargetRing = #2E6FE0,
+    line = #DBE1E9, gridLine = #E4E9EF, text = #1B2733, textMuted = #6C7A88,
+    textFaint = #AAB4BE, dayNumber = #2A3542, bodyText = #3E4C59, hourLabel = #99A5B0,
+    accent = #2E6FE0, accentSecondary = #12A594, currentDayText = #2E6FE0, todayText = #2E6FE0,
+    control = #E7EBF1, controlSelected = #D3E2FC, fieldBg = #FFFFFF, fieldEdge = #DBE1E9,
+    sectionBg = #F1F5F9, sectionOpenBg = #E6EEF8, miniBg = #FFFFFF, miniCurrentBg = #E7F0FF,
+    miniDayText = #3E4C59, miniDayFaint = #BFC8D2, holidayBg = #DCF3E4, holidayText = #1E7A44,
+    astroBg = #EBE6FB, astroText = #5B3FB8, milestoneBg = #FBEFD6, milestoneText = #9A6A11,
+    defaultBg = #DCE8FE, defaultText = #2456B0
+    ]
+
+
+theme CalendarDark [
+    background = #0D151E, surface = #101A24, cellBg = #18242F, outOfMonthBg = #101922,
+    weekendBg = #141F2A, todayBg = #14304F, dropTargetBg = #1E3C5E, dropTargetRing = #6BA4F0,
+    line = #22323E, gridLine = #1B2934, text = #E7EEF2, textMuted = #8A9BA6,
+    textFaint = #54626E, dayNumber = #C7D3DC, bodyText = #B4C2CC, hourLabel = #53636F,
+    accent = #4C8DFF, accentSecondary = #37E0C8, currentDayText = #9CC4FF, todayText = #7FB0FF,
+    control = #131F29, controlSelected = #244463, fieldBg = #0F1A25, fieldEdge = #2A3B49,
+    sectionBg = #16222E, sectionOpenBg = #1B2B3B, miniBg = #121C26, miniCurrentBg = #14283F,
+    miniDayText = #9FB0BB, miniDayFaint = #33414C, holidayBg = #14321F, holidayText = #74D89B,
+    astroBg = #241F3D, astroText = #B6A6F0, milestoneBg = #33280F, milestoneText = #F0C36B,
+    defaultBg = #123050, defaultText = #8FB6F0
+    ]
+
 
 /*
 ## Event
@@ -141,40 +182,20 @@ class MiniMonth [ cornerRadius = 12, clip = true, fill = { provided("theme").min
 
 
 /*
-## Bar controls
+## Paging arrow
 
-The nav arrows, Today, and the view tabs share one pill treatment: a `control`
-rest, text brightening on hover, and `controlSelected` under the chosen tab.
+`dir` says everything: −1 turns the chevron left and pages back, +1 right and
+forward — the same disclosure mark, at the same weight, as every other chevron
+in the app.
 */
 
-
-// the pill the arrows and Today share — the box and its pressed fill; each
-// concrete button adds its content and its action
-
-class BarButton [ height = 34, cornerRadius = 10,
-    fill = { classroot.pressed ? provided("theme").controlSelected : provided("theme").control }
-    ]
-
-
-// `dir` says everything: −1 turns the chevron left, +1 right — the same
-// disclosure mark, at the same weight, as every other chevron in the app
-
-class NavArrow extends BarButton [ width = 36,
+class NavArrow extends Control [ width = 36, height = 34, cornerRadius = 10,
     dir: number = 1,
-    g: ChevronIcon [ iconSize = 15,
+    fill = { pressed ? provided("theme").controlSelected : provided("theme").control },
+    g: ChevronIcon [ iconSize = 15, x = center, y = center,
         dir = { classroot.dir < 0 ? "left" : "right" },
-        x = center,
-        y = center,
         ink = { classroot.pressed || classroot.hovered ? provided("theme").text : provided("theme").textMuted } ],
-    onClick()     { app.step(classroot.dir) }
-    ]
-
-
-class TextButton extends BarButton [ width = 64,
-    label: string = "",
-    t: Text [ width = 100%, textAlign = center, y = 9, fontSize = 13, wrap = false, fontWeight = medium,
-        textColor = { classroot.pressed || classroot.hovered ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
-    onClick()     { app.today() }
+    press() { app.step(dir) }
     ]
 
 
@@ -190,20 +211,21 @@ class DetailSection [ clip = true, cornerRadius = 10, fill = { provided("theme")
     idx: number = 0,
     label: string = "",
     field: string = "",
+    isOpen: boolean = { app.openSection == idx },
     width = 100%, height = 46,
-    Spring [ attribute = height, to = { app.openSection == classroot.idx ? 156 : 46 }, stiffness = 210, damping = 24 ],
+    Spring [ attribute = height, to = { isOpen ? 156 : 46 }, stiffness = 210, damping = 24 ],
 
-    hdr: View [ width = 100%, height = 46,
-        lbl: Text [ x = 15, y = 16, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
-            textColor = { app.openSection == classroot.idx ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
+    hdr: Control [ width = 100%, height = 46, padding = [0, 11, 0, 15],
+        layout: SimpleLayout [ axis = x ],      // each child centers itself, as icons do
+        lbl: Text [ y = center, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
+            textColor = { classroot.isOpen ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
+        Spacer [ ],
 
         // open/closed as minus/plus, drawn, in the same muted ink as the label
 
-        chevM: MinusIcon [ x = { parent.width - 26 }, y = 15, iconSize = 15,
-            visible = { app.openSection == classroot.idx }, ink = { provided("theme").textMuted } ],
-        chevP: PlusIcon [ x = { parent.width - 26 }, y = 15, iconSize = 15,
-            visible = { app.openSection != classroot.idx }, ink = { provided("theme").textMuted } ],
-        onClick() { app.openSection = classroot.idx }
+        MinusIcon [ iconSize = 15, visible = { classroot.isOpen }, ink = { provided("theme").textMuted } ],
+        PlusIcon [ iconSize = 15, visible = { !classroot.isOpen }, ink = { provided("theme").textMuted } ],
+        press() { app.openSection = classroot.idx }
         ],
 
     // A TextInput derives its own chrome from the house role names (`surface`,
@@ -211,11 +233,11 @@ class DetailSection [ clip = true, cornerRadius = 10, fill = { provided("theme")
     // styled here in the app's own vocabulary, focus edge included.
 
     content: TextInput [ x = 13, y = 50, width = { parent.width - 26 }, height = { parent.height - 60 }, multiline = true, wrap = true,
-        fontSize = 13, textColor = { provided("theme").bodyText }, placeholder = { "Add " + classroot.field },
+        fontSize = 16, textColor = { provided("theme").bodyText }, placeholder = { "Add " + classroot.field },
         fill = { provided("theme").fieldBg },
         stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
         text <-> { classroot.field } ],
-    open: State [ applied = { app.openSection == classroot.idx }, fill = { provided("theme").sectionOpenBg } ]
+    open: State [ applied = { isOpen }, fill = { provided("theme").sectionOpenBg } ]
     ]
 
 
@@ -245,7 +267,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        dropped in here finds every token it consults, while the calendar keeps
        its own palette — the spread only adds the tokens the app never named. */
 
-    theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...(app.isDark ? app.darkTheme() : app.lightTheme()) } },
+    theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...(app.isDark ? CalendarDark : CalendarLight) } },
     themeMode: string = "auto",
 
     // Auto's environment: what a host provides first (a desktop or page that
@@ -288,7 +310,6 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
       : app.mode == "day"   ? ["Wednesday, September 30"]              // longest weekday + longest month
       : app.mode == "month" ? ["September 2088"]
       :                       ["2088"]) + 14) },
-    navW: number = { app.dateW + 84 },      // date block plus its two arrows
     panelOverlay: boolean = { app.width < 720 },     // the detail panel overlays the grid instead of insetting it
     panelW: number = { Math.min(340, app.width - 32) },
 
@@ -308,35 +329,28 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // declaration true at construction, where the focus rectangle's springs
     // take their snap.
 
-    year: number = { app.navYear == 0 ? CAL_BOOT.getFullYear() : app.navYear },
-    month: number = { app.navMonth == 0 ? CAL_BOOT.getMonth() + 1 : app.navMonth },
-    todayKey: string = { app.keyOf(CAL_BOOT) },
+    // Today is the clock's, so it turns over at midnight.
+
+    clock: Time [ tick = day ],
+    year: number = { app.navYear == 0 ? app.clock.year : app.navYear },
+    month: number = { app.navMonth == 0 ? app.clock.month : app.navMonth },
+    todayKey: string = { app.clock.year + "-" + app.clock.month + "-" + app.clock.day },
     anchorKey: string = { app.navKey == "" ? app.todayKey : app.navKey },
     monthRows: number = { app.computeMonthRows() },
     yearSeen: boolean = false,
     selectedId: number = -1,
     openSection: number = 0,
 
-    // drag state: the event being moved, a snapshot for the ghost, the grab offset
-
-    dragId: number = -1,
-    dragging: boolean = false,
-    dropKey: string = "",
-    dragTitle: string = "",
-    dragCat: string = "",
-    dragTimeLabel: string = "",
-    dragW: number = 0,
-    dragH: number = 0,
-    grabDX: number = 0,
-    grabDY: number = 0,
-    downX: number = 0,
-    downY: number = 0,
-
     /* The address is environment-aware: standalone, the fixture sits beside the
        app; hosted (the desktop passes env.base — its own transport's path to
        this app's home), the same relative address resolves through that base.
        `auto` loads it either way: the url is the reactive thing, and when a
-       late-landing base changes it the source fetches the right address. */
+       late-landing base changes it the source fetches the right address.
+
+       Edits write straight into this source (`app.data.set`). It loads once
+       and nothing fetches it again, so there is no refresh to overwrite them
+       and no need for a working copy; a source that refetches would want one,
+       as the tracker's `db` is. */
 
     data: DataSource [ auto = true, url = { hostProvided("base", "") + "data/events.json" } ],
 
@@ -458,49 +472,6 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     catFill(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
     catText(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
-    /* ── the two palettes — every color in the app, named by role ──
-
-       Light is house San Francisco: `bg`, `line`, `text`, `textMuted`,
-       `textFaint`, `accent`, `control` and `controlSelected` are the preset's own
-       values, to the byte.
-
-       Dark deliberately is not, and the reason is the grid. House dark is
-       stepped — bg → surface → control each a visible rung apart (ΔE 5.4 and
-       7.7). A month is a 2D tiling of 42 equal cells, and stepped surfaces there
-       read as corduroy, so this palette is flat and deep instead (the same two
-       gaps, ΔE 2.6 and 2.5) with one bright exception: `controlSelected` sits 4 L*
-       above house so the selection still pops out of the quiet field.
-       `textMuted` drops ~8 L* to hold its hierarchy against the flatter
-       surfaces. `text` and `accent` are house exactly, in both modes.
-
-       This is the corpus's only 2D-tiled surface — the tracker is a list, with
-       rules between its rows, and runs house dark untouched. So this stays an
-       app palette rather than a second preset: one example is not a pattern. */
-
-    darkTheme() { return ({
-        bg: 0x0D151E, surface: 0x101A24, cellBg: 0x18242F, outOfMonthBg: 0x101922, weekendBg: 0x141F2A,
-        todayBg: 0x14304F, dropTargetBg: 0x1E3C5E, dropTargetRing: 0x6BA4F0, line: 0x22323E, gridLine: 0x1B2934,
-        text: 0xE7EEF2, textMuted: 0x8A9BA6, textFaint: 0x54626E, dayNumber: 0xC7D3DC, bodyText: 0xB4C2CC,
-        hourLabel: 0x53636F,
-        accent: 0x4C8DFF, accentSecondary: 0x37E0C8, currentDayText: 0x9CC4FF, todayText: 0x7FB0FF,
-        control: 0x131F29, controlSelected: 0x244463,
-        fieldBg: 0x0F1A25, fieldEdge: 0x2A3B49,
-        sectionBg: 0x16222E, sectionOpenBg: 0x1B2B3B,
-        miniBg: 0x121C26, miniCurrentBg: 0x14283F, miniDayText: 0x9FB0BB, miniDayFaint: 0x33414C,
-        holidayBg: 0x14321F, holidayText: 0x74D89B, astroBg: 0x241F3D, astroText: 0xB6A6F0,
-        milestoneBg: 0x33280F, milestoneText: 0xF0C36B, defaultBg: 0x123050, defaultText: 0x8FB6F0 }) },
-    lightTheme() { return ({
-        bg: 0xF4F6FA, surface: 0xFFFFFF, cellBg: 0xFFFFFF, outOfMonthBg: 0xEDF0F5, weekendBg: 0xF1F4F8,
-        todayBg: 0xDCE9FF, dropTargetBg: 0xC7DDFF, dropTargetRing: 0x2E6FE0, line: 0xDBE1E9, gridLine: 0xE4E9EF,
-        text: 0x1B2733, textMuted: 0x6C7A88, textFaint: 0xAAB4BE, dayNumber: 0x2A3542, bodyText: 0x3E4C59,
-        hourLabel: 0x99A5B0,
-        accent: 0x2E6FE0, accentSecondary: 0x12A594, currentDayText: 0x2E6FE0, todayText: 0x2E6FE0,
-        control: 0xE7EBF1, controlSelected: 0xD3E2FC,
-        fieldBg: 0xFFFFFF, fieldEdge: 0xDBE1E9,
-        sectionBg: 0xF1F5F9, sectionOpenBg: 0xE6EEF8,
-        miniBg: 0xFFFFFF, miniCurrentBg: 0xE7F0FF, miniDayText: 0x3E4C59, miniDayFaint: 0xBFC8D2,
-        holidayBg: 0xDCF3E4, holidayText: 0x1E7A44, astroBg: 0xEBE6FB, astroText: 0x5B3FB8,
-        milestoneBg: 0xFBEFD6, milestoneText: 0x9A6A11, defaultBg: 0xDCE8FE, defaultText: 0x2456B0 }) },
     eventsOn(all: array, y: number, m: number, d: number) -> array {
         return all.filter(e => e.y == y && e.m == m && e.d == d).sort((a, b) => a.start - b.start || a.id - b.id)
         },
@@ -592,6 +563,21 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        (when the ghost appears), not a click suppressor. A drop writes through
        the dataset's mutation API, so it wakes the derived model exactly like a
        title edit — no copy to rebuild. */
+
+    // the event being moved, a snapshot for the ghost, the grab offset
+
+    dragId: number = -1,
+    dragging: boolean = false,
+    dropKey: string = "",
+    dragTitle: string = "",
+    dragCat: string = "",
+    dragTimeLabel: string = "",
+    dragW: number = 0,
+    dragH: number = 0,
+    grabDX: number = 0,
+    grabDY: number = 0,
+    downX: number = 0,
+    downY: number = 0,
 
     startDrag(id: number, title: string, cat: string, timeLabel: string, w: number, h: number, gx: number, gy: number) {
         this.dragId = id; this.dragTitle = title; this.dragCat = cat; this.dragTimeLabel = timeLabel
@@ -703,40 +689,42 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        Points its datapath at the selected event, so every field two-way binds
        straight to the record and reseeds when a different event opens. */
 
-    panel: View [ width = { app.panelW }, height = { app.bodyH }, y = { app.barH }, fill = { provided("theme").surface }, x = { app.width - app.panelInset },
+    panel: View [ width = { app.panelW }, height = { app.bodyH }, y = { app.barH }, x = { app.width - app.panelInset },
+        fill = { provided("theme").surface }, stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+        padding = [24, 22, 24, 22],
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
         datapath = { app.data.value != null ? app.data.value.events.find(e => e.id == app.selectedId) : null },
-        edge: View [ width = 1, height = 100%, fill = { provided("theme").line } ],
-        secs: View [ x = 22, y = 24, width = { parent.width - 44 },
-            layout: SimpleLayout [ axis = y, spacing = 8 ],
 
-            /* The event section — the title block in the sections' own grammar: the
-               same card, its label row carrying the panel's close where the others
-               carry their chevron, the category color as the card's left edge, and
-               the read-only date · time under the editable title. */
+        /* The event section — the title block in the sections' own grammar: the
+           same card, its label row carrying the panel's close where the others
+           carry their sign, the category color as the card's left edge, and the
+           read-only date · time under the editable title. */
 
-            ev: View [ width = 100%, height = 112, cornerRadius = 10, clip = true, fill = { provided("theme").sectionBg },
-                rail: View [ width = 4, height = 100%, fill = { app.catText(:category) } ],
-                hdr: View [ width = 100%, height = 40,
-                    lbl: Text [ x = 15, y = 16, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
-                        textColor = { provided("theme").textMuted }, text = "EVENT" ],
-                    close: CloseIcon [ x = { parent.width - 28 }, y = 12, iconSize = 15,
-                        ink = { provided("theme").textMuted },
-                        onClick() { app.closeDetail() }
-                        ]
-                    ],
-                title: TextInput [ x = 13, y = 40, width = { parent.width - 26 }, height = 32, fontSize = 16, fontWeight = bold,
-                    textColor = { provided("theme").text }, placeholder = "Untitled event",
-                    fill = { provided("theme").fieldBg },
-                    stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
-                    text <-> :title ],
-                meta: Text [ x = 15, y = 84, fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
-                    text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ]
+        ev: View [ width = 100%, cornerRadius = 10, clip = true, fill = { provided("theme").sectionBg },
+            stroke = { [null, null, null, stroke(4, app.catText(:category))] },
+            padding = [0, 13, 12, 13],
+            layout: SimpleLayout [ axis = y ],
+            hdr: View [ width = 100%, height = 40,
+                layout: SimpleLayout [ axis = x ],
+                lbl: Text [ y = center, fontSize = 12, fontWeight = bold, wrap = false, letterSpacing = 1,
+                    textColor = { provided("theme").textMuted }, text = "EVENT" ],
+                Spacer [ ],
+                close: CloseIcon [ iconSize = 15, ink = { provided("theme").textMuted },
+                    onClick() { app.closeDetail() }
+                    ]
                 ],
+            title: TextInput [ width = 100%, height = 32, fontSize = 16, fontWeight = bold,
+                textColor = { provided("theme").text }, placeholder = "Untitled event",
+                fill = { provided("theme").fieldBg },
+                stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
+                text <-> :title ],
+            meta: Text [ padding = [12, 0, 0, 0], fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
+                text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ]
+            ],
 
-            DetailSection [ idx = 0, label = "NOTES",     field = "notes" ],
-            DetailSection [ idx = 1, label = "LOCATION",  field = "location" ],
-            DetailSection [ idx = 2, label = "ATTENDEES", field = "attendees" ]
-            ]
+        DetailSection [ idx = 0, label = "NOTES",     field = "notes" ],
+        DetailSection [ idx = 1, label = "LOCATION",  field = "location" ],
+        DetailSection [ idx = 2, label = "ATTENDEES", field = "attendees" ]
         ],
 
     // the grabbed event, following the pointer during a drag
@@ -755,72 +743,92 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        centre, clamped so it never rides into either side. */
 
     bar: View [ width = { app.width }, height = { app.barH }, fill = { provided("theme").background },
-        rule: View [ y = { parent.height - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },   // the rule under the bar is its own bottom edge
 
-        // Row-1 items center in the first 60px band — fixed, not barH-derived,
-        // so the narrow tier's second row doesn't drag them downward.
+        // Tab follows the bar as it reads. On one row the date nav sits between
+        // the two clusters, so it is visited between them; on two rows it is
+        // the second row, which tree order already gives.
 
-        brand: View [ x = 20, y = 19, height = 22,
-            layout: SimpleLayout [ axis = x, spacing = 5 ],
+        tabOrder() { return app.barNarrow ? this.tabDefault() : [top.brand, top.themeSwitch, nav, top.today, top.tabs] },
 
-            // the word "Declare" is the way home — navigate() resolves against the
-            // distro root, so this works on either host at any mount point
+        // Row 1 is the first 60px band — fixed, not barH-derived, so the narrow
+        // tier's second row doesn't drag it downward. Brand and the appearance
+        // switch hug the left, Today and the view tabs the right.
 
-            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
-                onClick() { app.navigate("apps/homepage/homepage.declare") }
+        top: View [ x = 20, width = { app.width - 20 - (app.barNarrow ? 12 : 20) }, height = 60,
+            layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+
+            // where each cluster ends, in the bar's coordinates — the date nav
+            // floats between them
+
+            leftEnd: number = { this.x + (app.showTheme ? this.themeSwitch.x + this.themeSwitch.width : this.brand.x + this.brand.width) },
+            rightStart: number = { this.x + this.today.x },
+
+            brand: View [ height = 22,
+                layout: SimpleLayout [ axis = x, spacing = 5 ],
+
+                // the word "Declare" is the way home — navigate() resolves against the
+                // distro root, so this works on either host at any mount point
+
+                Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
+                    onClick() { app.navigate("apps/homepage/homepage.declare") }
+                    ],
+                Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { provided("theme").text }, text = "Calendar",
+                    visible = { !app.brandCompact } ]
                 ],
-            Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textColor = { provided("theme").text }, text = "Calendar",
-                visible = { !app.brandCompact } ]
+
+            // Light / System / Dark — the house control, with the house marks:
+            // drawn icons that share one disc and one stroke, rather than three
+            // typed glyphs from unrelated corners of whatever font the platform has.
+
+            themeSwitch: AppearanceSwitch [
+                visible = { app.showTheme },
+                dark = { app.isDark },
+                input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+                ],
+
+            Spacer [ ],
+
+            // quiet like the tabs beside it: muted until the pointer is on it
+
+            today: Button [ height = 34, fontSize = 13, label = "Today",
+                inkColor = { hovered || pressed ? provided("theme").text : provided("theme").textMuted },
+                onClick() { app.today() }
+                ],
+
+            // Day / Week / Month / Year — the library's `Segmented`, which springs
+            // its pill along a normalised lane so a resize snaps instead of
+            // skating, and brings tab stops, arrow roving, and the shared look.
+            //
+            // The labels shorten to single letters when the bar narrows, which the
+            // data carries: `choices` is a constraint like any other.
+
+            tabs: Segmented [ height = 34, width = { app.tabsW },
+                value = { app.mode },
+                input(v: object) { app.goMode("" + v) },
+                choices = { [ ({ id: "day",   label: app.tabsCompact ? "D" : "Day" }),
+                              ({ id: "week",  label: app.tabsCompact ? "W" : "Week" }),
+                              ({ id: "month", label: app.tabsCompact ? "M" : "Month" }),
+                              ({ id: "year",  label: app.tabsCompact ? "Y" : "Year" }) ] }
+                ]
             ],
 
-        // Light / System / Dark — the house control, with the house marks:
-        // drawn icons that share one disc and one stroke, rather than three
-        // typed glyphs from unrelated corners of whatever font the platform has.
+        // The date block is a fixed width per view, so the arrows hold still while
+        // paging. Narrow: the nav takes the second row, centered. Wide: it floats
+        // near the center, clamped off both clusters — and the clamp can never
+        // invert (the max is floored at the min, so a squeezed bar pins the nav
+        // left rather than flinging it off-frame).
 
-        themeSwitch: AppearanceSwitch [ x = 196, y = 14,
-            visible = { app.showTheme },
-            dark = { app.isDark },
-            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
-            ],
-
-        // the date block is a fixed width per view, so the arrows hold still while
-        // paging and re-place only on a view change
-
-        // Narrow: the nav takes the second row, centered, with the whole width
-        // to itself. Wide: it floats near the center, clamped off both side
-        // clusters — and the clamp can never invert (the max is floored at the
-        // min, so a squeezed bar pins the nav left rather than flinging it
-        // off-frame).
-
-        nav: View [ height = 34, y = { app.barNarrow ? 56 : 13 }, width = { app.navW },
+        nav: View [ y = { app.barNarrow ? 56 : 13 },
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
             x = { app.barNarrow
-                ? (app.width - app.navW) / 2
-                : app.clamp((app.width - app.navW) / 2,
-                            app.showTheme ? 300 : 190,
-                            Math.max(app.showTheme ? 300 : 190, app.width - app.tabsW - app.navW - 120)) },
-            prev:  NavArrow [ x = 0, dir = -1 ],
-            title: Text [ x = 42, width = { app.dateW }, textAlign = center, y = 7, fontSize = 16, wrap = false,
+                ? (app.width - this.width) / 2
+                : app.clamp((app.width - this.width) / 2, parent.top.leftEnd + 24,
+                            Math.max(parent.top.leftEnd + 24, parent.top.rightStart - this.width - 24)) },
+            prev:  NavArrow [ dir = -1 ],
+            title: Text [ width = { app.dateW }, textAlign = center, fontSize = 16, wrap = false,
                 fontWeight = semibold, textColor = { provided("theme").text }, text = { app.periodLabel } ],
-            next:  NavArrow [ x = { app.dateW + 48 }, dir = 1 ]
-            ],
-
-        today: TextButton [ y = 13, x = { app.width - app.tabsW - (app.barNarrow ? 88 : 100) }, label = "Today" ],
-
-        // Day / Week / Month / Year — the library's `Segmented`, which springs
-        // its pill along a normalised lane so a resize snaps instead of
-        // skating, and brings tab stops, arrow roving, and the shared look.
-        //
-        // The labels shorten to single letters when the bar narrows, which the
-        // data carries: `choices` is a constraint like any other.
-
-        tabs: Segmented [ height = 34, width = { app.tabsW }, y = 13,
-            x = { app.width - app.tabsW - (app.barNarrow ? 12 : 20) },
-            value = { app.mode },
-            input(v: object) { app.goMode("" + v) },
-            choices = { [ ({ id: "day",   label: app.tabsCompact ? "D" : "Day" }),
-                          ({ id: "week",  label: app.tabsCompact ? "W" : "Week" }),
-                          ({ id: "month", label: app.tabsCompact ? "M" : "Month" }),
-                          ({ id: "year",  label: app.tabsCompact ? "Y" : "Year" }) ] }
+            next:  NavArrow [ dir = 1 ]
             ]
         ]
     ]

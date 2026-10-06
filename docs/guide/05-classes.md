@@ -141,29 +141,26 @@ it moves into a class that extends `Node`, for the same reason a view class is p
 the App reads better without it.
 
 ```declare
-class Stopwatch extends Node [
-    running: boolean = false,
-    elapsed: number = 0,
-    clock: Time [ tick = frame, running = { classroot.running },
-        onTick(dt: number) { classroot.elapsed = classroot.elapsed + dt }
-        ],
-    toggle() { running = !running },
-    reset() { running = false; elapsed = 0 }
+class Die extends Node [
+    sides: number = 6,
+    last: number = 0,
+    rolls: number = 0,
+    roll() { last = 1 + Math.floor(Math.random() * sides); rolls = rolls + 1 },
+    reset() { last = 0; rolls = 0 }
     ]
 
 App [ width = 340, height = 90, fill = white, textColor = black,
-    watch: Stopwatch [ ],
+    die: Die [ ],
     row: View [ x = 20, y = 24,
         layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
-        Button [ label = { app.watch.running ? "Stop" : "Start" }, primary = true,
-            onClick() { app.watch.toggle() } ],
-        Button [ label = "Reset", onClick() { app.watch.reset() } ],
-        Text [ text = { app.watch.elapsed.toFixed(1) + " s" } ]
+        Button [ label = "Roll", primary = true, onClick() { app.die.roll() } ],
+        Button [ label = "Reset", onClick() { app.die.reset() } ],
+        Text [ text = { app.die.rolls == 0 ? "not rolled" : `${app.die.last} (roll ${app.die.rolls})` } ]
         ]
     ]
 ```
 
-The stopwatch lives in the tree as a named member, so it has the same reach and lifetime
+The die lives in the tree as a named member, so it has the same reach and lifetime
 as anything else, and views read it and call it like any other member. What it is *not* is
 a wrapper around data: a list of records does not hide behind a class's getters and
 verbs, it sits in a `Dataset` that views bind to — and when that document's logic

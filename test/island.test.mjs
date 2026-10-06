@@ -146,7 +146,7 @@ await test("verbs: post/onPost cross both ways with { topic, payload }", async (
 await test("foreign handle: provides, hostProvided, watchProvided, expose, verbs", async () => {
   const host = await boot(HOST);
   try {
-    const h = host.isl.foreignHandle();
+    const h = host.isl.$foreignHandle();
     assert.deepEqual(h.provides(), ["volume"], "discovery lists what the host provides");
     assert.equal(h.hostProvided("volume"), 0.7);
     const w = await warnings(() => assert.equal(h.hostProvided("secret"), undefined, "an unlisted name reads undefined"));

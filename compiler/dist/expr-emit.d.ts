@@ -34,9 +34,6 @@ export interface ExprCode {
     paths: string[];
     consts: number[];
 }
-/** The marker: a deps entry that starts with this is the body's EXPR code. */
-export declare const EXPR_MARK = "=E";
-export declare function pathsOf(deps: readonly string[]): string[];
 export declare const OP_LETTERS: Record<number, string>;
 export declare function encodeExpr(e: ExprCode, deps: readonly string[]): string;
 export interface InlineScope {
@@ -48,7 +45,7 @@ export interface InlineScope {
 }
 /** Emit, or null when the body is not a pure numeric expression. */
 export declare function emitExpr(src: string, scope?: InlineScope | null): ExprCode | null;
-/** Attach the EXPR entry to every candidate body's deps (after dep
+/** Attach the kernel bytecode to every candidate body as its `expr` (after dep
  *  extraction: a body without deps is not bindable statically anyway). */
 export declare function annotateExprs(program: Program): {
     candidates: number;

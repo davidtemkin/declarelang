@@ -102,13 +102,11 @@ export function trkDate(ts: number): string {
     return TRK_MONTHS[d.getMonth()] + " " + d.getDate()
 }
 
-// avatars and label dots color by name — a stable hash into a small
-// palette of muted tones that hold white initials in both themes
-export const TRK_HUES = [0x6C7BD9, 0x4FA3A5, 0xC97B63, 0x8E6BC1, 0x5B9E5E, 0xC06A8C, 0x557FB8, 0xB08A4F]
-export function trkHue(name: string): number {
+// a stable hash of a name — avatars and label dots pick their color by it
+export function trkHash(name: string): number {
     let h = 0
     for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0
-    return TRK_HUES[Math.abs(h) % TRK_HUES.length]
+    return Math.abs(h)
 }
 
 export function trkStatusLabel(s: string): string {

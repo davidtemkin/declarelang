@@ -125,6 +125,7 @@ class FocusRing [
 
     theme: Theme = { provided("theme", SanFrancisco) },
     opacity = 0,
+    ignoreLayout = true,                         // it flies to the focused control; a parent's layout never arranges it
 
     // an overlay owns the keys (an open menu — Keys.navClaim): the ring
     // stands down while it's up — the menu's rover is the focus story, and

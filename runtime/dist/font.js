@@ -180,7 +180,7 @@ export class Font extends Node {
         if (this.#demanded)
             return;
         this.#demanded = true;
-        this.start();
+        this.$start();
         const d = this.#deferred;
         if (d === null)
             return;
@@ -193,13 +193,13 @@ export class Font extends Node {
     }
     /** Construction-complete (instantiate.ts): start once the caller's synchronous
      *  setup (the app's asset base) has run. `fontsReady` starts it sooner. */
-    autoStart() {
+    $autoStart() {
         if (this.#started)
             return;
-        queueMicrotask(() => this.start());
+        queueMicrotask(() => this.$start());
     }
     /** Begin watching the faces and loading them. Idempotent. */
-    start() {
+    $start() {
         if (this.#started)
             return;
         this.#started = true;
@@ -208,13 +208,13 @@ export class Font extends Node {
     }
     /** Resolves when the first load has settled: every face arrived, one failed,
      *  or the wait ran out. The start-up gate (fontsReady) waits on this. */
-    ready() {
-        this.start();
+    $ready() {
+        this.$start();
         // Faces no text has asked for are not waited on: they may never be needed.
         return this.#deferred !== null ? Promise.resolve() : this.#ready;
     }
     #faces() {
-        this.watchChildList();
+        this.$watchChildList();
         return this.children.filter((c) => c instanceof FontFace);
     }
     #faceSignature() {

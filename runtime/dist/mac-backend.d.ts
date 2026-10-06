@@ -4,6 +4,7 @@ import type { DisplayList } from "./draw.js";
 import { type TextStyle } from "./measure.js";
 import { type BoxStroke, type Fill, type Filter, type Inset, type Radius, type Shadow } from "./value.js";
 import { type HitTarget } from "./input.js";
+import { type SceneSurface } from "./scene-walk.js";
 export declare const OP: {
     readonly CREATE: 1;
     readonly DESTROY: 2;
@@ -105,7 +106,7 @@ export declare function encodeRecording(list: DisplayList): {
     at: Uint32Array;
     strs: string[];
 };
-declare class MacSurface implements Surface {
+declare class MacSurface implements Surface, SceneSurface {
     readonly id: number;
     x: number;
     y: number;
@@ -146,6 +147,8 @@ declare class MacSurface implements Surface {
      *  subtract exactly what the paint does. */
     private clipData;
     private boxClip;
+    /** The corner radius, for a box clip's hit shape. */
+    private radius;
     scrollsX: boolean;
     scrollXOffset: number;
     /** The extent last PUBLISHED to the host, per axis — what its scrollbar is
@@ -422,34 +425,19 @@ declare class MacSurface implements Surface {
     setPageExtent(w: number, h: number): void;
     private virtualExtent;
     setVirtualExtent(h: number | null): void;
+    /** Content extent along y (scene-walk.ts contentExtentOf). */
     contentExtent(): number;
-    /** Hit-test a point in this surface's parent coordinates. The canvas
-     *  backend's walk, kept identical so the two renderers resolve the same
-     *  target for the same point: scale inverted, shape clip subtracted (only
-     *  ignoreclip children survive outside it), scroll frame corrected,
-     *  children probed in reverse paint order, then this surface's own sink. */
+    /** The press target under a point in this surface's parent coordinates —
+     *  the shared scene walk (scene-walk.ts). Its cursor is the one shown. */
     hit(px: number, py: number): HitTarget | null;
-    /** Inside this surface's clip? The box clip is the rounded box; a shape
-     *  clip asks the host (Core Graphics owns the path) — cached per path so
-     *  the walk stays cheap. */
-    /** The cursor the pointer should show at a point.
-     *
-     *  NOT the same walk as hit(). On the web a cursor comes from CSS on
-     *  whatever element is under the pointer, whether or not it takes events —
-     *  the window's resize band is exactly that: eight strips that style a
-     *  cursor and carry no handlers, sitting inside one halo that owns the
-     *  press. Reading the cursor off the hit TARGET therefore found nothing, and
-     *  the window edges showed no resize cursor at all. */
-    cursorAt(px: number, py: number): string;
-    /** Walk the tree the way hit() does, narrating each step. */
-    trace(px: number, py: number, depth?: number): void;
-    private insideClip;
-    /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
-     *  view under the point and answer with the nearest `onWheel` CLAIMANT or
-     *  the nearest scroller — whichever is deeper wins, the DOM's delegation
-     *  (an intervening scroller keeps its wheel; a claimant with no nearer
-     *  scroller hears the stream, trackpad pinch included). The transform
-     *  inverse keeps a rotated subtree honest. Null = neither wants it. */
+    /** The hit walk again, narrating each step. */
+    trace(px: number, py: number): void;
+    clips(): boolean;
+    insideClip(lx: number, ly: number): boolean;
+    extentFloor(): number;
+    trailingInset(axis: "x" | "y"): number;
+    /** The wheel CLAIM walk (scene-walk.ts wheelWalk): the nearest `onWheel`
+     *  claimant hears the stream unless a nearer scroller owns it. */
     wheelTo(px: number, py: number, deltaX: number, deltaY: number, pinch: boolean): "claimed" | "scroller" | null;
 }
 /** A surface's absolute origin in the ROOT app's coordinate space.

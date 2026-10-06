@@ -102,6 +102,7 @@ class Tooltip [
 
     theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown && label != "" },
+    ignoreLayout = true,                         // it sits beside its target; a parent's layout never arranges it
 
     label: string = "",
     shown:   boolean = false,

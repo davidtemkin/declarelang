@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { settleHeadless } from "../compiler/dist/headless.js";
+import { settleSource } from "../compiler/dist/headless.js";
 import { settle } from "../runtime/dist/index.js";
 import { exprStats } from "../runtime/dist/bind.js";
 import { ownValues } from "../runtime/dist/attributes.js";
@@ -38,7 +38,7 @@ for (const name of ["weather", "desktop", "calendar", "homepage", "lzx-dashboard
     const runs = [];
     for (const on of [true, false]) {
       exprStats.disabled = !on; exprStats.kernel = 0;
-      const app = settleHeadless(r.source, { deps: r.deps });
+      const app = settleSource(r.source, { deps: r.deps });
       const snaps = [snapshot(app)];
       for (let s = 0; s < 3; s++) { drive(app, s); snaps.push(snapshot(app)); }
       runs.push({ snaps, kernel: exprStats.kernel });

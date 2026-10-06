@@ -51,6 +51,18 @@
 // write such regexes as new RegExp("…"). Recorded in HANDOFF §R4.
 import { DeclareError, DeclareErrors } from "./errors.js";
 import { Diag } from "./diagnostics.js";
+/** A top-level `script { … }` block: free TypeScript that is not a class —
+ *  models, helpers, the stateless logic shared across unrelated parts of the
+ *  tree (declare-language.md §5's fourth home for code). The body is captured
+ *  RAW, exactly like a `Dataset`'s literal body: the parser proves only that
+ *  the braces balance; TypeScript's own checker judges the contents, and the
+ *  emitter places it in the program's module scope so a constraint or handler
+ *  can call what it declares. */
+/** The compiler's marks in a compiled source's text: a script block's bindings
+ *  return, and a method body's `super` (rewritten to `$base`). Parsing a
+ *  compiled source turns them back into the fields a program carries. */
+const BINDINGS_MARK = "/*$b*/";
+const superOf = (body) => (body.includes("$base") ? { usesSuper: true } : {});
 /** Two ship declarations as one — lists unioned, facts OR-ed. A program may
  *  state its block before or after the root, and each included class may
  *  bring its own. */
@@ -743,8 +755,8 @@ class Parser {
                 }
                 this.next();
                 el.methods.push(returns === undefined
-                    ? { name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos }
-                    : { name: name.text, params, returns, returnsPos, returnsNullable, body: body.str, pos: name.pos, bodyPos: body.pos });
+                    ? { name: name.text, params, body: body.str, pos: name.pos, bodyPos: body.pos, ...superOf(body.str) }
+                    : { name: name.text, params, returns, returnsPos, returnsNullable, body: body.str, pos: name.pos, bodyPos: body.pos, ...superOf(body.str) });
             }
             else {
                 // an anonymous child instance — bare `Name` or `Name [ … ]` (or the
@@ -1069,8 +1081,8 @@ class Parser {
         const fields = this.parseShapeFields();
         return { name: name.text, fields, pos: kw.pos };
     }
-    /** At a `theme Name [ … ]` / `style name [ … ]` / `font Name [ … ]`
-     *  top-level declaration — the same contextual-keyword rule as atClass. */
+    /** At a `theme Name [ … ]` / `style name [ … ]` top-level declaration — the
+     *  same contextual-keyword rule as atClass. */
     atTop(keyword) {
         const t = this.tokens[this.i];
         const u = this.tokens[this.i + 1];
@@ -1120,7 +1132,7 @@ class Parser {
         // real extent is the captured body plus its two braces, measured from the
         // opening one (the token's own position).
         const end = body.pos.offset + body.str.length + 2;
-        return { src: body.str, pos: kw.pos, span: { start: kw.pos.offset, end } };
+        return { src: body.str, pos: kw.pos, span: { start: kw.pos.offset, end }, ...(body.str.includes(BINDINGS_MARK) ? { compiled: true } : {}) };
     }
     /** At an `include [ … ]` directive (composition.md §1) — contextual: the
      *  ident `include` followed by `[`. (`include` followed by anything else is

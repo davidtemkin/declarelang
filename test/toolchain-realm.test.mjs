@@ -23,12 +23,12 @@ const PROGRAM = `App [ View [ width = 40, height = 40, View [ ignoreClip = true 
 
 try {
   await test("the realm compiles with the current schema", async () => {
-    const r = await toolchain.compile(PROGRAM, {});
-    assert.notEqual(r.source, null, "current-schema program should compile: " + (r.report ?? ""));
+    const r = await toolchain.compileProgram(PROGRAM, {});
+    assert.notEqual(r.program, null, "current-schema program should compile: " + (r.report ?? ""));
   });
 
   await test("an unchanged toolchain never respawns the realm", async () => {
-    await toolchain.compile(PROGRAM, {});
+    await toolchain.compileProgram(PROGRAM, {});
     await toolchain.highlight("View [ ]");
     assert.equal(toolchain.stats().spawns, 1, "repeat operations must reuse the realm");
   });
@@ -38,8 +38,8 @@ try {
     const before = statSync(probe);
     utimesSync(probe, new Date(), new Date()); // the fingerprint's input is mtime
     try {
-      const r = await toolchain.compile(PROGRAM, {});
-      assert.notEqual(r.source, null, "the respawned realm should compile");
+      const r = await toolchain.compileProgram(PROGRAM, {});
+      assert.notEqual(r.program, null, "the respawned realm should compile");
       assert.equal(toolchain.stats().spawns, 2, "the fingerprint change must respawn the realm");
     } finally {
       utimesSync(probe, before.atime, before.mtime); // leave the tree as found
@@ -47,9 +47,9 @@ try {
   });
 
   await test("after the restore the realm respawns once more and settles", async () => {
-    await toolchain.compile(PROGRAM, {});
+    await toolchain.compileProgram(PROGRAM, {});
     const settled = toolchain.stats().spawns;
-    await toolchain.compile(PROGRAM, {});
+    await toolchain.compileProgram(PROGRAM, {});
     assert.equal(toolchain.stats().spawns, settled, "no further respawns without a change");
   });
 } finally {

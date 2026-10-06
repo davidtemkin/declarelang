@@ -34,9 +34,14 @@ cd "$RUN/work"
 if [ -z "$STACK" ]; then
   git clone -q https://github.com/davidtemkin/declarelang.git declarelang
   [ -n "$COMMIT" ] && git -C declarelang checkout -q "$COMMIT"
-  SUBJECT="$(git -C declarelang log -1 --format='%h %s') (GitHub, evals/ and docs/system-design/findings-*.md removed)"
-  # evals/ holds every task's answer key; a findings file records one eval run's pitfalls
-  rm -rf declarelang/evals declarelang/docs/system-design/findings-*.md
+  SUBJECT="$(git -C declarelang log -1 --format='%h %s') (GitHub, evals/, docs/system-design/ and test/ removed)"
+  # evals/ holds every task's answer key; docs/system-design/ is the design record, written
+  # around past eval runs; test/ is the platform's own suite and probes, some shaped by past
+  # tasks — none is read or run by an agent, but each is reachable by a repo-wide grep
+  rm -rf declarelang/evals declarelang/docs/system-design declarelang/test
+  # STRIP="a b": further paths that would hand this task's answer to the agent (a test
+  # program in the task's own shape), removed before it starts and named in the record
+  for p in ${STRIP:-}; do rm -rf "declarelang/$p"; SUBJECT="$SUBJECT; $p removed"; done
 else
   SUBJECT="none — $STACK, from the brief alone"
 fi
@@ -51,6 +56,8 @@ else
   [ -d "$SRC/api" ] && cp -R "$SRC/api" task/
   SERVICE=(task/api/server.mjs "--port=$PORT")
 fi
+# an app's service-args file holds what its brief is written against (murmur: --scale=100)
+[ -f "$SRC/service-args" ] && SERVICE+=($(cat "$SRC/service-args"))
 
 # the prompt: nothing beyond what the task needs — the distribution carries the rest
 if [ -z "$STACK" ]; then

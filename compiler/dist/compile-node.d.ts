@@ -1,11 +1,11 @@
 import { type CompileOptions, type Compiled } from "./compile.js";
 import type { Closure } from "./closure.js";
 export type { CompileOptions, Compiled } from "./compile.js";
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export { highlight, lineMetrics, type LineMetrics } from "./highlight.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
-export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";

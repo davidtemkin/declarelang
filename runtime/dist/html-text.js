@@ -11,9 +11,9 @@ import { parseHtml } from "./html.js";
  *  behaviour, never silent corruption. Same flow engine as Markdown. */
 export class HTMLText extends RichText {
     // folded into the key (as a signature) so a re-themed style re-renders.
-    sourceKey() { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
-    parseSource(opts) { return parseHtml(this.html, this.unsupported, opts); }
-    policy() { return this.unsupported; }
+    $sourceKey() { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
+    $parseSource(opts) { return parseHtml(this.html, this.unsupported, opts); }
+    $policy() { return this.unsupported; }
 }
 defineAttributes(HTMLText, {
     html: { def: "" },

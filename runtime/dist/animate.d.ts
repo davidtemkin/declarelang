@@ -40,7 +40,7 @@ export declare const DEFAULT_MOTION: Motion;
  *  and returns whether it is still running; returning false drops it, and
  *  when the last one drops the clock goes idle. */
 export interface Ticker {
-    tick(now: number): boolean;
+    $tick(now: number): boolean;
     /** Life, not transition (RULED 2026-08-06, David — verify-and-evals.md
      *  "Settle and ambient motion"): a ticker whose perpetuity is DERIVED from
      *  its own declaration — a Time (ticks while `running`, never arrives
@@ -56,7 +56,7 @@ export interface Ticker {
      *  clock's first steps then integrate a NEGATIVE dt (clamped to zero), which
      *  reads as "the animation never ran" (GitHub #17's readout). The clock
      *  calls it in `setScheduler`; a ticker with no stored times omits it. */
-    rebase?(delta: number): void;
+    $rebase?(delta: number): void;
 }
 /** The frame source the clock drives itself from — the one seam that makes it
  *  testable. The runtime binds it to `requestAnimationFrame` /

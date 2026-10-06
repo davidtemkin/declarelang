@@ -56,7 +56,7 @@ export declare abstract class Editor extends View {
     /** Does the draft differ from the committed value? (reactive) */
     dirty: boolean;
     /** The slot holding the draft (the editable value) — the one `<->` binds. */
-    protected abstract draftSlot(): string;
+    protected abstract $draftSlot(): string;
     /** @api Commit the current draft into the bound dataset field, if it
      *  validates — for a `commitOn = "manual"` field or a Save button. */
     commit(): void;

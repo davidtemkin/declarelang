@@ -404,7 +404,7 @@ export function mountEmbeddedApp(app, island) {
     const sync = () => { app.hostWidth = island.width; app.hostHeight = island.height; };
     sync();
     observe(() => [island.width, island.height], sync, "embed:hostExtent");
-    app.scheduleReveal();
+    app.$scheduleReveal();
     return app;
 }
 export function mountApp(app, host, backend, opts = {}) {
@@ -438,7 +438,7 @@ export function mountApp(app, host, backend, opts = {}) {
     // written BEFORE mount (the host seeds the fragment pre-settle), when its
     // push armed a pump against a tree with no surface. Re-arm now that the
     // tree is rooted; a no-anchor location makes this a no-op afterSettle.
-    app.scheduleReveal();
+    app.$scheduleReveal();
     return app;
 }
 /** Land the DECLARED initial scroll offsets, once the tree is IN the document.
@@ -502,7 +502,7 @@ function startTitleMirror(app, _host) {
     const served = document.title;
     let reflected = reflectAppName(app, served, "");
     observe(() => app.appName, () => { reflected = reflectAppName(app, served, reflected); }, "titleMirror");
-    const onUserScroll = () => { app.cancelReveal(); };
+    const onUserScroll = () => { app.$cancelReveal(); };
     window.addEventListener("wheel", onUserScroll, { passive: true });
     window.addEventListener("touchstart", onUserScroll, { passive: true });
 }

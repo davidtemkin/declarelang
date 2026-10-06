@@ -65,12 +65,11 @@ frame, and anything that is a **pure function of the current time** becomes a on
 constraint:
 
 ```declare-fragment
-stopwatch: Time [ tick = frame ],
-startedAt: number = 0,
-readout: Text [ text = { ((app.stopwatch.now - app.startedAt) / 1000).toFixed(1) + " s" } ],
+spin: Time [ tick = frame ],
+hand: View [ width = 2, height = 40, fill = black, rotation = { (app.spin.now / 1000 * 6) % 360 } ],
 ```
 
-No accumulator, no timer to clear: the readout *is* a formula over now.
+No accumulator, no timer to clear: the angle *is* a formula over now.
 
 ### `onTick` — when the next value depends on the previous
 
@@ -170,8 +169,8 @@ Almost everything in a Declare program *follows*. A value reads another, the oth
 and the first one is already right — the constraint is the notification. That is why the
 language has so few events: there is usually nothing to tell anyone.
 
-A few things are not followings. A conversation is marked read when the reader reaches the
-end of it. The busiest conversation opens once, when the history lands. A fetch starts when
+A few things are not followings. Terms are recorded as read when the reader reaches the
+end of them. A map fits its pins once, when they land. A fetch starts when
 the selection changes. Those are **actions**: something crossed into a new state, and the
 program does one thing about it, once. There is no value to write that would mean "I did
 this" — the doing is the point.
@@ -179,24 +178,24 @@ this" — the doing is the point.
 For those, a node names the values it wants to hear about, and answers `onChange`:
 
 ```declare
-class Thread [ scrolls = y, fill = #F2F5F8,
+class TermsPane [ scrolls = y, fill = #F2F5F8,
     atEnd: boolean = { scrollY >= contentHeight - height - 1 },
     trackChanges = [ "atEnd" ],
     onChange(e: ChangeEvent) {
         for (const c of e.changed) {
-            if (c.name == "atEnd" && c.currentValue) app.markRead()
+            if (c.name == "atEnd" && c.currentValue) app.readTerms()
             }
         }
     ]
 
 App [ width = 320, height = 250, fill = white, textColor = #172530, fontSize = 14,
-    unread: number = 3,
-    markRead() { unread = 0 },
-    thread: Thread [ x = 12, y = 12, width = 296, height = 190, cornerRadius = 8,
+    termsRead: boolean = false,
+    readTerms() { termsRead = true },
+    terms: TermsPane [ x = 12, y = 12, width = 296, height = 190, cornerRadius = 8,
         column: View [ width = { parent.width }, height = 900, fill = #DCE6F0 ]
         ],
     status: Text [ x = 12, y = 214,
-        text = { app.unread > 0 ? app.unread + " unread — scroll to the end" : "all read" } ]
+        text = { app.termsRead ? "read — ready to accept" : "scroll to the end to accept" } ]
     ]
 ```
 
@@ -233,9 +232,9 @@ Notice that `atEnd` is an attribute, not a test written inside the handler. That
 discipline a state's condition follows, for the same reason: the *what* stays readable, other
 things can depend on it, and the handler is left holding only the *do*.
 
-The shape to aim for is an action that **closes its own gate**. Marking the conversation read
-makes `atEnd`'s consequence — the unread count — zero, so nothing is left to do if the
-handler runs again. When an action cannot be written that way, because it posts a message or
+The shape to aim for is an action that **closes its own gate**. Recording the terms as read
+makes `atEnd`'s consequence — `termsRead` — true, so nothing is left to do if the
+handler runs again. When an action cannot be written that way, because it posts to a server or
 appends to a log, give that concern its own node rather than letting one handler carry two.
 
 ### When to use `onChange`

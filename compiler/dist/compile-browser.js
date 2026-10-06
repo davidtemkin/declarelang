@@ -16,7 +16,7 @@
 //
 // tools/internal/build-compiler.mjs bundles THIS module (with `typescript`) into
 // bundles/declare-compiler.js — the artifact the homepage warm-loads.
-import { compile as compileCore } from "./compile.js";
+import { compile as compileCore, carryProgram } from "./compile.js";
 import { programFromCompiled } from "./program-build.js";
 import { searchIncludePath } from "./include-search.js";
 // Re-exported so the BUNDLE INIT (tools/internal/build-compiler.mjs's generated entry)
@@ -39,9 +39,9 @@ export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/chec
 // browser compiler does everything the Node one can, as architecture and as
 // principle). browser/boot-extract.js composes these with compileTracked below for
 // the static host's `?extract`. See static-html.ts / headless.ts.
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey } from "./crawl.js";
-export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
  *  how the warm-load stores prefetched files (e.g. "library/bar.declare"). */
 function normalizePath(p) {
@@ -260,7 +260,7 @@ export async function compileTracked(source, opts = {}) {
     if (mainId !== undefined)
         entries.push({ id: mainId, kind: "file", v: mainValidator ?? { hash: fnv1a(source) } });
     entries.push(...reads.values());
-    return { ...result, closure: { entries, props: props ?? {} } };
+    return carryProgram(result, { closure: { entries, props: props ?? {} } });
 }
 /** FNV-1a 64-bit (16 hex) — the freshness tag hash, replicated from closure.ts
  *  so the browser can re-hash live source and compare to a baked artifact tag
@@ -270,9 +270,9 @@ export async function compileTracked(source, opts = {}) {
  *  runtime instantiates with no parser aboard. What a live edit on a static
  *  host renders, and the same artifact a `declarec` deploy ships. */
 export async function compileProgram(source, opts = {}) {
-    const { stripPos, ...rest } = opts;
+    const { stripPos, links, ...rest } = opts;
     const c = await compileTracked(source, rest);
-    return programFromCompiled(c, { stripPos });
+    return programFromCompiled(c, { stripPos, links });
 }
 export function fnv1a(s) {
     let h = 0xcbf29ce484222325n;

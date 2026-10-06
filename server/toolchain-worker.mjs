@@ -12,7 +12,7 @@
 //
 // Protocol (server/toolchain.mjs is the one caller; every request carries an
 // id, every reply is { id, result } or { id, error }):
-//   { type:"compile",    id, source, opts }   → projected compile result
+//   { type:"compileProgram", id, source, opts } → { program, diagnostics, report, closure }
 //   { type:"extract",    id, source, originDir, document } → { ok, html, title, doc?, report? }
 //   { type:"production", id, args }           → writeProduction's result, errors projected
 //   { type:"fresh",      id, closure, props } → boolean (isUpToDate over diskProbe)
@@ -21,27 +21,15 @@
 
 import { parentPort } from "node:worker_threads";
 import path from "node:path";
-import { compile, compileTracked, isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
+import { isUpToDate, diskProbe, crawlExtract, diskDataResolver, crawlerDocument } from "../compiler/dist/compile-node.js";
 // the PROGRAM-shaped compile (compiler/src/declarec.ts: the Node front over the
 // shared program tail) — what /compile answers with, so a page never parses
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { highlight, lineMetrics } from "../compiler/dist/highlight.js";
 import { writeProduction } from "../tools/declarec.mjs";
 
-const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
-// The TRACKED projection carries the dependency CLOSURE too — what the server's
-// compile cache is keyed on. `project` deliberately drops it, and for years that
-// was the whole reason the dev server could not cache a page compile: the closure
-// never crossed the worker boundary, so there was nothing to check freshness
-// against (browser/prewarm-cache.js's header tells the other half of this story).
-const projectTracked = (r) => ({ ...project(r), closure: r.closure });
-
 async function handle(m) {
   switch (m.type) {
-    case "compile":
-      return project(await compile(m.source, m.opts ?? {}));
-    case "compileTracked":
-      return projectTracked(await compileTracked(m.source, m.opts ?? {}));
     case "compileProgram": {
       // the PROGRAM-shaped result (compiler/src/program-build.ts): the parsed,
       // checked, deps-applied program the runtime instantiates with no parser
@@ -50,10 +38,10 @@ async function handle(m) {
       return { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure };
     }
     case "extract": {
-      const compiled = await compile(m.source, { originDir: m.originDir });
-      if (compiled.source === null) return { ok: false, report: compiled.report };
-      const ex = await crawlExtract(compiled.source, {
-        deps: compiled.deps, links: compiled.links, registry: compiled.linkRegistry, warm: true, data: diskDataResolver(m.originDir),
+      const built = await compileProgram(m.source, { originDir: m.originDir, links: true });
+      if (built.program === null) return { ok: false, report: built.report };
+      const ex = await crawlExtract(built.program, {
+        registry: built.compiled.linkRegistry, warm: true, data: diskDataResolver(m.originDir),
       });
       const title = ex.title || "";
       return { ok: true, html: ex.html, title, doc: m.document ? crawlerDocument(ex.html, title || m.fallbackTitle || path.basename(m.originDir)) : undefined };

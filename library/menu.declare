@@ -238,6 +238,7 @@ class Menu [
 
     theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown },
+    ignoreLayout = true,                         // it places itself where it opens; a parent's layout never arranges it
     height = { this.panel.height },              // the panel; the backdrop deliberately overflows
 
     // A menu is chrome, not prose: its rows never select, even inside a
@@ -369,7 +370,7 @@ class Menu [
         offX = px
         offY = py
         this.x = Math.max(4, Math.min(app.width - this.width - 4, x)) - px
-        this.y = Math.max(4, Math.min(app.height - this.height - 4, y)) - py
+        this.y = Math.max(4, Math.min(app.height - this.expectedHeight() - 4, y)) - py   // the rows are built as it opens: estimated until then
         },
 
     close() {
@@ -425,7 +426,12 @@ class Menu [
 
     step(d: number) {
         const rows = this.rowsOf(this.panel.body).filter((r) => !r.divider && r.enabled && r.custom == "")
-        if (rows.length == 0) return
+        // opened in this same moment (a submenu entered by ArrowRight): its rows
+        // are built as this settle closes, so the step waits for them
+        if (rows.length == 0) {
+            if (shown && this.rowsOf(this.panel.body).length == 0 && (this.items ?? []).length > 0) afterSettle(() => this.step(d))
+            return
+            }
         const i = rows.indexOf(this.activeRow)
         activeRow = rows[i < 0 ? (d > 0 ? 0 : rows.length - 1) : (i + d + rows.length) % rows.length]
         this.revealRow(this.activeRow)
@@ -469,9 +475,11 @@ class Menu [
         ],
 
     // items → rows through an internal derived dataset: the author passes a
-    // plain array, and the wrap is the menu's own
+    // plain array, and the wrap is the menu's own. The rows exist only while
+    // the menu is shown: a closed menu builds nothing, however long its list
+    // and however often the data under it changes.
 
-    data: Dataset [ contents = { { rows: classroot.items || [] } } ],
+    data: Dataset [ contents = { { rows: classroot.shown ? (classroot.items || []) : [] } } ],
 
     // the backdrop: the light-dismiss layer — a full-app press-catcher under
     // the panel; outside presses close and are swallowed

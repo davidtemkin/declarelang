@@ -39,7 +39,11 @@ deps?: readonly string[],
 yielding?: boolean, 
 /** …and is marked as one BEFORE its first run, so a read while that run is
  *  in flight evaluates the default live instead of taking the empty slot. */
-declDefault?: boolean): void;
+declDefault?: boolean, 
+/** The body as kernel bytecode (the code value's `expr`), when the compiler
+ *  emitted it — the constraint then runs in the kernel if its reads land on
+ *  numeric cells. */
+bytecode?: string): void;
 /** Bind `name = :path` (a value slot reading data, language §9): a standing
  *  computation over exactly that region of the inherited cursor's dataset.
  *  The raw value coerces to the slot's declared type at the boundary; an
@@ -77,4 +81,4 @@ export declare function bindAlign(view: View, name: "x" | "y", align: "center" |
  *  rule: the default never applied to it. The meaning is the language's "a
  *  formula until assigned", the same as the lazy fallback this replaced —
  *  motion, states, early reads, assignment: docs/system-design/kernel.md §10a. */
-export declare function bindDeclDefault(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[]): void;
+export declare function bindDeclDefault(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[], bytecode?: string): void;

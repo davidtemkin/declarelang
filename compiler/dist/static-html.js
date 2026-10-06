@@ -24,6 +24,7 @@ import { parseHtml } from "../../runtime/dist/html.js";
 import { compileExpr } from "../../runtime/dist/expr.js";
 import { cssWeight } from "../../runtime/dist/measure.js";
 import { compile } from "./compile.js";
+import { programFromCompiled } from "./program-build.js";
 import { settleHeadless } from "./headless.js";
 // ── HTML text, escaped once, here ───────────────────────────────────────────
 const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -328,14 +329,10 @@ function emit(v, out, headingOf, tenants) {
         if (c instanceof View)
             walk(c, out, headingOf, tenants);
 }
-/** Extract from a compile() result: execute the compiled source to its t=0
- *  snapshot and serialize. Needs only { source, deps } — the projection that
- *  survives the worker boundary — so it composes with EVERY compile path
- *  (in-process, worker, cached). Returns null when the compile failed. */
-export function extractFromCompiled(compiled, env) {
-    if (compiled.source === null)
-        return null;
-    const app = settleHeadless(compiled.source, { deps: compiled.deps, links: compiled.links, env });
+/** Extract from a compiled program (built with its links —
+ *  programFromCompiled `links`): execute it to its t=0 snapshot and serialize. */
+export function extractFromProgram(program, env) {
+    const app = settleHeadless(program, { env });
     try {
         return staticHtml(app);
     }
@@ -348,7 +345,8 @@ export function extractFromCompiled(compiled, env) {
  *  plus the rendered report ride the result. */
 export async function extractStatic(source, opts = {}) {
     const compiled = await compile(source, opts);
-    return { html: extractFromCompiled(compiled, opts.env), diagnostics: compiled.diagnostics, report: compiled.report };
+    const built = await programFromCompiled(compiled, { links: true });
+    return { html: built.program === null ? null : extractFromProgram(built.program, opts.env), diagnostics: built.diagnostics, report: built.report };
 }
 /** The fragment as a complete crawler-facing document (`?extract`, and the
  *  committed-page artifact). One shape on every host. */

@@ -31,17 +31,17 @@ export class Media extends View {
     el = null;
     /** The metadata landed. The leaf takes what is its own — Video adopts the
      *  natural size and hands the element to the surface as its picture. */
-    metadataArrived(_el) { }
+    $metadataArrived(_el) { }
     /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
-    sourceCleared() { }
+    $sourceCleared() { }
     $attach(backend, parentSurface) {
         super.$attach(backend, parentSurface);
-        this.load();
+        this.$load();
     }
-    teardown() {
+    $teardown() {
         this.loadSeq++; // its late events speak for no one
         this.$release();
-        super.teardown();
+        super.$teardown();
     }
     /** Let go of the current element. An `<audio>` never enters the document,
      *  so nothing else would ever stop it: a re-pointed clip would play over its
@@ -59,7 +59,7 @@ export class Media extends View {
         }
     }
     /** (Re)load `source` — at attach, and from the `source` pusher. */
-    load() {
+    $load() {
         const seq = ++this.loadSeq;
         this.$release();
         if (this.$surface === null)
@@ -67,7 +67,7 @@ export class Media extends View {
         setBound(this, "failed", false);
         setBound(this, "ended", false);
         if (this.source === "") {
-            this.sourceCleared();
+            this.$sourceCleared();
             return;
         }
         // A DOM-less host has no media element: the network is honestly absent,
@@ -77,7 +77,7 @@ export class Media extends View {
         // the runtime never reaches for a browser-only constructor.
         if (typeof document === "undefined")
             return;
-        const el = this.makeElement();
+        const el = this.$makeElement();
         this.el = el;
         el.muted = this.muted;
         el.loop = this.loop;
@@ -88,11 +88,11 @@ export class Media extends View {
             if (seq !== this.loadSeq || this.$surface === null)
                 return;
             setBound(this, "duration", isFinite(el.duration) ? el.duration : 0);
-            this.metadataArrived(el);
+            this.$metadataArrived(el);
             setBound(this, "loaded", true);
             // a `playing = true` that arrived before the metadata did is honoured now
             if (this.playing)
-                this.syncPlaying();
+                this.$syncPlaying();
         };
         el.onerror = () => {
             if (seq !== this.loadSeq || this.$surface === null)
@@ -131,7 +131,7 @@ export class Media extends View {
      *  autoplay policy, a source that never loaded — and it answers with a
      *  rejected promise. When it is refused the slot goes back to false, because
      *  a `playing` that reads true over silence (or a still picture) is a lie. */
-    syncPlaying() {
+    $syncPlaying() {
         const el = this.el;
         if (el === null)
             return;
@@ -154,7 +154,7 @@ export class Media extends View {
     /** Author asked to seek. Guarded by a quarter-second so the runtime's own
      *  `timeupdate` writes — which land in this same slot — cannot bounce back
      *  out as seeks and stutter the playhead. */
-    seek() {
+    $seek() {
         const el = this.el;
         if (el === null)
             return;
@@ -163,13 +163,13 @@ export class Media extends View {
     }
 }
 defineAttributes(Media, {
-    source: { def: "", push: (v) => v.load() },
-    playing: { def: false, push: (v) => v.syncPlaying() },
+    source: { def: "", push: (v) => v.$load() },
+    playing: { def: false, push: (v) => v.$syncPlaying() },
     loop: { def: false, push: (v, on) => { const e = v.el; if (e !== null)
             e.loop = on; } },
     muted: { def: true, push: (v, on) => { const e = v.el; if (e !== null)
             e.muted = on; } },
-    position: { def: 0, push: (v) => v.seek() },
+    position: { def: 0, push: (v) => v.$seek() },
     volume: { def: 1, push: (v, n) => { const e = v.el; if (e !== null)
             e.volume = n; } },
     playbackRate: { def: 1, push: (v, n) => { const e = v.el; if (e !== null)

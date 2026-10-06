@@ -12,7 +12,8 @@ import { execFile } from "node:child_process";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, summarize } from "./harness.mjs";
-import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
+import { settleHeadless } from "../compiler/dist/compile-node.js";
+import { compileProgram } from "../compiler/dist/declarec.js";
 import { readBriefs } from "../tools/internal/doc/briefs.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -47,9 +48,9 @@ await test("every brief has its parts, and stays a brief", () => {
 await test("every brief's snippet compiles and boots", async () => {
   for (const b of briefs) {
     for (const m of b.text.matchAll(/```declare\n([\s\S]*?)```/g)) {
-      const r = await compile(m[1], { originDir: ROOT });
+      const r = await compileProgram(m[1], { originDir: ROOT });
       assert.deepEqual((r.errors ?? []).map((e) => e.message), [], `${b.name}: the snippet does not compile`);
-      const app = settleHeadless(r.source, { deps: r.deps });
+      const app = settleHeadless(r.program);
       app.discard();
     }
   }

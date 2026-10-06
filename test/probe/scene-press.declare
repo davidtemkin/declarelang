@@ -1,0 +1,43 @@
+// Real presses through each renderer's scene walk. Every press target counts
+// its own presses, so "which view took this press" is the language's answer,
+// read the same way on every host.
+//
+//   (200,10)   frame chrome pinned over a scrolled pane — the row scrolled
+//              under it must not take the press
+//   (305,5)    the corner of a rounded, clipped box — outside its shape
+//   (350,40)   the same box's middle
+//   (60,200)   a fully transparent view: opacity is paint, not presence
+//   (180,200)  a pointer-transparent view over a pressable one: the press
+//              passes to the view beneath
+
+App [ width = 400, height = 300, fill = #202020,
+    presses: number = 0,
+    pane: View [ x = 0, y = 0, width = 260, height = 150, scrolls = y, scrollStartY = 120,
+        tall: View [ width = 260, height = 600, fill = #2E3742 ],
+        row: View [ y = 120, width = 260, height = 30, fill = #FF8800,
+            hits: number = 0,
+            onClick() { hits = hits + 1 }
+            ],
+        chrome: View [ ignoreScroll = true, width = 260, height = 30, fill = #00CC66,
+            hits: number = 0,
+            onClick() { hits = hits + 1 }
+            ]
+        ],
+    rounded: View [ x = 300, y = 0, width = 100, height = 80, cornerRadius = 30, clip = true, fill = #6688FF,
+        hits: number = 0,
+        onClick() { hits = hits + 1 }
+        ],
+    ghost: View [ x = 20, y = 170, width = 80, height = 60, opacity = 0, fill = #FFFFFF,
+        hits: number = 0,
+        onClick() { hits = hits + 1 }
+        ],
+    under: View [ x = 140, y = 170, width = 80, height = 60, fill = #888888,
+        hits: number = 0,
+        onClick() { hits = hits + 1 }
+        ],
+    over: View [ x = 140, y = 170, width = 80, height = 60, pointerEvents = "none", fill = #CC4444,
+        hits: number = 0,
+        onClick() { hits = hits + 1 }
+        ],
+    onClick() { presses = presses + 1 }
+    ]

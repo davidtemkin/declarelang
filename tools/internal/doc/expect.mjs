@@ -45,7 +45,7 @@ const CHECKS = [
   { page: "reference/Table", slot: "run:seg_Table_0", action: { click: "Grace" }, expect: { pixels: true } },
   { page: "reference/DataGrid", slot: "run:seg_DataGrid_0", action: { click: "Draft the chapter" }, expect: { pixels: true } },
   { page: "language/class", slot: "run:form-class", action: { click: "one" }, expect: { text: "one ×1" } },
-  { page: "language/class", slot: "run:form-classroot", action: { click: "Sent" }, expect: { pixels: true } },
+  { page: "language/class", slot: "run:form-classroot", action: { click: "Display" }, expect: { pixels: true } },
   { page: "language/app", slot: "run:form-app", action: { clickAt: [200, 100] }, expect: { text: "fact: 1" } },
   { page: "language/instance", slot: "run:form-instance", action: { clickAt: [60, 60] }, expect: { text: "card: 1" } },
   { page: "language/declare", slot: "run:form-declare", action: { clickAt: [60, 40] }, expect: { text: "1 clicks" } },

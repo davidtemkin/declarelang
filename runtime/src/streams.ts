@@ -62,7 +62,7 @@ export abstract class Stream extends Node {
 
   /** The transport-specific half: hand the factory this stream's address and
    *  callbacks, get a live handle back. */
-  protected abstract dial(cb: StreamCallbacks): StreamHandle;
+  protected abstract $dial(cb: StreamCallbacks): StreamHandle;
 
   protected handle: StreamHandle | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
@@ -83,44 +83,44 @@ export abstract class Stream extends Node {
     // Lifetime is the node's: a discarded stream closes its connection, so a
     // torn-down subtree cannot keep one alive. Quiet — no handlers fire into
     // a tree being discarded.
-    onDiscard(this, () => this.drop(true));
+    onDiscard(this, () => this.$drop(true));
   }
 
   /** Construction-complete (instantiate.ts initTree — the hook every source
    *  uses): handlers and initial attribute values are all in place. */
-  autoStart(): void {
+  $autoStart(): void {
     if (this.wired) return;
     this.wired = true;
-    this.sync();
+    this.$sync();
   }
 
   /** `url` (or `listen`) changed: close and reopen at the new address — the
    *  Dataset.url discipline, push-driven (the attribute pushers below reach
    *  these two private hooks the way Time's pushers reach its sync). */
-  protected readdressed(): void {
+  protected $readdressed(): void {
     if (!this.wired) return;
-    this.drop(false);
-    this.sync();
+    this.$drop(false);
+    this.$sync();
   }
 
   /** `active` changed: the gate. */
-  protected gated(): void {
+  protected $gated(): void {
     if (!this.wired) return;
-    if (!this.active) this.drop(false);
-    this.sync();
+    if (!this.active) this.$drop(false);
+    this.$sync();
   }
 
   /** Converge on what the declaration wants: connected exactly when `active`
    *  and a non-empty `url` say so ("" = detached, the AppIsland idiom). */
-  private sync(): void {
+  private $sync(): void {
     if (this.active && this.url !== "") {
-      if (this.handle === null && this.timer === null) this.connect();
+      if (this.handle === null && this.timer === null) this.$connect();
     } else if (this.status !== "closed") {
       setBound(this, "status", "closed");
     }
   }
 
-  private connect(): void {
+  private $connect(): void {
     const gen = ++this.gen;
     setBound(this, "status", "connecting");
     const cb: StreamCallbacks = {
@@ -129,20 +129,20 @@ export abstract class Stream extends Node {
         this.wasOpen = true;
         setBound(this, "error", "");
         setBound(this, "status", "open");
-        this.fire("onOpen");
+        this.$fire("onOpen");
       },
       message: (m) => {
         if (gen !== this.gen) return;
         setBound(this, "last", m.data);
-        this.fire("onMessage", m);
+        this.$fire("onMessage", m);
       },
       end: (error, final) => {
         if (gen !== this.gen) return;
-        this.ended(error, final);
+        this.$ended(error, final);
       },
     };
     try {
-      this.handle = this.dial(cb);
+      this.handle = this.$dial(cb);
     } catch (e) {
       // The factory could not even construct a connection (the headless
       // refuser, a missing host service): structural, not transient —
@@ -150,7 +150,7 @@ export abstract class Stream extends Node {
       this.handle = null;
       setBound(this, "error", e instanceof Error ? e.message : String(e));
       setBound(this, "status", "failed");
-      this.fire("onError");
+      this.$fire("onError");
     }
   }
 
@@ -158,10 +158,10 @@ export abstract class Stream extends Node {
    *  platform repairs it itself (SSE native retry): just "retrying". Final =
    *  the handle is dead; a declared `retry` schedules the reconnect, else
    *  the stream rests at "failed" (a failure) or "closed" (a clean end). */
-  private ended(error: string, final: boolean): void {
+  private $ended(error: string, final: boolean): void {
     if (error !== "") {
       setBound(this, "error", error);
-      this.fire("onError");
+      this.$fire("onError");
     }
     if (!final) {
       setBound(this, "status", "retrying");
@@ -171,13 +171,13 @@ export abstract class Stream extends Node {
     this.handle = null;
     if (this.wasOpen) {
       this.wasOpen = false;
-      this.fire("onClose");
+      this.$fire("onClose");
     }
     if (this.retry > 0 && this.active) {
       setBound(this, "status", "retrying");
       this.timer = setTimeout(() => {
         this.timer = null;
-        this.sync();
+        this.$sync();
       }, this.retry * 1000);
     } else {
       setBound(this, "status", error !== "" ? "failed" : "closed");
@@ -186,7 +186,7 @@ export abstract class Stream extends Node {
 
   /** Close whatever is live or pending. `quiet` (discard) fires no handlers —
    *  nothing may run into a tree being torn down. */
-  private drop(quiet: boolean): void {
+  private $drop(quiet: boolean): void {
     this.gen++;
     if (this.timer !== null) {
       clearTimeout(this.timer);
@@ -202,13 +202,13 @@ export abstract class Stream extends Node {
     }
     if (this.wasOpen) {
       this.wasOpen = false;
-      if (!quiet) this.fire("onClose");
+      if (!quiet) this.$fire("onClose");
     }
   }
 
   /** A handler is an ordinary function-typed member the app may not have
    *  declared — pay-per-use, like every source. */
-  protected fire(name: string, arg?: unknown): void {
+  protected $fire(name: string, arg?: unknown): void {
     const fn = (this as unknown as Record<string, unknown>)[name];
     if (typeof fn === "function") {
       // Loud and attributed, never fatal: a throwing onMessage must not kill
@@ -220,8 +220,8 @@ export abstract class Stream extends Node {
 }
 
 defineAttributes(Stream as never, {
-  url: { def: "", push: (s: unknown) => (s as unknown as { readdressed(): void }).readdressed() },
-  active: { def: true, push: (s: unknown) => (s as unknown as { gated(): void }).gated() },
+  url: { def: "", push: (s: unknown) => (s as unknown as { $readdressed(): void }).$readdressed() },
+  active: { def: true, push: (s: unknown) => (s as unknown as { $gated(): void }).$gated() },
   retry: { def: 0 },
   status: { def: "closed" },
   error: { def: "" },
@@ -232,12 +232,12 @@ defineAttributes(Stream as never, {
  *  kept verbatim — its retry (the server's `retry:` hint) and Last-Event-ID
  *  resume are the best implementation of its own behavior. */
 export class EventStream extends Stream {
-  /** The named SSE event types to deliver (`listenTo = ["content_block_delta",
-   *  "message_stop"]`) — EventSource physically cannot hear a named `event:`
+  /** The named SSE event types to deliver (`listenTo = ["progress",
+   *  "done"]`) — EventSource physically cannot hear a named `event:`
    *  it was not asked for (streams.md §2). Unnamed messages always arrive. */
   declare listenTo: readonly string[];
 
-  protected dial(cb: StreamCallbacks): StreamHandle {
+  protected $dial(cb: StreamCallbacks): StreamHandle {
     // a data-borne list could carry non-strings; dial only what is dialable
     const listen = this.listenTo.filter((s) => typeof s === "string" && s !== "");
     return currentStreams().eventSource(this.url, listen, cb);
@@ -247,13 +247,13 @@ export class EventStream extends Stream {
 defineAttributes(EventStream as never, {
   // listeners attach at construction, so changing what you listen to is a
   // readdress: close and reopen with the new set
-  listenTo: { def: Object.freeze([]), push: (s: unknown) => (s as unknown as { readdressed(): void }).readdressed() },
+  listenTo: { def: Object.freeze([]), push: (s: unknown) => (s as unknown as { $readdressed(): void }).$readdressed() },
 } as never);
 
 /** WebSocket: the same surface plus `send`. Text frames only in v1 (ruled;
  *  binary is a later attribute if a real project needs it). */
 export class Socket extends Stream {
-  protected dial(cb: StreamCallbacks): StreamHandle {
+  protected $dial(cb: StreamCallbacks): StreamHandle {
     return currentStreams().socket(this.url, cb);
   }
 
@@ -265,6 +265,6 @@ export class Socket extends Stream {
       return;
     }
     setBound(this, "error", "send(…) on a socket that is not open — nothing was sent (gate on .open, or send from onOpen)");
-    this.fire("onError");
+    this.$fire("onError");
   }
 }

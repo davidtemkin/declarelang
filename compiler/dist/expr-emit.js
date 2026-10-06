@@ -22,9 +22,6 @@ export const OP = Object.freeze({
     LT: 16, LE: 17, GT: 18, GE: 19, EQ: 20, NE: 21, AND: 22, OR: 23, NOT: 24,
     SELECT: 25, CLAMP: 26,
 });
-/** The marker: a deps entry that starts with this is the body's EXPR code. */
-export const EXPR_MARK = "=E";
-export function pathsOf(deps) { return deps.filter((d) => !d.startsWith(EXPR_MARK)); }
 // THE WIRE FORM — compact, since it lives in the production program JSON:
 // space-separated tokens. `L<n>` loads the n-th READ PATH of the body's own
 // deps list (the extractor already lists every slot the body reads; the
@@ -59,7 +56,7 @@ export function encodeExpr(e, deps) {
             throw new Error("expr-emit: no letter for op " + op);
         out.push(letter);
     }
-    return EXPR_MARK + out.join(" ");
+    return out.join(" ");
 }
 const MATH = { min: OP.MIN, max: OP.MAX, abs: OP.ABS, floor: OP.FLOOR, ceil: OP.CEIL, round: OP.ROUND, sqrt: OP.SQRT };
 const K = ts.SyntaxKind;
@@ -420,7 +417,7 @@ function inlineScopes(program) {
         },
     };
 }
-/** Attach the EXPR entry to every candidate body's deps (after dep
+/** Attach the kernel bytecode to every candidate body as its `expr` (after dep
  *  extraction: a body without deps is not bindable statically anyway). */
 export function annotateExprs(program) {
     let candidates = 0, emitted = 0;
@@ -434,14 +431,14 @@ export function annotateExprs(program) {
             consts.set(k, v);
     const visit = (v, scope) => {
         const w = v;
-        if (w.deps === undefined || w.deps.length === 0 || w.deps.some((d) => d.startsWith(EXPR_MARK)))
+        if (w.deps === undefined || w.deps.length === 0 || w.expr !== undefined)
             return;
         candidates++;
         const e = emitExpr(w.src, consts.size === 0 ? scope : { lookup: scope.lookup.bind(scope), constant: (n) => consts.get(n) });
         if (e === null)
             return;
         emitted++;
-        w.deps = [...w.deps, encodeExpr(e, w.deps)];
+        w.expr = encodeExpr(e, w.deps);
     };
     // the same order as forEachCodeValue (deps.ts) — the indices must align
     const walk = (el, classroot) => {

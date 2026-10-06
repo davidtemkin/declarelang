@@ -126,7 +126,7 @@ function assertTokensEqual(a, b, what) {
 // Positions (and the whitespace inside verbatim-copied bodies) are the only
 // things formatting may move; strip them, compare everything else.
 const stripAst = (o) => JSON.parse(JSON.stringify(o, (k, v) => {
-  if (["pos", "typePos", "bodyPos", "sourcePos", "basePos", "includeSpans"].includes(k)) return undefined;
+  if (["pos", "typePos", "bodyPos", "sourcePos", "basePos", "ptypePos", "returnsPos", "refPos", "includeSpans"].includes(k)) return undefined;
   if ((k === "body" || k === "src") && typeof v === "string") return v.replace(/\n[ \t]*/g, "\n").trim();
   return v;
 }));
@@ -154,7 +154,7 @@ for (const file of corpus) {
       if (a !== b) throw new Error("parseLibrary ASTs differ");
       return;
     }
-    const opts = { originDir: dirname(file), typecheck: false };
+    const opts = { originDir: dirname(file) };
     const a = await compile(src, opts);
     const b = await compile(out, opts);
     if (a.errors.length) throw new Error(`original does not compile: ${a.errors[0].message}`);

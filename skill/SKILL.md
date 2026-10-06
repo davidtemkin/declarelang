@@ -5,133 +5,204 @@ description: Write programs in Declare, a language for user interfaces (.declare
 
 # Writing Declare
 
-Declare is a language for user interfaces. No model has been trained on it, and it
+Declare is a language for user interfaces. No LLM has been trained on it, and it
 resembles React, CSS and HTML only on the surface: a rule carried over from them is the
 surest way to be wrong.
 
-**Read `docs/declare.md`, then start writing.** It is the whole language — its forms, its
-rules, how a program fits together — but not the library or every pattern. A program of any
-size will need more, and you are expected to look it up as you go.
+Learning it comes first: the reading below. When there is a program to write, the work
+then goes in this order: plan, check the plan against what Declare handles for you,
+write, then check the program and look at it running.
 
-## Read only what you need, when you need it
+## Read first, in order
 
-Read nothing else before you start. Every read stays in your context for the rest of the
-session, so a read made early, or never needed, is paid for again on every later turn.
+1. **`docs/declare.md`** — the whole language: its forms, its rules, how a program fits
+   together.
+2. **Two guide chapters**: `docs/guide/01-what-declare-is.md`, how a Declare program
+   works and the shape of a whole app, and `docs/guide/04-run-and-check.md`, the working
+   loop (run, read an error, check, debug).
+3. **The calendar, whole** — `apps/calendar/calendar.declare`, with
+   `docs/guide/27-calendar.md` beside it as its commentary. It is about 500 lines of code,
+   and it shows what Declare makes ordinary: a change of view that is one assignment, which
+   the whole screen follows continuously. Read it for how the work divides — one source of
+   truth, a model derived from it, classes for the things it has many of, four springs
+   that every cell reads. Its month surface is a scene whose geometry is mapped through
+   those springs, which is where hand-written `x` and `y` belong; an ordinary page's cards
+   and rows are a layout's job (see the drift check).
+4. **The tracker, whole** — `apps/tracker/tracker.declare`, about 1,100 lines of code.
+   Where the calendar is one continuous surface, the tracker is a list of records — a
+   million of them — searched, filtered, sorted and edited in place. Its opening comment
+   says how it is put together.
 
-- **A name** — a class, attribute, type, enum token or diagnostic code:
-  `npx declare-help <name>` (`Slider.value`, `scrollAnchor`, `DECLARE3005`). Ask before
-  guessing — a guessed name is a compile error, and the widget you are about to build is
-  often already in the library — and before deciding the platform can't do something.
-  A miss exits 1; `--example` shows the name in compiled code.
-- **How a kind of task is done well** — the brief for it, when you reach that part:
-  `npx declare-help brief <name>`. Each is one task: a verified example, the rules that
-  bite, where to look next.
+Then stop reading. Everything else is read when you reach the part that needs it: every
+read stays in your context for the rest of the session, so a read made early, or never
+needed, is paid for again on every later turn.
 
-<!-- briefs:start -->
-```
-  shape-of-an-app       starting a program; where state, views and classes go
-  lists-from-data       many of something from records; rowIndex, identity, derived lists
-  editing-records       toggles, renames, forms, working copies
-  kinds-of-rows         different things in one list (classFor), states (State), parts only some rows have (exists)
-  loading-and-saving    DataSource: fetch, auto, onLoad, failure, POST, schema
-  derived-values        computed values: constraint vs formula, summaries as methods
-  layout-and-sizing     layouts first, size per axis, padding and Card, reflow
-  scrolling             scrollers, fixed chrome, keeping the reader's place, following the end, scrollTo
-  using-controls        the library's controls and the value pattern
-  your-own-control      extends Control: press(), hovered/pressed, focus, delivering a value
-  pointer-and-drag      hover, press, click vs drag, touch claims, drop targets, pinch
-  keyboard-and-focus    keys, shortcuts, focus order, focus traps
-  motion                springs toward a target, animators, states, arrival
-  moving-arrangements   a few sprung scalars driving a whole layout; TweenLayout
-  overlays              menus, context menus, dialogs, tooltips
-  urls-and-navigation   location, shows, links, deep links, back and forward
-  time                  clocks, repeating jobs, afterDelay, one-time actions on change
-  text-and-themes       theme tokens, dark mode, fonts, rich text, named styles
-  drawing               draw(), icons, when attributes can't say it
-  tables-and-selection  Table and DataGrid: selection as items, sorting, editable columns
-  when-it-misbehaves    compiles but wrong: verify, explain, explainHit, the wake trace
-```
-<!-- briefs:end -->
+## Planning a program
 
-- **A whole program like yours** — the complete programs in `apps/` are working Declare at
-  scale: how state, classes and the tree divide a real program's work. When one is close to
-  what you're building, read its source; each opens with a comment on how it is put together.
+**A spec, a mockup, or a program in another stack** says what the result should be, not
+how to build it here. Take literally what a person experiences, the exact values (copy,
+colors, sizes) and the stated requirements. Where it names a technique ("modal", "route",
+"hover state"), ask what the technique is for and choose the Declare form that does
+that. (`docs/operational/intake.md` covers this at length, for a large or unclear spec.)
 
-  ```
-    tracker      records searched, filtered, sorted and edited in place; a long list; undo
-    weather      data from a service; one program for phone and desktop; a row that opens into a page
-    calendar     views as one moving arrangement; drag to reschedule
-    birds        navigation: location, deep links, prev/next
-    marketmap    dense real data, drawn
-    desktop      windows, menus, a dock, drag and resize
-  ```
-- **More depth** — only the guide section (`docs/guide/`) a brief names.
-- **The library's own code** — `library/`, written in Declare.
-- **Running and building** — `docs/operational/`.
-- **Why the language is shaped as it is** — `docs/tenets/`. (`docs/system-design/` is the
-  design record: background, not truth.)
+Write the plan down before the first line of the program:
 
-## From a spec
+- **The data** — which datasets hold the records. One source of truth; everything a view
+  shows is derived from it.
+- **The state** — the few attributes that say where the user is (the selection, the mode,
+  what is open), on the App.
+- **The classes** — one per kind of thing the program has many of, or that is a thing in
+  its own right.
+- **The changes between states** — a row opens, a panel appears, a list reorders. Each can
+  switch at once, or carry the view from one state to the other: the row grows, the panel
+  slides in, the items travel. In Declare the second costs about the same to write, so it
+  is an ordinary option wherever it helps a person follow what happened; which changes
+  move is a design decision, not a rule.
 
-A spec, a mockup, or a program in another stack says what the result should be, not how to
-build it here. Take literally what a person experiences, the exact values (copy, colors,
-sizes) and the stated requirements. Where it names a technique ("modal", "route", "hover
-state"), ask what the technique is for and choose the Declare form that does that.
-(`docs/operational/intake.md` covers this at length, for a large or unclear spec.)
+Then check every need in the plan against
+[What Declare handles for you](#what-declare-handles-for-you), below.
 
-## Changes between states
+## What's where
 
-When the program moves between states — a row opens, a panel appears, a list reorders — it
-can switch at once, or carry the view from one to the other: the row grows, the panel
-slides in, the items travel. In Declare the second costs about the same to write as the
-first, so it is an ordinary option, for where it helps a person follow what happened; which
-changes should move is a design decision, not a rule. The motion and moving-arrangements
-briefs show how.
+- **The language** — `docs/declare.md`.
+- **The guide** — `docs/guide/`, thirty chapters in numbered files. Below, a guide
+  reference is the file and a section heading inside it: `16-collections.md` §
+  Virtualization.
+- **Links inside the docs** are written as symbolic `declare-docs:` addresses, not file
+  paths; the docs site resolves them to its pages. Reading the files directly, take them
+  this way: `declare-docs:guide:urls` is the guide chapter whose file ends in `-urls.md`
+  (`docs/guide/19-urls.md`), and `@slug` after it names a section heading in it;
+  `operational:<name>` is `docs/operational/<name>.md`; `spec:core` is
+  `docs/declare.md`; anything else is a name to ask `npx declare-help` about, with its
+  prefix dropped (`View.width` as it stands, `type:Motion` as `Motion`).
+- **The reference** — every class, attribute, type, enum token and error code — is not a
+  set of files: ask for a name with `npx declare-help <name>` (`Slider.value`,
+  `scrollAnchor`, `DECLARE3005`). Ask before guessing — a guessed name is a compile error,
+  and the widget you are about to build is often already in the library — and before
+  deciding Declare can't do something. A miss exits 1; `--example` shows the name in
+  the guide's working code.
+- **Complete programs** — `apps/<name>/<name>.declare`, named below by their folder. Each
+  opens with a comment on how it is put together, and the table below cites the class or
+  App member to look at.
+  - `calendar` — month, week, day and year as one surface that each view change carries
+    continuously; events dragged between days and edited in a panel.
+  - `tracker` — a million issues: a virtualized list, search as you type, filter and sort
+    menus, editing in place with undo, multi-select, keyboard shortcuts.
+  - `weather` — one app in a phone design and a desktop design: drawn instrument cards in
+    a masonry layout, a list row that becomes the city's page, a live clock.
+  - `marketmap` — a treemap of a market over time: a data source with its own queries,
+    layouts of its own, zoom and drill on springs, drawn sparklines.
+  - `desktop` — a window system: windows as records, dragged, resized and minimized to a
+    magnifying dock; a menu bar built from records; other programs running in its windows.
+  - `birds` — a field guide and quiz whose whole state is its address: back, forward and
+    deep links.
+  - `sampler` — every library control, under four switchable themes.
+  - `swatchbook` — everything a view can look like, one case at a time: type, rich text
+    and whole documents, paint, effects, transforms, images, drawing. It is also the test
+    that holds the renderers to the same picture.
+  - `two-way` — three files rather than one: embedding both ways, a Declare app in an HTML
+    page (`dial.declare`, `pulse.declare`) and a Declare app hosting other code
+    (`crossings.declare`).
 
-## Checking and debugging
+  The other folders in `apps/` are not models to copy: `docs`, `homepage` and
+  `architecture` are Declare's own site, and the three `lzx-*` programs are faithful
+  ports of 2003-era OpenLaszlo samples, written in that period's imperative style.
+- **The library** — `library/`: the source of every library class, written in Declare like
+  your program.
+- **Running, checking and building** — `docs/operational/`.
+- **Why the language is shaped as it is** — `docs/tenets/`.
 
-- **Check as you go** with `npx declare-verify app.declare`: it compiles and tests the
-  program without a browser, in a second or two — syntax, names, types, and that it starts.
-  Each error names its fix; apply exactly that, change nothing else, check again.
-  (`docs/operational/verify.md`: scripted behavior and screenshot comparisons.)
-- **Run it and look**, because a clean check does not mean it looks or behaves right —
-  layout, fonts, paint and input exist only at run time. `npm start` serves it at its file's
-  path (`http://127.0.0.1:8200/my-apps/app.declare`). Without a browser of your own,
-  `npx declare-look app.declare --size 390x844 --shot out.png` runs it headless and saves a
-  screenshot; it can also click, read a value, and switch to dark mode or touch.
-- **When it runs but is wrong**, don't re-read the source to guess: ask the running program
-  why a value is what it is, which view is under a point, where a value came from. The
-  when-it-misbehaves brief shows how.
+The rest of the repository — `runtime/`, `compiler/`, `kernel/`, `tools/` and the others —
+is how Declare itself is built, and is not part of writing a program in it.
 
-## Drift check — read this just before you write code
+## What Declare handles for you
+
+Most of what an interface needs, Declare already does, and building it again by hand
+is the most common way a working program ends up wrong. Find each need here before you
+build it: the guide section that teaches it, a program that does it, and names to ask
+`npx declare-help` about.
+
+| Need | Guide (`docs/guide/`) | See it in | Ask about |
+|---|---|---|---|
+| Arranging views; sizes that follow content; one program for phone and desktop | `06-layout.md` | tracker: `SimpleLayout` and `padding` throughout; sampler: `Specimen extends Card`; weather: the App's `desk: State [ applied = { !app.phone } ]` | `SimpleLayout`, `ResponsiveLayout`, `Card`, `padding` |
+| Scrolling panes; views that stay put while the page scrolls; what is on screen staying still when content above it changes; a log that follows its newest line | `07-scrolling.md` | weather: `HourStrip`'s `scroller` (`scrolls = x`), the App's `pill` and `back` (`ignoreScroll = true`); keeping the reader's place is the default, so the tracker's list has no code for it | `scrolls`, `ignoreScroll`, `scrollTo`, `scrollAnchor` |
+| Buttons, fields, toggles; your own control, with keyboard, focus, hover and pressed built in | `08-controls.md`; `17-your-own-views.md` § View or Control | sampler: every library control; tracker: `Chip`, `Facet`, `RailStat`; calendar: `NavArrow` (each `extends Control`, with `press()`) | `Control`, `Button`, `TextInput`, `Segmented` |
+| Dragging and dropping; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and the App's `startDrag`; desktop: `Window`'s `beginDrag`; tracker: the App's `keys: Keys` | `onPointerDown`, `viewAt`, `Keys` |
+| Touch: a drag inside a scrolling page, press and hold | `10-touch.md` § Gesture claims | calendar: `Ev`'s `onHold`; tracker: `IssueRow`'s `onHold` (opens the context menu) | `claim`, `onHold` |
+| Themes, dark mode, a value every descendant reads | `11-paint-and-themes.md` | tracker: `theme Tracker`, the App's `theme = { … }` and `appear: AppearanceSwitch`; calendar: `theme CalendarLight` and `CalendarDark`; sampler: four themes | `theme`, `provided`, `AppearanceSwitch` |
+| Text, fonts, styled runs, views inside a line, Markdown | `12-text.md` | swatchbook: the Type and Rich text sections; desktop: `ViewerWindow` (a Markdown document in a window) | `Text`, `Font`, `style`, `HTMLText`, `Markdown` |
+| Images, video, audio | `13-media.md` | birds: `Plate`'s `pic: Image`; weather: `RowSky`'s `photo` | `Image`, `Video`, `Audio` |
+| Where records live; a document with its own logic; a list derived from it that edits still write through; a job with no view | `14-data.md` § A Node class on a record, § Data in a whole app | tracker: the App's derived `shown: Dataset`; calendar: the App's `cal: Dataset`; desktop: `WinManager extends Node` and its `list` of window records | `Dataset`, `Dataset.contents`, `Node` |
+| Data from a service: loading, failure, typed records | `14-data.md` § Where data comes from; `15-schemas.md` | tracker: `schema Issue` and the App's `src: DataSource`; marketmap: `class Market extends DataSource` | `DataSource`, `schema` |
+| Records edited in place; forms; a draft saved or cancelled | `14-data.md` § Writing a record, § Editing text, and forms | tracker: `EditorCard` (`text <-> :it.title`); calendar: `DetailSection` | `<->`, `TextInput`, `Editor.commitOn` |
+| A long list: only the rows near the screen built, rows of different heights and kinds, a heading between records | `16-collections.md` | tracker: the App's `ListRow [ … virtualize = true, classFor = { … } ]` over `GroupRow` and `IssueRow`; desktop: the App's `wins` (a class per kind of window) | `virtualize`, `classFor`, `rowIndex`, `exists` |
+| Drawing what attributes can't express: a gauge, a chart, an icon | `17-your-own-views.md` § Custom drawing, § Icons | weather (`weather-art.declare`): `WindDial`, `PressureGauge`; marketmap: `StageTile`'s sparkline | `draw`, `Draw`, `Icon` |
+| A layout of your own | `17-your-own-views.md` § Writing a layout | weather (`weather-art.declare`): `MasonryLayout`; marketmap: `MarketLayout` | `Layout`, `place` |
+| Menus, context menus and dialogs that close and hold focus correctly | `18-overlays.md` | tracker: the App's `sortMenu`, `facetMenu` and `ctx: ContextMenu`; sampler: `dlg: Dialog` | `Menu`, `ContextMenu`, `Dialog` |
+| Addresses, back and forward, deep links | `19-urls.md` | birds: the App's `location` and `waypoint` and what derives from them | `location`, `waypoint` |
+| Motion that can be interrupted and redirected; a view's states | `20-motion.md` | tracker: `ListRow`'s height spring; calendar: `DetailSection`'s spring; desktop: `DockIcon`'s `magSpring` | `Spring`, `State` |
+| Clocks, a later call, one action when something changes | `21-time.md` | calendar: the App's `clock: Time [ tick = day ]`; tracker: `Toast` (`afterDelay`), the App's `trackChanges` and `onChange` | `Time`, `afterDelay`, `onChange` |
+| A whole arrangement moving from one view to another; one view becoming the next | `22-animated-arrangements.md` | calendar: the App's four springs (`c0`, `r0`, `nc`, `nr`) that every cell reads; weather: `CityView`, carried by one spring (`openT`); marketmap: the App's `flight` and `zoomer` | `Spring`, `TweenLayout` |
+| Another program inside yours; yours inside a page | `24-embedding.md` | desktop: `AppWindow`'s `island: AppIsland`; two-way: `crossings` — values go down with `provides`, come back up with the method `exposed(…)` (what the tenant `exposes`), and commands cross with `post` | `AppIsland`, `DOMIsland`, `provides`, `exposes`, `DOMIsland.exposed` |
+
+The rows follow the guide's order. For anything else, each chapter opens with a `# ` title
+that says what it covers.
+
+## Drift check — before you write, and again once it works
 
 A program can work and still be written in another framework's shape, which makes it
-harder to change. Each of these means it has drifted; the brief in parentheses shows the
-Declare form.
+harder to change. Each of these means it has drifted; the guide section in parentheses
+shows the Declare form.
 
 - **A long `script` block.** Script is for pure helper functions and glue to a host or
   library API, and many programs have none. A long block usually means the program is being
   written in script rather than in Declare: data, state and logic belong in the tree as
   datasets, attributes, constraints and methods — on the App, or in a `Dataset` or `Node`
   subclass (`declare.md` §4). Two tells: color or font constants (a theme's job), and script
-  that places views or times motion (constraints and springs). (shape-of-an-app,
-  text-and-themes, motion)
-- **`as any` on your own data** — the dataset needs a `schema`. (loading-and-saving)
+  that places views or times motion (constraints and springs). (`05-classes.md` § Where
+  code goes; `11-paint-and-themes.md` § Themes; `20-motion.md`)
+- **Rebuilding what Declare does** — row heights measured by hand, a scroll position
+  saved and restored, a window of rows computed from the scroll offset, a list's records
+  copied into a second list to interleave headings. Each is already done for you.
+  (`16-collections.md`; `07-scrolling.md` § Keeping the reader's place)
+- **`as any` on your own data** — a cast to quiet the checker. Give that dataset a `schema`
+  instead, and its values arrive typed. (`15-schemas.md`)
 - **A flag set when data arrives** (`booted = true` in a callback) — derive it:
-  `ready: boolean = { app.src.loaded }`. (loading-and-saving)
+  `ready: boolean = { app.src.loaded }`. (`14-data.md` § Where data comes from)
 - **Polling** — a `Time` firing every second to act every five, or a value recomputed on a
   timer that a constraint would recompute when its inputs change. Give the `Time` its
   period (`tick = 5000`) and let a constraint read what it depends on; per-frame work is for
-  animation and physics. (time, derived-values)
+  animation and physics. (`21-time.md`; `03-constraints.md`)
 - **A list built by a loop** where a `datapath` ending in `[]` would replicate it. (One view
-  created when the user asks for it, with `createView`, is fine.) (lists-from-data)
+  created when the user asks for it, with `createView`, is fine.) (`14-data.md` § Datasets,
+  cursors and paths)
 - **Every kind of record in one row, the others hidden** (`visible = { :kind == … }`) — each
-  kind is its own class, picked by `classFor`. (kinds-of-rows)
+  kind is its own class, picked by `classFor`. (`16-collections.md` § Records of different
+  kinds)
 - **Something a person presses, built from a `View` with pointer handlers** — it is a
   control: use the library's, or subclass `Control` and put the action in `press()`;
-  keyboard, focus and pressed and hover states come with it. (using-controls,
-  your-own-control)
+  keyboard, focus and pressed and hover states come with it. (`08-controls.md`;
+  `17-your-own-views.md` § View or Control)
 - **Placing everything by hand.** A page's cards, rows and insets are a layout's job; `x` and
   `y` are for a diagram's scene or an overlay. Two tells: a container whose height is
   arithmetic over its children (it sizes from its content), and
-  `x = { (parent.width - this.width) / 2 }`, which is `x = center`. (layout-and-sizing)
+  `x = { (parent.width - this.width) / 2 }`, which is `x = center`. (`06-layout.md`)
+
+## Checking and looking
+
+- **Check as you go** with `npx declare-verify app.declare`: it compiles and tests the
+  program without a browser, in a second or two — syntax, names, types, and that it starts.
+  Each error names its fix; apply exactly that, change nothing else, check again.
+  (`docs/operational/verify.md`: scripted behavior and screenshot comparisons.)
+- **Run it and look**, because a clean check does not mean it looks or behaves right —
+  layout, fonts, paint and input exist only at run time. `npm start` serves a program at its
+  file's path (`my-apps/app.declare` at `http://127.0.0.1:8200/my-apps/app.declare`).
+  Without a browser of your own, `npx declare-look app.declare --size 390x844 --shot
+  out.png` runs it headless and saves a screenshot; it can also click, read a value, and
+  switch to dark mode or touch.
+- **Use it as a person would.** Scroll a long list from end to end, drag its scrollbar,
+  resize the window, switch to dark mode and to touch. A program can pass every check and
+  still fail the first person who does one of these.
+- **When it runs but is wrong**, don't re-read the source to guess: ask the running program
+  why a value is what it is, which view is under a point, where a value came from
+  (`04-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).

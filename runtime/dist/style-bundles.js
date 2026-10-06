@@ -11,7 +11,6 @@
 // what `d.fillText(…, Caption)` and `measureText(…, Caption)` take, and what a body
 // reads by the bundle's name.
 import { coerce } from "./value.js";
-import { attrType, TextSchema } from "./schema.js";
 let BUNDLES = new Map();
 /** Install the running program's `style` bundles (instantiate, once per program). */
 export function setStyleBundles(b) {
@@ -24,23 +23,28 @@ export function styleBundles() {
 const RECORDS = new WeakMap();
 /** A bundle's fields as a frozen record of runtime values, keyed by the `Text`
  *  attribute names they set. A field that is not a coercible literal (the
- *  checker refuses those) is left out. */
+ *  checker refuses those) is left out. The bundle is routed (route.ts): a
+ *  family list says so, and a literal still as written carries the type it
+ *  coerces by. */
 export function bundleRecord(el) {
     const cached = RECORDS.get(el);
     if (cached !== undefined)
         return cached;
     const rec = {};
     for (const a of el.attrs) {
-        const t = attrType(TextSchema, a.name);
         const v = a.value;
-        if (t === null || v.kind === "code")
+        if (v.kind === "code")
             continue;
-        if (t.kind === "font" && v.kind === "list") {
+        if (a.route === "font" && v.kind === "list") {
             rec[a.name] = v.items.flatMap((i) => (i.kind === "string" ? [i.value] : [])).join(", ");
             continue;
         }
-        const c = coerce(t, v);
-        if (c.ok)
+        if (v.kind === "value") {
+            rec[a.name] = v.value;
+            continue;
+        }
+        const c = a.slotType !== undefined ? coerce(a.slotType, v) : null;
+        if (c !== null && c.ok)
             rec[a.name] = c.value;
     }
     const frozen = Object.freeze(rec);

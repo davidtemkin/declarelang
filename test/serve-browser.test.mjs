@@ -79,20 +79,20 @@ try {
       const mod = await import(origin + "/browser/compiler-client.js");
       const client = await mod.loadCompiler();
       await mod.ensureLibrary(client);
-      const out = await client.compile('App [ label: Text [ text = "edited-in-browser" ] ]', {});
-      return { ok: !!out.source, hasText: (out.source || "").includes("edited-in-browser") };
+      const out = await client.compileProgram('App [ label: Text [ text = "edited-in-browser" ] ]', {});
+      return { ok: !!out.program, hasText: JSON.stringify(out.program ?? null).includes("edited-in-browser") };
     }, B);
-    assert.ok(r.ok && r.hasText, "in-browser compile should return the edited program's source");
+    assert.ok(r.ok && r.hasText, "in-browser compile should return the edited program");
   });
 
   await test("a broken edit yields a report, not a crash", async () => {
     const r = await page.evaluate(async (origin) => {
       const mod = await import(origin + "/browser/compiler-client.js");
       const client = await mod.loadCompiler();
-      const out = await client.compile('App [ label: Text [ text = ', {});   // truncated
-      return { source: out.source, hasReport: !!(out.report && out.report.length) };
+      const out = await client.compileProgram('App [ label: Text [ text = ', {});   // truncated
+      return { program: out.program, hasReport: !!(out.report && out.report.length) };
     }, B);
-    assert.equal(r.source, null);
+    assert.equal(r.program, null);
     assert.ok(r.hasReport, "a broken edit should surface a compile report");
   });
 

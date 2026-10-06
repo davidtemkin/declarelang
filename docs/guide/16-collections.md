@@ -95,7 +95,7 @@ made reads `-1`.
 
 ## Records of different kinds
 
-A feed mixes headings, notes and photos in one list. They are different things, so each
+A catalogue mixes section headings, items and pictures in one list. They are different things, so each
 is its own class, and **`classFor`** picks the class for each record from the record. The
 class written on the replicated view is the **base** — what every kind shares, and what
 the rest of the line is checked against — and `classFor` names it or a subclass:
@@ -104,36 +104,36 @@ the rest of the line is checked against — and `classFor` names it or a subclas
 class Entry [ width = 288, height = 28,
     t: Text [ y = 5, width = 288, text = :text ]
     ]
-class Note extends Entry [ ]
+class Item extends Entry [ ]
 class Heading extends Entry [ height = 40,
     rule: View [ y = 38, width = 288, height = 1, fill = #D5DCE3 ]
     ]
-class Photo extends Entry [ height = 92,
+class Picture extends Entry [ height = 92,
     pic: View [ y = 28, width = 120, height = 60, cornerRadius = 6, fill = #9FB8CC ]
     ]
 
 App [ width = 320, height = 300, fill = white, textColor = #1B2733,
     d: Dataset [ contents = { { items: [
-        { id: 1, kind: "heading", text: "Monday" },
-        { id: 2, kind: "note",    text: "Ran 5 km" },
-        { id: 3, kind: "photo",   text: "The bridge at dawn" },
-        { id: 4, kind: "note",    text: "Called the plumber" }
+        { id: 1, kind: "heading", text: "Kitchen" },
+        { id: 2, kind: "item",    text: "Cast-iron pan" },
+        { id: 3, kind: "picture", text: "The pan, seasoned" },
+        { id: 4, kind: "item",    text: "Chef's knife" }
         ] } } ],
     list: View [ x = 16, y = 12, width = 288, datapath = { d.value },
         layout: SimpleLayout [ axis = y, spacing = 4 ],
         Entry [ datapath = :items[],
-            classFor = { :kind == "heading" ? Heading : :kind == "photo" ? Photo : Note } ]
+            classFor = { :kind == "heading" ? Heading : :kind == "picture" ? Picture : Item } ]
         ]
     ]
 ```
 
-Each record builds exactly its own class: a note has no rule and no picture — nothing
+Each record builds exactly its own class: an item has no rule and no picture — nothing
 hidden, nothing built and never shown. `classFor` reads only the record, so the choice is
 the record's own; a record whose `kind` changes is rebuilt as its new class in place, and
 under `virtualize` each class keeps its own recycled rows.
 
 **What a row *is* is its class; what state it is *in* is a [`State`](declare-docs:State).**
-A heading that is merely bold is a note in a different state, not a different thing — a
+A heading that is merely bold is an item in a different state, not a different thing — a
 state on the one class, whose children exist only while it applies:
 
 ```declare-fragment
@@ -142,36 +142,63 @@ t: Text [ y = 5, width = 288, text = :text,
     ]
 ```
 
-A value that changes while you watch — pending to sent, unread to read — is always a
-state: the row keeps its instance, and a motion can carry it from one look to the other.
-The two nest. A chat thread is a class per kind of message — text, photo, voice note —
-and each class has states for "mine or theirs", "pending", and "first of a run".
+A value that changes while you watch — draft to published, in stock to sold out — is
+always a state: the row keeps its instance, and a motion can carry it from one look to the
+other. The two nest. A catalogue is a class per kind of entry — heading, item, picture —
+and each class has states for "selected", "on sale", and "sold out".
 
-**A part only some rows have exists only on those rows.** A reaction pill, a delivery
-status, a face at the end of a run: give that child `exists = { … }`, and it is built while
-the value is true and discarded while it is false, in its place in the row's order —
-three hundred messages with reactions on a dozen build a dozen pills, not three hundred
-hidden ones. The value is decided before the child exists, so it reads the row (`:reactions`,
-`classroot`), never the child's own attributes; and anything that reads the child by name
-says what happens when it is not there (`classroot.pill?.height ?? 0`):
-
-```declare-fragment
-pill: ReactionPill [ exists = { (:reactions ?? []).length > 0 }, reactions = { :reactions } ]
-```
-
-**What sits between records is a record of its own.** A day header, an unread marker, "3 hours
-later" are not parts of the message after them; the derived dataset that orders the rows
-emits them as rows with their own `id` and kind, and `classFor` builds each as its class:
+**A part only some rows have exists only on those rows.** A sale badge, a stock warning,
+an attachment icon: give that child `exists = { … }`, and it is built while the value is
+true and discarded while it is false, in its place in the row's order — three hundred
+items with a discount on a dozen build a dozen badges, not three hundred hidden ones. The
+value is decided before the child exists, so it reads the row (`:discount`, `classroot`),
+never the child's own attributes; and anything that reads the child by name says what
+happens when it is not there (`classroot.badge?.height ?? 0`):
 
 ```declare-fragment
-lines: Dataset [ contents = { { rows: app.store.lines(app.thread) } } ],   // [{ id: "day-08-09", kind: "day", … }, { id: "m41", kind: "text", m: … }]
-Line [ datapath = :rows[], classFor = { :kind == "day" ? DayLine : :kind == "photo" ? PhotoLine : TextLine } ]
+badge: SaleBadge [ exists = { (:discount ?? 0) > 0 }, discount = { :discount } ]
 ```
+
+**What sits between records belongs to the row after it.** A section heading over the
+first item of each aisle, a divider where the price band changes: the row decides from its
+neighbour whether it carries one. The list provides its records, the row reads the one
+before it by [`rowIndex`](declare-docs:View.rowIndex), and the heading is a part that
+exists only on the rows that start a section:
+
+```declare
+class Item [ width = 100%,
+    rows: array = { provided("rows") },
+    starts: boolean = { rowIndex == 0 || rows[rowIndex - 1]?.aisle != :aisle },
+    layout: SimpleLayout [ axis = y ],
+    head: Text [ exists = { classroot.starts }, fontWeight = bold, text = :aisle ],
+    name: Text [ text = :name ]
+    ]
+
+App [ width = 260, height = 220, fill = white, textColor = black,
+    shop: Dataset { { "items": [
+        { "id": 1, "aisle": "Bakery", "name": "Bread" },
+        { "id": 2, "aisle": "Bakery", "name": "Rolls" },
+        { "id": 3, "aisle": "Dairy", "name": "Milk" },
+        { "id": 4, "aisle": "Dairy", "name": "Butter" },
+        { "id": 5, "aisle": "Produce", "name": "Apples" } ] } },
+    list: View [ x = 20, y = 16, width = 220, datapath = { app.shop.value },
+        rows: array = { :items ?? [] },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Item [ datapath = :items[], virtualize = true ]
+        ]
+    ]
+```
+
+`list` provides its records as `rows`; each `Item` reads the one before it and builds its
+heading only where the aisle changes.
+
+The records stay the records: no derived list of headings and items to keep in step, and
+a record that moves to another aisle re-decides its own heading and its neighbour's.
 
 **Kinds that share a frame put their content into it.** When every kind has the same frame
-around it — the name above, the reactions below — the base class draws the frame and names
-where the kind's own views go, `defaultplacement = bubble`; each subclass's children then go
-into `bubble`, laid out in the frame's order
+around it — the title above, the actions below — the base class draws the frame and names
+where the kind's own views go, `defaultplacement = body`; each subclass's children then go
+into `body`, laid out in the frame's order
 ([Your own views](declare-docs:guide:your-own-views@a-frame-around-content)).
 
 ## Virtualization

@@ -54,8 +54,8 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
     /** Which slots each laid child's box carries, as a signature — the shape the
      *  install was probed from. For an unmodified SimpleLayout it follows from its
      *  inputs alone: the flow position for every child, the flowed size for a
-     *  visible flexing child, the cross position when `align` claims it for every
-     *  child but a spacer (SimpleLayout's place()). Anything else asks place(). */
+     *  visible flexing child, the cross position for every child when `align`
+     *  claims it (SimpleLayout's place()). Anything else asks place(). */
     private $shapeSignature;
     /** Each claimed (child, slot)'s AUTHORED BASE value, captured at first claim
      *  and kept across rearm. When a strategy vacates a slot (an axis flip, a
@@ -159,7 +159,7 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  of the arrangement install. Reported like the other mid-settle-contained
      *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
      *  survivable, never a settle-aborting throw. */
-    private reportConflict;
+    private $reportConflict;
     /** A LITERAL on an attribute this strategy places — `Spacer [ height = 40 ]`
      *  in a run that flexes its spacers, `width = 120` on a child a plan shares.
      *  The language's rule (docs/system-design/layout-ownership.md §1–§2): what a
@@ -187,12 +187,12 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  tier is a plan's share and drop, which the checker reads from a literal
      *  plan. An author's layout is asked to keep the same discipline — the same
      *  keys at every size — and one that does not is judged at boot. */
-    protected reportDiscarded(child: View, slot: string, arranger: string): void;
+    protected $reportDiscarded(child: View, slot: string, arranger: string): void;
     /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
     private readonly discarded;
     /** Is this the first thing said about (child, slot)? A conflict report is
      *  once-only per child — a rearm storm re-hits the same slot every wave. */
-    private firstReport;
+    private $firstReport;
     /** A strategy's own CONTAINED refusals — the same once-per-(child, key)
      *  discipline as a conflict, callable from a `.declare` place(): the child is
      *  placed at the line's start, the arrangement stands, the message says why.
@@ -214,7 +214,7 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  IS the widest laid child, so the line was its own width — it aligned to
      *  offset 0 and its siblings centred on IT instead of on the card. Every
      *  `align = center` column whose children derive their width from the
-     *  parent lost its inset; textsampler's cards were the field report.)
+     *  parent lost its inset.)
      *
      *  The read of the extent is TRACKED, so a parent that resizes re-places its
      *  aligned children. The safety test is not: ownership is settled at attach
@@ -225,16 +225,16 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
     viewExtent(size: "width" | "height"): number;
     private stackReported;
     refuseStackBaseline(): void;
-    protected claim(child: View, slot: string, k: Constraint): void;
+    protected $claim(child: View, slot: string, k: Constraint): void;
     /** Release `k`'s claim of `slot` on `child`; during a rearm, restore the
      *  authored base (see `rearming` — a full detach keeps the last values).
      *  Does NOT dispose `k` — one constraint may back many slots (the pass), so
      *  disposal is the detacher's, once per distinct constraint. */
-    protected unclaim(child: View, slot: string, k: Constraint): void;
+    protected $unclaim(child: View, slot: string, k: Constraint): void;
     /** The label claims and conflict errors carry. A strategy with an `axis`
      *  attribute gets it tagged on ("App's SimpleLayout[y]") — sharp diagnostics
      *  for any axis-bearing strategy, library or native. */
-    protected label(): string;
+    protected $label(): string;
     /** Stand up standing constraints over `view`'s children from `place()` —
      *  the ONE kernel wiring every strategy shares. Each child's own probe box
      *  declares its managed slots (shape may vary per child: a Spacer carries
@@ -263,5 +263,5 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  another view — so its rule stops now, and the re-arm at the settle's
      *  close (View.childrenMutated) installs it over the new list. */
     $retireNative(): void;
-    protected install(_view: View): () => void;
+    protected $install(_view: View): () => void;
 }

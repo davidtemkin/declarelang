@@ -5,5 +5,7 @@ export declare function setStyleBundles(b: Map<string, Element>): void;
 export declare function styleBundles(): Map<string, Element>;
 /** A bundle's fields as a frozen record of runtime values, keyed by the `Text`
  *  attribute names they set. A field that is not a coercible literal (the
- *  checker refuses those) is left out. */
+ *  checker refuses those) is left out. The bundle is routed (route.ts): a
+ *  family list says so, and a literal still as written carries the type it
+ *  coerces by. */
 export declare function bundleRecord(el: Element): Readonly<Record<string, unknown>>;

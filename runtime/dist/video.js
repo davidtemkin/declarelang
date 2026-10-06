@@ -18,21 +18,21 @@ import { defineAttributes, isSet, ownerOf, setBound } from "./attributes.js";
 export class Video extends Media {
     /** The frame's natural size — what contentExtent folds into an auto-extent. */
     natural = { width: 0, height: 0 };
-    contentExtent(size) {
+    $contentExtent(size) {
         return this.loaded ? this.natural[size] : 0;
     }
     $flush(s) {
         super.$flush(s);
         s.setImageStretch(this.stretches);
     }
-    makeElement() {
+    $makeElement() {
         const el = document.createElement("video");
         // inline, not the platform's fullscreen takeover: a Declare view owns its
         // own box, and iOS otherwise hijacks playback into its own player
         el.playsInline = true;
         return el;
     }
-    metadataArrived(el) {
+    $metadataArrived(el) {
         const v = el;
         this.natural = { width: v.videoWidth, height: v.videoHeight };
         if (!isSet(this, "width") && ownerOf(this, "width") === null) {
@@ -43,7 +43,7 @@ export class Video extends Media {
         }
         this.$surface?.setImage(v);
     }
-    sourceCleared() {
+    $sourceCleared() {
         this.$surface?.setImage(null);
     }
 }

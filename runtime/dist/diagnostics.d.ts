@@ -73,7 +73,6 @@ export declare const Diag: {
     literalDatapath: (pos: Pos) => DeclareError;
     shadowsTsGlobal: (kind: string, name: string, lib: string, pos: Pos) => DeclareError;
     springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos) => DeclareError;
-    overridesPlumbing: (owner: string, name: string, base: string, pos: Pos) => DeclareError;
     shadowsRichTextTag: (name: string, pos: Pos) => DeclareError;
     centersByHand: (axis: "x" | "y", pos: Pos) => DeclareError;
     animatorNeverStarts: (tag: string, name: string | null, pos: Pos) => DeclareError;

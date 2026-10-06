@@ -48,17 +48,15 @@
 // longer a skip class: compile-time resolution (compile.ts resolveBody,
 // data-paths.md §5) lowers each to `this.$data([…])` BEFORE this phase runs,
 // so a datapath body reaches tsc as plain TypeScript (`$data` is typed in the
-// scaffold, returning `any` — the same deliberate under-report as
-// Dataset.value until the `schema` construct lands). The island guard below
-// remains for a source that somehow still carries one — skipped, never
-// misparsed.
+// scaffold, returning `any`; schema-check.ts checks the path against the
+// declared schemas). The island guard below remains for a source that somehow
+// still carries one — skipped, never misparsed.
 import ts from "typescript";
-import { parseProgram } from "../../runtime/dist/parser.js";
+import {} from "../../runtime/dist/parser.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
-import { programSchemas } from "../../runtime/dist/check.js";
-import { resolveWrittenType } from "../../runtime/dist/program-schema.js";
+import { programSchemas, resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText } from "./scaffold.js";
-import { attrType, descendsFrom, SCHEMAS } from "../../runtime/dist/schema.js";
+import { SCHEMAS, attrType, descendsFrom } from "../../runtime/dist/schema.js";
 import { declaredType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 /** TS primitives a Declare type name can resolve to — where "declare it" is
@@ -66,24 +64,19 @@ import { fillDatapaths } from "../../runtime/dist/datapath.js";
 const PRIMITIVE_TYPES = new Set(["number", "string", "boolean", "any[]", "Length", "Color"]);
 import { Diag } from "../../runtime/dist/diagnostics.js";
 import { DeclareError, insetOrRadiusShape, strokeShapeMessage } from "../../runtime/dist/errors.js";
-/** Typecheck every resolved `{ }` body in `resolved` (compile()'s output — a
- *  self-contained program whose bare names are already paths). Returns coded
- *  DECLARE6001 diagnostics (empty when clean). Never throws on TS internals: a
- *  body that cannot be framed is skipped, not failed. */
-export function typecheckBodies(resolved, program) {
+/** Typecheck every `{ }` body of a program whose bodies are scope-resolved
+ *  (bare names already paths). `text` is the source its positions index into —
+ *  the lines a diagnostic is reported on. Returns coded DECLARE6001 diagnostics
+ *  (empty when clean). Never throws on TS internals: a body that cannot be
+ *  framed is skipped, not failed. */
+export function typecheckBodies(text, program) {
     const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
-    let rprog;
-    try {
-        rprog = parseProgram(resolved);
-    }
-    catch {
-        return { errors: [], oracle: null }; // resolved is our own output — if it will not re-parse, skip typecheck
-    }
-    // Resolve the re-parsed program's schemas (typed data): the named
-    // `schema =` forms become resolved shape literals, which is what the
-    // Dataset `.value` narrowing below projects from. Errors were already
-    // reported by check(); this run is for the projection.
-    resolveShapes(rprog);
+    const rprog = program;
+    // Resolve the program's schemas (typed data): the named `schema =` forms
+    // become resolved shape literals, which is what the Dataset `.value`
+    // narrowing below projects from. Idempotent; errors were already reported by
+    // check(); this run is for the projection.
+    resolveShapes(rprog, (n) => Object.hasOwn(SCHEMAS, n));
     const emitter = new CaseEmitter(schemas, rprog.shapes ?? []);
     // Pass 1 — synthesize each element's INSTANCE type (language §5: an element
     // with inline declarations is an anonymous one-off subclass — withDecls is
@@ -114,7 +107,7 @@ export function typecheckBodies(resolved, program) {
     if (emitter.units.length === 0)
         return { errors: [], oracle: null };
     const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
-    const starts = lineStarts(resolved);
+    const starts = lineStarts(text);
     const synthTags = emitter.synthTags;
     const out = [];
     // A declared type name the standard library already owns: said once, at the
@@ -406,7 +399,7 @@ function explainTs(d, u, synthTags) {
         case 18048:
             m = msg.match(/'(.+?)' is possibly '(null|undefined)'/s);
             if (m !== null) {
-                return `'${m[1]}' may be absent here — check it ('if (${m[1]} != null) …'); or, if it is always there, declare its type without '?' (an attribute or parameter written 'Thread' is never empty, 'Thread?' may be)`;
+                return `'${m[1]}' may be absent here — check it ('if (${m[1]} != null) …'); or, if it is always there, declare its type without '?' (an attribute or parameter written 'Menu' is never empty, 'Menu?' may be)`;
             }
             return msg;
         default:
@@ -716,20 +709,10 @@ class CaseEmitter {
         // A method body's `super.name(…)` arrives here as `$base.name(…)` (the
         // super rule, compile.ts): `$base` is typed as what super reaches — a
         // class body's BASE class, any other element's own class — so the call
-        // checks against the base method's real signature. Intersected with the
-        // built-in root's plumbing interface (scaffold.ts emitClass), so an
-        // override of a runtime method the reference documents no contract for
-        // can still say `super.name(…)` — the override rule is uniform.
+        // checks against the base method's real signature.
         const baseName = expression ? null
             : (classBody && levels.length === 1 ? (this.schemas[levels[0].tag]?.base?.name ?? "Node") : levels[0].tag);
-        let rootName = null;
-        for (let s = baseName === null ? undefined : this.schemas[baseName]; s !== undefined && s !== null; s = s.base ?? undefined) {
-            if (Object.hasOwn(SCHEMAS, s.name)) {
-                rootName = s.name;
-                break;
-            }
-        }
-        const baseTs = baseName === null ? null : rootName === null ? baseName : `${baseName} & ${rootName}$plumbing`;
+        const baseTs = baseName;
         const baseSig = baseTs === null ? "" : `, $base: ${baseTs}`;
         const baseArg = baseTs === null ? "" : `, undefined as any`;
         const paramSig = params.map((p) => `, ${p.name}: ${paramTs(p)}`).join("");

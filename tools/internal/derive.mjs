@@ -120,13 +120,6 @@ const RULES = [
     run: () => run("npx", ["tsc", "-b"]),
   },
   {
-    name: "briefs-index",            // the briefs index, stamped into skill/SKILL.md
-    inputs: ["tools/internal/stamp-briefs.mjs", "tools/internal/doc/briefs.mjs", { dir: "docs/briefs", ext: ".md" }],
-    outputs: [],
-    stamps: ["skill/SKILL.md"],
-    run: () => run("node", ["tools/internal/stamp-briefs.mjs"]),
-  },
-  {
     name: "bundles",                 // the committed platform bundles — pure functions of tree inputs
     inputs: ["tools/internal/bundle-freshness.mjs", "tools/internal/build-boot.mjs", "tools/internal/build-compiler.mjs",
              "runtime/dist", "compiler/dist", "browser"],

@@ -18,7 +18,7 @@ import { Media } from "./media.js";
 import { defineAttributes } from "./attributes.js";
 
 export class Audio extends Media {
-  protected override makeElement(): HTMLMediaElement {
+  protected override $makeElement(): HTMLMediaElement {
     return document.createElement("audio");
   }
 }

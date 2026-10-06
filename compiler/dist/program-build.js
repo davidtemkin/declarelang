@@ -7,7 +7,8 @@
 // as the same artifact a deploy ships, and the runtime's parser is never
 // needed on the far side of a compile. Browser- and server-usable: it reads
 // no files and owns no bundler.
-import { applyDeps } from "../../runtime/dist/deps.js";
+import { applyDeps, forEachCodeValue } from "../../runtime/dist/deps.js";
+import { applyLinks, forEachElement } from "../../runtime/dist/links.js";
 import { freeIdentifiers } from "./free-idents.js";
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { resolveIncludes, NO_INCLUDES, referencedClassNames } from "../../runtime/dist/include.js";
@@ -16,6 +17,7 @@ import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
 import { check } from "../../runtime/dist/check.js";
 import { withLiteralSink } from "../../runtime/dist/value.js";
 import { LiteralValues, lowerLiterals, lowerThemeNames } from "./lower-literals.js";
+import { routeProgram } from "../../runtime/dist/route.js";
 import { programFacts } from "./capabilities.js";
 import { toDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
 /** Each rich-text format's CONTENT slot, keyed by the schema that owns it. An
@@ -119,9 +121,12 @@ export function usedClassNames(program) {
 }
 /** Every source-position key the parse tree carries — `pos` everywhere, plus
  *  the named companions (`typePos` on a declaration, `bodyPos` on a method,
- *  `basePos` on a class, `sourcePos` on a subscription). All exist only for
- *  error messages, which a precompiled program never emits at runtime. */
-const POS_KEYS = ["pos", "typePos", "bodyPos", "basePos", "sourcePos"];
+ *  `basePos` on a class, `sourcePos` on a subscription, `ptypePos` on a
+ *  parameter, `returnsPos` on a method's return type, `refPos` on a schema
+ *  field's reference) and a script block's `span`. All exist only for the
+ *  compile and its error messages, which a precompiled program never emits at
+ *  runtime. */
+const POS_KEYS = ["pos", "typePos", "bodyPos", "basePos", "sourcePos", "ptypePos", "returnsPos", "refPos", "span"];
 /** Recursively delete position keys. Mutates in place and returns the value. */
 export function stripPos(node) {
     if (Array.isArray(node)) {
@@ -136,6 +141,17 @@ export function stripPos(node) {
     }
     return node;
 }
+/** The compile's own tree, trimmed to what a shipped program carries: a code
+ *  value with no extracted deps has none attached (an empty list is not "reads
+ *  nothing" — the slot stays on tracking), and the navigation relation
+ *  (`link`, links.ts) stays only when asked for — the crawler's input. */
+function shipShape(program, links) {
+    forEachCodeValue(program, (v) => { if (v.deps !== undefined && v.deps.length === 0)
+        delete v.deps; });
+    if (links)
+        return;
+    forEachElement(program, (el) => { delete el.link; });
+}
 /** The program-shaped tail of a compile: parse the resolved source into the
  *  program the runtime's `renderProgram` consumes, check what will ship, zip
  *  the extracted deps on, compute the used set, stamp it trusted, and (by
@@ -146,9 +162,12 @@ export async function programFromCompiled(c, opts = {}) {
     if (c.source === null) {
         return { program: null, errors: c.errors, warnings: c.warnings, diagnostics: c.diagnostics, report: c.report, closure: c.closure, usedClasses: [] };
     }
-    // Parse the resolved source into a program. Includes are already inlined,
-    // so NO_INCLUDES is a guard, not a resolver.
-    const parsed = parseProgram(c.source);
+    // The program the compile built, deps already on its code values; a result
+    // that crossed a boundary carries only text, so it is parsed and its
+    // walk-order deps zipped back on. Includes are already inlined, so
+    // NO_INCLUDES is a guard, not a resolver. The build consumes the tree.
+    const built = c.program;
+    const parsed = built ?? parseProgram(c.source);
     const { program, errors: incErrors } = await resolveIncludes(parsed, NO_INCLUDES, "");
     // Belt-and-suspenders: typecheck the program we will actually ship (the
     // resolved re-parse), so the emitted artifact is provably valid. A failure
@@ -163,12 +182,15 @@ export async function programFromCompiled(c, opts = {}) {
         const diagnostics = errors.map((e) => toDiagnostic(e, "error", "structure"));
         return { program: null, errors, warnings: c.warnings, diagnostics, report: renderReport(diagnostics), closure: c.closure, usedClasses: [] };
     }
-    // Zip the extracted constraint dependencies (docs/system-design/constraints.md §5) onto
-    // the program we ship, so it boots on the runtime's static-constraint path.
-    // compile() already ran the extraction (and would have BLOCKED on an
-    // unanalyzable residue above), so we re-hydrate its walk-order list onto this
-    // identical re-parse rather than extracting a second time.
-    applyDeps(program, c.deps ?? []);
+    // The extracted constraint dependencies (docs/system-design/constraints.md §5)
+    // put the program on the runtime's static-constraint path.
+    if (built === undefined) {
+        applyDeps(program, c.deps ?? []);
+        if (opts.links)
+            applyLinks(program, c.links ?? []);
+    }
+    else
+        shipShape(program, opts.links === true);
     // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
     // needs nothing positional, but order it here so it reads the same program).
     const usedClasses = usedClassNames(program);
@@ -178,6 +200,15 @@ export async function programFromCompiled(c, opts = {}) {
     lowerThemeNames(program);
     if (facts !== undefined && kept.length > 0)
         facts.syntax.add("raw-literal");
+    // Route it (runtime/src/route.ts): the wiring each attribute's slot type
+    // decides is written onto the tree, so the runtime builds it without asking a
+    // schema — and a production build carries none. Routed after the literals
+    // became values, so a slot's type rides only where the runtime still needs it.
+    // A wiring the compile cannot decide (an override literal in a State class's
+    // body, whose view each use supplies) keeps the router aboard to decide it.
+    const { unrouted } = routeProgram(program, "ship");
+    if (facts !== undefined && unrouted.length > 0)
+        facts.syntax.add("unrouted");
     // The program is now provably checked (the gate above), so stamp it trusted:
     // instantiate routes by value kind and coerces directly, and the production
     // bundle ships no validator at all (tools/declarec.mjs stubs check.js).

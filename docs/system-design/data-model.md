@@ -183,8 +183,7 @@ copy become requests, the response reconciles the copy, a refusal rolls it back 
 Views would bind and write as they do everywhere else, and both reasons verbs exist today would
 go, leaving one shape: bind and write.
 
-This meets the persistence design (Design C of the September persistence discussion, whose
-note is not in the repository — it lived in an untracked app, since removed) at its *sync
+This meets the persistence design ([persistence.md](persistence.md), Design C) at its *sync
 arrow* — the local replica written through the dataset verbs, one protocol to a local store or a
 server, patches keyed by record, refusals returned as data — and leaves its *command arrow* (a
 `DataSource` POST for what needs authority or an effect) as it is. DT: record it as a potential

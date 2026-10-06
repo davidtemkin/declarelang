@@ -350,21 +350,21 @@ export declare abstract class RichText extends View {
     private built;
     /** Parse the current source into the block tree. `opts` carries the inline-view
      *  gate (which tag names are program classes) and the refusal channel. */
-    protected abstract parseSource(opts: ReadOptions): Block[];
+    protected abstract $parseSource(opts: ReadOptions): Block[];
     /** What a refused piece of content does: `strip` (drop it, keep going, say so
      *  once) or `error` (throw). HTMLText declares it; Markdown has no such
      *  attribute and takes the default, which is also what raw markup has always
      *  done there — it stays the text it was written as. */
-    protected policy(): Unsupported;
+    protected $policy(): Unsupported;
     /** The source string(s) folded into the reactive render key, so an edit
      *  (or a policy change) re-parses and re-flows. */
-    protected abstract sourceKey(): string;
+    protected abstract $sourceKey(): string;
     /** Named styles a source can reference (HTMLText's `styles`); none by
      *  default — Markdown has no syntax to name one. */
     /** The named-style palette for this render: the `textStyles` map, which
      *  defaults to the nearest provided one (defineAttributes below). */
     textStyles: Record<string, RunStyle>;
-    protected stylesOf(): Record<string, RunStyle>;
+    protected $stylesOf(): Record<string, RunStyle>;
     /** A rich text's type size is `fontScale`, its own attribute, and it never
      *  touches the geometry `scale` every other view means by that name. The
      *  glyphs are scaled into the runs, so the measured box IS the painted box
@@ -378,9 +378,9 @@ export declare abstract class RichText extends View {
      *  (`textColor`, else the theme's `text`), the provided theme's tokens for the rest (`code` and `codeBg` when a theme
      *  names them, else the ink and the neutral `control` tint). Read tracked, so
      *  a theme swap or an ink change re-renders. */
-    private palette;
+    private $palette;
     /** The palette's values, for the render key. */
-    private paletteKey;
+    private $paletteKey;
     /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
      *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
      *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,
@@ -388,7 +388,7 @@ export declare abstract class RichText extends View {
      *  no wiring at all. (The old fallback was `navigate(href)` raw, which sent a
      *  fragment ref to the HOST as an outbound URL — the browser then opened
      *  DISTRO_ROOT + "#…", a different page entirely: §12.2's second half.) */
-    private dispatchLink;
+    private $dispatchLink;
     /** The last layout's blocks, with the geometry each derived from. */
     private laid;
     /** A WIDTH-ONLY change: re-width what is already built instead of rebuilding.
@@ -403,11 +403,11 @@ export declare abstract class RichText extends View {
      *
      *  Falls back to a full rebuild if any block has no re-width registered, so an
      *  unconverted block type stays correct. */
-    private relayout;
+    private $relayout;
     /** True when no author and no layout gives this box its width: it is then the
      *  width of the text itself (fitNatural). The auto-extent that reports that
      *  width back is not a giver. */
-    private ownWidth;
+    private $ownWidth;
     /** A rich text with no width of its own is AS WIDE AS ITS TEXT: laid out at
      *  the reading measure, then re-flowed at its widest line (plus a 2px guard,
      *  so a renderer measuring a hair wider cannot wrap a line early). The content
@@ -419,18 +419,18 @@ export declare abstract class RichText extends View {
      *  yet — built before the first paint, or inside a hidden view. Fitting to
      *  that would leave the text 2px wide for good, so it keeps the measure and
      *  fits when its renderer reports the settled layout (TextFlow.onSettled). */
-    private fitNatural;
+    private $fitNatural;
     /** True while the width fit waits for a flow's first real layout. */
     private $fitWaiting;
     /** A flow's layout settled: the fit the build could not make, made now. */
     private $fitSettled;
     /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
      *  it is a prose flow its first line's baseline IS this box's. */
-    private claimBaseline;
+    private $claimBaseline;
     /** The inline views this rich text holds (identity across content changes) —
      *  created on first need, so a document with no `<Class/>` tag allocates
      *  nothing at all. */
     private slotHost;
-    private rebuild;
+    private $rebuild;
 }
 export {};

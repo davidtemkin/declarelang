@@ -5,9 +5,17 @@
 // checkAttr/checkMethod/checkDecl, so a direct call on an unchecked tree
 // fails soundly (first error, thrown) instead of assigning garbage.
 //
-// R6: user classes. programSchemas (check.ts) registered the schema half;
-// here each class becomes a real runtime class — a subclass of its base's
-// ctor whose DECLARED attributes install through defineAttributes, so they
+// ROUTED TREES. How an attribute is wired depends, here and there, on its
+// slot's type — a `:path` on a cursor slot, a bare list on an array slot, a
+// named child on a class-typed slot. route.ts decides those from the schemas and
+// writes the answers onto the tree; this file reads them and asks no schema. A
+// compiled program arrives routed (the compiler routed what it checked), so a
+// production build carries no schemas at all; any other program is routed here
+// before it is built, with route.ts aboard.
+//
+// R6: user classes. Each class declaration becomes a real runtime class — a
+// subclass of its base's ctor whose DECLARED attributes install through
+// defineAttributes, so they
 // get the full attribute lifecycle (typed check, prototype-chained defaults,
 // reactivity, was-set, ownership) with zero new mechanism: this is the R0/R4
 // plug-in shape paying off. Everything else a class body carries — sets,
@@ -53,25 +61,24 @@ import { AnimatorGroup } from "./animator-group.js";
 import { Spring } from "./spring.js";
 import { State } from "./state.js";
 import { Constraint } from "./reactive.js";
-import { attrType, descendsFrom, isReadOnly, BUILTIN_PROVIDED } from "./schema.js";
-// The validators (check.js) and the schema half (program-schema.js) import
-// separately ON PURPOSE: a precompiled program was fully checked at build
-// time, so a production bundle substitutes check.js with a stub
-// (tools/declarec.mjs) and runs entirely on the trusted paths below — the
-// schema half is all it needs. The dev path takes the same code with
-// `trusted` false and validates every step, exactly as before.
+// The validators (check.js) and the router (route.js) are separate imports ON
+// PURPOSE: a compiled program was checked and routed at build time, so a
+// production bundle substitutes both with stand-ins (compiler/src/
+// capabilities.ts) and runs entirely on the trusted, routed paths below. The
+// dev path takes the same code with `trusted` false, routes the tree first and
+// validates every step.
+import { makeRouter, routeProgram } from "./route.js";
 import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkClassValue as checkClassValueAboard } from "./check.js";
 let CHECKER = { checkAttr: checkAttrAboard, checkMethod: checkMethodAboard, checkClassValue: checkClassValueAboard };
 export function provideChecker(c) { CHECKER = c; }
 const checkAttr = (schema, attr) => CHECKER.checkAttr(schema, attr);
 const checkMethod = (eff, m) => CHECKER.checkMethod(eff, m);
 const checkClassValue = (...a) => CHECKER.checkClassValue(...a);
-import { checkDecl, withDecls, programSchemas, manyPathOf, coerceToken, provisionValue } from "./program-schema.js";
 import { fontObjectHint } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
-import { coerce, isPercent, isAlign } from "./value.js";
+import { coerce, coerceToken, isPercent, isAlign } from "./value.js";
 import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules } from "./attributes.js";
 import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
@@ -89,47 +96,76 @@ import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, SOURCES,
  *  class, so instantiate keeps no static edge to the individual services (which
  *  is what lets an app that never listens drop them entirely). */
 function isSourceNode(n) {
-    return typeof n?.autoStart === "function";
+    return typeof n?.$autoStart === "function";
 }
 // The name → built-in-class tables now live in registry.ts (split out so a
 // production build can substitute a slim subset — see that module). instantiate
 // consumes them exactly as before; nothing else here changes.
-/** One registered user class at runtime: its check-side info, its
- *  synthesized ctor, and its body chain, base-most first — the member
- *  sources every instance expands. */
 /** The `$base` of a body with no class chain beneath it (a source's or
  *  animator's handler): `super` has nothing to reach, and the compiler
  *  refused it there. */
 const NO_BASE = Object.freeze({});
-/** Route one attribute: the trusted fast path reads the answer off the value's
- *  kind (a `{ }` is a binding, a `:path` a datapath, anything else coerces
- *  through the value vocabulary — validity was the compiler's job); the
- *  untrusted path is checkAttr, validation and all. One result shape, so every
- *  consumer downstream is unchanged. */
-function routeAttr(schema, attr, trusted) {
-    if (!trusted)
-        return checkAttr(schema, attr);
+/** Route one attribute: the answer is read off the value's kind (a `{ }` is a
+ *  binding, a `:path` a datapath, a literal a value) and the route the tree
+ *  carries (a provision). An untrusted program is validated first, through
+ *  checkAttr against `eff` — the effective schema, asked for only then. One
+ *  result shape, so every consumer downstream is unchanged. */
+function routeAttr(attr, owner, eff, ctx, type) {
+    if (!ctx.trusted) {
+        const r = checkAttr(eff(), attr);
+        if (!r.ok)
+            return r;
+    }
     const v = attr.value;
     if (v.kind === "path")
         return { ok: true, datapath: { path: v.path, many: v.many, pos: v.pos, plan: v.plan } };
-    const type = attrType(schema, attr.name);
     // A PROVISION: a bare set of a BUILT-IN provided value the class does not
     // declare (a new provided value is a typed decl, not a bare attr). A `{ }`
     // provision re-derives; a literal self-coerces by its written form.
-    if (type === null && BUILTIN_PROVIDED.has(attr.name)) {
+    if (attr.route === "provision") {
         if (v.kind === "code")
             return { ok: true, provision: { name: attr.name, binding: { src: v.src, pos: v.pos } } };
         return { ok: true, provision: { name: attr.name } };
     }
     if (v.kind === "code")
         return { ok: true, binding: { src: v.src, pos: v.pos } };
-    const c = type !== null ? coerce(type, v) : null;
+    return { ok: true, value: literalValue(v, type === undefined ? attr.slotType : type, `${owner}.${attr.name}`, attr.pos) };
+}
+/** A literal's value: the one the compile shipped, or the written form coerced
+ *  by the slot's type (a routed tree carries it wherever a literal stayed as
+ *  written). */
+function literalValue(v, type, where, pos) {
+    if (v.kind === "value")
+        return v.value;
+    const c = type != null ? coerce(type, v) : null;
     if (c === null || !c.ok) {
         // Unreachable off a genuinely checked program — reached only when an
         // artifact and its runtime have drifted apart, so say exactly that.
-        throw new DeclareError(`${schema.name}.${attr.name}: this precompiled program does not match its runtime (rebuild the artifact)`, attr.pos);
+        throw new DeclareError(`${where}: this precompiled program does not match its runtime (rebuild the artifact)`, pos);
     }
-    return { ok: true, value: c.value };
+    return c.value;
+}
+/** The type a data read or a two-way binding converts arriving values by — a
+ *  routed tree carries it on exactly those attributes. */
+function slotTypeOf(attr, owner) {
+    if (attr.slotType === undefined) {
+        throw new DeclareError(`${owner}.${attr.name}: this precompiled program does not match its runtime (rebuild the artifact)`, attr.pos);
+    }
+    return attr.slotType;
+}
+/** A declaration's starting value (undefined: none — the slot starts
+ *  undefined, or a `{ }` default stands as its rule). */
+function declDefault(d, owner) {
+    const v = d.def;
+    if (v === null || v.kind === "code")
+        return undefined;
+    // a bare `[tl, tr, br, bl]` on a radius or inset slot, and a bare list on an
+    // array slot — frozen, like the same forms on a view's own attribute
+    if (v.kind === "list" && d.route === "corners")
+        return Object.freeze(v.items.map((it) => (it.kind === "number" ? it.value : 0)));
+    if (v.kind === "list" && d.route === "list")
+        return literalList(v.items);
+    return literalValue(v, d.slotType, `${owner}.${d.name}'s default`, d.pos);
 }
 /** Apply a routed PROVISION (provided values): a `{ }` provision installs a
  *  standing computation in pass two (provideBind), a literal lands now
@@ -146,16 +182,19 @@ function applyProvision(r, view, attr, ctx, classroot) {
     }
     return true;
 }
-/** A LITERAL provision's value (program-schema.ts provisionValue), save the one
- *  that needs this build: a `theme` provision naming a theme (`App [ theme =
+/** A LITERAL provision's value: the one the compile shipped, save the one that
+ *  needs this build — a `theme` provision naming a theme (`App [ theme =
  *  Cupertino ]`) is the record, so a descendant's `provided("theme")` reads a
- *  token record. */
+ *  token record. A literal still as written is coerced as its name's face slot
+ *  would coerce it (program-schema.ts provisionValue, through the router). */
 function resolveProvisionLiteral(attr, ctx) {
     const v = attr.value;
+    if (v.kind === "value")
+        return v.value;
     if (attr.name === "theme" && v.kind === "ident" && ctx.themes.has(v.name)) {
         return ctx.themes.get(v.name);
     }
-    return provisionValue(attr);
+    return ctx.router().provisionValue(attr);
 }
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
@@ -171,6 +210,9 @@ export function instantiate(input) {
     // CHECKER's to report (check() runs the same idempotent pass); here the
     // resolution is for behavior.
     resolveShapes(program);
+    // A program the compiler did not route is routed now — the one place an
+    // unrouted tree's wiring is decided, before anything is built from it.
+    const routed = program.routed === true ? null : routeProgram(program).router;
     // A program's `script { … }` helpers are evaluated ONCE, here, before any
     // body is compiled — bodies bind their scope at compile time (bindConstraint
     // compiles eagerly), so the scope has to exist before the tree is built. The
@@ -186,20 +228,15 @@ export function instantiate(input) {
     for (const s of program.styles)
         scriptScope[s.name] = bundleRecord(s.body);
     // The blocks share one namespace, in source order, exactly as a module
-    // would — and that must be true for the BLOCKS THEMSELVES, not only for
-    // the { } bodies reading the merged table: a block-2 function calling a
-    // block-1 function, or mutating block-1 state, resolves lexically. (Found
-    // 2026-09-02: per-block evalScript closures compiled clean — the checker
-    // concatenates — and threw ReferenceError at the first cross-block call.)
-    // The COMPILER now merges the blocks itself (compile.ts — one body, one
-    // bindings return), so a compiled program arrives with one effective
-    // block. RAW blocks (the direct-instantiate dev path) concatenate here for
-    // the same shared scope. A block carrying the compiled bindings marker
-    // ("/*$b*/", compile.ts BINDINGS_MARK) has its own trailing return and
-    // must evaluate ALONE — concatenating one would end evaluation at its
-    // return and silently drop every later block (bit a stale pre-merge
-    // artifact: half the script table vanished).
-    const compiledBlocks = program.scripts.filter((s) => s.src.includes("/*$b*/"));
+    // would — and that holds for the BLOCKS THEMSELVES, not only for the { }
+    // bodies reading the merged table: a block-2 function calling a block-1
+    // function, or mutating block-1 state, resolves lexically. The compiler
+    // merges the blocks itself (compile.ts — one body, one bindings return), so
+    // a compiled program arrives with one effective block; RAW blocks (the
+    // direct-instantiate dev path) concatenate here for the same shared scope.
+    // A COMPILED block has its own trailing return and evaluates ALONE —
+    // concatenated, its return would end evaluation and drop every later block.
+    const compiledBlocks = program.scripts.filter((s) => s.compiled === true);
     if (compiledBlocks.length > 0) {
         for (const s of program.scripts)
             Object.assign(scriptScope, evalScript(s.src));
@@ -207,13 +244,34 @@ export function instantiate(input) {
     else if (program.scripts.length > 0) {
         Object.assign(scriptScope, evalScript(program.scripts.map((s) => s.src).join("\n;\n")));
     }
-    return withScriptScope(scriptScope, () => buildTree(program, trusted, scriptScope));
+    return withScriptScope(scriptScope, () => buildTree(program, trusted, scriptScope, routed));
 }
-function buildTree(program, trusted, scripts) {
+/** The program's classes, each after its base — the order synthesis needs (a
+ *  subclass extends its base's ctor, so the base's must exist first). Source
+ *  order is the author's business. The first declaration of a name is the one
+ *  (a duplicate is the checker's report). */
+function basesFirst(classes) {
+    const byName = new Map();
+    for (const c of classes)
+        if (!byName.has(c.name))
+            byName.set(c.name, c);
+    const out = [];
+    const seen = new Set();
+    const visit = (c) => {
+        if (seen.has(c.name))
+            return;
+        seen.add(c.name);
+        const base = byName.get(c.base);
+        if (base !== undefined)
+            visit(base);
+        out.push(c);
+    };
+    for (const c of byName.values())
+        visit(c);
+    return out;
+}
+function buildTree(program, trusted, scripts, routed) {
     const programShapes = shapeNames(program);
-    const { infos, schemas, errors } = programSchemas(program.classes, programShapes);
-    if (errors.length > 0)
-        throw errors[0];
     // Every constructible built-in, one table: the tree tags plus the non-view
     // families (data, animators, groups, sources, states). A user class extends
     // ANY of them — `class Reveal extends Spring`, `class Feed extends
@@ -230,32 +288,37 @@ function buildTree(program, trusted, scripts) {
     };
     const layoutCtors = { ...LAYOUT_BASES };
     const classes = new Map();
-    for (const info of infos) {
-        // The base ctor exists: programSchemas validated the base name (an
-        // abstract base is refused there), and bases precede their subclasses, so
-        // a user base is already registered. A layout subclass (descends from
-        // Layout) synthesizes against the layout table and registers back there —
-        // a strategy is never a tree tag; every other subclass synthesizes against
+    const isShapeType = (n) => programShapes.has(n);
+    for (const decl of basesFirst(program.classes)) {
+        // The base ctor exists: the checker validated the base name (an abstract
+        // base is refused there, and has no ctor), and bases precede their
+        // subclasses, so a user base is already registered. A layout subclass
+        // synthesizes against the layout table and registers back there — a
+        // strategy is never a tree tag; every other subclass synthesizes against
         // `tags` and joins it.
-        const chain = [...(classes.get(info.decl.base)?.chain ?? []), info.decl.body];
-        const isShapeType = (n) => programShapes.has(n);
-        if (descendsFrom(info.schema, "Layout")) {
-            const ctor = synthesize(layoutCtors[info.schema.base.name], info.decl.name, info.decl.body, () => info.defaults, false, isShapeType);
-            layoutCtors[info.decl.name] = ctor;
-            classes.set(info.decl.name, { info, ctor: ctor, chain });
+        const chain = [...(classes.get(decl.base)?.chain ?? []), decl.body];
+        const defaults = () => Object.fromEntries(decl.body.decls.map((d) => [d.name, declDefault(d, decl.name)]));
+        if (Object.hasOwn(layoutCtors, decl.base)) {
+            const ctor = synthesize(layoutCtors[decl.base], decl.name, decl.body, defaults, false, isShapeType);
+            layoutCtors[decl.name] = ctor;
+            classes.set(decl.name, { decl, ctor: ctor, chain });
         }
         else {
-            const ctor = synthesize(tags[info.schema.base.name], info.decl.name, info.decl.body, () => info.defaults, false, isShapeType);
-            classes.set(info.decl.name, { info, ctor, chain });
-            tags[info.decl.name] = ctor;
+            if (!Object.hasOwn(tags, decl.base))
+                throw new DeclareError(`unknown base '${decl.base}'`, decl.basePos);
+            const ctor = synthesize(tags[decl.base], decl.name, decl.body, defaults, false, isShapeType);
+            classes.set(decl.name, { decl, ctor, chain });
+            tags[decl.name] = ctor;
         }
     }
+    let router = routed;
     const ctx = {
         scripts,
         tags,
         shapes: programShapes,
         layoutCtors,
-        schemas,
+        families: new Map(),
+        router: () => (router ??= makeRouter(program)),
         classes,
         bundles: collectBundles(program),
         themes: buildThemeMap(program.themes),
@@ -266,7 +329,7 @@ function buildTree(program, trusted, scripts) {
     // The `style` bundles a `<span class>` inside RichText resolves against (the
     // by-name cascade's global tier) — module-scoped for the running program.
     setStyleBundles(ctx.bundles);
-    const root = construct(program.root, null, ctx);
+    const root = construct(program.root, null, ctx, null);
     if (!(root instanceof View)) {
         throw new DeclareError(`the root must be a view, not a ${program.root.tag}`, program.root.pos);
     }
@@ -327,7 +390,7 @@ function partitionPending(pending) {
 function installBatch(ordered, ctx) {
     for (const p of ordered) {
         if ("code" in p)
-            bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined, p.yielding === true);
+            bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined, p.yielding === true, false, p.attr.value.kind === "code" ? p.attr.value.expr : undefined);
         else if ("twoWay" in p)
             bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
         else if ("twoWayCode" in p)
@@ -342,7 +405,7 @@ function installBatch(ordered, ctx) {
             provideBind(p.view, p.attr.name, p.provideCode, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined);
         else if ("layoutEl" in p) {
             if (!ctx.trusted) {
-                const errs = checkClassValue(ctx.schemas, p.view.constructor.name, p.layoutEl.name, p.of, p.layoutEl);
+                const errs = checkClassValue(ctx.router().schemas, p.view.constructor.name, p.layoutEl.name, p.of, p.layoutEl);
                 if (errs.length > 0)
                     throw errs[0];
             }
@@ -354,7 +417,7 @@ function installBatch(ordered, ctx) {
             p.replicator.arm();
         else if ("declDefault" in p) {
             const v = p.view;
-            bindDeclDefault(p.view, p.declDefault, p.rec.source, p.rec.pos, p.rec.outer ? (v.classroot ?? null) : p.view, p.rec.deps ?? undefined);
+            bindDeclDefault(p.view, p.declDefault, p.rec.source, p.rec.pos, p.rec.outer ? (v.classroot ?? null) : p.view, p.rec.deps ?? undefined, p.rec.expr);
         }
         else if ("align" in p)
             bindAlign(p.view, p.attr.name, p.align, p.attr.value.pos);
@@ -456,8 +519,8 @@ function initNodeTree(node) {
         fireEvent(node, "init");
     }
     // A faceless node's own members start exactly as a view's do: a model class
-    // holding a Time, a Socket, an animator, a State or a sprung attribute is the
-    // guide's own Store/Log shape, and it gets the same pass (startMembers).
+    // holding a Time, a Socket, an animator, a State or a sprung attribute gets the
+    // same pass (startMembers).
     startMembers(node);
 }
 function initTree(view) {
@@ -497,19 +560,19 @@ function startMember(child) {
     // target renders outright; physics governs every change after (the
     // boot-equal-to-default case never wakes, so priming cannot be lazy).
     if (child instanceof Spring)
-        child.prime();
+        child.$prime();
     // Sources (Keys/Focus/Tooltips; a Time joins its clock or arms its alarm) wire here, with the
     // animators' auto-start: construction-complete, so every declared handler
     // is installed and the source can tell which channels to subscribe.
     if (child instanceof Animator || child instanceof AnimatorGroup)
-        child.autoStart();
+        child.$autoStart();
     else if (isSourceNode(child))
-        child.autoStart();
+        child.$autoStart();
     // Apply a state's initial value once linked. A gated state has usually
     // already synced from its gate's first run in pass two (idempotent here); a
     // literal `applied = true` (no gate) applies now. Non-View, like animators.
     else if (child instanceof State)
-        child.init();
+        child.$init();
 }
 /** The program's style bundles, shape-guarded (a bundle is attribute sets
  *  only — check() reports the full list; this keeps a direct instantiate of
@@ -649,6 +712,7 @@ isShapeType = () => false) {
                 source: d.def?.kind === "code" ? d.def.src : null,
                 pos: at != null && typeof at.line === "number" ? { line: at.line, col: at.col ?? 0 } : null,
                 deps: d.def?.kind === "code" ? (d.def.deps ?? null) : null,
+                expr: d.def?.kind === "code" ? d.def.expr : undefined,
                 type: d.type,
                 readOnly: d.readOnly || undefined,
                 rule: rule || undefined,
@@ -667,21 +731,13 @@ isShapeType = () => false) {
  *  element instantiates once per class *instance*, and they all share the
  *  same prototype accessors, exactly as if the compiler had named the class. */
 const ANON = new WeakMap();
-function ctorWithDecls(el, base, schema, isClassName, isShape = () => false) {
+function ctorWithDecls(el, base, isShape = () => false) {
     if (el.decls.length === 0)
         return base;
     let ctor = ANON.get(el);
     if (ctor === undefined) {
-        const defaults = () => {
-            const defs = {};
-            for (const d of el.decls) {
-                const r = checkDecl(schema, d, schema.name, isClassName, isShape);
-                if (!r.ok)
-                    throw r.error;
-                defs[d.name] = r.value;
-            }
-            return defs;
-        };
+        // (routing validated the declarations of an unchecked tree)
+        const defaults = () => Object.fromEntries(el.decls.map((d) => [d.name, declDefault(d, el.tag)]));
         // Named like its base — an anonymous subclass is still "a View" in every
         // message — while the declared members make it the §5 one-off subtype.
         // Inline declarations are written at the USE SITE, so their default
@@ -729,26 +785,26 @@ function memberSources(el, node, outer, user) {
  *  node, its parent, and the scope the member was written in. The runtime-
  *  member facts are instantiation-context facts (the checker is runtime-free
  *  by design); the compiler's static twin is runtime-methods.ts. */
-function installMethods(node, sources, eff, ctx) {
+function installMethods(node, sources, owner, eff, ctx) {
     const methods = new Map();
     for (const s of sources) {
-        const saysSuper = s.el.methods.some((m) => m.body.includes("$base"));
+        const saysSuper = s.el.methods.some((m) => m.usesSuper === true);
         const base = saysSuper ? Object.fromEntries(methods) : NO_BASE;
         for (const m of s.el.methods) {
             if (!ctx.trusted) {
-                const r = checkMethod(eff, m);
+                const r = checkMethod(eff(), m);
                 if (!r.ok)
                     throw r.error;
             }
             const rt = runtimeMember(node, m.name);
             if (rt.kind === "field") {
-                throw new DeclareError(`${eff.name}.${m.name}: '${m.name}' is a built-in field of the runtime ${eff.name}, not a method — a method may not take its name`, m.pos);
+                throw new DeclareError(`${owner}.${m.name}: '${m.name}' is a built-in field of the runtime ${owner}, not a method — a method may not take its name`, m.pos);
             }
             if (rt.kind === "object") {
-                throw new DeclareError(`${eff.name}.${m.name}: '${m.name}' is a member of every object — choose another name`, m.pos);
+                throw new DeclareError(`${owner}.${m.name}: '${m.name}' is a member of every object — choose another name`, m.pos);
             }
             if (rt.kind === "plumbing") {
-                throw new DeclareError(`${eff.name}.${m.name}: '${m.name}' is runtime plumbing (a $-member) — choose another name`, m.pos);
+                throw new DeclareError(`${owner}.${m.name}: '${m.name}' is runtime plumbing (a $-member) — choose another name`, m.pos);
             }
             // The runtime's implementation is the floor: it enters the snapshot only
             // where no body beneath this one provided the name.
@@ -758,7 +814,7 @@ function installMethods(node, sources, eff, ctx) {
             }
             const c = compileBody(m.params.map((p) => p.name), m.body);
             if ("error" in c)
-                throw new DeclareError(`${eff.name}.${m.name}(…) ${c.error}`, m.bodyPos);
+                throw new DeclareError(`${owner}.${m.name}(…) ${c.error}`, m.bodyPos);
             const fn = c.fn;
             const mcroot = s.croot;
             methods.set(m.name, (...args) => fn.call(node, node.parent, mcroot, base, ...args));
@@ -831,14 +887,14 @@ function literalList(items) {
  *  so in the family's words) and so is a percent (no axis to resolve against).
  *  Returns the landed literal, when one landed (a group reads its cascade off
  *  it), else null. */
-function landNodeAttr(node, attr, croot, eff, ctx, pathRefusal) {
+function landNodeAttr(node, attr, croot, owner, eff, ctx, pathRefusal) {
     const self = node;
-    if (attrType(eff, attr.name)?.kind === "array" && attr.value.kind === "list") {
+    if (attr.route === "list" && attr.value.kind === "list") {
         const items = literalList(attr.value.items);
         self[attr.name] = items;
         return { literal: items };
     }
-    const r = routeAttr(eff, attr, ctx.trusted);
+    const r = routeAttr(attr, owner, eff, ctx);
     if (!r.ok)
         throw r.error;
     if (applyProvision(r, node, attr, ctx, croot))
@@ -848,10 +904,10 @@ function landNodeAttr(node, attr, croot, eff, ctx, pathRefusal) {
         return null;
     }
     if ("datapath" in r) {
-        throw new DeclareError(`${eff.name}.${attr.name} = :${r.datapath.path}: ${pathRefusal}`, r.datapath.pos);
+        throw new DeclareError(`${owner}.${attr.name} = :${r.datapath.path}: ${pathRefusal}`, r.datapath.pos);
     }
     if (isPercent(r.value)) {
-        throw new DeclareError(`${eff.name}.${attr.name}: no axis to resolve a percent against`, attr.value.pos);
+        throw new DeclareError(`${owner}.${attr.name}: no axis to resolve a percent against`, attr.value.pos);
     }
     self[attr.name] = r.value;
     return { literal: r.value };
@@ -863,63 +919,92 @@ function landNodeAttr(node, attr, croot, eff, ctx, pathRefusal) {
  *  schema, gather the member sources, install the methods. What differs per
  *  family — a data node's JSON body, a group's members, a state's overrides —
  *  is that path's own business after this. */
-function beginNode(el, schema, outer, ctx) {
-    if (el.raw !== undefined && !descendsFrom(schema, "Dataset")) {
+function beginNode(el, family, outer, ctx) {
+    if (el.raw !== undefined && family !== "data") {
         throw new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos);
     }
     const baseCtor = Object.hasOwn(ctx.tags, el.tag) ? ctx.tags[el.tag] : null;
     if (baseCtor === null)
         throw new DeclareError(`unknown class '${el.tag}'`, el.pos);
-    const isClassName = (n) => ctx.schemas[n] !== undefined;
-    const isShape = (n) => ctx.shapes.has(n);
-    const node = new (ctorWithDecls(el, baseCtor, schema, isClassName, isShape))();
+    const node = new (ctorWithDecls(el, baseCtor, (n) => ctx.shapes.has(n)))();
     node.classroot = outer;
-    const eff = withDecls(schema, el.decls, isClassName, isShape);
+    const eff = effOf(el, ctx);
     const sources = memberSources(el, node, outer, ctx.classes.get(el.tag));
-    installMethods(node, sources, eff, ctx);
+    installMethods(node, sources, el.tag, eff, ctx);
     return { node, eff, sources };
 }
-/** Is this schema a SOURCE — a non-visual member whose handlers are called
- *  from outside the tree (sources.ts: Keys, Focus, Tooltips; streams.ts: the
- *  transports)? Chain-based, so a program's `class Hot extends Keys` is one. */
-function isSourceSchema(schema) {
-    return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tooltips") || descendsFrom(schema, "Stream");
+/** The effective schema of `el` (its class plus its inline declarations), for
+ *  the validators of an untrusted tree — asked of the router, only then. */
+function effOf(el, ctx) {
+    return () => {
+        const eff = ctx.router().effOf(el.tag, el.decls);
+        if (eff === null)
+            throw new DeclareError(`unknown class '${el.tag}'`);
+        return eff;
+    };
 }
-function construct(el, outer, ctx, parentSchema = null) {
+/** Is `ctor` one of `table`'s classes, or a subclass of one? */
+function inTable(ctor, table) {
+    for (const C of Object.values(table))
+        if (ctor === C || ctor.prototype instanceof C)
+            return true;
+    return false;
+}
+/** Which construction path `tag` takes, or null for a name the program does not
+ *  construct. A program class is a real subclass of its base (synthesize), so
+ *  its family is its base's: `class Feed extends DataSource` is data,
+ *  `class Hot extends Keys` a source. */
+function familyOf(tag, ctx) {
+    const known = ctx.families.get(tag);
+    if (known !== undefined)
+        return known;
+    let family = null;
+    if (Object.hasOwn(ctx.layoutCtors, tag) || Object.hasOwn(LAYOUTS, tag))
+        family = "layout";
+    else if (Object.hasOwn(ctx.tags, tag)) {
+        const ctor = ctx.tags[tag];
+        family = inTable(ctor, DATA) ? "data"
+            : inTable(ctor, ANIMATORS) ? "animator"
+                : inTable(ctor, ANIMATOR_GROUPS) ? "group"
+                    // SOURCES: Keys, Focus, Tooltips (sources.ts) and the transports (streams.ts)
+                    : inTable(ctor, SOURCES) ? "source"
+                        : inTable(ctor, STATES) ? "state"
+                            : ctor === View || ctor.prototype instanceof View ? "view"
+                                : "node";
+    }
+    ctx.families.set(tag, family);
+    return family;
+}
+function construct(el, outer, ctx, parentEl) {
     // Own-key lookups: a tag named `constructor` must not resolve through
     // Object.prototype.
     const baseCtor = Object.hasOwn(ctx.tags, el.tag) ? ctx.tags[el.tag] : null;
-    const schema = Object.hasOwn(ctx.schemas, el.tag) ? ctx.schemas[el.tag] : null;
-    if (schema !== null && descendsFrom(schema, "Layout")) {
+    const family = familyOf(el.tag, ctx);
+    if (family === "layout") {
         // Mirrors check's refusal (a layout is never a tree element), so a
         // direct instantiate of an unchecked tree dies with the same guidance.
         throw new DeclareError(`'${el.tag}' is a layout — a layout is an attribute, not a child: write 'layout: ${el.tag} [ … ]' on the view it arranges`, el.pos);
     }
-    if (schema !== null && descendsFrom(schema, "Dataset")) {
-        return constructData(el, schema, outer, ctx);
-    }
-    if (schema !== null && descendsFrom(schema, "Animator")) {
-        return constructAnimator(el, schema, outer, ctx);
-    }
-    if (schema !== null && descendsFrom(schema, "AnimatorGroup")) {
-        return constructAnimatorGroup(el, schema, outer, ctx);
-    }
-    if (schema !== null && isSourceSchema(schema)) {
-        return constructSource(el, schema, outer, ctx);
-    }
-    if (schema !== null && descendsFrom(schema, "State")) {
-        return constructState(el, schema, outer, ctx, parentSchema);
-    }
-    if (baseCtor === null || schema === null)
+    if (family === "data")
+        return constructData(el, outer, ctx);
+    if (family === "animator")
+        return constructAnimator(el, outer, ctx);
+    if (family === "group")
+        return constructAnimatorGroup(el, outer, ctx);
+    if (family === "source")
+        return constructSource(el, outer, ctx);
+    if (family === "state")
+        return constructState(el, outer, ctx, parentEl);
+    if (baseCtor === null || family === null)
         throw new DeclareError(`unknown class '${el.tag}'`, el.pos);
     const user = ctx.classes.get(el.tag);
-    const view = new (ctorWithDecls(el, baseCtor, schema, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n)))();
+    const view = new (ctorWithDecls(el, baseCtor, (n) => ctx.shapes.has(n)))();
     view.classroot = outer;
     // The `classroot` for members written at THIS element's site: the enclosing
     // scope — or, at the tree root, the root itself (its members are written
     // in its own body: the anonymous App class's).
     const croot = outer ?? view;
-    const eff = withDecls(schema, el.decls, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n));
+    const eff = effOf(el, ctx);
     // Merge the member sources: class-body chain base→leaf (classroot = this
     // instance), then the use site (classroot = the outer scope). Same-named
     // members: the nearest provider wins — a derived body overrides its base's,
@@ -952,11 +1037,11 @@ function construct(el, outer, ctx, parentSchema = null) {
     let layoutCroot = croot;
     for (const s of sources) {
         for (const a of s.el.attrs) {
-            if (attrType(eff, a.name)?.kind === "class")
+            if (a.route === "class")
                 layoutEl = null;
         }
         for (const c of s.el.children) {
-            if (c.name !== null && attrType(eff, c.name)?.kind === "class") {
+            if (c.classSlot !== undefined) {
                 layoutEl = c;
                 layoutCroot = s.croot ?? croot;
             }
@@ -964,11 +1049,11 @@ function construct(el, outer, ctx, parentSchema = null) {
     }
     // Methods first (installMethods: the super rule, the runtime-member guard),
     // then the attribute channels.
-    installMethods(view, sources, eff, ctx);
+    installMethods(view, sources, el.tag, eff, ctx);
     for (const { attr, croot: acroot, useSite } of attrs.values()) {
-        const t0 = attrType(eff, attr.name);
+        const route = attr.route;
         // A bare `[tl, tr, br, bl]` on a radius slot — check.ts vetted the shape.
-        if ((t0?.kind === "radius" || t0?.kind === "inset") && attr.value.kind === "list") {
+        if (route === "corners" && attr.value.kind === "list") {
             view[attr.name] =
                 Object.freeze(attr.value.items.map((it) => (it.kind === "number" ? it.value : 0)));
             continue;
@@ -976,13 +1061,13 @@ function construct(el, outer, ctx, parentSchema = null) {
         // A bare `[ … ]` on an array slot — the literal form check.ts validated.
         // Frozen like the styling lists: a bare literal is set once, so the value
         // the slot holds is not something a later push should appear to change.
-        if (t0?.kind === "array" && attr.value.kind === "list") {
+        if (route === "list" && attr.value.kind === "list") {
             view[attr.name] = literalList(attr.value.items);
             continue;
         }
         // `theme = Cupertino` → the named theme record (a declared Theme slot),
         // resolved against the presets plus the program's own `theme` declarations.
-        if (t0?.kind === "record" && t0.name === "Theme" && attr.value.kind === "ident" && attr.value.name !== "null") {
+        if (route === "theme" && attr.value.kind === "ident" && attr.value.name !== "null") {
             view[attr.name] = themeByName(ctx, attr.value.name, attr.value.pos);
             continue;
         }
@@ -990,7 +1075,7 @@ function construct(el, outer, ctx, parentSchema = null) {
         // A bare string falls through to coercion. A font is an object reached in a
         // { } (`fontFamily = { app.brand }`) — a bare name is refused by the checker
         // and thrown here for an unchecked tree.
-        if (t0?.kind === "font" && ((attr.value.kind === "ident" && attr.value.name !== "null") || attr.value.kind === "list")) {
+        if (route === "font" && ((attr.value.kind === "ident" && attr.value.name !== "null") || attr.value.kind === "list")) {
             const items = attr.value.kind === "ident" ? [attr.value] : attr.value.items;
             const family = items.map((i) => {
                 if (i.kind === "string")
@@ -1000,7 +1085,7 @@ function construct(el, outer, ctx, parentSchema = null) {
             view[attr.name] = family;
             continue;
         }
-        const r = routeAttr(eff, attr, ctx.trusted);
+        const r = routeAttr(attr, el.tag, eff, ctx);
         if (!r.ok)
             throw r.error;
         if (applyProvision(r, view, attr, ctx, acroot))
@@ -1009,9 +1094,9 @@ function construct(el, outer, ctx, parentSchema = null) {
             if (attr.bind === "two") {
                 // `name <-> { expr }` — a DYNAMIC two-way binding: the expr names the
                 // field at runtime (a generic editor over `classroot.field`).
-                ctx.pending.push({ view, attr, twoWayCode: r.binding.src, type: attrType(eff, attr.name), classroot: acroot });
+                ctx.pending.push({ view, attr, twoWayCode: r.binding.src, type: slotTypeOf(attr, el.tag), classroot: acroot });
             }
-            else if (attrType(eff, attr.name)?.kind === "cursor") {
+            else if (route === "cursor") {
                 ctx.pending.push({ view, attr, cursorCode: r.binding.src, classroot: acroot });
             }
             else if (!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name)) {
@@ -1027,8 +1112,7 @@ function construct(el, outer, ctx, parentSchema = null) {
             }
         }
         else if ("datapath" in r) {
-            const t = attrType(eff, attr.name);
-            if (t.kind === "cursor") {
+            if (route === "cursor") {
                 if (r.datapath.many) {
                     // A many-path replicates the element it sits on — the PARENT's
                     // walk consumes it (appendChildren); reaching here means the many
@@ -1052,10 +1136,10 @@ function construct(el, outer, ctx, parentSchema = null) {
                 if (r.datapath.plan !== undefined && wSegs === null) {
                     throw new DeclareError(`'${attr.name} <-> :${r.datapath.path}' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it`, r.datapath.pos);
                 }
-                ctx.pending.push({ view, attr, twoWay: wSegs ?? r.datapath.path, type: t });
+                ctx.pending.push({ view, attr, twoWay: wSegs ?? r.datapath.path, type: slotTypeOf(attr, el.tag) });
             }
             else {
-                ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: t, plan: r.datapath.plan });
+                ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: slotTypeOf(attr, el.tag), plan: r.datapath.plan });
             }
         }
         else if (isPercent(r.value)) {
@@ -1092,11 +1176,8 @@ function construct(el, outer, ctx, parentSchema = null) {
     // still land after this (a probe reads their literals now, and the pass
     // re-places on its tracked reads); only the ARRANGED view's geometry has to
     // precede the claim.
-    if (layoutEl !== null) {
-        const t = attrType(eff, layoutEl.name);
-        if (t !== null && t.kind === "class")
-            ctx.pending.push({ view, layoutEl, of: t.of, classroot: layoutCroot });
-    }
+    if (layoutEl !== null)
+        ctx.pending.push({ view, layoutEl, of: layoutEl.classSlot, classroot: layoutCroot });
     // Children: the class bodies' (they belong to every instance, scoped to
     // it), then the use site's — concatenated, never merged: tree order is
     // paint order, deliberately semantic. `slot` threads the block-position
@@ -1111,11 +1192,11 @@ function construct(el, outer, ctx, parentSchema = null) {
     let place = null;
     const into = (from, fromCroot) => {
         if (place === null) {
-            appendChildren(from, view, fromCroot, ctx, eff, slot);
+            appendChildren(from, view, fromCroot, ctx, el, slot);
             return;
         }
-        appendChildren(from, place.target, fromCroot, ctx, eff, place.slot);
-        hoistPlacedNames(from, view, place.target, eff);
+        appendChildren(from, place.target, fromCroot, ctx, el, place.slot);
+        hoistPlacedNames(from, view, place.target);
     };
     if (user !== undefined) {
         if (ctx.expanding.has(el.tag)) {
@@ -1166,11 +1247,11 @@ function findNamedChild(root, name) {
 }
 /** A placed source's named children stay reachable from the instance that
  *  wrote them (`classroot.figs`), not only from the child they were placed in. */
-function hoistPlacedNames(from, view, target, eff) {
+function hoistPlacedNames(from, view, target) {
     if (target === view)
         return;
     for (const c of from.children) {
-        if (c.name === null || attrType(eff, c.name)?.kind === "class")
+        if (c.name === null || c.classSlot !== undefined)
             continue;
         const child = target[c.name];
         if (child !== undefined && !(c.name in view))
@@ -1183,23 +1264,23 @@ function hoistPlacedNames(from, view, target, eff) {
  *  methods with the super rule); only the JSON body is the family's own. A
  *  data node has no children: its structure is its data. Mirrors
  *  checkDataNode for unchecked trees. */
-function constructData(el, schema, outer, ctx) {
-    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+function constructData(el, outer, ctx) {
+    const { node, eff, sources } = beginNode(el, "data", outer, ctx);
     // Members: a data node holds no views, but non-visual members — a derived
     // Dataset over its records, a Time — construct under it like any node's.
     const slot = { prev: null };
     for (const s of sources) {
         for (const c of s.el.children) {
-            const cs = Object.hasOwn(ctx.schemas, c.tag) ? ctx.schemas[c.tag] : null;
-            if (cs !== null && (descendsFrom(cs, "View") || descendsFrom(cs, "Layout")))
+            const cf = familyOf(c.tag, ctx);
+            if (cf === "view" || cf === "layout")
                 throw new DeclareError(`a data node holds no views — its structure is its data; a non-visual member (a derived Dataset over its records, a Time) is welcome`, c.pos);
         }
-        appendChildren(s.el, node, s.croot ?? node, ctx, eff, slot);
+        appendChildren(s.el, node, s.croot ?? node, ctx, el, slot);
     }
     for (const { attr, croot } of mergeAttrs(sources).values()) {
-        landNodeAttr(node, attr, croot, eff, ctx, "a data node is where data lives — a :path reads a view's cursor");
+        landNodeAttr(node, attr, croot, el.tag, eff, ctx, "a data node is where data lives — a :path reads a view's cursor");
     }
-    if (!descendsFrom(schema, "DataSource")) {
+    if (!(DATA.DataSource !== undefined && node instanceof DATA.DataSource)) {
         // A literal `{ }` body OR a derived `contents = { … }` (bound above via
         // pass two, from any member source) — one or the other. The derived case
         // leaves value null until the contents constraint first runs, which
@@ -1242,14 +1323,14 @@ function constructData(el, schema, outer, ctx) {
  *  here mirror checkAnimatorNode so a direct instantiate of an unchecked tree
  *  still fails soundly. `target` defaults to the parent — resolved at start()
  *  (this.parent) — so nothing to wire here. */
-function constructAnimator(el, schema, outer, ctx) {
-    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+function constructAnimator(el, outer, ctx) {
+    const { node, eff, sources } = beginNode(el, "animator", outer, ctx);
     for (const s of sources) {
         for (const c of s.el.children)
             throw new DeclareError(`an animator drives an attribute — it has no children`, c.pos);
     }
     for (const { attr, croot } of mergeAttrs(sources).values()) {
-        landNodeAttr(node, attr, croot, eff, ctx, "an animator attribute is a value or a { }, not a data read");
+        landNodeAttr(node, attr, croot, el.tag, eff, ctx, "an animator attribute is a value or a { }, not a data read");
     }
     return node;
 }
@@ -1259,15 +1340,15 @@ function constructAnimator(el, schema, outer, ctx) {
  *  slot, so none of the animator's target checking applies. Its subscriptions
  *  are wired by initTree's autoStart — the same lifecycle hook an animator uses,
  *  which is also why a source costs nothing for a handler nobody declared. */
-function constructSource(el, schema, outer, ctx) {
-    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+function constructSource(el, outer, ctx) {
+    const { node, eff, sources } = beginNode(el, "source", outer, ctx);
     for (const s of sources) {
         for (const c of s.el.children) {
             throw new DeclareError(`a ${el.tag} takes no children — it delivers events to its handlers, it is not a container`, c.pos);
         }
     }
     for (const { attr, croot } of mergeAttrs(sources).values()) {
-        landNodeAttr(node, attr, croot, eff, ctx, "a source attribute is a value or a { }, not a data read");
+        landNodeAttr(node, attr, croot, el.tag, eff, ctx, "a source attribute is a value or a { }, not a data read");
     }
     return node;
 }
@@ -1294,15 +1375,15 @@ const CASCADE_ATTRS = new Set([
  *  from its group, own settings overriding at each level. The guards mirror
  *  checkAnimatorGroupNode so a direct instantiate of an unchecked tree still
  *  fails soundly. */
-function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
-    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+function constructAnimatorGroup(el, outer, ctx, inherited = {}) {
+    const { node, eff, sources } = beginNode(el, "group", outer, ctx);
     // The effective cascade for members: what this group inherited, overlaid with
     // its own cascadeable literals — from any member source, nearest winning (a
     // `{ }`-bound cascade attribute stays on the group — v1 does not cascade
     // bindings).
     const cascade = { ...inherited };
     for (const { attr, croot } of mergeAttrs(sources).values()) {
-        const landed = landNodeAttr(node, attr, croot, eff, ctx, "an animator attribute is a value or a { }, not a data read");
+        const landed = landNodeAttr(node, attr, croot, el.tag, eff, ctx, "an animator attribute is a value or a { }, not a data read");
         if (landed !== null && CASCADE_ATTRS.has(attr.name))
             cascade[attr.name] = landed.literal;
     }
@@ -1316,16 +1397,16 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
     // that SETS a cascaded attribute in its class body has set it.
     for (const s of sources) {
         for (const childEl of s.el.children) {
-            const cs = Object.hasOwn(ctx.schemas, childEl.tag) ? ctx.schemas[childEl.tag] : null;
-            if (cs === null || !(descendsFrom(cs, "Animator") || descendsFrom(cs, "AnimatorGroup"))) {
+            const cf = familyOf(childEl.tag, ctx);
+            if (cf !== "animator" && cf !== "group") {
                 throw new DeclareError(`an ${el.tag} coordinates animators — '${childEl.tag}' is not an Animator or AnimatorGroup`, childEl.pos);
             }
             let member;
-            if (descendsFrom(cs, "AnimatorGroup")) {
-                member = constructAnimatorGroup(childEl, cs, s.croot, ctx, cascade);
+            if (cf === "group") {
+                member = constructAnimatorGroup(childEl, s.croot, ctx, cascade);
             }
             else {
-                member = constructAnimator(childEl, cs, s.croot, ctx);
+                member = constructAnimator(childEl, s.croot, ctx);
                 const memberSet = new Set();
                 for (const body of ctx.classes.get(childEl.tag)?.chain ?? [])
                     for (const a of body.attrs)
@@ -1337,8 +1418,8 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
                         member[k] = cascade[k];
                 }
             }
-            node.appendChild(member);
-            member.markGrouped();
+            node.$appendChild(member);
+            member.$markGrouped();
         }
     }
     return node;
@@ -1349,11 +1430,11 @@ function constructAnimatorGroup(el, schema, outer, ctx, inherited = {}) {
  *  install onto itself — the overrides and child templates are CAPTURED for
  *  apply time (the enclosing view, the target, links only after this returns).
  *  `applied` (a literal now, a `{ }` gate in pass two) and the on* handlers do
- *  install on the node. `parentSchema` (the enclosing view) types the overrides'
- *  coercion and binding compile. The guards mirror checkStateNode so a direct
- *  instantiate of an unchecked tree still fails soundly. */
-function constructState(el, schema, outer, ctx, parentSchema) {
-    const { node, eff, sources } = beginNode(el, schema, outer, ctx);
+ *  install on the node. `parentEl` (the enclosing view's element) is the view the
+ *  overrides target. The guards mirror checkStateNode so a direct instantiate of
+ *  an unchecked tree still fails soundly. */
+function constructState(el, outer, ctx, parentEl) {
+    const { node, eff, sources } = beginNode(el, "state", outer, ctx);
     const label = el.name ?? el.tag;
     // Attributes: the state's OWN slots — `applied`, the control (a literal now,
     // a `{ }` gate in pass two), and any attribute its class declares — land on
@@ -1365,21 +1446,33 @@ function constructState(el, schema, outer, ctx, parentSchema) {
     // use site adds to or replaces them.
     const overrides = [];
     for (const { attr: a, croot } of mergeAttrs(sources).values()) {
-        if (attrType(eff, a.name) !== null) {
-            landNodeAttr(node, a, croot, eff, ctx, "a state's own slot is a value or a { }, not a data read");
+        if (a.route !== "override") {
+            landNodeAttr(node, a, croot, el.tag, eff, ctx, "a state's own slot is a value or a { }, not a data read");
             continue;
         }
-        if (parentSchema === null) {
+        if (parentEl === null) {
             throw new DeclareError(`a ${el.tag} overrides its enclosing view's attributes, but '${a.name}' has no view to target here`, a.value.pos);
         }
-        const r = routeAttr(parentSchema, a, ctx.trusted);
+        // An override literal coerces by the VIEW's slot. A state class's body is
+        // written for whatever view each use puts it in, so a literal there that
+        // stayed as written carries no type: it is asked of the router, here, where
+        // the view is known.
+        const viewEff = effOf(parentEl, ctx);
+        if (!ctx.trusted && ctx.router().typeIn(viewEff(), a.name) === null) {
+            throw new DeclareError(`${el.tag}.${a.name}: a state override sets a declared attribute of the view, not a provided value`, a.value.pos);
+        }
+        const v = a.value;
+        const type = a.slotType !== undefined || v.kind === "value" || v.kind === "code" || v.kind === "path"
+            ? a.slotType
+            : ctx.router().typeIn(viewEff(), a.name);
+        const r = routeAttr(a, parentEl.tag, viewEff, ctx, type);
         if (!r.ok)
             throw r.error;
         const slot = a.name;
         if ("binding" in r) {
             const c = compileExpr(r.binding.src);
             if ("error" in c)
-                throw new DeclareError(`${parentSchema.name}.${slot} = { … } ${c.error}`, a.value.pos);
+                throw new DeclareError(`${parentEl.tag}.${slot} = { … } ${c.error}`, a.value.pos);
             const fn = c.fn;
             overrides.push({
                 slot,
@@ -1438,13 +1531,13 @@ function buildLayout(el, owner, croot, ctx) {
     // bind, so an `axis`/`spacing` constraint reading `parent.width` resolves at its
     // first eval — attachTo re-wires the identical ref when the slot is pushed.
     strategy.parent = owner;
-    const schema = ctx.schemas[el.tag];
+    const eff = effOf({ tag: el.tag, decls: [] }, ctx);
     for (const a of el.attrs) {
         if (a.value.kind === "code") {
             bindConstraint(strategy, a.name, a.value.src, a.value.pos, croot);
             continue;
         }
-        const r = routeAttr(schema, a, ctx.trusted);
+        const r = routeAttr(a, el.tag, eff, ctx);
         if (!r.ok)
             throw r.error;
         if (!("value" in r) || isPercent(r.value)) {
@@ -1461,12 +1554,12 @@ function buildLayout(el, owner, croot, ctx) {
  *  classroot of the member source the layout was written in. Attributes land as
  *  literals or `{ }` bindings over the layout's own slots (place()/retarget read them). */
 function installLayoutClass(layout, el, uc, croot, ctx) {
-    const eff = withDecls(ctx.schemas[el.tag], el.decls, (n) => ctx.schemas[n] !== undefined, (n) => ctx.shapes.has(n));
+    const eff = effOf(el, ctx);
     const self = layout;
     // Methods: class chain base→leaf, then the use site; nearest provider wins,
     // the runtime's own method is the floor — the one installer (installMethods)
     // with every body binding the layout's classroot.
-    installMethods(layout, [...uc.chain, el].map((body) => ({ el: body, croot })), eff, ctx);
+    installMethods(layout, [...uc.chain, el].map((body) => ({ el: body, croot })), el.tag, eff, ctx);
     // Attributes: class chain base→leaf, then use site; a literal lands directly,
     // a `{ }` binding installs a constraint over the layout's slot.
     const attrs = new Map();
@@ -1480,7 +1573,7 @@ function installLayoutClass(layout, el, uc, croot, ctx) {
             bindConstraint(layout, a.name, a.value.src, a.value.pos, croot);
             continue;
         }
-        const r = routeAttr(eff, a, ctx.trusted);
+        const r = routeAttr(a, el.tag, eff, ctx);
         if (!r.ok)
             throw r.error;
         if (!("value" in r) || isPercent(r.value)) {
@@ -1489,6 +1582,14 @@ function installLayoutClass(layout, el, uc, croot, ctx) {
         self[a.name] = r.value;
     }
 }
+/** The many-path attribute (`datapath = :items[]`) that makes an element a
+ *  replication template, or null: a many-path on a cursor slot (routed). */
+function manyPathOf(el) {
+    for (const a of el.attrs)
+        if (a.value.kind === "path" && a.value.many && a.route === "cursor")
+            return a;
+    return null;
+}
 /** Construct and link `from`'s child elements under `parentView`. A named
  *  child becomes a real member of its parent (language §4: reachable as
  *  `bg` / `this.bg`) — a plain property, structure like the tree itself.
@@ -1496,11 +1597,11 @@ function installLayoutClass(layout, el, uc, croot, ctx) {
  *  attribute's VALUE, not a child — construct() consumed it above. A child
  *  whose datapath matches many (R8) is a TEMPLATE: it never constructs
  *  here — the parent gets a Replicator holding this pipeline as a value. */
-function appendChildren(from, parentView, croot, ctx, eff, slot) {
+function appendChildren(from, parentView, croot, ctx, parentEl, slot) {
     for (const childEl of from.children) {
-        if (childEl.name !== null && attrType(eff, childEl.name)?.kind === "class")
+        if (childEl.classSlot !== undefined)
             continue;
-        const many = manyPathOf(childEl, ctx.schemas);
+        const many = manyPathOf(childEl);
         if (many !== null && many.value.kind === "path") {
             if (childEl.name !== null) {
                 throw new DeclareError(`a replicated child cannot be named — ':${many.value.path}[]' makes one instance per record, and '${childEl.name}' can only name one; reach the instances through their data`, childEl.pos);
@@ -1543,12 +1644,12 @@ function appendChildren(from, parentView, croot, ctx, eff, slot) {
             slot.prev = replicator;
             continue;
         }
-        const child = construct(childEl, croot, ctx, eff);
-        parentView.appendChild(child);
+        const child = construct(childEl, croot, ctx, parentEl);
+        parentView.$appendChild(child);
         // A state caches its declaration-order precedence the moment it links —
         // before any gate fires in pass two or a sibling state inserts children.
         if (child instanceof State)
-            child.onLinked();
+            child.$onLinked();
         slot.prev = child;
         if (childEl.name !== null) {
             if (childEl.name in parentView) {
@@ -1607,7 +1708,7 @@ export function createViewIn(root, tag, parent, props) {
     // — a never-sized parent EMPTY until now becomes derivable at this moment,
     // which the structure cell alone cannot express (it wakes installed
     // subscribers; it cannot install one).
-    parent.childrenMutated();
+    parent.$childrenMutated();
     return made.view;
 }
 /** The construct pipeline as a value (replicate.ts's Materialize): build one
@@ -1631,7 +1732,7 @@ function nodeMaterializer(ctx) {
         const saved = ctx.pending;
         ctx.pending = [];
         try {
-            const node = withScriptScope(ctx.scripts, () => construct(template, classroot, ctx));
+            const node = withScriptScope(ctx.scripts, () => construct(template, classroot, ctx, null));
             const { provisions, rest } = partitionPending(ctx.pending);
             // provide lands the instance's PROVISIONS — called by the consumer before
             // the instance attaches (see partitionPending); finish lands the rest and
@@ -1689,6 +1790,9 @@ export function createElementIn(root, el, parent) {
     const wasTrusted = ctx.trusted;
     ctx.trusted = false;
     try {
+        // …and route it, against the view it joins (what a State's overrides target)
+        const router = ctx.router();
+        router.routeElement(el, router.effOf(parent.constructor.name, []));
         const made = materializer(ctx)(el, parent);
         parent.insertChild(made.view, parent.children.length);
         made.provide(); // provisions before attach (partitionPending)
@@ -1696,7 +1800,7 @@ export function createElementIn(root, el, parent) {
         if (ps !== null && parent.$backend !== null)
             made.view.$attach(parent.$backend, ps, null);
         made.finish();
-        parent.childrenMutated(); // the arrival notify — same as createViewIn
+        parent.$childrenMutated(); // the arrival notify — same as createViewIn
         return made.view;
     }
     finally {
@@ -1718,18 +1822,9 @@ provideInlineViewHost((root) => {
     if (ctx === undefined)
         return null;
     return {
-        declares: (name) => {
-            const uc = ctx.classes.get(name);
-            return uc !== undefined && descendsFrom(uc.info.schema, "View");
-        },
-        attrType: (cls, name) => {
-            const s = ctx.schemas[cls];
-            return s === undefined ? null : attrType(s, name);
-        },
-        readOnly: (cls, name) => {
-            const s = ctx.schemas[cls];
-            return s !== undefined && isReadOnly(s, name);
-        },
+        declares: (name) => ctx.classes.has(name) && familyOf(name, ctx) === "view",
+        attrType: (cls, name) => ctx.router().attrTypeOf(cls, name),
+        readOnly: (cls, name) => ctx.router().readOnlyOf(cls, name),
         create: (parent, cls, attrs, provides) => {
             // THE TAG IS THE USE SITE. Its attributes ride the synthesized element's
             // `attrs`, so they enter construct's ordinary channel merge (mergeAttrs)
@@ -1741,6 +1836,9 @@ provideInlineViewHost((root) => {
             // plain writes) could not express this — the constraint installed first
             // and won every re-evaluation.
             const el = { tag: cls, name: null, attrs, decls: [], methods: [], children: [], pos: { line: 0, col: 0 } };
+            // the tag's attributes arrive as literals, unrouted: route them like any
+            // use site's before building
+            ctx.router().routeElement(el, null);
             const made = materializer(ctx)(el, parent);
             // PROVISIONS FIRST — before provide(), before attach: a face slot's
             // default is a provided READ, and a read that finds nothing here tracks

@@ -102,7 +102,7 @@ export declare class Windowing {
     /** The room below the last row: what follows the rows in their parent
      *  (`trailing`), then the parent's bottom padding. */
     private rowsTrail;
-    /** What the parent stacks after the rows (a "writing…" line under a chat):
+    /** What the parent stacks after the rows (a "loading more…" line, a footer):
      *  the stack's pass stands down while windowing places the block, so these
      *  are placed here, after the last row, and their room joins the extent.
      *  Tracked: their sizes, their visibility, and the parent's child list (one

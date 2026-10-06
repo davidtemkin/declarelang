@@ -110,7 +110,7 @@ export class Clock {
         }
         const delta = s.now() - this.sched.now();
         for (const t of this.tickers)
-            t.rebase?.(delta);
+            t.$rebase?.(delta);
         this.sched = s;
         if (this.tickers.size > 0 && !this.ticking)
             this.handle = this.sched.request(this.frame);
@@ -131,7 +131,7 @@ export class Clock {
                 // must not kill the frame for the rest, and must not wedge the loop —
                 // it is dropped from the clock, loudly.
                 try {
-                    if (!t.tick(now))
+                    if (!t.$tick(now))
                         this.tickers.delete(t);
                 }
                 catch (e) {

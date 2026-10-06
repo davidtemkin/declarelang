@@ -8,7 +8,7 @@
 //
 // Browser-safe by construction (the runtime graph is zero-dep), so the browser
 // compiler can do everything the Node one can — the parity principle.
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
+import { build, buildProgram, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 export const DEFAULT_ENV = { hostWidth: 1200, hostHeight: 800, dark: false };
 /** A deterministic stand-in for canvas text metrics on hosts with no DOM —
  *  per-character class widths, one constant table. Enough to SETTLE any tree
@@ -59,14 +59,22 @@ export function approximateMeasurer() {
     };
     return stub;
 }
-/** Build and settle a program headlessly; returns the settled App. The input
- *  is a compile()'s output source (scope-resolved, one self-contained file)
- *  with its extracted `deps` — or any source whose bodies use explicit paths.
- *  Callers walk the tree, then `app.discard()`. */
-export function settleHeadless(source, opts = {}) {
-    const env = { ...DEFAULT_ENV, ...opts.env };
-    if (opts.env?.measurer !== undefined)
-        provideMeasurer(opts.env.measurer);
+/** Build and settle a compiled program headlessly; returns the settled App.
+ *  Instantiating leaves the program untouched, so one program settles any
+ *  number of times. Callers walk the tree, then `app.discard()`. */
+export function settleHeadless(program, opts = {}) {
+    return settleWith(() => buildProgram(program, { provides: opts.provides }), opts.env);
+}
+/** The same, through the runtime's `build(source)`: parse, check, instantiate a
+ *  compile()'s output source with its `deps`. For tests of that entry point. */
+export function settleSource(source, opts = {}) {
+    const { env, ...buildOpts } = opts;
+    return settleWith(() => build(source, buildOpts), env);
+}
+function settleWith(make, envOpt) {
+    const env = { ...DEFAULT_ENV, ...envOpt };
+    if (envOpt?.measurer !== undefined)
+        provideMeasurer(envOpt.measurer);
     else if (typeof document === "undefined")
         provideMeasurer(approximateMeasurer());
     // Network is "fixtures, or honestly absent" (capabilities.md §3) — ENFORCED,
@@ -84,7 +92,7 @@ export function settleHeadless(source, opts = {}) {
     };
     const prevStreams = provideStreams({ eventSource: refuse, socket: refuse });
     try {
-        const app = build(source, opts);
+        const app = make();
         app.$attach(new HeadlessBackend(), null);
         app.hostWidth = env.hostWidth;
         app.hostHeight = env.hostHeight;

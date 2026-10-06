@@ -65,3 +65,26 @@ A stream quiet for ten minutes is a stall worth a look.
 The app is scored from the main tree — `verify` against the file in the run directory,
 never an edit inside it — and the report, the app, its assert script and screenshots are
 filed under `evals/reports/<date>-<app>-run<N>/`.
+
+## The report
+
+A Declare run's report has, in order:
+
+1. **The comparison:** time, turns and tool calls, lines of code (raw, and without comments
+   and blank lines), tokens (output, fresh input, cache reads, reading before the first app
+   write, context at the first write and at the end), and the download (gzip) — beside the
+   earlier runs and the React baseline. Build figures come from the build stream's final
+   record only.
+2. **What it built, and how,** and **findings for the platform.**
+3. **Is it idiomatic Declare?** A line-by-line read of the whole program against what the
+   distribution teaches (the SKILL drift check, the briefs, declare.md): what it gets right;
+   its missteps, each with how it should have been written; and the workarounds the
+   platform forced, each with how the platform or its docs should handle it. Cite file and
+   line.
+4. **The agent's account, verbatim.** Asked after the build by resuming the finished session
+   with read-only tools, with the standard questions (the prompt is kept beside the logs as
+   `impressions.txt`). Its cost is the session's total minus the build's.
+
+A run with a second phase (a follow-up prompt resuming the same session) gets sections 1, 2
+and 4 again for that phase, appended to the first part's report. The idiom review (3) is
+written once, upon completion of all phases, over the program as it finally stands.

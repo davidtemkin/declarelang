@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { settleHeadless } from "../compiler/dist/headless.js";
+import { settleSource } from "../compiler/dist/headless.js";
 import { settle } from "../runtime/dist/index.js";
 import { ownerOf } from "../runtime/dist/attributes.js";
 
@@ -49,7 +49,7 @@ await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturb
     const src = `App [ width = 800, height = 600, box: View [ x = 10, y = 10, ${pad}${kids.join(", ")} ], probe: Text [ text = { "" + app.box.width + app.box.height } ] ]`;
     const r = await compile(src, { originDir: process.cwd() });
     assert.ok(r.errors.length === 0, "compile: " + (r.errors[0]?.message ?? ""));
-    const app = settleHeadless(r.source, { deps: r.deps });
+    const app = settleSource(r.source, { deps: r.deps });
     settle();
     const box = app.box;
     check(box, `tree ${t}`);
@@ -71,7 +71,7 @@ await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturb
 await test("a child list change re-lists the rule; a 3D child hands the derive back to JS", async () => {
   const src = `App [ width = 800, height = 600, box: View [ x = 0, y = 0, a: View [ x = 10, y = 10, width = 100, height = 50 ] ] ]`;
   const r = await compile(src, { originDir: process.cwd() });
-  const app = settleHeadless(r.source, { deps: r.deps }); settle();
+  const app = settleSource(r.source, { deps: r.deps }); settle();
   check(app.box, "one child");
   const b = app.box.createView("View", { x: 200, y: 5, width: 40, height: 300 });
   settle();
@@ -97,7 +97,7 @@ await test("a rich text's fontScale is TYPE, not geometry: the container measure
 
   const at = async (fs) => {
     const r = await compile(src(fs), { originDir: process.cwd() });
-    const app = settleHeadless(r.source, { deps: r.deps }); settle();
+    const app = settleSource(r.source, { deps: r.deps }); settle();
     check(app.box, `fontScale ${fs}`);                       // kernel derive ≡ extentOf
     const out = { box: app.box.height, doc: app.box.doc.height, scale: app.box.doc.scale };
     app.discard();

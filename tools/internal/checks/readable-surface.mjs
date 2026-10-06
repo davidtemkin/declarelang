@@ -50,7 +50,7 @@ async function tryCompile(src, originDir) {
   // opening `rows: array = …` is a MEMBER; reporting the whole-program parse's
   // "expected end of input, got ':'" for it sends the reader to a phantom.
   const looksLikeMember = /^\s*[A-Za-z_]\w*\s*[:=]/.test(src);
-  const looksLikeDecl = /^\s*(class|style|stylesheet|font|include|script|use)\b/.test(src);
+  const looksLikeDecl = /^\s*(class|schema|style|stylesheet|font|include|script|use)\b|^\s*(theme\s+\w+|ship)\s*\[/.test(src);
   const wrapped = looksLikeDecl
     ? ["declarations", `${src.trimEnd()}\n\nApp [ width = 1, height = 1 ]\n`]
     : ["members", `App [\n${src.trimEnd()}\n]`];
@@ -94,7 +94,7 @@ for (const f of files.filter((f) => f.endsWith(".md"))) {
     const head = frag.trim().split("\n")[0].slice(0, 60);
     let err = null;
     try { parseProgram(frag); continue; } catch (e) { err = e; }
-    if (/^\s*(class|style|stylesheet|font|include|script|use)\b/.test(frag)) {
+    if (/^\s*(class|schema|style|stylesheet|font|include|script|use)\b|^\s*(theme\s+\w+|ship)\s*\[/.test(frag)) {
       try { parseProgram(`${frag.trimEnd()}\n\nApp [ width = 1, height = 1 ]\n`); continue; } catch (e) { err = e; }
     } else {
       try { parseProgram(`App [\n${frag.trimEnd()}\n]`); continue; } catch (e) { err = e; }

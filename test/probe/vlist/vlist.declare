@@ -239,8 +239,9 @@ App [ fill = #FFFFFF, scrolls = none,
         const sc = app.scroller() as any, s = app.screen()
         if (s.length == 0) return sc.height
         // (half a pixel between rows, a pixel at the viewport's edges: a row a
-        // fraction of a pixel off a seam leaves no band anyone sees)
-        let worst = sc.scrollY <= 1 ? 0 : Math.max(0, s[0].top - 1), edge = s[0].top + s[0].h
+        // fraction of a pixel off a seam leaves no band anyone sees — and the
+        // top edge may fall inside the spacing between two rows, as any seam may)
+        let worst = sc.scrollY <= 1 ? 0 : Math.max(0, s[0].top - 4 - 1), edge = s[0].top + s[0].h
         for (const r of s) { worst = Math.max(worst, r.top - edge - 4.5); edge = Math.max(edge, r.top + r.h) }
         if (sc.scrollY < sc.contentHeight - sc.height - 1) worst = Math.max(worst, sc.height - edge - 15)
         return Math.max(0, Math.floor(worst))

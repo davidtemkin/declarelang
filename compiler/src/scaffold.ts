@@ -12,10 +12,9 @@
 // `programSchemas` returns) plus the class declarations (for their methods),
 // and returns the scaffold text. No side effects, no I/O — the STRING is the
 // whole product, so the same generator serves the Node compile and the
-// in-browser path. It is deliberately standalone (nothing imports it yet — not
-// wired into compile.ts): this slice proves the generator with stock tsc; the
-// next slice auto-emits a check-block per body and maps tsc diagnostics back to
-// Declare positions (see the deferrals below).
+// in-browser path. The typecheck phase (typecheck.ts) appends a check-block per
+// `{ }` body to this scaffold and maps tsc's diagnostics back to Declare
+// positions.
 //
 // Two parts, mirroring the two lexical homes of a value:
 //
@@ -55,19 +54,13 @@
 //     so any consumer of this scaffold MUST typecheck under `strict`.
 //
 // A METHOD (statement) body checks with the same `this: <Class>` wrapper minus
-// the `return (…)` and the outer slot annotation (a method has no single slot
-// type until the typed-method form `name: (p: T) -> R` lands, HANDOFF §R5).
+// the `return (…)` and the outer slot annotation.
 //
-// ── Deferred (NOT built here — the next slices) ──────────────────────────────
+// ── What tsc does not type ───────────────────────────────────────────────────
 //
-//   (a) schema-typed `:path` datapaths. Typing a `:field.path` read needs the
-//       `schema` construct (designed, not implemented — language §13); until
-//       then a cursor slot is a nominal `Cursor` placeholder (= unknown), so a
-//       `:path` value is opaque, not mis-typed. Dynamic-mode `:path` (value
-//       coerced at the runtime boundary) is unchanged by this.
-//   (b) auto-emitting a check-block per `{ }` body of a program and mapping the
-//       resulting tsc diagnostics back to Declare `Pos` — the NEXT slice.
-//   (c) wiring this into compile.ts / the build pipeline.
+// A `:path` read lowers to `this.$data([…])`, which this scaffold types `any`:
+// a datapath is checked against the program's declared schemas by
+// schema-check.ts, not by tsc.
 //
 // Compile-layer only: nothing in the zero-dependency runtime graph imports this
 // (the same posture as compile.ts / free-idents). Its two VALUE imports —
@@ -80,8 +73,7 @@ import type { ClassDecl, Method, Param, SchemaDecl } from "../../runtime/dist/pa
 import { MOTION_TOKENS } from "../../runtime/dist/easing.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { declaredType } from "../../runtime/dist/value.js";
-import { EVENT_PAYLOAD, handlerName, SCHEMAS } from "../../runtime/dist/schema.js";
-import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
+import { EVENT_PAYLOAD, handlerName } from "../../runtime/dist/schema.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
@@ -679,7 +671,7 @@ function methodSig(m: Method, isClassName: (n: string) => boolean): string {
  *  not Declare source), a user member's is derived — same footing, no
  *  privilege tier. Signatures mirror the runtime (data.ts, animator.ts,
  *  layout.ts, backend.ts); data-shaped values are `any`, not `unknown` —
- *  a datum's shape is unknowable until the `schema` construct lands, and
+ *  datapaths are checked against declared schemas by schema-check.ts, and
  *  `unknown` would flag every correct read (the same deliberate under-report
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
@@ -763,9 +755,8 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // The datapath read/write pair (view.ts): the compiled form every `:path`
     // island lowers to (compile.ts emits the pre-parsed plan —
     // `this.$data(["location","city"])`, selectors as tagged segments), and
-    // callable by hand. Data-shaped → `any`, the same deliberate under-report
-    // as Dataset.value: a datum's shape is unknowable until the `schema`
-    // construct lands.
+    // callable by hand. Data-shaped → `any`: a datapath is checked against
+    // the declared schemas by schema-check.ts, not here.
     `  $setData(path: string | readonly string[], v: any): void;`,
     `  scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;`,
     // The scroll-offset REQUEST verbs (platform-authorship.md): the platform
@@ -813,6 +804,9 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // strategy must not read the slots it writes).
     `  footprint(): { x: number; y: number; width: number; height: number };`,
     `  raise(below?: View | null): void;`,
+    // The room inside: the view's extent on `size` less both of its padding's
+    // insets on that axis, never below 0 — what `100%` resolves against.
+    `  contentBox(size: "width" | "height"): number;`,
     `  removeChild(child: View): void;`,
     // Tear a runtime-created view down for good: unlink from the parent,
     // unwire constraints, drop the surface, notify the ex-parent's layout and
@@ -1003,55 +997,8 @@ function emitClass(
   const cls = lines.length === 0
     ? `declare class ${s.name}${ext} {}`
     : `declare class ${s.name}${ext} {\n${lines.join("\n")}\n}`;
-  // A built-in's PLUMBING — its runtime methods the reference documents no
-  // contract for (runtimePlumbing) — typed loosely on a companion interface
-  // that only `$base` is intersected with (typecheck.ts). An override's
-  // `super.maybeAuto()` then typechecks, since the override rule is uniform;
-  // a plain body's `this.maybeAuto()` still does not, since the class itself
-  // never advertises the name.
-  if (decl !== undefined || !Object.hasOwn(SCHEMAS, s.name)) return cls;
-  const plumbing = [...runtimePlumbing(s.name)].map((n) => `  ${n}(...args: any[]): any;`);
-  return `${cls}\ninterface ${s.name}$plumbing {${plumbing.length === 0 ? "" : `\n${plumbing.join("\n")}\n`}}`;
+  return cls;
 }
-
-/** The names a built-in schema's runtime class implements as methods that the
- *  reference does NOT document as its callable surface — runtime plumbing
- *  (`DataSource.maybeAuto`, `Animator.tick`, `Spring.wake`). Overriding one is
- *  legal (a method is a method) and warned (Diag.overridesPlumbing): the
- *  runtime calls it on its own schedule, and the reference states no contract.
- *  Documented = named in LANGUAGE_API up the schema chain, or in
- *  PROSE_DOCUMENTED; test/override-runtime.test.mjs pins this set against the
- *  doc model's own api/structural split, member by member. */
-export function runtimePlumbing(schema: string): ReadonlySet<string> {
-  let set = PLUMBING.get(schema);
-  if (set === undefined) {
-    const documented = new Set<string>();
-    for (let s: ClassSchema | null = Object.hasOwn(SCHEMAS, schema) ? SCHEMAS[schema] : null; s !== null; s = s.base) {
-      for (const line of LANGUAGE_API[s.name] ?? []) {
-        const m = line.trim().match(/^([A-Za-z_$][\w$]*)\s*[<(]/);
-        if (m !== null) documented.add(m[1]);
-      }
-      for (const n of PROSE_DOCUMENTED[s.name] ?? []) documented.add(n);
-    }
-    set = new Set([...runtimeMethodsOf(schema)].filter((n) => !documented.has(n)));
-    PLUMBING.set(schema, set);
-  }
-  return set;
-}
-const PLUMBING = new Map<string, ReadonlySet<string>>();
-
-/** Runtime methods the reference documents in PROSE alone — a `## name()`
- *  section in tools/internal/doc/prose/<Class>.md with no LANGUAGE_API line
- *  (a user layout's `attachTo`/`rearm` are protocol the strategy overrides,
- *  not verbs a body calls, so the check block never lists them). */
-const PROSE_DOCUMENTED: Readonly<Record<string, readonly string[]>> = {
-  Layout: ["place", "attachTo", "rearm"],
-  // The PAGE's side of the island boundary (islands.md). These are documented
-  // API — the reference carries prose for each — but they are called from page
-  // SCRIPT rather than from a `{ }` body, so they are not in LANGUAGE_API and
-  // would otherwise be classified as plumbing and warned on override.
-  App: ["provide", "exposed", "watchExposed"],
-};
 
 /** Generate the scaffold for a program: the fixed prelude, the enum type
  *  aliases every schema references, and one `declare class` per schema (built-in

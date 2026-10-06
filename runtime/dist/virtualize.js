@@ -43,6 +43,12 @@
 // physical scroll offset with the ledger proportionally (the thumb reads the
 // position in the whole list), and rows near the viewport stay inside the
 // physical range. Rows keep their real size; only the range is scaled.
+//
+// The cap sits BELOW 2²⁴ by a margin: rows within reach of the viewport may
+// overhang the published range by up to a viewport, and the scroller's extent
+// counts them — and above 2²⁴ a browser that keeps scroll geometry in single
+// precision (Chrome) holds only even pixels, so a pane shrinking at the end of a
+// compressed list lost a pixel of its extent and moved the rows on screen.
 import { View, onDiscard, markWindowedBlock, setRowIndex, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree } from "./view.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, release } from "./attributes.js";
@@ -55,7 +61,7 @@ const POOL_CAP = 200; // parked rows kept for re-pointing (a jump parks, never t
 const LOOKAHEAD_PER_PASS = 8; // rows beyond the viewport one pass builds
 const JUMP_QUIET = 150; // ms after a jump before rows ahead are built again
 const HAS_FRAMES = typeof globalThis.requestAnimationFrame === "function";
-const EXTENT_CAP = 16_777_216; // 2²⁴
+const EXTENT_CAP = 16_777_216 - 65_536; // 2²⁴, less room for rows overhanging the range
 /** Logical-per-physical ratio for a ledger of `logical` extent in a `viewH`
  *  viewport: exactly 1 whenever it fits under the cap. */
 function extentScale(logical, viewH) {
@@ -290,7 +296,7 @@ export class Windowing {
     offsetTo(scroller) {
         let off = this.rowsLead();
         for (let v = this.host.parent; v instanceof View && v !== scroller; v = v.parent)
-            off += v.y + v.positionLead("y");
+            off += v.y + v.$positionLead("y");
         return off;
     }
     rowsLead() {
@@ -302,7 +308,7 @@ export class Windowing {
     rowsTrail() {
         return this.trailing.room + Math.max(0, (this.host.parent.insetY ?? 0) - this.rowsLead());
     }
-    /** What the parent stacks after the rows (a "writing…" line under a chat):
+    /** What the parent stacks after the rows (a "loading more…" line, a footer):
      *  the stack's pass stands down while windowing places the block, so these
      *  are placed here, after the last row, and their room joins the extent.
      *  Tracked: their sizes, their visibility, and the parent's child list (one
@@ -310,7 +316,7 @@ export class Windowing {
     trailing = { views: [], room: 0 };
     trailingSiblings(gap) {
         const parent = this.host.parent;
-        parent.watchChildList();
+        parent.$watchChildList();
         const mine = new Set(this.pool);
         for (const r of this.rows.values())
             mine.add(r.view);
@@ -615,7 +621,7 @@ export class Windowing {
         // rows whose index moved (a data change) take their new place's cursor
         if (m.dataChanged && data !== null) {
             for (const r of this.rows.values()) {
-                const cursor = data.cursorAt([...path, String(r.index)]);
+                const cursor = data.$cursorAt([...path, String(r.index)]);
                 if (r.view.datapath !== cursor) {
                     setBound(r.view, "datapath", cursor);
                     setRowIndex(r.view, r.index);
@@ -710,7 +716,7 @@ export class Windowing {
         // cursored early would answer them unlinked
         for (const a of arriving) {
             if (data !== null)
-                setBound(a.view, "datapath", data.cursorAt(a.path));
+                setBound(a.view, "datapath", data.$cursorAt(a.path));
             setRowIndex(a.view, a.index);
         }
         for (const f of fresh) {
@@ -817,7 +823,7 @@ export class Windowing {
             armTree(r.view);
         }
         if (fresh.length > 0 || out.length > 0)
-            parent.childrenMutated();
+            parent.$childrenMutated();
         // rows built or re-pointed this pass have not settled their height yet
         // (their constraints run after this returns): measured on the next pass —
         // in this update when the viewport needs it, else on the next frame, so

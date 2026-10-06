@@ -290,8 +290,6 @@ export const Diag = {
   // a Spring, so an error, and the message gives the form that works.
   springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos): DeclareError =>
     err(code4(2005), `${owner}.${slot} is bound by a constraint, so this ${spring} cannot drive it — a spring owns the attribute it drives for as long as it lives, and a bound attribute belongs to its constraint. Put the target in the spring and leave ${slot} unbound: ${spring} [ attribute = ${slot}, to = { … } ]`, pos),
-  overridesPlumbing: (owner: string, name: string, base: string, pos: Pos): DeclareError =>
-    err(code4(4009), `${owner}.${name}() replaces ${base}'s ${name}(), which is runtime plumbing — the reference documents no contract for it: the runtime calls it when and how it needs to, and a later version may change either. The override stands (super.${name}(…) reaches the runtime's); if this was meant as a method of your own, choose another name`, pos),
   // A WARNING: a class named exactly like a tag the rich-text whitelist owns.
   // Inside `Markdown`/`HTMLText` content a tag is resolved against the program's
   // classes BEFORE the whitelist, so the class takes the tag over — defined
@@ -428,7 +426,6 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4006), phase: "name", summary: "a per-frame Time's onTick ignores dt — polling, not integration (warning)" },
   { code: code4(4007), phase: "name", summary: "a { } reads the ambient clock (Date.now(), new Date()) — a stopped clock (warning)" },
   { code: code4(4008), phase: "name", summary: "no 'shows' name matches the initial location — every screen starts hidden (warning)" },
-  { code: code4(4009), phase: "name", summary: "a method replaces a built-in's runtime plumbing — no documented contract (warning)" },
   { code: code4(4010), phase: "name", summary: "a class is named like a rich-text tag — that tag builds this class inside content (warning)" },
   { code: code4(4011), phase: "name", summary: "a constraint centers a box by hand — x = center says it (hint)" },
   { code: code4(4012), phase: "name", summary: "an Animator nothing ever starts — no 'started', no start() call (warning)" },

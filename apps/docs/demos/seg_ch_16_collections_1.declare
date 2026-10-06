@@ -3,28 +3,28 @@ class Entry [ width = 288, height = 28,
     ]
 
 
-class Note extends Entry [ ]
+class Item extends Entry [ ]
 
 class Heading extends Entry [ height = 40,
     rule: View [ y = 38, width = 288, height = 1, fill = #D5DCE3 ]
     ]
 
 
-class Photo extends Entry [ height = 92,
+class Picture extends Entry [ height = 92,
     pic: View [ y = 28, width = 120, height = 60, cornerRadius = 6, fill = #9FB8CC ]
     ]
 
 
 App [ width = 320, height = 300, fill = white, textColor = #1B2733,
     d: Dataset [ contents = { { items: [
-        { id: 1, kind: "heading", text: "Monday" },
-        { id: 2, kind: "note",    text: "Ran 5 km" },
-        { id: 3, kind: "photo",   text: "The bridge at dawn" },
-        { id: 4, kind: "note",    text: "Called the plumber" }
+        { id: 1, kind: "heading", text: "Kitchen" },
+        { id: 2, kind: "item",    text: "Cast-iron pan" },
+        { id: 3, kind: "picture", text: "The pan, seasoned" },
+        { id: 4, kind: "item",    text: "Chef's knife" }
         ] } } ],
     list: View [ x = 16, y = 12, width = 288, datapath = { d.value },
         layout: SimpleLayout [ axis = y, spacing = 4 ],
         Entry [ datapath = :items[],
-            classFor = { :kind == "heading" ? Heading : :kind == "photo" ? Photo : Note } ]
+            classFor = { :kind == "heading" ? Heading : :kind == "picture" ? Picture : Item } ]
         ]
     ]

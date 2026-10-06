@@ -538,6 +538,7 @@ export function kernelStats(top = 12) {
     }
     return {
         cells: K === null ? 0 : K.cells(), rules: K === null ? 0 : K.rules(), live,
+        code: K === null ? 0 : K.codeUse().code, consts: K === null ? 0 : K.codeUse().consts,
         byLabel: [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, top),
     };
 }

@@ -15,7 +15,7 @@
 
 import { compileTracked } from "./compile-node.js";
 import type { Closure } from "./closure.js";
-import type { CompileOptions } from "./compile.js";
+import type { CompileOptions, Compiled } from "./compile.js";
 import { programFromCompiled, type ProgramBuild } from "./program-build.js";
 
 // The program-shaped tail — the parse of the merged source, the check, the
@@ -40,20 +40,22 @@ export interface DeclarecOptions extends CompileOptions {
   props?: Record<string, string>;
   /** Read the program's facts (ProgramBuild.facts) — a production build's input. */
   facts?: boolean;
+  /** Keep the navigation relation on the program — the crawler's input. */
+  links?: boolean;
 }
 
 /** Compile a Declare source into a serializable, instantiate-ready program:
  *  resolve bare names + includes + typecheck (all the compiler's work), then
  *  parse the resolved source into the program the runtime's `renderProgram`
  *  consumes. On any error, `program` is null and `errors` carries every
- *  diagnostic (nothing is emitted). */
-export async function compileProgram(source: string, opts: DeclarecOptions = {}): Promise<ProgramBuild> {
+ *  diagnostic (nothing is emitted). `compiled` is the compile itself, for a
+ *  caller that also needs its text form (the crawler's extraction). */
+export async function compileProgram(source: string, opts: DeclarecOptions = {}): Promise<ProgramBuild & { compiled: Compiled }> {
   // The full compile: bare-name resolution + include/auto-include inlining +
-  // the tsc-over-bodies typecheck (a phase of THE compile, on by default —
-  // compile.ts runs the checker directly; `typecheck: false` is the caller's
-  // explicit opt-out). The runtime schema `check()` in the shared tail
-  // remains the always-on structural gate.
-  const { mainId, props, stripPos: strip, facts, ...compileOpts } = opts;
+  // the tsc-over-bodies typecheck. The runtime schema `check()` in the shared
+  // tail remains the structural gate.
+  const { mainId, props, stripPos: strip, facts, links, ...compileOpts } = opts;
   const c = await compileTracked(source, { ...compileOpts, mainId, props });
-  return programFromCompiled(c as typeof c & { closure: Closure }, { stripPos: strip, facts });
+  const build = await programFromCompiled(c as typeof c & { closure: Closure }, { stripPos: strip, facts, links });
+  return { ...build, compiled: c };
 }

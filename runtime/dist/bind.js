@@ -41,8 +41,6 @@ export function provideBind(view, name, src, pos, classroot, deps) {
     k.source = src;
     k.sourcePos = sourceAt(pos);
     onDiscard(view, () => k.dispose());
-    if (deps !== undefined)
-        deps = pathsOnly(deps);
     const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
     if (deps !== undefined && deps.length > 0 && !regionReactive) {
         const probes = probeFns(deps);
@@ -87,29 +85,27 @@ function probeFns(deps) {
     }
     return out;
 }
-/** The compiler's EXPR entry in a body's deps (expr-emit.ts, "the wire
- *  form"): `=E` then tokens — `L<n>` the n-th read path of these deps,
- *  `L%path` a literal path, `K<number>` a constant, one letter per operator. */
-const EXPR_MARK = "=E";
+/** A body's kernel bytecode in its wire form (expr-emit.ts): tokens — `L<n>`
+ *  the n-th read path of the body's deps, `L%path` a literal path,
+ *  `K<number>` a constant, one letter per operator. */
 const LETTER_OP = {
     "+": 3, "-": 4, "*": 5, "/": 6, "%": 7, "~": 8, m: 9, M: 10, a: 11, f: 12, c: 13, r: 14, q: 15,
     "<": 16, l: 17, ">": 18, g: 19, "=": 20, "!": 21, "&": 22, "|": 23, n: 24, "?": 25, "^": 26,
 };
-function exprOf(deps) {
-    const e = deps?.find((d) => d.startsWith(EXPR_MARK));
-    if (e === undefined || deps === undefined)
+function exprOf(e, deps) {
+    if (e === undefined)
         return null;
     const code = [], paths = [], consts = [];
     const pathIndex = (p) => { let i = paths.indexOf(p); if (i < 0) {
         i = paths.length;
         paths.push(p);
     } return i; };
-    for (const tok of e.slice(EXPR_MARK.length).split(" ")) {
+    for (const tok of e.split(" ")) {
         if (tok === "")
             continue;
         if (tok[0] === "L") {
             const p = tok[1] === "%" ? tok.slice(2) : deps[Number(tok.slice(1))];
-            if (p === undefined || p.startsWith(EXPR_MARK))
+            if (p === undefined)
                 return null;
             code.push(1, pathIndex(p));
             continue;
@@ -130,7 +126,6 @@ function exprOf(deps) {
     code.push(0);
     return { code, paths, consts };
 }
-const pathsOnly = (deps) => deps.filter((d) => !d.startsWith(EXPR_MARK));
 /** How many bodies bound as kernel EXPR rules, and how many fell back — tooling. */
 export const exprStats = { kernel: 0, fallback: 0, /** tests: force every body onto the JS path */ disabled: false };
 const DATA_CELLS = new WeakMap();
@@ -193,7 +188,7 @@ function escapeDataCell(dc) {
             continue; // already rebound (through another field of its)
         o.dispose();
         release(r.view, r.name, o);
-        bindConstraint(r.view, r.name, r.src, r.pos, r.classroot, pathsOnly(r.deps), o.yielding);
+        bindConstraint(r.view, r.name, r.src, r.pos, r.classroot, r.deps, o.yielding);
     }
 }
 function disposeDataCells(view) {
@@ -320,17 +315,17 @@ function sizeFromParent(name, deps, src) {
     return new RegExp("(?:^|[^\\w$.])(?:this\\s*\\.\\s*)?parent\\s*\\.\\s*(?:" + same + ")\\b").test(src);
 }
 const PLANS = new WeakMap();
-function planFor(name, deps, src, kernelOk) {
+function planFor(name, deps, src, kernelOk, expr) {
     let byName = PLANS.get(deps);
     if (byName === undefined)
         PLANS.set(deps, (byName = new Map()));
     const key = name + (kernelOk ? "" : "|nok") + (deferral("probe") ? "" : "|np");
     let plan = byName.get(key);
     if (plan === undefined) {
-        const paths = pathsOnly(deps);
+        const paths = deps;
         const regionReactive = paths.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
         plan = {
-            expr: kernelOk ? exprOf(deps) : null,
+            expr: kernelOk ? exprOf(expr, deps) : null,
             paths,
             derived: sizeFromParent(name, deps, src),
             regionReactive,
@@ -351,8 +346,12 @@ deps,
 yielding = false, 
 /** …and is marked as one BEFORE its first run, so a read while that run is
  *  in flight evaluates the default live instead of taking the empty slot. */
-declDefault = false) {
-    const plan = deps !== undefined ? planFor(name, deps, src, !exprStats.disabled) : null;
+declDefault = false, 
+/** The body as kernel bytecode (the code value's `expr`), when the compiler
+ *  emitted it — the constraint then runs in the kernel if its reads land on
+ *  numeric cells. */
+bytecode) {
+    const plan = deps !== undefined ? planFor(name, deps, src, !exprStats.disabled, bytecode) : null;
     const derived = plan !== null ? plan.derived : sizeFromParent(name, deps, src);
     const expr = plan !== null ? plan.expr : null;
     if (expr !== null) {
@@ -445,7 +444,7 @@ export function bindDatapath(view, path) {
     const segs = typeof path === "string" ? splitPath(path) : path;
     const k = new Constraint(`${view.constructor.name}.datapath = :${typeof path === "string" ? path : path.join(".")}`, () => {
         const base = inheritedCursor(view.parent);
-        return base === null ? null : base.data.cursorAt([...base.path, ...segs]);
+        return base === null ? null : base.data.$cursorAt([...base.path, ...segs]);
     }, (v) => setBound(view, "datapath", v));
     own(view, "datapath", k);
     k.run();
@@ -578,7 +577,7 @@ export function bindAlign(view, name, align, pos) {
     // 0, the whole size); a view whose alignBand is overridden keeps the
     // JavaScript form, which asks it.
     const insetA = size === "width" ? "insetX" : "insetY";
-    if (kernelDerives() && view.alignBand === View.prototype.alignBand && bindKernelExpr(view, name, align === "end"
+    if (kernelDerives() && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name, align === "end"
         ? { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0] }
         : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] }, null, `${cls}.${name} = ${align}`, align === "end" ? `parent.contentBox(${size}) - this.${size}` : `(parent.contentBox(${size}) - this.${size}) / 2`, pos, false, [], true))
         return;
@@ -586,7 +585,7 @@ export function bindAlign(view, name, align, pos) {
         const P = view.parent.contentBox(size);
         if (align === "end")
             return P - view[size];
-        const band = view.alignBand(name);
+        const band = view.$alignBand(name);
         return (P - band.size) / 2 - band.lead;
     }, (v) => setBound(view, name, v));
     markPercent(k); // like a percent: excluded from the parent's auto-extent (no cycle)
@@ -603,10 +602,10 @@ const DEFERRED = Symbol("deferred");
  *  rule: the default never applied to it. The meaning is the language's "a
  *  formula until assigned", the same as the lazy fallback this replaced —
  *  motion, states, early reads, assignment: docs/system-design/kernel.md §10a. */
-export function bindDeclDefault(view, name, src, pos, classroot, deps) {
+export function bindDeclDefault(view, name, src, pos, classroot, deps, bytecode) {
     if (isSetOrOwned(view, name))
         return;
-    bindConstraint(view, name, src, pos, classroot, deps, true, true);
+    bindConstraint(view, name, src, pos, classroot, deps, true, true, bytecode);
     const o = ownerOf(view, name);
     if (o !== null)
         o.declDefault = true;

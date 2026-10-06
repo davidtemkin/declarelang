@@ -92,7 +92,7 @@ export class TweenRun {
         if (this.live)
             return;
         const a = this.a;
-        const target = a.resolveTarget();
+        const target = a.$resolveTarget();
         const attr = a.attribute;
         if (target === null || attr === "")
             return; // no target / unnamed slot: nothing to drive
@@ -150,7 +150,7 @@ export class TweenRun {
         // zero frames until the resume push re-anchors and enrolls (paused()).
         if (!a.grouped && !a.paused)
             sharedClock.add(a);
-        a.fire("onStart");
+        a.$fire("onStart");
     }
     /** Halt in place — no snap to either end (LZX). Idempotent; a no-op when not
      *  running. Leaves the ledger (resuming the displaced driver when it was the
@@ -183,7 +183,7 @@ export class TweenRun {
         while (this.runDuration > 0 && this.elapsed >= this.runDuration && this.cyclesLeft > 1) {
             this.elapsed -= this.runDuration;
             this.cyclesLeft -= 1;
-            this.a.fire("onRepeat");
+            this.a.$fire("onRepeat");
         }
         const t = this.runDuration > 0 ? Math.min(this.elapsed / this.runDuration, 1) : 1;
         if (t >= 1) {
@@ -244,7 +244,7 @@ export class TweenRun {
         this.live = false;
         setBound(this.a, "running", false);
         this.runTarget = null;
-        this.a.fire("onStop");
+        this.a.$fire("onStop");
     }
 }
 //# sourceMappingURL=tween.js.map

@@ -128,6 +128,12 @@ export interface Kernel {
      *  list the caller owns. */
     addCode(words: ArrayLike<number>): number;
     addConst(v: number): number;
+    /** How far the code and constant arenas reach — their high-water marks,
+     *  which stay flat while freed blocks are reused (tooling: kernelStats). */
+    codeUse(): {
+        code: number;
+        consts: number;
+    };
     kdirty(): Uint32Array;
     addExprRule(target: number, flags: number, edges: ArrayLike<number>, codeOffset: number, ncode: number): number;
     viewLayout(layout: Record<string, number>): void;

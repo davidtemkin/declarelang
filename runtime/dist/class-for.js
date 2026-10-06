@@ -40,7 +40,7 @@ export class KindedReplicator extends Replicator {
     classify(m) {
         const data = m.data;
         if (data !== null)
-            m.classes = m.nodes.map((n) => this.classOf(data.cursorAt(n.path)));
+            m.classes = m.nodes.map((n) => this.classOf(data.$cursorAt(n.path)));
         return m;
     }
     kindAt(m, i) { return m.classes?.[i] ?? this.template.tag; }

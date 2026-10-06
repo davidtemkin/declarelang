@@ -31,7 +31,6 @@ deterministic by the driven clock.
 |---|---|
 | `--rung=N` | stop after rung N (default 6) |
 | `--json` | machine-readable result (used by the eval harness and editors) |
-| `--no-typecheck` | skip the rung-3 typecheck (on by default) |
 | `--assert <script.mjs>` | the drive/expect script for rung 5 |
 | `--fixtures <dir>` | data fixtures the app consumes |
 | `--states <script.mjs>` · `--baselines <dir>` | rung-6 named states and their baseline images (default: `baselines/` beside the states script) |

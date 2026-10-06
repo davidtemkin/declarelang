@@ -414,7 +414,7 @@ export function mountEmbeddedApp(app: App, island: View): App {
   const sync = (): void => { app.hostWidth = island.width; app.hostHeight = island.height; };
   sync();
   observe(() => [island.width, island.height], sync, "embed:hostExtent");
-  app.scheduleReveal();
+  app.$scheduleReveal();
   return app;
 }
 
@@ -435,7 +435,7 @@ export function mountApp(app: App, host: HTMLElement, backend: RenderBackend, op
   // written BEFORE mount (the host seeds the fragment pre-settle), when its
   // push armed a pump against a tree with no surface. Re-arm now that the
   // tree is rooted; a no-anchor location makes this a no-op afterSettle.
-  app.scheduleReveal();
+  app.$scheduleReveal();
   return app;
 }
 
@@ -496,7 +496,7 @@ function startTitleMirror(app: App, _host: HTMLElement): void {
   const served = document.title;
   let reflected = reflectAppName(app, served, "");
   observe(() => app.appName, () => { reflected = reflectAppName(app, served, reflected); }, "titleMirror");
-  const onUserScroll = (): void => { app.cancelReveal(); };
+  const onUserScroll = (): void => { app.$cancelReveal(); };
   window.addEventListener("wheel", onUserScroll, { passive: true });
   window.addEventListener("touchstart", onUserScroll, { passive: true });
 }

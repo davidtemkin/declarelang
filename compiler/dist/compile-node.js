@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { compile as compileCore } from "./compile.js";
+import { compile as compileCore, carryProgram } from "./compile.js";
 import { nodeIncludeHost } from "./include-node.js";
 import { provideLib } from "./typecheck.js";
 import { DiskTracker } from "./cache-node.js";
@@ -29,10 +29,10 @@ provideLib((name) => {
 // Static extraction (docs/system-design/capabilities.md §4–5) — exported by BOTH entry
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey } from "./crawl.js";
 export { highlight, lineMetrics } from "./highlight.js";
-export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 /** The bundled class library root (`declarelang/library`) — its `autoincludes.json`
@@ -109,6 +109,6 @@ export async function compileTracked(source, opts = {}) {
         host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT, tracker),
         bundleScripts: opts.bundleScripts ?? nodeBundleScripts,
     });
-    return { ...result, closure: tracker.closure(opts.props ?? {}) };
+    return carryProgram(result, { closure: tracker.closure(opts.props ?? {}) });
 }
 //# sourceMappingURL=compile-node.js.map

@@ -121,8 +121,8 @@ await test("padding 0 places exactly as no padding does — the default-0 claim"
     const app = await boot(TREE(pad));
     assert.deepEqual(geom(app.col), bare, `${pad} is the tree that never mentioned it`);
     assert.deepEqual(origins(app.col), bareO, "…realized in exactly the same places");
-    assert.equal(app.col.a.positionLead("x"), 0, "…and the seam is handed the very same number");
-    assert.equal(app.col.a.positionLead("y"), 0);
+    assert.equal(app.col.a.$positionLead("x"), 0, "…and the seam is handed the very same number");
+    assert.equal(app.col.a.$positionLead("y"), 0);
   }
 });
 

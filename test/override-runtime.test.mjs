@@ -5,11 +5,13 @@
 // base, use site over class); the runtime's own internal calls (maybeAuto →
 // this.fetch()) land on the override. The compiler resolves `super.fetch()`
 // at R1 from the static RUNTIME_METHODS table, pinned here against the actual
-// runtime prototypes; a runtime FIELD keeps its refusal; a method the
-// reference documents no contract for (plumbing) overrides with a warning.
+// runtime prototypes; a runtime FIELD keeps its refusal. The runtime's
+// internals are not on the author-facing object at all (`$`-names, which no
+// Declare identifier can spell): a program method named like one is the
+// program's own, and the runtime never calls it.
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
+import { compile, settleSource } from "../compiler/dist/compile-node.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
 import { provideTransport, DataSource } from "../runtime/dist/data.js";
@@ -20,7 +22,6 @@ import { Editor } from "../runtime/dist/editor.js";
 import { Stream } from "../runtime/dist/streams.js";
 import { RichText } from "../runtime/dist/rich-text.js";
 import { RUNTIME_METHODS, RUNTIME_FIELDS, runtimeMethodsOf, runtimeFieldsOf } from "../runtime/dist/runtime-methods.js";
-import { runtimePlumbing } from "../compiler/dist/scaffold.js";
 
 provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: t.length * 7, fontBoundingBoxAscent: 11, fontBoundingBoxDescent: 3, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 }) });
 let pass = 0, fail = 0;
@@ -31,7 +32,7 @@ async function test(name, fn) {
 async function build(src) {
   const r = await compile(src);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleHeadless(r.source, { deps: r.deps });
+  return settleSource(r.source, { deps: r.deps });
 }
 const errorsOf = async (src) => ((await compile(src)).errors ?? []).map((e) => e.message);
 const warningsOf = async (src) => { const r = await compile(src); assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles"); return r.warnings ?? []; };
@@ -169,7 +170,7 @@ App [ width = 1, height = 1, f: F [ url = "/x" ] ]`);
   await test("a method named after a runtime FIELD is still refused, saying field", async () => {
     const r = await compile(`App [ width = 1, height = 1, v: View [ exposes() { } ] ]`);
     assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "the checker is runtime-free by design");
-    assert.throws(() => settleHeadless(r.source, { deps: r.deps }), /View\.exposes: 'exposes' is a built-in field of the runtime View, not a method/);
+    assert.throws(() => settleSource(r.source, { deps: r.deps }), /View\.exposes: 'exposes' is a built-in field of the runtime View, not a method/);
   });
   await test("the super call is typechecked against the runtime method's documented signature", async () => {
     const errs = await errorsOf(`
@@ -179,24 +180,37 @@ App [ width = 1, height = 1, f: F [ url = "/x" ] ]`);
   });
 })();
 
-// ── Polarity: overriding runtime PLUMBING is legal and warned ─────────────────
+// ── The runtime's internals are out of the program's way ─────────────────────
 await (async () => {
   await test("overriding a documented runtime method (fetch, start) warns nothing", async () => {
     const ws = await warningsOf(`
 class F extends DataSource [ fetch() { super.fetch() } ]
 class S extends Spring [ start() { super.start() } ]
 App [ width = 1, height = 1, f: F [ url = "/x" ], v: View [ s: S [ attribute = x, to = 1 ] ] ]`);
-    assert.deepEqual(ws.filter((w) => w.code === "DECLARE4009"), []);
+    assert.deepEqual(ws.map((w) => w.message), []);
   });
-  await test("overriding runtime plumbing (maybeAuto, tick) compiles, typechecks its super, and warns DECLARE4009", async () => {
-    const ws = await warningsOf(`
+  await test("a method named like a runtime internal is the program's own: the runtime keeps its own and never calls it", async () => {
+    const prev = provideTransport(fixture);
+    try {
+      const app = await build(`
+class F extends DataSource [ n: number = 0, maybeAuto() { n = n + 1 } ]
+App [ width = 1, height = 1, f: F [ auto = true ] ]`);
+      app.f.url = "/f.json";
+      await landed();
+      assert.equal(app.f.loaded, true, "auto still fetched: the runtime's own internal ran");
+      assert.equal(app.f.n, 0, "the runtime never called the program's maybeAuto");
+      app.f.maybeAuto();
+      assert.equal(app.f.n, 1, "the program's method is callable as its own");
+    } finally { provideTransport(prev); }
+  });
+  await test("super has nothing beneath a method named like an internal, and a body cannot call an internal", async () => {
+    const supered = await errorsOf(`
 class F extends DataSource [ maybeAuto() { super.maybeAuto() } ]
-class S extends Spring [ tick(now: number) -> boolean { return super.tick(now) } ]
-App [ width = 1, height = 1, f: F [ url = "/x" ], v: View [ s: S [ attribute = x, to = 1 ] ] ]`);
-    const plumbing = ws.filter((w) => w.code === "DECLARE4009").map((w) => w.message);
-    assert.equal(plumbing.length, 2, JSON.stringify(ws.map((w) => w.message)));
-    assert.match(plumbing[0], /F\.maybeAuto\(\) replaces DataSource's maybeAuto\(\), which is runtime plumbing/);
-    assert.match(plumbing[1], /S\.tick\(\) replaces Spring's tick\(\)/);
+App [ width = 1, height = 1, f: F [ ] ]`);
+    assert.ok(supered.some((m) => /super\.maybeAuto\(\)/.test(m)), JSON.stringify(supered));
+    const called = await errorsOf(`
+App [ width = 1, height = 1, s: Spring [ attribute = x, to = 1 ], onInit() { this.s.tick(0) } ]`);
+    assert.ok(called.length > 0, "an internal is not a member a program can call");
   });
 })();
 
@@ -261,31 +275,25 @@ await (async () => {
     assert.ok(runtimeMethodsOf("Keys").has("discard"), "a source reaches Node's methods through Source");
     assert.equal(runtimeMethodsOf("NotASchema").size, 0);
   });
-  await test("runtimePlumbing agrees with the reference: a runtime method is plumbing exactly when the doc model lists it structural-only", () => {
+  await test("every runtime method a program can reach is one the reference documents", () => {
     const model = JSON.parse(readFileSync(new URL("../docs/declare-model.json", import.meta.url), "utf8"));
     // The model files a method under the class that DECLARES it (Spring
     // re-declares start, documented on Animator), so "documented" is read up
-    // the schema chain — the reading a program's override gets.
+    // the schema chain. Node's child-list verbs are documented where a program
+    // uses them, on View; a non-view node inherits them.
     const documented = (cls, name) => {
       for (let s = schemas[cls]; s; s = s.base) if (model.reference[`${s.name}.method.${name}`]?.api === true) return true;
-      return false;
+      return model.reference[`View.method.${name}`]?.api === true && ["insertChild", "removeChild", "discard"].includes(name);
     };
     let checked = 0;
-    for (const [id, node] of Object.entries(model.reference)) {
-      if (node.kind !== "method" || node.getter === true || node.isStatic === true) continue;
-      const [cls, , name] = id.split(".");
-      // a tag or base a program can name (RichText is neither); draw and the
-      // service statics are not prototype methods
-      if (SCHEMAS[cls] === undefined || !runtimeMethodsOf(cls).has(name)) continue;
-      const doc = documented(cls, name);
-      assert.equal(doc, !runtimePlumbing(cls).has(name), `${id}: the reference says ${doc ? "documented" : "structural-only"}, the compiler says ${runtimePlumbing(cls).has(name) ? "plumbing" : "documented"}`);
-      checked++;
+    for (const s of Object.keys(schemas)) {
+      if (s === "RichText") continue;   // neither a tag nor a base a program names
+      for (const name of runtimeMethodsOf(s)) {
+        assert.ok(documented(s, name), `${s}.${name}: a program can reach it, and the reference does not document it`);
+        checked++;
+      }
     }
-    assert.ok(checked > 60, `pinned ${checked} runtime methods against the model`);
-    assert.ok(runtimePlumbing("DataSource").has("maybeAuto"));
-    assert.ok(!runtimePlumbing("DataSource").has("fetch"));
-    assert.ok(!runtimePlumbing("View").has("discard"), "View documents Node's discard");
-    assert.ok(runtimePlumbing("Node").has("discard"), "a bare Node does not");
+    assert.ok(checked > 60, `checked ${checked} reachable runtime methods`);
   });
 })();
 

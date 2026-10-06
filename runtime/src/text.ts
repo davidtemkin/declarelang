@@ -88,7 +88,7 @@ export class Text extends View {
 
   /** The per-line advance: the declared leading (a fontSize multiplier, the
    *  Markdown convention) or, at the 0 default, the font's natural line box. */
-  private lineAdvance(m: { ascent: number; descent: number }): number {
+  private $lineAdvance(m: { ascent: number; descent: number }): number {
     return this.lineHeight > 0 ? Math.round(this.fontSize * this.lineHeight) : m.ascent + m.descent;
   }
 
@@ -122,7 +122,7 @@ export class Text extends View {
    *  line-height does, and every renderer places glyphs by the same rule. */
   get baseline(): number {
     const m = fontMetrics(fontString(this));
-    return insetSides(this.padding)[0] + m.ascent + Math.floor((this.lineAdvance(m) - (m.ascent + m.descent)) / 2);
+    return insetSides(this.padding)[0] + m.ascent + Math.floor((this.$lineAdvance(m) - (m.ascent + m.descent)) / 2);
   }
 
   override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
@@ -145,7 +145,7 @@ export class Text extends View {
     if (!isSet(this, "height") && ownerOf(this, "height") === null) {
       bindDerived(this, "height", () => {
         const m = fontMetrics(fontString(this));
-        const lineH = this.lineAdvance(m);
+        const lineH = this.$lineAdvance(m);
         // A bounded width wraps (unless wrap=false) → height extends to the
         // wrapped line count. Reading `width` keeps this reactive, so a
         // container/viewport resize re-wraps and re-flows — baseline.
@@ -172,7 +172,7 @@ export class Text extends View {
    *  tracked), so it re-measures when the text or style changes — the fix for
    *  content-bound labels. The natural single-line width; height follows the
    *  wrapped line count when the width is bounded, matching the derives above. */
-  protected override contentExtent(size: "width" | "height"): number {
+  protected override $contentExtent(size: "width" | "height"): number {
     const font = fontString(this);
     const disp = transformText(runOf(this), this.textTransform);
     if (size === "width") return Math.ceil(disp.split("\n").reduce((w, line) => Math.max(w, textWidth(line, font, this.letterSpacing)), 0));
@@ -181,7 +181,7 @@ export class Text extends View {
     const all = bounded && this.wrap ? wrapLines(disp, font, this.contentBox("width"), this.letterSpacing).length : disp.split("\n").length;
     setBound(this, "truncated", this.maxLines > 0 && all > this.maxLines);
     const lines = clampN(all, this.maxLines);
-    return Math.ceil(this.lineAdvance(m) * lines);
+    return Math.ceil(this.$lineAdvance(m) * lines);
   }
 
   // `y = center` centers the geometric box (View.alignBand), like every other

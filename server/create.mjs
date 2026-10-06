@@ -5,7 +5,7 @@
 // byte-identical to before; everything new rides on the mount table
 // (server/mounts.mjs) and a proxy (server/proxy.mjs).
 //
-// Two jobs, same as ever (no chat, no persistent connection, no data API):
+// Two jobs, same as ever (no live channel, no persistent connection, no data API):
 //   1. serve the mounted trees statically
 //   2. turn a PROGRAM-URL navigation (…/<name>.declare) into a run page — the
 //      SAME address the static host's service worker runs (browse-to-run). The
@@ -386,26 +386,26 @@ bootHost(cfg);
   }
 
   // ── ?program — the COMPILED PROGRAM as JSON ────────────────────────────────
-  // A client that owns its renderer (the native host) asks for this instead of
-  // a run page. The compile is the server's ordinary one — same toolchain
-  // realm, same freshness — and the answer carries a strong ETag so the
-  // client's cache revalidates with one conditional request rather than
-  // re-compiling or re-downloading.
+  // `{ program, etag }`: the program object every host boots from, positions
+  // kept, for a client that owns its renderer. The compile is the server's
+  // ordinary one — same toolchain realm, same freshness — and the strong ETag
+  // lets a client revalidate with one conditional request.
   async function serveProgram(req, res, absPath, relPath) {
     let source;
     try { source = readFileSync(absPath, "utf8"); }
     catch { return send(res, 404, "not found: " + relPath, "text/plain"); }
-    const out = await toolchain.compile(source, { originDir: path.dirname(absPath) });
-    if (out.source === null) {
+    const out = await toolchain.compileProgram(source, { originDir: path.dirname(absPath), mainId: absPath, stripPos: false });
+    if (out.program === null) {
       return send(res, 422, JSON.stringify({ report: out.report, diagnostics: out.diagnostics }), "application/json");
     }
-    const etag = '"' + createHash("sha256").update(out.source).digest("hex").slice(0, 24) + '"';
+    const program = JSON.stringify(out.program);
+    const etag = '"' + createHash("sha256").update(program).digest("hex").slice(0, 24) + '"';
     if ((req.headers["if-none-match"] ?? "") === etag) {
       res.writeHead(304, { etag });
       return res.end();
     }
     res.writeHead(200, { "content-type": "application/json", etag, "cache-control": "no-cache" });
-    res.end(JSON.stringify({ source: out.source, deps: out.deps, etag }));
+    res.end(`{"program":${program},"etag":${JSON.stringify(etag)}}`);
   }
 
   function serveFrom(req, res, baseDir, rel) {

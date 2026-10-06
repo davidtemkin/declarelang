@@ -62,7 +62,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, isSto
       // but unlinked, said loudly — a broken link must not take the render.
       const islView = islandViewOf.get(box);
       const childOpts = {
-        deps: compiled.deps, assetBase: childAssetBase(name || ""),
+        assetBase: childAssetBase(name || ""),
         provides: islView && typeof islView.post === "function" ? islandProvisions(islView) : undefined,
         beforeMount: (app) => {
           if (!islView || typeof islView.post !== "function") return;

@@ -127,7 +127,8 @@ App [ width = 300, height = 60, fill = white, textColor = #172530,
 
 When the records are objects, `:@` is the object — rarely needed for reading, since
 `:title` reads a field, but it is how a row hands its whole record to a method:
-`onClick() { app.open(:@) }`.
+`onClick() { app.open(:@) }`. Under a schema the record is typed, so a row can hold it as
+one — `rec: Task = { :@ }` — and pass it on, instead of looking it up again by id.
 
 **`[( … )]` is a key computed by TypeScript.** Inside `[ ]` a path takes JSONPath's
 selectors — `[0]`, `['name']`, `[1:3]`; inside `[( )]` it takes an expression, and the
@@ -190,8 +191,8 @@ replicate, is not supported; only views replicate.)
 
 ### Deriving summaries: methods, and a typed result
 
-Most apps also compute things *from* the whole collection — this week's totals, a
-streak, the next likely entry. They are **methods**, on the App while there are a few of
+Most apps also compute things *from* the whole collection — a category's total, a
+running balance, the largest item. They are **methods**, on the App while there are a few of
 them; when a document's logic grows into a thing in its own right, the document becomes a
 class that extends `Dataset` (or `DataSource`, when it arrives from a server), carrying its
 derivations, its queries and the few writes that are more than a field. The compiler reads through a method, so what a constraint
@@ -199,36 +200,37 @@ depends on is known and `explain` can show it, while a `script` function is opaq
 both. Give a result a `schema` and it arrives typed, with no casts:
 
 ```declare
-schema Session [ id: number, day: number, minutes: number ]
-schema Week [ count: number, minutes: number ]
+schema Expense [ id: number, category: string, amount: number ]
+schema Totals [ count: number, amount: number ]
 
-class Log extends Dataset [ schema = [ rows[]: Session ],
-    week: Dataset [ schema = Week, contents = { classroot.weekOf(3) } ],
-    weekOf(today: number) -> Week {
-        const rows = this.value.rows.filter((s) => s.day > today - 7)
-        return ({ count: rows.length, minutes: rows.reduce((n, s) => n + s.minutes, 0) })
+class Ledger extends Dataset [ schema = [ rows[]: Expense ],
+    food: Dataset [ schema = Totals, contents = { classroot.totalFor("food") } ],
+    totalFor(category: string) -> Totals {
+        const rows = this.value.rows.filter((e) => e.category == category)
+        return ({ count: rows.length, amount: rows.reduce((n, e) => n + e.amount, 0) })
         },
-    add(minutes: number) {
-        this.set(["rows", "-"], ({ id: this.value.rows.length + 1, day: 3, minutes: minutes }))
+    add(category: string, amount: number) {
+        this.set(["rows", "-"], ({ id: this.value.rows.length + 1, category: category, amount: amount }))
         }
     ]
 
 App [ width = 320, height = 110, fill = white, textColor = #172530,
-    log: Log [ ] { { "rows": [ { "id": 1, "day": 1, "minutes": 30 }, { "id": 2, "day": 2, "minutes": 45 } ] } },
+    ledger: Ledger [ ] { { "rows": [ { "id": 1, "category": "food", "amount": 12 }, { "id": 2, "category": "travel", "amount": 45 } ] } },
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Text [ text = { app.log.week.value.count + " sessions, " + app.log.week.value.minutes + " minutes" } ],
-        Button [ label = "Log 20 minutes", onClick() { app.log.add(20) } ]
+        Text [ text = { app.ledger.food.value.count + " food expenses, $" + app.ledger.food.value.amount } ],
+        Button [ label = "Add a $20 lunch", onClick() { app.ledger.add("food", 20) } ]
         ]
     ]
 ```
 
-`app.log` *is* the sessions: a view binds to it directly (`datapath = { app.log.value }`)
-and a row writes its own session as it would in any dataset. `week` is a derived dataset
-declared on it: its contents are whatever `weekOf(3)` returns, re-derived when the
-sessions change, and its `schema` makes `app.log.week.value.count` a `number` to every
+`app.ledger` *is* the expenses: a view binds to it directly (`datapath = { app.ledger.value }`)
+and a row writes its own expense as it would in any dataset. `food` is a derived dataset
+declared on it: its contents are whatever `totalFor("food")` returns, re-derived when the
+expenses change, and its `schema` makes `app.ledger.food.value.count` a `number` to every
 body. A data class holds members that paint nothing — a derived dataset, a `Time` — and
-never views.
+never views. [Data in a whole app](declare-docs:guide:data@data-in-a-whole-app), below,
+binds views to a document class and its derived dataset together.
 
 When logic moves out of the App, where it goes follows what it is about: a document's own
 logic — its derivations, queries over its records, how a record is created, the rules a
@@ -281,6 +283,34 @@ code that shows the report when the fetch returns. The zip changes, the URL re-d
 the source fetches, and the screens follow. The fetch-then-set-state choreography is
 deleted, not abstracted.
 
+**Logic about one feed belongs on it.** A document with rules of its own becomes a class
+that extends `Dataset` (below); a document that arrives from a server becomes a class
+that extends `DataSource`, carrying its address, its queries over what arrived, and
+whatever its arrival must do. The class is declared at the top level, beside its schema:
+
+```declare-fragment
+schema Quote [ sym: string, price: number ]
+
+class Quotes extends DataSource [ url = "/api/quotes", auto = true, schema = [ rows[]: Quote ],
+    priceOf(sym: string) -> number { return this.value?.rows.find((q) => q.sym == sym)?.price ?? 0 },
+    expensive: Dataset [ contents = { { rows: (classroot.value?.rows ?? []).filter((q) => q.price > 100) } } ]
+    ]
+```
+
+and the App holds an instance, which views read and bind to exactly as to any document — its
+records, its queries, and its derived datasets:
+
+```declare-fragment
+quotes: Quotes [ ],
+Text [ text = { "ACME " + app.quotes.priceOf("ACME") } ],
+pricey: View [ datapath = { app.quotes.expensive.value },
+    layout: SimpleLayout [ axis = y ],
+    Text [ datapath = :rows[], text = :sym ]
+    ]
+```
+
+The marketmap's `Market` is one at full size.
+
 ## Talking to a server
 
 Sending is a `DataSource` too. A write is a source whose `method` is not GET: it has a
@@ -317,8 +347,11 @@ Four facts make this work without choreography:
   return a promise, but the flags and `onLoad` are the idiom; a later `fetch()` on the
   same source supersedes an earlier one, whose reply is dropped.
 - **A source's value is the server's.** Each successful `fetch()` replaces it. When the
-  user edits what was loaded, copy it into a `Dataset` in `onLoad` and edit that — the
-  working copy — so a refresh does not overwrite work in progress.
+  user edits what was loaded and the source fetches again — on a timer, a changing `url`,
+  `auto` — copy it into a `Dataset` in `onLoad` and edit that — the working copy — so a
+  refresh does not overwrite work in progress. A source that loads once and is kept
+  current by the app (a `Socket` writing into it, say) has nothing to overwrite, and its
+  own value can be edited directly.
 
 **Writing to one record** takes an attribute that says which record, and a source whose `url`
 reads it:
@@ -364,17 +397,17 @@ instead. A request a `DataSource` genuinely cannot express belongs in a
 
 ## Streams
 
-Some data arrives while you watch: an AI answer composing itself, prices ticking, a log
+Some data arrives while you watch: a job reporting its progress, prices ticking, a log
 following itself. [`EventStream`](declare-docs:EventStream) (server-sent events) and [`Socket`](declare-docs:Socket) (a WebSocket, plus
 [`send()`](declare-docs:Socket.method.send)) are sources for that; both extend the abstract [`Stream`](declare-docs:Stream):
 
 ```declare-fragment
-answer: string = "",
-reply: EventStream [ url = { `/api/chat?id=${app.chatId}` },
-    active = { app.chatId != "" },
-    onMessage(e: StreamMessage) { app.answer = app.answer + e.data }
+output: string = "",
+progress: EventStream [ url = { `/api/jobs/${app.jobId}/events` },
+    active = { app.jobId != "" },
+    onMessage(e: StreamMessage) { app.output = app.output + e.data }
     ],
-out: Text [ width = 100%, text = { app.answer } ]
+out: Text [ width = 100%, text = { app.output } ]
 ```
 
 There is no `connect()` and no cleanup. A stream is connected exactly while `active` is
@@ -462,6 +495,19 @@ at the bottom:
 ```declare
 schema Task [ id: number, col: 0 | 1 | 2, t: string ]
 
+class Board extends Dataset [ schema = [ cards[]: Task ],
+    lanes: Dataset [ contents = { classroot.byColumn() } ],
+    byColumn() {
+        const cards = this.value?.cards ?? []
+        return { lanes: ["To do", "Doing", "Done"].map((n, i) => ({ name: n, cards: cards.filter((c) => c.col == i) })) }
+        },
+    add(t: string) {
+        const cards = this.value?.cards ?? []
+        this.set("/cards/-", ({ id: cards.reduce((m, c) => Math.max(m, c.id), 0) + 1, col: 0, t: t }))
+        }
+    ]
+
+
 class BCard extends Control [ width = 100%, height = 30, cornerRadius = 10,
     fill = { pressed ? 0x3E5C66 : hovered ? 0x36525B : 0x2F4F4F },
     press() { :col = Math.min(:col + 1, 2) },
@@ -477,67 +523,64 @@ class Lane [ width = 130,
 
 
 App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
-    raw: Dataset [ schema = [ cards[]: Task ] ] {
+    board: Board [ ] {
         { "cards": [ { "id": 1, "col": 0, "t": "Outline the guide" },
                      { "id": 2, "col": 0, "t": "Fix the rail" },
                      { "id": 3, "col": 1, "t": "Draft a chapter" },
                      { "id": 4, "col": 2, "t": "Set up the sandbox" } ] }
         },
-    nextId: number = 5,
 
-    colNames() { return ["To do", "Doing", "Done"] },
-    buildCols() {
-        const cards = this.raw.value?.cards ?? []
-        return { cols: this.colNames().map((n, i) => ({ name: n, cards: cards.filter(c => c.col == i) })) }
-        },
-    board: Dataset [ contents = { app.buildCols() } ],
-
-    add() {
-        const t = this.entryRow.entry.text
-        if (t == "") return
-        this.raw.set("/cards/-", ({ id: this.nextId, col: 0, t: t }))
-        this.nextId = this.nextId + 1
-        this.entryRow.entry.text = ""
-        },
-
-    cols: View [ x = 20, y = 20, datapath = { board.value },
+    lanes: View [ x = 20, y = 20, datapath = { app.board.lanes.value },
         layout: SimpleLayout [ axis = x, spacing = 10 ],
-        Lane [ datapath = :cols[] ]
+        Lane [ datapath = :lanes[] ]
         ],
     entryRow: View [ x = 20, y = { app.height - 50 },
         layout: SimpleLayout [ axis = x, spacing = 8 ],
         entry: TextInput [ width = 250, height = 40, padding = 10, cornerRadius = 10,
             fill = darkslategray, placeholder = "Add a task" ],
         Button [ label = "Add", primary = true,
-            onClick() { app.add() }
+            onClick() {
+                if (parent.entry.text == "") return
+                app.board.add(parent.entry.text)
+                parent.entry.text = ""
+                }
             ]
         ]
     ]
 ```
 
-Read it top to bottom. `raw` is the truth: a flat list, each card knowing only its column
-number, and typed — its schema holds every write that follows ([Typed
-data](declare-docs:guide:schemas)). `board` is a **derived dataset**:
-`contents = { app.buildCols() }` recomputes when anything `buildCols` reads changes,
-because the compiler reads through the method. Columns and cards replicate over the
-derived shape. Both user actions are one write each; no handler touches a view.
+Read it top to bottom. `Board` is the document, and its records are the truth: a flat
+list, each card knowing only its column number, typed by a schema that holds every write
+that follows ([Typed data](declare-docs:guide:schemas)). The document carries its own
+logic: `lanes`, a **derived dataset** whose `contents = { classroot.byColumn() }`
+recomputes when anything `byColumn` reads changes (the compiler reads through the
+method), and `add`, the one write that is more than a field. The App holds an instance
+and the views. Lanes and cards replicate over `app.board.lanes.value`; a view that
+wanted the flat list would bind to `app.board.value` the same way. Both user actions are
+one write each, and the document never touches a view.
 
 Note where the card's click writes: `:col = :col + 1`, on the card itself, although the
-card is attached to the *derived* board. `buildCols` groups the cards — it does not copy
-them — so the board holds `raw`'s own records, and writing one writes `raw`. The board
-re-derives from that write and the card moves to its new column. **A derived dataset that
-selects records — filter, sort, group — holds its source's records, and a row writes its
-record as it would anywhere.**
+card is attached to the *derived* lanes. `byColumn` groups the cards — it does not copy
+them — so `lanes` holds the board's own records, and writing one writes the board. The
+lanes re-derive from that write and the card moves to its new column. **A derived
+dataset that selects records — filter, sort, group — holds its source's records, and a
+row writes its record as it would anywhere.** Nothing in between is needed to make that
+happen: no attribute that mirrors the data or counts its changes so the lanes notice.
+Whatever a `{ }` reads, it follows.
 
 What a derived dataset *makes* is its own, and read-only: the column objects here, a copy
 (`{ ...c }`), a summary. A write to one is refused, with an error saying to write the
 source, because the next recompute would replace it. So what a row needs beyond its
-record comes one of three ways:
+record comes one of four ways:
 
 - **Computed in the row**, when it follows from the record alone: a label, a colour —
   a constraint on the row.
 - **`rowIndex`**, when it is the row's position: stripes, ranks, "3 of 12"
   ([Large collections](declare-docs:guide:collections@row-position-rowindex)).
+- **Provided from above**, when it is the list's own geometry or setting — a column
+  width every row shares. Declare it on the list (`colW: number = { this.width / 7 }`) and
+  read `provided("colW")` in the row ([Paint and themes](declare-docs:guide:paint-and-themes@provided-values)),
+  rather than reaching up with a long `app.…` path.
 - **A wrapper**, when it depends on the other records, like a lane that avoids
   overlapping events. Wrap the record, don't copy it:
 

@@ -36,7 +36,7 @@ export declare class Text extends View {
     lineHeight: number;
     /** The per-line advance: the declared leading (a fontSize multiplier, the
      *  Markdown convention) or, at the 0 default, the font's natural line box. */
-    private lineAdvance;
+    private $lineAdvance;
     /** The effective font's ascent above the baseline (the font bounding box,
      *  a property of the font — independent of this run's characters). */
     get ascent(): number;
@@ -64,6 +64,6 @@ export declare class Text extends View {
      *  tracked), so it re-measures when the text or style changes — the fix for
      *  content-bound labels. The natural single-line width; height follows the
      *  wrapped line count when the width is bounded, matching the derives above. */
-    protected contentExtent(size: "width" | "height"): number;
+    protected $contentExtent(size: "width" | "height"): number;
     protected $flush(s: Surface): void;
 }

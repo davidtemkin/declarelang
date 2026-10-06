@@ -68,12 +68,13 @@ async function bundle(entry, outfile, globalName, { keepNames = false, define = 
   console.log(`  ${path.basename(outfile)} — ${kb(buf.length)} raw · ${kb(gzipSync(buf).length)} gzipped`);
 }
 
-// The compiler entry: a tiny wrapper so the bundle exposes exactly the four
-// calls the client-compile tier uses (the same surface compile-worker.js has).
+// The compiler entry: a tiny wrapper so the bundle exposes exactly the calls
+// the native host uses — the program compile (the compile thread and the
+// in-context fallback), the library registration, and the reader's highlighter.
 const COMPILER_ENTRY = path.join(OUT, ".compiler-mac-entry.js");
 writeFileSync(COMPILER_ENTRY, `
-import { compile, compileTracked, setDefaultLibrary, highlight } from "${path.join(ROOT, "bundles/declare-compiler.js").replace(/\\/g, "/")}";
-globalThis.__declareCompiler = { compile, compileTracked, setDefaultLibrary, highlight };
+import { compileProgram, setDefaultLibrary, highlight } from "${path.join(ROOT, "bundles/declare-compiler.js").replace(/\\/g, "/")}";
+globalThis.__declareCompiler = { compileProgram, setDefaultLibrary, highlight };
 `);
 
 console.log("build-mac:");

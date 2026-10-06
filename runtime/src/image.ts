@@ -64,13 +64,13 @@ export class Image extends View {
 
   /** Auto-extent's content hook: the bitmap's natural extent. Reads `loaded`
    *  (tracked), so an owning extent derive re-runs when the bitmap arrives. */
-  protected override contentExtent(size: "width" | "height"): number {
+  protected override $contentExtent(size: "width" | "height"): number {
     return this.loaded ? this.natural[size] : 0;
   }
 
   override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
     super.$attach(backend, parentSurface);
-    this.load();
+    this.$load();
   }
 
   protected override $flush(s: Surface): void {
@@ -83,7 +83,7 @@ export class Image extends View {
   }
 
   /** (Re)load `source` — called at attach and by the `source` pusher. */
-  load(): void {
+  $load(): void {
     const seq = ++this.loadSeq;
     const s = this.$surface;
     if (s === null) return;
@@ -130,7 +130,7 @@ export class Image extends View {
 }
 
 defineAttributes(Image, {
-  source: { def: "", push: (i) => i.load() },
+  source: { def: "", push: (i) => i.$load() },
   stretches: { def: "none", push: (i, v) => i.$surface?.setImageStretch(v) },
   alignX: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },
   alignY: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },

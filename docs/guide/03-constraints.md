@@ -124,8 +124,8 @@ write creates — you added a row and want to bring it into view, which depends 
 layout put it. For that, hand one function across the boundary:
 
 ```declare-fragment
-addItem() {
-    app.log.set("/rows/-", ({ text: "new" }))
+addTask() {
+    app.tasks.set("/rows/-", ({ title: "Untitled task" }))
     afterSettle(app.showNewest)               // runs once, after this change has landed
     },
 showNewest() {

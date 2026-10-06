@@ -16,7 +16,7 @@
 import { Media } from "./media.js";
 import { defineAttributes } from "./attributes.js";
 export class Audio extends Media {
-    makeElement() {
+    $makeElement() {
         return document.createElement("audio");
     }
 }

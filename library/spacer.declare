@@ -1,34 +1,26 @@
 /*
-# Spacer — a flexing child that absorbs a run's slack
+# Spacer — an empty view that absorbs a run's slack
 
 When a row (or stack) does not fill its container, the leftover space has to
-go somewhere — and the laid children cannot take it themselves (their
-flow-axis size is owned by the layout). A Spacer says where, structurally: put one between two
-groups and they push apart ("logo left, actions right"); put one on each
-side of a run and it centers; put one first and the run right-aligns.
-Several spacers split the slack evenly. When there is no slack — a plan
-whose shares fill the width, an auto-sized container — a Spacer is simply
-zero and invisible in effect.
+go somewhere. A Spacer says where, structurally: put one between two groups
+and they push apart ("logo left, actions right"); put one on each side of a
+run and it centers; put one first and the run right-aligns. Several spacers
+split the slack evenly. When there is no slack — a plan whose shares fill the
+width, an auto-sized container — a Spacer is simply zero and invisible in
+effect.
 
-The layout owns a Spacer's flow-axis size (a percent-family constraint, so
-a container deriving its extent from its children never counts one); the
-`flexes` marker is what a flow layout looks for. An empty view otherwise —
-it paints nothing and has no size of its own.
-
-A Spacer is a flow-axis thing only: across the flow it takes no part — it
-never sizes the row's line and is never aligned, so a baseline row asks no
-baseline of it. For a minimum height (a strut), use an empty view:
+It is nothing but an empty view that flexes: `Spacer [ ]` is
+`View [ flexes = true ]`, named for what it is for. Any view can flex the same
+way (`View.flexes`); a Spacer is the one with nothing in it. It paints nothing
+and has no size of its own; it declares a baseline of 0, so a baseline row
+takes it like any other child. For a minimum height (a strut), use an empty view:
 `View [ width = 0, height = 44 ]`.
 
-## flexes
-The marker a flow layout looks for. True (the default) means the layout owns this
-Spacer's size along the flow axis and expands it to take up the slack — which is
-what makes `Spacer [ ]` push its siblings apart. Set it false for a fixed gap you
-size yourself.
+## baseline
+0 — the top of an empty box. Declared so that a row aligned on its baselines takes a
+Spacer as it takes any child: it sits at the line and, having no height, moves nothing.
 */
 
-class Spacer [
-    flexes: boolean = true,
-    width = 0,
-    height = 0
+class Spacer [ flexes = true, width = 0, height = 0,
+    baseline: number = 0
     ]

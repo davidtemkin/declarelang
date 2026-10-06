@@ -19,7 +19,7 @@ App [ fill = #F6F8FA, textColor = #6A7883, fontSize = 13,
 **One spring per motion.** Declare the spring once, on the thing that moves, and constrain
 everything that must move with it to that spring's value — a row's `y`, a panel's `opacity`,
 a mark's `scale` all reading one sprung number stay in step for free (the calendar's zoom is
-one scalar; a conversation sliding over its list is one scalar). A `Spring` written inside a
+one scalar; a detail pane sliding over its list is one scalar). A `Spring` written inside a
 replicated class is *N* springs, one per row; three hundred rows of "the same handful of
 constraints" each carrying their own springs is three hundred integrators for motion that
 only one row at a time is ever in.
@@ -34,7 +34,7 @@ change after it travels as usual:
 count: number = { app.feed.value?.total ?? 0 },
 shown: number = 0,
 tally: Spring [ attribute = shown, to = { app.count }, stiffness = 140, damping = 22 ],
-feed: DataSource [ url = "/api/week", auto = true, onLoad() { app.tally.arrive() } ]
+feed: DataSource [ url = "/api/totals", auto = true, onLoad() { app.tally.arrive() } ]
 ```
 
 It arms for one frame — long enough for the arriving value to reach `to`, short enough that a

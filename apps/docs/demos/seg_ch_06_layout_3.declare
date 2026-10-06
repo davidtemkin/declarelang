@@ -1,9 +1,11 @@
-App [ width = 320, height = 190, fill = #F4F6FA, textColor = #172530,
-    Card [ x = 20, y = 20, width = 280,
-        Text [ fontSize = 15, fontWeight = semibold, text = "Storage" ],
-        Text [ width = 100%, textColor = slategray,
-            text = "Cards size themselves to what they hold, padding included." ],
-        Divider [ ],
-        Button [ label = "Manage" ]
+App [ width = 260, height = 150, fill = white, textColor = black,
+    box: View [ x = 20, y = 20, width = 200, cornerRadius = 8, fill = whitesmoke, clip = true,
+        padding = 10,
+        height = { Math.min(contentHeight, 90) },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ text = "grows with its content" ],
+        Text [ text = "up to 90 pixels" ],
+        Text [ text = "then stops" ],
+        Text [ text = "and clips the rest" ]
         ]
     ]

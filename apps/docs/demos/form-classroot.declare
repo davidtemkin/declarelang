@@ -16,8 +16,8 @@ class Tab [ width = 120, height = 36, cornerRadius = [8, 8, 0, 0],
 App [ fill = 0xEEF1F4,
     row: View [ x = 20, y = 20, height = 36, width = { this.contentWidth },
         layout: SimpleLayout [ axis = x, spacing = 4 ],
-        Tab [ label = "Inbox", selected = true ],
-        Tab [ label = "Sent" ],
-        Tab [ label = "Drafts" ]
+        Tab [ label = "General", selected = true ],
+        Tab [ label = "Display" ],
+        Tab [ label = "Sound" ]
         ]
     ]

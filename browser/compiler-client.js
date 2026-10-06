@@ -14,7 +14,7 @@
 //     during the compile that reaches them.
 //   • ensureLibrary(client) — loads the library and registers it as the
 //     compiler's DEFAULT (setDefaultLibrary), on whichever transport is live.
-//     After this, `client.compile(src)` just works — bare tags (`Bar [ ]`)
+//     After this, `client.compileProgram(src)` just works — bare tags (`Bar [ ]`)
 //     resolve with no per-call ceremony.
 //
 // The raw DeclareError lists deliberately do NOT cross this surface: `diagnostics`
@@ -135,8 +135,6 @@ function withOrigins(client) {
   };
   return {
     ...client,
-    compile: (source, opts) => client.compile(source, augment(opts)),
-    compileTracked: (source, opts) => client.compileTracked(source, augment(opts)),
     // the PROGRAM-shaped result: { program, diagnostics, report, closure } — the
     // parsed, checked, deps-applied program the runtime instantiates with no
     // parser aboard (compiler/src/program-build.ts); null program on failure
@@ -177,8 +175,6 @@ function workerClient() {
       });
     const client = {
       transport: "worker",
-      compile: (source, opts) => call("compile", { source, opts }),
-      compileTracked: (source, opts) => call("compileTracked", { source, opts }),
       compileProgram: (source, opts) => call("compileProgram", { source, opts }),
       highlight: (src) => call("highlight", { src }),
       setDefaultLibrary: (lib) => worker.postMessage({ type: "library", lib }),
@@ -202,14 +198,8 @@ export function loadCompilerInline() {
 
 async function inlineClient() {
   const mod = await import(COMPILER_URL.href);
-  const project = (r) => ({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
   return {
     transport: "inline",
-    compile: async (source, opts) => project(await mod.compile(source, opts ?? {})),
-    compileTracked: async (source, opts) => {
-      const r = await mod.compileTracked(source, opts ?? {});
-      return { ...project(r), closure: r.closure };
-    },
     compileProgram: async (source, opts) => {
       const r = await mod.compileProgram(source, opts ?? {});
       return { program: r.program, diagnostics: r.diagnostics, report: r.report, closure: r.closure, usedClasses: r.usedClasses };
@@ -255,7 +245,7 @@ async function loadLibrary() {
 }
 
 /** Load the library once and register it as the compiler's default — after
- *  this, `client.compile(src)` resolves bare tags with no per-call ceremony.
+ *  this, `client.compileProgram(src)` resolves bare tags with no per-call ceremony.
  *  Idempotent; returns the client for chaining. */
 export async function ensureLibrary(client) {
   const lib = await loadLibraryOnce();

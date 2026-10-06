@@ -54,6 +54,8 @@ export declare function kernelStats(top?: number): {
     cells: number;
     rules: number;
     live: number;
+    code: number;
+    consts: number;
     byLabel: Array<[string, number]>;
 };
 /** The kernel, for the modules that hold cells directly (attributes.ts's

@@ -46,7 +46,8 @@ async function run() {
     // to the program it appears in, exactly as it does on the dev server's disk.
     const distro = new URL("..", import.meta.url).href;
     const dir = new URL(".", target).href;
-    const compiled = await mod.compile(source, {
+    const built = await mod.compileProgram(source, {
+      links: true,
       mainId: target,
       originDir: dir.startsWith(distro) ? dir.slice(distro.length).replace(/\/$/, "") : "",
       origins: { distro },
@@ -58,8 +59,7 @@ async function run() {
     // DataSource url is the app's own material, fetched same-origin from beside the
     // program (the deployed copy of the same file the Node crawl reads from disk);
     // an absolute url is the network and fails the crawl loudly (the error page).
-    const ex = compiled.source === null ? null : await mod.crawlExtract(compiled.source, {
-      deps: compiled.deps, links: compiled.links,
+    const ex = built.program === null ? null : await mod.crawlExtract(built.program, {
       // Parse-else-raw, matching diskDataResolver byte for byte: JSON is the
       // parsed value, a text file (a Markdown article) is its raw string.
       data: (url) => fetch(new URL(url, target), { cache: "no-cache" })
@@ -70,7 +70,7 @@ async function run() {
     const esc = (s) => s.replace(/[&<]/g, (c) => (c === "&" ? "&amp;" : "&lt;"));
     const doc = ex === null
       ? `<!doctype html><meta charset="utf-8"><title>${esc(name)} — extraction failed</title>
-<pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;padding:20px">${esc(compiled.report || "compile failed")}</pre>`
+<pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;padding:20px">${esc(built.report || "compile failed")}</pre>`
       : mod.crawlerDocument(ex.html, ex.title || name);
     writeDoc(doc);
   } catch (e) {

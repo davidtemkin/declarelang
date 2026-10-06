@@ -28,10 +28,6 @@ export const OP = Object.freeze({
 
 export interface ExprCode { code: number[]; paths: string[]; consts: number[] }
 
-/** The marker: a deps entry that starts with this is the body's EXPR code. */
-export const EXPR_MARK = "=E";
-export function pathsOf(deps: readonly string[]): string[] { return deps.filter((d) => !d.startsWith(EXPR_MARK)); }
-
 // THE WIRE FORM — compact, since it lives in the production program JSON:
 // space-separated tokens. `L<n>` loads the n-th READ PATH of the body's own
 // deps list (the extractor already lists every slot the body reads; the
@@ -56,7 +52,7 @@ export function encodeExpr(e: ExprCode, deps: readonly string[]): string {
     if (letter === undefined) throw new Error("expr-emit: no letter for op " + op);
     out.push(letter);
   }
-  return EXPR_MARK + out.join(" ");
+  return out.join(" ");
 }
 
 const MATH: Record<string, number> = { min: OP.MIN, max: OP.MAX, abs: OP.ABS, floor: OP.FLOOR, ceil: OP.CEIL, round: OP.ROUND, sqrt: OP.SQRT };
@@ -313,7 +309,7 @@ function inlineScopes(program: Program): { forElement(el: Element, classroot: Ma
   };
 }
 
-/** Attach the EXPR entry to every candidate body's deps (after dep
+/** Attach the kernel bytecode to every candidate body as its `expr` (after dep
  *  extraction: a body without deps is not bindable statically anyway). */
 export function annotateExprs(program: Program): { candidates: number; emitted: number } {
   let candidates = 0, emitted = 0;
@@ -324,13 +320,13 @@ export function annotateExprs(program: Program): { candidates: number; emitted: 
   const consts = new Map<string, number>();
   for (const s of program.scripts ?? []) for (const [k, v] of scriptConstants(s.src)) consts.set(k, v);
   const visit = (v: unknown, scope: InlineScope): void => {
-    const w = v as { src: string; deps?: readonly string[] };
-    if (w.deps === undefined || w.deps.length === 0 || w.deps.some((d) => d.startsWith(EXPR_MARK))) return;
+    const w = v as { src: string; deps?: readonly string[]; expr?: string };
+    if (w.deps === undefined || w.deps.length === 0 || w.expr !== undefined) return;
     candidates++;
     const e = emitExpr(w.src, consts.size === 0 ? scope : { lookup: scope.lookup.bind(scope), constant: (n) => consts.get(n) });
     if (e === null) return;
     emitted++;
-    w.deps = [...w.deps, encodeExpr(e, w.deps)];
+    w.expr = encodeExpr(e, w.deps);
   };
   // the same order as forEachCodeValue (deps.ts) — the indices must align
   const walk = (el: Element, classroot: Map<string, Method> | null): void => {

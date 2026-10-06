@@ -4,10 +4,10 @@
 An issue tracker fast enough to triage a six-figure backlog: one flat
 list, searched as you type, filtered, sorted, and grouped; issues open
 in place for editing; create, bulk operations, and delete with undo; a
-live statistics rail. Not one word of virtualization vocabulary appears
-in this file — the list windows, recycles, measures its mixed-height
-rows, and holds its viewport steady because the runtime does all of
-that; this source just declares rows over data.
+live statistics rail. Virtualization is one declaration,
+`virtualize = true` on the row: the list windows, recycles, measures its
+mixed-height rows, and holds its viewport steady because the runtime does
+all of that; this source just declares rows over data.
 
 The architecture, end to end:
 
@@ -57,14 +57,16 @@ schema Issue [ id: number, title: string, description: string,
 
 // the tracker's own tokens, provided over the house preset in either mode:
 // one color per status and per priority, the destructive red, the brand
-// gradient's far stop, the white cut into filled shapes, and the inks of the
-// bulk bar, which inverts to the tooltip surface
+// gradient's far stop, the white cut into filled shapes, the inks of the
+// bulk bar, which inverts to the tooltip surface, and the muted tones people
+// and labels are colored by — each holds white initials in both themes
 
 theme Tracker [
     statusOpen = #45A557, statusProgress = #4C6FE7, statusBlocked = #E5484D, statusClosed = #9A9DA5,
     prioHigh = #B88024, prioMedium = #7C8698, prioLow = #AAB4BE,
     danger = #E5484D, brandTeal = #37B6A9, onFill = #FFFFFF,
-    bulkLine = #666B72, bulkHover = #3A4048, bulkDanger = #FF9D9D
+    bulkLine = #666B72, bulkHover = #3A4048, bulkDanger = #FF9D9D,
+    hues = [#6C7BD9, #4FA3A5, #C97B63, #8E6BC1, #5B9E5E, #C06A8C, #557FB8, #B08A4F]
     ]
 
 
@@ -106,7 +108,7 @@ class PrioIcon [ width = 13, height = 12,
 class Avatar [ width = 22, height = 22, cornerRadius = 11,
     name: string = "",
     capSize: number = 8.5,
-    fill = { name == "" ? null : trkHue(name) },
+    fill = { name == "" ? null : app.hueOf(name) },
     stroke = { name == "" ? stroke(1, provided("theme").line) : null },
     cap: TextLabel [ x = 0, textAlign = center, fontWeight = semibold, wrap = false,
         width = 100%,
@@ -119,12 +121,12 @@ class Avatar [ width = 22, height = 22, cornerRadius = 11,
 
 // a label pill: a color-keyed dot and the name, outline-quiet
 
-class Tag [ height = 18, cornerRadius = 9,
+class Tag [ height = 18, cornerRadius = 9, padding = [0, 9, 0, 7],
     t: string = "",
-    width = { this.cap.width + 26 },
     stroke = { stroke(1, provided("theme").line) },
-    dot: View [ x = 7, y = 6, width = 6, height = 6, cornerRadius = 3, fill = { trkHue(t) } ],
-    cap: Text [ x = 17, y = 2.5, fontSize = 10.5, wrap = false,
+    layout: SimpleLayout [ axis = x, spacing = 4 ],
+    dot: View [ y = 6, width = 6, height = 6, cornerRadius = 3, fill = { app.hueOf(t) } ],
+    cap: Text [ y = 2.5, fontSize = 10.5, wrap = false,
         textColor = { provided("theme").textMuted }, text = { t } ]
     ]
 
@@ -132,12 +134,11 @@ class Tag [ height = 18, cornerRadius = 9,
 // a filter chip: one value of one facet, its live count, and the on state —
 // clicking toggles the facet (a Control: tab stop, Space/Enter, the ring)
 
-class Chip extends Control [ height = 28, cornerRadius = 8,
+class Chip extends Control [ height = 28, cornerRadius = 8, padding = [6, 12, 0, 12],
     facet: string = "",         // "status" | "assignee" | "label"
     value: string = "",
     count: number = -1,         // -1 hides the count
     on: boolean = false,
-    width = { this.row.contentWidth + 24 },
     fill = { on ? theme.controlSelected : hovered ? theme.control : null },
 
     // the tally is a sprung number — `Spring [ attribute = … ]` animates any
@@ -147,17 +148,14 @@ class Chip extends Control [ height = 28, cornerRadius = 8,
     anim: number = 0,
     Spring [ attribute = anim, to = { count < 0 ? 0 : count }, stiffness = 170, damping = 26 ],
 
-    row: View [ x = 12, y = 6,
-        layout: SimpleLayout [ axis = x, spacing = 6 ],
-        dot: View [ y = 5, width = 6, height = 6, cornerRadius = 3,
-            fill = { app.statusColor(classroot.value) } ],
-        cap: Text [ fontSize = 12.5, wrap = false,
-            fontWeight = { classroot.on ? "semibold" : "normal" },
-            textColor = { classroot.on ? theme.text : theme.textMuted },
-            text = { trkStatusLabel(classroot.value) } ],
-        n: Text [ y = 1, fontSize = 11, wrap = false, visible = { classroot.count >= 0 && !app.compact },
-            textColor = { theme.textFaint }, text = { "" + Math.round(classroot.anim) } ]
-        ],
+    layout: SimpleLayout [ axis = x, spacing = 6 ],
+    dot: View [ y = 5, width = 6, height = 6, cornerRadius = 3, fill = { app.statusColor(value) } ],
+    cap: Text [ fontSize = 12.5, wrap = false,
+        fontWeight = { classroot.on ? "semibold" : "normal" },
+        textColor = { classroot.on ? theme.text : theme.textMuted },
+        text = { trkStatusLabel(classroot.value) } ],
+    n: Text [ y = 1, fontSize = 11, wrap = false, visible = { classroot.count >= 0 && !app.compact },
+        textColor = { theme.textFaint }, text = { "" + Math.round(classroot.anim) } ],
     press() { app.toggleFilter(facet, value) }
     ]
 
@@ -239,36 +237,39 @@ class IssueRow extends ListRow [
     colPrio: number = { 50 + ind },      // the priority bars'
     colTitle: number = { 76 + ind },     // the title's
 
-    stat: StatusIcon [ y = 15, x = { parent.colStat }, s = { "" + :status } ],
+    // the row's one line — the top 44px, whatever height the row springs to
 
-    prio: PrioIcon [ y = 16, x = { parent.colPrio }, p = { "" + :priority } ],
+    line: View [ width = 100%, height = 44, padding = [0, 24, 0, 0],
+        stat: StatusIcon [ y = center, x = { classroot.colStat }, s = { "" + :status } ],
+        prio: PrioIcon [ y = center, x = { classroot.colPrio }, p = { "" + :priority } ],
 
-    // an over-long title ellipsizes rather than being cut mid-glyph by the clip
+        // an over-long title ellipsizes rather than being cut mid-glyph by the clip
 
-    title: Text [ y = 14, fontSize = 13.5, wrap = false, maxLines = 1,
-        x = { parent.colTitle },
-        width = { parent.tags.x - parent.colTitle - 16 },
-        text = { "" + :title } ],
+        title: Text [ y = center, fontSize = 13.5, wrap = false, maxLines = 1,
+            x = { classroot.colTitle },
+            width = { parent.meta.x - this.x - 16 },
+            text = { "" + :title } ],
 
-    when: Text [ y = 15, fontSize = 11.5, wrap = false, textAlign = right,
-        x = { parent.width - 24 - 40 }, width = 40,
-        textColor = { theme.textFaint },
-        text = { trkDate(:updated ?? 0) } ],
+        // labels, assignee and date, flush right
 
-    avatar: Avatar [ y = 11,
-        x = { parent.when.x - 34 },
-        name = { "" + (:assignee ?? "") } ],
+        meta: View [ x = end, y = center,
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
 
-    // the first two labels ride inline (slice replication); "+n" carries
-    // the rest — the detail panel shows them all
+            // the first two labels ride inline (slice replication); "+n" carries
+            // the rest — the detail panel shows them all
 
-    tags: View [ visible = { !app.compact && (:labels ?? []).length > 0 }, height = 18, y = 13,
-        x = { this.parent.avatar.x - 12 - this.contentWidth },
-        layout: SimpleLayout [ axis = x, spacing = 6 ],
-        Tag [ datapath = :labels[0:2][], t = { "" + :@ } ],
-        more: Text [ y = 3, fontSize = 10.5, wrap = false, visible = { ((:labels ?? []) as any).length > 2 },
-            textColor = { theme.textFaint },
-            text = { "+" + (((:labels ?? []) as any).length - 2) } ]
+            tags: View [ visible = { !app.compact && (:labels ?? []).length > 0 },
+                layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                Tag [ datapath = :labels[0:2][], t = { "" + :@ } ],
+                more: Text [ fontSize = 10.5, wrap = false, visible = { (:labels ?? []).length > 2 },
+                    textColor = { theme.textFaint },
+                    text = { "+" + ((:labels ?? []).length - 2) } ]
+                ],
+            avatar: Avatar [ name = { "" + (:assignee ?? "") } ],
+            when: Text [ fontSize = 11.5, wrap = false, textAlign = right, width = 40,
+                textColor = { theme.textFaint },
+                text = { trkDate(:updated ?? 0) } ]
+            ]
         ],
 
     // selection announces itself with the accent bar, not a heavy fill
@@ -278,9 +279,11 @@ class IssueRow extends ListRow [
         fill = { theme.accent } ],
 
     // the open-in-place editor: rides below the row's own line while the
-    // height spring makes room; absorbs clicks so the row doesn't toggle
+    // height spring makes room; absorbs clicks so the row doesn't toggle.
+    // It exists only on the open row — a hidden editor in every row would be
+    // most of what the list builds.
 
-    card: EditorCard [ visible = { parent.exp }, x = 12, y = 48, clip = true,
+    card: EditorCard [ exists = { classroot.exp }, x = 12, y = 48, clip = true,
         width = { parent.width - 24 },
         height = { Math.max(0, parent.height - 56) },
         fill = { theme.surface }, cornerRadius = 10,
@@ -335,7 +338,7 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
     peak: number = 1,
     tint: number = 0,
     hueName: string = "",
-    tintUse: number = { hueName != "" ? trkHue(hueName) : tint },
+    tintUse: number = { hueName != "" ? app.hueOf(hueName) : tint },
     on: boolean = false,
     fill = { on ? theme.controlSelected : hovered ? theme.control : null },
     name: Text [ x = 30, y = center, fontSize = 12.5, wrap = false, maxLines = 1, width = 92,
@@ -357,6 +360,16 @@ class RailStat extends Control [ height = 30, cornerRadius = 7,
     ]
 
 
+// one line of the rail's keyboard legend: the key, and what it does
+
+class KeyHint [ width = 100%, height = 18,
+    shortcut: string = "",
+    what: string = "",
+    k: Text [ y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = { classroot.shortcut } ],
+    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = { classroot.what } ]
+    ]
+
+
 // the undo toast — one at a time, rises from the bottom, waits eight
 // seconds, honors its word
 
@@ -367,13 +380,13 @@ class Toast [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10
     lift: number = 0,
     Spring [ attribute = lift, to = { shown ? 1 : 0 }, stiffness = 260, damping = 26 ],
     opacity = { lift },
-    width = { this.cap.width + this.u.width + 46 },
+    padding = [0, 20, 0, 16],
+    layout: SimpleLayout [ axis = x, spacing = 10 ],
     fill = { provided("theme").tooltipFill },
     shadow = { shadow(0, 6, 24, 0x00000040) },
-    cap: TextLabel [ x = 16, fontSize = 12.5, wrap = false,
+    cap: TextLabel [ fontSize = 12.5, wrap = false,
         textColor = { provided("theme").tooltipTextColor }, text = { msg } ],
     u: Control [ y = 7, height = 26, cornerRadius = 7,
-        x = { parent.cap.x + parent.cap.width + 10 },
         width = { this.t.width + 18 },
         fill = { hovered || pressed ? theme.accent : null },
         t: Text [ x = 9, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
@@ -394,15 +407,14 @@ class Toast [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10
 
 // an editable label tag for the detail panel — the list Tag plus a remove ×
 
-class EditTag [ height = 22, cornerRadius = 7,
+class EditTag [ height = 22, cornerRadius = 7, padding = [4, 10, 0, 8],
     t: string = "",
-    width = { this.cap.width + 30 },
     fill = { provided("theme").control },
-    cap: Text [ x = 8, y = 4, fontSize = 11.5, textColor = { provided("theme").textMuted }, text = { t } ],
-    x2: Text [ y = 4, fontSize = 11, textColor = { provided("theme").textFaint }, text = "×",
-        x = { parent.cap.x + parent.cap.width + 4 },
+    layout: SimpleLayout [ axis = x, spacing = 4 ],
+    cap: Text [ fontSize = 11.5, textColor = { provided("theme").textMuted }, text = { t } ],
+    x2: Text [ fontSize = 11, textColor = { provided("theme").textFaint }, text = "×",
         onClick() {
-            const ls = ((app.draft.value.it as any).labels ?? []).filter((l) => l != classroot.t)
+            const ls = (app.draft.value.it?.labels ?? []).filter((l) => l != classroot.t)
             app.setDraftField("labels", ls)
             }
         ]
@@ -447,7 +459,7 @@ class EditorCard [
                 fill = { hovered ? theme.control : null },
                 stroke = { stroke(1, theme.line) },
                 t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
-                press() { app.openAddLabel(this) }
+                menu = { app.addLabelMenu }
                 ]
             ],
 
@@ -461,7 +473,7 @@ class EditorCard [
         // sits its own baseline on Save's declared one.
 
         foot: View [ width = 100%, height = { app.footRowH },
-            layout: SimpleLayout [ axis = x, spacing = 10 ],
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
             save: Button [ width = 96, height = { app.footRowH }, label = { app.creating ? "Create" : "Save" }, primary = true,
                 disabled = { !app.draftDirty },
                 onClick() { if (!disabled) app.commitDraft() }
@@ -470,23 +482,15 @@ class EditorCard [
                 onClick() { app.closeDetail() }
                 ],
             meta: Text [ fontSize = 11, wrap = false, textColor = { provided("theme").textFaint }, visible = { !app.creating },
-                y = { parent.save.y + parent.save.baseline - this.baseline },
                 text = { "Created " + trkDate(:it.created ?? 0) + " · Updated " + trkDate(:it.updated ?? 0) + " · " + ("" + (:it.comments ?? 0)) + " comments" } ],
             sp: Spacer [ ],
 
-            // the destructive action wears the same button as its neighbours —
-            // same box, same label size — and says what it is in outline only
+            // the destructive action wears the same button as its neighbours and
+            // says what it is in its ink and outline
 
-            del: Control [ width = 84, visible = { !app.creating },
-                height = { app.footRowH },
-                cornerRadius = { typeof theme.buttonCornerRadius == "number" ? Math.min(theme.buttonCornerRadius, this.height / 2) : theme.controlCornerRadius },
-                fill = { hovered || pressed ? theme.control : theme.surface },
-                stroke = { stroke(1, provided("theme").danger) },
-                t: TextLabel [ x = 0, width = 84, textAlign = center, wrap = false,
-                    fontSize = { app.footLabelPx },
-                    textColor = { provided("theme").danger },
-                    text = "Delete…" ],
-                press() { app.deleteSelection() }
+            del: Button [ width = 84, height = { app.footRowH }, visible = { !app.creating }, label = "Delete…",
+                inkColor = { provided("theme").danger }, stroke = { stroke(1, provided("theme").danger) },
+                onClick() { app.deleteSelection() }
                 ]
             ]
         ]
@@ -496,19 +500,18 @@ class EditorCard [
 // one editable facet button in the editor card: the current value and a
 // chevron; press opens the shared options menu for its field
 
-class Facet extends Control [ height = 28, cornerRadius = 7,
+class Facet extends Control [ height = 28, cornerRadius = 7, padding = { [0, 6, 0, tint != 0 ? 9 : 10] },
     field: string = "",
     value: string = "",
     tint: number = 0,
-    width = { this.v.width + (tint != 0 ? 46 : 34) },
     fill = { hovered || pressed ? theme.control : null },
     stroke = { stroke(1, theme.line) },
-    dot: View [ visible = { tint != 0 }, x = 9, y = 10, width = 8, height = 8, cornerRadius = 4, fill = { tint } ],
-    v: Text [ y = center, fontSize = 12.5, wrap = false,
-        x = { tint != 0 ? 22 : 10 },
-        text = { value } ],
-    arr: ChevronIcon [ y = center, iconSize = 11, x = { parent.width - 15 }, ink = { theme.textMuted } ],
-    press() { app.openFacet(this, field) }
+    layout: SimpleLayout [ axis = x, spacing = 6 ],
+    dot: View [ visible = { tint != 0 }, y = 10, width = 8, height = 8, cornerRadius = 4, fill = { tint } ],
+    v: Text [ y = center, fontSize = 12.5, wrap = false, text = { value } ],
+    arr: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
+    menu = { app.facetMenu },
+    press() { app.facetField = field; super.press() }
     ]
 
 
@@ -520,7 +523,6 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     barH: number = 56,
     footRowH: number = 32,        // the editor footer's one row height
-    footLabelPx: number = 16,     // …and its button-label size
     railW: number = 300,
     railOn: boolean = { app.width >= 1100 },     // below this the rail yields to the list
 
@@ -530,7 +532,12 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     theme = { { ...(app.darkUI ? SanFranciscoDark : SanFrancisco), ...Tracker } },
 
-    // a status or a priority, as its color
+    // a status, a priority or a name, as its color
+
+    hueOf(name: string) -> number {
+        const hues = provided("theme").hues
+        return hues[trkHash(name) % hues.length]
+        },
 
     statusColor(s: string) -> number {
         const t = provided("theme")
@@ -545,6 +552,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     //
     // `db` holds the issues, and that is the whole of it: a verb writes db and
     // every projection that read db re-runs. Nothing else anywhere holds data.
+    //
+    // It is a working copy, not the source itself, because the issues come
+    // from more than one fetch: the regenerate control replaces them, and a
+    // source's value is replaced whole by every fetch. Edits live in db, and
+    // `adopt` is the one place a new batch arrives.
     //
     // No change counter is threaded through anything: the compiler reads
     // through method bodies, so a projection that calls `issuesOf` is wired
@@ -609,40 +621,21 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     fAssignee: string = "",
     fLabel: string = "",
 
-    // A filter, sort, or grouping change is a new arrangement, not an edit
-    // to the old one — the list starts it at the top. The runtime pins the
-    // viewport to its anchor row across data changes (so an edit never
-    // yanks the reader); a rearrangement is the one case where that
-    // stability is wrong, so the request is made twice: once now, and once
-    // after the new projection has settled — the anchor compensation is a
-    // sanctioned writer that runs after the first request and re-scrolls to
-    // follow the anchor row, so a single request cannot survive it. (The
-    // platform's held-request hold covers a surface that cannot take a
-    // scroll yet, not one a later writer moves — this is the latter.)
-
-    // The arrangement's inputs, named once: every writer of one of these gets
-    // the top of the list, and no writer has to remember to ask.
+    // A filter, sort, query or grouping change is a new arrangement, not an
+    // edit to the old one, so the list starts it at the top. Every writer of
+    // one of these gets that, and no writer has to remember to ask.
 
     trackChanges = ["fStatus", "fAssignee", "fLabel", "query", "sortOn", "sortDir", "groupBy"],
 
-    onChange(e: ChangeEvent) {
-        this.list.scrollTo(0)
-        afterDelay(0, () => { this.list.scrollTo(0) })
-        },
+    onChange(e: ChangeEvent) { this.body.main.list.scrollTo(0) },
 
-    // Is the keyboard currently owned by a text field? A bare-character
-    // shortcut must never steal a keystroke from one. `placeholder` is
-    // declared by TextInput alone, so its presence identifies an editor
-    // without the App needing to know where every field in the tree is.
+    // Is the keyboard owned by a text field? A bare-character shortcut must
+    // never steal a keystroke from one: the search box, or the open editor.
 
-    typing() -> boolean {
-        const f = Focus.getFocus()
-        return f != null && (f as any).placeholder !== undefined
-        },
+    typing: boolean = { app.editing || app.bar.search.omni.focused },
 
     clearAll() {
         fStatus = ""; fAssignee = ""; fLabel = ""; query = ""
-        this.bar.omni.text = ""
         },
 
     toggleFilter(facet: string, value: string) {
@@ -709,9 +702,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             : (a, b) => a.updated - b.updated
         rows = [...rows].sort(sortDir == "desc" ? (a, b) => asc(b, a) : asc)
         if (grouping != "status") return ({ rows: rows, total: rows.length, searchMs: searchMs })
-        const order = ["open", "in-progress", "blocked", "closed"]
         const out = []
-        for (const st of order) {
+        for (const st of this.statuses) {
             const members = rows.filter((it) => it.status == st)
             if (members.length == 0) continue
             out.push(({ kind: "hdr", id: "hdr:" + st, status: st, count: members.length }))
@@ -720,7 +712,12 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         return ({ rows: out, total: rows.length, searchMs: searchMs })
         },
 
-    counts: object = { app.countStatuses() },
+    // the four statuses, in workflow order — the chips, the rail and the
+    // grouped view all list them in this order
+
+    statuses: string[] = ["open", "in-progress", "blocked", "closed"],
+
+    statusRows: Dataset [ contents = { { rows: app.statusCounts() } } ],
 
     closedSeries: Dataset [ contents = { app.closedPerDay() } ],
     closedPerDay() -> object {
@@ -738,10 +735,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             }
         return ({ days: days, peak: Math.max(1, ...days) })
         },
-    countStatuses() -> object {
-        const c = ({ open: 0, "in-progress": 0, blocked: 0, closed: 0 })
-        for (const it of this.issuesOf()) (c as any)[it.status] = ((c as any)[it.status] ?? 0) + 1
-        return c
+    statusCounts() -> array {
+        const n = new Map()
+        for (const it of this.issuesOf()) n.set(it.status, (n.get(it.status) ?? 0) + 1)
+        return this.statuses.map((s) => ({ status: s, n: n.get(s) ?? 0 }))
         },
 
     shownTotal: number = { app.shown.value.total ?? 0 },
@@ -775,12 +772,12 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         const rows = (this.shown.value.rows ?? [])
         if (rows.length == 0) return
         let j = this.selected != null ? rows.indexOf(this.selected) : (d > 0 ? -1 : rows.length)
-        do { j = j + d } while (j >= 0 && j < rows.length && (rows[j] as any).kind == "hdr")
+        do { j = j + d } while (j >= 0 && j < rows.length && rows[j].kind == "hdr")
         if (j < 0 || j >= rows.length) return
         this.takeSelection([rows[j]])
-        this.list.showRow(j)
-        this.list.activeIndex = j
-        this.list.active = rows[j]
+        this.body.main.list.showRow(j)
+        this.body.main.list.activeIndex = j
+        this.body.main.list.active = rows[j]
         },
 
     enterHit() {
@@ -795,27 +792,29 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // re-projection, because a record is the same record however the list
     // is currently arranged.
 
-    selected: object = null,
-    selection: array = null,
+    selected: Issue? = null,
+    selection: Issue[] = [],            // empty = nothing selected
 
-    takeSelection(sel: object) {
-        const clean = sel == null ? null : (sel as any).filter((r) => r.kind != "hdr")
-        selection = clean != null && (clean as any).length > 0 ? clean : null
-        if (clean != null && (clean as any).length > 1) editing = false
-        selected = selection != null ? (selection as any)[(selection as any).length - 1] : null
-        if (selection == null) this.closeDetail()
+    // the list hands back whatever rows were picked; group headers are not issues
+
+    takeSelection(sel: array?) {
+        const clean = (sel ?? []).filter((r) => r.kind != "hdr") as Issue[]
+        selection = clean
+        if (clean.length > 1) editing = false
+        selected = clean.length > 0 ? clean[clean.length - 1] : null
+        if (clean.length == 0) this.closeDetail()
         // The editor follows the selection: which issue is open is derived from
         // it, so the draft has to move with it or the open row shows another
         // issue's fields. The draft is one slot, so an in-flight edit is
         // discarded here, and equally when you open a different issue.
-        else if (editing && (clean as any).length == 1) this.seedDraft()
+        else if (editing && clean.length == 1) this.seedDraft()
         },
 
-    selCount: number = { (selection ?? []).length },
+    selCount: number = { selection.length },
 
     // ── the detail draft — a working copy; Save commits, Cancel is honest ──
 
-    draft: Dataset { { "it": null } },
+    draft: Dataset [ schema = [ it?: Issue ] ] { { } },
     editing: boolean = false,
     creating: boolean = false,
 
@@ -827,7 +826,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     seedDraft() {
         if (selected == null) return
-        draft.set(["it"], ({ ...(selected as any), labels: [...((selected as any).labels ?? [])] }))
+        draft.set(["it"], ({ ...selected, labels: [...selected.labels] }))
         },
 
     openDetail() {
@@ -840,30 +839,20 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     newIssue() {
         this.takeSelection(null)
         creating = true
-        const maxId = this.issuesOf().reduce((m, it) => Math.max(m, (it as any).id), 0)
+        const maxId = this.issuesOf().reduce((m, it) => Math.max(m, it.id), 0)
         draft.set(["it"], ({ id: maxId + 1, title: "", description: "", status: "open", priority: "P2", labels: [], assignee: null, created: 1735689600000, updated: 1735689600000, comments: 0 }))
         editing = true
-        afterSettle(() => Focus.focus(this.creator.card.col.titleF as any))   // the strip is real once this settle closes
+        afterSettle(() => Focus.focus(this.body.main.creator.sheet.card.col.titleF))   // the strip is real once this settle closes
         },
 
     closeDetail() { editing = false; creating = false },
 
-    // best effort: once the card has sprung open (the row's height Spring
-    // lands), scroll so its full extent sits inside the pane — top-aligned
-    // when it cannot all fit
+    // once the card has sprung open (the row's height Spring lands), bring
+    // the open row into view
 
     revealOpen() {
-        const rows = (this.shown.value.rows ?? [])
-        const idx = rows.findIndex((r) => ("" + (r as any).id) == ("" + this.expandedId))
-        if (idx < 0) return
-        const inst = this.list.children.find((c) => (c as any).visible && (c as any).isTableRow && (c as any).exp)   // a parked row keeps its last record
-        if (inst == null) return
-        const top = (inst as any).y
-        const bottom = top + (inst as any).targetH
-        const viewTop = this.list.scrollY
-        const viewBottom = viewTop + this.list.height
-        if (bottom > viewBottom) this.list.scrollTo(Math.min(top - 8, bottom - this.list.height + 8))
-        else if (top < viewTop) this.list.scrollTo(top - 8)
+        const idx = (this.shown.value.rows ?? []).findIndex((r) => r.id == this.expandedId)
+        if (idx >= 0) this.body.main.list.showRow(idx)
         },
 
     // dirty = the draft differs from the truth. The draft read tracks every
@@ -875,20 +864,17 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         const d = draft.read(["it"])
         if (d == null) return false
         if (creating) return true
-        const t = this.issuesOf().find((it) => (it as any).id == (d as any).id)
+        const t = this.issuesOf().find((it) => it.id == d.id)
         if (t == null) return true
-        return (d as any).title != (t as any).title || (d as any).description != (t as any).description ||
-            (d as any).status != (t as any).status || (d as any).priority != (t as any).priority ||
-            (d as any).assignee != (t as any).assignee ||
-            JSON.stringify((d as any).labels) != JSON.stringify((t as any).labels)
+        return d.title != t.title || d.description != t.description || d.status != t.status ||
+            d.priority != t.priority || d.assignee != t.assignee || JSON.stringify(d.labels) != JSON.stringify(t.labels)
         },
 
     commitDraft() {
         const d = draft.value.it
         if (d == null) return
         if (creating) {
-            const rec0 = ({ ...(d as any) })
-            db.insert(["issues"], 0, rec0)
+            db.insert(["issues"], 0, ({ ...d }))
             const rec = this.issuesOf()[0]
             this.takeSelection([rec])
             creating = false
@@ -896,17 +882,17 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             return
             }
         const issues = this.issuesOf()
-        const i = issues.findIndex((it) => (it as any).id == (d as any).id)
+        const i = issues.findIndex((it) => it.id == d.id)
         if (i < 0) return
-        db.set(["issues", i, "title"], (d as any).title)
-        db.set(["issues", i, "description"], (d as any).description)
-        db.set(["issues", i, "status"], (d as any).status)
-        db.set(["issues", i, "priority"], (d as any).priority)
-        db.set(["issues", i, "assignee"], (d as any).assignee)
-        db.set(["issues", i, "labels"], [...((d as any).labels ?? [])])
-        const up2 = ((d as any).updated ?? 0) + 1
+        db.set(["issues", i, "title"], d.title)
+        db.set(["issues", i, "description"], d.description)
+        db.set(["issues", i, "status"], d.status)
+        db.set(["issues", i, "priority"], d.priority)
+        db.set(["issues", i, "assignee"], d.assignee)
+        db.set(["issues", i, "labels"], [...d.labels])
+        const up2 = d.updated + 1
         db.set(["issues", i, "updated"], up2)
-        db.set(["issues", i, "closedAt"], ("" + (d as any).status) == "closed" ? up2 : null)
+        db.set(["issues", i, "closedAt"], d.status == "closed" ? up2 : null)
         editing = false
         },
 
@@ -924,104 +910,83 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // the people who actually hold work — the truth decides who is listed
 
     assignees() -> array {
-        return [...new Set(this.issuesOf().map((it) => (it as any).assignee).filter((a) => a != null))].sort()
+        return [...new Set(this.issuesOf().map((it) => it.assignee).filter((a) => a != null))].sort()
         },
 
     // No confirmation dialog: the undo toast is the safety net, and a modal
     // in front of it taxes every delete to save the rare one.
 
     deleteSelection() {
-        if (selection == null) return
-        this.performDelete()
+        if (selCount > 0) this.performDelete()
         },
 
     lastDeleted: array = [],            // what Undo puts back: { index, rec } per removed issue; empty = nothing to undo
 
     performDelete() {
-        const sel = selection ?? []
-        const ids = (sel as any).map((r) => (r as any).id)
         const issues = this.issuesOf()
-        const removed = []
-        for (const id of ids) {
-            const i = issues.findIndex((it) => (it as any).id == id)
-            if (i >= 0) removed.push(({ index: i, rec: issues[i] }))
-            }
-        removed.sort((a, b) => (b as any).index - (a as any).index)
-        for (const r of removed) db.removeAt(["issues"], (r as any).index)
+        const removed = selection.map((r) => ({ index: issues.findIndex((it) => it.id == r.id), rec: r }))
+            .filter((r) => r.index >= 0).sort((a, b) => b.index - a.index)
+        for (const r of removed) db.removeAt(["issues"], r.index)
         lastDeleted = removed
         this.takeSelection(null)
-        this.toast.show((removed as any).length == 1 ? "Deleted 1 issue" : "Deleted " + (removed as any).length + " issues")
+        this.toast.show(removed.length == 1 ? "Deleted 1 issue" : "Deleted " + removed.length + " issues")
         },
 
     undoDelete() {
         const u = lastDeleted
         if (u.length == 0) return
-        const back = [...(u as any)].sort((a, b) => (a as any).index - (b as any).index)
-        for (const r of back) db.insert(["issues"], Math.min((r as any).index, this.issuesOf().length), (r as any).rec)
+        const back = [...u].sort((a, b) => a.index - b.index)
+        for (const r of back) db.insert(["issues"], Math.min(r.index, this.issuesOf().length), r.rec)
         lastDeleted = []
-        this.takeSelection((back as any).map((r) => (r as any).rec))
+        this.takeSelection(back.map((r) => r.rec))
         this.toast.hide()
         },
 
     bulkSet(field: string, v: object) {
-        const sel = selection ?? []
         const issues = this.issuesOf()
-        for (const r of sel as any) {
-            const i = issues.findIndex((it) => (it as any).id == (r as any).id)
+        for (const r of selection) {
+            const i = issues.findIndex((it) => it.id == r.id)
             if (i < 0) continue
             if (field == "label") {
-                const ls = [...(((issues[i] as any).labels) ?? [])]
-                if (!ls.includes(v)) ls.push(v)
-                db.set(["issues", i, "labels"], ls)
+                if (!issues[i].labels.includes(v)) db.set(["issues", i, "labels"], [...issues[i].labels, v])
                 } else {
                 db.set(["issues", i, field], v)
                 }
-            const up = ((issues[i] as any).updated ?? 0) + 1
+            const up = issues[i].updated + 1
             db.set(["issues", i, "updated"], up)
             if (field == "status") db.set(["issues", i, "closedAt"], v == "closed" ? up : null)
             }
         },
 
-    // ── the shared menus (one instance each — the record-driven door) ──────
+    // ── the menus — items are data, derived where they are read; `picked`
+    //    is the one answer. A control opens one with `menu = { … }`. ─────────
 
-    facetMenu: Menu [ ],
+    // the editor's facet buttons share one menu; the facet that opens it says
+    // which field it is editing — status, priority or assignee
 
-    openFacet(anchor: View, field: string) {
-        const cur = draft.value.it != null ? (draft.value.it as any)[field] : null
-        const m = this.facetMenu as any
-        if (field == "assignee") {
-            m.items = [({ id: "null", label: "Unassigned", checked: cur == null }), ({ id: "d", divider: true }),
+    facetField: string = "",
+    facetMenu: Menu [
+        items = { app.facetItems(app.facetField) },
+        picked(id: string) { app.setDraftField(app.facetField, id == "null" ? null : id) }
+        ],
+
+    facetItems(field: string) -> array {
+        const it = draft.value.it
+        const cur = it == null ? null : field == "status" ? it.status : field == "priority" ? it.priority : it.assignee
+        if (field == "assignee")
+            return [({ id: "null", label: "Unassigned", checked: cur == null }), ({ id: "d", divider: true }),
                 ...this.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
-            }
-        else {
-            const opts = field == "status" ? ["open", "in-progress", "blocked", "closed"] : ["P0", "P1", "P2", "P3"]
-            m.items = opts.map((o) => ({ id: "" + o,
-                label: field == "status" ? trkStatusLabel("" + o) : "" + o,
-                checked: cur == o }))
-            }
-        m.picked = (id) => app.setDraftField(field, id == "null" ? null : id)
-        m.openFor(anchor)
+        const opts = field == "status" ? this.statuses : ["P0", "P1", "P2", "P3"]
+        return opts.map((o) => ({ id: o, label: field == "status" ? trkStatusLabel(o) : o, checked: cur == o }))
         },
 
-    addLabelMenu: Menu [ ],
+    addLabelMenu: Menu [
+        items = { TRK_LABELS.filter((l) => !(app.draft.value.it?.labels ?? []).includes(l)).map((l) => ({ id: l, label: l })) },
+        picked(id: string) { app.setDraftField("labels", [...(app.draft.value.it?.labels ?? []), id]) }
+        ],
 
-    openAddLabel(anchor: View) {
-        const have = draft.value.it != null ? ((draft.value.it as any).labels ?? []) : []
-        const m = this.addLabelMenu as any
-        m.items = TRK_LABELS.filter((l) => !have.includes(l)).map((l) => ({ id: l, label: l }))
-        m.picked = (id) => {
-            const ls = [...(((draft.value.it as any).labels) ?? [])]
-            ls.push(id)
-            app.setDraftField("labels", ls)
-            }
-        m.openFor(anchor)
-        },
-
-    bulkMenu: Menu [ ],
-
-    openBulk(anchor: View) {
-        const m = this.bulkMenu as any
-        m.items = [
+    bulkMenu: Menu [
+        items = { [
             ({ id: "s:open", label: "Set open" }),
             ({ id: "s:in-progress", label: "Set in-progress" }),
             ({ id: "s:blocked", label: "Set blocked" }),
@@ -1030,14 +995,15 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             ...TRK_LABELS.slice(0, 8).map((l) => ({ id: "l:" + l, label: "Label: " + l })),
             ({ divider: true }),
             ({ id: "delete", label: "Delete…" }),
-        ]
-        m.picked = (id) => {
+        ] },
+        picked(id: string) {
             if (id.startsWith("s:")) app.bulkSet("status", id.slice(2))
             else if (id.startsWith("l:")) app.bulkSet("label", id.slice(2))
             else if (id == "delete") app.deleteSelection()
             }
-        m.openFor(anchor)
-        },
+        ],
+
+    // a row's context menu acts on the selection, after taking the row into it
 
     ctx: ContextMenu [
         items = { [
@@ -1047,45 +1013,39 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             ({ id: "s:closed", label: "Set closed" }),
             ({ divider: true }),
             ({ id: "delete", label: "Delete…" }),
-        ] } ],
-
-    rowMenu(row: View, e: PointerEvent) {
-        const rec = (row as TableRow).item()
-        if (selection == null || !(selection as any).some((r) => (r as any).id == (rec as any).id)) this.takeSelection([rec])
-        const m = this.ctx as any
-        m.picked = (id) => {
+        ] },
+        picked(id: string) {
             if (id.startsWith("s:")) app.bulkSet("status", id.slice(2))
             else if (id == "delete") app.deleteSelection()
             }
-        m.open(row, e)
+        ],
+
+    rowMenu(row: View, e: PointerEvent) {
+        const rec = (row as TableRow).item()
+        if (!selection.some((r) => r.id == rec.id)) this.takeSelection([rec])
+        this.ctx.open(row, e)
         },
 
-    sortMenu: Menu [ ],
-
-    openSort(anchor: View) {
-        const m = this.sortMenu as any
-        m.items = [
+    sortMenu: Menu [
+        items = { [
             ({ id: "updated", label: "Updated", checked: app.sortOn == "updated" }),
             ({ id: "priority", label: "Priority", checked: app.sortOn == "priority" }),
             ({ id: "title", label: "Title", checked: app.sortOn == "title" }),
-        ]
-        m.picked = (id) => app.setSort(id)
-        m.openFor(anchor)
-        },
+        ] },
+        picked(id: string) { app.setSort(id) }
+        ],
 
-    gaugeMenu: Menu [ ],
+    assigneeMenu: Menu [
+        items = { [({ id: "", label: "Anyone", checked: app.fAssignee == "" }), ({ id: "d", divider: true }),
+            ...app.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))] },
+        picked(id: string) { app.fAssignee = id }
+        ],
 
-    openGauge(anchor: View) {
-        const n = this.issuesOf().length
-        const m = this.gaugeMenu as any
-        m.items = [
-            ({ id: "10000", label: "10,000 issues", checked: n == 10000 }),
-            ({ id: "100000", label: "100,000 issues", checked: n == 100000 }),
-            ({ id: "1000000", label: "1,000,000 issues", checked: n == 1000000 }),
-        ]
-        m.picked = (id) => app.regenerate(parseInt(id))
-        m.openFor(anchor)
-        },
+    labelMenu: Menu [
+        items = { [({ id: "", label: "any label", checked: app.fLabel == "" }),
+            ...TRK_LABELS.map((l) => ({ id: l, label: l, checked: app.fLabel == l }))] },
+        picked(id: string) { app.fLabel = id }
+        ],
 
     // ⌘K claims the omnibox from anywhere; Escape backs out by layers
 
@@ -1093,7 +1053,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         onKeyDown(e: KeyEvent) {
             // ⌘K or "/" reach the search field from anywhere — but "/" is a
             // character, so it only counts when nothing is taking text
-            if ((e.meta || e.ctrl) && e.code == "KeyK") { Focus.focus(app.bar.omni as any) }
+            if ((e.meta || e.ctrl) && e.code == "KeyK") { Focus.focus(app.bar.search.omni) }
             // Escape unwinds the innermost layer first: the open editor, then
             // a selection, then the query, then the facet filters. Anything
             // else and a keystroke meant for the thing in front of you lands
@@ -1101,7 +1061,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             else if (e.key == "Escape") {
                 if (app.editing) app.closeDetail()
                 else if (app.selCount > 0) app.takeSelection(null)
-                else if (app.query != "") { app.query = ""; app.bar.omni.text = "" }
+                else if (app.query != "") app.query = ""
                 else if (app.fStatus != "" || app.fAssignee != "" || app.fLabel != "") app.clearAll()
                 }
             },
@@ -1111,16 +1071,23 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         // focused, and the search box would open holding a stray "/".
 
         onKeyUp(e: KeyEvent) {
-            if (e.key == "/" && !app.typing()) Focus.focus(app.bar.omni as any)
+            if (e.key == "/" && !app.typing) Focus.focus(app.bar.search.omni)
             }
         ],
 
+    // ── the frame: the bar, the toolbar, the body that takes the rest, the
+    //    footer. The overlays below (the empty state, the bulk bar, the
+    //    toast, the entry screen) opt out with `ignoreLayout`. ──────────────
+
+    layout: SimpleLayout [ axis = y ],
+
     // ── the bar — brand · search · scale · appearance ─────────────────────
 
-    bar: View [ x = 0, y = 0, width = { app.width }, height = { app.barH }, fill = { provided("theme").surface },
-        hair: View [ x = 0, y = { app.barH - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
+    bar: View [ width = 100%, height = { app.barH }, padding = [0, 14, 0, 24],
+        fill = { provided("theme").surface }, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
 
-        brand: View [ x = 24, y = 17, height = 22,
+        brand: View [ height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Declare",
@@ -1131,27 +1098,27 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             ],
 
         // the omnibox: search-as-you-type over the data; Enter jumps to the
-        // first hit, arrows cycle, the count keeps score
+        // first hit, arrows cycle, the count keeps score. Its slot takes the
+        // room the bar has left; the field fills it up to 380.
 
-        omni: TextInput [ y = 12, height = 32,
-            x = { app.compact ? 96 : 210 },
-            width = { Math.min(380, Math.max(110, parent.views.x - this.x - 16)) },
-            placeholder = { app.compact ? "Search" : "Search issues…   ⌘K" },
-            onInput(t: string) { app.query = "" + t },
-            onEnter() { app.enterHit() },
-            onKeyDown(e: KeyEvent) {
-                if (e.key == "ArrowDown") app.stepHit(1)
-                else if (e.key == "ArrowUp") app.stepHit(-1)
-                }
+        search: View [ height = 32, flexes = true,
+            omni: TextInput [ height = 32, width = { Math.min(380, Math.max(110, parent.width)) },
+                placeholder = { app.compact ? "Search" : "Search issues…   ⌘K" },
+                text = { app.query },
+                onInput(t: string) { app.query = t },
+                onEnter() { app.enterHit() },
+                onKeyDown(e: KeyEvent) {
+                    if (e.key == "ArrowDown") app.stepHit(1)
+                    else if (e.key == "ArrowUp") app.stepHit(-1)
+                    }
+                ],
+            hitCount: Text [ y = center, fontSize = 11, wrap = false, visible = { app.query != "" },
+                x = { parent.omni.width - this.width - 10 },
+                textColor = { provided("theme").textFaint },
+                text = { app.shownTotal + " match" + (app.shownTotal == 1 ? "" : "es") } ]
             ],
 
-        hitCount: Text [ y = center, fontSize = 11, wrap = false, visible = { app.query != "" },
-            x = { parent.omni.x + parent.omni.width - this.width - 10 },
-            textColor = { provided("theme").textFaint },
-            text = { app.shownTotal + " match" + (app.shownTotal == 1 ? "" : "es") } ],
-
-        views: Segmented [ y = 12,
-            x = { app.width - this.width - 100 },
+        views: Segmented [
             segMin = 62,
             value = { app.issuesOf().length >= 1000000 ? "1M" : app.issuesOf().length >= 100000 ? "100k" : "10k" },
             input(v: object) { app.regenerate(("" + v) == "1M" ? 1000000 : ("" + v) == "100k" ? 100000 : 10000) },
@@ -1161,7 +1128,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         // light / dark: shows the appearance in force, a press flips it; until
         // then `themeMode` stays "auto" and the OS decides
 
-        appear: AppearanceSwitch [ y = 12, x = { app.width - this.width - 14 },
+        appear: AppearanceSwitch [
             dark = { app.darkUI },
             input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
@@ -1169,74 +1136,73 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     // ── the toolbar: filters on the left, actions on the right ────────────
 
-    // The tools row wraps into two — chips (countless), then acts — instead of
-    // letting the clusters collide in the middle. It wraps when they would
-    // collide, which is a measurement, not a breakpoint: the left group's
-    // content, the right group's content, and the margins between and around
-    // them. A fixed width cannot know this, because both groups size to their
-    // own text — a long assignee name or a wider locale moves the meeting point
-    // without moving the window.
+    // The tools row is two clusters, filters left and actions right, in a
+    // wrapping flow: the filters take what the actions leave, and when the two
+    // would collide the actions drop to a second row of their own. That is a
+    // measurement, not a breakpoint — both groups size to their own text, so a
+    // long assignee name or a wider locale moves the meeting point without
+    // moving the window — and the flow measures it.
 
-    tools: View [ x = 0, y = { app.barH }, width = { app.width },
-        wrap: boolean = { app.compact
-            || this.chips.contentWidth + this.acts.contentWidth + 64 > app.width },
-        height = { this.wrap ? 96 : 56 }, fill = { provided("theme").background },
-        hairB: View [ x = 0, y = { parent.height - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ],
+    tools: View [ width = 100%, padding = [13, 24, 13, 24],
+        fill = { provided("theme").background }, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: WrappingLayout [ justify = end, align = center, spacing = 16, rowSpacing = 12 ],
 
-        // wrapped, the strip keeps every filter reachable by scrolling sideways
-        // (the phone chip-row idiom) instead of spilling off-screen
+        // the filters take the room their row leaves — pushing the actions to
+        // its right end — and no more than the row has: past that the strip
+        // keeps every filter reachable by scrolling sideways (the phone
+        // chip-row idiom) instead of spilling off-screen
 
-        chips: View [ x = 24, y = 14, height = 28,
-            width = { parent.wrap ? app.width - 32 : this.contentWidth },
-            scrolls = { parent.wrap ? "x" : "none" }, clip = true,
+        chips: View [ height = 28, flexes = true,
+            scrolls = x, clip = true,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
-            Chip [ facet = "status", value = "open", count = { (app.counts as any).open ?? 0 }, on = { app.fStatus == "open" } ],
-            Chip [ facet = "status", value = "in-progress", count = { (app.counts as any)["in-progress"] ?? 0 }, on = { app.fStatus == "in-progress" } ],
-            Chip [ facet = "status", value = "blocked", count = { (app.counts as any).blocked ?? 0 }, on = { app.fStatus == "blocked" } ],
-            Chip [ facet = "status", value = "closed", count = { (app.counts as any).closed ?? 0 }, on = { app.fStatus == "closed" } ],
+            byStatus: View [ datapath = { app.statusRows.value },
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                Chip [ datapath = :rows[], facet = "status", value = :status, count = :n, on = { app.fStatus == :status } ]
+                ],
             gap1: View [ width = 6, height = 1 ],
-            assigneeBtn: Control [ height = 28, cornerRadius = 8,
-                width = { this.t.width + 36 },   // the label's padding plus the chevron's room
+            assigneeBtn: Control [ height = 28, cornerRadius = 8, padding = [0, 4, 0, 13],
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
                 fill = { app.fAssignee != "" ? theme.controlSelected : hovered ? theme.control : null },
-                t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false,
+                t: Text [ y = center, fontSize = 12.5, wrap = false,
                     fontWeight = { app.fAssignee != "" ? "semibold" : "normal" },
                     textColor = { app.fAssignee != "" ? theme.text : theme.textMuted },
                     text = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee" } ],
-                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
-                press() { app.openAssigneeFilter(this) }
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
+                menu = { app.assigneeMenu }
                 ],
-            labelBtn: Control [ height = 28, cornerRadius = 8,
-                width = { this.t.width + 36 },   // the label's padding plus the chevron's room
+            labelBtn: Control [ height = 28, cornerRadius = 8, padding = [0, 4, 0, 13],
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
                 fill = { app.fLabel != "" ? theme.controlSelected : hovered ? theme.control : null },
-                t: TextLabel [ x = 13, fontSize = 12.5, wrap = false,
+                t: TextLabel [ fontSize = 12.5, wrap = false,
                     fontWeight = { app.fLabel != "" ? "semibold" : "normal" },
                     textColor = { app.fLabel != "" ? theme.text : theme.textMuted },
                     text = { app.fLabel != "" ? app.fLabel : "Label" } ],
-                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
-                press() { app.openLabelFilter(this) }
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
+                menu = { app.labelMenu }
                 ]
             ],
 
+        // the actions sit at the right end of their row: beside the filters,
+        // or on a row of their own (the flow justifies it to the end)
+
         acts: View [ height = 30,
-            y = { parent.wrap ? 54 : 13 },
-            x = { parent.wrap ? 16 : app.width - this.contentWidth - 24 },
-            layout: SimpleLayout [ axis = x, spacing = 4 ],
-            groupCheck: Checkbox [ y = 3, height = 24, size = 15, fontSize = 12.5,
+            layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+            groupCheck: Checkbox [ height = 24, size = 15, fontSize = 12.5,
                 label = "Grouped",
                 textColor = { provided("theme").textMuted },
                 checked = { app.groupBy == "status" },
                 input(v: object) { app.groupBy = v ? "status" : "none" }
                 ],
             gapSort: View [ width = 8, height = 1 ],
-            sortBtn: Control [ height = 28, cornerRadius = 8, y = 1,
-                width = { this.t.width + 36 },   // the label's padding plus the chevron's room
+            sortBtn: Control [ height = 28, cornerRadius = 8, padding = [0, 4, 0, 13],
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
                 fill = { hovered ? theme.control : null },
-                t: Text [ x = 13, y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
+                t: Text [ y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
                     text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) } ],
-                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted }, y = center, x = { parent.width - 15 } ],
-                press() { app.openSort(this) }
+                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
+                menu = { app.sortMenu }
                 ],
-            dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, y = 1, tooltipLabel = "Toggle sort direction",
+            dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, tooltipLabel = "Toggle sort direction",
                 fill = { hovered || pressed ? theme.control : null },
                 t: ArrowIcon [ iconSize = 13, ink = { theme.textMuted },
                     x = center, y = center,
@@ -1244,33 +1210,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 press() { app.toggleSortDir() }
                 ],
             gapNew: View [ width = 16, height = 1 ],
-            newBtn: Control [ height = 30, cornerRadius = 8,
-                width = { this.t.width + 30 },
-                fill = { pressed ? theme.accentPressed : hovered ? theme.accentHovered : theme.accent },
-                shadow = { shadow(0, 1, 3, 0x00000030) },
-                t: Text [ x = 15, y = center, fontSize = 12.5, fontWeight = semibold, wrap = false,
-                    textColor = { theme.accentTextColor }, text = "New issue" ],
-                press() { app.newIssue() }
+            newBtn: Button [ height = 30, fontSize = 12.5, primary = true, label = "New issue",
+                onClick() { app.newIssue() }
                 ]
             ]
         ],
-
-    openAssigneeFilter(anchor: View) {
-        const m = this.facetMenu as any
-        const names = this.assignees()
-        m.items = [({ id: "", label: "Anyone", checked: app.fAssignee == "" }), ({ id: "d", divider: true }),
-            ...names.map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))]
-        m.picked = (id) => { app.fAssignee = id }
-        m.openFor(anchor)
-        },
-
-    openLabelFilter(anchor: View) {
-        const m = this.facetMenu as any
-        m.items = [({ id: "", label: "any label", checked: app.fLabel == "" }),
-            ...TRK_LABELS.map((l) => ({ id: l, label: l, checked: app.fLabel == l }))]
-        m.picked = (id) => { app.fLabel = id }
-        m.openFor(anchor)
-        },
 
     // ── the list — a windowed Table over the projection ───────────────────
     //
@@ -1278,282 +1222,254 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // windows, recycles, and measures rows (including one springing open
     // into the editor card) with no further instruction from this file.
 
-    contentY: number = { app.barH + app.tools.height },
-    mainW: number = { Math.min(app.width - (app.railOn ? app.railW : 0), 1460) },
-
     // which row is open in place: an issue edits where it lives — the
     // row's height springs open and the kernel's measured ladder carries
     // the animation through the windowed list
 
-    expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? ((app.selected as any).id ?? -1) : -1 },
+    expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? app.selected.id : -1 },
 
-    // The list. Rows over the projection; every hard thing about scale is
-    // someone else's honest work. The empty state says why it is empty.
+    // ── the body — the issues and the rail, in what the bar, the toolbar
+    //    and the footer leave ──────────────────────────────────────────────
 
-    creatorH: number = { app.creating ? 356 : 0 },
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x ],
 
-    list: Table [ x = 0,
-        y = { app.contentY + app.creatorH },
-        width = { app.mainW },
-        height = { app.height - app.contentY - app.creatorH - 32 },
-        datapath = { app.shown.value },
-        selects = "multi",
-        selected = { app.selected },
-        selection = { app.selection },
-        input(sel: object) { app.takeSelection(sel) },
-        deleteRequested() { app.deleteSelection() },
-        activateRequested() { app.openDetail() },
-        ListRow [ datapath = :rows[], virtualize = true,
-            classFor = { :kind == "hdr" ? GroupRow : IssueRow } ]
-        ],
+        // the main column: the new-issue form while one is being written,
+        // then the list, which takes the rest; the empty state and the bulk
+        // bar float over it
 
-    // ── the rail: an instrument, not a sidebar. Every number below is a
-    //    live derivation off the one truth; every row is also a filter. ─────
+        main: View [ height = 100%, flexes = true,
+            layout: SimpleLayout [ axis = y ],
 
-    rail: View [ visible = { app.railOn }, clip = true,
-        x = { app.width - app.railW },
-        y = { app.contentY },
-        width = { app.railW },
-        height = { app.height - app.contentY - 32 },
-        scrolls = y,
-        edge: View [ x = 0, y = 0, width = 1, height = { Math.max(parent.height, parent.contentHeight) }, fill = { provided("theme").line } ],
-
-        col: View [ x = 20, y = 20, width = { parent.width - 40 },
-            layout: SimpleLayout [ axis = y, spacing = 22 ],
-
-            hero: View [ width = 100%, height = 66,
-                n: Roll [ x = 0, y = 0, fontSize = 38, fontWeight = bold, letterSpacing = -1,
-                    textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) },
-                    n = { app.shownTotal } ],
-                cap: Text [ x = 2, y = 48, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint },
-                    text = { app.shownTotal == app.issuesOf().length
-                        ? "issues · nothing filtered out"
-                        : "matching · of " + app.issuesOf().length.toLocaleString() + " issues" } ]
-                ],
-
-            byStatus: View [ width = 100%,
-                layout: SimpleLayout [ axis = y, spacing = 2 ],
-                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                    textColor = { provided("theme").textFaint }, text = "BY STATUS" ],
-                gap: View [ width = 1, height = 6 ],
-                dist: View [ width = 100%, height = 6, cornerRadius = 3, clip = true,
-                    s1: View [ x = 0, y = 0, height = 6, fill = { app.statusColor("open") },
-                        width = { parent.width * ((app.counts as any).open ?? 0) / Math.max(1, app.issuesOf().length) } ],
-                    s2: View [ y = 0, height = 6, fill = { app.statusColor("in-progress") },
-                        x = { this.parent.s1.width },
-                        width = { parent.width * ((app.counts as any)["in-progress"] ?? 0) / Math.max(1, app.issuesOf().length) } ],
-                    s3: View [ y = 0, height = 6, fill = { app.statusColor("blocked") },
-                        x = { this.parent.s2.x + this.parent.s2.width },
-                        width = { parent.width * ((app.counts as any).blocked ?? 0) / Math.max(1, app.issuesOf().length) } ],
-                    s4: View [ y = 0, height = 6, fill = { app.statusColor("closed") },
-                        x = { this.parent.s3.x + this.parent.s3.width },
-                        width = { Math.max(0, parent.width - this.parent.s3.x - this.parent.s3.width) } ]
-                    ],
-                gap2: View [ width = 1, height = 8 ],
-                r1: RailStat [ width = 100%, facet = "status", value = "open", cap = "Open",
-                    n = { (app.counts as any).open ?? 0 }, peak = { app.issuesOf().length }, tint = { app.statusColor("open") },
-                    on = { app.fStatus == "open" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "open" ]
-                    ],
-                r2: RailStat [ width = 100%, facet = "status", value = "in-progress", cap = "In Progress",
-                    n = { (app.counts as any)["in-progress"] ?? 0 }, peak = { app.issuesOf().length }, tint = { app.statusColor("in-progress") },
-                    on = { app.fStatus == "in-progress" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "in-progress" ]
-                    ],
-                r3: RailStat [ width = 100%, facet = "status", value = "blocked", cap = "Blocked",
-                    n = { (app.counts as any).blocked ?? 0 }, peak = { app.issuesOf().length }, tint = { app.statusColor("blocked") },
-                    on = { app.fStatus == "blocked" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "blocked" ]
-                    ],
-                r4: RailStat [ width = 100%, facet = "status", value = "closed", cap = "Closed",
-                    n = { (app.counts as any).closed ?? 0 }, peak = { app.issuesOf().length }, tint = { app.statusColor("closed") },
-                    on = { app.fStatus == "closed" },
-                    ic: StatusIcon [ x = 8, y = 8, s = "closed" ]
+            creator: View [ visible = { app.creating }, width = 100%, padding = [8, 24, 8, 24],
+                sheet: View [ width = 100%, height = 340, clip = true,
+                    fill = { provided("theme").surface }, cornerRadius = 10,
+                    stroke = { stroke(1, provided("theme").line) },
+                    shadow = { shadow(0, 4, 16, 0x00000018) },
+                    card: EditorCard [ width = 100% ]
                     ]
                 ],
 
-            work: View [ width = 100%,
-                datapath = { app.workload.value },
-                layout: SimpleLayout [ axis = y, spacing = 2 ],
-                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                    textColor = { provided("theme").textFaint }, text = "WORKLOAD · OPEN WORK" ],
-                gap: View [ width = 1, height = 6 ],
-                RailStat [ datapath = :rows[], width = 100%,
-                    facet = "assignee",
-                    value = { "" + (:name ?? "") },
-                    cap = { ("" + (:name ?? "")) == "" ? "Unassigned" : "" + :name },
-                    n = { (:n ?? 0) + 0 },
-                    peak = { (:peak ?? 1) + 0 },
-                    hueName = { "" + (:name ?? "") },
-                    on = { app.fAssignee != "" && app.fAssignee == ("" + (:name ?? "")) },
-                    av: Avatar [ x = 4, y = 4, width = 20, height = 20, cornerRadius = 10, name = { "" + (:name ?? "") } ]
+            // The list. Rows over the projection; every hard thing about scale is
+            // someone else's honest work. It takes the column's rest, up to a
+            // reading width.
+
+            list: Table [ width = { Math.min(parent.width, 1460) }, flexes = true,
+                datapath = { app.shown.value },
+                selects = "multi",
+                selected = { app.selected },
+                selection = { app.selection },
+                input(sel: array) { app.takeSelection(sel) },
+                deleteRequested() { app.deleteSelection() },
+                activateRequested() { app.openDetail() },
+                ListRow [ datapath = :rows[], virtualize = true,
+                    classFor = { :kind == "hdr" ? GroupRow : IssueRow } ]
+                ],
+
+            // the empty state says why it is empty — an overlay, centred on the list
+
+            empty: View [ visible = { app.booted && app.shownTotal == 0 }, width = 280, ignoreLayout = true,
+                x = { (parent.list.width - this.width) / 2 },
+                pop: number = 0,
+                Spring [ attribute = pop, to = { app.booted && app.shownTotal == 0 ? 1 : 0 }, stiffness = 220, damping = 26 ],
+                opacity = { this.pop },
+                y = { 120 + (1 - this.pop) * 14 },
+                layout: SimpleLayout [ axis = y, spacing = 12 ],
+                ring: View [ x = center, width = 36, height = 36, cornerRadius = 18,
+                    stroke = { stroke(2, provided("theme").line) },
+                    g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { provided("theme").textFaint }, text = "?" ]
+                    ],
+                cap: Text [ width = 280, textAlign = center, fontSize = 14.5, fontWeight = semibold,
+                    text = { app.issuesOf().length == 0 ? "No issues yet" : "No issues match" } ],
+                sub: Text [ width = 280, textAlign = center, fontSize = 12.5, textColor = { provided("theme").textMuted },
+                    text = { app.issuesOf().length == 0
+                        ? "Create the first one — New issue is waiting."
+                        : "Try a different search, or clear the filters." } ],
+                clear: Button [ x = center, height = 30, fontSize = 12.5, label = "Clear all",
+                    visible = { app.issuesOf().length > 0 },
+                    onClick() { app.clearAll() }
                     ]
                 ],
 
-            closed14: View [ width = 100%,
-                datapath = { app.closedSeries.value },
-                cap: Text [ x = 0, y = 0, fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                    textColor = { provided("theme").textFaint }, text = "CLOSED · LAST 14 DAYS" ],
-                bars: View [ x = 0, y = 22, width = 100%, height = 40,
-                    pk: number = { Math.max(1, (:peak ?? 1) + 0) },
-                    layout: SimpleLayout [ axis = x, spacing = 3 ],
-                    View [ datapath = :days[], width = { (this.parent.width - 39) / 14 },
-                        height = 40,
-                        b: View [ x = 0, cornerRadius = 1.5,
-                            width = 100%,
-                            y = { 40 - Math.max(2, 38 * (:@ + 0) / this.parent.parent.pk) },
-                            height = { Math.max(2, 38 * (:@ + 0) / this.parent.parent.pk) },
-                            fill = { app.statusColor("closed") } ]
+            bulk: View [ height = 44, cornerRadius = 12, ignoreLayout = true,
+                visible = { app.selCount > 1 || this.lift > 0.02 },
+
+                // the bar inverts to the tooltip surface, with the bulk inks on it
+
+                lift: number = 0,
+                Spring [ attribute = lift, to = { app.selCount > 1 ? 1 : 0 }, stiffness = 260, damping = 26 ],
+                opacity = { lift },
+                padding = [8, 16, 8, 16],
+                x = { (parent.list.width - this.width) / 2 },
+                y = { parent.height - 60 + (1 - this.lift) * 20 },
+                fill = { provided("theme").tooltipFill },
+                shadow = { shadow(0, 8, 28, 0x00000050) },
+                row: View [ height = 28,
+                    layout: SimpleLayout [ axis = x, spacing = 14 ],
+                    cnt: View [ height = 28,
+                        layout: SimpleLayout [ axis = x, spacing = 6 ],
+                        t: Roll [ y = center, fontSize = 13, fontWeight = semibold,
+                            textColor = { provided("theme").tooltipTextColor }, n = { app.selCount } ],
+                        l: Text [ y = center, fontSize = 13, wrap = false,
+                            textColor = { provided("theme").tooltipTextColor }, text = "selected" ]
+                        ],
+                    div1: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
+                    act: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
+                        fill = { hovered ? provided("theme").bulkHover : null },
+                        t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
+                            textColor = { theme.tooltipTextColor }, text = "Set status ▾" ],
+                        menu = { app.bulkMenu }
+                        ],
+                    del: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
+                        fill = { hovered || pressed ? provided("theme").danger : null },
+                        t: TextLabel [ x = 10, fontSize = 12.5, fontWeight = semibold, wrap = false,
+                            textColor = { this.parent.hovered || this.parent.pressed ? provided("theme").onFill : provided("theme").bulkDanger }, text = "Delete…" ],
+                        press() { app.deleteSelection() }
+                        ],
+                    div2: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
+                    clr: Control [ height = 28, cornerRadius = 7, width = 28,
+                        fill = { hovered ? provided("theme").bulkHover : null },
+                        t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
+                            textColor = { theme.tooltipTextColor }, text = "×" ],
+                        press() { app.takeSelection(null) }
                         ]
                     ]
-                ],
+                ]
+            ],
 
-            perf: View [ width = 100%,
-                layout: SimpleLayout [ axis = y, spacing = 8 ],
-                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                    textColor = { provided("theme").textFaint }, text = "PERFORMANCE" ],
-                l1: View [ width = 100%, height = 16,
-                    a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Initial load" ],
-                    b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
-                        textColor = { provided("theme").text }, text = { app.loadMs + " ms" } ]
+        // ── the rail: an instrument, not a sidebar. Every number below is a
+        //    live derivation off the one truth; every row is also a filter. ─────
+
+        rail: View [ visible = { app.railOn }, width = { app.railW }, height = 100%, clip = true, scrolls = y,
+            padding = 20, stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+
+            col: View [ width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+                hero: View [ width = 100%, height = 66,
+                    n: Roll [ x = 0, y = 0, fontSize = 38, fontWeight = bold, letterSpacing = -1,
+                        textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) },
+                        n = { app.shownTotal } ],
+                    cap: Text [ x = 2, y = 48, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint },
+                        text = { app.shownTotal == app.issuesOf().length
+                            ? "issues · nothing filtered out"
+                            : "matching · of " + app.issuesOf().length.toLocaleString() + " issues" } ]
                     ],
-                l2: View [ width = 100%, height = 16,
-                    a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Ingest" ],
-                    b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
-                        textColor = { provided("theme").text }, text = { app.adoptMs + " ms" } ]
+
+                byStatus: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                        textColor = { provided("theme").textFaint }, text = "BY STATUS" ],
+                    gap: View [ width = 1, height = 6 ],
+
+                    // one band, each status's share of it in its color
+
+                    dist: View [ width = 100%, height = 6, cornerRadius = 3, clip = true,
+                        datapath = { app.statusRows.value },
+                        layout: SimpleLayout [ axis = x ],
+                        View [ datapath = :rows[], height = 6, fill = { app.statusColor(:status) },
+                            width = { parent.width * :n / Math.max(1, app.issuesOf().length) } ]
+                        ],
+                    gap2: View [ width = 1, height = 8 ],
+                    rows: View [ width = 100%, datapath = { app.statusRows.value },
+                        layout: SimpleLayout [ axis = y, spacing = 2 ],
+                        RailStat [ datapath = :rows[], width = 100%, facet = "status", value = :status, cap = { trkStatusLabel(:status) },
+                            n = :n, peak = { app.issuesOf().length }, tint = { app.statusColor(:status) },
+                            on = { app.fStatus == :status },
+                            ic: StatusIcon [ x = 8, y = 8, s = :status ]
+                            ]
+                        ]
                     ],
-                l3: View [ width = 100%, height = 16, visible = { app.query != "" },
-                    a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Last search" ],
-                    b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = { parent.width - 70 },
-                        textColor = { provided("theme").text }, text = { (app.shown.value.searchMs ?? 0) + " ms" } ]
+
+                work: View [ width = 100%,
+                    datapath = { app.workload.value },
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                        textColor = { provided("theme").textFaint }, text = "WORKLOAD · OPEN WORK" ],
+                    gap: View [ width = 1, height = 6 ],
+                    RailStat [ datapath = :rows[], width = 100%,
+                        facet = "assignee",
+                        value = { "" + (:name ?? "") },
+                        cap = { ("" + (:name ?? "")) == "" ? "Unassigned" : "" + :name },
+                        n = { (:n ?? 0) + 0 },
+                        peak = { (:peak ?? 1) + 0 },
+                        hueName = { "" + (:name ?? "") },
+                        on = { app.fAssignee != "" && app.fAssignee == ("" + (:name ?? "")) },
+                        av: Avatar [ x = 4, y = 4, width = 20, height = 20, cornerRadius = 10, name = { "" + (:name ?? "") } ]
+                        ]
+                    ],
+
+                closed14: View [ width = 100%,
+                    datapath = { app.closedSeries.value },
+                    cap: Text [ x = 0, y = 0, fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                        textColor = { provided("theme").textFaint }, text = "CLOSED · LAST 14 DAYS" ],
+                    bars: View [ x = 0, y = 22, width = 100%, height = 40,
+                        pk: number = { Math.max(1, (:peak ?? 1) + 0) },
+                        layout: SimpleLayout [ axis = x, spacing = 3 ],
+                        View [ datapath = :days[], width = { (this.parent.width - 39) / 14 },
+                            height = 40,
+                            b: View [ x = 0, cornerRadius = 1.5,
+                                width = 100%,
+                                y = { 40 - Math.max(2, 38 * (:@ + 0) / this.parent.parent.pk) },
+                                height = { Math.max(2, 38 * (:@ + 0) / this.parent.parent.pk) },
+                                fill = { app.statusColor("closed") } ]
+                            ]
+                        ]
+                    ],
+
+                perf: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                        textColor = { provided("theme").textFaint }, text = "PERFORMANCE" ],
+                    l1: View [ width = 100%, height = 16,
+                        a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Initial load" ],
+                        b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = end,
+                            textColor = { provided("theme").text }, text = { app.loadMs + " ms" } ]
+                        ],
+                    l2: View [ width = 100%, height = 16,
+                        a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Ingest" ],
+                        b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = end,
+                            textColor = { provided("theme").text }, text = { app.adoptMs + " ms" } ]
+                        ],
+                    l3: View [ width = 100%, height = 16, visible = { app.query != "" },
+                        a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Last search" ],
+                        b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = end,
+                            textColor = { provided("theme").text }, text = { (app.shown.value.searchMs ?? 0) + " ms" } ]
+                        ]
+                    ],
+
+                keys: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 6 ],
+                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+                        textColor = { provided("theme").textFaint }, text = "KEYBOARD" ],
+                    KeyHint [ shortcut = "⌘K", what = "Search" ],
+                    KeyHint [ shortcut = "↵", what = "Open selected row" ],
+                    KeyHint [ shortcut = "⌫", what = "Delete selection" ],
+                    KeyHint [ shortcut = "esc", what = "Close · clear" ],
+                    tail: View [ width = 1, height = 8 ]
                     ]
-                ],
-
-            keys: View [ width = 100%,
-                layout: SimpleLayout [ axis = y, spacing = 6 ],
-                cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                    textColor = { provided("theme").textFaint }, text = "KEYBOARD" ],
-                k1: View [ width = 100%, height = 18,
-                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "⌘K" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Search" ]
-                    ],
-                k2: View [ width = 100%, height = 18,
-                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "↵" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Open selected row" ]
-                    ],
-                k3: View [ width = 100%, height = 18,
-                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "⌫" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Delete selection" ]
-                    ],
-                k4: View [ width = 100%, height = 18,
-                    k: Text [ x = 0, y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = "esc" ],
-                    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = "Close · clear" ]
-                    ],
-                tail: View [ width = 1, height = 8 ]
                 ]
             ]
-        ],
-
-    creator: View [ visible = { app.creating }, x = 24, clip = true,
-        y = { app.contentY + 8 },
-        width = { app.mainW - 48 },
-        height = 340,
-        fill = { provided("theme").surface }, cornerRadius = 10,
-        stroke = { stroke(1, provided("theme").line) },
-        shadow = { shadow(0, 4, 16, 0x00000018) },
-        card: EditorCard [ x = 0, y = 0, width = 100% ]
         ],
 
     // ── the footer — the quiet ledger line: how many, how many shown ──────
 
-    foot: View [ x = 0, width = { app.width }, height = 32,
-        y = { app.height - 32 },
-        fill = { provided("theme").surface },
-        hair: View [ x = 0, y = 0, width = 100%, height = 1, fill = { provided("theme").line } ],
-        stats: Text [ x = 24, y = center, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint },
+    foot: View [ width = 100%, height = 32, padding = [0, 16, 0, 24],
+        fill = { provided("theme").surface }, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        stats: Text [ y = center, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint },
             text = { app.issuesOf().length.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
         perf: Text [ y = center, fontSize = 10.5, wrap = false, visible = { app.booted && !app.railOn },
-            x = { app.width - this.width - 16 },
+            x = end,
             textColor = { provided("theme").textFaint },
             text = { "load " + app.loadMs + " ms · adopt " + app.adoptMs + " ms" } ]
         ],
 
-    empty: View [ visible = { app.booted && app.shownTotal == 0 }, width = 280,
-        x = { (app.mainW - 280) / 2 },
-        pop: number = 0,
-        Spring [ attribute = pop, to = { app.booted && app.shownTotal == 0 ? 1 : 0 }, stiffness = 220, damping = 26 ],
-        opacity = { this.pop },
-        y = { app.contentY + 120 + (1 - this.pop) * 14 },
-        layout: SimpleLayout [ axis = y, spacing = 12 ],
-        ring: View [ x = center, width = 36, height = 36, cornerRadius = 18,
-            stroke = { stroke(2, provided("theme").line) },
-            g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { provided("theme").textFaint }, text = "?" ]
-            ],
-        cap: Text [ width = 280, textAlign = center, fontSize = 14.5, fontWeight = semibold,
-            text = { app.issuesOf().length == 0 ? "No issues yet" : "No issues match" } ],
-        sub: Text [ width = 280, textAlign = center, fontSize = 12.5, textColor = { provided("theme").textMuted },
-            text = { app.issuesOf().length == 0
-                ? "Create the first one — New issue is waiting."
-                : "Try a different search, or clear the filters." } ],
-        clear: Control [ x = center, height = 30, cornerRadius = 8, width = 100,
-            visible = { app.issuesOf().length > 0 },
-            fill = { hovered || pressed ? theme.control : null },
-            stroke = { stroke(1, theme.line) },
-            t: TextLabel [ x = 0, width = 100, textAlign = center, fontSize = 12.5, textColor = { theme.textMuted }, text = "Clear all" ],
-            press() { app.clearAll() }
-            ]
-        ],
-
-    bulk: View [ height = 44, cornerRadius = 12,
-        visible = { app.selCount > 1 || this.lift > 0.02 },
-
-        // the bar inverts to the tooltip surface, with the bulk inks on it
-
-        lift: number = 0,
-        Spring [ attribute = lift, to = { app.selCount > 1 ? 1 : 0 }, stiffness = 260, damping = 26 ],
-        opacity = { lift },
-        width = { this.row.contentWidth + 32 },
-        x = { (app.mainW - this.width) / 2 },
-        y = { app.height - 92 + (1 - this.lift) * 20 },
-        fill = { provided("theme").tooltipFill },
-        shadow = { shadow(0, 8, 28, 0x00000050) },
-        row: View [ x = 16, y = 8, height = 28,
-            layout: SimpleLayout [ axis = x, spacing = 14 ],
-            cnt: View [ height = 28, width = { this.t.width + this.l.width + 6 },
-                t: Roll [ x = 0, y = center, fontSize = 13, fontWeight = semibold,
-                    textColor = { provided("theme").tooltipTextColor }, n = { app.selCount } ],
-                l: Text [ y = center, fontSize = 13, wrap = false, x = { this.parent.t.width + 6 },
-                    textColor = { provided("theme").tooltipTextColor }, text = "selected" ]
-                ],
-            div1: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
-            act: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
-                fill = { hovered ? provided("theme").bulkHover : null },
-                t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
-                    textColor = { theme.tooltipTextColor }, text = "Set status ▾" ],
-                press() { app.openBulk(this) }
-                ],
-            del: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
-                fill = { hovered || pressed ? provided("theme").danger : null },
-                t: TextLabel [ x = 10, fontSize = 12.5, fontWeight = semibold, wrap = false,
-                    textColor = { this.parent.hovered || this.parent.pressed ? provided("theme").onFill : provided("theme").bulkDanger }, text = "Delete…" ],
-                press() { app.deleteSelection() }
-                ],
-            div2: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
-            clr: Control [ height = 28, cornerRadius = 7, width = 28,
-                fill = { hovered ? provided("theme").bulkHover : null },
-                t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
-                    textColor = { theme.tooltipTextColor }, text = "×" ],
-                press() { app.takeSelection(null) }
-                ]
-            ]
-        ],
-
-    toast: Toast [ x = center,
+    toast: Toast [ ignoreLayout = true, x = center,
         y = { app.height - 84 + (1 - this.lift) * 20 } ],
 
     // the entry screen — honest states for the one fetch
 
-    entry: View [ visible = { !app.booted }, x = 0, y = 0, width = { app.width }, height = { app.height },
+    entry: View [ visible = { !app.booted }, ignoreLayout = true, x = 0, y = 0, width = { app.width }, height = { app.height },
         fill = { provided("theme").background },
         col: View [ x = center, y = { app.height * 0.38 }, width = 220,
             layout: SimpleLayout [ axis = y, spacing = 10 ],

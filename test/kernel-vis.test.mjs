@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { settleHeadless } from "../compiler/dist/headless.js";
+import { settleSource } from "../compiler/dist/headless.js";
 import { settle } from "../runtime/dist/index.js";
 import { setBound } from "../runtime/dist/attributes.js";
 import { visibilityRule, readVisibility } from "../runtime/dist/visibility.js";
@@ -53,10 +53,10 @@ await test("kernel visibility ≡ readVisibility on 40 random trees × 8 perturb
     const src = `App [ width = 800, height = 600, ${body}, probe: Text [ text = { [${names.map((n) => `app.${n.split("_").map((s, i, a) => a.slice(0, i + 1).join("_")).join(".")}.onScreen`).join(", ")}].join(",") } ] ]`;
     const r = await compile(src, { originDir: process.cwd() });
     assert.ok(r.errors.length === 0, "compile: " + (r.errors[0]?.message ?? ""));
-    const app = settleHeadless(r.source, { deps: r.deps });
+    const app = settleSource(r.source, { deps: r.deps });
     const views = names.map((n) => n.split("_").reduce((v, _, i, a) => v[a.slice(0, i + 1).join("_")], app));
     // touch every fact so each feed is armed, then settle
-    for (const v of views) v.armVisibility();   // a fact's feed arms on its first TRACKED read; here, directly
+    for (const v of views) v.$armVisibility();   // a fact's feed arms on its first TRACKED read; here, directly
     settle();
     views.forEach((v, i) => check(v, `tree ${t} ${names[i]}`));
     for (let p = 0; p < 8; p++) {
@@ -78,8 +78,8 @@ await test("kernel visibility ≡ readVisibility on 40 random trees × 8 perturb
 await test("a 3D transform on the chain hands the facts back to the JS walk", async () => {
   const src = `App [ width = 800, height = 600, a: View [ x = 10, y = 10, width = 300, height = 200, b: View [ x = 20, y = 20, width = 100, height = 50 ] ] ]`;
   const r = await compile(src, { originDir: process.cwd() });
-  const app = settleHeadless(r.source, { deps: r.deps });
-  app.a.b.armVisibility(); settle();
+  const app = settleSource(r.source, { deps: r.deps });
+  app.a.b.$armVisibility(); settle();
   check(app.a.b, "flat");
   app.a.rotateX = 30; settle();
   assert.equal(visibilityRule(app.a.b), -1, "the kernel rule retired on 3D");

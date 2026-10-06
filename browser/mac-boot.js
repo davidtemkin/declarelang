@@ -1,37 +1,20 @@
-// mac-boot — the native client's boot ladder and app host.
+// mac-boot — the native client's boot and app host.
 //
-// TWO TIERS, and the second one does the work:
+// A program is compiled natively: `H.compile` hands the source to the host's
+// compile thread — its own JSContext, behind a source-hash cache
+// (CompileService.swift) — and answers with the program object, which
+// buildProgram instantiates with no parse. The in-context compiler below is the
+// fallback for a host without `H.compile`; both call the same compile with the
+// same options. The dev server serves the distro — the library, the compiler
+// bundle, the program's source — and compiles nothing for this client.
 //
-//   PRODUCTION  a built artifact (declarec --render mac) — program JSON
-//               beside its assets, loaded from disk. No compiler, no server.
-//   CLIENT      the compiler, compiling the fetched source locally — on the
-//               host's compile thread, behind a source-hash cache.
-//
-// THE DEV SERVER IS NOT A TIER ANY MORE. It used to be, and it made the native
-// client's performance a property of something else's process: `?program&render=mac`
-// missed the server's own COMPILE_CACHE entirely (which only the `POST /compile`
-// handler reads or writes), so every single boot paid a cold server recompile —
-// 330–580ms of "slow fetch" that was neither slow nor a fetch. Meanwhile the
-// client tier, which is the one a shipped app must use anyway, was the path
-// least exercised and the only one with no cache at all.
-//
-// So the native client compiles natively, always, and caches what it compiled.
-// One path, exercised on every boot, and the same one a program opened from
-// disk with no server in sight has always taken. The dev server keeps its OTHER
-// job — serving the distro: the library, the compiler bundle, the program.
-//
-// WHERE THE COMPILE HAPPENS is the host's business, not this file's: `H.compile`
-// hands the source to a worker thread with its own JSContext and answers with
-// compiled JS (see CompileService.swift). The in-context compiler below stays as
-// the fallback for a host too old to have it.
-//
-// Mounting is the ordinary runtime call: build() → mountApp() with the mac
+// Mounting is the ordinary runtime call: buildProgram() → mountApp() with the mac
 // backend. Because the runtime's environment probes are shimmed (mac-env.js),
 // the SAME wireInput/wireEnvironment paths the DOM client uses run here —
 // pointer capture, hover, keyboard, host sizing — and only the drawing is
 // native.
 
-import { build, mountApp, settle, observe, provideTransport, provideMeasurer, fontsReady, bridgeFor, kernelReadySync,
+import { buildProgram, mountApp, settle, observe, provideTransport, provideMeasurer, fontsReady, bridgeFor, kernelReadySync,
          Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, islandProvisions, setAppAssetBase } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScrollFacts, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditFocus, macEditEnter, embedsPending, mountEmbed, clearEmbed, surfaceById,
@@ -108,19 +91,7 @@ function readerRequest(href) {
   })();
 }
 
-// ── the ladder ──────────────────────────────────────────────────────────────
-
-async function fromProduction(dirUrl) {
-  // A built artifact: program.json beside its assets (declarec --render mac).
-  try {
-    const res = await fetch(new URL("program.json", dirUrl).href);
-    if (!res.ok) return null;
-    const j = await res.json();
-    if (!j || !j.source) return null;
-    log("boot: production artifact");
-    return { source: j.source, deps: j.deps ?? {}, base: dirUrl };
-  } catch { return null; }
-}
+// ── loading a program ───────────────────────────────────────────────────────
 
 /** WHERE THE LIBRARY AND THE COMPILER COME FROM: this app's baked platform,
  *  for every program, always. `H.platform` is Contents/Resources laid out like
@@ -156,9 +127,8 @@ async function loadCompiler(distro) {
  *
  *  Required by EVERY client-side compile, not just the boot fall-through: a
  *  program compiled without it fails with `unknown component 'Button'` on every
- *  bare tag. The live-edit channel compiles in this same context, and when boot
- *  took the server tier this had never run — so the workbench reported ten
- *  unknown components for a file that compiles clean. */
+ *  bare tag. The live-edit channel compiles in this same context, so it needs
+ *  the library whether or not boot compiled here. */
 async function ensureLibrary(distro) {
   if (globalThis.__declareLibLoaded) return;
   if (!distro) return;
@@ -188,17 +158,18 @@ async function ensureLibrary(distro) {
 
 let compileSeq = 1;
 const compilesPending = new Map();
-globalThis.__declareCompileDone = (id, ok, source, depsJson, report, origin, ms) => {
+globalThis.__declareCompileDone = (id, ok, programJson, report, origin, ms) => {
   const p = compilesPending.get(id);
   if (!p) return;
   compilesPending.delete(id);
-  let deps = {};
-  try { deps = depsJson ? JSON.parse(depsJson) : {}; } catch {}
-  p.resolve({ source: ok ? source : "", deps, report, origin, ms });
+  let program = null;
+  if (ok) { try { program = JSON.parse(programJson); } catch (e) { report = "the compiled program did not parse: " + e.message; } }
+  p.resolve({ program, report, origin, ms });
 };
 
 /** Compile a source string. `url` identifies the program to the cache; `dir` is
- *  where its own includes resolve from. Answers `{source, deps, report}`. */
+ *  where its own includes resolve from. Answers `{program, report}` — `program`
+ *  null when the compile failed, and the report says why. */
 function compileSource(url, src, dir, distro) {
   if (typeof H.compile === "function") {
     return new Promise((resolve) => {
@@ -208,10 +179,10 @@ function compileSource(url, src, dir, distro) {
     });
   }
   return (async () => {
-    if (!(await loadCompiler(distro))) return { source: "", deps: {}, report: "no compiler" };
+    if (!(await loadCompiler(distro))) return { program: null, report: "no compiler" };
     await ensureLibrary(distro);
-    const out = await globalThis.__declareCompiler.compile(src, { originDir: dir });
-    return { source: out.source ?? "", deps: out.deps ?? {}, report: out.report ?? "", origin: "in-context" };
+    const out = await globalThis.__declareCompiler.compileProgram(src, { originDir: dir, stripPos: false });
+    return { program: out.program ?? null, report: out.report ?? "", origin: "in-context" };
   })();
 }
 
@@ -222,21 +193,15 @@ async function fromClient(programUrl) {
   // resolve beside IT while the library still resolves against the distro.
   const dir = programUrl.replace(/[^/]*$/, "");
   const out = await compileSource(programUrl, src, dir, distro);
-  if (!out.source) throw new Error(out.report || "compile failed");
+  if (out.program === null) throw new Error(out.report || "compile failed");
   log("boot: " + (out.origin === "cache" ? "compile cache hit" : "compiled")
       + (out.ms != null ? " (" + Math.round(out.ms) + "ms)" : ""));
-  return { source: out.source, deps: out.deps ?? {}, base: programUrl };
+  return { program: out.program, base: programUrl };
 }
 
-/** The ladder, in order, with each tier falling through on absence. */
+/** A program URL → its compiled program and the base its assets resolve from. */
 async function resolveProgram(url) {
-  if (url.endsWith("/") || url.endsWith("program.json")) {
-    const p = await fromProduction(url.endsWith("/") ? url : url.replace(/program\.json$/, ""));
-    if (p) return p;
-  }
-  const c = await fromClient(url);
-  if (c) return c;
-  throw new Error("could not load " + url);
+  return fromClient(url);
 }
 
 // ── mounting ────────────────────────────────────────────────────────────────
@@ -245,7 +210,7 @@ let currentApp = null;
 let backend = null;
 
 export async function macBoot(url) {
-  const { source, deps, base } = await resolveProgram(url);
+  const { program, base } = await resolveProgram(url);
   // Assets (images, data) resolve against the program's own directory — the
   // same rule the web client uses, expressed through the transport's base.
   globalThis.__declareBase = base.replace(/[^/]*$/, "");
@@ -274,7 +239,7 @@ export async function macBoot(url) {
     try { prev.discard(); settle(); flushOps(); }
     catch (e) { H.log("error", "discarding the previous program: " + ((e && e.message) || e)); }
   }
-  const app = build(source, { deps, provides: launchParams(base) });
+  const app = buildProgram(program, { provides: launchParams(base) });
   currentApp = app;
   globalThis.__app = app;
   liveApps.set(app, null);       // the root app can publish live edits too
@@ -618,8 +583,8 @@ async function inspectorProgram() {
     const src = await (await fetch(url)).text();
     const dir = url.replace(/[^/]*$/, "");
     const out = await compileSource(url, src, dir, base);
-    if (!out.source) { log("inspector: " + (out.report || "compile failed")); return null; }
-    inspectorCompiled = { source: out.source, deps: out.deps ?? {} };
+    if (out.program === null) { log("inspector: " + (out.report || "compile failed")); return null; }
+    inspectorCompiled = { program: out.program };
     return inspectorCompiled;
   } catch (e) { log("inspector: " + e.message); return null; }
 }
@@ -752,7 +717,7 @@ function watchLive(app, scopeBox) {
   if (id < 0) return;
   liveSigs.set(app, sig);
   compileLive(body).then((r) => {
-    if (r && r.source) { app.liveReport = ""; mountCompiled(id, r); }
+    if (r && r.program) { app.liveReport = ""; mountCompiled(id, r); }
     else if (r && r.report != null) app.liveReport = String(r.report);
     else liveSigs.delete(app);                   // compiler not warm — retry
   }).catch(() => liveSigs.delete(app));
@@ -781,8 +746,8 @@ async function compileLive(src) {
     // "" as the cache key: nothing to cache against, and the host skips the
     // cache entirely for an empty url.
     const out = await compileSource("", src, dir, distro);
-    return out.source ? { source: out.source, deps: out.deps ?? {} }
-                      : { report: out.report || "compile failed" };
+    return out.program !== null ? { program: out.program }
+                                : { report: out.report || "compile failed" };
   } catch (e) {
     return { report: e && e.message ? e.message : String(e) };
   }
@@ -799,8 +764,8 @@ async function mountChild(surfaceId, name) {
   // demos/ folder — the web client's rule, kept.
   const base = globalThis.__declareBase || "";
   const url = new URL(name.endsWith(".declare") ? name : name + ".declare", new URL("demos/", base)).href;
-  const { source, deps } = await resolveProgram(url);
-  mountCompiled(surfaceId, { source, deps }, url);
+  const { program } = await resolveProgram(url);
+  mountCompiled(surfaceId, { program }, url);
   log("island: " + name + " mounted");
 }
 
@@ -823,7 +788,7 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
   kernelReadySync();
   const islView = islandViewById(surfaceId);
   const linkable = islView && typeof islView.post === "function";
-  const child = build(compiled.source, { deps: compiled.deps ?? {}, provides: linkable ? islandProvisions(islView) : undefined });
+  const child = buildProgram(compiled.program, { provides: linkable ? islandProvisions(islView) : undefined });
   // THE ISLAND BOUNDARY (islands.md) — the native runner is a full peer of the
   // web hosts: what the island `provides` goes down, what the tenant
   // `exposes` comes up, and the post/onPost verbs. Built WITH what the island

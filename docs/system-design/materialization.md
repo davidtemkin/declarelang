@@ -43,7 +43,7 @@
 >   ledger distance in proportion to the remaining track, and held at an end
 >   it stays that end as rows there measure. Let go at an end, the list lands
 >   on it.
-> - **Past 2²⁴ px** the range is published compressed: at rest the deviation
+> - **Near 2²⁴ px** the range is published compressed: at rest the deviation
 >   pairs the physical offset with the ledger proportionally, keeping the rows
 >   near the viewport inside the range the browser honours.
 >
@@ -162,8 +162,11 @@
 > **LANDED 2026-08-02 — extent compression.** A windowed block now keeps two
 > coordinate spaces once its content outgrows the cap: LOGICAL (the ledger's
 > real row extents — what the app and the AT reason in) and PHYSICAL (what the
-> browser is told). `physicalExtent()` caps the published height at **2²⁴**
-> (16,777,216 — under every engine's ceiling, Firefox's ~17.9M included), both
+> browser is told). `physicalExtent()` caps the published height just under
+> **2²⁴** (16,711,680: 2²⁴ less 65,536 px, room for rows that overhang the range
+> by up to a viewport — above 2²⁴ Chrome's single-precision scroll geometry holds
+> only even pixels, and every engine's ceiling, Firefox's ~17.9M included, is
+> further out still), both
 > where the extent publishes to the strut and where the block owns the parent's
 > `height`. `extentScale()` gives the logical-per-physical ratio, and the match
 > converts the scroller's offset through it; placement re-bases against the

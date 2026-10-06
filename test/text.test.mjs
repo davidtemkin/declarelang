@@ -136,7 +136,7 @@ const landing = async (family, per) => {
 await test("a Text in a Font measures in that font, and re-measures when its faces land", async () => {
   const app = await boot(`brand: Font [ FontFace [ src = "brand.woff2" ] ],
     t: Text [ fontFamily = { app.brand }, text = "abcd" ]`);
-  app.brand.start();
+  app.brand.$start();
   settle();
   const name = loads.at(-1).family;
   assert.equal(app.brand.loaded, false, "loading");
@@ -170,7 +170,7 @@ await test("switching to a font still inside its wait keeps the old family until
     beta: Font [ wait = 800, FontFace [ src = "beta.woff2" ] ],
     choice: Font = { app.alpha },
     t: Text [ fontFamily = { app.choice }, text = "abcd" ]`);
-  app.alpha.start(); app.beta.start();
+  app.alpha.$start(); app.beta.$start();
   settle();
   assert.equal(app.t.width, 40, "in Alpha");
   // Beta is fetched only once text reaches it — the switch below.
@@ -189,7 +189,7 @@ await test("switching to a font still inside its wait keeps the old family until
 await test("late = keep: a face that arrives after the wait is never used this run", async () => {
   const app = await boot(`slow: Font [ wait = 300, late = keep, FontFace [ src = "slow.woff2" ] ],
     t: Text [ fontFamily = { app.slow }, text = "abcd" ]`);
-  app.slow.start();
+  app.slow.$start();
   settle();
   const name = loads.at(-1).family;
   timers.filter((t) => t !== null && t.ms === 300).at(-1).fn();   // the wait runs out
@@ -219,7 +219,7 @@ await test("measureText agrees with a Text of the same style and width", async (
 await test("a constraint that measures text in a Font re-runs when the font's faces land", async () => {
   const app = await boot(`brand: Font [ FontFace [ src = "m.woff2" ] ],
     pill: View [ height = 20, width = { measureText("abcd", { fontFamily: app.brand }).width + 10 } ]`);
-  app.brand.start();
+  app.brand.$start();
   settle();
   assert.equal(app.pill.width, 42);
   await landing(loads.at(-1).family, 16);
@@ -230,7 +230,7 @@ await test("fillText in a style draws the face as text state for that run, and r
   const app = await boot(`brand: Font [ FontFace [ src = "d.woff2" ] ],
     plate: View [ width = 100, height = 40,
       draw(d: Draw) { d.fillText("plate", 0, 20, { fontFamily: app.brand, fontSize: 13, smallCaps: true, textColor: 0xff0000, textTransform: "uppercase" }) } ]`);
-  app.brand.start();
+  app.brand.$start();
   settle();
   const list = record((d) => app.plate.draw(d), () => 100, () => 40);
   const ops = list.ops.map((o) => o.op === "set" ? `set ${o.k}=${o.v}` : o.op === "fillText" ? `fillText ${o.text}` : o.op === "fillStyle" ? `fillStyle ${o.v}` : o.op);

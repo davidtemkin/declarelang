@@ -110,6 +110,10 @@ export declare class DomSurface implements Surface {
      *  natively, so neither needs it). */
     private watchDpr;
     setVisible(v: boolean): void;
+    /** A view's cursor shows while the pointer is over it, even with no handler
+     *  of its own (a resize edge over a window frame): such a view is
+     *  hit-testable for the cursor's sake, and its presses pass to the view
+     *  beneath (the router, above). */
     setCursor(c: string): void;
     private peOverride;
     setPointerEvents(m: string): void;
@@ -198,6 +202,12 @@ export declare class DomSurface implements Surface {
      *  END-SIDE padding — so a padded scroller stops a full bottom inset past
      *  its last child instead of flush against it. */
     setPadding(inset: Inset): void;
+    /** A padded scroller's range (backend.ts setContentExtent): the browser's
+     *  scrollable overflow counts the end padding only for in-flow content, and
+     *  every child here is absolutely placed, so the strut below carries the
+     *  whole extent the view computed, insets included. */
+    private extentStrut;
+    setContentExtent(w: number | null, h: number | null): void;
     /** ROOT only (backend.ts): the App's reactive content extent. The page
      *  realization sizes the root ELEMENT to max(frame, extent) along each
      *  declared scroll axis — the box itself is the scroll range and the
@@ -354,6 +364,9 @@ export declare class DomSurface implements Surface {
     private strutEl;
     private strutH;
     setVirtualExtent(h: number | null): void;
+    /** The strut spans the larger of a windowed list's logical extent and a
+     *  padded scroller's content extent; with neither, it is gone. */
+    private applyStrut;
     /** Where this element lived before travelWith moved it (null = at home). */
     private travelHomeEl;
     travelWith(host: Surface | null): void;
@@ -456,7 +469,7 @@ export declare class DomSurface implements Surface {
  *  it alone — a long backstop keeps the fact from sticking if it never comes
  *  (a pane hidden mid-scroll). Two things it cannot settle:
  *
- *  - THE WHEEL HAS NO END (Murmur run 2): a wheel stream — trackpad momentum
+ *  - THE WHEEL HAS NO END: a wheel stream — trackpad momentum
  *    especially — is a decaying series of events, and discrete wheel input
  *    gets a `scrollend` after every event. So a wheel event marks the stream
  *    live, and nothing ends it until WHEEL_QUIET ms pass with no wheel — the

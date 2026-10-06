@@ -56,18 +56,18 @@ export class Spring extends Animator {
 
   /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
    *  A no-op while already live, so a moving target does not pile up tickers. */
-  wake(): void {
+  $wake(): void {
     if (this.arriving) {
       this.arriving = false;
       this.stop();
       this.vel = 0;
       this.primed = true;
-      const at = this.resolveTarget();
+      const at = this.$resolveTarget();
       if (at !== null && this.attribute !== "") drive(at, this.attribute, this.to);
       return;
     }
     if (this.springRunning) return;
-    if (this.attribute === "" || this.resolveTarget() === null) return;
+    if (this.attribute === "" || this.$resolveTarget() === null) return;
     this.springRunning = true;
     // a journey begins: running, not arrived (Animator's start() says the same)
     setBound(this, "running", true);
@@ -85,7 +85,7 @@ export class Spring extends Animator {
    *  as simple clock enroll/withdraw so the Animatable contract still holds
    *  (e.g. an author who does call spring.stop() to pin it). */
   override start(): void {
-    this.wake();
+    this.$wake();
   }
 
   override stop(): void {
@@ -107,10 +107,10 @@ export class Spring extends Animator {
    *  default never wakes at boot (the equality gate swallows the push), and
    *  a lazy primer would then swallow the first REAL change instead — the
    *  calendar's month→year zoom snapping while year→month animated. */
-  prime(): void {
+  $prime(): void {
     if (this.primed) return;
     this.primed = true;
-    const t = this.resolveTarget();
+    const t = this.$resolveTarget();
     if (t !== null && this.attribute !== "") drive(t, this.attribute, this.to);
     this.vel = 0;
   }
@@ -146,16 +146,16 @@ export class Spring extends Animator {
 
   /** Shift the anchor across a scheduler handover (Ticker.rebase). A spring
    *  has no timed run, so its own anchor is the only one. */
-  override rebase(delta: number): void {
+  override $rebase(delta: number): void {
     if (this.springLastNow !== null) this.springLastNow += delta;
   }
 
-  override tick(now: number): boolean {
+  override $tick(now: number): boolean {
     if (!this.springRunning) return false;
     // The lazy fallback for a spring constructed outside the init walk —
     // same declaration-snap semantics, consumed on the first-ever tick.
     if (!this.primed) {
-      this.prime();
+      this.$prime();
       this.springRunning = false;
       setBound(this, "running", false);
       sharedClock.remove(this);
@@ -172,7 +172,7 @@ export class Spring extends Animator {
     const dt = Math.min(Math.max((now - this.springLastNow) / 1000, 0), 0.064);
     this.springLastNow = now;
 
-    const target = this.resolveTarget();
+    const target = this.$resolveTarget();
     const attr = this.attribute;
     if (target === null || attr === "") {
       this.springRunning = false;
@@ -214,7 +214,7 @@ export class Spring extends Animator {
       sharedClock.remove(this);
       setBound(this, "running", false);
       setBound(this, "arrived", true);
-      this.fire("onStop");
+      this.$fire("onStop");
       return false;
     }
     drive(target, attr, pos);
@@ -226,7 +226,7 @@ export class Spring extends Animator {
 // the spring. attribute/to are inherited from Animator's table; these add the
 // spring's own controls with framer-like defaults.
 defineAttributes(Spring, {
-  to: { def: 0, push: (s: Spring) => s.wake() },
+  to: { def: 0, push: (s: Spring) => s.$wake() },
   stiffness: { def: 170 },
   damping: { def: 22 },
   mass: { def: 1 },

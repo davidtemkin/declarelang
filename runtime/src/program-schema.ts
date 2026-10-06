@@ -1,23 +1,26 @@
-// program-schema — the schema half of a program's user classes, split from
-// check.ts so the RUNNING half is separable from the VALIDATING half. A
-// precompiled program (declarec) was fully checked at build time, so its
-// production bundle ships this module — class registration, effective
-// schemas, replication detection, token coercion — and substitutes check.js
-// (the validator proper) with a stub, exactly like the registry/inspector
-// slimming (tools/declarec.mjs). The dev path imports both and behaves as
-// before; nothing here validates less — checkDecl keeps its full reporting,
-// because class registration is one code path in both worlds.
+// program-schema — the schema half of a program's user classes: class
+// registration (one ClassSchema per class, chained to its base), effective
+// schemas (a class plus an element's inline declarations), declaration checking,
+// replication detection, and the literal provision. Split from check.ts so the
+// validator proper is separable from the schema work both the checker and the
+// router (route.ts) build on.
 //
-// The split line is a dependency fact, not a taste: everything here leans
-// only on the schemas (schema.ts), the value vocabulary (value.ts), and the
-// expression validator (expr.ts) — modules the run-path carries anyway — so
-// shipping it costs nothing beyond its own lines.
+// It runs where schemas are wanted: in the checker, in the compiler (which
+// routes the program it checked, so a built program needs no schemas at run
+// time), and in the router a build carries for trees that arrive unrouted. A
+// production build of a routed program carries none of it. (Until the program
+// arrived routed, every production bundle shipped this module and rebuilt the
+// class schemas at boot; instantiate asked them how to wire each attribute.)
+//
+// Everything here leans only on the schemas (schema.ts), the value vocabulary
+// (value.ts), and the expression validator (expr.ts).
 
-import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
+import type { Element, Attr, AttrDecl, ClassDecl } from "./parser.js";
 import { DeclareError, diag, insetOrRadiusMessage, type Pos } from "./errors.js";
 import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, TextSchema, RichTextSchema, type ClassSchema } from "./schema.js";
 import { fontObjectHint } from "./font-value.js";
-import { coerce, declaredType, describeLiteral, noteLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
+import { coerce, coerceToken, declaredType, describeLiteral, noteLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
+export { coerceToken };
 
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES: ReadonlySet<string> = new Set();
@@ -62,7 +65,7 @@ export function structuralReason(name: string): string | null {
 
 /** One registered user class: its declaration, its schema, and its declared
  *  attributes' coerced defaults (undefined = "no default; starts undefined
- *  until set"). instantiate.ts synthesizes the runtime twin from this. */
+ *  until set"). */
 export interface ClassInfo {
   decl: ClassDecl;
   schema: ClassSchema;
@@ -215,18 +218,6 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
   return { infos, schemas, errors };
 }
 
-/** Coerce a theme-record token to its runtime value (checkThemeRecord vetted
- *  the shapes): numbers and strings pass through, hex/named colors ground as
- *  Color, `true`/`false`/`null` as themselves, a constructor call as the first
- *  of fill/stroke/shadow that admits it, and a LIST of any of those.
- *
- *  A list is a token because the rule the record actually keeps is "a token is
- *  bounded, plain data" — spreadable, comparable, serializable, inspectable
- *  without asking what kind of object it is — and a frozen array of literals is
- *  all of those. Excluding it did not keep lists out; it denied them a type, so
- *  the one the corpus needed most, a font stack, was written as a comma-joined
- *  string and parsed back into a list at the other end. ONE LEVEL: a list of
- *  lists is refused, which keeps "bounded" a fact rather than a hope. */
 /** The value a LITERAL provision provides (`View [ textColor = navy ]`). A
  *  provision has no declared slot on the providing node, but its NAME may match
  *  a text FACE value (`fontFamily`, `fontWeight`, `textColor`, …), and then it
@@ -266,58 +257,6 @@ export function provisionValue(attr: Attr): unknown {
   }
   if (value !== undefined) noteLiteral(v, value);
   return value;
-}
-
-export function coerceToken(lit: Literal): unknown {
-  if (lit.kind === "value") return lit.value;
-  const v = tokenOf(lit);
-  if (v !== undefined) noteLiteral(lit, v);
-  return v;
-}
-
-function tokenOf(lit: Literal): unknown {
-  switch (lit.kind) {
-    case "list": {
-      const out: unknown[] = [];
-      for (const item of lit.items) {
-        // one level: a nested list is not a token, and neither is anything else
-        // coerceToken refuses — the whole list fails so the record's error names
-        // the token, and checkThemeRecord says which item was wrong.
-        if (item.kind === "list") return undefined;
-        const v = coerceToken(item);
-        if (v === undefined) return undefined;
-        out.push(v);
-      }
-      return Object.freeze(out);
-    }
-    case "number":
-      return lit.value;
-    case "string":
-      return lit.value;
-    case "hexColor": {
-      const c = coerce({ kind: "color" }, lit);
-      return c.ok ? c.value : undefined;
-    }
-    case "ident": {
-      if (lit.name === "true") return true;
-      if (lit.name === "false") return false;
-      if (lit.name === "null") return null;
-      const c = coerce({ kind: "color" }, lit); // named colors
-      return c.ok ? c.value : undefined;
-    }
-    case "call": {
-      const asFill = coerce({ kind: "fill" }, lit);
-      if (asFill.ok) return asFill.value;
-      const asStroke = coerce({ kind: "stroke" }, lit);
-      if (asStroke.ok) return asStroke.value;
-      const asShadow = coerce({ kind: "shadow" }, lit);
-      if (asShadow.ok) return asShadow.value;
-      const asBackdrop = coerce({ kind: "filter" }, lit);
-      return asBackdrop.ok ? asBackdrop.value : undefined;
-    }
-    default:
-      return undefined;
-  }
 }
 
 /** One checked attribute declaration: its resolved type and coerced default
@@ -365,7 +304,7 @@ export function resolveWrittenType(
     return okBase ? ({ kind: "array", of: base } as AttrType) : null;
   };
   // A REFERENCE type — a class, a schema, View — says whether it may be empty:
-  // `Thread?` may be null, `Thread` never is. The `?` belongs to these alone.
+  // `Menu?` may be null, `Menu` never is. The `?` belongs to these alone.
   if (written.endsWith("?")) {
     const nullable = reference(written.slice(0, -1), isClassName, isShape);
     if (nullable !== null) return nullable;
@@ -433,7 +372,7 @@ export function checkDecl(
   const type = resolveWrittenType(d.type, isClassName, isShape);
   if (type === null) {
     return err(
-      diag`unknown type '${d.type.replace(/\s*\?$/, "")}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R' — and a class, schema or View that may be empty ends in '?' ('Thread?')`,
+      diag`unknown type '${d.type.replace(/\s*\?$/, "")}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R' — and a class, schema or View that may be empty ends in '?' ('Menu?')`,
       d.typePos
     );
   }

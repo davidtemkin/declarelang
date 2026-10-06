@@ -60,7 +60,6 @@ if (query === "" || args.includes("--help")) {
     rotation · bold inside a label          the entry that answers the concept
     scrolls · fontWeight tokens             the enum's tokens, and who carries them
     DECLARE7001                             the diagnostic's family and register
-    briefs · brief lists                    the task briefs; one of them, whole
 
   flags
     --example  the guide's shortest working examples that use the name, with

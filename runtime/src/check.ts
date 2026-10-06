@@ -27,7 +27,6 @@
 // namespace.
 
 import type { Element, Attr, AttrDecl, Method, Program, TopDecl, ClassDecl } from "./parser.js";
-import { CSS_COLORS } from "./css-colors.js";
 import { DeclareError, insetOrRadiusMessage, type Pos, noBaselineMessage, stackBaselineMessage, placedAttributeMessage } from "./errors.js";
 import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, type ClassSchema, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
@@ -62,14 +61,6 @@ import { isSelective, staticSegs, type PathSeg } from "./path-plan.js";
 import { fontObjectHint } from "./font-value.js";
 import { NOUNS, RESERVED, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken, provisionValue } from "./program-schema.js";
 import { THEME_PRESET_NAMES } from "./themes.js";
-
-// The schema half of the twin tables — class registration, effective schemas,
-// replication detection, token coercion — lives in program-schema.ts so a
-// production build ships it WITHOUT this validator (which declarec substitutes
-// with a stub, the registry-slimming lever). Re-exported here so every
-// existing importer keeps its one import site.
-export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
-export type { ClassInfo, CheckedDecl } from "./program-schema.js";
 
 /** The styling declarations in scope while an element tree checks: the
  *  program's style bundles (fields validated per application site — a bundle
@@ -111,7 +102,7 @@ export function check(input: Element | Program): DeclareError[] {
   // Schema resolution first (typed data): named `schema =` forms rewrite to
   // resolved shape literals, refs resolve, and collisions/unknown names
   // report here. CHECK_SHAPES then answers type-position lookups below.
-  const shapeResolution = resolveShapes(program);
+  const shapeResolution = resolveShapes(program, (n) => Object.hasOwn(SCHEMAS, n));
   CHECK_SHAPES = shapeNames(program);
   CHECK_CLASSES = new Map(program.classes.map((c) => [c.name, c]));
   AUTHOR_CALLS = authorCalls(program);
@@ -668,7 +659,7 @@ function checkElement(
       if (attr.name === "classFor" && replicated) {
         if (attr.value.kind !== "code") {
           errors.push(new DeclareError(
-            `classFor = { … } picks each record's class from the record — '{ :kind == "photo" ? PhotoRow : TextRow }'. One class for every record is the element's own: write it as the tag`,
+            `classFor = { … } picks each record's class from the record — '{ :kind == "header" ? HeaderRow : ItemRow }'. One class for every record is the element's own: write it as the tag`,
             attr.value.pos
           ));
         }
@@ -740,9 +731,11 @@ function checkElement(
       }
       if (attrType(eff, attr.name)?.kind === "array" && attr.value.kind === "list") {
         for (const it of attr.value.items) {
-          const plain = it.kind === "number" || it.kind === "string" || it.kind === "hexColor" ||
-            (it.kind === "ident" && (it.name === "null" || it.name === "true" || it.name === "false" ||
-              Object.hasOwn(CSS_COLORS, it.name.toLowerCase())));
+          // a color item is coerced here, so the compile ships it as its value
+          // (lower-literals.ts) and the build needs no color names to read it
+          const keyword = it.kind === "ident" && (it.name === "null" || it.name === "true" || it.name === "false");
+          const color = (it.kind === "hexColor" || (it.kind === "ident" && !keyword)) && coerce({ kind: "color" }, it).ok;
+          const plain = it.kind === "number" || it.kind === "string" || it.kind === "hexColor" || keyword || color;
           if (!plain) {
             errors.push(new DeclareError(
               `${eff.name}.${attr.name}: a bare list holds plain values — numbers, strings, booleans, null, colors. For anything computed, write the whole list as a { } constraint`,
@@ -1884,7 +1877,7 @@ export type CheckedMethod = { ok: true } | { ok: false; error: DeclareError };
  *  something calls it. The runtime fires the event, which resolves to the
  *  `on…` handler, so a bare `input(v)` on a TextInput compiles, typechecks and
  *  silently saves nothing (cold agent run, 2026-08-05). But the author may also
- *  call a method of that name themselves (`hold()`, Murmur run 4) — then it is
+ *  call a method of that name themselves (`hold()`) — then it is
  *  alive, and refusing it squats an ordinary verb. So the rule fires only when
  *  the author's own code never calls the name; library code does not count, or
  *  a Checkbox's own `this.input(v)` would excuse every TextInput in the program.

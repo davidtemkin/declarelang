@@ -8,7 +8,7 @@ import { type Unsupported } from "./html.js";
 export declare class HTMLText extends RichText {
     html: string;
     unsupported: Unsupported;
-    protected sourceKey(): string;
-    protected parseSource(opts: ReadOptions): Block[];
-    protected policy(): Unsupported;
+    protected $sourceKey(): string;
+    protected $parseSource(opts: ReadOptions): Block[];
+    protected $policy(): Unsupported;
 }

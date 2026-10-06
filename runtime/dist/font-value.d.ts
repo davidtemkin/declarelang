@@ -32,8 +32,8 @@ export declare function familyPending(v: unknown): boolean;
  *  symbol, so the production floor (boot.ts, instantiate.ts) never imports the
  *  Font class: font.ts ships only when a program declares a Font. */
 export interface FontNode extends FontValue {
-    autoStart(): void;
-    ready(): Promise<void>;
+    $autoStart(): void;
+    $ready(): Promise<void>;
 }
 export declare function isFontNode(v: unknown): v is FontNode;
 /** THE START-UP GATE: resolves once every font the tree starts with has settled —

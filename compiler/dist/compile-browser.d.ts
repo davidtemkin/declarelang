@@ -7,10 +7,10 @@ export { provideLib } from "./typecheck.js";
 export { highlight } from "./highlight.js";
 export { parseProgram } from "../../runtime/dist/parser.js";
 export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/check.js";
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
-export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 export interface BrowserFiles {
     /** canonicalPath → source, for `include`s and library files prefetched up front. */
@@ -103,5 +103,6 @@ export declare function compileTracked(source: string, opts?: BrowserTrackedOpti
  *  host renders, and the same artifact a `declarec` deploy ships. */
 export declare function compileProgram(source: string, opts?: BrowserTrackedOptions & {
     stripPos?: boolean;
+    links?: boolean;
 }): Promise<ProgramBuild>;
 export declare function fnv1a(s: string): string;

@@ -60,7 +60,7 @@ export const CSS_ATTRIBUTE_HINTS = {
     // types, each with its one true equivalent. Question-shaped foreign names
     // (useState, VStack, ScrollView) live in the concept table instead —
     // they are asked, never written in an attribute position.
-    flex: "there is no flex — arrangement is the 'layout' attribute; leftover space goes to a 'Spacer' child; proportions are your own arithmetic ('width = { parent.width * 0.4 }')",
+    flex: "there is no flex — arrangement is the 'layout' attribute; leftover space goes to a child with 'flexes = true' (an empty one is a 'Spacer'); proportions are a ResponsiveLayout's shares, or your own arithmetic ('width = { parent.width * 0.4 }')",
     float: "there is no float — position with x/y, or let 'layout: WrappingLayout [ ]' flow and wrap children",
     position: "there is no position property — x/y place a view in its parent; 'ignoreScroll = true' is fixed chrome; 'ignoreLayout = true' opts out of arrangement; stacking is source order",
     visibility: "showing is 'visible' — a 'visible = false' view stays in the tree but paints nothing, and a layout reclaims its space",

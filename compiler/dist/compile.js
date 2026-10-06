@@ -45,7 +45,8 @@
 // ones.
 import { parseProgram } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors } from "../../runtime/dist/errors.js";
-import { check, programSchemas } from "../../runtime/dist/check.js";
+import { check } from "../../runtime/dist/check.js";
+import { programSchemas } from "../../runtime/dist/program-schema.js";
 import { SCHEMAS, descendsFrom, attrType } from "../../runtime/dist/schema.js";
 import { SUPPORTED_TAGS } from "../../runtime/dist/html.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
@@ -232,7 +233,7 @@ import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { hostGlobalHint } from "../../runtime/dist/teach.js";
-import { PRELUDE_NAMES, runtimePlumbing } from "./scaffold.js";
+import { PRELUDE_NAMES } from "./scaffold.js";
 import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
 import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES } from "../../runtime/dist/include.js";
 import { typecheckBodies } from "./typecheck.js";
@@ -265,6 +266,16 @@ function wholeBodyParen(src) {
     const inner = st.expression.expression;
     const start = inner.getStart(sf);
     return { inner: src.slice(start, inner.getEnd()).trim(), start };
+}
+/** Attach `program` to a compile result, non-enumerable (Compiled.program). */
+function attachProgram(target, program) {
+    if (program !== undefined)
+        Object.defineProperty(target, "program", { value: program, enumerable: false });
+    return target;
+}
+/** A copy of a compile result (`{ ...from, ...extra }`) that keeps its program. */
+export function carryProgram(from, extra) {
+    return attachProgram({ ...from, ...extra }, from.program);
 }
 /** Assemble the unified diagnostic view: each error/warning becomes a coded
  *  Diagnostic (its own catalog code if a factory set one, else the phase
@@ -662,7 +673,7 @@ export async function compile(source, opts = {}) {
     // span sets are in the original text's coordinates). A missing script file
     // reports like a missing include.
     const scriptFileErrors = [];
-    let mainSource = await spliceScriptFiles(source, main.scriptFiles, main.scriptFileSpans, opts.originDir ?? "", host, scriptFileErrors, main.includeSpans);
+    const mainSource = await spliceScriptFiles(source, main.scriptFiles, main.scriptFileSpans, opts.originDir ?? "", host, scriptFileErrors, main.includeSpans);
     if (scriptFileErrors.length > 0) {
         return { source: null, errors: scriptFileErrors, warnings: [], ...diagnose(scriptFileErrors, [], "module") };
     }
@@ -676,23 +687,13 @@ export async function compile(source, opts = {}) {
     // attribute — each suppressed when the author declares that name
     // themselves (the customization path). The trigger vocabulary and the
     // executor live below; the ASSOCIATIONS are the library's data.
+    // The provided singletons the manifest grants this program, in rule order:
+    // each becomes the LAST App child — appended to the tree after the parse, and
+    // written into the emitted source at the App's close.
+    const provided = [];
     {
         const byName = new Map(auto.program.classes.map((c) => [c.name, c]));
         const treeHas = (el, tag) => el.tag === tag || el.children.some((ch) => treeHas(ch, tag));
-        // Splice an auto-provided singleton as the LAST App child. The preceding
-        // member may have closed INLINE (no trailing comma — the inline-]& rule),
-        // so add the terminator when the last non-space char before the close
-        // isn't one already.
-        const spliceLast = (src, snippet) => {
-            const close = appCloseBracket(src);
-            if (close < 0)
-                return src;
-            let i = close - 1;
-            while (i >= 0 && /\s/.test(src[i]))
-                i--;
-            const needsComma = i >= 0 && src[i] !== "," && src[i] !== "[";
-            return src.slice(0, close) + (needsComma ? "," : "") + snippet + src.slice(close);
-        };
         // ── PROVIDED SINGLETONS — data, not code paths ────────────────────────
         // The library manifest's `$provide` rules say when a program has EARNED a
         // library-provided singleton (the FocusRing with any Control descendant;
@@ -771,8 +772,7 @@ export async function compile(source, opts = {}) {
                         continue;
                     libSources.push(lib.source);
                     libIds.push(lib.canonical);
-                    const comment = typeof r.comment === "string" ? r.comment : `${cls} — provided with the class library`;
-                    mainSource = spliceLast(mainSource, `\n    // ${comment}\n\n    ${cls} [ ],\n`);
+                    provided.push({ cls, comment: typeof r.comment === "string" ? r.comment : `${cls} — provided with the class library` });
                 }
             }
         }
@@ -811,6 +811,14 @@ export async function compile(source, opts = {}) {
         }
         throw e;
     }
+    // THE ONE PARSE. Every later phase works on this tree, and every position in
+    // it is where the author wrote it. A phase that rewrites a body rewrites the
+    // body's own text in place; the emitted source is the merged text with each
+    // body put back over the span it came from (emittedSource, at the end).
+    const spans = new Map();
+    registerSpans(program, merged, spans);
+    for (const p of provided)
+        program.root.children.push(providedElement(p.cls, program.root.pos));
     // ── the LINK REGISTRY (location.md §0.3, registry.ts) ───────────────────
     // BEFORE the lowering, deliberately: these checks read the AUTHORED program
     // — the double-gate lint must see the author's visible, not the location
@@ -832,17 +840,14 @@ export async function compile(source, opts = {}) {
     // ── `shows` LOWERING (location.md §0.4) ─────────────────────────────────
     // `shows = "why"` implies the visibility: the location's DESTINATION part
     // (the runtime strips its own trailing `@name` — app.destinationOf) equals
-    // the name. Lowered HERE, as a text edit on the merged source, because the
-    // pipeline is source-spliced: everything downstream — check, resolution,
-    // typecheck, DEP EXTRACTION, emission — then treats the implied binding as
-    // authored code, so its `app.location` read is statically wired like any
-    // other and the trusted path needs no special case. An authored `visible`
-    // constraint ANDs on top (wrapped in place); an authored literal `false`
-    // wins whole (shows adds a gate, never resurrects a hidden view). Inserted
-    // text carries NO newline, so the author↔merged line mapping (rb) is
-    // untouched; only columns after an insertion on that one line drift.
+    // the name. Lowered HERE, on the tree, before check: everything downstream —
+    // check, resolution, typecheck, DEP EXTRACTION, emission — then treats the
+    // implied binding as authored code, so its `app.location` read is statically
+    // wired like any other and the trusted path needs no special case. An
+    // authored `visible` constraint ANDs on top (wrapped in place); an authored
+    // literal `false` wins whole (shows adds a gate, never resurrects a hidden
+    // view). The gate's code carries the `shows` attribute's position.
     {
-        const edits = [];
         // Every `shows` name in the tree, with where it was written — so the
         // cold-load check below can say which names WOULD have worked.
         const showsNames = [];
@@ -853,15 +858,17 @@ export async function compile(source, opts = {}) {
                 showsNames.push({ name: sh.value.value, pos: sh.pos });
                 const vis = el.attrs.find((a) => a.name === "visible");
                 if (vis === undefined) {
-                    edits.push({ start: sh.pos.offset, end: sh.pos.offset, text: `visible = { ${gate(sh.value.value)} }, ` });
+                    const value = { kind: "code", src: ` ${gate(sh.value.value)} `, pos: sh.pos };
+                    el.attrs.splice(el.attrs.indexOf(sh), 0, { name: "visible", value, pos: sh.pos });
+                    spans.set(value, { start: sh.pos.offset, end: sh.pos.offset, field: "src", prefix: "visible = {", suffix: "}, " });
                 }
                 else if (vis.value.kind === "ident" && vis.value.name === "true") {
-                    edits.push({ start: vis.value.pos.offset, end: vis.value.pos.offset + 4, text: `{ ${gate(sh.value.value)} }` });
+                    const at = vis.value.pos;
+                    vis.value = { kind: "code", src: ` ${gate(sh.value.value)} `, pos: at };
+                    spans.set(vis.value, { start: at.offset, end: at.offset + 4, field: "src", prefix: "{", suffix: "}" });
                 }
                 else if (vis.value.kind === "code") {
-                    const inner = vis.value.pos.offset + 1;
-                    edits.push({ start: inner, end: inner, text: ` (${gate(sh.value.value)}) && (` });
-                    edits.push({ start: inner + vis.value.src.length, end: inner + vis.value.src.length, text: `) ` });
+                    vis.value.src = ` (${gate(sh.value.value)}) && (${vis.value.src}) `;
                 }
             }
             for (const c of el.children)
@@ -922,21 +929,6 @@ export async function compile(source, opts = {}) {
                 }
             }
         }
-        if (edits.length > 0) {
-            edits.sort((a, b) => b.start - a.start);
-            for (const e of edits)
-                merged = merged.slice(0, e.start) + e.text + merged.slice(e.end);
-            try {
-                program = parseProgram(merged); // later phases index the LOWERED text
-            }
-            catch (e) {
-                if (e instanceof DeclareError) {
-                    const es = rbAll([e]);
-                    return { source: null, errors: es, warnings: [], ...diagnose(es, [], "syntax") };
-                }
-                throw e;
-            }
-        }
     }
     const errors = rbAll(check(program));
     if (errors.length > 0)
@@ -965,22 +957,17 @@ export async function compile(source, opts = {}) {
         const es = rbAll(r.errors), ws = rbAll(r.warnings), ht = hs();
         return { source: null, errors: es, warnings: ws, hints: ht, ...diagnose(es, ws, "name", "name", ht) };
     }
-    // Splice highest-offset first so earlier offsets stay valid. Identifier
-    // spans never overlap, so order within a body is immaterial beyond that.
-    r.edits.sort((a, b) => b.start - a.start);
-    let out = merged;
-    for (const e of r.edits)
-        out = out.slice(0, e.start) + e.text + out.slice(e.end);
-    // tsc over the resolved `{ }` bodies — a phase of THE compile (on unless the
-    // caller EXPLICITLY opts a latency-critical loop out). The checker is a
-    // direct import: there is no front-end that can forget to wire it, on any
-    // host — only the lib.d.ts SOURCE differs per host (typecheck.ts provideLib;
-    // an unregistered provider throws, never silently skips). A type error
-    // blocks emission like any other, mapped to its `.declare` line (DECLARE6001).
-    let typeOracle = null;
-    if (opts.typecheck !== false) {
-        const tc = typecheckBodies(out, program);
-        typeOracle = tc.oracle;
+    // Each body takes its own rewrites, applied to its text in place.
+    applyBodyEdits(r.edits);
+    // tsc over the resolved `{ }` bodies — a phase of every compile. The checker
+    // is a direct import: there is no front-end that can forget to wire it, on
+    // any host — only the lib.d.ts SOURCE differs per host (typecheck.ts
+    // provideLib; an unregistered provider throws, never silently skips). A type
+    // error blocks emission like any other, mapped to its `.declare` line
+    // (DECLARE6001).
+    const tc = typecheckBodies(merged, program);
+    const typeOracle = tc.oracle;
+    {
         const typeErrors = rbAll(tc.errors);
         if (typeErrors.length > 0) {
             const ws = rbAll(r.warnings), ht = hs();
@@ -989,60 +976,32 @@ export async function compile(source, opts = {}) {
     }
     // TS-only syntax is checked (above), then STRIPPED for emission
     // (strip-types.ts): bodies run as JavaScript in the zero-dependency runtime,
-    // so `x as T`/`x!`/`<T>x` are removed by byte-preserving splices. Runs on a
-    // fresh parse of the resolved text (its offsets are the output's offsets).
+    // so `x as T`/`x!`/`<T>x` are removed from each body's text. `script { … }`
+    // blocks are not stripped: a script block is real TypeScript
+    // (`function f(n: number): number`), so it is genuinely transpiled, below.
     {
-        let sp = null;
-        try {
-            sp = parseProgram(out);
-        }
-        catch { /* the dep-extract parse below reports it */ }
-        if (sp !== null) {
-            const strips = [];
-            const asCode = (v) => v !== null && typeof v === "object" && v.kind === "code" ? v : null;
-            const collectStrips = (el) => {
-                for (const a of el.attrs) {
-                    const v = asCode(a.value);
-                    if (v !== null)
-                        for (const e of stripEditsFor(v.src, true))
-                            strips.push({ start: v.pos.offset + 1 + e.start, end: v.pos.offset + 1 + e.end });
-                }
-                for (const d of el.decls) {
-                    const v = asCode(d.def);
-                    if (v !== null)
-                        for (const e of stripEditsFor(v.src, true))
-                            strips.push({ start: v.pos.offset + 1 + e.start, end: v.pos.offset + 1 + e.end });
-                }
-                for (const m of el.methods) {
-                    for (const e of stripEditsFor(m.body, false))
-                        strips.push({ start: m.bodyPos.offset + 1 + e.start, end: m.bodyPos.offset + 1 + e.end });
-                }
-                for (const c of el.children)
-                    collectStrips(c);
-            };
-            collectStrips(sp.root);
-            for (const cls of sp.classes)
-                collectStrips(cls.body);
-            // NOTE: `script { … }` bodies are NOT handled here. stripEditsFor removes
-            // casts only — type annotations and declarations are a compile error in an
-            // ordinary body, so there is nothing else for it to delete. A script block
-            // is real TypeScript (`function f(n: number): number`), so it needs a true
-            // transpile, which runs as its own pass below once these offsets settle.
-            strips.sort((a, b) => b.start - a.start);
-            for (const e of strips)
-                out = out.slice(0, e.start) + out.slice(e.end);
-        }
+        const strip = (src, expression) => applyEdits(src, stripEditsFor(src, expression).map((e) => ({ ...e, text: "" })));
+        const stripElement = (el) => {
+            for (const a of el.attrs)
+                if (a.value.kind === "code")
+                    a.value.src = strip(a.value.src, true);
+            for (const d of el.decls)
+                if (d.def?.kind === "code")
+                    d.def.src = strip(d.def.src, true);
+            for (const m of el.methods)
+                m.body = strip(m.body, false);
+            for (const c of el.children)
+                stripElement(c);
+        };
+        stripElement(program.root);
+        for (const cls of program.classes)
+            stripElement(cls.body);
     }
     // `script { … }` → JavaScript. Unlike a `{ }` body — where a type annotation
     // is an error and only casts need removing — a script block is ordinary
-    // TypeScript, so it is genuinely transpiled. A fresh parse gives spans in the
-    // just-stripped text; splicing back-to-front keeps the earlier ones valid.
+    // TypeScript, so it is genuinely transpiled. Each block keeps its line count
+    // (keepLines), so the emitted source stays line-for-line with the author's.
     {
-        let sp = null;
-        try {
-            sp = parseProgram(out);
-        }
-        catch { /* reported by the dep-extract parse */ }
         const hasImports = (src) => {
             try {
                 const sf = ts.createSourceFile("s.ts", src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
@@ -1052,8 +1011,9 @@ export async function compile(source, opts = {}) {
                 return false;
             }
         };
-        if (sp !== null && sp.scripts.length > 0 && opts.bundleScripts !== undefined
-            && sp.scripts.some((s) => !s.src.includes(BINDINGS_MARK) && hasImports(s.src))) {
+        const scripts = program.scripts;
+        if (scripts.length > 0 && opts.bundleScripts !== undefined
+            && scripts.some((s) => s.compiled !== true && hasImports(s.src))) {
             // IMPORTS PRESENT → the program's script module is real: every block, in
             // source order, concatenates into ONE module (cross-block references and
             // hoisted imports are the module's own semantics), the host's bundler
@@ -1061,80 +1021,61 @@ export async function compile(source, opts = {}) {
             // single block — as a STRING LITERAL evaluated with `new Function`, so
             // the artifact stays self-contained source and no brace of the bundled
             // JS ever meets the tokenizer.
-            const blocks = [...sp.scripts].sort((a, b) => a.span.start - b.span.start);
+            const blocks = [...scripts].sort((a, b) => a.span.start - b.span.start);
             const entry = blocks.map((s) => s.src).join("\n\n");
             const visible = [...new Set(blocks.flatMap((s) => topLevelBindings(s.src)))];
             const bundled = await opts.bundleScripts(entry + `\nmodule.exports = { ${visible.join(", ")} };\n`, opts.originDir ?? ".");
             if ("error" in bundled) {
-                const es = rbAll([new DeclareError(`script imports failed to bundle — ${bundled.error}`, posOf(out, blocks[0].span.start))]);
+                const es = rbAll([new DeclareError(`script imports failed to bundle — ${bundled.error}`, posOf(merged, blocks[0].span.start))]);
                 return { source: null, errors: es, warnings: [], ...diagnose(es, [], "module") };
             }
             const blockSrc = ` const js = ${JSON.stringify(bundled.code)}; const module = { exports: {} }; new Function("module", "exports", js)(module, module.exports); ${BINDINGS_MARK} return module.exports; `;
-            for (const s of [...blocks].reverse()) {
-                const bodyOpen = s.span.end - s.src.length - 1; // just past the `{`
-                const replacement = s === blocks[0] ? blockSrc : " ";
-                out = out.slice(0, bodyOpen) + replacement + out.slice(bodyOpen + s.src.length);
-            }
+            for (const s of blocks)
+                s.src = keepLines(s === blocks[0] ? blockSrc : " ", s.src);
+            blocks[0].compiled = true;
         }
-        else if (sp !== null && sp.scripts.length > 0 && !sp.scripts.some((s) => s.src.includes(BINDINGS_MARK))) {
-            // NO imports → still ONE shared scope (2026-09-02, found from DT's
-            // question): every block, in source order, transpiles and concatenates
-            // into a single evaluated body with ONE bindings return — a block-2
-            // function calling block-1's (or mutating its state) resolves
-            // lexically, exactly as the checker, which concatenates the blocks
-            // ambient, already vouches. Per-block compilation gave each block its
-            // own closure and its own early `return`: the compiler said clean and
-            // the first cross-block call threw ReferenceError. The trailing
+        else if (scripts.length > 0 && !scripts.some((s) => s.compiled === true)) {
+            // NO imports → still ONE shared scope: every block, in source order,
+            // transpiles and concatenates into a single evaluated body with ONE
+            // bindings return — a block-2 function calling block-1's (or mutating
+            // its state) resolves lexically, exactly as the checker, which
+            // concatenates the blocks ambient, already vouches. The trailing
             // `return { … }` (the union of every block's top-level names) is what
             // lets the runtime evaluate with `new Function` and receive the
             // bindings — there is no other way to enumerate a function's scope,
-            // and doing it here keeps the artifact self-contained.
-            const blocks = [...sp.scripts].sort((a, b) => a.span.start - b.span.start);
+            // and doing it here keeps the artifact self-contained. The FIRST block
+            // carries the merged body, the rest are empty (the imports branch's shape).
+            const blocks = [...scripts].sort((a, b) => a.span.start - b.span.start);
             const js = blocks.map((s) => ts.transpileModule(s.src, {
                 compilerOptions: { target: ts.ScriptTarget.ESNext, module: ts.ModuleKind.ESNext, isolatedModules: true },
                 reportDiagnostics: false,
-            }).outputText.trim()).join("\n;\n");
+            }).outputText.trim()).join("\n;");
             const names = [...new Set(blocks.flatMap((s) => topLevelBindings(s.src)))];
             const tail = names.length > 0 ? ` ${BINDINGS_MARK} return { ${names.join(", ")} };` : "";
-            // splice back-to-front so earlier spans stay valid: the FIRST block
-            // carries the merged body, the rest empty (the imports branch's shape)
-            for (const s of [...blocks].sort((a, b) => b.span.start - a.span.start)) {
-                const bodyOpen = s.span.end - s.src.length - 1; // just past the `{`
-                const replacement = s === blocks[0] ? " " + js + tail + " " : " ";
-                out = out.slice(0, bodyOpen) + replacement + out.slice(bodyOpen + s.src.length);
-            }
+            for (const s of blocks)
+                s.src = keepLines(s === blocks[0] ? " " + js + tail + " " : " ", s.src);
+            if (tail !== "")
+                blocks[0].compiled = true;
         }
     }
     // Final phase (NOT opt-in): static dependency extraction (docs/system-design/constraints.md
-    // §5). Re-parse the RESOLVED source — so every reactive read is an explicit
-    // `this.…`/`parent.…`/`classroot.…`/`:path` — annotate each `{ }` constraint
-    // with its read-paths, and serialize them in walk order. Folding this INTO
-    // compile() is the whole point: `deps` becomes part of the ONE result every
-    // caller renders, so a client can no longer re-run the extractor (the server's
-    // old `depsFor`, declarec's hand-run) or forget it (the browser paths, which
-    // silently fell to runtime tracking). An analyzable constraint is wired to its
-    // read-paths; an UNANALYZABLE one (a §3 residue) is a BLOCKING error that names
-    // the fix (constraints.md §3 + diagnostics.md §4) — never a silent fallback.
-    // Legitimate calls into language methods are analyzable via their declared
-    // effect signatures (effects.ts), so only genuinely-dynamic targets — indexing
-    // by a runtime value, a computed datapath, node-collection aggregation, or an
-    // opaque call — reach this error.
-    let depProgram;
-    try {
-        depProgram = parseProgram(out);
-    }
-    catch (e) {
-        if (e instanceof DeclareError) {
-            const es = rbAll([e]), ws = rbAll(r.warnings), ht = hs();
-            return { source: null, errors: es, warnings: ws, hints: ht, ...diagnose(es, ws, "syntax", "name", ht) };
-        }
-        throw e;
-    }
-    // Static `:path` checking against declared schemas (B4, language §9) —
-    // runs on the resolved parse, where cursor expressions are explicit. The
-    // named `schema =` forms resolve first (typed data — idempotent; errors
-    // were the main check()'s to report).
-    resolveShapes(depProgram);
+    // §5). Every reactive read in a resolved body is an explicit
+    // `this.…`/`parent.…`/`classroot.…`/`:path`, so each `{ }` constraint is
+    // annotated with its read-paths, serialized in walk order. Folding this INTO
+    // compile() is the whole point: `deps` is part of the ONE result every caller
+    // renders, so no client re-runs the extractor or forgets it. An analyzable
+    // constraint is wired to its read-paths; an UNANALYZABLE one (a §3 residue)
+    // is a BLOCKING error that names the fix (constraints.md §3 + diagnostics.md
+    // §4) — never a silent fallback. Legitimate calls into language methods are
+    // analyzable via their declared effect signatures (effects.ts), so only
+    // genuinely-dynamic targets — indexing by a runtime value, a computed
+    // datapath, node-collection aggregation, or an opaque call — reach this error.
+    //
+    // Static `:path` checking against declared schemas (B4, language §9) runs
+    // first, where cursor expressions are explicit. The named `schema =` forms
+    // resolve first (typed data — idempotent; errors were check()'s to report).
+    const depProgram = program;
+    resolveShapes(depProgram, (n) => Object.hasOwn(SCHEMAS, n));
     {
         const schemaErrors = rbAll(schemaCheck(depProgram));
         if (schemaErrors.length > 0) {
@@ -1149,7 +1090,7 @@ export async function compile(source, opts = {}) {
     if (residue.length > 0) {
         const errs = rbAll(residue
             .sort((a, b) => a.offset - b.offset)
-            .map((e) => Diag.residue(e.message, posOf(out, e.offset))));
+            .map((e) => Diag.residue(e.message, posOf(merged, e.offset))));
         const ws = rbAll(r.warnings), ht = hs();
         return { source: null, errors: errs, warnings: ws, hints: ht, ...diagnose(errs, ws, "constraint", "name", ht) };
     }
@@ -1161,7 +1102,120 @@ export async function compile(source, opts = {}) {
     extractLinks(depProgram);
     const okWarnings = rbAll([...r.warnings, ...regWarnings]);
     const okHints = hs();
-    return { source: out, deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, hints: okHints, ...diagnose([], okWarnings, "name", "name", okHints) };
+    const result = { source: emittedSource(merged, spans, provided), deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, hints: okHints, ...diagnose([], okWarnings, "name", "name", okHints) };
+    return attachProgram(result, depProgram);
+}
+/** Apply non-overlapping edits to `text` in one pass, each span in `text`'s own
+ *  coordinates. Insertions at the same offset land in reverse order of the
+ *  list — what applying them one at a time, highest offset first, produces. */
+function applyEdits(text, edits) {
+    if (edits.length === 0)
+        return text;
+    const order = edits.map((e, i) => ({ e, i })).sort((a, b) => a.e.start - b.e.start || b.i - a.i);
+    const parts = [];
+    let at = 0;
+    for (const { e } of order) {
+        parts.push(text.slice(at, e.start), e.text);
+        at = e.end;
+    }
+    parts.push(text.slice(at));
+    return parts.join("");
+}
+/** Record every body's span in `text` — each code value, method body, style
+ *  field and script — keyed by the tree node that holds its text. A body whose
+ *  text is not found verbatim at its span is left out (nothing to put back). */
+function registerSpans(program, text, spans) {
+    const add = (owner, field, start) => {
+        const body = owner[field];
+        if (text.startsWith(body, start))
+            spans.set(owner, { start, end: start + body.length, field, prefix: "", suffix: "" });
+    };
+    const walk = (el) => {
+        for (const a of el.attrs)
+            if (a.value.kind === "code")
+                add(a.value, "src", a.value.pos.offset + 1);
+        for (const d of el.decls)
+            if (d.def?.kind === "code")
+                add(d.def, "src", d.def.pos.offset + 1);
+        for (const m of el.methods)
+            add(m, "body", m.bodyPos.offset + 1);
+        for (const c of el.children)
+            walk(c);
+    };
+    walk(program.root);
+    for (const c of program.classes)
+        walk(c.body);
+    for (const st of program.styles)
+        walk(st.body);
+    for (const th of program.themes ?? [])
+        walk(th.body);
+    for (const sc of program.scripts)
+        add(sc, "src", sc.span.end - sc.src.length - 1);
+}
+/** Apply the Resolver's rewrites to the bodies they belong to: each edit names
+ *  its owner, and its offsets are the owner's body start plus a position in
+ *  the body's text. */
+function applyBodyEdits(edits) {
+    const byOwner = new Map();
+    for (const e of edits) {
+        if (e.owner === undefined)
+            throw new Error("compile: a rewrite with no body to apply it to");
+        const list = byOwner.get(e.owner);
+        if (list === undefined)
+            byOwner.set(e.owner, [e]);
+        else
+            list.push(e);
+    }
+    for (const [owner, list] of byOwner) {
+        const isMethod = "bodyPos" in owner;
+        const o = owner;
+        const field = isMethod ? "body" : "src";
+        const base = (isMethod ? o.bodyPos : o.pos).offset + 1;
+        o[field] = applyEdits(o[field], list.map((e) => ({ start: e.start - base, end: e.end - base, text: e.text })));
+        if (isMethod && list.some((e) => e.super === true))
+            owner.usesSuper = true;
+    }
+}
+/** A provided singleton's element, `Class [ ]`, placed at `pos`. */
+function providedElement(cls, pos) {
+    const el = parseProgram(`App [ ${cls} [ ] ]`).root.children[0];
+    const place = (e) => { e.pos = pos; for (const c of e.children)
+        place(c); };
+    place(el);
+    return el;
+}
+/** The emitted source: the merged text with every body's final text over its
+ *  span, a lowering's created bodies written in, and the provided singletons
+ *  as the App's last children. */
+function emittedSource(merged, spans, provided) {
+    const edits = [];
+    for (const [owner, sp] of spans) {
+        edits.push({ start: sp.start, end: sp.end, text: sp.prefix + owner[sp.field] + sp.suffix });
+    }
+    if (provided.length > 0) {
+        // The preceding member may have closed INLINE (no trailing comma — the
+        // inline-]& rule), so the terminator is added when the last non-space
+        // character before the close isn't one already.
+        const close = appCloseBracket(merged);
+        if (close >= 0) {
+            let i = close - 1;
+            while (i >= 0 && /\s/.test(merged[i]))
+                i--;
+            const needsComma = i >= 0 && merged[i] !== "," && merged[i] !== "[";
+            const text = (needsComma ? "," : "") + provided.map((p) => `\n    // ${p.comment}\n\n    ${p.cls} [ ],\n`).join("");
+            edits.push({ start: close, end: close, text });
+        }
+    }
+    return applyEdits(merged, edits);
+}
+/** A script block's emitted JavaScript, padded with trailing newlines to the
+ *  line count of the source it replaces, so every later position still rebases
+ *  by line (makeRebaser). Transpiling drops lines — an `interface` vanishes —
+ *  and the merged body of several blocks lands in the first; when that body is
+ *  longer than the first block, the lines after it shift by the excess. */
+function keepLines(js, replaced) {
+    const short = countLines(replaced) - countLines(js);
+    return short > 0 ? js + "\n".repeat(short) : js;
 }
 /** The offset of the ROOT App's own closing `]` in `src` — a balanced scan
  *  from its opening bracket, skipping `{ }` code islands and string/template/
@@ -1599,7 +1653,7 @@ class Resolver {
         this.checkTwoWayScope(el, levels, mainRoot);
         for (const a of el.attrs) {
             if (a.value.kind === "code") {
-                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope, a.name);
+                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope, a.value, a.name);
                 this.warnAmbient(a.value.src, a.value.pos);
             }
         }
@@ -1610,20 +1664,12 @@ class Resolver {
         // `this.theme` exactly as it would in a set.
         for (const d of el.decls) {
             if (d.def?.kind === "code") {
-                this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot, scope);
+                this.resolveBody(d.def.src, d.def.pos, true, [], levels, mainRoot, scope, d.def);
                 this.warnAmbient(d.def.src, d.def.pos);
             }
         }
         for (const m of el.methods) {
-            this.resolveBody(m.body, m.bodyPos, false, m.params.map((p) => p.name), levels, mainRoot, scope);
-            // A method named like the built-in root's runtime PLUMBING — a runtime
-            // method the reference documents no contract for (DataSource.maybeAuto,
-            // Animator.tick, View.attach). Legal: a method is a method, and the
-            // override stands (super reaches the runtime's). Warned, because the
-            // runtime calls it on its own schedule and nothing documents when.
-            const root = this.builtinRoot(el.tag);
-            if (root !== null && runtimePlumbing(root).has(m.name))
-                this.warnings.push(Diag.overridesPlumbing(el.tag, m.name, root, m.pos));
+            this.resolveBody(m.body, m.bodyPos, false, m.params.map((p) => p.name), levels, mainRoot, scope, m);
             // A per-frame Time whose onTick never reads its step is not integrating —
             // it is polling (declare.md §1, "nothing waits"). A warning: the program
             // runs, but the handler's condition names what it was really waiting
@@ -1645,7 +1691,7 @@ class Resolver {
     resolveBundle(body) {
         for (const a of body.attrs) {
             if (a.value.kind === "code")
-                this.resolveBody(a.value.src, a.value.pos, true, [], [TEXT_LEVEL], null, "bundle");
+                this.resolveBody(a.value.src, a.value.pos, true, [], [TEXT_LEVEL], null, "bundle", a.value);
         }
     }
     /** A handler's `:field = v` writes the record the nearest enclosing
@@ -1662,7 +1708,15 @@ class Resolver {
             return;
         this.errors.push(new DeclareError(`':${path} = …' has no record to write — a :path names a field of the record the nearest enclosing 'datapath' points at, and nothing above this declares one. Move the handler inside 'datapath = { … }', or write an ordinary attribute instead`, pos));
     }
-    resolveBody(src, brace, expression, params, levels, mainRoot, scope, slot) {
+    /** Resolve one body, tagging its rewrites with `owner` — the code value or
+     *  method whose text they rewrite. */
+    resolveBody(src, brace, expression, params, levels, mainRoot, scope, owner, slot) {
+        const from = this.edits.length;
+        this.resolveBodyText(src, brace, expression, params, levels, mainRoot, scope, slot);
+        for (let i = from; i < this.edits.length; i++)
+            this.edits[i].owner = owner;
+    }
+    resolveBodyText(src, brace, expression, params, levels, mainRoot, scope, slot) {
         const bodyStart = brace.offset + 1; // the body begins just after `{`
         // Redundant whole-body parentheses (`{ (expr) }`, `{ ({ … }) }`) — the { }
         // already delimits the expression, so the outer ( ) do nothing. Rejected on
@@ -1946,22 +2000,12 @@ class Resolver {
                     this.errors.push(new DeclareError(`super.${name}(): no class beneath ${from} declares ${name}() — super reaches a method written in this program or the library, or a built-in's own runtime method; a built-in fires its events, so a handler has no base body to call`, pos));
                     return;
                 }
-                this.edits.push({ start: bodyStart + n.getStart(sf), end: bodyStart + n.getEnd(), text: "$base" });
+                this.edits.push({ start: bodyStart + n.getStart(sf), end: bodyStart + n.getEnd(), text: "$base", super: true });
                 return;
             }
             ts.forEachChild(n, walk);
         };
         walk(sf);
-    }
-    /** The built-in schema at the root of `tag`'s chain — the class whose runtime
-     *  methods a program's `tag` instances carry (a user class resolves through
-     *  its bases; a built-in is its own root). Null for an unknown tag. */
-    builtinRoot(tag) {
-        for (let s = this.schemas[tag]; s !== undefined && s !== null; s = s.base) {
-            if (Object.hasOwn(SCHEMAS, s.name))
-                return s.name;
-        }
-        return null;
     }
     /** The explicit path to level `k` of `count` levels: the node itself, a
      *  parent chain, or the body root. In a CLASS body the root is `classroot`

@@ -94,8 +94,8 @@ an attribute the child reads (a color, a label, a size) or as a method to overri
 
 ## A frame around content
 
-A class is often a frame — a sheet with a title and padding, a card with a header, a message
-with its name and reactions — whose content each subclass or use site supplies. The children
+A class is often a frame — a sheet with a title and padding, a card with a header and a row
+of actions — whose content each subclass or use site supplies. The children
 a subclass writes are appended to the instance, beside the base's own; the frame says where
 they belong instead with [`defaultplacement`](declare-docs:View.defaultplacement), naming one of
 its own children:
@@ -107,9 +107,9 @@ class Sheet [ width = 300, fill = white, cornerRadius = 16, defaultplacement = b
     body: View [ y = 44, width = 100%, padding = [0, 16, 16, 16],
         layout: SimpleLayout [ axis = y, spacing = 10 ] ]
     ]
-class DetailSheet extends Sheet [ heading = "Session",
-    figs: Text [ fontSize = 30, text = "3h 40m" ],
-    acts: Button [ label = "Delete" ]
+class DetailSheet extends Sheet [ heading = "Order",
+    figs: Text [ fontSize = 30, text = "$128.40" ],
+    acts: Button [ label = "Cancel order" ]
     ]
 ```
 

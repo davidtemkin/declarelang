@@ -23,10 +23,10 @@ const [root, file, caps] = process.argv.slice(1);
 const R = await import(path.join(root, "runtime/dist/reactive.js"));
 await R.kernelReady(caps === "default" ? undefined : JSON.parse(caps));
 const { compile } = await import(path.join(root, "compiler/dist/compile-node.js"));
-const { settleHeadless } = await import(path.join(root, "compiler/dist/headless.js"));
+const { settleSource } = await import(path.join(root, "compiler/dist/headless.js"));
 const r = await compile(await readFile(file, "utf8"), { originDir: path.dirname(file), mainId: file });
 if (r.errors.length) { console.log(JSON.stringify({ error: r.errors[0].message })); process.exit(0); }
-const app = settleHeadless(r.source, { deps: r.deps });
+const app = settleSource(r.source, { deps: r.deps });
 const out = [];
 const walk = (v, p) => {
   const t = typeof v.text === "string" ? v.text : null;

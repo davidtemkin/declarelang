@@ -7,14 +7,13 @@ wrapped in one: records live in a `Dataset` that views bind to, and a document w
 of its own is a class that extends `Dataset`.
 
 ```declare
-class Stopwatch extends Node [ running: boolean = false, elapsed: number = 0,
-    clock: Time [ tick = frame, running = { classroot.running },
-        onTick(dt: number) { classroot.elapsed = classroot.elapsed + dt } ],
-    toggle() { running = !running }
+class Die extends Node [ sides: number = 6, last: number = 0, rolls: number = 0,
+    roll() { last = 1 + Math.floor(Math.random() * sides); rolls = rolls + 1 },
+    reset() { last = 0; rolls = 0 }
     ]
 ```
 
-A view then holds one as a named member (`watch: Stopwatch [ ]`) and reads/drives it
+A view then holds one as a named member (`die: Die [ ]`) and reads/drives it
 reactively. A Node may also stand on a **record** with a `datapath` of its own: its `:path`
 reads and `:field = v` writes resolve against that record, so a class owns the rules for a
 kind of data with no view involved. A class with no `extends` is a view, so a class of
@@ -60,7 +59,7 @@ HTML and React: a field reports what the reader typed through `onInput`, and a c
 reports its own value through `input()`. This event is about a value the *program* holds.
 
 **Use it only for a genuine state change** — something happened and the program must act
-once: mark a conversation read when the reader reaches its end, open a pane when the data
+once: record that the terms were read when the reader reaches their end, open a pane when the data
 lands, start a fetch when a selection changes. It is not for following a value, which is a
 constraint, nor for moving one, which is a Spring, and it is not meant for use in
 conjunction with animation.

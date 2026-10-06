@@ -31,23 +31,25 @@ async function boot(n = 10000) {
   return app;
 }
 
-const listRows = (app) => app.list.children.filter((c) => c.isTableRow === true);
+const listRows = (app) => app.body.main.list.children.filter((c) => c.isTableRow === true);
+// the rail's status counts, as { status: n }
+const counts = (app) => Object.fromEntries(app.statusRows.value.rows.map((r) => [r.status, r.n]));
 
 await test("boot: the projection stands, the counts add up, the list windows (10k)", async () => {
   const app = await boot(10000);
   assert.equal(app.issuesOf(app.rev).length, 10000);
   assert.equal(app.shownTotal, 10000);
-  const c = app.counts;
+  const c = counts(app);
   assert.equal(c.open + c["in-progress"] + c.blocked + c.closed, 10000, "counts partition the set");
   assert.ok(listRows(app).length < 120, `windowed (got ${listRows(app).length} instances)`);
-  assert.ok(app.list.children.length > 5, "rows materialized");
+  assert.ok(app.body.main.list.children.length > 5, "rows materialized");
 });
 
 await test("criterion 1: mixed-height rows scroll both directions fast — placement exact among measured", async () => {
   const app = await boot(10000);
   const el = app.shown.value.rows;
   // deep jump then return; rows land at ledger offsets with true heights
-  app.list.scrollY = 120000;
+  app.body.main.list.scrollY = 120000;
   settle(); settle();
   const deep = listRows(app).filter((r) => r.visible).sort((a, b) => a.y - b.y);
   assert.ok(deep.length > 4, "deep window materialized");
@@ -57,7 +59,7 @@ await test("criterion 1: mixed-height rows scroll both directions fast — place
         "consecutive rows sit exactly their MEASURED heights apart");
     }
   }
-  app.list.scrollY = 0;
+  app.body.main.list.scrollY = 0;
   settle(); settle();
   const top = listRows(app).filter((r) => r.visible && r.tableIndex() === 0);
   assert.equal(top.length, 1, "back at the top, row 0 stands");
@@ -65,10 +67,10 @@ await test("criterion 1: mixed-height rows scroll both directions fast — place
 
 await test("criterion 2: insert at top while scrolled deep — the viewport holds still", async () => {
   const app = await boot(10000);
-  app.list.scrollY = 60000;
+  app.body.main.list.scrollY = 60000;
   settle(); settle();
-  const anchor = listRows(app).filter((r) => r.visible).find((r) => r.y >= app.list.scrollY);
-  const before = { id: anchor.rec?.id ?? anchor.item().id, screenY: anchor.y - app.list.scrollY };
+  const anchor = listRows(app).filter((r) => r.visible).find((r) => r.y >= app.body.main.list.scrollY);
+  const before = { id: anchor.rec?.id ?? anchor.item().id, screenY: anchor.y - app.body.main.list.scrollY };
   // 50 fresh issues arrive at the top of the newest-first sort
   for (let i = 0; i < 50; i++) {
     app.db.insert(["issues"], 0, { id: 900000 + i, title: "hotfix " + i, description: "", status: "open", priority: "P1", labels: [], assignee: null, created: 999, updated: 99999999999999, comments: 0 });
@@ -77,7 +79,7 @@ await test("criterion 2: insert at top while scrolled deep — the viewport hold
   settle(); settle();
   const after = listRows(app).find((r) => (r.item() ?? {}).id === before.id);
   assert.ok(after !== undefined, "the row being read is still materialized");
-  assert.ok(Math.abs((after.y - app.list.scrollY) - before.screenY) <= 1,
+  assert.ok(Math.abs((after.y - app.body.main.list.scrollY) - before.screenY) <= 1,
     "…at the same place on screen (the prepend anchored)");
 });
 
@@ -89,7 +91,7 @@ await test("criterion 3: edit an unmaterialized row from the detail panel; scrol
   app.openDetail();
   settle();
   assert.equal(app.editing, true);
-  app.list.scrollY = 150000;
+  app.body.main.list.scrollY = 150000;
   settle(); settle();
   // edit through the draft and commit — the record is nowhere materialized
   app.setDraftField("status", "blocked");
@@ -100,24 +102,24 @@ await test("criterion 3: edit an unmaterialized row from the detail panel; scrol
   const t = app.issuesOf(app.rev).find((it) => it.id === rec.id);
   assert.equal(t.status, "blocked", "the truth took the edit");
   assert.equal(t.title, "edited far away");
-  app.list.scrollY = 0;
+  app.body.main.list.scrollY = 0;
   settle(); settle();
   const row = listRows(app).find((r) => (r.item() ?? {}).id === rec.id);
   assert.ok(row !== undefined, "scrolled back, the row is right there");
-  assert.equal(row.title.text, "edited far away", "…showing the committed edit");
+  assert.equal(row.line.title.text, "edited far away", "…showing the committed edit");
 });
 
 await test("criterion 4: a filter narrows 10k to a handful under a deep scroll — position lands sane", async () => {
   const app = await boot(10000);
-  app.list.scrollY = 100000;
+  app.body.main.list.scrollY = 100000;
   settle();
   app.fAssignee = "Hedy";
   settle(); settle();
   const n = app.shownTotal;
   assert.ok(n > 0 && n < 1500, `the filter narrowed (${n})`);
-  const maxScroll = Math.max(0, app.list.children.filter((c) => c.isTableRow).reduce((m, r) => Math.max(m, r.y + r.height), 0) - app.list.height);
-  assert.ok(app.list.scrollY <= Math.max(0, 100000), "no NaN-land");
-  assert.ok(Number.isFinite(app.list.scrollY) && app.list.scrollY >= 0, "scroll is a real place");
+  const maxScroll = Math.max(0, app.body.main.list.children.filter((c) => c.isTableRow).reduce((m, r) => Math.max(m, r.y + r.height), 0) - app.body.main.list.height);
+  assert.ok(app.body.main.list.scrollY <= Math.max(0, 100000), "no NaN-land");
+  assert.ok(Number.isFinite(app.body.main.list.scrollY) && app.body.main.list.scrollY >= 0, "scroll is a real place");
   const vis = listRows(app).filter((r) => r.visible);
   assert.ok(vis.length > 0, "rows are on screen");
 });
@@ -154,7 +156,7 @@ await test("criterion 6: search NARROWS the projection; Enter/arrows walk the ma
   assert.equal(app.selected.id, rec.id, "the third match is selected");
   const row = listRows(app).find((r) => (r.item() ?? {}).id === rec.id);
   assert.ok(row !== undefined, "…materialized");
-  assert.ok(row.y >= app.list.scrollY - row.height && row.y <= app.list.scrollY + app.list.height, "…on screen");
+  assert.ok(row.y >= app.body.main.list.scrollY - row.height && row.y <= app.body.main.list.scrollY + app.body.main.list.height, "…on screen");
   // clearing the query restores the full projection
   app.query = "";
   settle();
@@ -180,7 +182,7 @@ await test("criterion 8: undo a delete — the records return; counts and select
   const picks = [rows[0], rows[1], rows[2]];
   app.takeSelection(picks);
   const before = app.issuesOf(app.rev).length;
-  const beforeCounts = { ...app.counts };
+  const beforeCounts = counts(app);
   app.performDelete();
   settle();
   assert.equal(app.issuesOf(app.rev).length, before - 3, "deleted");
@@ -188,7 +190,7 @@ await test("criterion 8: undo a delete — the records return; counts and select
   app.undoDelete();
   settle();
   assert.equal(app.issuesOf(app.rev).length, before, "the records returned");
-  assert.deepEqual({ ...app.counts }, beforeCounts, "group counts recovered");
+  assert.deepEqual(counts(app), beforeCounts, "group counts recovered");
   assert.deepEqual((app.selection ?? []).map((r) => r.id).sort(), picks.map((r) => r.id).sort(), "selection recovered");
   assert.equal(app.toast.shown, false);
 });
@@ -198,7 +200,7 @@ await test("criterion 9: ragged data renders — nothing throws, defaults apply"
   // the generator salts nulls, unicode, and the absurd token by construction;
   // walk a few windows over it
   for (const y of [0, 30000, 80000, 0]) {
-    app.list.scrollY = y;
+    app.body.main.list.scrollY = y;
     settle();
   }
   const unassigned = listRows(app).filter((r) => r.avatar !== undefined && r.avatar.name === "");
@@ -211,7 +213,7 @@ await test("criterion 10 (the testable half): AT hears logical position and coun
   const app = await boot(10000);
   // the kernel publishes aria-rowcount/rowindex through the Surface seam —
   // headless surfaces don't exist, so assert the DIAGNOSTIC facts it feeds
-  const info = materializationInfo(app.list);
+  const info = materializationInfo(app.body.main.list);
   assert.equal(info.windowed, true);
   assert.equal(info.logical, 10000, "the AT count is the LOGICAL count");
 });
@@ -323,7 +325,7 @@ await test("the working copy is honest: cancel discards, save commits, dirty gat
 
 await test("create lands at the top of its sort; the rail derives from the same truth", async () => {
   const app = await boot(2000);
-  const openBefore = app.counts.open;
+  const openBefore = counts(app).open;
   app.newIssue();
   app.draft.set(["it", "title"], "brand new issue");
   app.draft.set(["it", "updated"], 99999999999999);
@@ -332,7 +334,7 @@ await test("create lands at the top of its sort; the rail derives from the same 
   settle();
   assert.equal(app.shown.value.rows[0].title, "brand new issue", "newest-first sort puts it on top");
   assert.equal(app.selected.title, "brand new issue", "…and it is selected");
-  assert.equal(app.counts.open, openBefore + 1, "the rail's status count re-derived on the spot");
+  assert.equal(counts(app).open, openBefore + 1, "the rail's status count re-derived on the spot");
   assert.ok(app.workload.value.rows.length > 0, "workload lists only people with open work");
   for (const r of app.workload.value.rows) assert.ok(r.peak >= r.n, "peak rides each row");
   assert.ok(app.assignees(app.rev).every((n) => n[0] === n[0].toUpperCase()), "names are capitalized in the truth");

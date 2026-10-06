@@ -49,7 +49,7 @@ export function familyPending(v) {
     return false;
 }
 export function isFontNode(v) {
-    return isFontValue(v) && typeof v.ready === "function";
+    return isFontValue(v) && typeof v.$ready === "function";
 }
 /** THE START-UP GATE: resolves once every font the tree starts with has settled —
  *  its faces arrived, one failed, or its `wait` ran out. A first paint awaits this,
@@ -71,7 +71,7 @@ export async function fontsReady(root) {
     // font a device will never draw in. (A family first used later demands its
     // font then, through the same resolution.)
     demandHook?.touch(root);
-    await Promise.all(fonts.map((f) => f.ready()));
+    await Promise.all(fonts.map((f) => f.$ready()));
 }
 /** The fix for a font NAME written where a family goes (`fontFamily = Serif`,
  *  or a retired top-level `font Serif [ … ]`): name the object form. */

@@ -9,21 +9,21 @@ that streams JSON parses in the handler (`JSON.parse(e.data)`) and writes wherev
 wants; accumulation is one line of app code, deliberately not a built-in policy.
 
 ```declare-fragment
-chat: View [
-    answer: string = "",
-    reply: EventStream [ url = { `/api/chat?id=${classroot.chatId}` },
-        active = { classroot.chatId != "" },
-        onMessage(e: StreamMessage) { classroot.answer = classroot.answer + e.data },
+job: View [
+    output: string = "",
+    progress: EventStream [ url = { `/api/jobs/${classroot.jobId}/events` },
+        active = { classroot.jobId != "" },
+        onMessage(e: StreamMessage) { classroot.output = classroot.output + e.data },
         ],
-    out: Text [ width = { parent.width }, text = { parent.answer } ]
+    out: Text [ width = { parent.width }, text = { parent.output } ]
     ]
 ```
 
 ## url
 Where to connect — a literal or a `{ }` constraint. Unlike `DataSource.url`, a change acts
 **immediately**: the old connection closes and a new one opens at the new address (there is
-no fetch() moment to wait for). `""` means detached — the idiom for "no conversation yet"
-is deriving emptiness: `url = { app.chatId != "" ? "/api/chat/" + app.chatId : "" }`.
+no fetch() moment to wait for). `""` means detached — the idiom for "no job yet"
+is deriving emptiness: `url = { app.jobId != "" ? "/api/jobs/" + app.jobId + "/events" : "" }`.
 
 ## active
 The gate. `false` closes the connection (and cancels any pending retry); flipping back

@@ -11,8 +11,8 @@ export class Markdown extends RichText {
     // default, but one browser-side crash report (`.replace` on null) suggests a
     // path where a null still reaches here — unreproduced headless, guarded
     // anyway, since the correct rendering of a null source IS the empty flow.
-    sourceKey() { return this.text ?? ""; }
-    parseSource(opts) { return parse(this.text ?? "", opts); }
+    $sourceKey() { return this.text ?? ""; }
+    $parseSource(opts) { return parse(this.text ?? "", opts); }
 }
 defineAttributes(Markdown, {
     text: { def: "" },

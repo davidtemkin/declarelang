@@ -54,7 +54,7 @@ import { AnimatorGroup } from "./animator-group.js";
 export interface Animatable extends Ticker {
   start(): void;
   stop(): void;
-  tick(now: number, frozen?: boolean): boolean;
+  $tick(now: number, frozen?: boolean): boolean;
   /** The in-flight fact — a read-only attribute on every implementor (Animator,
    *  Spring, AnimatorGroup); the group coordinates its members by it. */
   readonly running: boolean;
@@ -115,7 +115,7 @@ export class Animator extends Node implements Animatable {
 
   /** Marked by an enclosing AnimatorGroup at construct: the group drives the
    *  clock and cascades attributes, so this animator is group-controlled. */
-  markGrouped(): void {
+  $markGrouped(): void {
     this.grouped = true;
   }
 
@@ -125,7 +125,7 @@ export class Animator extends Node implements Animatable {
    *  that is not itself an animator/group. For an ungrouped animator this is
    *  just its parent (a View). Matches the checker's target context, which
    *  threads the group's PARENT schema through to its members. */
-  resolveTarget(): Node | null {
+  $resolveTarget(): Node | null {
     let t = this.parent;
     while (t !== null && (t instanceof Animator || t instanceof AnimatorGroup)) t = t.parent;
     return t;
@@ -135,7 +135,7 @@ export class Animator extends Node implements Animatable {
    *  after the tree is linked and every binding has evaluated, so `from`
    *  samples a settled target value). A grouped animator is never reached here
    *  (its group is the init-time child, and it drives its members). */
-  autoStart(): void {
+  $autoStart(): void {
     if (this.autoStarted || this.grouped) return; // a group drives its members
     this.autoStarted = true;
     if (this.started) this.start();
@@ -151,20 +151,20 @@ export class Animator extends Node implements Animatable {
    *  `from` unsettled — so pre-init writes belong to autoStart(), which reads
    *  the settled value once at the init hook. A grouped member is driven by
    *  its group (its own `started` is ignored; see AnimatorGroup). */
-  startedChanged(v: boolean): void {
+  $startedChanged(v: boolean): void {
     if (!this.autoStarted || this.grouped) return;
     if (v) this.start();
     else this.stop();
   }
 
   /** `paused` is clock membership (TweenRun.paused says how). */
-  pausedChanged(v: boolean): void {
+  $pausedChanged(v: boolean): void {
     this.run?.paused(v);
   }
 
   /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own
    *  pause calls this down its members (TweenRun.reanchor). */
-  reanchor(now: number): void {
+  $reanchor(now: number): void {
     this.run?.reanchor(now);
   }
 
@@ -184,21 +184,21 @@ export class Animator extends Node implements Animatable {
    *  Without this a discarded Spring's `to` binding stays subscribed to what
    *  it read — the leak — and the spring keeps ticking. Bindings first, so a
    *  stop() that fires onStop cannot re-target through a live binding. */
-  override teardown(): void {
+  override $teardown(): void {
     disposeBindings(this);
     this.stop();
-    super.teardown();
+    super.$teardown();
   }
 
   /** Shift the anchor across a scheduler handover (Ticker.rebase). */
-  rebase(delta: number): void {
+  $rebase(delta: number): void {
     this.run?.rebase(delta);
   }
 
   /** One clock frame (the Ticker contract; TweenRun.tick). Returns whether
    *  still running — false drops it from the clock, and a group reads it to
    *  retire a finished member. */
-  tick(now: number, frozen = false): boolean {
+  $tick(now: number, frozen = false): boolean {
     return this.run !== null && this.run.tick(now, frozen);
   }
 
@@ -207,7 +207,7 @@ export class Animator extends Node implements Animatable {
    *  animator is a Node; an absent handler is a silent no-op. The timed run
    *  (tween.ts) and a Spring's own tick (spring.ts's rest branch) both
    *  announce through it. */
-  fire(handler: string): void {
+  $fire(handler: string): void {
     const h = (this as unknown as Record<string, unknown>)[handler];
     if (typeof h === "function") (h as () => void).call(this);
   }
@@ -221,8 +221,8 @@ defineAttributes(Animator, {
   duration: { def: 1000 },
   motion: { def: DEFAULT_MOTION },
   repeat: { def: 1 },
-  started: { def: false, push: (s: Animator, v: boolean) => s.startedChanged(v) },
-  paused: { def: false, push: (s: Animator, v: boolean) => s.pausedChanged(v) },
+  started: { def: false, push: (s: Animator, v: boolean) => s.$startedChanged(v) },
+  paused: { def: false, push: (s: Animator, v: boolean) => s.$pausedChanged(v) },
   running: { def: false },
   arrived: { def: false },
 });

@@ -4,7 +4,7 @@
 # Reading the calendar
 
 [Core concepts](declare-docs:guide:what-declare-is) made a promise: that you would end this guide by opening a real calendar
-application — four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->494<!--/stat--> lines of code, about <!--stat:calendar.total-->826<!--/stat--> with its detailed comments — and understanding all of it. This is that chapter. Run the app first:
+application — four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->491<!--/stat--> lines of code, about <!--stat:calendar.total-->834<!--/stat--> with its detailed comments — and understanding all of it. This is that chapter. Run the app first:
 `apps/calendar/calendar.declare` in your running distro, or the **Run Declare
 Calendar** button on the homepage. Switch Month to Week to Day to Year. Drag an
 event somewhere else. Click one open and edit it. Interrupt every transition
@@ -27,11 +27,13 @@ rectangle** — where it starts (`c0`, `r0`), how many columns and rows it spans
 
 ```declare-fragment
 c0To: number = { app.mode == "day" ? app.anchorCol : 0 },
+r0To: number = { app.mode == "week" || app.mode == "day" ? app.anchorRow : 0 },
 ncTo: number = { app.mode == "day" ? 1 : 7 },
 nrTo: number = { app.mode == "week" || app.mode == "day" ? 1 : app.monthRows },
-Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 20 ],
-Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 20 ],
-Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 20 ],
+Spring [ attribute = c0, to = { app.c0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
+Spring [ attribute = r0, to = { app.r0To }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
+Spring [ attribute = nc, to = { app.ncTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
+Spring [ attribute = nr, to = { app.nrTo }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
 colW: number = { (app.bodyW - 2 * app.pad - app.gutter) / app.nc },
 rowH: number = { (app.bodyH - app.headH) / app.nr }
 ```
@@ -52,11 +54,13 @@ month-style chips or day/week time-blocks is itself *derived from the sprung
 geometry*:
 
 ```declare-fragment
-blockness: number = { app.clamp((app.rowH - 240) / 300, 0, 1) },   // 0 = month chips, 1 = time blocks
-gutter:    number = { app.blockness * 52 }                        // the hour gutter opens in time views
+blockness: number = { app.clamp(2 - app.nr, 0, 1) },   // 0 = month chips, 1 = time blocks
+gutter:    number = { app.blockness * 52 }              // the hour gutter opens in time views
 ```
 
-`blockness` reads `rowH`, which reads `nr`, which is sprung — so as the view zooms,
+`blockness` reads `nr`, the number of rows in focus, which is sprung. It is keyed on
+that span and never on pixel height: one focused row *is* a time view, on a short
+landscape screen as on a tall monitor. As the view zooms from two rows in focus to one,
 "how much of a time view is this?" slides continuously from 0 to 1, and everything
 keyed off it (the hour gutter, each event's shape, its label) morphs *with* the
 motion instead of snapping at a threshold. This is [Animated arrangements](declare-docs:guide:animated-arrangements@deriving-appearance-from-the-scalars)' "derive character,
@@ -89,16 +93,22 @@ threshold, up — and then a drop is *one edit to the data*:
 
 ```declare-fragment
 commitDrop(px: number, py: number) {
-    const idx = app.data.value.events.findIndex(e => e.id == this.dragId)
-    const p = ["events", idx]
-    const d = app.parseKey(this.cellAt(px, py).key)        // invert the mapping: point → cell
-    app.data.set([...p, "y"], d.getFullYear())
-    app.data.set([...p, "m"], d.getMonth() + 1)
-    app.data.set([...p, "d"], d.getDate())                 // …and the derived grid re-lays itself
+    const events = app.data.value != null ? app.data.value.events : []
+    const idx = events.findIndex(e => e.id == this.dragId)
+    if (idx < 0) return
+    const ev = events[idx], p = ["events", idx]
+    const cell = this.cellAt(px, py)                       // invert the mapping: point → cell
+    if (cell != null) { const d = app.parseKey(cell.key); app.data.set([...p, "y"], d.getFullYear()); app.data.set([...p, "m"], d.getMonth() + 1); app.data.set([...p, "d"], d.getDate()) }
+    if (this.blockness > 0.5) {                            // a time view: the drop height is the new start
+        const dur = ev.end - ev.start
+        let s = Math.round(((py - this.barH - this.headH - this.grabDY) / this.rowH * 1440) / 15) * 15
+        s = app.clamp(s, 0, 1440 - dur); app.data.set([...p, "start"], s); app.data.set([...p, "end"], s + dur)
+        }
     }
 ```
 
-No code moves the event's view. The writes wake exactly the constraints that read
+In a time view the same drop also moves the event's hours, read off the drop height
+with the same mapping run backwards. No code moves the event's view. The writes wake exactly the constraints that read
 those fields; keyed replication rebuilds the one changed day; the event appears in
 its new cell. And because the whole surface stays live through it, you can grab an
 event *during* a view transition and the app never stumbles — interruptibility

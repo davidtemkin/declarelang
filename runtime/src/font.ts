@@ -222,7 +222,7 @@ export class Font extends Node {
   [FONT_DEMAND](): void {
     if (this.#demanded) return;
     this.#demanded = true;
-    this.start();
+    this.$start();
     const d = this.#deferred;
     if (d === null) return;
     this.#deferred = null;
@@ -234,13 +234,13 @@ export class Font extends Node {
 
   /** Construction-complete (instantiate.ts): start once the caller's synchronous
    *  setup (the app's asset base) has run. `fontsReady` starts it sooner. */
-  autoStart(): void {
+  $autoStart(): void {
     if (this.#started) return;
-    queueMicrotask(() => this.start());
+    queueMicrotask(() => this.$start());
   }
 
   /** Begin watching the faces and loading them. Idempotent. */
-  start(): void {
+  $start(): void {
     if (this.#started) return;
     this.#started = true;
     this.#watch = new Constraint("Font.faces", () => this.#faceSignature(), (sig) => this.#reload(sig as string), 0);
@@ -249,14 +249,14 @@ export class Font extends Node {
 
   /** Resolves when the first load has settled: every face arrived, one failed,
    *  or the wait ran out. The start-up gate (fontsReady) waits on this. */
-  ready(): Promise<void> {
-    this.start();
+  $ready(): Promise<void> {
+    this.$start();
     // Faces no text has asked for are not waited on: they may never be needed.
     return this.#deferred !== null ? Promise.resolve() : this.#ready;
   }
 
   #faces(): FontFace[] {
-    this.watchChildList();
+    this.$watchChildList();
     return this.children.filter((c): c is FontFace => c instanceof FontFace);
   }
 

@@ -24,7 +24,6 @@ cold in a fresh clone. Same question, same bytes, every time.
 | `DECLARE7001` | the diagnostic's family and where its register lives |
 | `E3A14CE` | a **runtime** error code — what a production build throws in place of the sentence: the message, and where it is thrown |
 | `DataSource.method --example` | the guide's shortest working examples that use the name, each with the chapter and section it comes from — real, compiled code, instead of reading a whole app |
-| `briefs` · `brief lists` | the task briefs, one line each; one brief printed whole — a name may be shortened while it picks out one (`docs/briefs/`) |
 
 ## Two contracts worth trusting
 

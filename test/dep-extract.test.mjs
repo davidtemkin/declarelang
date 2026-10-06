@@ -149,16 +149,11 @@ test("residue — aggregation over a reactive node collection blocks", async () 
 });
 
 test("residue — opaque call target blocks (not assumed pure)", async () => {
-  // With the (default) typecheck phase on, an unknown method dies EARLIER as a
-  // member miss — phased diagnostics, same defect, better message:
+  // The typecheck phase answers first, as a member miss — the same defect,
+  // with the more precise message:
   const src = `App [ v: View [ width = { app.mysteryLib() } ] ]`;
-  const d = await compile(src, {});
+  const d = await compile(src);
   assert.ok(!d.source && d.errors.some((x) => /'mysteryLib' is not a member/.test(x.message)), d.report);
-  // The residue arm stays load-bearing on the EXPLICIT typecheck opt-out (the
-  // latency escape must be exactly as sound about dependencies):
-  const r = await compile(src, { typecheck: false });
-  assert.ok(!r.source, "opt-out still blocks the unanalyzable constraint");
-  assert.ok(r.errors.some((x) => /unresolved call target/.test(x.message)), JSON.stringify(r.errors.map((x) => x.message)));
 });
 
 test("a conditional theme provision wires to its condition alone (no residue)", async () => {
@@ -329,12 +324,10 @@ App [ v: number = 4, w: number = 9, b: View [ width = { pick(app.v, app.w) } ] ]
 });
 
 test("`new` of a script CLASS is opaque — the instance is a value; the arguments carry the deps", async () => {
-  // (typecheck off: an untyped script class is a member miss under the type
-  // phase — a separate, earlier answer.) The constructor's reads are invisible
-  // by contract now, exactly as a function's are.
-  const src = `script { class Acc { constructor(n: number) { this.v = n } } }
+  // The constructor's reads are invisible by contract, exactly as a function's are.
+  const src = `script { class Acc { v: number; constructor(n: number) { this.v = n } } }
 App [ v: number = 10, w: number = 2, b: View [ width = { new Acc(app.v).v + app.w } ] ]`;
-  const r = await compile(src, { typecheck: false });
+  const r = await compile(src);
   assert.ok(r.source, "an opaque construction compiles: " + r.errors.map((x) => x.message).join("; "));
 });
 

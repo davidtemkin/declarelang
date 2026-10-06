@@ -106,8 +106,8 @@ laid out) holds it until it can.
 
 ## Keeping the reader's place
 
-Content changes size while people read it. A photograph finishes loading and takes
-its real height, a message gains a row of reactions, older history loads in above.
+Content changes size while people read it. An image finishes loading and takes
+its real height, a row expands to show its details, earlier entries load in above.
 If nothing compensated, each of those would move the text the reader is looking at.
 
 So a scroller compensates. Before anything in it changes size, it notes which view
@@ -120,8 +120,8 @@ What that means, case by case:
 
 | What changed | What the reader sees | What happens to `scrollY` |
 |---|---|---|
-| Something **above** the visible area grew or shrank (a photo loaded, history was inserted) | nothing moves | changes by the same amount |
-| Something **on screen** grew (the message being read gained reactions) | the text at the top stays put; what's below it moves down | unchanged |
+| Something **above** the visible area grew or shrank (an image loaded, earlier rows were inserted) | nothing moves | changes by the same amount |
+| Something **on screen** grew (the row being read expanded) | the text at the top stays put; what's below it moves down | unchanged |
 | Something **below** the visible area changed | nothing moves | unchanged |
 | The pane is **at its very start** (`scrollY` is 0) and something above the old first view appears | the new content comes into view at the top | stays 0 |
 
@@ -147,32 +147,32 @@ screen moves.
 
 ## Following the end
 
-A conversation, a log or a terminal is read from the bottom. When a message arrives,
-a reader who is at the bottom wants to see it, and a reader who has scrolled back to
-something from an hour ago wants to stay there. Set `scrollAnchor = end`:
+A terminal, a build's output or an event log is read from the bottom. When a line is
+appended, a reader who is at the bottom wants to see it, and a reader who has scrolled
+back to something from an hour ago wants to stay there. Set `scrollAnchor = end`:
 
 ```declare-fragment
 log: View [ scrolls = y, height = 100%, scrollAnchor = end,
     lines: View [ width = 100%, layout: SimpleLayout [ axis = y ],
-        Line [ datapath = :messages[], virtualize = true ]
+        Line [ datapath = :entries[], virtualize = true ]
         ]
     ]
 ```
 
 - **When the pane is scrolled to the bottom** (within a few pixels), it stays at the
-  bottom as content grows or shrinks: a new message comes into view, and so does the
-  full height of a photo that finishes loading in the last message.
+  bottom as content grows or shrinks: a new entry comes into view, and so does the
+  full height of the last entry when it expands.
 - **When the reader has scrolled up**, the pane keeps their place as described above,
-  and new messages arrive below, out of sight. To tell the reader something is there,
+  and new entries arrive below, out of sight. To tell the reader something is there,
   use a constraint:
   `newBelow: boolean = { log.contentHeight - log.scrollY - log.height > 48 }`.
 - **A pane with `scrollAnchor = end` opens at the bottom.**
 - **The top is just history here.** In a pane read from the bottom, the "very start"
-  row of the table doesn't apply: when older messages load in above a reader at the
+  row of the table doesn't apply: when earlier entries load in above a reader at the
   top, the reader's place is kept like anywhere else.
 
 To take the reader to the bottom, ask for it: `log.scrollTo(Infinity, { duration: 250 })`.
-The pane takes a moment to get there, and messages may arrive in that moment. A pane
+The pane takes a moment to get there, and entries may arrive in that moment. A pane
 that isn't at the bottom yet would normally treat them as arriving below a reader who
 has scrolled up, and stop following. Because the pane knows this movement is your
 request and that it's heading for the bottom, it keeps following, and it arrives at
@@ -206,7 +206,7 @@ is everything in the Mac app and on canvas, where Declare moves the scroller its
 
 What never works is doing this yourself: reading `scrollY` when something changes and
 writing a new position back with `scrollTo`. That runs a settle late, it can't tell
-a new message from a row whose estimated height was corrected, and it argues with
+a new entry from a row whose estimated height was corrected, and it argues with
 the hand holding the pane. If you find yourself writing it, set `scrollAnchor`.
 
 ## Dragging to an edge

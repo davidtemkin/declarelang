@@ -18,7 +18,7 @@ export declare class Spring extends Animator {
     private primed;
     /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
      *  A no-op while already live, so a moving target does not pile up tickers. */
-    wake(): void;
+    $wake(): void;
     /** A Spring is not start()-triggered — it wakes on `to`. Keep start()/stop()
      *  as simple clock enroll/withdraw so the Animatable contract still holds
      *  (e.g. an author who does call spring.stop() to pin it). */
@@ -36,7 +36,7 @@ export declare class Spring extends Animator {
      *  default never wakes at boot (the equality gate swallows the push), and
      *  a lazy primer would then swallow the first REAL change instead — the
      *  calendar's month→year zoom snapping while year→month animated. */
-    prime(): void;
+    $prime(): void;
     /** ARRIVAL (recycling / materialization). A recycled or freshly built
      *  instance is presenting a record it was not presenting before, so the
      *  geometry it lands on is a FACT ABOUT THAT RECORD, not a change this
@@ -56,8 +56,8 @@ export declare class Spring extends Animator {
     arrive(): void;
     /** Shift the anchor across a scheduler handover (Ticker.rebase). A spring
      *  has no timed run, so its own anchor is the only one. */
-    rebase(delta: number): void;
-    tick(now: number): boolean;
+    $rebase(delta: number): void;
+    $tick(now: number): boolean;
 }
 /** Walk a newly-pointed subtree and arm every spring in it (see
  *  `Spring.arrive`). Children of a view include its animators, so the walk

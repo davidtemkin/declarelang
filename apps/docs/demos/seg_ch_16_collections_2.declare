@@ -1,20 +1,22 @@
-App [ width = 460, height = 240, fill = white, textColor = black,
-    d: Dataset [ contents = { { rows: app.make(2000) } } ],
-    make(n: number) -> array {
-        const out = []
-        const st = ["open", "done", "held"]
-        for (let i = 0; i < n; i++) out.push({ id: i, title: "Issue " + i, state: st[i % 3] })
-        return out
-        },
-    chosen: number = 0,
-    head: Text [ x = 20, y = 12, textColor = 0x666666,
-        text = { app.chosen + " selected of " + (d.value.rows).length } ],
-    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, datapath = { d.value },
-        selects = "multi",
-        input(sel: object) { app.chosen = (sel ?? []).length },
-        Column [ title = "ID",    field = "id",    width = 60 ],
-        Column [ title = "Title", field = "title", width = 220 ],
-        Column [ title = "State", field = "state", width = 120 ],
-        GridRow [ datapath = :rows[], virtualize = true ]
+class Item [ width = 100%,
+    rows: array = { provided("rows") },
+    starts: boolean = { rowIndex == 0 || rows[rowIndex - 1]?.aisle != :aisle },
+    layout: SimpleLayout [ axis = y ],
+    head: Text [ exists = { classroot.starts }, fontWeight = bold, text = :aisle ],
+    name: Text [ text = :name ]
+    ]
+
+
+App [ width = 260, height = 220, fill = white, textColor = black,
+    shop: Dataset { { "items": [
+        { "id": 1, "aisle": "Bakery", "name": "Bread" },
+        { "id": 2, "aisle": "Bakery", "name": "Rolls" },
+        { "id": 3, "aisle": "Dairy", "name": "Milk" },
+        { "id": 4, "aisle": "Dairy", "name": "Butter" },
+        { "id": 5, "aisle": "Produce", "name": "Apples" } ] } },
+    list: View [ x = 20, y = 16, width = 220, datapath = { app.shop.value },
+        rows: array = { :items ?? [] },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Item [ datapath = :items[], virtualize = true ]
         ]
     ]

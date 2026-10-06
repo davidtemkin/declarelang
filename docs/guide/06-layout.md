@@ -46,7 +46,7 @@ The library ships these arrangements, all written in Declare (`library/`):
 | `SimpleLayout` | stacks children along `axis`, `spacing` apart; `align` places them across it |
 | [`WrappingLayout`](declare-docs:WrappingLayout) | flows children onto new rows when the width runs out; [`justify`](declare-docs:WrappingLayout.justify) sets each row along the flow |
 | [`ResponsiveLayout`](declare-docs:ResponsiveLayout) | switches arrangement by the view's width, from a list of plans (below) |
-| [`Spacer`](declare-docs:Spacer) | not a layout: a child that absorbs the leftover space in a row or column |
+| [`Spacer`](declare-docs:Spacer) | not a layout: an empty child that absorbs the leftover space in a row or column (`flexes = true`, below) |
 
 ```declare
 App [ width = 280, height = 120, fill = white,
@@ -81,6 +81,31 @@ arrangement: it keeps its own position while its siblings are arranged around it
 badge pinned to a corner of a stacked card. `ignoreClip = true` lets a child paint and
 receive clicks outside a parent that clips — a window's resize border living just
 outside the box it resizes.
+
+A child can also ask for the room that is left. [`flexes = true`](declare-docs:View.flexes) hands the
+child's size along the flow to the layout: the children that do not flex keep their own
+sizes, and the flexing ones share what remains — the height in a column, the width in a
+row. Across the flow it is aligned like any other child. It is how a page frame is written:
+
+```declare
+App [ width = 320, height = 200, fill = white, textColor = black,
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = 36, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, text = "Header" ]
+        ],
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x ],
+        list: View [ height = 100%, flexes = true, fill = whitesmoke,
+            Text [ x = 12, y = 12, text = "the list takes what is left" ]
+            ],
+        rail: View [ width = 90, height = 100%, fill = gainsboro ]
+        ],
+    footer: View [ width = 100%, height = 28, fill = lightsteelblue ]
+    ]
+```
+
+Resize the window and only `body` and `list` change size; nothing computes a height by
+subtracting the others. An empty flexing view is a [`Spacer`](declare-docs:Spacer).
 
 ## A view's size, per axis
 

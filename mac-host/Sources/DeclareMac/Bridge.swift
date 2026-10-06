@@ -548,7 +548,7 @@ final class Bridge {
         } as @convention(block) (Int, Int) -> Double, forKeyedSubscript: "richClamp")
 
         // COMPILE, off this thread (CompileService). The runtime hands over a
-        // source string and hears back a compiled one; everything between —
+        // source string and hears back the program, as JSON; everything between —
         // the cache, the second JSContext, the include walk — happens on
         // another thread, so the window stays live throughout.
         host.setObject({ [weak self] (id: Int, url: String, source: String, originDir: String, distro: String) in
@@ -558,7 +558,7 @@ final class Bridge {
                     guard let self else { return }
                     self.mark("compile \(r.origin)", String(format: "%.0fms  %@", r.ms, (url as NSString).lastPathComponent))
                     self.call("__declareCompileDone",
-                              [id, r.ok, r.source, r.depsJSON, r.report, r.origin, r.ms])
+                              [id, r.ok, r.program, r.report, r.origin, r.ms])
                     self.needsFrame()
                 }
             }

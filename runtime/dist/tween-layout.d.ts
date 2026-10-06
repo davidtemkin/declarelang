@@ -44,7 +44,7 @@ export declare abstract class TweenLayout extends Layout {
     /** Stand up one lerp constraint per laid child per geometry slot (owning it,
      *  the one-owner model), snapshot the initial layout, and evaluate. Re-run
      *  wholesale by rearm when the child set changes (R8). */
-    protected install(_view: View): () => void;
+    protected $install(_view: View): () => void;
     /** Snap or slide the laid children to the CURRENT target layout. `from` is
      *  the children's live boxes (so a re-trigger mid-slide glides from wherever
      *  they are); `to` is place(). animate ? ease t:0→1 : jam t←1. The one

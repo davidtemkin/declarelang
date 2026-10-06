@@ -55,9 +55,10 @@ export type Refusal = "unused" | "checker" | "inspector" | "bridge" | "selectors
 
 /** A construct the walk marks: a replicating datapath (`:items[]`), `<->`, a
  *  selector segment in a path, a data shape, any read of data at all (a
- *  `:path`, a datapath, `$data`), and a literal the compile could not turn into
- *  its value (program-build.ts, lower-literals.ts). */
-export type Construct = "replication" | "two-way" | "selector-path" | "schema" | "data-read" | "raw-literal";
+ *  `:path`, a datapath, `$data`), a literal the compile could not turn into
+ *  its value (program-build.ts, lower-literals.ts), and an attribute whose
+ *  wiring the compile could not decide (runtime/src/route.ts). */
+export type Construct = "replication" | "two-way" | "selector-path" | "schema" | "data-read" | "raw-literal" | "unrouted";
 
 /** One way a program reaches a capability. A capability is needed when ANY of
  *  its triggers matches; a trigger matches when ANY of its conditions does. */
@@ -225,9 +226,17 @@ export const CAPABILITIES: readonly Capability[] = [
   // read as the text arrives, and in a literal the compile could not ship as its
   // value (program-build.ts: none in the corpus). Everywhere else the program
   // carries values, and the parsers — with the color names — stay out.
-  { id: "literal-parsing", describe: "the literal parsers: colors and their names, decoration constructors, motion, shapes",
+  { id: "literal-parsing", describe: "the literal parsers: every literal as written — colors and their names, decoration constructors, motion, shapes",
     modules: ["literal-parse"], requires: ["easing", "effects"], hostsKeep: true, refusal: "unused",
-    when: [{ classes: ["RichText"] }, { syntax: ["raw-literal"] }], inert: { FILL: "empty-string" } },
+    when: [{ classes: ["RichText"] }, { syntax: ["raw-literal", "unrouted"] }], inert: { FILL: "empty-string" } },
+  // A compiled program arrives routed: how each attribute is wired is on the
+  // tree, and the runtime asks no schema. The router — and with it the class
+  // schemas — comes aboard for what arrives unrouted: a rich text's inline
+  // views (read from the text as it arrives), the Inspector's evaluation, and a
+  // wiring the compile could not decide.
+  { id: "routing", describe: "the router: the class schemas, for a tree that arrives unrouted",
+    modules: ["route"], hostsKeep: true, refusal: "checker",
+    when: [{ classes: ["RichText"] }, { syntax: ["unrouted"] }, { build: { debug: true } }, { build: { inspector: true } }] },
   { id: "schema-table", describe: "the built-in class schemas, whole (a build ships the ones its program constructs)",
     modules: ["schema"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "SCHEMAS", keys: "classes" } },
   { id: "size-report", describe: "the authoring report of a child sized from a parent with no size to give",

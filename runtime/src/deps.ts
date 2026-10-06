@@ -14,8 +14,13 @@
 
 import type { Program, Element } from "./parser.js";
 
-/** A `{ }` code value, with the compiler's extracted deps optionally attached. */
-type WithDeps = { kind: "code"; src: string; deps?: readonly string[] };
+/** A `{ }` code value, with the compiler's extracted deps (and kernel bytecode)
+ *  optionally attached. */
+type WithDeps = { kind: "code"; src: string; deps?: readonly string[]; expr?: string };
+
+/** In the walk-order list a body's kernel bytecode rides as one more entry,
+ *  marked; on the program it is the code value's own `expr`. */
+const EXPR_ENTRY = "=E";
 
 /** Every `{ }` code value in a program, in a FIXED order: the root subtree then
  *  each class body; within an element, attributes, then computed decl defaults,
@@ -34,7 +39,7 @@ export function forEachCodeValue(program: Program, fn: (v: WithDeps) => void): v
  *  annotation). Empty arrays hold the position for un-annotated / residue slots. */
 export function serializeDeps(program: Program): string[][] {
   const out: string[][] = [];
-  forEachCodeValue(program, (v) => out.push(v.deps ? [...v.deps] : []));
+  forEachCodeValue(program, (v) => out.push(v.deps ? (v.expr !== undefined ? [...v.deps, EXPR_ENTRY + v.expr] : [...v.deps]) : []));
   return out;
 }
 
@@ -44,6 +49,10 @@ export function applyDeps(program: Program, list: readonly (readonly string[])[]
   let i = 0;
   forEachCodeValue(program, (v) => {
     const d = list[i++];
-    if (d && d.length > 0) v.deps = d;
+    if (!d || d.length === 0) return;
+    const e = d.find((x) => x.startsWith(EXPR_ENTRY));
+    if (e === undefined) { v.deps = d; return; }
+    v.deps = d.filter((x) => x !== e);
+    v.expr = e.slice(EXPR_ENTRY.length);
   });
 }

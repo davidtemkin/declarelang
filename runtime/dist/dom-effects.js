@@ -97,7 +97,7 @@ export function applyDomMask(s) {
         set("", "", "");
         return;
     }
-    set(m.url, `${m.w}px ${m.h}px`, `${stencil.x + stencil.positionLead("x") + m.x}px ${stencil.y + stencil.positionLead("y") + m.y}px`);
+    set(m.url, `${m.w}px ${m.h}px`, `${stencil.x + stencil.$positionLead("x") + m.x}px ${stencil.y + stencil.$positionLead("y") + m.y}px`);
 }
 const FIT_FRAC = { start: 0, center: 0.5, end: 1 };
 /** Where an Image's bitmap paints in its box — the stretch and alignment the

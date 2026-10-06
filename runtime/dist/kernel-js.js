@@ -80,6 +80,29 @@ export function instantiateKernelJS(host, caps = {}) {
     const known = (rule) => rule >= 0 && rule < nrules;
     const consts = [];
     const code = [];
+    // REUSE of the code and constant arenas (kernel.c code_take/code_give): a
+    // freed rule's bytecode, constants and lists come back, the next allocation
+    // of the same length taking the last one freed.
+    const CODE_CLASSES = 64;
+    const codeFree = new Map();
+    const constFree = [];
+    const codeTake = (n) => {
+        const list = n >= 1 && n <= CODE_CLASSES ? codeFree.get(n) : undefined;
+        if (list !== undefined && list.length > 0)
+            return list.pop();
+        const at = code.length;
+        for (let i = 0; i < n; i++)
+            code.push(0);
+        return at;
+    };
+    const codeGive = (off, n) => {
+        if (n === 0 || n > CODE_CLASSES || off + n > code.length)
+            return;
+        let list = codeFree.get(n);
+        if (list === undefined)
+            codeFree.set(n, (list = []));
+        list.push(off);
+    };
     let ncells = 0;
     const cellFree = [];
     const ruleFree = [];
@@ -345,8 +368,42 @@ export function instantiateKernelJS(host, caps = {}) {
                 console.error(`kernel(js): rule ${rule} freed twice\n${new Error().stack ?? ""}`);
             return;
         }
+        giveRuleStorage(rule);
         rFreed.add(rule);
         ruleFree.push(rule);
+    };
+    // An EXPR rule's constants are the CONST operands of its bytecode — each its
+    // own, though one may be named twice (kernel.c give_rule_storage).
+    const giveRuleStorage = (rule) => {
+        const c0 = rCode0[rule], n = rNcode[rule];
+        if (n === 0)
+            return;
+        if (rKind[rule] === K_EXPR) {
+            const seen = [];
+            for (let i = c0, end = c0 + n; i < end;) {
+                const op = code[i++];
+                if (op === 0)
+                    break; // END
+                if (op === 1) {
+                    i++;
+                    continue;
+                } // LOAD cell
+                if (op !== 2)
+                    continue; // operators take no operand
+                const ci = code[i++];
+                if (seen.includes(ci))
+                    continue;
+                if (seen.length < CODE_CLASSES)
+                    seen.push(ci);
+                if (ci < consts.length)
+                    constFree.push(ci);
+            }
+            codeGive(c0, n);
+        }
+        else if (rKind[rule] === K_EXTENT || rKind[rule] === K_LAYOUT) {
+            codeGive(c0, n);
+        }
+        rNcode[rule] = 0;
     };
     const dispose = (rule) => {
         if (!known(rule) || (rState[rule] & ST_DEAD) !== 0)
@@ -847,10 +904,10 @@ export function instantiateKernelJS(host, caps = {}) {
         const n = words.length;
         if (n > rNcode[rule]) {
             const cap = n * 2 > 8 ? n * 2 : 8;
-            rCode0[rule] = code.length;
+            const at = codeTake(cap);
+            codeGive(rCode0[rule], rNcode[rule]); // the outgrown range, for the next list its size
+            rCode0[rule] = at;
             rNcode[rule] = cap;
-            for (let i = 0; i < cap; i++)
-                code.push(0);
         }
         for (let i = 0; i < n; i++)
             code[rCode0[rule] + i] = words[i];
@@ -995,6 +1052,7 @@ export function instantiateKernelJS(host, caps = {}) {
         table, active, capacity,
         cells: () => ncells,
         tableSize: () => capacity,
+        codeUse: () => ({ code: code.length, consts: consts.length }),
         rules: () => nrules,
         write: (cell, v) => {
             drainTrack();
@@ -1199,12 +1257,20 @@ export function instantiateKernelJS(host, caps = {}) {
             return id;
         },
         addCode: (words) => {
-            const at = code.length;
+            const at = codeTake(words.length);
             for (let i = 0; i < words.length; i++)
-                code.push(words[i]);
+                code[at + i] = words[i];
             return at;
         },
-        addConst: (v) => { consts.push(v); return consts.length - 1; },
+        addConst: (v) => {
+            const i = constFree.pop();
+            if (i !== undefined) {
+                consts[i] = v;
+                return i;
+            }
+            consts.push(v);
+            return consts.length - 1;
+        },
         // ── the built-in VIEW rules: the view table, visibility, auto-extent ────
         viewLayout: (layout) => { vl = { ...layout }; vlSpan = Math.max(0, ...Object.values(layout).map((f) => f + 1)); },
         viewDprCell: (cell) => { dprCell = cell; },

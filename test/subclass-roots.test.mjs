@@ -10,7 +10,7 @@
 // (an abstract base) and the two compiler-side facts (the scaffold's `$base`
 // typing, the slimmer keeping the base module).
 import assert from "node:assert";
-import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
+import { compile, settleSource } from "../compiler/dist/compile-node.js";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
@@ -34,7 +34,7 @@ async function test(name, fn) {
 async function build(src) {
   const r = await compile(src);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleHeadless(r.source, { deps: r.deps });
+  return settleSource(r.source, { deps: r.deps });
 }
 const errorsOf = async (src) => ((await compile(src)).errors ?? []).map((e) => e.message);
 const KEY = (key) => ({ key, code: key, shift: false, ctrl: false, alt: false, meta: false, repeat: false });

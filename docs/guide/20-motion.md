@@ -55,7 +55,7 @@ somewhere; the timed sibling, [`Animator`](declare-docs:Animator), is below.
 
 **One spring per motion.** Declare it once, on the thing that moves, and let everything
 that must move with it be a constraint on that spring's value: the rows below a growing
-message read the one sprung height, not each carry a spring of their own. A `Spring` inside
+panel read the one sprung height, not each carry a spring of their own. A `Spring` inside
 a replicated class is one spring *per row* — fine for a dozen, a mistake for a few hundred.
 
 When something should happen only once motion has genuinely landed — a detail panel
@@ -74,24 +74,24 @@ that value outright: [`arrive()`](declare-docs:Spring.method.arrive), called whe
 arrives, makes the next target appear, and every later one animates:
 
 ```declare-fragment
-count: number = { app.week.value?.count ?? 0 },   // the truth
-shown: number = 0,                                // what the screen reads
-tally: Spring [ attribute = shown, to = { app.count } ],
-week: DataSource [ url = "/api/week", auto = true, onLoad() { app.tally.arrive() } ]
+stock: number = { app.inventory.value?.count ?? 0 },   // the truth
+shown: number = 0,                                     // what the screen reads
+counter: Spring [ attribute = shown, to = { app.stock } ],
+inventory: DataSource [ url = "/api/inventory", auto = true, onLoad() { app.counter.arrive() } ]
 ```
 
-A new record then rolls the count over; opening the app does not.
+A delivery then rolls the count over; opening the app does not.
 
-The same shape opens a *view* on its data: a timeline that should first show the whole
-history cannot know the history's length until it arrives. Derive the fact that says it has
-(`ready: boolean = { app.log.ready }`, itself read off the sources' `loaded`), track it, and
+The same shape opens a *view* on its data: a map that should first show every pin
+cannot know where the pins are until they arrive. Derive the fact that says they have
+(`ready: boolean = { app.places.loaded }`), track it, and
 place the view once when it turns true — `trackChanges = ["ready"]`,
-`onChange(e: ChangeEvent) { if (ready) { showAll() } }`. The flag is derived, not set by a
+`onChange(e: ChangeEvent) { if (ready) { fitPins() } }`. The flag is derived, not set by a
 handler, so it cannot drift from the data; `loaded` stays up through a refresh, so the view
 is placed once.
 
 **Under the hand, write the value and its target together.** A surface the user drags — a
-strip, a timeline, a map — is also one a button or a released fling moves, and that motion
+strip, a carousel, a map — is also one a button or a released fling moves, and that motion
 wants a spring. While the finger drives, set the sprung value *and* the spring's `to` to
 the same number: the spring has nowhere to go, so it rests and the surface never lags the
 finger. On release, set only the target, and the spring carries the surface there.

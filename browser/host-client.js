@@ -280,7 +280,7 @@ export async function bootHost(cfg) {
   // §0.5.5): wheel/touch are unambiguously the user's; the reveal's own
   // programmatic scroll cannot self-cancel because a LANDED reveal already
   // cleared the intent synchronously, before its scroll event dispatches.
-  const onUserScroll = () => { if (!stopped && typeof app.cancelReveal === "function") app.cancelReveal(); };
+  const onUserScroll = () => { if (!stopped && typeof app.$cancelReveal === "function") app.$cancelReveal(); };
   addEventListener("wheel", onUserScroll, { passive: true });
   addEventListener("touchstart", onUserScroll, { passive: true });
   undo.push(() => {
@@ -309,7 +309,7 @@ export async function bootHost(cfg) {
     titled = reflectAppName(app, servedTitle, titled);   // the entry's label, before the push snapshots it
     if (app.location !== mirrored || app.waypoint !== mirroredW) {
       // The app moved — one entry per changed settle, for the PAIR: address,
-      // step, or both together (a submit that navigates AND records its turn
+      // step, or both together (a submit that navigates AND records its step
       // is one entry, restored atomically by Back). The history VERB
       // (location.md §0.5.6): "push" (the default) makes an entry; a follow
       // whose link declared `replace = true` armed "replace" — fine-grained

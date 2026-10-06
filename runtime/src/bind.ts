@@ -54,7 +54,6 @@ export function provideBind(
   k.source = src;
   k.sourcePos = sourceAt(pos);
   onDiscard(view, () => k.dispose());
-  if (deps !== undefined) deps = pathsOnly(deps);
   const regionReactive = deps !== undefined && deps.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
   if (deps !== undefined && deps.length > 0 && !regionReactive) {
     const probes = probeFns(deps);
@@ -94,24 +93,22 @@ function probeFns(deps: readonly string[]): ExprFn[] {
   return out;
 }
 
-/** The compiler's EXPR entry in a body's deps (expr-emit.ts, "the wire
- *  form"): `=E` then tokens — `L<n>` the n-th read path of these deps,
- *  `L%path` a literal path, `K<number>` a constant, one letter per operator. */
-const EXPR_MARK = "=E";
+/** A body's kernel bytecode in its wire form (expr-emit.ts): tokens — `L<n>`
+ *  the n-th read path of the body's deps, `L%path` a literal path,
+ *  `K<number>` a constant, one letter per operator. */
 const LETTER_OP: Record<string, number> = {
   "+": 3, "-": 4, "*": 5, "/": 6, "%": 7, "~": 8, m: 9, M: 10, a: 11, f: 12, c: 13, r: 14, q: 15,
   "<": 16, l: 17, ">": 18, g: 19, "=": 20, "!": 21, "&": 22, "|": 23, n: 24, "?": 25, "^": 26,
 };
-function exprOf(deps: readonly string[] | undefined): { code: number[]; paths: string[]; consts: number[] } | null {
-  const e = deps?.find((d) => d.startsWith(EXPR_MARK));
-  if (e === undefined || deps === undefined) return null;
+function exprOf(e: string | undefined, deps: readonly string[]): { code: number[]; paths: string[]; consts: number[] } | null {
+  if (e === undefined) return null;
   const code: number[] = [], paths: string[] = [], consts: number[] = [];
   const pathIndex = (p: string): number => { let i = paths.indexOf(p); if (i < 0) { i = paths.length; paths.push(p); } return i; };
-  for (const tok of e.slice(EXPR_MARK.length).split(" ")) {
+  for (const tok of e.split(" ")) {
     if (tok === "") continue;
     if (tok[0] === "L") {
       const p = tok[1] === "%" ? tok.slice(2) : deps[Number(tok.slice(1))];
-      if (p === undefined || p.startsWith(EXPR_MARK)) return null;
+      if (p === undefined) return null;
       code.push(1, pathIndex(p)); continue;
     }
     if (tok[0] === "K") { const v = Number(tok.slice(1)); if (Number.isNaN(v) && tok !== "KNaN") return null; consts.push(v); code.push(2, consts.length - 1); continue; }
@@ -122,7 +119,6 @@ function exprOf(deps: readonly string[] | undefined): { code: number[]; paths: s
   code.push(0);
   return { code, paths, consts };
 }
-const pathsOnly = (deps: readonly string[]): string[] => deps.filter((d) => !d.startsWith(EXPR_MARK));
 
 /** How many bodies bound as kernel EXPR rules, and how many fell back — tooling. */
 export const exprStats = { kernel: 0, fallback: 0, /** tests: force every body onto the JS path */ disabled: false };
@@ -191,7 +187,7 @@ function escapeDataCell(dc: DataCell): void {
     const o = ownerOf(r.view, r.name);
     if (o === null || !o.isNative) continue;   // already rebound (through another field of its)
     o.dispose(); release(r.view, r.name, o);
-    bindConstraint(r.view, r.name, r.src, r.pos, r.classroot, pathsOnly(r.deps), o.yielding);
+    bindConstraint(r.view, r.name, r.src, r.pos, r.classroot, r.deps, o.yielding);
   }
 }
 
@@ -304,16 +300,16 @@ interface BindPlan {
   probes: ExprFn[] | null;
 }
 const PLANS = new WeakMap<readonly string[], Map<string, BindPlan>>();
-function planFor(name: string, deps: readonly string[], src: string, kernelOk: boolean): BindPlan {
+function planFor(name: string, deps: readonly string[], src: string, kernelOk: boolean, expr: string | undefined): BindPlan {
   let byName = PLANS.get(deps);
   if (byName === undefined) PLANS.set(deps, (byName = new Map()));
   const key = name + (kernelOk ? "" : "|nok") + (deferral("probe") ? "" : "|np");
   let plan = byName.get(key);
   if (plan === undefined) {
-    const paths = pathsOnly(deps);
+    const paths = deps;
     const regionReactive = paths.some((rp) => rp.startsWith(":") || rp.includes(".read(") || rp.includes(".value."));
     plan = {
-      expr: kernelOk ? exprOf(deps) : null,
+      expr: kernelOk ? exprOf(expr, deps) : null,
       paths,
       derived: sizeFromParent(name, deps, src),
       regionReactive,
@@ -340,9 +336,13 @@ export function bindConstraint(
   yielding = false,
   /** …and is marked as one BEFORE its first run, so a read while that run is
    *  in flight evaluates the default live instead of taking the empty slot. */
-  declDefault = false
+  declDefault = false,
+  /** The body as kernel bytecode (the code value's `expr`), when the compiler
+   *  emitted it — the constraint then runs in the kernel if its reads land on
+   *  numeric cells. */
+  bytecode?: string
 ): void {
-  const plan = deps !== undefined ? planFor(name, deps, src, !exprStats.disabled) : null;
+  const plan = deps !== undefined ? planFor(name, deps, src, !exprStats.disabled, bytecode) : null;
   const derived = plan !== null ? plan.derived : sizeFromParent(name, deps, src);
   const expr = plan !== null ? plan.expr : null;
   if (expr !== null) {
@@ -431,7 +431,7 @@ export function bindDatapath(view: Node, path: string | readonly string[]): void
     `${view.constructor.name}.datapath = :${typeof path === "string" ? path : path.join(".")}`,
     () => {
       const base = inheritedCursor(view.parent);
-      return base === null ? null : base.data.cursorAt([...base.path, ...segs]);
+      return base === null ? null : base.data.$cursorAt([...base.path, ...segs]);
     },
     (v) => setBound(view, "datapath", v)
   );
@@ -589,7 +589,7 @@ export function bindAlign(view: View, name: "x" | "y", align: "center" | "end", 
   // 0, the whole size); a view whose alignBand is overridden keeps the
   // JavaScript form, which asks it.
   const insetA = size === "width" ? "insetX" : "insetY";
-  if (kernelDerives() && view.alignBand === View.prototype.alignBand && bindKernelExpr(view, name,
+  if (kernelDerives() && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name,
     align === "end"
       ? { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0] }
       : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] },
@@ -600,7 +600,7 @@ export function bindAlign(view: View, name: "x" | "y", align: "center" | "end", 
     () => {
       const P = (view.parent as View).contentBox(size);
       if (align === "end") return P - view[size];
-      const band = view.alignBand(name);
+      const band = view.$alignBand(name);
       return (P - band.size) / 2 - band.lead;
     },
     (v) => setBound(view, name, v)
@@ -620,9 +620,9 @@ const DEFERRED: unique symbol = Symbol("deferred");
  *  rule: the default never applied to it. The meaning is the language's "a
  *  formula until assigned", the same as the lazy fallback this replaced —
  *  motion, states, early reads, assignment: docs/system-design/kernel.md §10a. */
-export function bindDeclDefault(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[]): void {
+export function bindDeclDefault(view: Node, name: string, src: string, pos: Pos, classroot: View | null, deps?: readonly string[], bytecode?: string): void {
   if (isSetOrOwned(view, name)) return;
-  bindConstraint(view, name, src, pos, classroot, deps, true, true);
+  bindConstraint(view, name, src, pos, classroot, deps, true, true, bytecode);
   const o = ownerOf(view, name);
   if (o !== null) o.declDefault = true;
 }

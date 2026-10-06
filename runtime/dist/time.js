@@ -141,8 +141,8 @@ export class Time extends Node {
     /** The shared clock's protocol lives on a delegate: `tick` is the attribute. */
     #ticker = {
         perpetual: true, // life, not transition: never holds settleMotion open
-        tick: (now) => this.#frame(now),
-        rebase: (delta) => { if (this.#lastFrame !== null)
+        $tick: (now) => this.#frame(now),
+        $rebase: (delta) => { if (this.#lastFrame !== null)
             this.#lastFrame += delta; },
     };
     #onClock = false;
@@ -169,7 +169,7 @@ export class Time extends Node {
     /** Construction-complete (instantiate.ts initTree fires this, as for every
      *  source and animator): the facts stand from the first settle, the page's
      *  visibility is watched, and the tick arms if anything wants it. */
-    autoStart() {
+    $autoStart() {
         if (this.#started)
             return;
         this.#started = true;

@@ -986,6 +986,8 @@ export interface DeclRecord {
   pos: { line: number; col: number } | null;
   /** The compiler's extracted read-paths for the default, when they rode along. */
   deps: readonly string[] | null;
+  /** The default as kernel bytecode, when the compiler emitted it. */
+  expr?: string;
   /** The declared TYPE name, verbatim ("number", "array", …). */
   type?: string;
   /** Declared `external` — an island-boundary slot (parser.ts AttrDecl). The

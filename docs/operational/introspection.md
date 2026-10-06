@@ -122,9 +122,9 @@ window.__declare.trace.text()
 ```
 
 ```
-#12 +418.2ms (1.4ms, 3 runs) ← onTick on Time 'clock'  triggers: app.clock.elapsed 41 → 42
-    app.log.band.height 132 → 0 ← { liveSrc.loaded } (line 229)
-    app.log.col.height 612 → 480 ← SimpleLayout
+#12 +418.2ms (1.4ms, 3 runs) ← onClick on Button 'more'  triggers: app.limit 40 → 80
+    app.list.footer.height 132 → 0 ← { issues.loaded } (line 229)
+    app.list.col.height 612 → 480 ← SimpleLayout
 ```
 
 | call | returns |

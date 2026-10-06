@@ -961,7 +961,7 @@ await test("scrollAnchor = content: an edge in a row's padding keeps the row bel
   app.d.value = { rows: rows(200) };
   for (let i = 0; i < 4; i++) settle();
   const rowsOf = () => app.sc.content.children.filter((c) => c.rowIndex >= 0);
-  const lead = (c) => c.y + c.positionLead("y");
+  const lead = (c) => c.y + c.$positionLead("y");
   // the edge 4 px into row 50's 10 px bottom padding
   const r50 = rowsOf()[50];
   app.sc.scrollY = lead(r50) + r50.height - 6;

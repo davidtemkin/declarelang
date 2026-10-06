@@ -20,10 +20,10 @@ Sending the opening frame belongs in `onOpen` (which also covers every reconnect
 user-triggered sends on `.open`:
 
 ```declare-fragment
-live: Socket [ url = "wss://chat.example.com/live", retry = 2,
+live: Socket [ url = "wss://api.example.com/control", retry = 2,
     onMessage(e: StreamMessage) { app.store.apply(JSON.parse(e.data)) } ],
-send: Button [ label = "Send", disabled = { !app.live.open || app.draft == "" },
-    onClick() { app.live.send(JSON.stringify({ t: "send", text: app.draft })); app.draft = "" } ]
+apply: Button [ label = "Apply", disabled = { !app.live.open },
+    onClick() { app.live.send(JSON.stringify({ t: "setpoint", value: app.target })) } ]
 ```
 
 What arrives lands in the data (`app.store.apply`), and every view reading it follows —

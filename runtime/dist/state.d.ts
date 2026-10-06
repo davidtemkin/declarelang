@@ -36,7 +36,7 @@ export declare class State extends Node {
      *  view (appendChildren, pass one) — before any gate fires in pass two and
      *  before sibling states insert children, so the index is pure source order
      *  (states.md §3: later-declared wins). */
-    onLinked(): void;
+    $onLinked(): void;
     /** A named child this state builds is reachable by its name on the target
      *  while it exists, and reads as absent while it does not — and a constraint
      *  reading the name hears it arrive and leave (`{ pill?.height ?? 0 }`): the
@@ -46,34 +46,34 @@ export declare class State extends Node {
     /** Apply the initial value once the tree is linked (initTree). A gated state
      *  has usually already synced from its gate's first run in pass two — this is
      *  idempotent — but a literal `applied = true` (no gate) applies here. */
-    init(): void;
+    $init(): void;
     apply(): void;
     remove(): void;
     toggle(): void;
     /** The verbs' one write path: reject when a declarative gate owns `applied`
      *  (states.md §2 — gate XOR verbs), else drive through setBound (→ push →
      *  sync), the sanctioned path, not a raw assignment. */
-    private drive;
+    private $drive;
     /** Install or remove this state's effects. Idempotent, and a no-op until the
      *  enclosing view is linked (the initial sync runs from init()). */
-    sync(v: boolean): void;
+    $sync(v: boolean): void;
     /** Instantiate the conditional subtree into the target at the state's slot
      *  (just after the state node), attach live surfaces, fire init — the same
      *  construct/finish path replicate.ts runs per record. */
-    private buildChildren;
+    private $buildChildren;
     /** Retire the subtree: discard each built view — the verb unlinks and
      *  notifies the target itself — and its name reads as absent again.
      *  Per-child notify is fine at State scale (a conditional subtree, not a burst). */
-    private teardownChildren;
+    private $teardownChildren;
     /** Retire with the host view (View.discard reaches every child now): dispose
      *  our `applied` gate binding — else it lingers, subscribed to whatever it
      *  gated on (`applied = { app.openSection … }`), keeping this state and its
      *  view alive. The state's EFFECTS (override constraints owned by the target,
      *  built children spliced into the target) are torn down by the target view's
      *  own discard, so there is nothing else to undo here. */
-    teardown(): void;
+    $teardown(): void;
     private retired;
     /** Fire a carried handler if installed (onApply / onRemove) — a plain Node
      *  dispatch, like the Animator's on* firing. */
-    private fire;
+    private $fire;
 }

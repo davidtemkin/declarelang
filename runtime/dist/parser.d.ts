@@ -1,5 +1,6 @@
 import { type Pos } from "./errors.js";
 import type { PathSeg } from "./path-plan.js";
+import type { AttrType } from "./value.js";
 /** A literal value as written — the parser classifies syntax, not type.
  *  `hex` preserves whether a number was written `0x…`: the Color type only
  *  admits the hex-written numeric form (language §6), so the written form is
@@ -31,6 +32,7 @@ export type Literal = {
     src: string;
     pos: Pos;
     deps?: readonly string[];
+    expr?: string;
 } | {
     kind: "path";
     path: string;
@@ -66,7 +68,24 @@ export interface Attr {
      *  the leaf-input exception): the slot both READS the datapath and WRITES
      *  edits back to it. Absent = an ordinary one-way `name = value`. */
     bind?: "two";
+    /** HOW THE ATTRIBUTE IS WIRED, where its slot's type decides it (route.ts):
+     *  absent for the ordinary case — a `{ }` is a constraint, a `:path` a data
+     *  read, a literal a value. Set on a routed program (Program.routed). */
+    route?: Route;
+    /** The slot's declared type, on a routed program only where the runtime
+     *  still needs it: a data read or a two-way binding converts arriving values
+     *  to it, and a literal the compile could not ship as a value coerces by it. */
+    slotType?: AttrType;
 }
+/** The type-directed ways an attribute is wired (route.ts decides them):
+ *  `provision` — a bare set of a built-in provided value the class does not
+ *  declare; `cursor` — a cursor-typed slot (`datapath`); `theme` — a Theme slot
+ *  naming a theme the program declares; `font` — a font slot given a family
+ *  list; `list` — an array slot given a bare list; `corners` — a radius or inset
+ *  slot given its four-number list; `class` — a class-typed slot set by literal
+ *  (`layout = null`); `override` — on a State, an attribute of the enclosing
+ *  view rather than of the state. */
+export type Route = "provision" | "cursor" | "theme" | "font" | "list" | "corners" | "class" | "override";
 /** One parameter of a method signature. `type` is the WRITTEN type name —
  *  resolving it against the value vocabulary (a primitive, or a class
  *  class) is the checker's job, exactly as for an attribute declaration's
@@ -105,6 +124,10 @@ export interface Method {
     body: string;
     pos: Pos;
     bodyPos: Pos;
+    /** The body reaches `super` (compiled as `$base`), so instantiate builds the
+     *  object it reads. Read from the compiled body when a compiled source is
+     *  parsed. */
+    usesSuper?: boolean;
 }
 /** `name: Type = default` — declare a NEW typed, reactive attribute on this
  *  class (language §4: "`name = value` *sets*; `name: Type = value`
@@ -121,6 +144,11 @@ export interface AttrDecl {
      *  runtime setter throws. Part of the slot's identity, like its type. */
     readOnly: boolean;
     pos: Pos;
+    /** On a routed program: `list` / `corners` when the default is a bare list
+     *  on an array / radius-or-inset slot, and the declared type when the
+     *  default is a literal the compile could not ship as a value. */
+    route?: "list" | "corners";
+    slotType?: AttrType;
 }
 /** A navigable target extracted from an activation handler's `navigate(to)`
  *  call (capabilities.md §6, links.ts): a literal URL, or a read-path to
@@ -160,6 +188,10 @@ export interface Element {
      *  compiler's link extraction (compiler/src/links.ts) found a `navigate(to)`
      *  call in it. Rides the serialized program / a walk-order side-list. */
     link?: LinkTarget;
+    /** On a routed program: this named child is the VALUE of a class-typed slot
+     *  of its parent (`layout: SimpleLayout [ … ]`), and this is the class the
+     *  slot holds — not a child of the tree. */
+    classSlot?: string;
     pos: Pos;
 }
 /** `class Name extends Base [ … ]` (language §5). The body is an ordinary
@@ -173,8 +205,8 @@ export interface ClassDecl {
     body: Element;
     pos: Pos;
 }
-/** A top-level `theme Name [ … ]` (a named record value of type Theme),
- *  `style name [ … ]` (a run-style bundle), or `font Name [ … ]` declaration.
+/** A top-level `theme Name [ … ]` (a named record value of type Theme) or
+ *  `style name [ … ]` (a run-style bundle) declaration.
  *  The body is an Element tagged with the declaration's own name, so the member
  *  machinery is reused unchanged; the checker owns what each body may carry. */
 export interface TopDecl {
@@ -233,19 +265,16 @@ export interface Span {
     start: number;
     end: number;
 }
-/** A top-level `script { … }` block: free TypeScript that is not a class —
- *  models, helpers, the stateless logic shared across unrelated parts of the
- *  tree (declare-language.md §5's fourth home for code). The body is captured
- *  RAW, exactly like a `Dataset`'s literal body: the parser proves only that
- *  the braces balance; TypeScript's own checker judges the contents, and the
- *  emitter places it in the program's module scope so a constraint or handler
- *  can call what it declares. */
 export interface ScriptBlock {
     src: string;
     pos: Pos;
     /** The block's source span, so the source-merge can splice or excise it the
      *  way it does an `include` directive. */
     span: Span;
+    /** A block the compiler produced: it ends in its own bindings return, so it
+     *  evaluates alone (instantiate). Read from the compiler's bindings marker
+     *  when a compiled source is parsed. */
+    compiled?: boolean;
 }
 /** A whole source: `include` directives, top-level declarations (classes,
  *  themes, style bundles — any order), then the root instance. (The
@@ -287,11 +316,14 @@ export interface Program {
     scriptFileSpans?: Span[];
     root: Element;
     /** Stamped `true` by the compiler ONLY on a program it fully checked
-     *  (declarec's build). instantiate.ts then routes attributes by value kind
-     *  and coerces literals directly, skipping the validators — which a
+     *  (declarec's build). instantiate.ts then skips the validators — which a
      *  production bundle substitutes with a stub. Never set by the parser:
      *  parsing proves syntax, not types. */
     trusted?: boolean;
+    /** Stamped `true` once every attribute that its slot's type wires carries the
+     *  decision (route.ts): the compiler routes the program it checked, and
+     *  instantiate routes any other program before building it. */
+    routed?: boolean;
 }
 /** `ship [ … ]` — what a self-contained package of the program must carry
  *  beyond what its source names, each member a FACT about the program (never

@@ -1,30 +1,28 @@
 // Machinery with no box
-// A `Node` subclass is for a job that paints nothing: here a stopwatch — its clock,
-// its state, and the verbs that drive it. It lives in the tree as a named member;
-// the readout reads it, and the buttons drive it.
+// A `Node` subclass is for a job that paints nothing: here a die — its state and the
+// verbs that drive it. It lives in the tree as a named member; the readout reads it,
+// and the buttons drive it.
 
-class Stopwatch extends Node [
-    running: boolean = false,
-    elapsed: number = 0,
-    clock: Time [ tick = frame, running = { classroot.running },
-        onTick(dt: number) { classroot.elapsed = classroot.elapsed + dt }
-        ],
-    toggle() { running = !running },
-    reset() { running = false; elapsed = 0 }
+class Die extends Node [
+    sides: number = 6,
+    last: number = 0,
+    rolls: number = 0,
+    roll() { last = 1 + Math.floor(Math.random() * sides); rolls = rolls + 1 },
+    reset() { last = 0; rolls = 0 }
     ]
 
 
 App [ textColor = 0x172530, fontSize = 14,
-    watch: Stopwatch [ ],
+    die: Die [ ],
     row: View [ x = 20, y = 20, height = 40, width = { this.contentWidth },
         layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
         Text [ fontSize = 24, fontWeight = semibold, width = 90,
-            text = { app.watch.elapsed.toFixed(1) + " s" } ],
-        Button [ label = { app.watch.running ? "Stop" : "Start" },
-            onClick() { app.watch.toggle() }
+            text = { app.die.last == 0 ? "–" : String(app.die.last) } ],
+        Button [ label = "Roll",
+            onClick() { app.die.roll() }
             ],
         Button [ label = "Reset",
-            onClick() { app.watch.reset() }
+            onClick() { app.die.reset() }
             ]
         ]
     ]

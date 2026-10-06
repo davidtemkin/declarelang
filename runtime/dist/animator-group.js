@@ -22,14 +22,14 @@ export class AnimatorGroup extends Node {
     cyclesLeft = 1;
     grouped = false;
     autoStarted = false;
-    markGrouped() {
+    $markGrouped() {
         this.grouped = true;
     }
     /** This group's members (child Animators / AnimatorGroups), in tree order. */
-    members() {
+    $members() {
         return this.children.filter(isAnimatable);
     }
-    autoStart() {
+    $autoStart() {
         if (this.autoStarted || this.grouped)
             return; // an enclosing group drives us
         this.autoStarted = true;
@@ -39,7 +39,7 @@ export class AnimatorGroup extends Node {
     /** The group's own `started`, reactive exactly as an Animator's (see
      *  Animator.startedChanged) — the group is the driver, so a change here
      *  starts or stops the whole group, members included. */
-    startedChanged(v) {
+    $startedChanged(v) {
         if (!this.autoStarted || this.grouped)
             return;
         if (v)
@@ -51,21 +51,21 @@ export class AnimatorGroup extends Node {
      *  off the clock while paused — members freeze because nothing ticks them —
      *  and on resume every running member's anchor is re-seeded at NOW before the
      *  group re-enrolls, so no member measures the pause as elapsed time. */
-    pausedChanged(v) {
+    $pausedChanged(v) {
         if (!this.live || this.grouped)
             return;
         if (v) {
             sharedClock.remove(this);
         }
         else {
-            this.reanchor(sharedClock.now());
+            this.$reanchor(sharedClock.now());
             sharedClock.add(this);
         }
     }
     /** Cascade the unpause re-anchor down (Animator.reanchor). */
-    reanchor(now) {
+    $reanchor(now) {
         for (const m of this.active) {
-            m.reanchor?.(now);
+            m.$reanchor?.(now);
         }
     }
     /** Begin the group (LZX doStart): snapshot the members to run this cycle and
@@ -80,12 +80,12 @@ export class AnimatorGroup extends Node {
         setBound(this, "running", true);
         setBound(this, "arrived", false);
         this.cyclesLeft = this.repeat;
-        this.active = this.members();
+        this.active = this.$members();
         // Armed-but-frozen under `paused = true`, exactly as an Animator's start
         // (pausedChanged enrolls on resume).
         if (!this.grouped && !this.paused)
             sharedClock.add(this);
-        this.fire("onStart");
+        this.$fire("onStart");
     }
     /** Stop the group (LZX stop): halt every still-running member in place, drop
      *  the group ticker, fire onStop. Idempotent. */
@@ -97,33 +97,33 @@ export class AnimatorGroup extends Node {
         for (const m of this.active)
             if (m.running)
                 m.stop();
-        this.endGroup();
+        this.$endGroup();
     }
     /** Retire with the host view: drop the group ticker + own bindings, then
      *  recurse so each member animator disposes its own bindings too. */
-    teardown() {
+    $teardown() {
         disposeBindings(this);
         this.stop();
-        super.teardown();
+        super.$teardown();
     }
     /** One group frame: drive the active members with the shared `now`, retire
      *  the finished, replay or finish when all are done. `sequential` advances
      *  only the head member per frame; `simultaneous` advances all. A `frozen`
      *  group (its own pause, or an enclosing group's) keeps running members'
      *  clocks fresh but neither starts pending members nor advances progression. */
-    rebase(delta) {
+    $rebase(delta) {
         // The group is the enrolled ticker; the anchors live in its members.
         for (const m of this.active)
-            m.rebase?.(delta);
+            m.$rebase?.(delta);
     }
-    tick(now, frozen = false) {
+    $tick(now, frozen = false) {
         if (!this.live)
             return false;
         const freeze = frozen || this.paused;
         if (freeze) {
             for (const m of this.active)
                 if (m.running)
-                    m.tick(now, true);
+                    m.$tick(now, true);
             return true;
         }
         if (this.process === "sequential") {
@@ -131,7 +131,7 @@ export class AnimatorGroup extends Node {
             if (head !== undefined) {
                 if (!head.running)
                     head.start(); // lazy start — samples `from` now
-                if (!head.tick(now))
+                if (!head.$tick(now))
                     this.active.shift();
             }
         }
@@ -141,34 +141,34 @@ export class AnimatorGroup extends Node {
                 const m = this.active[i];
                 if (!m.running)
                     m.start();
-                if (m.tick(now))
+                if (m.$tick(now))
                     i += 1;
                 else
                     this.active.splice(i, 1);
             }
         }
         if (this.active.length === 0)
-            return this.cycleComplete();
+            return this.$cycleComplete();
         return true;
     }
     /** All members done: replay the whole group (repeat) or finish it. */
-    cycleComplete() {
+    $cycleComplete() {
         if (this.cyclesLeft > 1) {
             this.cyclesLeft -= 1;
-            this.fire("onRepeat");
-            this.active = this.members();
+            this.$fire("onRepeat");
+            this.active = this.$members();
             return true;
         }
-        this.endGroup();
+        this.$endGroup();
         return this.live; // an onStop that restarted the group keeps the ticker alive
     }
-    endGroup() {
+    $endGroup() {
         this.live = false;
         setBound(this, "running", false);
         this.active = [];
-        this.fire("onStop");
+        this.$fire("onStop");
     }
-    fire(handler) {
+    $fire(handler) {
         const h = this[handler];
         if (typeof h === "function")
             h.call(this);
@@ -183,8 +183,8 @@ defineAttributes(AnimatorGroup, {
     motion: { def: DEFAULT_MOTION },
     process: { def: "sequential" },
     repeat: { def: 1 },
-    started: { def: false, push: (s, v) => s.startedChanged(v) },
-    paused: { def: false, push: (s, v) => s.pausedChanged(v) },
+    started: { def: false, push: (s, v) => s.$startedChanged(v) },
+    paused: { def: false, push: (s, v) => s.$pausedChanged(v) },
     running: { def: false },
     arrived: { def: false },
 });

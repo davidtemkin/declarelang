@@ -45,7 +45,7 @@ depends on other records — a lane, a running total — from a wrapper that hol
 rather than a copy of it: `{ ev: e, lane: n }`, bound through `:ev` for edits.
 
 A derived dataset may be a member of another data node: a document declared as
-`class Log extends Dataset [ week: Dataset [ contents = { … } ] ]` carries its own
+`class Library extends Dataset [ shelved: Dataset [ contents = { … } ] ]` carries its own
 derivations.
 
 ## read()

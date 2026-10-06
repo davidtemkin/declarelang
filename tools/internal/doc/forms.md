@@ -1059,8 +1059,8 @@ JavaScript live, so the tree stays about the tree.
 What does **not** belong here is anything the program's look or model depends on. A
 color, a font list or a size used in more than one place is a theme token read with
 `provided("theme")`, a `style`, or an attribute — a script constant cannot be themed,
-switched for dark mode, or read by `explain`. A derivation over the app's data — a
-week's totals, a streak — is a **method** on the node that holds the data. The compiler
+switched for dark mode, or read by `explain`. A derivation over the app's data — an
+order's total, a running balance — is a **method** on the node that holds the data. The compiler
 reads through a method, so its dependencies are known and `explain` can show them; it
 cannot see inside a script function, and its results arrive untyped.
 

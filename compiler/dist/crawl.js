@@ -28,7 +28,7 @@
 // read as "indexed" when it isn't. Deterministic by construction — fixed env vector,
 // fixed measurer, same data bytes — so the browser and Node crawls are byte-identical,
 // extending the oracle discipline to the whole document.
-import { build, settle, App, HeadlessBackend, linkIslandTenant, islandProvisions, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
+import { buildProgram, settle, App, HeadlessBackend, linkIslandTenant, islandProvisions, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 import { approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 import { staticHtml } from "./static-html.js";
 /** How deep tenants-within-tenants are followed. */
@@ -88,7 +88,7 @@ async function drainAsync() {
  *  quiescence: wait out every in-flight transport request (a landed batch may settle
  *  into code that fetches MORE — loop until none remain), then serialize. The caller
  *  serializes then `app.discard()`s. */
-async function bootAt(source, opts, location, refusals, beforeSettle) {
+async function bootAt(program, opts, location, refusals, beforeSettle) {
     const env = { ...DEFAULT_ENV, ...opts.env };
     if (typeof document === "undefined")
         provideMeasurer(approximateMeasurer());
@@ -105,7 +105,7 @@ async function bootAt(source, opts, location, refusals, beforeSettle) {
     };
     const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
     try {
-        const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides });
+        const app = buildProgram(program, { provides: opts.provides });
         app.$attach(new HeadlessBackend(), null);
         app.hostWidth = env.hostWidth;
         app.hostHeight = env.hostHeight;
@@ -174,11 +174,11 @@ async function tenantsOf(app, opts, refusals, depth) {
             throw new Error(`crawl: the island program '${name}' was not found — an AppIsland's program must resolve ` +
                 `as the host resolves it (<name>.declare in the host program's demos/ folder)`);
         }
-        if (prog.source === null) {
+        if (prog.program === null) {
             throw new Error(`crawl: the island program '${name}' did not compile:\n${prog.report ?? ""}`);
         }
         let unlink = () => { };
-        const tenant = await bootAt(prog.source, { ...opts, deps: prog.deps, links: prog.links, registry: undefined, provides: islandProvisions(view) }, "", refusals, (t) => { unlink = linkIslandTenant(view, t); });
+        const tenant = await bootAt(prog.program, { ...opts, registry: undefined, provides: islandProvisions(view) }, "", refusals, (t) => { unlink = linkIslandTenant(view, t); });
         try {
             const inner = await tenantsOf(tenant, opts, refusals, depth + 1);
             out.set(view, rebaseTenant(staticHtml(tenant, inner), name));
@@ -230,7 +230,7 @@ async function serialize(app, opts, refusals) {
  *  quiescence, not a build. Arrival semantics match bootAt exactly (follow
  *  when the app declares onFollow; a raw seed otherwise), so the two paths
  *  cannot drift in what an arrival MEANS — only in what it costs. */
-async function warmSession(source, opts, refusals) {
+async function warmSession(program, opts, refusals) {
     const env = { ...DEFAULT_ENV, ...opts.env };
     if (typeof document === "undefined")
         provideMeasurer(approximateMeasurer());
@@ -240,7 +240,7 @@ async function warmSession(source, opts, refusals) {
         throw new Error(`crawl refused stream connection — ${url} (streams are never indexed)`);
     };
     const prevStreams = provideStreams({ eventSource: refuseStream, socket: refuseStream });
-    const app = build(source, { deps: opts.deps, links: opts.links, provides: opts.provides });
+    const app = buildProgram(program, { provides: opts.provides });
     app.$attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
@@ -303,18 +303,18 @@ export function canonKey(location, defaultLoc) {
  *  emitted (rule: discoverable = linked). The default is always docs[0]. THROWS when
  *  any boot needed data the crawl could not honestly supply (the loud-failure rule):
  *  the message names each url and the fix. */
-export async function crawlLocations(source, opts = {}) {
-    return (await crawlAll(source, opts)).docs;
+export async function crawlLocations(program, opts = {}) {
+    return (await crawlAll(program, opts)).docs;
 }
 /** The crawl plus the app's settled `appName` — the human name the crawled
  *  page's <title> should carry (SEO: the extractor reads the SETTLED value, so
  *  a constraint-derived name is as extractable as a literal). One title per
  *  crawl, matching the one-document ruling (the program URL is the sole
  *  address); "" when the app declares no name — the caller keeps its default. */
-async function crawlAll(source, opts = {}) {
+async function crawlAll(program, opts = {}) {
     const refusals = new Map();
     // The declared default = a fresh boot's location, so `""`/default canonicalize.
-    const probe = await bootAt(source, opts, "", refusals);
+    const probe = await bootAt(program, opts, "", refusals);
     const defaultLoc = probe.location;
     const title = probe.appName;
     probe.discard();
@@ -355,7 +355,7 @@ async function crawlAll(source, opts = {}) {
     const budget = opts.budget ?? 512;
     let boots = 0;
     // WARM mode (CrawlOptions.warm): one session, flips instead of boots.
-    const session = opts.warm === true ? await warmSession(source, opts, refusals) : null;
+    const session = opts.warm === true ? await warmSession(program, opts, refusals) : null;
     try {
         while (queue.length > 0) {
             const location = queue.shift();
@@ -379,7 +379,7 @@ async function crawlAll(source, opts = {}) {
                 ({ html, linkHtml } = await serialize(session.app, opts, refusals));
             }
             else {
-                const app = await bootAt(source, opts, key === "" ? "" : location, refusals);
+                const app = await bootAt(program, opts, key === "" ? "" : location, refusals);
                 try {
                     ({ html, linkHtml } = await serialize(app, opts, refusals));
                 }
@@ -418,7 +418,7 @@ async function crawlAll(source, opts = {}) {
                 picks.add(keys[Math.floor((i * (keys.length - 1)) / Math.max(1, n - 1))]);
             for (const k of picks) {
                 const doc = byKey.get(k);
-                const app = await bootAt(source, opts, doc.location, refusals);
+                const app = await bootAt(program, opts, doc.location, refusals);
                 let coldHtml;
                 try {
                     coldHtml = (await serialize(app, opts, refusals)).html;
@@ -477,15 +477,15 @@ const escId = (s) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
  *  `href="#<location>"` links resolve intra-document, and a fragment that survives
  *  into a click-through addresses the live app identically. This is what `?extract`
  *  returns and `?crawler` bakes when the caller asks for the crawl. */
-export async function crawlDocument(source, opts = {}) {
-    return (await crawlExtract(source, opts)).html;
+export async function crawlDocument(program, opts = {}) {
+    return (await crawlExtract(program, opts)).html;
 }
 /** crawlDocument plus the settled `appName` as `title` — for callers baking a
  *  full page around the extraction (`crawlerDocument`, the run-page `<title>`),
  *  so the crawled page is named by the app, not the filename. "" = no declared
  *  name; the caller falls back to whatever it titled the page before. */
-export async function crawlExtract(source, opts = {}) {
-    const { docs, title } = await crawlAll(source, opts);
+export async function crawlExtract(program, opts = {}) {
+    const { docs, title } = await crawlAll(program, opts);
     const parts = [docs[0].html];
     for (const d of docs.slice(1))
         parts.push(`<section id="${escId(d.key)}">\n${d.html}\n</section>`);

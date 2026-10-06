@@ -21,7 +21,7 @@ export declare abstract class Stream extends Node {
     get open(): boolean;
     /** The transport-specific half: hand the factory this stream's address and
      *  callbacks, get a live handle back. */
-    protected abstract dial(cb: StreamCallbacks): StreamHandle;
+    protected abstract $dial(cb: StreamCallbacks): StreamHandle;
     protected handle: StreamHandle | null;
     private timer;
     /** Bumped whenever the current handle stops being ours (drop, terminal
@@ -38,43 +38,43 @@ export declare abstract class Stream extends Node {
     constructor();
     /** Construction-complete (instantiate.ts initTree — the hook every source
      *  uses): handlers and initial attribute values are all in place. */
-    autoStart(): void;
+    $autoStart(): void;
     /** `url` (or `listen`) changed: close and reopen at the new address — the
      *  Dataset.url discipline, push-driven (the attribute pushers below reach
      *  these two private hooks the way Time's pushers reach its sync). */
-    protected readdressed(): void;
+    protected $readdressed(): void;
     /** `active` changed: the gate. */
-    protected gated(): void;
+    protected $gated(): void;
     /** Converge on what the declaration wants: connected exactly when `active`
      *  and a non-empty `url` say so ("" = detached, the AppIsland idiom). */
-    private sync;
-    private connect;
+    private $sync;
+    private $connect;
     /** The connection went down (the factory's `end`). Not final = the
      *  platform repairs it itself (SSE native retry): just "retrying". Final =
      *  the handle is dead; a declared `retry` schedules the reconnect, else
      *  the stream rests at "failed" (a failure) or "closed" (a clean end). */
-    private ended;
+    private $ended;
     /** Close whatever is live or pending. `quiet` (discard) fires no handlers —
      *  nothing may run into a tree being torn down. */
-    private drop;
+    private $drop;
     /** A handler is an ordinary function-typed member the app may not have
      *  declared — pay-per-use, like every source. */
-    protected fire(name: string, arg?: unknown): void;
+    protected $fire(name: string, arg?: unknown): void;
 }
 /** SSE (`text/event-stream`), receive-only. The platform's EventSource is
  *  kept verbatim — its retry (the server's `retry:` hint) and Last-Event-ID
  *  resume are the best implementation of its own behavior. */
 export declare class EventStream extends Stream {
-    /** The named SSE event types to deliver (`listenTo = ["content_block_delta",
-     *  "message_stop"]`) — EventSource physically cannot hear a named `event:`
+    /** The named SSE event types to deliver (`listenTo = ["progress",
+     *  "done"]`) — EventSource physically cannot hear a named `event:`
      *  it was not asked for (streams.md §2). Unnamed messages always arrive. */
     listenTo: readonly string[];
-    protected dial(cb: StreamCallbacks): StreamHandle;
+    protected $dial(cb: StreamCallbacks): StreamHandle;
 }
 /** WebSocket: the same surface plus `send`. Text frames only in v1 (ruled;
  *  binary is a later attribute if a real project needs it). */
 export declare class Socket extends Stream {
-    protected dial(cb: StreamCallbacks): StreamHandle;
+    protected $dial(cb: StreamCallbacks): StreamHandle;
     /** A call you make; `onMessage` is it calling you. On a socket that is not
      *  open: a reported error, not a silent queue (§5). */
     send(text: string): void;

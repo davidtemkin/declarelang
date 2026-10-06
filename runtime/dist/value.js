@@ -6,10 +6,8 @@
 // Declare source. Each type's `coerce` case owns its "expects …" wording, so
 // a type and its diagnostics are one thing and cannot drift apart.
 import { diag } from "./errors.js";
-import { faceSourceLiteral, faceWeightLiteral } from "./face-literal.js";
-import { coerceFilter } from "./effects.js";
 import { sidesEqual, sidesUniform } from "./stroke-sides.js";
-import { coerceColor, coerceFill, coerceMask, coerceMotion, coerceOutline, coerceShadow, coerceShape, coerceStroke } from "./literal-parse.js";
+import { parseLiteral } from "./literal-parse.js";
 /** The base of the translucent encoding — see the Color doc above. */
 const ALPHA = 0x100000000;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
@@ -320,7 +318,6 @@ export function declaredType(name) {
 /** The declarable type names, for the checker's "expected one of …" message. */
 export const DECLARED_TYPE_NAMES = Object.keys(DECLARED_TYPES);
 const ok = (value) => ({ ok: true, value });
-const fail = (expected, found) => ({ ok: false, expected, found });
 /** THE LITERAL SINK — compile time only. While the compiler checks the program
  *  it will ship, every literal coerced to a value is reported here, and the
  *  compiler ships the value in place of the written form
@@ -342,191 +339,94 @@ export function noteLiteral(lit, value) {
 }
 /** Coerce a parsed literal to an attribute type. Pure — safe for the checker
  *  to call speculatively; instantiate assigns the same result. A literal the
- *  compiler already coerced (`value`) is its value. */
+ *  compiler already coerced (`value`) is its value; any other is parsed by the
+ *  literal vocabulary (literal-parse.ts parseLiteral), which a build carries
+ *  only when it can meet a literal still as written. */
 export function coerce(type, lit) {
     if (lit.kind === "value")
         return ok(lit.value);
+    // A data shape is read as it is, not parsed: its parsed ShapeField
+    // declarations pass through as plain data — an array-root document (`schema =
+    // Task[]`) as the wrapper shape-resolve.ts defines, so validation knows the
+    // root is an array. (Its names may resolve to recursive shapes, so the
+    // compile cannot ship it as a value.)
+    if (lit.kind === "schema" && type.kind === "dataschema")
+        return ok((lit.arrayRoot === true ? { arrayRoot: true, fields: lit.shape } : lit.shape));
     const c = parseLiteral(type, lit);
     if (c.ok && literalSink !== null)
         literalSink(lit, c.value);
     return c;
 }
-/** Coerce the written form of a literal (see coerce). */
-function parseLiteral(type, lit) {
-    switch (type.kind) {
-        case "length":
-            if (lit.kind === "number") {
-                if (lit.hex && lit.hexLen === 8)
-                    return fail(diag `a Length`, diag `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
-                return ok(lit.value);
+/** Coerce a theme-record token to its runtime value (checkThemeRecord vetted
+ *  the shapes): numbers and strings pass through, hex/named colors ground as
+ *  Color, `true`/`false`/`null` as themselves, a constructor call as the first
+ *  of fill/stroke/shadow that admits it, and a LIST of any of those.
+ *
+ *  A list is a token because the rule the record actually keeps is "a token is
+ *  bounded, plain data" — spreadable, comparable, serializable, inspectable
+ *  without asking what kind of object it is — and a frozen array of literals is
+ *  all of those. Excluding it did not keep lists out; it denied them a type, so
+ *  the one the corpus needed most, a font stack, was written as a comma-joined
+ *  string and parsed back into a list at the other end. ONE LEVEL: a list of
+ *  lists is refused, which keeps "bounded" a fact rather than a hope. */
+export function coerceToken(lit) {
+    if (lit.kind === "value")
+        return lit.value;
+    const v = tokenOf(lit);
+    if (v !== undefined)
+        noteLiteral(lit, v);
+    return v;
+}
+function tokenOf(lit) {
+    switch (lit.kind) {
+        case "list": {
+            const out = [];
+            for (const item of lit.items) {
+                // one level: a nested list is not a token, and neither is anything else
+                // coerceToken refuses — the whole list fails so the record's error names
+                // the token, and checkThemeRecord says which item was wrong.
+                if (item.kind === "list")
+                    return undefined;
+                const v = coerceToken(item);
+                if (v === undefined)
+                    return undefined;
+                out.push(v);
             }
-            if (lit.kind === "percent")
-                return ok({ percent: lit.value });
-            if (lit.kind === "ident" && (lit.name === "center" || lit.name === "end"))
-                return ok({ align: lit.name });
-            return fail(diag `a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)`);
+            return Object.freeze(out);
+        }
         case "number":
-            if (lit.kind === "number") {
-                if (lit.hex && lit.hexLen === 8)
-                    return fail(diag `a number`, diag `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
-                return ok(lit.value);
-            }
-            return fail(diag `a number`);
-        case "radius":
-        case "inset":
-            // One value, or four clockwise — the house pattern (a Radius's four are
-            // corners from the top-left, an Inset's edges from the top). On a view's
-            // own attribute a bare list is routed around coercion like every list
-            // slot (check.ts / instantiate.ts); inside a class-valued member —
-            // `layout: SimpleLayout [ padding = [ 8, 12, 16, 20 ] ]` — this IS the
-            // path, so the four-item form is admitted here too.
-            if (lit.kind === "number")
-                return ok(lit.value);
-            if (lit.kind === "list" && lit.items.length === 4 && lit.items.every((it) => it.kind === "number")) {
-                return ok(Object.freeze(lit.items.map((it) => (it.kind === "number" ? it.value : 0))));
-            }
-            return fail(diag `a number for all four, or a list of four numbers — clockwise from the top (a Radius's corners start at the top-left; an Inset's edges at the top)`);
-        case "boolean":
-            if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) {
-                return ok(lit.name === "true");
-            }
-            return fail(diag `a boolean (true or false)`);
+            return lit.value;
         case "string":
-            if (lit.kind === "string")
-                return ok(lit.value);
-            return fail(diag `a string`);
-        case "color":
-            return coerceColor(lit);
-        case "shape":
-            return coerceShape(lit);
-        case "dataschema":
-            // The parsed ShapeField declarations pass through as plain data; null
-            // is "no schema" (the default — schema presence is the only switch).
-            // An array-root document (`schema = Task[]`) passes as the wrapper
-            // shape-resolve.ts defines, so validation knows the root is an array.
-            if (lit.kind === "schema")
-                return ok(lit.arrayRoot === true ? { arrayRoot: true, fields: lit.shape } : lit.shape);
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
-            return fail(diag `a schema shape ([ field: type, rows[]: [ … ] ]), or null for none`);
-        case "enum":
-            // SPELL A MEMBER THE WAY ITS DECLARATION SPELLS IT (DT's ruling,
-            // 2026-09-05). A built-in vocabulary declares `y`, so `axis = y` and
-            // never `"y"`; an AUTHORED literal union declares `"idle"`, so
-            // `phase = "idle"` and never `idle`. One spelling each — the bare
-            // token was accepted for authored unions too until the ruling, and two
-            // spellings for one thing is the leak the language does not otherwise
-            // allow. The written union text is the discriminator (isAuthoredUnion).
-            if (isAuthoredUnion(type.name)) {
-                const members = type.tokens.map((t) => JSON.stringify(t)).join(" | ");
-                if (lit.kind === "string" && type.tokens.includes(lit.value))
-                    return ok(lit.value);
-                if (lit.kind === "ident" && type.tokens.includes(lit.name)) {
-                    return fail(diag `one of ${members} — a literal union's member is written in quotes, as a bare value as in { }: "${lit.name}"`);
-                }
-                return fail(diag `one of ${members}`);
-            }
-            if (lit.kind === "ident" && type.tokens.includes(lit.name))
-                return ok(lit.name);
-            if (type.numeric !== undefined && lit.kind === "number") {
-                const [lo, hi] = type.numeric;
-                if (Number.isFinite(lit.value) && lit.value >= lo && lit.value <= hi)
-                    return ok(lit.value);
-                return fail(diag `a ${type.name} (one of ${type.tokens.join(" | ")}, or a number ${lo}–${hi})`);
-            }
-            // Vowel-aware article: R7's Axis is the first enum that needs "an".
-            return fail(diag `${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""})`);
-        case "fn":
-            // Like a class slot: `null` is the one literal form ("no callback").
-            // A real function arrives by assignment from a { } body, never as a
-            // literal in the declarative layer.
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
-            return fail(diag `a function ${type.written}, or null for none`);
-        case "class":
-            // `null` is the one literal form ("no layout"); the instance form is
-            // the member shape `layout: SimpleLayout [ … ]`, which never reaches
-            // coercion (check.ts routes it to the class-value path).
-            if (lit.kind === "ident" && lit.name === "null") {
-                return type.required === true ? fail(diag `a ${type.of} — declared without '?', so never empty; write '${type.of}?' to let it be null`) : ok(null);
-            }
-            return fail(diag `a ${type.of} (a member like 'layout: SimpleLayout [ … ]'), or null for none`);
-        case "cursor":
-            // `null` is the one coercible form ("no cursor"); `:path` and `{ }`
-            // are standing relationships check.ts routes before coercion.
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
-            return fail(diag `a datapath (':field.path', a { } expression yielding a place in a dataset, or null)`);
-        case "array":
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
-            // A list of names — `trackChanges = [ "failed" ]`, `listenTo = [ "delta" ]` —
-            // is a literal on every node, not only where the view walk reads it.
-            if (type.of === "string" && lit.kind === "list" && lit.items.every((it) => it.kind === "string")) {
-                return ok(lit.items.map((it) => it.value));
-            }
-            return fail(diag `an array — a { } constraint (plain TS: items = { [ … ] }), or null`);
-        case "object":
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null);
-            return fail(diag `an object — a { } constraint (plain TS), or null`);
-        case "view":
-            if (lit.kind === "ident" && lit.name === "null") {
-                return type.required === true ? fail(diag `a View — declared without '?', so never empty; write 'View?' to let it be null`) : ok(null);
-            }
-            return fail(diag `a View reference — assigned at runtime (an opener, a target), or null`);
-        case "slotref":
-            // The `attribute` token names a slot on the target; it stays a bare
-            // string at runtime. That the named slot exists and is numeric is
-            // checked against the TARGET's schema at the element walk (check.ts).
-            if (lit.kind === "ident" && lit.name !== "null")
-                return ok(lit.name);
-            return fail(diag `an attribute name written as a bare token (like height or x)`);
-        case "record":
-            // A DATA record (schema-typed, `sel: Task = null`): null is the one
-            // literal form — the slot may be empty before anything feeds it, exactly
-            // like a class slot. A token record (Theme) arrives as a named theme
-            // (`theme = Cupertino` — an ident routed and resolved before coercion), a
-            // `{ }` binding, or an inline `Theme [ … ]` record.
-            if (type.data === true) {
-                if (lit.kind === "ident" && lit.name === "null") {
-                    return type.required === true ? fail(diag `a ${type.name} — declared without '?', so never empty; write '${type.name}?' to let it be null`) : ok(null);
-                }
-                return fail(diag `a ${type.name} record (provide one with a { } constraint), or null for none`);
-            }
-            return fail(diag `a ${type.name} (a named theme, a { } constraint, or a Theme [ … ] record)`);
-        case "fill":
-            return coerceFill(lit);
-        case "stroke":
-            return coerceStroke(lit);
-        case "outline":
-            return coerceOutline(lit);
-        case "shadow":
-            return coerceShadow(lit);
-        case "filter":
-            if (lit.kind === "ident" && lit.name === "null")
-                return ok(null); // no filter: the effects module is not asked
-            return coerceFilter(lit);
-        case "mask":
-            return coerceMask(lit);
-        case "motion":
-            return coerceMotion(lit);
-        case "font":
-            // A family string is the literal form (a list joins in check.ts/instantiate.ts
-            // before coercion); a Font object arrives from a { }.
-            if (lit.kind === "string")
-                return ok(lit.value);
-            return fail(diag `a family string like "Helvetica, sans-serif" — or a Font, written in a { } (fontFamily = { app.brand })`);
-        case "faceSource": {
-            // a source string, or the list of them tried in order
-            const r = faceSourceLiteral(lit);
-            return "error" in r ? fail(r.error) : ok(r.value);
+            return lit.value;
+        case "hexColor": {
+            const c = coerce({ kind: "color" }, lit);
+            return c.ok ? c.value : undefined;
         }
-        case "faceWeight": {
-            // a token, a number, or a variable font's [lo, hi]
-            const r = faceWeightLiteral(lit);
-            return "error" in r ? fail(r.error) : ok(r.value);
+        case "ident": {
+            if (lit.name === "true")
+                return true;
+            if (lit.name === "false")
+                return false;
+            if (lit.name === "null")
+                return null;
+            const c = coerce({ kind: "color" }, lit); // named colors
+            return c.ok ? c.value : undefined;
         }
+        case "call": {
+            const asFill = coerce({ kind: "fill" }, lit);
+            if (asFill.ok)
+                return asFill.value;
+            const asStroke = coerce({ kind: "stroke" }, lit);
+            if (asStroke.ok)
+                return asStroke.value;
+            const asShadow = coerce({ kind: "shadow" }, lit);
+            if (asShadow.ok)
+                return asShadow.value;
+            const asBackdrop = coerce({ kind: "filter" }, lit);
+            return asBackdrop.ok ? asBackdrop.value : undefined;
+        }
+        default:
+            return undefined;
     }
 }
 /** A literal as a message names it — "got the string \"wide\"". Hex-written

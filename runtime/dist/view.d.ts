@@ -155,6 +155,11 @@ export declare class View extends Node {
     /** Opt out of the parent's LAYOUT (this child owns its own position; the
      *  arrangement skips it) — the decoration/overlay case. */
     ignoreLayout: boolean;
+    /** Take an equal share of the room the parent's layout leaves along its
+     *  flow axis: the layout sizes this child along the flow (height in a
+     *  column, width in a row); across the flow it is aligned like any other
+     *  child. A `Spacer` is an empty view that flexes. */
+    flexes: boolean;
     /** Opt out of the parent's CLIP (outside the parent's frame this child
      *  still paints and still hits) and of its auto-extent — frame chrome that
      *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
@@ -201,10 +206,10 @@ export declare class View extends Node {
     perspective: number;
     backface: "visible" | "hidden";
     /** Does this view leave its plane? */
-    is3D(): boolean;
+    $is3D(): boolean;
     /** This view's paint transform as one matrix, local → parent (before the
      *  view's own x/y): what every reader composes and inverts. */
-    localTransform(): Affine;
+    $localTransform(): Affine;
     /** The compositing operator this view LANDS with against what has already
      *  painted beneath it within the nearest isolating ancestor (compositing.md
      *  §4.1 — the App root, a group-opacity subtree, a scroller's content
@@ -232,7 +237,7 @@ export declare class View extends Node {
      *  view has no surface at the masked view's own push. */
     private maskUsers;
     /** Push the mask to the seam; a stencil rides as the live view itself. */
-    applyMask(m: Mask | null): void;
+    $applyMask(m: Mask | null): void;
     /** Which axes of interior overflow this view scrolls — `"none"` (the View
      *  default), `"y"`, `"x"`, or `"both"`. Overflow along a declared axis
      *  becomes scroll range; along any other axis it is out of frame. */
@@ -346,13 +351,13 @@ export declare class View extends Node {
      *  final child list gives either way. */
     private $mutationQueued;
     private $tornDown;
-    childrenMutated(): void;
+    $childrenMutated(): void;
     private $applyChildrenMutated;
     /** This view's own content's extent on a size axis, folded into the
      *  auto-extent max — 0 for a plain view; Image overrides with the bitmap's
      *  natural size. Runs under tracking, so an override may read reactive
      *  state (Image reads `loaded`). */
-    protected contentExtent(_size: "width" | "height"): number;
+    protected $contentExtent(_size: "width" | "height"): number;
     /** A windowed block's whole logical extent when this view is the scroller
      *  its rows sit in directly (replicate.ts): the rows that exist are only the
      *  window, so `contentHeight` takes the block's extent as its floor — the
@@ -374,7 +379,7 @@ export declare class View extends Node {
      *  qualify — only on views with View children (a childless view keeps its
      *  zero-cost default; Dataset children are not geometry). Protected so the
      *  App can retarget it from content to its host. */
-    protected bindExtent(): void;
+    protected $bindExtent(): void;
     private extentRelistQueued;
     /** THE KERNEL'S AUTO-EXTENT (kernel.md, the layout-pass item): the same
      *  max over the children's footprints as extentOf, evaluated natively over
@@ -384,17 +389,17 @@ export declare class View extends Node {
      *  re-lists them. Null (the JS derive) when the view measures its own
      *  content (Image) or a child is out of the plane; a child turning 3D
      *  later DECLINES the rule and the JS derive takes over then. */
-    private installKernelExtent;
+    private $installKernelExtent;
     /** The kernel auto-extent's word list: the child-list cell, this view's inset
      *  cell on the axis, then each View child's numeric block base (the rule
      *  reads its slots by base). */
-    private extentWords;
-    private extentOf;
+    private $extentWords;
+    private $extentOf;
     /** THIS VIEW'S CONTENT ORIGIN, in its own coordinates: the leading insets of
      *  `padding`. Every child's `x`/`y` is measured from here — laid,
      *  self-placing and `ignoreLayout` alike — which is what makes the content
      *  box a property of the view rather than of whatever arranges it. */
-    contentOrigin(): {
+    $contentOrigin(): {
         x: number;
         y: number;
     };
@@ -415,7 +420,7 @@ export declare class View extends Node {
      *  One number, not a point, and an early literal 0 for the unpadded case:
      *  this runs on every position push, which is every frame of every animated
      *  or laid-out view in the tree. */
-    positionLead(axis: "x" | "y"): number;
+    $positionLead(axis: "x" | "y"): number;
     /** The bounding-box extent of this view's visible children on each axis — the
      *  same value auto-extent derives into an *unset* size slot (`extentOf`),
      *  surfaced as read-only reactive attributes (schema.ts marks them readOnly,
@@ -551,13 +556,13 @@ export declare class View extends Node {
      *  `onFocus`/`onBlur` handlers, so a built-in class (TextInput) can drive
      *  its native element without occupying the author's event slot. No-op on a
      *  plain view. */
-    focusChanged(_focused: boolean): void;
+    $focusChanged(_focused: boolean): void;
     /** The OPTICAL band the `center` position literal centers — { lead, size }
      *  along the given axis, in this view's own coordinates. The base answer is
      *  the whole box (lead 0); Text overrides the y axis with its ink band (cap
      *  height to last baseline — the text-box-trim semantics). The same
      *  class-supplies-its-shape protocol family as the focus silhouette. */
-    alignBand(axis: "x" | "y"): {
+    $alignBand(axis: "x" | "y"): {
         lead: number;
         size: number;
     };
@@ -575,7 +580,7 @@ export declare class View extends Node {
      *  arrangement, and destroy the surfaces — so no data or attribute change
      *  can ever wake work for a removed view. Children first; teardown ONLY —
      *  unlinking (and notifying the ex-parent) is discard's, the verb above. */
-    teardown(): void;
+    $teardown(): void;
     /** Push this view's full visual state across the seam. Subclasses extend
      *  it with their capabilities (Text, Image); it runs before the children
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
@@ -627,7 +632,7 @@ export declare class View extends Node {
     };
     /** @internal the facts' feed (visibility.ts), armed by the attribute
      *  table's onTrack — the first tracked read of a fact — and by a drawing. */
-    armVisibility(): void;
+    $armVisibility(): void;
     /** The composed transform from MY frame to ROOT-frame space — `{x, y,
      *  scale, rotation}`, the similarity the language's transforms compose to
      *  (scroll-aware, the hit walk's own math). The METHOD tier's exact answer;
@@ -668,12 +673,12 @@ export declare class View extends Node {
      *  re-applied at attach; `travelDone` is the reactive echo the requester
      *  reads (see attach). */
     private travelHost;
-    private applyTravel;
+    private $applyTravel;
     /** @internal Re-send x/y through the seam against the CURRENT position host
      *  — the one case where the realized position changes without either slot
      *  moving (a padding write on the host, a travelWith that re-hosts the
      *  surface). */
-    repushPosition(): void;
+    $repushPosition(): void;
     /** Scroll this view to the top of its nearest scrolling ancestor — the
      *  imperative companion to the reactive `scrolls`/`scrollY` pair (a click
      *  handler calls it to jump to a target). Both backends do the work in their
@@ -746,24 +751,24 @@ export declare class View extends Node {
      *  without stealing its clicks (LZX's `clickable` intent, made automatic).
      *  A handler receives one plain event argument — the pointer position in
      *  this view's own coordinates. */
-    private inputSink;
+    private $inputSink;
     /** Re-derive the surface's input wiring — the pusher for attributes that
      *  GRANT interest by their value (`link`; a post-attach handler install goes
      *  through here too). Idempotent: attach-time flush and this call converge
      *  on the same sink/wants pair. */
-    rewireInput(): void;
+    $rewireInput(): void;
     /** What the ROUTER needs to know about this view's declared handlers to
      *  arbitrate gestures for it (input.ts HitTarget): whether it answers
      *  double-clicks (so its single click waits out the double window), holds,
      *  or the raw touch family (so the whole multi-finger stream is delivered and
      *  nothing is interpreted). Declaration IS the opt-in — no configuration. */
-    private inputWants;
+    private $inputWants;
     /** Stand up the draw method as a tracked, re-recording computation. */
-    private bindDraw;
+    private $bindDraw;
     /** Re-record right now — the explicit half of draw-on-invalidation (the
      *  attribute-driven half is the recording's own tracked reads). Also the
      *  entry point for a draw method assigned after attach. */
-    invalidateDraw(): void;
+    $invalidateDraw(): void;
     /** Realize the `clip` slot across the seam (the pusher and flush both land
      *  here). Both modes are set explicitly on every apply, so a switch between
      *  the forms — true → a Shape path → false — never leaves two clips
@@ -777,7 +782,7 @@ export declare class View extends Node {
      *    - a Shape string → that path, straight to the backend (shape-clip,
      *      paint + hit only);
      *    - false / null   → no clip. */
-    applyClip(clip: string | boolean | null): void;
+    $applyClip(clip: string | boolean | null): void;
 }
 /** visibleRect's rest state — one frozen instance, so an off-screen view's
  *  slot never churns (rectEqual gates the writes besides). */
@@ -984,7 +989,7 @@ export declare class App extends View {
      *  name`, then up from it for the nearest `shows`. null = no such anchor
      *  (the name is a destination or a computed location); "" = an anchor
      *  outside any destination (reveal within the current location). */
-    private destinationOfAnchor;
+    private $destinationOfAnchor;
     /** app→host channel for openWindow, exactly like pendingNav: the verb writes
      *  it, the host polls it on the next frame and window.opens (still inside the
      *  click's transient user activation, so it isn't popup-blocked). */
@@ -1019,16 +1024,16 @@ export declare class App extends View {
      *  and clears the intent. Runtime-side and backend-agnostic — the reveal itself
      *  splits at the surface seam (DOM scrollIntoView / canvas scroll clamp). Returns
      *  the name it revealed this call (else null) — the host ignores it; tests read it. */
-    resolveReveal(): string | null;
+    $resolveReveal(): string | null;
     /** Is an `onArrive` handler declared? (Installed by instantiate like every
      *  language member; a TS subclass may simply define one.) Its presence is
      *  the policy switch: declared, the app owns the landing. */
-    private hasArrive;
+    private $hasArrive;
     /** The view an anchorless location lands on: the destination view (`shows`
      *  === the location's destination), or the App itself when no view declares
      *  it (a computed-location family, or the bare ""). Resolved at dispatch
      *  time, off the settled tree. */
-    private destinationView;
+    private $destinationView;
     /** @internal the values the host provides, by name (Node.$hostProvided reads).
      *  Seeded from build's `provides` when there are any, so the app's very
      *  first evaluation — at instantiate, before any settle or link — reads them.
@@ -1059,7 +1064,7 @@ export declare class App extends View {
     /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
      *  rule (§0.5): re-following `#why@story` while already there re-runs the
      *  reveal, which resolveReveal's location-change guard would otherwise skip. */
-    rearmReveal(): void;
+    $rearmReveal(): void;
     /** The reveal pump — resolveReveal's retry as an ARMED-LIFETIME ticker on the
      *  shared clock. The hosts used to call resolveReveal once per frame for the
      *  life of the page (a standing rAF loop on every page, intent or no intent);
@@ -1077,14 +1082,14 @@ export declare class App extends View {
     /** Stop the pump when the app leaves — a held intent must not keep the
      *  frame loop alive past the app (registered once, at first arm). */
     private pumpRetireHooked;
-    private hookPumpRetire;
+    private $hookPumpRetire;
     /** Enroll the pump at the close of the current settle when the location
      *  carries an `@name`. Armed from `location`'s own push (the write IS the
      *  event), from rearmReveal, and once at mount for the cold-arrival seed.
      *  Arms, never resolves: resolution belongs to the pump's frame ticks — and
      *  to any host or test that calls resolveReveal itself (the pinned
      *  first-call contract). A no-anchor location makes this a peek and a no-op. */
-    scheduleReveal(): void;
+    $scheduleReveal(): void;
     /** Cancel a HELD reveal intent — the user's first scroll or touch takes
      *  ownership of the viewport (location.md §0.5.5, the uncontrolled-editor
      *  rule): a reference SEEDS the scroll position, it never owns it. The host
@@ -1092,7 +1097,7 @@ export declare class App extends View {
      *  landed cleared the intent itself, so this is a no-op then — which is what
      *  makes the reveal's own scrollIntoView (whose scroll event arrives a tick
      *  later) safe from self-cancellation. */
-    cancelReveal(): void;
+    $cancelReveal(): void;
     /** The app's size floor. An app that degrades below some width declares
      *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
      *  host the app holds its floor and the STAGE pans natively (the page
@@ -1122,14 +1127,14 @@ export declare class App extends View {
      *  default the content path uses (View.bindExtent), retargeted from content to
      *  host — so a resize repaints like any dependency. `minWidth`/`minHeight`
      *  floor the derive (tracked reads, so a reactive floor re-applies live). */
-    protected bindExtent(): void;
+    protected $bindExtent(): void;
     /** An App is CLIPPED BY DEFINITION (ruled 2026-07-29): a program owns its
      *  rectangle. The boolean form of `clip` is absorbed here — the per-axis
      *  realization (overflow along a declared scroll axis is the page's range;
      *  overflow along any other axis is out of frame) lives in the backend's
      *  root scroll styling, composed with `scrolls`. A Shape clip keeps its
      *  paint+hit meaning; `clip = false` is refused at compile time (check.ts). */
-    applyClip(clip: string | boolean | null): void;
+    $applyClip(clip: string | boolean | null): void;
     /** Derive "can the page scroll right now?" from the model — a declared
      *  scroll axis with overflowing content, or a frame the floors hold larger
      *  than the host — and hand it to the root surface (backend.ts
@@ -1139,6 +1144,6 @@ export declare class App extends View {
      *  growth, floor changes, and host resizes all re-derive; child mutations
      *  re-run it through childrenMutated like the auto-extent derives. */
     private pageScroll;
-    private bindPageScroll;
-    childrenMutated(): void;
+    private $bindPageScroll;
+    $childrenMutated(): void;
 }

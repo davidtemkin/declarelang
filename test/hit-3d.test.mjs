@@ -10,7 +10,7 @@
 // under `rotateY`/`rotateX` inside a `perspective`. Root-space coordinates, the
 // same space a pointer event carries.
 import assert from "node:assert";
-import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
+import { compile, settleSource } from "../compiler/dist/compile-node.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
 provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: String(t).length * 7, fontBoundingBoxAscent: 11, fontBoundingBoxDescent: 3, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 }) });
@@ -23,7 +23,7 @@ function test(name, fn) {
 async function build(src) {
   const r = await compile(src, {});
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleHeadless(r.source, { deps: r.deps, env: { hostWidth: 400, hostHeight: 300 } });
+  return settleSource(r.source, { deps: r.deps, env: { hostWidth: 400, hostHeight: 300 } });
 }
 /** Which of the program's named views answered, by NODE IDENTITY — `viewAt`
  *  returns the node itself, so nothing is inferred from a label. Names the

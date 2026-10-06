@@ -325,8 +325,23 @@ export declare function withLiteralSink<T>(sink: (lit: Literal, value: unknown) 
 export declare function noteLiteral(lit: Literal, value: unknown): void;
 /** Coerce a parsed literal to an attribute type. Pure — safe for the checker
  *  to call speculatively; instantiate assigns the same result. A literal the
- *  compiler already coerced (`value`) is its value. */
+ *  compiler already coerced (`value`) is its value; any other is parsed by the
+ *  literal vocabulary (literal-parse.ts parseLiteral), which a build carries
+ *  only when it can meet a literal still as written. */
 export declare function coerce(type: AttrType, lit: Literal): Coerced;
+/** Coerce a theme-record token to its runtime value (checkThemeRecord vetted
+ *  the shapes): numbers and strings pass through, hex/named colors ground as
+ *  Color, `true`/`false`/`null` as themselves, a constructor call as the first
+ *  of fill/stroke/shadow that admits it, and a LIST of any of those.
+ *
+ *  A list is a token because the rule the record actually keeps is "a token is
+ *  bounded, plain data" — spreadable, comparable, serializable, inspectable
+ *  without asking what kind of object it is — and a frozen array of literals is
+ *  all of those. Excluding it did not keep lists out; it denied them a type, so
+ *  the one the corpus needed most, a font stack, was written as a comma-joined
+ *  string and parsed back into a list at the other end. ONE LEVEL: a list of
+ *  lists is refused, which keeps "bounded" a fact rather than a hope. */
+export declare function coerceToken(lit: Literal): unknown;
 /** A literal as a message names it — "got the string \"wide\"". Hex-written
  *  numbers read back as hex, so a color message shows the channels. */
 export declare function describeLiteral(lit: Literal): string;

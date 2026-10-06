@@ -47,12 +47,13 @@
 //
 // Slack and Spacer — a run that does not fill its container leaves slack,
 // and the laid children cannot absorb it themselves (their flow-axis slot is
-// owned). The structural answer is a flexing child (library Spacer, marked
-// `flexes = true`): a strategy's place() divides the slack among the flexing
-// children, and the kernel drives each one's flow-axis SIZE through a
-// percent-family constraint (markPercent) so a container deriving its own
-// extent from its children never counts a spacer — the same cycle guard
-// percent Lengths ride (a spacer's size IS parent-extent-derived).
+// owned). The structural answer is a flexing child (`flexes = true` — a
+// content view that takes the rest, or the library's empty Spacer): a
+// strategy's place() divides the slack among the flexing children, and the
+// kernel drives each one's flow-axis SIZE through a percent-family constraint
+// (markPercent) so a container deriving its own extent from its children never
+// counts a flexing child — the same cycle guard percent Lengths ride (a
+// flexing child's size IS parent-extent-derived).
 //
 // THE RULE (docs/system-design/layout-ownership.md): a layout places its
 // children, and what it places a child does not declare — in any spelling, a
@@ -136,8 +137,8 @@ export class Layout extends Node {
     /** Which slots each laid child's box carries, as a signature — the shape the
      *  install was probed from. For an unmodified SimpleLayout it follows from its
      *  inputs alone: the flow position for every child, the flowed size for a
-     *  visible flexing child, the cross position when `align` claims it for every
-     *  child but a spacer (SimpleLayout's place()). Anything else asks place(). */
+     *  visible flexing child, the cross position for every child when `align`
+     *  claims it (SimpleLayout's place()). Anything else asks place(). */
     $shapeSignature() {
         if (this.$canon !== "simple") {
             return this.place().map((b) => BOX_SLOTS.filter(([k]) => b[k] !== undefined).map(([k]) => k).join()).join("|");
@@ -146,14 +147,12 @@ export class Layout extends Node {
         const xAxis = me.axis === "x", aligned = me.align !== "none";
         const out = [];
         for (const c of this.laid()) {
-            const flexes = c.flexes;
             const keys = [];
-            const cross = aligned && typeof flexes !== "boolean";
-            if (xAxis || cross)
+            if (xAxis || aligned)
                 keys.push("x");
-            if (!xAxis || cross)
+            if (!xAxis || aligned)
                 keys.push("y");
-            if (c.visible && flexes === true)
+            if (c.visible && c.flexes === true)
                 keys.push(xAxis ? "w" : "h");
             out.push(keys.join());
         }
@@ -184,7 +183,7 @@ export class Layout extends Node {
         }
         this.view = view;
         this.parent = view; // navigation back-ref (not a children entry: the layout lives in view.layout)
-        this.undo = this.install(view);
+        this.undo = this.$install(view);
         let lastShape = null;
         const watcher = new Constraint(`${this.constructor.name} shape`, () => this.$shapeSignature(), (sig) => {
             if (lastShape === null) {
@@ -223,7 +222,7 @@ export class Layout extends Node {
         this.rearming = true;
         try {
             undo?.();
-            this.undo = this.install(this.view);
+            this.undo = this.$install(this.view);
         }
         finally {
             this.rearming = false;
@@ -317,8 +316,8 @@ export class Layout extends Node {
      *  of the arrangement install. Reported like the other mid-settle-contained
      *  defects (a thrown handler, a wedged reconcile) — loud, attributed, and
      *  survivable, never a settle-aborting throw. */
-    reportConflict(child, slot, arranger) {
-        if (this.firstReport(child, slot)) {
+    $reportConflict(child, slot, arranger) {
+        if (this.$firstReport(child, slot)) {
             console.error("[Declare] " +
                 layoutConflictMessage(child.constructor.name, slot, arranger, null, ownerOf(child, slot)?.sourcePos));
         }
@@ -350,7 +349,7 @@ export class Layout extends Node {
      *  tier is a plan's share and drop, which the checker reads from a literal
      *  plan. An author's layout is asked to keep the same discipline — the same
      *  keys at every size — and one that does not is judged at boot. */
-    reportDiscarded(child, slot, arranger) {
+    $reportDiscarded(child, slot, arranger) {
         if (!useSiteSet(child, slot))
             return; // nothing written here — the ordinary case
         // Deduped by CLASS and slot, not by child: one authored line builds 30
@@ -368,7 +367,7 @@ export class Layout extends Node {
     discarded = new Set();
     /** Is this the first thing said about (child, slot)? A conflict report is
      *  once-only per child — a rearm storm re-hits the same slot every wave. */
-    firstReport(child, slot) {
+    $firstReport(child, slot) {
         let seen = this.reported.get(child);
         if (seen === undefined)
             this.reported.set(child, (seen = new Set()));
@@ -427,7 +426,7 @@ export class Layout extends Node {
      *  IS the widest laid child, so the line was its own width — it aligned to
      *  offset 0 and its siblings centred on IT instead of on the card. Every
      *  `align = center` column whose children derive their width from the
-     *  parent lost its inset; textsampler's cards were the field report.)
+     *  parent lost its inset.)
      *
      *  The read of the extent is TRACKED, so a parent that resizes re-places its
      *  aligned children. The safety test is not: ownership is settled at attach
@@ -478,7 +477,7 @@ export class Layout extends Node {
         this.stackReported = true;
         console.error("[Declare] " + stackBaselineMessage(this.constructor.name));
     }
-    claim(child, slot, k) {
+    $claim(child, slot, k) {
         // The blocking-owner conflict is pre-filtered in install() (a contained,
         // once-reported diagnostic — no longer a settle-aborting throw); a claim
         // reaching here has no non-yielding prior.
@@ -493,7 +492,7 @@ export class Layout extends Node {
      *  authored base (see `rearming` — a full detach keeps the last values).
      *  Does NOT dispose `k` — one constraint may back many slots (the pass), so
      *  disposal is the detacher's, once per distinct constraint. */
-    unclaim(child, slot, k) {
+    $unclaim(child, slot, k) {
         release(child, slot, k);
         if (!this.rearming)
             return;
@@ -511,7 +510,7 @@ export class Layout extends Node {
     /** The label claims and conflict errors carry. A strategy with an `axis`
      *  attribute gets it tagged on ("App's SimpleLayout[y]") — sharp diagnostics
      *  for any axis-bearing strategy, library or native. */
-    label() {
+    $label() {
         const ax = this.axis;
         const tag = typeof ax === "string" ? `[${ax}]` : "";
         return `${this.view === null ? "?" : this.view.constructor.name}'s ${this.constructor.name}${tag}`;
@@ -574,16 +573,16 @@ export class Layout extends Node {
         if (kids.length === 0)
             return () => { };
         const slot = me.axis === "x" ? "x" : "y";
-        const words = [view.structureCellId(), spacingCell];
+        const words = [view.$structureCellId(), spacingCell];
         for (const c of kids) {
-            if (typeof c.flexes === "boolean")
-                return why("spacer"); // the pass sizes it
-            if (c.is3D())
+            if (c.flexes === true)
+                return why("flexing child"); // the pass sizes it
+            if (c.$is3D())
                 return why("3D child");
             if (blockOf(c) < 0)
                 return why("child without a block");
         }
-        const label = this.label();
+        const label = this.$label();
         const arranger = `${view.constructor.name}'s ${this.constructor.name}`;
         const claims = [];
         const discards = [];
@@ -591,7 +590,7 @@ export class Layout extends Node {
             const prior = ownerOf(c, slot);
             const author = prior !== null && !prior.yielding;
             if (author)
-                this.reportConflict(c, slot, arranger);
+                this.$reportConflict(c, slot, arranger);
             else {
                 claims.push(c);
                 if (prior === null)
@@ -600,7 +599,7 @@ export class Layout extends Node {
             words.push(author ? blockOf(c) + LAYOUT_NOWRITE : blockOf(c));
         }
         for (const c of discards)
-            this.reportDiscarded(c, slot, arranger);
+            this.$reportDiscarded(c, slot, arranger);
         const id = K.layoutAdd(me.axis === "x" ? 0 : 1, words);
         if (id < 0)
             return why("kernel refused: " + id);
@@ -612,14 +611,14 @@ export class Layout extends Node {
         k.onDecline = () => { afterSettle(() => { if (this.$native)
             this.rearm(); }); };
         for (const c of claims)
-            this.claim(c, slot, k);
+            this.$claim(c, slot, k);
         this.$native = true;
         k.run();
         return () => {
             this.$native = false;
             k.dispose();
             for (const c of claims)
-                this.unclaim(c, slot, k);
+                this.$unclaim(c, slot, k);
         };
     }
     /** The child list changed inside a settle: a KERNEL stack's words name the
@@ -633,12 +632,12 @@ export class Layout extends Node {
         this.undo = null;
         undo?.();
     }
-    install(_view) {
+    $install(_view) {
         this.$native = false;
         const native = this.$installNative();
         if (native !== null)
             return native;
-        const label = this.label();
+        const label = this.$label();
         const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
         // Ownership is re-derived from scratch here: a rearm is the one moment the
         // answer may change (a tier flip, a created child, a swapped binding), so
@@ -679,7 +678,7 @@ export class Layout extends Node {
                     // (auto-size) is NOT a conflict — the layout displaces it, as ever.
                     const prior = ownerOf(child, slot);
                     if (prior !== null && !prior.yielding) {
-                        this.reportConflict(child, slot, arranger);
+                        this.$reportConflict(child, slot, arranger);
                         // A SIZE this arrangement allocates and cannot write makes every
                         // position derived from it a fiction — so the child leaves the
                         // arrangement and we place the rest again without it, rather than
@@ -706,7 +705,7 @@ export class Layout extends Node {
                 break;
         }
         for (const [child, slot] of discards)
-            this.reportDiscarded(child, slot, arranger);
+            this.$reportDiscarded(child, slot, arranger);
         const installed = [];
         const detach = () => {
             const seen = new Set();
@@ -715,7 +714,7 @@ export class Layout extends Node {
                     seen.add(o.k);
                     o.k.dispose();
                 }
-                this.unclaim(o.child, o.slot, o.k);
+                this.$unclaim(o.child, o.slot, o.k);
             }
         };
         try {
@@ -736,7 +735,7 @@ export class Layout extends Node {
                 });
                 pass.arrangedBy = arranger;
                 for (const c of passClaims) {
-                    this.claim(c.child, c.slot, pass);
+                    this.$claim(c.child, c.slot, pass);
                     installed.push({ child: c.child, slot: c.slot, k: pass });
                 }
                 pass.run();
@@ -749,7 +748,7 @@ export class Layout extends Node {
                 });
                 markPercent(k);
                 k.arrangedBy = arranger;
-                this.claim(c.child, c.slot, k);
+                this.$claim(c.child, c.slot, k);
                 installed.push({ child: c.child, slot: c.slot, k });
                 k.run();
             }

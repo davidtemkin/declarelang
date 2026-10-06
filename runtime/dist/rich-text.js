@@ -769,7 +769,7 @@ export class TextFlow extends View {
             im.stretches = "both"; // fill the aspect-correct box the flow sizes it to
             im.source = src;
             this.imageViews.set(key, im);
-            this.appendChild(im);
+            this.$appendChild(im);
             if (this.$backend !== null && this.$surface !== null)
                 im.$attach(this.$backend, this.$surface);
             const view = im;
@@ -970,7 +970,7 @@ export class TextFlow extends View {
                 v.$attach(this.$backend, this.$surface);
         }
         this.height = height;
-        this.childrenMutated();
+        this.$childrenMutated();
     }
 }
 /** The vertical stacking spine every prose container uses. Owns only its children's
@@ -1186,7 +1186,8 @@ export function tableCells(b, cells, weight, color, ctx) {
         const al = b.align[c];
         out.push({
             tag: "p", runs: richRunsOf(cells[c] ?? [], base(BODY.size, weight, color, BODY.tracking), ctx.family),
-            gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), align: al === "center" || al === "right" ? al : undefined,
+            gapBefore: 0, lineHeight: ctx.lead, fontSize: sz(BODY.size), family: ctx.family, weight,
+            align: al === "center" || al === "right" ? al : undefined,
         });
     }
     return out;
@@ -1205,8 +1206,8 @@ export class RichText extends View {
      *  once) or `error` (throw). HTMLText declares it; Markdown has no such
      *  attribute and takes the default, which is also what raw markup has always
      *  done there — it stays the text it was written as. */
-    policy() { return "strip"; }
-    stylesOf() { return this.textStyles ?? EMPTY_STYLES; }
+    $policy() { return "strip"; }
+    $stylesOf() { return this.textStyles ?? EMPTY_STYLES; }
     /** A rich text's type size is `fontScale`, its own attribute, and it never
      *  touches the geometry `scale` every other view means by that name. The
      *  glyphs are scaled into the runs, so the measured box IS the painted box
@@ -1226,15 +1227,15 @@ export class RichText extends View {
         // which is the apply — where reads are not tracked (face-table.ts). Without
         // it a face that lands after this flow was built leaves every run placed by
         // the fallback's widths, and paints the real face over those positions.
-        const c = new Constraint(`${this.constructor.name}.render`, () => `${this.sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.rebuild(), 0);
+        const c = new Constraint(`${this.constructor.name}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.$rebuild(), 0);
         c.run();
         onDiscard(this, () => c.dispose());
         // WIDTH — nothing structural depends on it, so re-width in place. Separate
         // constraint, and it must run AFTER the first build (c.run() above) so there
         // is something to re-width. A width nobody gives is the text's own (the
         // build fitted it), so there is nothing to re-width to.
-        const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => { if (!this.ownWidth())
-            this.relayout(this.width > 0 ? this.width : READING_MEASURE); }, 0);
+        const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => { if (!this.$ownWidth())
+            this.$relayout(this.width > 0 ? this.width : READING_MEASURE); }, 0);
         cw.run();
         onDiscard(this, () => cw.dispose());
     }
@@ -1242,7 +1243,7 @@ export class RichText extends View {
      *  (`textColor`, else the theme's `text`), the provided theme's tokens for the rest (`code` and `codeBg` when a theme
      *  names them, else the ink and the neutral `control` tint). Read tracked, so
      *  a theme swap or an ink change re-renders. */
-    palette() {
+    $palette() {
         // With no theme provided, the fallbacks are San Francisco light — the look a
         // program that never names a theme has — written here so such a program
         // carries no theme records.
@@ -1262,7 +1263,7 @@ export class RichText extends View {
         };
     }
     /** The palette's values, for the render key. */
-    paletteKey() { const p = this.palette(); return Object.values(p).join(","); }
+    $paletteKey() { const p = this.$palette(); return Object.values(p).join(","); }
     /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
      *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
      *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,
@@ -1270,7 +1271,7 @@ export class RichText extends View {
      *  no wiring at all. (The old fallback was `navigate(href)` raw, which sent a
      *  fragment ref to the HOST as an outbound URL — the browser then opened
      *  DISTRO_ROOT + "#…", a different page entirely: §12.2's second half.) */
-    dispatchLink(href) {
+    $dispatchLink(href) {
         if (typeof this.onLink === "function") {
             fireEvent(this, "link", href);
             return;
@@ -1298,28 +1299,28 @@ export class RichText extends View {
      *
      *  Falls back to a full rebuild if any block has no re-width registered, so an
      *  unconverted block type stays correct. */
-    relayout(width) {
+    $relayout(width) {
         // A clamped document's allotments depend on how its lines wrap, and wrapping
         // depends on width — so a width change re-spends the budget from the top.
         if (this.maxLines > 0) {
-            this.rebuild();
+            this.$rebuild();
             return;
         }
         if (this.laid.length === 0) {
-            this.rebuild();
+            this.$rebuild();
             return;
         }
         if (!relayoutEntries(this.laid, width)) {
-            this.rebuild();
+            this.$rebuild();
             return;
         }
-        this.childrenMutated();
-        this.claimBaseline();
+        this.$childrenMutated();
+        this.$claimBaseline();
     }
     /** True when no author and no layout gives this box its width: it is then the
      *  width of the text itself (fitNatural). The auto-extent that reports that
      *  width back is not a giver. */
-    ownWidth() {
+    $ownWidth() {
         if (isSet(this, "width"))
             return false;
         const owner = ownerOf(this, "width");
@@ -1336,9 +1337,9 @@ export class RichText extends View {
      *  yet — built before the first paint, or inside a hidden view. Fitting to
      *  that would leave the text 2px wide for good, so it keeps the measure and
      *  fits when its renderer reports the settled layout (TextFlow.onSettled). */
-    fitNatural() {
+    $fitNatural() {
         this.$fitWaiting = false;
-        if (!this.ownWidth())
+        if (!this.$ownWidth())
             return;
         let natural = 0;
         for (const e of this.laid) {
@@ -1362,15 +1363,15 @@ export class RichText extends View {
     $fitSettled() {
         if (!this.$fitWaiting)
             return;
-        this.fitNatural();
+        this.$fitNatural();
         if (this.$fitWaiting)
             return;
-        this.childrenMutated();
-        this.claimBaseline();
+        this.$childrenMutated();
+        this.$claimBaseline();
     }
     /** Land the `baseline` fact: the first stacked block sits at y = 0, so when
      *  it is a prose flow its first line's baseline IS this box's. */
-    claimBaseline() {
+    $claimBaseline() {
         const first = this.laid[0]?.view;
         setBound(this, "baseline", first instanceof TextFlow ? first.firstBaseline : null);
     }
@@ -1378,8 +1379,8 @@ export class RichText extends View {
      *  created on first need, so a document with no `<Class/>` tag allocates
      *  nothing at all. */
     slotHost = null;
-    rebuild() {
-        C = this.palette(); // resolve the palette for this render
+    $rebuild() {
+        C = this.$palette(); // resolve the palette for this render
         // A renderer that lays whole documents out takes this one as ONE flow — one
         // region to wrap, select and find in — unless a line budget is in force,
         // which the view path spends block by block as it builds.
@@ -1387,13 +1388,13 @@ export class RichText extends View {
         if (!whole)
             startBudget(this.maxLines);
         SCALE = this.fontScale || 1; // font-size multiplier for this render
-        STYLES = this.stylesOf(); // named styles for this render
+        STYLES = this.$stylesOf(); // named styles for this render
         for (const v of this.built) {
             this.removeChild(v);
             v.discard();
         }
         this.built = [];
-        const width = this.ownWidth() || !(this.width > 0) ? READING_MEASURE : this.width;
+        const width = this.$ownWidth() || !(this.width > 0) ? READING_MEASURE : this.width;
         // The family a flow's value names now — held while a newly chosen font is
         // inside its wait, exactly as the render key above read it (font-value.ts).
         const family = heldFamily(this, "fontFamily", this.fontFamily) || FALLBACK_FAMILY;
@@ -1418,7 +1419,7 @@ export class RichText extends View {
         CODERULE = this.codeRule;
         LAYOUT = this.richTextLayout ?? {};
         RESOLVE_SRC = (src) => resolveAsset(src, this.root);
-        const ctx = { family, lead, onLink: (href) => this.dispatchLink(href) };
+        const ctx = { family, lead, onLink: (href) => this.$dispatchLink(href) };
         // THE INLINE VIEWS of this build. The host is the identity across content
         // changes: a tag matched to a view it already made keeps that view (hover, a
         // running spring, focus) and only the attributes whose converted values
@@ -1432,7 +1433,7 @@ export class RichText extends View {
         // sub-view (their text regions are TextFlows too).
         let children;
         try {
-            const blocks = this.parseSource(host.readOptions(this.policy()));
+            const blocks = this.$parseSource(host.readOptions(this.$policy()));
             if (whole) {
                 const nodes = docNodes(blocks, bodyColor, ctx);
                 children = nodes.length > 0 ? [{ view: flowView(nodes, width, ctx), geo: WHOLE }] : [];
@@ -1466,11 +1467,11 @@ export class RichText extends View {
         this.laid = children; // kept so a width change can re-width
         const opening = children[0]?.view;
         if (opening instanceof TextFlow)
-            opening.onBaseline = () => this.claimBaseline();
+            opening.onBaseline = () => this.$claimBaseline();
         for (const e of children)
             if (e.view instanceof TextFlow)
                 e.view.onSettled = () => this.$fitSettled();
-        this.fitNatural();
+        this.$fitNatural();
         // Stack the block-views, PROSE.blockGap apart; their heights (a TextFlow's
         // measured at attach, a container's derived by auto-extent) drive the stack,
         // and auto-extent gives this box its height — so leave `height` unset. The
@@ -1478,8 +1479,8 @@ export class RichText extends View {
         const stack = yStack(PROSE.blockGap);
         stack.slotOf = host.end();
         this.layout = stack;
-        this.childrenMutated();
-        this.claimBaseline();
+        this.$childrenMutated();
+        this.$claimBaseline();
         // The build spent the budget; report what happened, so a
         // "Show more" has a fact to bind to rather than a look to infer.
         setBound(this, "truncated", whole ? false : budgetTruncated());

@@ -28,8 +28,9 @@ import type { MaskSpec,
 } from "./backend.js";
 import type { DisplayList, DrawOp } from "./draw.js";
 import { effectiveFamily, type TextStyle } from "./measure.js";
-import { colorToCss, insetSides, isGradient, strokeUniform, type BoxStroke, type Fill, type Filter, type Gradient, type Inset, type Radius, type Shadow } from "./value.js";
+import { colorToCss, insetSides, isGradient, radiusFit, strokeUniform, type BoxStroke, type Fill, type Filter, type Gradient, type Inset, type Radius, type Shadow } from "./value.js";
 import { routeInput, type HitTarget } from "./input.js";
+import { hitWalk, wheelWalk, traceWalk, contentExtentOf, insideRoundedBox, type SceneSurface } from "./scene-walk.js";
 import { strokeSides } from "./stroke-sides.js";
 
 
@@ -167,8 +168,12 @@ export function flushOps(): void {
   payOwedDrawings();        // before the flag drops: its DRAW ops ride this flush
   flushScheduled = false;
   // LAYOUT HAS SETTLED — re-clamp every scroller before the ops cross. An
-  // empty buffer means nothing moved, so there is nothing to re-clamp.
-  if (ops.length === 0) return;
+  // empty buffer means nothing moved, so there is nothing to re-clamp — and a
+  // request held for a box changing in the same update (scrollToY's wantY) has
+  // no such change to wait for: it is spent, or a LATER change of the box (a
+  // pane shrinking long after a scroll to the end) would land it, dragging the
+  // offset to an end the program asked for frames ago.
+  if (ops.length === 0) { for (const sc of scrollers) sc.wantY = null; return; }
   reclampScrollers();
   const json = JSON.stringify(ops);
   ops.length = 0;
@@ -387,7 +392,7 @@ export function encodeRecording(list: DisplayList): { nums: Float64Array; at: Ui
   return { nums: Float64Array.from(nums), at, strs };
 }
 
-class MacSurface implements Surface {
+class MacSurface implements Surface, SceneSurface {
   readonly id = nextId++;
   x = 0;
   y = 0;
@@ -428,6 +433,8 @@ class MacSurface implements Surface {
    *  subtract exactly what the paint does. */
   private clipData: string | null = null;
   private boxClip = false;
+  /** The corner radius, for a box clip's hit shape. */
+  private radius: Radius = 0;
   scrollsX = false;
   scrollXOffset = 0;
   /** The extent last PUBLISHED to the host, per axis — what its scrollbar is
@@ -489,6 +496,7 @@ class MacSurface implements Surface {
   }
   // one number, or the four corners as four args (LayerTree reads a(3) to tell)
   setCornerRadius(r: Radius): void {
+    this.radius = r;                   // a box clip's hit shape follows it, as it does on the web
     if (typeof r === "number") emit(OP.RADIUS, this.id, r);
     else emit(OP.RADIUS, this.id, r[0], r[1], r[2], r[3]);
   }
@@ -549,8 +557,8 @@ class MacSurface implements Surface {
     // a mask renders its stencil's layers whether or not the stencil is shown,
     // so the stencil's drawing is never owed
     if (!st.isStencil) { st.isStencil = true; if (owedDrawings.has(st)) st.finishDrawing(); }
-    emit(OP.MASK, this.id, "view", st.id, spec.stencil.x + spec.stencil.positionLead("x"),
-      spec.stencil.y + spec.stencil.positionLead("y"), spec.stencil.width, spec.stencil.height);
+    emit(OP.MASK, this.id, "view", st.id, spec.stencil.x + spec.stencil.$positionLead("x"),
+      spec.stencil.y + spec.stencil.$positionLead("y"), spec.stencil.width, spec.stencil.height);
   }
   setCursor(c: string): void { this.cursorStyle = c; emit(OP.CURSOR, this.id, c); }
   /** No CSS pointer-events natively: the hit walk is ours, so an inert
@@ -765,16 +773,7 @@ class MacSurface implements Surface {
   pageExtentY(): number { const e = this.contentExtent(); return this === macRoot ? Math.max(e, this.height) : e; }
   pageExtentX(): number { const e = this.contentExtentX(); return this === macRoot ? Math.max(e, this.width) : e; }
 
-  private contentExtentX(): number {
-    let w = 0;
-    for (const c of this.children) {
-      if (!c.visible) continue;
-      let cw = c.width;
-      if (!c.boxClip && c.clipData === null && !c.scrollsX) cw = Math.max(cw, c.contentExtentX());
-      w = Math.max(w, c.x + cw);
-    }
-    return w === 0 ? 0 : w + this.padRight;   // the right inset, contentExtent's twin
-  }
+  private contentExtentX(): number { return contentExtentOf(this, "x"); }
 
   /** Reveal this surface within its nearest HORIZONTALLY scrolling ancestor. */
   private revealX(align: "start" | "nearest", smooth = false): void {
@@ -986,8 +985,13 @@ class MacSurface implements Surface {
     // asked for — and an interim offset is not reported, or it would come back
     // as a new request and cancel it
     this.wantY = v > next ? v : null;
-    // already there: a request past the end still leaves the model at the offset held
-    if (next === this.scrollOffset) { if (v !== next && this.wantY === null) this.onScrollCb?.(next); return; }
+    // already there: a request past the end still leaves the model at the offset held,
+    // and the frame's flush either lands it (the box changed) or spends it
+    if (next === this.scrollOffset) {
+      if (this.wantY !== null) scheduleFlush();
+      else if (v !== next) this.onScrollCb?.(next);
+      return;
+    }
     this.scrollOffset = next;
     if (this.wantY === null) this.onScrollCb?.(next);
     emit(OP.SCROLLPOS, this.id, next, ext);
@@ -1173,172 +1177,38 @@ class MacSurface implements Surface {
     }
   }
 
-  contentExtent(): number {
-    let max = 0;
-    for (const c of this.children) {
-      if (!c.visible) continue;
-      let ch = c.height;
-      if (!c.boxClip && c.clipData === null && !c.scrolls) ch = Math.max(ch, c.contentExtent());
-      const b = c.y + ch;
-      if (b > max) max = b;
-    }
-    // the bottom inset is room, not slack: a padded scroller stops past its
-    // last child, not against it (setPadding)
-    if (max > 0) max += this.padBottom;
-    return this.virtualExtent !== null ? Math.max(max, this.virtualExtent) : max;
-  }
+  /** Content extent along y (scene-walk.ts contentExtentOf). */
+  contentExtent(): number { return contentExtentOf(this, "y"); }
 
-  /** Hit-test a point in this surface's parent coordinates. The canvas
-   *  backend's walk, kept identical so the two renderers resolve the same
-   *  target for the same point: scale inverted, shape clip subtracted (only
-   *  ignoreclip children survive outside it), scroll frame corrected,
-   *  children probed in reverse paint order, then this surface's own sink. */
+  /** The press target under a point in this surface's parent coordinates —
+   *  the shared scene walk (scene-walk.ts). Its cursor is the one shown. */
   hit(px: number, py: number): HitTarget | null {
-    // OPACITY IS PAINT, NOT PRESENCE (the canvas walk's ruling, mirrored): a
-    // fully transparent view is still hittable — the press-catcher idiom — and
-    // the opacity gate this walk carried made the native host disagree with
-    // both other renderers. The gates are `visible` and `pointerEvents`.
-    if (!this.visible) return null;
-    // `pointerEvents = "none"` makes THIS view pointer-transparent; it does
-    // NOT seal the subtree. Descend anyway and let each child answer for
-    // itself — the DOM reference's behavior, since dom-backend gives any view
-    // carrying a sink `pointer-events: auto` and an explicit value beats an
-    // inherited one. Sealing here made the documented "full-viewport chrome
-    // overlay" hold nothing interactive, which is why the Inspector's own
-    // window works on the web and could never work natively.
-    // MEASURED (transparent root; an `auto` panel and a plain handler-bearing
-    // child): before DOM 1/101, canvas 0/0, mac 0/0 — after, all three 1/101.
-
-    let lx = px - this.x;
-    let ly = py - this.y;
-    [lx, ly] = this.invertTransform(lx, ly);
-    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    const clipped = this.clipData !== null || this.boxClip;
-    if (clipped && !this.insideClip(lx, ly)) {
-      const cyx = this.scrolls ? ly + this.scrollOffset : ly;
-      const cxx = this.scrollsX ? lx + this.scrollXOffset : lx;
-      for (let i = this.children.length - 1; i >= 0; i--) {
-        const c = this.children[i];
-        if (!c.ignoresClip) continue;
-        const t = c.hit(cxx, cyx);
-        if (t !== null) return t;
-      }
-      return null;
-    }
-    if ((this.scrolls || this.scrollsX) && !inBox) return null;
-    const cy = this.scrolls ? ly + this.scrollOffset : ly;
-    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
-    for (let i = this.children.length - 1; i >= 0; i--) {
-      const t = this.children[i].hit(cx, cy);
-      if (t !== null) return t;
-    }
-    // A pointer-transparent view is not a press target (its children still are).
-    if (this.sink !== null && inBox && this.pe !== "none") {
-      return { key: this, sink: this.sink, ...this.wants, x: lx, y: ly,
-               cursor: this.cursorStyle !== "" ? this.cursorStyle : undefined };
-    }
-    return null;
+    return hitWalk(this, px, py);
   }
 
-  /** Inside this surface's clip? The box clip is the rounded box; a shape
-   *  clip asks the host (Core Graphics owns the path) — cached per path so
-   *  the walk stays cheap. */
-  /** The cursor the pointer should show at a point.
-   *
-   *  NOT the same walk as hit(). On the web a cursor comes from CSS on
-   *  whatever element is under the pointer, whether or not it takes events —
-   *  the window's resize band is exactly that: eight strips that style a
-   *  cursor and carry no handlers, sitting inside one halo that owns the
-   *  press. Reading the cursor off the hit TARGET therefore found nothing, and
-   *  the window edges showed no resize cursor at all. */
-  cursorAt(px: number, py: number): string {
-    if (!this.visible || this.opacity <= 0) return "";
-    let lx = px - this.x;
-    let ly = py - this.y;
-    [lx, ly] = this.invertTransform(lx, ly);
-    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    const clipped = this.clipData !== null || this.boxClip;
-    if (clipped && !this.insideClip(lx, ly)) {
-      for (let i = this.children.length - 1; i >= 0; i--) {
-        const c = this.children[i];
-        if (!c.ignoresClip) continue;
-        const got = c.cursorAt(lx, ly);
-        if (got !== "") return got;
-      }
-      return "";
-    }
-    if ((this.scrolls || this.scrollsX) && !inBox) return "";
-    const cy = this.scrolls ? ly + this.scrollOffset : ly;
-    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
-    for (let i = this.children.length - 1; i >= 0; i--) {
-      const got = this.children[i].cursorAt(cx, cy);
-      if (got !== "") return got;
-    }
-    return inBox ? this.cursorStyle : "";
+  /** The hit walk again, narrating each step. */
+  trace(px: number, py: number): void {
+    traceWalk(this, px, py, (line) => console.log(line));
   }
 
-  /** Walk the tree the way hit() does, narrating each step. */
-  trace(px: number, py: number, depth = 0): void {
-    const pad = "  ".repeat(depth);
-    const lx0 = px - this.x, ly0 = py - this.y;
-    let lx = lx0, ly = ly0;
-    [lx, ly] = this.invertTransform(lx, ly);
-    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    const clipped = this.clipData !== null || this.boxClip;
-    console.log(`${pad}#${this.id} box=${this.x},${this.y} ${this.width}x${this.height} local=${lx.toFixed(0)},${ly.toFixed(0)}`
-      + ` vis=${this.visible} inBox=${inBox} clip=${clipped} ignoreclip=${this.ignoresClip}`
-      + ` scrollsX=${this.scrollsX} sink=${this.sink !== null} kids=${this.children.length}`);
-    if (!this.visible || this.opacity <= 0) { console.log(`${pad}  -> invisible, stop`); return; }
-    if (clipped && !this.insideClip(lx, ly)) {
-      console.log(`${pad}  -> outside own clip; only ignoreclip kids`);
-      for (let i = this.children.length - 1; i >= 0; i--) {
-        if (!this.children[i].ignoresClip) continue;
-        this.children[i].trace(lx, ly, depth + 1);
-      }
-      return;
-    }
-    if ((this.scrolls || this.scrollsX) && !inBox) { console.log(`${pad}  -> scroller, point outside, stop`); return; }
-    for (let i = this.children.length - 1; i >= 0; i--) this.children[i].trace(lx, ly, depth + 1);
-  }
-
-  private insideClip(lx: number, ly: number): boolean {
+  // ── the scene walk's view of this surface (scene-walk.ts SceneSurface) ──
+  clips(): boolean { return this.clipData !== null || this.boxClip; }
+  insideClip(lx: number, ly: number): boolean {
     if (this.clipData !== null) return pointInPath(this.clipData, lx, ly);
-    return lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
+    return insideRoundedBox(lx, ly, this.width, this.height, radiusFit(this.radius, this.width, this.height));
   }
+  extentFloor(): number { return this.virtualExtent ?? 0; }
+  trailingInset(axis: "x" | "y"): number { return axis === "y" ? this.padBottom : this.padRight; }
 
-  /** The wheel CLAIM walk (canvas-backend wheelTo, mirrored): descend to the
-   *  view under the point and answer with the nearest `onWheel` CLAIMANT or
-   *  the nearest scroller — whichever is deeper wins, the DOM's delegation
-   *  (an intervening scroller keeps its wheel; a claimant with no nearer
-   *  scroller hears the stream, trackpad pinch included). The transform
-   *  inverse keeps a rotated subtree honest. Null = neither wants it. */
+  /** The wheel CLAIM walk (scene-walk.ts wheelWalk): the nearest `onWheel`
+   *  claimant hears the stream unless a nearer scroller owns it. */
   wheelTo(px: number, py: number, deltaX: number, deltaY: number, pinch: boolean): "claimed" | "scroller" | null {
-    if (!this.visible || this.opacity <= 0) return null;
-    let lx = px - this.x;
-    let ly = py - this.y;
-    [lx, ly] = this.invertTransform(lx, ly);
-    if ((this.clipData !== null || this.boxClip) && !this.insideClip(lx, ly)) return null;
-    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    if ((this.scrolls || this.scrollsX) && !inBox) return null;
-    const cy = this.scrolls ? ly + this.scrollOffset : ly;
-    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
-    for (let i = this.children.length - 1; i >= 0; i--) {
-      const c = this.children[i];
-      const r = c.wheelTo(c.ignoresScroll ? lx : cx, c.ignoresScroll ? ly : cy, deltaX, deltaY, pinch);
-      if (r !== null) return r;
-    }
-    if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
-      this.sink("wheel", lx, ly, { deltaX, deltaY, pinch, rootX: WHEEL_ROOT.x, rootY: WHEEL_ROOT.y });
-      return "claimed";
-    }
-    return (this.scrolls || this.scrollsX) && inBox ? "scroller" : null;
+    return wheelWalk(this, px, py, deltaX, deltaY, pinch, WHEEL_ROOT);
   }
 
-  // (The scroller walks — scrollBy/scrollByX and their `scrollClaimed` sibling
-  // rule — lived here until the host took the wheel (scrolling.md "The scroll
-  // process", 2026-09-10): LayerTree.wheelWalk is the same descent, in Swift,
-  // and the offsets it moves arrive back as facts. wheelTo stays for the
-  // CLAIMANT delivery the host asks for.)
+  // Moving a scroller is the host's job (LayerTree.wheelWalk, in Swift); the
+  // offsets it moves arrive back as facts. wheelTo is the CLAIMANT delivery
+  // the host asks for.
 }
 
 // ── registries the host talks back through ──────────────────────────────────
@@ -1533,7 +1403,7 @@ export class MacBackend implements RenderBackend {
         const ee = e as unknown as { clientX: number; clientY: number; type: string };
         const t = r.hit(ee.clientX, ee.clientY);
         if (ee.type === "pointermove") {
-          const cur = r.cursorAt(ee.clientX, ee.clientY);
+          const cur = t?.cursor ?? "";
           if (cur !== lastCursor) { lastCursor = cur; emit(OP.CURSOR, 0, cur); }
         }
         if ((globalThis as unknown as { __declareHitDebug?: boolean }).__declareHitDebug === true
@@ -1545,7 +1415,7 @@ export class MacBackend implements RenderBackend {
       },
       (e) => ({ x: (e as unknown as { clientX: number }).clientX, y: (e as unknown as { clientY: number }).clientY }),
       (t) => {
-        // The cursor is set by the cursorAt walk on every move (see above);
+        // The cursor is set from the hit target on every move (see above);
         // hover changes only need to keep it in step when the target changes
         // without the pointer moving.
         void t;
@@ -1617,8 +1487,7 @@ export function macScrollTo(id: number, y: number, x: number | null = null): voi
 export function macTraceHit(x: number, y: number): void {
   const t = macRoot?.hit(x, y) ?? null;
   console.log(`[trace] === hit walk at ${x},${y} -> `
-    + (t === null ? "NOTHING" : `id ${(t.key as unknown as { id: number }).id} cursor=${t.cursor ?? "-"}`)
-    + ` (cursorAt="${macRoot?.cursorAt(x, y) ?? ""}") ===`);
+    + (t === null ? "NOTHING" : `id ${(t.key as unknown as { id: number }).id} cursor=${t.cursor ?? "-"}`) + " ===");
   macRoot?.trace(x, y);
 }
 

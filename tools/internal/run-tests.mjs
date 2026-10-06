@@ -31,6 +31,7 @@ const SUITE = [
   "test/after-delay.test.mjs",
   "test/provided-text-style.test.mjs",
   "test/hit-3d.test.mjs",
+  "test/scene-walk.test.mjs",      // the retained-scene walks canvas and the Mac share: press, cursor, wheel, scroll range
   "test/super.test.mjs",
   "test/subclass-roots.test.mjs",  // a class extends ANY built-in: Spring, DataSource, AnimatorGroup, Keys, State, …
   "test/override-runtime.test.mjs", // a method replaces a built-in's RUNTIME method; super reaches the runtime's; the method table is pinned

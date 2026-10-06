@@ -17,7 +17,7 @@
 // tools/internal/build-compiler.mjs bundles THIS module (with `typescript`) into
 // bundles/declare-compiler.js — the artifact the homepage warm-loads.
 
-import { compile as compileCore, type CompileOptions, type Compiled } from "./compile.js";
+import { compile as compileCore, carryProgram, type CompileOptions, type Compiled } from "./compile.js";
 import { programFromCompiled, type ProgramBuild } from "./program-build.js";
 export type { ProgramBuild } from "./program-build.js";
 import type { AutoIncludeHost, Resolved } from "../../runtime/dist/include.js";
@@ -46,10 +46,10 @@ export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/chec
 // browser compiler does everything the Node one can, as architecture and as
 // principle). browser/boot-extract.js composes these with compileTracked below for
 // the static host's `?extract`. See static-html.ts / headless.ts.
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
-export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
@@ -365,7 +365,7 @@ export async function compileTracked(source: string, opts: BrowserTrackedOptions
   const entries: ClosureEntry[] = [];
   if (mainId !== undefined) entries.push({ id: mainId, kind: "file", v: mainValidator ?? { hash: fnv1a(source) } });
   entries.push(...reads.values());
-  return { ...result, closure: { entries, props: props ?? {} } };
+  return carryProgram(result, { closure: { entries, props: props ?? {} } });
 }
 
 /** FNV-1a 64-bit (16 hex) — the freshness tag hash, replicated from closure.ts
@@ -375,10 +375,10 @@ export async function compileTracked(source: string, opts: BrowserTrackedOptions
  *  (program-build.ts): the parsed, checked, deps-applied, trusted program the
  *  runtime instantiates with no parser aboard. What a live edit on a static
  *  host renders, and the same artifact a `declarec` deploy ships. */
-export async function compileProgram(source: string, opts: BrowserTrackedOptions & { stripPos?: boolean } = {}): Promise<ProgramBuild> {
-  const { stripPos, ...rest } = opts;
+export async function compileProgram(source: string, opts: BrowserTrackedOptions & { stripPos?: boolean; links?: boolean } = {}): Promise<ProgramBuild> {
+  const { stripPos, links, ...rest } = opts;
   const c = await compileTracked(source, rest);
-  return programFromCompiled(c, { stripPos });
+  return programFromCompiled(c, { stripPos, links });
 }
 
 export function fnv1a(s: string): string {

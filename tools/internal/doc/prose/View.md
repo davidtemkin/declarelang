@@ -178,6 +178,18 @@ Opt this child out of its parent's `layout` — the arrangement skips it and it 
 its own position on both axes (the decoration/overlay case: a badge floating over
 a laid list). Its size still counts toward the parent's auto-extent.
 
+## flexes
+Take an equal share of the room the parent's layout leaves along its axis. In a
+column the layout sets this child's height to that share, in a row its width; the
+children that do not flex keep their own sizes, and the flexing ones divide what is
+left. It is how a page frame is written: a header, a toolbar, a body with
+`flexes = true` that takes the rest, a footer. Across the flow it is aligned like any
+other child — a search field that takes a toolbar's spare width still centres on the
+row. A `Spacer` is an empty view that flexes.
+`SimpleLayout` and `ResponsiveLayout` honour it, and in a `WrappingLayout` a flexing
+child takes the rest of the row it lands on; a layout that does not divide a run
+ignores it.
+
 ## ignoreClip
 Opt this child out of its parent's `clip`: outside the parent's frame it still
 paints *and* still hits — frame chrome that straddles the frame (a window's
@@ -266,9 +278,9 @@ never assigned.
 ## scrollAnchor
 How this scroller keeps the reader's place as content changes size. **`content`** (the
 default) keeps the view at the top edge of the visible area where it is: when something above
-it grows or shrinks — a photograph loading, older history arriving — the offset moves by the
+it grows or shrinks — an image loading, earlier rows arriving — the offset moves by the
 same amount, before anything is drawn, so nothing on screen moves. A pane at its very start
-stays at its start. **`end`** is for a pane read from the bottom (a conversation, a log): at
+stays at its start. **`end`** is for a pane read from the bottom (a terminal, a build's output): at
 the end it stays at the end as content grows or shrinks, and away from the end it keeps the
 reader's place like `content`; it opens at its end, and `scrollTo(Infinity)` counts as being
 there while it travels. **`none`** does nothing, for content meant to move under the reader.
@@ -341,7 +353,7 @@ Row [ datapath = :rows[], virtualize = true ]
 
 ## classFor
 The class each record is built as, when the records of one collection are different
-things — a text message, a photo, a voice note. **Replication metadata**, like `virtualize`:
+things — a paragraph, an image, a heading. **Replication metadata**, like `virtualize`:
 it belongs on the node whose `datapath` matches many, beside that path.
 
 The class written at the use site is the **base**: the default, and the type the rest of
@@ -351,12 +363,12 @@ is the record's own — so a record whose kind changes gets a new instance of th
 place of the old one.
 
 ```declare-fragment
-Message [ datapath = :messages[],
-    classFor = { :kind == "photo" ? PhotoMessage : :kind == "voice" ? VoiceMessage : TextMessage } ]
+Block [ datapath = :blocks[],
+    classFor = { :kind == "image" ? ImageBlock : :kind == "heading" ? HeadingBlock : TextBlock } ]
 ```
 
 A class per kind is for rows that *are* different things. A row that varies by what state it
-is *in* — mine or theirs, sent or pending — keeps one class and a
+is *in* — selected or not, saved or draft — keeps one class and a
 [`State`](declare-docs:State) for each variation; a state's children exist only while it
 applies. The two nest: a class per kind, with states inside.
 
@@ -854,8 +866,9 @@ styling: `fill = { pressed ? provided("theme").line : hovered ? provided("theme"
 ## cursor
 The pointer cursor shown over this view, as a CSS cursor keyword (`"col-resize"`,
 `"grab"`); `""` inherits. This is how a resize edge or a drag handle announces itself
-before anything is pressed. Meaningful on views that take input — the cursor follows the
-hit target, so a view with `pointerEvents = "none"` never shows its own.
+before anything is pressed. A view with no handler of its own shows its cursor too, and its
+presses pass to the view beneath (a resize edge laid over a window frame); a view with
+`pointerEvents = "none"` never shows its own.
 
 ## pointerEvents
 Whether **this view** takes pointer events: `"none"` or `"auto"`. Unset, it behaves as
@@ -955,6 +968,13 @@ onInit() { this.list = app.createView("Menu", ({ })) }
 The library builds its own overlays exactly this way — a `Menu` cannot declare a `Menu`
 child without recursing, so the cascade is created by name at first use (parented to the
 `app` root plane, which is why the receiver there is `app` itself).
+
+## contentBox()
+The room inside this view on one axis: its `width` or `height` less both of its
+`padding` insets on that axis, never below 0. It is what `100%` and every other percent
+resolves against, and what a layout divides (`Layout.contentExtent` is this, read through
+the view it arranges). A class that spans its parent's content reads it from the parent —
+`parent.contentBox("width")` — where `{ parent.width }` would answer the parent's whole box.
 
 ## insertChild()
 Inserts a view you already hold as a child at `index` — the placement primitive beneath

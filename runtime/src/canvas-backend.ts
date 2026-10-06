@@ -130,6 +130,7 @@ import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-f
 import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive, type HitTarget } from "./input.js";
+import { hitWalk, wheelWalk, contentExtentOf, type SceneSurface } from "./scene-walk.js";
 
 
 /** The root-space point of the wheel being walked (set at the wheel entry,
@@ -1199,7 +1200,7 @@ class Compositor {
 /** One view's retained visual state in the scene. A setter stores the value
  *  and invalidates the compositor — nothing draws eagerly; the next frame's
  *  paint walk reads everything back. */
-class CanvasSurface implements Surface {
+class CanvasSurface implements Surface, SceneSurface {
   /** The device box this subtree last PAINTED (DIRTY REGIONS); null = unknown
    *  (painted under 3D). EMPTY when it painted nothing — including never: a
    *  surface not yet painted was not on screen, and whatever first paints it
@@ -1413,9 +1414,9 @@ class CanvasSurface implements Surface {
   setImageAlign(ax: string, ay: string): void { this.alignX = ax; this.alignY = ay; this.compositor.invalidate(this); }
   private stretch: Stretch = "none";
   /** The view's input route; null = transparent to the pointer (hit walk). */
-  private sink: InputSink | null = null;
+  sink: InputSink | null = null;
   /** The declared-handler facts the router arbitrates with (input.ts). */
-  private wants: InputWants | undefined = undefined;
+  wants: InputWants | undefined = undefined;
   /** The native editable overlay (Layer 3), a DOM element over the canvas; null
    *  = this surface is not an editable text field. */
   private editEl: HTMLInputElement | HTMLTextAreaElement | null = null;
@@ -1964,27 +1965,7 @@ class CanvasSurface implements Surface {
    *  delivered, "scroller" when a nearer pane owns it (scrollBy's business),
    *  null when the point met neither. */
   wheelTo(px: number, py: number, deltaX: number, deltaY: number, pinch: boolean): "claimed" | "scroller" | null {
-    if (!this.visible) return null;
-    let lx = px - this.x;
-    let ly = py - this.y;
-    [lx, ly] = this.invertTransform(lx, ly);
-    const cp = this.clipPathObj();
-    if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) return null;
-    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    if ((this.scrolls || this.scrollsX) && !inBox) return null;
-    const cy = this.scrolls ? ly + this.scrollOffset : ly;
-    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
-    for (let i = this.children.length - 1; i >= 0; i--) {
-      const c = this.children[i];
-      const r = c.wheelTo(c.ignoresScroll ? lx : cx, c.ignoresScroll ? ly : cy, deltaX, deltaY, pinch);
-      if (r !== null) return r;
-    }
-    if (this.wants?.wantsWheel === true && this.sink !== null && inBox) {
-      this.sink("wheel", lx, ly, { deltaX, deltaY, pinch, rootX: WHEEL_ROOT.x, rootY: WHEEL_ROOT.y });
-      return "claimed";
-    }
-    // the page root's wheel is the browser's own — never consumed here
-    return (this.scrolls || this.scrollsX) && !this.pageRoot && inBox ? "scroller" : null;
+    return wheelWalk(this, px, py, deltaX, deltaY, pinch, WHEEL_ROOT);
   }
 
   setEditable(spec: EditableSpec | null): void {
@@ -2157,124 +2138,20 @@ class CanvasSurface implements Surface {
     }
   }
 
-  /** Hit-test (px,py) — given in the PARENT's space, mirroring paint's
-   *  transform — against this subtree: children front-to-back (reverse
-   *  paint order), then self. Prunes exactly what paint prunes (invisible,
-   *  alpha 0, outside the clip), so a view is hittable iff it is paintable.
-   *  Returns the topmost surface that accepts input (has a sink) and
-   *  contains the point in its geometry box: ink — drawings, image pixels,
-   *  glyphs — neither extends nor perforates the hit region, and a sink-less
-   *  surface is transparent, so both backends resolve identically (the DOM
-   *  keeps content elements pointer-inert for the same reason). */
+  /** The press target under (px,py), given in the PARENT's space — the shared
+   *  scene walk (scene-walk.ts). */
   hit(px: number, py: number): HitTarget | null {
-    // OPACITY IS PAINT, NOT PRESENCE: a fully transparent view is still hittable
-    // — the DOM backend inherits that from CSS, and the corpus relies on it (a
-    // transparent view as a press-catcher is a standing idiom, and an author who
-    // wants a fade to become absence writes it: `visible = { opacity > 0 }`,
-    // three places in the corpus). Skipping opacity-0 here made this walk
-    // disagree with both the DOM router AND the `hovered` intrinsic, which
-    // considers only `visible`. The gates that mean "not there" are `visible`
-    // and `pointerEvents`; this is not one of them.
-    if (!this.visible) return null;
-    // The other gate. "none" is INHERITED, not subtree-final: it makes this
-    // view pointer-transparent; it does NOT seal the subtree. Descend anyway
-    // and let each child answer for itself — which is what the DOM reference
-    // does, because dom-backend gives any view carrying a sink
-    // `pointer-events: auto`, and an explicit value beats an inherited one.
-    // Returning null here skipped the subtree outright, so the documented
-    // "full-viewport chrome overlay" could hold nothing interactive.
-    // MEASURED (transparent root; an `auto` panel and a plain handler-bearing
-    // child, one click each): before DOM 1/101, canvas 0/0, mac 0/0 — after,
-    // all three 1/101. The gate below decides only whether THIS view is the
-    // target.
-
-    let lx = px - this.x;
-    let ly = py - this.y;
-    // Invert the paint transform so the point lands in the subtree's own
-    // (untransformed) coordinates — a scaled or rotated view stays clickable
-    // where drawn.
-    [lx, ly] = this.invertTransform(lx, ly);
-    const cpHit = this.clipPathObj();
-    if (cpHit !== null && !hitCtx().isPointInPath(cpHit, lx, ly)) {
-      // outside this surface's clip only its ignoreClip children remain live
-      const cyx = this.scrolls ? ly + this.scrollOffset : ly;
-      const cxx = this.scrollsX ? lx + this.scrollXOffset : lx;
-      for (let i = this.children.length - 1; i >= 0; i--) {
-        const c = this.children[i];
-        if (!c.ignoresClip) continue;
-        const t = c.hit(cxx, cyx);
-        if (t !== null) return t;
-      }
-      return null;
-    }
-    // A scroll container clips to its box and offsets its content — hit-test
-    // children in the SAME frame the paint walk draws them.
-    const inBox = lx >= 0 && ly >= 0 && lx < this.width && ly < this.height;
-    if ((this.scrolls || this.scrollsX) && !inBox) return null;
-    const cy = this.scrolls ? ly + this.scrollOffset : ly;
-    const cx = this.scrollsX ? lx + this.scrollXOffset : lx;
-    if (this.scrolls || this.scrollsX) {
-      // frame chrome (ignoreScroll) rides the frame and paints ABOVE the
-      // scrolled content — hit it first, at UNSHIFTED coordinates
-      for (let i = this.children.length - 1; i >= 0; i--) {
-        const c = this.children[i];
-        if (!c.ignoresScroll) continue;
-        const t = c.hit(lx, ly);
-        if (t !== null) return t;
-      }
-    }
-    for (let i = this.children.length - 1; i >= 0; i--) {
-      const c = this.children[i];
-      if ((this.scrolls || this.scrollsX) && c.ignoresScroll) continue;
-      const t = c.hit(cx, cy);
-      if (t !== null) return t;
-    }
-    // A pointer-transparent view is not a press target: its children were
-    // already offered the point above, so an `auto` descendant has taken it.
-    if (this.sink !== null && inBox && this.pe !== "none") {
-      // the nearest PINCH OWNER up the chain (self included) — the claim
-      // covers a subtree, so the gesture belongs to the declaring ancestor
-      let pinch: { key: object; sink: InputSink } | undefined;
-      for (let s: CanvasSurface | null = this; s !== null; s = s.parent) {
-        if (s.wants?.wantsPinch === true && s.sink !== null) { pinch = { key: s, sink: s.sink }; break; }
-      }
-      // THE CURSOR IS DEEPEST-WINS, sink not required — the DOM's own rule (a
-      // sinkless element's CSS cursor shows while its hits pass through to
-      // the sink ancestor). The desktop's resize halo is the living case:
-      // eight sinkless cursor zones over one sink; without this probe the
-      // sealed surface answered the halo's sink but never the zones' cursors,
-      // so a canvas window had no resize cursors at all (2026-08-21).
-      const zc = this.cursorProbe(lx, cy);
-      return { key: this, sink: this.sink, ...this.wants, pinch, x: lx, y: ly,
-        cursor: zc !== undefined ? zc : this.cursorStyle !== "" ? this.cursorStyle : undefined };
-    }
-    return null;
+    return hitWalk(this, px, py);
   }
 
-  /** The deepest cursor among CHILDREN under the point, sinks ignored —
-   *  hit()'s geometry (transform, clip, scroll) without its targeting.
-   *  Called with the same child-frame coords hit() probes children at, and
-   *  only when a sink target is being returned, so the extra walk is scoped
-   *  to that target's subtree. */
-  private cursorProbe(clx: number, ccy: number): string | undefined {
-    for (let i = this.children.length - 1; i >= 0; i--) {
-      const c = this.children[i];
-      if (!c.visible) continue;
-      let lx = clx - c.x;
-      let ly = ccy - c.y;
-      [lx, ly] = c.invertTransform(lx, ly);
-      const cp = c.clipPathObj();
-      if (cp !== null && !hitCtx().isPointInPath(cp, lx, ly)) continue;
-      const inBox = lx >= 0 && ly >= 0 && lx < c.width && ly < c.height;
-      if ((c.scrolls || c.scrollsX) && !inBox) continue;
-      const cy2 = c.scrolls ? ly + c.scrollOffset : ly;
-      const cx2 = c.scrollsX ? lx + c.scrollXOffset : lx;
-      const deep = c.cursorProbe(cx2, cy2);
-      if (deep !== undefined) return deep;
-      if (inBox && c.pe !== "none" && c.cursorStyle !== "") return c.cursorStyle;
-    }
-    return undefined;
+  // ── the scene walk's view of this surface (scene-walk.ts SceneSurface) ──
+  clips(): boolean { return this.clipPathObj() !== null; }
+  insideClip(lx: number, ly: number): boolean {
+    const cp = this.clipPathObj();
+    return cp === null || hitCtx().isPointInPath(cp, lx, ly);
   }
+  extentFloor(): number { return this.virtualExtent; }
+  trailingInset(axis: "x" | "y"): number { return axis === "y" ? this.padBottom : this.padRight; }
 
   setScroll(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void {
     this.scrolls = on;
@@ -2290,14 +2167,8 @@ class CanvasSurface implements Surface {
     this.compositor.invalidateBar(this);
   }
 
-  /** Content extent along y — the real children floor'd by the virtual one. */
-  contentExtent(): number {
-    let extent = this.virtualExtent;
-    for (const c of this.children) if (c.visible && !c.ignoresScroll) extent = Math.max(extent, c.y + c.height);
-    // the TRAILING inset (setPadding): a padded scroller stops a full inset
-    // after its last child, not flush against it
-    return extent === 0 ? 0 : extent + this.padBottom;
-  }
+  /** Content extent along y (scene-walk.ts contentExtentOf). */
+  contentExtent(): number { return contentExtentOf(this, "y"); }
 
   /** The horizontal scroll regime — the exact twin of setScroll: clip to the
    *  box, translate the content by the offset, mirror the user's pan into
@@ -2316,11 +2187,7 @@ class CanvasSurface implements Surface {
 
   /** Content extent along x — the widest a child reaches (contentExtent's twin;
    *  no virtual floor: windowing is vertical). */
-  contentExtentX(): number {
-    let extent = 0;
-    for (const c of this.children) if (c.visible && !c.ignoresScroll) extent = Math.max(extent, c.x + c.width);
-    return extent === 0 ? 0 : extent + this.padRight;
-  }
+  contentExtentX(): number { return contentExtentOf(this, "x"); }
 
   /** A request on x (`scrollToX`) — clamped exactly as a wheel would be; with a
    *  glide it tweens on the scroll loop, and a gesture in flight owns the offset
@@ -2483,7 +2350,7 @@ class CanvasSurface implements Surface {
     }
     el.dataset.declareSlot = id;
     const box = el as HTMLElement & { __declareIsland?: unknown };
-    const fh = (view as { foreignHandle?: () => unknown } | undefined)?.foreignHandle;
+    const fh = (view as { $foreignHandle?: () => unknown } | undefined)?.$foreignHandle;
     if (typeof fh === "function") box.__declareIsland = fh.call(view);
     this.reposition();
     notifyIslandSlot({ view, el, slot: id });

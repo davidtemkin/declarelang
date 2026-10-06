@@ -24,7 +24,7 @@ import { insetSides, stroke } from "./value.js";
 export class TextInput extends Editor {
     // The editor session (commitOn / error / valid / dirty + commit()/revert())
     // is inherited from Editor; `text` is this editor's draft slot.
-    draftSlot() { return "text"; }
+    $draftSlot() { return "text"; }
     $attach(backend, parentSurface) {
         // A text field is a tab stop by default; an explicit `focusable = false`
         // (was-set) opts out untouched, exactly like Text's auto-size.
@@ -93,7 +93,7 @@ export class TextInput extends Editor {
         // than to a broken layout.
         if (!isSet(this, "height") && ownerOf(this, "height") === null) {
             bindDerived(this, "height", () => {
-                const font = fontString(this.editStyle());
+                const font = fontString(this.$editStyle());
                 const met = fontMetrics(font);
                 const [t, r, b, l] = insetSides(this.padding);
                 const inner = this.width - l - r;
@@ -110,12 +110,12 @@ export class TextInput extends Editor {
         // The style is the cold, provided path (like Text): a standing derive
         // over the four text slots so a provider re-rooting above re-styles the
         // field. It reads the slots under tracking; the apply re-syncs the element.
-        const style = new Constraint("TextInput.editStyle", () => this.editStyle(), () => this.syncEditable(), 0);
+        const style = new Constraint("TextInput.editStyle", () => this.$editStyle(), () => this.$syncEditable(), 0);
         style.run();
         onDiscard(this, () => style.dispose());
-        this.syncEditable();
+        this.$syncEditable();
     }
-    editStyle() {
+    $editStyle() {
         return {
             fontFamily: heldFamily(this, "fontFamily", this.fontFamily),
             fontSize: this.fontSize,
@@ -128,7 +128,7 @@ export class TextInput extends Editor {
     /** Push the whole editable spec across the seam — value, style, callbacks.
      *  Idempotent and cheap; called on any model change (text/placeholder/
      *  multiline pushes, the style derive) and at flush. */
-    syncEditable() {
+    $syncEditable() {
         const s = this.$surface;
         if (s === undefined || s === null)
             return;
@@ -139,8 +139,8 @@ export class TextInput extends Editor {
             wrap: this.wrap,
             padding: this.padding,
             placeholder: this.placeholder,
-            style: this.editStyle(),
-            onInput: (v) => this.onNativeInput(v),
+            style: this.$editStyle(),
+            onInput: (v) => this.$onNativeInput(v),
             // The native element ECHOES focus the runtime just gave it (Tab →
             // focusChanged → el.focus() → this event). Re-announcing the already-
             // focused view through Focus.focus() would clear keyboard modality —
@@ -169,7 +169,7 @@ export class TextInput extends Editor {
      *  from — a theme value, a pristine source) is overridable: the edit disposes
      *  it, exactly like any author write (attributes.ts set path), so a field can
      *  be seeded from a binding yet stay editable. */
-    onNativeInput(v) {
+    $onNativeInput(v) {
         const owner = ownerOf(this, "text");
         if (owner !== null && !owner.yielding) {
             // CONTROLLED — the constraint owns the slot, so the keystroke does NOT
@@ -187,7 +187,7 @@ export class TextInput extends Editor {
             // one and correcting a beat later.
             fireEvent(this, "input", v);
             settle();
-            this.syncEditable();
+            this.$syncEditable();
             return;
         }
         if (this.text !== v)
@@ -206,11 +206,11 @@ export class TextInput extends Editor {
      *  said. A pointer CLICK is the exception, by the platform's own ordering:
      *  the browser places the click's caret at mouseup, after focus handlers —
      *  and that is the right ranking, because a deliberate click names a spot. */
-    focusChanged(focused) {
+    $focusChanged(focused) {
         this.focused = focused; // the reactive fact themes and the house edge read
         this.$surface?.activateEditable(focused);
         if (focused)
-            this.applySelection();
+            this.$applySelection();
     }
     /** Place the caret or select a range (#22) — the write half of the native
      *  selection, one verb: a caret IS a zero-length range. `select(7)` puts the
@@ -223,10 +223,10 @@ export class TextInput extends Editor {
     select(at, end) {
         this.pendingSel = { at, end };
         if (this.focused)
-            this.applySelection();
+            this.$applySelection();
     }
     pendingSel = null;
-    applySelection() {
+    $applySelection() {
         const p = this.pendingSel;
         if (p === null)
             return;
@@ -247,17 +247,17 @@ defineAttributes(TextInput, {
     fontWeight: { def: "normal", defBinding: providedDefault("fontWeight", "normal") },
     letterSpacing: { def: 0, defBinding: providedDefault("letterSpacing", 0) },
     selectable: { def: false, defBinding: providedDefault("selectable", false) },
-    text: { def: "", push: (t) => t.syncEditable() },
-    placeholder: { def: "", push: (t) => t.syncEditable() },
-    multiline: { def: false, push: (t) => t.syncEditable() },
-    spellcheck: { def: true, push: (t) => t.syncEditable() },
-    wrap: { def: true, push: (t) => t.syncEditable() },
+    text: { def: "", push: (t) => t.$syncEditable() },
+    placeholder: { def: "", push: (t) => t.$syncEditable() },
+    multiline: { def: false, push: (t) => t.$syncEditable() },
+    spellcheck: { def: true, push: (t) => t.$syncEditable() },
+    wrap: { def: true, push: (t) => t.$syncEditable() },
     // the field's content box, as View's: where the text sits inside it
     padding: { def: 0, push: (t, p) => {
             const [top, r, b, l] = insetSides(p);
             t.insetX = l + r;
             t.insetY = top + b;
-            t.syncEditable();
+            t.$syncEditable();
         } },
     initial: { def: "" },
     focused: { def: false },

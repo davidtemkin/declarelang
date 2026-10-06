@@ -44,19 +44,19 @@ type Channel = readonly [member: string, subscribe: (fn: Handler) => () => void]
  *  in the language. */
 abstract class Source extends Node {
   /** The channels this source offers. */
-  protected abstract channels(): readonly Channel[];
+  protected abstract $channels(): readonly Channel[];
 
   private wired = false;
 
   /** Construction-complete (instantiate.ts's initTree — the same lifecycle hook
    *  an animator's autoStart uses): the compiled handler members are installed
    *  by now, which is the first moment we can tell which channels to wire. */
-  autoStart(): void {
+  $autoStart(): void {
     if (this.wired) return;
     this.wired = true;
     const self = this as unknown as Record<string, unknown>;
     const offs: (() => void)[] = [];
-    for (const [member, subscribe] of this.channels()) {
+    for (const [member, subscribe] of this.$channels()) {
       const fn = self[member];
       if (typeof fn !== "function") continue;
       const handler: Handler = (arg) => { (fn as (a: unknown) => void).call(this, arg); };
@@ -71,7 +71,7 @@ abstract class Source extends Node {
  *  app-level shortcuts on app state where that matters. (A focused view's own
  *  `onKeyDown`/`onKeyUp` are the other half: keys belonging to one widget.) */
 export class KeysSource extends Source {
-  protected channels(): readonly Channel[] {
+  protected $channels(): readonly Channel[] {
     return CHANNELS_KEYS;
   }
 }
@@ -85,7 +85,7 @@ const CHANNELS_KEYS: readonly Channel[] = [
  *  `onGeometry(g)` for the focused control's live silhouette — what a focus
  *  ring follows. */
 export class FocusSource extends Source {
-  protected channels(): readonly Channel[] {
+  protected $channels(): readonly Channel[] {
     return CHANNELS_FOCUS;
   }
 }
@@ -97,7 +97,7 @@ const CHANNELS_FOCUS: readonly Channel[] = [
 /** The tip service, as a member: `onTooltip(e)` when a tip-carrying view asks for
  *  its tooltip to show (`null` to hide). */
 export class TooltipsSource extends Source {
-  protected channels(): readonly Channel[] {
+  protected $channels(): readonly Channel[] {
     return CHANNELS_TIP;
   }
 }

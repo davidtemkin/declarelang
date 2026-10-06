@@ -585,6 +585,15 @@ export class DomBackend implements RenderBackend {
       () => rootEl.isConnected,
       (e) => {
         let el = e.target instanceof HTMLElement && rootEl.contains(e.target) ? e.target : null;
+        // A view hit only for its cursor takes no press: the press goes to the
+        // topmost view beneath it that does — a sibling as readily as an
+        // ancestor, as the canvas and native walks pass it over.
+        if (el !== null && !SINKS.has(el) && el.style.cursor !== "") {
+          el = null;
+          for (const c of rootEl.ownerDocument.elementsFromPoint(e.clientX, e.clientY)) {
+            if (c instanceof HTMLElement && rootEl.contains(c) && SINKS.has(c)) { el = c; break; }
+          }
+        }
         // Ownership BEFORE the sink walk: the target's nearest enclosing app root
         // must be this rootEl, or the event belongs to an embedded child app and
         // its own router. This cannot be a check inside the walk — a sinked
@@ -1003,7 +1012,14 @@ export class DomSurface implements Surface {
     if (v && SCROLL_WANT_ANY) reassertScroll(this.element);
   }
 
-  setCursor(c: string): void { this.element.style.cursor = c; }
+  /** A view's cursor shows while the pointer is over it, even with no handler
+   *  of its own (a resize edge over a window frame): such a view is
+   *  hit-testable for the cursor's sake, and its presses pass to the view
+   *  beneath (the router, above). */
+  setCursor(c: string): void {
+    this.element.style.cursor = c;
+    this.updateCarved();
+  }
 
   // The authored pointerEvents attr OVERRIDES the sink-driven default (setInput
   // flips auto/none by sink presence; an explicit value must survive that).
@@ -1192,7 +1208,7 @@ export class DomSurface implements Surface {
     el.style.pointerEvents =
       this.peOverride !== "" ? this.peOverride
         : CARVED.has(el) ? "none"
-        : SINKS.has(el) || this.selectableRegion ? "auto" : "none";
+        : SINKS.has(el) || this.selectableRegion || el.style.cursor !== "" ? "auto" : "none";
   }
 
   /** Does the viewport point fall in this carved sink's clipped region?
@@ -1283,6 +1299,16 @@ export class DomSurface implements Surface {
     const [t, r, b, l] = insetSides(inset);
     this.element.style.padding = t === 0 && r === 0 && b === 0 && l === 0
       ? "0" : `${t}px ${r}px ${b}px ${l}px`;
+  }
+
+  /** A padded scroller's range (backend.ts setContentExtent): the browser's
+   *  scrollable overflow counts the end padding only for in-flow content, and
+   *  every child here is absolutely placed, so the strut below carries the
+   *  whole extent the view computed, insets included. */
+  private extentStrut: { w: number; h: number } | null = null;
+  setContentExtent(w: number | null, h: number | null): void {
+    this.extentStrut = w === null || h === null ? null : { w, h };
+    this.applyStrut();
   }
 
   /** ROOT only (backend.ts): the App's reactive content extent. The page
@@ -1727,7 +1753,7 @@ export class DomSurface implements Surface {
       // the island element, built by the Island view itself (duck-typed: no
       // view.ts import from here). The view itself travels in the DISCOVERY
       // EVENT — the __declareView expando retired with the scrub.
-      const fh = (view as { foreignHandle?: () => unknown } | undefined)?.foreignHandle;
+      const fh = (view as { $foreignHandle?: () => unknown } | undefined)?.$foreignHandle;
       if (typeof fh === "function") el.__declareIsland = fh.call(view);
       notifyIslandSlot({ view, el: this.element, slot: id });
       // A live foreign surface, not painted UI: its interior owns hits, so an
@@ -1922,7 +1948,15 @@ export class DomSurface implements Surface {
   setVirtualExtent(h: number | null): void {
     if (h === this.strutH) return; // a same-height write per reconcile is a free recalc
     this.strutH = h;
-    if (h === null) {
+    this.applyStrut();
+  }
+
+  /** The strut spans the larger of a windowed list's logical extent and a
+   *  padded scroller's content extent; with neither, it is gone. */
+  private applyStrut(): void {
+    const h = Math.max(this.strutH ?? 0, this.extentStrut?.h ?? 0);
+    const w = this.extentStrut?.w ?? 1;
+    if (this.strutH === null && this.extentStrut === null) {
       this.strutEl?.remove();
       this.strutEl = null;
       return;
@@ -1934,13 +1968,13 @@ export class DomSurface implements Surface {
       st.position = "absolute";
       st.left = "0";
       st.top = "0";
-      st.width = "1px";
       st.pointerEvents = "none";
       st.visibility = "hidden";
       this.element.appendChild(s);
       this.strutEl = s;
     }
     this.strutEl.style.height = `${h}px`;
+    this.strutEl.style.width = `${Math.max(1, w)}px`;
   }
 
   /** Where this element lived before travelWith moved it (null = at home). */
@@ -2570,7 +2604,7 @@ function naturalSize(el: Bitmap): { width: number; height: number } {
  *  it alone — a long backstop keeps the fact from sticking if it never comes
  *  (a pane hidden mid-scroll). Two things it cannot settle:
  *
- *  - THE WHEEL HAS NO END (Murmur run 2): a wheel stream — trackpad momentum
+ *  - THE WHEEL HAS NO END: a wheel stream — trackpad momentum
  *    especially — is a decaying series of events, and discrete wheel input
  *    gets a `scrollend` after every event. So a wheel event marks the stream
  *    live, and nothing ends it until WHEEL_QUIET ms pass with no wheel — the

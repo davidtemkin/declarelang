@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { compile as compileCore, type CompileOptions, type Compiled } from "./compile.js";
+import { compile as compileCore, carryProgram, type CompileOptions, type Compiled } from "./compile.js";
 import { nodeIncludeHost } from "./include-node.js";
 import { provideLib } from "./typecheck.js";
 import { DiskTracker } from "./cache-node.js";
@@ -33,11 +33,11 @@ export type { CompileOptions, Compiled } from "./compile.js";
 // Static extraction (docs/system-design/capabilities.md §4–5) — exported by BOTH entry
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
-export { extractStatic, extractFromCompiled, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export { highlight, lineMetrics, type LineMetrics } from "./highlight.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
-export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
@@ -126,5 +126,5 @@ export async function compileTracked(source: string, opts: TrackedOptions = {}):
     host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT, tracker),
     bundleScripts: opts.bundleScripts ?? nodeBundleScripts,
   });
-  return { ...result, closure: tracker.closure(opts.props ?? {}) };
+  return carryProgram(result, { closure: tracker.closure(opts.props ?? {}) });
 }

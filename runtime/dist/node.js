@@ -22,7 +22,7 @@ export class Node {
     exParent = null;
     /** Landing under a DIFFERENT parent changes this subtree's ancestor chain,
      *  and only this subtree's: clear its provider memos (attributes.ts). */
-    chainMoved(child) {
+    $chainMoved(child) {
         if (child.parent === this || child.exParent === this)
             return;
         providedChainMoved(child);
@@ -150,7 +150,7 @@ export class Node {
      *  nothing is tracking). Every reactive read works this way — a cell the
      *  reader subscribes to — and the child list's cell is created on first
      *  interest rather than up front, so a tree nobody asks about pays nothing. */
-    watchChildList() {
+    $watchChildList() {
         if (!isTracking())
             return;
         if (this.structure === null) {
@@ -159,12 +159,12 @@ export class Node {
         }
         this.structure.track();
     }
-    childListChanged() {
+    $childListChanged() {
         this.structure?.changed();
     }
     /** The child-list cell's kernel id (created on first need) — a native
      *  rule's edge on "the SET of children changed" (the auto-extent rule). */
-    structureCellId() {
+    $structureCellId() {
         if (this.structure === null) {
             this.structure = new Cell();
             this.structure.structural = true;
@@ -188,19 +188,19 @@ export class Node {
     }
     /** Link `child` beneath this node. The tree is the single source of
      *  structure; the render backend mirrors it (see View.attach). */
-    appendChild(child) {
-        this.chainMoved(child);
+    $appendChild(child) {
+        this.$chainMoved(child);
         child.parent = this;
         this.children.push(child);
-        this.childListChanged();
+        this.$childListChanged();
     }
     /** Link `child` at `index` — child order is semantic (tree order is paint
      *  order, and replicated children take their data's order, R8). */
     insertChild(child, index) {
-        this.chainMoved(child);
+        this.$chainMoved(child);
         child.parent = this;
         this.children.splice(index, 0, child);
-        this.childListChanged();
+        this.$childListChanged();
     }
     /** Unlink `child`. Model structure only — a live view's surface and
      *  standing computations are the caller's to retire (View.discard). */
@@ -209,7 +209,7 @@ export class Node {
         const i = this.children.indexOf(child);
         if (i >= 0) {
             this.children.splice(i, 1);
-            this.childListChanged();
+            this.$childListChanged();
         }
         child.parent = null;
     }
@@ -224,9 +224,9 @@ export class Node {
         const p = this.parent;
         if (p !== null)
             p.removeChild(this);
-        this.teardown();
+        this.$teardown();
         if (p !== null)
-            p.childrenMutated();
+            p.$childrenMutated();
     }
     /** Retire this node's standing machinery, depth-first — teardown ONLY, no
      *  unlinking: the recursion for a subtree leaving as one (a child's link
@@ -237,9 +237,9 @@ export class Node {
      *  — whose `to` binding would otherwise linger, subscribed to whatever it
      *  read, keeping the whole discarded subtree alive (and, for a Spring,
      *  still ticking). */
-    teardown() {
+    $teardown() {
         for (const child of this.children)
-            child.teardown();
+            child.$teardown();
         runRetire(this);
         this.structure?.free();
     }
@@ -249,7 +249,7 @@ export class Node {
      *  View overrides it with the visual response (layout re-arm, auto-extent
      *  re-derive). Declared here so `discard` can notify an ex-parent without
      *  the base knowing what a View is. */
-    childrenMutated() { }
+    $childrenMutated() { }
 }
 // node → teardown callbacks registered by outside machinery (a replicator's
 // standing computations, a service member's unsubscribe). Lived in view.ts

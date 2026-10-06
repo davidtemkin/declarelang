@@ -8,18 +8,16 @@
 // text measurer — structure-grade geometry; typography-accurate verification
 // belongs to the browser rungs, §2.8). Rungs 5–6 land per the phase plan.
 //
-//   node tools/verify.mjs <app.declare> [--no-typecheck] [--json] [--rung N]
+//   node tools/verify.mjs <app.declare> [--json] [--rung N]
 //                          [--assert <script.mjs>] [--fixtures <dir>]
 //                          [--states <states.mjs>] [--baselines <dir>] [--bless]
 //
-// Typecheck is ON BY DEFAULT (flipped 2026-07-13: the typecheck integration
-// landed at zero false positives corpus-wide — verify-and-evals.md §4's gate
-// met; its first default-on run caught a real latent bug in tour.declare).
-// --no-typecheck opts out. Exit code: 0 = every requested rung passed;
-// 1 = a rung failed; 2 = usage/toolchain error.
+// Exit code: 0 = every requested rung passed; 1 = a rung failed; 2 =
+// usage/toolchain error.
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
-import { compile } from "../compiler/dist/compile-node.js";
+import { compileTracked } from "../compiler/dist/compile-node.js";
+import { programFromCompiled } from "../compiler/dist/program-build.js";
 
 // ── rung model ────────────────────────────────────────────────────────────
 const RUNGS = [
@@ -47,7 +45,6 @@ const argVal = (name) => {
   return i >= 0 && args[i + 1] !== undefined && !args[i + 1].startsWith("--") ? args[i + 1] : null;
 };
 const flags = {
-  typecheck: !args.includes("--no-typecheck"),
   json: args.includes("--json"),
   rung: Number((args.find((a) => a.startsWith("--rung=")) ?? "--rung=6").split("=")[1] ?? 6),
   assert: argVal("assert"),
@@ -58,12 +55,12 @@ const flags = {
   wrap: args.includes("--wrap"),
   // --only <file>: verify the whole program, report only the diagnostics in
   // ONE of its files (an include, by the path the author would write it). For
-  // a room in a many-room shell edited by several hands at once: "is this red
-  // mine?" answered without a scratch harness (field report 2026-08-21).
+  // an include in a program several people edit at once: "is this red mine?"
+  // answered without a scratch harness.
   only: argVal("only"),
 };
 if (!file) {
-  console.error("usage: node tools/verify.mjs <app.declare> [--no-typecheck] [--json] [--rung=N] [--only <include>] [--wrap]");
+  console.error("usage: node tools/verify.mjs <app.declare> [--json] [--rung=N] [--only <include>] [--wrap]");
   process.exit(2);
 }
 
@@ -125,7 +122,7 @@ if (flags.wrap && !hasApp) {
 // boot-static all pass it). Missing here until apps/weather grew an art
 // include (2026-08-08) and verify alone could not find a file sitting beside
 // the program.
-const out = await compile(source, { typecheck: flags.typecheck, originDir: dirname(resolve(file)) });
+const out = await compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file) });
 // --only: keep the diagnostics positioned in the named file. Matched by path
 // suffix so `--only rooms/pulse.declare` and `--only pulse.declare` both work;
 // the main file itself is `--only <the program file>`. The others are counted,
@@ -157,6 +154,20 @@ const hints = out.diagnostics.filter((d) => d.severity === "hint");
 // cannot boot, and saying R2 ✓ would be a lie the next rung exposes).
 const failingAll = allDiagnostics.filter((d) => d.severity === "error");
 let failedRung = failingAll.length ? Math.min(...failingAll.map((d) => rungOf(d.phase))) : null;
+
+// The browser rungs boot the PROGRAM form — the parsed, checked, deps-applied
+// program every host boots from (host-client's bootHost takes `program`, not a
+// source string). Built once, on demand, from the compile the rungs above read;
+// rung 4 boots the same program headlessly. Instantiating leaves it untouched.
+let builtProgram = null;
+async function compiledProgram() {
+  if (builtProgram === null) {
+    const r = await programFromCompiled(out, { stripPos: false });
+    if (r.program == null) throw new Error("program build failed: " + (r.report ?? "no report"));
+    builtProgram = r.program;
+  }
+  return builtProgram;
+}
 
 // ── rung 4: headless boot ─────────────────────────────────────────────────
 // The synthetic measurer: measure.ts creates one offscreen 2D context lazily
@@ -206,15 +217,15 @@ if (failedRung === null && flags.rung >= 4) {
     else consoleError(...a);
   };
   try {
-    const { parseProgram } = await import("../runtime/dist/parser.js");
-    const { instantiate, settle } = await import("../runtime/dist/index.js");
+    const { buildProgram, settle } = await import("../runtime/dist/index.js");
+    const program = await compiledProgram();
     const t0 = performance.now();
-    const app = instantiate(parseProgram(out.source));
+    const app = buildProgram(program);
     settle();
     boot.ms = Math.round((performance.now() - t0) * 10) / 10;
     // DATA FROM THE NETWORK never arrives headless, so the rows it would
-    // replicate are never built and their defects never surface here (Murmur
-    // run 4: a library class placed inside a layout, refused only in a row).
+    // replicate are never built and their defects never surface here (a library
+    // class placed inside a layout is refused only in a row).
     // Each DataSource that declares a `schema` and has not loaded is handed a
     // small sample of that shape, as its fetch would deliver it, and onLoad runs.
     const fed = await feedSchemaSamples(app);
@@ -274,20 +285,6 @@ function sampleOf(fields, depth, index = 0) {
   return out;
 }
 
-// The browser rungs boot the PROGRAM form — the parsed, checked, deps-applied
-// program every host boots from (host-client's bootHost takes `program`, not a
-// source string). Built once, on demand, from the same source the rungs above
-// checked; the typecheck already ran, so it is not paid twice.
-let builtProgram = null;
-async function programForBrowser() {
-  if (builtProgram === null) {
-    const { compileProgram } = await import("../compiler/dist/declarec.js");
-    const r = await compileProgram(source, { typecheck: false, originDir: dirname(resolve(file)) });
-    if (r.program == null) throw new Error("program build failed: " + (r.report ?? "no report"));
-    builtProgram = r.program;
-  }
-  return builtProgram;
-}
 
 // ── rung 5: behavior (drive + assert, real browser) ──────────────────────
 const behave = { ran: false, ok: false, failures: [], log: [] };
@@ -297,7 +294,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
   const { dirname: dirOf, resolve: resolvePath } = await import("node:path");
   try {
     const r = await runBehavior({
-      compiled: { program: await programForBrowser() },
+      compiled: { program: await compiledProgram() },
       appDir: dirOf(resolvePath(file)),
       assertPath: flags.assert,
       fixturesDir: flags.fixtures,
@@ -320,7 +317,7 @@ if (failedRung === null && flags.rung >= 6 && flags.states !== null) {
   const { dirname: dirOf, resolve: resolvePath, join: joinPath } = await import("node:path");
   try {
     const r = await runStates({
-      compiled: { program: await programForBrowser() },
+      compiled: { program: await compiledProgram() },
       appDir: dirOf(resolvePath(file)),
       statesPath: flags.states,
       // The default sits beside the STATES file, not the app program: the
@@ -356,7 +353,6 @@ if (flags.json) {
     rungClimbed: climbed,
     rungFailed: failedRung,
     builtThrough: BUILT_THROUGH,
-    typecheck: flags.typecheck ? "on" : "off (--no-typecheck)",
     probe: probeNote,
     only: onlyNote,
     stats: { constraints: out.deps?.length ?? 0, bootNodes: boot.nodes, bootMs: boot.ms },
@@ -375,7 +371,6 @@ if (flags.json) {
       optionalIdle || r.n > effectiveBuilt ? "·" : "✓";
     const note =
       optionalIdle || r.n > effectiveBuilt ? ` — ${r.what}` :
-      r.n === 3 ? (flags.typecheck ? " (typecheck on)" : " (typecheck OFF — --no-typecheck)") :
       r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, settled in ${boot.ms} ms, synthetic metrics)` :
       r.n === 5 && behave.ran && behave.ok ? ` (${behave.log.length} steps, real input)` :
       r.n === 6 && visual.ran && visual.ok ? ` (${visual.results.length} states${flags.bless ? ", blessed" : ""})` : "";

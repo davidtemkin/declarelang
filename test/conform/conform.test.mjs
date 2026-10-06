@@ -217,6 +217,22 @@ await test("conform: a press resolves to the same view on every renderer", async
   console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
 });
 
+await test("conform: REAL presses take the same route through every renderer's scene", async () => {
+  // explainHit asks the language's model walk; a click goes through each
+  // renderer's own input routing — on canvas and the Mac, the retained scene's
+  // walk (scene-walk.ts). Every press target counts its presses, so the route
+  // is read back as counts.
+  const r = await conform("test/probe/scene-press.declare",
+    [["click", 200, 10], ["click", 305, 5], ["click", 350, 40], ["click", 60, 200], ["click", 180, 200], ["wait", 0.3]],
+    `(() => { const f = (p) => __declare.find(p).hits; return { chrome: f("app.pane.chrome"), row: f("app.pane.row"),
+       rounded: f("app.rounded"), ghost: f("app.ghost"), under: f("app.under"), over: f("app.over"),
+       app: __declare.find("app").presses }; })()`,
+    "scene press routing");
+  assert.deepEqual(r.answers[0].value, { chrome: 1, row: 0, rounded: 1, ghost: 1, under: 1, over: 0, app: 1 },
+    "chrome over the scrolled row, the rounded corner missed (the press falls to the App), the transparent view, and the press through the pointer-transparent view");
+  console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
+});
+
 // ── transforms ──────────────────────────────────────────────────────────────
 // Until 2026-08-14 nothing in this corpus set `scale` or `rotation`, so the one
 // gate that holds three renderers together never asked whether they agree about

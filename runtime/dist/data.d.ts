@@ -33,7 +33,7 @@ export declare class Dataset extends Node {
      *  re-derived cursor is `===` the old one and the equality gate holds.
      *  The intern key joins on NUL, not "." — a key containing a dot must not
      *  collide with the path that spells it as two segments. */
-    cursorAt(path: readonly string[]): Cursor;
+    $cursorAt(path: readonly string[]): Cursor;
     /** Tracked read of the region at `path` (root-relative). Registers exactly
      *  one region cell — the deepest slot the walk reaches (see the header) —
      *  plus the `value` attribute read the first line makes. `undefined` means
@@ -63,7 +63,7 @@ export declare class Dataset extends Node {
      *  that stepped INTO an array field (the slot holds one element). Null =
      *  no schema, or the path leaves the declared world (an undeclared key, a
      *  step through a scalar/`any`) — extras pass untouched, by design. */
-    declaredField(segs: readonly string[]): {
+    $declaredField(segs: readonly string[]): {
         f: ShapeField;
         element: boolean;
     } | null;
@@ -73,17 +73,17 @@ export declare class Dataset extends Node {
      *  declared world (extras, `any` fields): a schema declares what the
      *  program RELIES on, and validation stays permissive about the rest.
      *  `mode` "insert" validates `v` as one ELEMENT of the array at the path. */
-    private writeError;
-    private segs;
+    private $writeError;
+    private $segs;
     /** Walk `segs` from the root, collecting the (container, key) step chain —
      *  which is exactly the ancestor set a write must wake. */
-    private locate;
-    private array;
-    private wakeChain;
+    private $locate;
+    private $array;
+    private $wakeChain;
     /** A derived dataset's recompute lands here (`contents` push): merge into
      *  the standing tree when both are containers of one kind, else replace
      *  wholesale through the value slot (mergeTree, below). */
-    adopt(v: unknown): void;
+    $adopt(v: unknown): void;
 }
 /** The injected transport — the network's entry seam, like the measurer's
  *  (measure.ts provideMeasurer). Default = the platform fetch; HEADLESS
@@ -167,7 +167,7 @@ export declare class DataSource extends Dataset {
      *  auto-fetch question: explicit fetch() stays the default, auto is opt-in. */
     auto: boolean;
     private autoUrl;
-    maybeAuto(): void;
+    $maybeAuto(): void;
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
     private seq;
@@ -178,7 +178,7 @@ export declare class DataSource extends Dataset {
      *  `Content-Type`; a string is sent verbatim. `credentials` is added
      *  whenever it differs from `sameOrigin` (the fetch default), GET or not,
      *  since it's independent of the verb. */
-    private requestInit;
+    private $requestInit;
     /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
      *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
      *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */

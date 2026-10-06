@@ -1,7 +1,6 @@
 import { type Environment } from "./headless.js";
+import type { Program } from "../../runtime/dist/parser.js";
 export interface CrawlOptions {
-    deps?: unknown;
-    links?: unknown;
     env?: Environment;
     /** The values a host provides the app from its first evaluation (its
      *  `hostProvided` reads) — an island tenant's, from its island. */
@@ -52,12 +51,10 @@ export interface CrawlOptions {
      *  does not resolve or compile FAILS the crawl (the loud-failure rule). */
     islands?: (name: string) => Promise<IslandProgram | null> | IslandProgram | null;
 }
-/** A resolved island tenant: its compiled source (null = the compile failed,
- *  with `report` saying why), as `build` takes it. */
+/** A resolved island tenant: its compiled program with its links (null = the
+ *  compile failed, with `report` saying why). */
 export interface IslandProgram {
-    source: string | null;
-    deps?: unknown;
-    links?: unknown;
+    program: Program | null;
     report?: string;
 }
 /** One crawled location: its canonical KEY (anchor stripped, default canonicalized
@@ -84,18 +81,18 @@ export declare function canonKey(location: string, defaultLoc: string): string;
  *  emitted (rule: discoverable = linked). The default is always docs[0]. THROWS when
  *  any boot needed data the crawl could not honestly supply (the loud-failure rule):
  *  the message names each url and the fix. */
-export declare function crawlLocations(source: string, opts?: CrawlOptions): Promise<CrawlDoc[]>;
+export declare function crawlLocations(program: Program, opts?: CrawlOptions): Promise<CrawlDoc[]>;
 /** The ONE crawled document: the default location's content, then each other
  *  reachable location's content as a `<section id="<location>">` — so the emitted
  *  `href="#<location>"` links resolve intra-document, and a fragment that survives
  *  into a click-through addresses the live app identically. This is what `?extract`
  *  returns and `?crawler` bakes when the caller asks for the crawl. */
-export declare function crawlDocument(source: string, opts?: CrawlOptions): Promise<string>;
+export declare function crawlDocument(program: Program, opts?: CrawlOptions): Promise<string>;
 /** crawlDocument plus the settled `appName` as `title` — for callers baking a
  *  full page around the extraction (`crawlerDocument`, the run-page `<title>`),
  *  so the crawled page is named by the app, not the filename. "" = no declared
  *  name; the caller falls back to whatever it titled the page before. */
-export declare function crawlExtract(source: string, opts?: CrawlOptions): Promise<{
+export declare function crawlExtract(program: Program, opts?: CrawlOptions): Promise<{
     html: string;
     title: string;
 }>;

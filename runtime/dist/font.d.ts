@@ -46,11 +46,11 @@ export declare class Font extends Node {
     [FONT_DEMAND](): void;
     /** Construction-complete (instantiate.ts): start once the caller's synchronous
      *  setup (the app's asset base) has run. `fontsReady` starts it sooner. */
-    autoStart(): void;
+    $autoStart(): void;
     /** Begin watching the faces and loading them. Idempotent. */
-    start(): void;
+    $start(): void;
     /** Resolves when the first load has settled: every face arrived, one failed,
      *  or the wait ran out. The start-up gate (fontsReady) waits on this. */
-    ready(): Promise<void>;
+    $ready(): Promise<void>;
 }
 export { fontsReady } from "./font-value.js";

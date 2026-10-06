@@ -222,7 +222,7 @@ HTMLText [ html = "<span class='Keyword'>class</span> Board [ ]",
 text below.
 
 **A run is one thing.** A number and its unit, a word and its punctuation, are one run of
-text, set together — the font spaces each pair of letters correctly. `"1h 24m"` is one
+text, set together — the font spaces each pair of letters correctly. `"18°C"` is one
 `Text`. When the parts want different sizes — a large figure with small unit letters —
 it is still one run, with the sizes as a named style on a span:
 
@@ -230,7 +230,7 @@ it is still one run, with the sizes as a named style on a span:
 style Unit [ fontSize = 40, fontWeight = medium ]
 
 HTMLText [ fontSize = 96, fontWeight = bold,
-    html = "1<span class='Unit'>h</span> 24<span class='Unit'>m</span>" ]
+    html = "18<span class='Unit'>°C</span>" ]
 ```
 
 With no width it is exactly as wide as the figure it sets.

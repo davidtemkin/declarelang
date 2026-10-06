@@ -159,13 +159,14 @@ calls (`fillStyle`, `beginPath`, `moveTo`, `stroke`, …); what it records, ever
 
 **`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
 Declaring is how reactive state enters a program; setting is how it is wired. A declaration's
-type comes from the same vocabulary a signature's does (below): a primitive, a class,
-a function, or an array of any of them.
+type comes from the same vocabulary a signature's does (below): a primitive, a class, a
+schema you declared (§7), a function, or an array of any of them — or `object` / `array`
+for a record or list of no declared shape.
 
 **A method's signature is typed, name-first**: `select() { … }`, `input(v: boolean) { … }`,
 `quant(v: number) -> number { … }`. Every parameter carries a written type — a primitive, a
-class, an event payload (`onPointerUp(e: PointerUpEvent)`), a function
-(`f: (id: string) -> void`), or an array of one (`Window[]`); a `?` after the type
+class, a schema (`t: Task`), an event payload (`onPointerUp(e: PointerUpEvent)`), a function
+(`f: (id: string) -> void`), an array of one (`Window[]`), or `object` / `array`; a `?` after the type
 (`c: Menu?`) says the value may be absent, and the body must check. Omit `-> Ret` for a
 method that returns nothing. A computed *value* is still not a method but an attribute with
 a `{ }` default, `segIndex: number = { … }` — an attribute stays reactively true; a method
@@ -305,7 +306,7 @@ drawn.
 **Stacking order is declaration order**; later siblings paint on top. There is no `z-index`, so
 chrome that must float above everything is declared last.
 
-→ the layouts that ship: `library/` · their attributes: the model reference
+→ the layouts that ship: `library/` · their attributes: the reference (`npx declare-help <name>`)
 
 ## 5. Constraints
 
@@ -346,7 +347,8 @@ half-updated, and why history can count "one entry per settle" (§6). Animation 
 it, not an exception: a Spring writes its attribute once per frame, and each frame's writes
 get a settle of their own — motion is many small settles, never one long one.
 
-Inside a handler, the world you read is the world *before* your writes land. Almost always
+Inside a handler, the world you read is the world *before* your writes land: an attribute you
+wrote reads back as written, but nothing derived from it has moved yet. Almost always
 the right response is no response: state what should be true with a constraint, and it is
 true after this settle and every one after it. But some work is irreducibly a *reading* of
 the new geometry — aiming a camera at a view your write just caused to exist, measuring
@@ -505,7 +507,7 @@ and one Back restores both. The dividing test takes five seconds: *would you han
 stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neither → an ordinary
 attribute.
 
-→ `link`/`shows`/`anchor`, arrival and the crawl: the model reference ·
+→ `link`/`shows`/`anchor`, arrival and the crawl: the reference (`npx declare-help <name>`) ·
 [the URLs chapter](declare-docs:guide:urls)
 
 ## 7. Data
@@ -598,7 +600,7 @@ filter, sort, group — **holds its source's records**, so a row bound to it wri
 anywhere; what its code *made* is read-only. To add a computed field to a record, **wrap it, don't
 copy it**: `{ ev: e, lane: n }` holds the record itself, and a row bound through `:ev` edits the source.
 
-**Records of different kinds are different classes** — `classFor = { :kind == "photo" ? Photo : Note }`
+**Records of different kinds are different classes** — `classFor = { :kind == "heading" ? Heading : Item }`
 on the replicated node; what state a row is *in* stays a `State`.
 
 **Large collections virtualize on one word.** `virtualize = true` on a replicated node builds
@@ -619,7 +621,7 @@ the imperative door is open (`use [ Name ]`, §4, keeps a string-named class in 
 a `DataSource`, and nothing to unsubscribe.
 
 → `Dataset` and `DataSource` attributes, `Stream`/`EventStream`/`Socket`, `View.createView`,
-`View.discard`: the model reference · paths, selection and editing:
+`View.discard`: the reference (`npx declare-help <name>`) · paths, selection and editing:
 [the data chapter](declare-docs:guide:data) · virtualization at scale:
 [collections](declare-docs:guide:collections)
 
@@ -821,7 +823,7 @@ has landed is neither — that is `afterSettle`, §5.)
 Because states, springs, and layout all sit on one reactive core, *arrangement* animates: spring
 a few geometry scalars and every constraint derived from them moves in lock-step.
 
-→ `State`, `Spring`, `Animator`, `Time` attributes: the model reference · the idiom at scale:
+→ `State`, `Spring`, `Animator`, `Time` attributes: the reference (`npx declare-help <name>`) · the idiom at scale:
 `apps/calendar/calendar.declare`
 
 ## 11. The standard library
@@ -857,7 +859,7 @@ Slider   [ value = { app.volume },
 dialog's buttons — it takes plain record arrays and hands the choice back through a method. If
 *you* arrange it, it is not a class's feature at all: it is views, a layout, and replication.
 
-→ what ships and how it is built: `library/` · each class's attributes: the model reference
+→ what ships and how it is built: `library/` · each class's attributes: the reference (`npx declare-help <name>`)
 
 ## 12. Errors, formatting, and the running program
 

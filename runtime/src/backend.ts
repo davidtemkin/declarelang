@@ -109,12 +109,12 @@ export interface ScrollGlide { duration?: number; motion?: string }
 /** The stencil half of a mask: a live view — its surface (null until it
  *  attaches) and its box, read at paint time. `x`/`y` are the stencil's own
  *  slots, which are CONTENT coordinates in the masked view (View.padding), so
- *  a reader placing the bitmap adds `positionLead` exactly as the seam does
+ *  a reader placing the bitmap adds `$positionLead` exactly as the seam does
  *  for the stencil's own surface. */
 export interface MaskStencil {
   readonly $surface: Surface | null;
   readonly x: number; readonly y: number; readonly width: number; readonly height: number;
-  positionLead(axis: "x" | "y"): number;
+  $positionLead(axis: "x" | "y"): number;
 }
 export type MaskSpec = { readonly kind: "gradient"; readonly gradient: Gradient } | { readonly kind: "view"; readonly stencil: MaskStencil };
 
@@ -362,6 +362,11 @@ export interface Surface {
    *  decade — so each backend folds this into its own scroll-extent answer.
    *  Optional: a backend that realizes no scrolling has nothing to do with it. */
   setPadding?(inset: Inset): void;
+  /** A padded scroller's content extent, insets included (view.ts
+   *  syncPaddedRange), for a backend whose own scroll range cannot count the
+   *  trailing inset (the DOM: absolutely placed children). Null clears it.
+   *  Optional — a backend that derives its range itself never asks. */
+  setContentExtent?(w: number | null, h: number | null): void;
   /** Mark this surface as exempt from its PARENT's box-clip (`ignoreClip`):
    *  outside the parent's clip it still paints AND still hits — frame chrome
    *  that straddles the frame (a window's resize halo, a badge poking out of a

@@ -128,11 +128,11 @@ export class FocusService {
     const old = this.current;
     this.current = view;
     if (old !== null) {
-      old.focusChanged(false); // internal (native element) before the user event
+      old.$focusChanged(false); // internal (native element) before the user event
       fireEvent(old, "blur");
     }
     if (view !== null) {
-      view.focusChanged(true);
+      view.$focusChanged(true);
       fireEvent(view, "focus");
     }
     this.changing = false;
@@ -340,6 +340,9 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
       else focus.next();
       return;
     }
+    // an open overlay (a menu) owns the navigation keys: they are not also
+    // the focused view's (keys.ts overlayOwns)
+    if (keys.overlayOwns(e)) return;
     const f = focus.getFocus();
     if (f !== null) {
       // Enter on a focused LINKED view follows the reference — the <a>
@@ -354,6 +357,7 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
   });
   const offUp = keys.onKeyUp((e) => {
     if (e.code === "Tab") return;
+    if (keys.overlayOwns(e)) return;
     const f = focus.getFocus();
     if (f !== null) fireEvent(f, "keyUp", e);
   });

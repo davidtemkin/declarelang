@@ -163,11 +163,11 @@ await test("DataSource.credentials — a token surface, the Fetch API's spelling
   // and data.ts maps it back — exactly as `blend` maps colorDodge → color-dodge.
   const src = (v) => `App [ width = 10, height = 10, d: DataSource [ url = "/x"${v} ] ]`;
   for (const tok of ["omit", "sameOrigin", "include"]) {
-    const r = await compile(src(`, credentials = ${tok}`), { typecheck: false });
+    const r = await compile(src(`, credentials = ${tok}`));
     assert.notEqual(r.source, null, `credentials = ${tok} must compile: ${r.report}`);
   }
   // a miss is a COMPILE error naming the legal set, not a TypeError from fetch
-  const bad = await compile(src(", credentials = sameorigin"), { typecheck: false });
+  const bad = await compile(src(", credentials = sameorigin"));
   assert.equal(bad.source, null, "a misspelled mode must not reach fetch");
   assert.match(bad.report, /one of omit \| sameOrigin \| include/);
 

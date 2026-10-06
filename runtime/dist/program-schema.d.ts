@@ -1,7 +1,8 @@
-import type { Element, Attr, AttrDecl, ClassDecl, Literal } from "./parser.js";
+import type { Element, Attr, AttrDecl, ClassDecl } from "./parser.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { type ClassSchema } from "./schema.js";
-import { type AttrType, type AttrValue } from "./value.js";
+import { coerceToken, type AttrType, type AttrValue } from "./value.js";
+export { coerceToken };
 /** The scope nouns of language §11 — never legal as member or parameter names.
  *  `app` is the running-App noun (compiles to `this.root`); reserving it here
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
@@ -32,7 +33,7 @@ export declare const STRUCTURAL: Readonly<Record<string, string>>;
 export declare function structuralReason(name: string): string | null;
 /** One registered user class: its declaration, its schema, and its declared
  *  attributes' coerced defaults (undefined = "no default; starts undefined
- *  until set"). instantiate.ts synthesizes the runtime twin from this. */
+ *  until set"). */
 export interface ClassInfo {
     decl: ClassDecl;
     schema: ClassSchema;
@@ -55,18 +56,6 @@ export declare function programSchemas(classes: readonly ClassDecl[], shapes?: R
     schemas: Record<string, ClassSchema>;
     errors: DeclareError[];
 };
-/** Coerce a theme-record token to its runtime value (checkThemeRecord vetted
- *  the shapes): numbers and strings pass through, hex/named colors ground as
- *  Color, `true`/`false`/`null` as themselves, a constructor call as the first
- *  of fill/stroke/shadow that admits it, and a LIST of any of those.
- *
- *  A list is a token because the rule the record actually keeps is "a token is
- *  bounded, plain data" — spreadable, comparable, serializable, inspectable
- *  without asking what kind of object it is — and a frozen array of literals is
- *  all of those. Excluding it did not keep lists out; it denied them a type, so
- *  the one the corpus needed most, a font stack, was written as a comma-joined
- *  string and parsed back into a list at the other end. ONE LEVEL: a list of
- *  lists is refused, which keeps "bounded" a fact rather than a hope. */
 /** The value a LITERAL provision provides (`View [ textColor = navy ]`). A
  *  provision has no declared slot on the providing node, but its NAME may match
  *  a text FACE value (`fontFamily`, `fontWeight`, `textColor`, …), and then it
@@ -79,7 +68,6 @@ export declare function programSchemas(classes: readonly ClassDecl[], shapes?: R
  *  the checker computes every other one here, so the compile can ship it as its
  *  value (compiler/src/lower-literals.ts). */
 export declare function provisionValue(attr: Attr): unknown;
-export declare function coerceToken(lit: Literal): unknown;
 /** One checked attribute declaration: its resolved type and coerced default
  *  — or a default BINDING (`labelColor: Color =
  *  { theme.buttonText }`, the ruled R6 unlock: a live per-instance fallback

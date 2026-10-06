@@ -1,4 +1,5 @@
 import { type Affine } from "./affine.js";
+import { type HitNote as WalkNote } from "./hit-walk.js";
 import { type Inset } from "./value.js";
 /** The geometry surface the chain walk reads — structurally, any View. */
 export interface InteractionView {
@@ -46,13 +47,8 @@ export interface InteractionApp extends InteractionView {
  *  rather than a name: this module is deliberately view-free (structural
  *  typing, no import of view.ts), so naming is the caller's job — inspect.ts
  *  maps each to its path. */
-export interface HitNote {
-    view: InteractionView;
-    why: string;
-    /** the point in that view's own coordinates, which is usually the tell */
-    x: number;
-    y: number;
-}
+/** One step of a narrated walk over the views (hit-walk.ts HitNote). */
+export type HitNote = WalkNote<InteractionView>;
 /** Narrate the hit walk at a root-FRAME point: what it descended into, what it
  *  skipped and why, and what finally took the point (or that nothing did).
  *
@@ -68,17 +64,11 @@ export declare function traceHitAt(root: unknown, x: number, y: number, pierce?:
 };
 /** view.ts calls this once at module init — the injected instance test. */
 export declare function initInteraction(test: (n: unknown) => n is InteractionView): void;
-/** The topmost visible view whose box contains the point — reverse paint
- *  order, descending through containers; overflow children are reachable
- *  outside their parent's box unless the parent clips. All attribute reads
- *  here run inside the driver's tracked compute — they ARE the dependencies.
- *
- *  THE ONE WALK. Exported because it is also the language's own hit test
- *  (View.viewAt / View.containsPoint, view.ts): what an app computes about
- *  "what is under this point" and what the runtime computes for `hovered` must
- *  be the same answer, from the same code. (Three hand-rolled versions of this
- *  question — the inspector's picker, a calendar's cell math, a window's resize
- *  zones — is how the desktop's corner bug happened.) */
+/** The topmost visible view whose box contains the point — THE hit walk
+ *  (hit-walk.ts), read over the views. Exported because it is also the
+ *  language's own hit test (View.viewAt / View.containsPoint, view.ts): what an
+ *  app computes about "what is under this point" and what the runtime computes
+ *  for `hovered` must be the same answer, from the same code. */
 export declare function leafAt(v: InteractionView, lx: number, ly: number, pierce?: boolean, trace?: HitNote[]): InteractionView | null;
 export declare function noteUserScroll(scroller: object, active: boolean): void;
 /** The view under a point in the root's FRAME space (viewport coordinates for

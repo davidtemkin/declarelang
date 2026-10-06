@@ -59,8 +59,8 @@ no image loader, so `loaded` honestly stays false. A failure is `failed`'s fact,
 this one's absence.
 
 ## failed
-The **current** source's load failed — the broken-avatar fact, for deriving a fallback:
-`initials: Text [ visible = { pic.failed }, … ]`. **Read-only.** Reset whenever a new
+The **current** source's load failed — the broken-thumbnail fact, for deriving a fallback:
+`placeholder: Text [ visible = { pic.failed }, text = "No image" ]`. **Read-only.** Reset whenever a new
 load starts (a `source` change), so it always speaks about the present address; a
 failure keeps whatever bitmap was already showing (`loaded` stays true if one had
 landed). There is no error *message* — the platform's image loader does not say why —

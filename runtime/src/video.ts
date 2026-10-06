@@ -24,7 +24,7 @@ export class Video extends Media {
   /** The frame's natural size — what contentExtent folds into an auto-extent. */
   private natural = { width: 0, height: 0 };
 
-  protected override contentExtent(size: "width" | "height"): number {
+  protected override $contentExtent(size: "width" | "height"): number {
     return this.loaded ? this.natural[size] : 0;
   }
 
@@ -33,7 +33,7 @@ export class Video extends Media {
     s.setImageStretch(this.stretches);
   }
 
-  protected override makeElement(): HTMLMediaElement {
+  protected override $makeElement(): HTMLMediaElement {
     const el = document.createElement("video");
     // inline, not the platform's fullscreen takeover: a Declare view owns its
     // own box, and iOS otherwise hijacks playback into its own player
@@ -41,7 +41,7 @@ export class Video extends Media {
     return el;
   }
 
-  protected override metadataArrived(el: HTMLMediaElement): void {
+  protected override $metadataArrived(el: HTMLMediaElement): void {
     const v = el as HTMLVideoElement;
     this.natural = { width: v.videoWidth, height: v.videoHeight };
     if (!isSet(this, "width") && ownerOf(this, "width") === null) {
@@ -53,7 +53,7 @@ export class Video extends Media {
     this.$surface?.setImage(v);
   }
 
-  protected override sourceCleared(): void {
+  protected override $sourceCleared(): void {
     this.$surface?.setImage(null);
   }
 }

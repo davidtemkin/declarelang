@@ -116,7 +116,7 @@ export class State extends Node {
      *  view (appendChildren, pass one) — before any gate fires in pass two and
      *  before sibling states insert children, so the index is pure source order
      *  (states.md §3: later-declared wins). */
-    onLinked() {
+    $onLinked() {
         const parent = this.parent;
         if (parent !== null)
             this.priority = parent.children.indexOf(this);
@@ -135,29 +135,29 @@ export class State extends Node {
         Object.defineProperty(target, name, {
             configurable: true,
             enumerable: false,
-            get: () => { target.watchChildList(); return this.$named.get(name); },
+            get: () => { target.$watchChildList(); return this.$named.get(name); },
         });
     }
     $named = new Map();
     /** Apply the initial value once the tree is linked (initTree). A gated state
      *  has usually already synced from its gate's first run in pass two — this is
      *  idempotent — but a literal `applied = true` (no gate) applies here. */
-    init() {
-        this.sync(this.applied);
+    $init() {
+        this.$sync(this.applied);
     }
     apply() {
-        this.drive(true);
+        this.$drive(true);
     }
     remove() {
-        this.drive(false);
+        this.$drive(false);
     }
     toggle() {
-        this.drive(!this.applied);
+        this.$drive(!this.applied);
     }
     /** The verbs' one write path: reject when a declarative gate owns `applied`
      *  (states.md §2 — gate XOR verbs), else drive through setBound (→ push →
      *  sync), the sanctioned path, not a raw assignment. */
-    drive(v) {
+    $drive(v) {
         if (ownerOf(this, "applied") !== null) {
             throw new DeclareError(`${this.constructor.name}.applied is bound by a constraint — a state is gated by { } OR driven by the verbs, not both; change what the gate reads instead of calling ${v ? "apply" : "remove"}()`);
         }
@@ -165,7 +165,7 @@ export class State extends Node {
     }
     /** Install or remove this state's effects. Idempotent, and a no-op until the
      *  enclosing view is linked (the initial sync runs from init()). */
-    sync(v) {
+    $sync(v) {
         const target = this.parent;
         // a gate's last value can land after its view was discarded: a retired
         // state builds nothing into a dead tree
@@ -177,12 +177,12 @@ export class State extends Node {
         if (v) {
             for (const o of this.overrides)
                 pushOverride(target, o.slot, this.priority, o.make);
-            this.buildChildren(target);
-            this.fire("onApply");
+            this.$buildChildren(target);
+            this.$fire("onApply");
         }
         else {
-            this.fire("onRemove");
-            this.teardownChildren();
+            this.$fire("onRemove");
+            this.$teardownChildren();
             for (const o of this.overrides)
                 popOverride(target, o.slot, this.priority);
         }
@@ -190,7 +190,7 @@ export class State extends Node {
     /** Instantiate the conditional subtree into the target at the state's slot
      *  (just after the state node), attach live surfaces, fire init — the same
      *  construct/finish path replicate.ts runs per record. */
-    buildChildren(target) {
+    $buildChildren(target) {
         if (this.materialize === null || this.childTemplates.length === 0)
             return;
         let index = target.children.indexOf(this) + 1;
@@ -220,12 +220,12 @@ export class State extends Node {
         // The arrival notify (same as createView/the replicator): a state's
         // built children re-pack the target's arrangement and can make a
         // never-sized empty target newly derivable.
-        target.childrenMutated();
+        target.$childrenMutated();
     }
     /** Retire the subtree: discard each built view — the verb unlinks and
      *  notifies the target itself — and its name reads as absent again.
      *  Per-child notify is fine at State scale (a conditional subtree, not a burst). */
-    teardownChildren() {
+    $teardownChildren() {
         for (const v of this.builtChildren)
             v.discard();
         this.$named.clear();
@@ -237,15 +237,15 @@ export class State extends Node {
      *  view alive. The state's EFFECTS (override constraints owned by the target,
      *  built children spliced into the target) are torn down by the target view's
      *  own discard, so there is nothing else to undo here. */
-    teardown() {
+    $teardown() {
         this.retired = true;
         disposeBindings(this);
-        super.teardown();
+        super.$teardown();
     }
     retired = false;
     /** Fire a carried handler if installed (onApply / onRemove) — a plain Node
      *  dispatch, like the Animator's on* firing. */
-    fire(handler) {
+    $fire(handler) {
         const h = this[handler];
         if (typeof h === "function")
             h.call(this);
@@ -264,6 +264,6 @@ function surfaceAfter(target, v) {
     return null;
 }
 defineAttributes(State, {
-    applied: { def: false, push: (self, v) => self.sync(v) },
+    applied: { def: false, push: (self, v) => self.$sync(v) },
 });
 //# sourceMappingURL=state.js.map

@@ -18,8 +18,9 @@ export interface ProgramBuild {
      *  include, every auto-included library file, plus the frozen build props —
      *  THE freshness fact a cache checks (isUpToDate) to decide whether this
      *  build is still current. Present even on failure (a failed compile's
-     *  closure says what to watch to retry). */
-    closure: Closure;
+     *  closure says what to watch to retry). Absent when the compile was not
+     *  tracked. */
+    closure?: Closure;
     /** The built-in class NAMES this app can instantiate — the used-set a
      *  production build keeps (∩ the runtime registry), dropping every other
      *  class module (rich-text, etc.). Empty when the source did not compile. */
@@ -55,8 +56,9 @@ export declare function stripPos<T>(node: T): T;
  *  on either host); on any error `program` is null and `errors` carries every
  *  diagnostic (nothing is emitted). */
 export declare function programFromCompiled(c: Compiled & {
-    closure: Closure;
+    closure?: Closure;
 }, opts?: {
     stripPos?: boolean;
     facts?: boolean;
+    links?: boolean;
 }): Promise<ProgramBuild>;

@@ -1,9 +1,11 @@
 import type { Program } from "./parser.js";
-/** A `{ }` code value, with the compiler's extracted deps optionally attached. */
+/** A `{ }` code value, with the compiler's extracted deps (and kernel bytecode)
+ *  optionally attached. */
 type WithDeps = {
     kind: "code";
     src: string;
     deps?: readonly string[];
+    expr?: string;
 };
 /** Every `{ }` code value in a program, in a FIXED order: the root subtree then
  *  each class body; within an element, attributes, then computed decl defaults,

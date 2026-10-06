@@ -1,7 +1,7 @@
 // CompileService — the compiler, on its own thread, behind a cache.
 //
 // WHY THIS IS EASY, WHEN SPLITTING THE RUNTIME IS NOT. The compiler is a PURE
-// FUNCTION: source string → compiled string, plus the list of files it read. It
+// FUNCTION: source string → program (as JSON), plus the list of files it read. It
 // touches no AppKit, no layer tree, no surface ids, none of the runtime's
 // module-level state. So it needs none of the ~24 marshalling points a real
 // runtime split would — a second JSContext on a second JSVirtualMachine, its
@@ -51,10 +51,8 @@ final class CompileService {
 
     struct Result {
         let ok: Bool
-        /// Compiled program JS (empty when `ok` is false).
-        let source: String
-        /// The compiler's extracted deps, verbatim JSON, for `build(src, {deps})`.
-        let depsJSON: String
+        /// The compiled program as JSON, for `buildProgram` (empty when `ok` is false).
+        let program: String
         /// The rendered compiler report — the whole diagnosis, when it failed.
         let report: String
         /// Where it came from, for the boot log: "cache" or "compile".
@@ -76,7 +74,7 @@ final class CompileService {
             guard let self else { return }
             let t0 = CFAbsoluteTimeGetCurrent()
             if let hit = self.cacheLookup(url: url, source: source, distro: distro) {
-                let r = Result(ok: true, source: hit.source, depsJSON: hit.deps, report: "",
+                let r = Result(ok: true, program: hit, report: "",
                                origin: "cache", ms: (CFAbsoluteTimeGetCurrent() - t0) * 1000)
                 completion(r)                       // on this queue; the caller hops where it lives
                 return
@@ -91,13 +89,13 @@ final class CompileService {
     private func runCompile(url: String, source: String, originDir: String, distro: String,
                             since t0: CFAbsoluteTime) -> Result {
         guard let c = context(for: distro) else {
-            return Result(ok: false, source: "", depsJSON: "{}",
+            return Result(ok: false, program: "",
                           report: "the compiler could not be loaded from \(distro.isEmpty ? "(no distro)" : distro)",
                           origin: "compile", ms: (CFAbsoluteTimeGetCurrent() - t0) * 1000)
         }
         c.evaluateScript("globalThis.__workerResult = null")
         guard let go = c.objectForKeyedSubscript("__workerCompile"), !go.isUndefined else {
-            return Result(ok: false, source: "", depsJSON: "{}", report: "worker: __workerCompile missing",
+            return Result(ok: false, program: "", report: "worker: __workerCompile missing",
                           origin: "compile", ms: (CFAbsoluteTimeGetCurrent() - t0) * 1000)
         }
         go.call(withArguments: [source, originDir])
@@ -117,18 +115,17 @@ final class CompileService {
         let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
         guard let json = raw?.toString(), json != "null", let data = json.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return Result(ok: false, source: "", depsJSON: "{}", report: "worker: the compile never answered",
+            return Result(ok: false, program: "", report: "worker: the compile never answered",
                           origin: "compile", ms: ms)
         }
         let ok = obj["ok"] as? Bool ?? false
-        let out = obj["source"] as? String ?? ""
-        let depsJSON = obj["deps"] as? String ?? "{}"
+        let program = obj["program"] as? String ?? ""
         let report = obj["report"] as? String ?? ""
-        if ok, !out.isEmpty {
-            cacheStore(url: url, source: source, distro: distro, compiled: out, deps: depsJSON,
+        if ok, !program.isEmpty {
+            cacheStore(url: url, source: source, distro: distro, program: program,
                        closure: obj["closure"] as? [String] ?? [])
         }
-        return Result(ok: ok, source: out, depsJSON: depsJSON, report: report, origin: "compile", ms: ms)
+        return Result(ok: ok, program: program, report: report, origin: "compile", ms: ms)
     }
 
     // ── the cache ───────────────────────────────────────────────────────────
@@ -157,8 +154,7 @@ final class CompileService {
         var toolchain: String
         var mainHash: String
         var deps: [Dep]
-        var source: String
-        var depsJSON: String
+        var program: String
         struct Dep: Codable { var url: String; var hash: String }
     }
 
@@ -175,22 +171,22 @@ final class CompileService {
         dir.appendingPathComponent(Bridge.hash(url) + ".json")
     }
 
-    private func cacheLookup(url: String, source: String, distro: String) -> (source: String, deps: String)? {
+    private func cacheLookup(url: String, source: String, distro: String) -> String? {
         // No url = an unsaved buffer (the live-edit channel). It has no identity
         // to cache against and would miss on every keystroke anyway.
         guard !url.isEmpty else { return nil }
         guard let data = try? Data(contentsOf: cacheFile(url)),
-              let e = try? JSONDecoder().decode(Entry.self, from: data), e.v == 1 else { return nil }
+              let e = try? JSONDecoder().decode(Entry.self, from: data), e.v == 2 else { return nil }
         guard e.toolchain == toolchain(distro) else { return nil }
         guard e.mainHash == Bridge.hash(source) else { return nil }
         for d in e.deps {
             guard let text = readSync(d.url), Bridge.hash(text) == d.hash else { return nil }
         }
-        return (e.source, e.depsJSON)
+        return e.program
     }
 
     private func cacheStore(url: String, source: String, distro: String,
-                            compiled: String, deps: String, closure: [String]) {
+                            program: String, closure: [String]) {
         guard !url.isEmpty else { return }              // an unsaved buffer: nothing to key on
         // The closure's ids are canonical: deploy-relative for anything inside a
         // distro, absolute for a program opened from disk (compile-browser's
@@ -201,8 +197,8 @@ final class CompileService {
             guard let abs = resolve(id, against: distro), let text = readSync(abs) else { continue }
             entries.append(Entry.Dep(url: abs, hash: Bridge.hash(text)))
         }
-        let e = Entry(v: 1, toolchain: toolchain(distro), mainHash: Bridge.hash(source),
-                      deps: entries, source: compiled, depsJSON: deps)
+        let e = Entry(v: 2, toolchain: toolchain(distro), mainHash: Bridge.hash(source),
+                      deps: entries, program: program)
         if let data = try? JSONEncoder().encode(e) {
             try? data.write(to: cacheFile(url), options: .atomic)
         }
@@ -375,8 +371,8 @@ final class CompileService {
     })(globalThis);
     """
 
-    /// The one entry point Swift calls. `compileTracked`, not `compile`, because
-    /// the dependency closure it returns IS the cache's validation set — the
+    /// The one entry point Swift calls. The program compile carries the
+    /// dependency closure, and that closure IS the cache's validation set — the
     /// files the walk actually read, rather than a guess made from the text.
     /// `trackLibrary: false` leaves library classes out of that set on
     /// purpose: they are covered wholesale by the toolchain id, so tracking them
@@ -387,20 +383,19 @@ final class CompileService {
       globalThis.__workerResult = null;
       var finish = function (o) { globalThis.__workerResult = JSON.stringify(o); };
       try {
-        globalThis.__declareCompiler.compileTracked(source, { originDir: originDir, trackLibrary: false })
+        globalThis.__declareCompiler.compileProgram(source, { originDir: originDir, trackLibrary: false, stripPos: false })
           .then(function (out) {
             finish({
-              ok: !!out.source, source: out.source || "",
-              deps: JSON.stringify(out.deps || {}),
+              ok: !!out.program, program: out.program ? JSON.stringify(out.program) : "",
               report: out.report == null ? "" : String(out.report),
               closure: (out.closure && out.closure.entries ? out.closure.entries : []).map(function (e) { return e.id; })
             });
           })
           .catch(function (e) {
-            finish({ ok: false, source: "", deps: "{}", report: String((e && e.message) || e), closure: [] });
+            finish({ ok: false, program: "", report: String((e && e.message) || e), closure: [] });
           });
       } catch (e) {
-        finish({ ok: false, source: "", deps: "{}", report: String((e && e.message) || e), closure: [] });
+        finish({ ok: false, program: "", report: String((e && e.message) || e), closure: [] });
       }
       return 1;
     };

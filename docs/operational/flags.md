@@ -19,8 +19,7 @@ Every name is lowercase, and the same name works everywhere: `?render=canvas` on
 
 ## Not flags (though they once looked like it)
 
-- **typecheck** — a mandatory phase of the one compile, always on. There is no runtime opt-out
-  on any hosted surface. (`verify --no-typecheck` skips rung 3 for a local check only.)
+- **typecheck** — a phase of every compile, always on, with no opt-out.
 - **slim / stripPos** — these are simply what a build *is*: always slimmed, always
   position-stripped. `declarec --debug` keeps both for debugging a build.
 - **build** — a *request type*, not a modifier: `?build` (see [dev-server](declare-docs:operational:dev-server)).

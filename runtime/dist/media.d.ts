@@ -50,27 +50,27 @@ export declare abstract class Media extends View {
     protected el: HTMLMediaElement | null;
     /** The leaf makes its own element — `<video>` or `<audio>` — and sets any
      *  leaf-only element facts (Video's `playsInline`) before the shared wiring. */
-    protected abstract makeElement(): HTMLMediaElement;
+    protected abstract $makeElement(): HTMLMediaElement;
     /** The metadata landed. The leaf takes what is its own — Video adopts the
      *  natural size and hands the element to the surface as its picture. */
-    protected metadataArrived(_el: HTMLMediaElement): void;
+    protected $metadataArrived(_el: HTMLMediaElement): void;
     /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
-    protected sourceCleared(): void;
+    protected $sourceCleared(): void;
     $attach(backend: RenderBackend, parentSurface: Surface | null): void;
-    teardown(): void;
+    $teardown(): void;
     /** Let go of the current element. An `<audio>` never enters the document,
      *  so nothing else would ever stop it: a re-pointed clip would play over its
      *  successor, and a discarded one on after its view is gone. */
     private $release;
     /** (Re)load `source` — at attach, and from the `source` pusher. */
-    load(): void;
+    $load(): void;
     /** Author (or constraint) asked to play or pause. `play()` can be REFUSED —
      *  autoplay policy, a source that never loaded — and it answers with a
      *  rejected promise. When it is refused the slot goes back to false, because
      *  a `playing` that reads true over silence (or a still picture) is a lie. */
-    syncPlaying(): void;
+    $syncPlaying(): void;
     /** Author asked to seek. Guarded by a quarter-second so the runtime's own
      *  `timeupdate` writes — which land in this same slot — cannot bounce back
      *  out as seeks and stutter the playhead. */
-    seek(): void;
+    $seek(): void;
 }

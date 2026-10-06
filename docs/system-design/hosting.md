@@ -333,9 +333,8 @@ The former knobs `slim`, `stripPos`, `prod`, and `typecheck` are **not** modifie
 (docs/system-design/requests.md §"Removed knobs"): a `build` always slims and strips positions (the
 escape hatch is `declarec --debug`, which keeps the full registry and source positions);
 `prod` became the `build` request (§Request types); and typecheck is a mandatory phase
-of the one compile — always on, no URL/CLI flag. The compiler's *internal* options still
-carry `stripPos`/`typecheck` (the `build` act sets them, and tooling can still pass
-`{ typecheck: false }` in a JS `compile()` call); only the externally-named FLAG surface
+of every compile — always on, with no flag or option. The compiler's internal options
+still carry `stripPos` (the `build` act sets it); only the externally-named FLAG surface
 is the three modifiers.
 
 ## Request types

@@ -31,5 +31,5 @@ export declare class Time extends Node {
     /** Construction-complete (instantiate.ts initTree fires this, as for every
      *  source and animator): the facts stand from the first settle, the page's
      *  visibility is watched, and the tick arms if anything wants it. */
-    autoStart(): void;
+    $autoStart(): void;
 }

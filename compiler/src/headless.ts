@@ -9,7 +9,8 @@
 // Browser-safe by construction (the runtime graph is zero-dep), so the browser
 // compiler can do everything the Node one can — the parity principle.
 
-import { build, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams, type BuildOptions } from "../../runtime/dist/index.js";
+import { build, buildProgram, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams, type BuildOptions } from "../../runtime/dist/index.js";
+import type { Program } from "../../runtime/dist/parser.js";
 
 /** The explicit environment vector (capabilities.md §3). The defaults are ONE
  *  canonical constant on every host — a nominal desktop viewport, light scheme
@@ -73,17 +74,29 @@ export function approximateMeasurer(): CanvasRenderingContext2D {
   return stub as unknown as CanvasRenderingContext2D;
 }
 
-export interface HeadlessOptions extends BuildOptions {
+export interface HeadlessOptions {
   env?: Environment;
+  /** The values a host provides the app from its first evaluation. */
+  provides?: Readonly<Record<string, unknown>>;
 }
 
-/** Build and settle a program headlessly; returns the settled App. The input
- *  is a compile()'s output source (scope-resolved, one self-contained file)
- *  with its extracted `deps` — or any source whose bodies use explicit paths.
- *  Callers walk the tree, then `app.discard()`. */
-export function settleHeadless(source: string, opts: HeadlessOptions = {}): App {
-  const env = { ...DEFAULT_ENV, ...opts.env };
-  if (opts.env?.measurer !== undefined) provideMeasurer(opts.env.measurer);
+/** Build and settle a compiled program headlessly; returns the settled App.
+ *  Instantiating leaves the program untouched, so one program settles any
+ *  number of times. Callers walk the tree, then `app.discard()`. */
+export function settleHeadless(program: Program, opts: HeadlessOptions = {}): App {
+  return settleWith(() => buildProgram(program, { provides: opts.provides }), opts.env);
+}
+
+/** The same, through the runtime's `build(source)`: parse, check, instantiate a
+ *  compile()'s output source with its `deps`. For tests of that entry point. */
+export function settleSource(source: string, opts: BuildOptions & { env?: Environment } = {}): App {
+  const { env, ...buildOpts } = opts;
+  return settleWith(() => build(source, buildOpts), env);
+}
+
+function settleWith(make: () => App, envOpt: Environment | undefined): App {
+  const env = { ...DEFAULT_ENV, ...envOpt };
+  if (envOpt?.measurer !== undefined) provideMeasurer(envOpt.measurer);
   else if (typeof document === "undefined") provideMeasurer(approximateMeasurer());
   // Network is "fixtures, or honestly absent" (capabilities.md §3) — ENFORCED,
   // not hoped: a refusing transport is installed for the settle window, so an
@@ -102,7 +115,7 @@ export function settleHeadless(source: string, opts: HeadlessOptions = {}): App 
   };
   const prevStreams = provideStreams({ eventSource: refuse, socket: refuse });
   try {
-    const app = build(source, opts);
+    const app = make();
     app.$attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;

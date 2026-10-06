@@ -56,7 +56,7 @@ export class Animator extends Node {
     autoStarted = false;
     /** Marked by an enclosing AnimatorGroup at construct: the group drives the
      *  clock and cascades attributes, so this animator is group-controlled. */
-    markGrouped() {
+    $markGrouped() {
         this.grouped = true;
     }
     /** The node whose slot this animator drives: its parent, but for a grouped
@@ -65,7 +65,7 @@ export class Animator extends Node {
      *  that is not itself an animator/group. For an ungrouped animator this is
      *  just its parent (a View). Matches the checker's target context, which
      *  threads the group's PARENT schema through to its members. */
-    resolveTarget() {
+    $resolveTarget() {
         let t = this.parent;
         while (t !== null && (t instanceof Animator || t instanceof AnimatorGroup))
             t = t.parent;
@@ -75,7 +75,7 @@ export class Animator extends Node {
      *  after the tree is linked and every binding has evaluated, so `from`
      *  samples a settled target value). A grouped animator is never reached here
      *  (its group is the init-time child, and it drives its members). */
-    autoStart() {
+    $autoStart() {
         if (this.autoStarted || this.grouped)
             return; // a group drives its members
         this.autoStarted = true;
@@ -92,7 +92,7 @@ export class Animator extends Node {
      *  `from` unsettled — so pre-init writes belong to autoStart(), which reads
      *  the settled value once at the init hook. A grouped member is driven by
      *  its group (its own `started` is ignored; see AnimatorGroup). */
-    startedChanged(v) {
+    $startedChanged(v) {
         if (!this.autoStarted || this.grouped)
             return;
         if (v)
@@ -101,12 +101,12 @@ export class Animator extends Node {
             this.stop();
     }
     /** `paused` is clock membership (TweenRun.paused says how). */
-    pausedChanged(v) {
+    $pausedChanged(v) {
         this.run?.paused(v);
     }
     /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own
      *  pause calls this down its members (TweenRun.reanchor). */
-    reanchor(now) {
+    $reanchor(now) {
         this.run?.reanchor(now);
     }
     /** Begin driving the target slot through the curve (LZX's doStart) — the
@@ -123,19 +123,19 @@ export class Animator extends Node {
      *  Without this a discarded Spring's `to` binding stays subscribed to what
      *  it read — the leak — and the spring keeps ticking. Bindings first, so a
      *  stop() that fires onStop cannot re-target through a live binding. */
-    teardown() {
+    $teardown() {
         disposeBindings(this);
         this.stop();
-        super.teardown();
+        super.$teardown();
     }
     /** Shift the anchor across a scheduler handover (Ticker.rebase). */
-    rebase(delta) {
+    $rebase(delta) {
         this.run?.rebase(delta);
     }
     /** One clock frame (the Ticker contract; TweenRun.tick). Returns whether
      *  still running — false drops it from the clock, and a group reads it to
      *  retire a finished member. */
-    tick(now, frozen = false) {
+    $tick(now, frozen = false) {
         return this.run !== null && this.run.tick(now, frozen);
     }
     /** Fire a carried handler if one is installed (onStart / onStop / onRepeat).
@@ -143,7 +143,7 @@ export class Animator extends Node {
      *  animator is a Node; an absent handler is a silent no-op. The timed run
      *  (tween.ts) and a Spring's own tick (spring.ts's rest branch) both
      *  announce through it. */
-    fire(handler) {
+    $fire(handler) {
         const h = this[handler];
         if (typeof h === "function")
             h.call(this);
@@ -157,8 +157,8 @@ defineAttributes(Animator, {
     duration: { def: 1000 },
     motion: { def: DEFAULT_MOTION },
     repeat: { def: 1 },
-    started: { def: false, push: (s, v) => s.startedChanged(v) },
-    paused: { def: false, push: (s, v) => s.pausedChanged(v) },
+    started: { def: false, push: (s, v) => s.$startedChanged(v) },
+    paused: { def: false, push: (s, v) => s.$pausedChanged(v) },
     running: { def: false },
     arrived: { def: false },
 });

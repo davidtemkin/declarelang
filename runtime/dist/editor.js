@@ -82,7 +82,7 @@ function declaredFloor(view, s) {
         return null;
     const rel = s.path();
     const segs = typeof rel === "string" ? splitPath(rel) : rel;
-    const at = cursor.data.declaredField([...cursor.path, ...segs]);
+    const at = cursor.data.$declaredField([...cursor.path, ...segs]);
     return at === null || at.f.fields !== undefined ? null : at.f;
 }
 /** Read a draft AS the declared type. A text editor's draft is a string; a
@@ -194,11 +194,11 @@ export class Editor extends View {
     /** @api Commit the current draft into the bound dataset field, if it
      *  validates — for a `commitOn = "manual"` field or a Save button. */
     commit() {
-        commitDraft(this, this.draftSlot());
+        commitDraft(this, this.$draftSlot());
     }
     /** @api Discard edits — reset the field to the committed dataset value. */
     revert() {
-        revertDraft(this, this.draftSlot());
+        revertDraft(this, this.$draftSlot());
     }
 }
 defineAttributes(Editor, {

@@ -50,6 +50,19 @@ export class KeysService {
     navClaimed() {
         return this.navClaims.size > 0;
     }
+    /** Was a claim live when the key now being dispatched arrived? Read once,
+     *  before any handler runs: the handler that acts on the key (a menu's
+     *  Enter picks and closes it) may release the claim mid-dispatch, and the
+     *  rest of the same keypress must still see who owned it. */
+    claimedAtDispatch = false;
+    /** Does an overlay own this key? While an overlay claims the navigation
+     *  keys — an open menu — the arrows, Enter, Space, Escape and the jump keys
+     *  are the overlay's: the focused view beneath does not also receive them
+     *  (its Enter would re-press the button that opened the menu; its arrows
+     *  would move a list's selection under an open context menu). */
+    overlayOwns(e) {
+        return this.claimedAtDispatch && OVERLAY_KEYS.has(e.key);
+    }
     /** Subscribe to nav-claim TRANSITIONS (true = an overlay took the keys,
      *  false = the last claim released). Returns the unsubscribe thunk. */
     onNavClaim(fn) {
@@ -95,6 +108,7 @@ export class KeysService {
      *  whose keys are now all held. */
     keyDown(e) {
         this.heldKeys.add(e.code);
+        this.claimedAtDispatch = this.navClaimed();
         for (const h of [...this.downHandlers])
             h(e);
         for (const c of this.chords) {
@@ -107,6 +121,7 @@ export class KeysService {
     /** A key went up: drop it, fire the up stream, then re-arm any chord it broke. */
     keyUp(e) {
         this.heldKeys.delete(e.code);
+        this.claimedAtDispatch = this.navClaimed();
         for (const h of [...this.upHandlers])
             h(e);
         for (const c of this.chords) {
@@ -196,6 +211,8 @@ export class KeysService {
         target.addEventListener("blur", onBlur);
     }
 }
+/** The keys an overlay holding a navigation claim owns outright. */
+const OVERLAY_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter", " ", "Escape", "Home", "End", "PageUp", "PageDown"]);
 /** A DOM KeyboardEvent → the normalized KeyEvent the core consumes. */
 export function normalize(ev) {
     return {

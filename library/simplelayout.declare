@@ -6,9 +6,10 @@ The stacking idiom: siblings placed one after another along
 and all sizes stay the children's own — a child centers itself across a row
 with the ordinary `y = center`. Invisible children are skipped and their
 space reclaimed; a skipped child still gets the place it would occupy, so
-re-showing it needs no special case. A `Spacer` child flexes to absorb the
-run's slack along the axis (between two groups it pushes them apart; one on
-each side centers the run).
+re-showing it needs no special case. A child with `flexes = true` takes an
+equal share of the run's slack along the axis: a list that fills the room
+between a header and a footer, or an empty `Spacer` (between two groups it
+pushes them apart; one on each side centers the run).
 
 Written in Declare over the Layout kernel: the whole strategy is this one
 pure place() — one box per laid child, aligned by index.
@@ -52,8 +53,8 @@ child wider than the band keeps the line, so it never hangs out both sides.
 baseline: a `Text` reports its own, and a composite **declares** which part carries it
 (`baseline: number = { cap.y + cap.baseline }`); a laid child that declares none is
 refused by name, at the child, and the checker says so before anything runs. A
-`Spacer` is never aligned — it takes no part in the cross axis at all. A bare
-literal.
+flexing child is aligned like any other (a `Spacer` declares a baseline of 0, so a
+baseline row takes it as it is). A bare literal.
 
 ## place()
 The whole strategy: one box per laid child, positioned along the axis in child order.
@@ -72,10 +73,10 @@ class SimpleLayout extends Layout [
         const axis = this.axis
         const size = axis == "x" ? "width" : "height"
         const kids = this.laid()
-        const flexing = (c) => (c as any).flexes === true
-        // a Spacer (anything carrying the `flexes` marker) is a flow-axis thing:
-        // it takes no part in the cross axis — neither sizes the line nor is aligned
-        const spacer = (c) => typeof (c as any).flexes == "boolean"
+        // a flexing child's flow-axis size is this run's to write, so its box is
+        // never read as a footprint (that reads both sizes): across the flow it
+        // is its own raw extent, untransformed, and it aligns like any child
+        const flexing = (c) => c.flexes === true
 
         // slack, only when someone flexes: the view's extent along the axis
         // minus the rigid content and the gaps between visible children.
@@ -108,13 +109,18 @@ class SimpleLayout extends Layout [
         const al = this.align
         const cross = axis == "x" ? "y" : "x"
         const crossSize = axis == "x" ? "height" : "width"
+        const crossOf = (c) => {
+            if (flexing(c)) return ({ lead: 0, extent: (c as any)[crossSize] })
+            const fc = (c as any).footprint()
+            return ({ lead: axis == "x" ? fc.y : fc.x, extent: fc[crossSize] })
+            }
         let line = 0
         let lineBase = 0
         if (al != "none") {
             if (al == "baseline" && axis != "x") this.refuseStackBaseline()
             for (const c of kids) {
-                if (!c.visible || spacer(c)) continue
-                line = Math.max(line, (c as any).footprint()[crossSize])
+                if (!c.visible) continue
+                line = Math.max(line, crossOf(c).extent)
                 const b = (c as any).baseline
                 if (al == "baseline" && typeof b == "number") lineBase = Math.max(lineBase, b)
             }
@@ -133,16 +139,16 @@ class SimpleLayout extends Layout [
             const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)
             const box = (axis == "x" ? ({ x: pos - lead }) : ({ y: pos - lead })) as any
             if (flex) box[axis == "x" ? "w" : "h"] = each
-            if (al != "none" && !spacer(c)) {
+            if (al != "none") {
                 // start = the line's origin; center/end offset the child's
-                // footprint within the line; baseline sits the child's declared
+                // extent within the line; baseline sits the child's declared
                 // baseline on the line's — a child with none is refused, once,
                 // and placed at start (the arrangement never breaks)
-                const fc = f == null ? (c as any).footprint() : f
-                const leadC = axis == "x" ? fc.y : fc.x
+                const co = crossOf(c)
+                const leadC = co.lead
                 let off = 0
-                if (al == "center") off = (line - fc[crossSize]) / 2
-                else if (al == "end") off = line - fc[crossSize]
+                if (al == "center") off = (line - co.extent) / 2
+                else if (al == "end") off = line - co.extent
                 else if (al == "baseline" && axis == "x") {
                     const b = (c as any).baseline
                     if (typeof b == "number") off = lineBase - b

@@ -113,7 +113,7 @@ const SCENARIOS = [
     app: "apps/desktop/",
     steps: [
       { open: "Files" },                       // one Files window
-      { doubleClick: "Background" },           // opens a second, rooted there
+      { doubleClick: "Vocabulary" },           // opens a second, rooted there
     ],
     // A REAL FUNCTION, never a template string: page.evaluate treats a string as
     // an EXPRESSION, so a stringified probe returns the function itself, which
@@ -135,7 +135,7 @@ const SCENARIOS = [
     app: "apps/desktop/",
     steps: [
       { open: "Files" },
-      { doubleClick: "Background" },
+      { doubleClick: "Vocabulary" },
       { click: "Operational" },
     ],
     probe: () => {

@@ -1,4 +1,4 @@
-Server-Sent Events (`text/event-stream`) as a source — the streaming-AI shape: the server
+Server-Sent Events (`text/event-stream`) as a source: the server
 pushes, the app receives, an `onMessage` that concatenates is the whole consumer. See
 `Stream` for the shared surface (`url`/`active`/`retry`, the read-only
 `status`/`open`/`error`/`last`). Receive-only — there is no `send`; a request that needs a
@@ -11,21 +11,20 @@ platform giving up.
 A declared stream **holds a live connection** for as long as it is `active` and its node
 lives — every open tab is one held server connection (browsers cap ~6 per host over
 HTTP/1.1, so a dev server's tabs can exhaust the pool). The lifecycle is the declaration:
-`active = { app.chatId != "" }` releases the connection the moment the condition goes
+`active = { app.jobId != "" }` releases the connection the moment the condition goes
 false, and a discarded node closes its own — there is nothing to unsubscribe.
 
 ```declare-fragment
-answer: string = "",
-reply: EventStream [ url = { `/api/chat?id=${app.chatId}` },
-    active = { app.chatId != "" },
-    onMessage(e: StreamMessage) { app.answer = app.answer + e.data },
+output: string = "",
+progress: EventStream [ url = { `/api/jobs/${app.jobId}/events` },
+    active = { app.jobId != "" },
+    onMessage(e: StreamMessage) { app.output = app.output + e.data },
     ]
 ```
 
 ## listenTo
-The **named** SSE event types to deliver — `listenTo = ["content_block_delta",
-"message_stop"]`. Required for any stream that labels messages with `event:` lines
-(Anthropic-style AI streams do): the platform's `EventSource` physically cannot deliver a
+The **named** SSE event types to deliver — `listenTo = ["progress",
+"done"]`. Required for any stream that labels messages with `event:` lines: the platform's `EventSource` physically cannot deliver a
 named event it was not asked to listen for, so an undeclared name is silently invisible —
 if `onMessage` sees nothing but the connection is `open`, this is the first thing to
 check. The name carries the contract: you hear what you listen to. Unnamed (default)

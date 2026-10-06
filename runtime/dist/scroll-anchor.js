@@ -1,7 +1,7 @@
 // scroll-anchor — a scroller keeps the reader's place (`scrollAnchor`).
 //
-// Content changes size while people read it: a photograph takes its real height,
-// a message gains reactions, history loads in above. Before anything changes, a
+// Content changes size while people read it: an image takes its real height,
+// an entry grows, earlier rows load in above. Before anything changes, a
 // scroller notes the view at the top edge of its visible area and how far below
 // that edge it starts; when that view moves, the scroller moves its own offset by
 // the same amount, inside the settle that moved it — before anything is drawn —
@@ -17,8 +17,8 @@
 //   - a virtualized block keeps its own place (replicate.ts' anchor, which also
 //     absorbs its rows' estimate corrections), so its rows are not anchored here.
 //
-// `scrollAnchor = end` is for a pane read from the bottom — a conversation, a
-// log: at the end, it stays at the end as content grows or shrinks; away from
+// `scrollAnchor = end` is for a pane read from the bottom — a terminal, a
+// build's output: at the end, it stays at the end as content grows or shrinks; away from
 // the end it keeps the reader's place as `content` does, and the top is just
 // history there (no start exception). A pane opens at its end, and a request to
 // go to the end (`scrollTo(Infinity)`) counts as being there while it travels.
@@ -39,7 +39,7 @@ function topIn(v, scroller) {
     let y = 0;
     let n = v;
     while (n !== null && n !== scroller) {
-        y += n.y + n.positionLead("y");
+        y += n.y + n.$positionLead("y");
         const p = n.parent;
         n = p instanceof View ? p : null;
     }
@@ -66,7 +66,7 @@ function pick(scroller, edge) {
                 continue;
             if (c === draggingView())
                 continue; // the dragged view moves under the hand, never the anchor
-            const top = base + c.y + c.positionLead("y");
+            const top = base + c.y + c.$positionLead("y");
             const bottom = top + c.height;
             if (bottom <= edge)
                 continue; // wholly above the edge

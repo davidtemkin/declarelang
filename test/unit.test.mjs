@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHeadless } from "../compiler/dist/compile-node.js";
+import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleSource } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
 import { wrapLines, wrapEditable, provideMeasurer } from "../runtime/dist/measure.js";
 import { stroke, outline } from "../runtime/dist/value.js";
@@ -76,7 +76,7 @@ const attrOf = (src) => parse(src).attrs[0];
 await test("Node.appendChild links parent and child", () => {
   const a = new Node();
   const b = new Node();
-  a.appendChild(b);
+  a.$appendChild(b);
   assert.equal(b.parent, a);
   assert.deepEqual(a.children, [b]);
 });
@@ -209,7 +209,7 @@ await test("every pointer event carries both frames — local x/y through the vi
     turned: View [ x = 200, y = 100, width = 100, height = 100, scale = 2, rotation = 90,
       onPointerMove(e: PointerEvent) { parent.got = e } ] ]`);
   settle();
-  const sinkOf = (v) => v.inputSink();
+  const sinkOf = (v) => v.$inputSink();
   sinkOf(app.plain)("pointerDown", 120, 60, { deltaX: 0, deltaY: 0 });
   assert.deepEqual([app.got.x, app.got.y, app.got.rootX, app.got.rootY, app.got.deltaX, app.got.deltaY], [20, 10, 120, 60, 0, 0], "a press: local and root");
   sinkOf(app.plain)("pointerMove", 150, 90, { deltaX: 30, deltaY: 30 });
@@ -237,7 +237,7 @@ await test("a dragged view sizes its container from where it was picked up — n
         onPointerMove(e: PointerEvent) { this.y = this.sy + e.deltaY },
         onPointerUp(e: PointerUpEvent) { this.y = 60 } ] ] ]`);
   settle();
-  const sink = app.box.card.inputSink();
+  const sink = app.box.card.$inputSink();
   assert.equal(app.box.contentHeight, 150, "before: the card's bottom");
   sink("pointerDown", 10, 110, { deltaX: 0, deltaY: 0 });
   sink("pointerMove", 10, 410, { deltaX: 0, deltaY: 300 }); settle();
@@ -565,7 +565,7 @@ await test("Image: cover/contain accepted, natural dimensions read-only (assessm
     ratio: number = { app.pic.naturalWidth > 0 ? app.pic.naturalHeight / app.pic.naturalWidth : 0 },
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.pic.stretches, "cover");
     assert.equal(app.pic.naturalWidth, 0, "0 until loaded (headless never loads)");
@@ -800,7 +800,7 @@ await test("a draw method records at attach; invalidateDraw re-records", () => {
   assert.equal(runs, 1, "draw runs on attach (invalidation), not per frame");
   assert.equal(pushes().length, 1);
   assert.deepEqual(pushes()[0][1].bounds, { x: 0, y: 0, w: 8, h: 4 });
-  v.invalidateDraw();
+  v.$invalidateDraw();
   assert.equal(runs, 2);
   assert.equal(pushes().length, 2);
 });
@@ -1138,7 +1138,7 @@ await test("a constraint a State or an Animator took over follows its inputs aga
     const r = await compile(`App [ width = 10, height = 10, t: number = 5, on: boolean = false,
       box: View [ ${decl}, State [ applied = { app.on }, ${over} ] ] ]`, {});
     assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-    const app = settleHeadless(r.source, { deps: r.deps });
+    const app = settleSource(r.source, { deps: r.deps });
     app.on = true; settle(); app.on = false; settle(); app.t = 8; settle();
     assert.deepEqual(read(app.box), after, decl);
   };
@@ -1152,7 +1152,7 @@ await test("a constraint a State or an Animator took over follows its inputs aga
   try {
     const r = await compile(`App [ width = 10, height = 10, t: number = 5,
       box: View [ width = { app.t * 2 }, an: Animator [ attribute = width, to = 100, duration = 100 ] ] ]`, {});
-    const app = settleHeadless(r.source, { deps: r.deps });
+    const app = settleSource(r.source, { deps: r.deps });
     app.box.an.start(); settle();
     for (let i = 0; i < 40; i++) { tNow += 16.7; const cb = pending; pending = null; if (cb) cb(tNow); }
     assert.equal(app.box.width, 10, "handed back to the formula");
@@ -1319,7 +1319,7 @@ await test("scaffold: the Draw surface mirrors draw.ts — every member, no drif
 
   const { generateScaffold } = await import("../compiler/dist/scaffold.js");
   const { parseProgram } = await import("../runtime/dist/parser.js");
-  const { programSchemas } = await import("../runtime/dist/check.js");
+  const { programSchemas } = await import("../runtime/dist/program-schema.js");
   const prog = parseProgram("App [ ]");
   const scaffold = generateScaffold(programSchemas(prog.classes).schemas, prog.classes, "App");
   const iface = scaffold.slice(scaffold.indexOf("interface Draw {"));
@@ -1768,7 +1768,7 @@ await test("a { } reading db.value.issues wakes on region writes; null guards ke
     grab() -> object { return app.db.value },
   ]`, { originDir: process.cwd() });
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.plain.width, 1);
     assert.equal(app.derived.width, 1);
@@ -1793,7 +1793,7 @@ await test("datapath = { d.value.<branch> } still resolves through the tracked v
       View [ datapath = :items[], width = :n, height = 2 ] ],
   ]`, { originDir: process.cwd() });
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.deepEqual(app.list.children.map((v) => v.width), [3, 4]);
     app.d.insert(["rss", "channel", "items"], 2, { n: 5 }); settle();
@@ -2216,7 +2216,7 @@ await test("align: center / end / baseline on a row; center on a stack — the g
         a: View [ width = 100, height = 10 ], b: View [ width = 40, height = 10 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });   // headless boot: real metrics, the library's theme
+  const app = settleSource(r.source, { deps: r.deps });   // headless boot: real metrics, the library's theme
   try {
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
     const row = app.row;
@@ -2241,7 +2241,7 @@ await test("align: WrappingLayout rows align per row; justify is the renamed row
         a: View [ width = 100, height = 10 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
     assert.equal(bl(app.w.a), bl(app.w.b), "row one: the 24px and 12px runs share a baseline");
@@ -2254,9 +2254,9 @@ await test("align: WrappingLayout rows align per row; justify is the renamed row
 // The line — the largest laid cross extent — was the whole story, and that is
 // wrong the moment a child's cross size DERIVES FROM THE PARENT: such a child
 // IS the line, so it aligned to offset 0 and its siblings centred on IT rather
-// than on the container. textsampler's cards were the field report — a column
-// of `width = { parent.width - 32 }` children under `align = center` lost its
-// left inset entirely, 32px of gap all landing on the right. The band is the
+// than on the container. A column of `width = { parent.width - 32 }` children
+// under `align = center` lost its left inset entirely, 32px of gap all landing
+// on the right. The band is the
 // VIEW's own cross extent now (`Layout.viewExtent`), with the line kept as the
 // fallback on a view that measures these very children — where reading the
 // extent would be the one-pass discipline's forbidden cycle, and where the two
@@ -2282,7 +2282,7 @@ await test("align: center/end place within the VIEW's cross extent — a parent-
         b: View [ width = 100, height = 30 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.card.a.width, 228, "the constraint resolved against the parent");
     assert.equal(app.card.a.x, 16, "center on a stack: the 228-wide child splits the card's 32 of slack");
@@ -2311,7 +2311,7 @@ await test("align: the LINE is the band when the view measures these very childr
         a: View [ width = 20, height = 40 ], b: View [ width = 20, height = 20 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.auto.width, 120, "auto-extent still wraps the run");
     assert.equal(app.auto.a.x, 0, "the widest child owns the line");
@@ -2331,7 +2331,7 @@ await test("align: a child sized wider than the band keeps the line — it never
         wide: View [ width = 200, height = 20 ], small: View [ width = 40, height = 20 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.narrow.wide.x, 0, "the over-wide child starts at the origin, not at -60");
     assert.equal(app.narrow.small.x, 80, "its siblings centre on the line it set");
@@ -2346,7 +2346,7 @@ await test("align: a size that ARRIVES — a measured Text centres in the band i
         short: Text [ fontSize = 14, wrap = false, text = "short" ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     const mid = (v) => +(v.x + v.width / 2).toFixed(3);
     assert.ok(app.col.long.width > 0 && app.col.long.width < 300, "the measurement arrived and is the widest");
@@ -2370,7 +2370,7 @@ await test("align: WrappingLayout — one row aligns in the view, two or more al
         c: View [ width = 60, height = 30 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.one.a.height, 50, "the constraint resolved against the flow's view");
     assert.equal(app.one.a.y, 20, "a flow that never wrapped IS the content: centre it in the view's height");
@@ -2389,7 +2389,7 @@ await test("align = baseline: the shared line, not the band — a tall box does 
         big: Text [ fontSize = 24, text = "height" ], sm: Text [ fontSize = 13, text = "from" ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
     assert.equal(bl(app.r.big), bl(app.r.sm), "one baseline");
@@ -2411,7 +2411,7 @@ await test("a layout written in a class body reads that class's instance as `cla
             inner: Stack [ gap = 2, b: View [ width = 10, height = 10 ], c: View [ width = 10, height = 10 ] ] ],
         pn: Panel [ n = 7 ] ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.outer.inner.y, 40, "the outer Stack's own gap");
     assert.equal(app.outer.inner.c.y, 12, "the nested Stack's own gap, not its parent's");
@@ -2431,7 +2431,7 @@ await test("WrappingLayout: indent / hangingIndent inset the first row and the r
         d: View [ width = 50, height = 10 ], e: View [ width = 50, height = 10 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     // indent 30: a at 30, b at 120; c would end at 210 > 200 → row two at the hanging indent 12
     assert.deepEqual([app.p.a.x, app.p.b.x], [30, 120], "the first row starts at indent");
@@ -2471,7 +2471,7 @@ await test("align = baseline: a Markdown claims its FIRST line's baseline; a doc
   ]`, {});
   assert.equal(r.errors.length, 0, "the checker accepts a Markdown under align = baseline (its schema claims one): " + r.errors.map((e) => e.message).join("; "));
   const errs = []; const orig = console.error; console.error = (m) => errs.push(String(m));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     console.error = orig;
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
@@ -2490,7 +2490,7 @@ await test("align = baseline BOUND: the runtime refuses a baseline-less child on
       t: Text [ text = "a" ], box: View [ width = 10, height = 10 ] ] ]`, {});
   assert.equal(r.errors.length, 0, "a bound align is beyond the checker; it compiles");
   const errs = []; const orig = console.error; console.error = (m) => errs.push(String(m));
-  const app = settleHeadless(r.source, { deps: r.deps });   // attached: a refusal is judged only on an attached child
+  const app = settleSource(r.source, { deps: r.deps });   // attached: a refusal is judged only on an attached child
   try {
     app.r.width = 90; settle(); app.r.width = 80; settle();   // re-lays twice more
     console.error = orig;
@@ -3109,7 +3109,7 @@ await test("an unmodified SimpleLayout's shape, read from its inputs, is the sha
     const app = await buildL(`App [ width=300, height=300,
       layout: SimpleLayout [ axis = ${axis}, align = ${align}, spacing = 3 ],
       View [ width=10, height=10${b} ], Spacer [ ], View [ width=10, height=20, visible = false${b} ],
-      Spacer [ visible = false ], View [ width=10, height=10, flexes: boolean = true${b} ], View [ width=12, height=8, flexes: boolean = false${b} ] ]`);
+      Spacer [ visible = false ], View [ width=10, height=10, flexes = true${b} ], View [ width=12, height=8, flexes = false${b} ] ]`);
     settle();
     const L = app.layout;
     assert.equal(L.$canon, "simple", "the library's SimpleLayout with attribute values only is canonical");
@@ -3642,7 +3642,7 @@ await test("replacing the whole value wakes every reader; a cursor gained later 
     box: View [ t: Text [ text = { "" + (:n ?? "none") } ] ],
   ]`);
   assert.equal(app.box.t.text, "none", "no cursor yet");
-  app.box.datapath = app.d.cursorAt([]);
+  app.box.datapath = app.d.$cursorAt([]);
   settle();
   assert.equal(app.box.t.text, "1", "an ancestor gaining a datapath re-anchors the reads below");
   app.d.value = { n: 42 };
@@ -4383,7 +4383,7 @@ await test("auto-extent: contentExtent folds intrinsic content into the max", ()
   // The hook Image uses for its natural bitmap size (max(resource, subviews),
   // LZX's measureSize) — pinned via a hand subclass, browser-free.
   class Boxy extends View {
-    contentExtent(size) {
+    $contentExtent(size) {
       return size === "width" ? 100 : 0;
     }
   }
@@ -4391,7 +4391,7 @@ await test("auto-extent: contentExtent folds intrinsic content into the max", ()
   const child = new View();
   child.width = 30;
   child.height = 40;
-  v.appendChild(child);
+  v.$appendChild(child);
   v.$attach(mockBackend([]), null);
   assert.equal(v.width, 100, "intrinsic content wins where wider");
   assert.equal(v.height, 40, "children win where taller");
@@ -4405,14 +4405,14 @@ await test("auto-extent: childrenMutated re-derives — and installs lazily", ()
   kid.width = 42;
   kid.height = 6;
   p.insertChild(kid, 0);
-  p.childrenMutated(); // the replicator's lifecycle call
+  p.$childrenMutated(); // the replicator's lifecycle call
   assert.equal(p.width, 42, "a slot can become derivable when children arrive");
   const kid2 = new View();
   kid2.x = 50;
   kid2.width = 30;
   kid2.height = 4;
   p.insertChild(kid2, 1);
-  p.childrenMutated();
+  p.$childrenMutated();
   assert.equal(p.width, 80, "each mutation burst re-derives once");
 });
 
@@ -4468,8 +4468,8 @@ await test("Node.insertChild / removeChild keep links straight", () => {
   const a = new Node();
   const b = new Node();
   const c = new Node();
-  p.appendChild(a);
-  p.appendChild(c);
+  p.$appendChild(a);
+  p.$appendChild(c);
   p.insertChild(b, 1);
   assert.deepEqual(p.children, [a, b, c]);
   p.removeChild(b);
@@ -4792,7 +4792,7 @@ await test("font: a Font in a family slot names its family — a system font's, 
     body: Font [ family = "Helvetica, Arial" ],
     title: Font [ FontFace [ src = "https://example.com/arimo-700.woff2", weight = bold ] ],
     t: Text [ text = "hi", fontFamily = { this.parent.title } ] ]`);
-  app.body.start(); app.title.start();
+  app.body.$start(); app.title.$start();
   settle();
   // fontFamily on the App is a PROVISION: the provided value is the list itself;
   // what it names resolves through the fonts it holds.
@@ -5004,7 +5004,7 @@ await test("Clock: idle until a ticker is added, live while one runs (idle-zero)
   const clock = new Clock(sched);
   assert.equal(clock.running, false, "no ticker → no frame loop");
   let ticks = 0;
-  clock.add({ tick: () => (ticks++, true) });
+  clock.add({ $tick: () => (ticks++, true) });
   assert.equal(clock.running, true, "adding the first ticker starts the loop");
   sched.frame(16);
   assert.equal(ticks, 1, "the frame ticked the registrant");
@@ -5015,8 +5015,8 @@ await test("Clock: one frame hands every ticker the SAME now (synched motion)", 
   const sched = fakeScheduler();
   const clock = new Clock(sched);
   const seen = [];
-  clock.add({ tick: (now) => (seen.push(["a", now]), true) });
-  clock.add({ tick: (now) => (seen.push(["b", now]), true) });
+  clock.add({ $tick: (now) => (seen.push(["a", now]), true) });
+  clock.add({ $tick: (now) => (seen.push(["b", now]), true) });
   sched.frame(1234);
   assert.deepEqual(seen, [["a", 1234], ["b", 1234]], "both synched to one time value");
 });
@@ -5025,8 +5025,8 @@ await test("Clock: a finishing ticker is dropped; remove() and the last finish b
   const sched = fakeScheduler();
   const clock = new Clock(sched);
   let done = false;
-  const a = { tick: () => !done }; // finishes when `done` flips
-  const b = { tick: () => true };
+  const a = { $tick: () => !done }; // finishes when `done` flips
+  const b = { $tick: () => true };
   clock.add(a);
   clock.add(b);
   sched.frame(1);
@@ -5042,9 +5042,9 @@ await test("Clock: a ticker added DURING a frame runs the next frame, not the cu
   const sched = fakeScheduler();
   const clock = new Clock(sched);
   const order = [];
-  const late = { tick: () => (order.push("late"), true) };
+  const late = { $tick: () => (order.push("late"), true) };
   let added = false;
-  clock.add({ tick: () => {
+  clock.add({ $tick: () => {
     order.push("early");
     if (!added) { added = true; clock.add(late); }
     return true;
@@ -5065,7 +5065,7 @@ await test("Animator: start() drives a plain target slot to `to`, then goes idle
   const view = new View();
   view.height = 25;
   const anim = new Animator();
-  view.appendChild(anim); // parent = view = target
+  view.$appendChild(anim); // parent = view = target
   anim.attribute = "height";
   anim.to = 225;
   anim.duration = 100;
@@ -5095,7 +5095,7 @@ await test("Animator: a scheduler handover rebases in-flight anchors (issue #17)
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
@@ -5114,7 +5114,7 @@ await test("Animator: `from` defaults to the slot's current value; an explicit `
   const view = new View();
   view.height = 40;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 140;
   a.from = 100; // explicit — start here regardless of the slot's 40
@@ -5133,7 +5133,7 @@ await test("Animator: relative — `to` is a delta from `from`", () => {
   const view = new View();
   view.height = 25;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.relative = true;
   a.to = 10; // +10 from the sampled from (25) → 35
@@ -5152,7 +5152,7 @@ await test("Animator: start() while running is a no-op (LZX doStart guard)", () 
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
@@ -5172,7 +5172,7 @@ await test("Animator: stop() halts in place — no snap to either end", () => {
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
@@ -5191,7 +5191,7 @@ await test("Animator: paused freezes in place; unpausing resumes where it left o
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
@@ -5214,7 +5214,7 @@ await test("Animator: repeat replays from→to the given number of times, then l
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.from = 0;
   a.to = 100;
@@ -5240,21 +5240,21 @@ await test("Animator: autoStart honors `started` — default false stays put, tr
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
-  a.autoStart();
+  a.$autoStart();
   assert.equal(s1.scheduled, false, "started defaults to false → does not auto-start (opt-in)");
   const s2 = fakeScheduler();
   setClock(new Clock(s2));
   const b = new Animator();
-  view.appendChild(b);
+  view.$appendChild(b);
   b.attribute = "height";
   b.to = 100;
   b.started = true;
-  b.autoStart();
+  b.$autoStart();
   assert.equal(s2.scheduled, true, "started = true → auto-starts");
-  b.autoStart(); // once per lifetime — idempotent
+  b.$autoStart(); // once per lifetime — idempotent
 });
 
 await test("Animator: displaces a constraint owner, then resumes it re-evaluated on completion", () => {
@@ -5265,7 +5265,7 @@ await test("Animator: displaces a constraint owner, then resumes it re-evaluated
   const v = app.children[0];
   assert.equal(v.x, 60, "the constraint drives x initially");
   const anim = new Animator();
-  v.appendChild(anim);
+  v.$appendChild(anim);
   anim.attribute = "x";
   anim.from = 60;
   anim.to = 0;
@@ -5592,7 +5592,7 @@ await test("Animator: onStart at start, onStop at natural completion (fired once
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
@@ -5615,7 +5615,7 @@ await test("Animator: onStop fires on imperative stop() too (no finished-vs-stop
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
@@ -5657,7 +5657,7 @@ await test("Animator: an onStop that start()s again restarts cleanly (re-entrant
   const view = new View();
   view.height = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
@@ -5703,7 +5703,7 @@ await test("Animator: displaces a LAYOUT-laid axis; the layout re-lays on comple
   assert.equal(a.y, 0);
   assert.equal(b.y, 30, "the layout stacks b at a.y + a.height + spacing");
   const anim = new Animator();
-  b.appendChild(anim);
+  b.$appendChild(anim);
   anim.attribute = "y";
   anim.from = 30;
   anim.to = 80;
@@ -5730,7 +5730,7 @@ await test("Animator: displaces a percent binding; it re-resolves against the ne
   const v = app.children[0];
   assert.equal(v.width, 100, "50% of 200");
   const anim = new Animator();
-  v.appendChild(anim);
+  v.$appendChild(anim);
   anim.attribute = "width";
   anim.from = 100;
   anim.to = 0;
@@ -5760,14 +5760,14 @@ await test("A2 additive: two animators on one slot COMPOSE (their deltas sum)", 
   const view = new View();
   view.x = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "x";
   a.relative = true;
   a.to = 100; // +100
   a.duration = 100;
   a.motion = LINEAR;
   const b = new Animator();
-  view.appendChild(b);
+  view.$appendChild(b);
   b.attribute = "x";
   b.relative = true;
   b.to = 40; // +40 — composes on top of a, not displacing it
@@ -5790,14 +5790,14 @@ await test("A2 additive ledger: composing animators land the EXACT expected sum 
   const view = new View();
   view.x = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "x";
   a.relative = true;
   a.to = 10;
   a.duration = 100;
   a.motion = EASEBOTH; // curves whose summed increments would NOT be exact
   const b = new Animator();
-  view.appendChild(b);
+  view.$appendChild(b);
   b.attribute = "x";
   b.relative = true;
   b.to = 3;
@@ -5818,13 +5818,13 @@ await test("A2 additive: a later ABSOLUTE `to` measures its delta against the EX
   const view = new View();
   view.x = 0;
   const a = new Animator();
-  view.appendChild(a);
+  view.$appendChild(a);
   a.attribute = "x";
   a.to = 100; // absolute → expected becomes 100
   a.duration = 100;
   a.motion = LINEAR;
   const b = new Animator();
-  view.appendChild(b);
+  view.$appendChild(b);
   b.attribute = "x";
   b.to = 40; // absolute, started while a is in flight → delta = 40 − expected(100) = −60
   b.duration = 100;
@@ -5847,14 +5847,14 @@ await test("A2 additive: a lone animator still displaces a constraint ONCE and r
   // constraint (one-deep, in the ledger), the SECOND composes without touching
   // it; the constraint resumes only when the LAST animator finishes.
   const a = new Animator();
-  v.appendChild(a);
+  v.$appendChild(a);
   a.attribute = "x";
   a.relative = true;
   a.to = 10;
   a.duration = 100;
   a.motion = LINEAR;
   const b = new Animator();
-  v.appendChild(b);
+  v.$appendChild(b);
   b.attribute = "x";
   b.relative = true;
   b.to = 20;
@@ -6126,8 +6126,8 @@ App [ width = 200, height = 80,
   const b = await compile(`script { function other(n: number): number { return n + 100 } }
 App [ width = 10, height = 10, v: View [ width = { other(1) }, height = 1 ] ]`, { originDir: process.cwd() });
   assert.deepEqual([...a.errors, ...b.errors].map((e) => e.message), []);
-  const appA = settleHeadless(a.source, { deps: a.deps });
-  const appB = settleHeadless(b.source, { deps: b.deps });   // built second: the "last program"
+  const appA = settleSource(a.source, { deps: a.deps });
+  const appB = settleSource(b.source, { deps: b.deps });   // built second: the "last program"
   try {
     assert.equal(appB.v.width, 101);
     assert.equal(appA.list.children.length, 1, "the first row built with its program");
@@ -6875,7 +6875,7 @@ await test("a Text's contentWidth measures its glyphs and re-measures on a bound
       t: Text [ text = { app.label } ] ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.ok(app.pill.t.contentWidth > 0, `Text.contentWidth reflects glyphs (was the base 0), got ${app.pill.t.contentWidth}`);
     const narrow = app.pill.width;
@@ -6897,7 +6897,7 @@ await test("Text.lineHeight: a fontSize multiplier drives wrapped height, conten
     b: Text [ width = 120, fontSize = 16, lineHeight = 1.5, text = "a paragraph long enough to wrap onto several lines for the measure" ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.ok(app.a.height > 16, `the natural paragraph wrapped (${app.a.height})`);
     assert.ok(app.b.height > app.a.height * 1.1,
@@ -6956,7 +6956,7 @@ await test("one geometry: scale/rotation compose into layout, auto-size, and the
     t: Text [ text = "x" ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   // A: 120 + 10 + 60 + 10 → c at 200; run 320 wide, 120 tall
   assert.equal(app.row.c.x, 200, "the scaled child's slot is its footprint");
   assert.equal(app.row.width, 320, "auto-size packs the footprints");
@@ -6989,7 +6989,7 @@ await test("createView/discard notify: auto-size engages on an EMPTY parent; lay
     t: Text [ text = "x" ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   app.empty.createView("View", { width: 50, height: 40 });
   settle();
   assert.equal(app.empty.width, 50, "auto-size engages on imperative arrival into an empty parent");
@@ -7350,7 +7350,7 @@ await test("$provide reaches the fetch host: a Control program compiles in-brows
     origins: { distro: "https://distro/" }, fetchImpl: diskFetch,
   });
   try {
-    const r = await compile(`App [ width = 200, height = 100, s: Switch [ ] ]`, { typecheck: false });
+    const r = await compile(`App [ width = 200, height = 100, s: Switch [ ] ]`);
     assert.notEqual(r.source, null, "a Switch program must compile through the fetch host: " + r.report);
     assert.match(r.source, /class FocusRing/, "$provide spliced FocusRing's source, not `undefined`");
     assert.ok(asked.includes("library/focusring.declare"), `the host actually read it (asked: ${asked.join(", ")})`);
@@ -7385,9 +7385,9 @@ await test("the fetch host never memoizes a MISS: one blocked request does not p
   });
   try {
     const src = `App [ width = 200, height = 100, s: Switch [ ] ]`;
-    const first = await compile(src, { typecheck: false });
+    const first = await compile(src);
     assert.equal(first.source, null, "the blocked request really did fail the first compile");
-    const second = await compile(src, { typecheck: false });
+    const second = await compile(src);
     assert.notEqual(second.source, null,
       "the NEXT compile must recover — a cached miss would keep failing forever: " + second.report);
   } finally {
@@ -7937,7 +7937,7 @@ await test("settleHeadless: text measures and auto-extents settle without a DOM"
   // The approximate measurer (headless.ts) is enough to SETTLE any tree —
   // real numbers for auto-extents, deterministic on every host.
   const r = await compile(`App [ t: Text [ text = "hello measured world" ] ]`);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     const t = app.children[0];
     assert.ok(t.width > 0 && t.height > 0, `auto-extent computed headless (w ${t.width}, h ${t.height})`);
@@ -8013,7 +8013,7 @@ await test("location: a schema attr — settable in [ ], writable from handlers,
     go: View [ onClick() { app.location = "why" } ],
   ]`);
   assert.equal(r.errors.length, 0, "the literal [ ] form checks — location is a schema attr");
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.location, "home", "the declared initial (§3 default rule)");
     assert.equal(app.why.visible, false, "derived state follows the initial");
@@ -8045,12 +8045,12 @@ await test("@name reveal: heading slugs, named-view priority, -2 suffixes, held 
     md: Markdown [ width = 380, text = "# Intro\\n\\nbody text\\n\\n## Fine Details\\n\\nmore" ],
   ]`);
   assert.equal(r.errors.length, 0);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     app.location = "home@fine-details"; settle();
-    assert.equal(app.resolveReveal(), "fine-details", "a heading's slug resolves and reveals");
+    assert.equal(app.$resolveReveal(), "fine-details", "a heading's slug resolves and reveals");
     app.location = "home@missing"; settle();
-    assert.equal(app.resolveReveal(), null, "an unknown anchor is held (returns null), not fired");
+    assert.equal(app.$resolveReveal(), null, "an unknown anchor is held (returns null), not fired");
   } finally { app.discard(); }
 
   // (b) duplicate REGISTERED names are a compile error (location.md §0.4: the
@@ -8069,16 +8069,16 @@ App [ width = 200, height = 200, location = "x",
     b: Spot [ width = 10, height = 10 ],
   ]`);
   assert.equal(r2b.errors.length, 0, "class-internal anchors don't collide in the registry");
-  const app2 = settleHeadless(r2b.source, { deps: r2b.deps });
+  const app2 = settleSource(r2b.source, { deps: r2b.deps });
   try {
     app2.location = "x@sec"; settle();
-    assert.equal(app2.resolveReveal(), "sec", "first instance = the base name (preorder)");
+    assert.equal(app2.$resolveReveal(), "sec", "first instance = the base name (preorder)");
     app2.location = "x@sec-2"; settle();
-    assert.equal(app2.resolveReveal(), "sec-2", "second instance = the -2 suffix");
+    assert.equal(app2.$resolveReveal(), "sec-2", "second instance = the -2 suffix");
     app2.location = "x@sec-3"; settle();
-    assert.equal(app2.resolveReveal(), null, "no third target — held");
+    assert.equal(app2.$resolveReveal(), null, "no third target — held");
     app2.location = "x"; settle();
-    assert.equal(app2.resolveReveal(), null, "a location change with no @ cancels the intent");
+    assert.equal(app2.$resolveReveal(), null, "a location change with no @ cancels the intent");
   } finally { app2.discard(); }
 
   // (c) collision across kinds: a named view WINS the base name over a same-slug
@@ -8088,12 +8088,12 @@ App [ width = 200, height = 200, location = "x",
     md: Markdown [ width = 380, text = "# Intro\\n\\nbody" ],
   ]`);
   assert.equal(r3.errors.length, 0);
-  const app3 = settleHeadless(r3.source, { deps: r3.deps });
+  const app3 = settleSource(r3.source, { deps: r3.deps });
   try {
     app3.location = "x@intro"; settle();
-    assert.equal(app3.resolveReveal(), "intro", "a named view wins the base name");
+    assert.equal(app3.$resolveReveal(), "intro", "a named view wins the base name");
     app3.location = "x@intro-2"; settle();
-    assert.equal(app3.resolveReveal(), "intro-2", "the same-slug heading takes -2 (views before slugs)");
+    assert.equal(app3.$resolveReveal(), "intro-2", "the same-slug heading takes -2 (views before slugs)");
   } finally { app3.discard(); }
 });
 
@@ -8108,7 +8108,7 @@ await test("settleHeadless: network is refused, never initiated — the source l
     src: DataSource [ url = "https://declare-headless-must-not-fetch.invalid/x.json" ],
     onInit() { this.src.fetch() },
   ]`);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.src.loading, true, "t=0 snapshot: honestly absent, still loading");
     await new Promise((resolve) => setTimeout(resolve, 0)); // let the refusal land
@@ -8129,7 +8129,7 @@ await test("center/end: the geometric box on EVERY view — Text too (centering 
   ]`;
   const r = await compile(src, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   assert.equal(app.box.x, 150); assert.equal(app.box.y, 80);
   assert.equal(app.corner.x, 370); assert.equal(app.corner.y, 170);
   // Text y = center now centers the GEOMETRIC BOX, like every other view:
@@ -8146,7 +8146,7 @@ await test("center/end: reactive against parent resize (the literal is a standin
       box: View [ width = 100, height = 40, x = center, fill = navy ] ],
   ]`;
   const r = await compile(src, {});
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   assert.equal(app.inner.box.x, 100);
   app.inner.width = 500;
   settle();
@@ -8216,7 +8216,7 @@ await test("visibility facts: the camera case — an ancestor's transform re-der
           visible = { app.world.card.onScreen } ],
       ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   const seen = () => app.readout.visible;
   const how = () => app.readout.opacity * 8;
   const what = () => app.readout.width;
@@ -8256,7 +8256,7 @@ await test("visibility facts: pay-per-use — an unbound view installs no comput
       plain: View [ x = 10, y = 10, width = 50, height = 50 ],
       ]`, {});
   assert.equal(r.errors.length, 0);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     // untracked reads see the resting defaults and arm nothing
     assert.equal(app.plain.onScreen, true);
@@ -8278,7 +8278,7 @@ App [ width = 100, height = 100,
   col: View [ datapath = { app.ds.value }, Row [ datapath = :items[] ] ]
   ]`, {});
   if (r.errors.length > 0) throw new DeclareErrors(r.errors);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   app.ds.insert(["items"], 0, { id: 1 });      // an arrival after boot — the replicator's pipeline
   settle();
   const row = app.col.children[0];
@@ -8574,7 +8574,7 @@ await test("Time is subclassable: a class body formats the facts (numbers in, th
           text: string = { (this.hour % 12 == 0 ? 12 : this.hour % 12) + ":" + (this.minute < 10 ? "0" : "") + this.minute + (this.hour >= 12 ? " PM" : " AM") } ]
       App [ width = 100, height = 100, clock: Wall [ ], label: Text [ text = { app.clock.text } ] ]`);
     assert.deepEqual(r.errors.map((e) => e.message), []);
-    const app = settleHeadless(r.source, { deps: r.deps });
+    const app = settleSource(r.source, { deps: r.deps });
     try {
       assert.equal(app.label.text, "10:15 AM");
       h.fire(); settle();
@@ -8599,7 +8599,7 @@ await test("afterSettle: the step runs at the close, after the handler's writes 
     measure() { app.seenWidth = app.grew.width },
   ]`);
   assert.equal(r.errors.length, 0, "afterSettle is in body scope and typechecks: " + (r.errors[0]?.message ?? ""));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.grew.width, 10);
     app.bump();
@@ -8617,7 +8617,7 @@ await test("afterSettle: a step that re-arms itself forever is caught with its o
     kick() { afterSettle(app.loop) },
   ]`);
   assert.equal(r.errors.length, 0);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     app.kick();
     assert.throws(() => settle(), /afterSettle: steps re-armed \d+ times in one settle/,
@@ -8633,7 +8633,7 @@ await test("onReady: fires once, at the close of the first settle, after geometr
     onReady() { app.readyWidth = app.col.width; app.readies = app.readies + 1 },
   ]`);
   assert.equal(r.errors.length, 0, "onReady is an admitted App event: " + (r.errors[0]?.message ?? ""));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     assert.equal(app.readyWidth, 100, "the handler read computed geometry, not defaults");
     assert.equal(app.readies, 1);
@@ -8651,7 +8651,7 @@ await test("onArrive: the landing to onFollow's door — anchorless, per follow,
     onArrive(target: View) { app.landedOn = target.shows; app.arrivals = app.arrivals + 1 },
   ]`);
   assert.equal(r.errors.length, 0, "onArrive(target: View) is an admitted App event: " + (r.errors[0]?.message ?? ""));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     app.follow("#detail");
     settle();
@@ -8670,16 +8670,16 @@ await test("onArrive: anchored — same waiting as the reveal, the measured view
     onArrive(target: View) { app.got = "arrived" },
   ]`);
   assert.equal(r.errors.length, 0);
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     app.location = "home@fine-details"; settle();
-    assert.equal(app.resolveReveal(), "fine-details", "resolution still reports the landing");
+    assert.equal(app.$resolveReveal(), "fine-details", "resolution still reports the landing");
     assert.equal(app.got, "arrived", "the handler replaced the scroll as the landing");
-    assert.equal(app.resolveReveal(), null, "the intent cleared — once per arrival");
+    assert.equal(app.$resolveReveal(), null, "the intent cleared — once per arrival");
     // an unknown anchor is HELD exactly as before — the waiting is the platform's
     app.location = "home@missing"; settle();
     app.got = "";
-    assert.equal(app.resolveReveal(), null);
+    assert.equal(app.$resolveReveal(), null);
     assert.equal(app.got, "", "no dispatch while the target does not exist");
   } finally { app.discard(); }
 });
@@ -8714,7 +8714,7 @@ await test("app.reveal(target): the default landing stays callable from a handle
     onArrive(target: View) { app.reveal(target) },
   ]`);
   assert.equal(r.errors.length, 0, "reveal(target) typechecks in body scope: " + (r.errors[0]?.message ?? ""));
-  const app = settleHeadless(r.source, { deps: r.deps });
+  const app = settleSource(r.source, { deps: r.deps });
   try {
     app.follow("#detail");
     settle(); // headless: the scroll is a no-op — composing it back must not throw

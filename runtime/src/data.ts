@@ -264,7 +264,7 @@ export class Dataset extends Node {
    *  re-derived cursor is `===` the old one and the equality gate holds.
    *  The intern key joins on NUL, not "." — a key containing a dot must not
    *  collide with the path that spells it as two segments. */
-  cursorAt(path: readonly string[]): Cursor {
+  $cursorAt(path: readonly string[]): Cursor {
     const key = path.join("\u0000");
     let c = this.cursors.get(key);
     if (c === undefined) this.cursors.set(key, (c = { data: this, path: [...path] }));
@@ -337,8 +337,8 @@ export class Dataset extends Node {
       this.value = v;
       return;
     }
-    const segs = this.segs(path);
-    const { chain, container, key: at } = this.locate(segs);
+    const segs = this.$segs(path);
+    const { chain, container, key: at } = this.$locate(segs);
     if (DERIVED.has(this)) {
       const h = homeOf(this, container, segs, "set");
       h.data.set([...h.path, at], v); return;
@@ -347,7 +347,7 @@ export class Dataset extends Node {
     // write all speak the element's actual location.
     const key = at === "-" && Array.isArray(container) ? String(container.length) : at;
     if (key !== at) { segs[segs.length - 1] = key; chain[chain.length - 1] = [container, key]; }
-    const werr = this.writeError(segs, v, "set");
+    const werr = this.$writeError(segs, v, "set");
     if (werr !== null) {
       throw new DeclareError(`'${showPath(segs)}' refuses this write — ${werr} (the write is held to the dataset's schema)`);
     }
@@ -355,7 +355,7 @@ export class Dataset extends Node {
     if (old === v) return;
     (container as Record<string, unknown>)[key] = v;
     tagTree(this, v, segs);
-    this.wakeChain(chain);
+    this.$wakeChain(chain);
     if (key !== at) wakeAll(container); // an append is structural: length/order readers wake
     wakeTree(old);
   }
@@ -363,31 +363,31 @@ export class Dataset extends Node {
   /** Insert `v` at `index` of the array at `path`. */
   insert(path: string | readonly (string | number)[], index: number, v: unknown): void {
     v = unwrapValue(v);                  // never store a tracked view
-    const { arr, chain, segs } = this.array(path);
+    const { arr, chain, segs } = this.$array(path);
     if (DERIVED.has(this)) {
       const h = homeOf(this, arr, segs, "insert");
       h.data.insert(h.path, index, v); return;
     }
-    const werr = this.writeError(segs, v, "insert");
+    const werr = this.$writeError(segs, v, "insert");
     if (werr !== null) {
       throw new DeclareError(`'${showPath(segs)}' refuses this insert — ${werr} (the write is held to the dataset's schema)`);
     }
     arr.splice(index, 0, v);
     tagTree(this, v, [...segs, String(index)]);
     wakeAll(arr);
-    this.wakeChain(chain);
+    this.$wakeChain(chain);
   }
 
   /** Remove (and return) the element at `index` of the array at `path`. */
   removeAt(path: string | readonly (string | number)[], index: number): unknown {
-    const { arr, chain, segs } = this.array(path);
+    const { arr, chain, segs } = this.$array(path);
     if (DERIVED.has(this)) {
       const h = homeOf(this, arr, segs, "removeAt");
       return h.data.removeAt(h.path, index);
     }
     const [removed] = arr.splice(index, 1);
     wakeAll(arr);
-    this.wakeChain(chain);
+    this.$wakeChain(chain);
     wakeTree(removed);
     return removed;
   }
@@ -399,7 +399,7 @@ export class Dataset extends Node {
    *  equal re-reads die at the equality gate — replicate.ts). */
   move(path: string | readonly (string | number)[], from: number, to: number): void {
     if (from === to) return;
-    const { arr, chain, segs } = this.array(path);
+    const { arr, chain, segs } = this.$array(path);
     if (DERIVED.has(this)) {
       const h = homeOf(this, arr, segs, "move");
       h.data.move(h.path, from, to); return;
@@ -407,7 +407,7 @@ export class Dataset extends Node {
     const [item] = arr.splice(from, 1);
     arr.splice(to, 0, item);
     wakeAll(arr);
-    this.wakeChain(chain);
+    this.$wakeChain(chain);
   }
 
   /** The ShapeField whose slot `segs` (root-relative) addresses under this
@@ -416,7 +416,7 @@ export class Dataset extends Node {
    *  that stepped INTO an array field (the slot holds one element). Null =
    *  no schema, or the path leaves the declared world (an undeclared key, a
    *  step through a scalar/`any`) — extras pass untouched, by design. */
-  declaredField(segs: readonly string[]): { f: ShapeField; element: boolean } | null {
+  $declaredField(segs: readonly string[]): { f: ShapeField; element: boolean } | null {
     const shape = this.schema;
     if (shape === null) return null;
     let fields: readonly ShapeField[] | null = null;         // standing IN a record
@@ -447,8 +447,8 @@ export class Dataset extends Node {
    *  declared world (extras, `any` fields): a schema declares what the
    *  program RELIES on, and validation stays permissive about the rest.
    *  `mode` "insert" validates `v` as one ELEMENT of the array at the path. */
-  private writeError(segs: readonly string[], v: unknown, mode: "set" | "insert"): string | null {
-    const at = this.declaredField(segs);
+  private $writeError(segs: readonly string[], v: unknown, mode: "set" | "insert"): string | null {
+    const at = this.$declaredField(segs);
     if (at === null) return null;
     if (mode === "insert") {
       if (!at.f.array || at.element) return null; // insert() itself refuses non-arrays
@@ -457,7 +457,7 @@ export class Dataset extends Node {
     return fieldValueError(at.f, v, at.element);
   }
 
-  private segs(path: string | readonly (string | number)[]): string[] {
+  private $segs(path: string | readonly (string | number)[]): string[] {
     const segs = toSegs(path);
     if (segs.length === 0) {
       throw new DeclareError(`an empty path addresses the whole document — set([], v) replaces it; a structural edit (insert/removeAt/move) needs the path of an array`);
@@ -467,7 +467,7 @@ export class Dataset extends Node {
 
   /** Walk `segs` from the root, collecting the (container, key) step chain —
    *  which is exactly the ancestor set a write must wake. */
-  private locate(segs: string[]): { chain: [object, string][]; container: object; key: string } {
+  private $locate(segs: string[]): { chain: [object, string][]; container: object; key: string } {
     let cur: unknown = unwrapValue(this.value);   // the machinery navigates the RAW tree (tracked views are the { } boundary's)
     const chain: [object, string][] = [];
     for (let i = 0; ; i++) {
@@ -481,9 +481,9 @@ export class Dataset extends Node {
     }
   }
 
-  private array(path: string | readonly (string | number)[]): { arr: unknown[]; chain: [object, string][]; segs: string[] } {
-    const segs = this.segs(path);
-    const { chain, container, key } = this.locate(segs);
+  private $array(path: string | readonly (string | number)[]): { arr: unknown[]; chain: [object, string][]; segs: string[] } {
+    const segs = this.$segs(path);
+    const { chain, container, key } = this.$locate(segs);
     const arr = getOwn(container, key);
     if (!Array.isArray(arr)) {
       throw new DeclareError(`'${showPath(segs)}' is not an array — structural edits need one`);
@@ -491,14 +491,14 @@ export class Dataset extends Node {
     return { arr, chain, segs };
   }
 
-  private wakeChain(chain: readonly [object, string][]): void {
+  private $wakeChain(chain: readonly [object, string][]): void {
     for (const [container, key] of chain) wake(container, key);
   }
 
   /** A derived dataset's recompute lands here (`contents` push): merge into
    *  the standing tree when both are containers of one kind, else replace
    *  wholesale through the value slot (mergeTree, below). */
-  adopt(v: unknown): void {
+  $adopt(v: unknown): void {
     const next = unwrapValue(v);
     const old = unwrapValue(this.value);
     // merge only into this dataset's own tree: a whole value taken from a
@@ -539,13 +539,13 @@ defineAttributes(Dataset, {
   // recompute tags the new tree and wakes every `:path` reader and replicator,
   // exactly as a wholesale `.value` replacement does. `contents` itself is
   // never read back (nothing tracks it); it is the author-facing write slot.
-  contents: { def: null, push: (d: Dataset, v: unknown) => { DERIVED.add(d); d.adopt(v); } },
+  contents: { def: null, push: (d: Dataset, v: unknown) => { DERIVED.add(d); d.$adopt(v); } },
 });
 
-/** STRUCTURAL MERGE for a derived dataset's recompute (2026-09-12, from the
- *  Murmur run-2 profile: one appended message re-ran every constraint in a
- *  305-row column — 430 ms — because `contents = { build() }` replaced the
- *  whole value and "whole-value replacement wakes every reader"). A rebuilt
+/** STRUCTURAL MERGE for a derived dataset's recompute. Without it one
+ *  appended row re-ran every constraint in a 305-row column — 430 ms —
+ *  because `contents = { build() }` replaced the whole value, and
+ *  "whole-value replacement wakes every reader". A rebuilt
  *  tree is usually the old tree plus a small change; this walks the two
  *  together and lands only the difference through the ordinary wake model:
  *  an unchanged region keeps its OLD object (so its cells, tags, and tracked
@@ -779,7 +779,7 @@ export class DataSource extends Dataset {
   declare auto: boolean;
   private autoUrl = "";
 
-  maybeAuto(): void {
+  $maybeAuto(): void {
     if (!this.auto) return;
     if (this.url === "") {
       // Going empty RESETS the memo: the contract is "fetch whenever a
@@ -806,7 +806,7 @@ export class DataSource extends Dataset {
    *  `Content-Type`; a string is sent verbatim. `credentials` is added
    *  whenever it differs from `sameOrigin` (the fetch default), GET or not,
    *  since it's independent of the verb. */
-  private requestInit(): RequestInit | undefined {
+  private $requestInit(): RequestInit | undefined {
     const method = (this.method || "GET").toUpperCase();
     const init: RequestInit = {};
     if (method !== "GET") {
@@ -862,7 +862,7 @@ export class DataSource extends Dataset {
     setBound(this, "statusCode", 0);
     setBound(this, "errorBody", null);
     try {
-      const res = await transport(url, this.requestInit());
+      const res = await transport(url, this.$requestInit());
       if (seq === this.seq) setBound(this, "statusCode", res.status);
       if (!res.ok) {
         // The BODY of a refusal is the part that says why — the field that
@@ -935,8 +935,8 @@ function sourceLabel(d: DataSource): string {
 defineAttributes(DataSource, {
   // both pushes route through maybeAuto, so `auto = true` + a url that lands
   // later (or the reverse order) fetches exactly once per distinct address
-  url: { def: "", push: (d, _v) => (d as DataSource).maybeAuto() },
-  auto: { def: false, push: (d, _v) => (d as DataSource).maybeAuto() },
+  url: { def: "", push: (d, _v) => (d as DataSource).$maybeAuto() },
+  auto: { def: false, push: (d, _v) => (d as DataSource).$maybeAuto() },
   format: { def: "json" },
   method: { def: "GET" },
   body: { def: null },
@@ -979,7 +979,7 @@ export function toCursor(v: unknown, context: string): Cursor | null {
     tag.path = healed;
     resolveTracked(tag.data, tag.path); // track the healed chain
   }
-  return tag.data.cursorAt(tag.path);
+  return tag.data.$cursorAt(tag.path);
 }
 
 /** Navigate `path`, registering a tracked read at EVERY step (unlike

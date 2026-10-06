@@ -66,13 +66,13 @@ export class Island extends View {
     }
     /** @internal tenant → host verb arrival: fire the declared onPost with the
      *  one-record payload `{ topic, payload }` (IslandPost). */
-    receiveMessage(topic, payload) {
+    $receiveMessage(topic, payload) {
         fireEvent(this, "post", { topic, payload });
     }
     /** The value this island provides under `name`, if `name` is on its
      *  `provides` list — else undefined, with a warning (the host did not offer
      *  it). What a hosted side's read resolves to. */
-    providedValue(name) {
+    $providedValue(name) {
         if (!providesOf(this).includes(name)) {
             console.warn(`[Declare] hostProvided("${name}"): this island does not list '${name}' in its provides (${providesOf(this).join(", ") || "none"})`);
             return undefined;
@@ -84,7 +84,7 @@ export class Island extends View {
      *  surface for non-Declare content, in the same words a Declare tenant
      *  uses: read what the host provides, expose values up, and the verbs. */
     handle = null;
-    foreignHandle() {
+    $foreignHandle() {
         if (this.handle !== null)
             return this.handle;
         const island = this;
@@ -96,11 +96,11 @@ export class Island extends View {
         this.handle = {
             /** the current value the host provides under `name` (plain data), or
              *  undefined when the island does not list it */
-            hostProvided: (name) => island.providedValue(name),
+            hostProvided: (name) => island.$providedValue(name),
             /** a standing watch over a provided value: cb(value) now, then at the
              *  close of each settle that changed it; returns the unwatch */
             watchProvided: (name, cb) => {
-                cb(island.providedValue(name));
+                cb(island.$providedValue(name));
                 return observe(() => (providesOf(island).includes(name) ? islandProvision(island, name) : undefined), (v) => cb(v), `island:${name}`);
             },
             /** expose a value up to the host — read there with `exposed(name, default)`,
@@ -112,7 +112,7 @@ export class Island extends View {
                     island.exposedValues.write(name, v);
             },
             /** tenant → host message (fires the island's onPost) */
-            post: (topic, payload) => island.receiveMessage(topic, payload),
+            post: (topic, payload) => island.$receiveMessage(topic, payload),
             /** host → tenant messages (island.post lands here); cb({ topic, payload }) */
             onPost: (cb) => { messageCbs.push(cb); return () => { const i = messageCbs.indexOf(cb); if (i >= 0)
                 messageCbs.splice(i, 1); }; },
@@ -171,7 +171,7 @@ export function linkIslandTenant(island, tenant) {
     island.tenantSink = {
         message: (topic, payload) => fireEvent(tenant, "post", { topic, payload }),
     };
-    tenant.hostSink = { message: (topic, payload) => island.receiveMessage(topic, payload) };
+    tenant.hostSink = { message: (topic, payload) => island.$receiveMessage(topic, payload) };
     undo.push(() => { island.tenantSink = null; tenant.hostSink = null; });
     return () => { for (const fn of undo.splice(0)) {
         try {

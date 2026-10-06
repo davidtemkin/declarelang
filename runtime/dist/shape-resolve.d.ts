@@ -11,8 +11,10 @@ export type DataShape = readonly ShapeField[] | ArrayDocShape;
 export declare const isArrayDoc: (s: DataShape) => s is ArrayDocShape;
 /** Resolve a program's schema declarations in place. Idempotent. Returns the
  *  errors (check() reports them; instantiate() resolves for behavior and
- *  leaves reporting to the checker). */
-export declare function resolveShapes(program: Program): {
+ *  leaves reporting to the checker). `isBuiltinClass` names the built-in
+ *  classes a schema may not take the name of — the checker's side passes the
+ *  schema table's; instantiation, which reports nothing, carries no table. */
+export declare function resolveShapes(program: Program, isBuiltinClass?: (name: string) => boolean): {
     table: ReadonlyMap<string, SchemaDecl>;
     errors: DeclareError[];
 };

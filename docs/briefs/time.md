@@ -34,13 +34,13 @@ App [ width = 320, height = 180, fill = white,
   a repeating job.
 - `new Date()` in a `{ }` is a stopped clock: it reads nothing that changes, so it
   evaluates once. Read a `Time` fact instead.
-- A pure function of now is a constraint on `now` (a stopwatch readout); a value whose
+- A pure function of now is a constraint on `now` (a clock hand's angle); a value whose
   next step depends on the last (physics) integrates in `onTick(dt)`, `dt` in seconds.
 - Once, later: `afterDelay(ms, fn)`, from a handler. The wait belongs to the node and is
   cancelled with it. `setTimeout`, `setInterval` and `Date`-polling loops are refused.
 - Before waiting, ask what you're waiting for: data is `source.loaded`, placement is
   `afterSettle`, motion is `spring.arrived`. All are values a constraint can read.
-- A change that must cause a one-time action (mark read, fetch on selection) is
+- A change that must cause a one-time action (fetch on selection, save on leaving) is
   `trackChanges = [ … ]` with `onChange(e)`; everything that merely follows is a
   constraint.
 
@@ -48,7 +48,6 @@ App [ width = 320, height = 180, fill = white,
 `Node.trackChanges`, `Node.onChange`.
 
 **Examples** `apps/weather/weather.declare`: `clock: Time [ tick = minute ]`, every
-row's local time · `apps/lzx-dashboard/lzx-dashboard.declare`: timed presence flashes ·
-`apps/docs/demos/Node.declare`: a stopwatch integrating `onTick`.
+row's local time · `apps/lzx-dashboard/lzx-dashboard.declare`: timed presence flashes.
 
 **Guide** Time and change events.

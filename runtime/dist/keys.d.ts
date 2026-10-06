@@ -32,6 +32,17 @@ export declare class KeysService {
     navClaim(owner: object, on: boolean): void;
     /** Is any navigation-keys claim live right now? */
     navClaimed(): boolean;
+    /** Was a claim live when the key now being dispatched arrived? Read once,
+     *  before any handler runs: the handler that acts on the key (a menu's
+     *  Enter picks and closes it) may release the claim mid-dispatch, and the
+     *  rest of the same keypress must still see who owned it. */
+    private claimedAtDispatch;
+    /** Does an overlay own this key? While an overlay claims the navigation
+     *  keys — an open menu — the arrows, Enter, Space, Escape and the jump keys
+     *  are the overlay's: the focused view beneath does not also receive them
+     *  (its Enter would re-press the button that opened the menu; its arrows
+     *  would move a list's selection under an open context menu). */
+    overlayOwns(e: KeyEvent): boolean;
     /** Subscribe to nav-claim TRANSITIONS (true = an overlay took the keys,
      *  false = the last claim released). Returns the unsubscribe thunk. */
     onNavClaim(fn: (on: boolean) => void): () => void;

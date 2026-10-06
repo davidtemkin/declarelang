@@ -24,15 +24,15 @@ export { usedClassNames, stripPos } from "./program-build.js";
  *  resolve bare names + includes + typecheck (all the compiler's work), then
  *  parse the resolved source into the program the runtime's `renderProgram`
  *  consumes. On any error, `program` is null and `errors` carries every
- *  diagnostic (nothing is emitted). */
+ *  diagnostic (nothing is emitted). `compiled` is the compile itself, for a
+ *  caller that also needs its text form (the crawler's extraction). */
 export async function compileProgram(source, opts = {}) {
     // The full compile: bare-name resolution + include/auto-include inlining +
-    // the tsc-over-bodies typecheck (a phase of THE compile, on by default —
-    // compile.ts runs the checker directly; `typecheck: false` is the caller's
-    // explicit opt-out). The runtime schema `check()` in the shared tail
-    // remains the always-on structural gate.
-    const { mainId, props, stripPos: strip, facts, ...compileOpts } = opts;
+    // the tsc-over-bodies typecheck. The runtime schema `check()` in the shared
+    // tail remains the structural gate.
+    const { mainId, props, stripPos: strip, facts, links, ...compileOpts } = opts;
     const c = await compileTracked(source, { ...compileOpts, mainId, props });
-    return programFromCompiled(c, { stripPos: strip, facts });
+    const build = await programFromCompiled(c, { stripPos: strip, facts, links });
+    return { ...build, compiled: c };
 }
 //# sourceMappingURL=declarec.js.map

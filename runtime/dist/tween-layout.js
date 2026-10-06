@@ -36,13 +36,13 @@ export class TweenLayout extends Layout {
     /** Stand up one lerp constraint per laid child per geometry slot (owning it,
      *  the one-owner model), snapshot the initial layout, and evaluate. Re-run
      *  wholesale by rearm when the child set changes (R8). */
-    install(_view) {
+    $install(_view) {
         if (this.tween === null) {
             const a = new Animator();
             a.attribute = "t";
             a.to = 1;
             a.motion = motionToken("laszloBoth");
-            this.appendChild(a); // parent = this layout → the animator targets `t` on it
+            this.$appendChild(a); // parent = this layout → the animator targets `t` on it
             this.tween = a;
         }
         const kids = this.laid();
@@ -97,7 +97,7 @@ export class TweenLayout extends Layout {
                     // child, so it is the one whose message most needs to say so.
                     k.arrangedBy = arranger;
                     refuseIfOwned(child, slot);
-                    this.reportDiscarded(child, slot, arranger);
+                    this.$reportDiscarded(child, slot, arranger);
                     own(child, slot, k);
                     owned.push({ child, slot, k });
                 }
@@ -115,7 +115,7 @@ export class TweenLayout extends Layout {
                 }, (v) => setBound(child, "visible", v));
                 kv.arrangedBy = arranger;
                 refuseIfOwned(child, "visible");
-                this.reportDiscarded(child, "visible", arranger);
+                this.$reportDiscarded(child, "visible", arranger);
                 own(child, "visible", kv);
                 owned.push({ child, slot: "visible", k: kv });
             });

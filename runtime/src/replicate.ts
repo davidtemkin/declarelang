@@ -526,7 +526,7 @@ export class Replicator {
     // unchanged; a moved instance's bindings re-read equal values and the
     // wave dies at the attribute layer's gate.
     next.forEach((v, i) => {
-      setBound(v, "datapath", data === null ? null : data.cursorAt(nodes[i].path));
+      setBound(v, "datapath", data === null ? null : data.$cursorAt(nodes[i].path));
       setRowIndex(v, rowIndexOf(nodes[i].path));
     });
     // Provisions land BEFORE attach (instantiate's partitionPending): attach
@@ -588,7 +588,7 @@ export class Replicator {
     }
     for (const node of nodes) this.inited.add(this.idOf(node.value));
     for (const view of fresh.keys()) armTree(view);
-    if (changed) this.parent.childrenMutated(); // one re-arm per burst
+    if (changed) this.parent.$childrenMutated(); // one re-arm per burst
   }
 
   /** Where the block starts right now: after its anchor. */

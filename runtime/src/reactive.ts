@@ -485,7 +485,7 @@ export function kernelLoaded(): boolean { return K !== null; }
  *  since freed ids are reused) and the live constraints by label. What a
  *  leak looks like: a count that climbs across a churn (a location flip, a
  *  filter change) and never comes back. */
-export function kernelStats(top = 12): { cells: number; rules: number; live: number; byLabel: Array<[string, number]> } {
+export function kernelStats(top = 12): { cells: number; rules: number; live: number; code: number; consts: number; byLabel: Array<[string, number]> } {
   const by = new Map<string, number>();
   let live = 0;
   for (const c of RULES) {
@@ -496,6 +496,7 @@ export function kernelStats(top = 12): { cells: number; rules: number; live: num
   }
   return {
     cells: K === null ? 0 : K.cells(), rules: K === null ? 0 : K.rules(), live,
+    code: K === null ? 0 : K.codeUse().code, consts: K === null ? 0 : K.codeUse().consts,
     byLabel: [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, top),
   };
 }

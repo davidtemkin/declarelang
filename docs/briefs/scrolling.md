@@ -5,21 +5,21 @@
 follows its newest line, a header that stays put.
 
 ```declare
-class Msg [ width = 100%, height = 30, t: Text [ x = 12, y = 6, text = :text ] ]
+class Line [ width = 100%, height = 30, t: Text [ x = 12, y = 6, text = :text ] ]
 
 App [ width = 360, height = 400, fill = white,
-    d: Dataset { { "msgs": [ { "id": 1, "text": "Hello" }, { "id": 2, "text": "Anyone there?" } ] } },
+    d: Dataset { { "entries": [ { "id": 1, "text": "build started" }, { "id": 2, "text": "compiling 14 files" } ] } },
 
     // fixed chrome: opts out of the page's scroll
     bar: View [ ignoreScroll = true, width = 100%, height = 48, fill = #10202C,
-        title: Text [ x = 12, y = 14, textColor = white, text = "Chat" ] ],
+        title: Text [ x = 12, y = 14, textColor = white, text = "Build output" ] ],
 
-    // a pane read from the bottom: at the end it follows new messages; scrolled back,
+    // a pane read from the bottom: at the end it follows new lines; scrolled back,
     // the reader's place holds
     log: View [ y = 48, width = 100%, height = { app.height - 48 }, scrolls = y, scrollAnchor = end,
         rows: View [ width = 100%, datapath = { app.d.value },
             layout: SimpleLayout [ axis = y ],
-            Msg [ datapath = :msgs[] ]
+            Line [ datapath = :entries[] ]
             ]
         ]
     ]

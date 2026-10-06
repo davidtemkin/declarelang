@@ -1,5 +1,6 @@
 import { View } from "../../runtime/dist/index.js";
 import { type Block } from "../../runtime/dist/md.js";
+import type { Program } from "../../runtime/dist/parser.js";
 import { type CompileOptions, type Compiled } from "./compile.js";
 import { type Environment } from "./headless.js";
 /** The shared Block tree (md.ts) as semantic HTML. Exported for tests and for
@@ -13,15 +14,13 @@ export declare function staticHtml(root: View, tenants?: ReadonlyMap<unknown, st
 export interface ExtractOptions extends CompileOptions {
     env?: Environment;
 }
-/** Extract from a compile() result: execute the compiled source to its t=0
- *  snapshot and serialize. Needs only { source, deps } — the projection that
- *  survives the worker boundary — so it composes with EVERY compile path
- *  (in-process, worker, cached). Returns null when the compile failed. */
-export declare function extractFromCompiled(compiled: Pick<Compiled, "source" | "deps" | "links">, env?: Environment): string | null;
+/** Extract from a compiled program (built with its links —
+ *  programFromCompiled `links`): execute it to its t=0 snapshot and serialize. */
+export declare function extractFromProgram(program: Program, env?: Environment): string;
 export interface Extracted {
     /** The extracted HTML fragment, or null when the compile failed. */
     html: string | null;
-    diagnostics: Compiled["diagnostics"];
+    diagnostics: readonly Compiled["diagnostics"][number][];
     report: string;
 }
 /** The one-call form: compile a source through THE compiler API (typecheck

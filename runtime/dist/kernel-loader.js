@@ -310,6 +310,7 @@ function bindWith(x, mem, image, c, hooks) {
         table: table0, active: active0, capacity,
         cells: () => x.kernel_cells(k), rules: () => x.kernel_rules(k),
         tableSize: () => usage()[1],
+        codeUse: () => { const u = usage(); return { code: u[8], consts: u[10] }; },
         write: (cell, v) => x.kernel_write(k, cell, v),
         set: (cell, v) => x.kernel_set(k, cell, v),
         touch: (cell) => { x.kernel_touch(k, cell); },

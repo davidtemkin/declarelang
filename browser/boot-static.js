@@ -57,13 +57,21 @@ export default async function boot(artifact) {
   const lib = artifact.library ?? {};
   const clientReady = loadCompiler().then((c) => { c.setDefaultLibrary(lib); return c; });
 
+  // The live-edit compile, in host-client's shape: `{ program }` or `{ report }`.
+  const liveCompile = (client) => async (src) => {
+    try {
+      const r = await client.compileProgram(src);
+      return r.program ? { program: r.program } : { report: r.report };
+    } catch { return null; }
+  };
+
   // 1 — render immediately from the artifact; edits keep the last render until (2) swaps the compiler in.
   let app = await bootHost({ ...artifact, compile: async () => null });
 
   // 2 — warm-load the compiler in the background, then hot-swap it in so edits go live.
   clientReady
     .then((client) =>
-      app.__setCompile(async (src) => { try { return (await client.compile(src)).source ?? null; } catch { return null; } }))
+      app.__setCompile(liveCompile(client)))
     .catch(() => {});
 
   // 3 — freshness: if a dependency moved since prebuild, recompile the page in-browser
@@ -78,17 +86,17 @@ export default async function boot(artifact) {
           clientReady,
           fetch(new URL(artifact.mainId, ROOT), { cache: "no-cache" }).then((r) => r.text()),
         ]);
-        const out = await client.compile(pageSource, { originDir: dirOf(artifact.mainId) });
-        if (!out.source) { console.warn("[Declare] in-browser recompile failed:\n" + out.report); return; }
+        const out = await client.compileProgram(pageSource, { originDir: dirOf(artifact.mainId), mainId: artifact.mainId });
+        if (!out.program) { console.warn("[Declare] in-browser recompile failed:\n" + out.report); return; }
         app.__teardown?.();                                   // stop the stale boot's rAF loops + listeners
         document.getElementById("host").innerHTML = "";
         app = await bootHost({
-          ...artifact, source: out.source,
+          ...artifact, program: out.program,
           seeds: { ...(artifact.seeds ?? {}), __page__: pageSource }, // editor shows the fresh source
           compile: async () => null,
         });
         clientReady.then((client2) =>
-          app.__setCompile(async (src) => { try { return (await client2.compile(src)).source ?? null; } catch { return null; } }));
+          app.__setCompile(liveCompile(client2)));
       } catch (e) { console.warn("[Declare] recompile error:", e); }
     }).catch(() => {});
   }

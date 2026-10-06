@@ -11,29 +11,29 @@ type Channel = readonly [member: string, subscribe: (fn: Handler) => () => void]
  *  in the language. */
 declare abstract class Source extends Node {
     /** The channels this source offers. */
-    protected abstract channels(): readonly Channel[];
+    protected abstract $channels(): readonly Channel[];
     private wired;
     /** Construction-complete (instantiate.ts's initTree — the same lifecycle hook
      *  an animator's autoStart uses): the compiled handler members are installed
      *  by now, which is the first moment we can tell which channels to wire. */
-    autoStart(): void;
+    $autoStart(): void;
 }
 /** The keyboard, as a member: `Keys [ onKeyDown(e) { … }, onKeyUp(e) { … } ]`.
  *  The RAW stream — it fires even while a text field has focus, so gate
  *  app-level shortcuts on app state where that matters. (A focused view's own
  *  `onKeyDown`/`onKeyUp` are the other half: keys belonging to one widget.) */
 export declare class KeysSource extends Source {
-    protected channels(): readonly Channel[];
+    protected $channels(): readonly Channel[];
 }
 /** The focus service, as a member: `onFocusChange(v)` when focus moves, and
  *  `onGeometry(g)` for the focused control's live silhouette — what a focus
  *  ring follows. */
 export declare class FocusSource extends Source {
-    protected channels(): readonly Channel[];
+    protected $channels(): readonly Channel[];
 }
 /** The tip service, as a member: `onTooltip(e)` when a tip-carrying view asks for
  *  its tooltip to show (`null` to hide). */
 export declare class TooltipsSource extends Source {
-    protected channels(): readonly Channel[];
+    protected $channels(): readonly Channel[];
 }
 export {};

@@ -15,7 +15,8 @@ import { readFileSync, writeFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseLibrary } from "../../runtime/dist/parser.js";
-import { checkThemeRecord, coerceToken } from "../../runtime/dist/check.js";
+import { checkThemeRecord } from "../../runtime/dist/check.js";
+import { coerceToken } from "../../runtime/dist/value.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const SRC = path.join(ROOT, "library/themes");

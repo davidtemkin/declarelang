@@ -100,6 +100,9 @@ export interface Kernel {
    *  list the caller owns. */
   addCode(words: ArrayLike<number>): number;
   addConst(v: number): number;
+  /** How far the code and constant arenas reach — their high-water marks,
+   *  which stay flat while freed blocks are reused (tooling: kernelStats). */
+  codeUse(): { code: number; consts: number };
   kdirty(): Uint32Array;
   addExprRule(target: number, flags: number, edges: ArrayLike<number>, codeOffset: number, ncode: number): number;
   viewLayout(layout: Record<string, number>): void;
@@ -436,6 +439,7 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     table: table0, active: active0, capacity,
     cells: () => x.kernel_cells(k), rules: () => x.kernel_rules(k),
     tableSize: () => usage()[1],
+    codeUse: () => { const u = usage(); return { code: u[8], consts: u[10] }; },
     write: (cell, v) => x.kernel_write(k, cell, v),
     set: (cell, v) => x.kernel_set(k, cell, v),
     touch: (cell) => { x.kernel_touch(k, cell); },

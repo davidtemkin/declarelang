@@ -92,7 +92,8 @@ core only tests with `instanceof`, which an empty class answers.
 
 A **subset** capability is a table the program can reach only by the names it
 writes: the built-in component schemas (`schema`, keyed by the classes it
-constructs). Unless a debug or hosting build needs it whole, the module ships
+constructs), which a build carries only with the router (§5, "A program arrives
+routed"). Unless a debug or hosting build needs it whole, the module ships
 as itself with that table cut to the entries the program names. Whatever only
 the cut entries referenced is left for the bundler to drop.
 
@@ -119,13 +120,34 @@ same way, to its record (`lowerThemeNames`), so a program ships the one preset i
 names and never the table of them; a theme the program declares itself stays a
 name, resolved from its own declaration.
 
-So the literal parsers — color names and hex, the decoration constructors,
-motion tokens and curves, shape paths (`literal-parse.ts`) — are a capability
-like any other, and one only rich text needs: its inline-view tags are read
-from the text as it arrives, which may be data. A literal the compile could not
-ship as a value would keep them too; there is none in the corpus, and
-`test/lower-literals.test.mjs` holds that line: every literal in the corpus
-ships as its value, and a compiled program, booted, parses none of its own.
+So the literal parsers — the parse of a written literal by its slot's type,
+with color names and hex, the decoration constructors, motion tokens and
+curves, shape paths (`literal-parse.ts`) — are a capability like any other, and
+one only rich text needs: its inline-view tags are read from the text as it
+arrives, which may be data. A literal the compile could not ship as a value
+would keep them too, and so would a wiring the compile could not decide (below);
+there is no such literal in the corpus, and `test/lower-literals.test.mjs` holds
+that line: every literal in the corpus ships as its value, and a compiled
+program, booted, parses none of its own.
+
+### A program arrives routed
+
+How an attribute is wired depends, here and there, on its slot's type: a
+`:path` on a cursor slot sets the record context instead of reading a value, a
+bare list on an array slot is the list itself, a named child on a class-typed
+slot (`layout: SimpleLayout [ … ]`) is that slot's value and not a child, a
+State's attribute overrides the enclosing view, and a data read converts what
+arrives to the slot's type. Once the compile has checked the program, it
+decides all of these from the schemas and writes the answers onto the tree
+(`runtime/src/route.ts`): a route on each attribute that needs one, and the
+slot's type only where the runtime still converts by it. Instantiation reads
+the answers and asks no schema, so a production build carries neither the class
+schemas nor the code that registered the program's classes at boot.
+
+The router, and the schemas with it, comes aboard (the `routing` capability)
+only for a tree that arrives unrouted: a rich text's inline views, the
+Inspector's evaluation, and an override literal in a State class's body, which
+coerces by the slot of whatever view each use puts it in.
 
 ## 6. The kernel
 
@@ -167,7 +189,7 @@ A build reports what it carries, and `--why` says what in the program brought
 each capability aboard:
 
     $ node tools/declarec.mjs apps/weather/weather.declare --why
-        capabilities: 14 of 44 aboard, 1 cut to what the program names (schema-table) — left out: checker, bridge, …
+        capabilities: 15 of 47 aboard, 1 cut to what the program names (schema-table) — left out: checker, bridge, …
           themes: names SanFrancisco
           draw: declares draw()
           visibility: required by draw
@@ -190,17 +212,17 @@ The compiler does not change.
 
 ## 10. What it comes to
 
-Gzipped DOM builds, measured 2026-09-26:
+Gzipped DOM builds, measured 2026-10-04:
 
 | program | capabilities aboard | gzipped |
 |---|---:|---:|
-| hello-world (`App [ Text [ text = "hello" ] ]`) | 1 | 71.0 KB |
-| marketmap | 11 | 109.2 KB |
-| calendar | 15 | 113.0 KB |
-| weather | 14 | 118.0 KB |
-| sampler | 15 | 123.8 KB |
-| tracker | 19 | 128.8 KB |
-| desktop (hosts islands, so keeps what they may need) | 37 | 176.0 KB |
+| hello-world (`App [ Text [ text = "hello" ] ]`) | 1 | 71.5 KB |
+| marketmap | 11 | 107.7 KB |
+| calendar | 15 | 111.1 KB |
+| weather | 15 | 115.4 KB |
+| sampler | 16 | 126.3 KB |
+| tracker | 20 | 132.2 KB |
+| desktop (hosts islands, so keeps what they may need) | 40 | 187.1 KB |
 
 A JavaScript-kernel build is about 9 KB smaller again.
 
@@ -236,7 +258,6 @@ are lower bounds.
 | raise, travel, rich, `createView` (view side) | 0.16 | member read / class |
 | negative-size diagnostics | 0.15 | none: production could always drop them, as it drops error prose |
 | rotation, scale, matrix; 3D | 0.10; 0.05 | the attributes |
-| precomputed class schemas | ≤ ~2 (not measured) | none: the compiler knows them; a design change (ship the result instead of rebuilding at boot), not a split |
 
 Corrections from measuring: pinch-zoom watching and the root's touch-action run
 for every app at attach, so they are core (only carved hit-testing could be

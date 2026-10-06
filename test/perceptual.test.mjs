@@ -882,7 +882,7 @@ function serveDist() {
       import { loadCompiler } from "/browser/compiler-client.js";
       window.__run = async (src) => {
         const client = await loadCompiler();
-        const result = await client.compile(src, {});
+        const result = await client.compileProgram(src, {});
         return { transport: client.transport, json: JSON.stringify(result) };
       };
       window.__ready = true;
@@ -2844,9 +2844,9 @@ try {
   await test("compile worker: byte-identical output to the Node compiler (identical-output invariant)", async () => {
     // The whole-toolchain uniformity claim, verified across TRANSPORTS: the
     // same source compiled in a real module Worker in Chrome and by the Node
-    // compiler in this process must produce the same bytes — source, deps,
+    // compiler in this process must produce the same bytes — the program,
     // structured diagnostics, AND the rendered report (docs/system-design/in-browser-dev.md).
-    const { compile: compileNode } = await import("../compiler/dist/compile-node.js");
+    const { compileProgram: compileNode } = await import("../compiler/dist/declarec.js");
     const page = await browser.newPage();
     await page.goto(`http://127.0.0.1:${port}/worker-identity`, { waitUntil: "load" });
     await page.waitForFunction(() => window.__ready === true, { timeout: 20000 });
@@ -2859,8 +2859,8 @@ try {
       const { transport, json } = await page.evaluate((s) => window.__run(s), src);
       assert.equal(transport, "worker", "Chrome supports module workers — the worker transport must win");
       const r = await compileNode(src, {});
-      const expected = JSON.stringify({ source: r.source, deps: r.deps, diagnostics: r.diagnostics, report: r.report });
-      assert.equal(json, expected, "worker output diverges from Node for: " + src.slice(0, 40));
+      const shape = (o) => JSON.stringify({ program: o.program, diagnostics: o.diagnostics, report: o.report });
+      assert.equal(shape(JSON.parse(json)), shape(r), "worker output diverges from Node for: " + src.slice(0, 40));
     }
     await page.close();
   });

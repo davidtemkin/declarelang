@@ -132,6 +132,10 @@ const ViewSchema = {
         // and cannot also define them — the percent-slot rule's sibling). An
         // ancestor's clip above the parent still applies.
         ignoreLayout: { kind: "boolean" },
+        // `flexes` — the child takes an equal share of the room its parent's
+        // layout leaves along the flow (the layout sizes it there; across, it is
+        // aligned like any child). A Spacer is an empty view that flexes.
+        flexes: { kind: "boolean" },
         ignoreClip: { kind: "boolean" },
         // …and `ignoreScroll` — the third member (ruled 2026-07-29): the scroll
         // carries everyone but me. The child rides its nearest enclosing scroll
@@ -1314,13 +1318,9 @@ export function isReadOnly(schema, name) {
     }
     return false;
 }
-/** The handler member name for an event: click → onClick (language §8's
- *  `on` prefix — the one naming rule, shared by the checker and dispatch). */
-export const handlerName = (event) => "on" + event[0].toUpperCase() + event.slice(1);
-/** The event a handler-shaped name answers (onClick → click), or null when
- *  the name is not handler-shaped. Handler-shaped is exactly `on` + a
- *  capital (the doc's rule — what keeps handlers out of the plain-method
- *  namespace), so `once` or `onward` are plain method names. */
+/** The handler naming rule (click → onClick, and back), shared by the checker
+ *  and dispatch — it lives in its own leaf so dispatch need not import this table. */
+export { handlerName, eventOfHandler } from "./handlers.js";
 /** EVENT NAME → the payload type its handler receives, as a TYPE NAME the
  *  scaffold can emit. Absent = the handler takes nothing.
  *
@@ -1374,11 +1374,6 @@ export const PAYLOAD_TYPE_NAMES = new Set([
     "ValueChange", // reachable through ChangeEvent.changed
     "Draw", "DrawGradient", // the `draw(d: Draw)` context (draw.ts)
 ]);
-export function eventOfHandler(name) {
-    if (name.length < 3 || !name.startsWith("on") || name[2] < "A" || name[2] > "Z")
-        return null;
-    return name[2].toLowerCase() + name.slice(3);
-}
 /** Every event `schema` answers, base-first — the inheritance walk of
  *  attrType, over the events half of the declaration. */
 export function eventsOf(schema) {

@@ -1,4 +1,5 @@
 import { App, type BuildOptions } from "../../runtime/dist/index.js";
+import type { Program } from "../../runtime/dist/parser.js";
 /** The explicit environment vector (capabilities.md §3). The defaults are ONE
  *  canonical constant on every host — a nominal desktop viewport, light scheme
  *  — so a headless artifact never varies by who extracted it. Explicit because
@@ -27,11 +28,17 @@ export declare const DEFAULT_ENV: {
  *  numbers, every host — determinism is the contract here, fidelity is the
  *  injectable upgrade (Environment.measurer). */
 export declare function approximateMeasurer(): CanvasRenderingContext2D;
-export interface HeadlessOptions extends BuildOptions {
+export interface HeadlessOptions {
     env?: Environment;
+    /** The values a host provides the app from its first evaluation. */
+    provides?: Readonly<Record<string, unknown>>;
 }
-/** Build and settle a program headlessly; returns the settled App. The input
- *  is a compile()'s output source (scope-resolved, one self-contained file)
- *  with its extracted `deps` — or any source whose bodies use explicit paths.
- *  Callers walk the tree, then `app.discard()`. */
-export declare function settleHeadless(source: string, opts?: HeadlessOptions): App;
+/** Build and settle a compiled program headlessly; returns the settled App.
+ *  Instantiating leaves the program untouched, so one program settles any
+ *  number of times. Callers walk the tree, then `app.discard()`. */
+export declare function settleHeadless(program: Program, opts?: HeadlessOptions): App;
+/** The same, through the runtime's `build(source)`: parse, check, instantiate a
+ *  compile()'s output source with its `deps`. For tests of that entry point. */
+export declare function settleSource(source: string, opts?: BuildOptions & {
+    env?: Environment;
+}): App;

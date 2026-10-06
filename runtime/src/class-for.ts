@@ -46,7 +46,7 @@ export class KindedReplicator extends Replicator {
 
   protected override classify(m: Match): Match {
     const data = m.data;
-    if (data !== null) m.classes = m.nodes.map((n) => this.classOf(data.cursorAt(n.path)));
+    if (data !== null) m.classes = m.nodes.map((n) => this.classOf(data.$cursorAt(n.path)));
     return m;
   }
 

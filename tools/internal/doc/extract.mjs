@@ -31,6 +31,7 @@ function canonize(src) {
 import { TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES } from "../../../runtime/dist/registry.js";
 import { LANGUAGE_API, LANGUAGE_STATICS } from "../../../compiler/dist/scaffold.js";
 import { compile } from "../../../compiler/dist/compile-node.js";
+import { compileProgram } from "../../../compiler/dist/declarec.js";
 import { settleHeadless } from "../../../compiler/dist/headless.js";
 import { parseProgram, parseLibrary } from "../../../runtime/dist/parser.js";
 
@@ -99,12 +100,11 @@ function slug(s) { return s.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "
 // (a runaway demo scrolls rather than swallowing the page), +24 breathing room.
 async function measureStage(src, floor = 200) {
   try {
-    // settleHeadless takes a compile()'s OUTPUT (headless.ts) — the ONE compile
-    // resolves auto-includes (Slider/Button/…) and extracts deps; core build alone
-    // would reject any island that uses the standard library.
-    const out = await compile(src, {});
-    if (out.errors?.length) return floor;
-    const app = settleHeadless(out.source, { deps: out.deps, env: { hostWidth: 640, hostHeight: floor } });
+    // settleHeadless takes a compiled program (headless.ts) — the compile
+    // resolves auto-includes (Slider/Button/…) and extracts deps.
+    const out = await compileProgram(src, {});
+    if (out.program === null) return floor;
+    const app = settleHeadless(out.program, { env: { hostWidth: 640, hostHeight: floor } });
     // A fixed-size app's DECLARED height wins over its settled content extent —
     // a State/Spring may grow content into that declared box on interaction
     // (contentHeight alone under-measured a states demo by 40px).
@@ -1072,10 +1072,10 @@ async function readForms() {
       if (!r.probe) { formsProblems.push(`forms.md '## ${sec.slug}': rule "${r.rule.slice(0, 40)}…" has no probe`); continue; }
       let msgs = [];
       try {
-        const out = await compile(r.probe, {});
+        const out = await compileProgram(r.probe, {});
         msgs = (out.errors ?? []).map((e) => e.message.replace(/\s+/g, " "));
-        if (!msgs.length && out.source) {
-          try { const app = settleHeadless(out.source, { deps: out.deps }); app.discard(); }
+        if (!msgs.length && out.program) {
+          try { const app = settleHeadless(out.program); app.discard(); }
           catch (e) { msgs = [String(e?.message ?? e).replace(/\s+/g, " ")]; }
         }
       } catch (e) { msgs = [String(e?.message ?? e).replace(/\s+/g, " ")]; }
@@ -1190,9 +1190,9 @@ for (const c of tree) {
 const blankIslands = [];
 for (const [id, src] of Object.entries(genFiles)) {
   try {
-    const out = await compile(src, {});
-    if (out.errors?.length) continue;
-    const app = settleHeadless(out.source, { deps: out.deps, env: { hostWidth: 640, hostHeight: 240 } });
+    const out = await compileProgram(src, {});
+    if (out.program === null) continue;
+    const app = settleHeadless(out.program, { env: { hostWidth: 640, hostHeight: 240 } });
     let seen = 0;
     const walk = (v) => {
       if (v !== app && v.visible !== false && ((v.fill != null && v.width > 0 && v.height > 0) || (typeof v.text === "string" && v.text !== "") || v.source || typeof v.draw === "function")) seen++;

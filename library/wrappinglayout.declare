@@ -10,7 +10,10 @@ on a phone with no media query. It owns both axes of each child (a flow is
 sets each finished row along the flow — `start`, `center`, `end`, or `fill`,
 which spreads a row's slack into its gaps the way justified text does;
 `indent` and `hangingIndent` inset the first row and every row after it, the
-two shapes a paragraph takes.
+two shapes a paragraph takes. A child with `flexes = true` takes the rest of the
+row it lands on: it wraps by its content width, then grows into what the row
+has left, or gives up what the row is short — a strip of filters that fills
+the room its row's other children leave, and scrolls when that is too little.
 
 Division of labor: this is the tool for uniform, replicated collections
 that reflow by fitting. Managing named regions per width tier is
@@ -98,6 +101,7 @@ class WrappingLayout extends Layout [
         const out = [] as any
         const heights = [] as any   // per child, for the cross pass over its row
         const bases = [] as any     // per child: its declared baseline, or null
+        const natural = [] as any   // per child: a flexing child's own content width, else null
         let cx = ind0
         let cy = 0
         let rowH = 0
@@ -111,7 +115,25 @@ class WrappingLayout extends Layout [
         // says whether it is the flow's final row, which `fill` leaves ragged.
         const finish = (end, rowW, last) => {
             const slack = Math.max(0, w - rowW)
-            if (slack > 0 && (jf == "center" || jf == "end")) {
+            // a flexing child takes the rest of its row: the row's slack — or,
+            // on a row that overflows, its shortfall — is shared among the
+            // row's flexing children, and what follows moves along
+            let flexN = 0
+            for (let j = rowStart; j < end; j++) if (kids[j].visible && natural[j] != null) flexN = flexN + 1
+            if (flexN > 0) {
+                const share = (w - rowW) / flexN
+                let shift = 0
+                for (let j = rowStart; j < end; j++) {
+                    if (!kids[j].visible) continue
+                    out[j].x = out[j].x + shift
+                    if (natural[j] != null) {
+                        const grown = Math.max(0, natural[j] + share)
+                        out[j].w = grown
+                        shift = shift + grown - natural[j]
+                    }
+                }
+            }
+            else if (slack > 0 && (jf == "center" || jf == "end")) {
                 const off = jf == "center" ? slack / 2 : slack
                 for (let j = rowStart; j < end; j++) out[j].x = out[j].x + off
             } else if (slack > 0 && jf == "fill" && !last) {
@@ -156,15 +178,19 @@ class WrappingLayout extends Layout [
         }
         for (let i = 0; i < kids.length; i++) {
             const c = kids[i]
-            if (!c.visible) { out.push({ x: cx, y: cy }); heights.push(0); bases.push(null); continue }   // skipped: reclaim its slot
+            if (!c.visible) { out.push({ x: cx, y: cy }); heights.push(0); bases.push(null); natural.push(null); continue }   // skipped: reclaim its slot
             // the child's footprint (scale/rotation composed, position-free —
             // place() must not read the x/y it writes), and the transform's own
-            // lead offset, compensated so the visible box lands on the flow
-            const f = (c as any).footprint()
-            const cw = f.width
-            const ch = f.height
-            const leadX = f.x
-            const leadY = f.y
+            // lead offset, compensated so the visible box lands on the flow.
+            // A flexing child's width is this flow's to write, so it is fitted
+            // by its content width and its footprint is never read.
+            const flex = (c as any).flexes === true
+            const f = flex ? null : (c as any).footprint()
+            const cw = flex ? (c as any).contentWidth : f.width
+            const ch = flex ? (c as any).height : f.height
+            const leadX = flex ? 0 : f.x
+            const leadY = flex ? 0 : f.y
+            natural.push(flex ? cw : null)
             // wrap when this child (with its leading gap) would overflow — never
             // on a row's first child, so one over-wide child just overflows
             if (!firstInRow && cx + sp + cw > w) { const lh = finish(i, cx, false); cx = indN; cy = cy + lh + ls; rowH = 0; rowBase = 0; firstInRow = true; rowStart = i }

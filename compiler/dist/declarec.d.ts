@@ -1,4 +1,4 @@
-import type { CompileOptions } from "./compile.js";
+import type { CompileOptions, Compiled } from "./compile.js";
 import { type ProgramBuild } from "./program-build.js";
 export { usedClassNames, stripPos, type ProgramBuild } from "./program-build.js";
 export interface DeclarecOptions extends CompileOptions {
@@ -16,10 +16,15 @@ export interface DeclarecOptions extends CompileOptions {
     props?: Record<string, string>;
     /** Read the program's facts (ProgramBuild.facts) — a production build's input. */
     facts?: boolean;
+    /** Keep the navigation relation on the program — the crawler's input. */
+    links?: boolean;
 }
 /** Compile a Declare source into a serializable, instantiate-ready program:
  *  resolve bare names + includes + typecheck (all the compiler's work), then
  *  parse the resolved source into the program the runtime's `renderProgram`
  *  consumes. On any error, `program` is null and `errors` carries every
- *  diagnostic (nothing is emitted). */
-export declare function compileProgram(source: string, opts?: DeclarecOptions): Promise<ProgramBuild>;
+ *  diagnostic (nothing is emitted). `compiled` is the compile itself, for a
+ *  caller that also needs its text form (the crawler's extraction). */
+export declare function compileProgram(source: string, opts?: DeclarecOptions): Promise<ProgramBuild & {
+    compiled: Compiled;
+}>;

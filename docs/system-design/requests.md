@@ -100,10 +100,7 @@ per-request choices:
   components / keep positions" a deployer asks for. The one caller who wants an
   un-stripped build to debug the *emitter* uses `declarec --debug` (not a public URL
   param), not a flag.
-- **`typecheck`** — always on. It is a mandatory, structural phase of the one compile;
-  the former `?typecheck=0` opt-out only existed for a hypothetical lighter in-browser
-  compiler, which we've ruled out. If we ever want one, that's a separate compiler
-  build, not a per-request flag.
+- **`typecheck`** — always on: a phase of every compile, with no flag or option.
 
 The compiler's *internal* options still carry `stripPos`/`typecheck` (the `build` act
 sets them); only the externally-named FLAG surface shrinks — to `render` and `seo`.

@@ -43,6 +43,12 @@
 // physical scroll offset with the ledger proportionally (the thumb reads the
 // position in the whole list), and rows near the viewport stay inside the
 // physical range. Rows keep their real size; only the range is scaled.
+//
+// The cap sits BELOW 2²⁴ by a margin: rows within reach of the viewport may
+// overhang the published range by up to a viewport, and the scroller's extent
+// counts them — and above 2²⁴ a browser that keeps scroll geometry in single
+// precision (Chrome) holds only even pixels, so a pane shrinking at the end of a
+// compressed list lost a pixel of its extent and moved the rows on screen.
 
 import { View, onDiscard, markWindowedBlock, setRowIndex, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree } from "./view.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
@@ -60,7 +66,7 @@ const POOL_CAP = 200;         // parked rows kept for re-pointing (a jump parks,
 const LOOKAHEAD_PER_PASS = 8; // rows beyond the viewport one pass builds
 const JUMP_QUIET = 150;       // ms after a jump before rows ahead are built again
 const HAS_FRAMES = typeof (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame === "function";
-const EXTENT_CAP = 16_777_216; // 2²⁴
+const EXTENT_CAP = 16_777_216 - 65_536; // 2²⁴, less room for rows overhanging the range
 
 /** Logical-per-physical ratio for a ledger of `logical` extent in a `viewH`
  *  viewport: exactly 1 whenever it fits under the cap. */
@@ -304,7 +310,7 @@ export class Windowing {
    *  anchor's topIn, the same sum). */
   private offsetTo(scroller: View): number {
     let off = this.rowsLead();
-    for (let v: unknown = this.host.parent; v instanceof View && v !== scroller; v = v.parent) off += v.y + v.positionLead("y");
+    for (let v: unknown = this.host.parent; v instanceof View && v !== scroller; v = v.parent) off += v.y + v.$positionLead("y");
     return off;
   }
   private rowsLead(): number {
@@ -317,7 +323,7 @@ export class Windowing {
     return this.trailing.room + Math.max(0, ((this.host.parent as unknown as { insetY?: number }).insetY ?? 0) - this.rowsLead());
   }
 
-  /** What the parent stacks after the rows (a "writing…" line under a chat):
+  /** What the parent stacks after the rows (a "loading more…" line, a footer):
    *  the stack's pass stands down while windowing places the block, so these
    *  are placed here, after the last row, and their room joins the extent.
    *  Tracked: their sizes, their visibility, and the parent's child list (one
@@ -325,7 +331,7 @@ export class Windowing {
   private trailing: { views: View[]; room: number } = { views: [], room: 0 };
   private trailingSiblings(gap: number): { views: View[]; room: number } {
     const parent = this.host.parent;
-    parent.watchChildList();
+    parent.$watchChildList();
     const mine = new Set<View>(this.pool);
     for (const r of this.rows.values()) mine.add(r.view);
     const views: View[] = [];
@@ -582,7 +588,7 @@ export class Windowing {
     // rows whose index moved (a data change) take their new place's cursor
     if (m.dataChanged && data !== null) {
       for (const r of this.rows.values()) {
-        const cursor = data.cursorAt([...path, String(r.index)]);
+        const cursor = data.$cursorAt([...path, String(r.index)]);
         if (r.view.datapath !== cursor) { setBound(r.view, "datapath", cursor); setRowIndex(r.view, r.index); pointed.add(r.view); }
       }
     }
@@ -657,7 +663,7 @@ export class Windowing {
     // cursors only once every row is built: building runs rules, and a row
     // cursored early would answer them unlinked
     for (const a of arriving) {
-      if (data !== null) setBound(a.view, "datapath", data.cursorAt(a.path));
+      if (data !== null) setBound(a.view, "datapath", data.$cursorAt(a.path));
       setRowIndex(a.view, a.index);
     }
     for (const f of fresh) {
@@ -723,7 +729,7 @@ export class Windowing {
     for (const r of repointed) if (!host.inited.has(r.id)) fireInitTree(r.view);
     for (const f of fresh) { host.inited.add(f.id); armTree(f.view); }
     for (const r of repointed) { host.inited.add(r.id); armTree(r.view); }
-    if (fresh.length > 0 || out.length > 0) parent.childrenMutated();
+    if (fresh.length > 0 || out.length > 0) parent.$childrenMutated();
     // rows built or re-pointed this pass have not settled their height yet
     // (their constraints run after this returns): measured on the next pass —
     // in this update when the viewport needs it, else on the next frame, so

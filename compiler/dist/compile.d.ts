@@ -1,3 +1,4 @@
+import { type Program } from "../../runtime/dist/parser.js";
 import { DeclareError } from "../../runtime/dist/errors.js";
 import { type SerializedLink } from "../../runtime/dist/links.js";
 import ts from "typescript";
@@ -43,7 +44,15 @@ export interface Compiled {
      *  A CLI prints it verbatim; a rich consumer reads `diagnostics` instead —
      *  the same dual-form rule each Diagnostic itself follows. */
     report: string;
+    /** The program this compile built — parsed, resolved, checked, its deps and
+     *  kernel bytecode on its code values — present when `source` is. In-process
+     *  only: non-enumerable, so JSON and structured clone drop it, and a result
+     *  that crossed a boundary rebuilds from `source` (programFromCompiled).
+     *  Copy a result with `carryProgram`, which a spread would lose. */
+    readonly program?: Program;
 }
+/** A copy of a compile result (`{ ...from, ...extra }`) that keeps its program. */
+export declare function carryProgram<T extends Compiled, X extends object>(from: T, extra: X): T & X;
 /** Options for compile(): the file-access host `include` resolution rides and
  *  the main file's directory. The host defaults to the Node filesystem (this
  *  is the Node-side front-end) and originDir to the process cwd — includes
@@ -51,15 +60,6 @@ export interface Compiled {
 export interface CompileOptions {
     host?: IncludeHost;
     originDir?: string;
-    /** The tsc-over-`{ }`-bodies typecheck (typecheck.ts) — ON BY DEFAULT, part
-     *  of THE compile like every other phase: the checker is imported directly
-     *  (never injected), so no front-end can exist where this flag silently
-     *  no-ops. A type error blocks emission like any other, reported as an
-     *  DECLARE6001 diagnostic mapped to its `.declare` line. `typecheck: false`
-     *  (URL `?typecheck=0`, CLI `--no-typecheck`) is the EXPLICIT opt-out for a
-     *  latency-critical loop (a debounced per-keystroke compile) — a visible,
-     *  greppable choice, never a wiring accident. */
-    typecheck?: boolean;
     /** Bundle the program's script module — the seam that makes ES `import`
      *  inside `script { }` real (composition.md §2). Handed the concatenated
      *  script sources (TypeScript, imports included) and the directory bare

@@ -113,8 +113,8 @@ await test("a throwing onMessage does not kill the stream (fire's guard)", async
   const lines = await logged(() => {
     // deliver two messages through the same protected fire the seam uses:
     // the first handler call throws, the second must still arrive
-    a.es.fire("onMessage", { data: "one" });
-    a.es.fire("onMessage", { data: "two" });
+    a.es.$fire("onMessage", { data: "one" });
+    a.es.$fire("onMessage", { data: "two" });
   });
   assert.equal(a.got, 2, "the burst survives its first bad message");
   assert.equal(lines.filter((l) => l.includes("onMessage on EventStream threw")).length, 2);

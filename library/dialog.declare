@@ -156,6 +156,7 @@ class Dialog [
 
     theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown },
+    ignoreLayout = true,                         // it covers the app from its own origin; a parent's layout never arranges it
     x = 0,
     y = 0,
     width = { app.width },

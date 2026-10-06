@@ -36,17 +36,17 @@ export declare class Island extends View {
     post(topic: string, payload?: unknown): void;
     /** @internal tenant → host verb arrival: fire the declared onPost with the
      *  one-record payload `{ topic, payload }` (IslandPost). */
-    receiveMessage(topic: string, payload: unknown): void;
+    $receiveMessage(topic: string, payload: unknown): void;
     /** The value this island provides under `name`, if `name` is on its
      *  `provides` list — else undefined, with a warning (the host did not offer
      *  it). What a hosted side's read resolves to. */
-    providedValue(name: string): unknown;
+    $providedValue(name: string): unknown;
     /** The foreign content's handle — built once, attached to the island's
      *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
      *  surface for non-Declare content, in the same words a Declare tenant
      *  uses: read what the host provides, expose values up, and the verbs. */
     private handle;
-    foreignHandle(): Record<string, unknown>;
+    $foreignHandle(): Record<string, unknown>;
 }
 /** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
  *  island service, the mac runner). DOWN: every name on the island's

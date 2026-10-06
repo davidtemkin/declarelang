@@ -14,7 +14,7 @@ asleep for an hour gets one tick on return. A number is a **period** counted fro
 the `Time` starts — `tick = 30000, onTick() { app.feed.fetch() }` refreshes a source
 every thirty seconds. `frame` rides the one shared clock every animator uses (no second frame
 loop) and updates `now` per frame, for anything that is a pure function of the current
-time — a stopwatch readout, a countdown, progress toward a deadline.
+time — a clock hand, a countdown, progress toward a deadline.
 
 Two doors, keyed to the *shape* of the dependence: a value that is a pure function of
 now derives from a fact; a value whose next step depends on its previous — physics, a

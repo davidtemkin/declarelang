@@ -983,7 +983,6 @@ function buildBrowse(dm, spine, types) {
       hydrated("Requests", requestsDoc(spine)),
     ]),
     cat("Operational", listDocs("docs/operational")),
-    cat("Background", listDocs("docs/system-design"), "design notes · non-normative"),
   ];
 }
 

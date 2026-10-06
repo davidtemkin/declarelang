@@ -5,7 +5,8 @@
 // docs (data-driven — the real own-material resolvers on each side).
 import { existsSync, readFileSync } from "node:fs";
 import puppeteer from "puppeteer-core";
-import { compile, crawlDocument, diskDataResolver } from "../../../compiler/dist/compile-node.js";
+import { crawlDocument, diskDataResolver } from "../../../compiler/dist/compile-node.js";
+import { compileProgram } from "../../../compiler/dist/declarec.js";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve as presolve } from "node:path";
 import { launchChrome } from "../chrome.mjs";
@@ -19,20 +20,20 @@ await page.goto("http://localhost:8364/", { waitUntil: "domcontentloaded" });
 
 for (const rel of ["apps/homepage/homepage.declare", "apps/docs/docs.declare"]) {
   const dir = ROOT + "/" + rel.split("/").slice(0, -1).join("/");
-  const r = await compile(readFileSync(ROOT + "/" + rel, "utf8"), { originDir: dir });
-  const nodeDoc = await crawlDocument(r.source, { deps: r.deps, links: r.links, data: diskDataResolver(dir) });
+  const r = await compileProgram(readFileSync(ROOT + "/" + rel, "utf8"), { originDir: dir, links: true });
+  const nodeDoc = await crawlDocument(r.program, { data: diskDataResolver(dir) });
 
-  const browserDoc = await page.evaluate(async (src, deps, links, base) => {
+  // the same program, crossing into the page as JSON — the boundary shape
+  const browserDoc = await page.evaluate(async (program, base) => {
     const m = await import("/bundles/declare-compiler.js");
-    return m.crawlDocument(src, {
-      deps, links,
+    return m.crawlDocument(program, {
       // parse-else-raw — the boot-extract resolver's shape, diskDataResolver's twin
       data: (url) => fetch(new URL(url, location.origin + "/" + base), { cache: "no-cache" })
         .then((res) => (res.ok ? res.text() : null))
         .then((raw) => { if (raw === null) return null; try { return JSON.parse(raw); } catch { return raw; } })
         .catch(() => null),
     });
-  }, r.source, r.deps, r.links, rel);
+  }, r.program, rel);
 
   const same = nodeDoc === browserDoc;
   if (!same) failures++;

@@ -36,7 +36,7 @@
 import { Cell, Constraint, afterSettle, isSettling } from "./reactive.js";
 import { affineFit, childHomography, unprojectChild, type Homography, type View3D } from "./projective.js";
 import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
-import { diag } from "./errors.js";
+import { walkHit, type HitAdapter, type HitAccept, type HitNote as WalkNote } from "./hit-walk.js";
 import { insetLead, type Inset } from "./value.js";
 
 /** The parent's CONTENT ORIGIN on one axis — the leading inset every child's
@@ -96,13 +96,8 @@ export interface InteractionApp extends InteractionView {
  *  rather than a name: this module is deliberately view-free (structural
  *  typing, no import of view.ts), so naming is the caller's job — inspect.ts
  *  maps each to its path. */
-export interface HitNote {
-  view: InteractionView;
-  why: string;
-  /** the point in that view's own coordinates, which is usually the tell */
-  x: number;
-  y: number;
-}
+/** One step of a narrated walk over the views (hit-walk.ts HitNote). */
+export type HitNote = WalkNote<InteractionView>;
 
 /** Narrate the hit walk at a root-FRAME point: what it descended into, what it
  *  skipped and why, and what finally took the point (or that nothing did).
@@ -222,104 +217,44 @@ function toChildLocal(v: InteractionView, c: InteractionView, lx: number, ly: nu
   return [cx, cy];
 }
 
-/** The topmost visible view whose box contains the point — reverse paint
- *  order, descending through containers; overflow children are reachable
- *  outside their parent's box unless the parent clips. All attribute reads
- *  here run inside the driver's tracked compute — they ARE the dependencies.
- *
- *  THE ONE WALK. Exported because it is also the language's own hit test
- *  (View.viewAt / View.containsPoint, view.ts): what an app computes about
- *  "what is under this point" and what the runtime computes for `hovered` must
- *  be the same answer, from the same code. (Three hand-rolled versions of this
- *  question — the inspector's picker, a calendar's cell math, a window's resize
- *  zones — is how the desktop's corner bug happened.) */
+/** The views as the hit walk reads them (hit-walk.ts). A shape or rounded clip
+ *  is tested exactly where the view's renderer can (its surface's
+ *  `insideClip`), as its box otherwise. All attribute reads here run inside the
+ *  driver's tracked compute — they ARE the dependencies. */
+const VIEWS: HitAdapter<InteractionView> = {
+  isNode: (c): c is InteractionView => isView(c),
+  children: (v) => v.children,
+  visible: (v) => v.visible,
+  width: (v) => v.width,
+  height: (v) => v.height,
+  scroller: (v) => v.scrolls !== "none",
+  ignoresScroll: (v) => v.ignoreScroll,
+  ignoresClip: (v) => v.ignoreClip,
+  clips: (v) => v.clip !== null && v.clip !== false && v.clip !== "",
+  insideClip: (v, lx, ly) => {
+    const s = (v as { $surface?: { insideClip?: (x: number, y: number) => boolean } }).$surface;
+    return typeof s?.insideClip === "function" ? s.insideClip(lx, ly) : lx >= 0 && ly >= 0 && lx < v.width && ly < v.height;
+  },
+  toChild: (v, c, lx, ly) => toChildLocal(v, c, lx, ly),
+};
+
+// `pointerEvents = "none"` makes a view pointer-transparent; it does not seal
+// its subtree — a child decides for itself, as the reference renderer does
+// (dom-backend gives any view carrying a sink `pointer-events: auto`, which
+// overrides an ancestor's `none` the way CSS lets an explicit value override an
+// inherited one). The Inspector's picker (`pierce`) wants what you can SEE, so
+// it ignores the gate.
+const POINTABLE: HitAccept<InteractionView> = (v) =>
+  v.pointerEvents === "none" ? 'skipped — pointerEvents = "none" (this view is transparent; its children decide for themselves)' : null;
+const ANY: HitAccept<InteractionView> = () => null;
+
+/** The topmost visible view whose box contains the point — THE hit walk
+ *  (hit-walk.ts), read over the views. Exported because it is also the
+ *  language's own hit test (View.viewAt / View.containsPoint, view.ts): what an
+ *  app computes about "what is under this point" and what the runtime computes
+ *  for `hovered` must be the same answer, from the same code. */
 export function leafAt(v: InteractionView, lx: number, ly: number, pierce = false, trace?: HitNote[]): InteractionView | null {
-  // The trace pushes are INLINE and guarded, never a closure: `leafAt` recurses
-  // once per view per hit test and the interaction driver runs it on every
-  // pointer move, so a per-call closure would allocate hundreds of times a
-  // second on a real tree to serve a diagnostic nobody asked for. Guarded this
-  // way, an untraced walk allocates nothing and the object literals below are
-  // only ever built when a collector was actually passed.
-  if (!v.visible) {
-    if (trace !== undefined) trace.push({ view: v, why: diag`skipped — visible = false`, x: Math.round(lx), y: Math.round(ly) });
-    return null;
-  }
-  // `pointerEvents = "none"` makes THIS view pointer-transparent; it does not
-  // seal its subtree. The walk descends through it and a child decides for
-  // itself, which is what the reference renderer actually does: dom-backend
-  // gives any view carrying a sink `pointer-events: auto`, and that overrides
-  // an ancestor's `none` the way CSS lets any explicit value override an
-  // inherited one.
-  //
-  // ⚠ MEASURED, because the three walks disagreed and the docs described a
-  // fourth thing. Probe: transparent root, an `auto` panel and a plain
-  // handler-bearing child, one click each.
-  //
-  //     before      DOM 1 / 101      canvas 0 / 0      mac 0 / 0
-  //     after       DOM 1 / 101      canvas 1 / 101    mac 1 / 101
-  //
-  // Returning null at a "none" sealed the subtree, so the documented
-  // "full-viewport chrome overlay" (View.pointerEvents) could not contain
-  // anything interactive on canvas or native — an overlay that takes no input
-  // is a highlight, not chrome, and it is why the Inspector's own window works
-  // on the web and nowhere else.
-  //
-  // `pierce` still ignores the gate entirely — the Inspector's picker wants
-  // what you can SEE, not what would take a press.
-  const inside = lx >= 0 && ly >= 0 && lx <= v.width && ly <= v.height;
-  // A scroller bounds its subtree at its FRAME — content beyond the frame is
-  // out of view by definition, whatever the `clip` attribute says (the canvas
-  // hit walk's exact rule, chrome included: its sticky frame lives in-frame).
-  if (v.scrolls !== "none" && !inside) {
-    if (trace !== undefined) trace.push({ view: v, why: diag`skipped — outside a scroller's FRAME, so its whole subtree is out of view`, x: Math.round(lx), y: Math.round(ly) });
-    return null;
-  }
-  // A clipping view (box or shape — a shape clip approximates as its box here)
-  // bounds its subtree's hits — EXCEPT children that opt out with `ignoreClip`
-  // (frame chrome straddling the frame "still paints and still hits", view.ts;
-  // the desktop's resize halo lives outside its window's clipped box). Ancestors'
-  // clips still apply, which the recursion gives for free.
-  const clipping = v.clip !== null && v.clip !== false && v.clip !== "";
-  const kids = v.children;
-  // A scroller's frame chrome (ignoreScroll) paints ABOVE its scrolled content
-  // (the DOM's sticky frame carries a zIndex; the canvas walk probes chrome
-  // first) — so it hits first too, in its own unshifted coordinates.
-  if (v.scrolls !== "none") {
-    for (let i = kids.length - 1; i >= 0; i--) {
-      const c = kids[i];
-      if (!isView(c) || !c.ignoreScroll) continue;
-      if (!c.visible && trace === undefined) continue;
-      if (clipping && !inside && !c.ignoreClip) continue;
-      const [cx, cy] = toChildLocal(v, c, lx, ly);
-      const hit = leafAt(c, cx, cy, pierce, trace);
-      if (hit !== null) return hit;
-    }
-  }
-  for (let i = kids.length - 1; i >= 0; i--) {
-    const c = kids[i];
-    if (!isView(c)) continue;
-    // a hidden child (a parked row among them) holds nothing to hit; the trace
-    // still visits it, to say so
-    if (!c.visible && trace === undefined) continue;
-    if (v.scrolls !== "none" && c.ignoreScroll) continue; // probed above
-    if (clipping && !inside && !c.ignoreClip) continue;
-    const [cx, cy] = toChildLocal(v, c, lx, ly);
-    const hit = leafAt(c, cx, cy, pierce, trace);
-    if (hit !== null) return hit;
-  }
-  if (!inside) {
-    if (trace !== undefined) trace.push({ view: v, why: diag`missed — the point is outside this view's own box`, x: Math.round(lx), y: Math.round(ly) });
-    return null;
-  }
-  // The point is in this view's box — but a pointer-transparent view is not a
-  // target: the press passes over it. (Its children were already offered the
-  // point above, so an `auto` descendant has taken it by now.)
-  if (!pierce && v.pointerEvents === "none") {
-    if (trace !== undefined) trace.push({ view: v, why: 'skipped — pointerEvents = "none" (this view is transparent; its children decide for themselves)', x: Math.round(lx), y: Math.round(ly) });
-    return null;
-  }
-  if (trace !== undefined) trace.push({ view: v, why: diag`HIT — the deepest box containing the point`, x: Math.round(lx), y: Math.round(ly) });
-  return v;
+  return walkHit(v, lx, ly, VIEWS, pierce ? ANY : POINTABLE, trace);
 }
 
 function chainAt(app: InteractionApp, x: number, y: number): Set<InteractionView> {

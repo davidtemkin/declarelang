@@ -22,7 +22,7 @@ same state, same frame.)
 
 ## The pinned "now" (--today)
 
-`CAL_BOOT = new Date()` decides the month the app opens on and the today tint.
+The app's clock (`clock: Time`) decides the month it opens on and the today tint.
 The clip was cut on Sun Aug 2 2026 — the stage pages one month on, to
 September, where no day carries the today tint. Recording on any other day
 would open elsewhere and page to a different month, so the page's clock is
@@ -143,7 +143,7 @@ const navKey0 = (await rd("navKey")).replace(/^"|"$/g, "");   // the current-day
 // The view tabs are a Segmented: its items are unnamed (index paths), so each
 // is found by its label rather than by a path that shifts with the furniture.
 const tabBox = (label) => p.evaluate((l) => {
-  const t = window.__declare.inspect("app.bar.tabs");
+  const t = window.__declare.inspect("app.bar.top.tabs");
   const it = t.children.find((c) => c.children.some((g) => g.name === "t" && g.text === l));
   return it && { x: it.rootX, y: it.rootY, w: it.width, h: it.height };
 }, label);
@@ -162,7 +162,7 @@ await roll(30);
 console.log("selected:", await rd("selectedId"));
 
 // 5. close it
-await p.mouse.click(...mid(await box("app.panel.secs.ev.hdr.close")));
+await p.mouse.click(...mid(await box("app.panel.ev.hdr.close")));
 await roll(24);
 
 // 6. drag it: three days over, and later in the day

@@ -37,6 +37,9 @@ A conversation service supplies everything: the people, the conversations, the
 message history, the photographs that can be sent, and a live feed of what
 happens next. Its contract is `api/API.md`. Read it before you plan.
 
+The history is long: about 44,000 messages across six conversations, the
+longest of them over 30,000, served in one response of several megabytes.
+
 Nothing is persisted. When the app restarts, it restarts from the served
 history — anything sent during a session is expected to be gone.
 
@@ -74,6 +77,9 @@ Someone using this app can:
   messages in a row. Dates are apparent when reading back through history.
 - The conversation list is ordered by most recent activity, and stays so as
   messages arrive, including while someone is looking at it.
+- Any conversation can be scrolled continuously all the way to its first
+  message and back to its latest, by swiping or by dragging the scroll thumb,
+  however long its history.
 - Returning to a conversation returns you to where you were — not to the top,
   and not to the bottom.
 - When a message arrives while someone is reading further back, the words they
@@ -120,8 +126,9 @@ whether the part that exists looks and behaves like someone finished it.
 2. **A design statement of no more than 150 words**, in `DESIGN.md`: what you
    were going for, and the one decision in it you would defend. It will be read
    against what you built.
-3. **The source.** It will be read as a work sample. If you find yourself
-   building infrastructure, say so in `DESIGN.md` and say why nothing available
+3. **The source.** It will be read as a work sample. Where the ecosystem has an
+   established library for something, use it. If you build infrastructure
+   yourself instead, say so in `DESIGN.md` and say why no established library
    would do.
 
 ---
@@ -129,7 +136,8 @@ whether the part that exists looks and behaves like someone finished it.
 ## Delivering it
 
 Write it idiomatically, following the platform's established best practices, as code
-that other people will read and maintain.
+that other people will read and maintain. Use the ecosystem's established libraries
+where one fits, as a maintainer would expect.
 
 The service runs separately, on port 8330.
 

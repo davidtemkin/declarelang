@@ -21,7 +21,7 @@ export declare class Node {
     private exParent;
     /** Landing under a DIFFERENT parent changes this subtree's ancestor chain,
      *  and only this subtree's: clear its provider memos (attributes.ts). */
-    private chainMoved;
+    private $chainMoved;
     /** The values this node reports changes to (schema.ts NodeSchema). */
     trackChanges: string[] | null;
     /** The data cursor (language §9): the place `:path` reads and writes on this
@@ -97,11 +97,11 @@ export declare class Node {
      *  nothing is tracking). Every reactive read works this way — a cell the
      *  reader subscribes to — and the child list's cell is created on first
      *  interest rather than up front, so a tree nobody asks about pays nothing. */
-    watchChildList(): void;
-    protected childListChanged(): void;
+    $watchChildList(): void;
+    protected $childListChanged(): void;
     /** The child-list cell's kernel id (created on first need) — a native
      *  rule's edge on "the SET of children changed" (the auto-extent rule). */
-    structureCellId(): number;
+    $structureCellId(): number;
     /** The scope noun (R6) for members declared in THIS node's body — the
      *  enclosing class instance, set at construction. It lives here, on Node, not
      *  on View: a node's members have a scope whether or not the node is visual
@@ -114,7 +114,7 @@ export declare class Node {
     get root(): Node;
     /** Link `child` beneath this node. The tree is the single source of
      *  structure; the render backend mirrors it (see View.attach). */
-    appendChild(child: Node): void;
+    $appendChild(child: Node): void;
     /** Link `child` at `index` — child order is semantic (tree order is paint
      *  order, and replicated children take their data's order, R8). */
     insertChild(child: Node, index: number): void;
@@ -138,14 +138,14 @@ export declare class Node {
      *  — whose `to` binding would otherwise linger, subscribed to whatever it
      *  read, keeping the whole discarded subtree alive (and, for a Spring,
      *  still ticking). */
-    teardown(): void;
+    $teardown(): void;
     /** Children were inserted/removed/reordered as a unit — the notification
      *  seam the tree verbs speak (discard above; the replicator, once per
      *  reconcile). A no-op at this layer: Node owns structure, not geometry.
      *  View overrides it with the visual response (layout re-arm, auto-extent
      *  re-derive). Declared here so `discard` can notify an ex-parent without
      *  the base knowing what a View is. */
-    childrenMutated(): void;
+    $childrenMutated(): void;
 }
 /** Run `fn` when `node` is discarded — how standing machinery that is not a
  *  slot owner (a Replicator, a subscription) retires with its host. */

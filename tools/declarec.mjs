@@ -20,6 +20,7 @@ import { gzipSync } from "node:zlib";
 import { stripSource, HOST_SOURCES } from "./internal/error-codes.mjs";
 import * as esbuild from "esbuild";
 import { compileProgram } from "../compiler/dist/declarec.js";
+import { programFromCompiled } from "../compiler/dist/program-build.js";
 import { stripPos } from "../compiler/dist/program-build.js";
 import { CAPABILITIES, neededCapabilities, standIn, subsetModule } from "../compiler/dist/capabilities.js";
 import { REGISTRY_MANIFEST } from "../runtime/dist/registry.js";
@@ -357,17 +358,14 @@ async function precompileBodies(program) {
       const r = rewriteDatapaths(m.body);
       const body = "error" in r ? null : `{ ${r.src}\n }`;
       if (body !== null && parses(["parent", "classroot", "$base", ...params], body)) {
-        // a method that reaches `super` keeps "$base" in its token: instantiate
-        // decides whether to build the object `super.name(…)` reads by looking
-        // for it in the method's text (the runtime reads only the number)
-        m.body = "\u0000" + slot("m\u0000" + params.join("\u001f") + "\u0000" + m.body, `function(parent, classroot, $base${params.map((q) => ", " + q).join("")}) { ${body} }`) + (m.body.includes("$base") ? "$base" : "");
+        m.body = "\u0000" + slot("m\u0000" + params.join("\u001f") + "\u0000" + m.body, `function(parent, classroot, $base${params.map((q) => ", " + q).join("")}) { ${body} }`);
       }
     }
     for (const k of Object.keys(v)) walk(v[k]);
   };
   walk(program);
   const scriptFns = scripts.map((sc) => `function() { ${sc.src}\n }`);
-  scripts.forEach((sc, i) => { sc.src = "\u0000" + i + "/*$b*/"; });   // the marker keeps instantiate evaluating each block alone
+  scripts.forEach((sc, i) => { sc.src = "\u0000" + i; sc.compiled = true; });   // each token evaluates alone
   return `function $makeBodies($d, $s) {\n${prelude}\nreturn [\n${fns.join(",\n")}\n];\n}\n` +
     `const $scripts = [${scriptFns.join(",\n")}];\n` +
     `providePrecompiled($makeBodies, $scripts);\n`;
@@ -636,14 +634,16 @@ export async function buildProduction(source, opts = {}) {
 
   // `--crawler`: the extracted static document (docs/system-design/capabilities.md §5) baked
   // into the host element — content for crawlers and AI readers that never run
-  // the script; the entry above clears it before mount. Compile through THE
-  // front-end (auto-include host and all), then execute headlessly and extract
-  // — the SAME compile the app itself gets (typecheck already gated the build
-  // above, so it is skipped here).
+  // the script; the entry above clears it before mount. The build's own compile
+  // is executed headlessly and extracted. `extract` (the CLI's --extract) runs
+  // the same extraction and returns it for a standalone document.
   let staticBlock = "";
   let pageTitle = name;
-  if (opts.crawler) {
-    const compiled = await compileFull(source, { originDir: opts.originDir, typecheck: false });
+  let extract = null;
+  if (opts.crawler || opts.extract) {
+    // The shipped program has dropped its navigation relation; the crawl gets
+    // its own program, with links, from the same compile.
+    const crawlBuild = await programFromCompiled({ ...built.compiled }, { links: true });
     // The CRAWLED document (location.md §7) — every reachable location's content in
     // the one page. Data resolves from the app's own directory (the build-time rule);
     // a network DataSource fails the build loudly, by design.
@@ -653,9 +653,8 @@ export async function buildProduction(source, opts = {}) {
     // spin can't be raced from inside the process — derive's per-rule
     // process kill is the backstop for that.)
     const CRAWL_DEADLINE_MS = 120_000;
-    const ex = compiled.source === null ? null : await Promise.race([
-      crawlExtract(compiled.source, {
-        deps: compiled.deps, links: compiled.links,
+    const ex = crawlBuild.program === null ? null : await Promise.race([
+      crawlExtract(crawlBuild.program, {
         data: opts.originDir ? diskDataResolver(opts.originDir) : undefined,
       }),
       new Promise((_, reject) => {
@@ -667,9 +666,10 @@ export async function buildProduction(source, opts = {}) {
         t.unref?.(); // the watchdog itself must never hold the process open
       }),
     ]);
-    if (ex && ex.html) staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`;
+    if (opts.extract && ex) extract = { html: ex.html, title: ex.title };
+    if (opts.crawler && ex && ex.html) staticBlock = `<div id="declare-static">\n${ex.html}\n</div>`;
     // the settled appName names the deployed page — the <title> SEO reads
-    if (ex && ex.title) pageTitle = ex.title;
+    if (opts.crawler && ex && ex.title) pageTitle = ex.title;
   }
 
   // A crawler block (--crawler) is removed BEFORE first paint by a synchronous classic
@@ -705,7 +705,7 @@ export async function buildProduction(source, opts = {}) {
   };
   return {
     ok: true, errors: [], warnings: built.warnings, diagnostics: built.diagnostics, report: built.report,
-    closure: built.closure, program: built.program, sizes, metafile: result.metafile,
+    closure: built.closure, program: built.program, sizes, metafile: result.metafile, extract,
     usedClasses: built.usedClasses, slim, kernel: props.kernel,
     // what the build carries beyond its core, and why; what it left out
     // `absent`: left out, a stand-in in their place; `cut`: tables shipped with
@@ -760,8 +760,8 @@ async function copyAssets(srcDir, outDir) {
  *  copied assets). The shared emit used by the CLI and the dev server. Returns
  *  the buildProduction result plus `{ outDir, moduleName, assets }`. On a compile
  *  error, returns `{ ok:false, errors }` and writes nothing. */
-export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, crawler = false, kernel, props }) {
-  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, crawler, kernel, props });
+export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, crawler = false, extract = false, kernel, props }) {
+  const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, crawler, extract, kernel, props });
   if (!out.ok) return out;
   await rm(outDir, { recursive: true, force: true });
   await mkdir(outDir, { recursive: true });
@@ -978,7 +978,7 @@ async function cli(argv) {
 
   const source = await readFile(srcPath, "utf8");
   const t0 = Date.now();
-  const out = await writeProduction({ source, name, srcDir, outDir, render: flags.render, crawler: flags.crawler, stripPos: !debug, slim: !debug, kernel: flags.kernel });
+  const out = await writeProduction({ source, name, srcDir, outDir, render: flags.render, crawler: flags.crawler, extract: doExtract, stripPos: !debug, slim: !debug, kernel: flags.kernel });
   const ms = Date.now() - t0;
 
   if (!out.ok) {
@@ -991,14 +991,9 @@ async function cli(argv) {
 
   // --extract: also emit the static-extraction document as a standalone file — the
   // declarec × extract artifact (a build may legitimately produce more than one file).
-  // A fresh compile through the front-end + a headless extract; typecheck already gated
-  // the build above, so it is skipped on this second pass.
+  // The build ran the extraction on its own compile (buildProduction `extract`).
   if (doExtract) {
-    const compiled = await compileFull(source, { originDir: srcDir, typecheck: false });
-    const ex = compiled.source === null ? null : await crawlExtract(compiled.source, {
-      deps: compiled.deps, links: compiled.links,
-      data: srcDir ? diskDataResolver(srcDir) : undefined,
-    });
+    const ex = out.extract;
     const doc = ex === null ? null : crawlerDocument(ex.html, ex.title || name);
     if (doc !== null) {
       await writeFile(join(outDir, `${name}.extract.html`), doc);

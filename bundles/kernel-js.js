@@ -115,6 +115,26 @@ function instantiateKernelJS(host, caps = {}) {
   const known = /* @__PURE__ */ __name((rule) => rule >= 0 && rule < nrules, "known");
   const consts = [];
   const code = [];
+  const CODE_CLASSES = 64;
+  const codeFree = /* @__PURE__ */ new Map();
+  const constFree = [];
+  const codeTake = /* @__PURE__ */ __name((n) => {
+    const list = n >= 1 && n <= CODE_CLASSES ? codeFree.get(n) : void 0;
+    if (list !== void 0 && list.length > 0)
+      return list.pop();
+    const at = code.length;
+    for (let i = 0; i < n; i++)
+      code.push(0);
+    return at;
+  }, "codeTake");
+  const codeGive = /* @__PURE__ */ __name((off, n) => {
+    if (n === 0 || n > CODE_CLASSES || off + n > code.length)
+      return;
+    let list = codeFree.get(n);
+    if (list === void 0)
+      codeFree.set(n, list = []);
+    list.push(off);
+  }, "codeGive");
   let ncells = 0;
   const cellFree = [];
   const ruleFree = [];
@@ -373,9 +393,40 @@ function instantiateKernelJS(host, caps = {}) {
 ${new Error().stack ?? ""}`);
       return;
     }
+    giveRuleStorage(rule);
     rFreed.add(rule);
     ruleFree.push(rule);
   }, "freeRule");
+  const giveRuleStorage = /* @__PURE__ */ __name((rule) => {
+    const c0 = rCode0[rule], n = rNcode[rule];
+    if (n === 0)
+      return;
+    if (rKind[rule] === K_EXPR) {
+      const seen = [];
+      for (let i = c0, end = c0 + n; i < end; ) {
+        const op = code[i++];
+        if (op === 0)
+          break;
+        if (op === 1) {
+          i++;
+          continue;
+        }
+        if (op !== 2)
+          continue;
+        const ci = code[i++];
+        if (seen.includes(ci))
+          continue;
+        if (seen.length < CODE_CLASSES)
+          seen.push(ci);
+        if (ci < consts.length)
+          constFree.push(ci);
+      }
+      codeGive(c0, n);
+    } else if (rKind[rule] === K_EXTENT || rKind[rule] === K_LAYOUT) {
+      codeGive(c0, n);
+    }
+    rNcode[rule] = 0;
+  }, "giveRuleStorage");
   const dispose = /* @__PURE__ */ __name((rule) => {
     if (!known(rule) || (rState[rule] & ST_DEAD) !== 0)
       return;
@@ -909,10 +960,10 @@ ${new Error().stack ?? ""}`);
     const n = words.length;
     if (n > rNcode[rule]) {
       const cap = n * 2 > 8 ? n * 2 : 8;
-      rCode0[rule] = code.length;
+      const at = codeTake(cap);
+      codeGive(rCode0[rule], rNcode[rule]);
+      rCode0[rule] = at;
       rNcode[rule] = cap;
-      for (let i = 0; i < cap; i++)
-        code.push(0);
     }
     for (let i = 0; i < n; i++)
       code[rCode0[rule] + i] = words[i];
@@ -1070,6 +1121,7 @@ ${new Error().stack ?? ""}`);
     capacity,
     cells: /* @__PURE__ */ __name(() => ncells, "cells"),
     tableSize: /* @__PURE__ */ __name(() => capacity, "tableSize"),
+    codeUse: /* @__PURE__ */ __name(() => ({ code: code.length, consts: consts.length }), "codeUse"),
     rules: /* @__PURE__ */ __name(() => nrules, "rules"),
     write: /* @__PURE__ */ __name((cell, v) => {
       drainTrack();
@@ -1295,12 +1347,17 @@ ${new Error().stack ?? ""}`);
       return id;
     }, "addExprRule"),
     addCode: /* @__PURE__ */ __name((words) => {
-      const at = code.length;
+      const at = codeTake(words.length);
       for (let i = 0; i < words.length; i++)
-        code.push(words[i]);
+        code[at + i] = words[i];
       return at;
     }, "addCode"),
     addConst: /* @__PURE__ */ __name((v) => {
+      const i = constFree.pop();
+      if (i !== void 0) {
+        consts[i] = v;
+        return i;
+      }
       consts.push(v);
       return consts.length - 1;
     }, "addConst"),

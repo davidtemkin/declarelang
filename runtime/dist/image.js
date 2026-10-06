@@ -31,12 +31,12 @@ export class Image extends View {
     natural = { width: 0, height: 0 };
     /** Auto-extent's content hook: the bitmap's natural extent. Reads `loaded`
      *  (tracked), so an owning extent derive re-runs when the bitmap arrives. */
-    contentExtent(size) {
+    $contentExtent(size) {
         return this.loaded ? this.natural[size] : 0;
     }
     $attach(backend, parentSurface) {
         super.$attach(backend, parentSurface);
-        this.load();
+        this.$load();
     }
     $flush(s) {
         super.$flush(s);
@@ -49,7 +49,7 @@ export class Image extends View {
             s.setImageTint?.(this.tint);
     }
     /** (Re)load `source` — called at attach and by the `source` pusher. */
-    load() {
+    $load() {
         const seq = ++this.loadSeq;
         const s = this.$surface;
         if (s === null)
@@ -99,7 +99,7 @@ export class Image extends View {
     }
 }
 defineAttributes(Image, {
-    source: { def: "", push: (i) => i.load() },
+    source: { def: "", push: (i) => i.$load() },
     stretches: { def: "none", push: (i, v) => i.$surface?.setImageStretch(v) },
     alignX: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },
     alignY: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },

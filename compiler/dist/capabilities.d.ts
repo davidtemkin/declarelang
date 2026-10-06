@@ -13,9 +13,10 @@ export type Inert = "noop" | "null" | "false" | "true" | "zero" | "empty-string"
 export type Refusal = "unused" | "checker" | "inspector" | "bridge" | "selectors";
 /** A construct the walk marks: a replicating datapath (`:items[]`), `<->`, a
  *  selector segment in a path, a data shape, any read of data at all (a
- *  `:path`, a datapath, `$data`), and a literal the compile could not turn into
- *  its value (program-build.ts, lower-literals.ts). */
-export type Construct = "replication" | "two-way" | "selector-path" | "schema" | "data-read" | "raw-literal";
+ *  `:path`, a datapath, `$data`), a literal the compile could not turn into
+ *  its value (program-build.ts, lower-literals.ts), and an attribute whose
+ *  wiring the compile could not decide (runtime/src/route.ts). */
+export type Construct = "replication" | "two-way" | "selector-path" | "schema" | "data-read" | "raw-literal" | "unrouted";
 /** One way a program reaches a capability. A capability is needed when ANY of
  *  its triggers matches; a trigger matches when ANY of its conditions does. */
 export interface Trigger {

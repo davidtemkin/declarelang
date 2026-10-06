@@ -31,9 +31,8 @@ One program, **Swatchbook**, that is two things from one source:
 
 1. **The user-facing sampler** — the specimen sheet for everything a view can
    look like: type, lines, rich text, paint, effects, transforms, drawing,
-   images. It replaces `textsampler` and goes wider. Each capability is shown
-   and captioned, and — as `textsampler` does today — the fragment that draws it
-   sits beside it.
+   images, and whole documents. Each capability is shown and captioned; the
+   fragment that draws it is the program's own source, read beside it.
 2. **The conformance corpus** — the same cells, expanded to the full cross
    product, rendered on DOM, canvas and the Mac and compared cell by cell.
 
@@ -165,9 +164,9 @@ locked, and the host's display link stops, so nothing animated advances. Its bas
 ## Open questions
 
 1. The name.
-2. Does Swatchbook also absorb `apps/sampler` (the component sampler), or only
-   `textsampler`? The component sampler is about controls and states, not
-   rendering; my inclination is to leave it.
+2. Does Swatchbook also absorb `apps/sampler` (the component sampler)? The
+   component sampler is about controls and states, not rendering; my inclination
+   is to leave it.
 3. Is the matrix view a user-facing route, or gate-only? (Proposed: visible.)
 4. Where does the per-cell pixel comparison run for the Mac — inside `gate.mjs`
    (which already drives the native host), or in crossrender with `--pixels`?

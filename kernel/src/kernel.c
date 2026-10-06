@@ -11,6 +11,7 @@
 #include "declare_kernel.h"
 
 #define NONE 0xffffffffu
+#define CODE_CLASSES 64   /* freed code blocks up to this many words are reused by exact length */
 
 /* ── the host, both ways ────────────────────────────────────────────────────
  * Natively the callbacks are the function pointers in dk_host. Under
@@ -124,6 +125,12 @@ struct dk_kernel {
   int      aborted;
   uint32_t cell_free;         /* free-list head over cell_owner (-2 - next) */
   uint32_t rule_free;         /* free-list head over Rule.dyn_head           */
+  /* REUSE of the code and constant arenas. What the image loaded is never
+   * freed; a runtime rule's bytecode, constants and lists return here when the
+   * rule is freed, and the next allocation of the same size takes them back. */
+  uint32_t code_image, const_image;          /* the image's part of each arena */
+  uint32_t code_free[CODE_CLASSES + 1];      /* per exact length: a freed block's first word links the next */
+  uint32_t const_free;                       /* a freed slot holds the next index */
 };
 
 /* ── freestanding helpers ───────────────────────────────────────────────── */
@@ -226,6 +233,8 @@ dk_kernel *kernel_load(const void *image, uint32_t bytes, const dk_caps *caps,
   k->ncells = im.ncells; k->nrules = im.nrules; k->nelems = im.nelems;
   k->nedges_static = im.nedges; k->ncode = im.ncode; k->nconsts = im.nconsts;
   k->active = -1; k->cell_free = NONE; k->rule_free = NONE;
+  k->code_image = im.ncode; k->const_image = im.nconsts; k->const_free = NONE;
+  for (uint32_t i = 0; i <= CODE_CLASSES; i++) k->code_free[i] = NONE;
   k->nstatic = im.ncells; k->node_hw = 0;
   /* ONLY the image's cells are initialized here: runtime cells are set up by
    * kernel_add_cell as they are handed out, so the capacity beyond the image
@@ -507,8 +516,56 @@ int kernel_set(dk_kernel *k, uint32_t cell, double v) {
 }
 void kernel_touch(dk_kernel *k, uint32_t cell) { drain_track(k); if (cell < k->ncells) wake(k, cell); }
 
+/* ── reuse of the code and constant arenas ───────────────────────────────── */
+static int32_t code_take(dk_kernel *k, uint32_t n) {
+  if (n >= 1 && n <= CODE_CLASSES && k->code_free[n] != NONE) {
+    uint32_t off = k->code_free[n];
+    k->code_free[n] = k->code[off];
+    return (int32_t)off;
+  }
+  if (k->ncode + n > k->code_cap) return DK_ERR_FULL;
+  uint32_t off = k->ncode;
+  k->ncode += n;
+  return (int32_t)off;
+}
+static void code_give(dk_kernel *k, uint32_t off, uint32_t n) {
+  if (n == 0 || n > CODE_CLASSES || off < k->code_image || off + n > k->ncode) return;   /* a longer block stays where it is */
+  k->code[off] = k->code_free[n];
+  k->code_free[n] = off;
+}
+static void const_give(dk_kernel *k, uint32_t i) {
+  if (i < k->const_image || i >= k->nconsts) return;
+  k->consts[i] = (double)k->const_free;
+  k->const_free = i;
+}
+/* An EXPR rule's constants are the CONST operands of its bytecode — each its
+ * own (the binder adds them per rule), though one may be named twice. */
+static void give_rule_storage(dk_kernel *k, Rule *r) {
+  if (r->ncode == 0) return;
+  if (r->kind == DK_EXPR && r->code0 >= k->code_image) {
+    uint32_t seen[CODE_CLASSES]; uint32_t nseen = 0;
+    const uint32_t *c = k->code + r->code0, *end = c + r->ncode;
+    while (c < end) {
+      uint32_t op = *c++;
+      if (op == DK_OP_END) break;
+      if (op == DK_OP_LOAD) { c++; continue; }
+      if (op != DK_OP_CONST) continue;
+      uint32_t i = *c++, dup = 0;
+      for (uint32_t j = 0; j < nseen; j++) if (seen[j] == i) { dup = 1; break; }
+      if (dup) continue;
+      if (nseen < CODE_CLASSES) seen[nseen++] = i;
+      const_give(k, i);
+    }
+    code_give(k, r->code0, r->ncode);
+  } else if (r->kind == DK_EXTENT || r->kind == DK_LAYOUT) {
+    code_give(k, r->code0, r->ncode);
+  }
+  r->ncode = 0;
+}
+
 static void free_rule(dk_kernel *k, uint32_t rule) {
   Rule *r = &k->rules[rule];
+  give_rule_storage(k, r);
   r->dyn_head = k->rule_free; k->rule_free = rule;
 }
 
@@ -1057,8 +1114,10 @@ static int extent_store(dk_kernel *k, uint32_t rule, const uint32_t *words, uint
   Rule *r = &k->rules[rule];
   if (n > r->ncode) {
     uint32_t cap = n * 2 > 8 ? n * 2 : 8;
-    if (k->ncode + cap > k->code_cap) return DK_ERR_FULL;
-    r->code0 = k->ncode; r->ncode = cap; k->ncode += cap;
+    int32_t at = code_take(k, cap);
+    if (at < 0) return at;
+    code_give(k, r->code0, r->ncode);   /* the outgrown range, for the next list its size */
+    r->code0 = (uint32_t)at; r->ncode = cap;
   }
   for (uint32_t i = 0; i < n; i++) k->code[r->code0 + i] = words[i];
   r->body = n;
@@ -1200,13 +1259,18 @@ int32_t kernel_layout_add(dk_kernel *k, uint32_t axis, const uint32_t *words, ui
 }
 
 int32_t kernel_add_code(dk_kernel *k, const uint32_t *words, uint32_t n) {
-  if (k->ncode + n > k->code_cap) return DK_ERR_FULL;
-  uint32_t off = k->ncode;
-  for (uint32_t i = 0; i < n; i++) k->code[off + i] = words[i];
-  k->ncode += n;
-  return (int32_t)off;
+  int32_t off = code_take(k, n);
+  if (off < 0) return off;
+  for (uint32_t i = 0; i < n; i++) k->code[(uint32_t)off + i] = words[i];
+  return off;
 }
 int32_t kernel_add_const(dk_kernel *k, double v) {
+  if (k->const_free != NONE) {
+    uint32_t i = k->const_free;
+    k->const_free = (uint32_t)k->consts[i];
+    k->consts[i] = v;
+    return (int32_t)i;
+  }
   if (k->nconsts >= k->const_cap) return DK_ERR_FULL;
   k->consts[k->nconsts] = v;
   return (int32_t)k->nconsts++;

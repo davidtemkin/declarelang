@@ -16,9 +16,9 @@ export class HTMLText extends RichText {
   declare html: string;
   declare unsupported: Unsupported;
   // folded into the key (as a signature) so a re-themed style re-renders.
-  protected sourceKey(): string { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
-  protected parseSource(opts: ReadOptions): Block[] { return parseHtml(this.html, this.unsupported, opts); }
-  protected override policy(): Unsupported { return this.unsupported; }
+  protected $sourceKey(): string { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
+  protected $parseSource(opts: ReadOptions): Block[] { return parseHtml(this.html, this.unsupported, opts); }
+  protected override $policy(): Unsupported { return this.unsupported; }
 }
 
 defineAttributes(HTMLText, {

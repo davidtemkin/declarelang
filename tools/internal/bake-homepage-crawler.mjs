@@ -24,7 +24,8 @@
 import path from "node:path";
 import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { compile, crawlExtract, diskDataResolver } from "../../compiler/dist/compile-node.js";
+import { crawlExtract, diskDataResolver } from "../../compiler/dist/compile-node.js";
+import { compileProgram } from "../../compiler/dist/declarec.js";
 import { preloadLinks } from "../../browser/serve-core.js";
 import { demoNames, preloadsFor } from "./bake-app-stubs.mjs";
 
@@ -50,9 +51,9 @@ const PEND = "<!--declare-preload:end-->";
 const esc = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 const src = readFileSync(HOMEPAGE, "utf8");
-const compiled = await compile(src, { originDir: path.dirname(HOMEPAGE) });
-if (compiled.source === null) {
-  console.error("bake-homepage-crawler: homepage did not compile:\n" + compiled.report);
+const built = await compileProgram(src, { originDir: path.dirname(HOMEPAGE), links: true });
+if (built.program === null) {
+  console.error("bake-homepage-crawler: homepage did not compile:\n" + built.report);
   process.exit(1);
 }
 // The extraction fragment (not crawlerDocument's full page) — it goes INSIDE the host
@@ -80,12 +81,12 @@ const islands = async (name) => {
   } catch {
     return null;
   }
-  const t = await compile(tenantSrc, { originDir: path.dirname(file) });
-  return { source: t.source, deps: t.deps, links: t.links, report: t.report };
+  const t = await compileProgram(tenantSrc, { originDir: path.dirname(file), links: true });
+  return { program: t.program, report: t.report };
 };
 
-const ex = await crawlExtract(compiled.source, {
-  deps: compiled.deps, links: compiled.links, registry: compiled.linkRegistry, warm: true,
+const ex = await crawlExtract(built.program, {
+  registry: built.compiled.linkRegistry, warm: true,
   data: diskDataResolver(path.dirname(HOMEPAGE)),
   islands,
 });

@@ -11,6 +11,9 @@
 // serialize (compiler side) and apply (runtime side) BOTH iterate through
 // `forEachCodeValue`, so their indices align by construction — the browser
 // re-parses the identical resolved source into the identical structure.
+/** In the walk-order list a body's kernel bytecode rides as one more entry,
+ *  marked; on the program it is the code value's own `expr`. */
+const EXPR_ENTRY = "=E";
 /** Every `{ }` code value in a program, in a FIXED order: the root subtree then
  *  each class body; within an element, attributes, then computed decl defaults,
  *  then children (pre-order). The one iteration order serialize/apply share. */
@@ -33,7 +36,7 @@ export function forEachCodeValue(program, fn) {
  *  annotation). Empty arrays hold the position for un-annotated / residue slots. */
 export function serializeDeps(program) {
     const out = [];
-    forEachCodeValue(program, (v) => out.push(v.deps ? [...v.deps] : []));
+    forEachCodeValue(program, (v) => out.push(v.deps ? (v.expr !== undefined ? [...v.deps, EXPR_ENTRY + v.expr] : [...v.deps]) : []));
     return out;
 }
 /** Zip a walk-order dep list back onto a freshly-parsed program (runtime side).
@@ -42,8 +45,15 @@ export function applyDeps(program, list) {
     let i = 0;
     forEachCodeValue(program, (v) => {
         const d = list[i++];
-        if (d && d.length > 0)
+        if (!d || d.length === 0)
+            return;
+        const e = d.find((x) => x.startsWith(EXPR_ENTRY));
+        if (e === undefined) {
             v.deps = d;
+            return;
+        }
+        v.deps = d.filter((x) => x !== e);
+        v.expr = e.slice(EXPR_ENTRY.length);
     });
 }
 //# sourceMappingURL=deps.js.map

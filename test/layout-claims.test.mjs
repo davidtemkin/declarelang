@@ -19,7 +19,7 @@ import { settle, provideMeasurer } from "../runtime/dist/index.js";
 import { Layout } from "../runtime/dist/layout.js";
 import { TweenLayout } from "../runtime/dist/tween-layout.js";
 import { approximateMeasurer } from "../compiler/dist/headless.js";
-import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
+import { compile, settleSource } from "../compiler/dist/compile-node.js";
 
 provideMeasurer(approximateMeasurer());
 
@@ -330,7 +330,7 @@ await test("a TweenLayout reports a literal it places, in the same words", async
 async function bootAttached(src) {
   const r = await compile(src, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  return settleHeadless(r.source, { deps: r.deps });
+  return settleSource(r.source, { deps: r.deps });
 }
 
 await test("a child sized from its parent does not count toward the parent's content size — in any spelling", async () => {

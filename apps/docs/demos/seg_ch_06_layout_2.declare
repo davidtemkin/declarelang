@@ -1,11 +1,14 @@
-App [ width = 260, height = 150, fill = white, textColor = black,
-    box: View [ x = 20, y = 20, width = 200, cornerRadius = 8, fill = whitesmoke, clip = true,
-        padding = 10,
-        height = { Math.min(contentHeight, 90) },
-        layout: SimpleLayout [ axis = y, spacing = 8 ],
-        Text [ text = "grows with its content" ],
-        Text [ text = "up to 90 pixels" ],
-        Text [ text = "then stops" ],
-        Text [ text = "and clips the rest" ]
-        ]
+App [ width = 320, height = 200, fill = white, textColor = black,
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = 36, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, text = "Header" ]
+        ],
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x ],
+        list: View [ height = 100%, flexes = true, fill = whitesmoke,
+            Text [ x = 12, y = 12, text = "the list takes what is left" ]
+            ],
+        rail: View [ width = 90, height = 100%, fill = gainsboro ]
+        ],
+    footer: View [ width = 100%, height = 28, fill = lightsteelblue ]
     ]

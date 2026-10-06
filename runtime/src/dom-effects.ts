@@ -84,7 +84,7 @@ export function applyDomMask(s: DomSurface): void {
     return;
   }
   set(m.url, `${m.w}px ${m.h}px`,
-    `${stencil.x + stencil.positionLead("x") + m.x}px ${stencil.y + stencil.positionLead("y") + m.y}px`);
+    `${stencil.x + stencil.$positionLead("x") + m.x}px ${stencil.y + stencil.$positionLead("y") + m.y}px`);
 }
 
 const FIT_FRAC: Record<string, number> = { start: 0, center: 0.5, end: 1 };

@@ -3,8 +3,6 @@ import { DeclareError, type Pos } from "./errors.js";
 import { type ClassSchema } from "./schema.js";
 import { type AttrValue } from "./value.js";
 import { type PathSeg } from "./path-plan.js";
-export { programSchemas, checkDecl, withDecls, manyPathOf, coerceToken } from "./program-schema.js";
-export type { ClassInfo, CheckedDecl } from "./program-schema.js";
 /** The styling declarations in scope while an element tree checks: the
  *  program's style bundles (fields validated per application site — a bundle
  *  types against the class it lands on) and its theme names (the built-in

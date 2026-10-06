@@ -45,7 +45,7 @@ App [ width = 380, height = 240, textStyles = { { Warm } },
 - A repeated whole-view look is a class (`class Heading extends Text [ … ]`).
 - A token can be a list (`inks = [#A8445E, #3F6E8C]`, read `provided("theme").inks[i]`); a
   `script` function takes the theme typed as `Theme`.
-- Wrapped text as wide as its longest line (a chat bubble):
+- Wrapped text as wide as its longest line (a caption, a label in a box):
   `width = { Math.ceil(measureText(words, providedTextStyle(), 320).width) }`.
 
 **Look up** `theme` (and the *Theme tokens* page), `provided`, `App.dark`, `Font`,

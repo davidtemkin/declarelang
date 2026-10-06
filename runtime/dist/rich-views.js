@@ -107,7 +107,7 @@ export function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
         const lead = textRuns.length === 0 ? undefined : textRuns.reduce((best, r) => (r.text.length > best.text.length ? r : best));
         // The STRUT is the block's own font, as CSS's root inline box is — not the
         // lead run's. A line of figures with a longer caption in a small face
-        // ("55 sessions") otherwise hung a small face's box in a big line and
+        // ("55 km") otherwise hung a small face's box in a big line and
         // pushed the descent past where the browser puts it. A block that names no
         // font of its own falls back to the lead run.
         const bm = b.family !== undefined
@@ -860,7 +860,7 @@ function buildBlocks(blocks, width, bodyColor, ctx) {
     c.width = width;
     const laid = layoutBlocks(blocks, width, bodyColor, ctx);
     for (const e of laid)
-        c.appendChild(e.view);
+        c.$appendChild(e.view);
     c.layout = yStack(PROSE.blockGap);
     // Nested blocks (a list item's body, a quote's body) re-width by recursing.
     setRewidth(c, (w) => { c.width = w; relayoutEntries(laid, w); });
@@ -921,7 +921,7 @@ function buildCodeBox(block, width, ctx, spend) {
     if (rule !== null) {
         rule.x = 0;
         rule.y = 0;
-        box.appendChild(rule);
+        box.$appendChild(rule);
     }
     const scroller = new View();
     scroller.x = ch.padLeft;
@@ -930,8 +930,8 @@ function buildCodeBox(block, width, ctx, spend) {
     scroller.scrolls = "x";
     flow.x = 0;
     flow.y = 0;
-    scroller.appendChild(flow);
-    box.appendChild(scroller);
+    scroller.$appendChild(flow);
+    box.$appendChild(scroller);
     const size = () => {
         const h = Math.max(1, flow.height + 2 * ch.pad);
         box.height = h;
@@ -983,9 +983,9 @@ function buildList(b, width, bodyColor, ctx) {
         const body = buildBlocks(it.blocks, bodyW, bodyColor, ctx);
         body.x = PROSE.indent;
         body.y = 0;
-        row.appendChild(mk);
-        row.appendChild(body);
-        list.appendChild(row);
+        row.$appendChild(mk);
+        row.$appendChild(body);
+        list.$appendChild(row);
         rows.push({ row, body });
     }
     // Tight vs loose (CommonMark): a tight list packs its items at `itemGap`; a
@@ -1031,20 +1031,20 @@ function buildTable(b, width, bodyColor, ctx) {
             cell.x = colX(c);
             cell.y = 0;
             rowCells.push(cell);
-            row.appendChild(cell);
+            row.$appendChild(cell);
         }
         laidRows.push({ row, cells: rowCells });
         return row;
     };
-    table.appendChild(makeRow(b.header, HEADINGW, HEADINGC));
+    table.$appendChild(makeRow(b.header, HEADINGW, HEADINGC));
     const headRule = rectView(width, 1, C.rule);
-    table.appendChild(headRule);
+    table.$appendChild(headRule);
     for (const r of b.rows) {
         if (BUDGET <= 0) {
             TRUNCATED = true;
             break;
         } // a row reached with nothing left is not built
-        table.appendChild(makeRow(r, "normal", bodyColor));
+        table.$appendChild(makeRow(r, "normal", bodyColor));
     }
     table.layout = yStack(PROSE.itemGap);
     // Column widths are arithmetic — no content measurement — so a width change is
@@ -1071,8 +1071,8 @@ function buildQuote(b, width, ctx) {
     const rule = rectView(3, 1, C.quoteRule);
     rule.x = 0;
     rule.y = 0;
-    outer.appendChild(rule);
-    outer.appendChild(body);
+    outer.$appendChild(rule);
+    outer.$appendChild(body);
     const c = new Constraint("RichText.quoteRule", () => `${body.height}`, () => { rule.height = Math.max(1, body.height); }, 0);
     c.run();
     onDiscard(outer, () => c.dispose());
