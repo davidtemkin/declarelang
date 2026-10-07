@@ -1,0 +1,30 @@
+class Swatch extends Control [ width = 40, height = 40, cornerRadius = 20,
+    tint: Color = gray,
+    fill = { tint },
+    picked() { },
+    press() { this.picked() }
+    ]
+
+
+class Palette [
+    chosen: Color = navy,
+    layout: SimpleLayout [ axis = x, spacing = 10 ],
+    Swatch [ tint = navy,
+        picked() { classroot.chosen = this.tint }
+        ],
+    Swatch [ tint = seagreen,
+        picked() { classroot.chosen = this.tint }
+        ],
+    Swatch [ tint = tomato,
+        picked() { classroot.chosen = this.tint }
+        ]
+    ]
+
+
+App [ width = 320, height = 130, fill = white,
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        palette: Palette [ ],
+        preview: View [ width = 150, height = 40, cornerRadius = 8, fill = { app.col.palette.chosen } ]
+        ]
+    ]

@@ -128,4 +128,4 @@ fixes indentation, commas and spacing. `--check` makes it a CI gate.
 fix, check a program up the six rungs, and question a running program when reading its
 source is not enough.
 
-[Next: **Classes and the tree** →](declare-docs:guide:classes)
+[Next: **Size, position and layout** →](declare-docs:guide:layout)

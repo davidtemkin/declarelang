@@ -39,6 +39,11 @@ fixture (birds.json beside this file), which is what makes the whole guide
 crawlable from a static host.
 */
 
+schema Bird [ slug: string, name: string, latin: string, plate: number, audubonName: string,
+    group: string, status: string, kin[]: string, prose: string ]
+schema Group [ name: string, count: number, birds[]: Bird ]
+
+
 // the book's palette: the paper, the cream mat a plate sits in, the ink and its
 // muted voice, the hairline, the oxblood accent, and the quiz's right and wrong
 // with the washes behind them. `glass` is the paper, nearly opaque, for the
@@ -96,17 +101,48 @@ class Tile [ width = { app.tileW }, height = { app.tileW + 44 },
     ]
 
 
-// ── one answer choice in the quiz ────────────────────────────────────────────
+// ── one answer choice in the quiz: a record of the round's `choices` ─────────
 
-class Choice [ width = 100%, height = 44, cornerRadius = 8,
-    pick: number = -1,                           // the bird index this button answers with
-    label: string = "",
-    state: string = "",                          // "" | "right" | "wrong" | "missed"
+class Choice extends Control [ width = 100%, height = 44, cornerRadius = 8,
+    state: string = { :state },                  // "" | "right" | "wrong"
     fill = { this.state == "right" ? provided("theme").rightWash : this.state == "wrong" ? provided("theme").wrongWash : this.hovered ? provided("theme").hoverWash : provided("theme").mat },
     stroke = { stroke(1, this.state == "right" ? provided("theme").right : this.state == "wrong" ? provided("theme").wrong : provided("theme").hair) },
-    onClick() { app.pick(this.pick) },
+    press() { app.pick(:n) },
     t: TextLabel [ x = 16, fontSize = 15,
-        textColor = { parent.state == "wrong" ? provided("theme").wrong : provided("theme").ink }, text = { classroot.label } ]
+        textColor = { classroot.state == "wrong" ? provided("theme").wrong : provided("theme").ink }, text = :label ]
+    ]
+
+
+// ── a shelf section: group header + its tiles on a grid ──────────────────────
+
+class Section [ width = 100%,
+    height = { 34 + Math.ceil(:count / app.cols) * (app.tileW + 62) },
+    head: Text [ fontSize = 17, letterSpacing = 1, textColor = { provided("theme").muted },
+        text = { (:name ?? "").toUpperCase() } ],
+    grid: View [ y = 34, width = 100%,
+        Tile [ datapath = :birds[], key = :slug ]
+        ]
+    ]
+
+
+// ── one line of the quiz recap: the mark, the bird (a link), your call ───────
+
+class Recap [ width = 100%, height = 26,
+    mark: Text [ x = 0, y = center, fontSize = 14, textColor = { :ok ? provided("theme").right : provided("theme").wrong },
+        text = { :ok ? "✓" : "✗" } ],
+    who: Text [ x = 26, y = center, fontSize = 14, textColor = { provided("theme").oxblood }, wrap = false,
+        link = { "#b/" + :slug }, text = :name ],
+    call: Text [ x = 300, y = center, fontSize = 13, textColor = { provided("theme").muted }, wrap = false,
+        visible = { !:ok }, text = { "you said " + :said } ]
+    ]
+
+
+// ── the book's one button: oxblood, its label centred ───────────────────────
+
+class BookButton extends Control [ height = 44, cornerRadius = 8, fill = { provided("theme").oxblood }, fontSize = 16,
+    label: string = "",
+    t: Text [ y = center, width = 100%, textAlign = center,
+        textColor = { provided("theme").paper }, text = { classroot.label } ]
     ]
 
 
@@ -123,22 +159,22 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
 
     location = "",
     waypoint = "",
-    appName = { app.bird != null ? "" + app.bird.name + " · 50 Birds" : app.dest == "quiz" ? "The Quiz · 50 Birds" : "50 Birds" },
+    appName = { app.bird != null ? app.bird.name + " · 50 Birds" : app.dest == "quiz" ? "The Quiz · 50 Birds" : "50 Birds" },
 
     /* Environment-aware, the calendar's idiom: standalone the fixture sits
        beside the app; hosted, the embedder passes env.base (its own
        transport's path to this app's home) and the same relative address
        resolves through it — `auto` refetches when base lands after init. */
 
-    data: DataSource [ auto = true, url = { hostProvided("base", "") + "birds.json" } ],
-    birds: array = { data.loaded ? data.value.groups.flatMap((g) => g.birds) : [] },
+    data: DataSource [ auto = true, url = { hostProvided("base", "") + "birds.json" }, schema = [ groups[]: Group ] ],
+    birds: Bird[] = { (data.value?.groups ?? []).flatMap((g) => g.birds) },
 
     // ── location → the address, parsed (grammar: "" · "b/<slug>" · "quiz") ──
 
     dest:    string = { app.location.split("/")[0] },
     slug:    string = { app.location.slice(0, 2) == "b/" ? app.location.slice(2) : "" },
     birdIndex: number = { app.birds.findIndex((b) => b.slug == app.slug) },
-    bird:    object = { app.birdIndex < 0 ? null : app.birds[app.birdIndex] },
+    bird:    Bird? = { app.birdIndex < 0 ? null : app.birds[app.birdIndex] },
     atShelf: boolean = { app.dest != "quiz" && app.bird == null },
 
     // Audubon's own names still resolve — the renamed-pages door (onFollow).
@@ -199,8 +235,18 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         app.waypoint = app.seeds.join(",") + "|" + app.answers.join(",") + "|" + (app.shown + 1)
         },
 
-    nameOf(n: number) -> string { return app.birds.length > n && n >= 0 ? "" + app.birds[n].name : "" },
-    slugOf(n: number) -> string { return app.birds.length > n && n >= 0 ? "" + app.birds[n].slug : "" },
+    nameOf(n: number) -> string { return app.birds.length > n && n >= 0 ? app.birds[n].name : "" },
+    slugOf(n: number) -> string { return app.birds.length > n && n >= 0 ? app.birds[n].slug : "" },
+    nameOfSlug(slug: string) -> string { return app.birds.find((b) => b.slug == slug)?.name ?? "" },
+
+    // the round as records: the card's four choices and, once it is over, the
+    // recap — each derived from the waypoint like everything else here
+
+    round: Dataset [ contents = { {
+        choices: app.choices.map((n) => ({ n: n, label: app.nameOf(n),
+            state: !app.revealed ? "" : n == app.answer ? "right" : n == app.picked ? "wrong" : "" })),
+        recap: app.seeds.map((s, t) => ({ t: t, ok: app.answers[t] == s, slug: app.slugOf(s), name: app.nameOf(s),
+            said: app.nameOf(app.answers[t] ?? -1) })) } } ],
 
     // ── the flight — one plate traveling from its shelf tile to the page ─────
     // The same object leaves its grid slot and lands as the page's plate, so
@@ -233,7 +279,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         // the inverse journey (see onFollow): remember who is going home, and
         // fly. The flyer below derives both endpoints — the page's resting
         // plate and the bird's own tile — so nothing else needs capturing.
-        app.retSlug = "" + app.bird.slug
+        app.retSlug = app.bird?.slug ?? ""
         app.ret.start()
         },
     retSlug: string = "",
@@ -253,7 +299,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         const b = app.birds.find((x) => x.slug == slug)
         if (b == null || !app.data.loaded) return ({ x: 0, y: 0, w: 0 })
         let y = 84, gi = 0
-        for (const g of app.data.value.groups) {
+        for (const g of app.data.value?.groups ?? []) {
             if (g.name == b.group) { gi = g.birds.findIndex((x) => x.slug == slug); break }
             y += 34 + Math.ceil(Number(g.count) / app.cols) * (app.tileW + 62) + 34
         }
@@ -284,19 +330,20 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
 
     shelf: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.atShelf },
         datapath = { app.data.loaded ? app.data.value : null },
+        padding = [0, 0, 90, 0],
         layout: SimpleLayout [ axis = y, spacing = 34 ],
         loadNote: Text [ fontSize = 14, textColor = { provided("theme").muted }, visible = { !app.data.loaded },
             text = { app.data.failed ? "The field guide failed to load: " + app.data.error : "Fetching the plates…" } ],
         Section [ datapath = :groups[], key = :name ],
         credit: Text [ width = 100%, fontSize = 12, textColor = { provided("theme").muted }, lineHeight = 1.5,
-            text = "Plates: John James Audubon, The Birds of America (1827–1838), public domain — high-resolution scans courtesy of the National Audubon Society. Prose written for this field guide." ],
-        pad: View [ width = 1, height = 56 ]
+            text = "Plates: John James Audubon, The Birds of America (1827–1838), public domain — high-resolution scans courtesy of the National Audubon Society. Prose written for this field guide." ]
         ],
 
     // ═══ one bird — a page with an address you could hand to anyone ══════════
 
     page: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.bird != null },
         datapath = { app.bird },
+        padding = [0, 0, 72, 0],                    // room under the plate, or under the details when they run longer
 
         // the arrival scalar: 0 = just left the shelf, 1 = at rest. A clicked
         // tile flies the plate here (geometry below); a page turn dissolves;
@@ -318,27 +365,23 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
             width = { app.flyW < 0 ? parent.plateW : app.lerp(app.flyW, parent.plateW, parent.flyT) },
             height = { this.width * 1.05 },
             opacity = { app.flyW < 0 ? parent.flyT : 1 },
-            slug = { "" + (:slug ?? "") } ],
+            slug = { :slug ?? "" } ],
         info: View [ x = { parent.wide ? parent.plateW + 36 : 0 }, y = { parent.wide ? 8 : parent.plateW * 1.05 + 24 },
             width = { parent.wide ? parent.width - parent.plateW - 36 : parent.width },
             opacity = { parent.flyT },               // the details fade up as the plate lands
             layout: SimpleLayout [ axis = y, spacing = 14 ],
-            name: Text [ fontSize = 30, width = 100%, text = { "" + (:name ?? "") } ],
-            latin: Text [ fontSize = 15, textColor = { provided("theme").muted }, italic = true, text = { "" + (:latin ?? "") } ],
+            name: Text [ fontSize = 30, width = 100%, text = { :name ?? "" } ],
+            latin: Text [ fontSize = 15, textColor = { provided("theme").muted }, italic = true, text = { :latin ?? "" } ],
             plateNo: Text [ fontSize = 13, textColor = { provided("theme").muted },
                 text = { :plate == null ? "" : "Plate " + :plate + (:audubonName != :name ? "  ·  Audubon called it the " + :audubonName : "") } ],
             gone: Text [ fontSize = 13, textColor = { provided("theme").wrong }, visible = { :status == "extinct" }, text = "EXTINCT" ],
-            prose: Text [ width = 100%, fontSize = 16, lineHeight = 1.55, text = { "" + (:prose ?? "") } ],
+            prose: Text [ width = 100%, fontSize = 16, lineHeight = 1.55, text = { :prose ?? "" } ],
             kinHead: Text [ fontSize = 13, textColor = { provided("theme").muted }, text = "SEE ALSO" ],
             kinRow: View [ width = 100%, height = 24,
                 layout: SimpleLayout [ axis = x, spacing = 18 ],
-                k1: Text [ fontSize = 14, textColor = { provided("theme").oxblood }, wrap = false,
+                Text [ datapath = :kin[], fontSize = 14, textColor = { provided("theme").oxblood }, wrap = false,
                     onClick() { app.turnPage() },
-                    link = { "#b/" + :kin[0] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[0])?.name ?? "") : "" }
-                    ],
-                k2: Text [ fontSize = 14, textColor = { provided("theme").oxblood }, wrap = false,
-                    onClick() { app.turnPage() },
-                    link = { "#b/" + :kin[1] }, text = { app.birds.length > 0 ? "" + (app.birds.find((b) => b.slug == :kin[1])?.name ?? "") : "" }
+                    link = { "#b/" + :@ }, text = { app.nameOfSlug(:@) }
                     ]
                 ],
             walk: View [ width = 100%, height = 30,
@@ -351,10 +394,8 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
                     visible = { app.birdIndex < app.birds.length - 1 }, link = { "#b/" + app.slugOf(app.birdIndex + 1) }, text = { app.nameOf(app.birdIndex + 1) + " →" }
                     ]
                 ],
-            home: Text [ fontSize = 14, textColor = { provided("theme").muted }, link = "#", text = "← the whole shelf" ],
-            pad: View [ width = 1, height = 56 ]
+            home: Text [ fontSize = 14, textColor = { provided("theme").muted }, link = "#", text = "← the whole shelf" ]
             ],
-        platePad: View [ x = 0, y = { parent.plateW * 1.05 }, width = 1, height = 72 ],
 
         // close the page: the same address as the masthead and "the whole
         // shelf" (`#` — the shelf), as a box where a reader expects one. It
@@ -370,7 +411,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
     // ═══ the quiz — one address, a whole session of history entries ══════════
 
     quiz: View [ shows = "quiz", x = { app.colX }, y = 84, width = { Math.min(620, app.colW) },
-        card: View [ width = 100%,
+        card: View [ width = 100%, padding = [0, 0, 88, 0],
             layout: SimpleLayout [ axis = y, spacing = 16 ],
 
             // before a round: the invitation (also where a shared #quiz link
@@ -381,10 +422,8 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
                 h: Text [ fontSize = 26, text = "Name the bird." ],
                 p: Text [ width = 100%, fontSize = 15, lineHeight = 1.5, textColor = { provided("theme").muted },
                     text = "Ten plates, four names each. The Back button un-asks a question — try it mid-round and watch the URL not care." ],
-                go: View [ width = 180, height = 44, cornerRadius = 8, fill = { provided("theme").oxblood },
-                    onClick() { app.startQuiz() },
-                    t: Text [ y = center, width = 100%, textAlign = center,
-                        fontSize = 16, textColor = { provided("theme").paper }, text = "Begin" ]
+                go: BookButton [ width = 180, label = "Begin",
+                    press() { app.startQuiz() }
                     ]
                 ],
 
@@ -400,22 +439,17 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
                     text = { "Question " + (app.shown + 1) + " of " + app.seeds.length + "   ·   " + app.score + " right so far" } ],
                 frame: Plate [ width = { Math.min(440, parent.width) }, height = { Math.min(440, parent.width) * 0.9 },
                     slug = { app.slugOf(app.answer) } ],
-                c0: Choice [ pick = { app.choices[0] ?? -1 }, label = { app.nameOf(app.choices[0] ?? -1) },
-                    state = { !app.revealed ? "" : (app.choices[0] == app.answer ? "right" : (app.choices[0] == app.picked ? "wrong" : "")) } ],
-                c1: Choice [ pick = { app.choices[1] ?? -1 }, label = { app.nameOf(app.choices[1] ?? -1) },
-                    state = { !app.revealed ? "" : (app.choices[1] == app.answer ? "right" : (app.choices[1] == app.picked ? "wrong" : "")) } ],
-                c2: Choice [ pick = { app.choices[2] ?? -1 }, label = { app.nameOf(app.choices[2] ?? -1) },
-                    state = { !app.revealed ? "" : (app.choices[2] == app.answer ? "right" : (app.choices[2] == app.picked ? "wrong" : "")) } ],
-                c3: Choice [ pick = { app.choices[3] ?? -1 }, label = { app.nameOf(app.choices[3] ?? -1) },
-                    state = { !app.revealed ? "" : (app.choices[3] == app.answer ? "right" : (app.choices[3] == app.picked ? "wrong" : "")) } ],
+                choices: View [ width = 100%, datapath = { app.round.value },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    Choice [ datapath = :choices[], key = :n ]
+                    ],
                 verdict: View [ width = 100%, height = 44, visible = { app.revealed },
                     v: Text [ x = 0, y = center, fontSize = 16,
                         textColor = { app.picked == app.answer ? provided("theme").right : provided("theme").wrong },
                         text = { app.picked == app.answer ? "Yes — the " + app.nameOf(app.answer) + "." : "No — that's the " + app.nameOf(app.answer) + "." } ],
-                    onward: View [ x = end, width = 130, height = 40, cornerRadius = 8, fill = { provided("theme").oxblood },
-                        onClick() { app.advance() },
-                        t: Text [ y = center, width = 100%, textAlign = center, fontSize = 14,
-                            textColor = { provided("theme").paper }, text = { app.shown + 1 >= app.seeds.length ? "The tally →" : "Next plate →" } ]
+                    onward: BookButton [ x = end, width = 130, height = 40, fontSize = 14,
+                        label = { app.shown + 1 >= app.seeds.length ? "The tally →" : "Next plate →" },
+                        press() { app.advance() }
                         ]
                     ]
                 ],
@@ -427,23 +461,14 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
                 h: Text [ fontSize = 26, text = { app.score + " of " + app.seeds.length } ],
                 p: Text [ width = 100%, fontSize = 15, lineHeight = 1.5, textColor = { provided("theme").muted },
                     text = "Hold Back and the whole round unwinds, answer by answer — ten entries, one URL. Each bird below is an address; the round never was." ],
-                r0: Recap [ t = 0 ],
-                r1: Recap [ t = 1 ],
-                r2: Recap [ t = 2 ],
-                r3: Recap [ t = 3 ],
-                r4: Recap [ t = 4 ],
-                r5: Recap [ t = 5 ],
-                r6: Recap [ t = 6 ],
-                r7: Recap [ t = 7 ],
-                r8: Recap [ t = 8 ],
-                r9: Recap [ t = 9 ],
-                again: View [ width = 180, height = 44, cornerRadius = 8, fill = { provided("theme").oxblood },
-                    onClick() { app.startQuiz() },
-                    t: Text [ y = center, width = 100%, textAlign = center,
-                        fontSize = 16, textColor = { provided("theme").paper }, text = "Another ten" ]
+                recap: View [ width = 100%, datapath = { app.round.value },
+                    layout: SimpleLayout [ axis = y, spacing = 14 ],
+                    Recap [ datapath = :recap[], key = :t ]
+                    ],
+                again: BookButton [ width = 180, label = "Another ten",
+                    press() { app.startQuiz() }
                     ]
-                ],
-            pad: View [ width = 1, height = 72 ]
+                ]
             ]
         ],
 
@@ -458,32 +483,4 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         y = { app.lerp(84, app.tileRectOf(app.retSlug).y, app.retT) },
         width = { app.lerp(app.page.plateW, app.tileRectOf(app.retSlug).w, app.retT) },
         height = { this.width * app.lerp(1.05, 1, app.retT) } ]
-    ]
-
-
-// ── a shelf section: group header + its tiles on a grid ──────────────────────
-
-class Section [ width = 100%,
-    group: string = { "" + :name },
-    n: number = { Number(:count) },
-    height = { 34 + Math.ceil(this.n / app.cols) * (app.tileW + 62) },
-    head: Text [ fontSize = 17, letterSpacing = 1, textColor = { provided("theme").muted },
-        text = { classroot.group.toUpperCase() } ],
-    grid: View [ y = 34, width = 100%,
-        Tile [ datapath = :birds[], key = :slug ]
-        ]
-    ]
-
-
-// ── one line of the quiz recap: plate number, the bird (a link), your call ───
-
-class Recap [ width = 100%, height = 26,
-    t: number = 0,
-    ok: boolean = { app.answers[this.t] == app.seeds[this.t] },
-    mark: Text [ x = 0, y = center, fontSize = 14, textColor = { classroot.ok ? provided("theme").right : provided("theme").wrong },
-        text = { classroot.ok ? "✓" : "✗" } ],
-    who: Text [ x = 26, y = center, fontSize = 14, textColor = { provided("theme").oxblood }, wrap = false,
-        link = { "#b/" + app.slugOf(app.seeds[classroot.t] ?? -1) }, text = { app.nameOf(app.seeds[classroot.t] ?? -1) } ],
-    call: Text [ x = 300, y = center, fontSize = 13, textColor = { provided("theme").muted }, wrap = false,
-        visible = { !classroot.ok }, text = { "you said " + app.nameOf(app.answers[classroot.t] ?? -1) } ]
     ]

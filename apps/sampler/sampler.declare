@@ -84,12 +84,12 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     barH: number = 52,                           // fixed — the bar never grows
 
-    page: string = "controls",                   // controls | table | grid — the center switch
-    style: string = "sanFrancisco",
+    page: "controls" | "table" | "grid" = "controls",      // the center switch
+    style: "sanFrancisco" | "mountainView" | "cupertino" | "redmond" = "sanFrancisco",
     menuLocked: boolean = true,
     lastPick: string = "(none yet)",
     lastCtx: string = "(none yet)",
-    themeMode: string = "auto",                  // light | auto | dark — orthogonal to the styling
+    themeMode: "auto" | "light" | "dark" = "auto",          // orthogonal to the styling
     darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     animateFocus: boolean = true,
     accentPick: number = 0,                      // 0 = the mode's own accent; a pick overrides it everywhere
@@ -189,7 +189,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             ({ id: "animate", label: "Animate focus transitions", checked: app.animateFocus }),
         ] },
         picked(id: string) {
-            if (id.startsWith("style:")) app.style = id.slice(6)
+            if (id.startsWith("style:")) app.style = id.slice(6) as "sanFrancisco" | "mountainView" | "cupertino" | "redmond"
             else if (id == "animate") app.animateFocus = !app.animateFocus
             }
         ],
@@ -267,26 +267,25 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             x = { Math.max(app.compact ? 104 : 200, (app.width - this.width) / 2) },
             segMin = { app.compact ? 74 : 92 },
             value = { app.page },
-            input(v: object) { app.page = "" + v },
+            input(v: object) { app.page = v as "controls" | "table" | "grid" },
             choices = { [ ({ id: "controls", label: "Controls" }),
                           ({ id: "table",    label: "Table" }),
                           ({ id: "grid",     label: "DataGrid" }) ] }
             ],
 
-        // the STYLING door — a button with a menu (the chevron and the anchored
-        // open come with Control's `menu` role); the stylings, the tints and
-        // the flourish live in it
+        // at the right end: the STYLING door — a button with a menu (the
+        // chevron and the anchored open come with Control's `menu` role),
+        // holding the stylings, the tints and the flourish — and the light /
+        // dark switch, which shows the appearance in force; until a press
+        // flips it, `themeMode` stays "auto" and the OS decides
 
-        styling: Button [ y = center, height = 30, label = "Styling",
-            x = { app.width - this.width - 14 - parent.appear.width - 8 },
-            menu = { app.stylingMenu } ],
-
-        // light / dark: shows the appearance in force, a press flips it; until
-        // then `themeMode` stays "auto" and the OS decides
-
-        appear: AppearanceSwitch [ y = center, x = { app.width - this.width - 14 },
-            dark = { app.darkUI },
-            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+        right: View [ x = end, y = center, padding = [0, 14, 0, 0],
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            styling: Button [ height = 30, label = "Styling", menu = { app.stylingMenu } ],
+            appear: AppearanceSwitch [
+                dark = { app.darkUI },
+                input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+                ]
             ]
         ],
 
@@ -298,6 +297,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         col: View [ y = 24,
             x = { app.narrow ? 16 : 32 },
             width = { Math.min(960, app.width - (app.narrow ? 32 : 64)) },
+            padding = [0, 0, 64, 0],
             layout: SimpleLayout [ axis = y, spacing = 24 ],
 
             // ── Controls page: specimen cards, two balanced columns ────────
@@ -461,10 +461,9 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
             gridPage: View [ visible = { app.page == "grid" }, width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 10 ],
-                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2, padding = [0, 0, 32, 0],
                     textColor = { provided("theme").textFaint },
                     text = "DATAGRID — 500 ROWS, WINDOWED; EVERY CELL WRITES THE RECORD" ],
-                hdrBand: View [ width = 8, height = 22 ],
                 grid: DataGrid [ width = 100%,
                     height = { Math.max(280, app.height - app.barH - 220) },
                     datapath = { app.gd.value }, selects = "multi",
@@ -491,9 +490,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     ],
                 cap: Text [ fontSize = 12, textColor = { provided("theme").textFaint },
                     text = "Title edits live; State and Owner pick from a menu; Done is a checkbox — every edit writes the RECORD (windowing keeps it). Drag headers to reorder, edges to resize, click to sort." ]
-                ],
+                ]
 
-            tail: View [ width = 8, height = 40 ]
             ]
         ]
     ]

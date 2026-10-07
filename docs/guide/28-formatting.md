@@ -152,9 +152,9 @@ column — so the answers read as one ragged-right column.
 ```declare-fragment
 periodLabel: string = {
     app.mode == "year"  ? "" + app.year
-  : app.mode == "month" ? app.monthName(app.month) + " " + app.year
-  : app.mode == "week"  ? app.weekLabel(app.anchorKey)
-  :                       app.dayLabel(app.anchorKey) },
+  : app.mode == "month" ? monthName(app.month) + " " + app.year
+  : app.mode == "week"  ? weekLabel(app.anchorKey)
+  :                       dayLabel(app.anchorKey) },
 ```
 
 Top to bottom it reads as a decision table — tests on the left, answers on the right. The

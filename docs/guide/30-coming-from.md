@@ -313,7 +313,7 @@ Flutter is usually one `View` here with five attributes set on it.
 
 It also removes `const` constructors, keys-for-performance, and the question of where to
 put a rebuild boundary. Identity is structural: a written child is that child for the life
-of the program, and a replicated one is identified by its record. → [Classes and the tree](declare-docs:guide:classes)
+of the program, and a replicated one is identified by its record. → [Program structure](declare-docs:guide:structure)
 
 The sharpest contrast is the layout model itself. Flutter sizes a tree in one pass —
 constraints down, sizes up, parent positions — so a child cannot see the width it is
@@ -365,7 +365,7 @@ what the language is for.
 
 | the reflex | what it was for | the Declare form |
 |---|---|---|
-| state as a pile of variables on the root | somewhere to keep it | records in a **dataset** where their scope is, a document's logic on the document, machinery in a class that extends **`Node`** ([Data](declare-docs:guide:data)) |
+| state as a pile of variables on the root | somewhere to keep it | records in a **dataset** where their scope is, the logic of those records on the dataset's class, other logic with no view in a class that extends **`Node`** ([Data](declare-docs:guide:data)) |
 | a loop that creates views | a list | a path that matches many: `Row [ datapath = :items[] ]` |
 | hand-set `x`/`y` for a row or a column | arrangement | a **layout** ([Size, position and layout](declare-docs:guide:layout)) |
 | a clickable plain view as a button | a command | a library control, or a class extending `Control` ([Controls](declare-docs:guide:controls)) |

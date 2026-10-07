@@ -106,12 +106,12 @@ this.
 `"error"` tints the title with the theme's error colour; `""` is the ordinary tone.
 
 ## arrangement
-How the buttons lay out, elected by `theme.dialogButtonLayout`: `"end"` (a right-aligned
+How the buttons lay out, elected by `provided("theme").dialogButtonLayout`: `"end"` (a right-aligned
 row), `"stack"` (full-width buttons stacked, Cupertino-style, default on top), or `"fill"`
 (equal-width buttons filling the row). **Platform structure is data, not a fork.**
 
 ## centered
-Whether the title and message are centre-aligned, elected by `theme.dialogTextAlign`.
+Whether the title and message are centre-aligned, elected by `provided("theme").dialogTextAlign`.
 
 ## focusDefault()
 Puts keyboard focus on the default button when the dialog opens — or the last button
@@ -138,11 +138,6 @@ A dialog is the whole app: its box is the backdrop and the panel is its child, s
 ## height
 The whole app's height, for the same reason as `width`.
 
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
 
 include [ "control.declare" ]
@@ -150,11 +145,6 @@ include [ "control.declare" ]
 include [ "button.declare" ]
 
 class Dialog [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown },
     ignoreLayout = true,                         // it covers the app from its own origin; a parent's layout never arranges it
     x = 0,
@@ -258,8 +248,8 @@ class Dialog [
     // "stack" arrangement reorders: the default on top, cancel at the bottom
     // (the Cupertino stacked alert); row arrangements keep authored order.
 
-    arrangement: string = { typeof theme.dialogButtonLayout == "string" ? theme.dialogButtonLayout : "end" },
-    centered: boolean = { theme.dialogTextAlign == "center" },
+    arrangement: string = { typeof provided("theme").dialogButtonLayout == "string" ? provided("theme").dialogButtonLayout : "end" },
+    centered: boolean = { provided("theme").dialogTextAlign == "center" },
 
     data: Dataset [ contents = { { b: classroot.arrangement == "stack"
         ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
@@ -268,19 +258,19 @@ class Dialog [
     // the scrim: modal input blocking — every press lands here and stops
 
     scrim: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
-        fill = { theme.scrimFill != null ? theme.scrimFill : 0x000000 },
-        opacity = { typeof theme.scrimOpacity == "number" ? theme.scrimOpacity : 0.32 },
+        fill = { provided("theme").scrimFill != null ? provided("theme").scrimFill : 0x000000 },
+        opacity = { typeof provided("theme").scrimOpacity == "number" ? provided("theme").scrimOpacity : 0.32 },
         onPointerDown() { }
         ],
 
     panel: View [ focusTrap = true, x = center,
-        width = { typeof theme.dialogWidth == "number" ? theme.dialogWidth : 420 },
+        width = { typeof provided("theme").dialogWidth == "number" ? provided("theme").dialogWidth : 420 },
         y = { Math.max(40, (app.height - this.height) / 3) },
         height = { this.col.height + 40 },
-        cornerRadius = { typeof theme.menuCornerRadius == "number" ? theme.menuCornerRadius + 2 : 10 },
-        fill = { theme.surface },
-        stroke = { stroke(1, theme.line) },
-        shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 12, 48, 0x00000040) },
+        cornerRadius = { typeof provided("theme").menuCornerRadius == "number" ? provided("theme").menuCornerRadius + 2 : 10 },
+        fill = { provided("theme").surface },
+        stroke = { stroke(1, provided("theme").line) },
+        shadow = { provided("theme").menuShadow != null ? provided("theme").menuShadow : shadow(0, 12, 48, 0x00000040) },
 
         // the 20pt margin is the panel's own content box, so the column
         // below starts at the content origin and spans the room it is given;
@@ -292,16 +282,16 @@ class Dialog [
             layout: SimpleLayout [ axis = y, spacing = 12 ],
 
             ttl: Text [ fontWeight = bold, wrap = true, width = 100%,
-                fontSize = { typeof theme.dialogTitleFontSize == "number" ? theme.dialogTitleFontSize : 15 },
+                fontSize = { typeof provided("theme").dialogTitleFontSize == "number" ? provided("theme").dialogTitleFontSize : 15 },
                 textAlign = { classroot.centered ? "center" : "left" },
-                textColor = { classroot.tone == "error" ? (theme.error != null ? theme.error : 0xC93429) : theme.text },
+                textColor = { classroot.tone == "error" ? (provided("theme").error != null ? provided("theme").error : 0xC93429) : provided("theme").text },
                 text = { classroot.title } ],
 
             msg: Text [ wrap = true, width = 100%,
-                fontSize = { typeof theme.dialogBodyFontSize == "number" ? theme.dialogBodyFontSize : 13 },
+                fontSize = { typeof provided("theme").dialogBodyFontSize == "number" ? provided("theme").dialogBodyFontSize : 13 },
                 textAlign = { classroot.centered ? "center" : "left" },
                 visible = { classroot.message != "" },
-                textColor = { theme.textMuted }, text = { classroot.message } ],
+                textColor = { provided("theme").textMuted }, text = { classroot.message } ],
 
             gap: View [ width = 4, height = 4 ],
 

@@ -30,8 +30,9 @@ App [ width = 360, height = 200, fill = white,
   expression, and an assignment replaces it. Use the second for a value you may take
   over later.
 - Derived state is never assigned; change its inputs instead.
-- A summary over data is a **method** (the compiler reads through it); a `script`
-  function is opaque to it. Many summaries about one document → a class of `Dataset`.
+- A summary over data is a **method** (the compiler reads through it); through a `script`
+  function it traces nothing. Many summaries about one dataset's records → a dataset class
+  (`extends Dataset`).
 - A derived collection is a `Dataset` with `contents = { … }`; give it a `schema` and its
   `.value` is typed.
 - Count the data, never the rendered children. Don't index attributes by a runtime key

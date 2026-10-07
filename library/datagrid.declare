@@ -215,18 +215,9 @@ baked into the column model**, so it may be a constraint that changes with app s
 ## isColumn
 **Internal.** The marker the column walk keys on — not API.
 
-## theme
-The provided design-token record a `Column` styles its cells off — a **provided value**
-the app provides once (`App [ theme = { … } ]`) and the grid reads. See `Control.theme`.
 */
 
 class Column [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
-
     isColumn: boolean = true,
 
     visible = false,
@@ -449,7 +440,7 @@ class DataGrid extends Table [
         width = { classroot.width },
         ignoreLayout = true,
         ignoreClip = true,
-        fill = { theme.surface },
+        fill = { provided("theme").surface },
         datapath = { classroot.colData.value },
 
         View [ datapath = :cols[], claim = x,
@@ -472,8 +463,8 @@ class DataGrid extends Table [
             // the lifted ghost is unmistakably in hand: an accent-edged,
             // shadowed, rounded card floating over its neighbors
 
-            fill = { dragging && moved ? theme.surface : null },
-            stroke = { dragging && moved ? stroke(1.5, theme.accent) : null },
+            fill = { dragging && moved ? provided("theme").surface : null },
+            stroke = { dragging && moved ? stroke(1.5, provided("theme").accent) : null },
             shadow = { dragging && moved ? shadow(0, 4, 14, 0x00000038) : null },
             cornerRadius = { dragging && moved ? 6 : 0 },
             opacity = { dragging && moved ? 0.95 : 1 },
@@ -505,7 +496,7 @@ class DataGrid extends Table [
                 },
 
             lbl: TextLabel [ x = 8, fontSize = 12, fontWeight = semibold, wrap = false,
-                textColor = { theme.textMuted },
+                textColor = { provided("theme").textMuted },
                 text = { "" + :title } ],
 
             // The sort direction, drawn: one chevron class, turned by its
@@ -515,7 +506,7 @@ class DataGrid extends Table [
             sortMark: ChevronIcon [ y = center, iconSize = 11,
                 x = { parent.width - this.width - 14 },
                 visible = { (classroot as DataGrid).sortOn == parent.colid },
-                ink = { theme.textMuted },
+                ink = { provided("theme").textMuted },
                 dir = { (classroot as DataGrid).sortDir == "desc" ? "down" : "up" } ],
 
             // the resize grip: the left-edge sliver, resizing the previous
@@ -548,7 +539,7 @@ class DataGrid extends Table [
                 ],
 
             hair: View [ width = 1, height = { parent.height - 10 }, y = 5,
-                x = { parent.width - 1 }, fill = { theme.line } ]
+                x = { parent.width - 1 }, fill = { provided("theme").line } ]
             ],
 
         // the insertion bar — where the dragged column would land
@@ -556,14 +547,14 @@ class DataGrid extends Table [
         drop: View [ width = 2, y = 2, height = { parent.height - 4 },
             visible = { (classroot as DataGrid).dragCol != "" },
             x = { (classroot as DataGrid).dropBarX((classroot as DataGrid).dropAt) - 1 },
-            fill = { theme.accent } ],
+            fill = { provided("theme").accent } ],
 
         // the hairline under the header. It stays a child view rather than
         // the header's own bottom stroke: a per-side stroke is a bare list,
         // and its colour here is a theme read.
 
         rule: View [ x = 0, width = 100%, height = 1,
-            y = { parent.height - 1 }, fill = { theme.line } ]
+            y = { parent.height - 1 }, fill = { provided("theme").line } ]
         ]
     ]
 
@@ -676,7 +667,7 @@ class GridRow extends TableRow [
                 width = { parent.width - 4 },
                 height = { parent.height - 4 },
                 cornerRadius = 5,
-                fill = { this.hovered || this.pressed ? classroot.theme.control : null },
+                fill = { this.hovered || this.pressed ? provided("theme").control : null },
                 press() {
                     if ((classroot.parent as DataGrid).isDataGrid !== true) return
                     (classroot.parent as DataGrid).openSelect(classroot, this, "" + :field,
@@ -687,7 +678,7 @@ class GridRow extends TableRow [
                     text = { "" + ((classroot.rec ?? ({}) as any)["" + :field] ?? "") } ],
                 arrow: ChevronIcon [ y = center, iconSize = 11,
                     x = { parent.width - this.width - 6 },
-                    ink = { classroot.theme.textMuted } ]
+                    ink = { provided("theme").textMuted } ]
                 ]
             ]
         ]

@@ -228,7 +228,7 @@ class Combobox extends Control [
         // 22px tap area (the touch path: tap opens, tap picks) — an icon is a
         // mark, not a hit target, so the two stay separate objects.
 
-        mark: ChevronIcon [ iconSize = 13, ink = { theme.textMuted }, x = center, y = center ]
+        mark: ChevronIcon [ iconSize = 13, ink = { provided("theme").textMuted }, x = center, y = center ]
         ]
 
     // (the Menu machinery arrives whole with the app-level instance above:

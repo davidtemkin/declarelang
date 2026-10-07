@@ -11,32 +11,172 @@ further out, each month folding into a mini.
 */
 
 
-/* ── the two palettes — every color in the app, named by role ──
+// date arithmetic, names and colour blending: functions of their arguments
 
-   Light is house San Francisco: `background`, `line`, `text`, `textMuted`,
-   `textFaint`, `accent`, `control` and `controlSelected` are the preset's own
-   values, to the byte.
+script {
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 
-   Dark deliberately is not, and the reason is the grid. House dark is
-   stepped — background → surface → control each a visible rung apart (ΔE 5.4 and
-   7.7). A month is a 2D tiling of 42 equal cells, and stepped surfaces there
-   read as corduroy, so this palette is flat and deep instead (the same two
-   gaps, ΔE 2.6 and 2.5) with one bright exception: `controlSelected` sits 4 L*
-   above house so the selection still pops out of the quiet field.
-   `textMuted` drops ~8 L* to hold its hierarchy against the flatter
-   surfaces. `text` and `accent` are house exactly, in both modes.
+    function lerp(a: number, b: number, t: number): number { return a + (b - a) * t }
+    function clamp(v: number, a: number, b: number): number { return Math.max(a, Math.min(b, v)) }
 
-   This is the corpus's only 2D-tiled surface — the tracker is a list, with
-   rules between its rows, and runs house dark untouched. So these stay the
-   app's own records rather than a second preset: one example is not a pattern. */
+    // blend two 0xRRGGBB colors channel-wise
+    function mix(a: number, b: number, t: number): number {
+        const c = (x: number, y: number) => Math.round(x + (y - x) * t)
+        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
+    }
+
+    function monthName(m: number): string { return MONTHS[m - 1] }
+    function dowName(i: number): string { return DAYS[i].slice(0, 3) }
+
+    // a day's key, "2024-1-19": what cells and events are matched by
+    function dayKey(y: number, m: number, d: number): string { return y + "-" + m + "-" + d }
+    function keyOf(dt: Date): string { return dayKey(dt.getFullYear(), dt.getMonth() + 1, dt.getDate()) }
+    function parseKey(k: string): Date { const p = k.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]) }
+
+    function shortTime(min: number): string {
+        const h = Math.floor(min / 60), mm = min % 60, ap = h < 12 ? "a" : "p"
+        const hh = h % 12 == 0 ? 12 : h % 12
+        return mm == 0 ? hh + ap : hh + ":" + (mm < 10 ? "0" + mm : "" + mm) + ap
+    }
+    function hourLabel(h: number): string { return (h % 12 == 0 ? 12 : h % 12) + (h < 12 ? " AM" : " PM") }
+    function weekLabel(k: string): string {
+        const d = parseKey(k)
+        const s = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay())
+        const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)
+        return monthName(s.getMonth() + 1) + " " + s.getDate() + " – "
+             + (s.getMonth() == e.getMonth() ? "" : monthName(e.getMonth() + 1) + " ") + e.getDate()
+    }
+    function dayLabel(k: string): string { const d = parseKey(k); return DAYS[d.getDay()] + ", " + monthName(d.getMonth() + 1) + " " + d.getDate() }
+    }
+
+
+schema Event [ id: number, title: string, y: number, m: number, d: number, start: number, end: number,
+    category: string, notes?: string, location?: string, attendees?: string, comment?: string ]
+
+// the model's shapes: a day of the month grid, and the year's twelve minis
+
+schema Day [ key: string, y: number, m: number, d: number, dow: string, col: number, row: number,
+    inMonth: boolean, weekend: boolean, today: boolean, current: boolean, events[]: Event ]
+schema MiniDayInfo [ num: number, col: number, row: number, inMonth: boolean, today: boolean, has: boolean ]
+schema Month [ m: number, name: string, mcol: number, mrow: number, cells[]: MiniDayInfo ]
+
+
+/*
+## The events
+
+The records, fetched once, and what is true of them: which fall on a day, and
+how one moves. Edits write straight into them: nothing fetches the source
+again, so no refresh can overwrite an edit.
+*/
+
+class Events extends DataSource [ schema = [ events[]: Event ],
+    all() -> Event[] { return this.read(["events"]) ?? [] },
+    byId(id: number) -> Event? { return this.all().find((e) => e.id == id) ?? null },
+
+    // a day's events, earliest first
+
+    on(y: number, m: number, d: number) -> Event[] {
+        return this.all().filter((e) => e.y == y && e.m == m && e.d == d).sort((a, b) => a.start - b.start || a.id - b.id)
+        },
+    any(y: number, m: number, d: number) -> boolean { return this.all().some((e) => e.y == y && e.m == m && e.d == d) },
+
+    // a move takes the event to another day, and to a new start when one is
+    // given (a drop in a time view), keeping its length either way
+
+    move(id: number, y: number, m: number, d: number, start: number?) {
+        const i = this.all().findIndex((e) => e.id == id)
+        if (i < 0) return
+        const e = this.all()[i]
+        this.set(["events", i, "y"], y)
+        this.set(["events", i, "m"], m)
+        this.set(["events", i, "d"], d)
+        if (start == null) return
+        const len = e.end - e.start
+        const s = clamp(start, 0, 1440 - len)
+        this.set(["events", i, "start"], s)
+        this.set(["events", i, "end"], s + len)
+        }
+    ]
+
+
+/*
+## Dragging
+
+A drag in progress: which event, whether the pointer has moved far enough to
+make it a drag, the day under the pointer, and where on the chip it was taken.
+The chip, the cells and the ghost all read it; a drop is one move of the event.
+*/
+
+class Drag extends Node [
+    id: number = -1,
+    moving: boolean = false,
+    target: string = "",        // the key of the day under the pointer
+    grabX: number = 0,
+    grabY: number = 0,
+    chipW: number = 0,
+    chipH: number = 0,
+    downX: number = 0,
+    downY: number = 0,
+
+    start(id: number, w: number, h: number, gx: number, gy: number) {
+        this.id = id; this.chipW = w; this.chipH = h; this.grabX = gx; this.grabY = gy
+        this.moving = false; this.target = ""; this.downX = app.pointerX; this.downY = app.pointerY
+        },
+    follow() {
+        if (id < 0) return
+        if (!moving) {
+            const dx = app.pointerX - downX, dy = app.pointerY - downY
+            if (dx * dx + dy * dy > 16) moving = true
+            }
+        if (moving) target = app.dayAt(app.pointerX, app.pointerY)?.key ?? ""
+        },
+
+    // The chip's hold fired: lift the ghost at once, before any movement. On
+    // touch this is the moment the claim engages, and the pickup should be
+    // visible while the finger is still parked.
+
+    lift() {
+        if (id < 0) return
+        moving = true
+        target = app.dayAt(app.pointerX, app.pointerY)?.key ?? ""
+        },
+
+    // A drag never clicks (a gesture that wandered past slop resolves to no
+    // click), so a drop just commits — but never an interrupted one: on touch
+    // the browser may take the gesture for a scroll, and that release must not
+    // move the event to wherever the finger happened to be.
+
+    drop(px: number, py: number, canceled: boolean) {
+        if (id < 0) return
+        const day = app.dayAt(px, py)
+        if (moving && !canceled && day != null)
+            app.events.move(id, day.y, day.m, day.d, app.blockness > 0.5 ? app.minuteAt(py - grabY) : null)
+        id = -1; moving = false; target = ""
+        }
+    ]
+
+
+/* ── the calendar's colors, over San Francisco ──
+
+   The App's theme is the San Francisco preset with these records laid over it
+   (see `theme` on the App), so each one holds only what the calendar adds or
+   changes: its own names (weekendBg, holidayText, miniCurrentBg …) in both
+   modes, and in dark a few of the preset's own colors.
+
+   Dark changes them because of the grid. San Francisco's dark surfaces step
+   visibly apart, which suits a list; across a month of 42 equal cells the
+   steps read as stripes. So the calendar's dark background, surfaces and lines
+   sit closer together, the muted text is a little darker to stay below the
+   main text, and the selected color is a little brighter so a selection still
+   stands out. */
 
 theme CalendarLight [
-    background = #F4F6FA, surface = #FFFFFF, cellBg = #FFFFFF, outOfMonthBg = #EDF0F5,
+    cellBg = #FFFFFF, outOfMonthBg = #EDF0F5,
     weekendBg = #F1F4F8, todayBg = #DCE9FF, dropTargetBg = #C7DDFF, dropTargetRing = #2E6FE0,
-    line = #DBE1E9, gridLine = #E4E9EF, text = #1B2733, textMuted = #6C7A88,
-    textFaint = #AAB4BE, dayNumber = #2A3542, bodyText = #3E4C59, hourLabel = #99A5B0,
-    accent = #2E6FE0, accentSecondary = #12A594, currentDayText = #2E6FE0, todayText = #2E6FE0,
-    control = #E7EBF1, controlSelected = #D3E2FC, fieldBg = #FFFFFF, fieldEdge = #DBE1E9,
+    gridLine = #E4E9EF, dayNumber = #2A3542, bodyText = #3E4C59, hourLabel = #99A5B0,
+    accentSecondary = #12A594, currentDayText = #2E6FE0, todayText = #2E6FE0,
+    fieldBg = #FFFFFF, fieldEdge = #DBE1E9,
     sectionBg = #F1F5F9, sectionOpenBg = #E6EEF8, miniBg = #FFFFFF, miniCurrentBg = #E7F0FF,
     miniDayText = #3E4C59, miniDayFaint = #BFC8D2, holidayBg = #DCF3E4, holidayText = #1E7A44,
     astroBg = #EBE6FB, astroText = #5B3FB8, milestoneBg = #FBEFD6, milestoneText = #9A6A11,
@@ -47,9 +187,9 @@ theme CalendarLight [
 theme CalendarDark [
     background = #0D151E, surface = #101A24, cellBg = #18242F, outOfMonthBg = #101922,
     weekendBg = #141F2A, todayBg = #14304F, dropTargetBg = #1E3C5E, dropTargetRing = #6BA4F0,
-    line = #22323E, gridLine = #1B2934, text = #E7EEF2, textMuted = #8A9BA6,
+    line = #22323E, gridLine = #1B2934, textMuted = #8A9BA6,
     textFaint = #54626E, dayNumber = #C7D3DC, bodyText = #B4C2CC, hourLabel = #53636F,
-    accent = #4C8DFF, accentSecondary = #37E0C8, currentDayText = #9CC4FF, todayText = #7FB0FF,
+    accentSecondary = #37E0C8, currentDayText = #9CC4FF, todayText = #7FB0FF,
     control = #131F29, controlSelected = #244463, fieldBg = #0F1A25, fieldEdge = #2A3B49,
     sectionBg = #16222E, sectionOpenBg = #1B2B3B, miniBg = #121C26, miniCurrentBg = #14283F,
     miniDayText = #9FB0BB, miniDayFaint = #33414C, holidayBg = #14321F, holidayText = #74D89B,
@@ -67,37 +207,36 @@ Morphs between a stacked month-chip and a placed time-block as its day zooms
 
 class Ev [ clip = true,
 
-    rowBlock: number = { (parent as Cell).rowBlock },
-    timeLabel: string = { app.shortTime(:start) },
+    rowBlock: number = 0,       // how far its day has become a time view: the cell that places it says
 
-    cornerRadius = { app.lerp(5, 1.5, app.yearZoom) },
-    fill = { app.mix(app.catFill(:category), provided("theme").accent, app.yearZoom) },
-    opacity = { app.dragId == :id && app.dragging ? 0.2 : 1 },
-    x = { app.lerp(4, (parent.width - 3) / 2, app.yearZoom) },
-    width = { app.lerp(parent.width - 8, 3, app.yearZoom) },
-    y      = { app.lerp(app.lerp(26 + rowIndex * 20, :start / 1440 * parent.height, classroot.rowBlock),
-                        parent.height - 6, app.yearZoom) },
-    height = { app.lerp(app.lerp(17, Math.max(18, (:end - :start) / 1440 * parent.height), classroot.rowBlock),
-                        3, app.yearZoom) },
+    cornerRadius = { lerp(5, 1.5, app.yearZoom) },
+    fill = { mix(app.catFill(:category), provided("theme").accent, app.yearZoom) },
+    opacity = { app.drag.id == :id && app.drag.moving ? 0.2 : 1 },
+    x = { lerp(4, (parent.width - 3) / 2, app.yearZoom) },
+    width = { lerp(parent.width - 8, 3, app.yearZoom) },
+    y      = { lerp(lerp(26 + rowIndex * 20, :start / 1440 * parent.height, classroot.rowBlock),
+                    parent.height - 6, app.yearZoom) },
+    height = { lerp(lerp(17, Math.max(18, (:end - :start) / 1440 * parent.height), classroot.rowBlock),
+                    3, app.yearZoom) },
 
     rail: View [ width = 3, height = 100%, fill = { app.catText(:category) }, opacity = { classroot.rowBlock } ],
     text: View [ x = 8, y = 2, opacity = { 1 - app.yearZoom },
         layout: SimpleLayout [ axis = x, spacing = 6 ],
-        tm: Text [ fontSize = 10, fontWeight = semibold, wrap = false, textColor = { app.catText(:category) }, text = { classroot.timeLabel } ],
+        tm: Text [ fontSize = 10, fontWeight = semibold, wrap = false, textColor = { app.catText(:category) }, text = { shortTime(:start) } ],
         ti: Text [ fontSize = 10, fontWeight = regular, wrap = false, textColor = { app.catText(:category) }, text = { :title } ]
         ],
 
-    onPointerDown(e: PointerEvent) { app.startDrag(:id, :title, :category, timeLabel, this.width, this.height, e.x, e.y) },
-    onPointerMove()  { app.dragMove() },
-    onPointerUp(e: PointerUpEvent)   { app.dropDrag(e.rootX, e.rootY, e.canceled) },
+    onPointerDown(e: PointerEvent) { app.drag.start(:id, this.width, this.height, e.x, e.y) },
+    onPointerMove()  { app.drag.follow() },
+    onPointerUp(e: PointerUpEvent)   { app.drag.drop(e.rootX, e.rootY, e.canceled) },
 
     // The hold moves this chip's touch claim to the press-and-hold (a drag view
     // that also holds claims nothing at touchdown) — a quick swipe over a chip
     // pans the page; press-and-hold picks the event up, and the hold itself
     // lifts the ghost so the pickup is visible before the finger moves.
 
-    onHold()       { app.armDrag() },
-    onClick()      { app.selectEvent(:id, :y + "-" + :m + "-" + :d) }
+    onHold()       { app.drag.lift() },
+    onClick()      { app.selectEvent(:id, dayKey(:y, :m, :d)) }
     ]
 
 
@@ -114,36 +253,36 @@ class Cell [ clip = true,
 
     rowBlock: number = { :row == app.anchorRow ? app.blockness : 0 },
 
-    x = { app.lerp(app.pad + app.gutter + (:col - app.c0) * app.colW + app.gap / 2, app.slotX + 10 + :col * app.miniCellW, app.yearZoom) },
-    y = { app.lerp(app.headH + (:row - app.r0) * app.rowH + app.gap / 2, app.slotY + 34 + :row * app.miniRowH, app.yearZoom) },
-    width = { app.lerp(app.colW - app.gap, app.miniCellW, app.yearZoom) },
-    height = { app.lerp(app.rowH - app.gap, app.miniRowH, app.yearZoom) },
+    x = { lerp(app.pad + app.gutter + (:col - app.c0) * app.colW + app.gap / 2, app.slotX + 10 + :col * app.miniCellW, app.yearZoom) },
+    y = { lerp(app.headH + (:row - app.r0) * app.rowH + app.gap / 2, app.slotY + 34 + :row * app.miniRowH, app.yearZoom) },
+    width = { lerp(app.colW - app.gap, app.miniCellW, app.yearZoom) },
+    height = { lerp(app.rowH - app.gap, app.miniRowH, app.yearZoom) },
 
     // the fill fades as the cell becomes a column, then melts to the mini's
     // highlight in the year view; only the drop target draws a ring
 
     bg: View [ width = 100%, height = 100%, cornerRadius = 8,
         opacity = { 1 - 0.82 * classroot.rowBlock },
-        fill = { app.mix(
-              :key == app.dropKey ? provided("theme").dropTargetBg
-            : :today              ? app.mix(provided("theme").todayBg, provided("theme").cellBg, classroot.rowBlock)
+        fill = { mix(
+              :key == app.drag.target ? provided("theme").dropTargetBg
+            : :today              ? mix(provided("theme").todayBg, provided("theme").cellBg, classroot.rowBlock)
             : !:inMonth           ? provided("theme").outOfMonthBg
             : :weekend            ? provided("theme").weekendBg
             :                       provided("theme").cellBg,
             provided("theme").miniCurrentBg, app.yearZoom) },
-        stroke = { :key == app.dropKey ? stroke(2, app.mix(provided("theme").dropTargetRing, provided("theme").miniCurrentBg, app.yearZoom)) : null } ],
+        stroke = { :key == app.drag.target ? stroke(2, mix(provided("theme").dropTargetRing, provided("theme").miniCurrentBg, app.yearZoom)) : null } ],
 
     // current-day accent bar, fading in as the cell fills the surface
 
     mark: View [ width = 100%, height = 3, fill = { provided("theme").accent }, visible = { :current }, opacity = { classroot.rowBlock } ],
-    num: Text [ x = { app.lerp(11, parent.width / 2 - 5, app.yearZoom) }, y = { app.lerp(7, 2, app.yearZoom) },
-        fontSize = { app.lerp(13, 9, app.yearZoom) }, wrap = false, fontWeight = semibold,
+    num: Text [ x = { lerp(11, parent.width / 2 - 5, app.yearZoom) }, y = { lerp(7, 2, app.yearZoom) },
+        fontSize = { lerp(13, 9, app.yearZoom) }, wrap = false, fontWeight = semibold,
         opacity = { :inMonth ? 1 : 1 - app.yearZoom },
         textColor = { :current ? provided("theme").currentDayText : :today ? provided("theme").todayText : :inMonth ? provided("theme").dayNumber : provided("theme").textFaint },
-        text = { "" + :num } ],
+        text = { "" + :d } ],
     dow: Text [ x = 34, y = 8, fontSize = 11, wrap = false, opacity = { classroot.rowBlock },
         textColor = { :current ? provided("theme").currentDayText : provided("theme").textMuted }, text = { :dow } ],
-    Ev [ datapath = :events[], key = :id ],
+    Ev [ datapath = :events[], key = :id, rowBlock = { classroot.rowBlock } ],
 
     onClick() { app.pickDay(:key) }
     ]
@@ -256,19 +395,14 @@ class DetailSection [ clip = true, cornerRadius = 10, fill = { provided("theme")
 App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     fill = { provided("theme").background }, fontFamily = ["system-ui", "sans-serif"],
 
-    /* Colors are two role-named palettes; `theme` swaps between them. `themeMode`
-       is Light / Dark / Auto — Auto follows the environment: what the host provides as `dark` when this
-       app runs embedded (a desktop passing its appearance through), else the OS
-       through `app.dark`.
-
-       The record is the house preset extended, not replaced: the standard
-       tokens underneath, this app's own values over them, and its domain names
-       (weekendBg, holidayText, miniCurrentBg …) alongside. A standard control
-       dropped in here finds every token it consults, while the calendar keeps
-       its own palette — the spread only adds the tokens the app never named. */
+    /* The theme is San Francisco, light or dark, with the calendar's record for
+       that mode spread over it, so a library control dropped in here finds every
+       token it reads. `themeMode` is Light / Dark / Auto — Auto follows the
+       environment: what the host provides as `dark` when this app runs embedded
+       (a desktop passing its appearance through), else the OS through `app.dark`. */
 
     theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...(app.isDark ? CalendarDark : CalendarLight) } },
-    themeMode: string = "auto",
+    themeMode: "auto" | "light" | "dark" = "auto",
 
     // Auto's environment: what a host provides first (a desktop or page that
     // embeds the calendar decides dark for it), else the system preference.
@@ -315,7 +449,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
     // view + paging state
 
-    mode: string = "month",
+    mode: "day" | "week" | "month" | "year" = "month",
 
     // Where the user has paged to — the only date cells, and all navigation
     // writes. `0` / `""` mean "today"; a bare-literal default owns a cell, so
@@ -345,22 +479,21 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        app; hosted (the desktop passes env.base — its own transport's path to
        this app's home), the same relative address resolves through that base.
        `auto` loads it either way: the url is the reactive thing, and when a
-       late-landing base changes it the source fetches the right address.
+       late-landing base changes it the source fetches the right address. */
 
-       Edits write straight into this source (`app.data.set`). It loads once
-       and nothing fetches it again, so there is no refresh to overwrite them
-       and no need for a working copy; a source that refetches would want one,
-       as the tracker's `db` is. */
-
-    data: DataSource [ auto = true, url = { hostProvided("base", "") + "data/events.json" } ],
+    events: Events [ auto = true, url = { hostProvided("base", "") + "data/events.json" } ],
 
     /* The model is derived, not built: `cal.contents` recomputes when the visible
        month or the events change, and keyed replication (`:key`, `:id`) makes each
        recompute cost only the days that changed. The year grid is its own
-       derivation, deferred until first visited and memoized on the year. */
+       derivation, deferred until first visited and memoized on the year. The
+       weekday names and hour labels never change, so they are computed once. */
 
-    cal: Dataset [ contents = { app.buildModel() } ],
-    yearCal: Dataset [ contents = { app.yearSeen ? app.buildMonths() : app.emptyYear() } ],
+    cal: Dataset [ schema = [ grid[]: Day ], contents = { app.buildModel() } ],
+    yearCal: Dataset [ schema = [ months[]: Month ], contents = { app.yearSeen ? app.buildMonths() : { months: [] } } ],
+    labels: Dataset [ schema = [ cols[]: [ name: string, col: number ], hours[]: [ h: number, label: string ] ],
+        contents = { { cols: [0, 1, 2, 3, 4, 5, 6].map((i) => ({ name: dowName(i), col: i })),
+                       hours: Array.from({ length: 24 }, (_, h) => ({ h: h, label: hourLabel(h) })) } } ],
 
     // the detail panel slides in on this value; the body shrinks by the same amount
 
@@ -405,7 +538,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // chips hold shape while the focus zooms, then resolve into blocks over
     // the last row of travel.
 
-    blockness: number = { app.clamp(2 - app.nr, 0, 1) },
+    blockness: number = { clamp(2 - app.nr, 0, 1) },
 
     gutter: number = { app.blockness * 52 },                             // hour-label gutter, opens in time views
 
@@ -417,53 +550,25 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     myRow: number = { Math.floor((app.month - 1) / 4) },
     slotX: number = { app.pad + app.myCol * (app.miniW + app.gap) },
     slotY: number = { app.pad + app.myRow * (app.miniH + app.gap) },
-    yearScale: number = { app.lerp(app.bodyW / app.miniW, 1, app.yearZoom) },
+    yearScale: number = { lerp(app.bodyW / app.miniW, 1, app.yearZoom) },
     yearZoom: number = 0,
     Spring [ attribute = yearZoom, to = { app.mode == "year" ? 1 : 0 }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
 
     periodLabel: string = {
         app.mode == "year"  ? "" + app.year
-      : app.mode == "month" ? app.monthName(app.month) + " " + app.year
-      : app.mode == "week"  ? app.weekLabel(app.anchorKey)
-      :                       app.dayLabel(app.anchorKey) },
+      : app.mode == "month" ? monthName(app.month) + " " + app.year
+      : app.mode == "week"  ? weekLabel(app.anchorKey)
+      :                       dayLabel(app.anchorKey) },
 
-    // ── helpers ──
+    // a day's 0..41 slot in the visible month's grid
 
-    lerp(a: number, b: number, t: number) -> number { return a + (b - a) * t },
-    clamp(v: number, a: number, b: number) -> number { return Math.max(a, Math.min(b, v)) },
-
-    // blend two 0xRRGGBB colors channel-wise
-
-    mix(a: number, b: number, t: number) -> number {
-        const c = (x, y) => Math.round(x + (y - x) * t)
-        return (c((a >> 16) & 255, (b >> 16) & 255) << 16) | (c((a >> 8) & 255, (b >> 8) & 255) << 8) | c(a & 255, b & 255)
-        },
-    monthName(m: number) -> string { return ["January","February","March","April","May","June","July","August","September","October","November","December"][m - 1] },
-    dowName(i: number) -> string { return ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i] },
-    dowLong(i: number) -> string { return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][i] },
-    keyOf(dt: object) -> string { return dt.getFullYear() + "-" + (dt.getMonth() + 1) + "-" + dt.getDate() },
-    parseKey(k: string) -> object { const p = k.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]) },
-    gridIndexOf(key: string) -> number {                       // a day's 0..41 slot in the month grid
+    gridIndexOf(key: string) -> number {
         const first = new Date(this.year, this.month - 1, 1)
         const start = new Date(this.year, this.month - 1, 1 - first.getDay())
-        const d = app.parseKey(key)
+        const d = parseKey(key)
         return Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
                          - Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())) / 86400000)
         },
-    shortTime(min: number) -> string {
-        const h = Math.floor(min / 60), mm = min % 60, ap = h < 12 ? "a" : "p"
-        let hh = h % 12; if (hh == 0) hh = 12
-        return mm == 0 ? hh + ap : hh + ":" + (mm < 10 ? "0" + mm : "" + mm) + ap
-        },
-    hourLabel(h: number) -> string { const ap = h < 12 ? "AM" : "PM"; let hh = h % 12; if (hh == 0) hh = 12; return hh + " " + ap },
-    weekLabel(k: string) -> string {
-        const d = app.parseKey(k)
-        const s = new Date(d.getFullYear(), d.getMonth(), d.getDate() - d.getDay())
-        const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6)
-        return app.monthName(s.getMonth() + 1) + " " + s.getDate() + " – "
-             + (s.getMonth() == e.getMonth() ? "" : app.monthName(e.getMonth() + 1) + " ") + e.getDate()
-        },
-    dayLabel(k: string) -> string { const d = app.parseKey(k); return app.dowLong(d.getDay()) + ", " + app.monthName(d.getMonth() + 1) + " " + d.getDate() },
 
     // -> number, not Color: these return a concrete 0xRRGGBB (theme tokens are
     // never null at read time), and number is what mix() blends — a nullable
@@ -472,10 +577,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     catFill(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayBg : c == "astro" ? t.astroBg : c == "milestone" ? t.milestoneBg : t.defaultBg },
     catText(c: string) -> number { const t = provided("theme"); return c == "holiday" ? t.holidayText : c == "astro" ? t.astroText : c == "milestone" ? t.milestoneText : t.defaultText },
 
-    eventsOn(all: array, y: number, m: number, d: number) -> array {
-        return all.filter(e => e.y == y && e.m == m && e.d == d).sort((a, b) => a.start - b.start || a.id - b.id)
-        },
-    computeMonthRows() {
+    computeMonthRows() -> number {
         const first = new Date(this.year, this.month - 1, 1)
         return Math.ceil((first.getDay() + new Date(this.year, this.month, 0).getDate()) / 7)
         },
@@ -486,68 +588,63 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        `buildMonths` builds the year's twelve minis; its only tracked input is the
        year, so it rebuilds once a year and never on a view switch. */
 
-    buildModel() {
-        const all = app.data.read(["events"]) ?? []
-        const cols = [0,1,2,3,4,5,6].map(i => ({ name: app.dowName(i), col: i }))
-        const hours = Array.from({ length: 24 }, (_, h) => ({ h: h, label: app.hourLabel(h) }))
+    buildModel() -> object {
         const first = new Date(this.year, this.month - 1, 1)
         const start = new Date(this.year, this.month - 1, 1 - first.getDay())
-        const rows = app.computeMonthRows()
         const grid = []
-        for (let i = 0; i < rows * 7; i++) {
+        for (let i = 0; i < this.computeMonthRows() * 7; i++) {
             const dt = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
-            const row = Math.floor(i / 7)
-            grid.push({ key: app.keyOf(dt), num: dt.getDate(), dow: app.dowName(dt.getDay()), col: i % 7, row: row,
-                        inMonth: dt.getMonth() == this.month - 1, weekend: dt.getDay() == 0 || dt.getDay() == 6,
-                        today: app.keyOf(dt) == this.todayKey, current: app.keyOf(dt) == this.anchorKey,
-                        events: app.eventsOn(all, dt.getFullYear(), dt.getMonth() + 1, dt.getDate()) })
+            const y = dt.getFullYear(), m = dt.getMonth() + 1, d = dt.getDate()
+            grid.push({ key: dayKey(y, m, d), y: y, m: m, d: d, dow: dowName(dt.getDay()), col: i % 7, row: Math.floor(i / 7),
+                        inMonth: m == this.month, weekend: dt.getDay() == 0 || dt.getDay() == 6,
+                        today: dayKey(y, m, d) == this.todayKey, current: dayKey(y, m, d) == this.anchorKey,
+                        events: this.events.on(y, m, d) })
             }
-        return { grid: grid, cols: cols, hours: hours }
+        return { grid: grid }
         },
-    buildMonths() {
-        const all = app.data.value != null ? app.data.value.events : []
+    buildMonths() -> object {
         const months = []
         for (let m = 1; m <= 12; m++) {
             const st = new Date(this.year, m - 1, 1 - new Date(this.year, m - 1, 1).getDay())
             const cells = []
             for (let i = 0; i < 42; i++) {
                 const dt = new Date(st.getFullYear(), st.getMonth(), st.getDate() + i)
-                cells.push({ num: dt.getDate(), col: i % 7, row: Math.floor(i / 7), inMonth: dt.getMonth() == m - 1,
-                             today: app.keyOf(dt) == this.todayKey,
-                             has: dt.getMonth() == m - 1 && all.some(e => e.y == dt.getFullYear() && e.m == m && e.d == dt.getDate()) })
+                const inMonth = dt.getMonth() == m - 1
+                cells.push({ num: dt.getDate(), col: i % 7, row: Math.floor(i / 7), inMonth: inMonth,
+                             today: keyOf(dt) == this.todayKey,
+                             has: inMonth && this.events.any(dt.getFullYear(), m, dt.getDate()) })
                 }
-            months.push({ m: m, name: app.monthName(m), mcol: (m - 1) % 4, mrow: Math.floor((m - 1) / 4), cells: cells })
+            months.push({ m: m, name: monthName(m), mcol: (m - 1) % 4, mrow: Math.floor((m - 1) / 4), cells: cells })
             }
         return { months: months }
         },
-    emptyYear() { return { months: [] } },
 
     /* ## Navigation
        A view switch is just a new `mode` (the focus rect springs); a page turn is
        a new navYear/navMonth/navKey. The model derives from those, so navigation
        only sets state — and `today()` is a return to the defaults. */
 
-    goMode(m: string) { this.selectedId = -1; this.mode = m; if (m == "year") this.yearSeen = true },
+    goMode(m: "day" | "week" | "month" | "year") { this.selectedId = -1; this.mode = m; if (m == "year") this.yearSeen = true },
     pickDay(key: string) {
-        const d = app.parseKey(key)
+        const d = parseKey(key)
         this.navKey = key; this.navYear = d.getFullYear(); this.navMonth = d.getMonth() + 1; this.selectedId = -1; this.mode = "day"
         },
     pickMonth(m: number) { this.navMonth = m; this.selectedId = -1; this.mode = "month" },
     today()       { this.navYear = 0; this.navMonth = 0; this.navKey = "" },
     step(dir: number) {
-        const a = app.parseKey(this.anchorKey)      // paging keeps the anchor day coherent
+        const a = parseKey(this.anchorKey)      // paging keeps the anchor day coherent
         if (this.mode == "year") {
             const y = this.year + dir
             this.navYear = y
-            this.navKey = y + "-" + (a.getMonth() + 1) + "-" + Math.min(a.getDate(), new Date(y, a.getMonth() + 1, 0).getDate())
+            this.navKey = dayKey(y, a.getMonth() + 1, Math.min(a.getDate(), new Date(y, a.getMonth() + 1, 0).getDate()))
         } else if (this.mode == "month") {
             let m = this.month + dir, y = this.year
             if (m < 1) { m = 12; y-- } else if (m > 12) { m = 1; y++ }
             this.navMonth = m; this.navYear = y
-            this.navKey = y + "-" + m + "-" + Math.min(a.getDate(), new Date(y, m, 0).getDate())
+            this.navKey = dayKey(y, m, Math.min(a.getDate(), new Date(y, m, 0).getDate()))
         } else {
             const n = new Date(a.getFullYear(), a.getMonth(), a.getDate() + dir * (this.mode == "week" ? 7 : 1))
-            this.navKey = app.keyOf(n); this.navYear = n.getFullYear(); this.navMonth = n.getMonth() + 1
+            this.navKey = keyOf(n); this.navYear = n.getFullYear(); this.navMonth = n.getMonth() + 1
             }
         },
     selectEvent(id: number, key: string?) {
@@ -558,75 +655,28 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
     /* ## Drag to reschedule
        Pointer capture, plus the runtime's click rule, give click-vs-drag for
-       free: a gesture that moved is a drag and clicks nothing, so the block's
-       `onClick` fires only on a real tap. The threshold below is the app's own
-       (when the ghost appears), not a click suppressor. A drop writes through
-       the dataset's mutation API, so it wakes the derived model exactly like a
-       title edit — no copy to rebuild. */
+       free: a gesture that moved is a drag and clicks nothing, so the chip's
+       `onClick` fires only on a real tap. The drag itself is `drag` (its class,
+       above); the App answers the two questions it asks of the surface — which
+       day is under a point, and what time a height means in a time view. A drop
+       is one move of the event, so it wakes the derived model exactly like a
+       title edit. */
 
-    // the event being moved, a snapshot for the ghost, the grab offset
+    drag: Drag [ ],
 
-    dragId: number = -1,
-    dragging: boolean = false,
-    dropKey: string = "",
-    dragTitle: string = "",
-    dragCat: string = "",
-    dragTimeLabel: string = "",
-    dragW: number = 0,
-    dragH: number = 0,
-    grabDX: number = 0,
-    grabDY: number = 0,
-    downX: number = 0,
-    downY: number = 0,
+    // invert the span mapping: a screen point to the day under it
 
-    startDrag(id: number, title: string, cat: string, timeLabel: string, w: number, h: number, gx: number, gy: number) {
-        this.dragId = id; this.dragTitle = title; this.dragCat = cat; this.dragTimeLabel = timeLabel
-        this.dragW = w; this.dragH = h; this.grabDX = gx; this.grabDY = gy
-        this.dragging = false; this.dropKey = ""; this.downX = this.pointerX; this.downY = this.pointerY
-        },
-    dragMove() {
-        if (this.dragId < 0) return
-        if (!this.dragging) {
-            const dx = this.pointerX - this.downX, dy = this.pointerY - this.downY
-            if (dx * dx + dy * dy > 16) this.dragging = true
-            }
-        if (this.dragging) { const cell = this.cellAt(this.pointerX, this.pointerY); this.dropKey = cell != null ? cell.key : "" }
-        },
-    armDrag() {
-        // The chip's hold fired: lift the ghost at once, before any movement —
-        // on touch this is the moment the claim engages, and the pickup should
-        // be visible while the finger is still parked.
-        if (this.dragId < 0) return
-        this.dragging = true
-        const cell = this.cellAt(this.pointerX, this.pointerY); this.dropKey = cell != null ? cell.key : ""
-        },
-    dropDrag(px: number, py: number, canceled: boolean) {
-        if (this.dragId < 0) return
-        // A drag never clicks — the runtime's own rule (a gesture whose pointer
-        // wandered past slop resolves to no click), so the drop just commits —
-        // but never an interrupted one: on touch the browser may take the
-        // gesture for a scroll (a quick swipe over a chip), and that release
-        // must not move the event to wherever the finger happened to be.
-        if (this.dragging && !canceled) this.commitDrop(px, py)
-        this.dragId = -1; this.dragging = false; this.dropKey = ""
-        },
-    cellAt(px: number, py: number) -> object {                         // invert the span mapping: screen point → grid cell
+    dayAt(px: number, py: number) -> Day? {
         const col = Math.floor((px - this.pad - this.gutter) / this.colW + this.c0)
         const row = Math.floor((py - this.barH - this.headH) / this.rowH + this.r0)
-        return this.cal.value.grid[app.clamp(row, 0, this.monthRows - 1) * 7 + app.clamp(col, 0, 6)]
+        return this.cal.value?.grid[clamp(row, 0, this.monthRows - 1) * 7 + clamp(col, 0, 6)] ?? null
         },
-    commitDrop(px: number, py: number) {
-        const events = app.data.value != null ? app.data.value.events : []
-        const idx = events.findIndex(e => e.id == this.dragId)
-        if (idx < 0) return
-        const ev = events[idx], p = ["events", idx]
-        const cell = this.cellAt(px, py)
-        if (cell != null) { const d = app.parseKey(cell.key); app.data.set([...p, "y"], d.getFullYear()); app.data.set([...p, "m"], d.getMonth() + 1); app.data.set([...p, "d"], d.getDate()) }
-        if (this.blockness > 0.5) {          // a time view: also reschedule from the drop height
-            const dur = ev.end - ev.start
-            let s = Math.round(((py - this.barH - this.headH - this.grabDY) / this.rowH * 1440) / 15) * 15
-            s = app.clamp(s, 0, 1440 - dur); app.data.set([...p, "start"], s); app.data.set([...p, "end"], s + dur)
-            }
+
+    // in a time view, the minute of the day a height on the surface stands for,
+    // to the quarter hour
+
+    minuteAt(py: number) -> number {
+        return Math.round(((py - this.barH - this.headH) / this.rowH * 1440) / 15) * 15
         },
 
     /* ## Keyboard
@@ -654,14 +704,14 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         // its centre, so it starts full-bleed and converges by a pure scale to the mini
 
         monthBg: View [ x = { app.slotX }, y = { app.slotY }, width = { app.miniW }, height = { app.miniH },
-            cornerRadius = 12, fill = { app.mix(provided("theme").background, provided("theme").miniCurrentBg, app.yearZoom) },
+            cornerRadius = 12, fill = { mix(provided("theme").background, provided("theme").miniCurrentBg, app.yearZoom) },
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
-        weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.cal.value },
+        weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.labels.value },
             View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
                 l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { provided("theme").textMuted }, text = { :name } ]
                 ]
             ],
-        hours: View [ opacity = { app.blockness }, datapath = { app.cal.value },
+        hours: View [ opacity = { app.blockness }, datapath = { app.labels.value },
             View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { provided("theme").gridLine },
                 lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { provided("theme").hourLabel }, text = { :label } ]
                 ]
@@ -670,15 +720,15 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             Cell [ datapath = :grid[], key = :key ]
             ],
         yearName: Text [ x = { app.slotX + 14 }, y = { app.slotY + 11 }, fontSize = 13, fontWeight = semibold, wrap = false,
-            textColor = { provided("theme").todayText }, text = { app.monthName(app.month) },
-            opacity = { app.clamp((app.yearZoom - 0.5) / 0.5, 0, 1) } ]
+            textColor = { provided("theme").todayText }, text = { monthName(app.month) },
+            opacity = { clamp((app.yearZoom - 0.5) / 0.5, 0, 1) } ]
         ],
 
     /* ## Year — the same surface pulled back to the full 4×3 grid, the eleven other
        months sweeping in around the shrinking board. */
 
     yearView: View [ y = { app.barH }, width = { app.bodyW }, height = { app.bodyH }, clip = true, visible = { app.yearZoom > 0.02 },
-        opacity = { app.clamp((app.yearZoom - 0.5) / 0.3, 0, 1) },
+        opacity = { clamp((app.yearZoom - 0.5) / 0.3, 0, 1) },
         scale = { app.yearScale }, pivotX = { app.slotX + app.miniW / 2 }, pivotY = { app.slotY + app.miniH / 2 },
         grid: View [ width = 100%, height = 100%, datapath = { app.yearCal.value },
             MiniMonth [ datapath = :months[], key = :m ]
@@ -693,7 +743,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         fill = { provided("theme").surface }, stroke = { [null, null, null, stroke(1, provided("theme").line)] },
         padding = [24, 22, 24, 22],
         layout: SimpleLayout [ axis = y, spacing = 8 ],
-        datapath = { app.data.value != null ? app.data.value.events.find(e => e.id == app.selectedId) : null },
+        datapath = { app.events.byId(app.selectedId) },
 
         /* The event section — the title block in the sections' own grammar: the
            same card, its label row carrying the panel's close where the others
@@ -719,7 +769,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
                 stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
                 text <-> :title ],
             meta: Text [ padding = [12, 0, 0, 0], fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
-                text = { app.dayLabel(:y + "-" + :m + "-" + :d) + "  ·  " + app.shortTime(:start) + " – " + app.shortTime(:end) } ]
+                text = { dayLabel(dayKey(:y, :m, :d)) + "  ·  " + shortTime(:start) + " – " + shortTime(:end) } ]
             ],
 
         DetailSection [ idx = 0, label = "NOTES",     field = "notes" ],
@@ -729,12 +779,13 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
     // the grabbed event, following the pointer during a drag
 
-    ghost: View [ visible = { app.dragging }, opacity = 0.9, x = { app.pointerX - app.grabDX }, y = { app.pointerY - app.grabDY },
-        width = { app.dragW }, height = { Math.max(app.dragH, 34) }, cornerRadius = 6, clip = true, fill = { app.catFill(app.dragCat) },
+    ghost: View [ visible = { app.drag.moving }, opacity = 0.9, x = { app.pointerX - app.drag.grabX }, y = { app.pointerY - app.drag.grabY },
+        datapath = { app.drag.moving ? app.events.byId(app.drag.id) : null },
+        width = { app.drag.chipW }, height = { Math.max(app.drag.chipH, 34) }, cornerRadius = 6, clip = true, fill = { app.catFill(:category ?? "") },
         shadow = shadow(0, 6, 16, #00000088),
-        rail: View [ width = 3, height = 100%, fill = { app.catText(app.dragCat) } ],
-        tm: Text [ x = 11, y = 4, fontSize = 10, fontWeight = bold, wrap = false, textColor = { app.catText(app.dragCat) }, text = { app.dragTimeLabel } ],
-        ti: Text [ x = 11, y = 17, fontSize = 11, wrap = false, textColor = { app.catText(app.dragCat) }, text = { app.dragTitle } ]
+        rail: View [ width = 3, height = 100%, fill = { app.catText(:category ?? "") } ],
+        tm: Text [ x = 11, y = 4, fontSize = 10, fontWeight = bold, wrap = false, textColor = { app.catText(:category ?? "") }, text = { shortTime(:start ?? 0) } ],
+        ti: Text [ x = 11, y = 17, fontSize = 11, wrap = false, textColor = { app.catText(:category ?? "") }, text = { :title ?? "" } ]
         ],
 
     /* ## Chrome
@@ -805,7 +856,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
 
             tabs: Segmented [ height = 34, width = { app.tabsW },
                 value = { app.mode },
-                input(v: object) { app.goMode("" + v) },
+                input(v: object) { app.goMode(v as "day" | "week" | "month" | "year") },
                 choices = { [ ({ id: "day",   label: app.tabsCompact ? "D" : "Day" }),
                               ({ id: "week",  label: app.tabsCompact ? "W" : "Week" }),
                               ({ id: "month", label: app.tabsCompact ? "M" : "Month" }),
@@ -823,7 +874,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
             x = { app.barNarrow
                 ? (app.width - this.width) / 2
-                : app.clamp((app.width - this.width) / 2, parent.top.leftEnd + 24,
+                : clamp((app.width - this.width) / 2, parent.top.leftEnd + 24,
                             Math.max(parent.top.leftEnd + 24, parent.top.rightStart - this.width - 24)) },
             prev:  NavArrow [ dir = -1 ],
             title: Text [ width = { app.dateW }, textAlign = center, fontSize = 16, wrap = false,

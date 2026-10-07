@@ -712,7 +712,7 @@ const ImageSchema: ClassSchema = {
     // A color multiplied over the bitmap's ALPHA (compositing.md §3.4): the
     // one-mask-asset, many-colors idiom — result color = tint, shape = the
     // bitmap's alpha, exactly template-image rendering. null (the default) =
-    // the untouched bitmap. `tint = { theme.accent }` is the canonical read.
+    // the untouched bitmap. `tint = { provided("theme").accent }` is the canonical read.
     tint: { kind: "color" },
     // READ-ONLY (below): the load lifecycle as two facts, surfaced 2026-07-30
     // (David's ruling) when the network-transport tests found them unreadable

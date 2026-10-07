@@ -12,7 +12,7 @@ author never composes rows. The standard record covers real OS menus:
   One field covers every mark, including the ones no font gives you; a computed
   name needs its class kept with `use [ Name ]`, since no static reference
   reaches it.
-- `enabled: false` dims the row (theme.disabledOpacity) and refuses pick.
+- `enabled: false` dims the row (provided("theme").disabledOpacity) and refuses pick.
 - `{ divider: true }` is a separator line.
 - `submenu: [ …records… ]` marks a cascade (the ▸ arrow).
 - `kind: "ClassName"` renders the row's content with a named author class
@@ -222,21 +222,11 @@ As tall as its panel, which is as tall as its rows — capped just inside the ap
 height, past which the panel scrolls its rows and the rover keeps the landing row in
 view.
 
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
 
 include [ "control.declare" ]
 
 class Menu [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
     visible = { shown },
     ignoreLayout = true,                         // it places itself where it opens; a parent's layout never arranges it
     height = { this.panel.height },              // the panel; the backdrop deliberately overflows
@@ -324,7 +314,7 @@ class Menu [
     // estimated from the records (the flip decision can't wait a settle)
 
     expectedHeight() -> number {
-        const est = (this.items ?? []).length * (typeof theme.menuRowHeight == "number" ? theme.menuRowHeight : 26) + 10
+        const est = (this.items ?? []).length * (typeof provided("theme").menuRowHeight == "number" ? provided("theme").menuRowHeight : 26) + 10
         return Math.max(this.height, est)
         },
 
@@ -498,17 +488,17 @@ class Menu [
 
     panel: View [ width = { classroot.width },
         height = { Math.min(this.body.contentHeight + 10, app.height - 8) },
-        cornerRadius = { typeof theme.menuCornerRadius == "number" ? theme.menuCornerRadius : 8 },
+        cornerRadius = { typeof provided("theme").menuCornerRadius == "number" ? provided("theme").menuCornerRadius : 8 },
 
         // a frosted material when the theme names one (the frosted vibrancy
         // read), else the solid surface: `menuFill` is the translucent
         // wash, and a theme that also elects `menuBackdrop` gets true frost —
         // the panel samples and blurs what lies beneath it, wash over blur.
 
-        fill = { theme.menuFill != null ? theme.menuFill : theme.surface },
-        backdrop = { theme.menuBackdrop != null ? theme.menuBackdrop : null },
-        stroke = { stroke(1, theme.line) },
-        shadow = { theme.menuShadow != null ? theme.menuShadow : shadow(0, 10, 40, 0x00000038) },
+        fill = { provided("theme").menuFill != null ? provided("theme").menuFill : provided("theme").surface },
+        backdrop = { provided("theme").menuBackdrop != null ? provided("theme").menuBackdrop : null },
+        stroke = { stroke(1, provided("theme").line) },
+        shadow = { provided("theme").menuShadow != null ? provided("theme").menuShadow : shadow(0, 10, 40, 0x00000038) },
 
         body: View [ x = 0, y = 5, width = 100%,
             height = { parent.height - 10 },
@@ -525,8 +515,8 @@ class Menu [
                 // the row's highlight gate: the hover intrinsic under menu policy
 
                 hot:      boolean = { this.hovered && this.enabled && !this.divider },
-                height = { divider ? 11 : custom != "" ? Math.max(26, this.host.height + 8) : (typeof theme.menuRowHeight == "number" ? theme.menuRowHeight : 26) },
-                opacity = { enabled ? 1 : (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) },
+                height = { divider ? 11 : custom != "" ? Math.max(26, this.host.height + 8) : (typeof provided("theme").menuRowHeight == "number" ? provided("theme").menuRowHeight : 26) },
+                opacity = { enabled ? 1 : (typeof provided("theme").disabledOpacity == "number" ? provided("theme").disabledOpacity : 0.45) },
 
                 onPointerOver() {
                     if (!enabled || divider) return
@@ -556,10 +546,10 @@ class Menu [
 
                 hl: View [ x = 5, y = 1, width = { parent.width - 10 }, height = { parent.height - 2 },
                     cornerRadius = 5, visible = { (parent.hot || classroot.activeRow == parent) && parent.custom == "" },
-                    fill = { theme.menuHighlightFill != null ? theme.menuHighlightFill : theme.accent } ],
+                    fill = { provided("theme").menuHighlightFill != null ? provided("theme").menuHighlightFill : provided("theme").accent } ],
 
                 rule: View [ x = 10, y = 5, width = { parent.width - 20 }, height = 1,
-                    visible = { parent.divider }, fill = { theme.line } ],
+                    visible = { parent.divider }, fill = { provided("theme").line } ],
 
                 // The check, from the shared set — the same tick `Checkbox`
                 // draws. The ink stays local: a checked row inverts on the hot
@@ -568,8 +558,8 @@ class Menu [
                 check: CheckIcon [ x = 7, y = center, iconSize = 12,
                     visible = { !parent.divider && !!:checked },
                     ink = { parent.hot || classroot.activeRow == parent
-                          ? (typeof theme.menuHighlightTextColor == "number" ? theme.menuHighlightTextColor : theme.accentTextColor)
-                          : theme.text } ],
+                          ? (typeof provided("theme").menuHighlightTextColor == "number" ? provided("theme").menuHighlightTextColor : provided("theme").accentTextColor)
+                          : provided("theme").text } ],
 
                 // an authored icon-column cell (`icon`): the class renders
                 // the icon; the row stays standard — check, text edge, pick
@@ -579,19 +569,19 @@ class Menu [
 
                 icoHost: View [ x = { 18 + classroot.checkW }, y = center, width = 16, height = 16,
                     textColor = { parent.hot || classroot.activeRow == parent
-                                ? (typeof theme.menuHighlightTextColor == "number" ? theme.menuHighlightTextColor : theme.accentTextColor)
-                                : theme.text },
+                                ? (typeof provided("theme").menuHighlightTextColor == "number" ? provided("theme").menuHighlightTextColor : provided("theme").accentTextColor)
+                                : provided("theme").text },
                     visible = { !parent.divider && :icon != null } ],
 
                 lbl: TextLabel [ fontSize = 13, visible = { !parent.divider && parent.custom == "" },
                     x = { classroot.textEdge },
-                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHighlightTextColor != null ? theme.menuHighlightTextColor : theme.accentTextColor) : theme.text },
+                    textColor = { (parent.hot || classroot.activeRow == parent) ? (provided("theme").menuHighlightTextColor != null ? provided("theme").menuHighlightTextColor : provided("theme").accentTextColor) : provided("theme").text },
                     text = { "" + (:label || "") } ],
 
                 key: TextLabel [ fontSize = 12,
                     x = { parent.width - this.width - 16 },        // the key column ends 16pt from the edge (measured)
                     visible = { !parent.divider && !parent.sub && :key != null },
-                    textColor = { (parent.hot || classroot.activeRow == parent) ? (theme.menuHighlightTextColor != null ? theme.menuHighlightTextColor : theme.accentTextColor) : theme.textMuted },
+                    textColor = { (parent.hot || classroot.activeRow == parent) ? (provided("theme").menuHighlightTextColor != null ? provided("theme").menuHighlightTextColor : provided("theme").accentTextColor) : provided("theme").textMuted },
                     text = { "" + (:key || "") } ],
 
                 // The cascade arrow, from the shared set — a chevron turned
@@ -601,8 +591,8 @@ class Menu [
                 arrow: ChevronIcon [ iconSize = 12, dir = "right", visible = { parent.sub },
                     x = { parent.width - 17 }, y = center,
                     ink = { this.parent.hot || classroot.activeRow == this.parent
-                          ? (typeof theme.menuHighlightTextColor == "number" ? theme.menuHighlightTextColor : theme.accentTextColor)
-                          : theme.textMuted } ],
+                          ? (typeof provided("theme").menuHighlightTextColor == "number" ? provided("theme").menuHighlightTextColor : provided("theme").accentTextColor)
+                          : provided("theme").textMuted } ],
 
                 // a `kind` row's author-rendered content region
 

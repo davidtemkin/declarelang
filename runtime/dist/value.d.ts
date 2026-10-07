@@ -147,10 +147,10 @@ export declare function filtersEqual(a: FilterValue | undefined, b: FilterValue 
 export declare function backdropEqual(a: Backdrop | null, b: Backdrop | null): boolean;
 export declare function fillEqual(a: Fill, b: Fill): boolean;
 /** A theme: a plain immutable record of design tokens (ruled, v1 —
- *  wholesale-swapped, never mutated in place). `theme.role` in library
- *  classes ALWAYS resolves: `Control` declares `theme: Theme = { provided(
- *  "theme", SanFrancisco) }`, so no provider means San Francisco, never a
- *  fallback expression in class source. `depth` (0 = flat … 1 =
+ *  wholesale-swapped, never mutated in place). `provided("theme").role`
+ *  ALWAYS resolves: the theme is the one provided value with a built-in
+ *  default (attributes.ts providedRead), so no provider means San Francisco,
+ *  never a fallback expression in class source. `depth` (0 = flat … 1 =
  *  dimensional) is the treatment dial classes translate in their decoration
  *  constraints. Partial reskin is explicit-base spread:
  *  `theme = { { ...provided("theme"), accent: 0xE05252 } }`. */

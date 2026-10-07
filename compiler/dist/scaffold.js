@@ -529,7 +529,7 @@ export const HOST_GLOBALS = new Set([
  *  whose name is here is NOT given the generated open alias below — it has a
  *  real declaration, and a second one is a duplicate identifier. Add a name here
  *  when you write its shape into the prelude, and only then. */
-const PRELUDE_RECORDS = new Set(["Theme", "TextStyles", "RichTextLayout"]);
+const PRELUDE_RECORDS = new Set(["Theme", "TextStyles", "RichTextLayout", "DelayHandle"]);
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
  *  emitted in the prelude / near-use; class references the peer

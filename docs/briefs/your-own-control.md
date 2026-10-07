@@ -12,8 +12,8 @@ class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
     input(v: number) { value = v },          // the default delivery; a use site overrides it
     press() { input(value + step) },         // click, Space and Enter all land here
 
-    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : theme.control },
-    t: Text [ x = center, y = center, fontSize = 13, textColor = { theme.text },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    t: Text [ x = center, y = center, fontSize = 13, textColor = { provided("theme").text },
         text = { "" + classroot.value } ]
     ]
 
@@ -36,7 +36,7 @@ App [ width = 320, height = 130, theme = { SanFrancisco },
   own value. The default `input` writes the value (standalone use); a use site that owns
   the value overrides `input`. One class works both ways.
 - Style from `hovered`/`pressed`: on a control they are false while `disabled`, and
-  `pressed` includes a keyboard press, so a disabled control never lights up. Inside a `Control`, `theme.x` reads the provided theme directly.
+  `pressed` includes a keyboard press, so a disabled control never lights up.
 - A subclass refines methods and attributes (`super.press()` keeps the base's), never the
   base's children: expose what a child needs as an attribute the child reads.
 - Ring only part of it with `focusShape()`.

@@ -154,7 +154,9 @@ make it safe to use:
   `afterDelay(0, fn)` means "on the next frame" — how a menu lets itself disappear
   before the chosen command runs.
 - **It can be dropped.** It returns a handle; `cancel()` drops the wait if it has not
-  run.
+  run. To cancel from a later handler — a notice that a newer one replaces — keep the
+  handle in an attribute: `hideTimer: DelayHandle? = null`, then
+  `hideTimer?.cancel(); hideTimer = afterDelay(8000, …)`.
 
 It is a handler tool: a `{ }` value computes and never waits, so the compiler refuses
 `afterDelay` there. And it is rarely the right one. Before writing it, ask what you are
@@ -254,11 +256,23 @@ every stop and every restart, which is rarely what the program meant.
 The test is one line: if the handler's body could have been written as `x = { … }`, write
 that instead.
 
+## Lifecycle: `onInit` and `onRetire`
+
+Every node fires `onInit` once, when it and its subtree exist. That is the place for
+setup that needs the built tree. A view fires `onRetire` once when its presence ends —
+its record leaves the data, or it is discarded — with everything still alive, so the
+handler can read what it needs. The App alone fires `onReady` when the first settle has
+closed ([Constraints](declare-docs:guide:constraints@the-settle-when-writes-take-effect)).
+
+Most programs need none of these: a value that should be true is a constraint, and a
+view that should exist comes from data.
+
 ---
 
 **What you can now do:** read the clock as facts at the resolution you need, integrate
 physics in `onTick`, repeat a job on a period, run one call later with `afterDelay`,
 choose between a fact, a spring, an animator and a tick by the shape of the dependence,
-and — rarely — act once when a value crosses into a new state.
+and — rarely — act once when a value crosses into a new state, or when a node begins
+or ends.
 
 [Next: **Animated arrangements** →](declare-docs:guide:animated-arrangements)

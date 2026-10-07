@@ -27,6 +27,7 @@
 
 import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage, type Where } from "./errors.js";
+import { THEME_PRESETS } from "./themes.js";
 
 /** One attribute's class-level declaration: its default, the Surface push a
  *  change makes (absent for purely model-side attributes), and an optional
@@ -737,6 +738,10 @@ export function providedRead(self: object, name: string, hasDefault: boolean, df
     if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareProvidedCensus?: unknown }).__declareProvidedCensus !== undefined) devProvidedCensus(self, name, devHops, null, "default (walked to the root)");
     return dflt;
   }
+  // The theme is the one provided value with a built-in default: an app that
+  // never provides one renders in the house preset. The default lives here,
+  // once, so no reader has to carry it.
+  if (name === "theme") { remember(null); return THEME_PRESETS.SanFrancisco; }
   throw new DeclareError(
     `provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`
   );

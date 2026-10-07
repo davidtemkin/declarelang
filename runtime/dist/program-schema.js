@@ -272,7 +272,7 @@ export function resolveWrittenType(written, isClassName, isShape) {
         const okBase = declaredType(base) !== null || isClassName(base) || isShape(base) || (base.endsWith("[]") && arrayOf(base) !== null);
         return okBase ? { kind: "array", of: base } : null;
     };
-    // A REFERENCE type — a class, a schema, View — says whether it may be empty:
+    // A REFERENCE type — a class, a schema, View, a DelayHandle — says whether it may be empty:
     // `Menu?` may be null, `Menu` never is. The `?` belongs to these alone.
     if (written.endsWith("?")) {
         const nullable = reference(written.slice(0, -1), isClassName, isShape);
@@ -287,10 +287,13 @@ export function resolveWrittenType(written, isClassName, isShape) {
         ?? arrayOf(written)
         ?? (written.startsWith("(") ? { kind: "fn", written } : null);
 }
-/** The reference types a declared attribute may name: View, a class, a schema. */
+/** The reference types a declared attribute may name: View, a class, a schema,
+ *  and the handle `afterDelay` returns (a pending call a later handler cancels). */
 function reference(written, isClassName, isShape) {
     if (written === "View")
         return { kind: "view" };
+    if (written === "DelayHandle")
+        return { kind: "record", name: "DelayHandle", data: true };
     if (isClassName(written))
         return { kind: "class", of: written };
     if (isShape(written))
@@ -342,7 +345,7 @@ isShape = () => false) {
         // A default BINDING (the ruled R6 unlock): a live
         // per-instance fallback — in effect only while nothing provides the
         // slot, so it never contends with any offer (`labelColor: Color =
-        // { theme.buttonText }` is what lets classes defer to tokens).
+        // { provided("theme").buttonText }` is what lets classes defer to tokens).
         const e = validateExpr(d.def.src);
         if (e !== null) {
             return errT(diag `${owner}.${d.name}'s default = { … } ${e}`, d.def.pos);

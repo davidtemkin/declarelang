@@ -1015,4 +1015,79 @@ await test("windowed: a reader at the end stays exactly at the end as the rows t
   assert.ok(last !== undefined && Math.abs(last.y + last.height - app.sc.content.height) < 1, "the last record ends the range");
 });
 
+await test("a view built later builds exactly as one declared in source — replicated, virtualized, by a State, or by createView", async () => {
+  const src = `
+class Probe [ width = 200, height = 30,
+    textColor = { provided("theme").text },
+    density: number = 3,
+    layout: SimpleLayout [ axis = x, spacing = 4 ],
+    k: number = { app.k },
+    pw: number = { parent.width },
+    inner: Dataset [ contents = { { v: app.twice(app.k) } } ],
+    changes: number = 0,
+    trackChanges = ["k"],
+    onChange(e: ChangeEvent) { changes = changes + 1 },
+    seen: number = 0,
+    onInit() { seen = app.k },
+    mark: View [ width = 10, height = 10,
+        draw(d: Draw) { d.fillStyle = provided("theme").accent == 0 ? "#000" : "#c00"; d.fillRect(0, 0, 10, 10) } ],
+    t: Text [ text = { "" + (:label ?? "static") } ],
+    dens: Text [ text = { "" + provided("density") } ],
+    cr: Text [ text = { "" + classroot.k } ],
+    ex: View [ exists = { app.k > 5 }, width = 4, height = 4 ]
+    ]
+
+App [ width = 400, height = 400, theme = { SanFrancisco },
+    k: number = 7,
+    twice(n: number) -> number { return n * 2 },
+    on: boolean = false,
+    d: Dataset { { "rows": [] } },
+    boot: Dataset { { "rows": [ { "label": "b" } ] } },
+    declared: Probe [ ],
+    early: View [ width = 300, datapath = { app.boot.value }, Probe [ datapath = :rows[] ] ],
+    late: View [ width = 300, datapath = { app.d.value }, Probe [ datapath = :rows[] ] ],
+    sc: View [ scrolls = y, width = 300, height = 300,
+        content: View [ width = 300, datapath = { app.d.value },
+            Probe [ datapath = :rows[], virtualize = true ] ] ],
+    holder: View [ width = 300,
+        State [ applied = { app.on }, viaState: Probe [ ] ] ],
+    made: View [ width = 300 ]
+    ]`;
+  const r = await compile(src);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const errs = [], orig = console.error;
+  console.error = (...a) => { errs.push(a.map(String).join(" ")); };
+  let app;
+  try {
+    app = build(r.source);
+    settle();
+    app.d.value = { rows: [{ label: "x" }, { label: "y" }] };
+    app.on = true;
+    settle();
+    app.made.createView("Probe");
+    settle();
+    app.k = 8;
+    settle();
+  } finally {
+    console.error = orig;
+  }
+  assert.deepEqual(errs, [], "no instance throws while it is built");
+  const fp = (p) => ({ ink: p.t.textColor, k: p.k, inner: p.inner.value?.v, seen: p.seen, changes: p.changes,
+    dens: p.dens.text, cr: p.cr.text, ex: p.ex != null, placed: p.cr.x > 0 });
+  const want = fp(app.declared);
+  assert.equal(typeof want.ink, "number", "the declared row reads the provided theme");
+  const built = {
+    "replicated at boot": app.early.childViews[0],
+    "replicated late": app.late.childViews[0],
+    "virtualized late": app.sc.content.childViews[0],
+    "built by a State": app.holder.childViews.find((v) => v.constructor.name === "Probe"),
+    "createView": app.made.childViews[0],
+  };
+  for (const [how, p] of Object.entries(built)) {
+    assert.ok(p !== undefined, how + ": built");
+    assert.deepEqual(fp(p), want, how + ": the same as declared");
+    assert.equal(p.pw, 300, how + ": reads its own parent");
+  }
+});
+
 summarize("materialization");

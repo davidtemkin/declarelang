@@ -1,6 +1,6 @@
 class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
     n: number = 0,
-    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : theme.control },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
     press() { n = n + 1 },
     t: TextLabel [ x = center, fontSize = 13, text = { "" + classroot.n } ]
     ]

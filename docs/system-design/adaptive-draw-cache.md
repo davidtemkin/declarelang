@@ -119,6 +119,13 @@ about not holding what cannot be seen.
   `__declareDomRasterStats` (bytes, clamps, blanks).
 - **Text-only drawings render.** They did not: `fillText` bounded to its anchor
   point, the canvas was sized to those bounds, and the glyphs were gone.
+- **Size is not windowed.** The canvas covers the whole recording, however
+  much of it is on screen: a drawing 20,000 px tall is one canvas that tall at
+  device density (a 1,184 px wide card 20,388 px tall is a 368 MB canvas at
+  2×). The ceilings above act only after the fact. A box that is only a background, rounded corners and a border needs no
+  drawing: `fill`, a four-corner `cornerRadius` and a four-sided `stroke` are
+  CSS on this backend (`decorate`) and never rasterize, at any size. §8 has the
+  windowed raster that would close the gap for real drawings.
 
 ### 3.3 Mac host — describe first
 
@@ -128,7 +135,8 @@ server rasterizes those under any transform, exact at every scale with nothing
 to cache. What it cannot express (text, focal radials, filters) goes to a Core
 Graphics raster, made on the runtime thread (`MacHost.drawRaster`) at the
 **composed density** the visibility feed reports at rest, so it too is exact
-under a view scale; main only shows the bitmap.
+under a view scale; main only shows the bitmap. That bitmap covers the whole
+recording, as the DOM's canvas does (§3.2, §8).
 Filters run through Core Image with the radius carried across unscaled; shadow
 offsets are negated into CA's y-up space; conic gradients are swept without
 antialiasing between tiling wedges. Per-op conformance against Chrome is 30 of
@@ -154,8 +162,8 @@ antialiasing between tiling wedges. Per-op conformance against Chrome is 30 of
 | | holds a drawing as | under a transform | admission | release | ceiling |
 |---|---|---|---|---|---|
 | canvas | memo raster, discardable | stretch for the beat, exact at rest | measured formula | relevance → value | discovered, budget halves |
-| DOM | per-view canvas, obligatory | re-raster at the at-rest composed density | none | hidden view releases | clamp density; blank → halve |
-| mac | described layers; CG bitmap for the remainder | described: always exact; bitmap: composed density at rest | expressibility | n/a | n/a |
+| DOM | per-view canvas, obligatory | re-raster at the at-rest composed density | none | hidden view releases | clamp density; blank → halve; no size window (§8) |
+| mac | described layers; CG bitmap for the remainder | described: always exact; bitmap: composed density at rest | expressibility | n/a | bitmap: none; no size window (§8) |
 
 ## 4. Per engine
 
@@ -263,6 +271,30 @@ WKWebView number labelled "Safari"; point-sampling a lattice; opaque marks that
 both engines cull; Chrome under contention timing out a byte-identical capture.
 
 ## 8. Open
+
+- **Windowed rasters for very tall drawings (DOM, Mac).** A drawing much taller
+  (or wider) than the screen holds one full-size raster on these two renderers
+  (§3.2), where the canvas backend already falls back to replaying straight onto
+  the scene past `RASTER_MAX_DIM` (8,192 px) or its memory cap. Not built: no
+  program in the corpus draws anything that tall once a decorated box uses its
+  CSS-backed attributes (§3.2), and the work is real. The design, for when one
+  does:
+  - **Past the same cap**, the raster covers the visible part of the recording
+    plus about a viewport of margin on each side, replayed with the window's
+    origin at the canvas corner; the CSS box stays the recording's bounds.
+  - **What is visible** comes from the view's own `visibleRect` fact, armed only
+    for a drawing over the cap and pushed to the surface; a new raster happens
+    when the visible part leaves the inner margin — one window-sized repaint
+    every viewport or so of scrolling.
+  - **Kept on the full raster**: a drawing that is a mask stencil (its users
+    need the whole bitmap), and at first a drawing under a non-trivial
+    transform (the window would map through it).
+  - **The Mac host** takes the same window in `DrawReplay.bitmap`.
+  - **No API change.** `draw()` runs and records exactly as now; only how a
+    renderer turns the list into pixels changes, and the pixels on screen are
+    the same. The one observable difference is a very fast scroll through a
+    very tall drawing outrunning the margin for a frame. Pinned, when built, by
+    pixel parity at several scroll offsets against the canvas renderer.
 
 - **The blur residual.** The memo's "same pixels as the vectors" holds for an
   un-filtered recording; under a `blur()` filter the raster (its own padded

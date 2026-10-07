@@ -85,21 +85,11 @@ Content-sized to its row of titles, so it sits in a chrome bar without a stated 
 ## selectable
 Chrome, never prose: the titles do not select, even inside a `selectable` region — the same provision every `Control` makes for its label.
 
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
 
 include [ "menu.declare" ]
 
 class MenuBar [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
     height = 25,
 
     // chrome, not prose: the titles never select inside a `selectable` region
@@ -114,7 +104,7 @@ class MenuBar [
     menus: array = null,
 
     // optional title-ink override: when set, the menu titles render in this
-    // color instead of `theme.text` — for a bar drawn straight over a
+    // color instead of `provided("theme").text` — for a bar drawn straight over a
     // wallpaper (no background), where the platform text turns light. Null =
     // the theme's text color. The dropdown menus stay themed.
 
@@ -206,7 +196,7 @@ class MenuBar [
             // the open/arrow-nav title highlight — a translucent frosted capsule
             // when the theme names one (Cupertino), else the solid controlSelected
 
-            fill = { this.open ? (theme.menuTitleHighlightFill != null ? theme.menuTitleHighlightFill : theme.controlSelected) : null },
+            fill = { this.open ? (provided("theme").menuTitleHighlightFill != null ? provided("theme").menuTitleHighlightFill : provided("theme").controlSelected) : null },
             onPointerOver() { classroot.trackMenu(this) },
             onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
             onInit() { if (this.kd != "") this.host.createView(this.kd, ({ })) },
@@ -217,7 +207,7 @@ class MenuBar [
                 // renders 400 a shade thinner than platform menu text
 
                 fontWeight = { :bold ? "bold" : "medium" },
-                textColor = { classroot.ink != null ? classroot.ink : theme.text }, text = { "" + :label } ],
+                textColor = { classroot.ink != null ? classroot.ink : provided("theme").text }, text = { "" + :label } ],
             host: View [ x = 10, y = center,
                 visible = { parent.kd != "" },
                 width = { this.contentWidth }, height = { this.contentHeight } ]

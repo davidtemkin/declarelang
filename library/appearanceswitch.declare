@@ -59,9 +59,9 @@ include [ "control.declare" ]
 include [ "icons/appearance.declare" ]
 
 class AppearanceSwitch extends Control [
-    width  = { typeof theme.buttonHeight == "number" ? theme.buttonHeight : 32 },
+    width  = { typeof provided("theme").buttonHeight == "number" ? provided("theme").buttonHeight : 32 },
     height = { this.width },
-    cornerRadius = { Math.min(theme.controlCornerRadius, height / 2) },
+    cornerRadius = { Math.min(provided("theme").controlCornerRadius, height / 2) },
     dark: boolean = false,
 
     input(v: boolean) { dark = v },
@@ -69,10 +69,10 @@ class AppearanceSwitch extends Control [
     press()   { input(!dark) },
 
     tooltipLabel = { dark ? "Switch to light" : "Switch to dark" },
-    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : null },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
 
     sun:  SunIcon  [ x = center, y = center, iconSize = 16, visible = { !classroot.dark },
-        ink = { classroot.hovered ? classroot.theme.text : classroot.theme.textMuted } ],
+        ink = { classroot.hovered ? provided("theme").text : provided("theme").textMuted } ],
     moon: MoonIcon [ x = center, y = center, iconSize = 16, visible = { classroot.dark },
-        ink = { classroot.hovered ? classroot.theme.text : classroot.theme.textMuted } ]
+        ink = { classroot.hovered ? provided("theme").text : provided("theme").textMuted } ]
     ]

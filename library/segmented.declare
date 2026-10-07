@@ -122,11 +122,6 @@ Content-sized: every segment at least `segMin` wide, so short labels never squee
 ## datapath
 Roots the control on its own `items` data, so the segments replicate from `choices` without the author writing a datapath.
 
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
 
 /*
@@ -194,12 +189,6 @@ Disabled with the control; an item never disables alone.
 include [ "control.declare", "icons/icon.declare" ]
 
 class Segmented [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
-
     // the marker a SegmentedItem reads to recognize its parent
 
     isSegmented: boolean = true,
@@ -217,8 +206,8 @@ class Segmented [
 
     height = 30,
     cornerRadius = 8,
-    fill = { theme.control },
-    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
+    fill = { provided("theme").control },
+    opacity = { disabled ? (typeof provided("theme").disabledOpacity == "number" ? provided("theme").disabledOpacity : 0.45) : 1 },
 
     segMin: number = 96,           // per-segment width when the author sets none
     count:  number = { Math.max(1, ((this.choices ?? []) as any).length) },
@@ -268,8 +257,8 @@ class Segmented [
         x = { 2 + (parent as Segmented).lane * (parent as Segmented).segW },
         width = { (parent as Segmented).segW },
         visible = { (parent as Segmented).idx >= 0 },
-        fill = { theme.surface },
-        stroke = { stroke(1, theme.line) } ],
+        fill = { provided("theme").surface },
+        stroke = { stroke(1, provided("theme").line) } ],
 
     // The index rides in the data — replication has no ordinal of its own, and
     // the pill needs one to place each segment.
@@ -304,15 +293,15 @@ class SegmentedItem extends Control [
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
         cornerRadius = 6,
         fill = { parent.on ? null
-               : parent.pressed ? theme.controlPressed
-               : parent.hovered ? theme.controlHovered
+               : parent.pressed ? provided("theme").controlPressed
+               : parent.hovered ? provided("theme").controlHovered
                : null } ],
 
     // A choice shows a label or an icon, whichever the record carries — page
     // switches are labelled, appearance switches are the sun/half-disc/moon —
     // never both. The record shape is `Menu`'s.
 
-    ink: Color = { this.on || this.hovered ? theme.text : theme.textMuted },
+    ink: Color = { this.on || this.hovered ? provided("theme").text : provided("theme").textMuted },
 
     t: TextLabel [ wrap = false, fontSize = 13, fontWeight = medium, x = center,
         visible = { :label != null && :icon == null },

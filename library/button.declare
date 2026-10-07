@@ -28,7 +28,7 @@ only useful with an `icon` — a button with neither has nothing to press.
 
 ## primary
 Marks this as the affirmative action: it fills with the accent — `accentHovered` and
-`accentPressed` as the pointer hovers and presses — and takes `theme.accentTextColor`
+`accentPressed` as the pointer hovers and presses — and takes `provided("theme").accentTextColor`
 for its ink. One per group of choices — a dialog's Save, not
 its Cancel. Purely a style decision; it changes nothing about behaviour.
 
@@ -75,12 +75,12 @@ row: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
 ```
 
 ## height
-The theme decides, when it has an opinion: `theme.buttonHeight` sets it (a platform
+The theme decides, when it has an opinion: `provided("theme").buttonHeight` sets it (a platform
 theme's native control height); a theme that leaves it unset gets 40. A `height` at
 the use site overrides both.
 
 ## cornerRadius
-A theme that rounds buttons by a fixed radius sets `theme.buttonCornerRadius`; it is capped
+A theme that rounds buttons by a fixed radius sets `provided("theme").buttonCornerRadius`; it is capped
 at half the height, so a short button goes fully pill without a squared corner.
 Otherwise the shared `controlCornerRadius` every control uses.
 
@@ -103,7 +103,7 @@ pointer states its hover tones equal to its rest tones (Cupertino does).
 
 ## stroke
 A hairline only where the theme wants one: themes that border their secondary
-buttons set `theme.buttonStrokeColor`; flat themes leave it null and get no stroke. A
+buttons set `provided("theme").buttonStrokeColor`; flat themes leave it null and get no stroke. A
 primary button is never bordered — the accent fill is its edge.
 
 ## press()
@@ -125,8 +125,8 @@ class Button extends Control [
     // the baseline a row aligns this control by: its label's (declared, never discovered)
 
     baseline: number = { this.run.y + this.run.cap.y + this.run.cap.baseline },
-    height = { typeof theme.buttonHeight == "number" ? theme.buttonHeight : 40 },
-    cornerRadius = { typeof theme.buttonCornerRadius == "number" ? Math.min(theme.buttonCornerRadius, height / 2) : theme.controlCornerRadius },
+    height = { typeof provided("theme").buttonHeight == "number" ? provided("theme").buttonHeight : 40 },
+    cornerRadius = { typeof provided("theme").buttonCornerRadius == "number" ? Math.min(provided("theme").buttonCornerRadius, height / 2) : provided("theme").controlCornerRadius },
     label:   string = "",
     primary: boolean = false,
 
@@ -139,7 +139,7 @@ class Button extends Control [
 
     // one ink decision, so a primary button's icon and its label agree
 
-    inkColor: Color = { primary ? theme.accentTextColor : theme.text },
+    inkColor: Color = { primary ? provided("theme").accentTextColor : provided("theme").text },
     textColor = { inkColor },
 
     // The run sizes to its own content and centers itself in the button; the
@@ -154,18 +154,18 @@ class Button extends Control [
     // outward.
 
     width   = { this.run.width + this.padH * 2 },
-    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
+    opacity = { disabled ? (typeof provided("theme").disabledOpacity == "number" ? provided("theme").disabledOpacity : 0.45) : 1 },
 
-    fill = { primary   ? (pressed || menuOpen ? theme.accentPressed : hovered ? theme.accentHovered : theme.accent)
-           : menuOpen  ? theme.controlSelected
-           : pressed      ? theme.controlPressed
-           : hovered       ? theme.controlHovered
-           :             theme.control },
+    fill = { primary   ? (pressed || menuOpen ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent)
+           : menuOpen  ? provided("theme").controlSelected
+           : pressed      ? provided("theme").controlPressed
+           : hovered       ? provided("theme").controlHovered
+           :             provided("theme").control },
 
     // platforms whose secondary buttons are bordered say so in the theme
     // (Cupertino's and Redmond's hairline) — flat systems leave it null
 
-    stroke  = { !primary && theme.buttonStrokeColor != null ? stroke(1, theme.buttonStrokeColor) : null },
+    stroke  = { !primary && provided("theme").buttonStrokeColor != null ? stroke(1, provided("theme").buttonStrokeColor) : null },
 
     run: View [ height = 100%, x = center,
         width = { this.contentWidth },

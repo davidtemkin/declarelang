@@ -13,14 +13,14 @@ The model:
   keyboard. A pointer focus **parks** the ring there silently (snap, no show) —
   so the next Tab's flight departs from the control the user just clicked,
   never from a stale perch.
-- **Roles, theme-elected** — `theme.focusRingStyle`: `"both"` (or `true`, the
+- **Roles, theme-elected** — `provided("theme").focusRingStyle`: `"both"` (or `true`, the
   default) · `"travel"` (flight, then an idle fade) · `"rest"` (no flight —
   the ring appears in place and stays) · `false` (no ring; the theme's
   classes carry the at-rest indication — the invariant lives with the
   theme-and-classes pair). While keyboard modality holds and the role
   includes rest, the ring rests — no idle fade; a pointer press clears
   modality and the ring hides (web :focus-visible semantics).
-- **The flight is the flourish** — `theme.focusAnimate = false` snaps every
+- **The flight is the flourish** — `provided("theme").focusAnimate = false` snaps every
   move; the underdamped travel is default-on.
 
 It arrives automatically with any Control-descended class; declare your
@@ -51,7 +51,7 @@ Whether the ring has ever had a target to park on. **The first appearance never 
 because a flight from nowhere is a streak across the app.
 
 ## ringRole()
-The theme's election, from `theme.focusRingStyle`: `"both"` (the default), `"travel"`
+The theme's election, from `provided("theme").focusRingStyle`: `"both"` (the default), `"travel"`
 (flight, then fading once it settles), `"rest"` (appears in place and stays, no
 flight), or `"off"`. **`"off"` is legitimate only when the theme's own controls carry
 an at-rest focus indication** — the invariant belongs to the theme-and-classes pair,
@@ -65,7 +65,7 @@ Whether the elected role includes the flight.
 
 ## snapTo()
 Lands the ring on its target immediately, skipping the flight. What a pointer focus, a
-first appearance, and `theme.focusAnimate = false` all use — **and what a target moving
+first appearance, and `provided("theme").focusAnimate = false` all use — **and what a target moving
 under a resting ring uses**, so a dragged slider thumb carries the ring rigidly instead
 of springing after it.
 
@@ -81,8 +81,8 @@ never sets it.
 ## draw()
 Renders the outline: four corner arcs with arms whose length is a pure function of
 distance from the target, so the physics does the choreography. Override to replace the
-rendition entirely. `theme.focusSights = true` restores the open-bracket "target
-sights" reading; `theme.focusRingInnerWidth` adds the Fluent two-tone band.
+rendition entirely. `provided("theme").focusSights = true` restores the open-bracket "target
+sights" reading; `provided("theme").focusRingInnerWidth` adds the Fluent two-tone band.
 
 ## tx
 **Internal.** The target x the springs chase.
@@ -111,19 +111,9 @@ Visible while its faded opacity still shows anything, and never while an overlay
 ## selectable
 Chrome, never prose: the ring never selects inside a `selectable` region — the same provision every `Control` makes for its label.
 
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
 
 class FocusRing [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
     opacity = 0,
     ignoreLayout = true,                         // it flies to the focused control; a parent's layout never arranges it
 
@@ -153,7 +143,7 @@ class FocusRing [
 
     // role helpers over the theme election
 
-    ringRole()  { const r = theme.focusRingStyle; return r == false ? "off" : r == true || r == null ? "both" : r },
+    ringRole()  { const r = provided("theme").focusRingStyle; return r == false ? "off" : r == true || r == null ? "both" : r },
     restRole()  { const r = this.ringRole(); return r == "both" || r == "rest" },
     travelRole() { const r = this.ringRole(); return r == "both" || r == "travel" },
 
@@ -197,9 +187,9 @@ class FocusRing [
                 classroot.x = dst.x
                 classroot.y = dst.y
                 }
-            const gap = typeof theme.focusRingGap == "number" ? theme.focusRingGap : 0
-            const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
-            const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
+            const gap = typeof provided("theme").focusRingGap == "number" ? provided("theme").focusRingGap : 0
+            const lw = typeof provided("theme").focusRingWidth == "number" ? provided("theme").focusRingWidth : 3
+            const iw = typeof provided("theme").focusRingInnerWidth == "number" ? provided("theme").focusRingInnerWidth : 0
             const off = gap + iw + lw / 2
             // a traveled ring draws the content-space box (homeW/homeH/homeRad):
             // any ancestor transform above the scroller reaches its surface
@@ -231,7 +221,7 @@ class FocusRing [
             if (classroot.ringRole() == "off") { classroot.shown = false; return }
             // No flight when: the ring has never been placed, the theme suppressed
             // the flourish, or the role is rest-only (appear in place, stay).
-            if (!classroot.placed || theme.focusAnimate == false || !classroot.travelRole()) classroot.snapTo()
+            if (!classroot.placed || provided("theme").focusAnimate == false || !classroot.travelRole()) classroot.snapTo()
             classroot.placed = true
             classroot.shown = true
             classroot.raise()     // chrome stays chrome: above whatever raised last (a Dialog, a Menu)
@@ -285,18 +275,18 @@ class FocusRing [
         const dist = Math.abs(this.x - tx) + Math.abs(this.y - ty) + Math.abs(this.width - tw) + Math.abs(this.height - th)
         const small = Math.min(w, h) < 40
         // By default the ring travels as a closed outline, source shape to
-        // destination shape — no bracket mode intervening. `theme.focusSights
+        // destination shape — no bracket mode intervening. `provided("theme").focusSights
         // = true` elects the sights rendition instead (data, not a code path):
         // fully open in motion, arms sweeping shut inside the last 16px of
         // settle.
-        const cov = theme.focusSights == true && !small ? Math.max(0.22, 1 - dist / 16) : 1
-        const lw = typeof theme.focusRingWidth == "number" ? theme.focusRingWidth : 3
+        const cov = provided("theme").focusSights == true && !small ? Math.max(0.22, 1 - dist / 16) : 1
+        const lw = typeof provided("theme").focusRingWidth == "number" ? provided("theme").focusRingWidth : 3
         // The indicator is one band or two, by data: `focusRingInnerWidth` > 0
         // adds an inner stroke between the control and the outer one — the
         // Redmond two-tone focus rectangle, black over white. Both passes are
         // the same outline at different insets; the flight, the sights, and
         // the silhouette machinery are shared, not forked.
-        const iw = typeof theme.focusRingInnerWidth == "number" ? theme.focusRingInnerWidth : 0
+        const iw = typeof provided("theme").focusRingInnerWidth == "number" ? provided("theme").focusRingInnerWidth : 0
         const pass = (ins, lwp, color) => {
             const r = Math.max(1, Math.min(rad - ins, Math.min(w, h) / 2 - ins))
             const ax = Math.max(0, ((w - 2 * ins) / 2 - r) * cov)      // horizontal arm length
@@ -311,7 +301,7 @@ class FocusRing [
             d.moveTo(ins + r + ax, h - ins); d.lineTo(ins + r, h - ins); d.arc(ins + r, h - ins - r, r, Q, Math.PI); d.lineTo(ins, h - ins - r - ay)
             d.stroke()
             }
-        pass(0, lw, typeof theme.focusRingColor == "number" ? theme.focusRingColor : theme.accent)
-        if (iw > 0) pass((lw + iw) / 2, iw, typeof theme.focusRingInnerColor == "number" ? theme.focusRingInnerColor : theme.surface)
+        pass(0, lw, typeof provided("theme").focusRingColor == "number" ? provided("theme").focusRingColor : provided("theme").accent)
+        if (iw > 0) pass((lw + iw) / 2, iw, typeof provided("theme").focusRingInnerColor == "number" ? provided("theme").focusRingInnerColor : provided("theme").surface)
         }
     ]

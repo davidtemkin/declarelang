@@ -103,6 +103,20 @@ script {
     }
 
 
+// a city, as weather.json carries it: today's facts, its hours and its ten days
+
+schema Hour [ t: string, icon: string, temp: number ]
+schema ForecastDay [ day: string, icon: string, lo: number, hi: number ]
+schema City [ id: string, name: string, temp: number, cond: string, condName: string, hi: number, lo: number,
+    summary: string, hours[]: Hour, days[]: ForecastDay,
+    uv: number, uvName: string, uvNote: string, sunset: string, sunrise: string, dayFrac: number,
+    windMph: number, windDir: number, gusts: string, precipIn: number, precipNote: string,
+    feels: number, feelsNote: string, humidity: number, dewNote: string, visMi: number, visNote: string,
+    pressure: number, pressureFrac: number, moon: string, moonIllum: number, moonset: string, nextFull: number,
+    moonFrac: number, avgDelta: string, avgSign: string, avgToday: number, avgAvg: number,
+    aqi: number, aqiNote: string, alert: string, tz: number, map: string, px: number, py: number ]
+
+
 // ── the shared card chrome ─────────────────────────────────────────────────
 // Every card is a frosted panel with a small uppercase caption. Subclasses
 // add their content; instances set `label` (empty = no caption row).
@@ -140,7 +154,7 @@ class Tile [ cornerRadius = 20, clip = true,
 class HourCol [ width = 58, height = 92,
     timeText: Text [ x = center, y = 0, fontSize = 15, fontWeight = semibold, textColor = white,
         wrap = false, text = :t ],
-    icon: WIcon [ x = center, y = 30, width = 30, height = 30, kind = { "" + :icon } ],
+    icon: WIcon [ x = center, y = 30, width = 30, height = 30, kind = :icon ],
 
     // a zero temperature marks the sunrise/sunset entry, which shows a word
     // instead of a number — and a word does not fit a column sized for two
@@ -187,7 +201,7 @@ class DayRow [ height = 42,
     todayTemp: number = -1000,
     name: Text [ x = 0, y = center, width = 74, fontSize = 17, fontWeight = medium,
         textColor = white, wrap = false, text = :day ],
-    icon: WIcon [ x = 78, y = center, width = 26, height = 26, kind = { "" + :icon } ],
+    icon: WIcon [ x = 78, y = center, width = 26, height = 26, kind = :icon ],
     lo: Text [ x = 116, y = center, width = 46, fontSize = 17, fontWeight = medium,
         textColor = #FFFFFFB0, textAlign = right, wrap = false, text = { fmtTemp(:lo) } ],
     bar: RangeBar [ x = 172, y = center, height = 5,
@@ -299,19 +313,28 @@ class MoonCard extends Tile [
 
     disc: MoonDisc [ x = { parent.width - 132 }, y = center, width = 96, height = 96,
         illum = { classroot.illum / 100 }, waning = { classroot.waning } ],
-    illumLabel: Text [ x = 16, y = 46, fontSize = 15, textColor = white, wrap = false, text = "Illumination" ],
-    illumVal: Text [ x = 16, y = 46, width = { parent.width - 168 }, fontSize = 15, textAlign = right,
-        fontWeight = medium, textColor = white, wrap = false,
-        text = { "" + classroot.illum + "%" } ],
-    rule1: View [ x = 16, y = 74, width = { parent.width - 168 }, height = 1, fill = #FFFFFF22 ],
-    setLabel: Text [ x = 16, y = 86, fontSize = 15, textColor = white, wrap = false, text = "Moonset" ],
-    setVal: Text [ x = 16, y = 86, width = { parent.width - 168 }, fontSize = 15, textAlign = right,
-        fontWeight = medium, textColor = white, wrap = false, text = { classroot.moonset } ],
-    rule2: View [ x = 16, y = 114, width = { parent.width - 168 }, height = 1, fill = #FFFFFF22 ],
-    fullLabel: Text [ x = 16, y = 126, fontSize = 15, textColor = white, wrap = false, text = "Next Full Moon" ],
-    fullVal: Text [ x = 16, y = 126, width = { parent.width - 168 }, fontSize = 15, textAlign = right,
-        fontWeight = medium, textColor = white, wrap = false,
-        text = { "" + classroot.nextFull + " DAYS" } ]
+    facts: View [ x = 16, y = 46, width = { parent.width - 168 },
+        layout: SimpleLayout [ axis = y ],
+        Fact [ label = "Illumination", value = { classroot.illum + "%" } ],
+        Fact [ label = "Moonset", value = { classroot.moonset } ],
+        Fact [ label = "Next Full Moon", value = { classroot.nextFull + " DAYS" }, ruled = false ]
+        ]
+    ]
+
+
+// one line of a card's facts: the label at the left, the value at the right,
+// and a hairline under it when another line follows
+
+class Fact [ width = 100%, height = 40,
+    label: string = "",
+    value: string = "",
+    ruled: boolean = true,
+    size: number = 15,
+    labelColor: Color = white,
+    weight: "medium" | "semibold" = "medium",
+    l: Text [ fontSize = { classroot.size }, textColor = { classroot.labelColor }, wrap = false, text = { classroot.label } ],
+    v: Text [ x = end, fontSize = { classroot.size }, fontWeight = { classroot.weight }, textColor = white, wrap = false, text = { classroot.value } ],
+    rule: View [ visible = { classroot.ruled }, y = 28, width = 100%, height = 1, fill = #FFFFFF22 ]
     ]
 
 
@@ -340,16 +363,11 @@ class AvgCard extends Tile [ label = "AVERAGES",
         wrap = false, text = { classroot.delta } ],
     signLine: Text [ x = 14, y = 76, width = { parent.width - 28 }, fontSize = 16,
         fontWeight = semibold, textColor = white, text = { classroot.sign } ],
-    todayLabel: Text [ x = 14, y = { parent.height - 50 }, fontSize = 14, textColor = #FFFFFFA8,
-        wrap = false, text = "Today" ],
-    todayVal: Text [ x = 14, y = { parent.height - 50 }, width = { parent.width - 28 }, fontSize = 14,
-        textAlign = right, fontWeight = semibold, textColor = white, wrap = false,
-        text = { "H:" + fmtTemp(classroot.today) } ],
-    avgLabel: Text [ x = 14, y = { parent.height - 28 }, fontSize = 14, textColor = #FFFFFFA8,
-        wrap = false, text = "Average" ],
-    avgVal: Text [ x = 14, y = { parent.height - 28 }, width = { parent.width - 28 }, fontSize = 14,
-        textAlign = right, fontWeight = semibold, textColor = white, wrap = false,
-        text = { "H:" + fmtTemp(classroot.avg) } ]
+    facts: View [ x = 14, y = { parent.height - 50 }, width = { parent.width - 28 },
+        layout: SimpleLayout [ axis = y ],
+        Fact [ height = 22, size = 14, labelColor = #FFFFFFA8, weight = "semibold", ruled = false, label = "Today", value = { "H:" + fmtTemp(classroot.today) } ],
+        Fact [ height = 22, size = 14, labelColor = #FFFFFFA8, weight = "semibold", ruled = false, label = "Average", value = { "H:" + fmtTemp(classroot.avg) } ]
+        ]
     ]
 
 
@@ -432,7 +450,7 @@ class CityCards [
         map: MapCard [ span = 2, width = { classroot.spanW(2) }, baseH = 300,
             base = { :map == null ? "" : "maps/" + :map },
             amount = :precipIn,
-            seed = { ("" + (:name ?? "")).length * 37 + (:hi ?? 0) },
+            seed = { (:name ?? "").length * 37 + (:hi ?? 0) },
             pin = { :temp == null ? "" : fmtTemp(:temp) },
             px = :px, py = :py ],
         aqi: AQICard [ span = 2, width = { classroot.spanW(2) }, baseH = 96,
@@ -455,7 +473,7 @@ class CityCards [
         pressure: PressureCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
             inHg = :pressure, frac = :pressureFrac ],
         moon: MoonCard [ span = 2, width = { classroot.spanW(2) }, baseH = { SMALL_CARD_H },
-            waning = { ("" + (:moon ?? "Waning")).includes("Waning") },
+            waning = { (:moon ?? "Waning").includes("Waning") },
             phase = :moon, illum = :moonIllum, moonset = :moonset, nextFull = :nextFull ],
         avg: AvgCard [ span = 1, width = { classroot.spanW(1) }, baseH = { SMALL_CARD_H },
             delta = :avgDelta, sign = :avgSign, today = :avgToday, avg = :avgAvg ],
@@ -531,8 +549,8 @@ class RowSky [ clip = true,
 // This class is shared with the desktop sidebar unchanged, which is the whole
 // argument for keeping it this small.
 
-class CityRow [ width = 100%, height = { ROW_H }, cursor = "pointer",
-    mine: string = { "" + :id },
+class CityRow extends Control [ width = 100%, height = { ROW_H }, cursor = "pointer", fill = null,
+    mine: string = { :id },
     selected: boolean = { app.city != null && app.city.id == this.mine },
 
     /*
@@ -575,7 +593,7 @@ class CityRow [ width = 100%, height = { ROW_H }, cursor = "pointer",
     opacity = { this.handing ? 0 : 1 },
 
     back: RowSky [ width = 100%, height = 100%, cornerRadius = 14,
-        cond = { "" + :cond } ],
+        cond = :cond ],
     scrim: View [ width = 100%, height = 100%, cornerRadius = 14, fill = #0A1422,
         opacity = 0.28, pointerEvents = "none" ],
     ring: View [ width = 100%, height = 100%, cornerRadius = 14, pointerEvents = "none",
@@ -595,9 +613,9 @@ class CityRow [ width = 100%, height = { ROW_H }, cursor = "pointer",
         fontSize = 13, y = 62, x = { parent.width - 14 - this.width },
         text = { "H:" + fmtTemp(:hi) + "  L:" + fmtTemp(:lo) } ],
 
-    onClick() {
+    press() {
         // on a phone the row hands off to the city view; on a desktop the
-        // page is already beside it, so a click is only a selection
+        // page is already beside it, so a press is only a selection
         if (!app.phone) { app.selectById(this.mine); return }
         app.openRow(this.mine, this.y)
         }
@@ -791,6 +809,44 @@ class GlassChip [
     ]
 
 
+// ── the pager dot ──────────────────────────────────────────────────────────
+// Replicated over the cities; bright for the one on screen. Each dot reads
+// its own record's id and compares it to the selected city's — no index
+// bookkeeping, and it stays right if the list is ever reordered.
+
+class Dot extends Control [ width = 18, height = 44, cursor = "pointer", fill = null,
+    mine: string = { :id },
+    here: boolean = { app.city != null && app.city.id == this.mine },
+
+    // the mark shrinks with its slot, so a long list stays a row of
+    // separate dots
+
+    mark: View [ x = center, y = center, width = { Math.min(8, parent.width - 2) },
+        height = { this.width }, cornerRadius = { this.width / 2 },
+        fill = #FFFFFF, opacity = { classroot.here ? 1 : 0.38 } ],
+    press() {
+        if (!app.phone) { app.selectById(this.mine); return }
+        // a dot has no row under it to grow from, so it names the seat the
+        // row would have had — the list is not on screen to disagree
+        app.openRow(this.mine, app.seatOf(this.mine))
+        }
+    ]
+
+
+// the search field's clear affordance — a small child of the input, so it
+// takes only its own clicks and the rest of the pill still focuses the field.
+// What you see is the 20px disc; what you hit is the 44 square around it,
+// which is the smallest thing a finger reliably lands on.
+
+class ClearButton extends Control [ width = 44, height = 44, cursor = "pointer", fill = null, tooltipLabel = "Clear",
+    press() { app.query = "" },
+    disc: View [ x = center, y = center, width = 20, height = 20, cornerRadius = 10,
+        fill = #FFFFFF42 ],
+    cross: CloseIcon [ x = center, y = center, width = 10, height = 10,
+        ink = #0A1422D0, weight = 2 ]
+    ]
+
+
 App [ textColor = whitesmoke, appName = "Weather",
 
     // San Francisco wherever it is the system face: `-apple-system` is Safari's
@@ -807,14 +863,14 @@ App [ textColor = whitesmoke, appName = "Weather",
     // A DataSource fetches once (`auto`) and exposes `loaded` and `value` as
     // reactive facts; everything below derives from them.
 
-    data: DataSource [ auto = true, url = "weather.json" ],
+    data: DataSource [ auto = true, url = "weather.json", schema = [ cities[]: City ] ],
 
-    cities: array = { data.loaded ? data.value.cities : [] },
+    cities: City[] = { data.value?.cities ?? [] },
 
     // the selected city is an index; the city itself is a derivation of it
 
     cityIndex: number = 0,
-    city: object = { app.cities.length > 0 ? app.cities[Math.min(app.cityIndex, app.cities.length - 1)] : null },
+    city: City? = { app.cities.length > 0 ? app.cities[Math.min(app.cityIndex, app.cities.length - 1)] : null },
     cond: string = { app.city == null ? "cloudy" : app.city.cond },
 
     selectById(id: string) {
@@ -1035,7 +1091,7 @@ App [ textColor = whitesmoke, appName = "Weather",
     // itself
 
     peekSlide: number = { app.swipeX + (app.swipeX < 0 ? app.hostWidth : -app.hostWidth) },
-    peekCity: object = { app.peekIndex < 0 || app.peekIndex >= app.cities.length
+    peekCity: City? = { app.peekIndex < 0 || app.peekIndex >= app.cities.length
         ? null : app.cities[app.peekIndex] },
 
     // The end stops. Nothing lies beyond the first and last city, so a drag
@@ -1244,9 +1300,7 @@ App [ textColor = whitesmoke, appName = "Weather",
                     if (e.key == "Escape") app.query = ""
                     },
                 clear: ClearButton [ x = { parent.width - 40 }, y = center,
-                    visible = { app.query != "" },
-                    onClick() { app.query = "" }
-                    ]
+                    visible = { app.query != "" } ]
                 ],
 
             // a search that matches nothing says so — an empty sky is a
@@ -1313,14 +1367,14 @@ App [ textColor = whitesmoke, appName = "Weather",
             // the chevrons draw small and hit large: the library's chevron
             // inside 44 points of target, dimmed at the ends of the list
 
-            prev: View [ x = 2, y = center, width = 44, height = 44, cursor = "pointer",
+            prev: Control [ x = 2, y = center, width = 44, height = 44, cursor = "pointer", fill = null, tooltipLabel = "Previous city",
                 opacity = { app.cityIndex <= 0 ? 0.25 : 0.9 },
-                onClick() { app.stepCity(-1) },
+                press() { app.stepCity(-1) },
                 ChevronIcon [ x = center, y = center, iconSize = 22, dir = "left", ink = white, weight = 2 ]
                 ],
-            next: View [ x = { parent.width - 46 }, y = center, width = 44, height = 44, cursor = "pointer",
+            next: Control [ x = { parent.width - 46 }, y = center, width = 44, height = 44, cursor = "pointer", fill = null, tooltipLabel = "Next city",
                 opacity = { app.cityIndex >= app.cities.length - 1 ? 0.25 : 0.9 },
-                onClick() { app.stepCity(1) },
+                press() { app.stepCity(1) },
                 ChevronIcon [ x = center, y = center, iconSize = 22, dir = "right", ink = white, weight = 2 ]
                 ],
 
@@ -1340,11 +1394,13 @@ App [ textColor = whitesmoke, appName = "Weather",
         back: GlassChip [ ignoreScroll = true,
             x = { parent.width - 64 },
             y = { app.hostHeight - 60 - Math.max(app.safeBottom, app.underlapBottom) },
-            width = 48, height = 48, cornerRadius = 24, cursor = "pointer",
+            width = 48, height = 48, cornerRadius = 24,
             visible = { app.cityUp },
             opacity = { fadeIn(app.openT, 0.55, 2.2) },
-            ic: ListIcon [ x = center, y = center, width = 26, height = 26 ],
-            onClick() { app.closeCity() }
+            btn: Control [ width = 100%, height = 100%, cornerRadius = 24, cursor = "pointer", fill = null, tooltipLabel = "All cities",
+                ic: ListIcon [ x = center, y = center, width = 26, height = 26 ],
+                press() { app.closeCity() }
+                ]
             ]
         ],
 
@@ -1376,9 +1432,7 @@ App [ textColor = whitesmoke, appName = "Weather",
                     if (e.key == "Escape") app.query = ""
                     },
                 clear: ClearButton [ x = { parent.width - 40 }, y = center,
-                    visible = { app.query != "" },
-                    onClick() { app.query = "" }
-                    ]
+                    visible = { app.query != "" } ]
                 ],
             none: Text [ x = center, y = center,
                 width = 100%, textAlign = center,
@@ -1396,7 +1450,7 @@ App [ textColor = whitesmoke, appName = "Weather",
 
         content: View [ x = { SIDEBAR_W }, y = 0, width = { parent.width - SIDEBAR_W },
             height = 100%, scrolls = y,
-            col: View [ x = center, width = { Math.min(1000, parent.width - 48) },
+            col: View [ x = center, width = { Math.min(1000, parent.width - 48) }, padding = [0, 0, 32, 0],
                 layout: SimpleLayout [ axis = y, spacing = 0 ],
                 head: View [ width = 100%, height = 132,
                     hero: Hero [ x = 0, y = 20, width = 100%, datapath = { app.city } ]
@@ -1409,46 +1463,8 @@ App [ textColor = whitesmoke, appName = "Weather",
                     desk: State [ applied = { !app.phone },
                         grid: CityCards [ width = 100%, cols = { app.cols }, datapath = { app.city } ]
                         ]
-                    ],
-                tail: View [ width = 100%, height = 32 ]
+                    ]
                 ]
             ]
         ]
-    ]
-
-
-// ── the pager dot ──────────────────────────────────────────────────────────
-// Replicated over the cities; bright for the one on screen. Each dot reads
-// its own record's id and compares it to the selected city's — no index
-// bookkeeping, and it stays right if the list is ever reordered.
-
-class Dot [ width = 18, height = 44, cursor = "pointer",
-    mine: string = { "" + :id },
-    here: boolean = { app.city != null && app.city.id == this.mine },
-
-    // the mark shrinks with its slot, so a long list stays a row of
-    // separate dots
-
-    mark: View [ x = center, y = center, width = { Math.min(8, parent.width - 2) },
-        height = { this.width }, cornerRadius = { this.width / 2 },
-        fill = #FFFFFF, opacity = { classroot.here ? 1 : 0.38 } ],
-    onClick() {
-        if (!app.phone) { app.selectById(this.mine); return }
-        // a dot has no row under it to grow from, so it names the seat the
-        // row would have had — the list is not on screen to disagree
-        app.openRow(this.mine, app.seatOf(this.mine))
-        }
-    ]
-
-
-// the search field's clear affordance — a small child of the input, so it
-// takes only its own clicks and the rest of the pill still focuses the field.
-// What you see is the 20px disc; what you hit is the 44 square around it,
-// which is the smallest thing a finger reliably lands on.
-
-class ClearButton [ width = 44, height = 44, cursor = "pointer",
-    disc: View [ x = center, y = center, width = 20, height = 20, cornerRadius = 10,
-        fill = #FFFFFF42 ],
-    cross: CloseIcon [ x = center, y = center, width = 10, height = 10,
-        ink = #0A1422D0, weight = 2 ]
     ]

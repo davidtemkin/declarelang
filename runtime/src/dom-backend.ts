@@ -855,16 +855,13 @@ export class DomSurface implements Surface {
    *  read (refreshTouchAction). */
   embeddedRoot = false;
 
-  // ── Box decoration: CSS properties as PAINT PRIMITIVES where they are
-  // MEASURED pixel-stable against the shared box painter — flat and square
-  // (background, linear-gradient, the inset ring, box-shadow, blurred and
-  // translucent included) — and the shared painter ITSELF, rasterized into a
-  // per-view canvas, the moment cornerRadius > 0 (Chrome's border-radius
-  // corner AA diverges from path AA by up to ~80/255 — the ruled fallback:
-  // per-view rasterization wherever a CSS paint primitive proves
-  // pixel-unstable). Either way the value painted is always the one resolved
-  // value the attribute system produced — no selector, no cascade, no CSS
-  // *model* anywhere. Cross-backend identity is pinned by the suite.
+  // ── Box decoration: CSS properties as PAINT PRIMITIVES — background (a color
+  // or a linear gradient), border-radius (one value or four corners), and
+  // box-shadow (the drop shadow, the inset ring, and one inset band per side of
+  // a four-sided stroke) — never a canvas, at any size (decorate). The value
+  // painted is always the one resolved value the attribute system produced —
+  // no selector, no cascade, no CSS *model* anywhere. Cross-backend identity is
+  // pinned by the suite.
 
   /** A scrolling pane's browser-drawn scrollbar follows the pane's own fill
    *  (the editable-scheme rule, applied to scrollers). */

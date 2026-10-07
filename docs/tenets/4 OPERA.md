@@ -17,11 +17,13 @@ strength; type annotations and declarations live on attributes, not in bodies.
 *Held in:* README ("with all real logic in ordinary TypeScript"); FAQ ("There is no new expression language to learn").
 
 ### OPERA-3 — No CSS, by design
-Styling is part of the language: paint attributes on views, theme records that
-reskin a whole subtree from one place, named style bundles switched at runtime.
-No cascade, no specificity, no selectors. CSS *knowledge* transfers — colors,
-font stacks, shadows read the same — but there is no stylesheet, which is also
-what makes a non-DOM renderer possible.
+Styling is part of the language: paint attributes on views, and provided values in
+place of the cascade. A value a node provides — a theme record, the text face — is
+read below it with `provided(…)`, explicitly, so one theme reskins a whole subtree
+from one place and a subtree can extend the theme above it. No cascade, no
+specificity, no selectors. CSS *knowledge* transfers — colors, font stacks, shadows
+read the same — but there is no stylesheet, which is also what makes a non-DOM
+renderer possible.
 *Held in:* FAQ ("Can I use CSS to style a Declare app? No — and that's a feature").
 
 ### OPERA-4 — Values derive down, information travels up, internals stay private

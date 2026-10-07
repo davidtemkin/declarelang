@@ -41,22 +41,11 @@ Assign it to open a pane from code; `""` closes all of them. A `Pane` never stor
 whether it is open, it derives it from here, which is why the one-open-at-a-time
 invariant cannot break.
 
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
 
 include [ "control.declare", "icons/core.declare" ]
 
 class Accordion [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
-
     value: string = "",
 
     // one open pane at a time, stacked flush — the sliding heights are the
@@ -153,7 +142,7 @@ class Pane extends Control [ width = 100%, clip = true,
 
     press()   { (parent as Accordion).value = name },
 
-    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
+    opacity = { disabled ? (typeof provided("theme").disabledOpacity == "number" ? provided("theme").disabledOpacity : 0.45) : 1 },
 
     layout: SimpleLayout [ axis = y, spacing = 0 ],
 
@@ -174,12 +163,12 @@ class Pane extends Control [ width = 100%, clip = true,
         stiffness = 220, damping = 26, epsilon = 0.004 ],
 
     header: View [ width = 100%, height = 34,
-        cornerRadius = { theme.controlCornerRadius },
-        fill = { classroot.open || classroot.hovered || classroot.pressed ? theme.controlSelected : theme.control },
-        stroke = { classroot.focusVisible ? stroke(1, theme.textMuted) : null },
+        cornerRadius = { provided("theme").controlCornerRadius },
+        fill = { classroot.open || classroot.hovered || classroot.pressed ? provided("theme").controlSelected : provided("theme").control },
+        stroke = { classroot.focusVisible ? stroke(1, provided("theme").textMuted) : null },
         chev: ChevronIcon [ x = 11, y = center, iconSize = 14,
-            angle = { classroot.twist }, ink = { theme.textMuted } ],
+            angle = { classroot.twist }, ink = { provided("theme").textMuted } ],
         t: TextLabel [ x = 32, fontSize = 14, fontWeight = { classroot.open ? "semibold" : "medium" },
-            textColor = { theme.text }, text = { classroot.label } ]
+            textColor = { provided("theme").text }, text = { classroot.label } ]
         ]
     ]

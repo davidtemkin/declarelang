@@ -49,8 +49,8 @@ App [ width = 360, height = 260, fill = #F4F6FA, textColor = #172530,
   `input(v)` up. Your own control extends `Control`.
 - **Handlers write facts, not consequences**: the record field, the attribute, and stop.
 - **Classes when they pay.** State and logic may live on the App. Name a class when a
-  piece repeats or the App gets unwieldy: a view class, a document class
-  (`extends Dataset`), or a job with no view (`extends Node`).
+  piece repeats or the App gets unwieldy: a view class, or a class with no view
+  (`extends Node`), of which a dataset class (`extends Dataset`) is the case that holds data.
 
 **Look up** `Dataset`, `Dataset.schema`, `DataSource`, `SimpleLayout`, `Card`,
 `Checkbox`, `Button`, `Control`.
@@ -58,4 +58,4 @@ App [ width = 360, height = 260, fill = #F4F6FA, textColor = #172530,
 **Examples** `apps/tracker/tracker.declare`: a whole app of this shape, at scale ·
 `apps/lzx-calendar/lzx-calendar.declare`: a derived month over one events source.
 
-**Guide** Core concepts § A whole app · Data § Data in a whole app · Classes and the tree § When to name a class.
+**Guide** Core concepts § A whole app · Data § Data in a whole app · Structure § When a class earns its place.

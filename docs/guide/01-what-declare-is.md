@@ -127,11 +127,12 @@ visible in it, and each one is a habit worth taking on from the start.
 often fetched — and the [`schema`](declare-docs:Dataset.schema) states the shape the program relies on, so the
 compiler checks every read and the runtime checks every write. State that is not a
 record, such as `nextId`, is a declared attribute. Nothing else holds a copy; everything
-else reads it — and writes it: the checkbox writes its own record. When a document
-has logic of its own, the document becomes a class (`extends Dataset`) carrying it; a
-job with no view that is not a document — a clock several views drive, a connection —
-is a class that extends `Node`. The data chapters are [Data](declare-docs:guide:data)
-and [Typed data](declare-docs:guide:schemas).
+else reads it — and writes it: the checkbox writes its own record. Logic with no view
+of its own — a clock several views drive, a connection — goes in a class that extends
+`Node`; when it is the logic of one dataset's records, the dataset itself becomes the class
+(`extends Dataset`, a `Node` that holds data). [Program structure](declare-docs:guide:structure) is
+where each kind of state goes; the data chapters are [Data](declare-docs:guide:data) and
+[Typed data](declare-docs:guide:schemas).
 
 **Everything visible derives from that state.** `open` is a constraint over the
 dataset; the heading reads `open`; each row's text color reads its record. Tick a box
@@ -168,7 +169,7 @@ two jobs apart. That is why the program has no update code.
 **The source is structured the way the design is.** `TaskRow` is a class because it
 is a named part of the design, not because of a rule about reuse: a class makes the
 tree read as what it is, and a long program splits into files the same way. See
-[Classes and the tree](declare-docs:guide:classes).
+[Program structure](declare-docs:guide:structure@when-a-class-earns-its-place).
 
 **Time enters as a value, and nothing polls.** A [`Spring`](declare-docs:Spring) moves an attribute toward a
 target; a [`Time`](declare-docs:Time) member makes the clock a set of facts constraints can read. There is
@@ -275,24 +276,26 @@ is also written to be opened anywhere: each chapter says what it assumes and lin
 where that is taught.
 
 - **Start here** — this chapter, [the notation](declare-docs:guide:notation),
-  [constraints](declare-docs:guide:constraints), and
+  [constraints](declare-docs:guide:constraints),
+  [program structure](declare-docs:guide:structure), and
   [running and checking a program](declare-docs:guide:run-and-check) — is the whole
-  model and the working loop.
-- **Building** covers real interfaces: classes and the tree, layout, scrolling, controls,
+  model, the shape of a program, and the working loop.
+- **Building** covers real interfaces: layout, scrolling, controls,
   input, style, text, media, data, collections, your own views and drawing, overlays, and
   addresses.
 - **Continuity** is motion, time, and arrangements that move as one.
 - **Where it runs** covers renderers, hosts, and embedding.
 - **Shipping and working** covers packaging, working with an LLM, and a full reading
-  of the calendar app — <!--stat:calendar.code-->491<!--/stat--> lines of code, about
-  <!--stat:calendar.total-->834<!--/stat--> with its comments — which you will be able to read end to end.
+  of the calendar app — <!--stat:calendar.code-->501<!--/stat--> lines of code, about
+  <!--stat:calendar.total-->885<!--/stat--> with its comments — which you will be able to read end to end.
 - **The appendix** holds the formatting rules, a glossary, and
   [a phrasebook for readers coming from React, CSS, SwiftUI and others](declare-docs:guide:coming-from).
 
 If you are an LLM or an agent: the language itself is [one file](declare-docs:spec:core);
 `npx declare-help <name>` answers any class, attribute or error code; and
 `npx declare-verify <file>` checks a program from parse to boot. The whole-app section
-above is the shape to aim for.
+above is the shape to aim for, and [Program structure](declare-docs:guide:structure) is
+how it scales.
 
 The page you are reading is a Declare app, and so is the calendar you will finish
 on. Everything this guide claims, it demonstrates on itself.

@@ -143,7 +143,7 @@ that is only ever computed needs `use [ Name ]` to survive the build.
 ## ink
 The colour handed to the icon this host builds. A value passed to `createView` is set
 once, and the ink must follow the control's state, so it travels as a **provided value**:
-this provides `textColor`, which the icon's drawing reads. Defaults to `theme.text` rather than the platform's inherited black,
+this provides `textColor`, which the icon's drawing reads. Defaults to `provided("theme").text` rather than the platform's inherited black,
 which is what stops a host-built icon from rendering invisibly on a dark surface.
 
 ## onInit

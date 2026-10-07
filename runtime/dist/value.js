@@ -83,7 +83,7 @@ export function gradient(...args) {
 export const stop = (offset, color) => Object.freeze({ offset, color });
 /** A width that cannot be a width. A stroke is drawn INSIDE the box, so a value
  *  past a few thousand points is never art — and a `Color` is a number at
- *  runtime, so `stroke(theme.line, 1)` produces exactly this: a fourteen-million
+ *  runtime, so `stroke(provided("theme").line, 1)` produces exactly this: a fourteen-million
  *  point stroke, which paints as a filled black box, with nothing to say so.
  *  Reported once per distinct pair, because the constructor runs inside a
  *  constraint and may re-evaluate on every settle. (A warning, not a refusal:
@@ -268,10 +268,12 @@ const DECLARED_TYPES = {
     array: { kind: "array" },
     object: { kind: "object" },
     View: { kind: "view" },
-    // The design-token record widgets style off (`theme: Theme = provided("theme",
-    // …)` on Control). A named record type — declarable so the library reads
-    // `this.theme.accent` typed, not `any`.
+    // The design-token record views style off, read with `provided("theme")`.
+    // A named record type, declarable for an attribute that holds a theme.
     Theme: { kind: "record", name: "Theme" },
+    // What `afterDelay` hands back: a node can keep the pending call and
+    // `cancel()` it from a later handler (a notice that a newer one replaces).
+    DelayHandle: { kind: "record", name: "DelayHandle", data: true },
     // Built-in VALUE ENUMS, declarable by name so a library-authored class keeps
     // the bare-token use-site surface (`axis = x`, `align = center`) — these are
     // as built-in as Color. (User-authored unions remain their own future

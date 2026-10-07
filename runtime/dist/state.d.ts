@@ -24,6 +24,7 @@ export declare class State extends Node {
     }[];
     materialize: ((t: Element, croot: View) => {
         view: Node;
+        provide: () => void;
         finish: () => void;
     }) | null;
     /** Declaration-order precedence, cached at init before any child inserts. */

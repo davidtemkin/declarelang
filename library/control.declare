@@ -29,7 +29,7 @@ and styled off the same state pair as everything the library ships:
 ```declare
 class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
     n: number = 0,
-    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : theme.control },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
     press() { n = n + 1 },
     t: TextLabel [ x = center, fontSize = 13, text = { "" + classroot.n } ]
     ]
@@ -38,19 +38,12 @@ class Stepper extends Control [ width = 90, height = 26, cornerRadius = 6,
 App [ Stepper [ x = 20, y = 20 ] ]
 ```
 
-## theme
-The design-token record every widget styles off — a **provided value**. An app
-provides it once (`App [ theme = { app.dark ? SanFranciscoDark : SanFrancisco } ]`)
-and `Control` reads it here, so a control body reads `theme.accent` as a plain,
-typed member. The default is `SanFrancisco`, so a control in an app that never
-mentions a theme still renders. Provide a different record on a subtree to reskin
-it; every `provided("theme")` below reads the nearer one.
 
 ## disabled
 Inert: not focusable, no activation, and `hovered`/`pressed` read false, so a
 disabled control never lights up. **Constrain it rather than assigning it**
 (`disabled = { app.muted }`) — it is ordinary derived state. Concrete controls also
-dim themselves against `theme.disabledOpacity`.
+dim themselves against `provided("theme").disabledOpacity`.
 
 ## focused
 True while this control holds keyboard focus. For the *ring*, you want nothing: the
@@ -149,14 +142,6 @@ A control takes focus unless it is disabled — one rule, so a disabled control 
 */
 
 class Control [
-    // The design-token record every widget styles off — a provided value: the
-    // app provides it once (`App [ theme = { … } ]`) and Control reads it here,
-    // so a widget body reads `theme.accent` as a plain, typed member. The
-    // default is `SanFrancisco`, so a widget in an app that never mentions a
-    // theme still renders — the visible library default.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
-
     disabled: boolean = false,
     focused:  boolean = false,
 

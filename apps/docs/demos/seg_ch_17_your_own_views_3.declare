@@ -1,12 +1,26 @@
-style Caption [ fontSize = 13, smallCaps = true, letterSpacing = 0.5, textColor = #1B2733 ]
+App [ width = 340, height = 200, fill = white, textColor = black,
+    level: number = 62,
 
-App [ width = 240, height = 80, fill = white,
-    plate: View [ x = 20, y = 20, width = 200, height = 40,
+    gauge: View [ x = 20, y = 16, width = 160, height = 92,
         draw(d: Draw) {
-            const m = measureText("Plate 4", Caption)
-            d.fillStyle = 0xE7EBF1
-            d.fillRect((d.w - m.width) / 2 - 8, 0, m.width + 16, d.h)
-            d.fillText("Plate 4", (d.w - m.width) / 2, (d.h - m.height) / 2 + m.baseline, Caption)
+            const frac = app.level / 100
+            d.lineWidth = 12
+            d.lineCap = "round"
+            d.strokeStyle = 0xD6DCE2
+            d.beginPath()
+            d.arc(80, 84, 62, Math.PI, Math.PI * 2, false)
+            d.stroke()
+            d.strokeStyle = frac > 0.8 ? 0xC23528 : 0x2E6FE0
+            d.beginPath()
+            d.arc(80, 84, 62, Math.PI, Math.PI * (1 + frac), false)
+            d.stroke()
             }
+        ],
+
+    pct: Text [ x = 20, y = 74, width = 160, textAlign = center, fontSize = 22, fontWeight = bold,
+        text = { "" + Math.round(app.level) + "%" } ],
+
+    Slider [ x = 20, y = 130, width = 300, value = { app.level },
+        input(v: number) { app.level = v }
         ]
     ]

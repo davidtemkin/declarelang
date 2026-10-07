@@ -20,10 +20,10 @@ Toggles, by delivering the flipped value through `input`. Called by a click and 
 Space/Enter.
 
 ## width
-A theme with a native switch size says so (`theme.switchWidth`); otherwise 44, the common pill.
+A theme with a native switch size says so (`provided("theme").switchWidth`); otherwise 44, the common pill.
 
 ## height
-A theme with a native switch size says so (`theme.switchHeight`); otherwise 24.
+A theme with a native switch size says so (`provided("theme").switchHeight`); otherwise 24.
 
 ## cornerRadius
 Always a pill — half the height, whatever the height is.
@@ -41,8 +41,8 @@ A hairline in the accent when checked, in the theme's line colour otherwise, so 
 include [ "control.declare" ]
 
 class Switch extends Control [
-    width  = { typeof theme.switchWidth == "number" ? theme.switchWidth : 44 },
-    height = { typeof theme.switchHeight == "number" ? theme.switchHeight : 24 },
+    width  = { typeof provided("theme").switchWidth == "number" ? provided("theme").switchWidth : 44 },
+    height = { typeof provided("theme").switchHeight == "number" ? provided("theme").switchHeight : 24 },
     cornerRadius = { height / 2 },
     checked: boolean = false,
 
@@ -50,18 +50,18 @@ class Switch extends Control [
 
     press()   { input(!checked) },
 
-    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
-    fill    = { checked ? theme.accent : hovered || pressed ? theme.controlSelected : theme.control },
-    stroke  = { stroke(1, checked ? theme.accent : theme.line) },
+    opacity = { disabled ? (typeof provided("theme").disabledOpacity == "number" ? provided("theme").disabledOpacity : 0.45) : 1 },
+    fill    = { checked ? provided("theme").accent : hovered || pressed ? provided("theme").controlSelected : provided("theme").control },
+    stroke  = { stroke(1, checked ? provided("theme").accent : provided("theme").line) },
 
     // the thumb derives from the track: inset 2 normally; a theme may say the
     // unchecked thumb is smaller (Mountain View's 16→24 grow-on-check)
 
     thumb: View [ cornerRadius = { this.width / 2 },
-        width  = { checked || typeof theme.switchThumbOffSize != "number" ? classroot.height - 4 : theme.switchThumbOffSize },
+        width  = { checked || typeof provided("theme").switchThumbOffSize != "number" ? classroot.height - 4 : provided("theme").switchThumbOffSize },
         height = { this.width },
         y = center,
-        fill = { theme.surface },
+        fill = { provided("theme").surface },
         slide: Spring [ attribute = x, to = { checked ? classroot.width - classroot.thumb.width - 2 : 2 }, stiffness = 300, damping = 26 ]
         ]
     ]

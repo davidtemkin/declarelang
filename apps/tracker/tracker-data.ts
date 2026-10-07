@@ -1,4 +1,4 @@
-// tracker-data.ts — the seeded issue generator, the avatar hue scale and the format helpers,
+// tracker-data.ts — the seeded issue generator, a name hash and the format helpers,
 // loaded by tracker.declare with `script [ "tracker-data.ts" ]`. Plain
 // TypeScript, written as a module: these exports are what every { } body in the
 // tracker may name. Nothing here is reactive — script lives outside the
@@ -109,9 +109,6 @@ export function trkHash(name: string): number {
     return Math.abs(h)
 }
 
-export function trkStatusLabel(s: string): string {
-    return s === "open" ? "Open" : s === "in-progress" ? "In Progress" : s === "blocked" ? "Blocked" : "Closed"
-}
 export function trkInitials(name: string): string {
     const parts = name.split(/[\s._-]+/).filter((x) => x.length > 0)
     if (parts.length === 0) return "?"

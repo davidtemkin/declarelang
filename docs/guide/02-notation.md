@@ -116,12 +116,12 @@ where it is used, but here is the whole list so nothing later looks like new syn
 
 | declaration | what it is | taught in |
 |---|---|---|
-| `class Name extends Base [ … ]` | a class of your own | [Classes](declare-docs:guide:classes) |
+| `class Name extends Base [ … ]` | a class of your own | [Program structure](declare-docs:guide:structure) |
 | `schema Name [ field: type, … ]` | the shape of data you rely on | [Typed data](declare-docs:guide:schemas) |
 | `theme Name [ token = value, … ]` | a named set of design tokens | [Paint and themes](declare-docs:guide:paint-and-themes) |
 | `style Name [ … ]` | a named text style for runs of prose | [Text and fonts](declare-docs:guide:text) |
-| `include [ "file.declare" ]` | another file's declarations, merged in | [Classes](declare-docs:guide:classes) |
-| `script { … }` / `script [ "file.ts" ]` | plain TypeScript outside the tree | [Classes](declare-docs:guide:classes) |
+| `include [ "file.declare" ]` | another file's declarations, merged in | [Program structure](declare-docs:guide:structure) |
+| `script { … }` / `script [ "file.ts" ]` | plain TypeScript outside the tree | [Program structure](declare-docs:guide:structure) |
 | `use [ Name ]` | keep a class the build would drop | [Your own views](declare-docs:guide:your-own-views) |
 | `ship [ … ]` | what a production package must carry | [Packaging](declare-docs:guide:packaging) |
 

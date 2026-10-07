@@ -200,7 +200,8 @@ instance. A fourth, `classroot`, belongs to authoring a class and arrives in §4
 
 Instantiate a class by naming it with a `[ ]` body; define one with `class Name [ … ]`. A class
 with no base is a **view**; any other base is named — `extends Node` for a class with no view,
-`extends Dataset` for a document, `extends Control` or any class of yours or the library's.
+`extends Dataset` for a class with no view that holds data (a `Dataset` is a `Node`), `extends Control`
+or any class of yours or the library's.
 
 ```declare
 class Chip [ height = 30, cornerRadius = 10, fill = darkslategray,
@@ -222,9 +223,9 @@ App [ width = 400, height = 100, fill = black,
 because the compiler synthesizes an anonymous subclass, and the instance remains a subtype of
 its base. Promote a one-off to a named `class` when you instantiate it twice, or when pulling
 it out keeps its parent readable. The same holds for what has no view: state and logic can live
-on the App, and when a group of it becomes a thing in its own right — a document's rules, a
-service, a piece of machinery — it moves into a class of its own, extending `Dataset` for a
-document and `Node` otherwise.
+on the App, and when a group of it becomes a thing in its own right — the rules of one dataset's
+records, a service, a piece of machinery — it moves into a class of its own that extends `Node`,
+or `Dataset` when it is those records' own logic.
 
 **A subclass adds children; `defaultplacement` says where they go.** A subclass's children
 (and a use site's) are appended to the instance, after the base class's own. A class that is a
@@ -420,7 +421,8 @@ them:
 **`script { }` is foreign code — wholly outside the reactive system.** It may hold arbitrary
 TypeScript: stateful helpers, caches, classes, whole libraries — but not the app's model (a
 derivation over its data is a method) or its look (a repeated color is a theme token). The
-compiler never reads a script body; a call is opaque, and its own state is invisible — if a function's answer can
+compiler type-checks a script body but does not trace its reads: a call depends only on its
+arguments, and the function's own state is invisible — if a function's answer can
 change without your inputs changing, hold that state in a node. Two uses stay refused: a
 constraint reading a script `let`, and any body writing one — state that changes is an
 attribute. Handler code is under none of the *reactivity* rules above — it is ordinary
@@ -512,9 +514,9 @@ attribute.
 
 ## 7. Data
 
-**Data is JSON, held in the tree.** A `Dataset` holds a document — written inline, derived from
+**Data is JSON, held in the tree.** A `Dataset` holds data — written inline, derived from
 other state, or fetched by a `DataSource` — as a named member of the node whose subtree uses it.
-A view's `datapath` points it at a place in that document, and its descendants read fields
+A view's `datapath` points it at a place in that data, and its descendants read fields
 relative to it with `:path` — every member, not only the visible ones: a `Spring`'s target, a
 `Time`'s gate, or a class that extends `Node`, standing on a record of its own — and a path
 matching many records **replicates** its view, one instance per record. This is the
@@ -574,12 +576,12 @@ a `body`, `.fetch()` from the handler, `onLoad()` for what follows the reply.
 `schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is a
 declaration in the one type system: the name works in every type position (`sel: Task? = null`,
 `advance(t: Task) -> Task`, a field of another schema — `owner: Person`) — and there, as for a
-class or `View`, a trailing `?` is what lets it be empty: `Task?` may be null, `Task` never is, a dataset declares its
-document with it (`schema = [ tasks[]: Task ]`, or `schema = Task[]` for a bare-array response),
+class or `View`, a trailing `?` is what lets it be empty: `Task?` may be null, `Task` never is, a dataset declares the
+shape of its data with it (`schema = [ tasks[]: Task ]`, or `schema = Task[]` for a bare-array response),
 and its `.value` is then *typed* — `nest.value.tasks` is `Task[]` in every `{ }` body, so a
 misspelled field dies at compile time and the `as` casts go. The runtime enforces the same
 declaration at every boundary, the mutation verbs included. The schema grammar is
-the subset of TypeScript a JSON document can carry, so one declaration is checked by the
+the subset of TypeScript that JSON data can carry, so one declaration is checked by the
 compiler *and* enforced against live data. Extra keys always pass: a schema
 declares what the program relies on.
 

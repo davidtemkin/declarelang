@@ -1442,6 +1442,48 @@ class JotWindow extends Window [ width = 300, height = 250, chrome = false,
     ]
 
 
+// ── the dock's label pill ──────────────────────────────────────────────────
+//
+// One path: a stadium body (fully-rounded left/right ends, r = half the body
+// height, so the caps are true semicircles, not rounded-rectangle corners)
+// plus a small fixed triangle tail at bottom-center. Filled translucent and
+// stroked as a single outline, so the border wraps the tail with no seam. The
+// body is ~22px, the tail ~7px on a ~16px base, and the fill is ~0.88 so the
+// wallpaper shows through. The tail is fixed — it doesn't grow with the name.
+// The dock's icons and its parked windows both wear it.
+
+class LabelPill [ height = 33,
+    label: string = "",
+    bodyH: number = 22,
+    width = { this.t.width + 26 },
+    draw(d: Draw) {
+        const w = this.width, bh = this.bodyH, dark = app.darkMode
+        const r = bh / 2                     // stadium: fully-rounded ends (semicircle caps)
+        const th = 7                         // fixed triangle height — does not scale with the name
+        const hb = 8                         // fixed triangle half-base (narrow)
+        const cx = w / 2
+        d.beginPath()
+        d.moveTo(r, 0)
+        d.lineTo(w - r, 0)                                       // top edge
+        d.arc(w - r, r, r, -Math.PI / 2, Math.PI / 2, false)    // right cap (semicircle)
+        d.lineTo(cx + hb, bh)                                    // bottom edge → triangle base
+        d.lineTo(cx, bh + th)                                    // down to the tip
+        d.lineTo(cx - hb, bh)                                    // back up
+        d.lineTo(r, bh)                                          // bottom edge
+        d.arc(r, r, r, Math.PI / 2, Math.PI * 1.5, false)       // left cap (semicircle)
+        d.closePath()
+        d.fillStyle = dark ? "rgba(46,46,51,0.9)" : "rgba(242,242,246,0.88)"
+        d.fill()
+        d.strokeStyle = dark ? "rgba(0,0,0,0.35)" : "rgba(196,196,204,0.85)"
+        d.lineWidth = 1
+        d.stroke()
+        },
+    t: Text [ x = center, y = { (classroot.bodyH - this.height) / 2 }, fontSize = 13,
+        textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
+        text = { classroot.label } ]
+    ]
+
+
 /*
 ## MiniTile — a minimized window's dock tile
 
@@ -1511,19 +1553,13 @@ class MiniTile [
     // the tile's own top (local y), tail tip meeting it, so it rides the
     // magnified crest exactly as the app-icon pill does
 
-    pill: View [ visible = { classroot.hovered },   // the tile's hover, not the pill's:
+    pill: LabelPill [ visible = { classroot.hovered },   // the tile's hover, not the pill's:
         //  a pill hidden until hovered could never show itself (an invisible view
         //  is not on the hit chain), so the fact has to come from what it labels
 
-        width = { this.t.width + 26 }, height = 33,
         x = center,
         y = { parent.height / 2 - 102 },   // pinned to the shared pill baseline (~62px above the plate top), same Y as the app-icon pills
-        bodyH: number = 22,
-        draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
-        t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
-            textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
-            text = { classroot.lbl } ]
-        ]
+        label = { classroot.lbl } ]
     ]
 
 
@@ -1682,7 +1718,7 @@ class DockIcon [
     // the dot marks is-running and never bounces: adding hopY back cancels the
     // icon's launch-bounce offset, pinning the dot to the strip. Measured from
     // the running dot: near-black on the light shelf, ~4px across — not muted
-    // gray. theme.text is that value (0x1D1D1F light) and flips to a light dot
+    // gray. provided("theme").text is that value (0x1D1D1F light) and flips to a light dot
     // under a dark theme, so it always reads against the shelf.
 
     dot: View [ width = 4, height = 4, cornerRadius = 2,
@@ -1695,16 +1731,10 @@ class DockIcon [
     // swell's peak — it clears every neighbor. As the icon magnifies and its top
     // rises, the pill rides up with it.
 
-    pill: View [ visible = { classroot.hovered },   // the icon's hover, not the pill's
-        width = { this.t.width + 26 }, height = 33,
+    pill: LabelPill [ visible = { classroot.hovered },   // the icon's hover, not the pill's
         x = center,
         y = { parent.height - 130 },   // pinned to the shared pill baseline, so it lands right at any magnification
-        bodyH: number = 22,
-        draw(d: Draw) { app.drawPill(d, this.width, this.bodyH, app.darkMode) },
-        t: Text [ x = center, y = { (this.parent.bodyH - this.height) / 2 }, fontSize = 13,
-            textColor = { app.darkMode ? 0xF2F2F5 : 0x1D1D1F },
-            text = { classroot.ap!.label } ]
-        ]
+        label = { classroot.ap!.label } ]
     ]
 
 
@@ -2520,9 +2550,7 @@ model — `wm` (the windows as data: records whose order is the stacking), the
 windows layer, menu bar, dock, alert, in paint order. Each view owns its own state and geometry;
 the nodes never reach into them. What stays flat here has a reason to be
 root-wide: the theme, the appearance choice, the window eggs (tilt/zoom — read
-by every Window), `drawPill` (the one label-pill silhouette the dock and the
-parked tiles share; an app's icon art lives on its application class), and
-`command`, the one dispatch seam the menu bar, the dock, and the keyboard all
+by every Window), and `command`, the one dispatch seam the menu bar, the dock, and the keyboard all
 route through.
 
 It tracks the browser window down to a size floor — below it the host pans
@@ -2591,36 +2619,6 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     the resting center (cx0), never the magnified layout, so the swell can't
     feed back on itself.
     */
-
-    // The label pill's silhouette — one path: a stadium body (fully-rounded
-    // left/right ends, r = half the body height, so the caps are true
-    // semicircles, not rounded-rectangle corners) plus a small fixed triangle
-    // tail at bottom-center. Filled translucent and stroked as a single outline,
-    // so the border wraps the tail with no seam. The body is ~22px, the tail
-    // ~7px on a ~16px base, and the fill is ~0.88 so the wallpaper shows through.
-    // The tail is fixed — it doesn't grow with the name.
-
-    drawPill(d: Draw, w: number, bh: number, dark: boolean) {
-        const r = bh / 2                     // stadium: fully-rounded ends (semicircle caps)
-        const th = 7                         // fixed triangle height — does not scale with the name
-        const hb = 8                         // fixed triangle half-base (narrow)
-        const cx = w / 2
-        d.beginPath()
-        d.moveTo(r, 0)
-        d.lineTo(w - r, 0)                                       // top edge
-        d.arc(w - r, r, r, -Math.PI / 2, Math.PI / 2, false)    // right cap (semicircle)
-        d.lineTo(cx + hb, bh)                                    // bottom edge → triangle base
-        d.lineTo(cx, bh + th)                                    // down to the tip
-        d.lineTo(cx - hb, bh)                                    // back up
-        d.lineTo(r, bh)                                          // bottom edge
-        d.arc(r, r, r, Math.PI / 2, Math.PI * 1.5, false)       // left cap (semicircle)
-        d.closePath()
-        d.fillStyle = dark ? "rgba(46,46,51,0.9)" : "rgba(242,242,246,0.88)"
-        d.fill()
-        d.strokeStyle = dark ? "rgba(0,0,0,0.35)" : "rgba(196,196,204,0.85)"
-        d.lineWidth = 1
-        d.stroke()
-        },
 
     // ── the command seam: the menu bar, the dock, and keys all route here ──
 

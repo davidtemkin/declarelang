@@ -4,7 +4,7 @@
 # Reading the calendar
 
 [Core concepts](declare-docs:guide:what-declare-is) made a promise: that you would end this guide by opening a real calendar
-application — four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->491<!--/stat--> lines of code, about <!--stat:calendar.total-->834<!--/stat--> with its detailed comments — and understanding all of it. This is that chapter. Run the app first:
+application — four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->501<!--/stat--> lines of code, about <!--stat:calendar.total-->885<!--/stat--> with its detailed comments — and understanding all of it. This is that chapter. Run the app first:
 `apps/calendar/calendar.declare` in your running distro, or the **Run Declare
 Calendar** button on the homepage. Switch Month to Week to Day to Year. Drag an
 event somewhere else. Click one open and edit it. Interrupt every transition
@@ -75,7 +75,7 @@ dataset** recomputing from the visible month, with keyed replication so a recomp
 costs only the days that changed:
 
 ```declare-fragment
-cal: Dataset [ contents = { app.buildModel() } ]
+cal: Dataset [ schema = [ grid[]: Day ], contents = { app.buildModel() } ]
 
 // consumed by:  Cell [ datapath = :grid[], key = :key ]   and   Ev [ datapath = :events[], key = :id ]
 ```
@@ -89,26 +89,23 @@ stack is a subsystem, is here three assignments and a derivation.
 
 Drag-to-reschedule looks like the most imperative thing in the app. It is the drag
 pattern from [Pointer and keyboard](declare-docs:guide:pointer-and-keyboard@dragging) — down, move past a
-threshold, up — and then a drop is *one edit to the data*:
+threshold, up — held in a small class of its own, `Drag`, because the chip, the cells
+and the ghost all read it. A drop is *one edit to the data*:
 
 ```declare-fragment
-commitDrop(px: number, py: number) {
-    const events = app.data.value != null ? app.data.value.events : []
-    const idx = events.findIndex(e => e.id == this.dragId)
-    if (idx < 0) return
-    const ev = events[idx], p = ["events", idx]
-    const cell = this.cellAt(px, py)                       // invert the mapping: point → cell
-    if (cell != null) { const d = app.parseKey(cell.key); app.data.set([...p, "y"], d.getFullYear()); app.data.set([...p, "m"], d.getMonth() + 1); app.data.set([...p, "d"], d.getDate()) }
-    if (this.blockness > 0.5) {                            // a time view: the drop height is the new start
-        const dur = ev.end - ev.start
-        let s = Math.round(((py - this.barH - this.headH - this.grabDY) / this.rowH * 1440) / 15) * 15
-        s = app.clamp(s, 0, 1440 - dur); app.data.set([...p, "start"], s); app.data.set([...p, "end"], s + dur)
-        }
+drop(px: number, py: number, canceled: boolean) {
+    if (id < 0) return
+    const day = app.dayAt(px, py)                          // invert the mapping: point → day
+    if (moving && !canceled && day != null)
+        app.events.move(id, day.y, day.m, day.d, app.blockness > 0.5 ? app.minuteAt(py - grabY) : null)
+    id = -1; moving = false; target = ""
     }
 ```
 
-In a time view the same drop also moves the event's hours, read off the drop height
-with the same mapping run backwards. No code moves the event's view. The writes wake exactly the constraints that read
+`dayAt` and `minuteAt` are the App's: the surface's mapping run backwards, from a point
+to a day and from a height to a time. `move` is the events' own rule, on their class:
+the event goes to the new day, and in a time view to the new start, keeping its length.
+No code moves the event's view. The writes wake exactly the constraints that read
 those fields; keyed replication rebuilds the one changed day; the event appears in
 its new cell. And because the whole surface stays live through it, you can grab an
 event *during* a view transition and the app never stumbles — interruptibility

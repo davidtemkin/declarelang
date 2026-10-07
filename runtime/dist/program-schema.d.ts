@@ -70,7 +70,7 @@ export declare function programSchemas(classes: readonly ClassDecl[], shapes?: R
 export declare function provisionValue(attr: Attr): unknown;
 /** One checked attribute declaration: its resolved type and coerced default
  *  — or a default BINDING (`labelColor: Color =
- *  { theme.buttonText }`, the ruled R6 unlock: a live per-instance fallback
+ *  { provided("theme").buttonText }`, the ruled R6 unlock: a live per-instance fallback
  *  below every provision) — or the (unthrown) error. Shared by class
  *  registration and by inline declarations on instances — one message
  *  source, like checkAttr. */

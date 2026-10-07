@@ -194,17 +194,22 @@ export class State extends Node {
         if (this.materialize === null || this.childTemplates.length === 0)
             return;
         let index = target.children.indexOf(this) + 1;
-        const finishes = [];
+        const provides = [], finishes = [];
         for (const tmpl of this.childTemplates) {
-            const { view, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
+            const { view, provide, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
             target.insertChild(view, index++);
             if (tmpl.el.name !== null) {
                 this.$bindName(target, tmpl.el.name);
                 this.$named.set(tmpl.el.name, view);
             }
             this.builtChildren.push(view);
+            provides.push(provide);
             finishes.push(finish);
         }
+        // provisions land linked and before attach — the order every creation
+        // path keeps (replicate.ts)
+        for (const p of provides)
+            p();
         // Attach surfaces if the target is live (mirrors Replicator's post-link
         // attach): each child lands before the first live sibling after the block.
         if (target.$backend !== null && target.$surface !== null) {

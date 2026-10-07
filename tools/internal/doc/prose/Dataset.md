@@ -12,10 +12,10 @@ grid: View [ datapath = { classroot.cal.value },
     ]
 ```
 
-Read the whole document through `.value` (tracked like any read). `.value` itself is
-read-only: the document changes through the verbs — `set(path, v)` writes one place,
-`set([], v)` replaces the whole document, `insert`, `removeAt` and `move` reshape arrays —
-and a replicated row writes a field of its own record with `:field = v`. A whole-document
+Read all of the data through `.value` (tracked like any read). `.value` itself is
+read-only: the data changes through the verbs — `set(path, v)` writes one place,
+`set([], v)` replaces all of it, `insert`, `removeAt` and `move` reshape arrays —
+and a replicated row writes a field of its own record with `:field = v`. A whole
 replacement re-renders the datapaths that read it in one settle.
 
 ## schema
@@ -44,7 +44,7 @@ follows from its record alone, reads its position as `rowIndex`, and gets anythi
 depends on other records — a lane, a running total — from a wrapper that holds the record
 rather than a copy of it: `{ ev: e, lane: n }`, bound through `:ev` for edits.
 
-A derived dataset may be a member of another data node: a document declared as
+A derived dataset may be a member of another data node: a dataset declared as
 `class Library extends Dataset [ shelved: Dataset [ contents = { … } ] ]` carries its own
 derivations.
 

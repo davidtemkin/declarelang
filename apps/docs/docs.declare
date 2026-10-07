@@ -62,7 +62,7 @@ class ClassTab [ width = 100%, height = 30, cornerRadius = 6,
    One class serves the guide's parts, the language's form groups, and the class
    groups alike. */
 
-class FoldHead [ width = 100%, height = 28, cornerRadius = 6, cursor = "pointer",
+class FoldHead extends Control [ width = 100%, height = 28, cornerRadius = 6, cursor = "pointer",
     label:    string  = "",
     contains: boolean = false,             // does this group hold the current page?
     opened:   boolean = false,             // it has been open — this does not expire
@@ -83,9 +83,9 @@ class FoldHead [ width = 100%, height = 28, cornerRadius = 6, cursor = "pointer"
     onInit() { if (contains) opened = true },
     onChange(e: ChangeEvent) { if (contains) { opened = true; shut = false } },
     fill = { hovered ? provided("theme").control : null },
-    onClick() {
-      if (open) { opened = false; shut = true; shutAt = app.page }
-      else { opened = true; shut = false }
+    press() {
+        if (open) { opened = false; shut = true; shutAt = app.page }
+        else { opened = true; shut = false }
         },
     mark: Mono [ x = 8, y = 8, fontSize = 10, wrap = false, textColor = { provided("theme").textMuted },
         text = { classroot.open ? "\u25BC" : "\u25B6" } ],
@@ -101,10 +101,9 @@ class ClassGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :name },
         contains = { app.mode == "reference" && (:classes as any[]).some(c => c.name == app.selected) } ],
-    body: View [ width = 100%, visible = { classroot.head.open },
+    body: View [ width = 100%, visible = { classroot.head.open }, padding = [0, 0, 8, 0],
         layout: SimpleLayout [ axis = y, spacing = 2 ],
-        ClassTab [ datapath = :classes[], cname = :name ],
-        g: View [ height = 6 ]
+        ClassTab [ datapath = :classes[], cname = :name ]
         ]
     ]
 
@@ -464,10 +463,10 @@ class ReadStrip [ width = 100%, cornerRadius = 10, visible = { :n > 0 },
     cname: string = { "" + :name },
     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
-    head: View [ width = 100%, height = 40, cursor = "pointer", cornerRadius = 10,
+    head: Control [ width = 100%, height = 40, cursor = "pointer", cornerRadius = 10,
         fill = { hovered ? provided("theme").chipBg : null },
         padding = [10, 16, 10, 16],
-        onClick() { classroot.open = !classroot.open },
+        press() { classroot.open = !classroot.open },
         title: View [ width = 100%,
             layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
             Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { provided("theme").accent }, text = { classroot.open ? "▼" : "▶" } ],
@@ -498,10 +497,10 @@ class Strip [ width = 100%, cornerRadius = 10,
     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
 
-    head: View [ width = 100%, cursor = "pointer",
+    head: Control [ width = 100%, cursor = "pointer",
         height = { this.lead.y + this.lead.height + 14 },
         fill = { hovered ? provided("theme").chipBg : null }, cornerRadius = 10,
-        onClick() { classroot.open = !classroot.open },
+        press() { classroot.open = !classroot.open },
         title: View [ x = 16, y = 12, width = { parent.width - 32 },
             layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
             Mono [ fontSize = { 15 * app.fontScale }, wrap = false, textColor = { provided("theme").accent }, text = { classroot.open ? "▼" : "▶" } ],
@@ -578,12 +577,11 @@ class Example [ width = 100%,
 
     // the example's own title and lead (from the demo file's opening comment)
 
-    head: View [ width = 100%,
+    head: View [ width = 100%, padding = [0, 0, 12, 0],
         layout: SimpleLayout [ axis = y, spacing = 6 ],
         Title [ fontSize = { 16 * app.fontScale }, text = { "" + :title } ],
         lead: Markdown [ width = 100%, visible = { ("" + :lead) != "" }, lineHeight = 1.55,
-            bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale }, text = { "" + :lead } ],
-        gap: View [ height = 6 ]
+            bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale }, text = { "" + :lead } ]
         ],
 
     // the editable source card — coheres with a static code block (the same
@@ -607,13 +605,13 @@ class Example [ width = 100%,
 
         // Revert — restore the pristine source and republish (see RunIsland)
 
-        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
+        rev: Control [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
             x = { parent.tag.x - this.width - 10 },
             width = { this.rlbl.width + 16 },
             fill = { hovered ? provided("theme").control : null },
-            onClick() { classroot.panel.field.text = classroot.esrc
-                        app.liveCard = classroot.cname
-                        app.liveSource = classroot.esrc },
+            press() { classroot.panel.field.text = classroot.esrc
+                      app.liveCard = classroot.cname
+                      app.liveSource = classroot.esrc },
             rlbl: Text [ x = 8, y = 3, fontSize = 11, fontWeight = semibold,
                 textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
@@ -711,13 +709,13 @@ class RunIsland [ width = 100%,
         // Revert restores the pristine source and republishes it — the way back the
         // guide owes a reader it just told to break something
 
-        rev: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
+        rev: Control [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
             x = { parent.width - this.width - 10 },
             width = { this.rlbl.width + 16 },
             fill = { hovered ? provided("theme").control : null },
-            onClick() { classroot.editor.field.text = classroot.rsrc
-                        app.liveCard = classroot.rid
-                        app.liveSource = classroot.rsrc },
+            press() { classroot.editor.field.text = classroot.rsrc
+                      app.liveCard = classroot.rid
+                      app.liveSource = classroot.rsrc },
             rlbl: Text [ x = 8, y = 3, fontSize = 11, fontWeight = semibold,
                 textColor = { parent.hovered ? provided("theme").text : provided("theme").textMuted }, text = "Revert" ]
             ],
@@ -806,6 +804,7 @@ class ClassDetail [ width = 100%,
     pageLive: boolean = { app.mode == "reference" && app.selected == classroot.cname },
     hasBase:  boolean = { :extends != null },
     layout: SimpleLayout [ axis = y, spacing = 36 ],
+    padding = [0, 0, 84, 0],
 
     // the ancestor projections as DECLARED data (the value-root idiom), so the
     // chain row and the strips can replicate over them
@@ -933,9 +932,7 @@ class ClassDetail [ width = 100%,
             layout: SimpleLayout [ axis = y, spacing = 14 ],
             Strip [ datapath = :items[] ]
             ]
-        ],
-
-    tail: View [ width = 100%, height = 48 ]
+        ]
     ]
 
 
@@ -969,10 +966,9 @@ class FormGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :name },
         contains = { app.mode == "language" && (:forms as any[]).some(f => f.slug == app.form) } ],
-    body: View [ width = 100%, visible = { classroot.head.open },
+    body: View [ width = 100%, visible = { classroot.head.open }, padding = [0, 0, 8, 0],
         layout: SimpleLayout [ axis = y, spacing = 2 ],
-        FormTab [ datapath = :forms[], slug = { "" + :slug } ],
-        g: View [ height = 6 ]
+        FormTab [ datapath = :forms[], slug = { "" + :slug } ]
         ]
     ]
 
@@ -1037,6 +1033,7 @@ class FormRow [ width = 100%,
 class FormIndex [ width = 100%,
     visible = { app.mode == "language" && app.form == "" },
     layout: SimpleLayout [ axis = y, spacing = 36 ],
+    padding = [0, 0, 84, 0],
     header: View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Eyebrow [ text = "LANGUAGE · docs/declare.md" ],
@@ -1050,8 +1047,7 @@ class FormIndex [ width = 100%,
             SectionHead [ head = { "" + :name }, note = { :forms.length + (:forms.length == 1 ? " form" : " forms") } ],
             FormRow [ datapath = :forms[] ]
             ]
-        ],
-    tail: View [ width = 100%, height = 48 ]
+        ]
     ]
 
 
@@ -1061,6 +1057,7 @@ class FormDetail [ width = 100%,
     visible = { app.mode == "language" && app.form == classroot.slug },
     pageLive: boolean = { app.mode == "language" && app.form == classroot.slug },
     layout: SimpleLayout [ axis = y, spacing = 36 ],
+    padding = [0, 0, 84, 0],
     nRelated: number = { :related.forms.length + :related.classes.length + :related.guide.length },
 
     header: View [ width = 100%,
@@ -1117,9 +1114,7 @@ class FormDetail [ width = 100%,
                     text = { :chapter + " · " + :title } ]
                 ]
             ]
-        ],
-
-    tail: View [ width = 100%, height = 48 ]
+        ]
     ]
 
 
@@ -1160,10 +1155,9 @@ class TypeGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :name },
         contains = { app.mode == "type" && (:types as any[]).some(t => t.name == app.tname) } ],
-    body: View [ width = 100%, visible = { classroot.head.open },
+    body: View [ width = 100%, visible = { classroot.head.open }, padding = [0, 0, 8, 0],
         layout: SimpleLayout [ axis = y, spacing = 2 ],
-        TypeTab [ datapath = :types[], tname = { "" + :name } ],
-        g: View [ height = 6 ]
+        TypeTab [ datapath = :types[], tname = { "" + :name } ]
         ]
     ]
 
@@ -1185,6 +1179,7 @@ class TypeDetail [ width = 100%,
     docPage: string = { "type/" + classroot.tname },        // provided: the address of this page
     visible = { app.mode == "type" && app.tname == classroot.tname },
     layout: SimpleLayout [ axis = y, spacing = 36 ],
+    padding = [0, 0, 84, 0],
 
     header: View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
@@ -1229,9 +1224,7 @@ class TypeDetail [ width = 100%,
         SectionHead [ head = "Used by",
             note = "Everywhere the language names this type: the attributes that hold one, the events and methods whose signatures carry one, the types that are built from it, and the functions that take or return it. Each is a link to where it is documented." ],
         UseRow [ datapath = :usedBy[], width = 100% ]
-        ],
-
-    tail: View [ width = 100%, height = 48 ]
+        ]
     ]
 
 
@@ -1272,10 +1265,9 @@ class PartGroup [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     head: FoldHead [ label = { "" + :part },
         contains = { app.mode == "guide" && (:chapters as any[]).some(c => c.id == app.chapter) } ],
-    body: View [ width = 100%, visible = { classroot.head.open },
+    body: View [ width = 100%, visible = { classroot.head.open }, padding = [0, 0, 8, 0],
         layout: SimpleLayout [ axis = y, spacing = 2 ],
-        ChapterTab [ datapath = :chapters[] ],
-        g: View [ height = 6 ]
+        ChapterTab [ datapath = :chapters[] ]
         ]
     ]
 
@@ -1289,6 +1281,7 @@ class ChapterDetail [ width = 100%,
     visible = { app.mode == "guide" && app.chapter == classroot.cid },
     pageLive: boolean = { app.mode == "guide" && app.chapter == classroot.cid },
     layout: SimpleLayout [ axis = y, spacing = 20 ],
+    padding = [0, 0, 80, 0],
 
     // The chapter's content is its own file (chapters/<id>.json — the
     // extractor's per-chapter projection), fetched when visibility requires
@@ -1321,8 +1314,7 @@ class ChapterDetail [ width = 100%,
         demoBox: View [ width = 100%, visible = { :demo.length > 0 },
             Example [ datapath = :demo[], width = 100%, live = { classroot.pageLive } ]
             ]
-        ],
-    tail: View [ width = 100%, height = 60 ]
+        ]
     ]
 
 
@@ -1337,12 +1329,12 @@ reads `{ N * app.fontScale }` (and Markdown takes `scale`), so one attribute
 zooms the whole document.
 */
 
-class SizeBtn [ width = 32, height = 30, cornerRadius = 6,
+class SizeBtn extends Control [ width = 32, height = 30, cornerRadius = 6,
     glyph: number = 14,
     delta: number = 0,          // delta 0 = reset to the default
     fill = { hovered ? provided("theme").control : null },
-    onClick() { app.fontScale = classroot.delta == 0 ? 1.0
-                    : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + classroot.delta) * 100) / 100)) },
+    press() { app.fontScale = delta == 0 ? 1.0
+                  : Math.max(0.7, Math.min(1.6, Math.round((app.fontScale + delta) * 100) / 100)) },
     lbl: Text [ fontWeight = semibold,
         fontSize = { classroot.glyph }, textColor = { provided("theme").textMuted }, text = "A",
         x = center, y = center ]
@@ -1417,8 +1409,8 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
     mono: Font [ family = "ui-monospace, SFMono-Regular, monospace" ],
 
     /* Navigation is one string — `location`, the URL fragment. The grammar is
-       this app's own: `<mode>/<cursor>[@heading]` (`guide/05-classes`,
-       `reference/Slider`, `guide/05-classes@classes-with-no-view`). The declared initial is the
+       this app's own: `<mode>/<cursor>[@heading]` (`guide/04-structure`,
+       `reference/Slider`, `guide/04-structure@where-things-go`). The declared initial is the
        default, so a fresh `docs.declare` shows the first guide chapter with a clean
        URL. mode/chapter/selected derive from it and are never assigned — every
        tab and link writes `location`, back/forward writes it back, state follows
@@ -1861,9 +1853,8 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
 
             // guide nav — the parts, each a fold over its chapters
 
-            guideNav: View [ width = 100%, visible = { app.mode == "guide" },
+            guideNav: View [ width = 100%, visible = { app.mode == "guide" }, padding = [12, 0, 0, 0],
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
-                g1: View [ height = 10 ],
                 PartGroup [ datapath = :guideParts[] ]
                 ],
 
@@ -1876,9 +1867,12 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             // and they keep their own eyebrow so a page with tokens and members
             // is never mistaken for a form with syntax and rules.
 
+            // its padding is the rail's own margin: 16 above the first eyebrow, as
+            // the column starts, and 26 under the last class group
+
             refNav: View [ width = 100%, visible = { app.mode == "reference" || app.mode == "language" || app.mode == "type" },
+                padding = [16, 0, 26, 0],
                 layout: SimpleLayout [ axis = y, spacing = 2 ],
-                g1:    View [ height = 14 ],
                 langEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "LANGUAGE" ],
                 g2:    View [ height = 4 ],
                 idx: View [ width = 100%, height = 28, cornerRadius = 6,
@@ -1896,12 +1890,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
                 g3c:   View [ height = 18 ],
                 classEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CLASSES" ],
                 g4:    View [ height = 4 ],
-                ClassGroup [ datapath = :classGroups[] ],
-
-                // the rail's own bottom margin: the last class group ends 24
-                // above the fold, matching the 16 the column starts with
-
-                tail:  View [ height = 24 ]
+                ClassGroup [ datapath = :classGroups[] ]
                 ]
             ]
         ],

@@ -59,7 +59,7 @@ not meant to hold every value.
 
 forms: instance, class, scope
 classes: App
-guide: 02-two-brackets · Two brackets, 04-tree · The tree
+guide: 02-notation · Notation, 04-structure · Program structure
 
 ## instance
 
@@ -105,7 +105,7 @@ own file) keeps the program's structure visible.
 
 forms: constraint, child, class, app
 classes: View, Node
-guide: 02-two-brackets · Two brackets, 04-tree · The tree
+guide: 02-notation · Notation, 04-structure · Program structure
 
 ## class
 
@@ -160,7 +160,7 @@ base: `extends Node`, or `extends Dataset` for a document.
 
 forms: extends, scope, instance, include, use
 classes: View, Node, App
-guide: 04-tree · The tree, 11-make-your-own · Make your own
+guide: 04-structure · Program structure, 17-your-own-views · Your own views and drawing
 
 ## extends
 
@@ -201,7 +201,7 @@ the rest — as is any class descending from one; only the abstract bases (`Stre
 
 forms: class, set, method
 classes: View, Node, Layout, Control
-guide: 11-make-your-own · Make your own
+guide: 04-structure · Program structure, 17-your-own-views · Your own views and drawing
 
 ## inlineview
 
@@ -265,7 +265,7 @@ inside the class from an identity the content names.
 
 forms: instance, class, style
 classes: RichText, HTMLText, Markdown
-guide: 06-style · Style
+guide: 12-text · Text and fonts
 
 ## set
 
@@ -314,7 +314,7 @@ handler returns, together with every other write it made, in one settle.
 
 forms: declare, constraint, datapath, literals
 classes: View
-guide: 02-two-brackets · Two brackets, 03-relationships · Relationships
+guide: 02-notation · Notation, 03-constraints · Constraints
 
 ## declare
 
@@ -360,7 +360,7 @@ Compare `set`: a set attribute is owned by its `{ }` and refuses assignment.
 
 forms: set, constraint, schema, method
 classes: View, TextInput
-guide: 03-relationships · Relationships, 04-tree · The tree
+guide: 03-constraints · Constraints, 04-structure · Program structure
 
 ## child
 
@@ -399,7 +399,7 @@ the node that declares it; there is nothing to subscribe to and nothing to unreg
 
 forms: instance, scope, declare
 classes: View, SimpleLayout, Dataset
-guide: 04-tree · The tree, 05-space · Space
+guide: 04-structure · Program structure, 06-layout · Size, position and layout
 
 ## method
 
@@ -440,7 +440,7 @@ compiler never reads.
 
 forms: handler, arrow, constraint, script
 classes: View, Control
-guide: 03-relationships · Relationships, 07-interaction · Interaction
+guide: 03-constraints · Constraints, 09-pointer-and-keyboard · Pointer and keyboard
 
 ## handler
 
@@ -479,7 +479,7 @@ declare — a `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node app-wide keyb
 
 forms: method, super, set, child
 classes: View, Keys, Control
-guide: 07-interaction · Interaction
+guide: 09-pointer-and-keyboard · Pointer and keyboard
 
 ## super
 
@@ -526,7 +526,7 @@ class's with `super` the same way. A constraint that calls a method stays live t
 
 forms: method, handler, extends, class
 classes: View, Control
-guide: 11-make-your-own · Make your own
+guide: 17-your-own-views · Your own views and drawing
 
 ## arrow
 
@@ -559,7 +559,7 @@ binding operator on a text field's value.
 
 forms: method, twoway
 classes: View
-guide: 03-relationships · Relationships
+guide: 03-constraints · Constraints
 
 ## constraint
 
@@ -616,7 +616,7 @@ replicated data is written.
 
 forms: set, declare, datapath, script, literals
 classes: View, Spring
-guide: 03-relationships · Relationships, 02-two-brackets · Two brackets
+guide: 03-constraints · Constraints, 02-notation · Notation
 
 ## datapath
 
@@ -679,7 +679,7 @@ compile time.
 
 forms: twoway, constraint, schema, set
 classes: Dataset, DataSource, View
-guide: 09-data · Data, 10-scale · Scale
+guide: 14-data · Data, 16-collections · Large collections
 
 ## key
 
@@ -711,7 +711,7 @@ legal only beside a many-path `datapath`.
 
 forms: datapath, schema
 classes: Dataset, View
-guide: 09-data · Data, 10-scale · Scale
+guide: 14-data · Data, 16-collections · Large collections
 
 ## twoway
 
@@ -751,7 +751,7 @@ so data flow stays traceable. One-way `:path` everywhere else.
 
 forms: datapath, set
 classes: TextInput, Editor, Dataset
-guide: 09-data · Data, 08-controls · Controls
+guide: 14-data · Data, 08-controls · Controls
 
 ## constructors
 
@@ -797,7 +797,7 @@ stroke(1, provided("theme").line), null ] }` rules a row top and bottom.
 
 forms: literals, set, constraint
 classes: View
-guide: 06-style · Style
+guide: 11-paint-and-themes · Paint and themes
 
 ## literals
 
@@ -846,7 +846,7 @@ and a Length refuses it.
 
 forms: set, constraint, constructors
 classes: View, Text
-guide: 02-two-brackets · Two brackets, 06-style · Style
+guide: 02-notation · Notation, 11-paint-and-themes · Paint and themes
 
 ## scope
 
@@ -896,7 +896,7 @@ or attribute named `root` would shadow every `app.…` in the same class.
 
 forms: class, constraint, child
 classes: App, View, Node
-guide: 04-tree · The tree
+guide: 04-structure · Program structure
 
 ## include
 
@@ -933,7 +933,7 @@ as the library's own files include each other.
 
 forms: class, use, script
 classes: App
-guide: 04-tree · The tree, 19-run-check-ship · Run, check, ship
+guide: 04-structure · Program structure, 05-run-and-check · Running and checking a program
 
 ## use
 
@@ -965,7 +965,7 @@ is missing from the built app. A menu's `kind` or `icon` record field, an `IconH
 
 forms: class, include
 classes: IconHost, Menu, View
-guide: 19-run-check-ship · Run, check, ship
+guide: 17-your-own-views · Your own views and drawing
 
 ## ship
 
@@ -1028,7 +1028,7 @@ block is the union.
 
 forms: use, include
 classes: AppIsland, DataSource
-guide: 18-embedding · Embedding, 19-run-check-ship · Run, check, ship
+guide: 24-embedding · Embedding, 25-packaging · Packaging for production
 
 ## script
 
@@ -1083,7 +1083,7 @@ cannot see inside a script function, and its results arrive untyped.
 
 forms: constraint, method, include
 classes: App
-guide: 03-relationships · Relationships, 04-tree · The tree
+guide: 03-constraints · Constraints, 04-structure · Program structure
 
 ## font
 
@@ -1125,7 +1125,7 @@ the `Font` and `FontFace` classes.
 
 forms: style, theme
 classes: Font, FontFace, Text
-guide: 06-style · Style
+guide: 12-text · Text and fonts, 11-paint-and-themes · Paint and themes
 
 ## style
 
@@ -1173,7 +1173,7 @@ or `class Tile extends Card [ … ]`), and provide values downward with `theme` 
 
 forms: theme, provided, font
 classes: HTMLText, Markdown
-guide: 06-style · Style
+guide: 12-text · Text and fonts, 11-paint-and-themes · Paint and themes
 
 ## theme
 
@@ -1223,7 +1223,7 @@ preset rather than an empty record.
 
 forms: provided, style, set
 classes: Control, App
-guide: 06-style · Style
+guide: 11-paint-and-themes · Paint and themes
 
 ## provided
 
@@ -1269,7 +1269,7 @@ finds no provider falls to its default, else fails at boot naming the value.
 
 forms: theme, declare, set, scope
 classes: Text, Control, Icon
-guide: 06-style · Style, 04-tree · The tree
+guide: 11-paint-and-themes · Paint and themes, 17-your-own-views · Your own views and drawing
 
 ## schema
 
@@ -1312,4 +1312,4 @@ everything the document carries.
 
 forms: datapath, declare, twoway
 classes: Dataset, DataSource
-guide: 09-data · Data
+guide: 15-schemas · Typed data: schemas, 14-data · Data

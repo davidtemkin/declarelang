@@ -37,8 +37,8 @@ class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
     input(v: number) { value = v },
     press() { input(value + step) },
 
-    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : theme.control },
-    t: Text [ x = center, y = center, fontSize = 13, textColor = { theme.text },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    t: Text [ x = center, y = center, fontSize = 13, textColor = { provided("theme").text },
         text = { "" + classroot.value } ]
     ]
 
@@ -63,10 +63,9 @@ hover tracking, and the focus ring that travels to it was declared by nobody.
   when a click should mean something else.
 - **Focus**: the control is a tab stop, a click focuses it, and the app's focus ring finds
   it. Override `focusShape()` to ring only part of it, as a [`Radio`](declare-docs:Radio) rings its dot.
-- **`theme`**: `Control` declares an attribute named `theme` that reads the provided theme,
-  which is why the body above writes `theme.control` directly. A class that extends
-  [`View`](declare-docs:View) reads `provided("theme").control` instead. Either way, read tokens rather than
-  literal colors, and the view follows any app's theme and dark mode.
+- **The theme**: a control reads the app's theme the way any view does,
+  `provided("theme").control`. Read tokens rather than literal colors, and the view follows
+  any app's theme and dark mode.
 
 A method you declare in a subclass replaces the base's method of the same name, handlers
 included. To keep the base's behavior as well, call it — `super.press()` — before your
@@ -91,6 +90,44 @@ Methods and attributes are what a subclass refines; the base's children are not.
 subclass cannot declare a child the base already has — the compiler refuses it — so
 when a subclass needs a child to look or behave differently, the base exposes that as
 an attribute the child reads (a color, a label, a size) or as a method to override.
+
+## Classes that take content
+
+Some classes own all of their children. Others are handed their children by the use
+site — a figure with a caption, a panel with whatever goes in it. An instance may carry
+anonymous children, and they arrive as the class's children, arranged by the class's
+layout:
+
+```declare
+class Figure [ width = 100%, height = { contentHeight },
+    layout: SimpleLayout [ axis = y, spacing = 8 ]
+    ]
+
+App [ width = 340, height = 220, fill = white, textColor = black,
+    col: View [ x = 20, y = 20, width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Figure [
+            View [ width = 100%, height = 60, cornerRadius = 6, fill = #DCE6F0 ],
+            Text [ width = 100%, fontSize = 13, text = "the caption sits under the picture" ]
+            ],
+        Figure [
+            View [ width = 100%, height = 40, cornerRadius = 6, fill = #E7E0F0 ],
+            Text [ width = 100%, fontSize = 13, text = "the next one is the same class" ]
+            ]
+        ]
+    ]
+```
+
+`height = { contentHeight }` is what makes it work: the class cannot know what it will
+be handed, so it measures. (A view with no height set does the same thing on its own;
+the explicit form says it out loud.)
+
+Configuration goes the other way. A use site does **not** reach into a class's own
+named children: writing `Figure [ Text [ … ] ]` adds a *new* child, and redeclaring a
+child the class already names is an error. What a class exposes is attributes, and
+its children read them.
+
+> **A class owns its members. A use site speaks to it through attributes and content.**
 
 ## A frame around content
 

@@ -76,21 +76,21 @@ class Checkbox extends Control [
     // the box's size: the theme fact by default, one attribute to override
     // (a toolbar checkbox can shrink to its neighbors without a subclass)
 
-    size: number = 0,             // 0 = theme.checkboxSize (else 20)
+    size: number = 0,             // 0 = provided("theme").checkboxSize (else 20)
 
     input(v: boolean) { checked = v },
 
     press()   { input(!checked) },
 
     width   = { this.box.width + (label == "" ? 0 : 8 + this.cap.width) },
-    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
+    opacity = { disabled ? (typeof provided("theme").disabledOpacity == "number" ? provided("theme").disabledOpacity : 0.45) : 1 },
 
     box: View [ y = center,
-        width  = { classroot.size > 0 ? classroot.size : typeof theme.checkboxSize == "number" ? theme.checkboxSize : 20 },
+        width  = { classroot.size > 0 ? classroot.size : typeof provided("theme").checkboxSize == "number" ? provided("theme").checkboxSize : 20 },
         height = { this.width },
-        cornerRadius = { typeof theme.checkboxCornerRadius == "number" ? theme.checkboxCornerRadius : Math.min(8, Math.max(3, theme.controlCornerRadius - 2)) },
-        fill   = { checked ? theme.accent : theme.control },
-        stroke = { stroke(1, checked ? theme.accent : hovered || pressed ? theme.textMuted : theme.line) },
+        cornerRadius = { typeof provided("theme").checkboxCornerRadius == "number" ? provided("theme").checkboxCornerRadius : Math.min(8, Math.max(3, provided("theme").controlCornerRadius - 2)) },
+        fill   = { checked ? provided("theme").accent : provided("theme").control },
+        stroke = { stroke(1, checked ? provided("theme").accent : hovered || pressed ? provided("theme").textMuted : provided("theme").line) },
 
         // The tick, from the shared set — drawn, so it is pixel-identical on
         // every renderer and independent of any font. Sized from the box,
@@ -99,7 +99,7 @@ class Checkbox extends Control [
         // value is a default, not a rule.
 
         mark: CheckIcon [ visible = { checked }, iconSize = { parent.width * 0.72 },
-            x = center, y = center, ink = { theme.accentTextColor } ]
+            x = center, y = center, ink = { provided("theme").accentTextColor } ]
         ],
 
     // the label rides the box, not a constant: its gap is box-relative (the
@@ -107,9 +107,9 @@ class Checkbox extends Control [
     // center in the control's height, so they align automatically everywhere
 
     // No explicit textColor: the label follows the provided text style (the
-    // App's default is theme.text) — and a use site restyles it with ordinary
+    // App's default is provided("theme").text) — and a use site restyles it with ordinary
     // attributes, no subclass:
-    //     Checkbox [ label = "Grouped", fontSize = 12.5, textColor = { theme.textMuted }, size = 16 ]
+    //     Checkbox [ label = "Grouped", fontSize = 12.5, textColor = { provided("theme").textMuted }, size = 16 ]
 
     cap: TextLabel [ x = { parent.box.width + 8 }, wrap = false,
         visible = { label != "" }, text = { label } ]

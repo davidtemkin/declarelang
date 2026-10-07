@@ -192,6 +192,12 @@ spots, like the examples in this guide that park one view on a page. For anythin
 that is a row, a column, a flow or a grid of parts, use a layout: a ladder of hand-set
 `y` values is a layout written out by hand, and it breaks the first time a size changes.
 
+## Stacking order
+
+Siblings that overlap paint in the order they are written: **later members draw on
+top**. There is no z-index; you restack by reordering, so reading order is paint order.
+Floating chrome, such as a toolbar over content or an overlay, is declared last.
+
 ## Responsiveness
 
 `ResponsiveLayout` takes a list of **plans**, each saying "from this width up, arrange

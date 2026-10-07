@@ -22,9 +22,9 @@ Two sprung scalars animate everything:
 
 The architecture is the example's real subject:
 
-- `Market extends Node` — the **model as a faceless member**: it owns the
-  DataSource, receives the payload in `onLoad`, and answers scalar queries as
-  analyzed methods.
+- `Market extends DataSource` — the **model as a data class**: it fetches
+  the payload, decodes it once into the tables everything reads (a derived
+  dataset), and answers scalar queries as analyzed methods.
 - `MarketLayout extends Layout` — the partition as a **live layout**: its
   `place()` reads `app.day` under tracking, so one evaluation per frame
   distributes every position. Sizes stay compiler-wired constraints on the
@@ -34,520 +34,11 @@ The architecture is the example's real subject:
   needs right now. Stage instances exist exactly while a stage key names
   them: nothing at boot, a dozen on open, reconciled by id on drill. Structure
   follows dependency, never a timer.
-- The geometry engine and formatters live in the `script` block at the end of
+- The geometry engine and formatters live in the `script` block that opens
   the file — pure functions, plus two *transparent* memo caches, which must be
   script state: a cache consulted during constraint evaluation has to stay
   invisible to dependency tracking.
 */
-
-
-/*
-## Market — the feed, and what it means
-
-The baked dataset itself (`marketmap-data.json`: per-stock closes, a share
-count anchored to current caps, sector/industry), as a class of `DataSource`,
-with everything the program asks of it. The close series travel delta-coded —
-integer cents, first entry absolute, the rest day-over-day changes (see
-`decodeCloses`) — and are decoded once, on arrival, into plain tables the
-layouts read every frame, so the rest of the program only ever sees dollar
-prices. `onLoad` is the one place arrival must *cause* rather than merely be
-derived from. Everything else is a pure query over those tables.
-*/
-
-class Market extends DataSource [
-
-    // beside this program on its own page; beside its home when a host (the
-    // desktop) mounts it as an island and provides that home as `base`
-
-    url = { hostProvided("base", "") + "marketmap-data.json" },
-    auto = true,
-
-    stocks: object[] = [],
-    days: string[] = [],
-    industries: object[] = [],
-    sectors: object[] = [],
-    tree: object[] = [],                            // sector → industry → rows, built once
-    nDays: number = 0,
-    ready: boolean = false,
-
-    onLoad() {
-        const v = this.value as { days: string[], stocks: Stock[],
-            industries: object[], sectors: object[] }
-        const stocks = v.stocks.map(s => ({ ...s, closes: decodeCloses(s.closes) }))
-        this.days = v.days
-        this.stocks = stocks as unknown as object[]
-        this.industries = v.industries
-        this.sectors = v.sectors
-        this.tree = buildTree(stocks) as unknown as object[]
-        this.nDays = v.days.length
-        this.ready = true
-        this.landed(v.days.length)
-        },
-
-    // the decoded table the view replicates from. Consumers never touch
-    // `value` — that is the wire payload, closes still delta-coded.
-
-    tableValue() -> object {
-        return { stocks: this.stocks, industries: this.industries, sectors: this.sectors }
-        },
-    table: Dataset [ contents = { classroot.tableValue() } ],
-
-    // arrival seam: called once, with the day count, when the payload is in
-    // place. Empty here — the App's instance overrides it to open on the
-    // data's last day outright (an arrival is a fact, not a change the map
-    // lived through, so it must not fly there).
-
-    landed(nDays: number) { },
-
-    // ── scalar queries, all over a fractional day index ──
-
-    priceAt(closes: number[], day: number) -> number { return interpClose(closes, day) },
-
-    capAt(shares: number, closes: number[], day: number) -> number {
-        return shares * interpClose(closes, day)
-        },
-
-    // the day-over-day return, interpolated between adjacent trading days
-
-    dayChangeAt(closes: number[], day: number) -> number {
-        const n = closes.length
-        const i = Math.floor(day)
-        const t = Math.max(0, Math.min(1, day - i))
-        const k1 = Math.max(1, Math.min(n - 1, i))
-        const k2 = Math.max(1, Math.min(n - 1, i + 1))
-        const r1 = (closes[k1 - 1] > 0 && closes[k1] > 0) ? closes[k1] / closes[k1 - 1] - 1 : 0
-        const r2 = (closes[k2 - 1] > 0 && closes[k2] > 0) ? closes[k2] / closes[k2 - 1] - 1 : 0
-        return r1 + (r2 - r1) * t
-        },
-
-    returnOver(closes: number[], day: number, span: number) -> number {
-        const now = interpClose(closes, day)
-        const then = interpClose(closes, day - span)
-        return (now > 0 && then > 0) ? now / then - 1 : 0
-        },
-
-    // nearest trading day at or after an ISO date; past the end = the last day,
-    // which is what lets the LAST DAY chip use a far-future date
-
-    dayIndexOf(iso: string) -> number {
-        const ds = this.days as string[]
-        if (ds.length == 0) return 0
-        for (let i = 0; i < ds.length; i++) if (ds[i] >= iso) return i
-        return ds.length - 1
-        },
-
-    dateAt(day: number) -> string {
-        const ds = this.days as string[]
-        if (ds.length == 0) return ""
-        return ds[Math.max(0, Math.min(ds.length - 1, Math.round(day)))]
-        },
-
-    // the staged group's aggregate, for the stage header
-
-    groupStat(groupKey: string, day: number) -> string {
-        if (groupKey == "") return ""
-        const sector = groupKey.slice(0, 4) == "sec:" ? groupKey.slice(4) : ""
-        const parts = groupKey.split("|")
-        if (sector == "" && parts.length < 2) return ""
-        let cap = 0
-        let capPrev = 0
-        for (const s of this.stocks as Stock[]) {
-            if (sector != "" ? s.sector != sector : (s.sector != parts[0] || s.industry != parts[1])) continue
-            cap += s.shares * interpClose(s.closes, day)
-            capPrev += s.shares * interpClose(s.closes, day - 1)
-            }
-        return fmtCap(cap) + "  ·  " + fmtPct(capPrev > 0 ? cap / capPrev - 1 : 0) + " TODAY"
-        },
-
-    // the sparkline probe's readout: date · price · cap at fraction `u` of the
-    // trailing year
-
-    probeLine(closes: number[], shares: number, day: number, u: number) -> string {
-        if (u < 0) return ""
-        const f = Math.max(0, Math.min(this.nDays - 1, day - TRADING_YEAR + TRADING_YEAR * u))
-        const iso = this.dateAt(f)
-        const price = interpClose(closes, f)
-        if (price <= 0) return fmtDateShort(iso) + "  ·  NOT YET LISTED"
-        return fmtDateShort(iso) + "  ·  " + fmtPrice(price) + "  ·  " + fmtCap(shares * price)
-        },
-
-    // which records does the stage need right now? The current group, plus the
-    // departing one while a drill morph is in flight. `stageRoster` derives
-    // from this, and the stage replications feed from the roster — so stage
-    // instances exist exactly when a stage key names them. Rows carry an `id`
-    // so reconciliation keeps instance identity across drills.
-
-    rosterFor(current: string, previous: string) -> object {
-        const rows = [] as object[]
-        const bands = [] as object[]
-        if (current == "" || !this.ready) return { rows, bands }
-        for (const s of this.stocks as Stock[]) {
-            const k = s.sector + "|" + s.industry
-            if (k == current || k == previous
-                || current == "sec:" + s.sector || previous == "sec:" + s.sector)
-                rows.push({ id: s.sym, sym: s.sym, name: s.name, sector: s.sector,
-                    industry: s.industry, shares: s.shares, closes: s.closes })
-            }
-        const inds = this.industries as { id: string, sector: string, label: string }[]
-        for (const i of inds) {
-            if (current == "sec:" + i.sector || previous == "sec:" + i.sector) bands.push(i)
-            }
-        return { rows, bands }
-        }
-    ]
-
-
-/*
-## The layouts
-
-A base `Layout`'s place-pass is a live tracked constraint, so a `place()` that
-reads `app.day` re-places continuously — the whole map morphs against the
-scrub with one evaluation distributing every position.
-
-The boxes carry `x`/`y` only, deliberately: a box that also carried `w`/`h`
-would install a separate runtime constraint per child per dimension, each
-re-evaluating `place()` — measured at 600 children, that alone drops a
-five-year flight from 45 fps to 1.4. Sizes stay compiler-wired constraints on
-the classes instead: positions through the pass, sizes through static edges.
-*/
-
-class MarketLayout extends Layout [
-    place() {
-        const holder = parent as View
-        const lay = mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[],
-            app.day, holder.width, holder.height)
-        return this.laid().map((c) => {
-            const r = lay[(c as Tile).pid]
-            // x/y only — a box's shape declares ownership, and sizes belong
-            // to the classes' own wired constraints
-            return r ? { x: r.x, y: r.y } : { x: OFFSTAGE.x, y: OFFSTAGE.y }
-            })
-        }
-    ]
-
-
-class StageLayout extends Layout [
-    place() {
-        const holder = parent as View
-        const lay = stagePartition(app.market.stocks as Stock[], app.market.tree as SecNode[],
-            app.day, holder.width, holder.height,
-            app.stageKey, app.zoom, app.prevStageKey, app.drillProgress)
-        return this.laid().map((c) => {
-            const p = (c as StageTile).pid
-            const r = lay["stage:" + p] ?? lay[p]
-            return r ? { x: r.x, y: r.y } : { x: OFFSTAGE.x, y: OFFSTAGE.y }
-            })
-        }
-    ]
-
-
-/*
-## Tile
-
-One company on the map. The layout owns its position; its size and color are
-wired constraints over the same partition (a memo-hit — see the script block).
-Symbol, then the company name and the day's change when the tile is roomy
-enough — the name gates on its own measured width, so it appears exactly when
-it fits.
-*/
-
-class Tile [ cursor = "pointer",
-
-    pid: string = { :sym },
-    slot: object = { rectFor(mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH) as Record<string, Rect>, :sym) },
-    dayChange: number = { app.market.dayChangeAt(:closes as number[], app.day) },
-    groupKey: string = { (:sector as string) + "|" + (:industry as string) },
-    roomy: boolean = { this.width >= 120 && this.height >= 86 },
-
-    width = { (this.slot as Rect).w },
-    height = { (this.slot as Rect).h },
-    fill = { changeColor(this.dayChange) },
-
-    onPointerOver() { app.spot(:sym)
-        app.hotGroup = this.groupKey },
-    onClick() { app.openGroup(this.groupKey) },
-
-    sym: Text [ x = center,
-        y = { (classroot.height - this.height) / 2 - (classroot.roomy ? 12 : 0) },
-        fontWeight = bold, textColor = { provided("theme").ink },
-        fontSize = { Math.max(8, Math.min(22, Math.round(classroot.width / 5))) },
-        visible = { classroot.width > 26 && classroot.height > 16 },
-        text = :sym ],
-    companyName: Text [ x = center, y = { classroot.height / 2 + 6 }, fontSize = 9,
-        letterSpacing = 1, textColor = { provided("theme").ink }, opacity = 0.6,
-        visible = { classroot.roomy && this.width < classroot.width - 10 },
-        text = { ((:name as string) || "").toUpperCase() } ],
-    pct: Text [ x = center,
-        y = { classroot.height / 2 + (classroot.roomy ? 24 : 13) },
-        fontSize = 9, textColor = { provided("theme").inkSoft }, opacity = 0.85,
-        visible = { classroot.width > 58 && classroot.height > 48 },
-        text = { fmtPct(classroot.dayChange) } ]
-    ]
-
-
-/*
-## SectorBand · IndustryBand
-
-The group labels are the map's interaction surface for whole groups: hover
-haloes the group (label goes finviz-yellow with dark ink), click opens it on
-the stage. Both write the one `app.hotGroup` key; the halo view derives its
-rectangle from it. Highlights are *gated* on `app.fieldHover` rather than
-cleared by pointer-out events — when the pointer leaves the grid, the derived
-gate drops and every highlight follows.
-*/
-
-class SectorBand [ cursor = "pointer", clip = true,
-
-    pid: string = { "sector:" + (:id as string) },
-    hot: boolean = { app.hotGroup == "sec:" + (:id as string) && app.zoom < 0.05 && app.fieldHover },
-
-    height = { SECTOR_BAND_H },
-    width = { rectFor(mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH) as Record<string, Rect>, this.pid).w },
-    fill = { this.hot ? provided("theme").highlight : provided("theme").sectorBand },
-
-    onPointerOver() { app.hotGroup = "sec:" + (:id as string) },
-    onClick() { app.openGroup("sec:" + (:id as string)) },
-
-    Text [ x = 7, y = center, fontSize = 9, letterSpacing = 2, fontWeight = bold,
-        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").bandInk }, text = :label ]
-    ]
-
-
-class IndustryBand [ cursor = "pointer", clip = true,
-
-    pid: string = { "ind:" + (:id as string) },
-    hot: boolean = { app.hotGroup == (:id as string) && app.zoom < 0.05 && app.fieldHover },
-
-    height = { INDUSTRY_BAND_H },
-    width = { rectFor(mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH) as Record<string, Rect>, this.pid).w },
-    fill = { this.hot ? provided("theme").highlight : provided("theme").industryBand },
-
-    onPointerOver() { app.hotGroup = (:id) },
-    onClick() { app.openGroup(:id) },
-
-    Text [ x = 6, y = center, fontSize = 8, letterSpacing = 1,
-        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").industryInk }, text = :label ]
-    ]
-
-
-/*
-## StageTile
-
-A company on the stage — the full card: symbol, name, day change, price · cap ·
-trailing-year return, and a sparkline of the trailing year drawn along the
-tile's floor (a `draw()` mark, not a field: only the staged dozen ever record
-anything). The card degrades tier by tier as tiles shrink.
-
-The sparkline takes a probe: hovering scrubs it (derived from the built-in
-`hovered` and `app.pointerX` — no handler), and in an industry stage a click
-pins it. In a *sector* stage a click drills into the tile's industry instead —
-the pin belongs where there is nothing left to open.
-
-Staged tiles replicate from the roster, so every instance here is on stage (or
-departing mid-drill — `mine` keeps the leavers laid until the morph lands).
-*/
-
-class StageTile [ cursor = "pointer", clip = true,
-    x = -900, y = -900,                             // parked until the layout places it
-
-    pid: string = { :sym },
-    groupKey: string = { (:sector as string) + "|" + (:industry as string) },
-    mine: boolean = { this.groupKey == app.stageKey
-        || app.stageKey == "sec:" + (:sector as string)
-        || (app.drillProgress < 0.98
-            && (this.groupKey == app.prevStageKey
-                || app.prevStageKey == "sec:" + (:sector as string))) },
-    ignoreLayout = { !this.mine },
-
-    stageSlot: object = { this.mine && app.zoom > 0.002
-        ? rectFor(stagePartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress) as Record<string, Rect>, "stage:" + (:sym as string))
-        : rectFor(null as unknown as Record<string, Rect>, "") },
-    dayChange: number = { this.mine ? app.market.dayChangeAt(:closes as number[], app.day) : 0 },
-    yearReturn: number = { this.mine ? app.market.returnOver(:closes as number[], app.day, TRADING_YEAR) : 0 },
-    big: boolean = { this.width > 150 && this.height > 116 },
-    tall: boolean = { this.height >= 148 },
-
-    width = { Math.max(0, (this.stageSlot as Rect).w) },
-    height = { Math.max(0, (this.stageSlot as Rect).h) },
-    visible = { this.mine && app.zoom > 0.002 && this.x > -800 },
-    fill = { changeColor(this.dayChange) },
-
-    // the probe: hover scrubs the trailing year; a click (or tap) pins it
-
-    hoverU: number = { this.mine && this.big && this.hovered
-        ? Math.max(0, Math.min(1, (app.pointerX - this.x - 10) / Math.max(1, this.width - 20)))
-        : -1 },
-    pinnedU: number = -1,
-    probeU: number = { this.hovered && this.hoverU >= 0 ? this.hoverU : this.pinnedU },
-
-    onPointerOver() { app.spot(:sym)
-        if (app.stageKey.slice(0, 4) == "sec:") app.hotStaged = this.groupKey },
-    onClick(e: PointerEvent) {
-        if (app.stageKey.slice(0, 4) == "sec:") { app.drill(this.groupKey); return }
-        if (this.big) pinnedU = Math.max(0, Math.min(1, (e.x - 10) / Math.max(1, this.width - 20))) },
-
-    // the trailing year, inscribed along the tile's floor; gold marks the probe
-
-    draw(d: Draw) {
-        if (!this.mine || !this.big || app.zoom < 0.4) return
-        const closes = :closes as number[]
-        const day = app.day
-        const w = this.width
-        const h = this.height
-        const top = h * SPARK_TOP
-        const span = h * SPARK_SPAN
-        const N = 56
-        let lo = 1e18
-        let hi = -1e18
-        const pts = [] as number[]
-        for (let k = 0; k <= N; k++) {
-            const v = interpClose(closes, day - TRADING_YEAR + (TRADING_YEAR * k) / N)
-            pts.push(v)
-            if (v > 0) { if (v < lo) lo = v; if (v > hi) hi = v }
-        }
-        if (hi <= lo) return
-        const ink = provided("theme").ink
-        d.strokeStyle = colorWithAlpha(ink, 71)
-        d.lineWidth = 1
-        d.beginPath()
-        d.moveTo(10, top + span)
-        d.lineTo(w - 10, top + span)
-        d.stroke()
-        d.strokeStyle = colorWithAlpha(ink, 191)
-        d.lineWidth = 1.6
-        d.lineJoin = "round"
-        d.beginPath()
-        for (let k = 0; k <= N; k++) {
-            const px = 10 + ((w - 20) * k) / N
-            const py = pts[k] > 0 ? top + span - ((pts[k] - lo) / (hi - lo)) * span : top + span
-            if (k == 0) d.moveTo(px, py)
-            else d.lineTo(px, py)
-        }
-        d.stroke()
-        d.fillStyle = ink
-        d.beginPath()
-        d.arc(w - 10, top + span - ((pts[N] - lo) / (hi - lo)) * span, 2.4, 0, Math.PI * 2)
-        d.fill()
-        const u = this.probeU
-        if (u >= 0) {
-            const px = 10 + (w - 20) * u
-            const v = interpClose(closes, day - TRADING_YEAR + TRADING_YEAR * u)
-            d.strokeStyle = colorWithAlpha(provided("theme").highlight, 140)
-            d.lineWidth = 1
-            d.beginPath()
-            d.moveTo(px, h * 0.62)
-            d.lineTo(px, top + span)
-            d.stroke()
-            if (v > 0) {
-                d.fillStyle = provided("theme").highlight
-                d.beginPath()
-                d.arc(px, top + span - ((v - lo) / (hi - lo)) * span, 3, 0, Math.PI * 2)
-                d.fill()
-            }
-        }
-        },
-
-    sym: Text [ x = center,
-        y = { classroot.big ? classroot.height * 0.18 : (classroot.height - this.height) / 2 },
-        fontWeight = bold, textColor = { provided("theme").ink },
-        fontSize = { Math.max(8, Math.min(30, Math.round(classroot.width / 5))) },
-        visible = { classroot.width > 20 && classroot.height > 14 },
-        text = { classroot.mine ? (:sym as string) : "" } ],
-    companyName: Text [ x = center, y = { classroot.height * 0.18 + 36 }, fontSize = 10,
-        letterSpacing = 1, textColor = { provided("theme").ink }, opacity = 0.7,
-        visible = { classroot.big && classroot.tall && this.width < classroot.width - 12 },
-        text = { classroot.mine ? ((:name as string) || "").toUpperCase() : "" } ],
-    pct: Text [ x = center,
-        y = { classroot.big
-            ? classroot.height * 0.18 + (classroot.tall ? 56 : 34)
-            : classroot.height / 2 + 15 },
-        fontSize = { classroot.big ? 12 : 10 }, textColor = { provided("theme").inkSoft }, opacity = 0.9,
-        visible = { classroot.width > 48 && classroot.height > 44 },
-        text = { classroot.mine ? fmtPct(classroot.dayChange) + (classroot.big ? " TODAY" : "") : "" } ],
-    statLine: Text [ x = center,
-        y = { classroot.height * 0.18 + (classroot.tall ? 76 : 54) }, fontSize = 10,
-        textColor = { provided("theme").inkSoft }, opacity = 0.75,
-        visible = { classroot.big && classroot.height >= 180 },
-        text = { classroot.mine && classroot.big
-            ? fmtPrice(app.market.priceAt(:closes as number[], app.day)) + "  ·  "
-                + fmtCap(app.market.capAt(:shares as number, :closes as number[], app.day))
-                + "  ·  1Y " + fmtPct(classroot.yearReturn)
-            : "" } ],
-
-    probeChip: View [ fill = { provided("theme").probeChip }, cornerRadius = 4, height = 18, opacity = 0.94,
-        pointerEvents = "none",
-        visible = { classroot.probeU >= 0 && classroot.big && app.zoom > 0.5 },
-        width = { this.t.width + 14 },
-        x = { Math.max(4, Math.min(classroot.width - this.width - 4,
-            10 + (classroot.width - 20) * Math.max(0, classroot.probeU) - this.width / 2)) },
-        y = { classroot.height * SPARK_TOP - 26 },
-        t: TextLabel [ x = 7, fontSize = 9, letterSpacing = 1, textColor = { provided("theme").highlight },
-            text = { classroot.probeU >= 0
-                ? app.market.probeLine(:closes as number[], :shares as number, app.day, classroot.probeU)
-                : "" } ]
-        ]
-    ]
-
-
-/*
-## StageBand
-
-An industry's label strip inside a staged sector — the drill target. Same
-yellow treatment as the map bands, driven by the same `hotStaged` key the
-staged tiles write, gated on the popup being under the pointer.
-*/
-
-class StageBand [ cursor = "pointer", clip = true,
-    x = -900, y = -900,                             // parked until the layout places it
-
-    pid: string = { "stgband:" + (:id as string) },
-    mine: boolean = { app.stageKey == "sec:" + (:sector as string)
-        || (app.drillProgress < 0.98 && app.prevStageKey == "sec:" + (:sector as string)) },
-    ignoreLayout = { !this.mine },
-    hot: boolean = { this.mine && (this.hovered || (app.stageHover && app.hotStaged == (:id as string))) },
-
-    bandSlot: object = { this.mine && app.zoom > 0.002
-        ? rectFor(stagePartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress) as Record<string, Rect>, this.pid)
-        : rectFor(null as unknown as Record<string, Rect>, "") },
-    width = { Math.max(0, (this.bandSlot as Rect).w) },
-    height = { Math.max(0, (this.bandSlot as Rect).h) },
-    visible = { this.mine && app.zoom > 0.002 && this.x > -800 },
-    fill = { this.hot ? provided("theme").highlight : provided("theme").industryBand },
-
-    onPointerOver() { app.hotStaged = (:id) },
-    onClick() { app.drill(:id) },
-
-    Text [ x = 6, y = center, fontSize = 9, letterSpacing = 1,
-        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").bandInk },
-        text = { classroot.mine ? (:label as string) : "" } ]
-    ]
-
-
-/*
-## EraChip · LegendSwatch
-
-Console furniture. A chip flies the map to a date (nearest trading day — LAST
-DAY simply names a far-future date); a swatch shows the color scale.
-*/
-
-class EraChip [ height = 20, cornerRadius = 10, cursor = "pointer",
-    label: string = "",
-    iso: string = "",
-    fill = { hovered ? provided("theme").chipHover : provided("theme").chip },
-    width = { this.t.width + 18 },
-    onClick() { app.flyTo(this.iso) },
-    t: TextLabel [ x = 9, fontSize = 9, letterSpacing = 1.5, textColor = { provided("theme").chipInk },
-        text = { label } ]
-    ]
-
-
-class LegendSwatch [ height = 18, cornerRadius = 2,
-    pct: number = 0,
-    width = { app.narrow ? 40 : 52 },
-    fill = { changeColor(this.pct / 100) },
-    Text [ x = center, y = center, fontSize = 9, fontWeight = bold, textColor = { provided("theme").ink },
-        text = { (pct > 0 ? "+" : "") + pct + "%" } ]
-    ]
 
 
 /*
@@ -565,11 +56,6 @@ output, always) are exactly the state the script rule permits.
 */
 
 script {
-    type Stock = { sym: string, name: string, sector: string, industry: string, shares: number, closes: number[] }
-    type Rect = { x: number, y: number, w: number, h: number }
-    type IndNode = { name: string, key: string, rows: Stock[], syms: string[] }
-    type SecNode = { name: string, inds: IndNode[] }
-
     // ── shared constants ──
 
     const TRADING_YEAR = 250            // trading days in the sparkline / 1Y window
@@ -614,6 +100,14 @@ script {
     function decodeCloses(deltas: number[]): number[] {
         let cents = 0
         return deltas.map(d => (cents += d) / 100)
+    }
+
+    // the payload, decoded once when it lands: closes back to dollar prices,
+    // and the sector → industry tree the layouts walk every frame
+    function decodeMarket(v: { days: string[], stocks: Stock[], industries: Industry[], sectors: Sector[] } | null) {
+        if (v == null) return { days: [] as string[], stocks: [] as Stock[], industries: [] as Industry[], sectors: [] as Sector[], tree: [] as SecNode[] }
+        const stocks = v.stocks.map(s => ({ ...s, closes: decodeCloses(s.closes) }))
+        return { days: v.days, stocks, industries: v.industries, sectors: v.sectors, tree: buildTree(stocks) }
     }
 
     // the close price at a fractional day — linear between adjacent sessions
@@ -872,6 +366,17 @@ script {
     }
 
 
+// the payload's shapes, and the two the program builds from it: a rectangle
+// on the map, and the sector → industry tree
+
+schema Stock [ sym: string, name: string, sector: string, industry: string, shares: number, closes[]: number ]
+schema Industry [ id: string, sector: string, label: string ]
+schema Sector [ id: string, label: string ]
+schema Rect [ x: number, y: number, w: number, h: number ]
+schema IndNode [ name: string, key: string, rows[]: Stock, syms[]: string ]
+schema SecNode [ name: string, inds[]: IndNode ]
+
+
 /*
 ## The palette
 
@@ -892,6 +397,498 @@ theme MarketMap [
 
 
 /*
+## Market — the feed, and what it means
+
+The baked dataset itself (`marketmap-data.json`: per-stock closes, a share
+count anchored to current caps, sector/industry), as a class of `DataSource`,
+with everything the program asks of it. The close series travel delta-coded —
+integer cents, first entry absolute, the rest day-over-day changes (see
+`decodeCloses`) — and are decoded once, by a derived dataset, into the tables
+the layouts read every frame, so the rest of the program only ever sees dollar
+prices. Everything else is a pure query over those tables.
+*/
+
+class Market extends DataSource [
+
+    // beside this program on its own page; beside its home when a host (the
+    // desktop) mounts it as an island and provides that home as `base`
+
+    url = { hostProvided("base", "") + "marketmap-data.json" },
+    auto = true,
+    schema = [ days[]: string, stocks[]: Stock, industries[]: Industry, sectors[]: Sector ],
+
+    // the decoded tables the view replicates from and the layouts read.
+    // Consumers never touch `value` — that is the wire payload, closes still
+    // delta-coded.
+
+    decoded: Dataset [ schema = [ days[]: string, stocks[]: Stock, industries[]: Industry, sectors[]: Sector, tree[]: SecNode ],
+        contents = { decodeMarket(classroot.value) } ],
+
+    stocks: Stock[] = { this.decoded.value?.stocks ?? [] },
+    days: string[] = { this.decoded.value?.days ?? [] },
+    tree: SecNode[] = { this.decoded.value?.tree ?? [] },     // sector → industry → rows
+    nDays: number = { this.days.length },
+    ready: boolean = { this.stocks.length > 0 },
+
+    // ── scalar queries, all over a fractional day index ──
+
+    priceAt(closes: number[], day: number) -> number { return interpClose(closes, day) },
+
+    capAt(shares: number, closes: number[], day: number) -> number {
+        return shares * interpClose(closes, day)
+        },
+
+    // the day-over-day return, interpolated between adjacent trading days
+
+    dayChangeAt(closes: number[], day: number) -> number {
+        const n = closes.length
+        const i = Math.floor(day)
+        const t = Math.max(0, Math.min(1, day - i))
+        const k1 = Math.max(1, Math.min(n - 1, i))
+        const k2 = Math.max(1, Math.min(n - 1, i + 1))
+        const r1 = (closes[k1 - 1] > 0 && closes[k1] > 0) ? closes[k1] / closes[k1 - 1] - 1 : 0
+        const r2 = (closes[k2 - 1] > 0 && closes[k2] > 0) ? closes[k2] / closes[k2 - 1] - 1 : 0
+        return r1 + (r2 - r1) * t
+        },
+
+    returnOver(closes: number[], day: number, span: number) -> number {
+        const now = interpClose(closes, day)
+        const then = interpClose(closes, day - span)
+        return (now > 0 && then > 0) ? now / then - 1 : 0
+        },
+
+    // nearest trading day at or after an ISO date; past the end = the last day,
+    // which is what lets the LAST DAY chip use a far-future date
+
+    dayIndexOf(iso: string) -> number {
+        const ds = this.days
+        if (ds.length == 0) return 0
+        for (let i = 0; i < ds.length; i++) if (ds[i] >= iso) return i
+        return ds.length - 1
+        },
+
+    dateAt(day: number) -> string {
+        const ds = this.days
+        if (ds.length == 0) return ""
+        return ds[Math.max(0, Math.min(ds.length - 1, Math.round(day)))]
+        },
+
+    // the staged group's aggregate, for the stage header
+
+    groupStat(groupKey: string, day: number) -> string {
+        if (groupKey == "") return ""
+        const sector = groupKey.slice(0, 4) == "sec:" ? groupKey.slice(4) : ""
+        const parts = groupKey.split("|")
+        if (sector == "" && parts.length < 2) return ""
+        let cap = 0
+        let capPrev = 0
+        for (const s of this.stocks) {
+            if (sector != "" ? s.sector != sector : (s.sector != parts[0] || s.industry != parts[1])) continue
+            cap += s.shares * interpClose(s.closes, day)
+            capPrev += s.shares * interpClose(s.closes, day - 1)
+            }
+        return fmtCap(cap) + "  ·  " + fmtPct(capPrev > 0 ? cap / capPrev - 1 : 0) + " TODAY"
+        },
+
+    // the sparkline probe's readout: date · price · cap at fraction `u` of the
+    // trailing year
+
+    probeLine(closes: number[], shares: number, day: number, u: number) -> string {
+        if (u < 0) return ""
+        const f = Math.max(0, Math.min(this.nDays - 1, day - TRADING_YEAR + TRADING_YEAR * u))
+        const iso = this.dateAt(f)
+        const price = interpClose(closes, f)
+        if (price <= 0) return fmtDateShort(iso) + "  ·  NOT YET LISTED"
+        return fmtDateShort(iso) + "  ·  " + fmtPrice(price) + "  ·  " + fmtCap(shares * price)
+        },
+
+    // which records does the stage need right now? The current group, plus the
+    // departing one while a drill morph is in flight. `stageRoster` derives
+    // from this, and the stage replications feed from the roster — so stage
+    // instances exist exactly when a stage key names them. Rows carry an `id`
+    // so reconciliation keeps instance identity across drills.
+
+    rosterFor(current: string, previous: string) -> object {
+        const rows = [] as object[]
+        const bands = [] as Industry[]
+        if (current == "") return { rows, bands }
+        for (const s of this.stocks) {
+            const k = s.sector + "|" + s.industry
+            if (k == current || k == previous
+                || current == "sec:" + s.sector || previous == "sec:" + s.sector)
+                rows.push({ id: s.sym, sym: s.sym, name: s.name, sector: s.sector,
+                    industry: s.industry, shares: s.shares, closes: s.closes })
+            }
+        for (const i of this.decoded.value?.industries ?? []) {
+            if (current == "sec:" + i.sector || previous == "sec:" + i.sector) bands.push(i)
+            }
+        return { rows, bands }
+        },
+
+    // one line about a company at a day, for the legend's readout
+
+    describe(sym: string, day: number) -> string {
+        const s = this.stocks.find((k) => k.sym == sym)
+        if (s == null) return ""
+        return s.name.toUpperCase() + " · " + s.industry + " · " + fmtCap(this.capAt(s.shares, s.closes, day)) + " · "
+            + fmtPct(this.dayChangeAt(s.closes, day))
+        }
+    ]
+
+
+/*
+## The layouts
+
+A base `Layout`'s place-pass is a live tracked constraint, so a `place()` that
+reads `app.day` re-places continuously — the whole map morphs against the
+scrub with one evaluation distributing every position.
+
+The boxes carry `x`/`y` only, deliberately: a box that also carried `w`/`h`
+would install a separate runtime constraint per child per dimension, each
+re-evaluating `place()` — measured at 600 children, that alone drops a
+five-year flight from 45 fps to 1.4. Sizes stay compiler-wired constraints on
+the classes instead: positions through the pass, sizes through static edges.
+*/
+
+class MarketLayout extends Layout [
+    place() {
+        const holder = parent as View
+        const lay = mapPartition(app.market.stocks, app.market.tree,
+            app.day, holder.width, holder.height)
+        return this.laid().map((c) => {
+            const r = lay[(c as Tile).pid]
+            // x/y only — a box's shape declares ownership, and sizes belong
+            // to the classes' own wired constraints
+            return r ? { x: r.x, y: r.y } : { x: OFFSTAGE.x, y: OFFSTAGE.y }
+            })
+        }
+    ]
+
+
+class StageLayout extends Layout [
+    place() {
+        const holder = parent as View
+        const lay = stagePartition(app.market.stocks, app.market.tree,
+            app.day, holder.width, holder.height,
+            app.stageKey, app.zoom, app.prevStageKey, app.drillProgress)
+        return this.laid().map((c) => {
+            const p = (c as StageTile).pid
+            const r = lay["stage:" + p] ?? lay[p]
+            return r ? { x: r.x, y: r.y } : { x: OFFSTAGE.x, y: OFFSTAGE.y }
+            })
+        }
+    ]
+
+
+/*
+## Tile
+
+One company on the map. The layout owns its position; its size and color are
+wired constraints over the same partition (a memo-hit — see the script block).
+Symbol, then the company name and the day's change when the tile is roomy
+enough — the name gates on its own measured width, so it appears exactly when
+it fits.
+*/
+
+class Tile [ cursor = "pointer",
+
+    pid: string = { :sym },
+    slot: Rect = { rectFor(mapPartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH), :sym) },
+    dayChange: number = { app.market.dayChangeAt(:closes, app.day) },
+    groupKey: string = { :sector + "|" + :industry },
+    roomy: boolean = { this.width >= 120 && this.height >= 86 },
+
+    width = { this.slot.w },
+    height = { this.slot.h },
+    fill = { changeColor(this.dayChange) },
+
+    onPointerOver() { app.spotSym = :sym
+        app.hotGroup = this.groupKey },
+    onClick() { app.openGroup(this.groupKey) },
+
+    sym: Text [ x = center,
+        y = { (classroot.height - this.height) / 2 - (classroot.roomy ? 12 : 0) },
+        fontWeight = bold, textColor = { provided("theme").ink },
+        fontSize = { Math.max(8, Math.min(22, Math.round(classroot.width / 5))) },
+        visible = { classroot.width > 26 && classroot.height > 16 },
+        text = :sym ],
+    companyName: Text [ x = center, y = { classroot.height / 2 + 6 }, fontSize = 9,
+        letterSpacing = 1, textColor = { provided("theme").ink }, opacity = 0.6,
+        visible = { classroot.roomy && this.width < classroot.width - 10 },
+        text = { (:name || "").toUpperCase() } ],
+    pct: Text [ x = center,
+        y = { classroot.height / 2 + (classroot.roomy ? 24 : 13) },
+        fontSize = 9, textColor = { provided("theme").inkSoft }, opacity = 0.85,
+        visible = { classroot.width > 58 && classroot.height > 48 },
+        text = { fmtPct(classroot.dayChange) } ]
+    ]
+
+
+/*
+## SectorBand · IndustryBand
+
+The group labels are the map's interaction surface for whole groups: hover
+haloes the group (label goes finviz-yellow with dark ink), click opens it on
+the stage. Both write the one `app.hotGroup` key; the halo view derives its
+rectangle from it. Highlights are *gated* on `app.fieldHover` rather than
+cleared by pointer-out events — when the pointer leaves the grid, the derived
+gate drops and every highlight follows.
+*/
+
+class SectorBand [ cursor = "pointer", clip = true,
+
+    pid: string = { "sector:" + :id },
+    hot: boolean = { app.hotGroup == "sec:" + :id && app.zoom < 0.05 && app.fieldHover },
+
+    height = { SECTOR_BAND_H },
+    width = { rectFor(mapPartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH), this.pid).w },
+    fill = { this.hot ? provided("theme").highlight : provided("theme").sectorBand },
+
+    onPointerOver() { app.hotGroup = "sec:" + :id },
+    onClick() { app.openGroup("sec:" + :id) },
+
+    Text [ x = 7, y = center, fontSize = 9, letterSpacing = 2, fontWeight = bold,
+        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").bandInk }, text = :label ]
+    ]
+
+
+class IndustryBand [ cursor = "pointer", clip = true,
+
+    pid: string = { "ind:" + :id },
+    hot: boolean = { app.hotGroup == :id && app.zoom < 0.05 && app.fieldHover },
+
+    height = { INDUSTRY_BAND_H },
+    width = { rectFor(mapPartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH), this.pid).w },
+    fill = { this.hot ? provided("theme").highlight : provided("theme").industryBand },
+
+    onPointerOver() { app.hotGroup = (:id) },
+    onClick() { app.openGroup(:id) },
+
+    Text [ x = 6, y = center, fontSize = 8, letterSpacing = 1,
+        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").industryInk }, text = :label ]
+    ]
+
+
+/*
+## StageTile
+
+A company on the stage — the full card: symbol, name, day change, price · cap ·
+trailing-year return, and a sparkline of the trailing year drawn along the
+tile's floor (a `draw()` mark, not a field: only the staged dozen ever record
+anything). The card degrades tier by tier as tiles shrink.
+
+The sparkline takes a probe: hovering scrubs it (derived from the built-in
+`hovered` and `app.pointerX` — no handler), and in an industry stage a click
+pins it. In a *sector* stage a click drills into the tile's industry instead —
+the pin belongs where there is nothing left to open.
+
+Staged tiles replicate from the roster, so every instance here is on stage (or
+departing mid-drill — `mine` keeps the leavers laid until the morph lands).
+*/
+
+class StageTile [ cursor = "pointer", clip = true,
+    x = -900, y = -900,                             // parked until the layout places it
+
+    pid: string = { :sym },
+    groupKey: string = { :sector + "|" + :industry },
+    mine: boolean = { this.groupKey == app.stageKey
+        || app.stageKey == "sec:" + :sector
+        || (app.drillProgress < 0.98
+            && (this.groupKey == app.prevStageKey
+                || app.prevStageKey == "sec:" + :sector)) },
+    ignoreLayout = { !this.mine },
+
+    stageSlot: Rect = { this.mine && app.zoom > 0.002
+        ? rectFor(stagePartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress), "stage:" + :sym)
+        : rectFor({}, "") },
+    dayChange: number = { this.mine ? app.market.dayChangeAt(:closes, app.day) : 0 },
+    yearReturn: number = { this.mine ? app.market.returnOver(:closes, app.day, TRADING_YEAR) : 0 },
+    big: boolean = { this.width > 150 && this.height > 116 },
+    tall: boolean = { this.height >= 148 },
+
+    width = { Math.max(0, this.stageSlot.w) },
+    height = { Math.max(0, this.stageSlot.h) },
+    visible = { this.mine && app.zoom > 0.002 && this.x > -800 },
+    fill = { changeColor(this.dayChange) },
+
+    // the probe: hover scrubs the trailing year; a click (or tap) pins it
+
+    hoverU: number = { this.mine && this.big && this.hovered
+        ? Math.max(0, Math.min(1, (app.pointerX - this.x - 10) / Math.max(1, this.width - 20)))
+        : -1 },
+    pinnedU: number = -1,
+    probeU: number = { this.hovered && this.hoverU >= 0 ? this.hoverU : this.pinnedU },
+
+    onPointerOver() { app.spotSym = :sym
+        if (app.stageKey.slice(0, 4) == "sec:") app.hotStaged = this.groupKey },
+    onClick(e: PointerEvent) {
+        if (app.stageKey.slice(0, 4) == "sec:") { app.drill(this.groupKey); return }
+        if (this.big) pinnedU = Math.max(0, Math.min(1, (e.x - 10) / Math.max(1, this.width - 20))) },
+
+    // the trailing year, inscribed along the tile's floor; gold marks the probe
+
+    draw(d: Draw) {
+        if (!this.mine || !this.big || app.zoom < 0.4) return
+        const closes = :closes
+        const day = app.day
+        const w = this.width
+        const h = this.height
+        const top = h * SPARK_TOP
+        const span = h * SPARK_SPAN
+        const N = 56
+        let lo = 1e18
+        let hi = -1e18
+        const pts = [] as number[]
+        for (let k = 0; k <= N; k++) {
+            const v = interpClose(closes, day - TRADING_YEAR + (TRADING_YEAR * k) / N)
+            pts.push(v)
+            if (v > 0) { if (v < lo) lo = v; if (v > hi) hi = v }
+        }
+        if (hi <= lo) return
+        const ink = provided("theme").ink
+        d.strokeStyle = colorWithAlpha(ink, 71)
+        d.lineWidth = 1
+        d.beginPath()
+        d.moveTo(10, top + span)
+        d.lineTo(w - 10, top + span)
+        d.stroke()
+        d.strokeStyle = colorWithAlpha(ink, 191)
+        d.lineWidth = 1.6
+        d.lineJoin = "round"
+        d.beginPath()
+        for (let k = 0; k <= N; k++) {
+            const px = 10 + ((w - 20) * k) / N
+            const py = pts[k] > 0 ? top + span - ((pts[k] - lo) / (hi - lo)) * span : top + span
+            if (k == 0) d.moveTo(px, py)
+            else d.lineTo(px, py)
+        }
+        d.stroke()
+        d.fillStyle = ink
+        d.beginPath()
+        d.arc(w - 10, top + span - ((pts[N] - lo) / (hi - lo)) * span, 2.4, 0, Math.PI * 2)
+        d.fill()
+        const u = this.probeU
+        if (u >= 0) {
+            const px = 10 + (w - 20) * u
+            const v = interpClose(closes, day - TRADING_YEAR + TRADING_YEAR * u)
+            d.strokeStyle = colorWithAlpha(provided("theme").highlight, 140)
+            d.lineWidth = 1
+            d.beginPath()
+            d.moveTo(px, h * 0.62)
+            d.lineTo(px, top + span)
+            d.stroke()
+            if (v > 0) {
+                d.fillStyle = provided("theme").highlight
+                d.beginPath()
+                d.arc(px, top + span - ((v - lo) / (hi - lo)) * span, 3, 0, Math.PI * 2)
+                d.fill()
+            }
+        }
+        },
+
+    sym: Text [ x = center,
+        y = { classroot.big ? classroot.height * 0.18 : (classroot.height - this.height) / 2 },
+        fontWeight = bold, textColor = { provided("theme").ink },
+        fontSize = { Math.max(8, Math.min(30, Math.round(classroot.width / 5))) },
+        visible = { classroot.width > 20 && classroot.height > 14 },
+        text = { classroot.mine ? :sym : "" } ],
+    companyName: Text [ x = center, y = { classroot.height * 0.18 + 36 }, fontSize = 10,
+        letterSpacing = 1, textColor = { provided("theme").ink }, opacity = 0.7,
+        visible = { classroot.big && classroot.tall && this.width < classroot.width - 12 },
+        text = { classroot.mine ? (:name || "").toUpperCase() : "" } ],
+    pct: Text [ x = center,
+        y = { classroot.big
+            ? classroot.height * 0.18 + (classroot.tall ? 56 : 34)
+            : classroot.height / 2 + 15 },
+        fontSize = { classroot.big ? 12 : 10 }, textColor = { provided("theme").inkSoft }, opacity = 0.9,
+        visible = { classroot.width > 48 && classroot.height > 44 },
+        text = { classroot.mine ? fmtPct(classroot.dayChange) + (classroot.big ? " TODAY" : "") : "" } ],
+    statLine: Text [ x = center,
+        y = { classroot.height * 0.18 + (classroot.tall ? 76 : 54) }, fontSize = 10,
+        textColor = { provided("theme").inkSoft }, opacity = 0.75,
+        visible = { classroot.big && classroot.height >= 180 },
+        text = { classroot.mine && classroot.big
+            ? fmtPrice(app.market.priceAt(:closes, app.day)) + "  ·  "
+                + fmtCap(app.market.capAt(:shares, :closes, app.day))
+                + "  ·  1Y " + fmtPct(classroot.yearReturn)
+            : "" } ],
+
+    probeChip: View [ fill = { provided("theme").probeChip }, cornerRadius = 4, height = 18, opacity = 0.94,
+        pointerEvents = "none",
+        visible = { classroot.probeU >= 0 && classroot.big && app.zoom > 0.5 },
+        width = { this.t.width + 14 },
+        x = { Math.max(4, Math.min(classroot.width - this.width - 4,
+            10 + (classroot.width - 20) * Math.max(0, classroot.probeU) - this.width / 2)) },
+        y = { classroot.height * SPARK_TOP - 26 },
+        t: TextLabel [ x = 7, fontSize = 9, letterSpacing = 1, textColor = { provided("theme").highlight },
+            text = { classroot.probeU >= 0
+                ? app.market.probeLine(:closes, :shares, app.day, classroot.probeU)
+                : "" } ]
+        ]
+    ]
+
+
+/*
+## StageBand
+
+An industry's label strip inside a staged sector — the drill target. Same
+yellow treatment as the map bands, driven by the same `hotStaged` key the
+staged tiles write, gated on the popup being under the pointer.
+*/
+
+class StageBand [ cursor = "pointer", clip = true,
+    x = -900, y = -900,                             // parked until the layout places it
+
+    pid: string = { "stgband:" + :id },
+    mine: boolean = { app.stageKey == "sec:" + :sector
+        || (app.drillProgress < 0.98 && app.prevStageKey == "sec:" + :sector) },
+    ignoreLayout = { !this.mine },
+    hot: boolean = { this.mine && (this.hovered || (app.stageHover && app.hotStaged == :id)) },
+
+    bandSlot: Rect = { this.mine && app.zoom > 0.002
+        ? rectFor(stagePartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress), this.pid)
+        : rectFor({}, "") },
+    width = { Math.max(0, this.bandSlot.w) },
+    height = { Math.max(0, this.bandSlot.h) },
+    visible = { this.mine && app.zoom > 0.002 && this.x > -800 },
+    fill = { this.hot ? provided("theme").highlight : provided("theme").industryBand },
+
+    onPointerOver() { app.hotStaged = (:id) },
+    onClick() { app.drill(:id) },
+
+    Text [ x = 6, y = center, fontSize = 9, letterSpacing = 1,
+        textColor = { classroot.hot ? provided("theme").inkOnHighlight : provided("theme").bandInk },
+        text = { classroot.mine ? :label : "" } ]
+    ]
+
+
+/*
+## EraChip · LegendSwatch
+
+Console furniture. A chip flies the map to a date (nearest trading day — LAST
+DAY simply names a far-future date); a swatch shows the color scale.
+*/
+
+class EraChip extends Control [ height = 20, cornerRadius = 10, cursor = "pointer", padding = [0, 9, 0, 9],
+    label: string = "",
+    iso: string = "",
+    fill = { hovered ? provided("theme").chipHover : provided("theme").chip },
+    press() { app.flyTo(this.iso) },
+    t: TextLabel [ fontSize = 9, letterSpacing = 1.5, textColor = { provided("theme").chipInk },
+        text = { label } ]
+    ]
+
+
+class LegendSwatch [ height = 18, cornerRadius = 2,
+    pct: number = 0,
+    width = { app.narrow ? 40 : 52 },
+    fill = { changeColor(this.pct / 100) },
+    Text [ x = center, y = center, fontSize = 9, fontWeight = bold, textColor = { provided("theme").ink },
+        text = { (pct > 0 ? "+" : "") + pct + "%" } ]
+    ]
+
+
+/*
 ## The App
 
 Assembly, top to bottom: the console (slider, era chips, live date), the map
@@ -908,9 +905,12 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
     // span the file carries
 
     market: Market [
-        landed(nDays: number) {
-            app.day = nDays - 1
-            app.targetDay = nDays - 1
+        onLoad() {
+            // the payload's own count: a handler reads the world as it was when
+            // it began, before anything derived from this arrival has moved
+            const last = (this.value?.days ?? []).length - 1
+            app.day = last
+            app.targetDay = last
             }
         ],
 
@@ -918,7 +918,9 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
     // softly — same spring, different constants, so a chip click flies the
     // map through every intervening day and stays interruptible.
     // The defaults only cover the beat before the data arrives; the market's
-    // `landed` hook (below) then opens the app on the data's last day.
+    // `onLoad` (above) then opens the app on the data's last day outright —
+    // an arrival is a fact, not a change the map lived through, so it must
+    // not fly there.
 
     day: number = { app.nDays - 1 },
     targetDay: number = { app.nDays - 1 },
@@ -979,14 +981,11 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
     fieldHover: boolean = { this.field.hovered },
     stageHover: boolean = { this.field.stage.hovered || this.field.stagebox.hovered },
 
-    spotLine: string = "",
-    spot(sym: string) {
-        const s = (this.market.stocks as Stock[]).find(k => k.sym == sym)
-        if (!s) return
-        this.spotLine = s.name.toUpperCase() + " · " + s.industry + " · "
-            + fmtCap(this.market.capAt(s.shares, s.closes, this.day)) + " · "
-            + fmtPct(this.market.dayChangeAt(s.closes, this.day))
-        },
+    // the company under the pointer: hovering writes which one, and the
+    // legend's line derives from it at the day showing
+
+    spotSym: string = "",
+    spotLine: string = { app.market.describe(app.spotSym, app.day) },
 
     // ── derived geometry ──
 
@@ -1004,29 +1003,35 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
         // the console has an inside: every control is written against it, and
         // the panel is as tall as what it holds plus the inset under it
 
-        padding = [0, 24, 20, 24],
+        padding = [10, 24, 20, 24],
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
 
-        // the span reads off the data itself, so a different file retitles the app
+        // the title and the live date share the first line
 
-        title: Text [ y = 12, fontSize = 10, letterSpacing = 3, fontWeight = bold,
-            textColor = { provided("theme").inkMuted }, visible = { !app.narrow },
-            text = { "MARKET MAP — S&P 500" + (app.market.ready
-                ? ", " + fmtMonthYear(app.market.dateAt(0)) + " → " + fmtMonthYear(app.market.dateAt(app.nDays - 1))
-                : "") } ],
-        date: Text [ x = end, y = 10,
-            fontSize = { app.narrow ? 13 : 17 }, fontWeight = bold,
-            letterSpacing = 1, textColor = { provided("theme").ink },
-            text = { fmtDateLong(app.market.dateAt(app.day)) } ],
+        head: View [ width = 100%, height = 26,
+
+            // the span reads off the data itself, so a different file retitles the app
+
+            title: Text [ y = 2, fontSize = 10, letterSpacing = 3, fontWeight = bold,
+                textColor = { provided("theme").inkMuted }, visible = { !app.narrow },
+                text = { "MARKET MAP — S&P 500" + (app.market.ready
+                    ? ", " + fmtMonthYear(app.market.dateAt(0)) + " → " + fmtMonthYear(app.market.dateAt(app.nDays - 1))
+                    : "") } ],
+            date: Text [ x = end,
+                fontSize = { app.narrow ? 13 : 17 }, fontWeight = bold,
+                letterSpacing = 1, textColor = { provided("theme").ink },
+                text = { fmtDateLong(app.market.dateAt(app.day)) } ]
+            ],
 
         // min = 1: day zero has no prior close, so no day-over-day color
 
-        scrubber: Slider [ y = 40, width = 100%,
+        scrubber: Slider [ width = 100%,
             min = 1, max = { app.nDays - 1 },
             value = { app.day },
             input(v: number) { app.scrub(v) }
             ],
 
-        chips: View [ y = 72, width = 100%,
+        chips: View [ width = 100%,
             layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
 
             // editorial, anchored to this file's span — the crash/bottom dates
@@ -1046,7 +1051,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
 
     field: View [ y = { app.mapY }, width = 100%, height = { app.mapH }, clip = true,
         layout: MarketLayout [ ],
-        datapath = { app.market.table.value },
+        datapath = { app.market.decoded.value },
 
         Tile [ datapath = :stocks[] ],
         IndustryBand [ datapath = :industries[] ],
@@ -1062,42 +1067,43 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
         // the finviz-yellow halo around whichever group is hot
 
         halo: View [ ignoreLayout = true, pointerEvents = "none", fill = null,
-            r: object = { rectFor(mapPartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH) as Record<string, Rect>,
+            r: Rect = { rectFor(mapPartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH) as Record<string, Rect>,
                 app.hotGroup.slice(0, 4) == "sec:" ? "sector:" + app.hotGroup.slice(4) : "zone:" + app.hotGroup) },
             visible = { app.hotGroup != "" && app.fieldHover
-                && app.zoom < 0.05 && (this.r as Rect).x > -800 },
-            x = { (this.r as Rect).x - 1 },
-            y = { (this.r as Rect).y - 1 },
-            width = { (this.r as Rect).w + 2 },
-            height = { (this.r as Rect).h + 2 },
+                && app.zoom < 0.05 && this.r.x > -800 },
+            x = { this.r.x - 1 },
+            y = { this.r.y - 1 },
+            width = { this.r.w + 2 },
+            height = { this.r.h + 2 },
             stroke = { stroke(2, provided("theme").highlight) }
             ],
 
         // the stage: backdrop + yellow title bar; its roster paints above
 
         stage: View [ ignoreLayout = true, fill = { provided("theme").stage },
-            r: object = { rectFor(stagePartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress) as Record<string, Rect>, "zone:" + app.stageKey) },
+            r: Rect = { rectFor(stagePartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress), "zone:" + app.stageKey) },
             visible = { app.zoom > 0.002 && app.stageKey != "" },
-            x = { (this.r as Rect).x },
-            y = { (this.r as Rect).y },
-            width = { (this.r as Rect).w },
-            height = { (this.r as Rect).h },
+            x = { this.r.x },
+            y = { this.r.y },
+            width = { this.r.w },
+            height = { this.r.h },
             stroke = { stroke(2, provided("theme").highlight) },
 
             head: View [ width = 100%, height = { STAGE_HEAD_H }, fill = { provided("theme").highlight }, clip = true,
+                padding = [0, 36, 0, 10],                     // the right inset leaves room for the close box
                 onPointerOver() { app.hotStaged = "" },       // the bar is not a subitem
-                Text [ x = 10, y = center, fontSize = 11, letterSpacing = 2, fontWeight = bold,
+                Text [ y = center, fontSize = 11, letterSpacing = 2, fontWeight = bold,
                     textColor = { provided("theme").inkOnHighlight }, opacity = { app.zoom },
                     text = { stageTitle(app.stageKey) } ],
-                Text [ x = { parent.width - this.width - 36 }, y = center, fontSize = 10,
+                Text [ x = end, y = center, fontSize = 10,
                     letterSpacing = 1, textColor = { provided("theme").inkOnHighlight }, opacity = { app.zoom * 0.75 },
                     text = { app.zoom > 0.3 ? app.market.groupStat(app.stageKey, app.day) : "" } ]
                 ],
-            closeBox: View [ x = { parent.width - 26 }, y = 4, width = 22, height = 22,
-                cornerRadius = 4, cursor = "pointer",
+            closeBox: Control [ x = { parent.width - 26 }, y = 4, width = 22, height = 22,
+                cornerRadius = 4, cursor = "pointer", tooltipLabel = "Close",
                 fill = { hovered ? provided("theme").highlightHover : provided("theme").highlight },
                 opacity = { app.zoom },
-                onClick() { app.closeGroup() },
+                press() { app.closeGroup() },
                 CloseIcon [ x = center, y = center, iconSize = 14, ink = { provided("theme").inkOnHighlight } ]
                 ]
             ],
@@ -1110,13 +1116,13 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
             StageBand [ datapath = :bands[] ],
             StageTile [ datapath = :rows[] ],
             stghalo: View [ ignoreLayout = true, pointerEvents = "none", fill = null,
-                r: object = { rectFor(stagePartition(app.market.stocks as Stock[], app.market.tree as SecNode[], app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress) as Record<string, Rect>, "stgzone:" + app.hotStaged) },
+                r: Rect = { rectFor(stagePartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress), "stgzone:" + app.hotStaged) },
                 visible = { app.stageKey.slice(0, 4) == "sec:" && app.hotStaged != ""
-                    && app.stageHover && app.zoom > 0.5 && (this.r as Rect).x > -800 },
-                x = { (this.r as Rect).x - 1 },
-                y = { (this.r as Rect).y - 1 },
-                width = { (this.r as Rect).w + 2 },
-                height = { (this.r as Rect).h + 2 },
+                    && app.stageHover && app.zoom > 0.5 && this.r.x > -800 },
+                x = { this.r.x - 1 },
+                y = { this.r.y - 1 },
+                width = { this.r.w + 2 },
+                height = { this.r.h + 2 },
                 stroke = { stroke(2, provided("theme").highlight) }
                 ]
             ]

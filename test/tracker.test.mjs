@@ -26,18 +26,17 @@ async function boot(n = 10000) {
   app.width = 1200;
   app.height = 800;
   app.adopt(generate(n));
-  app.booted = true;
   settle();
   return app;
 }
 
 const listRows = (app) => app.body.main.list.children.filter((c) => c.isTableRow === true);
 // the rail's status counts, as { status: n }
-const counts = (app) => Object.fromEntries(app.statusRows.value.rows.map((r) => [r.status, r.n]));
+const counts = (app) => Object.fromEntries(app.issues.byStatus.value.rows.map((r) => [r.status, r.n]));
 
 await test("boot: the projection stands, the counts add up, the list windows (10k)", async () => {
   const app = await boot(10000);
-  assert.equal(app.issuesOf(app.rev).length, 10000);
+  assert.equal(app.issues.all().length, 10000);
   assert.equal(app.shownTotal, 10000);
   const c = counts(app);
   assert.equal(c.open + c["in-progress"] + c.blocked + c.closed, 10000, "counts partition the set");
@@ -73,9 +72,8 @@ await test("criterion 2: insert at top while scrolled deep — the viewport hold
   const before = { id: anchor.rec?.id ?? anchor.item().id, screenY: anchor.y - app.body.main.list.scrollY };
   // 50 fresh issues arrive at the top of the newest-first sort
   for (let i = 0; i < 50; i++) {
-    app.db.insert(["issues"], 0, { id: 900000 + i, title: "hotfix " + i, description: "", status: "open", priority: "P1", labels: [], assignee: null, created: 999, updated: 99999999999999, comments: 0 });
+    app.issues.insert(["issues"], 0, { id: 900000 + i, title: "hotfix " + i, description: "", status: "open", priority: "P1", labels: [], assignee: null, created: 999, updated: 99999999999999, comments: 0 });
   }
-  app.rev = app.rev + 1;
   settle(); settle();
   const after = listRows(app).find((r) => (r.item() ?? {}).id === before.id);
   assert.ok(after !== undefined, "the row being read is still materialized");
@@ -96,10 +94,9 @@ await test("criterion 3: edit an unmaterialized row from the detail panel; scrol
   // edit through the draft and commit — the record is nowhere materialized
   app.setDraftField("status", "blocked");
   app.draft.set(["it", "title"], "edited far away");
-  app.draftRev = app.draftRev + 1;
   app.commitDraft();
   settle();
-  const t = app.issuesOf(app.rev).find((it) => it.id === rec.id);
+  const t = app.issues.all().find((it) => it.id === rec.id);
   assert.equal(t.status, "blocked", "the truth took the edit");
   assert.equal(t.title, "edited far away");
   app.body.main.list.scrollY = 0;
@@ -172,7 +169,7 @@ await test("criterion 7: bulk status over a cross-window selection — all 200 m
   app.bulkSet("status", "closed");
   settle();
   const ids = new Set(picks.map((r) => r.id));
-  const moved = app.issuesOf(app.rev).filter((it) => ids.has(it.id) && it.status === "closed");
+  const moved = app.issues.all().filter((it) => ids.has(it.id) && it.status === "closed");
   assert.equal(moved.length, 200, "every selected record moved, materialized or not");
 });
 
@@ -181,15 +178,15 @@ await test("criterion 8: undo a delete — the records return; counts and select
   const rows = app.shown.value.rows;
   const picks = [rows[0], rows[1], rows[2]];
   app.takeSelection(picks);
-  const before = app.issuesOf(app.rev).length;
+  const before = app.issues.all().length;
   const beforeCounts = counts(app);
   app.performDelete();
   settle();
-  assert.equal(app.issuesOf(app.rev).length, before - 3, "deleted");
+  assert.equal(app.issues.all().length, before - 3, "deleted");
   assert.equal(app.toast.shown, true, "the toast offers the undo");
   app.undoDelete();
   settle();
-  assert.equal(app.issuesOf(app.rev).length, before, "the records returned");
+  assert.equal(app.issues.all().length, before, "the records returned");
   assert.deepEqual(counts(app), beforeCounts, "group counts recovered");
   assert.deepEqual((app.selection ?? []).map((r) => r.id).sort(), picks.map((r) => r.id).sort(), "selection recovered");
   assert.equal(app.toast.shown, false);
@@ -205,7 +202,7 @@ await test("criterion 9: ragged data renders — nothing throws, defaults apply"
   }
   const unassigned = listRows(app).filter((r) => r.avatar !== undefined && r.avatar.name === "");
   assert.ok(unassigned.length >= 0, "unassigned rows render the hollow avatar");
-  assert.ok(app.issuesOf(app.rev).some((it) => it.assignee === null), "ragged records exist");
+  assert.ok(app.issues.all().some((it) => it.assignee === null), "ragged records exist");
   assert.ok(true, "walked four windows without a throw");
 });
 
@@ -236,13 +233,13 @@ await test("criterion 12: the differ — the same script, windowed vs full, iden
     app.takeSelection([rows[1], rows[2]]);
     app.bulkSet("status", "blocked");
     settle();
-    out.push(app.issuesOf(app.rev).filter((it) => it.status === "blocked").length);
+    out.push(app.issues.all().filter((it) => it.status === "blocked").length);
     app.performDelete();
     settle();
-    out.push(app.issuesOf(app.rev).length);
+    out.push(app.issues.all().length);
     app.undoDelete();
     settle();
-    out.push(app.issuesOf(app.rev).length);
+    out.push(app.issues.all().length);
     return out;
   };
   // Windowed vs virtualization OFF: the same script drives both and their
@@ -275,7 +272,6 @@ await test("criterion 12: the differ — the same script, windowed vs full, iden
   const appB = instantiate(b.program);
   appB.width = 1200; appB.height = 800;
   appB.adopt(generate(N));
-  appB.booted = true;
   settle();
   const wb = script(appB);
   assert.deepEqual(wa, wb, "identical observable state with virtualization forced off");
@@ -313,14 +309,13 @@ await test("the working copy is honest: cancel discards, save commits, dirty gat
   settle();
   assert.equal(app.draftDirty, false, "a fresh draft is clean");
   app.draft.set(["it", "title"], "poked");
-  app.draftRev = app.draftRev + 1;
   settle();
   assert.equal(app.draftDirty, true, "an edit dirties it");
   // cancel = re-open: the draft resets, the truth never moved
   app.openDetail();
   settle();
   assert.equal(app.draft.value.it.title, rec.title, "cancel discarded the edit");
-  assert.equal(app.issuesOf(app.rev).find((it) => it.id === rec.id).title, rec.title, "the truth never moved");
+  assert.equal(app.issues.all().find((it) => it.id === rec.id).title, rec.title, "the truth never moved");
 });
 
 await test("create lands at the top of its sort; the rail derives from the same truth", async () => {
@@ -329,15 +324,14 @@ await test("create lands at the top of its sort; the rail derives from the same 
   app.newIssue();
   app.draft.set(["it", "title"], "brand new issue");
   app.draft.set(["it", "updated"], 99999999999999);
-  app.draftRev = app.draftRev + 1;
   app.commitDraft();
   settle();
   assert.equal(app.shown.value.rows[0].title, "brand new issue", "newest-first sort puts it on top");
   assert.equal(app.selected.title, "brand new issue", "…and it is selected");
   assert.equal(counts(app).open, openBefore + 1, "the rail's status count re-derived on the spot");
-  assert.ok(app.workload.value.rows.length > 0, "workload lists only people with open work");
-  for (const r of app.workload.value.rows) assert.ok(r.peak >= r.n, "peak rides each row");
-  assert.ok(app.assignees(app.rev).every((n) => n[0] === n[0].toUpperCase()), "names are capitalized in the truth");
+  assert.ok(app.issues.workload.value.rows.length > 0, "workload lists only people with open work");
+  for (const r of app.issues.workload.value.rows) assert.ok(r.peak >= r.n, "peak rides each row");
+  assert.ok(app.issues.assignees().every((n) => n[0] === n[0].toUpperCase()), "names are capitalized in the truth");
 });
 
 summarize("tracker");

@@ -60,7 +60,7 @@ The whole query is read as a path when it looks like one — a `/` with no `=` b
 the service worker **first** and only then navigates, so the real URL arrives with the worker
 in control and becomes a run page. Under the dev server it simply redirects, since the server
 answers the target directly. A fragment is carried through, so
-`index.html?apps/docs/docs.declare#guide/05-space` lands where you meant.
+`index.html?apps/docs/docs.declare#guide/06-layout` lands where you meant.
 
 The target must be same-origin and inside the entry page's own directory; anything else is
 refused, which rules out absolute URLs and `..` escapes.

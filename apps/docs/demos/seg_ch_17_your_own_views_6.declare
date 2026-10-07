@@ -1,0 +1,21 @@
+class DiagonalLayout extends Layout [
+    step: number = 16,
+    place() {
+        let i = 0
+        return this.laid().map((c) => {
+            const box = ({ x: i * this.step, y: i * this.step })
+            if (c.visible) i = i + 1
+            return box
+            })
+        }
+    ]
+
+
+App [ width = 340, height = 170, fill = white,
+    deck: View [ x = 20, y = 20,
+        layout: DiagonalLayout [ step = 20 ],
+        View [ width = 140, height = 44, cornerRadius = 8, fill = steelblue ],
+        View [ width = 140, height = 44, cornerRadius = 8, fill = cadetblue ],
+        View [ width = 140, height = 44, cornerRadius = 8, fill = slategray ]
+        ]
+    ]

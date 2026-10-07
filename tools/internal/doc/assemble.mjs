@@ -275,8 +275,10 @@ function themeTokenSpine() {
                  ...readdirSync(join(ROOT, "library/icons")).filter((f) => f.endsWith(".declare")).map((f) => "library/icons/" + f)];
   const bare = new Set(), guarded = new Set(), readers = {};
   for (const f of files) {
-    // comments carry `theme.x` in prose — strip them, or documentation counts as usage
-    const code = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+    // comments carry `theme.x` in prose — strip them, or documentation counts as usage;
+    // a read is spelled `provided("theme").x`, folded to `theme.x` for the scan
+    const code = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
+      .replaceAll('provided("theme")', "theme");
     const who = f.replace(/^library\//, "").replace(/\.declare$/, "");
     for (const line of code.split("\n")) {
       for (const mm of line.matchAll(/theme\.([a-zA-Z][A-Za-z0-9]*)/g)) {

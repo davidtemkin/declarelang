@@ -74,29 +74,20 @@ class Block [ kind: string = "",
         clip = true,                             // the card contains its code: long lines clip at the box (the DOM's pre scrolls natively; the sealed surface must say so)
 
         // the card's text gutter is the card's own content box. The spine is
-        // drawn, not a child, so nothing here has to opt out of the inset —
-        // and `draw()` below still addresses the outer box, where the shape is.
+        // the card's own left border, not a child, so nothing here has to opt
+        // out of the inset.
 
         padding = [16, 20, 16, 20],
 
         // the card's own shape, stated exactly: rounded everywhere except the
         // corner an aside joins — the card above an aside squares its
         // bottom-left, the card below its top-left. Per-corner radii say it
-        // directly, and the spine is painted inside the same path, clipped to
-        // the arcs, so the thread meets the gap connectors dead-on.
+        // directly, and the spine is the left side of the stroke, following the
+        // same arcs, so the thread meets the gap connectors dead-on.
 
-        draw(d: Draw) {
-            const r = 8
-            const tl = classroot.nested ? 0 : r
-            const bl = classroot.joinBelow ? 0 : r
-            d.fillStyle = provided("theme").codeBg
-            d.beginPath()
-            d.roundRect(0, 0, this.width, this.height, [tl, r, r, bl])
-            d.fill()
-            d.clip()
-            d.fillStyle = provided("theme").accentSecondary
-            d.fillRect(0, 0, 2, this.height)
-            },
+        fill = { provided("theme").codeBg },
+        cornerRadius = { [classroot.nested ? 0 : 8, 8, 8, classroot.joinBelow ? 0 : 8] },
+        stroke = { [null, null, null, stroke(2, provided("theme").accentSecondary)] },
         body: View [ width = 100%, scrolls = x, height = { this.contentHeight },
             HTMLText [ x = 0, y = 0, width = 100%,
                 html = { classroot.html }, fontScale = { app.fontScale },

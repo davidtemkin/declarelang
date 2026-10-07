@@ -666,14 +666,16 @@ export class Windowing {
       if (data !== null) setBound(a.view, "datapath", data.$cursorAt(a.path));
       setRowIndex(a.view, a.index);
     }
-    for (const f of fresh) {
-      try { f.made.provide(); } catch (e) { reportInstanceThrow(f.view, "providing", e); }
-    }
-
-    // link and attach the new rows (child order is stacking only: placement is absolute)
+    // link, provide and attach the new rows, in that order — the order every
+    // creation path keeps: a provision may read up the tree, so it lands once
+    // the row is linked, and before attach first-runs the row's face
+    // (replicate.ts; child order is stacking only: placement is absolute)
     if (fresh.length > 0) {
       let at = host.start() + this.owned.length;
       for (const f of fresh) { parent.insertChild(f.view, at++); this.owned.push(f.view); }
+      for (const f of fresh) {
+        try { f.made.provide(); } catch (e) { reportInstanceThrow(f.view, "providing", e); }
+      }
       const ps = parent.$surface;
       if (ps !== null && parent.$backend !== null) {
         // before whatever follows the block (a footer after the rows)

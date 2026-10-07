@@ -834,7 +834,7 @@ a paging strip's position or scroll-driven effects.
 
 ## anchor
 Names this view as a **reveal target** for a location's `@name` suffix
-(`#guide/05-classes@intro` scrolls to the view with `anchor = "intro"`).
+(`#guide/04-structure@intro` scrolls to the view with `anchor = "intro"`).
 The anchor namespace is named views (this attribute) plus heading slugs inside
 rendered rich text, so a heading needs nothing from you. Resolution prefers views over
 slugs, preorder-first.

@@ -18,8 +18,8 @@
 // the tree, which was exact only while `stroke`'s body-facing type was
 // `Stroke | null` — that type foreclosed every other way of producing a list.
 // The slot's type is `BoxStroke` now (compiler/src/scaffold.ts), so a `{ }`
-// constraint computes the four sides — `stroke = { [ stroke(1, theme.line),
-// null, stroke(1, theme.line), null ] }`, which is how a themed border is
+// constraint computes the four sides — `stroke = { [ stroke(1, provided("theme").line),
+// null, stroke(1, provided("theme").line), null ] }`, which is how a themed border is
 // written — and a method body may assign one. Neither is a literal, so neither
 // can be read from the parse tree, and a fact that can MISS would stub this
 // module out from under a program that runs. The module ships to every build

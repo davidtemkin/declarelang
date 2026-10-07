@@ -18,6 +18,6 @@ export declare const THEME_PRESET_NAMES: readonly string[];
  *  out of step.
  *
  *  Renamed from `tint`, which is `Image.tint` and a filter op elsewhere in the
- *  language (`tint = { theme.accent }` recolors a mask bitmap): one word, two
+ *  language (`tint = { provided("theme").accent }` recolors a mask bitmap): one word, two
  *  unrelated meanings. */
 export declare function activeTone(accent: number, surface: number): number;

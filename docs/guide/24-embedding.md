@@ -19,7 +19,7 @@ element, and runs on every renderer.
 One boundary this chapter does *not* own: bringing foreign **code** into a
 program, rather than a foreign **rendering** into a box. A JS/TS library —
 date math, a physics engine, a parser — enters through `script { }` and its
-`import`, or `script [ "file.ts" ]` ([Classes and the tree](declare-docs:guide:classes@where-code-goes)):
+`import`, or `script [ "file.ts" ]` ([Program structure](declare-docs:guide:structure@what-script-is-for)):
 it computes for the program, opaquely, and renders nothing. Reach for an
 island or a hosted box only when the foreign thing *draws*; reach for script
 when it *computes*.

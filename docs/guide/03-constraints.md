@@ -44,8 +44,8 @@ you guard against here, because there is no way to express it.
 ## The compiler reads the dependencies
 
 Most reactive systems discover dependencies by *running* your code and watching what
-it reads. Declare does not. **A constraint's dependencies are read from its text by
-the compiler.** The dependencies of `{ a ? b : c }` are exactly `a`, `b` and `c`, and
+it reads. Declare reads them first: **a constraint's dependencies are read from its
+text by the compiler.** The dependencies of `{ a ? b : c }` are exactly `a`, `b` and `c`, and
 you can see that as well as the compiler can.
 
 Three properties follow.
@@ -149,9 +149,12 @@ genuinely once-and-imperative, like opening a socket or starting a tour.
 
 ## What a constraint may read
 
-A constraint must read *named* things — an attribute, a record field written as a
-path — so the compiler can wire it. When it cannot name what an expression reads,
-that is a compile error (`DECLARE7001`) that names the rewrite. The common cases:
+A constraint must read things the compiler can follow. Most reads it names outright —
+an attribute, a record field written as a path — and wires once. A few it can see but
+not name, such as a read through a closure's parameter or through a value a method
+hands back; that constraint stays on runtime tracking, where each read is observed as
+it runs, and nothing changes for you. What it cannot follow at all is a compile error
+(`DECLARE7001`) that names the rewrite. The common cases:
 
 - **Indexing by a runtime key**, `this[someName]` — name the attribute, or move the
   lookup into a method the compiler can read through.
@@ -178,4 +181,4 @@ to open the [Inspector](declare-docs:operational:inspector), click a value that 
 constraint owns, and it shows the expression that produced it and every value that
 expression read, updating as you interact.
 
-[Next: **Running and checking a program** →](declare-docs:guide:run-and-check)
+[Next: **Program structure** →](declare-docs:guide:structure)

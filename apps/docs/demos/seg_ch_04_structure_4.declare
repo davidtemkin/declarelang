@@ -1,0 +1,19 @@
+script {
+    function fileSize(n: number): string {
+        const units = ["B", "KB", "MB", "GB"]
+        let i = 0
+        while (n >= 1024 && i < units.length - 1) { n = n / 1024; i = i + 1 }
+        return (i == 0 ? n : n.toFixed(1)) + " " + units[i]
+    }
+    }
+
+App [ width = 300, height = 100, fill = white, textColor = black,
+    bytes: number = 1536000,
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ text = { fileSize(app.bytes) } ],
+        Button [ label = "Double it",
+            onClick() { app.bytes = app.bytes * 2 }
+            ]
+        ]
+    ]

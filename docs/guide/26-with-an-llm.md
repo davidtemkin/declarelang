@@ -84,7 +84,7 @@ Some things to look for, because an LLM arriving from other stacks drifts toward
 
 - state piled on [`App`](declare-docs:App) instead of in datasets — or data wrapped in a class's getters
   and verbs instead of bound and written directly
-  ([Data](declare-docs:guide:data), [Classes](declare-docs:guide:classes));
+  ([Data](declare-docs:guide:data), [Program structure](declare-docs:guide:structure@where-things-go));
 - hand-set `x`/`y` ladders where a layout belongs
   ([Size, position and layout](declare-docs:guide:layout));
 - clickable plain views where a library control or a [`Control`](declare-docs:Control) subclass belongs

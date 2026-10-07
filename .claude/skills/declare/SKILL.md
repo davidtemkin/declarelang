@@ -17,9 +17,10 @@ write, then check the program and look at it running.
 
 1. **`docs/declare.md`** — the whole language: its forms, its rules, how a program fits
    together.
-2. **Two guide chapters**: `docs/guide/01-what-declare-is.md`, how a Declare program
-   works and the shape of a whole app, and `docs/guide/04-run-and-check.md`, the working
-   loop (run, read an error, check, debug).
+2. **Three guide chapters**: `docs/guide/01-what-declare-is.md`, how a Declare program
+   works and the shape of a whole app; `docs/guide/04-structure.md`, where the records,
+   the user's place, the views and any script each belong; and
+   `docs/guide/05-run-and-check.md`, the working loop (run, read an error, check, debug).
 3. **The calendar, whole** — `apps/calendar/calendar.declare`, with
    `docs/guide/27-calendar.md` beside it as its commentary. It is about 500 lines of code,
    and it shows what Declare makes ordinary: a change of view that is one assignment, which
@@ -28,7 +29,7 @@ write, then check the program and look at it running.
    that every cell reads. Its month surface is a scene whose geometry is mapped through
    those springs, which is where hand-written `x` and `y` belong; an ordinary page's cards
    and rows are a layout's job (see the drift check).
-4. **The tracker, whole** — `apps/tracker/tracker.declare`, about 1,100 lines of code.
+4. **The tracker, whole** — `apps/tracker/tracker.declare`, about 1,000 lines of code.
    Where the calendar is one continuous surface, the tracker is a list of records — a
    million of them — searched, filtered, sorted and edited in place. Its opening comment
    says how it is put together.
@@ -36,6 +37,10 @@ write, then check the program and look at it running.
 Then stop reading. Everything else is read when you reach the part that needs it: every
 read stays in your context for the rest of the session, so a read made early, or never
 needed, is paid for again on every later turn.
+
+If your context is summarized partway through a session, the summary keeps what you
+did but not what you read. Read items 1 and 2 again before you write or review any
+more Declare.
 
 ## Planning a program
 
@@ -127,13 +132,13 @@ build it: the guide section that teaches it, a program that does it, and names t
 | Arranging views; sizes that follow content; one program for phone and desktop | `06-layout.md` | tracker: `SimpleLayout` and `padding` throughout; sampler: `Specimen extends Card`; weather: the App's `desk: State [ applied = { !app.phone } ]` | `SimpleLayout`, `ResponsiveLayout`, `Card`, `padding` |
 | Scrolling panes; views that stay put while the page scrolls; what is on screen staying still when content above it changes; a log that follows its newest line | `07-scrolling.md` | weather: `HourStrip`'s `scroller` (`scrolls = x`), the App's `pill` and `back` (`ignoreScroll = true`); keeping the reader's place is the default, so the tracker's list has no code for it | `scrolls`, `ignoreScroll`, `scrollTo`, `scrollAnchor` |
 | Buttons, fields, toggles; your own control, with keyboard, focus, hover and pressed built in | `08-controls.md`; `17-your-own-views.md` § View or Control | sampler: every library control; tracker: `Chip`, `Facet`, `RailStat`; calendar: `NavArrow` (each `extends Control`, with `press()`) | `Control`, `Button`, `TextInput`, `Segmented` |
-| Dragging and dropping; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and the App's `startDrag`; desktop: `Window`'s `beginDrag`; tracker: the App's `keys: Keys` | `onPointerDown`, `viewAt`, `Keys` |
+| Dragging and dropping; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and its `Drag` class; desktop: `Window`'s `beginDrag`; tracker: the App's `keys: Keys` | `onPointerDown`, `viewAt`, `Keys` |
 | Touch: a drag inside a scrolling page, press and hold | `10-touch.md` § Gesture claims | calendar: `Ev`'s `onHold`; tracker: `IssueRow`'s `onHold` (opens the context menu) | `claim`, `onHold` |
 | Themes, dark mode, a value every descendant reads | `11-paint-and-themes.md` | tracker: `theme Tracker`, the App's `theme = { … }` and `appear: AppearanceSwitch`; calendar: `theme CalendarLight` and `CalendarDark`; sampler: four themes | `theme`, `provided`, `AppearanceSwitch` |
 | Text, fonts, styled runs, views inside a line, Markdown | `12-text.md` | swatchbook: the Type and Rich text sections; desktop: `ViewerWindow` (a Markdown document in a window) | `Text`, `Font`, `style`, `HTMLText`, `Markdown` |
 | Images, video, audio | `13-media.md` | birds: `Plate`'s `pic: Image`; weather: `RowSky`'s `photo` | `Image`, `Video`, `Audio` |
-| Where records live; a document with its own logic; a list derived from it that edits still write through; a job with no view | `14-data.md` § A Node class on a record, § Data in a whole app | tracker: the App's derived `shown: Dataset`; calendar: the App's `cal: Dataset`; desktop: `WinManager extends Node` and its `list` of window records | `Dataset`, `Dataset.contents`, `Node` |
-| Data from a service: loading, failure, typed records | `14-data.md` § Where data comes from; `15-schemas.md` | tracker: `schema Issue` and the App's `src: DataSource`; marketmap: `class Market extends DataSource` | `DataSource`, `schema` |
+| Where records live; a dataset with its own logic; a list derived from it that edits still write through; a job with no view | `14-data.md` § A Node class on a record, § Data in a whole app | tracker: the App's derived `shown: Dataset`; calendar: the App's `cal: Dataset`; desktop: `WinManager extends Node` and its `list` of window records | `Dataset`, `Dataset.contents`, `Node` |
+| Data from a service: loading, failure, typed records | `14-data.md` § Where data comes from; `15-schemas.md` | tracker: `schema Issue` and `class Issues extends DataSource`; marketmap: `class Market extends DataSource` | `DataSource`, `schema` |
 | Records edited in place; forms; a draft saved or cancelled | `14-data.md` § Writing a record, § Editing text, and forms | tracker: `EditorCard` (`text <-> :it.title`); calendar: `DetailSection` | `<->`, `TextInput`, `Editor.commitOn` |
 | A long list: only the rows near the screen built, rows of different heights and kinds, a heading between records | `16-collections.md` | tracker: the App's `ListRow [ … virtualize = true, classFor = { … } ]` over `GroupRow` and `IssueRow`; desktop: the App's `wins` (a class per kind of window) | `virtualize`, `classFor`, `rowIndex`, `exists` |
 | Drawing what attributes can't express: a gauge, a chart, an icon | `17-your-own-views.md` § Custom drawing, § Icons | weather (`weather-art.declare`): `WindDial`, `PressureGauge`; marketmap: `StageTile`'s sparkline | `draw`, `Draw`, `Icon` |
@@ -159,8 +164,8 @@ shows the Declare form.
   written in script rather than in Declare: data, state and logic belong in the tree as
   datasets, attributes, constraints and methods — on the App, or in a `Dataset` or `Node`
   subclass (`declare.md` §4). Two tells: color or font constants (a theme's job), and script
-  that places views or times motion (constraints and springs). (`05-classes.md` § Where
-  code goes; `11-paint-and-themes.md` § Themes; `20-motion.md`)
+  that places views or times motion (constraints and springs). (`04-structure.md` § What
+  script is for; `11-paint-and-themes.md` § Themes; `20-motion.md`)
 - **Rebuilding what Declare does** — row heights measured by hand, a scroll position
   saved and restored, a window of rows computed from the scroll offset, a list's records
   copied into a second list to interleave headings. Each is already done for you.
@@ -205,4 +210,4 @@ shows the Declare form.
   still fail the first person who does one of these.
 - **When it runs but is wrong**, don't re-read the source to guess: ask the running program
   why a value is what it is, which view is under a point, where a value came from
-  (`04-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).
+  (`05-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).

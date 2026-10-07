@@ -32,22 +32,11 @@ they deliver rather than store.
 Selects a choice by name — the seam a `Radio` calls on its group. Call it to move the
 selection from code without bypassing `input`.
 
-## theme
-The provided design-token record this widget styles off — a **provided value**
-(the app provides it once with `App [ theme = { … } ]`; `Control` and the library
-widgets read it). Reads `theme.accent` and its kin as typed members; defaults to the
-house look. See `Control.theme`.
 */
 
 include [ "control.declare" ]
 
 class RadioGroup [
-    // The design-token record, a provided value: the app provides it once and
-    // this widget reads it, so `theme.x` reads below are plain typed members.
-    // Default = the house look.
-
-    theme: Theme = { provided("theme", SanFrancisco) },
-
     value: string = "",
 
     input(v: string) { value = v },
@@ -122,11 +111,11 @@ class Radio extends Control [ height = 22,
     on: boolean = { (parent as RadioGroup).value == choice },
 
     width   = { this.dot.width + (label == "" ? 0 : 8 + this.cap.width) },
-    opacity = { disabled ? (typeof theme.disabledOpacity == "number" ? theme.disabledOpacity : 0.45) : 1 },
+    opacity = { disabled ? (typeof provided("theme").disabledOpacity == "number" ? provided("theme").disabledOpacity : 0.45) : 1 },
 
     dot: View [ y = 2, width = 18, height = 18, cornerRadius = 9,
-        fill   = { theme.surface },
-        stroke = { stroke(on ? 5 : 1, on ? theme.accent : hovered || pressed ? theme.textMuted : theme.line) } ],
-    cap: TextLabel [ x = 26, wrap = false, textColor = { theme.text },
+        fill   = { provided("theme").surface },
+        stroke = { stroke(on ? 5 : 1, on ? provided("theme").accent : hovered || pressed ? provided("theme").textMuted : provided("theme").line) } ],
+    cap: TextLabel [ x = 26, wrap = false, textColor = { provided("theme").text },
         visible = { label != "" }, text = { label } ]
     ]

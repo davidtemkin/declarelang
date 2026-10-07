@@ -912,6 +912,13 @@ function landNodeAttr(node, attr, croot, owner, eff, ctx, pathRefusal) {
     self[attr.name] = r.value;
     return { literal: r.value };
 }
+/** A non-view node's declared defaults stand as rules exactly as a view's do
+ *  (construct(), after its attributes): queued after the node's own attribute
+ *  channels, so one installs only on a slot none of them set or bound. */
+function queueDeclaredRules(node, ctx) {
+    for (const [n, rec] of declaredRules(node))
+        ctx.pending.push({ view: node, declDefault: n, rec });
+}
 /** The shared front of every non-view family's construction — the same steps
  *  construct() takes for a view: resolve the class (a built-in, or a program
  *  class synthesized over one, its declared attributes installed as reactive
@@ -1280,6 +1287,7 @@ function constructData(el, outer, ctx) {
     for (const { attr, croot } of mergeAttrs(sources).values()) {
         landNodeAttr(node, attr, croot, el.tag, eff, ctx, "a data node is where data lives — a :path reads a view's cursor");
     }
+    queueDeclaredRules(node, ctx);
     if (!(DATA.DataSource !== undefined && node instanceof DATA.DataSource)) {
         // A literal `{ }` body OR a derived `contents = { … }` (bound above via
         // pass two, from any member source) — one or the other. The derived case
@@ -1332,6 +1340,7 @@ function constructAnimator(el, outer, ctx) {
     for (const { attr, croot } of mergeAttrs(sources).values()) {
         landNodeAttr(node, attr, croot, el.tag, eff, ctx, "an animator attribute is a value or a { }, not a data read");
     }
+    queueDeclaredRules(node, ctx);
     return node;
 }
 /** Construct a SOURCE node — a non-visual member whose handlers are called from
@@ -1350,6 +1359,7 @@ function constructSource(el, outer, ctx) {
     for (const { attr, croot } of mergeAttrs(sources).values()) {
         landNodeAttr(node, attr, croot, el.tag, eff, ctx, "a source attribute is a value or a { }, not a data read");
     }
+    queueDeclaredRules(node, ctx);
     return node;
 }
 /** The attributes an AnimatorGroup cascades to a member that omits its own (the
@@ -1387,6 +1397,7 @@ function constructAnimatorGroup(el, outer, ctx, inherited = {}) {
         if (landed !== null && CASCADE_ATTRS.has(attr.name))
             cascade[attr.name] = landed.literal;
     }
+    queueDeclaredRules(node, ctx);
     // Members: each child animator / nested group, linked under the group and
     // group-driven — the class bodies' members (they belong to every instance,
     // scoped to it), then the use site's, concatenated like a view's children.

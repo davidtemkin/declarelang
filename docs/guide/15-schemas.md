@@ -27,7 +27,7 @@ schema's name, a nested `[ … ]` record, or a literal union (`"open" | "closed"
 `0 | 1 | 2`). `?` marks a field the data may omit or send as null, and `[]` on the field's
 name marks an array — `tags[]: string` — the same spelling as the path that reads it,
 `:tags[]`. What the grammar leaves out of full TypeScript is deliberate: a schema states
-facts that can be checked against each document as it arrives. It is where an API
+facts that can be checked against the data as it arrives. It is where an API
 contract's prose — "`col` is 0, 1, or 2" — becomes a check.
 
 ## Attaching a schema
@@ -53,8 +53,8 @@ App [ width = 360, height = 170, fill = white, textColor = #172530,
     ]
 ```
 
-A dataset declares its document with `schema = [ … ]` — here, a document whose `items` is
-an array of `Task`. From then on:
+A dataset declares the shape of its data with `schema = [ … ]` — here, data whose `items`
+is an array of `Task`. From then on:
 
 - **The compiler checks the paths it can see.** `text = :titel` on an attribute, a
   misspelled `key = :…`, or a replication path that does not match the schema is a
@@ -108,7 +108,7 @@ are checked.
 
 | data crosses… | checked by | when | a violation… |
 |---|---|---|---|
-| a fetched response | runtime | on arrival | lands in `.failed` with the path; `.value` keeps the last good document |
+| a fetched response | runtime | on arrival | lands in `.failed` with the path; `.value` keeps the last good data |
 | an embedded `{ json }` body | runtime | at build | fails the build, path named |
 | a write — `:field = v`, [`set`](declare-docs:Dataset.method.set), [`insert`](declare-docs:Dataset.method.insert) | runtime | at the write | throws, naming the path and the expectation |
 | a text field's `<->` draft | the edit session | at commit | an unreadable draft makes the session invalid; nothing is written |

@@ -5,8 +5,8 @@ class Stepper extends Control [ width = 96, height = 28, cornerRadius = 7,
     input(v: number) { value = v },
     press() { input(value + step) },
 
-    fill = { pressed ? theme.controlPressed : hovered ? theme.controlHovered : theme.control },
-    t: Text [ x = center, y = center, fontSize = 13, textColor = { theme.text },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    t: Text [ x = center, y = center, fontSize = 13, textColor = { provided("theme").text },
         text = { "" + classroot.value } ]
     ]
 

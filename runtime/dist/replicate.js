@@ -446,19 +446,6 @@ export class Replicator {
             setBound(v, "datapath", data === null ? null : data.$cursorAt(nodes[i].path));
             setRowIndex(v, rowIndexOf(nodes[i].path));
         });
-        // Provisions land BEFORE attach (instantiate's partitionPending): attach
-        // first-runs a Text's face push, and a face read that missed a provision
-        // the instance was about to install kept the default ink. Cursored first,
-        // so a provision reading `:path` boots against its record. Contained per
-        // instance, like attach and finish.
-        for (const [v, made] of fresh) {
-            try {
-                made.provide();
-            }
-            catch (e) {
-                reportInstanceThrow(v, "providing", e);
-            }
-        }
         // Leftovers: instances whose record left. Their onRetire fires NOW —
         // still parented, cursored, and live (the hook's contract); discard's own
         // fire is a no-op after this (once per lifetime).
@@ -477,6 +464,22 @@ export class Replicator {
                 this.parent.insertChild(v, at++);
             for (const v of removed)
                 v.discard();
+            // Provisions land LINKED and BEFORE attach — the order every creation
+            // path keeps (instantiate's partitionPending). Linked, because a
+            // provision may read up the tree (`textColor = { provided("theme")… }`)
+            // and a detached instance has no ancestors. Before attach, because
+            // attach first-runs a Text's face push, and a face read that missed a
+            // provision the instance was about to install kept the default ink.
+            // Cursored first, so a provision reading `:path` boots against its
+            // record. Contained per instance, like attach and finish.
+            for (const [v, made] of fresh) {
+                try {
+                    made.provide();
+                }
+                catch (e) {
+                    reportInstanceThrow(v, "providing", e);
+                }
+            }
             // Mirror the order across the seam: walk backwards so each surface
             // lands before its successor's (fresh attach and kept move alike).
             const ps = this.parent.$surface;

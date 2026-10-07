@@ -103,14 +103,14 @@ class Chip [ label: string = "",
     ]
 
 
-// A view in a line that keeps state of its own: click one and it changes
+// A control in a line that keeps state of its own: press one and it changes
 // width, and the line re-flows around it.
 
-class Pill [ label: string = "",
+class Pill extends Control [ label: string = "",
     picked: boolean = false,
     height = 20, width = { this.t.width + 22 }, cornerRadius = 10,
     fill = { picked ? 0x2E6FE0 : hovered ? 0xDDE7F9 : 0xEEF1F5 },
-    onClick() { picked = !picked },
+    press() { picked = !picked },
     t: TextLabel [ x = 11, fontSize = 11.5, fontWeight = medium,
         textColor = { classroot.picked ? 0xFFFFFF : 0x1D3F8F },
         text = { classroot.picked ? classroot.label + " ✓" : classroot.label } ]

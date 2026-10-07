@@ -41,7 +41,7 @@ Loads (or reloads) the resource from the current `url`, then settles `value` and
 flags **together**, a frame ahead. Loading is a verb you call, not something that happens
 to you, so you decide *when* (usually in `onInit`, or on a user action). Calling it again
 re-fetches — `loading` for the duration, `loaded` and `value` untouched until the new
-document lands. It settles before it sends, so a handler that changes what `url` or `body`
+data lands. It settles before it sends, so a handler that changes what `url` or `body`
 derives from and then calls `fetch()` sends the new request. A later call supersedes an
 earlier one, whose reply is dropped. It returns a `Promise` that never rejects — a failure
 lands in `failed` and `error` — but the flags and `onLoad` are the idiomatic path.
@@ -125,22 +125,22 @@ request flags. For resetting a search field's results, or releasing a large resp
 no longer need.
 
 ## loaded
-A document is present: `value` is not null. True from the first arrival on and **stays
+Data is present: `value` is not null. True from the first arrival on and **stays
 true through every later fetch** — a refetch (a changed `url` under `auto`, or `fetch()`
-again) keeps the last good document in `value` until the new one lands — until `clear()`
+again) keeps the last good data in `value` until the new data lands — until `clear()`
 empties the source. It is about the value, not the request: `visible = { data.loaded }`
 is the screen that shows once there is something to show, and it stays put while the
 data refreshes.
 
 ## loading
 A request is in flight — the attribute to hang a spinner on. Independent of `loaded`: a
-source is `loaded && loading` for the whole of a refresh, the old document showing and
-the new one on its way.
+source is `loaded && loading` for the whole of a refresh, the old data showing and
+the new on its way.
 
 ## failed
 The last request, or its schema check, refused. Read `error` for the one-line reason,
 `statusCode` and `errorBody` for what the server actually said. `value` is untouched, so
-a failed refresh leaves the source `loaded && failed` — the last good document still
+a failed refresh leaves the source `loaded && failed` — the last good data still
 showing, with a reason beside it. The next `fetch()` clears it.
 
 ## error

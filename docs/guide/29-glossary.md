@@ -43,7 +43,7 @@ name the same thing, the one here is the one the platform means.
 ## The tree
 
 - **class** — what a capitalized tag names: [`View`](declare-docs:View), [`Button`](declare-docs:Button), your own, defined with
-  `class Name [ … ]`, a view, or `class Name extends Base [ … ]`; one that extends [`Node`](declare-docs:Node) has no view. → [Classes and the tree](declare-docs:guide:classes)
+  `class Name [ … ]`, a view, or `class Name extends Base [ … ]`; one that extends [`Node`](declare-docs:Node) has no view. → [Program structure](declare-docs:guide:structure)
 - **instance** — one use of a class: a tag with a `[ ]` body, such as `Button [ … ]`.
 - **control** — an interactive view with a value and a place in the keyboard focus
   order; the library's controls, and any class extending [`Control`](declare-docs:Control). → [Controls](declare-docs:guide:controls)
@@ -51,9 +51,9 @@ name the same thing, the one here is the one the platform means.
   handler, a child.
 - **item** — one entry of a [`Table`](declare-docs:Table)'s collection, and what its selection holds: the
   record behind a replicated row, or the row itself when written by hand.
-- **class with no view** — a class that extends [`Node`](declare-docs:Node): a job that paints nothing and is not a
-  document. It may stand on a record of its own with a `datapath`. → [Classes and the tree](declare-docs:guide:classes@classes-with-no-view)
-- **document class** — a class that extends [`Dataset`](declare-docs:Dataset) or [`DataSource`](declare-docs:DataSource): the data itself, with its
+- **class with no view** — a class that extends [`Node`](declare-docs:Node): logic that paints nothing. A
+  dataset class is the special case that holds data. It may stand on a record of its own with a `datapath`. → [Program structure](declare-docs:guide:structure@when-a-class-earns-its-place)
+- **dataset class** — a class that extends [`Dataset`](declare-docs:Dataset) or [`DataSource`](declare-docs:DataSource): the data itself, with its
   derivations and rules as members; views bind to it directly. → [Data](declare-docs:guide:data@deriving-summaries-methods-and-a-typed-result)
 - **non-visual child** — a child with no pixels that lives and dies with its node: a
   [`Dataset`](declare-docs:Dataset), [`DataSource`](declare-docs:DataSource), [`Spring`](declare-docs:Spring), [`Animator`](declare-docs:Animator), [`Time`](declare-docs:Time), [`Keys`](declare-docs:Keys), [`Focus`](declare-docs:Focus), a stream, a
@@ -73,7 +73,7 @@ name the same thing, the one here is the one the platform means.
 
 ## Data
 
-- **dataset** — a node holding a JSON document: embedded, derived (`contents = { … }`), or
+- **dataset** — a node holding data, as JSON: embedded, derived (`contents = { … }`), or
   fetched (`DataSource`). Its `value` is read-only; it changes through [`set`](declare-docs:Dataset.method.set), [`insert`](declare-docs:Dataset.method.insert),
   [`removeAt`](declare-docs:Dataset.method.removeAt) and [`move`](declare-docs:Dataset.method.move).
 - **cursor / datapath** — the place in a dataset a node and its descendants read relative
@@ -88,7 +88,7 @@ name the same thing, the one here is the one the platform means.
   `key = :field` otherwise.
 - **rowIndex** — a replicated instance's index in the array it presents, kept by the
   runtime; `-1` on a view no replication made.
-- **derived dataset** — a dataset whose document is a constraint over other data: the view
+- **derived dataset** — a dataset whose data is a constraint over other data: the view
   model. The records it selects are its source's, and a row writes them as it would
   anywhere; what it makes is read-only, so a record it decorates is wrapped, not copied.
 - **classFor** — on a replicated view, the class each record is built as, read from the

@@ -1281,6 +1281,11 @@ await test("a declared attribute may be typed by a CLASS", async () => {
   // Nullability follows what is written: `W` is never empty, `W?` may be.
   await no(`class W extends View [ tag: string = "" ]\nApp [ width=1, height=1, w: W = null ]`, /declared without '\?'.*'W\?'/);
   await ok(`class W extends View [ tag: string = "" ]\nclass H extends View [ w: W, t: Text [ text = { classroot.w.tag } ] ]\nApp [ width=1, height=1, k: W [ ], h: H [ w = { app.k } ] ]`);
+  // The handle afterDelay returns is a reference too: a node keeps the pending
+  // call and a later handler cancels it.
+  await ok(`App [ width=1, height=1, t: DelayHandle? = null, go() { t?.cancel(); t = afterDelay(10, () => { }) } ]`);
+  await no(`App [ width=1, height=1, t: DelayHandle = null ]`, /declared without '\?'.*'DelayHandle\?'/);
+  await no(`App [ width=1, height=1, t: DelayHandle? = null, go() { t?.cancell() } ]`, /cancell/);
 });
 
 await test("scaffold: the Draw surface mirrors draw.ts — every member, no drift", async () => {

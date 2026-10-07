@@ -1,28 +1,12 @@
-class BoltIcon extends Icon [
-    draw(d: Draw) {
-        d.scale(unit, unit)
-        d.strokeStyle = ink
-        d.lineWidth = weight / unit
-        d.lineCap = "round"
-        d.lineJoin = "round"
-        d.beginPath()
-        d.moveTo(9.5, 1.5)
-        d.lineTo(4.5, 8.5)
-        d.lineTo(8, 8.5)
-        d.lineTo(6.5, 14.5)
-        d.lineTo(11.5, 7.5)
-        d.lineTo(8, 7.5)
-        d.closePath()
-        d.stroke()
-        }
-    ]
+style Caption [ fontSize = 13, smallCaps = true, letterSpacing = 0.5, textColor = #1B2733 ]
 
-
-App [ width = 320, height = 120, fill = white, textColor = black,
-    row: View [ x = 20, y = 24,
-        layout: SimpleLayout [ axis = x, spacing = 18 ],
-        BoltIcon [ iconSize = 16 ],
-        BoltIcon [ iconSize = 24 ],
-        BoltIcon [ iconSize = 44 ]
+App [ width = 240, height = 80, fill = white,
+    plate: View [ x = 20, y = 20, width = 200, height = 40,
+        draw(d: Draw) {
+            const m = measureText("Plate 4", Caption)
+            d.fillStyle = 0xE7EBF1
+            d.fillRect((d.w - m.width) / 2 - 8, 0, m.width + 16, d.h)
+            d.fillText("Plate 4", (d.w - m.width) / 2, (d.h - m.height) / 2 + m.baseline, Caption)
+            }
         ]
     ]

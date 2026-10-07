@@ -45,7 +45,7 @@ compiler, no source library, no server — and nothing beyond it is ever asked f
   renderer (DOM, or `--canvas`), and one reactive kernel — the WebAssembly one by default, or
   with `--kernel js` the JavaScript one, about 9 KB gzipped smaller and somewhat slower on
   view-heavy work. For the flagship calendar it is about
-  <!--stat:calendar.wireKB-->114<!--/stat--> KB gzipped, the figure the homepage reports;
+  <!--stat:calendar.wireKB-->115<!--/stat--> KB gzipped, the figure the homepage reports;
 - **your program's folder, swept in** — its data, images, fonts, anything beside the
   `.declare` file — minus its sources and its `tests/` folder of verify fixtures;
 - **`BUILD.json`**, what the package was built from, so a committed build can say whether

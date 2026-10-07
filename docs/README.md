@@ -23,7 +23,7 @@ reference to look things up.
 ## Linking — `declare-docs:` symbolic IDs
 
 Docs link to each other by **symbolic ID**, never by file path or heading text:
-`[Classes](declare-docs:guide:classes)`. IDs are *generated* from the corpus — a guide
+`[Program structure](declare-docs:guide:structure)`. IDs are *generated* from the corpus — a guide
 chapter's ID is its filename minus the ordering prefix (`04-tree.md` → `guide:tree`),
 an operational page's is its filename (`operational:verify`), a reference symbol's is
 the symbol itself (`View.width`) — so files renumber and move freely under stable IDs.

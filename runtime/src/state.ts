@@ -142,7 +142,7 @@ export class State extends Node {
    *  bind to (the state instance for a class body's children, the use site's
    *  scope for its own) — and the build-time materializer. */
   childTemplates: readonly { el: Element; croot: View | null }[] = [];
-  materialize: ((t: Element, croot: View) => { view: Node; finish: () => void }) | null = null;
+  materialize: ((t: Element, croot: View) => { view: Node; provide: () => void; finish: () => void }) | null = null;
 
   // Runtime state.
   /** Declaration-order precedence, cached at init before any child inserts. */
@@ -231,17 +231,21 @@ export class State extends Node {
   private $buildChildren(target: View): void {
     if (this.materialize === null || this.childTemplates.length === 0) return;
     let index = target.children.indexOf(this) + 1;
-    const finishes: (() => void)[] = [];
+    const provides: (() => void)[] = [], finishes: (() => void)[] = [];
     for (const tmpl of this.childTemplates) {
-      const { view, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
+      const { view, provide, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
       target.insertChild(view, index++);
       if (tmpl.el.name !== null) {
         this.$bindName(target, tmpl.el.name);
         this.$named.set(tmpl.el.name, view);
       }
       this.builtChildren.push(view);
+      provides.push(provide);
       finishes.push(finish);
     }
+    // provisions land linked and before attach — the order every creation
+    // path keeps (replicate.ts)
+    for (const p of provides) p();
     // Attach surfaces if the target is live (mirrors Replicator's post-link
     // attach): each child lands before the first live sibling after the block.
     if (target.$backend !== null && target.$surface !== null) {

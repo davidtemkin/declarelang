@@ -11,14 +11,16 @@ all of that; this source just declares rows over data.
 
 The architecture, end to end:
 
-- **One truth.** `db` holds the issues. Every mutation writes `db`, and
-  every derivation re-runs because it read `db` — no clock, no ticking,
-  nothing anywhere keeping view-side state about data.
+- **One truth.** `issues` holds the records: the source they are fetched
+  from, and the class that knows what an issue is (its statuses and
+  priorities, what a save must also change). Every write is one of its
+  verbs, and every derivation re-runs because it read the records.
 - **Views are derivations.** `shown` — the projected dataset the list
   renders — derives from the truth plus the view facts (filters, query,
-  sort, grouping). So do the rail's counts, the workload bars, and the
-  closed-per-day chart: change the data and every number moves, because
-  each one is a constraint over the same truth.
+  sort, grouping). The rail's counts, the workload bars, and the
+  closed-per-day chart are the dataset's own derived datasets: change
+  the data and every number moves, because each one is a constraint over
+  the same truth.
 - **Search is one more filter on the projection**, never a scan of
   rendered rows. The query narrows the derived dataset exactly as a
   status chip does; Enter and the search field's arrows walk the
@@ -31,20 +33,16 @@ The architecture, end to end:
   filter changes, and scrolling out of the window; regenerating the
   dataset is the only thing that clears it.
 
-Scale: the shipped asset is 10,000 issues (~350 KB gzipped); the header's
-scale control regenerates 10K / 100K / 1M in memory from the seeded
-generator below — the same algorithm as tools/internal/gen-issues.mjs,
-kept in sync by hand (the seed and the pools are the contract). Every
-millisecond the rail reports is measured in this file, not asserted.
+Scale: the shipped asset is 10,000 issues (~350 KB gzipped); the bar's
+scale control regenerates 10K / 100K / 1M in memory from the same seeded
+generator (tracker-data.ts). Every millisecond the rail reports is
+measured here, not asserted.
 */
 
 use [ PersonIcon ]   // the menus name their icons in data
 
-// ── script land: plain TypeScript helpers, zero reactive machinery ────────
-//
-// Functions declared here are callable from `{ }` constraint bodies and
-// from methods; they compute, they never store. App state lives on the
-// App below; record-shaped state lives in its datasets.
+// the seeded generator and a few formatting helpers: functions of their
+// arguments, outside the reactive system
 
 script [ "tracker-data.ts" ]
 
@@ -53,6 +51,157 @@ schema Issue [ id: number, title: string, description: string,
     priority: "P0" | "P1" | "P2" | "P3",
     labels[]: string, assignee?: string,
     created: number, updated: number, closedAt?: number, comments: number ]
+
+// One line of the list: an issue, or the header of a status group in the
+// grouped view (`kind = "hdr"`, its `count`, no issue fields).
+
+schema Line [ id: number, status: string, kind?: "hdr", count?: number,
+    title?: string, priority?: string, labels[]?: string, assignee?: string, updated?: number ]
+
+
+// ── the issues ────────────────────────────────────────────────────────────
+//
+// The records, fetched once from issues.json, and everything that is true of
+// them whoever is looking: the vocabulary (statuses, priorities, labels),
+// the rail's summaries, and every write, each keeping `updated` and
+// `closedAt` honest so no caller has to. Nothing here knows what the user is
+// looking at: filters, selection and the editor's draft belong to the App.
+
+class Issues extends DataSource [ url = "issues.json", auto = true, schema = [ issues[]: Issue ],
+
+    // workflow order: the chips, the rail and the grouped list all follow it
+
+    statuses: string[] = ["open", "in-progress", "blocked", "closed"],
+    statusLabel(s: string) -> string {
+        return s == "open" ? "Open" : s == "in-progress" ? "In Progress" : s == "blocked" ? "Blocked" : "Closed"
+        },
+
+    priorities: string[] = ["P0", "P1", "P2", "P3"],
+    priorityName(p: string) -> string {
+        return p == "P0" ? "Urgent" : p == "P1" ? "High" : p == "P2" ? "Medium" : "Low"
+        },
+
+    labelNames: string[] = { TRK_LABELS },
+
+    all() -> Issue[] { return this.read(["issues"]) ?? [] },
+    total: number = { this.all().length },
+
+    // the people who actually hold work: the records decide who is listed
+
+    assignees() -> array {
+        return [...new Set(this.all().map((it) => it.assignee).filter((a) => a != null))].sort()
+        },
+
+    nextId() -> number { return this.all().reduce((m, it) => Math.max(m, it.id), 0) + 1 },
+
+    // ── the summaries the rail draws, each re-derived when the records change
+
+    byStatus: Dataset [ schema = [ rows[]: [ status: string, n: number ] ],
+        contents = { { rows: classroot.statusCounts() } } ],
+    statusCounts() -> array {
+        const n = new Map()
+        for (const it of this.all()) n.set(it.status, (n.get(it.status) ?? 0) + 1)
+        return this.statuses.map((s) => ({ status: s, n: n.get(s) ?? 0 }))
+        },
+
+    closedByDay: Dataset [ schema = [ days[]: number, peak: number ], contents = { classroot.closedPerDay() } ],
+    closedPerDay() -> object {
+        const DAY = 86400000
+        let maxU = 0
+        const all = this.all()
+        for (const it of all) if ((it.updated ?? 0) > maxU) maxU = it.updated
+        const today = Math.floor(maxU / DAY)
+        const days = new Array(14).fill(0)
+        for (const it of all) {
+            const c = it.closedAt
+            if (c == null) continue
+            const d = today - Math.floor(c / DAY)
+            if (d >= 0 && d < 14) days[13 - d] = days[13 - d] + 1
+            }
+        return ({ days: days, peak: Math.max(1, ...days) })
+        },
+
+    // who holds the open work, busiest first, and the unassigned last (name "")
+
+    workload: Dataset [ schema = [ rows[]: [ name: string, n: number, peak: number ] ],
+        contents = { classroot.workloadOf() } ],
+    workloadOf() -> object {
+        const m = new Map()
+        let un = 0
+        for (const it of this.all()) {
+            if (it.status == "closed") continue
+            const a = it.assignee
+            if (a == null) un = un + 1
+            else m.set(a, (m.get(a) ?? 0) + 1)
+            }
+        const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
+        const peak = Math.max(1, un, ...top.map((e) => e[1]))
+        // peak rides on each row (a row's cursor sees its own record, not
+        // the root): the fact lands where the view reads it
+        const rows = top.map((e) => ({ name: e[0], n: e[1], peak: peak }))
+        return ({ rows: [...rows, ({ name: "", n: un, peak: peak })] })
+        },
+
+    // ── the writes
+
+    replace(list: array) { this.set([], ({ issues: list })) },        // works before anything has loaded, too
+
+    add(it: Issue) { this.insert(["issues"], 0, ({ ...it })) },     // newest first
+
+    // an edited copy of a record comes back whole
+
+    save(d: Issue) {
+        const i = this.all().findIndex((it) => it.id == d.id)
+        if (i < 0) return
+        const was = this.all()[i].status
+        this.set(["issues", i, "title"], d.title)
+        this.set(["issues", i, "description"], d.description)
+        this.set(["issues", i, "status"], d.status)
+        this.set(["issues", i, "priority"], d.priority)
+        this.set(["issues", i, "assignee"], d.assignee)
+        this.set(["issues", i, "labels"], [...d.labels])
+        this.stamp(i, d.status != was ? d.status : null)
+        },
+
+    // one field across many records; a label is added, not replaced
+
+    setEach(ids: number[], field: string, v: object) {
+        const all = this.all()
+        for (const id of ids) {
+            const i = all.findIndex((it) => it.id == id)
+            if (i < 0) continue
+            if (field == "label") {
+                if (!all[i].labels.includes(v)) this.set(["issues", i, "labels"], [...all[i].labels, v])
+                } else {
+                this.set(["issues", i, field], v)
+                }
+            this.stamp(i, field == "status" ? v : null)
+            }
+        },
+
+    // every write bumps `updated`; a status write also moves `closedAt`
+
+    stamp(i: number, status: string?) {
+        const up = this.all()[i].updated + 1
+        this.set(["issues", i, "updated"], up)
+        if (status != null) this.set(["issues", i, "closedAt"], status == "closed" ? up : null)
+        },
+
+    // removes the records and hands back what `restore` needs to put them back
+
+    removeEach(ids: number[]) -> array {
+        const all = this.all()
+        const removed = ids.map((id) => ({ index: all.findIndex((it) => it.id == id), rec: all.find((it) => it.id == id) }))
+            .filter((r) => r.index >= 0).sort((a, b) => b.index - a.index)
+        for (const r of removed) this.removeAt(["issues"], r.index)
+        return removed
+        },
+
+    restore(removed: array) {
+        for (const r of [...removed].sort((a, b) => a.index - b.index))
+            this.insert(["issues"], Math.min(r.index, this.all().length), r.rec)
+        }
+    ]
 
 
 // the tracker's own tokens, provided over the house preset in either mode:
@@ -91,9 +240,9 @@ class StatusIcon [ width = 14, height = 14,
     ]
 
 
-class PrioIcon [ width = 13, height = 12,
+class PrioIcon [ width = 14, height = 12,
     p: string = "P3",
-    tooltipLabel = { p == "P0" ? "Priority · P0 Urgent" : p == "P1" ? "Priority · P1 High" : p == "P2" ? "Priority · P2 Medium" : "Priority · P3 Low" },
+    tooltipLabel = { "Priority · " + p + " " + app.issues.priorityName(p) },
     lit: number = { p == "P0" || p == "P1" ? 3 : p == "P2" ? 2 : 1 },
     tone: number = { p == "P0" ? provided("theme").danger : 0 },
     b1: View [ x = 0, y = 7, width = 3, height = 5, cornerRadius = 1,
@@ -131,15 +280,14 @@ class Tag [ height = 18, cornerRadius = 9, padding = [0, 9, 0, 7],
     ]
 
 
-// a filter chip: one value of one facet, its live count, and the on state —
-// clicking toggles the facet (a Control: tab stop, Space/Enter, the ring)
+// a status filter chip: the status, its live count, and the on state —
+// pressing toggles the filter (a Control: tab stop, Space/Enter, the ring)
 
 class Chip extends Control [ height = 28, cornerRadius = 8, padding = [6, 12, 0, 12],
-    facet: string = "",         // "status" | "assignee" | "label"
     value: string = "",
     count: number = -1,         // -1 hides the count
     on: boolean = false,
-    fill = { on ? theme.controlSelected : hovered ? theme.control : null },
+    fill = { on ? provided("theme").controlSelected : hovered ? provided("theme").control : null },
 
     // the tally is a sprung number — `Spring [ attribute = … ]` animates any
     // slot, data included, so a bulk move rolls the counts over instead of
@@ -148,15 +296,19 @@ class Chip extends Control [ height = 28, cornerRadius = 8, padding = [6, 12, 0,
     anim: number = 0,
     Spring [ attribute = anim, to = { count < 0 ? 0 : count }, stiffness = 170, damping = 26 ],
 
-    layout: SimpleLayout [ axis = x, spacing = 6 ],
-    dot: View [ y = 5, width = 6, height = 6, cornerRadius = 3, fill = { app.statusColor(value) } ],
+    // the label and the count share a baseline; the dot sits on it at mid-x-height
+
+    layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+    dot: View [ baseline: number = 7,
+        width = 6, height = 6, cornerRadius = 3, fill = { app.statusColor(value) }
+        ],
     cap: Text [ fontSize = 12.5, wrap = false,
         fontWeight = { classroot.on ? "semibold" : "normal" },
-        textColor = { classroot.on ? theme.text : theme.textMuted },
-        text = { trkStatusLabel(classroot.value) } ],
-    n: Text [ y = 1, fontSize = 11, wrap = false, visible = { classroot.count >= 0 && !app.compact },
-        textColor = { theme.textFaint }, text = { "" + Math.round(classroot.anim) } ],
-    press() { app.toggleFilter(facet, value) }
+        textColor = { classroot.on ? provided("theme").text : provided("theme").textMuted },
+        text = { app.issues.statusLabel(classroot.value) } ],
+    n: Text [ fontSize = 11, wrap = false, visible = { classroot.count >= 0 && !app.compact },
+        textColor = { provided("theme").textFaint }, text = { "" + Math.round(classroot.anim) } ],
+    press() { app.toggleFilter("status", value) }
     ]
 
 
@@ -174,11 +326,10 @@ class ListRow extends TableRow [
     // the row to it, and its landing is when the open card is revealed —
     // the spring's own event, not a guess at its duration.
     //
-    // What must **not** animate is a row revealed by scrolling. That is the
-    // reconciler's business, not the author's: an instance presenting a record
-    // it was not presenting before takes its geometry outright, so an expanded
-    // row scrolled out and back returns at its open height with no motion,
-    // and a recycled row never slides from the departed record's geometry.
+    // A row revealed by scrolling does not animate, and nothing here has to
+    // say so: a row showing a record it was not showing before takes its
+    // geometry outright, so an open row scrolled out and back returns at its
+    // open height, and a reused row never slides from another record's.
 
     targetH: number = 44,
     height = 44,
@@ -186,8 +337,8 @@ class ListRow extends TableRow [
         onStop() { if (classroot.exp) app.revealOpen() }
         ],
 
-    fill = { selected ? theme.controlSelected : hovered ? theme.surface : null },
-    stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
+    fill = { selected ? provided("theme").controlSelected : hovered ? provided("theme").surface : null },
+    stroke = { active && app.list.focusVisible ? stroke(1, provided("theme").accent) : null }
     ]
 
 
@@ -196,23 +347,29 @@ class ListRow extends TableRow [
 
 class GroupRow extends ListRow [
     targetH = 42,
-    fill = { theme.background },
+    fill = { provided("theme").background },
 
-    hdrRow: View [ x = 0, y = 12, width = 100%, height = 24,
-        // collapsed points right, open points down — one class, turned: the
-        // same chevron the rest of the chrome discloses with
+    hdrRow: View [ y = 12, height = 24, padding = [0, 0, 0, 23],
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
 
-        chev: ChevronIcon [ x = 23, y = 3, iconSize = 11, ink = { theme.textFaint },
-            dir = { app.isCollapsed("" + :status) ? "right" : "down" } ],
-        d: StatusIcon [ x = 42, y = 3, s = { "" + :status } ],
-        cap: Text [ x = 64, y = 2, fontSize = 13, fontWeight = semibold, wrap = false,
-            text = { trkStatusLabel("" + :status) } ],
-        n: Roll [ y = 3.5, fontSize = 11.5, textColor = { theme.textFaint },
-            x = { this.parent.cap.x + this.parent.cap.width + 10 },
-            n = { (:count ?? 0) + 0 } ]
+        // collapsed points right, open points down: the same chevron the rest
+        // of the chrome discloses with (it centres itself)
+
+        chev: ChevronIcon [ iconSize = 11, ink = { provided("theme").textFaint },
+            dir = { app.isCollapsed(:status) ? "right" : "down" } ],
+        d: StatusIcon [ y = 5, s = :status ],
+
+        // the status and its count share a baseline
+
+        title: View [ y = center,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+            cap: Text [ fontSize = 13, fontWeight = semibold, wrap = false,
+                text = { app.issues.statusLabel(:status) } ],
+            n: Roll [ fontSize = 11.5, textColor = { provided("theme").textFaint }, n = { :count ?? 0 } ]
+            ]
         ],
 
-    onClick() { if (!disabled) app.toggleGroup("" + :status) }
+    onClick() { if (!disabled) app.toggleGroup(:status) }
     ]
 
 
@@ -222,52 +379,44 @@ class GroupRow extends ListRow [
 // many of it exist.
 
 class IssueRow extends ListRow [
-    exp = { ("" + :id) == ("" + app.expandedId) },
+    exp = { :id == app.expandedId },
     targetH = { exp ? 356 : 44 },
 
-    // ── a fixed column map, left to right ─────────────────────────────────
+    // the row's one line, the top 44px whatever height the row springs to:
     //
-    //   inset ▸ status ring ▸ priority bars ▸ title … labels ▸ avatar ▸ date
+    //   status ring ▸ priority bars ▸ title … labels ▸ avatar ▸ date
     //
-    // `ind` is the grouped view's indent: rows tuck under their header so
-    // every status ring hangs on one vertical line.
+    // In the grouped view the line indents, so every status ring hangs on one
+    // vertical line under its group's header.
 
-    ind: number = { app.groupBy == "status" ? 18 : 0 },
-    colStat: number = { 24 + ind },      // the status ring's left edge
-    colPrio: number = { 50 + ind },      // the priority bars'
-    colTitle: number = { 76 + ind },     // the title's
+    line: View [ width = 100%, height = 44,
+        padding = { [0, 24, 0, app.groupBy == "status" ? 42 : 24] },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        stat: StatusIcon [ s = :status ],
+        prio: PrioIcon [ p = { :priority ?? "P3" } ],
 
-    // the row's one line — the top 44px, whatever height the row springs to
+        // the title takes the room the line leaves, and an over-long one ellipsizes
 
-    line: View [ width = 100%, height = 44, padding = [0, 24, 0, 0],
-        stat: StatusIcon [ y = center, x = { classroot.colStat }, s = { "" + :status } ],
-        prio: PrioIcon [ y = center, x = { classroot.colPrio }, p = { "" + :priority } ],
-
-        // an over-long title ellipsizes rather than being cut mid-glyph by the clip
-
-        title: Text [ y = center, fontSize = 13.5, wrap = false, maxLines = 1,
-            x = { classroot.colTitle },
-            width = { parent.meta.x - this.x - 16 },
-            text = { "" + :title } ],
+        title: Text [ flexes = true, fontSize = 13.5, wrap = false, maxLines = 1, text = { :title ?? "" } ],
 
         // labels, assignee and date, flush right
 
-        meta: View [ x = end, y = center,
+        meta: View [
             layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
 
-            // the first two labels ride inline (slice replication); "+n" carries
-            // the rest — the detail panel shows them all
+            // the first two labels ride inline; "+n" carries the rest, and the
+            // editor shows them all
 
             tags: View [ visible = { !app.compact && (:labels ?? []).length > 0 },
                 layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
-                Tag [ datapath = :labels[0:2][], t = { "" + :@ } ],
+                Tag [ datapath = :labels[0:2][], t = :@ ],
                 more: Text [ fontSize = 10.5, wrap = false, visible = { (:labels ?? []).length > 2 },
-                    textColor = { theme.textFaint },
+                    textColor = { provided("theme").textFaint },
                     text = { "+" + ((:labels ?? []).length - 2) } ]
                 ],
-            avatar: Avatar [ name = { "" + (:assignee ?? "") } ],
+            avatar: Avatar [ name = { :assignee ?? "" } ],
             when: Text [ fontSize = 11.5, wrap = false, textAlign = right, width = 40,
-                textColor = { theme.textFaint },
+                textColor = { provided("theme").textFaint },
                 text = { trkDate(:updated ?? 0) } ]
             ]
         ],
@@ -276,27 +425,25 @@ class IssueRow extends ListRow [
 
     bar: View [ visible = { parent.selected && !parent.exp }, x = 0, y = 6, width = 3, cornerRadius = 1.5,
         height = { Math.min(parent.height, 44) - 12 },
-        fill = { theme.accent } ],
+        fill = { provided("theme").accent } ],
 
-    // the open-in-place editor: rides below the row's own line while the
-    // height spring makes room; absorbs clicks so the row doesn't toggle.
-    // It exists only on the open row — a hidden editor in every row would be
-    // most of what the list builds.
+    // the open-in-place editor, below the row's own line while the height
+    // spring makes room. It exists only on the open row: a hidden editor in
+    // every row would be most of what the list builds.
 
     card: EditorCard [ exists = { classroot.exp }, x = 12, y = 48, clip = true,
         width = { parent.width - 24 },
         height = { Math.max(0, parent.height - 56) },
-        fill = { theme.surface }, cornerRadius = 10,
-        stroke = { stroke(1, theme.line) },
-        shadow = { shadow(0, 4, 16, 0x00000018) },
-        onClick() { }
-        ],
+        fill = { provided("theme").surface }, cornerRadius = 10,
+        stroke = { stroke(1, provided("theme").line) },
+        shadow = { shadow(0, 4, 16, 0x00000018) } ],
 
-    // an issue row keeps TableRow's whole selection protocol and adds the
-    // context menu
+    // An issue row keeps TableRow's selection protocol and adds the context
+    // menu. Only its line toggles the editor: a press on the open card below
+    // it is a press inside the editor.
 
-    onClick() {
-        if (disabled) return
+    onClick(e: PointerEvent) {
+        if (disabled || (exp && e.y >= 44)) return
         if (exp) { app.closeDetail(); return }
         super.onClick()
         app.openDetail()
@@ -312,7 +459,7 @@ class IssueRow extends ListRow [
 // column, icon column, labels on one text edge
 
 class PersonIcon extends Avatar [ width = 16, height = 16, cornerRadius = 8, capSize = 6.5,
-    name = { "" + :name }
+    name = { :name ?? "" }
     ]
 
 
@@ -326,57 +473,100 @@ class Roll extends Text [ wrap = false,
     ]
 
 
-// one rail statistic: status icon or avatar, a name, a bar, a rolling count.
-// The row **is** a filter — clicking it toggles the facet it counts.
+// one rail statistic: an icon, a name, a bar, a rolling count. The row is a
+// filter too: pressing it toggles the filter it counts. The icon is handed in
+// where the row is used, and lands in `lead`.
 
-class RailStat extends Control [ height = 30, cornerRadius = 7,
-    width = { app.railW - 40 },
-    facet: string = "",
+class RailStat extends Control [ width = 100%, height = 30, cornerRadius = 7, padding = [0, 4, 0, 0],
+    defaultplacement = lead,
+    facet: "status" | "assignee" = "status",
     value: string = "",
     cap: string = "",
     n: number = 0,
     peak: number = 1,
     tint: number = 0,
-    hueName: string = "",
-    tintUse: number = { hueName != "" ? app.hueOf(hueName) : tint },
     on: boolean = false,
-    fill = { on ? theme.controlSelected : hovered ? theme.control : null },
-    name: Text [ x = 30, y = center, fontSize = 12.5, wrap = false, maxLines = 1, width = 92,
-        fontWeight = { classroot.on ? "semibold" : "normal" },
-        textColor = { classroot.on ? theme.text : theme.textMuted },
-        text = { classroot.cap } ],
-    track: View [ x = 128, y = 13, height = 4, cornerRadius = 2,
-        width = { classroot.width - 128 - 54 },
-        fill = { theme.control },
-        fillbar: View [ x = 0, y = 0, height = 4, cornerRadius = 2,
-            width = { Math.max(2, parent.width * classroot.n / Math.max(1, classroot.peak)) },
-            fill = { classroot.tintUse != 0 ? classroot.tintUse : theme.accent } ]
+    fill = { on ? provided("theme").controlSelected : hovered ? provided("theme").control : null },
+
+    // the name and the count share a baseline; the icon and the bar sit against it
+
+    layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+    lead: View [ width = 24, height = 30,
+        baseline: number = 19
         ],
-    num: Roll [ y = center, fontSize = 12, textAlign = right, width = 44,
-        x = { parent.width - 48 },
-        textColor = { theme.textMuted },
+    name: Text [ width = 92, fontSize = 12.5, wrap = false, maxLines = 1,
+        fontWeight = { classroot.on ? "semibold" : "normal" },
+        textColor = { classroot.on ? provided("theme").text : provided("theme").textMuted },
+        text = { classroot.cap } ],
+    track: View [ flexes = true, height = 4, cornerRadius = 2,
+        baseline: number = 6,
+        fill = { provided("theme").control },
+        fillbar: View [ height = 4, cornerRadius = 2,
+            width = { Math.max(2, parent.width * classroot.n / Math.max(1, classroot.peak)) },
+            fill = { classroot.tint != 0 ? classroot.tint : provided("theme").accent } ]
+        ],
+    num: Roll [ width = 44, fontSize = 12, textAlign = right,
+        textColor = { provided("theme").textMuted },
         n = { classroot.n } ],
     press() { app.toggleFilter(facet, value) }
     ]
 
 
-// one line of the rail's keyboard legend: the key, and what it does
+// a rail section's caption
 
-class KeyHint [ width = 100%, height = 18,
-    shortcut: string = "",
-    what: string = "",
-    k: Text [ y = 1, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = { classroot.shortcut } ],
-    v: Text [ x = 44, y = 1, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = { classroot.what } ]
+class RailCaption extends Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
+    textColor = { provided("theme").textFaint }
     ]
 
 
-// the undo toast — one at a time, rises from the bottom, waits eight
-// seconds, honors its word
+// one line of the rail's performance panel: what was measured, and how long it took
+
+class PerfLine [ width = 100%, height = 16,
+    what: string = "",
+    ms: number = 0,
+    a: Text [ fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.what } ],
+    b: Text [ x = end, fontSize = 11.5, wrap = false, text = { classroot.ms + " ms" } ]
+    ]
+
+
+// a button that opens a menu: a label and a chevron, with an optional color
+// dot before them. `on` marks a filter that is set. The toolbar's filters and
+// sort use it, and the editor's facets extend it.
+
+class DropButton extends Control [ height = 28, cornerRadius = 8, padding = [0, 4, 0, 13],
+    label: string = "",
+    on: boolean = false,
+    muted: boolean = true,              // the label recedes unless the filter is on
+    tint: number = 0,                   // 0 = no dot
+    fill = { on ? provided("theme").controlSelected : hovered || pressed ? provided("theme").control : null },
+    layout: SimpleLayout [ axis = x, spacing = 8 ],     // the chevron centres itself
+    dot: View [ visible = { classroot.tint != 0 }, y = 10, width = 8, height = 8, cornerRadius = 4, fill = { classroot.tint } ],
+    t: Text [ y = center, fontSize = 12.5, wrap = false,
+        fontWeight = { classroot.on ? "semibold" : "normal" },
+        textColor = { classroot.on || !classroot.muted ? provided("theme").text : provided("theme").textMuted },
+        text = { classroot.label } ],
+    c: ChevronIcon [ iconSize = 11, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// one line of the rail's keyboard legend: the key, and what it does
+
+class KeyHint [ width = 100%, height = 18, padding = [1, 0, 0, 0],
+    shortcut: string = "",
+    what: string = "",
+    layout: SimpleLayout [ axis = x, align = baseline ],
+    k: Text [ width = 44, fontSize = 10.5, textColor = { provided("theme").textMuted }, text = { classroot.shortcut } ],
+    v: Text [ fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = { classroot.what } ]
+    ]
+
+
+// the undo toast: one at a time, rises from the bottom, waits eight seconds,
+// honors its word. A newer notice replaces the pending dismissal.
 
 class Toast [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10,
     shown: boolean = false,
     msg: string = "",
-    gen: number = 0,
+    hideTimer: DelayHandle? = null,
     lift: number = 0,
     Spring [ attribute = lift, to = { shown ? 1 : 0 }, stiffness = 260, damping = 26 ],
     opacity = { lift },
@@ -386,22 +576,20 @@ class Toast [ visible = { shown || lift > 0.02 }, height = 40, cornerRadius = 10
     shadow = { shadow(0, 6, 24, 0x00000040) },
     cap: TextLabel [ fontSize = 12.5, wrap = false,
         textColor = { provided("theme").tooltipTextColor }, text = { msg } ],
-    u: Control [ y = 7, height = 26, cornerRadius = 7,
-        width = { this.t.width + 18 },
-        fill = { hovered || pressed ? theme.accent : null },
-        t: Text [ x = 9, y = center, fontSize = 12, fontWeight = semibold, wrap = false,
-            textColor = { this.parent.hovered || this.parent.pressed ? theme.accentTextColor : theme.accent }, text = "Undo" ],
+    u: Control [ y = 7, height = 26, cornerRadius = 7, padding = [0, 9, 0, 9],
+        fill = { hovered || pressed ? provided("theme").accent : null },
+        t: Text [ y = center, fontSize = 12, fontWeight = semibold, wrap = false,
+            textColor = { this.parent.hovered || this.parent.pressed ? provided("theme").accentTextColor : provided("theme").accent }, text = "Undo" ],
         press() { app.undoDelete() }
         ],
     show(m: string) {
         msg = m
         shown = true
         this.raise()
-        gen = gen + 1
-        const g = gen
-        afterDelay(8000, () => { if (this.gen == g) this.shown = false })
+        hideTimer?.cancel()
+        hideTimer = afterDelay(8000, () => { this.shown = false })
         },
-    hide() { gen = gen + 1; shown = false }
+    hide() { hideTimer?.cancel(); shown = false }
     ]
 
 
@@ -412,24 +600,22 @@ class EditTag [ height = 22, cornerRadius = 7, padding = [4, 10, 0, 8],
     fill = { provided("theme").control },
     layout: SimpleLayout [ axis = x, spacing = 4 ],
     cap: Text [ fontSize = 11.5, textColor = { provided("theme").textMuted }, text = { t } ],
-    x2: Text [ fontSize = 11, textColor = { provided("theme").textFaint }, text = "×",
-        onClick() {
-            const ls = (app.draft.value.it?.labels ?? []).filter((l) => l != classroot.t)
-            app.setDraftField("labels", ls)
-            }
+    x2: Control [ fill = null,
+        g: Text [ fontSize = 11, textColor = { provided("theme").textFaint }, text = "×" ],
+        press() { app.setDraftField("labels", (app.draft.value.it?.labels ?? []).filter((l) => l != classroot.t)) }
         ]
     ]
 
 
-// the in-place editor — an issue edits where it lives. The card binds the
-// draft dataset (Save commits and closes, Cancel discards and closes);
-// the host row's height springs open around it, and the windowed kernel's
-// measured ladder carries the animation, so the rows below glide out of
-// the way. One class, two hosts: the expanded row, and the New-issue
-// strip above the list.
+// the in-place editor: an issue edits where it lives. The card binds the
+// draft dataset (Save commits and closes, Cancel discards and closes). The
+// host row's height springs open around it and the list measures the row as
+// it grows, so the rows below glide out of the way. One class, two hosts: the
+// open row, and the New-issue strip above the list.
 
 class EditorCard [
     datapath = { app.draft.value },
+    focusTitle() { Focus.focus(this.col.titleF) },
 
     // the card's own content box — the column is simply the room inside it
 
@@ -444,9 +630,9 @@ class EditorCard [
 
         facets: View [ width = 100%, height = 28,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
-            st: Facet [ field = "status", value = { trkStatusLabel("" + (:it.status ?? "open")) }, tint = { app.statusColor("" + (:it.status ?? "open")) } ],
-            pr: Facet [ field = "priority", value = { "" + (:it.priority ?? "P2") }, tint = { app.prioColor("" + (:it.priority ?? "P2")) } ],
-            as: Facet [ field = "assignee", value = { (:it.assignee ?? "Unassigned") + "" } ]
+            st: Facet [ field = "status", label = { app.issues.statusLabel(:it.status ?? "open") }, tint = { app.statusColor(:it.status ?? "open") } ],
+            pr: Facet [ field = "priority", label = { :it.priority ?? "P2" }, tint = { app.prioColor(:it.priority ?? "P2") } ],
+            as: Facet [ field = "assignee", label = { :it.assignee ?? "Unassigned" } ]
             ],
 
         // the tags wrap; the band is as tall as they make it — a container
@@ -454,11 +640,11 @@ class EditorCard [
 
         labels: View [ width = 100%,
             layout: WrappingLayout [ spacing = 6 ],
-            EditTag [ datapath = :it.labels[], t = { "" + :@ } ],
+            EditTag [ datapath = :it.labels[], t = :@ ],
             add: Control [ height = 22, cornerRadius = 7, width = 26,
-                fill = { hovered ? theme.control : null },
-                stroke = { stroke(1, theme.line) },
-                t: Text [ x = 8, y = 3, fontSize = 12, textColor = { theme.textMuted }, text = "+" ],
+                fill = { hovered ? provided("theme").control : null },
+                stroke = { stroke(1, provided("theme").line) },
+                t: Text [ x = 8, y = 3, fontSize = 12, textColor = { provided("theme").textMuted }, text = "+" ],
                 menu = { app.addLabelMenu }
                 ]
             ],
@@ -482,7 +668,7 @@ class EditorCard [
                 onClick() { app.closeDetail() }
                 ],
             meta: Text [ fontSize = 11, wrap = false, textColor = { provided("theme").textFaint }, visible = { !app.creating },
-                text = { "Created " + trkDate(:it.created ?? 0) + " · Updated " + trkDate(:it.updated ?? 0) + " · " + ("" + (:it.comments ?? 0)) + " comments" } ],
+                text = { "Created " + trkDate(:it.created ?? 0) + " · Updated " + trkDate(:it.updated ?? 0) + " · " + (:it.comments ?? 0) + " comments" } ],
             sp: Spacer [ ],
 
             // the destructive action wears the same button as its neighbours and
@@ -497,19 +683,12 @@ class EditorCard [
     ]
 
 
-// one editable facet button in the editor card: the current value and a
-// chevron; press opens the shared options menu for its field
+// one editable field in the editor card, outlined: its value, and a press
+// opens the shared options menu for that field
 
-class Facet extends Control [ height = 28, cornerRadius = 7, padding = { [0, 6, 0, tint != 0 ? 9 : 10] },
-    field: string = "",
-    value: string = "",
-    tint: number = 0,
-    fill = { hovered || pressed ? theme.control : null },
-    stroke = { stroke(1, theme.line) },
-    layout: SimpleLayout [ axis = x, spacing = 6 ],
-    dot: View [ visible = { tint != 0 }, y = 10, width = 8, height = 8, cornerRadius = 4, fill = { tint } ],
-    v: Text [ y = center, fontSize = 12.5, wrap = false, text = { value } ],
-    arr: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
+class Facet extends DropButton [ cornerRadius = 7, padding = [0, 6, 0, 10], muted = false,
+    field: "status" | "priority" | "assignee" = "status",
+    stroke = { stroke(1, provided("theme").line) },
     menu = { app.facetMenu },
     press() { app.facetField = field; super.press() }
     ]
@@ -526,9 +705,9 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     railW: number = 300,
     railOn: boolean = { app.width >= 1100 },     // below this the rail yields to the list
 
-    // ── the chrome facts (the flagship family conventions) ─────────────────
+    // ── the chrome: appearance ─────────────────────────────────────────────
 
-    themeMode: string = "auto",
+    themeMode: "auto" | "light" | "dark" = "auto",
     darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
     theme = { { ...(app.darkUI ? SanFranciscoDark : SanFrancisco), ...Tracker } },
 
@@ -548,75 +727,74 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         return p == "P0" ? t.danger : p == "P1" ? t.prioHigh : p == "P2" ? t.prioMedium : t.prioLow
         },
 
-    // ── the truth ──────────────────────────────────────────────────────────
+    // ── the issues ─────────────────────────────────────────────────────────
     //
-    // `db` holds the issues, and that is the whole of it: a verb writes db and
-    // every projection that read db re-runs. Nothing else anywhere holds data.
-    //
-    // It is a working copy, not the source itself, because the issues come
-    // from more than one fetch: the regenerate control replaces them, and a
-    // source's value is replaced whole by every fetch. Edits live in db, and
-    // `adopt` is the one place a new batch arrives.
-    //
-    // No change counter is threaded through anything: the compiler reads
-    // through method bodies, so a projection that calls `issuesOf` is wired
-    // to the issues list with no help, and re-derives on every insert,
-    // removeAt, and set.
+    // The one place data lives. The scale control replaces the records with a
+    // generated batch; `adopt` is where a batch arrives, and it starts the user
+    // over: nothing selected, nothing open.
 
-    db: Dataset [ schema = [ issues[]: Issue ] ] { { "issues": [] } },
-
-    src: DataSource [ url = "issues.json", schema = [ issues[]: Issue ],
-        onLoad() { app.landed() }
+    issues: Issues [ onLoad() { app.landed() }
         ],
+    ready: boolean = { issues.loaded },
 
-    booted: boolean = { src.loaded },
-    askedAt: number = 0,
-    loadMs: number = 0,
-    adoptMs: number = 0,
+    // the two views reached from far away: the one line each that knows where it lives
 
-    onInit() {
-        askedAt = trkNow()
-        src.fetch()
-        },
+    list: Table = { app.body.main.list },
+    omni: TextInput = { app.bar.search.omni },
 
-    landed() {
-        const t1 = trkNow()
-        this.adopt(this.src.value != null ? this.src.value.issues : [])
-        this.loadMs = Math.round(t1 - this.askedAt)
-        this.adoptMs = Math.round(trkNow() - t1)
-        },
-
-    adopt(issues: array) {
-        db.set(["issues"], issues)
+    adopt(list: array) {
+        issues.replace(list)
         this.takeSelection(null)
         this.closeDetail()
         },
 
-    // Regenerating a million issues holds the main thread for seconds. The
-    // press returns at once, so its own settle paints — the control shows the
-    // new choice — and the work runs on the next frame.
+    // Generating a million issues holds the main thread for seconds. The
+    // press returns at once, so its own settle shows the new choice, and the
+    // work runs on the next frame.
 
     generating: boolean = false,
 
     regenerate(count: number) {
-        if (this.generating) return
-        this.generating = true
+        if (generating) return
+        generating = true
         afterDelay(0, () => {
             const t0 = trkNow()
-            const issues = trkGenerate(count)
-            const t1 = trkNow()
-            this.adopt(issues)
-            this.loadMs = Math.round(t1 - t0)
-            this.adoptMs = Math.round(trkNow() - t1)
+            const list = trkGenerate(count)
+            this.loadMs = Math.round(trkNow() - t0)
+            this.adopt(list)
+            this.timeIngest()
             this.generating = false
             })
         },
 
+    // ── measurements: the rail's PERFORMANCE panel ─────────────────────────
+    //
+    // Each reads the clock in a handler and closes with afterSettle, so a
+    // number covers what the user waits for: the change, and the settle that
+    // shows it. Nothing that derives the list reads a clock.
+
+    startedAt: number = 0,
+    loadMs: number = 0,          // boot to the issues landing, or the generator's run
+    ingestMs: number = 0,        // the settle that shows a new batch
+    searchMs: number = 0,        // the settle that shows a search's matches
+
+    onInit() { startedAt = trkNow() },
+
+    landed() {
+        loadMs = Math.round(trkNow() - startedAt)
+        this.timeIngest()
+        },
+
+    timeIngest() {
+        const t0 = trkNow()
+        afterSettle(() => { app.ingestMs = Math.round(trkNow() - t0) })
+        },
+
     // ── the view facts ─────────────────────────────────────────────────────
 
-    sortOn: string = "updated",
-    sortDir: string = "desc",
-    groupBy: string = "none",                    // none | status
+    sortOn: "updated" | "priority" | "title" = "updated",
+    sortDir: "asc" | "desc" = "desc",
+    groupBy: "none" | "status" = "none",
     fStatus: string = "",                        // "" = no filter
     fAssignee: string = "",
     fLabel: string = "",
@@ -627,24 +805,24 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     trackChanges = ["fStatus", "fAssignee", "fLabel", "query", "sortOn", "sortDir", "groupBy"],
 
-    onChange(e: ChangeEvent) { this.body.main.list.scrollTo(0) },
+    onChange(e: ChangeEvent) { this.list.scrollTo(0) },
 
     // Is the keyboard owned by a text field? A bare-character shortcut must
     // never steal a keystroke from one: the search box, or the open editor.
 
-    typing: boolean = { app.editing || app.bar.search.omni.focused },
+    typing: boolean = { app.editing || app.omni.focused },
 
     clearAll() {
         fStatus = ""; fAssignee = ""; fLabel = ""; query = ""
         },
 
-    toggleFilter(facet: string, value: string) {
+    toggleFilter(facet: "status" | "assignee" | "label", value: string) {
         if (facet == "status") fStatus = fStatus == value ? "" : value
         else if (facet == "assignee") fAssignee = fAssignee == value ? "" : value
         else if (facet == "label") fLabel = fLabel == value ? "" : value
         },
 
-    setSort(field: string) {
+    setSort(field: "updated" | "priority" | "title") {
         if (sortOn != field) { sortOn = field; sortDir = field == "title" ? "asc" : "desc" }
         },
 
@@ -652,8 +830,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         sortDir = sortDir == "desc" ? "asc" : "desc"
         },
 
-    // collapsed groups — a reactive slot, replaced whole on every toggle so
-    // each reader (the header chevrons, the projection) wakes on its own
+    // collapsed groups: replaced whole on every toggle, so each reader (the
+    // header chevrons, the projection) wakes on its own
 
     collapsed: string[] = [],
     isCollapsed(s: string) -> boolean { return collapsed.includes(s) },
@@ -661,112 +839,63 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         collapsed = collapsed.includes(s) ? collapsed.filter((x) => x != s) : [...collapsed, s]
         },
 
-    // ── the projection — the one derived dataset the list renders.
-    //    filter → sort → (group); group headers are records too ({ kind:
-    //    "hdr" }) — non-uniform rows are just rows.
+    // ── the projection: the one derived dataset the list renders ──────────
     //
-    //    The arguments are the view facts, and they are arguments because that
-    //    reads well, not because the wiring needs them: the body could read
-    //    `app.query` directly and wire identically. The data is not among them
-    //    — `project` reaches it through `issuesOf`, and the compiler follows
-    //    the call. ─────────────────────────────────────────────────────────
+    // filter → search → sort → (group). Group headers are lines too, with
+    // `kind = "hdr"`. The arguments are the view facts, passed because that
+    // reads well: the data is not among them, and the compiler follows the
+    // call to `issues.all()`.
 
-    shown: Dataset [ contents = { app.project(app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy) } ],
-
-    issuesOf() -> Issue[] { return db.read(["issues"]) ?? [] },
+    shown: Dataset [ schema = [ rows[]: Line, total: number ],
+        contents = { app.project(app.fStatus, app.fAssignee, app.fLabel, app.query, app.sortOn, app.sortDir, app.groupBy) } ],
 
     project(byStatus: string, byAssignee: string, byLabel: string, query: string, sortOn: string, sortDir: string, grouping: string) -> object {
-        let rows = this.issuesOf()
+        let rows = this.issues.all()
         if (byStatus != "" || byAssignee != "" || byLabel != "") {
             rows = rows.filter((it) =>
                 (byStatus == "" || it.status == byStatus) &&
                 (byAssignee == "" || it.assignee == byAssignee) &&
                 (byLabel == "" || (it.labels ?? []).includes(byLabel)))
             }
-        // the query narrows like any other filter (a tracker searches by
-        // hiding what doesn't match, not by bolding what does); the scan is
-        // timed and the number rides out with the value — pure, no clocks
-        let searchMs = 0
+        // the query narrows like any other filter: a tracker searches by
+        // hiding what doesn't match, not by bolding what does
         if (query.trim() != "") {
-            const t0 = trkNow()
             const needle = query.trim().toLowerCase()
             rows = rows.filter((it) => trkHaystack(it).includes(needle))
-            searchMs = Math.max(0, Math.round((trkNow() - t0) * 10) / 10)
             }
-        // Every comparator is ascending — least-interesting first: oldest,
-        // lowest priority, A→Z. `desc` then reverses, uniformly, with no key
-        // carrying a special case (so a new sort field inherits the rule).
-        const RANK = ({ P0: 3, P1: 2, P2: 1, P3: 0 })
-        const asc = sortOn == "priority" ? (a, b) => RANK[a.priority] - RANK[b.priority] || a.updated - b.updated
+        // Every comparator is ascending, least interesting first: oldest,
+        // lowest priority, A→Z. `desc` then reverses, uniformly, so a new sort
+        // field inherits the rule.
+        const urgency = (p) => -this.issues.priorities.indexOf(p)
+        const asc = sortOn == "priority" ? (a, b) => urgency(a.priority) - urgency(b.priority) || a.updated - b.updated
             : sortOn == "title" ? (a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0)
             : (a, b) => a.updated - b.updated
         rows = [...rows].sort(sortDir == "desc" ? (a, b) => asc(b, a) : asc)
-        if (grouping != "status") return ({ rows: rows, total: rows.length, searchMs: searchMs })
+        if (grouping != "status") return ({ rows: rows, total: rows.length })
         const out = []
-        for (const st of this.statuses) {
+        this.issues.statuses.forEach((st, i) => {
             const members = rows.filter((it) => it.status == st)
-            if (members.length == 0) continue
-            out.push(({ kind: "hdr", id: "hdr:" + st, status: st, count: members.length }))
+            if (members.length == 0) return
+            out.push(({ kind: "hdr", id: -1 - i, status: st, count: members.length }))    // ids below every issue's
             if (!this.isCollapsed(st)) out.push(...members)
-            }
-        return ({ rows: out, total: rows.length, searchMs: searchMs })
+            })
+        return ({ rows: out, total: rows.length })
         },
 
-    // the four statuses, in workflow order — the chips, the rail and the
-    // grouped view all list them in this order
+    shownTotal: number = { app.shown.value?.total ?? 0 },
 
-    statuses: string[] = ["open", "in-progress", "blocked", "closed"],
-
-    statusRows: Dataset [ contents = { { rows: app.statusCounts() } } ],
-
-    closedSeries: Dataset [ contents = { app.closedPerDay() } ],
-    closedPerDay() -> object {
-        const DAY = 86400000
-        let maxU = 0
-        const issues = this.issuesOf()
-        for (const it of issues) if ((it.updated ?? 0) > maxU) maxU = it.updated
-        const today = Math.floor(maxU / DAY)
-        const days = new Array(14).fill(0)
-        for (const it of issues) {
-            const c = it.closedAt
-            if (c == null) continue
-            const d = today - Math.floor(c / DAY)
-            if (d >= 0 && d < 14) days[13 - d] = days[13 - d] + 1
-            }
-        return ({ days: days, peak: Math.max(1, ...days) })
-        },
-    statusCounts() -> array {
-        const n = new Map()
-        for (const it of this.issuesOf()) n.set(it.status, (n.get(it.status) ?? 0) + 1)
-        return this.statuses.map((s) => ({ status: s, n: n.get(s) ?? 0 }))
-        },
-
-    shownTotal: number = { app.shown.value.total ?? 0 },
-
-    workload: Dataset [ contents = { app.workloadOf() } ],
-    workloadOf() -> object {
-        const m = new Map()
-        let un = 0
-        for (const it of this.issuesOf()) {
-            if (("" + it.status) == "closed") continue
-            const a = it.assignee
-            if (a == null) un = un + 1
-            else m.set(a, (m.get(a) ?? 0) + 1)
-            }
-        const top = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6)
-        const peak = Math.max(1, un, ...top.map((e) => e[1]))
-        // peak rides on each row (a row's cursor sees its own record, not
-        // the root) — the view-model fact lands where the view reads it
-        const rows = top.map((e) => ({ name: e[0], n: e[1], peak: peak }))
-        return ({ rows: [...rows, ({ name: "", n: un, peak: peak })] })
-        },
-
-    // ── search — one more filter on the projection: the query narrows the
-    //    list (typing hides the non-matches; clearing restores). Enter and
-    //    the omnibox arrows walk the narrowed rows; Enter opens the walked
-    //    row's detail. ────────────────────────────────────────────────────
+    // ── search: one more filter on the projection ─────────────────────────
+    //
+    // The query narrows the list; Enter and the search field's arrows walk the
+    // narrowed rows, and Enter opens the walked row.
 
     query: string = "",
+
+    search(t: string) {
+        query = t
+        const t0 = trkNow()
+        afterSettle(() => { app.searchMs = Math.round((trkNow() - t0) * 10) / 10 })
+        },
 
     stepHit(d: number) {
         const rows = (this.shown.value.rows ?? [])
@@ -775,9 +904,9 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         do { j = j + d } while (j >= 0 && j < rows.length && rows[j].kind == "hdr")
         if (j < 0 || j >= rows.length) return
         this.takeSelection([rows[j]])
-        this.body.main.list.showRow(j)
-        this.body.main.list.activeIndex = j
-        this.body.main.list.active = rows[j]
+        this.list.showRow(j)
+        this.list.activeIndex = j
+        this.list.active = rows[j]
         },
 
     enterHit() {
@@ -839,10 +968,9 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     newIssue() {
         this.takeSelection(null)
         creating = true
-        const maxId = this.issuesOf().reduce((m, it) => Math.max(m, it.id), 0)
-        draft.set(["it"], ({ id: maxId + 1, title: "", description: "", status: "open", priority: "P2", labels: [], assignee: null, created: 1735689600000, updated: 1735689600000, comments: 0 }))
+        draft.set(["it"], ({ id: issues.nextId(), title: "", description: "", status: "open", priority: "P2", labels: [], assignee: null, created: 1735689600000, updated: 1735689600000, comments: 0 }))
         editing = true
-        afterSettle(() => Focus.focus(this.body.main.creator.sheet.card.col.titleF))   // the strip is real once this settle closes
+        afterSettle(() => this.body.main.creator.sheet.card.focusTitle())   // the strip is real once this settle closes
         },
 
     closeDetail() { editing = false; creating = false },
@@ -852,7 +980,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     revealOpen() {
         const idx = (this.shown.value.rows ?? []).findIndex((r) => r.id == this.expandedId)
-        if (idx >= 0) this.body.main.list.showRow(idx)
+        if (idx >= 0) this.list.showRow(idx)
         },
 
     // dirty = the draft differs from the truth. The draft read tracks every
@@ -864,7 +992,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         const d = draft.read(["it"])
         if (d == null) return false
         if (creating) return true
-        const t = this.issuesOf().find((it) => it.id == d.id)
+        const t = this.issues.all().find((it) => it.id == d.id)
         if (t == null) return true
         return d.title != t.title || d.description != t.description || d.status != t.status ||
             d.priority != t.priority || d.assignee != t.assignee || JSON.stringify(d.labels) != JSON.stringify(t.labels)
@@ -874,25 +1002,13 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         const d = draft.value.it
         if (d == null) return
         if (creating) {
-            db.insert(["issues"], 0, ({ ...d }))
-            const rec = this.issuesOf()[0]
-            this.takeSelection([rec])
+            issues.add(d)
+            this.takeSelection([issues.all()[0]])
             creating = false
             editing = false
             return
             }
-        const issues = this.issuesOf()
-        const i = issues.findIndex((it) => it.id == d.id)
-        if (i < 0) return
-        db.set(["issues", i, "title"], d.title)
-        db.set(["issues", i, "description"], d.description)
-        db.set(["issues", i, "status"], d.status)
-        db.set(["issues", i, "priority"], d.priority)
-        db.set(["issues", i, "assignee"], d.assignee)
-        db.set(["issues", i, "labels"], [...d.labels])
-        const up2 = d.updated + 1
-        db.set(["issues", i, "updated"], up2)
-        db.set(["issues", i, "closedAt"], d.status == "closed" ? up2 : null)
+        issues.save(d)
         editing = false
         },
 
@@ -900,18 +1016,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         draft.set(["it", field], v)
         },
 
-    // ── mutation verbs — every write to the truth lives here ──────────────
-    //
-    // Each verb writes `db` and keeps the derived display fields honest
-    // (closedAt). That is all a verb does — there is nothing to notify, because
-    // every projection already read `db`. Nothing else in the file mutates
-    // data; everything else derives.
-
-    // the people who actually hold work — the truth decides who is listed
-
-    assignees() -> array {
-        return [...new Set(this.issuesOf().map((it) => it.assignee).filter((a) => a != null))].sort()
-        },
+    // ── the selection's verbs: each is one write to `issues`, plus what the
+    //    user sees around it ─────────────────────────────────────────────
 
     // No confirmation dialog: the undo toast is the safety net, and a modal
     // in front of it taxes every delete to save the rare one.
@@ -920,42 +1026,25 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         if (selCount > 0) this.performDelete()
         },
 
-    lastDeleted: array = [],            // what Undo puts back: { index, rec } per removed issue; empty = nothing to undo
+    lastDeleted: array = [],            // what Undo puts back; empty = nothing to undo
 
     performDelete() {
-        const issues = this.issuesOf()
-        const removed = selection.map((r) => ({ index: issues.findIndex((it) => it.id == r.id), rec: r }))
-            .filter((r) => r.index >= 0).sort((a, b) => b.index - a.index)
-        for (const r of removed) db.removeAt(["issues"], r.index)
-        lastDeleted = removed
+        lastDeleted = issues.removeEach(selection.map((r) => r.id))
         this.takeSelection(null)
-        this.toast.show(removed.length == 1 ? "Deleted 1 issue" : "Deleted " + removed.length + " issues")
+        this.toast.show(lastDeleted.length == 1 ? "Deleted 1 issue" : "Deleted " + lastDeleted.length + " issues")
         },
 
     undoDelete() {
-        const u = lastDeleted
-        if (u.length == 0) return
-        const back = [...u].sort((a, b) => a.index - b.index)
-        for (const r of back) db.insert(["issues"], Math.min(r.index, this.issuesOf().length), r.rec)
+        const back = lastDeleted
+        if (back.length == 0) return
+        issues.restore(back)
         lastDeleted = []
         this.takeSelection(back.map((r) => r.rec))
         this.toast.hide()
         },
 
     bulkSet(field: string, v: object) {
-        const issues = this.issuesOf()
-        for (const r of selection) {
-            const i = issues.findIndex((it) => it.id == r.id)
-            if (i < 0) continue
-            if (field == "label") {
-                if (!issues[i].labels.includes(v)) db.set(["issues", i, "labels"], [...issues[i].labels, v])
-                } else {
-                db.set(["issues", i, field], v)
-                }
-            const up = issues[i].updated + 1
-            db.set(["issues", i, "updated"], up)
-            if (field == "status") db.set(["issues", i, "closedAt"], v == "closed" ? up : null)
-            }
+        issues.setEach(selection.map((r) => r.id), field, v)
         },
 
     // ── the menus — items are data, derived where they are read; `picked`
@@ -975,24 +1064,23 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         const cur = it == null ? null : field == "status" ? it.status : field == "priority" ? it.priority : it.assignee
         if (field == "assignee")
             return [({ id: "null", label: "Unassigned", checked: cur == null }), ({ id: "d", divider: true }),
-                ...this.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
-        const opts = field == "status" ? this.statuses : ["P0", "P1", "P2", "P3"]
-        return opts.map((o) => ({ id: o, label: field == "status" ? trkStatusLabel(o) : o, checked: cur == o }))
+                ...issues.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
+        const opts = field == "status" ? issues.statuses : issues.priorities
+        return opts.map((o) => ({ id: o, label: field == "status" ? issues.statusLabel(o) : o, checked: cur == o }))
         },
 
     addLabelMenu: Menu [
-        items = { TRK_LABELS.filter((l) => !(app.draft.value.it?.labels ?? []).includes(l)).map((l) => ({ id: l, label: l })) },
+        items = { app.issues.labelNames.filter((l) => !(app.draft.value.it?.labels ?? []).includes(l)).map((l) => ({ id: l, label: l })) },
         picked(id: string) { app.setDraftField("labels", [...(app.draft.value.it?.labels ?? []), id]) }
         ],
 
+    statusItems: array = { app.issues.statuses.map((s) => ({ id: "s:" + s, label: "Set " + s })) },
+
     bulkMenu: Menu [
         items = { [
-            ({ id: "s:open", label: "Set open" }),
-            ({ id: "s:in-progress", label: "Set in-progress" }),
-            ({ id: "s:blocked", label: "Set blocked" }),
-            ({ id: "s:closed", label: "Set closed" }),
+            ...app.statusItems,
             ({ divider: true }),
-            ...TRK_LABELS.slice(0, 8).map((l) => ({ id: "l:" + l, label: "Label: " + l })),
+            ...app.issues.labelNames.slice(0, 8).map((l) => ({ id: "l:" + l, label: "Label: " + l })),
             ({ divider: true }),
             ({ id: "delete", label: "Delete…" }),
         ] },
@@ -1007,10 +1095,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     ctx: ContextMenu [
         items = { [
-            ({ id: "s:open", label: "Set open" }),
-            ({ id: "s:in-progress", label: "Set in-progress" }),
-            ({ id: "s:blocked", label: "Set blocked" }),
-            ({ id: "s:closed", label: "Set closed" }),
+            ...app.statusItems,
             ({ divider: true }),
             ({ id: "delete", label: "Delete…" }),
         ] },
@@ -1020,8 +1105,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             }
         ],
 
-    rowMenu(row: View, e: PointerEvent) {
-        const rec = (row as TableRow).item()
+    rowMenu(row: IssueRow, e: PointerEvent) {
+        const rec = row.item()
         if (!selection.some((r) => r.id == rec.id)) this.takeSelection([rec])
         this.ctx.open(row, e)
         },
@@ -1032,18 +1117,18 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             ({ id: "priority", label: "Priority", checked: app.sortOn == "priority" }),
             ({ id: "title", label: "Title", checked: app.sortOn == "title" }),
         ] },
-        picked(id: string) { app.setSort(id) }
+        picked(id: string) { app.setSort(id as "updated" | "priority" | "title") }
         ],
 
     assigneeMenu: Menu [
         items = { [({ id: "", label: "Anyone", checked: app.fAssignee == "" }), ({ id: "d", divider: true }),
-            ...app.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))] },
+            ...app.issues.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: app.fAssignee == p }))] },
         picked(id: string) { app.fAssignee = id }
         ],
 
     labelMenu: Menu [
         items = { [({ id: "", label: "any label", checked: app.fLabel == "" }),
-            ...TRK_LABELS.map((l) => ({ id: l, label: l, checked: app.fLabel == l }))] },
+            ...app.issues.labelNames.map((l) => ({ id: l, label: l, checked: app.fLabel == l }))] },
         picked(id: string) { app.fLabel = id }
         ],
 
@@ -1053,7 +1138,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         onKeyDown(e: KeyEvent) {
             // ⌘K or "/" reach the search field from anywhere — but "/" is a
             // character, so it only counts when nothing is taking text
-            if ((e.meta || e.ctrl) && e.code == "KeyK") { Focus.focus(app.bar.search.omni) }
+            if ((e.meta || e.ctrl) && e.code == "KeyK") { Focus.focus(app.omni) }
             // Escape unwinds the innermost layer first: the open editor, then
             // a selection, then the query, then the facet filters. Anything
             // else and a keystroke meant for the thing in front of you lands
@@ -1071,7 +1156,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         // focused, and the search box would open holding a stray "/".
 
         onKeyUp(e: KeyEvent) {
-            if (e.key == "/" && !app.typing) Focus.focus(app.bar.search.omni)
+            if (e.key == "/" && !app.typing) Focus.focus(app.omni)
             }
         ],
 
@@ -1105,7 +1190,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             omni: TextInput [ height = 32, width = { Math.min(380, Math.max(110, parent.width)) },
                 placeholder = { app.compact ? "Search" : "Search issues…   ⌘K" },
                 text = { app.query },
-                onInput(t: string) { app.query = t },
+                onInput(t: string) { app.search(t) },
                 onEnter() { app.enterHit() },
                 onKeyDown(e: KeyEvent) {
                     if (e.key == "ArrowDown") app.stepHit(1)
@@ -1118,9 +1203,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 text = { app.shownTotal + " match" + (app.shownTotal == 1 ? "" : "es") } ]
             ],
 
-        views: Segmented [
+        // the scale demo: at phone widths the search field needs the room
+
+        views: Segmented [ visible = { !app.compact },
             segMin = 62,
-            value = { app.issuesOf().length >= 1000000 ? "1M" : app.issuesOf().length >= 100000 ? "100k" : "10k" },
+            value = { app.issues.total >= 1000000 ? "1M" : app.issues.total >= 100000 ? "100k" : "10k" },
             input(v: object) { app.regenerate(("" + v) == "1M" ? 1000000 : ("" + v) == "100k" ? 100000 : 10000) },
             choices = { [ ({ id: "10k", label: "10K" }), ({ id: "100k", label: "100K" }), ({ id: "1M", label: "1M" }) ] }
             ],
@@ -1155,78 +1242,51 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         chips: View [ height = 28, flexes = true,
             scrolls = x, clip = true,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
-            byStatus: View [ datapath = { app.statusRows.value },
+            byStatus: View [ datapath = { app.issues.byStatus.value }, padding = [0, 14, 0, 0],
                 layout: SimpleLayout [ axis = x, spacing = 8 ],
-                Chip [ datapath = :rows[], facet = "status", value = :status, count = :n, on = { app.fStatus == :status } ]
+                Chip [ datapath = :rows[], value = :status, count = :n, on = { app.fStatus == :status } ]
                 ],
-            gap1: View [ width = 6, height = 1 ],
-            assigneeBtn: Control [ height = 28, cornerRadius = 8, padding = [0, 4, 0, 13],
-                layout: SimpleLayout [ axis = x, spacing = 8 ],
-                fill = { app.fAssignee != "" ? theme.controlSelected : hovered ? theme.control : null },
-                t: Text [ y = center, fontSize = 12.5, wrap = false,
-                    fontWeight = { app.fAssignee != "" ? "semibold" : "normal" },
-                    textColor = { app.fAssignee != "" ? theme.text : theme.textMuted },
-                    text = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee" } ],
-                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
-                menu = { app.assigneeMenu }
-                ],
-            labelBtn: Control [ height = 28, cornerRadius = 8, padding = [0, 4, 0, 13],
-                layout: SimpleLayout [ axis = x, spacing = 8 ],
-                fill = { app.fLabel != "" ? theme.controlSelected : hovered ? theme.control : null },
-                t: TextLabel [ fontSize = 12.5, wrap = false,
-                    fontWeight = { app.fLabel != "" ? "semibold" : "normal" },
-                    textColor = { app.fLabel != "" ? theme.text : theme.textMuted },
-                    text = { app.fLabel != "" ? app.fLabel : "Label" } ],
-                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
-                menu = { app.labelMenu }
-                ]
+            assigneeBtn: DropButton [ on = { app.fAssignee != "" },
+                label = { app.fAssignee != "" ? "@" + app.fAssignee : "Assignee" },
+                menu = { app.assigneeMenu } ],
+            labelBtn: DropButton [ on = { app.fLabel != "" },
+                label = { app.fLabel != "" ? app.fLabel : "Label" },
+                menu = { app.labelMenu } ]
             ],
 
         // the actions sit at the right end of their row: beside the filters,
         // or on a row of their own (the flow justifies it to the end)
 
         acts: View [ height = 30,
-            layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+            layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
             groupCheck: Checkbox [ height = 24, size = 15, fontSize = 12.5,
                 label = "Grouped",
                 textColor = { provided("theme").textMuted },
                 checked = { app.groupBy == "status" },
                 input(v: object) { app.groupBy = v ? "status" : "none" }
                 ],
-            gapSort: View [ width = 8, height = 1 ],
-            sortBtn: Control [ height = 28, cornerRadius = 8, padding = [0, 4, 0, 13],
-                layout: SimpleLayout [ axis = x, spacing = 8 ],
-                fill = { hovered ? theme.control : null },
-                t: Text [ y = center, fontSize = 12.5, wrap = false, textColor = { theme.textMuted },
-                    text = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) } ],
-                c: ChevronIcon [ iconSize = 11, ink = { theme.textMuted } ],
-                menu = { app.sortMenu }
+            sorting: View [
+                layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+                sortBtn: DropButton [ menu = { app.sortMenu },
+                    label = { "Sort: " + app.sortOn.charAt(0).toUpperCase() + app.sortOn.slice(1) } ],
+                dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, tooltipLabel = "Toggle sort direction",
+                    fill = { hovered || pressed ? provided("theme").control : null },
+                    t: ArrowIcon [ iconSize = 13, ink = { provided("theme").textMuted },
+                        x = center, y = center,
+                        dir = { app.sortDir == "desc" ? "down" : "up" } ],
+                    press() { app.toggleSortDir() }
+                    ]
                 ],
-            dirBtn: Control [ height = 28, width = 28, cornerRadius = 8, tooltipLabel = "Toggle sort direction",
-                fill = { hovered || pressed ? theme.control : null },
-                t: ArrowIcon [ iconSize = 13, ink = { theme.textMuted },
-                    x = center, y = center,
-                    dir = { app.sortDir == "desc" ? "down" : "up" } ],
-                press() { app.toggleSortDir() }
-                ],
-            gapNew: View [ width = 16, height = 1 ],
             newBtn: Button [ height = 30, fontSize = 12.5, primary = true, label = "New issue",
                 onClick() { app.newIssue() }
                 ]
             ]
         ],
 
-    // ── the list — a windowed Table over the projection ───────────────────
-    //
-    // `virtualize = true` is the whole virtualization story: the runtime
-    // windows, recycles, and measures rows (including one springing open
-    // into the editor card) with no further instruction from this file.
+    // which issue is open in place (0 = none): it edits where it lives, and
+    // its row springs open around the editor
 
-    // which row is open in place: an issue edits where it lives — the
-    // row's height springs open and the kernel's measured ladder carries
-    // the animation through the windowed list
-
-    expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? app.selected.id : -1 },
+    expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? app.selected.id : 0 },
 
     // ── the body — the issues and the rail, in what the bar, the toolbar
     //    and the footer leave ──────────────────────────────────────────────
@@ -1250,9 +1310,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     ]
                 ],
 
-            // The list. Rows over the projection; every hard thing about scale is
-            // someone else's honest work. It takes the column's rest, up to a
-            // reading width.
+            // The list: rows over the projection, `virtualize = true` on the row.
+            // Only the rows near the viewport are built, and the list measures
+            // them as they grow and shrink (one springing open into the editor
+            // included), with nothing more said here. It takes the column's
+            // rest, up to a reading width.
 
             list: Table [ width = { Math.min(parent.width, 1460) }, flexes = true,
                 datapath = { app.shown.value },
@@ -1268,10 +1330,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
             // the empty state says why it is empty — an overlay, centred on the list
 
-            empty: View [ visible = { app.booted && app.shownTotal == 0 }, width = 280, ignoreLayout = true,
+            empty: View [ visible = { app.ready && app.shownTotal == 0 }, width = 280, ignoreLayout = true,
                 x = { (parent.list.width - this.width) / 2 },
                 pop: number = 0,
-                Spring [ attribute = pop, to = { app.booted && app.shownTotal == 0 ? 1 : 0 }, stiffness = 220, damping = 26 ],
+                Spring [ attribute = pop, to = { app.ready && app.shownTotal == 0 ? 1 : 0 }, stiffness = 220, damping = 26 ],
                 opacity = { this.pop },
                 y = { 120 + (1 - this.pop) * 14 },
                 layout: SimpleLayout [ axis = y, spacing = 12 ],
@@ -1280,13 +1342,13 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     g: Text [ x = 0, y = center, width = 36, textAlign = center, fontSize = 15, textColor = { provided("theme").textFaint }, text = "?" ]
                     ],
                 cap: Text [ width = 280, textAlign = center, fontSize = 14.5, fontWeight = semibold,
-                    text = { app.issuesOf().length == 0 ? "No issues yet" : "No issues match" } ],
+                    text = { app.issues.total == 0 ? "No issues yet" : "No issues match" } ],
                 sub: Text [ width = 280, textAlign = center, fontSize = 12.5, textColor = { provided("theme").textMuted },
-                    text = { app.issuesOf().length == 0
+                    text = { app.issues.total == 0
                         ? "Create the first one — New issue is waiting."
                         : "Try a different search, or clear the filters." } ],
                 clear: Button [ x = center, height = 30, fontSize = 12.5, label = "Clear all",
-                    visible = { app.issuesOf().length > 0 },
+                    visible = { app.issues.total > 0 },
                     onClick() { app.clearAll() }
                     ]
                 ],
@@ -1314,15 +1376,15 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                             textColor = { provided("theme").tooltipTextColor }, text = "selected" ]
                         ],
                     div1: View [ width = 1, height = 20, y = 4, fill = { provided("theme").bulkLine } ],
-                    act: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
+                    act: Control [ height = 28, cornerRadius = 7, padding = [0, 10, 0, 10],
                         fill = { hovered ? provided("theme").bulkHover : null },
-                        t: Text [ x = 10, y = center, fontSize = 12.5, wrap = false,
-                            textColor = { theme.tooltipTextColor }, text = "Set status ▾" ],
+                        t: Text [ y = center, fontSize = 12.5, wrap = false,
+                            textColor = { provided("theme").tooltipTextColor }, text = "Set status ▾" ],
                         menu = { app.bulkMenu }
                         ],
-                    del: Control [ height = 28, cornerRadius = 7, width = { this.t.width + 20 },
+                    del: Control [ height = 28, cornerRadius = 7, padding = [0, 10, 0, 10],
                         fill = { hovered || pressed ? provided("theme").danger : null },
-                        t: TextLabel [ x = 10, fontSize = 12.5, fontWeight = semibold, wrap = false,
+                        t: TextLabel [ fontSize = 12.5, fontWeight = semibold, wrap = false,
                             textColor = { this.parent.hovered || this.parent.pressed ? provided("theme").onFill : provided("theme").bulkDanger }, text = "Delete…" ],
                         press() { app.deleteSelection() }
                         ],
@@ -1330,15 +1392,15 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     clr: Control [ height = 28, cornerRadius = 7, width = 28,
                         fill = { hovered ? provided("theme").bulkHover : null },
                         t: Text [ x = 0, y = center, width = 28, textAlign = center, fontSize = 13,
-                            textColor = { theme.tooltipTextColor }, text = "×" ],
+                            textColor = { provided("theme").tooltipTextColor }, text = "×" ],
                         press() { app.takeSelection(null) }
                         ]
                     ]
                 ]
             ],
 
-        // ── the rail: an instrument, not a sidebar. Every number below is a
-        //    live derivation off the one truth; every row is also a filter. ─────
+        // ── the rail: an instrument, not a sidebar. Every number is derived
+        //    from the records, and every row is also a filter. ──────────────
 
         rail: View [ visible = { app.railOn }, width = { app.railW }, height = 100%, clip = true, scrolls = y,
             padding = 20, stroke = { [null, null, null, stroke(1, provided("theme").line)] },
@@ -1351,30 +1413,27 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                         textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) },
                         n = { app.shownTotal } ],
                     cap: Text [ x = 2, y = 48, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint },
-                        text = { app.shownTotal == app.issuesOf().length
+                        text = { app.shownTotal == app.issues.total
                             ? "issues · nothing filtered out"
-                            : "matching · of " + app.issuesOf().length.toLocaleString() + " issues" } ]
+                            : "matching · of " + app.issues.total.toLocaleString() + " issues" } ]
                     ],
 
                 byStatus: View [ width = 100%,
-                    layout: SimpleLayout [ axis = y, spacing = 2 ],
-                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                        textColor = { provided("theme").textFaint }, text = "BY STATUS" ],
-                    gap: View [ width = 1, height = 6 ],
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    cap: RailCaption [ text = "BY STATUS" ],
 
                     // one band, each status's share of it in its color
 
                     dist: View [ width = 100%, height = 6, cornerRadius = 3, clip = true,
-                        datapath = { app.statusRows.value },
+                        datapath = { app.issues.byStatus.value },
                         layout: SimpleLayout [ axis = x ],
                         View [ datapath = :rows[], height = 6, fill = { app.statusColor(:status) },
-                            width = { parent.width * :n / Math.max(1, app.issuesOf().length) } ]
+                            width = { parent.width * :n / Math.max(1, app.issues.total) } ]
                         ],
-                    gap2: View [ width = 1, height = 8 ],
-                    rows: View [ width = 100%, datapath = { app.statusRows.value },
+                    rows: View [ width = 100%, datapath = { app.issues.byStatus.value },
                         layout: SimpleLayout [ axis = y, spacing = 2 ],
-                        RailStat [ datapath = :rows[], width = 100%, facet = "status", value = :status, cap = { trkStatusLabel(:status) },
-                            n = :n, peak = { app.issuesOf().length }, tint = { app.statusColor(:status) },
+                        RailStat [ datapath = :rows[], facet = "status", value = :status, cap = { app.issues.statusLabel(:status) },
+                            n = :n, peak = { app.issues.total }, tint = { app.statusColor(:status) },
                             on = { app.fStatus == :status },
                             ic: StatusIcon [ x = 8, y = 8, s = :status ]
                             ]
@@ -1382,101 +1441,82 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     ],
 
                 work: View [ width = 100%,
-                    datapath = { app.workload.value },
-                    layout: SimpleLayout [ axis = y, spacing = 2 ],
-                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                        textColor = { provided("theme").textFaint }, text = "WORKLOAD · OPEN WORK" ],
-                    gap: View [ width = 1, height = 6 ],
-                    RailStat [ datapath = :rows[], width = 100%,
-                        facet = "assignee",
-                        value = { "" + (:name ?? "") },
-                        cap = { ("" + (:name ?? "")) == "" ? "Unassigned" : "" + :name },
-                        n = { (:n ?? 0) + 0 },
-                        peak = { (:peak ?? 1) + 0 },
-                        hueName = { "" + (:name ?? "") },
-                        on = { app.fAssignee != "" && app.fAssignee == ("" + (:name ?? "")) },
-                        av: Avatar [ x = 4, y = 4, width = 20, height = 20, cornerRadius = 10, name = { "" + (:name ?? "") } ]
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    cap: RailCaption [ text = "WORKLOAD · OPEN WORK" ],
+                    rows: View [ width = 100%, datapath = { app.issues.workload.value },
+                        layout: SimpleLayout [ axis = y, spacing = 2 ],
+                        RailStat [ datapath = :rows[], facet = "assignee", value = :name,
+                            cap = { :name == "" ? "Unassigned" : :name },
+                            n = :n, peak = :peak,
+                            tint = { :name == "" ? 0 : app.hueOf(:name) },
+                            on = { app.fAssignee != "" && app.fAssignee == :name },
+                            av: Avatar [ x = 4, y = 4, width = 20, height = 20, cornerRadius = 10, name = :name ]
+                            ]
                         ]
                     ],
 
-                closed14: View [ width = 100%,
-                    datapath = { app.closedSeries.value },
-                    cap: Text [ x = 0, y = 0, fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                        textColor = { provided("theme").textFaint }, text = "CLOSED · LAST 14 DAYS" ],
-                    bars: View [ x = 0, y = 22, width = 100%, height = 40,
-                        pk: number = { Math.max(1, (:peak ?? 1) + 0) },
+                closed14: View [ width = 100%, datapath = { app.issues.closedByDay.value },
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    cap: RailCaption [ text = "CLOSED · LAST 14 DAYS" ],
+
+                    // fourteen bars sharing the width equally, each as tall as its
+                    // day's count against the busiest day
+
+                    bars: View [ width = 100%, height = 40,
+                        peak: number = { Math.max(1, :peak) },
                         layout: SimpleLayout [ axis = x, spacing = 3 ],
-                        View [ datapath = :days[], width = { (this.parent.width - 39) / 14 },
-                            height = 40,
-                            b: View [ x = 0, cornerRadius = 1.5,
-                                width = 100%,
-                                y = { 40 - Math.max(2, 38 * (:@ + 0) / this.parent.parent.pk) },
-                                height = { Math.max(2, 38 * (:@ + 0) / this.parent.parent.pk) },
-                                fill = { app.statusColor("closed") } ]
-                            ]
+                        View [ datapath = :days[], flexes = true, cornerRadius = 1.5,
+                            height = { Math.max(2, 38 * :@ / parent.peak) },
+                            y = { 40 - this.height },
+                            fill = { app.statusColor("closed") } ]
                         ]
                     ],
 
                 perf: View [ width = 100%,
                     layout: SimpleLayout [ axis = y, spacing = 8 ],
-                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                        textColor = { provided("theme").textFaint }, text = "PERFORMANCE" ],
-                    l1: View [ width = 100%, height = 16,
-                        a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Initial load" ],
-                        b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = end,
-                            textColor = { provided("theme").text }, text = { app.loadMs + " ms" } ]
-                        ],
-                    l2: View [ width = 100%, height = 16,
-                        a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Ingest" ],
-                        b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = end,
-                            textColor = { provided("theme").text }, text = { app.adoptMs + " ms" } ]
-                        ],
-                    l3: View [ width = 100%, height = 16, visible = { app.query != "" },
-                        a: Text [ x = 0, y = 0, fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted }, text = "Last search" ],
-                        b: Text [ y = 0, fontSize = 11.5, wrap = false, textAlign = right, width = 70, x = end,
-                            textColor = { provided("theme").text }, text = { (app.shown.value.searchMs ?? 0) + " ms" } ]
-                        ]
+                    cap: RailCaption [ text = "PERFORMANCE" ],
+                    PerfLine [ what = "Initial load", ms = { app.loadMs } ],
+                    PerfLine [ what = "Ingest", ms = { app.ingestMs } ],
+                    PerfLine [ what = "Last search", ms = { app.searchMs }, visible = { app.query != "" } ]
                     ],
 
-                keys: View [ width = 100%,
+                keys: View [ width = 100%, padding = [0, 0, 8, 0],
                     layout: SimpleLayout [ axis = y, spacing = 6 ],
-                    cap: Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 0.6, wrap = false,
-                        textColor = { provided("theme").textFaint }, text = "KEYBOARD" ],
+                    cap: RailCaption [ text = "KEYBOARD" ],
                     KeyHint [ shortcut = "⌘K", what = "Search" ],
                     KeyHint [ shortcut = "↵", what = "Open selected row" ],
                     KeyHint [ shortcut = "⌫", what = "Delete selection" ],
-                    KeyHint [ shortcut = "esc", what = "Close · clear" ],
-                    tail: View [ width = 1, height = 8 ]
+                    KeyHint [ shortcut = "esc", what = "Close · clear" ]
                     ]
                 ]
             ]
         ],
 
-    // ── the footer — the quiet ledger line: how many, how many shown ──────
+    // ── the footer: the quiet ledger line, how many and how many shown ─────
 
     foot: View [ width = 100%, height = 32, padding = [0, 16, 0, 24],
         fill = { provided("theme").surface }, stroke = { [stroke(1, provided("theme").line), null, null, null] },
         stats: Text [ y = center, fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint },
-            text = { app.issuesOf().length.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
-        perf: Text [ y = center, fontSize = 10.5, wrap = false, visible = { app.booted && !app.railOn },
+            text = { app.issues.total.toLocaleString() + " issues   ·   " + app.shownTotal.toLocaleString() + " shown" } ],
+        perf: Text [ y = center, fontSize = 10.5, wrap = false, visible = { app.ready && !app.railOn },
             x = end,
             textColor = { provided("theme").textFaint },
-            text = { "load " + app.loadMs + " ms · adopt " + app.adoptMs + " ms" } ]
+            text = { "load " + app.loadMs + " ms · ingest " + app.ingestMs + " ms" } ]
         ],
 
     toast: Toast [ ignoreLayout = true, x = center,
         y = { app.height - 84 + (1 - this.lift) * 20 } ],
 
-    // the entry screen — honest states for the one fetch
+    // the entry screen: honest states for the one fetch
 
-    entry: View [ visible = { !app.booted }, ignoreLayout = true, x = 0, y = 0, width = { app.width }, height = { app.height },
+    entry: View [ visible = { !app.ready }, ignoreLayout = true, x = 0, y = 0, width = { app.width }, height = { app.height },
         fill = { provided("theme").background },
         col: View [ x = center, y = { app.height * 0.38 }, width = 220,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
             Text [ fontSize = 22, fontWeight = semibold, textAlign = center, width = 220,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Tracker" ],
             Text [ fontSize = 12.5, textAlign = center, width = 220, textColor = { provided("theme").textMuted },
-                text = { app.src.failed ? "Could not load issues.json" : "Loading issues…" } ]
+                text = { app.issues.failed ? "Could not load issues.json" : "Loading issues…" } ]
             ]
         ]
     ]

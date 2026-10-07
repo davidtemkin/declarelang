@@ -9,8 +9,15 @@ import { parseProgram } from "../runtime/dist/parser.js";
 import { instantiate, settle, build, serializeDeps, applyDeps, forEachCodeValue } from "../runtime/dist/index.js";
 import { Clock, setClock } from "../runtime/dist/animate.js";
 
+// Every case starts at once; each reports as it settles, and the totals wait
+// for all of them (an async case's assertions land after it returns).
 let pass = 0, fail = 0;
-function test(name, fn) { try { fn(); pass++; console.log("  ok —", name); } catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); } }
+const running = [];
+function test(name, fn) {
+  const ok = () => { pass++; console.log("  ok —", name); };
+  const bad = (e) => { fail++; console.log("  FAIL —", name, "\n     ", e.message); };
+  try { const r = fn(); if (r instanceof Promise) running.push(r.then(ok, bad)); else ok(); } catch (e) { bad(e); }
+}
 
 // compile → resolve → ANNOTATE deps → instantiate (the static path is active).
 async function run(src) {
@@ -182,6 +189,31 @@ test("computed-default inlining is transitive (default → default → method �
   assert.equal(app.v.width, 11, "a cell reached only through nested defaults + a method propagates");
 });
 
+// ── a non-view class's computed defaults stand as rules (regression) ──────────
+// A Dataset, DataSource or source subclass is built by its own family's path,
+// not the view path, and that path did not install the class's declared
+// defaults as rules. The default was evaluated on each read instead: a JS
+// reader saw the right value, but nothing ever wrote the slot, so its change
+// handler never fired and a kernel-run reader stayed on the slot's first value
+// (marketmap's `app.market.nDays` held 1 while the market had four days).
+test("a Dataset, DataSource or source subclass's computed default is a rule, as a Node subclass's is", async () => {
+  const app = await run(`
+    class D extends Dataset [ m: number = { this.value?.n ?? 0 },
+      trackChanges = ["m"], onChange(e: ChangeEvent) { app.seenD = app.seenD + 1 } ]
+    class S extends DataSource [ m: number = { this.value?.n ?? 0 } ]
+    class K extends Keys [ base: number = 1, twice: number = { this.base * 2 } ]
+    class E extends Node [ ds: Dataset { { "n": 0 } }, m: number = { this.ds.value?.n ?? 0 } ]
+    App [ seenD: number = 0,
+      d: D { { "n": 0 } }, s: S [ url = "none.json" ], k: K [ ], e: E [ ],
+      fromD: number = { app.d.m }, fromS: number = { app.s.m }, fromK: number = { app.k.twice }, fromE: number = { app.e.m } ]`);
+  for (const [n, node, attr] of [["Dataset", app.d, "m"], ["DataSource", app.s, "m"], ["Keys", app.k, "twice"], ["Node", app.e, "m"]]) {
+    assert.ok(owner(node, attr)?.declDefault === true, `${n} subclass: '${attr}' stands as a rule`);
+  }
+  app.d.set([], { n: 8 }); app.s.set([], { n: 7 }); app.k.base = 5; app.e.ds.set([], { n: 6 }); settle();
+  assert.deepEqual([app.fromD, app.fromS, app.fromK, app.fromE], [8, 7, 10, 6], "every reader follows");
+  assert.equal(app.seenD, 1, "the Dataset subclass's own change handler fires for its computed attribute");
+});
+
 // ── SUSPENSION must not sever a wired constraint's edges (regression) ─────────
 // suspend() drops the dependency edges to make a constraint inert, but on the
 // static path run() deliberately does NOT rediscover them — that is what
@@ -290,5 +322,6 @@ test("a pure projection off an alias KEEPS the static path (.split/.length)", as
   assert.equal(app.v.width, 8, "still live on its named deps");
 });
 
+await Promise.all(running);
 console.log(`\nstatic-constraint: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

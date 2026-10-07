@@ -26,6 +26,7 @@
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
 import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage } from "./errors.js";
+import { THEME_PRESETS } from "./themes.js";
 // Class → its attribute tables. All are prototype-chained objects mirroring
 // the class hierarchy (Text's defaults chain to View's), so "nearest declared
 // wins" is a plain property lookup — the same shape schema.ts's chain walk
@@ -667,6 +668,13 @@ export function providedRead(self, name, hasDefault, dflt) {
         if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && globalThis.__declareProvidedCensus !== undefined)
             devProvidedCensus(self, name, devHops, null, "default (walked to the root)");
         return dflt;
+    }
+    // The theme is the one provided value with a built-in default: an app that
+    // never provides one renders in the house preset. The default lives here,
+    // once, so no reader has to carry it.
+    if (name === "theme") {
+        remember(null);
+        return THEME_PRESETS.SanFrancisco;
     }
     throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
 }

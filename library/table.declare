@@ -412,6 +412,6 @@ class TableRow extends Control [
     // on the shared ladder, so a selected row and a selected segment mean the
     // same tokens
 
-    fill = { selected ? theme.controlSelected : hovered ? theme.controlHovered : null },
-    stroke = { active && (parent as Table).focusVisible ? stroke(1, theme.accent) : null }
+    fill = { selected ? provided("theme").controlSelected : hovered ? provided("theme").controlHovered : null },
+    stroke = { active && (parent as Table).focusVisible ? stroke(1, provided("theme").accent) : null }
     ]

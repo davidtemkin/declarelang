@@ -13,14 +13,14 @@ stale.
 > Edits are writes to the data.**
 
 This chapter covers where data lives, how views read and repeat over it, how handlers
-write it, how a class stands on a record, how a document carries its own logic, how data
+write it, how a class stands on a record, how a dataset carries its own logic, how data
 arrives from a server or a stream, and how text fields edit it. [Typed data](declare-docs:guide:schemas) adds the
 schemas that make the compiler check all of it.
 
 ## Datasets, cursors and paths
 
-A [`Dataset`](declare-docs:Dataset) holds a JSON document in the tree. A view's [`datapath`](declare-docs:Node.datapath) attribute points it
-at a place in that document — its **cursor** — and every descendant reads fields
+A [`Dataset`](declare-docs:Dataset) holds data, as JSON, in the tree. A view's [`datapath`](declare-docs:Node.datapath) attribute points it
+at a place in that data — its **cursor** — and every descendant reads fields
 relative to it with a `:path`. A path ending in `[]` **replicates** its view: one
 instance per record.
 
@@ -100,7 +100,7 @@ pattern of [Controls](declare-docs:guide:controls@the-value-pattern) applies unc
 A write names one place — a field, a nested field, or a non-negative index. Changes to
 the *shape* of a collection go through the dataset's verbs:
 
-- `d.set(path, value)` writes one place; `d.set([], value)` replaces the whole document;
+- `d.set(path, value)` writes one place; `d.set([], value)` replaces all of it;
 - `d.insert(path, index, value)` and `d.removeAt(path, index)` add and remove elements,
   and `d.set("/rows/-", value)` appends;
 - `d.move(path, from, to)` reorders, and the rows move with their records.
@@ -148,7 +148,7 @@ read follows. Like any `:path`, both forms are read in a `{ }` and written in a 
 
 ## A Node class on a record
 
-A class with no view ([Classes and the tree](declare-docs:guide:classes@classes-with-no-view)) can stand on a
+A class with no view ([Program structure](declare-docs:guide:structure@when-a-class-earns-its-place)) can stand on a
 record of its own. Give it a `datapath`, and its declarations derive from the record
 and its methods write back to it — with no view involved:
 
@@ -193,11 +193,11 @@ replicate, is not supported; only views replicate.)
 
 Most apps also compute things *from* the whole collection — a category's total, a
 running balance, the largest item. They are **methods**, on the App while there are a few of
-them; when a document's logic grows into a thing in its own right, the document becomes a
-class that extends `Dataset` (or `DataSource`, when it arrives from a server), carrying its
+them; when the logic of one dataset's records grows into a thing in its own right, the dataset
+becomes a class that extends `Dataset` (or `DataSource`, when it arrives from a server), carrying its
 derivations, its queries and the few writes that are more than a field. The compiler reads through a method, so what a constraint
-depends on is known and `explain` can show it, while a `script` function is opaque to
-both. Give a result a `schema` and it arrives typed, with no casts:
+depends on is known and `explain` can show it; through a `script` function it traces nothing,
+so a constraint depends only on the arguments it passes. Give a result a `schema` and it arrives typed, with no casts:
 
 ```declare
 schema Expense [ id: number, category: string, amount: number ]
@@ -228,15 +228,15 @@ App [ width = 320, height = 110, fill = white, textColor = #172530,
 and a row writes its own expense as it would in any dataset. `food` is a derived dataset
 declared on it: its contents are whatever `totalFor("food")` returns, re-derived when the
 expenses change, and its `schema` makes `app.ledger.food.value.count` a `number` to every
-body. A data class holds members that paint nothing — a derived dataset, a `Time` — and
+body. A dataset class holds members that paint nothing — a derived dataset, a `Time` — and
 never views. [Data in a whole app](declare-docs:guide:data@data-in-a-whole-app), below,
-binds views to a document class and its derived dataset together.
+binds views to a dataset class and its derived dataset together.
 
-When logic moves out of the App, where it goes follows what it is about: a document's own
-logic — its derivations, queries over its records, how a record is created, the rules a
-write must keep — moves onto the document; the application's own state and machinery — a
+When logic moves out of the App, where it goes follows what it is about: the logic of one
+dataset's records — its derivations, queries over them, how a record is created, the rules a
+write must keep — moves onto the dataset, as its class; other logic with no view — a
 service, a connection feeding several datasets, an undo history — moves into a class that
-extends `Node`. What the user is looking at — the selection, the page, the mode — is never
+extends `Node`, of which a dataset class is the special case that holds data. What the user is looking at — the selection, the page, the mode — is never
 on the data.
 What stays in `script` is code that knows nothing about your model — date arithmetic,
 formatting — functions of their arguments alone.
@@ -244,7 +244,7 @@ formatting — functions of their arguments alone.
 ## Where data comes from
 
 A **`Dataset`** holds embedded or computed data. Its literal body is strict JSON —
-quoted keys, no trailing commas. A derived dataset computes its document with
+quoted keys, no trailing commas. A derived dataset computes its data with
 `contents = { … }` and recomputes when what it reads changes.
 
 Views bind to every kind the same way, and write them the same way: data fetched from a
@@ -252,7 +252,7 @@ server, a working copy or excerpt of it (the page of records on screen), a deriv
 dataset, or data the app creates for itself. An app that only manages its own data writes
 it directly — there is no server to imitate and nothing to buffer.
 
-A **`DataSource`** is a dataset whose document arrives over HTTP, and its lifecycle is
+A **`DataSource`** is a dataset whose data arrives over HTTP, and its lifecycle is
 reactive state:
 
 ```declare-fragment
@@ -266,9 +266,9 @@ notice: Text [ visible = { app.weather.failed }, text = { app.weather.error } ]
 
 `loaded` is about the *value*: true from the first arrival until [`clear()`](declare-docs:DataSource.method.clear) empties the
 source, and still true while a refresh runs. [`loading`](declare-docs:DataSource.loading) and `failed` are about the
-*request*. The two are independent — `loaded && loading` is a refresh, the old document
-showing and the new one on its way. When a request fails, `value` keeps the last good
-document, `error` says why, and [`statusCode`](declare-docs:DataSource.statusCode) and [`errorBody`](declare-docs:DataSource.errorBody) carry what the server said.
+*request*. The two are independent — `loaded && loading` is a refresh, the old data
+showing and the new on its way. When a request fails, `value` keeps the last good
+data, `error` says why, and [`statusCode`](declare-docs:DataSource.statusCode) and [`errorBody`](declare-docs:DataSource.errorBody) carry what the server said.
 
 **Loading is explicit.** A `DataSource` does not fetch because it was declared. Call
 [`fetch()`](declare-docs:DataSource.method.fetch) — in `onInit`, or on a user action — or set `auto = true` when the address
@@ -283,8 +283,8 @@ code that shows the report when the fetch returns. The zip changes, the URL re-d
 the source fetches, and the screens follow. The fetch-then-set-state choreography is
 deleted, not abstracted.
 
-**Logic about one feed belongs on it.** A document with rules of its own becomes a class
-that extends `Dataset` (below); a document that arrives from a server becomes a class
+**Logic about one feed belongs on it.** A dataset with rules of its own becomes a class
+that extends `Dataset` (below); one whose data arrives from a server becomes a class
 that extends `DataSource`, carrying its address, its queries over what arrived, and
 whatever its arrival must do. The class is declared at the top level, beside its schema:
 
@@ -297,7 +297,7 @@ class Quotes extends DataSource [ url = "/api/quotes", auto = true, schema = [ r
     ]
 ```
 
-and the App holds an instance, which views read and bind to exactly as to any document — its
+and the App holds an instance, which views read and bind to exactly as to any dataset — its
 records, its queries, and its derived datasets:
 
 ```declare-fragment
@@ -370,7 +370,7 @@ remove: DataSource [ url = { "/api/tasks/" + app.target }, method = "DELETE",
 A row aims and sends in one handler — `onClick() { app.target = :id; app.remove.fetch() }`
 — and because `fetch()` settles first, the request carries this row's id.
 
-**Several sources, one screen.** A screen that needs two documents derives from both:
+**Several sources, one screen.** A screen that needs two sources derives from both:
 `ready: boolean = { app.people.loaded && app.rooms.loaded }`. There is no join to write
 and no order to wait in.
 
@@ -381,7 +381,7 @@ source:
 poll: Time [ tick = 30000, running = { app.tasks.loaded }, onTick() { app.tasks.fetch() } ]
 ```
 
-A refresh keeps `loaded` true and the old document showing until the new one lands, so
+A refresh keeps `loaded` true and the old data showing until the new data lands, so
 nothing flashes. The period counts from when the `Time` starts, and a hidden page pauses
 it.
 
@@ -393,7 +393,7 @@ the failure is not that case; a constraint on `failed` does it.
 The host's `fetch` is not available in a `{ }` body; the compiler names `DataSource`
 instead. A request a `DataSource` genuinely cannot express belongs in a
 `script [ "file.ts" ]` module, which is plain TypeScript
-([Classes](declare-docs:guide:classes@where-code-goes)).
+([Program structure](declare-docs:guide:structure@what-script-is-for)).
 
 ## Streams
 
@@ -549,15 +549,15 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
     ]
 ```
 
-Read it top to bottom. `Board` is the document, and its records are the truth: a flat
+Read it top to bottom. `Board` is the dataset, and its records are the truth: a flat
 list, each card knowing only its column number, typed by a schema that holds every write
-that follows ([Typed data](declare-docs:guide:schemas)). The document carries its own
+that follows ([Typed data](declare-docs:guide:schemas)). The dataset carries its own
 logic: `lanes`, a **derived dataset** whose `contents = { classroot.byColumn() }`
 recomputes when anything `byColumn` reads changes (the compiler reads through the
 method), and `add`, the one write that is more than a field. The App holds an instance
 and the views. Lanes and cards replicate over `app.board.lanes.value`; a view that
 wanted the flat list would bind to `app.board.value` the same way. Both user actions are
-one write each, and the document never touches a view.
+one write each, and the dataset never touches a view.
 
 Note where the card's click writes: `:col = :col + 1`, on the card itself, although the
 card is attached to the *derived* lanes. `byColumn` groups the cards — it does not copy

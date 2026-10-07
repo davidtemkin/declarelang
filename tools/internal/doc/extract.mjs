@@ -1032,8 +1032,9 @@ const spine = guide.map(({ id, num, title, short, part }) => ({ id, num, title, 
 // and one PAGE per form (syntax, lead, usage demos by the same readExample the
 // class pages use, RULES each quoting the checker verbatim with the probe that
 // provokes it, related). The gate: every form has a page, a usage demo, and at
-// least one rule; and every probe COMPILES TO ITS SENTENCE — a page can never
-// quote a diagnostic the compiler no longer says.
+// least one rule; every related chapter is a guide file; and every probe
+// COMPILES TO ITS SENTENCE — a page can never quote a diagnostic the compiler
+// no longer says, or link a chapter the guide no longer has.
 const FORMS_MD = path.join(ROOT, "tools/internal/doc/forms.md");
 const formsProblems = [];
 async function readForms() {
@@ -1068,6 +1069,7 @@ async function readForms() {
     // the gate
     if (!usage.length) formsProblems.push(`forms.md '## ${sec.slug}': no usage demo (apps/docs/demos/${field("usage") || "form-" + sec.slug}.declare)`);
     if (!rules.length) formsProblems.push(`forms.md '## ${sec.slug}': no rules`);
+    for (const g of guide) if (!existsSync(path.join(ROOT, "docs/guide", g.chapter + ".md"))) formsProblems.push(`forms.md '## ${sec.slug}': related chapter '${g.chapter}' does not exist`);
     for (const r of rules) {
       if (!r.probe) { formsProblems.push(`forms.md '## ${sec.slug}': rule "${r.rule.slice(0, 40)}…" has no probe`); continue; }
       let msgs = [];

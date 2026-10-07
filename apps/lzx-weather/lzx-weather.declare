@@ -6,6 +6,11 @@ weather sample. Its data is the bundled static file data/weather.json; it's
 one file, and the classes below are all specific to it. Three named fonts,
 each a `Font` on the App: `chrome` and `body` are faces already on the
 machine, `title` is a web font loaded from its .woff2 file.
+
+This is a port of an OpenLaszlo sample from 2003, kept faithful to the
+original's look and behavior and, in places, to that period's imperative
+style. It is not a model of idiomatic Declare: for that, read the programs
+listed in skill/SKILL.md.
 */
 
 

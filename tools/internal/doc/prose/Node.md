@@ -1,10 +1,11 @@
 The plain object-graph atom — a **non-visual** node you subclass, with
-`class X extends Node [ … ]`, for a job that paints nothing and is not a document: the rules
+`class X extends Node [ … ]`, for logic that paints nothing: the rules
 for a kind of record, a service, shared state with rules to keep, machinery several views
 drive. It lives in the tree as a named member, shares the reactive core and the
 `classroot`/`app` reach, and fires `init` — but it paints nothing. Data itself is not
-wrapped in one: records live in a `Dataset` that views bind to, and a document with logic
-of its own is a class that extends `Dataset`.
+wrapped in one: records live in a `Dataset` that views bind to, and when those records have logic
+of their own, the dataset is a class that extends `Dataset` — the special case of a class
+with no view that holds data.
 
 ```declare
 class Die extends Node [ sides: number = 6, last: number = 0, rolls: number = 0,
