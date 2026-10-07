@@ -13,11 +13,11 @@ gives you the annotated reading view.
 
 This is not a line-by-line walk, because you don't need one — most of the file is
 composition covered in the Building part: bar chrome, theme records, a
-detail panel, replicated cells. What the walk covers is the four load-bearing
-mechanisms that make the parts that *look impossible* — and each one is a chapter of
-this guide, under load. Framed honestly: this program is the language's **ceiling,
-not its floor**. You will not write code this dense often. But nothing here is a
-trick.
+detail panel, replicated cells. What the walk covers is the four mechanisms that make
+the parts that look hardest to build — and each one is a chapter of this guide, under
+load. None of it is required: a program takes as much of this as it benefits from. Nor
+is it a limit. The calendar is still an ordinary, learnable kind of interface, and a
+Declare program can go a good deal further. Nothing here is a trick.
 
 ## 1. The focus rectangle: four sprung scalars
 
@@ -122,8 +122,9 @@ at scale. The calendar has no calendar feature. It has the language.
 
 That is the claim the whole guide has been cashing — here as a few hundred readable
 lines, written by an LLM under a person's direction, verified by the toolchain, and
-understood by you in a sitting. The floor of this language is ordinary interfaces
-with less machinery. This was the ceiling.
+understood by you in a sitting. The same language builds an ordinary form with less
+machinery; this is what it does when a program asks for more, and it is within reach of
+any program that would benefit.
 
 ## Where next
 

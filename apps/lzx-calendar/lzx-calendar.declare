@@ -14,9 +14,8 @@ Colors (SPEC §3–4; sampled + source-verified) — day-cell bodies: weekday
 `#D3D3D3`. Event categories: default / holiday / astro / milestone.
 
 This is a port of an OpenLaszlo sample from 2003, kept faithful to the
-original's look and behavior and, in places, to that period's imperative
-style. It is not a model of idiomatic Declare: for that, read the programs
-listed in skill/SKILL.md.
+original's look and behavior. It is not yet a model of idiomatic Declare: for
+that, read the programs listed in skill/SKILL.md.
 */
 
 /*

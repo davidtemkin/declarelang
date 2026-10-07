@@ -22,17 +22,15 @@ write, then check the program and look at it running.
    the user's place, the views and any script each belong; and
    `docs/guide/05-run-and-check.md`, the working loop (run, read an error, check, debug).
 3. **The calendar, whole** — `apps/calendar/calendar.declare`, with
-   `docs/guide/27-calendar.md` beside it as its commentary. It is about 500 lines of code,
-   and it shows what Declare makes ordinary: a change of view that is one assignment, which
-   the whole screen follows continuously. Read it for how the work divides — one source of
-   truth, a model derived from it, classes for the things it has many of, four springs
-   that every cell reads. Its month surface is a scene whose geometry is mapped through
-   those springs, which is where hand-written `x` and `y` belong; an ordinary page's cards
-   and rows are a layout's job (see the drift check).
-4. **The tracker, whole** — `apps/tracker/tracker.declare`, about 1,000 lines of code.
-   Where the calendar is one continuous surface, the tracker is a list of records — a
-   million of them — searched, filtered, sorted and edited in place. Its opening comment
-   says how it is put together.
+   `docs/guide/27-calendar.md` beside it as its commentary. It is <!--stat:calendar.code-->501<!--/stat--> lines of code,
+   and it shows a whole program in the grain Declare is designed for: a change of view is
+   one assignment, and the screen follows it continuously and interruptibly, with no
+   transition code. Read it for how the work divides — the events as a dataset class with
+   their own rules, a drag as a class with no view, the user's place on the App, a model
+   derived from both, classes for the things it has many of, four springs that every cell
+   reads — and for records edited in place. Its month surface is a scene whose geometry is
+   mapped through those springs, which is where hand-written `x` and `y` belong; an
+   ordinary page's cards and rows are a layout's job (see the drift check).
 
 Then stop reading. Everything else is read when you reach the part that needs it: every
 read stays in your context for the rest of the session, so a read made early, or never
@@ -92,7 +90,9 @@ Then check every need in the plan against
   - `calendar` — month, week, day and year as one surface that each view change carries
     continuously; events dragged between days and edited in a panel.
   - `tracker` — a million issues: a virtualized list, search as you type, filter and sort
-    menus, editing in place with undo, multi-select, keyboard shortcuts.
+    menus, editing through a draft, create and delete with undo, multi-select, keyboard
+    shortcuts. It is <!--stat:tracker.code-->990<!--/stat--> lines of code; read it whole when your
+    program is records at scale.
   - `weather` — one app in a phone design and a desktop design: drawn instrument cards in
     a masonry layout, a list row that becomes the city's page, a live clock.
   - `marketmap` — a treemap of a market over time: a data source with its own queries,
@@ -111,7 +111,7 @@ Then check every need in the plan against
 
   The other folders in `apps/` are not models to copy: `docs`, `homepage` and
   `architecture` are Declare's own site, and the three `lzx-*` programs are faithful
-  ports of 2003-era OpenLaszlo samples, written in that period's imperative style.
+  ports of 2003-era OpenLaszlo samples.
 - **The library** — `library/`: the source of every library class, written in Declare like
   your program.
 - **Running, checking and building** — `docs/operational/`.

@@ -8,9 +8,8 @@ rebuilt in Declare. The original ships with OpenLaszlo 5.0 under
 like and how it behaves; it is not a transliteration of its source.
 
 This is a port of an OpenLaszlo sample from 2003, kept faithful to the
-original's look and behavior and, in places, to that period's imperative
-style. It is not a model of idiomatic Declare: for that, read the programs
-listed in skill/SKILL.md.
+original's look and behavior. It is not yet a model of idiomatic Declare: for
+that, read the programs listed in skill/SKILL.md.
 
 ## The three files
 
