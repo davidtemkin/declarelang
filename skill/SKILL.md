@@ -199,15 +199,18 @@ shows the Declare form.
   program without a browser, in a second or two — syntax, names, types, and that it starts.
   Each error names its fix; apply exactly that, change nothing else, check again.
   (`docs/operational/verify.md`: scripted behavior and screenshot comparisons.)
-- **Run it and look**, because a clean check does not mean it looks or behaves right —
+- **Run it and look at milestones** — once the whole program first runs, and after a change
+  to what people see — because a clean check does not mean it looks or behaves right:
   layout, fonts, paint and input exist only at run time. `npm start` serves a program at its
   file's path (`my-apps/app.declare` at `http://127.0.0.1:8200/my-apps/app.declare`).
   Without a browser of your own, `npx declare-look app.declare --size 390x844 --shot
   out.png` runs it headless and saves a screenshot; it can also click, read a value, and
-  switch to dark mode or touch.
-- **Use it as a person would.** Scroll a long list from end to end, drag its scrollbar,
-  resize the window, switch to dark mode and to touch. A program can pass every check and
-  still fail the first person who does one of these.
+  switch to dark mode or touch. A screenshot you read stays in your context for the rest
+  of the session, like any read, so look when there is something to see, not after every
+  edit.
+- **Before you hand it over, use it once as a person would.** Scroll a long list from end
+  to end, drag its scrollbar, resize the window, switch to dark mode and to touch. A
+  program can pass every check and still fail the first person who does one of these.
 - **When it runs but is wrong**, don't re-read the source to guess: ask the running program
   why a value is what it is, which view is under a point, where a value came from
   (`05-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).

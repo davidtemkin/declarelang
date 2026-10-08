@@ -10,18 +10,23 @@
 #     run-dir   created fresh, OUTSIDE every repo (e.g. ~/Code/eval-cadence-7)
 #     model-id  an exact model id (claude-opus-5-5) — never an alias, which moves
 #     commit    the Declare commit to download (default: GitHub main's head)
-#     port      the data service's port (default: 8320)
+#     port      the data service's port (default: the one the app's brief states). Another
+#               port lets two runs of one app stand at once; the agent's copies of the
+#               brief and API notes are rewritten to name it
 #
 # Returns once the agent is running; the agent's stream is <run-dir>/logs/agent.stream.jsonl
 # and <run-dir>/logs/started.txt records everything the run was launched with.
 set -euo pipefail
 STACK=""
 if [ "${1:-}" = "--stack" ]; then STACK="$2"; shift 2; fi
-APP="$1"; RUN="$2"; MODEL="$3"; COMMIT="${4:-}"; PORT="${5:-8320}"
+APP="$1"; RUN="$2"; MODEL="$3"; COMMIT="${4:-}"; PORT="${5:-}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 EVALS="$(cd "$HERE/.." && pwd)"
 SRC="$EVALS/apps/$APP"
 [ -f "$SRC/brief.md" ] || { echo "no brief at $SRC/brief.md" >&2; exit 1; }
+# the app's own port is the one its brief names (the 83xx service port)
+APP_PORT="$(grep -oE '\b83[0-9]{2}\b' "$SRC/brief.md" | head -1)"
+PORT="${PORT:-${APP_PORT:-8320}}"
 [ -e "$RUN" ] && { echo "$RUN exists — a run directory is always fresh" >&2; exit 1; }
 if lsof -iTCP:"$PORT" -sTCP:LISTEN -P >/dev/null 2>&1; then echo "port $PORT is taken — the service needs it" >&2; exit 1; fi
 
@@ -58,6 +63,10 @@ else
 fi
 # an app's service-args file holds what its brief is written against (murmur: --scale=100)
 [ -f "$SRC/service-args" ] && SERVICE+=($(cat "$SRC/service-args"))
+# a run on another port: the agent's copies say where the service really is
+if [ -n "$APP_PORT" ] && [ "$PORT" != "$APP_PORT" ]; then
+  for f in task/brief.md task/api/API.md; do [ -f "$f" ] && perl -pi -e "s/\\b$APP_PORT\\b/$PORT/g" "$f"; done
+fi
 
 # the prompt: nothing beyond what the task needs — the distribution carries the rest
 if [ -z "$STACK" ]; then
@@ -90,7 +99,7 @@ TOOLS="Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch"
   echo "STACK=${STACK:-Declare}"
   echo "PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none"
   echo "CWD=$RUN/work (logs outside it)"
-  echo "PORT=$PORT"
+  echo "PORT=$PORT (the brief names ${APP_PORT:-none})"
   echo "SERVICE=node ${SERVICE[*]}"
 } > "$LOGS/started.txt"
 
