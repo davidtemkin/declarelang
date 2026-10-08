@@ -35,3 +35,14 @@ export interface TypeOracle {
 /** Register where `lib.*.d.ts` texts come from (Node: disk; browser: embedded).
  *  Consulted lazily, only when a typecheck actually runs. */
 export declare function provideLib(provider: (name: string) => string | undefined): void;
+/** One rewrite the resolver made to a body: the span of the author's body text
+ *  it replaced, and what replaced it. */
+export interface BodyRewrite {
+    start: number;
+    end: number;
+    text: string;
+}
+/** Each rewritten body's rewrites, keyed by the body's owner (an attribute's
+ *  code value, a declaration's default, a method) — recorded as compile()
+ *  applies them, so a diagnostic in the rewritten text is carried back. */
+export declare const bodyRewrites: WeakMap<object, readonly BodyRewrite[]>;

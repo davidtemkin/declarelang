@@ -374,6 +374,9 @@ export declare class View extends Node {
     private $pressHome;
     private $dragHome;
     private $freezeHome;
+    /** This view as a developer's report names it: its path from the App and
+     *  its class (`app.chart.plot (YearChart)`). */
+    $drawingName(): string;
     $setVirtualExtent(h: number | null): void;
     /** Install auto-extent derives for whichever never-set, unowned size slots
      *  qualify — only on views with View children (a childless view keeps its

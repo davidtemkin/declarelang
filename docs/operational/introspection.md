@@ -56,7 +56,7 @@ in `inspect().path`, so a result can be fed straight back as a query.
 { kind, name, path,
   x, y, width, height,        // local
   rootX, rootY,               // where it is SEEN, relative to the root
-  visible, shown,              // own attribute / effective (ancestors too)
+  visible, shown, inView,      // own attribute / effective (ancestors too) / not clipped away
   text?,
   attrs,                      // own values, JSON-reduced
   children[] }
@@ -73,6 +73,10 @@ scrolled, which is the same answer right up until something does.)
 `visible` is what the program says about *this* node; `shown` is whether it actually
 appears, folding in every ancestor. Read `shown` when you are asking "why can't I see
 it" — a node inside a hidden panel reports `visible: true`, truthfully and uselessly.
+`inView` goes one step further: shown, and some of its box survives every clip above
+it — a scroller's frame, a clipping view (unless `ignoreClip` lets the child out), and
+the App's own frame. A row in a pane parked off-stage is shown and not in view; pick
+the rows a test acts on by `inView`.
 
 ### Provenance — the `explain` answer
 

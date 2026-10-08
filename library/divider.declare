@@ -45,6 +45,10 @@ rule's far end stays put, so the inset shortens it. `0` (the default) is a full-
 ## color
 The rule's colour, the theme's `line` by default. Set it for a rule that must read heavier
 or lighter than the theme's edges — a section break against a row separator.
+
+## span()
+The length the rule runs: the parent's content extent along `axis`, or 0 with no parent.
+`width` and `height` read it; a subclass that spans something else overrides it.
 */
 
 include [ "control.declare" ]

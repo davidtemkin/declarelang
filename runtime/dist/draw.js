@@ -597,6 +597,33 @@ function listInfo(list) {
     infoCache.set(list, info);
     return info;
 }
+/** The recording's covered area — see ListInfo.area. Pure over the recording,
+ *  so every backend prices the same quantity; each applies its own scale² and
+ *  its own threshold. This REPLACES the op-counting classifier: measured under
+ *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
+ *  in paint cost by covered area alone, and the op count called both
+ *  "expensive". Op count is still a term — a stroke has real per-op setup
+ *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
+/** Did a raster of `list` paint NOTHING where the recording says it painted?
+ *  The platform's silent failure: past its canvas budget Safari draws
+ *  transparent, Firefox blanks a DOM canvas at ~130 MB (measured 2026-08-25),
+ *  and no timing sees either — a blank frame is a fast one. Sampled at a few
+ *  op centres, which is a GPU sync, so a caller runs it once per fresh raster
+ *  and only past a size worth the sync — and never in a production build: it
+ *  is a check for the developer, who is told which drawing the browser
+ *  refused. It is a heuristic: a recording whose sampled centres are truly
+ *  transparent (an op painted clear, or clipped away) reads as blank.
+ *  `sx, sy` are the raster's density and `bx, by` its origin in recording
+ *  units — the same numbers the raster was made with. */
+/** The developer's report of a raster that looks blank (rasterLooksBlank):
+ *  which view's drawing (`who`, its path from the App, when known), and the
+ *  size of the raster the browser was asked for. */
+export function blankRasterMessage(who, w, h) {
+    return `[Declare] ${who === undefined ? "a drawing" : `the drawing on ${who}`} came back blank from the browser: ` +
+        `a ${w}×${h} raster (${Math.round((w * h * 4) / (1 << 20))} MB), past what this browser will paint (Safari allows ` +
+        `the least). Draw less area — a drawing about the size of what is on screen, not of everything it could show. ` +
+        `(Checked in development only; a production build does not look.)`;
+}
 /** A scratch canvas wherever this module runs: the DOM's element on a page, an
  *  OffscreenCanvas in a worker (raster-worker.ts) where there is no document. */
 export function makeCanvas(w, h) {
@@ -631,6 +658,11 @@ export function rasterLooksBlank(cv, list, sx, sy, bx, by) {
         // at density 1 read "blank" at every sample and the DOM backend halved a
         // raster that had painted), and a false blank is a raster thrown away
         const cx = Math.round((e.x + e.w / 2 - bx) * sx), cy = Math.round((e.y + e.h / 2 - by) * sy);
+        // an op centred off the raster says nothing about it — a panned drawing's
+        // early marks often are — and a patch clamped to the edge would read the
+        // transparent margin as a refusal
+        if (cx < 0 || cy < 0 || cx >= cv.width || cy >= cv.height)
+            continue;
         const x = Math.min(Math.max(0, cv.width - 3), Math.max(0, cx - 1));
         const y = Math.min(Math.max(0, cv.height - 3), Math.max(0, cy - 1));
         sampled++;

@@ -1,0 +1,20 @@
+// HIDDEN DRAWING — a drawing whose PANE is hidden and shown again, while a
+// per-frame clock runs (a playback head, a spinner). The drawing must come back
+// at full density once the pane shows.
+
+App [ width = 600, height = 400, fill = #FFFFFF,
+    open: boolean = true,
+    frames: number = 0,
+    clock: Time [ tick = frame,
+        onTick(dt: number) { app.frames = app.frames + 1 }
+        ],
+
+    pane: View [ visible = { app.open }, x = 20, y = 20, width = 400, height = 200,
+        chart: View [ width = 400, height = 200,
+            draw(d: Draw) {
+                d.fillStyle = "#2A6"
+                d.fillRect(0, 0, 400, 200)
+                }
+            ]
+        ]
+    ]

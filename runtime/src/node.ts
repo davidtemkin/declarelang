@@ -10,7 +10,7 @@
 import { Cell, isTracking, noteOrigin } from "./reactive.js";
 import { timeHost } from "./wallclock.js";
 import { trackNode, untrackNode } from "./change-event.js";
-import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE } from "./attributes.js";
+import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE, disposeBindings, freeCells } from "./attributes.js";
 import type { Cursor } from "./data.js";
 
 /** The cursor read, installed by view.ts. A cursor belongs to a VIEW — it comes
@@ -259,10 +259,15 @@ export class Node {
    *  Views) is what tears down an Animator/Spring child — a Node, not a View
    *  — whose `to` binding would otherwise linger, subscribed to whatever it
    *  read, keeping the whole discarded subtree alive (and, for a Spring,
-   *  still ticking). */
+   *  still ticking). A node's own `{ }` bindings go too: a Dataset's
+   *  `contents`, a DataSource's `url`, a Node class's computed values — left
+   *  standing, each stays subscribed to what it read and runs again, detached,
+   *  when that changes (a discarded row's dataset reading `app` found no App). */
   $teardown(): void {
     for (const child of this.children) child.$teardown();
     runRetire(this);
+    disposeBindings(this);
+    freeCells(this);
     this.structure?.free();
   }
 

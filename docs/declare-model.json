@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "e2a9fde32b32",
+  "buildId": "498b9fa223df",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -3120,11 +3120,11 @@
    },
    "EC17495": {
     "message": "a CanvasBackend hosts one tree — use a fresh backend per render",
-    "at": "canvas-backend.ts:583"
+    "at": "canvas-backend.ts:585"
    },
    "E13A1E5": {
     "message": "Canvas 2D is unavailable in this browser",
-    "at": "canvas-backend.ts:601"
+    "at": "canvas-backend.ts:603"
    },
    "E9A0ED1": {
     "message": "[Declare] canvas filter … is not expressible on this engine and was not applied.",
@@ -3732,7 +3732,7 @@
    },
    "E5B7888": {
     "message": "'…' is a library class — … of the program can't take its name; rename yours (the library's is used as '… [ … ]')",
-    "at": "include.ts:389"
+    "at": "include.ts:410"
    },
    "EA09421": {
     "message": "Inspect: no subject app is attached",
@@ -4190,65 +4190,73 @@
     "message": "'…: …?' — in a schema the optional marker rides the FIELD name: write '…?: …' (the type-suffix '?' belongs to attribute and signature types)",
     "at": "parser.ts:1183"
    },
+   "E999F6A": {
+    "message": "'…: … | …' — in a schema a field that may be null or missing is written with '?' on its NAME: '…?: …' ('?' admits both an absent field and a null)",
+    "at": "parser.ts:1191"
+   },
+   "EFC27B7": {
+    "message": "'…: … | …' — a schema field has one type; a union is a literal union of strings or of numbers ('status: \"open\" | \"closed\"'). A field that may be missing is '…?: …'",
+    "at": "parser.ts:1195"
+   },
    "E8E345D": {
     "message": "'… = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record",
-    "at": "parser.ts:1188"
+    "at": "parser.ts:1200"
    },
    "EA1FFF4": {
     "message": "a computed key [( … )] is TypeScript, so its path is written in braces — { :@[(key)] }",
-    "at": "parser.ts:1243"
+    "at": "parser.ts:1255"
    },
    "EDFFABD": {
     "message": "filter selectors ([?…]) are not in the path subset yet (jsonpath-spelling.md §5) — derive the subset in a Dataset [ contents = { … } ] and bind to that",
-    "at": "parser.ts:1246"
+    "at": "parser.ts:1258"
    },
    "E3129C4": {
     "message": "a path index is a plain integer",
-    "at": "parser.ts:1260"
+    "at": "parser.ts:1272"
    },
    "E07DE5F": {
     "message": "a path selector is [index], [start:end:step], [*], or ['name']",
-    "at": "parser.ts:1279"
+    "at": "parser.ts:1291"
    },
    "EEB27CE": {
     "message": "union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md §5) — write separate reads, or derive the set in a Dataset [ contents = { … } ]",
-    "at": "parser.ts:1282"
+    "at": "parser.ts:1294"
    },
    "EB65D4E": {
     "message": "a schema's name is capitalized ('schema …… [ … ]') — it is a type name, like a class's",
-    "at": "parser.ts:1327"
+    "at": "parser.ts:1339"
    },
    "E41A54B": {
     "message": "schemas do not extend — a schema is composed by NESTING (a field typed by another schema: 'owner: Person') or by repeating the fields it shares",
-    "at": "parser.ts:1331"
+    "at": "parser.ts:1343"
    },
    "EB91A15": {
     "message": "a script file path is a quoted string — script [ \\\"helpers.ts\\\" ]; for inline code, braces hold the script itself: script { … }",
-    "at": "parser.ts:1373"
+    "at": "parser.ts:1385"
    },
    "EDBDD5F": {
     "message": "a use entry is a class name",
-    "at": "parser.ts:1425"
+    "at": "parser.ts:1437"
    },
    "E783F90": {
     "message": "ship has no member '…' — islands, files, compiler, or inspector",
-    "at": "parser.ts:1456"
+    "at": "parser.ts:1468"
    },
    "E3DAC32": {
     "message": "ship names '…' twice — one entry per member",
-    "at": "parser.ts:1460"
+    "at": "parser.ts:1472"
    },
    "E1EC0FD": {
     "message": "ship's … is a list of quoted paths — … = [ \"…\" ]",
-    "at": "parser.ts:1465"
+    "at": "parser.ts:1477"
    },
    "E3AE548": {
     "message": "ship's … is true or false",
-    "at": "parser.ts:1476"
+    "at": "parser.ts:1488"
    },
    "EDD3394": {
     "message": "an include path is a quoted string",
-    "at": "parser.ts:1500"
+    "at": "parser.ts:1512"
    },
    "E20143A": {
     "message": "'…' is a built-in class — a class of the program can't take its name; rename yours",
@@ -4448,11 +4456,11 @@
    },
    "E4F1929": {
     "message": "createView: the instantiation module is not loaded",
-    "at": "view.ts:1346"
+    "at": "view.ts:1357"
    },
    "EE2D5FF": {
     "message": "[Declare] app.post(\"…\"): this app is not linked to a host island — message dropped",
-    "at": "view.ts:2094"
+    "at": "view.ts:2105"
    }
   },
   "library": {
@@ -9910,6 +9918,11 @@
     "title": "View.method.$contentOrigin",
     "kind": "reference"
    },
+   "View.method.$drawingName": {
+    "path": "docs/declare-model.json",
+    "title": "View.method.$drawingName",
+    "kind": "reference"
+   },
    "View.method.$focusChanged": {
     "path": "docs/declare-model.json",
     "title": "View.method.$focusChanged",
@@ -12640,7 +12653,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1589
+    "line": 1600
    },
    "parent": "View",
    "seeAlso": [],
@@ -12664,7 +12677,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1590
+    "line": 1601
    },
    "parent": "View",
    "seeAlso": [],
@@ -12688,7 +12701,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1591
+    "line": 1602
    },
    "parent": "View",
    "seeAlso": [],
@@ -12712,7 +12725,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1592
+    "line": 1603
    },
    "parent": "View",
    "seeAlso": [],
@@ -12747,7 +12760,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1625
+    "line": 1636
    },
    "parent": "View",
    "seeAlso": [],
@@ -12782,7 +12795,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1599
+    "line": 1610
    },
    "parent": "View",
    "seeAlso": [],
@@ -12806,7 +12819,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1626
+    "line": 1637
    },
    "parent": "View",
    "seeAlso": [],
@@ -12878,7 +12891,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1644
+    "line": 1655
    },
    "parent": "View",
    "seeAlso": [],
@@ -12902,7 +12915,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1645
+    "line": 1656
    },
    "parent": "View",
    "seeAlso": [],
@@ -12926,7 +12939,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1646
+    "line": 1657
    },
    "parent": "View",
    "seeAlso": [],
@@ -12961,7 +12974,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1627
+    "line": 1638
    },
    "parent": "View",
    "seeAlso": [],
@@ -12985,7 +12998,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1628
+    "line": 1639
    },
    "parent": "View",
    "seeAlso": [],
@@ -13009,7 +13022,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1629
+    "line": 1640
    },
    "parent": "View",
    "seeAlso": [],
@@ -13033,7 +13046,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1647
+    "line": 1658
    },
    "parent": "View",
    "seeAlso": [],
@@ -13057,7 +13070,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1648
+    "line": 1659
    },
    "parent": "View",
    "seeAlso": [],
@@ -13081,7 +13094,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1649
+    "line": 1660
    },
    "parent": "View",
    "seeAlso": [],
@@ -13105,7 +13118,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1650
+    "line": 1661
    },
    "parent": "View",
    "seeAlso": [],
@@ -13129,7 +13142,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1651
+    "line": 1662
    },
    "parent": "View",
    "seeAlso": [],
@@ -13153,7 +13166,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1658
+    "line": 1669
    },
    "parent": "View",
    "seeAlso": [],
@@ -13177,7 +13190,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1659
+    "line": 1670
    },
    "parent": "View",
    "seeAlso": [],
@@ -13201,7 +13214,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1660
+    "line": 1671
    },
    "parent": "View",
    "seeAlso": [],
@@ -13225,7 +13238,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1661
+    "line": 1672
    },
    "parent": "View",
    "seeAlso": [],
@@ -13249,7 +13262,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1668
+    "line": 1679
    },
    "parent": "View",
    "seeAlso": [],
@@ -13273,7 +13286,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1669
+    "line": 1680
    },
    "parent": "View",
    "seeAlso": [],
@@ -13297,7 +13310,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1670
+    "line": 1681
    },
    "parent": "View",
    "seeAlso": [],
@@ -13321,7 +13334,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1671
+    "line": 1682
    },
    "parent": "View",
    "seeAlso": [],
@@ -13345,7 +13358,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1662
+    "line": 1673
    },
    "parent": "View",
    "seeAlso": [],
@@ -13369,7 +13382,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1663
+    "line": 1674
    },
    "parent": "View",
    "seeAlso": [],
@@ -13393,7 +13406,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1664
+    "line": 1675
    },
    "parent": "View",
    "seeAlso": [],
@@ -13417,7 +13430,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1667
+    "line": 1678
    },
    "parent": "View",
    "seeAlso": [],
@@ -13441,7 +13454,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1665
+    "line": 1676
    },
    "parent": "View",
    "seeAlso": [],
@@ -13465,7 +13478,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1674
+    "line": 1685
    },
    "parent": "View",
    "seeAlso": [],
@@ -13500,7 +13513,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1675
+    "line": 1686
    },
    "parent": "View",
    "seeAlso": [],
@@ -13524,7 +13537,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1676
+    "line": 1687
    },
    "parent": "View",
    "seeAlso": [],
@@ -13548,7 +13561,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1677
+    "line": 1688
    },
    "parent": "View",
    "seeAlso": [],
@@ -13572,7 +13585,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1702
+    "line": 1713
    },
    "parent": "View",
    "seeAlso": [],
@@ -13596,7 +13609,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1707
+    "line": 1718
    },
    "parent": "View",
    "seeAlso": [],
@@ -13620,7 +13633,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1720
+    "line": 1731
    },
    "parent": "View",
    "seeAlso": [],
@@ -13644,7 +13657,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1708
+    "line": 1719
    },
    "parent": "View",
    "seeAlso": [],
@@ -13668,7 +13681,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1709
+    "line": 1720
    },
    "parent": "View",
    "seeAlso": [],
@@ -13692,7 +13705,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1719
+    "line": 1730
    },
    "parent": "View",
    "seeAlso": [],
@@ -13716,7 +13729,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1721
+    "line": 1732
    },
    "parent": "View",
    "seeAlso": [],
@@ -13740,7 +13753,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1724
+    "line": 1735
    },
    "parent": "View",
    "seeAlso": [],
@@ -13764,7 +13777,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1725
+    "line": 1736
    },
    "parent": "View",
    "seeAlso": [],
@@ -13788,7 +13801,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1726
+    "line": 1737
    },
    "parent": "View",
    "seeAlso": [],
@@ -13812,7 +13825,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1727
+    "line": 1738
    },
    "parent": "View",
    "seeAlso": [],
@@ -13836,7 +13849,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1652
+    "line": 1663
    },
    "parent": "View",
    "seeAlso": [],
@@ -13860,7 +13873,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1653
+    "line": 1664
    },
    "parent": "View",
    "seeAlso": [],
@@ -13884,7 +13897,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1732
+    "line": 1743
    },
    "parent": "View",
    "seeAlso": [],
@@ -13908,7 +13921,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1678
+    "line": 1689
    },
    "parent": "View",
    "seeAlso": [],
@@ -13932,7 +13945,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1679
+    "line": 1690
    },
    "parent": "View",
    "seeAlso": [],
@@ -13956,7 +13969,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1683
+    "line": 1694
    },
    "parent": "View",
    "seeAlso": [],
@@ -13980,7 +13993,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1689
+    "line": 1700
    },
    "parent": "View",
    "seeAlso": [],
@@ -14004,7 +14017,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1696
+    "line": 1707
    },
    "parent": "View",
    "seeAlso": [],
@@ -14028,7 +14041,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1701
+    "line": 1712
    },
    "parent": "View",
    "seeAlso": [],
@@ -14402,6 +14415,22 @@
     "was": null
    }
   },
+  "View.method.$drawingName": {
+   "id": "View.method.$drawingName",
+   "name": "$drawingName",
+   "kind": "method",
+   "doc": null,
+   "docSegs": [],
+   "api": false,
+   "source": {
+    "file": "runtime/src/view.ts",
+    "line": 682
+   },
+   "parent": "View",
+   "seeAlso": [],
+   "signature": "$drawingName(): string",
+   "returns": "string"
+  },
   "View.method.$setVirtualExtent": {
    "id": "View.method.$setVirtualExtent",
    "name": "$setVirtualExtent",
@@ -14411,7 +14440,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 680
+    "line": 688
    },
    "parent": "View",
    "seeAlso": [],
@@ -14427,7 +14456,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 793
+    "line": 804
    },
    "parent": "View",
    "seeAlso": [],
@@ -14448,7 +14477,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 805
+    "line": 816
    },
    "parent": "View",
    "seeAlso": [],
@@ -14464,7 +14493,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 829
+    "line": 840
    },
    "parent": "View",
    "seeAlso": [],
@@ -14480,7 +14509,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 846
+    "line": 857
    },
    "parent": "View",
    "seeAlso": [],
@@ -14498,7 +14527,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 847
+    "line": 858
    },
    "parent": "View",
    "seeAlso": [],
@@ -14521,7 +14550,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 860
+    "line": 871
    },
    "parent": "View",
    "seeAlso": [],
@@ -14542,7 +14571,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 874
+    "line": 885
    },
    "parent": "View",
    "seeAlso": [],
@@ -14558,7 +14587,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 894
+    "line": 905
    },
    "parent": "View",
    "seeAlso": [],
@@ -14576,7 +14605,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 916
+    "line": 927
    },
    "parent": "View",
    "seeAlso": [],
@@ -14594,7 +14623,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 922
+    "line": 933
    },
    "parent": "View",
    "seeAlso": [],
@@ -14612,7 +14641,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 939
+    "line": 950
    },
    "parent": "View",
    "seeAlso": [],
@@ -14630,7 +14659,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 940
+    "line": 951
    },
    "parent": "View",
    "seeAlso": [],
@@ -14653,7 +14682,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 984
+    "line": 995
    },
    "parent": "View",
    "seeAlso": [],
@@ -14669,7 +14698,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 995
+    "line": 1006
    },
    "parent": "View",
    "seeAlso": [],
@@ -14685,7 +14714,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1002
+    "line": 1013
    },
    "parent": "View",
    "seeAlso": [],
@@ -14706,7 +14735,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1013
+    "line": 1024
    },
    "parent": "View",
    "seeAlso": [],
@@ -14726,7 +14755,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1030
+    "line": 1041
    },
    "parent": "View",
    "seeAlso": [],
@@ -14751,7 +14780,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1148
+    "line": 1159
    },
    "parent": "View",
    "seeAlso": [],
@@ -14772,7 +14801,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1156
+    "line": 1167
    },
    "parent": "View",
    "seeAlso": [],
@@ -14793,7 +14822,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1175
+    "line": 1186
    },
    "parent": "View",
    "seeAlso": [],
@@ -14809,7 +14838,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1183
+    "line": 1194
    },
    "parent": "View",
    "seeAlso": [],
@@ -14830,7 +14859,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1191
+    "line": 1202
    },
    "parent": "View",
    "seeAlso": [],
@@ -14851,7 +14880,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1197
+    "line": 1208
    },
    "parent": "View",
    "seeAlso": [],
@@ -14872,7 +14901,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1224
+    "line": 1235
    },
    "parent": "View",
    "seeAlso": [],
@@ -14888,7 +14917,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1258
+    "line": 1269
    },
    "parent": "View",
    "seeAlso": [],
@@ -14909,7 +14938,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1271
+    "line": 1282
    },
    "parent": "View",
    "seeAlso": [],
@@ -14925,7 +14954,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1283
+    "line": 1294
    },
    "parent": "View",
    "seeAlso": [],
@@ -14946,7 +14975,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1301
+    "line": 1312
    },
    "parent": "View",
    "seeAlso": [],
@@ -14967,7 +14996,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1310
+    "line": 1321
    },
    "parent": "View",
    "seeAlso": [],
@@ -14988,7 +15017,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1319
+    "line": 1330
    },
    "parent": "View",
    "seeAlso": [],
@@ -15009,7 +15038,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1345
+    "line": 1356
    },
    "parent": "View",
    "seeAlso": [],
@@ -15030,7 +15059,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1350
+    "line": 1361
    },
    "parent": "View",
    "seeAlso": [],
@@ -15046,7 +15075,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1436
+    "line": 1447
    },
    "parent": "View",
    "seeAlso": [],
@@ -15062,7 +15091,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1492
+    "line": 1503
    },
    "parent": "View",
    "seeAlso": [],
@@ -15078,7 +15107,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1510
+    "line": 1521
    },
    "parent": "View",
    "seeAlso": [],
@@ -15696,6 +15725,7 @@
     "View.method.$attach",
     "View.method.$setData",
     "View.method.$childrenMutated",
+    "View.method.$drawingName",
     "View.method.$setVirtualExtent",
     "View.method.$contentOrigin",
     "View.method.contentBox",
@@ -15806,7 +15836,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2522
+    "line": 2533
    },
    "parent": "App",
    "seeAlso": [],
@@ -15830,7 +15860,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2523
+    "line": 2534
    },
    "parent": "App",
    "seeAlso": [],
@@ -15854,7 +15884,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2524
+    "line": 2535
    },
    "parent": "App",
    "seeAlso": [],
@@ -15882,7 +15912,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2525
+    "line": 2536
    },
    "parent": "App",
    "seeAlso": [],
@@ -15906,7 +15936,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2527
+    "line": 2538
    },
    "parent": "App",
    "seeAlso": [],
@@ -15930,7 +15960,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2526
+    "line": 2537
    },
    "parent": "App",
    "seeAlso": [],
@@ -15954,7 +15984,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2528
+    "line": 2539
    },
    "parent": "App",
    "seeAlso": [],
@@ -15978,7 +16008,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2529
+    "line": 2540
    },
    "parent": "App",
    "seeAlso": [],
@@ -16002,7 +16032,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2530
+    "line": 2541
    },
    "parent": "App",
    "seeAlso": [],
@@ -16026,7 +16056,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2533
+    "line": 2544
    },
    "parent": "App",
    "seeAlso": [],
@@ -16050,7 +16080,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2534
+    "line": 2545
    },
    "parent": "App",
    "seeAlso": [],
@@ -16074,7 +16104,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2535
+    "line": 2546
    },
    "parent": "App",
    "seeAlso": [],
@@ -16098,7 +16128,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2536
+    "line": 2547
    },
    "parent": "App",
    "seeAlso": [],
@@ -16122,7 +16152,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2537
+    "line": 2548
    },
    "parent": "App",
    "seeAlso": [],
@@ -16146,7 +16176,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2547
+    "line": 2558
    },
    "parent": "App",
    "seeAlso": [],
@@ -16170,7 +16200,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2552
+    "line": 2563
    },
    "parent": "App",
    "seeAlso": [],
@@ -16194,7 +16224,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2556
+    "line": 2567
    },
    "parent": "App",
    "seeAlso": [],
@@ -16218,7 +16248,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2571
+    "line": 2582
    },
    "parent": "App",
    "seeAlso": [],
@@ -16242,7 +16272,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2572
+    "line": 2583
    },
    "parent": "App",
    "seeAlso": [],
@@ -16266,7 +16296,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2566
+    "line": 2577
    },
    "parent": "App",
    "seeAlso": [],
@@ -16314,7 +16344,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2582
+    "line": 2593
    },
    "parent": "App",
    "seeAlso": [],
@@ -16338,7 +16368,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2587
+    "line": 2598
    },
    "parent": "App",
    "seeAlso": [],
@@ -16362,7 +16392,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2591
+    "line": 2602
    },
    "parent": "App",
    "seeAlso": [],
@@ -16386,7 +16416,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2592
+    "line": 2603
    },
    "parent": "App",
    "seeAlso": [],
@@ -16410,7 +16440,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2594
+    "line": 2605
    },
    "parent": "App",
    "seeAlso": [],
@@ -16434,7 +16464,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2513
+    "line": 2524
    },
    "parent": "App",
    "seeAlso": [],
@@ -16458,7 +16488,7 @@
    "internal": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2517
+    "line": 2528
    },
    "parent": "App",
    "seeAlso": [],
@@ -16476,7 +16506,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 1947
+    "line": 1958
    },
    "parent": "App",
    "seeAlso": [],
@@ -16501,7 +16531,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2093
+    "line": 2104
    },
    "parent": "App",
    "seeAlso": [],
@@ -16522,7 +16552,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2103
+    "line": 2114
    },
    "parent": "App",
    "seeAlso": [],
@@ -16538,7 +16568,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2113
+    "line": 2124
    },
    "parent": "App",
    "seeAlso": [],
@@ -16559,7 +16589,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2118
+    "line": 2129
    },
    "parent": "App",
    "seeAlso": [],
@@ -16580,7 +16610,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2139
+    "line": 2150
    },
    "parent": "App",
    "seeAlso": [],
@@ -16601,7 +16631,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2215
+    "line": 2226
    },
    "parent": "App",
    "seeAlso": [],
@@ -16622,7 +16652,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2225
+    "line": 2236
    },
    "parent": "App",
    "seeAlso": [],
@@ -16638,7 +16668,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2244
+    "line": 2255
    },
    "parent": "App",
    "seeAlso": [],
@@ -16659,7 +16689,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2317
+    "line": 2328
    },
    "parent": "App",
    "seeAlso": [],
@@ -16680,7 +16710,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2325
+    "line": 2336
    },
    "parent": "App",
    "seeAlso": [],
@@ -16701,7 +16731,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2334
+    "line": 2345
    },
    "parent": "App",
    "seeAlso": [],
@@ -16722,7 +16752,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2344
+    "line": 2355
    },
    "parent": "App",
    "seeAlso": [],
@@ -16738,7 +16768,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2352
+    "line": 2363
    },
    "parent": "App",
    "seeAlso": [],
@@ -16754,7 +16784,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2394
+    "line": 2405
    },
    "parent": "App",
    "seeAlso": [],
@@ -16770,7 +16800,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2411
+    "line": 2422
    },
    "parent": "App",
    "seeAlso": [],
@@ -16786,7 +16816,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2461
+    "line": 2472
    },
    "parent": "App",
    "seeAlso": [],
@@ -16806,7 +16836,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/view.ts",
-    "line": 2489
+    "line": 2500
    },
    "parent": "App",
    "seeAlso": [],
@@ -25445,7 +25475,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/node.ts",
-    "line": 263
+    "line": 266
    },
    "parent": "Node",
    "seeAlso": [],
@@ -25461,7 +25491,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/node.ts",
-    "line": 275
+    "line": 280
    },
    "parent": "Node",
    "seeAlso": [],
@@ -25945,8 +25975,13 @@
    "id": "Divider.method.span",
    "name": "span",
    "kind": "method",
-   "doc": null,
-   "docSegs": [],
+   "doc": "The length the rule runs: the parent's content extent along `axis`, or 0 with no parent.\n`width` and `height` read it; a subclass that spans something else overrides it.",
+   "docSegs": [
+    {
+     "md": "The length the rule runs: the parent's content extent along `axis`, or 0 with no parent.\n`width` and `height` read it; a subclass that spans something else overrides it.",
+     "code": []
+    }
+   ],
    "api": true,
    "internal": false,
    "source": {
@@ -37109,7 +37144,7 @@
    "internal": false,
    "source": {
     "file": "library/divider.declare",
-    "line": 70
+    "line": 74
    },
    "parent": "Divider",
    "seeAlso": [],
@@ -37137,7 +37172,7 @@
    "internal": false,
    "source": {
     "file": "library/divider.declare",
-    "line": 71
+    "line": 75
    },
    "parent": "Divider",
    "seeAlso": [],
@@ -39807,7 +39842,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1589
+      "line": 1600
      },
      "parent": "View",
      "seeAlso": [],
@@ -39831,7 +39866,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1590
+      "line": 1601
      },
      "parent": "View",
      "seeAlso": [],
@@ -39855,7 +39890,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1591
+      "line": 1602
      },
      "parent": "View",
      "seeAlso": [],
@@ -39879,7 +39914,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1592
+      "line": 1603
      },
      "parent": "View",
      "seeAlso": [],
@@ -39914,7 +39949,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1625
+      "line": 1636
      },
      "parent": "View",
      "seeAlso": [],
@@ -39949,7 +39984,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1599
+      "line": 1610
      },
      "parent": "View",
      "seeAlso": [],
@@ -39973,7 +40008,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1626
+      "line": 1637
      },
      "parent": "View",
      "seeAlso": [],
@@ -40045,7 +40080,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1644
+      "line": 1655
      },
      "parent": "View",
      "seeAlso": [],
@@ -40069,7 +40104,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1645
+      "line": 1656
      },
      "parent": "View",
      "seeAlso": [],
@@ -40093,7 +40128,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1646
+      "line": 1657
      },
      "parent": "View",
      "seeAlso": [],
@@ -40128,7 +40163,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1627
+      "line": 1638
      },
      "parent": "View",
      "seeAlso": [],
@@ -40152,7 +40187,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1628
+      "line": 1639
      },
      "parent": "View",
      "seeAlso": [],
@@ -40176,7 +40211,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1629
+      "line": 1640
      },
      "parent": "View",
      "seeAlso": [],
@@ -40200,7 +40235,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1647
+      "line": 1658
      },
      "parent": "View",
      "seeAlso": [],
@@ -40224,7 +40259,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1648
+      "line": 1659
      },
      "parent": "View",
      "seeAlso": [],
@@ -40248,7 +40283,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1649
+      "line": 1660
      },
      "parent": "View",
      "seeAlso": [],
@@ -40272,7 +40307,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1650
+      "line": 1661
      },
      "parent": "View",
      "seeAlso": [],
@@ -40296,7 +40331,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1651
+      "line": 1662
      },
      "parent": "View",
      "seeAlso": [],
@@ -40320,7 +40355,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1658
+      "line": 1669
      },
      "parent": "View",
      "seeAlso": [],
@@ -40344,7 +40379,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1659
+      "line": 1670
      },
      "parent": "View",
      "seeAlso": [],
@@ -40368,7 +40403,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1660
+      "line": 1671
      },
      "parent": "View",
      "seeAlso": [],
@@ -40392,7 +40427,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1661
+      "line": 1672
      },
      "parent": "View",
      "seeAlso": [],
@@ -40416,7 +40451,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1668
+      "line": 1679
      },
      "parent": "View",
      "seeAlso": [],
@@ -40440,7 +40475,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1669
+      "line": 1680
      },
      "parent": "View",
      "seeAlso": [],
@@ -40464,7 +40499,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1670
+      "line": 1681
      },
      "parent": "View",
      "seeAlso": [],
@@ -40488,7 +40523,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1671
+      "line": 1682
      },
      "parent": "View",
      "seeAlso": [],
@@ -40512,7 +40547,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1662
+      "line": 1673
      },
      "parent": "View",
      "seeAlso": [],
@@ -40536,7 +40571,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1663
+      "line": 1674
      },
      "parent": "View",
      "seeAlso": [],
@@ -40560,7 +40595,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1664
+      "line": 1675
      },
      "parent": "View",
      "seeAlso": [],
@@ -40584,7 +40619,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1667
+      "line": 1678
      },
      "parent": "View",
      "seeAlso": [],
@@ -40608,7 +40643,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1665
+      "line": 1676
      },
      "parent": "View",
      "seeAlso": [],
@@ -40632,7 +40667,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1674
+      "line": 1685
      },
      "parent": "View",
      "seeAlso": [],
@@ -40667,7 +40702,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1675
+      "line": 1686
      },
      "parent": "View",
      "seeAlso": [],
@@ -40691,7 +40726,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1676
+      "line": 1687
      },
      "parent": "View",
      "seeAlso": [],
@@ -40715,7 +40750,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1677
+      "line": 1688
      },
      "parent": "View",
      "seeAlso": [],
@@ -40739,7 +40774,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1702
+      "line": 1713
      },
      "parent": "View",
      "seeAlso": [],
@@ -40763,7 +40798,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1707
+      "line": 1718
      },
      "parent": "View",
      "seeAlso": [],
@@ -40787,7 +40822,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1720
+      "line": 1731
      },
      "parent": "View",
      "seeAlso": [],
@@ -40811,7 +40846,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1708
+      "line": 1719
      },
      "parent": "View",
      "seeAlso": [],
@@ -40835,7 +40870,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1709
+      "line": 1720
      },
      "parent": "View",
      "seeAlso": [],
@@ -40859,7 +40894,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1719
+      "line": 1730
      },
      "parent": "View",
      "seeAlso": [],
@@ -40883,7 +40918,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1721
+      "line": 1732
      },
      "parent": "View",
      "seeAlso": [],
@@ -40907,7 +40942,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1724
+      "line": 1735
      },
      "parent": "View",
      "seeAlso": [],
@@ -40931,7 +40966,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1725
+      "line": 1736
      },
      "parent": "View",
      "seeAlso": [],
@@ -40955,7 +40990,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1726
+      "line": 1737
      },
      "parent": "View",
      "seeAlso": [],
@@ -40979,7 +41014,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1727
+      "line": 1738
      },
      "parent": "View",
      "seeAlso": [],
@@ -41003,7 +41038,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1652
+      "line": 1663
      },
      "parent": "View",
      "seeAlso": [],
@@ -41027,7 +41062,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1653
+      "line": 1664
      },
      "parent": "View",
      "seeAlso": [],
@@ -41051,7 +41086,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1732
+      "line": 1743
      },
      "parent": "View",
      "seeAlso": [],
@@ -41075,7 +41110,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1678
+      "line": 1689
      },
      "parent": "View",
      "seeAlso": [],
@@ -41099,7 +41134,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1679
+      "line": 1690
      },
      "parent": "View",
      "seeAlso": [],
@@ -41123,7 +41158,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1683
+      "line": 1694
      },
      "parent": "View",
      "seeAlso": [],
@@ -41147,7 +41182,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1689
+      "line": 1700
      },
      "parent": "View",
      "seeAlso": [],
@@ -41171,7 +41206,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1696
+      "line": 1707
      },
      "parent": "View",
      "seeAlso": [],
@@ -41195,7 +41230,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1701
+      "line": 1712
      },
      "parent": "View",
      "seeAlso": [],
@@ -41974,7 +42009,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 805
+      "line": 816
      },
      "parent": "View",
      "seeAlso": [],
@@ -41995,7 +42030,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 860
+      "line": 871
      },
      "parent": "View",
      "seeAlso": [],
@@ -42016,7 +42051,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 874
+      "line": 885
      },
      "parent": "View",
      "seeAlso": [],
@@ -42037,7 +42072,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 984
+      "line": 995
      },
      "parent": "View",
      "seeAlso": [],
@@ -42058,7 +42093,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1013
+      "line": 1024
      },
      "parent": "View",
      "seeAlso": [],
@@ -42083,7 +42118,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1148
+      "line": 1159
      },
      "parent": "View",
      "seeAlso": [],
@@ -42104,7 +42139,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1156
+      "line": 1167
      },
      "parent": "View",
      "seeAlso": [],
@@ -42125,7 +42160,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1175
+      "line": 1186
      },
      "parent": "View",
      "seeAlso": [],
@@ -42146,7 +42181,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1191
+      "line": 1202
      },
      "parent": "View",
      "seeAlso": [],
@@ -42167,7 +42202,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1197
+      "line": 1208
      },
      "parent": "View",
      "seeAlso": [],
@@ -42188,7 +42223,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1224
+      "line": 1235
      },
      "parent": "View",
      "seeAlso": [],
@@ -42209,7 +42244,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1271
+      "line": 1282
      },
      "parent": "View",
      "seeAlso": [],
@@ -42230,7 +42265,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1301
+      "line": 1312
      },
      "parent": "View",
      "seeAlso": [],
@@ -42251,7 +42286,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1310
+      "line": 1321
      },
      "parent": "View",
      "seeAlso": [],
@@ -42272,7 +42307,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1319
+      "line": 1330
      },
      "parent": "View",
      "seeAlso": [],
@@ -42293,7 +42328,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1345
+      "line": 1356
      },
      "parent": "View",
      "seeAlso": [],
@@ -42314,7 +42349,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 1350
+      "line": 1361
      },
      "parent": "View",
      "seeAlso": [],
@@ -42404,7 +42439,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2522
+      "line": 2533
      },
      "parent": "App",
      "seeAlso": [],
@@ -42428,7 +42463,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2523
+      "line": 2534
      },
      "parent": "App",
      "seeAlso": [],
@@ -42452,7 +42487,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2524
+      "line": 2535
      },
      "parent": "App",
      "seeAlso": [],
@@ -42480,7 +42515,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2525
+      "line": 2536
      },
      "parent": "App",
      "seeAlso": [],
@@ -42504,7 +42539,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2527
+      "line": 2538
      },
      "parent": "App",
      "seeAlso": [],
@@ -42528,7 +42563,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2526
+      "line": 2537
      },
      "parent": "App",
      "seeAlso": [],
@@ -42552,7 +42587,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2528
+      "line": 2539
      },
      "parent": "App",
      "seeAlso": [],
@@ -42576,7 +42611,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2529
+      "line": 2540
      },
      "parent": "App",
      "seeAlso": [],
@@ -42600,7 +42635,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2530
+      "line": 2541
      },
      "parent": "App",
      "seeAlso": [],
@@ -42624,7 +42659,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2533
+      "line": 2544
      },
      "parent": "App",
      "seeAlso": [],
@@ -42648,7 +42683,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2534
+      "line": 2545
      },
      "parent": "App",
      "seeAlso": [],
@@ -42672,7 +42707,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2535
+      "line": 2546
      },
      "parent": "App",
      "seeAlso": [],
@@ -42696,7 +42731,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2536
+      "line": 2547
      },
      "parent": "App",
      "seeAlso": [],
@@ -42720,7 +42755,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2537
+      "line": 2548
      },
      "parent": "App",
      "seeAlso": [],
@@ -42744,7 +42779,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2547
+      "line": 2558
      },
      "parent": "App",
      "seeAlso": [],
@@ -42768,7 +42803,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2552
+      "line": 2563
      },
      "parent": "App",
      "seeAlso": [],
@@ -42792,7 +42827,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2556
+      "line": 2567
      },
      "parent": "App",
      "seeAlso": [],
@@ -42816,7 +42851,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2571
+      "line": 2582
      },
      "parent": "App",
      "seeAlso": [],
@@ -42840,7 +42875,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2572
+      "line": 2583
      },
      "parent": "App",
      "seeAlso": [],
@@ -42864,7 +42899,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2566
+      "line": 2577
      },
      "parent": "App",
      "seeAlso": [],
@@ -42912,7 +42947,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2582
+      "line": 2593
      },
      "parent": "App",
      "seeAlso": [],
@@ -42936,7 +42971,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2587
+      "line": 2598
      },
      "parent": "App",
      "seeAlso": [],
@@ -42960,7 +42995,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2591
+      "line": 2602
      },
      "parent": "App",
      "seeAlso": [],
@@ -42984,7 +43019,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2592
+      "line": 2603
      },
      "parent": "App",
      "seeAlso": [],
@@ -43008,7 +43043,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2594
+      "line": 2605
      },
      "parent": "App",
      "seeAlso": [],
@@ -43032,7 +43067,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2513
+      "line": 2524
      },
      "parent": "App",
      "seeAlso": [],
@@ -43056,7 +43091,7 @@
      "internal": false,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2517
+      "line": 2528
      },
      "parent": "App",
      "seeAlso": [],
@@ -43163,7 +43198,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2093
+      "line": 2104
      },
      "parent": "App",
      "seeAlso": [],
@@ -43184,7 +43219,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2103
+      "line": 2114
      },
      "parent": "App",
      "seeAlso": [],
@@ -43205,7 +43240,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2118
+      "line": 2129
      },
      "parent": "App",
      "seeAlso": [],
@@ -43226,7 +43261,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2139
+      "line": 2150
      },
      "parent": "App",
      "seeAlso": [],
@@ -43247,7 +43282,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2215
+      "line": 2226
      },
      "parent": "App",
      "seeAlso": [],
@@ -43268,7 +43303,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2225
+      "line": 2236
      },
      "parent": "App",
      "seeAlso": [],
@@ -43289,7 +43324,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2317
+      "line": 2328
      },
      "parent": "App",
      "seeAlso": [],
@@ -43310,7 +43345,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2325
+      "line": 2336
      },
      "parent": "App",
      "seeAlso": [],
@@ -43331,7 +43366,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2334
+      "line": 2345
      },
      "parent": "App",
      "seeAlso": [],
@@ -43352,7 +43387,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/view.ts",
-      "line": 2344
+      "line": 2355
      },
      "parent": "App",
      "seeAlso": [],
@@ -51123,7 +51158,7 @@
      "internal": false,
      "source": {
       "file": "library/divider.declare",
-      "line": 70
+      "line": 74
      },
      "parent": "Divider",
      "seeAlso": [],
@@ -51151,7 +51186,7 @@
      "internal": false,
      "source": {
       "file": "library/divider.declare",
-      "line": 71
+      "line": 75
      },
      "parent": "Divider",
      "seeAlso": [],
@@ -51171,8 +51206,13 @@
      "id": "Divider.method.span",
      "name": "span",
      "kind": "method",
-     "doc": null,
-     "docSegs": [],
+     "doc": "The length the rule runs: the parent's content extent along `axis`, or 0 with no parent.\n`width` and `height` read it; a subclass that spans something else overrides it.",
+     "docSegs": [
+      {
+       "md": "The length the rule runs: the parent's content extent along `axis`, or 0 with no parent.\n`width` and `height` read it; a subclass that spans something else overrides it.",
+       "code": []
+      }
+     ],
      "api": true,
      "internal": false,
      "source": {
@@ -72769,7 +72809,7 @@
        "subtitle": "extends View",
        "kind": "element",
        "label": "Class",
-       "doc": "# Divider\n\n*Class — [View](declare-docs:View) → [Node](declare-docs:Node)*\n\nA single line in the theme's `line` token, sized to the room it is given: drop one into a\nstack and it spans the content, drop one into a row with `axis = y` and it stands on end.\nIt is a painted view, not a border — which is what lets it be a child in a list like any\nother, and lets a layout space it like any other.\n\n```declare\nCard [ x = 20, y = 20, width = 280,\n    Text [ text = \"General\" ],\n    Divider [ ],\n    Text [ text = \"Advanced\" ]\n    ]\n```\n\n**`thickness` is logical pixels, not device pixels.** `1` is one of the units everything\nelse in a program is measured in, so on a 2× display the rule is two device pixels and\nlooks like every other 1px edge in the library — there is no hairline primitive here.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `axis` | Axis | `x` |  |\n| `thickness` | number | `1` |  |\n| `inset` | number | `0` |  |\n| `color` | Color |  |  |\n| `width` | Length | `{ axis == \"x\" ? span() : thickness }` |  |\n| `height` | Length | `{ axis == \"x\" ? thickness : span() }` |  |\n\n**`axis`** — Which way the rule runs: `x` (the default) is horizontal and spans the parent's width; `y`\nis vertical and spans its height. A bare literal, not a string. The span is the parent's\n**content** extent — the room inside the parent's own `padding` — so a divider in a padded\ncard stops where the card's content does, rather than running out under the inset.\n\n**`thickness`** — The rule's weight in logical pixels. `1` is the library's hairline everywhere.\n\n**`inset`** — How far in from the **leading** edge the rule starts — the list-separator convention,\nwhere a row's separator begins under the text rather than under the icon beside it. The\nrule's far end stays put, so the inset shortens it. `0` (the default) is a full-span rule.\n\n**`color`** — The rule's colour, the theme's `line` by default. Set it for a rule that must read heavier\nor lighter than the theme's edges — a section break against a row separator.\n\n**`width`** — Derived, not authored: the span across the rule on a horizontal divider, `thickness` on a\nvertical one. **Leave it alone** — writing a width here fights the span, and a shorter\nrule is what `inset` is for.\n\n**`height`** — The mirror of `width`: `thickness` on a horizontal rule, the span on a vertical one. Also\nderived, and also not for setting — a divider is as long as the room it was given.\n\n## Methods\n\n- `span()`\n\n## Inherited from [View](declare-docs:View)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `padding` | Inset | `0` |  |\n| `cornerRadius` | Radius | `0` |  |\n| `hovered` | boolean |  | read-only |\n| `pressed` | boolean |  | read-only |\n| `onScreen` | boolean | `true` | read-only |\n| `visibleRect` | object | `EMPTY_RECT` | read-only |\n| `apparentScale` | number | `1` | read-only |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `flexes` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `rotation` | number | `0` |  |\n| `scaleX` | number | `1` |  |\n| `scaleY` | number | `1` |  |\n| `skewX` | number | `0` |  |\n| `skewY` | number | `0` |  |\n| `rotateX` | number | `0` |  |\n| `rotateY` | number | `0` |  |\n| `translateZ` | number | `0` |  |\n| `perspective` | number | `0` |  |\n| `backface` | visible | hidden | `\"visible\"` |  |\n| `blend` | normal | multiply | screen | overlay | darken | lighten | colorDodge | colorBurn | hardLight | softLight | difference | exclusion | hue | saturation | color | luminosity | plusLighter | `\"normal\"` |  |\n| `backdrop` | filter | `null` |  |\n| `filter` | filter | `null` |  |\n| `mask` | mask | `null` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `claim` | both | x | y | `\"both\"` |  |\n| `tooltipLabel` | string | `\"\"` |  |\n| `defaultplacement` | slot | `\"\"` |  |\n| `scrollY` | number | `0` | read-only |\n| `scrollX` | number | `0` | read-only |\n| `scrollStartY` | number | `0` |  |\n| `scrollStartX` | number | `0` |  |\n| `scrolling` | boolean | `false` | read-only |\n| `scrollAnchor` | content | end | none | `\"content\"` |  |\n| `cursor` | string | `\"\"` |  |\n| `pointerEvents` | string | `\"\"` |  |\n| `layout` | Layout | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `link` | string | `\"\"` |  |\n| `replace` | boolean | `false` |  |\n| `shows` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `childViews` | array |  | read-only |\n| `virtualized` | boolean |  | read-only |\n| `rowIndex` | number |  | read-only |\n| `virtualize` | boolean |  |  |\n| `classFor` | string |  |  |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent's content box, in pixels — `center` and `end`\nplace the view centered or flush against the far edge. **What a parent's `layout` places,\nthe child does not declare**: under a row (which places `x`), setting `x` in any spelling is\na compile error naming what to use instead, and a handler writing it while the layout\narranges the child is refused. Use `x` for free-form placement, a `layout` for arrangement,\nand `ignoreLayout = true` for a child that must stand apart from its parent's layout.\n\n**`y`** — The vertical offset within the parent's content box — the twin of `x`, with the same\nownership rule: a layout that places `y` (a stack, or a row with `align`) owns it.\n\n**`width`** — The box's width, in **pixels** (`Length`). Left unset, a view is as wide as its content —\nthe run a `Text` lays out, the bitmap an `Image` shows, and the boxes of its visible\nchildren (padding included); a view with nothing in it is `0`. Otherwise set a constant,\n`100%` (the parent's content box), or a `{ }` constraint. Set it live and children\nconstrained to it reflow in the same frame; there is no re-layout call. To size to content\nwith a limit, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`: left unset, a view is as tall as\nits content. A `Text` left unsized takes its natural measured height, so you usually set\n`height` only to fix a size, to clip, or to limit growth.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one attribute, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nApp [\n    View [ x = 20, y = 20, width = 260, height = 80, cornerRadius = 8, fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n    ]\n```\n\n**`padding`** — **The view's content box** — the inset between this box and the room its children live in.\nOne number insets all four sides; four are `[top, right, bottom, left]`, clockwise from the\ntop, the one-or-four house pattern `cornerRadius` and `stroke` share. A negative number is\nclamped to 0. This is the attribute a fixed inset wants — not a wrapper view, and not the\nlayout.\n\n**A padded view has an *inside*, and `x = 0` / `y = 0` mean that inside's origin — for\nevery child.** One a layout arranged, one that placed itself at `x = center`, one with\n`ignoreLayout = true`: they all start at the content origin, because a position in this\nview is *by definition* measured from the content box. There is no CSS-style split where\nan absolutely-positioned child escapes the inset. A layout is not involved — it simply\narranges within the room it is given (`Layout.contentExtent`), so a view with no `layout:`\nat all is padded just the same, a `place()` you write yourself honors the inset without\nnaming it, and **replacing a `layout:` member does not replace the padding** (`padding = 0`\nis what takes it away).\n\n**`100%` means the content box; `{ parent.width }` still means the parent's box.** A\npercent — and `x = center` and `x = end` with it — resolves against the room you are given,\nso `width = 100%` in a `padding = 16` card is the card's width less 32, and a centered child\nis centered between the insets. `{ parent.width }` is the deliberate escape hatch — the\nparent's literal width, padding and all — and an edge-to-edge child inside a padded box is\nthat paired with a negative `x`: `x = -16, width = { parent.width }`, the divider that runs\nwall to wall across a card. The asymmetry is the point: \"the space I am given\" and \"the\nparent's own width\" are different questions, and the spelling says which one you asked.\n\n**Paint does not move.** `fill`, `stroke`, `cornerRadius` and `draw()` are all this view's\nown box, so a card's background still covers its padding and a border still runs around the\noutside of it — nothing about the inset changes what the view looks like, only where its\nchildren begin. The inset lives in this view's own coordinate space, so it scales and\nrotates with the box like any other geometry. Hit-testing walks the same content box a\nlayout places into, so a press finds a child exactly where it is drawn.\n\n**Both insets count toward size.** A view with an unset width or height grows by the pair on\nthat axis, so a padded panel sizing to `contentHeight` reserves the room under its last\nchild as well as above its first. A *scrolling* view's extent includes them on all four\nsides too: a padded scroller stops a full inset past its last child rather than flush\nagainst it.\n\n```declare\nApp [ fill = white, textColor = black,\n    card: View [ x = 20, y = 20, width = 260, fill = whitesmoke, cornerRadius = 10,\n        padding = 16,\n        layout: SimpleLayout [ axis = y, spacing = 8 ],\n        Text [ fontWeight = semibold, text = \"Storage\" ],\n        Text [ textColor = slategray, text = \"39.2 GB of 128 GB used\" ]\n        ]\n    ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box (default `0`, square). One number rounds all four corners;\nfour — `[topLeft, topRight, bottomRight, bottomLeft]`, clockwise from the top-left as\nCSS orders them — round each on its own, and a corner given `0` stays square:\n`cornerRadius = [0, 8, 0, 8]` rounds only the top-right and bottom-left, `[8, 8, 0, 0]`\nis a tab that joins the pane below it. **One value, or four clockwise, is the house\npattern** for anything said per corner or per side: `stroke` and `padding`\nread exactly the same way, each list starting at its own first edge — the top for those\ntwo, the top-left corner for this one, because corners are what it names. A list of any\nother length is a mistake, never a shorthand. Radii that would overlap along an edge shrink\ntogether, so a radius past half the box is a pill, never a fold. It shapes fill, border,\nand shadow — but not hit-testing or clipping: the box stays a rectangle for layout and\nclicks. To clip children to the rounded shape, set `clip = true` as well. A `Spring` on\nthis attribute animates the number form.\n\n**`hovered`** — True while the pointer is over this view — read-only, maintained by the same hit walk that\nroutes presses, so it agrees with what a click would reach. Read it in a constraint rather\nthan tracking enter/leave by hand: `fill = { hovered ? provided(\"theme\").control : null }`. On a touch\ndevice there is no hovering, so gate mouse-only affordances on `app.touchDevice`.\n\n**`pressed`** — True while the pointer is down *and* this view was on the chain captured at pointer-down —\nread-only. It stays true if the finger slides off and comes back, which is what makes a\nbutton feel like a button; `hovered` alone flickers. The pair is the whole of press\nstyling: `fill = { pressed ? provided(\"theme\").line : hovered ? provided(\"theme\").control : null }`.\n\n**`onScreen`** — Is this view **on screen** — inside the viewport, not scrolled away, not in a hidden\nsubtree? A coarse reactive fact that flips at threshold crossings, so a constraint\nre-derives only when the answer changes: the gate for ambient work\n(`running = { classroot.onScreen && app.pageVisible }`) and for load culling. Fed\nlazily at the first read — a program that never reads it pays nothing. On the DOM the\nfeed sees the whole page, so an embedded app's box scrolled off its **host** page\nreads `false` too. Read-only.\n\n**`visibleRect`** — What of this view is visible, **in its own coordinates** — `{x, y, width, height}`,\nall zeros when nothing shows. Updates **at rest** (when motion settles and scrolling\nquiets), never per frame of a glide — a tile or rung decision wants the flight's end.\nCull margins are your arithmetic on the truth, not a platform knob. Read-only.\n\n**`apparentScale`** — The composed scale from this view's units to **device pixels** — ancestor scales ×\ndevicePixelRatio. The raster-rung fact: an image pyramid picks its tier from it, a\ndrawn view its backing density, with no reimplemented transform math and no host\nglobals. Exact under Declare's own transforms (rotation does not participate); under\na non-similar host transform it is the largest axis ratio — the rasterization\nconvention. Same at-rest delivery as `visibleRect`. Read-only.\n\n**The phase these facts have — and the one they don't.** All three answer *what is*,\nat arrival: a camera flight lands, then a fact-bound tier re-derives, once. They never\nanswer *what will be* — the platform cannot know where a spring is headed, but **your\napp can**, because the camera's target is your own attribute. A prefetch keyed on the\ndestination (`tierFor(cardH * app.camTarget)`) fires at departure and overlaps the\nglide; a tier keyed on `apparentScale` asks on arrival and may land soft, then\nsharpen. Those are opposite ends of the same flight, both legitimate: departure-phase\npolicy is written against your target state, arrival-phase truth against these facts,\nand the two compose.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Unlike\nCSS's `border`, a bordered view and an unbordered one occupy the same space.\n\nOne `stroke(…)` borders all four sides; **four border them one at a time** — `[top,\nright, bottom, left]`, clockwise from the top, the same one-or-four shape as\n`cornerRadius`, with `null` in a side's place leaving that side bare. A single rule\nunder a row is `[ null, null, stroke(1, #DBE1E9), null ]`; a pair of rails is the top\nand bottom entries filled and the sides `null`. Widths may differ per side. Where the\nbox is rounded a side's band **follows the corner arc and tapers into it** rather than\nmitring against its neighbour, so adjacent sides overlap along the curve instead of\nmeeting on a diagonal seam — the reason the form is written for rules and rails rather\nthan for a decorative frame.\n```declare\nApp [ fill = white,\n    row: View [ x = 0, y = 20, width = 200, height = 44, fill = whitesmoke,\n        stroke = [ stroke(1, #DBE1E9), null, stroke(1, #DBE1E9), null ] ]\n    ]\n```\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The same value shadows glyphs as `Text.textShadow`,\nand the painted **alpha** of any subtree inside a `filter` list — one `shadow(…)`, three\nsites, one look (its `blur` is the box-shadow radius everywhere).\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`flexes`** — Take an equal share of the room the parent's layout leaves along its axis. In a\ncolumn the layout sets this child's height to that share, in a row its width; the\nchildren that do not flex keep their own sizes, and the flexing ones divide what is\nleft. It is how a page frame is written: a header, a toolbar, a body with\n`flexes = true` that takes the rest, a footer. Across the flow it is aligned like any\nother child — a search field that takes a toolbar's spare width still centres on the\nrow. A `Spacer` is an empty view that flexes.\n`SimpleLayout` and `ResponsiveLayout` honour it, and in a `WrappingLayout` a flexing\nchild takes the rest of the row it lands on; a layout that does not divide a run\nignores it.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. It is not inherited by descendants —\nits effect already composes down the render tree, so a per-descendant copy would apply it twice.\n\n**`scale`** — A uniform transform — the view's subtree renders scaled about its pivot, and **every\nreader agrees on the one geometry**: paint, hit-testing, `rootOrigin`, the parent's\nauto-size, and layouts all compose the same transform, so a `scale = 0.5` child really\noccupies half its space (the fractal idiom) — where CSS makes transform paint-only and\nlets layout disagree with what you see. The view's **own** `width`/`height` stay local\n(its interior world is untouched — that is what makes scale mean \"the same world,\nsmaller\"); the parent packs the transformed **footprint** (`bounds()`). Pair with\n`pivotX`/`pivotY` to choose the center; `1` is unscaled; spring it for zoom effects.\n\n**`pivotX`** — The horizontal center of `scale` and `rotation`, in the view's own coordinates. Defaults\nto the origin; set both `pivotX`/`pivotY` to transform about the middle rather than the\ntop-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`rotation`** — Rotation in **degrees**, clockwise, about the same (`pivotX`, `pivotY`) pivot `scale`\nuses — and the same one-geometry rule: hit-testing follows the *visible* geometry\nthrough the inverse transform (`hovered`, `pressed`, and `viewAt` all agree with what\nyou see), and layout and auto-size reserve the rotated frame's bounding box\n(`bounds()`), so a rotated card takes the room it visibly covers. Composes with `scale`\nin one documented order — scale, then rotate, about the shared pivot. `0` (the default)\nis unrotated; spring it for turn effects.\n\n**`scaleX`** — Per-axis scale, multiplied with the uniform `scale` — `scaleY = 0.2` squashes a card to a\nsliver without changing its width (the frame of a flip). Same pivot, same one-geometry\nrule: paint, the hit walk's inverse, `rootTransform()` and the footprint share one matrix.\n`1` is unscaled.\n\n**`scaleY`** — The vertical twin of `scaleX`.\n\n**`skewX`** — A shear in **degrees**: `skewX = 20` slants the view's vertical edges by 20°, about the\npivot, composing with scale and rotation in one matrix. `0` is unsheared.\n\n**`skewY`** — The vertical twin of `skewX`.\n\n**`rotateX`** — A rotation about the view's **horizontal axis**, in degrees, about the pivot — the third\ndimension, seen through the parent's `perspective`. A card tipped\naway foreshortens; past 90° its back shows (`backface`). Hit-testing unprojects, so\n`hovered`, `pressed` and `viewAt` name the view where it is drawn. `0` is flat.\n\n**`rotateY`** — A rotation about the view's **vertical axis**, in degrees — the twin of `rotateX`.\n\n**`translateZ`** — A push along the view's own depth axis, in px — toward the viewer while the view is\nunrotated, and turned with it by `rotateX`/`rotateY`, so a face of a cube moves out along\nits own normal (CSS's `rotateY(…) translateZ(…)`). Under the parent's `perspective` the\nview grows as it comes closer. `0` is in the plane.\n\n**`perspective`** — Sets this view as the **eye** for its children's `rotateX`/`rotateY`/`translateZ`: the\ndistance, in px, from the viewer to the plane, with the vanishing point at this box's\ncentre — CSS's model (`perspective: 700px`). `0` (the default) projects orthographically,\nso a rotated child simply foreshortens.\n\n**`backface`** — `visible` (the default) or `hidden`: whether a view turned past 90° about X or Y still\nshows (and hits) from behind.\n\n**`blend`** — The **compositing operator** this view lands with against what has already painted\nbeneath it — `normal` (the default), or one of the W3C blend modes in camelCase\n(`multiply`, `screen`, `overlay`, `darken`, `lighten`, `colorDodge`, `colorBurn`,\n`hardLight`, `softLight`, `difference`, `exclusion`, `hue`, `saturation`, `color`,\n`luminosity`, `plusLighter`). Declaration order — the z-order you already have — is\nthe blending order, and blending reaches down to the nearest **isolating** ancestor:\nthe `App` root, an `opacity < 1` group, a scrolling view's content, an island\nboundary. A plain container is transparent to blending, so a `multiply` chip inside\nnested layout Views blends against the card under them — which is what you meant.\nA blending view blends **as a unit**, children included; compositing is paint, never\ninput — hit-testing and focus are unchanged. A token string in a `{ }` body, like\n`scrolls` — so a blend can be state: `blend = { active ? \"multiply\" : \"normal\" }`.\n\n**`backdrop`** — The **frost** — `frost(radius)` or `frost(radius, saturation)`; `null` (the default) =\nnone. What has already painted beneath this view is sampled within the view's **own\npainted shape** (its box, rounded by `cornerRadius`, or its `clip` shape), blurred by\n`radius`, saturation-scaled, and the view's own `fill` then paints **over** the frosted\nsample — a translucent wash over a blurred backdrop, which is how every platform's\nmaterial works. Content moving beneath re-frosts; that is the point. Samples reach the\nsame isolating ancestor `blend` does, and like `blend` it is paint only — input never\nchanges. `saturation` defaults to `1`; frosted materials read best around `1.4`–`1.8`.\n\n```declare\nApp [ fill = #F6F8FA,\n    art: View [ x = 10, y = 10, width = 220, height = 120, cornerRadius = 8, fill = { gradient(\"90deg\", 0xC93B47, 0x2E6FE0) } ],\n    panel: View [ x = 70, y = 40, width = 240, height = 70, backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12,\n        Text [ x = 14, y = 24, text = \"frosted over the art behind it\" ]\n        ]\n    ]\n```\n\n**`filter`** — The view's own painted subtree, filtered as a **group** — children included — before\n`opacity` and `blend` land. One function or a bare list:\n`filter = blur(3)`, `filter = [blur(2), brightness(0.8)]`, `filter = { [blur(k), saturate(1.4)] }`.\nThe functions are `blur(radius)`, `brightness(k)`, `contrast(k)`, `saturate(k)`,\n`grayscale(k)`, `invert(k)`, `sepia(k)`, `hueRotate(deg)`, `colorize(color)` — the group's\nalpha in one colour, what `Image.tint` is sugar for — and `shadow(dx, dy, blur, color)`, which\nhere shadows the painted **alpha** (a badge with a transparent background casts its own\noutline) where the box `shadow` attribute casts the rectangle. Lengths are **view units** and\nscale with the view's transform; the output may bleed past the box (a blur's 3σ, a shadow's\nreach) and layout ignores the bleed. A filtered view isolates blending and backdrops inside\nit. Paint only, never input — a blurred button is still its box. `null` (the default) is none.\nThe same vocabulary, sampled **beneath** the view, is `backdrop`.\n\n**`mask`** — A soft alpha mask over the view's painted (clipped) subtree, applied before `opacity`:\na gradient's **alpha** over the box — `mask = gradient(\"180deg\",\n#00000000, #000000FF)` fades the top out; `radialGradient(…)` vignettes — or a **stencil**,\nanother view whose painted alpha, placed by its own `x`/`y` inside this box, is the mask:\n`mask = { stencil }` with `stencil: Image [ visible = false, … ]` as a child is the idiom.\nA masked view isolates. Paint only. `null` (the default) is none. On the DOM renderer a\nstencil must be an `Image` or a view with `draw()` (its alpha is what CSS `mask-image`\ncan take); the canvas and Mac renderers take any view.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. One class overrides that default: an **`App` scrolls `y` by default**, and its\nscroller is the page itself (see `App`). A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\n**A scroller takes the pointer.** Declaring an axis says this view answers drags and wheels\nover its box, so it is an input participant whether or not it declares a handler, and content\ndeclared *behind* it is not reachable through it — a press on its empty area does not fall\nthrough to whatever sits underneath. Something that must stay clickable belongs in front of\nthe scroller (later in the body), or outside it.\n\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`claim`** — The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps\nvertical pan with the enclosing scroll regime while the drag owns horizontal — a grid\ncolumn's header drag or edge-resize on touch. Scopes an existing drag declaration\n(`onPointerMove`); it never creates one. The guide's Gestures chapter has the arbitration.\n\n**`tooltipLabel`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tooltipLabel` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipFontSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the Cupertino help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipFill` / `tooltipTextColor` / `tooltipStrokeColor`. `\"\"` (the\ndefault) = no tip.\n\n**`defaultplacement`** — Written on a **class**: names one of the class's own children (at any depth), and the children\nits subclasses and use sites write go **into** that child, after the child's own, instead of\nbeside it. `class Sheet [ defaultplacement = body, body: View [ … ] ]` — a `DetailSheet`\nextending it, and a `Sheet [ … ]` use site, fill `body`. The class's own children are never\nplaced. A placed child's `parent` is the child it went into; it is still reachable by name\nfrom the class or use site that wrote it.\n\n**`scrollY`** — **A fact, not a settable attribute.** The current vertical scroll offset in pixels of a `scrolls` view —\nthe **platform writes it** as the user scrolls (and as a glide moves); **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\nNothing may set it: an assignment and an `Animator [ attribute = scrollY ]` are both\ncompile errors, each naming the verb. To move the pane, **call `scrollTo(y)`** — a\nrequest the platform clamps to the real range and holds for a pane that cannot take it\nyet; add a glide (`scrollTo(y, { duration, motion })`) for the platform's own motion. A\nstarting offset is declared with `scrollStartY`. The offset is sampled once per settle,\nlike the pointer: your view of it may trail the pixels by a frame, and the pixels never\nwait on you. To reveal a particular view, `scrollIntoView()` on the target already does\nthe walk.\n\n**`scrollX`** — **A fact, not a settable attribute.** The live horizontal offset of a `scrolls = x` (or `both`) view,\nmirrored from the platform's scroll — `scrollY`'s twin, with the same enforcement: the\nplatform owns it, and an assignment or an Animator aimed at it is a compile error.\n**`scrollToX(x)` is the verb** — a clamped, held request, with an optional glide\n(`scrollToX(x, { duration: 260, motion: \"cubicOut\" })` is how the desktop's Files strip\nslides a fresh column into view). `scrollStartX` declares a starting offset. Read it for\na paging strip's position or scroll-driven effects.\n\n**`scrollStartY`** — The vertical offset a `scrolls` view **starts at** — applied once, at first layout, the\ndeclared twin of a `scrollTo(y)` on arrival (`scrollStartX` for the other axis). The\n`scrollY` fact then reports where the platform actually put it. A test fixture that must\nbe shot mid-scroll declares this rather than gesturing.\n\n**`scrollStartX`** — The horizontal offset a `scrolls` view **starts at** — applied once, at\nfirst layout, the declared twin of a `scrollTo` on arrival and the other axis of\n`scrollStartY`. The `scrollX` fact then reports where the platform actually put it. A\ntest fixture that must be shot mid-scroll declares this rather than gesturing.\n\n**`scrolling`** — **A fact, not a settable attribute.** True while the **user** is scrolling this scroller: from\nits first movement until the finger has lifted or the scrollbar thumb has been let go, and any\nmomentum afterwards has come to rest. A finger resting on the pane partway through is still\nscrolling. A glide your program asked for is not the user's scroll and leaves it false.\nWhile it is true, your `scrollTo`, `scrollBy` and `scrollIntoView` requests wait, and run\nwhen it turns false (only the latest counts). Read it in a constraint to keep a heavy effect\ncheap mid-gesture, rather than acting on its edges. Written by the platform's scroll process;\nnever assigned.\n\n**`scrollAnchor`** — How this scroller keeps the reader's place as content changes size. **`content`** (the\ndefault) keeps the view at the top edge of the visible area where it is: when something above\nit grows or shrinks — an image loading, earlier rows arriving — the offset moves by the\nsame amount, before anything is drawn, so nothing on screen moves. A pane at its very start\nstays at its start. **`end`** is for a pane read from the bottom (a terminal, a build's output): at\nthe end it stays at the end as content grows or shrinks, and away from the end it keeps the\nreader's place like `content`; it opens at its end, and `scrollTo(Infinity)` counts as being\nthere while it travels. **`none`** does nothing, for content meant to move under the reader.\nA virtualized list keeps its place the same way, its rows' estimated heights included.\n\n**`cursor`** — The pointer cursor shown over this view, as a CSS cursor keyword (`\"col-resize\"`,\n`\"grab\"`); `\"\"` inherits. This is how a resize edge or a drag handle announces itself\nbefore anything is pressed. A view with no handler of its own shows its cursor too, and its\npresses pass to the view beneath (a resize edge laid over a window frame); a view with\n`pointerEvents = \"none\"` never shows its own.\n\n**`pointerEvents`** — Whether **this view** takes pointer events: `\"none\"` or `\"auto\"`. Unset, it behaves as\n`\"auto\"`.\n`\"none\"` is for a view that is pure decoration over live content — a highlight rectangle,\na full-viewport chrome overlay — so presses reach what is beneath it. Without it, an\noverlay sized to the frame takes every press, and nothing under it can be clicked.\n\n**It applies to this view only, not to its children.** A press on an empty part of the\nview goes to whatever is beneath it; a press on a child still goes to that child if the\nchild takes presses. A child with a handler keeps taking its own presses, and a child may\nset `\"auto\"` outright — which is what lets a chrome overlay hold a real panel (the\nInspector's own window is exactly that) while the rest of it lets presses through.\nSo `\"none\"` on a container does **not** disable the views inside it: a pane faded to\n`opacity = 0` with `\"none\"` still takes presses on its buttons. To stop a subtree taking\npresses, set `visible = false` on it, move it out of the frame, disable its controls, or\nset `\"none\"` on each view that has a handler.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Assigning a different\nlayout swaps the arrangement; a `TweenLayout` subclass glides children between arrangements\ninstead of snapping: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-structure@intro` scrolls to the view with `anchor = \"intro\"`).\nThe anchor namespace is named views (this attribute) plus heading slugs inside\nrendered rich text, so a heading needs nothing from you. Resolution prefers views over\nslugs, preorder-first.\n\n**`link`** — Makes this view a **link**: one reference string, the same one an authored\nMarkdown href carries. `\"#why\"` names a destination or an anchor in this app, an absolute\nURL leaves it. The view realizes a real `<a href>`, so ⌘-click, copy-link and the build's\ncrawler all work, and every literal reference is checked at build against the registry — a\ntypo is a compile error naming the real names. `link = \"\"` is not a link at all, which is\nhow a row turns its own linkage off. A data-driven reference (`link = { :to }`) is checked\nwhen the crawl evaluates it.\n\n**`replace`** — Beside a `link`, **overwrites** the current history entry instead of pushing a\nnew one. For fine-grained movement inside one place — a deck's arrows, a wizard's steps —\nwhere every step pushing an entry would bury the Back button under motion the reader does\nnot think of as navigation.\n\n**`shows`** — Declares that this view **manifests a location**: when the app's location names\nthis string, the view is shown, and the visibility comes with it — there is no second\n`visible` to keep in step. It is also what puts the name in the compiler's registry, so a\nlink to it is checked at build and the crawler knows to visit it. Two views may declare the\nsame name and choose between themselves on a condition, which is how a signed-out reader\ngets the sign-in screen at the same address.\n\n**`contentWidth`** — intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\nIts other use is a class that takes content. A class whose instances receive children\nfrom the use site sizes itself to what it was handed with `width = { contentWidth }` — the\nchildren are not the class's own, so nothing else knows their extent.\n\n**`childViews`** — This view's child views, as a live collection — reading it re-runs when the child **set**\nchanges. It carries set membership only, not the children's own attributes: `.length` is\nlive, but `.map(c => c.width)` would wire half of what it reads, so aggregation over a node\ncollection is refused rather than answered wrongly.\n\n**On a virtualized block it answers with the instances that exist** — a subset of the\nrecords, and it changes as you scroll. That is a fact about the block, not a trap: check\n`virtualized` on this same container and you know which kind of answer you are holding\n(the flag is declared on the replicated child, but read on the container — see\n`virtualized`). The list also includes instances the recycler has parked\n(`visible = false`), because they are children.\n\n**For a count of the collection, count the data.** The records are complete by definition;\nthe instances never claimed to be.\n\n```declare-fragment\ncount: number = { (app.d.value.rows).length }\n```\n\nIf you want the window with its logical indices — an accessibility traversal, a diagnostic\n— that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).\n\n**`virtualized`** — Whether **this view's replicated content** is virtualized right now — a content intrinsic,\nlike `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the\ncontainer of a virtualized block, which is every view in a program that never asks for\nvirtualization.\n\n**Read it on the container, not the template.** `virtualize` is declared on the replicated\nchild — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to\nthe *parent* that holds the instances, so the parent is what answers. A row instance reports\n`false`, and that is the honest answer: an instance has no replicated content of its own. In\nordinary speech the list is virtualized, not the row.\n\n```declare-fragment\nlist: View [ datapath = { app.d.value },                  // ← ask this one\n    Row [ datapath = :rows[], virtualize = true ]         // ← declared here\n    ]\n```\n\nIt is **tracked**, so a constraint reading it follows a block engaging or disengaging —\nwhich can happen mid-run, since the policy accepts a `{ }`. And it is what makes\n`childViews` legible on a virtualized block: the list is a subset, and this is how you know.\n\n**`rowIndex`** — fact: this instance's index in the array its replication presents. It is 0\nfor the first record and follows the record as others arrive, leave or reorder, so a\nconstraint reading it re-runs when the place changes. For a nested list it is the index\nwithin the group's own array; under `virtualize` it is the logical index, never a window\nattribute. A view that no replication made reads `-1`.\n\n```declare-fragment\nRow [ datapath = :rows[], fill = { rowIndex % 2 == 0 ? 0xFFFFFF : 0xF4F4F4 } ]\n```\n\nStripes, ranks and \"3 of 12\" read it; records need no position fields.\n\n**`virtualize`** — Virtualize this replicated collection: build the instances near the viewport and leave the\nrest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it\nbelongs on the node whose `datapath` matches many, beside that path, and it means nothing\nanywhere else (a node that replicates nothing has no collection to describe, and the checker\nsays so).\n\n**A boolean, off by default.** Full materialization keeps `childViews` whole and browser\nfind-in-page working over every record, and below the size where construction hurts it is\nsimply faster; above it, this is the one word that changes. There is no automatic mode and\nno count to tune: what full materialization costs is construction, which depends on how\nrich a row is rather than how many there are.\n\nLike any boolean it takes a `{ }`, and the policy is read inside the replication match — so a\ncollection can start fully materialized and virtualize when it grows, engaging and\ndisengaging as the answer changes. What you never write is everything *around* the word: no\nrow heights, no scroll container, no keys, no overscan tuning, no memoization.\n\nVirtualization needs a scrolling ancestor (`scrolls = y`, or `both`) and — if the block's\nparent runs a layout — that layout must stack on `y`. A wrapping gallery, a horizontal strip,\na scatter of pins: those fully materialize instead, deliberately, with an inspectable reason.\nRead `virtualized` on the container to see whether it engaged.\n\n```declare-fragment\nRow [ datapath = :rows[], virtualize = true ]\n```\n\n**`classFor`** — The class each record is built as, when the records of one collection are different\nthings — a paragraph, an image, a heading. **Replication metadata**, like `virtualize`:\nit belongs on the node whose `datapath` matches many, beside that path.\n\nThe class written at the use site is the **base**: the default, and the type the rest of\nthe line is checked against. The body reads the record and names that class or one of its\nsubclasses, and the checker holds it to exactly that. It reads only the record — its choice\nis the record's own — so a record whose kind changes gets a new instance of the new class in\nplace of the old one.\n\n```declare-fragment\nBlock [ datapath = :blocks[],\n    classFor = { :kind == \"image\" ? ImageBlock : :kind == \"heading\" ? HeadingBlock : TextBlock } ]\n```\n\nA class per kind is for rows that *are* different things. A row that varies by what state it\nis *in* — selected or not, saved or draft — keeps one class and a\n[`State`](declare-docs:State) for each variation; a state's children exist only while it\napplies. The two nest: a class per kind, with states inside.\n\n**`contentHeight`** — intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content, including content the use\nsite supplied (`height = { contentHeight }` on a class that takes children).\n\n### Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases. The\nhandler may take the event, `onClick(e: PointerEvent)`: `e.x`/`e.y` is where the click\nlanded in this view's coordinates (`e.rootX`/`e.rootY` in root space) — so a chart that\npicks the nearest point reads it here, with no position kept from `onPointerDown`.\n\n```declare\nApp [\n    View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = gainsboro,\n        onClick() { fill = 0x4169E1 },\n        TextLabel [ x = 12, fontSize = 13, text = \"click me\" ]\n        ]\n    ]\n```\n- `onDblClick(e: PointerEvent)` — The **resolved** pair: a second click on this same view inside the double-click interval\n(and, on touch, within a few pixels of the first tap). The desktop rule holds — a third\nclick starts a fresh cycle, so triple is a double plus a single, not two doubles.\n\nDeclaring it changes when `click` arrives, which is the part to know: a view that answers\nboth **withholds** the first click for the length of the interval, so a single click fires\nlate and a pair fires `click` then `dblClick` together. If a single click must feel\nimmediate, keep the two handlers on different views.\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. Like every pointer\nevent it carries the point both ways: `x`/`y` in this view's own coordinates, and\n`rootX`/`rootY` in **root** coordinates — the app's own space, the one `viewAt` takes —\nwhich is the frame a drag reads, because it does not move with the thing being dragged.\n`deltaX`/`deltaY` are the root-space movement since the press, so most drags need nothing\nelse: `x = startX + e.deltaX`.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view — the hover-in moment. For styling, read the `hovered` fact in\na constraint instead (`fill = { hovered ? … : … }`); `hovered` is read-only and kept true by\nthe runtime. Handle this event only for something that must happen at the moment of\nentry.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out moment; it also fires when a press is abandoned\noff the box. `hovered` and `pressed` are facts the runtime clears on its own; there is\nnothing to reset here.\n- `onTouchStart(e: TouchEvent)` — The **raw** multi-finger stream, and the layer below the recognized gestures: a finger\nlanded. `e.touches` is every live finger, `e.changed` the ones this event is about, all in\nroot coordinates — a gesture engine wants one fixed frame. Reach for it when no recognized gesture fits — two-finger gestures\nare `onPinch*`, a tap is `onClick`, a drag is the claim family — because the raw stream\nmeans doing the finger arithmetic yourself.\n\nDeclaring any of the touch family **claims** from the browser exactly what that handler\nneeds to fire, and nothing more.\n- `onTouchMove(e: TouchEvent)` — A finger moved. Same payload shape: every live finger, and the ones that moved.\n- `onTouchEnd(e: TouchEvent)` — A finger lifted. `e.touches` is what remains down, so the last finger's lift is the one\nthat leaves it empty.\n- `onTouchCancel(e: TouchEvent)` — The system took a finger away — a call arrived, the browser reclaimed the gesture, the\nfinger left the surface. It is not a lift: nothing was completed, and a gesture in\nprogress should be abandoned rather than finished. Pair it with `onTouchEnd` in any\nhandler that holds state across a touch.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onPinchStart(e: PinchEvent)` — Two fingers landed over this view's subtree — the **recognized** two-finger gesture,\nso you never do the finger arithmetic (that is what the raw `onTouch*` family is for).\nDeclaring any of the pinch family **claims the two-finger gesture** from the browser\nover this subtree; single-finger pan stays the enclosing regime's — the same\nnarrowing `claim = x` performs for drags. The event carries `scale` (`1` at the\nstart) and `center`, the midpoint of the two fingers in root space. A pinch nearly\nalways drives `scale`/`rotation` of a sub-surface, which is why they ship together.\n- `onPinch(e: PinchEvent)` — The fingers moved: `e.scale` is **cumulative** — the spread now over the spread at\n`pinchStart` — and `e.center` tracks the midpoint in root space. Typical use:\n`onPinch(e) { zoom = anchor * e.scale }`, anchoring on the value at `pinchStart`\nrather than integrating deltas.\n- `onPinchEnd(e: PinchEvent)` — Either finger lifted (or the browser reclaimed the gesture); `e.scale` is the final\ncumulative scale. Latch your anchor here for the next pinch.\n- `onRetire()` — The departure hook — fires once when this view's **presence** ends (its record leaves the\nreplicated match, or the subtree is discarded), children before parents, with everything\nstill alive. The exact symmetric of `onInit`'s membership rule: a windowed row's\ndematerialization is **not** a departure and never fires it.\n- `onContextMenu(e: PointerEvent)` — The platform's context gesture — a right-click, or a two-finger tap on a trackpad —\ncarrying the point in this view's coordinates. Declaring it **suppresses the browser's own\nmenu**, and exactly where it is declared: elsewhere on the page the native menu still\nopens. A touch long-press does not arrive here; that is `onHold`, which is the gate touch\ncontext rides.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n### Methods\n\n- `removeChild(child: View): void` — Detaches a child from this view. The child is **not** torn down — use `discard()` for\nthat; a removed view you keep a reference to can be inserted somewhere else.\n- `insertChild(child: View, index: number): void` — Inserts a view you already hold as a child at `index` — the placement primitive beneath\n`createView`. Prefer replication over data for collections; this is for genuinely\nimperative structure. A primitive, not a verb: it does not notify the arrangement — after\nimperative re-ordering, the layout re-packs on the next arrival or removal.\n- `tabOrder(): View[]` — The members keyboard traversal descends into from this view. **Override it to gate\ntraversal** — a closed `Accordion` pane returns none, which is what stops Tab from\nreaching content the user cannot see, since a closed pane is clip-occluded rather than\nhidden. Compose with `tabDefault()` rather than rebuilding the list.\n\n```declare-fragment\ntabOrder() { return open ? this.tabDefault() : [] }\n```\n- `draw(d: Draw): void` — Custom drawing: define `draw(d: Draw) { … }` on any view, and it paints into its box with\nthe Canvas2D vocabulary (`d.fillStyle`, `d.beginPath()`, `d.arc(…)`, `d.fill()` — the\n`Draw` interface, on the Types page). It is **an ordinary method**, overridable like any\nother; what makes it paint is who calls it. `View` holds a standing constraint of its own,\n`drawing = { record(draw) }`, which runs your method through a recorder when the view\nattaches and again whenever something the body read changes — a read of `hovered` or a\ndata field redraws, nothing else does, and nothing runs per frame. That is the same rule\nevery method has when a constraint calls it; `draw` is only unusual in that the constraint\nis View's rather than yours. A view with no `draw` carries no drawing machinery at all.\nReach for it for graphs, iconography, and treatments the tree cannot style; measure frame\nrate as drawn surfaces grow large or change every frame. Bitmaps come in through an\n`Image` view: `d.drawImage(pic, …)` takes the view (Canvas2D's three argument shapes),\npaints nothing until `pic.loaded`, and that read is what re-records the drawing when the\nbitmap arrives — a hidden `Image [ visible = false, source = … ]` is the holder idiom.\n\n```declare-fragment\ngauge: View [ width = 80, height = 80,\n    level: number = 0.6,\n    draw(d: Draw) { d.strokeStyle = 0x2E6FE0; d.lineWidth = 6\n                    d.beginPath(); d.arc(40, 40, 32, -Math.PI / 2, -Math.PI / 2 + level * 2 * Math.PI); d.stroke() }\n    ]\n```\n- `$setData(path: string | readonly string[], v: unknown): void` — Writes a value at a path relative to this view's cursor — the runtime half of a text\nfield's `<->` edit. In your own code, write a record field with `:field = v` in a handler\nor method — or `:@[(key)] = v` when the field is chosen at run time: it lands in the same place, through the dataset's `set`, and wakes exactly the\nconstraints that read the changed region.\n- `contentBox(size: \"width\" | \"height\"): number` — The room inside this view on one axis: its `width` or `height` less both of its\n`padding` insets on that axis, never below 0. It is what `100%` and every other percent\nresolves against, and what a layout divides (`Layout.contentExtent` is this, read through\nthe view it arranges). A class that spans its parent's content reads it from the parent —\n`parent.contentBox(\"width\")` — where `{ parent.width }` would answer the parent's whole box.\n- `bounds(): { x: number; y: number; width: number; height: number }` — This view's **transformed box in the parent's coordinates** — the bounding box of the\nframe under scale-then-rotate about the pivot. The footprint: what a layout packs and\nwhat the parent's auto-size measures, and the exterior twin of the local\n`width`/`height` (which never change under transform — they are the view's interior\ncoordinate space). Identity when `scale = 1` and `rotation = 0`. Every read is live, so\na constraint like `width = { this.chip.bounds().width + 20 }` follows a springing\nscale.\n- `footprint(): { x: number; y: number; width: number; height: number }` — `bounds()` minus the position: the same transformed box **relative to this view's own\norigin** — `x`/`y` are the lead offsets the transform introduces (0 untransformed),\n`width`/`height` the footprint extents. It never reads the view's `x`/`y`, which is why\na layout's `place()` consumes this form: a strategy must never read the attributes it\nwrites. A view tipped in 3D (`rotateX`, `rotateY`, `translateZ`) is measured as if the\nvanishing point sat at its own pivot — the exact projection depends on where the view\nlands in its parent and on the parent's size, which the layout is deciding — so an\nauto-sized reel of flipping digits sizes without a cycle; the hit walk uses the exact\nprojection. Reach for `bounds()` everywhere else.\n- `tabDefault(): View[]` — The default traversal list — visible children in source order. **The thing a `tabOrder()`\noverride calls** when it wants the ordinary answer under a condition of its own.\n- `discard(): void` — Tears a view down for good, in one verb: unlinks it from its parent, retires its whole\nsubtree (constraints unwired, surfaces dropped, `onRetire` fired while everything is\nstill alive), and re-packs what it leaves behind — the parent's arrangement closes the\ngap and its auto-size shrinks. **The pair of `createView`** — a view you built\nimperatively is yours to destroy, while a replicated instance is the runtime's and\nleaves when its record does.\n- `viewAt(x: number, y: number): View | null` — The tree answers **what is under a root-space point** — the deepest visible view,\nby the same scroll-aware, clip-aware, transform-aware walk that routes the pointer\nitself, so what a handler computes and what a press would hit can never disagree.\nThis is the language's hit-testing: never measure geometry by hand, ask.\nIts defining use is **drag and drop** — the dragger asks, one reactive attribute fans\nout, every target derives:\n\n```declare-fragment\n// on the dragger\nonPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },\nonPointerUp(e: PointerUpEvent) { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },\n// on each target — no handlers, just a standing relationship\nhovered = { app.dropTarget == this }\n```\n\nThe answer is the *deepest* view; when the dragger needs \"the card, not its\nlabel,\" walk `.parent` up to the view carrying the marker attribute it declared.\nCoordinates are root-space — exactly what `onPointerMove`/`onPointerUp` carry.\nBecause the walk is the honest one, the **drag ghost counts**: give it — and any\ncontainer it sits in — `pointerEvents = \"none\"`, or it is the answer. A sizeless\ncontainer around a pointer-following ghost auto-extends *with* the pointer, so it\nbecomes an invisible box over the very targets being dragged onto;\n`explainHit(x, y)` names what really takes the press. The full pattern is the\nguide's Interaction chapter (\"Finding what is under the pointer\").\n- `containsPoint(x: number, y: number): boolean` — One view's own membership test — `v.containsPoint(x, y)` asks whether the\nroot-space point lands in `v`, by the same honest walk `viewAt` runs (clip\nshapes, scale, rotation, scroll and `pointerEvents` all count). Reach for it\nwhen you already hold the candidate; reach for `viewAt` when you are asking\nthe whole tree.\n- `rootBounds(): { x: number; y: number; width: number; height: number }` — This view's transformed box in **root-content space** — every ancestor's position,\nscale, rotation, and scroll composed (the hit walk's own math). A one-shot query for\nhandlers, deliberately not a reactive fact: absolute geometry depends on every\nancestor, and a live attribute would re-derive on each scrolled pixel. For the reactive\nquestion — \"am I visible?\" — read `onScreen` or `visibleRect` instead.\n- `rootTransform(): { x: number; y: number; scale: number; rotation: number }` — The composed similarity from this view's frame to root space — `{x, y, scale,\nrotation}`. The method tier's exact transform; the visibility facts are its coarse,\nat-rest companions.\n- `rootOrigin(): { x: number; y: number }` — This view's origin in **root space** (the root's content coordinates — the same space\n`viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer\nitself is routed by: translate per level, minus every intermediate scroller's offset, the\nroot's own scroll back at the boundary. The anchor primitive for overlays — a menu opening\nat a pointer, a popover dropping under a control — so they land where the view is *seen*,\nat any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.\n- `travelWith(scroller: View | null): boolean` — Re-hosts this view's surface inside `scroller`'s scrolling content, so the **platform**\ncarries the two together with no per-scroll re-derive — and returns `false` on a backend\nthat cannot. The view tree does not move: hit testing and layout see nothing change, only\nthe surface is re-homed. This is a specialist tool for chrome that must track scrolled\ncontent exactly (the focus ring following a control inside a pane); pass `null` to return\nit to the root.\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean, inset?: number): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n- `scrollTo(y: number, glide?: { duration?: number; motion?: string }): void` — Ask **this scroller** to go to offset `y` — a **request, not an assignment**: the platform\nclamps it to the real scroll range, and a pane that cannot take it yet (hidden, or not yet\nlaid out) holds the request and applies it the moment it can — so `scrollTo(0)` before\nshowing a pane simply works. **`scrollTo(Infinity)` means the far end** — \"scroll to the\nbottom\" with no magic number; the clamp resolves it against the range the pane has when it\ncan finally take it. The `scrollY` fact follows the platform's answer. Call it on the\n`scrolls` view itself; to reveal a particular *view*, `scrollIntoView()` on the target\nfinds the scroller for you. A no-op before the view is attached.\n\n**The user may be scrolling the same pane.** Scrolling is a process the platform owns, driven\nby a hand that does not pause for the program, so a request can arrive mid-gesture and lose —\noverridden by momentum, or worse, fighting it. Two habits keep the two from contending. Ask\nbecause something *changed by this much* rather than because the offset is near some value:\na reader who is following the end of a list wants the new content, and a reader who scrolled\nup wants to be left alone, and only the first is expressible as growth. And read `scrolling`\nbefore asking, so a request waits for a hand that is still moving. What does not work is\nre-asserting a position every frame; the gesture will win, and the program will spend the\nwhole gesture losing.\n\n**With a glide** — `scrollTo(y, { duration, motion })` — the request moves the pane over\n`duration` milliseconds on the platform's own motion: the browser's smooth scroll, the\nnative host's tween, the canvas runtime's loop. `motion` names a Declare curve\n(`\"cubicOut\"`, the default; any family token) where the provider can honor one. This is\nnot an Animator: no Animator semantics, no driven attribute — the scroller glides, `scrollY` reports\nas it goes, and a **gesture cancels it** (the user always wins). A request that arrives\nwhile a gesture or its momentum owns the pane is dropped.\n- `scrollToX(x: number, glide?: { duration?: number; motion?: string }): void` — The horizontal twin of `scrollTo()` — the same clamped, held request against `scrollX`,\nfor a `scrolls = x` (or `both`) view, with the same optional glide.\n- `scrollBy(dx: number, dy: number, glide?: { duration?: number; motion?: string }): void` — A **relative** request — `scrollBy(dx, dy)`, or `scrollBy(dx, dy, { duration, motion })`\n— measured from the current facts: `scrollBy(0, -pane.height)` pages up. The same\nclamp, hold and glide contract as `scrollTo()`/`scrollToX()`, on both axes at once.\n- `createView(tag: string, props?: Record<string, unknown>): View` — Instantiates a class **by tag name** into this view — the receiver is the parent, and\nwith it the new instance's scope and data anchor. Returns the created view, a full\ncitizen: constraints installed, `onInit` fired, and the parent's arrangement and auto-size\ntake it in on arrival. The imperative door, for structure that genuinely cannot be\ndeclared; reach for replication over a datapath first — it reconciles, keys, and tears\ndown for you.\n\n**The build drops classes nothing statically references**, so a class you only\never name as a *string* needs `use [ Name ]` at the top level to survive. That is the one\nnon-obvious requirement, and forgetting it fails at runtime, not compile time. The\nreturned view is yours: `discard()` it when done.\n\n```declare-fragment\nuse [ Menu ]\n…\nonInit() { this.list = app.createView(\"Menu\", ({ })) }\n```\n\nThe library builds its own overlays exactly this way — a `Menu` cannot declare a `Menu`\nchild without recursing, so the cascade is created by name at first use (parented to the\n`app` root plane, which is why the receiver there is `app` itself).\n- `raise(below?: View | null): void` — Moves this view to the **top of its parent's children**, so it paints over its siblings —\nstacking is declaration order, and this is the runtime verb for changing it. **The\nprimitive every overlay needs**: a menu, a popover, or a dialog raises itself on open so\nit is not occluded by whatever was declared after it. Pass a sibling to be raised *below*\nthat view instead, which is how chrome stays above content while staying under an even\nhigher layer.\n\n```declare-fragment\nonPointerDown() { this.raise() }        // click-to-front, e.g. a window in a desktop\n```\n\n## Inherited from [Node](declare-docs:Node)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `trackChanges` | array |  |  |\n| `datapath` | datapath |  |  |\n\n**`trackChanges`** — The values this node reports changes to: `trackChanges = [ \"loaded\", \"kind\" ]`. Each name\nmust be one of the node's own reactive values — an attribute it declares, a fact it carries\n(`scrollY`, `loaded`, `hovered`), or an attribute bound to data. The checker refuses a stranger\nin a written list, and the runtime refuses one in a computed list when the node arms. To\nhear a record's field, declare an attribute over the path (`kind: string = { :kind }`) and\nname that — there is one door. Nothing else is tracked, so a node that names nothing costs\nnothing.\n\n**`datapath`** — The data cursor: the place in a dataset this node and its descendants read and write\nrelative to. Written as a `:path` (extending the inherited cursor), a `{ }` expression\nyielding a place (`datapath = { app.d.value.tasks[app.pick] }`), or null. The nearest\nancestor-or-self cursor wins, so a Node class with its own `datapath` stands on that\nrecord, and views inside it read the same one. A `:path` ending in `[]` replicates — and\nonly a view replicates; on any other node that form is a compile error naming the\nsingle-record spelling.\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included** — the\ninit walk visits non-View children too. Answered by `onInit()`.\n- `onChange(e: ChangeEvent)` — Fires at the **close of a settle** in which one or more tracked values ended different from\nwhere they started: after every constraint has re-run and every reader already holds the new\nvalue. One call per settle carries all of them, so a node whose two subjects move together\nacts once. Answered by `onChange(e: ChangeEvent)`, where `e.changed` holds one `ValueChange`\nper value — its `name`, its `previousValue` (what it held at the previous close), and its\n`currentValue` (what the node holds now; reading the attribute directly gives the same\nthing). Silent at boot: first values are not changes, and setup belongs in `onInit` or, for\nthe whole tree, the App's `onReady`. A handler's writes are the next settle, so a change may\ncause a change; a handler may not assign a value it was told about, and a ring of handlers\nends on its own, because a value is delivered at most once per settle chain.\n\nNot to be confused with an input's edits, which is the instinct the name carries in from\nHTML and React: a field reports what the reader typed through `onInput`, and a control\nreports its own value through `input()`. This event is about a value the *program* holds.\n\n**Use it only for a genuine state change** — something happened and the program must act\nonce: record that the terms were read when the reader reaches their end, open a pane when the data\nlands, start a fetch when a selection changes. It is not for following a value, which is a\nconstraint, nor for moving one, which is a Spring, and it is not meant for use in\nconjunction with animation.\n\n### Methods\n\n- `$data(path: string | readonly unknown[]): unknown` — Reads the datum at a path **relative to the nearest cursor** — this node's own, or the\nnearest ancestor's — the compiled form every\n`:path` lowers to, callable by hand. `$data(\"\")` is the whole record at the cursor, which\nis what a replicated row calls to hand its own record to a method. Reach for the `:path`\nspelling in ordinary code; reach for this when the path is computed, or when you need the\nrecord itself rather than a field of it.\n\n```declare-fragment\nitem() -> object { return this.datapath != null ? this.$data(\"\") : this }\n```\n- `$cell(segs: readonly unknown[]): { value: unknown }` — The compiled form of a write to a record field: a handler's `:done = v` lowers to\n`this.$cell([\"done\"]).value = v`, and `:n += 1` reads and writes through the same place.\nThe write lands through the dataset's `set`, relative to the nearest cursor, exactly where\nthe matching read resolves. Write `:field = v`; this is what the compiler emits, not a call\nto make by hand.\n",
+       "doc": "# Divider\n\n*Class — [View](declare-docs:View) → [Node](declare-docs:Node)*\n\nA single line in the theme's `line` token, sized to the room it is given: drop one into a\nstack and it spans the content, drop one into a row with `axis = y` and it stands on end.\nIt is a painted view, not a border — which is what lets it be a child in a list like any\nother, and lets a layout space it like any other.\n\n```declare\nCard [ x = 20, y = 20, width = 280,\n    Text [ text = \"General\" ],\n    Divider [ ],\n    Text [ text = \"Advanced\" ]\n    ]\n```\n\n**`thickness` is logical pixels, not device pixels.** `1` is one of the units everything\nelse in a program is measured in, so on a 2× display the rule is two device pixels and\nlooks like every other 1px edge in the library — there is no hairline primitive here.\n\n## Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `axis` | Axis | `x` |  |\n| `thickness` | number | `1` |  |\n| `inset` | number | `0` |  |\n| `color` | Color |  |  |\n| `width` | Length | `{ axis == \"x\" ? span() : thickness }` |  |\n| `height` | Length | `{ axis == \"x\" ? thickness : span() }` |  |\n\n**`axis`** — Which way the rule runs: `x` (the default) is horizontal and spans the parent's width; `y`\nis vertical and spans its height. A bare literal, not a string. The span is the parent's\n**content** extent — the room inside the parent's own `padding` — so a divider in a padded\ncard stops where the card's content does, rather than running out under the inset.\n\n**`thickness`** — The rule's weight in logical pixels. `1` is the library's hairline everywhere.\n\n**`inset`** — How far in from the **leading** edge the rule starts — the list-separator convention,\nwhere a row's separator begins under the text rather than under the icon beside it. The\nrule's far end stays put, so the inset shortens it. `0` (the default) is a full-span rule.\n\n**`color`** — The rule's colour, the theme's `line` by default. Set it for a rule that must read heavier\nor lighter than the theme's edges — a section break against a row separator.\n\n**`width`** — Derived, not authored: the span across the rule on a horizontal divider, `thickness` on a\nvertical one. **Leave it alone** — writing a width here fights the span, and a shorter\nrule is what `inset` is for.\n\n**`height`** — The mirror of `width`: `thickness` on a horizontal rule, the span on a vertical one. Also\nderived, and also not for setting — a divider is as long as the room it was given.\n\n## Methods\n\n- `span()` — The length the rule runs: the parent's content extent along `axis`, or 0 with no parent.\n`width` and `height` read it; a subclass that spans something else overrides it.\n\n## Inherited from [View](declare-docs:View)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `x` | Length | `0` |  |\n| `y` | Length | `0` |  |\n| `width` | Length | `0` |  |\n| `height` | Length | `0` |  |\n| `fill` | Fill | `null` |  |\n| `padding` | Inset | `0` |  |\n| `cornerRadius` | Radius | `0` |  |\n| `hovered` | boolean |  | read-only |\n| `pressed` | boolean |  | read-only |\n| `onScreen` | boolean | `true` | read-only |\n| `visibleRect` | object | `EMPTY_RECT` | read-only |\n| `apparentScale` | number | `1` | read-only |\n| `stroke` | Stroke | `null` |  |\n| `shadow` | Shadow | `null` |  |\n| `visible` | boolean | `true` |  |\n| `ignoreLayout` | boolean | `false` |  |\n| `flexes` | boolean | `false` |  |\n| `ignoreClip` | boolean | `false` |  |\n| `ignoreScroll` | boolean | `false` |  |\n| `opacity` | number | `1` |  |\n| `scale` | number | `1` |  |\n| `pivotX` | number | `0` |  |\n| `pivotY` | number | `0` |  |\n| `rotation` | number | `0` |  |\n| `scaleX` | number | `1` |  |\n| `scaleY` | number | `1` |  |\n| `skewX` | number | `0` |  |\n| `skewY` | number | `0` |  |\n| `rotateX` | number | `0` |  |\n| `rotateY` | number | `0` |  |\n| `translateZ` | number | `0` |  |\n| `perspective` | number | `0` |  |\n| `backface` | visible | hidden | `\"visible\"` |  |\n| `blend` | normal | multiply | screen | overlay | darken | lighten | colorDodge | colorBurn | hardLight | softLight | difference | exclusion | hue | saturation | color | luminosity | plusLighter | `\"normal\"` |  |\n| `backdrop` | filter | `null` |  |\n| `filter` | filter | `null` |  |\n| `mask` | mask | `null` |  |\n| `clip` | Shape | `null` |  |\n| `scrolls` | none | y | x | both | `\"none\"` |  |\n| `claim` | both | x | y | `\"both\"` |  |\n| `tooltipLabel` | string | `\"\"` |  |\n| `defaultplacement` | slot | `\"\"` |  |\n| `scrollY` | number | `0` | read-only |\n| `scrollX` | number | `0` | read-only |\n| `scrollStartY` | number | `0` |  |\n| `scrollStartX` | number | `0` |  |\n| `scrolling` | boolean | `false` | read-only |\n| `scrollAnchor` | content | end | none | `\"content\"` |  |\n| `cursor` | string | `\"\"` |  |\n| `pointerEvents` | string | `\"\"` |  |\n| `layout` | Layout | `null` |  |\n| `focusable` | boolean | `false` |  |\n| `focusTrap` | boolean | `false` |  |\n| `anchor` | string | `\"\"` |  |\n| `link` | string | `\"\"` |  |\n| `replace` | boolean | `false` |  |\n| `shows` | string | `\"\"` |  |\n| `contentWidth` | Length |  | read-only |\n| `childViews` | array |  | read-only |\n| `virtualized` | boolean |  | read-only |\n| `rowIndex` | number |  | read-only |\n| `virtualize` | boolean |  |  |\n| `classFor` | string |  |  |\n| `contentHeight` | Length |  | read-only |\n\n**`x`** — The horizontal offset within the parent's content box, in pixels — `center` and `end`\nplace the view centered or flush against the far edge. **What a parent's `layout` places,\nthe child does not declare**: under a row (which places `x`), setting `x` in any spelling is\na compile error naming what to use instead, and a handler writing it while the layout\narranges the child is refused. Use `x` for free-form placement, a `layout` for arrangement,\nand `ignoreLayout = true` for a child that must stand apart from its parent's layout.\n\n**`y`** — The vertical offset within the parent's content box — the twin of `x`, with the same\nownership rule: a layout that places `y` (a stack, or a row with `align`) owns it.\n\n**`width`** — The box's width, in **pixels** (`Length`). Left unset, a view is as wide as its content —\nthe run a `Text` lays out, the bitmap an `Image` shows, and the boxes of its visible\nchildren (padding included); a view with nothing in it is `0`. Otherwise set a constant,\n`100%` (the parent's content box), or a `{ }` constraint. Set it live and children\nconstrained to it reflow in the same frame; there is no re-layout call. To size to content\nwith a limit, constrain it: `width = { Math.min(contentWidth, 480) }`.\n\n**`height`** — The box's height in pixels (`Length`), mirroring `width`: left unset, a view is as tall as\nits content. A `Text` left unsized takes its natural measured height, so you usually set\n`height` only to fix a size, to clip, or to limit growth.\n\n**`fill`** — What paints the box: a solid `Color` or a `gradient(…)` — the one attribute, subsuming a\nplain background color. `null` (the default) paints **nothing** — an unfilled box is\ninvisible but still lays out and still catches clicks. In a `[ ]` literal a color is\n`#RRGGBB`; inside a `{ }` body it is `0xRRGGBB` (the one place the spelling differs).\n\n```declare\nApp [\n    View [ x = 20, y = 20, width = 260, height = 80, cornerRadius = 8, fill = { gradient(\"90deg\", 0x1E2A36, 0x0B141B) } ]\n    ]\n```\n\n**`padding`** — **The view's content box** — the inset between this box and the room its children live in.\nOne number insets all four sides; four are `[top, right, bottom, left]`, clockwise from the\ntop, the one-or-four house pattern `cornerRadius` and `stroke` share. A negative number is\nclamped to 0. This is the attribute a fixed inset wants — not a wrapper view, and not the\nlayout.\n\n**A padded view has an *inside*, and `x = 0` / `y = 0` mean that inside's origin — for\nevery child.** One a layout arranged, one that placed itself at `x = center`, one with\n`ignoreLayout = true`: they all start at the content origin, because a position in this\nview is *by definition* measured from the content box. There is no CSS-style split where\nan absolutely-positioned child escapes the inset. A layout is not involved — it simply\narranges within the room it is given (`Layout.contentExtent`), so a view with no `layout:`\nat all is padded just the same, a `place()` you write yourself honors the inset without\nnaming it, and **replacing a `layout:` member does not replace the padding** (`padding = 0`\nis what takes it away).\n\n**`100%` means the content box; `{ parent.width }` still means the parent's box.** A\npercent — and `x = center` and `x = end` with it — resolves against the room you are given,\nso `width = 100%` in a `padding = 16` card is the card's width less 32, and a centered child\nis centered between the insets. `{ parent.width }` is the deliberate escape hatch — the\nparent's literal width, padding and all — and an edge-to-edge child inside a padded box is\nthat paired with a negative `x`: `x = -16, width = { parent.width }`, the divider that runs\nwall to wall across a card. The asymmetry is the point: \"the space I am given\" and \"the\nparent's own width\" are different questions, and the spelling says which one you asked.\n\n**Paint does not move.** `fill`, `stroke`, `cornerRadius` and `draw()` are all this view's\nown box, so a card's background still covers its padding and a border still runs around the\noutside of it — nothing about the inset changes what the view looks like, only where its\nchildren begin. The inset lives in this view's own coordinate space, so it scales and\nrotates with the box like any other geometry. Hit-testing walks the same content box a\nlayout places into, so a press finds a child exactly where it is drawn.\n\n**Both insets count toward size.** A view with an unset width or height grows by the pair on\nthat axis, so a padded panel sizing to `contentHeight` reserves the room under its last\nchild as well as above its first. A *scrolling* view's extent includes them on all four\nsides too: a padded scroller stops a full inset past its last child rather than flush\nagainst it.\n\n```declare\nApp [ fill = white, textColor = black,\n    card: View [ x = 20, y = 20, width = 260, fill = whitesmoke, cornerRadius = 10,\n        padding = 16,\n        layout: SimpleLayout [ axis = y, spacing = 8 ],\n        Text [ fontWeight = semibold, text = \"Storage\" ],\n        Text [ textColor = slategray, text = \"39.2 GB of 128 GB used\" ]\n        ]\n    ]\n```\n\n**`cornerRadius`** — Rounds the **painted** box (default `0`, square). One number rounds all four corners;\nfour — `[topLeft, topRight, bottomRight, bottomLeft]`, clockwise from the top-left as\nCSS orders them — round each on its own, and a corner given `0` stays square:\n`cornerRadius = [0, 8, 0, 8]` rounds only the top-right and bottom-left, `[8, 8, 0, 0]`\nis a tab that joins the pane below it. **One value, or four clockwise, is the house\npattern** for anything said per corner or per side: `stroke` and `padding`\nread exactly the same way, each list starting at its own first edge — the top for those\ntwo, the top-left corner for this one, because corners are what it names. A list of any\nother length is a mistake, never a shorthand. Radii that would overlap along an edge shrink\ntogether, so a radius past half the box is a pill, never a fold. It shapes fill, border,\nand shadow — but not hit-testing or clipping: the box stays a rectangle for layout and\nclicks. To clip children to the rounded shape, set `clip = true` as well. A `Spring` on\nthis attribute animates the number form.\n\n**`hovered`** — True while the pointer is over this view — read-only, maintained by the same hit walk that\nroutes presses, so it agrees with what a click would reach. Read it in a constraint rather\nthan tracking enter/leave by hand: `fill = { hovered ? provided(\"theme\").control : null }`. On a touch\ndevice there is no hovering, so gate mouse-only affordances on `app.touchDevice`.\n\n**`pressed`** — True while the pointer is down *and* this view was on the chain captured at pointer-down —\nread-only. It stays true if the finger slides off and comes back, which is what makes a\nbutton feel like a button; `hovered` alone flickers. The pair is the whole of press\nstyling: `fill = { pressed ? provided(\"theme\").line : hovered ? provided(\"theme\").control : null }`.\n\n**`onScreen`** — Is this view **on screen** — inside the viewport, not scrolled away, not in a hidden\nsubtree? A coarse reactive fact that flips at threshold crossings, so a constraint\nre-derives only when the answer changes: the gate for ambient work\n(`running = { classroot.onScreen && app.pageVisible }`) and for load culling. Fed\nlazily at the first read — a program that never reads it pays nothing. On the DOM the\nfeed sees the whole page, so an embedded app's box scrolled off its **host** page\nreads `false` too. Read-only.\n\n**`visibleRect`** — What of this view is visible, **in its own coordinates** — `{x, y, width, height}`,\nall zeros when nothing shows. Updates **at rest** (when motion settles and scrolling\nquiets), never per frame of a glide — a tile or rung decision wants the flight's end.\nCull margins are your arithmetic on the truth, not a platform knob. Read-only.\n\n**`apparentScale`** — The composed scale from this view's units to **device pixels** — ancestor scales ×\ndevicePixelRatio. The raster-rung fact: an image pyramid picks its tier from it, a\ndrawn view its backing density, with no reimplemented transform math and no host\nglobals. Exact under Declare's own transforms (rotation does not participate); under\na non-similar host transform it is the largest axis ratio — the rasterization\nconvention. Same at-rest delivery as `visibleRect`. Read-only.\n\n**The phase these facts have — and the one they don't.** All three answer *what is*,\nat arrival: a camera flight lands, then a fact-bound tier re-derives, once. They never\nanswer *what will be* — the platform cannot know where a spring is headed, but **your\napp can**, because the camera's target is your own attribute. A prefetch keyed on the\ndestination (`tierFor(cardH * app.camTarget)`) fires at departure and overlaps the\nglide; a tier keyed on `apparentScale` asks on arrival and may land soft, then\nsharpen. Those are opposite ends of the same flight, both legitimate: departure-phase\npolicy is written against your target state, arrival-phase truth against these facts,\nand the two compose.\n\n**`stroke`** — A border drawn **inside** the box (`stroke(width, color)`), so it never enlarges the\nlayout rectangle — the box stays the one geometry fact. `null` by default. Unlike\nCSS's `border`, a bordered view and an unbordered one occupy the same space.\n\nOne `stroke(…)` borders all four sides; **four border them one at a time** — `[top,\nright, bottom, left]`, clockwise from the top, the same one-or-four shape as\n`cornerRadius`, with `null` in a side's place leaving that side bare. A single rule\nunder a row is `[ null, null, stroke(1, #DBE1E9), null ]`; a pair of rails is the top\nand bottom entries filled and the sides `null`. Widths may differ per side. Where the\nbox is rounded a side's band **follows the corner arc and tapers into it** rather than\nmitring against its neighbour, so adjacent sides overlap along the curve instead of\nmeeting on a diagonal seam — the reason the form is written for rules and rails rather\nthan for a decorative frame.\n```declare\nApp [ fill = white,\n    row: View [ x = 0, y = 20, width = 200, height = 44, fill = whitesmoke,\n        stroke = [ stroke(1, #DBE1E9), null, stroke(1, #DBE1E9), null ] ]\n    ]\n```\n\n**`shadow`** — A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape\nminus spread. `null` by default. The same value shadows glyphs as `Text.textShadow`,\nand the painted **alpha** of any subtree inside a `filter` list — one `shadow(…)`, three\nsites, one look (its `blur` is the box-shadow radius everywhere).\n\n**`visible`** — Whether the view renders and participates in layout-that-skips-invisibles (default\n`true`). A `false` view is fully inert — no paint, no hit-testing — but still\nconstructed, so toggling it is cheap and keeps its state.\n\n**`ignoreLayout`** — Opt this child out of its parent's `layout` — the arrangement skips it and it owns\nits own position on both axes (the decoration/overlay case: a badge floating over\na laid list). Its size still counts toward the parent's auto-extent.\n\n**`flexes`** — Take an equal share of the room the parent's layout leaves along its axis. In a\ncolumn the layout sets this child's height to that share, in a row its width; the\nchildren that do not flex keep their own sizes, and the flexing ones divide what is\nleft. It is how a page frame is written: a header, a toolbar, a body with\n`flexes = true` that takes the rest, a footer. Across the flow it is aligned like any\nother child — a search field that takes a toolbar's spare width still centres on the\nrow. A `Spacer` is an empty view that flexes.\n`SimpleLayout` and `ResponsiveLayout` honour it, and in a `WrappingLayout` a flexing\nchild takes the rest of the row it lands on; a layout that does not divide a run\nignores it.\n\n**`ignoreClip`** — Opt this child out of its parent's `clip`: outside the parent's frame it still\npaints *and* still hits — frame chrome that straddles the frame (a window's\nresize halo; a badge poking out of a clipped card). Parent-scoped — an ancestor's\nclip above still applies — and the child is exempt from the parent's auto-extent\n(frame geometry derives *from* the bounds, so it cannot also define them).\n\n**`ignoreScroll`** — The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone\nbut me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone\nbut me — I ride the frame.** The child stands still against its nearest enclosing scroll\nframe — the window when the page is the regime, the pane's frame inside a `scrolls`\nview — and contributes nothing to the scroll range. The fixed header, the pinned\ntoolbar, and the overlay layer that stages parked furniture are all this one attribute.\n\n**`opacity`** — Whole-view alpha, `0`…`1` (default `1`). Applies to the view **and its subtree** as a\ngroup, so a fading panel fades its contents with it. It is not inherited by descendants —\nits effect already composes down the render tree, so a per-descendant copy would apply it twice.\n\n**`scale`** — A uniform transform — the view's subtree renders scaled about its pivot, and **every\nreader agrees on the one geometry**: paint, hit-testing, `rootOrigin`, the parent's\nauto-size, and layouts all compose the same transform, so a `scale = 0.5` child really\noccupies half its space (the fractal idiom) — where CSS makes transform paint-only and\nlets layout disagree with what you see. The view's **own** `width`/`height` stay local\n(its interior world is untouched — that is what makes scale mean \"the same world,\nsmaller\"); the parent packs the transformed **footprint** (`bounds()`). Pair with\n`pivotX`/`pivotY` to choose the center; `1` is unscaled; spring it for zoom effects.\n\n**`pivotX`** — The horizontal center of `scale` and `rotation`, in the view's own coordinates. Defaults\nto the origin; set both `pivotX`/`pivotY` to transform about the middle rather than the\ntop-left.\n\n**`pivotY`** — The vertical pivot — the twin of `pivotX`.\n\n**`rotation`** — Rotation in **degrees**, clockwise, about the same (`pivotX`, `pivotY`) pivot `scale`\nuses — and the same one-geometry rule: hit-testing follows the *visible* geometry\nthrough the inverse transform (`hovered`, `pressed`, and `viewAt` all agree with what\nyou see), and layout and auto-size reserve the rotated frame's bounding box\n(`bounds()`), so a rotated card takes the room it visibly covers. Composes with `scale`\nin one documented order — scale, then rotate, about the shared pivot. `0` (the default)\nis unrotated; spring it for turn effects.\n\n**`scaleX`** — Per-axis scale, multiplied with the uniform `scale` — `scaleY = 0.2` squashes a card to a\nsliver without changing its width (the frame of a flip). Same pivot, same one-geometry\nrule: paint, the hit walk's inverse, `rootTransform()` and the footprint share one matrix.\n`1` is unscaled.\n\n**`scaleY`** — The vertical twin of `scaleX`.\n\n**`skewX`** — A shear in **degrees**: `skewX = 20` slants the view's vertical edges by 20°, about the\npivot, composing with scale and rotation in one matrix. `0` is unsheared.\n\n**`skewY`** — The vertical twin of `skewX`.\n\n**`rotateX`** — A rotation about the view's **horizontal axis**, in degrees, about the pivot — the third\ndimension, seen through the parent's `perspective`. A card tipped\naway foreshortens; past 90° its back shows (`backface`). Hit-testing unprojects, so\n`hovered`, `pressed` and `viewAt` name the view where it is drawn. `0` is flat.\n\n**`rotateY`** — A rotation about the view's **vertical axis**, in degrees — the twin of `rotateX`.\n\n**`translateZ`** — A push along the view's own depth axis, in px — toward the viewer while the view is\nunrotated, and turned with it by `rotateX`/`rotateY`, so a face of a cube moves out along\nits own normal (CSS's `rotateY(…) translateZ(…)`). Under the parent's `perspective` the\nview grows as it comes closer. `0` is in the plane.\n\n**`perspective`** — Sets this view as the **eye** for its children's `rotateX`/`rotateY`/`translateZ`: the\ndistance, in px, from the viewer to the plane, with the vanishing point at this box's\ncentre — CSS's model (`perspective: 700px`). `0` (the default) projects orthographically,\nso a rotated child simply foreshortens.\n\n**`backface`** — `visible` (the default) or `hidden`: whether a view turned past 90° about X or Y still\nshows (and hits) from behind.\n\n**`blend`** — The **compositing operator** this view lands with against what has already painted\nbeneath it — `normal` (the default), or one of the W3C blend modes in camelCase\n(`multiply`, `screen`, `overlay`, `darken`, `lighten`, `colorDodge`, `colorBurn`,\n`hardLight`, `softLight`, `difference`, `exclusion`, `hue`, `saturation`, `color`,\n`luminosity`, `plusLighter`). Declaration order — the z-order you already have — is\nthe blending order, and blending reaches down to the nearest **isolating** ancestor:\nthe `App` root, an `opacity < 1` group, a scrolling view's content, an island\nboundary. A plain container is transparent to blending, so a `multiply` chip inside\nnested layout Views blends against the card under them — which is what you meant.\nA blending view blends **as a unit**, children included; compositing is paint, never\ninput — hit-testing and focus are unchanged. A token string in a `{ }` body, like\n`scrolls` — so a blend can be state: `blend = { active ? \"multiply\" : \"normal\" }`.\n\n**`backdrop`** — The **frost** — `frost(radius)` or `frost(radius, saturation)`; `null` (the default) =\nnone. What has already painted beneath this view is sampled within the view's **own\npainted shape** (its box, rounded by `cornerRadius`, or its `clip` shape), blurred by\n`radius`, saturation-scaled, and the view's own `fill` then paints **over** the frosted\nsample — a translucent wash over a blurred backdrop, which is how every platform's\nmaterial works. Content moving beneath re-frosts; that is the point. Samples reach the\nsame isolating ancestor `blend` does, and like `blend` it is paint only — input never\nchanges. `saturation` defaults to `1`; frosted materials read best around `1.4`–`1.8`.\n\n```declare\nApp [ fill = #F6F8FA,\n    art: View [ x = 10, y = 10, width = 220, height = 120, cornerRadius = 8, fill = { gradient(\"90deg\", 0xC93B47, 0x2E6FE0) } ],\n    panel: View [ x = 70, y = 40, width = 240, height = 70, backdrop = frost(20), fill = #F9F9FBDB, cornerRadius = 12,\n        Text [ x = 14, y = 24, text = \"frosted over the art behind it\" ]\n        ]\n    ]\n```\n\n**`filter`** — The view's own painted subtree, filtered as a **group** — children included — before\n`opacity` and `blend` land. One function or a bare list:\n`filter = blur(3)`, `filter = [blur(2), brightness(0.8)]`, `filter = { [blur(k), saturate(1.4)] }`.\nThe functions are `blur(radius)`, `brightness(k)`, `contrast(k)`, `saturate(k)`,\n`grayscale(k)`, `invert(k)`, `sepia(k)`, `hueRotate(deg)`, `colorize(color)` — the group's\nalpha in one colour, what `Image.tint` is sugar for — and `shadow(dx, dy, blur, color)`, which\nhere shadows the painted **alpha** (a badge with a transparent background casts its own\noutline) where the box `shadow` attribute casts the rectangle. Lengths are **view units** and\nscale with the view's transform; the output may bleed past the box (a blur's 3σ, a shadow's\nreach) and layout ignores the bleed. A filtered view isolates blending and backdrops inside\nit. Paint only, never input — a blurred button is still its box. `null` (the default) is none.\nThe same vocabulary, sampled **beneath** the view, is `backdrop`.\n\n**`mask`** — A soft alpha mask over the view's painted (clipped) subtree, applied before `opacity`:\na gradient's **alpha** over the box — `mask = gradient(\"180deg\",\n#00000000, #000000FF)` fades the top out; `radialGradient(…)` vignettes — or a **stencil**,\nanother view whose painted alpha, placed by its own `x`/`y` inside this box, is the mask:\n`mask = { stencil }` with `stencil: Image [ visible = false, … ]` as a child is the idiom.\nA masked view isolates. Paint only. `null` (the default) is none. On the DOM renderer a\nstencil must be an `Image` or a view with `draw()` (its alpha is what CSS `mask-image`\ncan take); the canvas and Mac renderers take any view.\n\n**`clip`** — Clips the subtree to a shape. `clip = true` clips to the view's **own box**\n(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary\npath. `null`/unset (default) draws children unclipped, even outside the box. Kept\nexplicit (not implied by `cornerRadius`) so clipping is pay-per-use.\n\n**`scrolls`** — Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,\nor `both`. One class overrides that default: an **`App` scrolls `y` by default**, and its\nscroller is the page itself (see `App`). A scrolling view clips to its box; overflow along a declared axis becomes its\nscroll range (live `scrollY`/`scrollX`), and overflow along any other axis is simply out\nof frame. The value is a token **string** in a `{ }` body — compare explicitly\n(`scrolls == \"y\"`), never truthily: `\"none\"` is a truthy string. Fixed chrome comes free — make it a **sibling** of the scroller, or a child that declares `ignoreScroll`.\n**A scroller takes the pointer.** Declaring an axis says this view answers drags and wheels\nover its box, so it is an input participant whether or not it declares a handler, and content\ndeclared *behind* it is not reachable through it — a press on its empty area does not fall\nthrough to whatever sits underneath. Something that must stay clickable belongs in front of\nthe scroller (later in the body), or outside it.\n\nBoth backends present the same model; only the overscroll *feel* differs, where the\nplatform can do better. On DOM the OS owns the scroll — overlay scrollbar, momentum, and\nrubber-band overscroll *contained* to this pane, so it bounces on its own edges and never\nchains to the page, and sibling panes overscroll independently. On canvas the runtime\nmanages the offset (clip+translate+wheel), as a single element must.\n\n**`claim`** — The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps\nvertical pan with the enclosing scroll regime while the drag owns horizontal — a grid\ncolumn's header drag or edge-resize on touch. Scopes an existing drag declaration\n(`onPointerMove`); it never creates one. The guide's Gestures chapter has the arbitration.\n\n**`tooltipLabel`** — The tooltip text — the layer system's floor (one attribute at the use site): a non-empty\n`tooltipLabel` makes this view hover-interactive, and after the theme's delay the auto-provided\n`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data\n(`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipFontSize`) — so Cupertino\ntips appear near the cursor after ~1s at 11px (the Cupertino help tag), Redmond's above the\ncontrol (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside\nthe app. Moving between tip-carrying controls while a tip is up retargets instantly; a\npress dismisses. Look comes from `tooltipFill` / `tooltipTextColor` / `tooltipStrokeColor`. `\"\"` (the\ndefault) = no tip.\n\n**`defaultplacement`** — Written on a **class**: names one of the class's own children (at any depth), and the children\nits subclasses and use sites write go **into** that child, after the child's own, instead of\nbeside it. `class Sheet [ defaultplacement = body, body: View [ … ] ]` — a `DetailSheet`\nextending it, and a `Sheet [ … ]` use site, fill `body`. The class's own children are never\nplaced. A placed child's `parent` is the child it went into; it is still reachable by name\nfrom the class or use site that wrote it.\n\n**`scrollY`** — **A fact, not a settable attribute.** The current vertical scroll offset in pixels of a `scrolls` view —\nthe **platform writes it** as the user scrolls (and as a glide moves); **read it** for\nscroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app.scrollY / 200 }`.\nNothing may set it: an assignment and an `Animator [ attribute = scrollY ]` are both\ncompile errors, each naming the verb. To move the pane, **call `scrollTo(y)`** — a\nrequest the platform clamps to the real range and holds for a pane that cannot take it\nyet; add a glide (`scrollTo(y, { duration, motion })`) for the platform's own motion. A\nstarting offset is declared with `scrollStartY`. The offset is sampled once per settle,\nlike the pointer: your view of it may trail the pixels by a frame, and the pixels never\nwait on you. To reveal a particular view, `scrollIntoView()` on the target already does\nthe walk.\n\n**`scrollX`** — **A fact, not a settable attribute.** The live horizontal offset of a `scrolls = x` (or `both`) view,\nmirrored from the platform's scroll — `scrollY`'s twin, with the same enforcement: the\nplatform owns it, and an assignment or an Animator aimed at it is a compile error.\n**`scrollToX(x)` is the verb** — a clamped, held request, with an optional glide\n(`scrollToX(x, { duration: 260, motion: \"cubicOut\" })` is how the desktop's Files strip\nslides a fresh column into view). `scrollStartX` declares a starting offset. Read it for\na paging strip's position or scroll-driven effects.\n\n**`scrollStartY`** — The vertical offset a `scrolls` view **starts at** — applied once, at first layout, the\ndeclared twin of a `scrollTo(y)` on arrival (`scrollStartX` for the other axis). The\n`scrollY` fact then reports where the platform actually put it. A test fixture that must\nbe shot mid-scroll declares this rather than gesturing.\n\n**`scrollStartX`** — The horizontal offset a `scrolls` view **starts at** — applied once, at\nfirst layout, the declared twin of a `scrollTo` on arrival and the other axis of\n`scrollStartY`. The `scrollX` fact then reports where the platform actually put it. A\ntest fixture that must be shot mid-scroll declares this rather than gesturing.\n\n**`scrolling`** — **A fact, not a settable attribute.** True while the **user** is scrolling this scroller: from\nits first movement until the finger has lifted or the scrollbar thumb has been let go, and any\nmomentum afterwards has come to rest. A finger resting on the pane partway through is still\nscrolling. A glide your program asked for is not the user's scroll and leaves it false.\nWhile it is true, your `scrollTo`, `scrollBy` and `scrollIntoView` requests wait, and run\nwhen it turns false (only the latest counts). Read it in a constraint to keep a heavy effect\ncheap mid-gesture, rather than acting on its edges. Written by the platform's scroll process;\nnever assigned.\n\n**`scrollAnchor`** — How this scroller keeps the reader's place as content changes size. **`content`** (the\ndefault) keeps the view at the top edge of the visible area where it is: when something above\nit grows or shrinks — an image loading, earlier rows arriving — the offset moves by the\nsame amount, before anything is drawn, so nothing on screen moves. A pane at its very start\nstays at its start. **`end`** is for a pane read from the bottom (a terminal, a build's output): at\nthe end it stays at the end as content grows or shrinks, and away from the end it keeps the\nreader's place like `content`; it opens at its end, and `scrollTo(Infinity)` counts as being\nthere while it travels. **`none`** does nothing, for content meant to move under the reader.\nA virtualized list keeps its place the same way, its rows' estimated heights included.\n\n**`cursor`** — The pointer cursor shown over this view, as a CSS cursor keyword (`\"col-resize\"`,\n`\"grab\"`); `\"\"` inherits. This is how a resize edge or a drag handle announces itself\nbefore anything is pressed. A view with no handler of its own shows its cursor too, and its\npresses pass to the view beneath (a resize edge laid over a window frame); a view with\n`pointerEvents = \"none\"` never shows its own.\n\n**`pointerEvents`** — Whether **this view** takes pointer events: `\"none\"` or `\"auto\"`. Unset, it behaves as\n`\"auto\"`.\n`\"none\"` is for a view that is pure decoration over live content — a highlight rectangle,\na full-viewport chrome overlay — so presses reach what is beneath it. Without it, an\noverlay sized to the frame takes every press, and nothing under it can be clicked.\n\n**It applies to this view only, not to its children.** A press on an empty part of the\nview goes to whatever is beneath it; a press on a child still goes to that child if the\nchild takes presses. A child with a handler keeps taking its own presses, and a child may\nset `\"auto\"` outright — which is what lets a chrome overlay hold a real panel (the\nInspector's own window is exactly that) while the rest of it lets presses through.\nSo `\"none\"` on a container does **not** disable the views inside it: a pane faded to\n`opacity = 0` with `\"none\"` still takes presses on its buttons. To stop a subtree taking\npresses, set `visible = false` on it, move it out of the frame, disable its controls, or\nset `\"none\"` on each view that has a handler.\n\n**`layout`** — How this view arranges its children — a reactive `Layout` attribute, not a child and\nnot the container's type. Defaults to none (absolute `x`/`y`). Assigning a different\nlayout swaps the arrangement; a `TweenLayout` subclass glides children between arrangements\ninstead of snapping: `layout: SimpleLayout [ axis = y, spacing = 10 ]`.\nSet `layout = null` for explicit none.\n\n**`focusable`** — Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no\nnumeric tabindex; override `tabOrder()` to reorder within a container.\n\n**`focusTrap`** — Marks a self-contained focus group: Tab cycles within it and escapes at the boundary\n(firing `escapeFocus`). For a modal or menu whose focus must not leak to the page behind.\n\n**`anchor`** — Names this view as a **reveal target** for a location's `@name` suffix\n(`#guide/04-structure@intro` scrolls to the view with `anchor = \"intro\"`).\nThe anchor namespace is named views (this attribute) plus heading slugs inside\nrendered rich text, so a heading needs nothing from you. Resolution prefers views over\nslugs, preorder-first.\n\n**`link`** — Makes this view a **link**: one reference string, the same one an authored\nMarkdown href carries. `\"#why\"` names a destination or an anchor in this app, an absolute\nURL leaves it. The view realizes a real `<a href>`, so ⌘-click, copy-link and the build's\ncrawler all work, and every literal reference is checked at build against the registry — a\ntypo is a compile error naming the real names. `link = \"\"` is not a link at all, which is\nhow a row turns its own linkage off. A data-driven reference (`link = { :to }`) is checked\nwhen the crawl evaluates it.\n\n**`replace`** — Beside a `link`, **overwrites** the current history entry instead of pushing a\nnew one. For fine-grained movement inside one place — a deck's arrows, a wizard's steps —\nwhere every step pushing an entry would bury the Back button under motion the reader does\nnot think of as navigation.\n\n**`shows`** — Declares that this view **manifests a location**: when the app's location names\nthis string, the view is shown, and the visibility comes with it — there is no second\n`visible` to keep in step. It is also what puts the name in the compiler's registry, so a\nlink to it is checked at build and the crawler knows to visit it. Two views may declare the\nsame name and choose between themselves on a condition, which is how a signed-out reader\ngets the sign-in screen at the same address.\n\n**`contentWidth`** — intrinsic: the width of this view's visible children's bounding box —\nthe auto-extent, surfaced. A constraint may read it (`width = { Math.min(contentWidth, 480) }`)\nto size to content with a cap; assigning it is a compile error.\n\nIts other use is a class that takes content. A class whose instances receive children\nfrom the use site sizes itself to what it was handed with `width = { contentWidth }` — the\nchildren are not the class's own, so nothing else knows their extent.\n\n**`childViews`** — This view's child views, as a live collection — reading it re-runs when the child **set**\nchanges. It carries set membership only, not the children's own attributes: `.length` is\nlive, but `.map(c => c.width)` would wire half of what it reads, so aggregation over a node\ncollection is refused rather than answered wrongly.\n\n**On a virtualized block it answers with the instances that exist** — a subset of the\nrecords, and it changes as you scroll. That is a fact about the block, not a trap: check\n`virtualized` on this same container and you know which kind of answer you are holding\n(the flag is declared on the replicated child, but read on the container — see\n`virtualized`). The list also includes instances the recycler has parked\n(`visible = false`), because they are children.\n\n**For a count of the collection, count the data.** The records are complete by definition;\nthe instances never claimed to be.\n\n```declare-fragment\ncount: number = { (app.d.value.rows).length }\n```\n\nIf you want the window with its logical indices — an accessibility traversal, a diagnostic\n— that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).\n\n**`virtualized`** — Whether **this view's replicated content** is virtualized right now — a content intrinsic,\nlike `contentWidth` and `contentHeight`, and read-only. `false` unless this view is the\ncontainer of a virtualized block, which is every view in a program that never asks for\nvirtualization.\n\n**Read it on the container, not the template.** `virtualize` is declared on the replicated\nchild — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to\nthe *parent* that holds the instances, so the parent is what answers. A row instance reports\n`false`, and that is the honest answer: an instance has no replicated content of its own. In\nordinary speech the list is virtualized, not the row.\n\n```declare-fragment\nlist: View [ datapath = { app.d.value },                  // ← ask this one\n    Row [ datapath = :rows[], virtualize = true ]         // ← declared here\n    ]\n```\n\nIt is **tracked**, so a constraint reading it follows a block engaging or disengaging —\nwhich can happen mid-run, since the policy accepts a `{ }`. And it is what makes\n`childViews` legible on a virtualized block: the list is a subset, and this is how you know.\n\n**`rowIndex`** — fact: this instance's index in the array its replication presents. It is 0\nfor the first record and follows the record as others arrive, leave or reorder, so a\nconstraint reading it re-runs when the place changes. For a nested list it is the index\nwithin the group's own array; under `virtualize` it is the logical index, never a window\nattribute. A view that no replication made reads `-1`.\n\n```declare-fragment\nRow [ datapath = :rows[], fill = { rowIndex % 2 == 0 ? 0xFFFFFF : 0xF4F4F4 } ]\n```\n\nStripes, ranks and \"3 of 12\" read it; records need no position fields.\n\n**`virtualize`** — Virtualize this replicated collection: build the instances near the viewport and leave the\nrest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it\nbelongs on the node whose `datapath` matches many, beside that path, and it means nothing\nanywhere else (a node that replicates nothing has no collection to describe, and the checker\nsays so).\n\n**A boolean, off by default.** Full materialization keeps `childViews` whole and browser\nfind-in-page working over every record, and below the size where construction hurts it is\nsimply faster; above it, this is the one word that changes. There is no automatic mode and\nno count to tune: what full materialization costs is construction, which depends on how\nrich a row is rather than how many there are.\n\nLike any boolean it takes a `{ }`, and the policy is read inside the replication match — so a\ncollection can start fully materialized and virtualize when it grows, engaging and\ndisengaging as the answer changes. What you never write is everything *around* the word: no\nrow heights, no scroll container, no keys, no overscan tuning, no memoization.\n\nVirtualization needs a scrolling ancestor (`scrolls = y`, or `both`) and — if the block's\nparent runs a layout — that layout must stack on `y`. A wrapping gallery, a horizontal strip,\na scatter of pins: those fully materialize instead, deliberately, with an inspectable reason.\nRead `virtualized` on the container to see whether it engaged.\n\n```declare-fragment\nRow [ datapath = :rows[], virtualize = true ]\n```\n\n**`classFor`** — The class each record is built as, when the records of one collection are different\nthings — a paragraph, an image, a heading. **Replication metadata**, like `virtualize`:\nit belongs on the node whose `datapath` matches many, beside that path.\n\nThe class written at the use site is the **base**: the default, and the type the rest of\nthe line is checked against. The body reads the record and names that class or one of its\nsubclasses, and the checker holds it to exactly that. It reads only the record — its choice\nis the record's own — so a record whose kind changes gets a new instance of the new class in\nplace of the old one.\n\n```declare-fragment\nBlock [ datapath = :blocks[],\n    classFor = { :kind == \"image\" ? ImageBlock : :kind == \"heading\" ? HeadingBlock : TextBlock } ]\n```\n\nA class per kind is for rows that *are* different things. A row that varies by what state it\nis *in* — selected or not, saved or draft — keeps one class and a\n[`State`](declare-docs:State) for each variation; a state's children exist only while it\napplies. The two nest: a class per kind, with states inside.\n\n**`contentHeight`** — intrinsic mirroring `contentWidth` on the vertical axis — the measured\nextent of the subtree, for sizing a container to its content, including content the use\nsite supplied (`height = { contentHeight }` on a class that takes children).\n\n### Events\n\n- `onClick(e: PointerEvent)` — Fires when the pointer presses **and** releases on the same view (a true click, not a\nstray press) — answered by an `onClick()` handler. The primary interaction event;\n`pointerDown`/`pointerUp`/`pointerMove` are there when you need the raw phases. The\nhandler may take the event, `onClick(e: PointerEvent)`: `e.x`/`e.y` is where the click\nlanded in this view's coordinates (`e.rootX`/`e.rootY` in root space) — so a chart that\npicks the nearest point reads it here, with no position kept from `onPointerDown`.\n\n```declare\nApp [\n    View [ x = 20, y = 20, width = 120, height = 40, cornerRadius = 10, fill = gainsboro,\n        onClick() { fill = 0x4169E1 },\n        TextLabel [ x = 12, fontSize = 13, text = \"click me\" ]\n        ]\n    ]\n```\n- `onDblClick(e: PointerEvent)` — The **resolved** pair: a second click on this same view inside the double-click interval\n(and, on touch, within a few pixels of the first tap). The desktop rule holds — a third\nclick starts a fresh cycle, so triple is a double plus a single, not two doubles.\n\nDeclaring it changes when `click` arrives, which is the part to know: a view that answers\nboth **withholds** the first click for the length of the interval, so a single click fires\nlate and a pair fires `click` then `dblClick` together. If a single click must feel\nimmediate, keep the two handlers on different views.\n- `onHold(e: PointerEvent)` — A press held in place for half a second — the tap-hold, equally available to a mouse.\nIt does **not** consume the gesture: the raw stream continues and the eventual click\nstill fires unless the pointer wanders, so a hold can open a menu, start a pick-up, or\nbe ignored. Declared **alongside the drag handlers** it changes who owns a touch\nfinger: the drag's claim engages *at the hold* instead of at touchdown, so a quick\nswipe still scrolls the surface underneath and a held finger picks the thing up — the\nhold-to-drag idiom for draggables on scrolling surfaces.\n- `onPointerDown(e: PointerEvent)` — The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**\nrelease on the same view) unless you need the phases apart, e.g. to begin a drag.\n- `onPointerUp(e: PointerUpEvent)` — The pointer released. While a press is captured (it began on this view) `pointerUp` still\nfires **here even if the release lands off the box** — the drag-release guarantee, so a\nslider freezes its value wherever the finger lifts.\n- `onPointerMove(e: PointerEvent)` — The pointer moved over the view — and, once pressed on it, every move **while captured**\n(even outside the box), so a drag handler keeps getting positions. Like every pointer\nevent it carries the point both ways: `x`/`y` in this view's own coordinates, and\n`rootX`/`rootY` in **root** coordinates — the app's own space, the one `viewAt` takes —\nwhich is the frame a drag reads, because it does not move with the thing being dragged.\n`deltaX`/`deltaY` are the root-space movement since the press, so most drags need nothing\nelse: `x = startX + e.deltaX`.\n- `onPointerOver(e: PointerEvent)` — The pointer entered the view — the hover-in moment. For styling, read the `hovered` fact in\na constraint instead (`fill = { hovered ? … : … }`); `hovered` is read-only and kept true by\nthe runtime. Handle this event only for something that must happen at the moment of\nentry.\n- `onPointerOut(e: PointerEvent)` — The pointer left the view — the hover-out moment; it also fires when a press is abandoned\noff the box. `hovered` and `pressed` are facts the runtime clears on its own; there is\nnothing to reset here.\n- `onTouchStart(e: TouchEvent)` — The **raw** multi-finger stream, and the layer below the recognized gestures: a finger\nlanded. `e.touches` is every live finger, `e.changed` the ones this event is about, all in\nroot coordinates — a gesture engine wants one fixed frame. Reach for it when no recognized gesture fits — two-finger gestures\nare `onPinch*`, a tap is `onClick`, a drag is the claim family — because the raw stream\nmeans doing the finger arithmetic yourself.\n\nDeclaring any of the touch family **claims** from the browser exactly what that handler\nneeds to fire, and nothing more.\n- `onTouchMove(e: TouchEvent)` — A finger moved. Same payload shape: every live finger, and the ones that moved.\n- `onTouchEnd(e: TouchEvent)` — A finger lifted. `e.touches` is what remains down, so the last finger's lift is the one\nthat leaves it empty.\n- `onTouchCancel(e: TouchEvent)` — The system took a finger away — a call arrived, the browser reclaimed the gesture, the\nfinger left the surface. It is not a lift: nothing was completed, and a gesture in\nprogress should be abandoned rather than finished. Pair it with `onTouchEnd` in any\nhandler that holds state across a touch.\n- `onWheel(e: WheelEvent)` — The wheel turned over the view — mouse wheel, trackpad scroll, or trackpad pinch, which\narrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identically).\nThe event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring\nit **claims the wheel** over this view and its subtree — the browser stops scrolling or\nzooming the page with it — except over a nested `scrolls` pane, which keeps its own\nwheel. ⌘ +/− dispatches no event and stays out of reach.\n- `onPinchStart(e: PinchEvent)` — Two fingers landed over this view's subtree — the **recognized** two-finger gesture,\nso you never do the finger arithmetic (that is what the raw `onTouch*` family is for).\nDeclaring any of the pinch family **claims the two-finger gesture** from the browser\nover this subtree; single-finger pan stays the enclosing regime's — the same\nnarrowing `claim = x` performs for drags. The event carries `scale` (`1` at the\nstart) and `center`, the midpoint of the two fingers in root space. A pinch nearly\nalways drives `scale`/`rotation` of a sub-surface, which is why they ship together.\n- `onPinch(e: PinchEvent)` — The fingers moved: `e.scale` is **cumulative** — the spread now over the spread at\n`pinchStart` — and `e.center` tracks the midpoint in root space. Typical use:\n`onPinch(e) { zoom = anchor * e.scale }`, anchoring on the value at `pinchStart`\nrather than integrating deltas.\n- `onPinchEnd(e: PinchEvent)` — Either finger lifted (or the browser reclaimed the gesture); `e.scale` is the final\ncumulative scale. Latch your anchor here for the next pinch.\n- `onRetire()` — The departure hook — fires once when this view's **presence** ends (its record leaves the\nreplicated match, or the subtree is discarded), children before parents, with everything\nstill alive. The exact symmetric of `onInit`'s membership rule: a windowed row's\ndematerialization is **not** a departure and never fires it.\n- `onContextMenu(e: PointerEvent)` — The platform's context gesture — a right-click, or a two-finger tap on a trackpad —\ncarrying the point in this view's coordinates. Declaring it **suppresses the browser's own\nmenu**, and exactly where it is declared: elsewhere on the page the native menu still\nopens. A touch long-press does not arrive here; that is `onHold`, which is the gate touch\ncontext rides.\n- `onFocus()` — The view gained keyboard focus (it is `focusable` and was tabbed or clicked to). Drive a\nfocus ring off it.\n- `onBlur()` — The view lost keyboard focus — the partner of `focus`.\n- `onEscapeFocus()` — Fired on a `focusTrap` when Tab reaches its boundary — your cue to move focus out (close\nthe modal, advance to the next group).\n- `onKeyDown(e: KeyEvent)` — A key was pressed while the view holds focus; the event carries the key. For app-wide\nshortcuts use a `Keys` subscription instead — this is for the focused view only.\n- `onKeyUp(e: KeyEvent)` — A key was released while the view holds focus — the partner of `keyDown`.\n\n### Methods\n\n- `removeChild(child: View): void` — Detaches a child from this view. The child is **not** torn down — use `discard()` for\nthat; a removed view you keep a reference to can be inserted somewhere else.\n- `insertChild(child: View, index: number): void` — Inserts a view you already hold as a child at `index` — the placement primitive beneath\n`createView`. Prefer replication over data for collections; this is for genuinely\nimperative structure. A primitive, not a verb: it does not notify the arrangement — after\nimperative re-ordering, the layout re-packs on the next arrival or removal.\n- `tabOrder(): View[]` — The members keyboard traversal descends into from this view. **Override it to gate\ntraversal** — a closed `Accordion` pane returns none, which is what stops Tab from\nreaching content the user cannot see, since a closed pane is clip-occluded rather than\nhidden. Compose with `tabDefault()` rather than rebuilding the list.\n\n```declare-fragment\ntabOrder() { return open ? this.tabDefault() : [] }\n```\n- `draw(d: Draw): void` — Custom drawing: define `draw(d: Draw) { … }` on any view, and it paints into its box with\nthe Canvas2D vocabulary (`d.fillStyle`, `d.beginPath()`, `d.arc(…)`, `d.fill()` — the\n`Draw` interface, on the Types page). It is **an ordinary method**, overridable like any\nother; what makes it paint is who calls it. `View` holds a standing constraint of its own,\n`drawing = { record(draw) }`, which runs your method through a recorder when the view\nattaches and again whenever something the body read changes — a read of `hovered` or a\ndata field redraws, nothing else does, and nothing runs per frame. That is the same rule\nevery method has when a constraint calls it; `draw` is only unusual in that the constraint\nis View's rather than yours. A view with no `draw` carries no drawing machinery at all.\nReach for it for graphs, iconography, and treatments the tree cannot style; measure frame\nrate as drawn surfaces grow large or change every frame. Bitmaps come in through an\n`Image` view: `d.drawImage(pic, …)` takes the view (Canvas2D's three argument shapes),\npaints nothing until `pic.loaded`, and that read is what re-records the drawing when the\nbitmap arrives — a hidden `Image [ visible = false, source = … ]` is the holder idiom.\n\n```declare-fragment\ngauge: View [ width = 80, height = 80,\n    level: number = 0.6,\n    draw(d: Draw) { d.strokeStyle = 0x2E6FE0; d.lineWidth = 6\n                    d.beginPath(); d.arc(40, 40, 32, -Math.PI / 2, -Math.PI / 2 + level * 2 * Math.PI); d.stroke() }\n    ]\n```\n- `$setData(path: string | readonly string[], v: unknown): void` — Writes a value at a path relative to this view's cursor — the runtime half of a text\nfield's `<->` edit. In your own code, write a record field with `:field = v` in a handler\nor method — or `:@[(key)] = v` when the field is chosen at run time: it lands in the same place, through the dataset's `set`, and wakes exactly the\nconstraints that read the changed region.\n- `contentBox(size: \"width\" | \"height\"): number` — The room inside this view on one axis: its `width` or `height` less both of its\n`padding` insets on that axis, never below 0. It is what `100%` and every other percent\nresolves against, and what a layout divides (`Layout.contentExtent` is this, read through\nthe view it arranges). A class that spans its parent's content reads it from the parent —\n`parent.contentBox(\"width\")` — where `{ parent.width }` would answer the parent's whole box.\n- `bounds(): { x: number; y: number; width: number; height: number }` — This view's **transformed box in the parent's coordinates** — the bounding box of the\nframe under scale-then-rotate about the pivot. The footprint: what a layout packs and\nwhat the parent's auto-size measures, and the exterior twin of the local\n`width`/`height` (which never change under transform — they are the view's interior\ncoordinate space). Identity when `scale = 1` and `rotation = 0`. Every read is live, so\na constraint like `width = { this.chip.bounds().width + 20 }` follows a springing\nscale.\n- `footprint(): { x: number; y: number; width: number; height: number }` — `bounds()` minus the position: the same transformed box **relative to this view's own\norigin** — `x`/`y` are the lead offsets the transform introduces (0 untransformed),\n`width`/`height` the footprint extents. It never reads the view's `x`/`y`, which is why\na layout's `place()` consumes this form: a strategy must never read the attributes it\nwrites. A view tipped in 3D (`rotateX`, `rotateY`, `translateZ`) is measured as if the\nvanishing point sat at its own pivot — the exact projection depends on where the view\nlands in its parent and on the parent's size, which the layout is deciding — so an\nauto-sized reel of flipping digits sizes without a cycle; the hit walk uses the exact\nprojection. Reach for `bounds()` everywhere else.\n- `tabDefault(): View[]` — The default traversal list — visible children in source order. **The thing a `tabOrder()`\noverride calls** when it wants the ordinary answer under a condition of its own.\n- `discard(): void` — Tears a view down for good, in one verb: unlinks it from its parent, retires its whole\nsubtree (constraints unwired, surfaces dropped, `onRetire` fired while everything is\nstill alive), and re-packs what it leaves behind — the parent's arrangement closes the\ngap and its auto-size shrinks. **The pair of `createView`** — a view you built\nimperatively is yours to destroy, while a replicated instance is the runtime's and\nleaves when its record does.\n- `viewAt(x: number, y: number): View | null` — The tree answers **what is under a root-space point** — the deepest visible view,\nby the same scroll-aware, clip-aware, transform-aware walk that routes the pointer\nitself, so what a handler computes and what a press would hit can never disagree.\nThis is the language's hit-testing: never measure geometry by hand, ask.\nIts defining use is **drag and drop** — the dragger asks, one reactive attribute fans\nout, every target derives:\n\n```declare-fragment\n// on the dragger\nonPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },\nonPointerUp(e: PointerUpEvent) { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },\n// on each target — no handlers, just a standing relationship\nhovered = { app.dropTarget == this }\n```\n\nThe answer is the *deepest* view; when the dragger needs \"the card, not its\nlabel,\" walk `.parent` up to the view carrying the marker attribute it declared.\nCoordinates are root-space — exactly what `onPointerMove`/`onPointerUp` carry.\nBecause the walk is the honest one, the **drag ghost counts**: give it — and any\ncontainer it sits in — `pointerEvents = \"none\"`, or it is the answer. A sizeless\ncontainer around a pointer-following ghost auto-extends *with* the pointer, so it\nbecomes an invisible box over the very targets being dragged onto;\n`explainHit(x, y)` names what really takes the press. The full pattern is the\nguide's Interaction chapter (\"Finding what is under the pointer\").\n- `containsPoint(x: number, y: number): boolean` — One view's own membership test — `v.containsPoint(x, y)` asks whether the\nroot-space point lands in `v`, by the same honest walk `viewAt` runs (clip\nshapes, scale, rotation, scroll and `pointerEvents` all count). Reach for it\nwhen you already hold the candidate; reach for `viewAt` when you are asking\nthe whole tree.\n- `rootBounds(): { x: number; y: number; width: number; height: number }` — This view's transformed box in **root-content space** — every ancestor's position,\nscale, rotation, and scroll composed (the hit walk's own math). A one-shot query for\nhandlers, deliberately not a reactive fact: absolute geometry depends on every\nancestor, and a live attribute would re-derive on each scrolled pixel. For the reactive\nquestion — \"am I visible?\" — read `onScreen` or `visibleRect` instead.\n- `rootTransform(): { x: number; y: number; scale: number; rotation: number }` — The composed similarity from this view's frame to root space — `{x, y, scale,\nrotation}`. The method tier's exact transform; the visibility facts are its coarse,\nat-rest companions.\n- `rootOrigin(): { x: number; y: number }` — This view's origin in **root space** (the root's content coordinates — the same space\n`viewAt` takes and drag events carry), computed by the one scroll-aware walk the pointer\nitself is routed by: translate per level, minus every intermediate scroller's offset, the\nroot's own scroll back at the boundary. The anchor primitive for overlays — a menu opening\nat a pointer, a popover dropping under a control — so they land where the view is *seen*,\nat any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this instead.\n- `travelWith(scroller: View | null): boolean` — Re-hosts this view's surface inside `scroller`'s scrolling content, so the **platform**\ncarries the two together with no per-scroll re-derive — and returns `false` on a backend\nthat cannot. The view tree does not move: hit testing and layout see nothing change, only\nthe surface is re-homed. This is a specialist tool for chrome that must track scrolled\ncontent exactly (the focus ring following a control inside a pane); pass `null` to return\nit to the root.\n- `scrollIntoView(align?: \"start\" | \"nearest\", smooth?: boolean, inset?: number): void` — Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),\naligning its top to the viewport top — the imperative partner of the declarative jump-index\npattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll\nancestor's `scrollOffset`). A no-op if nothing above it scrolls.\n- `scrollTo(y: number, glide?: { duration?: number; motion?: string }): void` — Ask **this scroller** to go to offset `y` — a **request, not an assignment**: the platform\nclamps it to the real scroll range, and a pane that cannot take it yet (hidden, or not yet\nlaid out) holds the request and applies it the moment it can — so `scrollTo(0)` before\nshowing a pane simply works. **`scrollTo(Infinity)` means the far end** — \"scroll to the\nbottom\" with no magic number; the clamp resolves it against the range the pane has when it\ncan finally take it. The `scrollY` fact follows the platform's answer. Call it on the\n`scrolls` view itself; to reveal a particular *view*, `scrollIntoView()` on the target\nfinds the scroller for you. A no-op before the view is attached.\n\n**The user may be scrolling the same pane.** Scrolling is a process the platform owns, driven\nby a hand that does not pause for the program, so a request can arrive mid-gesture and lose —\noverridden by momentum, or worse, fighting it. Two habits keep the two from contending. Ask\nbecause something *changed by this much* rather than because the offset is near some value:\na reader who is following the end of a list wants the new content, and a reader who scrolled\nup wants to be left alone, and only the first is expressible as growth. And read `scrolling`\nbefore asking, so a request waits for a hand that is still moving. What does not work is\nre-asserting a position every frame; the gesture will win, and the program will spend the\nwhole gesture losing.\n\n**With a glide** — `scrollTo(y, { duration, motion })` — the request moves the pane over\n`duration` milliseconds on the platform's own motion: the browser's smooth scroll, the\nnative host's tween, the canvas runtime's loop. `motion` names a Declare curve\n(`\"cubicOut\"`, the default; any family token) where the provider can honor one. This is\nnot an Animator: no Animator semantics, no driven attribute — the scroller glides, `scrollY` reports\nas it goes, and a **gesture cancels it** (the user always wins). A request that arrives\nwhile a gesture or its momentum owns the pane is dropped.\n- `scrollToX(x: number, glide?: { duration?: number; motion?: string }): void` — The horizontal twin of `scrollTo()` — the same clamped, held request against `scrollX`,\nfor a `scrolls = x` (or `both`) view, with the same optional glide.\n- `scrollBy(dx: number, dy: number, glide?: { duration?: number; motion?: string }): void` — A **relative** request — `scrollBy(dx, dy)`, or `scrollBy(dx, dy, { duration, motion })`\n— measured from the current facts: `scrollBy(0, -pane.height)` pages up. The same\nclamp, hold and glide contract as `scrollTo()`/`scrollToX()`, on both axes at once.\n- `createView(tag: string, props?: Record<string, unknown>): View` — Instantiates a class **by tag name** into this view — the receiver is the parent, and\nwith it the new instance's scope and data anchor. Returns the created view, a full\ncitizen: constraints installed, `onInit` fired, and the parent's arrangement and auto-size\ntake it in on arrival. The imperative door, for structure that genuinely cannot be\ndeclared; reach for replication over a datapath first — it reconciles, keys, and tears\ndown for you.\n\n**The build drops classes nothing statically references**, so a class you only\never name as a *string* needs `use [ Name ]` at the top level to survive. That is the one\nnon-obvious requirement, and forgetting it fails at runtime, not compile time. The\nreturned view is yours: `discard()` it when done.\n\n```declare-fragment\nuse [ Menu ]\n…\nonInit() { this.list = app.createView(\"Menu\", ({ })) }\n```\n\nThe library builds its own overlays exactly this way — a `Menu` cannot declare a `Menu`\nchild without recursing, so the cascade is created by name at first use (parented to the\n`app` root plane, which is why the receiver there is `app` itself).\n- `raise(below?: View | null): void` — Moves this view to the **top of its parent's children**, so it paints over its siblings —\nstacking is declaration order, and this is the runtime verb for changing it. **The\nprimitive every overlay needs**: a menu, a popover, or a dialog raises itself on open so\nit is not occluded by whatever was declared after it. Pass a sibling to be raised *below*\nthat view instead, which is how chrome stays above content while staying under an even\nhigher layer.\n\n```declare-fragment\nonPointerDown() { this.raise() }        // click-to-front, e.g. a window in a desktop\n```\n\n## Inherited from [Node](declare-docs:Node)\n\n### Attributes\n\n| name | type | default | |\n|---|---|---|---|\n| `trackChanges` | array |  |  |\n| `datapath` | datapath |  |  |\n\n**`trackChanges`** — The values this node reports changes to: `trackChanges = [ \"loaded\", \"kind\" ]`. Each name\nmust be one of the node's own reactive values — an attribute it declares, a fact it carries\n(`scrollY`, `loaded`, `hovered`), or an attribute bound to data. The checker refuses a stranger\nin a written list, and the runtime refuses one in a computed list when the node arms. To\nhear a record's field, declare an attribute over the path (`kind: string = { :kind }`) and\nname that — there is one door. Nothing else is tracked, so a node that names nothing costs\nnothing.\n\n**`datapath`** — The data cursor: the place in a dataset this node and its descendants read and write\nrelative to. Written as a `:path` (extending the inherited cursor), a `{ }` expression\nyielding a place (`datapath = { app.d.value.tasks[app.pick] }`), or null. The nearest\nancestor-or-self cursor wins, so a Node class with its own `datapath` stands on that\nrecord, and views inside it read the same one. A `:path` ending in `[]` replicates — and\nonly a view replicates; on any other node that form is a compile error naming the\nsingle-record spelling.\n\n### Events\n\n- `onInit()` — Fires once when the node has finished constructing and its subtree exists — the place for\nsetup that needs the built tree. Every node gets it, **faceless subclasses included** — the\ninit walk visits non-View children too. Answered by `onInit()`.\n- `onChange(e: ChangeEvent)` — Fires at the **close of a settle** in which one or more tracked values ended different from\nwhere they started: after every constraint has re-run and every reader already holds the new\nvalue. One call per settle carries all of them, so a node whose two subjects move together\nacts once. Answered by `onChange(e: ChangeEvent)`, where `e.changed` holds one `ValueChange`\nper value — its `name`, its `previousValue` (what it held at the previous close), and its\n`currentValue` (what the node holds now; reading the attribute directly gives the same\nthing). Silent at boot: first values are not changes, and setup belongs in `onInit` or, for\nthe whole tree, the App's `onReady`. A handler's writes are the next settle, so a change may\ncause a change; a handler may not assign a value it was told about, and a ring of handlers\nends on its own, because a value is delivered at most once per settle chain.\n\nNot to be confused with an input's edits, which is the instinct the name carries in from\nHTML and React: a field reports what the reader typed through `onInput`, and a control\nreports its own value through `input()`. This event is about a value the *program* holds.\n\n**Use it only for a genuine state change** — something happened and the program must act\nonce: record that the terms were read when the reader reaches their end, open a pane when the data\nlands, start a fetch when a selection changes. It is not for following a value, which is a\nconstraint, nor for moving one, which is a Spring, and it is not meant for use in\nconjunction with animation.\n\n### Methods\n\n- `$data(path: string | readonly unknown[]): unknown` — Reads the datum at a path **relative to the nearest cursor** — this node's own, or the\nnearest ancestor's — the compiled form every\n`:path` lowers to, callable by hand. `$data(\"\")` is the whole record at the cursor, which\nis what a replicated row calls to hand its own record to a method. Reach for the `:path`\nspelling in ordinary code; reach for this when the path is computed, or when you need the\nrecord itself rather than a field of it.\n\n```declare-fragment\nitem() -> object { return this.datapath != null ? this.$data(\"\") : this }\n```\n- `$cell(segs: readonly unknown[]): { value: unknown }` — The compiled form of a write to a record field: a handler's `:done = v` lowers to\n`this.$cell([\"done\"]).value = v`, and `:n += 1` reads and writes through the same place.\nThe write lands through the dataset's `set`, relative to the nearest cursor, exactly where\nthe matching read resolves. Write `:field = v`; this is what the compiler emits, not a call\nto make by hand.\n",
        "preview": "A single line in the theme's line token, sized to the room it is given: drop one into a stack and it spans the content, drop one into a row with axis = y and it stands on end. It is a painted view, not a border — which is what lets it be a…"
       },
       {

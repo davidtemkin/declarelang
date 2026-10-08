@@ -221,11 +221,9 @@ export function compileExpr(src) {
     const pre = precompiled(src);
     if (pre !== null)
         return { fn: pre };
-    const path = pathFn(src);
-    if (path !== null)
-        return { fn: path };
     // The script scope is captured HERE, at compile time — the body is bound to
     // the program being built, not to whatever is current when it later runs.
+    // A path body too is memoized: every row of a list binds the same texts.
     const scripts = SCRIPT_SCOPE;
     let memo = EXPR_MEMO.get(scripts);
     if (memo === undefined)
@@ -234,6 +232,9 @@ export function compileExpr(src) {
     if (hit !== undefined)
         return hit;
     const out = (() => {
+        const path = pathFn(src);
+        if (path !== null)
+            return { fn: path };
         const r = rewriteDatapaths(src);
         if ("error" in r)
             return r;

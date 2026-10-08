@@ -75,7 +75,7 @@ export const CAPABILITIES = [
     { id: "draw", describe: "draw(): the drawing vocabulary and raster cache", modules: ["draw"], requires: ["visibility"], hostsKeep: true, refusal: "unused",
         when: [{ methods: ["draw"] }],
         inert: { record: "null", replay: "noop", Draw: "class", DrawGradient: "class", replayArea: "zero", listIsolated: "false",
-            rasterLooksBlank: "false", rasterPad: "zero", rasterEntryCap: "zero", rasterTotalCap: "zero",
+            rasterLooksBlank: "false", blankRasterMessage: "noop", rasterPad: "zero", rasterEntryCap: "zero", rasterTotalCap: "zero",
             RASTER_MAX_DIM: "zero", RASTER_MAX_AREA: "zero", RASTER_GRACE_MS: "zero", makeCanvas: "null" } },
     { id: "canvas-filter", describe: "the canvas `filter` fallback (Safari paints a canvas filter as nothing)",
         modules: ["canvas-filter"], hostsKeep: true, refusal: "unused",

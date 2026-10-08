@@ -36,7 +36,7 @@ interface Feed {
   unwatch: (() => void) | null;
   generic: Constraint | null;
   wake: Constraint | null;
-  pending: { rect: Rect; scale: number } | null;
+  pending: { on: boolean; rect: Rect; scale: number } | null;
   stale: boolean;
   flushTimer: ReturnType<typeof setTimeout> | 0;
   /** The kernel's view id and its visibility rule (−1 = none): the ancestor
@@ -203,7 +203,7 @@ function startVisibility(v: View): void {
       // THE KERNEL PATH first: the chain walk runs over the slot table and a
       // small wired rule over its outputs does the waking (installKernelVis).
       const wake = (): void => {
-        if (sharedClock.busy) { f.stale = true; scheduleFlush(v, f); return; }
+        if (sharedClock.settling) { f.stale = true; scheduleFlush(v, f); return; }
         v.$surface?.refreshVisibility?.();
       };
       if (installKernelVis(v, f)) {
@@ -239,7 +239,7 @@ function scheduleFlush(v: View, f: Feed): void {
   if (f.flushTimer !== 0) return;
   const tick = (): void => {
     f.flushTimer = 0;
-    if (sharedClock.busy) { f.flushTimer = setTimeout(tick, 120); return; }
+    if (sharedClock.settling) { f.flushTimer = setTimeout(tick, 120); return; }
     const p = f.pending;
     f.pending = null;
     const s = v.$surface;
@@ -254,7 +254,7 @@ function scheduleFlush(v: View, f: Feed): void {
     if (p !== null) {
       setBound(v, "visibleRect", p.rect);
       setBound(v, "apparentScale", p.scale);
-      if (v.$drawing !== null && p.rect !== null) v.$surface?.setRasterScale?.(p.scale);
+      if (v.$drawing !== null && p.on) v.$surface?.setRasterScale?.(p.scale);
     }
   };
   f.flushTimer = setTimeout(tick, 120);
@@ -263,9 +263,11 @@ function scheduleFlush(v: View, f: Feed): void {
 function deliverVisibility(v: View, f: Feed, on: boolean, rect: Rect | null, scale: number): void {
   if (v.onScreen !== on) setBound(v, "onScreen", on);
   const shaped = on && rect !== null ? rect : EMPTY_RECT;
-  if (sharedClock.busy) {
-    // mid-glide: hold the latest, flush at rest
-    f.pending = { rect: shaped, scale };
+  // MID-GLIDE: hold the latest, flush at rest. A glide is finite motion
+  // (`settling`); a per-frame clock or spinner is life, not motion, and never
+  // rests — waiting on it held every fact here back for as long as it ran.
+  if (sharedClock.settling) {
+    f.pending = { on, rect: shaped, scale };
     scheduleFlush(v, f);
     return;
   }

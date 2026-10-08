@@ -22,7 +22,8 @@ Uniform across renderers, and the part an author can rely on:
   tolerance instead of guessing at motion.
 - **Memory is bounded and failure is honest.** A raster the platform refuses is
   a slow frame, never a wrong one; a raster the platform silently blanks is
-  detected and recovered from.
+  reported to the developer in development, by the view whose drawing it is —
+  a production build never reads a raster back to look.
 - **Culling is invisible.** Skipping work that cannot reach the screen changes
   no pixel, ever — pinned by equality, not tolerance.
 
@@ -69,8 +70,9 @@ memo makes the expensive ones cheap:
   generation is off-screen and worthless at any recency (largest first); among
   live entries, the lowest `rasterMs × hits / bytes`. A static scene does not
   advance the generation, so idling evicts nothing.
-- **Discovered ceilings**: a null context, a throw, or a raster past 8 MB that
-  samples blank halves the session budget — and never raises it.
+- **Discovered ceilings**: a null context, a throw, or (in development) a raster
+  past 8 MB that samples blank halves the session budget — and never raises it.
+  The blank is also reported, naming the view.
 - **The worker raster** (built 2026-09-10; `raster-client.ts` +
   `raster-worker.ts`): where the engine has `Worker` + `OffscreenCanvas`, a
   promoted recording's pixels are made OFF the main thread — the mac bridge
@@ -114,8 +116,10 @@ about not holding what cannot be seen.
   raster is owed, showing pays it — byte-identical across the round trip. (A
   fresh `<canvas>` is 300×150, 180 KB before anything draws; it is created 0×0.)
 - **Ceilings**: the entry cap is honoured by clamping density back to dpr,
-  never by refusing to draw. A large raster that samples blank is remade at
-  half the density, down to a quarter of dpr, and counted. The ledger is
+  never by refusing to draw. In development a large raster that samples blank
+  is reported once, naming the view and the raster's size, and is not redrawn:
+  a softer copy would hide what the developer needs to know. A production
+  build does not read back (`__DECLARE_PRODUCTION__`). The ledger is
   `__declareDomRasterStats` (bytes, clamps, blanks).
 - **Text-only drawings render.** They did not: `fillText` bounded to its anchor
   point, the canvas was sized to those bounds, and the glyphs were gone.
@@ -162,7 +166,7 @@ antialiasing between tiling wedges. Per-op conformance against Chrome is 30 of
 | | holds a drawing as | under a transform | admission | release | ceiling |
 |---|---|---|---|---|---|
 | canvas | memo raster, discardable | stretch for the beat, exact at rest | measured formula | relevance → value | discovered, budget halves |
-| DOM | per-view canvas, obligatory | re-raster at the at-rest composed density | none | hidden view releases | clamp density; blank → halve; no size window (§8) |
+| DOM | per-view canvas, obligatory | re-raster at the at-rest composed density | none | hidden view releases | clamp density; blank → reported in development; no size window (§8) |
 | mac | described layers; CG bitmap for the remainder | described: always exact; bitmap: composed density at rest | expressibility | n/a | bitmap: none; no size window (§8) |
 
 ## 4. Per engine

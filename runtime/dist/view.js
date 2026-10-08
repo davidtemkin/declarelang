@@ -435,6 +435,14 @@ export class View extends Node {
                 k?.onDecline?.();
         p.$childListChanged();
     }
+    /** This view as a developer's report names it: its path from the App and
+     *  its class (`app.chart.plot (YearChart)`). */
+    $drawingName() {
+        const parts = [];
+        for (let n = this; n.parent !== null; n = n.parent)
+            parts.unshift(authoredName(n) ?? String(n.parent.children.indexOf(n)));
+        return `${["app", ...parts].join(".")} (${this.constructor.name})`;
+    }
     $setVirtualExtent(h) {
         this.$surface?.setVirtualExtent?.(h);
         const v = h ?? 0;
@@ -500,6 +508,12 @@ export class View extends Node {
             const d = EXTENT.get(this);
             if (d === undefined || d[size] !== k)
                 return;
+            // displaced already — a binding or a state set this size since: the
+            // size is that owner's, and there is nothing to take over
+            if (ownerOf(this, size) !== k) {
+                delete d[size];
+                return;
+            }
             k.dispose();
             release(this, size, k);
             d[size] = markExtent(bindDerived(this, size, () => this.$extentOf(size)));
@@ -1253,7 +1267,7 @@ export class View extends Node {
         () => record((d) => this.draw(d), () => this.width, () => this.height), 
         // Constraint is deliberately untyped across compute→apply (reactive.ts);
         // this apply's input is exactly its compute's output.
-        (list) => this.$surface?.setDrawing(list), 1);
+        (list) => this.$surface?.setDrawing(list, this), 1);
         this.$drawing.run();
         // A drawing has a RESOLUTION, and the resolution it should have is the
         // composed scale it is seen at — which is the apparentScale fact, delivered

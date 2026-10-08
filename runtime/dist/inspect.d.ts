@@ -35,6 +35,12 @@ export interface InspectNode {
      *  is the case a reader is usually chasing — `visible: true` on a node
      *  inside a hidden panel is true and useless on its own. */
     shown: boolean;
+    /** Whether any of it can be SEEN: shown, and some of its box survives every
+     *  clip above it — a scroller's frame, a clipping view's box (unless the
+     *  child on the way escapes with `ignoreClip`), and the App's own frame. A
+     *  row in a pane positioned off-stage is shown and not in view. The same
+     *  clips the hit walk honours, read as boxes. */
+    inView: boolean;
     text?: string;
     /** The node's OWN attribute values (instance writes and bound results —
      *  the overlay over class defaults). A snapshot. */

@@ -29,7 +29,7 @@ import { revealRichAnchor as revealAnchorIn, richBlocks, richInlineSlots, richMe
 import { type BoxState } from "./boxpaint.js";
 import { effectiveFamily, fontMetrics, fontString, cssWeight, transformText, type TextStyle } from "./measure.js";
 import { renderClamped, type ClampRule } from "./text-clamp.js";
-import { replay, rasterEntryCap, rasterLooksBlank, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA, type DisplayList } from "./draw.js";
+import { replay, rasterEntryCap, rasterLooksBlank, blankRasterMessage, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA, type DisplayList } from "./draw.js";
 import { deferral, firstFramePainted, afterFirstFrame } from "./boot-deferrals.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive } from "./input.js";
@@ -325,7 +325,7 @@ let domRasterBlank = 0;
 (globalThis as { __declareDomRasterStats?: () => { bytes: number; clamped: number; blank: number } }).__declareDomRasterStats =
   () => ({ bytes: domRasterBytes, clamped: domRasterClamped, blank: domRasterBlank });
 /** Past this a raster that came back blank is worth the one GPU sync it takes
- *  to notice — the same bar the canvas memo uses. */
+ *  to notice, in development — the same bar the canvas memo uses. */
 /** The blank check reads pixels back (getImageData: a GPU sync — 16% of the
  *  main thread under a live resize, measured 2026-09-16). It runs at most this
  *  often per surface; a raster inside the interval is checked when the
@@ -781,11 +781,10 @@ export class DomSurface implements Surface {
   /** Device px per view unit of the raster currently in the canvas; 0 = none. */
   private rasterK = 0;
   private rasterBytes = 0;
-  /** The densest raster the platform has NOT refused for this view. A blank
-   *  at density k sets this to k/2 for the life of the surface: the ceiling was
-   *  discovered once, and every later re-record lives under it rather than
-   *  re-discovering it with a blank raster and a check apiece. */
-  private maxK = Infinity;
+  /** The view whose drawing this is (setDrawing), named by a blank report. */
+  private owner: object | undefined = undefined;
+  /** A blank raster of this drawing was reported: once is enough. */
+  private blankReported = false;
   /** Set once the drawing raster has ever existed (arms the dpr watch once). */
   private watching = false;
   private gone = false;
@@ -2360,8 +2359,9 @@ export class DomSurface implements Surface {
     s.height = this.stretch === "height" || this.stretch === "both" ? "100%" : `${nat.height}px`;
   }
 
-  setDrawing(list: DisplayList | null): void {
+  setDrawing(list: DisplayList | null, owner?: object): void {
     this.drawing = list;
+    this.owner = owner;
     if (this.maskUsers !== null) for (const u of this.maskUsers) u.applyMask();   // a stencil's recording (re)arrived
     if (list === null || list.bounds === null) {
       this.drawEl?.remove();
@@ -2423,7 +2423,7 @@ export class DomSurface implements Surface {
     const pad = rasterPad(this.drawing!);
     const b = pad === 0 ? b0 : { x: b0.x - pad, y: b0.y - pad, w: b0.w + 2 * pad, h: b0.h + 2 * pad };
     const dpr = window.devicePixelRatio || 1;
-    let kk = Math.min(k ?? this.composedScale * dpr, this.maxK);
+    let kk = k ?? this.composedScale * dpr;
     const cap = rasterEntryCap(Math.max(1, window.innerWidth * dpr) * Math.max(1, window.innerHeight * dpr) * 4);
     const bytesAt = (q: number): number => Math.ceil(b.w * q) * Math.ceil(b.h * q) * 4;
     if (kk > dpr && (bytesAt(kk) > cap || Math.ceil(b.w * kk) > RASTER_MAX_DIM || Math.ceil(b.h * kk) > RASTER_MAX_DIM
@@ -2447,14 +2447,13 @@ export class DomSurface implements Surface {
     ctx.setTransform(kk, 0, 0, kk, -b.x * kk, -b.y * kk);
     replay(ctx, this.drawing!);
     if (this.maskUsers !== null) for (const u of this.maskUsers) u.applyMask();   // a stencil re-rastered: its users re-export
-    // THE DISCOVERED CEILING, on the backend that holds obligatory bytes. A
-    // canvas the platform refused (Safari past its budget, Firefox past ~130 MB)
-    // comes back TRANSPARENT and nothing else says so — measured on the extent
-    // probe: a 395 MB canvas that allocated, cost time, and painted nothing.
-    // Here the recovery is not vectors (there are none) but DENSITY: halve it
-    // and try again, down to a quarter of dpr — soft, present, and counted. A
-    // drawing too large to paint at a quarter of dpr stays blank and counted;
-    // that is the one case with no honest recovery.
+    // A REFUSED CANVAS, told to the developer. A canvas past the platform's
+    // budget (Safari's, Firefox's at ~130 MB) comes back TRANSPARENT and nothing
+    // else says so — measured on the extent probe: a 395 MB canvas that
+    // allocated, cost time, and painted nothing. Seeing it takes a readback, a
+    // GPU-to-CPU sync, so development looks and reports the drawing by name, and
+    // a production build does not look. Nothing is redrawn: a quieter, blurrier
+    // copy would hide the one fact the developer needs.
     // ALREADY PROVEN: this surface painted a non-blank raster at least this big
     // while the page held no more canvas bytes than now — a platform refusal is
     // a function of allocation size (per canvas and in total), so the same or a
@@ -2464,7 +2463,8 @@ export class DomSurface implements Surface {
     // one it already carried, skips the readback; a forced blank (the test hook) is synthetic,
     // so it is never covered by that proof
     const forced = ((globalThis as { __declareForceBlank?: number }).__declareForceBlank ?? 0) > 0;
-    if (this.rasterBytes > DOM_BLANK_CHECK_BYTES && (forced || !(this.rasterBytes <= this.provenBytes && domRasterBytes <= this.provenTotal))) {
+    if ((typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && !this.blankReported
+      && this.rasterBytes > DOM_BLANK_CHECK_BYTES && (forced || !(this.rasterBytes <= this.provenBytes && domRasterBytes <= this.provenTotal))) {
       // BEFORE FIRST PAINT the readback waits (boot-deferrals.ts): nothing is
       // proven yet, so every first raster would be read back before anything
       // is on screen. A blank that persists is caught the same way one frame
@@ -2505,18 +2505,22 @@ export class DomSurface implements Surface {
   }
 
   private checkBlank(c: HTMLCanvasElement, kk: number, b: { x: number; y: number }): void {
-    if (!rasterLooksBlank(c, this.drawing!, kk, kk, b.x, b.y)) {
-      if (this.rasterBytes > this.provenBytes || domRasterBytes > this.provenTotal) { this.provenBytes = Math.max(this.provenBytes, this.rasterBytes); this.provenTotal = Math.max(this.provenTotal, domRasterBytes); }
-      return;
+    // guarded here too, so a production build carries none of it
+    if (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) {
+      if (!rasterLooksBlank(c, this.drawing!, kk, kk, b.x, b.y)) {
+        if (this.rasterBytes > this.provenBytes || domRasterBytes > this.provenTotal) { this.provenBytes = Math.max(this.provenBytes, this.rasterBytes); this.provenTotal = Math.max(this.provenTotal, domRasterBytes); }
+        return;
+      }
+      domRasterBlank++;
+      this.blankReported = true;
+      console.error(blankRasterMessage((this.owner as { $drawingName?: () => string } | undefined)?.$drawingName?.(), c.width, c.height));
     }
-    domRasterBlank++;
-    const dpr = window.devicePixelRatio || 1;
-    if (kk > dpr / 4) { this.maxK = kk / 2; this.rasterize(kk / 2); return; }
   }
 
   /** The at-rest composed scale, from the view's visibility feed (backend.ts).
    *  A change re-rasterizes at the new density; the same value is a no-op. */
   setRasterScale(scale: number): void {
+    if (!(scale > 0)) return;                // a hidden view is seen at no scale: keep the last
     const dpr = window.devicePixelRatio || 1;
     // the fact is ancestor scales × dpr; keep the ancestor part so a dpr
     // change (watchDpr) recomposes rather than reuses a stale product

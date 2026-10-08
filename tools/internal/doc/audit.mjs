@@ -16,8 +16,9 @@ const hasUsage = (c) => (c.example && c.example.length) || (c.docSegs || []).som
 
 // ── class pages ──
 for (const c of classes) {
-  if (!c.doc) say(`class ${c.id}: no class prose`);
-  if (!c.abstract && !hasUsage(c)) say(`class ${c.id}: no usage example (apps/docs/demos/${c.id}.declare, or a compiling fence in its prose)`);
+  // a theme preset is used by naming it (`theme = Cupertino`): no demo of its own
+  if (!c.doc) say(`${c.kind} ${c.id}: no prose`);
+  if (!c.abstract && c.kind !== "theme" && !hasUsage(c)) say(`class ${c.id}: no usage example (apps/docs/demos/${c.id}.declare, or a compiling fence in its prose)`);
   for (const a of c.attributes) {
     if (a.overrides && !a.doc && /^\{/.test("" + a.default)) say(`${c.id}.${a.name}: an expression override with no intent (## ${a.name} in the class's prose)`);
     if (!a.overrides && !a.doc) say(`${c.id}.${a.name}: no prose`);
@@ -26,7 +27,8 @@ for (const c of classes) {
   for (const e of c.events) if (!e.doc) say(`${c.id}.on${e.name[0].toUpperCase()}${e.name.slice(1)}: no prose`);
   for (const s of c.siblings ?? []) if (!byName.has(s)) say(`${c.id}: sibling '${s}' is not a documented class`);
   for (const s of c.subclasses ?? []) if (!byName.has(s)) say(`${c.id}: subclass '${s}' is not a documented class`);
-  for (const a of c.chain.slice(1)) if (!byName.has(a)) say(`${c.id}: ancestor '${a}' is not a documented class`);
+  // a theme has no chain of ancestors
+  for (const a of (c.chain ?? []).slice(1)) if (!byName.has(a)) say(`${c.id}: ancestor '${a}' is not a documented class`);
 }
 
 // ── the language forms ──

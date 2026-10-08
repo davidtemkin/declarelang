@@ -48,6 +48,13 @@ function joinPath(dir: string, rel: string): string {
   return lead + stack.join("/");
 }
 
+/** One edit the splice made, in the ORIGINAL text's coordinates: the span it
+ *  replaced (`was`) and the text that replaced it. `files` names each script file whose
+ *  `script {` block the text holds, at its offset in `text` — so a position in
+ *  the spliced source can be carried back to the line the author wrote, in the
+ *  program or in the script file. */
+export interface Splice { start: number; end: number; was: string; text: string; files: { at: number; file: string }[] }
+
 export async function spliceScriptFiles(
   source: string,
   refs: readonly IncludeRef[] | undefined,
@@ -55,13 +62,14 @@ export async function spliceScriptFiles(
   fromDir: string,
   host: IncludeHost,
   errors: DeclareError[],
-  excise: readonly Span[] = []
+  excise: readonly Span[] = [],
+  applied?: Splice[]
 ): Promise<string> {
   if ((!refs || refs.length === 0 || !spans || spans.length === 0) && excise.length === 0) return source;
   // One directive may name several files; its span is replaced by their blocks
   // in order. Group refs to spans by position: a ref belongs to the last span
   // that starts before it.
-  const bySpan = (spans ?? []).map((s) => ({ span: s, texts: [] as string[] }));
+  const bySpan = (spans ?? []).map((s) => ({ span: s, texts: [] as string[], files: [] as string[] }));
   for (const ref of refs ?? []) {
     let home = bySpan[0];
     for (const b of bySpan) if (b.span.start <= ref.pos.offset) home = b;
@@ -82,14 +90,20 @@ export async function spliceScriptFiles(
     body = body.replace(/(\bfrom\s+|\bimport\s*\(\s*)(["'])(\.{1,2}\/[^"']*)\2/g,
       (_m, lead: string, q: string, spec: string) => `${lead}${q}${joinPath(resolved.dir, spec)}${q}`);
     home.texts.push(`script {\n${body}\n}`);
+    home.files.push(resolved.canonical);
   }
   // ONE back-to-front pass over splices and excisions together: every span is
   // in the ORIGINAL text's coordinates, and applying either kind first would
   // shift the other's.
-  const edits = [
-    ...bySpan.map((b) => ({ start: b.span.start, end: b.span.end, text: b.texts.join("\n\n") })),
-    ...excise.map((s) => ({ start: s.start, end: s.end, text: "" })),
+  const edits: Splice[] = [
+    ...bySpan.map((b) => {
+      let at = 0;
+      const files = b.texts.map((t, i) => { const f = { at, file: b.files[i] }; at += t.length + 2; return f; });
+      return { start: b.span.start, end: b.span.end, was: source.slice(b.span.start, b.span.end), text: b.texts.join("\n\n"), files };
+    }),
+    ...excise.map((s) => ({ start: s.start, end: s.end, was: source.slice(s.start, s.end), text: "", files: [] })),
   ].sort((a, c) => c.start - a.start);
+  applied?.push(...[...edits].reverse());
   let out = source;
   for (const e of edits) out = out.slice(0, e.start) + e.text + out.slice(e.end);
   return out;
@@ -160,7 +174,7 @@ export async function resolveIncludes(
   program: Program,
   host: IncludeHost,
   originDir: string
-): Promise<{ program: Program; sources: string[]; sourceIds: string[]; errors: DeclareError[]; visited: Set<string> }> {
+): Promise<{ program: Program; sources: string[]; sourceIds: string[]; sourceSplices: Splice[][]; errors: DeclareError[]; visited: Set<string> }> {
   const errors: DeclareError[] = [];
   const classes: ClassDecl[] = [...program.classes];
   const shapes = [...(program.shapes ?? [])];
@@ -181,6 +195,9 @@ export async function resolveIncludes(
   // `sourceIds[i]` is the canonical identity of `sources[i]` — what compile()
   // needs to rebase a merged-text position back onto the file it came from.
   const sourceIds: string[] = [];
+  // `sourceSplices[i]` is what splicing did to `sources[i]`, to carry a
+  // position back through it.
+  const sourceSplices: Splice[][] = [];
 
   // name → the file that declared it. The main program seeds it as "the app"
   // (composition.md §1's wording) with NO self-collision check: two decls of
@@ -250,8 +267,10 @@ export async function resolveIncludes(
       // Its splice-ready source — script files spliced in and include
       // directives cut out, in ONE coordinate-safe pass — after its
       // dependencies' sources (the post-order recursion just ran).
-      sources.push(await spliceScriptFiles(resolved.source, lib.scriptFiles, lib.scriptFileSpans, resolved.dir, host, errors, lib.includeSpans));
+      const splices: Splice[] = [];
+      sources.push(await spliceScriptFiles(resolved.source, lib.scriptFiles, lib.scriptFileSpans, resolved.dir, host, errors, lib.includeSpans, splices));
       sourceIds.push(resolved.canonical);
+      sourceSplices.push(splices);
     }
   };
   await walk(program.includes, originDir);
@@ -260,6 +279,7 @@ export async function resolveIncludes(
     program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], ...(ship === undefined ? {} : { ship }), scripts, root: program.root },
     sources,
     sourceIds,
+    sourceSplices,
     errors,
     visited,
   };
@@ -337,10 +357,10 @@ export async function resolveAutoIncludes(
   /** The text being compiled — a library file compiled on its own (or under a
    *  verify probe) declares its own names by right. */
   mainSource?: string
-): Promise<{ program: Program; sources: string[]; sourceIds: string[]; errors: DeclareError[] }> {
+): Promise<{ program: Program; sources: string[]; sourceIds: string[]; sourceSplices: Splice[][]; errors: DeclareError[] }> {
   const auto = host as Partial<AutoIncludeHost>;
   if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
-    return { program, sources: [], sourceIds: [], errors: [] };
+    return { program, sources: [], sourceIds: [], sourceSplices: [], errors: [] };
   }
   const manifest = auto.autoincludes();
   // Record what COULD have been auto-included, for the checker's near-miss.
@@ -365,6 +385,7 @@ export async function resolveAutoIncludes(
   let ship: Ship | undefined = program.ship;
   const sources: string[] = [];
   const sourceIds: string[] = [];                         // parallel to `sources`, as in resolveIncludes
+  const sourceSplices: Splice[][] = [];
 
   // name → the file that declared it (main + explicit includes seed it). A
   // referenced tag not present here and present in the manifest gets pulled;
@@ -432,8 +453,10 @@ export async function resolveAutoIncludes(
     scripts.push(...lib.scripts);
     uses.push(...lib.uses);
     ship = mergeShip(ship, lib.ship);
-    sources.push(await spliceScriptFiles(resolved.source, lib.scriptFiles, lib.scriptFileSpans, resolved.dir, host, errors, lib.includeSpans));
+    const splices: Splice[] = [];
+    sources.push(await spliceScriptFiles(resolved.source, lib.scriptFiles, lib.scriptFileSpans, resolved.dir, host, errors, lib.includeSpans, splices));
     sourceIds.push(resolved.canonical);
+    sourceSplices.push(splices);
   };
 
   for (const r of referencedTags(root, program.classes)) await pull(r.tag, r.pos);
@@ -454,6 +477,7 @@ export async function resolveAutoIncludes(
     program: { classes, shapes, themes, styles, fonts, includes: [], includeSpans: [], uses: [...new Set(uses)], ...(ship === undefined ? {} : { ship }), scripts, root: program.root },
     sources,
     sourceIds,
+    sourceSplices,
     errors,
   };
 }

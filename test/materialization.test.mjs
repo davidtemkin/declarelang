@@ -714,6 +714,105 @@ await test(`scrollAnchor = end (virtualize = ${policy}): rows that grow as the p
 });
 }
 
+// A virtualized list builds the rows near what is on screen, and a list that
+// is hidden has nothing on screen: it builds none, and keeps only its place.
+// One pane per conversation, the open one shown, is the ordinary way to keep
+// each conversation's place and draft; before this, every hidden pane kept
+// its whole window built (Murmur 8: about 11,600 elements, none of them seen).
+await test("windowed: a list never shown builds no rows; one left keeps its rows, and is shown again where it was", async () => {
+  const r = await compile(`
+    class Thread [ width = 300, height = 300,
+      sc: View [ scrolls = y, width = 300, height = 300,
+        content: View [ width = 300,
+          layout: SimpleLayout [ axis = y ],
+          View [ datapath = :rows[], virtualize = true, width = 300, height = 30, t: Text [ text = :label ] ]
+          ]
+        ]
+      ]
+    App [ width = 400, height = 400,
+      open: string = "a",
+      d: Dataset { { "threads": [] } },
+      stage: View [ width = 300, height = 300, datapath = { d.value },
+        Thread [ datapath = :threads[], visible = { :id == app.open } ]
+        ]
+      ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { threads: ["a", "b", "c"].map((id) => ({ id, rows: rows(1000) })) };
+  for (let i = 0; i < 6; i++) settle();
+  const panes = app.stage.childViews;
+  const built = (p) => p.sc.content.children.length;
+  assert.equal(panes.length, 3, "a pane per conversation");
+  assert.ok(built(panes[0]) > 0 && built(panes[0]) < 200, `the open pane builds a window: ${built(panes[0])} rows`);
+  assert.deepEqual([built(panes[1]), built(panes[2])], [0, 0], "the hidden panes build none");
+  // read into the middle of the open one, then switch away and back
+  panes[0].sc.scrollY = 9000;
+  for (let i = 0; i < 6; i++) settle();
+  const topRow = () => Math.min(...panes[0].sc.content.children.filter((v) => v.visible && v.y + v.height > panes[0].sc.scrollY).map((v) => v.y));
+  const before = topRow();
+  const mounted = (p) => p.sc.content.children.filter((v) => v.visible).length;
+  const kept = mounted(panes[0]);
+  const rowsBefore = new Set(panes[0].sc.content.children.filter((v) => v.visible));
+  app.open = "b";
+  for (let i = 0; i < 6; i++) settle();
+  assert.equal(built(panes[0]), kept, "the pane switched away from keeps the rows it showed, and only those");
+  assert.ok(built(panes[1]) > 0, "the pane switched to builds its window");
+  assert.equal(built(panes[2]), 0, "the one never shown still has none");
+  app.open = "a";
+  settle();
+  assert.equal(panes[0].sc.scrollY, 9000, "shown again at the same offset");
+  assert.equal(topRow(), before, "with the same row at the top, in the same update");
+  assert.ok(panes[0].sc.content.children.filter((v) => v.visible).every((v) => rowsBefore.has(v)), "with the very rows it had: nothing rebuilt");
+  // the records change while it is hidden: shown again, its rows are the records' own
+  app.open = "b";
+  for (let i = 0; i < 6; i++) settle();
+  const list = app.d.value.threads[0].rows;
+  const label = (v) => v.t.text;
+  app.d.value = { threads: [{ id: "a", rows: list.filter((_, i) => i % 2 === 0) }, ...app.d.value.threads.slice(1)] };
+  for (let i = 0; i < 6; i++) settle();
+  app.open = "a";
+  for (let i = 0; i < 6; i++) settle();
+  const shown = panes[0].sc.content.children.filter((v) => v.visible && v.y + v.height > panes[0].sc.scrollY && v.y < panes[0].sc.scrollY + 300);
+  assert.ok(shown.length > 0, "rows on screen");
+  const want = new Set(app.d.value.threads[0].rows.map((x) => x.label));
+  assert.ok(shown.every((v) => want.has(label(v))), `every row on screen is a record that remains: ${shown.map(label).slice(0, 6)}`);
+});
+
+// A row the window lets go is torn down whole, and that includes the bindings
+// of the nodes inside it that are not views: a Dataset's `contents`, a Node
+// class's computed values. Left standing, each stayed subscribed to what it
+// read and ran again, detached, when that changed — a discarded row's dataset
+// reading `app` found no App (Murmur 8's reaction chips: "reading 'meId'").
+await test("windowed: a row let go takes its datasets' bindings with it", async () => {
+  const r = await compile(`
+    class Model extends Node [ me: string = "u1", nameOf(p: string) -> string { return "name of " + p } ]
+    class Msg [ width = 300, height = 40,
+      reacts: array = { :reactions ?? [] },
+      chips: View [ exists = { classroot.reacts.length > 0 },
+        marks: Dataset [ contents = { { tally: classroot.reacts.map((p) => ({ p: p, mine: p == app.data.me, name: app.data.nameOf("" + p) })) } } ],
+        datapath = { this.marks.value },
+        Text [ datapath = :tally[], text = { :name } ] ] ]
+    App [ width = 400, height = 400,
+      data: Model [ ],
+      d: Dataset { { "rows": [] } },
+      sc: View [ scrolls = y, width = 300, height = 300,
+        content: View [ width = 300, datapath = { d.value }, layout: SimpleLayout [ axis = y ],
+          Msg [ datapath = :rows[], virtualize = true ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = build(r.source);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: Array.from({ length: 400 }, (_, i) => ({ id: i, reactions: i % 3 == 0 ? ["u1", "u2"] : [] })) };
+  for (let i = 0; i < 6; i++) settle();
+  for (const y of [6000, 14000, 0]) { app.sc.scrollY = y; for (let i = 0; i < 6; i++) settle(); }
+  app.data.me = "u2";   // what every chips dataset reads
+  for (let i = 0; i < 4; i++) settle();
+  const names = [];
+  const walk = (v) => { if (v.constructor.name === "Text" && v.visible) names.push(v.text); (v.childViews ?? []).forEach(walk); };
+  walk(app.sc.content);
+  assert.ok(names.length > 0 && names.every((t) => t.startsWith("name of ")), "the rows in reach still read the App");
+});
+
 // Keep-place while scrolling: rows measured above the reader (their real
 // heights differ from the estimate) must not move what is on screen. Scrolled
 // into the middle of a list loaded once — no data change since — every row on

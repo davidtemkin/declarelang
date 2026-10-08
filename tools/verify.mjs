@@ -58,9 +58,14 @@ const flags = {
   // an include in a program several people edit at once: "is this red mine?"
   // answered without a scratch harness.
   only: argVal("only"),
+  // --boot-budget=ms: how long rung 4 waits for the boot to settle before it
+  // stops it and reports what was running (default 15 s)
+  bootBudget: Number((args.find((a) => a.startsWith("--boot-budget=")) ?? "--boot-budget=15000").split("=")[1] ?? 15000),
+  // --samples: print the sample each data source was fed at rung 4
+  samples: args.includes("--samples"),
 };
 if (!file) {
-  console.error("usage: node tools/verify.mjs <app.declare> [--json] [--rung=N] [--only <include>] [--wrap]");
+  console.error("usage: node tools/verify.mjs <app.declare> [--json] [--rung=N] [--only <include>] [--wrap] [--boot-budget=ms] [--samples]");
   process.exit(2);
 }
 
@@ -170,119 +175,21 @@ async function compiledProgram() {
 }
 
 // ── rung 4: headless boot ─────────────────────────────────────────────────
-// The synthetic measurer: measure.ts creates one offscreen 2D context lazily
-// via `document.createElement("canvas")` — in Node we stand a deterministic
-// fake at exactly that seam. Fixed per-character advance (0.6em) + ascent
-// 0.8em / descent 0.25em: stable, obviously synthetic, sufficient for
-// structure/reactivity/settle checks. Typography-sensitive assertions are out
-// of scope at Node rung 4 BY DESIGN (verify-and-evals.md §2.8).
-function installSyntheticHost() {
-  if (globalThis.document?.__declareSyntheticMeasurer) return;
-  const ctx = {
-    font: "16px synthetic",
-    letterSpacing: "0px",
-    measureText(s) {
-      const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 16);
-      const ls = Number(/(-?\d+(?:\.\d+)?)px/.exec(this.letterSpacing)?.[1] ?? 0);
-      return {
-        width: s.length * size * 0.6 + Math.max(0, s.length - 1) * ls,
-        fontBoundingBoxAscent: size * 0.8,
-        fontBoundingBoxDescent: size * 0.25,
-      };
-    },
-  };
-  globalThis.document = { __declareSyntheticMeasurer: true, createElement: () => ({ getContext: () => ctx }) };
-  globalThis.requestAnimationFrame ??= () => 0; // motion needs the driven clock (phase 2)
-  globalThis.cancelAnimationFrame ??= () => {};
-}
-
-const boot = { ran: false, ok: false, nodes: 0, ms: 0, errors: [], notes: [] };
+// The program built and settled in Node, with synthetic text metrics, in a
+// worker under a time budget (internal/verify-boot.mjs): a boot that does not
+// settle is stopped and reported with what it was running. Typography-sensitive
+// assertions are out of scope at Node rung 4 BY DESIGN (verify-and-evals.md §2.8).
+const boot = { ran: false, ok: false, nodes: 0, ms: 0, errors: [], notes: [], samples: [] };
 if (failedRung === null && flags.rung >= 4) {
   boot.ran = true;
-  installSyntheticHost();
-  // Async failures during boot (a DataSource fetching a relative URL with no
-  // host, say) are expected headless — fixtures arrive with rung 5. Capture
-  // them as notes, not errors; a SYNCHRONOUS throw is a real rung-4 failure.
-  const rejections = [];
-  const onRej = (reason) => rejections.push(String(reason?.message ?? reason));
-  process.on("unhandledRejection", onRej);
-  // A defect CONTAINED at run time — a replicated row whose construction threw,
-  // an onLoad that threw — is reported, not raised ([Declare] on console.error),
-  // so the program keeps running. Here it is still a defect: collect it.
-  const contained = [];
-  const consoleError = console.error;
-  console.error = (...a) => {
-    const m = String(a[0] ?? "");
-    if (m.startsWith("[Declare] ")) contained.push(m.slice("[Declare] ".length));
-    else consoleError(...a);
-  };
   try {
-    const { buildProgram, settle } = await import("../runtime/dist/index.js");
-    const program = await compiledProgram();
-    const t0 = performance.now();
-    const app = buildProgram(program);
-    settle();
-    boot.ms = Math.round((performance.now() - t0) * 10) / 10;
-    // DATA FROM THE NETWORK never arrives headless, so the rows it would
-    // replicate are never built and their defects never surface here (a library
-    // class placed inside a layout is refused only in a row).
-    // Each DataSource that declares a `schema` and has not loaded is handed a
-    // small sample of that shape, as its fetch would deliver it, and onLoad runs.
-    const fed = await feedSchemaSamples(app);
-    if (fed > 0) { settle(); boot.notes.push(`${fed} data source(s) fed a sample of their schema, so their rows were built`); }
-    const walk = (n) => { boot.nodes++; for (const c of n.children ?? []) walk(c); };
-    walk(app);
-    if (contained.length > 0) { for (const c of new Set(contained)) boot.errors.push(`boot: ${c}`); failedRung = 4; }   // each row reports its own copy: once is enough
-    else boot.ok = true;
+    const { bootInWorker } = await import("./internal/verify-boot.mjs");
+    Object.assign(boot, await bootInWorker(await compiledProgram(), { budgetMs: flags.bootBudget }));
+    if (!boot.ok) failedRung = 4;
   } catch (e) {
     boot.errors.push(`boot: ${e?.message ?? e}`);
     failedRung = 4;
-  } finally {
-    console.error = consoleError;
-    await new Promise((r) => setImmediate(r)); // let queued rejections surface
-    process.off("unhandledRejection", onRej);
-    for (const r of rejections) boot.notes.push(`async during boot (expected headless; fixtures land at rung 5): ${r}`);
   }
-}
-
-/** Hand every unloaded, schema-declaring DataSource under `app` a sample
- *  document of its schema, landed the way a fetch lands one (value, then
- *  onLoad). Returns how many were fed. */
-async function feedSchemaSamples(app) {
-  const { DataSource } = await import("../runtime/dist/data.js");
-  const { setBound } = await import("../runtime/dist/attributes.js");
-  const sources = [];
-  const walk = (n) => { if (n instanceof DataSource) sources.push(n); for (const c of n.children ?? []) walk(c); };
-  walk(app);
-  let fed = 0;
-  for (const ds of sources) {
-    if (ds.value != null || !Array.isArray(ds.schema) || ds.format === "text") continue;
-    setBound(ds, "value", sampleOf(ds.schema, 0));
-    setBound(ds, "loading", false);
-    const h = ds.onLoad;
-    if (typeof h === "function") {
-      try { h.call(ds); } catch (e) { console.error(`[Declare] onLoad on ${ds.constructor.name} threw: ${e?.message ?? e}`); }
-    }
-    fed++;
-  }
-  return fed;
-}
-
-/** A small document of a schema's shape: every field present, two records per
- *  list, a literal union's first member, distinct ids so rows keep identity. */
-function sampleOf(fields, depth, index = 0) {
-  const out = {};
-  for (const f of fields) {
-    const one = (i) => {
-      if (f.fields !== undefined) return depth < 3 ? sampleOf(f.fields, depth + 1, i) : {};
-      if (f.tokens !== undefined && f.tokens.length > 0) return f.tokens[0];
-      if (f.type === "number") return f.name === "id" ? i + 1 : 1;
-      if (f.type === "boolean") return false;
-      return f.name === "id" ? `id${i + 1}` : "sample";
-    };
-    out[f.name] = f.array ? [one(0), one(1)] : one(index);
-  }
-  return out;
 }
 
 
@@ -356,7 +263,7 @@ if (flags.json) {
     probe: probeNote,
     only: onlyNote,
     stats: { constraints: out.deps?.length ?? 0, bootNodes: boot.nodes, bootMs: boot.ms },
-    boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes } : null,
+    boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes, samples: boot.samples ?? [] } : null,
     behavior: behave.ran ? { ok: behave.ok, failures: behave.failures, steps: behave.log } : null,
     visual: visual.ran ? { ok: visual.ok, failures: visual.failures, results: visual.results } : null,
     diagnostics: out.diagnostics,
@@ -387,6 +294,7 @@ if (flags.json) {
   for (const w of warnings) console.log(`  warn ${show(w)}`);
   for (const h of hints) console.log(`  hint ${show(h)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
+  if (flags.samples) for (const s of boot.samples ?? []) console.log(`  sample ${s.source}: ${JSON.stringify(s.value)}`);
   if (failedRung === null) {
     // wired = rows with a non-empty dep set; an empty row is a constraint on
     // the runtime-tracking path (a residue, or the alias/closure DYNAMIC class)

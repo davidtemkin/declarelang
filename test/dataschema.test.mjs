@@ -327,6 +327,8 @@ await test("typed data: the crossings a TS arrival types first each name their r
   assert.match(await say(`schema T [ tags: string[] ]`), /the array marker rides the NAME: write 'tags\[\]: string'/);
   assert.match(await say(`schema T [ note: string? ]`), /the optional marker rides the FIELD name: write 'note\?: string'/);
   assert.match(await say(`schema T [ x: string = "a" ]`), /a schema field takes no default/);
+  assert.match(await say(`schema T [ km: number | null ]`), /may be null or missing is written with '\?' on its NAME: 'km\?: number'/);
+  assert.match(await say(`schema T [ km: number | string ]`), /a schema field has one type/);
   assert.match(await say(`schema T [ f(x) { return 1 } ]`), /a schema declares shape, not behavior/);
   assert.match(await say(`schema A [ x: string ]\nschema B extends A [ y: string ]`), /schemas do not extend — a schema is composed by NESTING/);
   assert.match(await say(`schema T [ a: 1 | "b" ]`), /a literal union is all strings or all numbers/);
@@ -500,6 +502,23 @@ await test("a held Dataset's typed value is non-null; a DataSource's stays nulla
       s: DataSource [ url = "/w.json", schema = Week ],
       t: Text [ text = { "" + app.s.value.count } ] ]`);
   assert.ok((src.errors ?? []).some((e) => /possibly 'null'/.test(e.message)), "a DataSource's value may be null");
+});
+
+// Its own onLoad runs when the value has landed: there it is not null, in a
+// class and in the tree alike. A class's `schema` types its value as an
+// instance's does.
+await test("in a DataSource's own onLoad its value is not null; a class's schema types its value", async () => {
+  const ok = await compile(`schema Week [ count: number ]
+    class Weeks extends DataSource [ url = "/w.json", schema = Week[], n: number = 0,
+      onLoad() { n = value.length } ]
+    App [ width = 100, height = 100, ws: Weeks [ ], total: number = 0,
+      s: DataSource [ url = "/w.json", schema = [ rows[]: Week ], onLoad() { app.total = this.value.rows.length } ] ]`);
+  assert.deepEqual((ok.errors ?? []).map((e) => e.message), []);
+  const typo = await compile(`schema Week [ count: number ]
+    class Weeks extends DataSource [ url = "/w.json", schema = Week[], n: number = 0,
+      onLoad() { n = value[0].cuont } ]
+    App [ width = 100, height = 100, ws: Weeks [ ] ]`);
+  assert.ok((typo.errors ?? []).some((e) => /cuont/.test(e.message)), "the class's value is typed by its schema");
 });
 
 summarize("dataschema");

@@ -240,35 +240,56 @@ await test("a drawing under a large scale is exact at rest on the DOM backend (n
   assert.equal(dom <= canvas * 1.5 + 2, true, `DOM ring edge ramps over ${dom} device px against canvas's ${canvas} — still CSS-stretched`);
 });
 
-// THE DISCOVERED CEILING ON DOM. Past its canvas budget the platform draws a
-// TRANSPARENT canvas and nothing else says so (measured: a 395 MB canvas that
-// allocated, cost time, and painted nothing). The DOM backend's bytes are
-// obligatory, so its recovery is DENSITY: a large raster that samples blank is
-// remade at half the density, down to a quarter of dpr, and counted. The
-// failure cannot be provoked on Chrome, so the lever forces the detector for
-// the first N checks and the pin watches the recovery happen.
-await test("a DOM raster that comes back blank is remade at a lower density, and counted", async () => {
+// A REFUSED CANVAS IS THE DEVELOPER'S TO HEAR. Past its canvas budget the
+// platform draws a TRANSPARENT canvas and nothing else says so (measured: a
+// 395 MB canvas that allocated, cost time, and painted nothing). Development
+// reads a large raster back and, when it looks blank, reports which view's
+// drawing and how large — and redraws nothing: a softer copy would hide the
+// fact. A production build never reads back (build-flags.d.ts). The failure
+// cannot be provoked on Chrome, so the lever forces the detector.
+await test("a DOM raster that comes back blank is reported by name, once, and not redrawn", async () => {
   // the extent probe at k=4 is a ~33 MB canvas — past the 8 MB bar the check
   // runs at. The lever is armed AFTER boot: the boot raster is already past the
   // bar at 900x600 @2x, and arming it earlier spent the forced blank there
   const pg = await open("test/probe/raster-extent.declare?render=dom");
-  await pg.evaluate(`globalThis.__declareForceBlank = 1; window.__app.k = 4`);
+  const said = [];
+  pg.on("console", (m) => { if (m.type() === "error") said.push(m.text()); });
+  await pg.evaluate(`globalThis.__declareForceBlank = 2; window.__app.k = 4`);
+  await sleep(600);
+  await pg.evaluate(`window.__app.tick = 5`);          // a re-record: reported once, not again
   await sleep(600);
   const st = await pg.evaluate(`globalThis.__declareDomRasterStats()`);
   const cv = await pg.evaluate(`(() => { const c = document.querySelector("canvas"); return { w: c.width, cssW: parseFloat(c.style.width) }; })()`);
   await pg.close();
-  assert.equal(st.blank >= 1, true, `expected the blank to be counted, stats ${JSON.stringify(st)}`);
-  // the raster at dpr 2 read blank (forced); the retry at density 1 is what stands
-  assert.equal(Math.abs(cv.w / cv.cssW - 1) < 0.05, true, `expected the raster remade at half density (1 px per unit), got ${cv.w}/${cv.cssW}`);
-  // and the ceiling is STICKY: a further re-record stays at the density that painted
-  const pg2 = await open("test/probe/raster-extent.declare?render=dom");
-  await pg2.evaluate(`globalThis.__declareForceBlank = 1; window.__app.k = 4`);
-  await sleep(500);
-  await pg2.evaluate(`window.__app.tick = 5`);          // re-record, no lever armed
-  await sleep(500);
-  const again = await pg2.evaluate(`(() => { const c = document.querySelector("canvas"); return c.width / parseFloat(c.style.width); })()`);
-  await pg2.close();
-  assert.equal(Math.abs(again - 1) < 0.05, true, `a later re-record went back to the refused density: ${again}`);
+  assert.equal(st.blank, 1, `expected the blank counted once, stats ${JSON.stringify(st)}`);
+  const reports = said.filter((t) => /came back blank/.test(t));
+  assert.equal(reports.length, 1, `one report: ${JSON.stringify(said)}`);
+  assert.match(reports[0], /the drawing on app\.paper \(View\)/, "it names the view: " + reports[0]);
+  assert.match(reports[0], /\d+×\d+ raster \(\d+ MB\)/, "and the raster's size");
+  assert.equal(Math.abs(cv.w / cv.cssW - 2) < 0.05, true, `the raster stays at device density, not halved: ${cv.w}/${cv.cssW}`);
+});
+
+// A PER-FRAME CLOCK IS NOT A GLIDE. The visibility facts hold their delivery
+// while motion is in flight and flush at rest — but a Time ticking every frame
+// (a playback head, a spinner) never rests, and the facts, a drawing's raster
+// density with them, were held for as long as it ran. Only finite motion holds
+// them now. test/probe/hidden-draw.declare runs such a clock and hides and
+// shows the pane a drawing sits in.
+await test("visibility facts land while a per-frame clock runs; a drawing in a re-shown pane keeps its density", async () => {
+  const pg = await open("test/probe/hidden-draw.declare?render=dom");
+  const read = () => pg.evaluate(`(() => { const c = document.querySelector("canvas"); const v = window.__app.pane.chart;
+    return { w: c.width, cssW: parseFloat(c.style.width), on: v.onScreen, scale: v.apparentScale, frames: window.__app.frames }; })()`);
+  const a = await read();
+  assert.equal(a.frames > 0, true, "the clock runs");
+  assert.equal(a.scale, 2, `apparentScale lands at device density: ${JSON.stringify(a)}`);
+  await pg.evaluate(`window.__app.open = false`); await sleep(500);
+  const b = await read();
+  assert.equal(b.on, false); assert.equal(b.scale, 0, "hidden: seen at no scale");
+  await pg.evaluate(`window.__app.open = true`); await sleep(800);
+  const c = await read();
+  await pg.close();
+  assert.equal(c.scale, 2, "shown again");
+  assert.equal(Math.abs(c.w / c.cssW - 2) < 0.05, true, `the drawing keeps device density: ${c.w}/${c.cssW}`);
 });
 
 // BOX SHADOW UNDER ROTATION. The canvas backend painted a box's drop shadow by

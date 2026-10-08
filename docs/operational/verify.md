@@ -64,8 +64,10 @@ npx declare-look app.declare --size 390x844 --touch --dark \
     --click app.toolbar.add --read app.list.contentHeight --shot phone.png
 ```
 
-Flags are applied in that order (a `--click` settles motion before the next step), each
-`--read` prints `path.attr = value`, and it runs as rung 5 — the same browser and reporting.
+Flags are applied in that order, each `--read` prints `path.attr = value`, and it runs as
+rung 5 — the same browser and reporting. Motion is run to rest once the page opens and after
+each `--click`, so a read or a picture shows where things land rather than a spring
+mid-flight; `--no-settle` takes them as they are.
 Anything more (a drag, a pinch, polling a live feed) is an assert script, below — and it
 stays behind as a test.
 
@@ -73,8 +75,9 @@ stays behind as a test.
 
 `--assert` takes a module whose default export receives `{ drive, expect, page }`. The script
 you explored with can be the test as it is: `page` is the puppeteer page with the app loaded
-(throw to fail the rung). `drive` and `expect` drive the app by **view path**, never by DOM
-selector:
+(throw to fail the rung). Its scrollbars are real ones, the classic bar Windows and Linux
+draw, so a script can grab a thumb with `page.mouse` and drag it as a person would.
+`drive` and `expect` drive the app by **view path**, never by DOM selector:
 
 ```js
 export default async ({ drive, expect }) => {

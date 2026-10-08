@@ -143,10 +143,21 @@ export function typecheckBodies(text, program) {
         // error on the wrapper itself (rel clamped) lands at the brace. Before
         // 2026-08-23 every typecheck position said col 1 — five files and a line
         // number into the wrong one was the whole of "is this mine?".
+        // The body as checked carries the resolver's rewrites (`app.` is
+        // `this.root.`), so a column is carried back through them to the text the
+        // author wrote.
         const inBody = d.line >= u.bodyStart && d.line < u.bodyStart + u.lineCount;
         const rel = Math.min(Math.max(d.line - u.bodyStart, 0), u.lineCount - 1);
-        const col = !inBody ? u.origStartCol : rel === 0 ? u.origStartCol + 1 + d.character : d.character + 1;
-        out.push(Diag.typeError(explainTs(d, u, synthTags), posAt(u.origStartLine + rel, col, starts), d.code));
+        let pos;
+        if (!inBody)
+            pos = posAt(u.origStartLine, u.origStartCol, starts);
+        else {
+            let at = 0;
+            for (let i = 0; i < rel; i++)
+                at = u.src.indexOf("\n", at) + 1;
+            pos = offsetPos(u.braceOffset + 1 + unrewrite(at + d.character, u.rewrites), starts);
+        }
+        out.push(Diag.typeError(explainTs(d, u, synthTags), pos, d.code));
     }
     // Deterministic report: same input → same diagnostics, same order (position,
     // then TS code, then text — the loop-stability guarantee evals depend on).
@@ -521,6 +532,12 @@ class CaseEmitter {
             this.classChildTypes.set(el.tag, childTypes);
             if (el.children.length > 0)
                 members.push(`  readonly children: any[];`);
+            // a class's own `schema =` types its value, as an instance's does (below);
+            // a Dataset class is given its data where it is used, so only a
+            // DataSource's — which arrives later — may be null
+            const doc = this.docTypeOf(el);
+            if (doc !== null)
+                members.push(`  value: ${doc}${this.isDataSource(el) ? " | null" : ""};`);
             if (members.length > 0)
                 this.classExtras.set(el.tag, members);
             this.instType.set(el, el.tag);
@@ -599,10 +616,8 @@ class CaseEmitter {
         // A DataSource has no document until a fetch lands, so its value may be null;
         // a Dataset with a literal body or a `contents` constraint always has one.
         const doc = this.docTypeOf(el);
-        const alwaysHeld = !descendsFrom(this.schemas[el.tag], "DataSource") && el.tag !== "DataSource"
-            && (el.raw !== undefined || el.attrs.some((a) => a.name === "contents"));
         if (doc !== null)
-            members.push(`  value: ${doc}${alwaysHeld ? "" : " | null"};`);
+            members.push(`  value: ${doc}${this.valueAlwaysHeld(el) ? "" : " | null"};`);
         if (members.length === 0) {
             this.instType.set(el, el.tag);
             return el.tag;
@@ -619,6 +634,15 @@ class CaseEmitter {
         this.lines.push(`}`);
         this.instType.set(el, name);
         return name;
+    }
+    /** Does this dataset always hold a value? A DataSource has none until a
+     *  fetch lands; a Dataset with a literal body or a `contents` constraint
+     *  always has one. */
+    valueAlwaysHeld(el) {
+        return !this.isDataSource(el) && (el.raw !== undefined || el.attrs.some((a) => a.name === "contents"));
+    }
+    isDataSource(el) {
+        return el.tag === "DataSource" || (this.schemas[el.tag] !== undefined && descendsFrom(this.schemas[el.tag], "DataSource"));
     }
     /** The DOCUMENT type text a Dataset element's resolved `schema =` declares
      *  (`{ cols: Col[] }`, `TaskDoc`, `Task[]`), or null. Feeds two walls: the
@@ -655,7 +679,7 @@ class CaseEmitter {
                 // `any` does; a typed signature — `buildCols() -> Board` — closes
                 // the chain end to end.)
                 const slotType = a.name === "contents" ? (this.docTypeOf(el) ?? tsSlotType(this.schemas, el.tag, a.name)) : tsSlotType(this.schemas, el.tag, a.name);
-                this.emit(a.value.src, a.value.pos, a.name, slotType, levels, true, [], classBody);
+                this.emit(a.value.src, a.value.pos, a.name, slotType, levels, true, [], classBody, a.value);
             }
         }
         for (const d of el.decls) {
@@ -663,11 +687,11 @@ class CaseEmitter {
                 // A declaration-default binding checks against the DECL's own declared
                 // type (the tag schema does not carry an inline decl).
                 const t = declaredType(d.type);
-                this.emit(d.def.src, d.def.pos, d.name, t === null ? "unknown" : tsType(t), levels, true, [], classBody);
+                this.emit(d.def.src, d.def.pos, d.name, t === null ? "unknown" : tsType(t), levels, true, [], classBody, d.def);
             }
         }
         for (const m of el.methods)
-            this.emit(m.body, m.bodyPos, null, null, levels, false, m.params, classBody);
+            this.emit(m.body, m.bodyPos, null, null, levels, false, m.params, classBody, m);
         for (const child of el.children)
             this.walkElement(child, levels, classBody);
     }
@@ -677,7 +701,7 @@ class CaseEmitter {
      *  written types), so a handler body's `e.x` resolves instead of failing as
      *  an unknown name. `brace` is the `{` position; the body starts on its
      *  line. */
-    emit(src, brace, slot, slotTs, levels, expression, params, classBody) {
+    emit(src, brace, slot, slotTs, levels, expression, params, classBody, owner) {
         // A body that still embeds a datapath island is not TypeScript — compile()
         // lowers islands before this phase, so this only guards a caller handing
         // in un-resolved source; skipped, never misparsed.
@@ -717,8 +741,12 @@ class CaseEmitter {
         const baseArg = baseTs === null ? "" : `, undefined as any`;
         const paramSig = params.map((p) => `, ${p.name}: ${paramTs(p)}`).join("");
         const paramArgs = params.map(() => `, undefined as any`).join("");
-        const header = `(function (this: ${self}, parent: ${parent}, classroot: ${root}${baseSig}${paramSig}) {`;
-        const footer = `}).call(${inst(self)}, ${inst(parent)}, ${inst(root)}${baseArg}${paramArgs});`;
+        // A DataSource's own onLoad runs when its value has landed: there, the
+        // value is not null.
+        const loaded = !expression && slot === null && owner instanceof Object && owner.name === "onLoad" && this.isDataSource(levels[0]);
+        const thisTs = loaded ? `${self} & { value: NonNullable<${self}["value"]> }` : self;
+        const header = `(function (this: ${thisTs}, parent: ${parent}, classroot: ${root}${baseSig}${paramSig}) {`;
+        const footer = `}).call(${inst(thisTs)}, ${inst(parent)}, ${inst(root)}${baseArg}${paramArgs});`;
         // Emit the body verbatim across its own lines, so a diagnostic line maps
         // straight back. The body opens on `brace.line` (just after `{`).
         const bodyLines = src.split("\n");
@@ -744,6 +772,9 @@ class CaseEmitter {
             this.lines.push(footer);
         }
         this.units.push({
+            src,
+            braceOffset: brace.offset,
+            rewrites: bodyRewrites.get(owner) ?? [],
             blockStart,
             blockEnd: this.lines.length,
             bodyStart,
@@ -978,6 +1009,36 @@ function ambientScript(src) {
     for (const e of edits.sort((a, b) => b.start - a.start))
         out = out.slice(0, e.start) + e.text + out.slice(e.end);
     return out;
+}
+/** The position of a source offset. */
+function offsetPos(offset, starts) {
+    let lo = 0, hi = starts.length - 1;
+    while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (starts[mid] <= offset)
+            lo = mid;
+        else
+            hi = mid - 1;
+    }
+    return { line: lo + 1, col: offset - starts[lo] + 1, offset };
+}
+/** Each rewritten body's rewrites, keyed by the body's owner (an attribute's
+ *  code value, a declaration's default, a method) — recorded as compile()
+ *  applies them, so a diagnostic in the rewritten text is carried back. */
+export const bodyRewrites = new WeakMap();
+/** An offset in a rewritten body, carried back to the author's text: a
+ *  position inside a rewrite lands at its start. */
+function unrewrite(offset, rewrites) {
+    let delta = 0;
+    for (const r of rewrites) {
+        const at = r.start + delta;
+        if (offset < at)
+            break;
+        if (offset < at + r.text.length)
+            return r.start;
+        delta += r.text.length - (r.end - r.start);
+    }
+    return offset - delta;
 }
 function posAt(line, col, starts) {
     const lineStart = starts[Math.min(line - 1, starts.length - 1)] ?? 0;

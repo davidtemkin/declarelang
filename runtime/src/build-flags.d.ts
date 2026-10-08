@@ -49,3 +49,10 @@ declare const __DECLARE_JS_KERNEL__: boolean;
 //     means the compiled kernel, with the JavaScript one reachable through the
 //     __DECLARE_JS_KERNEL__ debugging switch.
 declare const __DECLARE_KERNEL__: "wasm" | "js" | "native";
+//   __DECLARE_PRODUCTION__  a production app build (declarec without --debug).
+//     It drops the checks that exist to tell a DEVELOPER something about their
+//     program at a cost the person using it would pay — a raster read back to
+//     see whether the browser painted it (a GPU-to-CPU sync, dearest on
+//     Safari). Absent everywhere else — the dev server, the platform tree, the
+//     tests — where those checks run and report.
+declare const __DECLARE_PRODUCTION__: boolean;

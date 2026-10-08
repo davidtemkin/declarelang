@@ -86,6 +86,29 @@ await test("a child list change re-lists the rule; a 3D child hands the derive b
   app.discard();
 });
 
+await test("a drag inside a container whose size was set since leaves that size alone", async () => {
+  // A drag declines the container's kernel rule (view.ts freezeHome). A size
+  // written or bound since then displaced the rule already: the size is that
+  // owner's, and the decline must not derive over it.
+  const src = `App [ width = 800, height = 600, box: View [ x = 0, y = 0, width = 200,
+    card: View [ y = 100, width = 80, height = 50, sy: number = 0,
+      onPointerDown(e: PointerEvent) { this.sy = this.y },
+      onPointerMove(e: PointerEvent) { this.y = this.sy + e.deltaY } ] ] ]`;
+  const r = await compile(src, { originDir: process.cwd() });
+  const app = settleSource(r.source, { deps: r.deps }); settle();
+  assert.ok(ownerOf(app.box, "height")?.isNative, "sized from its content, by the kernel");
+  assert.equal(app.box.height, 150);
+  app.box.height = 240; settle();
+  const sink = app.box.card.$inputSink();
+  sink("pointerDown", 10, 110, { deltaX: 0, deltaY: 0 });
+  sink("pointerMove", 10, 140, { deltaX: 0, deltaY: 30 }); settle();
+  assert.equal(app.box.card.y, 130, "the card follows the hand");
+  assert.equal(app.box.height, 240, "the size written stands through the drag");
+  sink("pointerUp", 10, 140, { deltaX: 0, deltaY: 30 }); settle();
+  assert.equal(app.box.height, 240, "and after it");
+  app.discard();
+});
+
 await test("a rich text's fontScale is TYPE, not geometry: the container measures what is painted", async () => {
   // The bug this pins: a font multiplier that reached the geometry slot made a
   // flow measure `scale` times its painted height, so whatever stacked below it

@@ -153,6 +153,19 @@ export function inspect(node, path = "app") {
             break;
         }
     }
+    let inView = shown && v !== null;
+    if (inView) {
+        let box = rootFrameBox(v);
+        let child = v;
+        for (let p = child.parent; p instanceof View && box.width > 0 && box.height > 0; child = p, p = child.parent) {
+            const pv = p;
+            const clipsChild = pv.scrolls !== "none" || pv.parent === null
+                || (pv.clip !== null && pv.clip !== false && pv.clip !== "" && !child.ignoreClip);
+            if (clipsChild)
+                box = intersectBox(box, rootFrameBox(pv));
+        }
+        inView = box.width > 0 && box.height > 0;
+    }
     const record = {
         kind: kindName(node),
         name: nameOf(node),
@@ -161,6 +174,7 @@ export function inspect(node, path = "app") {
         rootX, rootY, rootWidth, rootHeight,
         visible: v?.visible ?? true,
         shown,
+        inView,
         attrs: safeAttr(ownValues(node)),
         children: node.children.map((c, i) => {
             const childName = nameOf(c);
@@ -176,6 +190,10 @@ export function inspect(node, path = "app") {
             record.materialization = w;
     }
     return record;
+}
+function intersectBox(a, b) {
+    const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+    return { x, y, width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - x), height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - y) };
 }
 /** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
  *  Returns null (never throws) on a miss — the caller owns the message. */
@@ -468,7 +486,7 @@ export function bridgeFor(root) {
 }
 /** One line per bridge call — what it answers and the shape it takes. */
 const BRIDGE_HELP = {
-    inspect: "inspect(path?) — the node as data: kind, attrs summary, children. Start here; paths look like 'app.sidebar.list'",
+    inspect: "inspect(path?) — the node as data: kind, attrs summary, shown (no hidden ancestor) and inView (not clipped away either), children. Start here; paths look like 'app.sidebar.list'",
     find: "find(path) — the live node object itself (attributes readable/writable directly)",
     explain: "explain(path, attr) — the slot's value AND its provenance: owning constraint or declaration default, source text, line, extracted deps. THE 'why is this value what it is' call",
     slots: "slots(path) — every slot on the node: written, constraint-owned, and author-declared (with origin). Enumeration — how you discover what to assert on",

@@ -93,6 +93,18 @@ export declare class Windowing {
         views: View[];
         items: unknown[];
     };
+    /** Is the list, and everything it sits in, visible? */
+    private shownChain;
+    private hidden;
+    /** Parked rows kept, in rows (two screens' worth), and when the reader last moved. */
+    private poolCap;
+    private movedL;
+    private movedAt;
+    private drainTimer;
+    /** The parked rows let go: a list at rest keeps only the rows in reach. */
+    private dropPool;
+    /** Still for a second: let the parked rows go (a pass, so the tree changes inside an update). */
+    private drainWhenStill;
     findScroller(): View | null;
     /** Where the rows' own coordinates start in the scroller's content: the
      *  parent's top padding and each box's place up the chain (the scroll

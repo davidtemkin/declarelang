@@ -70,6 +70,28 @@ await test("shown: EFFECTIVE visibility, folding in every ancestor", async () =>
   app.discard();
 });
 
+await test("inView: shown, and some of the box survives every clip above it", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    stage: View [ width = 400, height = 200, clip = true,
+      here: View [ x = 10, y = 10, width = 100, height = 100, row: View [ width = 50, height = 20 ] ],
+      away: View [ x = 500, y = 0, width = 100, height = 100, row: View [ width = 50, height = 20 ] ],
+      loose: View [ x = 500, y = 0, width = 100, height = 100, ignoreClip = true ] ],
+    list: View [ y = 200, width = 200, height = 50, scrolls = y,
+      View [ width = 200, height = 400 ],
+      far: View [ y = 300, width = 200, height = 20 ] ] ]`);
+  const at = (p) => inspect(find(app, p));
+  assert.equal(at("app.stage.here.row").inView, true);
+  assert.equal(at("app.stage.away.row").shown, true, "shown: nothing hides it");
+  assert.equal(at("app.stage.away.row").inView, false, "but its pane is off-stage, clipped away");
+  assert.equal(at("app.stage.loose").inView, false, "escaping the stage's clip still leaves it outside the App");
+  assert.equal(at("app.list.far").inView, false, "below a scroller's fold");
+  find(app, "app.list").scrollY = 290; settle();
+  assert.equal(at("app.list.far").inView, true, "scrolled into its frame");
+  find(app, "app.stage.away").x = 300; settle();
+  assert.equal(at("app.stage.away.row").inView, true, "partly on stage is in view");
+  app.discard();
+});
+
 await test("geometry under scroll: rootX/rootY is where the view is SEEN", async () => {
   // Reported 2026-08-03: a driver could not reach anything below a scrolled
   // pane's fold and had to subtract scrollY by hand. inspect() summed ancestor

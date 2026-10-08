@@ -742,6 +742,11 @@ export function providedRead(self: object, name: string, hasDefault: boolean, df
   // never provides one renders in the house preset. The default lives here,
   // once, so no reader has to carry it.
   if (name === "theme") { remember(null); return THEME_PRESETS.SanFrancisco; }
+  // A wire() probe only collects what a rule reads, and swallows what throws:
+  // a row probed before it reaches its provider has nothing to collect here,
+  // and an error built only to be dropped costs its stack (measured: ~3 ms of
+  // a 22-row build). The rule's own run still meets the refusal below.
+  if (S.collecting !== null) return undefined;
   throw new DeclareError(
     `provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`
   );

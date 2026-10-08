@@ -219,18 +219,36 @@ function nameablePath(n) {
         return "this";
     if (ts.isIdentifier(n))
         return n.text;
+    // a datapath read is a path too, rooted at the cursor: `:@` is ":", `:who` is
+    // ":who" — the same `:path` currency the reads are recorded in, so a method
+    // reading `t.name` through a parameter handed `:@` reads `:name`
+    if (ts.isCallExpression(n)) {
+        const a0 = n.arguments[0];
+        if (ts.isIdentifier(n.expression) && n.expression.text === "$DP0" && n.arguments.length === 1 && a0 !== undefined && ts.isStringLiteral(a0))
+            return ":" + a0.text;
+        if (ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === "$data" && n.expression.expression.kind === ts.SyntaxKind.ThisKeyword && n.arguments.length === 1) {
+            const text = ts.isArrayLiteralExpression(a0) ? planLiteralText(a0) : ts.isStringLiteral(a0) ? splitPath(a0.text).join(".") : null;
+            return text === null ? null : ":" + text;
+        }
+        return null;
+    }
     if (ts.isPropertyAccessExpression(n)) {
         const b = nameablePath(n.expression);
-        return b === null ? null : `${b}.${n.name.text}`;
+        return b === null ? null : joinPath(b, `.${n.name.text}`);
     }
     if (ts.isElementAccessExpression(n)) {
         const idx = n.argumentExpression;
         if (idx === undefined || !(ts.isNumericLiteral(idx) || ts.isStringLiteral(idx)))
             return null;
         const b = nameablePath(n.expression);
-        return b === null ? null : `${b}[${idx.getText()}]`;
+        return b === null ? null : joinPath(b, `[${idx.getText()}]`);
     }
     return null;
+}
+/** A path extended by a member or an index: the cursor's own record (`:`)
+ *  takes the member as its first step (`:` + `.name` is `:name`). */
+function joinPath(base, rest) {
+    return base === ":" ? ":" + rest.replace(/^\./, "") : base + rest;
 }
 /** Harvest each script block's top-level declarations. Function declarations and
  *  `const f = (…) => …` become followable callees; `let`/`var` bindings become
@@ -981,7 +999,7 @@ function rebaseIn(path, frame) {
                     ? `${frame.who} is passed as a value, but its body reads through its '${root}' parameter — those reads can't be wired without a call site to name them; call ${frame.who}(…) here instead`
                     : `${frame.who}(…) reads through its '${root}' parameter, but the argument passed for it is not a nameable path — pass the node or attribute by name (app.card, this.item) so the read can be wired`) };
         }
-        return { ok: true, path: arg + path.slice(root.length) };
+        return { ok: true, path: joinPath(arg, path.slice(root.length)) };
     }
     if (frame.receiver !== null)
         return { ok: true, path: rebase(path, frame.receiver) };

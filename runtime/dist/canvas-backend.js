@@ -120,7 +120,7 @@ import { colorToCss, insetCss, insetSides, isGradient, radiusFit, radiusIsSquare
 import { filterCss } from "./effects.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines } from "./measure.js";
-import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
+import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, blankRasterMessage, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
 import { onDprChange } from "./dpr.js";
@@ -266,7 +266,9 @@ const OP_US = 1;
 const PX_US_PER_MPX = 50;
 const PROMOTE_US = 1000;
 /** Below this a blank check is not worth its GPU sync; above it, a raster that
- *  painted nothing is exactly the failure the check exists to catch. */
+ *  painted nothing is exactly the failure the check exists to catch. The check
+ *  is the developer's: a production build never reads a raster back, and a
+ *  development one reports the drawing by name (blankRasterMessage). */
 const BLANK_CHECK_BYTES = 8 << 20;
 // a diag window into the pool (the __declareDiag family): entries and bytes,
 // so a session growing rasters is visible rather than mysterious
@@ -1712,8 +1714,9 @@ class CanvasSurface {
         this.clipPath = null;
         this.compositor.invalidate(this);
     }
-    setDrawing(list) {
+    setDrawing(list, owner) {
         this.drawing = list;
+        this.owner = owner;
         releaseRaster(this); // a new recording invalidates the memo by identity
         this.rasterPending = null; // …and orphans a raster in flight (dropped on arrival)
         this.rasterSeen = null;
@@ -1728,6 +1731,8 @@ class CanvasSurface {
     rasterEntry = null;
     /** A raster the worker is making for this surface (raster-client.ts); the
      *  arrival installs it only if this is still the request it answers. */
+    /** The view whose drawing this is (setDrawing), named by a blank report. */
+    owner = undefined;
     rasterPending = null;
     rasterSeen = null;
     rasterScalePending = null;
@@ -1868,7 +1873,7 @@ class CanvasSurface {
                 const req = { list, sx, sy, bx, by, w, h, bytes };
                 this.rasterPending = req;
                 memoAttempts++;
-                void rasterInWorker({ list, sx, sy, bx, by, w, h, blankCheck: bytes > BLANK_CHECK_BYTES }).then((r) => {
+                void rasterInWorker({ list, sx, sy, bx, by, w, h, blankCheck: (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && bytes > BLANK_CHECK_BYTES }).then((r) => {
                     if (this.rasterPending !== req) {
                         r?.bitmap.close();
                         return;
@@ -1878,7 +1883,8 @@ class CanvasSurface {
                         this.compositor.invalidate(this);
                         return;
                     } // the worker could not: the next paint rasters in place
-                    if (r.blank) {
+                    if ((typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && r.blank) {
+                        console.error(blankRasterMessage(this.owner?.$drawingName?.(), w, h));
                         r.bitmap.close();
                         budgetScale = Math.max(0.125, budgetScale * 0.5); // a DISCOVERED ceiling
                         globalThis.__declareRasterErr = "raster came back blank";
@@ -1929,8 +1935,10 @@ class CanvasSurface {
             // the platform may silently drop a raster later (GPU process restart);
             // a lost context releases the entry and the next paint re-derives
             cv.addEventListener?.("contextlost", () => { releaseRaster(this); this.compositor.invalidate(this); });
-            if (bytes > BLANK_CHECK_BYTES && rasterLooksBlank(cv, list, sx, sy, bx, by))
+            if ((typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && bytes > BLANK_CHECK_BYTES && rasterLooksBlank(cv, list, sx, sy, bx, by)) {
+                console.error(blankRasterMessage(this.owner?.$drawingName?.(), w, h));
                 throw new Error("raster came back blank");
+            }
         }
         catch (err) {
             // a DISCOVERED ceiling: live under it for the rest of the session

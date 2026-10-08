@@ -1,6 +1,21 @@
 import { type Program, type Span, type Element, type IncludeRef } from "./parser.js";
 import { DeclareError } from "./errors.js";
-export declare function spliceScriptFiles(source: string, refs: readonly IncludeRef[] | undefined, spans: readonly Span[] | undefined, fromDir: string, host: IncludeHost, errors: DeclareError[], excise?: readonly Span[]): Promise<string>;
+/** One edit the splice made, in the ORIGINAL text's coordinates: the span it
+ *  replaced (`was`) and the text that replaced it. `files` names each script file whose
+ *  `script {` block the text holds, at its offset in `text` — so a position in
+ *  the spliced source can be carried back to the line the author wrote, in the
+ *  program or in the script file. */
+export interface Splice {
+    start: number;
+    end: number;
+    was: string;
+    text: string;
+    files: {
+        at: number;
+        file: string;
+    }[];
+}
+export declare function spliceScriptFiles(source: string, refs: readonly IncludeRef[] | undefined, spans: readonly Span[] | undefined, fromDir: string, host: IncludeHost, errors: DeclareError[], excise?: readonly Span[], applied?: Splice[]): Promise<string>;
 export declare function exciseSpans(source: string, spans: readonly Span[]): string;
 /** The file-access abstraction include resolution rides (composition.md §1).
  *  `resolve` maps an include path (relative to the including file's dir) to a
@@ -55,6 +70,7 @@ export declare function resolveIncludes(program: Program, host: IncludeHost, ori
     program: Program;
     sources: string[];
     sourceIds: string[];
+    sourceSplices: Splice[][];
     errors: DeclareError[];
     visited: Set<string>;
 }>;
@@ -96,5 +112,6 @@ mainSource?: string): Promise<{
     program: Program;
     sources: string[];
     sourceIds: string[];
+    sourceSplices: Splice[][];
     errors: DeclareError[];
 }>;

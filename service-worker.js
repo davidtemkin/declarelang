@@ -32,11 +32,14 @@ import { requestType, REQ, runWrapper, programName, escapeHtml, directoryProgram
 import { prewarmKey, relativize } from "./browser/prewarm-cache.js";
 import { hasSegments } from "./browser/prewarm-manifest.js";
 import { fnv1a } from "./compiler/dist/closure.js";
+// the segmenter the dev server and the source page run: dependency-free (no
+// compiler), so a `?segments` with no prebaked artifact is computed here
+import { highlight, lineMetrics } from "./compiler/dist/highlight.js";
 
 // BUILD_ID — a content hash of the platform (runtime + compiler bundle + web client +
 // this worker + index.html), stamped by tools/internal/stamp-version.mjs. Left "dev" when unstamped
 // (local serving); a real deploy stamps it so cache-busting + the SW self-update engage.
-const BUILD_ID = "e2a9fde32b32";
+const BUILD_ID = "498b9fa223df";
 
 const ROOT = new URL("./", self.location);            // <origin>/…/  (this worker's dir == the distro root)
 const ORIGIN = ROOT.origin;
@@ -130,23 +133,28 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(revalidate(req));
 });
 
-// SEGMENTS: serve the prebaked viewer artifact for this program — the same
-// { path, segments, metrics } JSON the dev server computes — after proving it
-// still matches the deployed source (one content-hash check against the one
-// file segments derive from). Any failure falls through to the raw bytes.
+// SEGMENTS: the same { path, segments, metrics } JSON the dev server computes.
+// A prewarmed program's prebaked artifact is served after proving it still
+// matches the deployed source (one content-hash check against the one file
+// segments derive from); any other file — an include, a program off the list,
+// a stale artifact — is segmented here, over the source just fetched. Only a
+// failed fetch falls through to the raw response.
 async function segmentsResponse(url, req) {
   try {
     const mainUrl = new URL(url.pathname, url.origin);
     const rel = relativize(mainUrl.href, ROOT.href);
-    // Ask the manifest FIRST, at no request cost: only prewarmed programs ship
-    // viewer artifacts, so an ordinary program goes straight to its raw bytes
-    // instead of discovering the answer as a 404 (browser/prewarm-manifest.js).
-    if (!hasSegments(rel)) return revalidate(req);
-    const art = await (await revalidate(new Request(new URL("bundles/cache/" + prewarmKey(rel, "segments", {}) + ".json", ROOT).href))).json();
-    const src = await (await revalidate(new Request(mainUrl.href))).text();
-    const want = art?.closure?.entries?.[0]?.v?.hash;
-    if (art?.payload == null || want == null || fnv1a(src) !== want) return revalidate(req);
-    return new Response(JSON.stringify(art.payload), { headers: { "content-type": "application/json" } });
+    const res = await revalidate(new Request(mainUrl.href));
+    if (!res.ok) return res;
+    const src = await res.text();
+    const segments = (payload) => new Response(JSON.stringify(payload), { headers: { "content-type": "application/json" } });
+    // Ask the manifest first, at no request cost: only prewarmed programs ship
+    // viewer artifacts (browser/prewarm-manifest.js).
+    if (hasSegments(rel)) {
+      const art = await (await revalidate(new Request(new URL("bundles/cache/" + prewarmKey(rel, "segments", {}) + ".json", ROOT).href))).json().catch(() => null);
+      const want = art?.closure?.entries?.[0]?.v?.hash;
+      if (art?.payload != null && want != null && fnv1a(src) === want) return segments(art.payload);
+    }
+    return segments({ path: rel, segments: highlight(src), metrics: lineMetrics(src) });
   } catch {
     return revalidate(req);
   }

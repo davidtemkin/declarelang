@@ -625,6 +625,8 @@ export async function buildProduction(source, opts = {}) {
       __DECLARE_INLINE_KERNEL__: "true",
       __DECLARE_JS_KERNEL__: "false",   // a production build carries no debug kernel, not even its switch
       __DECLARE_KERNEL__: JSON.stringify(props.kernel),
+      // the developer's checks stay in a --debug build (build-flags.d.ts)
+      __DECLARE_PRODUCTION__: opts.debug ? "false" : "true",
     },
     write: false, legalComments: "none", metafile: true,
     plugins: [...(slim ? [slimPlugin] : []), capabilityPlugin, ...(opts.debug || ship.inspector ? [] : [errorCodePlugin])],

@@ -51,6 +51,12 @@ export interface InspectNode {
    *  is the case a reader is usually chasing — `visible: true` on a node
    *  inside a hidden panel is true and useless on its own. */
   shown: boolean;
+  /** Whether any of it can be SEEN: shown, and some of its box survives every
+   *  clip above it — a scroller's frame, a clipping view's box (unless the
+   *  child on the way escapes with `ignoreClip`), and the App's own frame. A
+   *  row in a pane positioned off-stage is shown and not in view. The same
+   *  clips the hit walk honours, read as boxes. */
+  inView: boolean;
   text?: string;
   /** The node's OWN attribute values (instance writes and bound results —
    *  the overlay over class defaults). A snapshot. */
@@ -183,6 +189,18 @@ export function inspect(node: Node, path = "app"): InspectNode {
   for (let n: Node | null = node; n !== null; n = n.parent) {
     if (isView(n) && !n.visible) { shown = false; break; }
   }
+  let inView = shown && v !== null;
+  if (inView) {
+    let box = rootFrameBox(v as unknown as InteractionView) as { x: number; y: number; width: number; height: number };
+    let child = v as unknown as InteractionView;
+    for (let p = child.parent; p instanceof View && box.width > 0 && box.height > 0; child = p as unknown as InteractionView, p = child.parent) {
+      const pv = p as unknown as InteractionView;
+      const clipsChild = pv.scrolls !== "none" || pv.parent === null
+        || (pv.clip !== null && pv.clip !== false && pv.clip !== "" && !child.ignoreClip);
+      if (clipsChild) box = intersectBox(box, rootFrameBox(pv));
+    }
+    inView = box.width > 0 && box.height > 0;
+  }
   const record: InspectNode = {
     kind: kindName(node),
     name: nameOf(node),
@@ -191,6 +209,7 @@ export function inspect(node: Node, path = "app"): InspectNode {
     rootX, rootY, rootWidth, rootHeight,
     visible: v?.visible ?? true,
     shown,
+    inView,
     attrs: safeAttr(ownValues(node)) as Record<string, unknown>,
     children: node.children.map((c, i) => {
       const childName = nameOf(c);
@@ -204,6 +223,11 @@ export function inspect(node: Node, path = "app"): InspectNode {
     if (w !== null) record.materialization = w;
   }
   return record;
+}
+
+function intersectBox(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }): { x: number; y: number; width: number; height: number } {
+  const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
+  return { x, y, width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - x), height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - y) };
 }
 
 /** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
@@ -531,7 +555,7 @@ export function bridgeFor(root: Node): Record<string, unknown> {
 
 /** One line per bridge call — what it answers and the shape it takes. */
 const BRIDGE_HELP: Record<string, string> = {
-  inspect: "inspect(path?) — the node as data: kind, attrs summary, children. Start here; paths look like 'app.sidebar.list'",
+  inspect: "inspect(path?) — the node as data: kind, attrs summary, shown (no hidden ancestor) and inView (not clipped away either), children. Start here; paths look like 'app.sidebar.list'",
   find: "find(path) — the live node object itself (attributes readable/writable directly)",
   explain: "explain(path, attr) — the slot's value AND its provenance: owning constraint or declaration default, source text, line, extracted deps. THE 'why is this value what it is' call",
   slots: "slots(path) — every slot on the node: written, constraint-owned, and author-declared (with origin). Enumeration — how you discover what to assert on",

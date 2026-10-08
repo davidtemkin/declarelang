@@ -11,12 +11,16 @@
 // the rest of it is.
 //
 // ROWS STAY MOUNTED. A record's row, once built, stays where it is while it is
-// within reach of the viewport (two viewports either side, up to a cap), and
-// scrolls with the page like any other view. Rows are built ahead of the
-// viewport in the direction of travel, so they are measured before they are
-// seen. A row that falls out of reach is parked and later re-pointed at an
-// arriving record; a row the user has touched, or that holds the focus, is
-// never parked.
+// within reach of the viewport (the viewport, one ahead in the direction of
+// travel and half behind, then a viewport's keep either side), and scrolls with
+// the page like any other view. Rows are built ahead of the viewport in the
+// direction of travel, so they are measured before they are seen. A row that
+// falls out of reach is parked and later re-pointed at an arriving record — a
+// scrub jumps a screen at a time, so two screens of parked rows serve it — and
+// the parked rows are let go once the list has been still for a second. A row
+// the user has touched, or that holds the focus, is never parked. A hidden
+// list builds nothing new: a list never shown has no rows, and one the user
+// has seen keeps the rows it had, so it opens again at once.
 //
 // KEEPING THE READER'S PLACE. A correction — a row measuring other than its
 // estimate, a record arriving above — moves every row below it. When it lands
@@ -57,7 +61,8 @@ import { heldAtEnd } from "./scroll-anchor.js";
 import { insetLead } from "./value.js";
 import { armTree, focusedWithin, reportInstanceThrow, subtreeDiverged } from "./replicate.js";
 const DEFAULT_UNIT = 24; // pre-measurement row-extent estimate (corrected by the first real row)
-const POOL_CAP = 200; // parked rows kept for re-pointing (a jump parks, never tears down, a reach's worth)
+const POOL_SCREENS = 2; // parked rows kept for re-pointing, in screens of rows: a jump needs a screen
+const POOL_QUIET = 1000; // ms of stillness before the parked rows are let go
 const LOOKAHEAD_PER_PASS = 8; // rows beyond the viewport one pass builds
 const JUMP_QUIET = 150; // ms after a jump before rows ahead are built again
 const HAS_FRAMES = typeof globalThis.requestAnimationFrame === "function";
@@ -223,7 +228,8 @@ export class Windowing {
     measureCell = new Cell();
     constructor(host) {
         this.host = host;
-        onDiscard(host.parent, () => this.dropHeightOwner());
+        onDiscard(host.parent, () => { this.dropHeightOwner(); if (this.drainTimer !== null)
+            clearTimeout(this.drainTimer); });
     }
     // ── the window API (replicate.ts' kernel window door) ──────────────────
     realized() {
@@ -282,6 +288,46 @@ export class Windowing {
         return { views: sorted.map((r) => r.view), items: sorted.map((r) => this.items[r.index]) };
     }
     // ── the match: the tracked half ───────────────────────────────────────
+    /** Is the list, and everything it sits in, visible? */
+    shownChain() {
+        for (let v = this.host.parent; v instanceof View; v = v.parent)
+            if (!v.visible)
+                return false;
+        return true;
+    }
+    hidden = false;
+    /** Parked rows kept, in rows (two screens' worth), and when the reader last moved. */
+    poolCap = 8;
+    movedL = null;
+    movedAt = 0;
+    drainTimer = null;
+    /** The parked rows let go: a list at rest keeps only the rows in reach. */
+    dropPool() {
+        if (this.pool.length === 0)
+            return;
+        const parent = this.host.parent;
+        const gone = new Set(this.pool.splice(0));
+        for (const v of gone) {
+            markEvicting(v);
+            parent.removeChild(v);
+            v.discard();
+        }
+        this.owned = this.owned.filter((o) => !gone.has(o));
+        parent.$childrenMutated();
+    }
+    /** Still for a second: let the parked rows go (a pass, so the tree changes inside an update). */
+    drainWhenStill() {
+        if (this.pool.length === 0)
+            return;
+        const still = (typeof performance !== "undefined" ? performance.now() : 0) - this.movedAt;
+        if (still >= POOL_QUIET) {
+            this.dropPool();
+            return;
+        }
+        if (this.drainTimer !== null)
+            return;
+        this.drainTimer = setTimeout(() => { this.drainTimer = null; this.measureCell.changed(); }, POOL_QUIET - still);
+    }
     findScroller() {
         for (let v = this.host.parent; v instanceof View; v = v.parent) {
             const ax = v.scrolls;
@@ -394,6 +440,18 @@ export class Windowing {
                 y += scroller.scrollY - before;
             }
         }
+        // hidden — the list, or anything it sits in: nothing of it is on screen, so
+        // it builds nothing new and keeps its place (the reader's member, the
+        // offset, the heights measured) and the rows it has; shown again, the range
+        // is completed where it was, in the same update. (The visibility read is
+        // tracked: showing wakes it.)
+        this.hidden = !this.shownChain();
+        if (this.hidden) {
+            this.from = this.to = 0;
+            this.inViewFrom = 0;
+            this.inViewTo = -1;
+            return { data, nodes: [], items: arr, arrayPath, logical: n, start: 0, unit: this.unit, windowed: true, dataChanged, leading: this.leading };
+        }
         const lead = host.leadingAnchor();
         this.leading = lead !== null ? lead.y + lead.height + gap : 0;
         this.trailing = this.trailingSiblings(gap);
@@ -457,8 +515,8 @@ export class Windowing {
         }
         this.lastP = y - offset - this.leading;
         const l = this.lastP - this.dev; // the viewport's top, in ledger coordinates
-        // the build range: the viewport and a viewport either side, two ahead in
-        // the direction of travel
+        // the build range: the viewport, one ahead in the direction of travel and
+        // half a viewport behind
         if (this.lastL !== null && l !== this.lastL)
             this.travel = l < this.lastL ? -1 : 1;
         // a jump (more than a screenful since the last pass): rows ahead would be
@@ -481,8 +539,8 @@ export class Windowing {
         this.jumping = jumping;
         this.lastL = l;
         const first = this.ledger.indexAt(Math.max(0, l));
-        let from = this.ledger.indexAt(Math.max(0, l - viewH * (this.travel < 0 ? 2 : 1)));
-        let to = Math.min(n, this.ledger.indexAt(Math.max(0, l + viewH * (this.travel > 0 ? 3 : 2))) + 1);
+        let from = this.ledger.indexAt(Math.max(0, l - viewH * (this.travel < 0 ? 1 : 0.5)));
+        let to = Math.min(n, this.ledger.indexAt(Math.max(0, l + viewH * (this.travel > 0 ? 2 : 1.5))) + 1);
         // under a held thumb the range is frozen: a row past its end could not be
         // reached, and the browser would count it in the range anyway — none is
         // built there, and none is kept
@@ -499,7 +557,12 @@ export class Windowing {
         this.to = to;
         this.inViewFrom = Math.min(first, Math.max(0, n - 1));
         this.inViewTo = Math.min(this.ledger.indexAt(Math.max(0, l + viewH)), Math.max(0, n - 1));
-        this.keepRows = Math.ceil((2 * viewH) / Math.max(1, this.ledger.est));
+        this.keepRows = Math.ceil(viewH / Math.max(1, this.ledger.est));
+        this.poolCap = Math.max(8, Math.ceil((POOL_SCREENS * viewH) / Math.max(1, this.ledger.est)));
+        if (l !== this.movedL) {
+            this.movedL = l;
+            this.movedAt = now;
+        }
         // the reader's member: the first row wholly in view (a row across the top
         // edge is above it, and grows upward, out of view), and the first record
         // whenever it is in view, so a correction never pushes the start down
@@ -578,7 +641,7 @@ export class Windowing {
             }
             this.rows.delete(id);
             fireRetireTree(r.view);
-            if (this.pool.length < POOL_CAP && !subtreeDiverged(r.view) && !focusedWithin(r.view)) {
+            if (this.pool.length < this.poolCap && !subtreeDiverged(r.view) && !focusedWithin(r.view)) {
                 clearRetiredTree(r.view);
                 this.park(r.view);
             }
@@ -628,6 +691,16 @@ export class Windowing {
                     pointed.add(r.view);
                 }
             }
+        }
+        if (this.hidden) {
+            // hidden: the rows already built stay — a pane the user left opens again
+            // at once — and only the parked ones go; nothing new is built
+            this.dropPool();
+            const base = this.leading + this.dev;
+            for (const r of this.rows.values())
+                setBound(r.view, "y", base + this.ledger.offset(r.index));
+            this.publish(Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + (parent.insetY ?? 0)));
+            return;
         }
         // measure: each mounted row's extent, a correction above the reader absorbed
         let moved = false, above = 0;
@@ -681,7 +754,7 @@ export class Windowing {
         }
         for (const [id, r] of out) {
             this.rows.delete(id);
-            if (this.pool.length < POOL_CAP)
+            if (this.pool.length < this.poolCap)
                 this.park(r.view);
             else {
                 markEvicting(r.view);
@@ -836,6 +909,7 @@ export class Windowing {
             this.afterJumps();
         else if (this.unfilled)
             this.nextFrame();
+        this.drainWhenStill();
         if (!moved && pointed.size === 0)
             return;
         let covered = true;

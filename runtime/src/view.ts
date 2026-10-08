@@ -677,6 +677,14 @@ export class View extends Node {
     p.$childListChanged();
   }
 
+  /** This view as a developer's report names it: its path from the App and
+   *  its class (`app.chart.plot (YearChart)`). */
+  $drawingName(): string {
+    const parts: string[] = [];
+    for (let n: Node = this; n.parent !== null; n = n.parent) parts.unshift(authoredName(n) ?? String(n.parent.children.indexOf(n)));
+    return `${["app", ...parts].join(".")} (${this.constructor.name})`;
+  }
+
   $setVirtualExtent(h: number | null): void {
     this.$surface?.setVirtualExtent?.(h);
     const v = h ?? 0;
@@ -730,6 +738,9 @@ export class View extends Node {
     k.onDecline = () => {
       const d = EXTENT.get(this);
       if (d === undefined || d[size] !== k) return;
+      // displaced already — a binding or a state set this size since: the
+      // size is that owner's, and there is nothing to take over
+      if (ownerOf(this, size) !== k) { delete d[size]; return; }
       k.dispose(); release(this, size, k);
       d[size] = markExtent(bindDerived(this, size, () => this.$extentOf(size)));
     };
@@ -1474,7 +1485,7 @@ export class View extends Node {
       () => record((d) => this.draw!(d), () => this.width, () => this.height),
       // Constraint is deliberately untyped across compute→apply (reactive.ts);
       // this apply's input is exactly its compute's output.
-      (list) => this.$surface?.setDrawing(list as DisplayList),
+      (list) => this.$surface?.setDrawing(list as DisplayList, this),
       1
     );
     this.$drawing.run();

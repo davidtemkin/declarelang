@@ -61,11 +61,10 @@ export declare class DomSurface implements Surface {
     /** Device px per view unit of the raster currently in the canvas; 0 = none. */
     private rasterK;
     private rasterBytes;
-    /** The densest raster the platform has NOT refused for this view. A blank
-     *  at density k sets this to k/2 for the life of the surface: the ceiling was
-     *  discovered once, and every later re-record lives under it rather than
-     *  re-discovering it with a blank raster and a check apiece. */
-    private maxK;
+    /** The view whose drawing this is (setDrawing), named by a blank report. */
+    private owner;
+    /** A blank raster of this drawing was reported: once is enough. */
+    private blankReported;
     /** Set once the drawing raster has ever existed (arms the dpr watch once). */
     private watching;
     private gone;
@@ -422,7 +421,7 @@ export declare class DomSurface implements Surface {
      *  weather's `stretches=width` tab art). The element is always loaded
      *  when it crosses the seam, so the natural size is known. */
     private applyStretch;
-    setDrawing(list: DisplayList | null): void;
+    setDrawing(list: DisplayList | null, owner?: object): void;
     /** Rasterize the recording into this view's canvas at DENSITY k — device
      *  pixels per view unit. The CSS box stays the recording's bounds in view
      *  units, so a CSS transform above this element scales the canvas's box

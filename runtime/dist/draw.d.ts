@@ -449,11 +449,16 @@ export declare function rasterTotalCap(viewportBytes: number): number;
  *  transparent, Firefox blanks a DOM canvas at ~130 MB (measured 2026-08-25),
  *  and no timing sees either — a blank frame is a fast one. Sampled at a few
  *  op centres, which is a GPU sync, so a caller runs it once per fresh raster
- *  and only past a size worth the sync. A recording that truly paints
- *  transparent at every sampled centre reads as blank; the caller's recovery
- *  (vectors on canvas, a lower density on DOM) is slower, never wrong.
+ *  and only past a size worth the sync — and never in a production build: it
+ *  is a check for the developer, who is told which drawing the browser
+ *  refused. It is a heuristic: a recording whose sampled centres are truly
+ *  transparent (an op painted clear, or clipped away) reads as blank.
  *  `sx, sy` are the raster's density and `bx, by` its origin in recording
  *  units — the same numbers the raster was made with. */
+/** The developer's report of a raster that looks blank (rasterLooksBlank):
+ *  which view's drawing (`who`, its path from the App, when known), and the
+ *  size of the raster the browser was asked for. */
+export declare function blankRasterMessage(who: string | undefined, w: number, h: number): string;
 /** A canvas-shaped surface this module can draw into: an HTMLCanvasElement on
  *  the page, an OffscreenCanvas in the raster worker (the same 2D API). */
 export interface CanvasLike {

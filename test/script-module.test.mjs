@@ -54,6 +54,25 @@ await test("the dependency closure records the script file — the dev loop's fr
   assert.ok(files.some((f) => f.endsWith("/helpers.ts")), JSON.stringify(files));
 });
 
+await test("an error after a script file is positioned where the author wrote it — the file's lines are not counted", async () => {
+  F("long.ts", "export function one() { return 1 }\n".repeat(30));
+  const main = `script [ "long.ts" ]\nApp [ go(n: number) { },\n    t: Text [ text = { "" + app.go("x") } ] ]`;
+  const r = await compile(main, { originDir: DIR });
+  assert.equal(r.source, null);
+  const e = r.errors[0];
+  assert.equal(e.pos.file, undefined, "the program's own file");
+  assert.equal(e.pos.line, 3);
+  assert.equal(e.pos.col, main.split("\n")[2].indexOf('"x"') + 1, "the column of the text written, not of the rewritten body");
+});
+
+await test("in an included file, an error after its script file is on that file's own line", async () => {
+  writeFileSync(join(DIR, "longroom.declare"), `script [ "long.ts" ]\nclass LongRoom extends View [\n  widht = 1 ]\n`);
+  const r = await compile(`include [ "longroom.declare" ]\nApp [ LongRoom [ ] ]`, { originDir: DIR });
+  assert.equal(r.source, null);
+  assert.equal(r.errors[0].pos.file, "longroom.declare");
+  assert.equal(r.errors[0].pos.line, 3);
+});
+
 await test("a missing script file is a positioned error, like a missing include", async () => {
   const r = await compile(`script [ "nope.ts" ]\nApp [ ]`, { originDir: DIR });
   assert.equal(r.source, null);

@@ -214,6 +214,25 @@ test("a Dataset, DataSource or source subclass's computed default is a rule, as 
   assert.equal(app.seenD, 1, "the Dataset subclass's own change handler fires for its computed attribute");
 });
 
+// ── a datapath read is a nameable argument (regression) ───────────────────────
+// A method reading a field through its parameter is wired at each call site by
+// rebasing that read onto the argument. A datapath read is a path too — the
+// row's own record `:@`, a field `:who` — so `t.typing` handed `:@` reads
+// `:typing`, and the call keeps following the record. Refused before as "not a
+// nameable path" (Murmur 8, `app.data.typingLine(:@)`).
+test("a method handed a datapath read (:@, :field) reads through it, and follows the record", async () => {
+  const app = await run(`schema T [ id: number, typing[]: string, who: [ name: string ] ]
+    class Store extends Node [ line(t: T) -> string { return t.typing.join(" and ") }, nameOf(w: object) -> string { return "" + (w as any).name } ]
+    class Row [ typing: string = { app.store.line(:@) }, who: string = { app.store.nameOf(:who) } ]
+    App [ store: Store [ ],
+      d: Dataset [ schema = [ rows[]: T ] ] { { "rows": [ { "id": 1, "typing": ["ann"], "who": { "name": "x" } } ] } },
+      col: View [ datapath = { app.d.value }, Row [ datapath = :rows[] ] ] ]`);
+  const row = app.col.childViews[0];
+  assert.deepEqual([row.typing, row.who], ["ann", "x"]);
+  app.d.set(["rows", 0, "typing"], ["ann", "bo"]); app.d.set(["rows", 0, "who", "name"], "y"); settle();
+  assert.deepEqual([row.typing, row.who], ["ann and bo", "y"], "both follow their record");
+});
+
 // ── SUSPENSION must not sever a wired constraint's edges (regression) ─────────
 // suspend() drops the dependency edges to make a constraint inert, but on the
 // static path run() deliberately does NOT rediscover them — that is what

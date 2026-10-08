@@ -649,8 +649,9 @@ export interface Surface {
     /** The view's recorded drawing (draw.ts); null clears it. The Canvas
      *  backend replays it during the composite walk; the DOM backend
      *  rasterizes it into this view's own <canvas>, sized by the recording's
-     *  bounds. The same list renders identically either way (rule 5). */
-    setDrawing(list: DisplayList | null): void;
+     *  bounds. The same list renders identically either way (rule 5).
+     *  `owner` is the view drawing it, named when a raster of it is refused. */
+    setDrawing(list: DisplayList | null, owner?: object): void;
     /** The composed scale a drawing is SEEN at — device pixels per view unit
      *  (ancestor scales × devicePixelRatio), delivered AT REST by the view's
      *  visibility feed (the `apparentScale` fact, view.ts). A backend that holds

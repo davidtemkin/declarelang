@@ -137,7 +137,10 @@ export declare class Node {
      *  Views) is what tears down an Animator/Spring child — a Node, not a View
      *  — whose `to` binding would otherwise linger, subscribed to whatever it
      *  read, keeping the whole discarded subtree alive (and, for a Spring,
-     *  still ticking). */
+     *  still ticking). A node's own `{ }` bindings go too: a Dataset's
+     *  `contents`, a DataSource's `url`, a Node class's computed values — left
+     *  standing, each stays subscribed to what it read and runs again, detached,
+     *  when that changes (a discarded row's dataset reading `app` found no App). */
     $teardown(): void;
     /** Children were inserted/removed/reordered as a unit — the notification
      *  seam the tree verbs speak (discard above; the replicator, once per

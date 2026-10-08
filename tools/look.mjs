@@ -5,11 +5,12 @@
 //
 //   npx declare-look app.declare [--size 390x844] [--touch] [--dark]
 //                    [--click <view path>]… [--read <view path>.<attribute>]…
-//                    [--shot out.png]
+//                    [--shot out.png] [--no-settle]
 //
-// Flags are data, applied in this order: size/touch, dark, each --click (with
-// motion settled after it), each --read (printed as `path.attr = value`), then
-// --shot. It runs as rung 5 of declare-verify — the same browser, server and
+// Flags are data, applied in this order: size/touch, dark, each --click, each
+// --read (printed as `path.attr = value`), then --shot. Motion is run to rest
+// after the page opens and after each click, so a read or a picture shows where
+// things land, not a spring mid-flight (--no-settle takes them as they are). It runs as rung 5 of declare-verify — the same browser, server and
 // failure reporting — by writing the equivalent assert script and handing it
 // over. Anything more (a drag, a pinch, a timed poll) is an assert script of
 // your own: `export default async ({ page, drive }) => { … }`, run with
@@ -24,7 +25,7 @@ import { fileURLToPath } from "node:url";
 const argv = process.argv.slice(2);
 const file = argv.find((a) => a.endsWith(".declare"));
 if (file === undefined) {
-  console.error("usage: declare-look app.declare [--size WxH] [--touch] [--dark] [--click path]… [--read path.attr]… [--shot out.png]");
+  console.error("usage: declare-look app.declare [--size WxH] [--touch] [--dark] [--click path]… [--read path.attr]… [--shot out.png] [--no-settle]");
   process.exit(2);
 }
 const all = (flag) => argv.flatMap((a, i) => (a === flag && i + 1 < argv.length ? [argv[i + 1]] : []));
@@ -33,6 +34,7 @@ const size = one("--size");
 const touch = argv.includes("--touch");
 const dark = argv.includes("--dark");
 const shot = one("--shot");
+const settle = !argv.includes("--no-settle");
 const [w, h] = size !== undefined ? size.split("x").map(Number) : [null, null];
 if (size !== undefined && !(w > 0 && h > 0)) { console.error(`--size ${size}: write it as WIDTHxHEIGHT, e.g. 390x844`); process.exit(2); }
 
@@ -41,7 +43,8 @@ const script = `export default async ({ page, drive }) => {
   ${w !== null || touch ? `await page.setViewport({ width: ${w ?? 1280}, height: ${h ?? 800}, hasTouch: ${touch}, isMobile: ${touch} });
   await page.reload(); await ready();` : ""}
   ${dark ? `await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "dark" }]);` : ""}
-  ${all("--click").map((p) => `await drive.click(${JSON.stringify(p)}); await drive.settleMotion();`).join("\n  ")}
+  ${settle ? "await drive.settleMotion();" : ""}
+  ${all("--click").map((p) => `await drive.click(${JSON.stringify(p)});${settle ? " await drive.settleMotion();" : ""}`).join("\n  ")}
   ${all("--read").map((pa) => {
     const k = pa.lastIndexOf(".");
     const path = pa.slice(0, k), attr = pa.slice(k + 1);

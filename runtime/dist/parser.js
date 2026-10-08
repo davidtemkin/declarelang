@@ -927,6 +927,14 @@ class Parser {
             if (this.peek().kind === "query") {
                 throw new DeclareError(`'${name.text}: …?' — in a schema the optional marker rides the FIELD name: write '${name.text}?: ${field.ref ?? field.type ?? "[ … ]"}' (the type-suffix '?' belongs to attribute and signature types)`, this.peek().pos);
             }
+            if (this.peek().kind === "pipe") {
+                const alt = this.peekAt(1);
+                const shown = field.ref ?? field.type ?? "[ … ]";
+                if (alt.kind === "ident" && (alt.text === "null" || alt.text === "undefined")) {
+                    throw new DeclareError(`'${name.text}: ${shown} | ${alt.text}' — in a schema a field that may be null or missing is written with '?' on its NAME: '${name.text}?: ${shown}' ('?' admits both an absent field and a null)`, this.peek().pos);
+                }
+                throw new DeclareError(`'${name.text}: ${shown} | …' — a schema field has one type; a union is a literal union of strings or of numbers ('status: "open" | "closed"'). A field that may be missing is '${name.text}?: ${shown}'`, this.peek().pos);
+            }
             if (this.peek().kind === "eq") {
                 throw new DeclareError(`'${name.text} = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record`, this.peek().pos);
             }

@@ -203,8 +203,8 @@ import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { hostGlobalHint } from "../../runtime/dist/teach.js";
 import { PRELUDE_NAMES } from "./scaffold.js";
 import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
-import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES, type IncludeHost, type AutoIncludeHost } from "../../runtime/dist/include.js";
-import { typecheckBodies } from "./typecheck.js";
+import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES, type IncludeHost, type AutoIncludeHost, type Splice } from "../../runtime/dist/include.js";
+import { typecheckBodies, bodyRewrites } from "./typecheck.js";
 import { Diag, toDiagnostic, formatDiagnostic, renderReport, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
 
 /** The names resolution leaves alone in CALLEE position: the four value
@@ -726,7 +726,8 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   // span sets are in the original text's coordinates). A missing script file
   // reports like a missing include.
   const scriptFileErrors: DeclareError[] = [];
-  const mainSource = await spliceScriptFiles(source, main.scriptFiles, main.scriptFileSpans, opts.originDir ?? "", host, scriptFileErrors, main.includeSpans);
+  const mainSplices: Splice[] = [];
+  const mainSource = await spliceScriptFiles(source, main.scriptFiles, main.scriptFileSpans, opts.originDir ?? "", host, scriptFileErrors, main.includeSpans, mainSplices);
   if (scriptFileErrors.length > 0) {
     return { source: null, errors: scriptFileErrors, warnings: [], ...diagnose(scriptFileErrors, [], "module") };
   }
@@ -734,6 +735,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   // Parallel to libSources: which FILE each prelude segment is, so a position
   // that lands in the prelude is rebased onto that file (makeRebaser).
   const libIds = [...resolved.sourceIds, ...auto.sourceIds];
+  const libSplices = [...resolved.sourceSplices, ...auto.sourceSplices];
 
   // Library-provided singletons ride in by MANIFEST RULE (`$provide` in
   // autoincludes.json): the FocusRing with any Control descendant (OL's
@@ -840,11 +842,11 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     let startLine = 1;
     for (let i = 0; i < libSources.length; i++) {
       const lines = countLines(libSources[i]);
-      segments.push({ file: displayFile(libIds[i], opts.originDir ?? ""), source: libSources[i], startLine, lines });
+      segments.push({ file: displayFile(libIds[i], opts.originDir ?? ""), source: libSources[i], splices: libSplices[i], startLine, lines });
       startLine += lines; // the joining "\n" closes the segment's last line; no blank line is added
     }
   }
-  const rb = makeRebaser(mainSource, segments);
+  const rb = makeRebaser(mainSource, mainSplices, segments, (id) => displayFile(id, opts.originDir ?? ""));
   const rbAll = (es: readonly DeclareError[]): DeclareError[] => es.map(rb);
 
   // Re-parse the merged source so every later phase indexes into ONE text.
@@ -1159,7 +1161,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
  *  merged text: five agents editing five included rooms each began every red
  *  run with `wc -l` to learn whose error it was, and four wrote a throwaway
  *  harness to verify one room alone (field report 2026-08-21). */
-interface PreludeSegment { file: string; source: string; startLine: number; lines: number }
+interface PreludeSegment { file: string; source: string; splices: readonly Splice[]; startLine: number; lines: number }
 
 /** Apply non-overlapping edits to `text` in one pass, each span in `text`'s own
  *  coordinates. Insertions at the same offset land in reverse order of the
@@ -1219,7 +1221,9 @@ function applyBodyEdits(edits: readonly Edit[]): void {
     const o = owner as Record<string, string> & { pos?: Pos; bodyPos?: Pos };
     const field = isMethod ? "body" : "src";
     const base = (isMethod ? o.bodyPos! : o.pos!).offset + 1;
-    o[field] = applyEdits(o[field], list.map((e) => ({ start: e.start - base, end: e.end - base, text: e.text })));
+    const rel = list.map((e) => ({ start: e.start - base, end: e.end - base, text: e.text }));
+    o[field] = applyEdits(o[field], rel);
+    bodyRewrites.set(owner, rel.sort((a, b) => a.start - b.start));
     if (isMethod && list.some((e) => e.super === true)) (owner as { usesSuper?: boolean }).usesSuper = true;
   }
 }
@@ -1344,35 +1348,89 @@ function displayFile(id: string, originDir: string): string {
   return id;
 }
 
-function makeRebaser(mainSource: string, segments: readonly PreludeSegment[]): (e: DeclareError) => DeclareError {
-  if (segments.length === 0) return (e) => e;
+function makeRebaser(mainSource: string, mainSplices: readonly Splice[], segments: readonly PreludeSegment[], display: (id: string) => string): (e: DeclareError) => DeclareError {
+  if (segments.length === 0 && mainSplices.length === 0) return (e) => e;
   const last = segments[segments.length - 1];
-  const preludeLines = last.startLine + last.lines - 1;
-  const lineStartsOf = (source: string): number[] => {
-    const starts = [0];
-    for (let i = 0; i < source.length; i++) if (source[i] === "\n") starts.push(i + 1);
-    return starts;
-  };
-  const mainStarts = lineStartsOf(mainSource);
+  const preludeLines = last === undefined ? 0 : last.startLine + last.lines - 1;
+  const mainStarts = lineStarts(mainSource);
   const segStarts = new Map<PreludeSegment, number[]>();
+  const backs = new Map<readonly Splice[], (offset: number) => Pos>();
+  const backOf = (spliced: string, splices: readonly Splice[], file: string | undefined): (offset: number) => Pos => {
+    let back = backs.get(splices);
+    if (back === undefined) { back = carryBack(spliced, splices, file, display); backs.set(splices, back); }
+    return back;
+  };
   return (e) => {
     const p = e.pos;
     if (p === undefined) return e;
     const line = p.line - preludeLines;
+    let pos: Pos;
     if (line < 1) {
       // inside the prelude: find the segment, rebase onto its own lines
       const seg = segments.find((s) => p.line >= s.startLine && p.line < s.startLine + s.lines) ?? last;
       let starts = segStarts.get(seg);
-      if (starts === undefined) { starts = lineStartsOf(seg.source); segStarts.set(seg, starts); }
-      const segLine = p.line - seg.startLine + 1;
-      const base = starts[segLine - 1] ?? 0;
-      return new DeclareError(e.rawMessage,
-        { line: segLine, col: p.col, offset: base + Math.max(0, p.col - 1), file: seg.file },
-        { code: e.code, hint: e.hint });
+      if (starts === undefined) { starts = lineStarts(seg.source); segStarts.set(seg, starts); }
+      const offset = (starts[p.line - seg.startLine] ?? 0) + Math.max(0, p.col - 1);
+      pos = backOf(seg.source, seg.splices, seg.file)(offset);
+    } else {
+      pos = backOf(mainSource, mainSplices, undefined)((mainStarts[line - 1] ?? 0) + Math.max(0, p.col - 1));
     }
-    const base = mainStarts[line - 1] ?? 0;
-    return new DeclareError(e.rawMessage, { line, col: p.col, offset: base + Math.max(0, p.col - 1) },
-      { code: e.code, hint: e.hint });
+    return new DeclareError(e.rawMessage, pos, { code: e.code, hint: e.hint });
+  };
+}
+
+/** The offsets at which each line of `source` starts. */
+function lineStarts(source: string): number[] {
+  const starts = [0];
+  for (let i = 0; i < source.length; i++) if (source[i] === "\n") starts.push(i + 1);
+  return starts;
+}
+
+/** Carry an offset in a spliced source back through its splices: to the line
+ *  the author wrote in `file` (the program itself when undefined), or — inside
+ *  a script file's spliced block — to that line of the script file, named. A
+ *  position on a block's own `script {` wrapper lands on the directive. */
+function carryBack(spliced: string, splices: readonly Splice[], file: string | undefined, display: (id: string) => string): (offset: number) => Pos {
+  // the text the author wrote: each splice's text put back to what it replaced
+  let original = "";
+  let cursor = 0;
+  let delta = 0;
+  for (const sp of splices) {
+    const at = sp.start + delta;
+    original += spliced.slice(cursor, at) + sp.was;
+    cursor = at + sp.text.length;
+    delta += sp.text.length - (sp.end - sp.start);
+  }
+  original += spliced.slice(cursor);
+  const starts = lineStarts(original);
+  const posIn = (offset: number, lines: readonly number[], file: string | undefined): Pos => {
+    let lo = 0, hi = lines.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (lines[mid] <= offset) lo = mid; else hi = mid - 1; }
+    return { line: lo + 1, col: offset - lines[lo] + 1, offset, ...(file === undefined ? {} : { file }) };
+  };
+  const OPEN = "script {\n";
+  return (offset) => {
+    let delta = 0;
+    for (const sp of splices) {
+      const at = sp.start + delta;
+      if (offset < at) break;
+      if (offset < at + sp.text.length) {
+        const rel = offset - at;
+        let i = sp.files.length - 1;
+        while (i >= 0 && sp.files[i].at > rel) i--;
+        if (i >= 0) {
+          // each block is `script {\n<body>\n}`, joined to the next by a blank line
+          const block = sp.files[i];
+          const end = i + 1 < sp.files.length ? sp.files[i + 1].at - 2 : sp.text.length;
+          const body = sp.text.slice(block.at + OPEN.length, end - 2);
+          const inBody = rel - block.at - OPEN.length;
+          if (inBody >= 0 && inBody <= body.length) return posIn(inBody, lineStarts(body), display(block.file));
+        }
+        return posIn(sp.start, starts, file);
+      }
+      delta += sp.text.length - (sp.end - sp.start);
+    }
+    return posIn(offset - delta, starts, file);
   };
 }
 

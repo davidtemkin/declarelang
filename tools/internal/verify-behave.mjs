@@ -49,7 +49,7 @@ export class VerifyAssertion extends Error {}
 // app's folder and its own index.html is the page — how the corpus gate
 // proves a slimmed build behaves as the program does.
 
-async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend", built = null }, fn) {
+async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend", built = null, scrollbars = false }, fn) {
   const baseHref = "/" + relative(ROOT, resolve(appDir)).split("\\").join("/") + "/";
   const builtFiles = new Map((built?.files ?? []).map((f) => [f.name, f.contents]));
   const cfg = { backend: backendClass, program: compiled?.program ?? null };
@@ -98,7 +98,14 @@ bootHost(cfg);
   const port = server.address().port;
 
   const { default: puppeteer } = await import(pathToFileURL(join(ROOT, "node_modules/puppeteer-core/lib/esm/puppeteer/puppeteer-core.js")).href);
-  const browser = await launchChrome({ executablePath: findChrome(), headless: true, args: ["--no-sandbox"] });
+  // A behavior run shows real scrollbars, so a script can grab a thumb and drag
+  // it as a person would: headless Chrome hides them, and an overlay scrollbar
+  // (macOS) has no thumb until it is scrolling — so both are turned off, and the
+  // page gets the classic bar Windows and Linux draw. The visual rung keeps them
+  // hidden, as its baselines were drawn.
+  const browser = await launchChrome({ executablePath: findChrome(), headless: true,
+    args: ["--no-sandbox", ...(scrollbars ? ["--disable-features=OverlayScrollbar,OverlayScrollbars"] : [])],
+    ...(scrollbars ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}) });
   try {
     /** A fresh page with the app booted and the language-altitude API bound. */
     const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1 } = {}) => {
@@ -334,7 +341,7 @@ bootHost(cfg);
 // ── rung 5: behavior ────────────────────────────────────────────────────────
 
 export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend", built = null }) {
-  return withHost({ compiled, appDir, fixturesDir, backendClass, built }, async ({ openApp }) => {
+  return withHost({ compiled, appDir, fixturesDir, backendClass, built, scrollbars: true }, async ({ openApp }) => {
     const failures = [];
     const app = await openApp();
     const mod = await import(pathToFileURL(resolve(assertPath)).href);
