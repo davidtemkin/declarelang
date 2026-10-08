@@ -139,7 +139,7 @@ class Caption [
 /*
 ## Run — the page's one hand-written layout
 
-The INSET is the view's own `padding` now, not a layout's business: a padded
+The inset is the view's own `padding`, not a layout's business: a padded
 view has an inside, every child is placed from it, and the view's automatic
 height counts the trailing inset back in. What is left for a layout here is the
 one thing the stock stack does not do — hand each child the full inner WIDTH,

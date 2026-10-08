@@ -13,9 +13,10 @@ take `#…`. Every color on the page has a name in one of the two `theme`
 records below — the palette lives there, once, and nowhere else.
 */
 
-// what the site's programs share — the text faces
+// what the site's programs share — the text face — and the live demo panels
+// of sections 02–04, which are this page's own machinery
 
-include [ "fonts.declare" ]
+include [ "fonts.declare", "live.declare" ]
 
 /*
 ## The figures under an app card
@@ -26,23 +27,26 @@ page decides how to *say* a figure — never what it is. A missing value yields
 "", so a card that outruns the stats file degrades to no figures rather than to
 "undefined".
 
-Each figure arrives as its OWN argument, because a helper's arguments are its
-reactive wiring. Hand it the whole record instead and the reads happen inside
-the body, where the dependency extractor cannot see them — the compiler refuses
-that (DECLARE7001), and it is right to: the line would render once against an
-unloaded DataSource and never update again.
+Each figure arrives as its own argument. Script is outside the reactive system:
+a call depends on the values it is passed, so a constraint that passes the
+figures re-runs when they land.
 */
 
 script {
-    function hpLines(total: number, code: number, comment: number): string {
+    function hpLines(total?: number, code?: number, comment?: number): string {
         if (total == null) return ""
         return total + " lines — " + code + " code, " + comment + " comment"
         }
 
-    function hpWire(wire: number): string {
+    function hpWire(wire?: number): string {
         return wire == null ? "" : " · " + Math.round(wire / 1024) + " KB over the wire"
         }
     }
+
+// one app's figures as stats.json carries them; every field optional, so a
+// figure the file lacks degrades on its own
+
+schema AppFigures [ total?: number, code?: number, comment?: number, wireGzip?: number ]
 
 /*
 ## Type as tokens
@@ -51,12 +55,11 @@ Every text style on the page is one of these classes — headings semibold with
 tracking that scales with the size, eyebrows mono and wide-tracked, lead and
 body in the muted tone — so the page's whole typography reskins from here.
 
-None of them declares `selectable`. It is a PROVIDED value: the three content
+None of them declares `selectable`. It is a provided value: the three content
 columns (the front page, the Why article, a DocView) each say once that they
-are copy, and every text leaf beneath reads the nearest provision. A class
-that repeated it said the same thing five times — and said it about the
-wordmark and a tuner label too, which are chrome. What is NOT copy says so at
-the control: `selectable = false` on a link, a button, a panel chip.
+are copy, and every text leaf beneath reads the nearest provision, while chrome
+such as the wordmark stays out of it. What is not copy says so at the control:
+`selectable = false` on a link, a button, a panel chip.
 */
 
 class Heading extends Text [ fontWeight = { app.headWeight }, textColor = { provided("theme").text },
@@ -370,15 +373,6 @@ class AppNum [ width = 30,
 
 
 /*
-### An application card
-
-The tracker and the desktop: a screenshot over the app’s name, what it does as
-one dot-separated run, its figures small and dim, and a source link. The plate
-and the name run the app; the source link opens the reader — and because events
-do not bubble, that link answers its own click without the card also firing.
-*/
-
-/*
 ### An application's title row
 
 The badge, the name and (where there is one) the arrow, all three linked to the
@@ -411,6 +405,15 @@ class CardHead [ width = 100%, height = { this.contentHeight },
         link = { classroot.arrow ? classroot.url : "" } ]
     ]
 
+
+/*
+### An application card
+
+The tracker and the desktop: the app's name over a screenshot, what it does as
+one dot-separated run, its figures small and dim, and a source link. The plate
+and the name run the app; the source link opens the reader — and because events
+do not bubble, that link answers its own click without the card also firing.
+*/
 
 class AppCard [
     title:   string = "",
@@ -525,10 +528,9 @@ class FootSep extends FootLabel [ text = "·", textColor = { provided("theme").f
 // the way a left/right split does. Dropping the dots on wrap is what avoids a
 // stranded separator at a line's end.
 //
-// The bottom margin is the footer's own `padding`, not a trailing spacer in the
-// page flow: a spacer would take the flow's section spacing above it too, and
-// that left a large dead band. With the inset counted into the unset height,
-// the box is exactly the row plus the air under it.
+// The air under the footer is its own bottom `padding`: the inset counts into
+// the unset height, so the box is exactly the row plus the air under it, and
+// the page flow's section spacing applies only above it.
 
 class Footer [ width = 100%,
     padding = [0, 0, 36, 0],
@@ -554,144 +556,6 @@ class Footer [ width = 100%,
 
 
 /*
-## The live panels
-
-The heart of the page: every demo is real Declare, compiled and running. A
-`CodeField` is a native editable field seeded (uncontrolled, `initial`) from
-the demo’s source — it follows the source until you type, then holds the
-edit, publishing each keystroke on `App.liveSource` for the host to
-recompile. A `SourcePanel` frames it (LIVE·EDITABLE chip, Revert, hairline);
-a `PreviewFrame` hosts the compiled app as an **embedded child app** — no
-iframe — so the preview can’t drift from the source.
-*/
-
-class CodeField extends TextInput [ multiline = true, spellcheck = false,
-    fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").lead },
-    editName: string = "",
-    src: string = "",
-    initial = { src },
-    onInput() { app.liveCard = editName; app.liveSource = text }
-    ]
-
-
-// Neither the field nor the panel carries a height: a field with none sizes to
-// its text, and the panel sizes to the field. So the code is never a scrolling
-// listing — it re-fits as the column re-flows, and as you type in it. The
-// preview beside it takes the same height. Revert restores the pristine `src`
-// and asks the host to recompile.
-
-class SourcePanel [
-    editName: string = "",
-    src: string = "",
-    fill = { provided("theme").panel }, cornerRadius = 12, stroke = { stroke(1, provided("theme").panelLine) },
-
-    // A control surface inside the copy column, so the column's provision
-    // stops at this box: the chip, the Revert label and the compile report are
-    // furniture, and the code itself is a native editable field whose
-    // selection is the platform's, not this flag's.
-
-    selectable = false,
-
-    // the panel is its field, plus the chip row above it and a margin below —
-    // and, while a broken edit has a report, that report's band: it lands
-    // UNDER the code (its own y is parent.height − its height), never over the
-    // closing lines, because the page invites you to break the panel and read
-
-    height = { this.field.y + this.field.height + 8 + (this.err.visible ? this.err.height : 0) },
-
-    // the affordance chip: this code runs, and you can type in it. Both chips
-    // are a label in a `padding` — the label sits at the content origin and the
-    // chip's width is simply what it holds, so the inset is stated once.
-
-    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { provided("theme").accent },
-        padding = [4, 7, 4, 7],
-        width = { this.contentWidth },
-        t: Text [ fontFamily = { app.uiFace }, fontSize = 9, fontWeight = bold,
-            letterSpacing = 0.8, wrap = false, textColor = { provided("theme").ink }, text = "LIVE · EDITABLE" ]
-        ],
-    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").revertLine) },
-        padding = [3, 8, 3, 8],
-        x = { parent.width - this.width - 10 },
-        width = { this.contentWidth },
-        fill = { hovered ? provided("theme").hover : null },
-        onClick() { classroot.field.text = classroot.src
-                    app.liveCard = classroot.editName
-                    app.liveSource = classroot.src },
-        rlbl: Text [ fontFamily = { app.uiFace }, fontSize = 11, fontWeight = semibold,
-            textColor = { parent.hovered ? provided("theme").text : provided("theme").lead }, text = "Revert" ]
-        ],
-
-    // The panel itself takes no `padding`: the hairline and the error band are
-    // deliberately full-bleed — a rule that stopped short of the panel's edge
-    // would read as a mistake — so an inset here would have to be undone by
-    // both of them. The two children that ARE inset say so themselves.
-
-    hairline: Divider [ y = 31, color = { provided("theme").panelLine } ],
-    field: CodeField [ x = 12, y = 40, width = { parent.width - 24 },
-        editName = { classroot.editName }, src = { classroot.src } ],
-
-    // the compile report, at the panel — a broken edit shows its error right here
-    // (the last good preview keeps running beside it); host feeds app.liveReport
-
-    err: View [ width = 100%, fill = { provided("theme").errBg },
-        visible = { app.liveCard == classroot.editName && app.liveReport != "" },
-        y = { parent.height - this.height },
-        height = { this.msg.height + 16 },
-        bar: View [ width = 3, height = 100%, fill = { provided("theme").errBar } ],
-        msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
-            fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").errText },
-            text = { app.liveReport } ]
-        ]
-    ]
-
-
-// the running demo is transparent: it sits on the stage colour, which follows
-// the page, and draws only in colours that read on either ground
-
-class PreviewFrame [ cornerRadius = 12, clip = true, fill = { provided("theme").stage },
-    stroke = { stroke(1, provided("theme").line) },
-    runName: string = "",
-    run: AppIsland [ width = 100%, height = 100%, program = { classroot.runName } ]
-    ]
-
-
-/*
-### A live demo section
-
-Sections 02–04 share one shape — a `SectionHead`, a caption, and a live
-`SourcePanel` + `PreviewFrame` pair running the demo for real — so they are one
-class, named for that role, and the three use sites are the words that differ.
-`demo` is the demo's name in `app.demoSources`, the host→app seed channel: it
-picks the source the editor starts from AND the program the island runs, which
-is exactly the pairing that must never drift.
-
-The two panels share the row 58/42 and stack below 760; the preview takes the
-source panel's height, so the code is never a scrolling listing and the picture
-beside it is always the same size as the code that makes it.
-*/
-
-class DemoSection [ width = 100%,
-    num:     string = "",
-    head:    string = "",
-    lead:    string = "",
-    caption: string = "",
-    demo:    string = "",
-    layout: SimpleLayout [ axis = y, spacing = 36 ],
-    SectionHead [ num = { classroot.num }, head = { classroot.head }, lead = { classroot.lead } ],
-    demoBody: View [ width = 100%,
-        layout: SimpleLayout [ axis = y, spacing = 14 ],
-        Body [ fontSize = 15, width = 100%, text = { classroot.caption } ],
-        cards: View [ width = 100%,
-            layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
-            src: SourcePanel [ editName = { classroot.demo },
-                src = { app.demoSources[classroot.demo] || "" } ],
-            prev: PreviewFrame [ runName = { classroot.demo }, height = { parent.src.height } ]
-            ]
-        ]
-    ]
-
-
-/*
 ## Backdrop and section heads
 
 The blueprint grid draws itself; a `SectionHead` is the tight
@@ -699,33 +563,25 @@ number · heading · lead rhythm every numbered section opens with.
 */
 
 /*
-The blueprint backdrop is VIEWPORT-sized and pinned, never document-sized.
+The blueprint backdrop is viewport-sized and pinned, never document-sized.
 
 `draw()` rasterises into a canvas the size of the view's bounds at device pixel
-ratio, so a backdrop stretched over a whole document would allocate a backing
-store for the whole document: the language view is 16,711px tall, which at 2x
-is a 2882 x 33,422 canvas — 96 megapixels, ~385 MB, reallocated every time the
-view is shown or hidden, and about a second of blocked main thread each way.
-It would also exceed Chrome's 32,767px maximum canvas dimension. Viewport-sized
-and pinned, the same two moments measure 57 ms and 21 ms.
+ratio, so a backdrop as tall as a long document would rasterise the whole
+document — hundreds of megabytes for the language page, past the browser's
+largest canvas. A uniform 32px lattice looks the same pinned as it does
+scrolling, so one viewport of paper, snapped to the lattice, draws the same
+lines in the same places.
 
-A uniform 32px lattice looks the same pinned as it does scrolling, so this
-costs nothing visually — it is the same paper, drawn once.
-
-Every view on the site that wears the paper wears the SAME paper, so the
+Every view on the site that wears the paper wears the same paper, so the
 geometry is the class's and a use site says only one thing: `bottom`, the
-content's own extent it must not run past. It follows the scroll rather than
-spanning the document — `ignoreScroll` would lift it out of paint order and
-composite it OVER the content; as an ordinary child it stays behind. Snapped to
-the 32px lattice so the paper is pixel-identical to the document-tall version —
-the same lines in the same places — while only one viewport is ever rasterised.
+content's own extent it must not run past. It follows the scroll as an ordinary
+child, so it stays behind the content in paint order (`ignoreScroll` would lift
+it over the content).
 
-The clamp is the part that has to be right. Unclamped, the backdrop's bottom is
-`scrollY` + a viewport, which feeds the scroller's auto-extent — so every trip
-to the bottom grew the page another 32px and left dead space under the footer
-(measured: 5243 → 5412 over six trips). Reading the content's extent is what the
-document-tall version did too, and it is not a cycle: the content never reads
-the backdrop.
+The clamp keeps the backdrop inside the content's extent. Unclamped, its bottom
+is `scrollY` plus a viewport, which would feed the scroller's own auto-extent
+and grow the page each time it reached the bottom. Reading the content's extent
+is not a cycle: the content never reads the backdrop.
 */
 
 class GridBg [
@@ -786,28 +642,19 @@ class ScrollReveal [ width = 100%, opacity = 0,
 The Language doc, the getting-started guide and the FAQ are ONE view with three
 sources: the site's paper, the centered 720 measure, an eyebrow, and a
 `Markdown` fed from a `DataSource` — with loading and failure as states the view
-derives from, never a blank. A use site says which document, in which words; the
-shape lives here once, so the three cannot drift apart.
+derives from, never a blank. A use site names the document's source and the
+words around it; the shape lives here once, so the three cannot drift apart.
 
-Each lifecycle fact arrives as its OWN argument, the same discipline the stats
-helpers at the top of this file follow: an argument is a helper's reactive
-wiring, and a `DataSource` handed over whole would move the reads inside a body
-where the dependency extractor cannot see them.
-
-The air under the footer is the column's own bottom `padding` rather than a tail
-view in the flow: an unset height counts both insets, so the column is exactly
-its content plus the room under it, and the page's scroll extent follows.
+The air under the footer is the column's own bottom `padding`: an unset height
+counts both insets, so the column is exactly its content plus the room under
+it, and the page's scroll extent follows.
 */
 
 class DocView [ width = { app.width }, fill = { provided("theme").ink },
+    src: DataSource,
     eyebrow: string = "",
     waiting: string = "",
     trouble: string = "",
-    loading: boolean = false,
-    failed:  boolean = false,
-    loaded:  boolean = false,
-    reason:  string = "",
-    markdown: string = "",
 
     grid: GridBg [ bottom = { parent.body.y + parent.body.height } ],
     body: View [ y = 56, width = { app.width }, selectable = true,
@@ -815,18 +662,17 @@ class DocView [ width = { app.width }, fill = { provided("theme").ink },
             padding = [0, 0, 62, 0],
             layout: SimpleLayout [ axis = y, spacing = 22 ],
             Marker [ text = { classroot.eyebrow } ],
-            wait: Text [ visible = { classroot.loading }, fontSize = 15,
+            wait: Text [ visible = { classroot.src.loading }, fontSize = 15,
                 textColor = { provided("theme").faint }, text = { classroot.waiting } ],
-            oops: Text [ visible = { classroot.failed }, fontSize = 15,
+            oops: Text [ visible = { classroot.src.failed }, fontSize = 15,
                 textColor = { provided("theme").faint }, wrap = true, width = 100%,
-                text = { classroot.trouble + classroot.reason } ],
-            doc: Markdown [ visible = { classroot.loaded }, width = 100%, lineHeight = 1.35,
+                text = { classroot.trouble + (classroot.src.error || "") } ],
+            doc: Markdown [ visible = { classroot.src.loaded }, width = 100%, lineHeight = 1.35,
                 bodyColor = { provided("theme").lead },
-                text = { classroot.markdown } ],
+                text = { classroot.src.value || "" } ],
 
-            // the air between the document and the footer is the footer's own, at
-            // this use site only: 86 is the 64 the design asks for plus the
-            // column's own 22 of stack spacing, which lands above it either way
+            // the footer's top inset is the air under the document: 86 is the 64
+            // the design asks for plus the column's own 22 of stack spacing
 
             Footer [ padding = [86, 0, 36, 0] ]
             ]
@@ -925,13 +771,10 @@ content natively; the chrome further down (header, cursor) are its
 **siblings**, not its children, so they never move.
 */
 
-// THE HEADLINE LIVES HERE, ONCE. The hero reads it, and `appName` carries it
-// into `document.title` at boot (runtime/src/boot.ts — "the ONE place that
-// mapping lives"), which is also what the crawl extraction reports as the
-// page's title and what the bake stamps into index.html's <title> and social
-// cards. Stating it anywhere else would be a copy that only crawlers and LLMs
-// ever read — the runtime overwrites document.title at boot, so a visitor
-// would never see it drift. Exactly the readers this page is for.
+// The headline lives here, once. The hero reads it, and `appName` carries it
+// into the document's title, which is also what the crawl extraction reports
+// as the page's title and what the build stamps into index.html's <title> and
+// social cards.
 
 App [ tagline: string = "a UI language for you and your AI",
     edges = cover,
@@ -981,32 +824,31 @@ App [ tagline: string = "a UI language for you and your AI",
        through the runtime's own default: a "#name" follows in-app (destination
        or anchor alike, measured-reveal and all), anything else leaves through
        `navigate`. */
-    // the page’s textual material, fetched DIRECTLY as text (format = "text"):
-    // the core doc itself (docs/declare.md — up the tree, but still the
-    // deployed repo’s own material), the getting-started guide, and the FAQ.
-    // The authored .md files carry assembler markers as HTML comments, which
-    // Markdown drops — so there is no JSON-wrap projection beside this file,
-    // and a drifted copy is impossible because there is no copy. stats.json
-    // stays JSON (line metrics computed by the prewarm pass, so the figures
-    // below can never go stale).
+    // the page’s textual material, fetched as text (format = "text") and loaded
+    // on its own (auto): the core doc itself (docs/declare.md — up the tree, but
+    // still the deployed repo’s own material), the getting-started guide, and
+    // the FAQ. The authored .md files carry assembler markers as HTML comments,
+    // which Markdown drops, so the page reads the files themselves. stats.json is
+    // JSON: line metrics computed by the prewarm pass, so the figures below
+    // cannot go stale.
 
-    lang: DataSource [ url = "../../docs/declare.md", format = "text" ],
-    stats: DataSource [ url = "stats.json" ],
-    guide: DataSource [ url = "getstarted.md", format = "text" ],
-    faq: DataSource [ url = "declare-faq.md", format = "text" ],
+    lang: DataSource [ url = "../../docs/declare.md", format = "text", auto = true ],
+    stats: DataSource [ url = "stats.json", auto = true,
+        schema = [ calendar?: AppFigures, tracker?: AppFigures, desktop?: AppFigures ] ],
+    guide: DataSource [ url = "getstarted.md", format = "text", auto = true ],
+    faq: DataSource [ url = "declare-faq.md", format = "text", auto = true ],
 
     // the Why article and the note that follows it — two documents because they
     // are two registers, and beside this file rather than inside it, like every
     // other piece of prose the site serves
 
-    why: DataSource [ url = "why.md", format = "text" ],
-    story: DataSource [ url = "why-story.md", format = "text" ],
-    onInit() { this.lang.fetch(); this.stats.fetch(); this.guide.fetch(); this.faq.fetch()
-               this.why.fetch(); this.story.fetch() },
+    why: DataSource [ url = "why.md", format = "text", auto = true ],
+    story: DataSource [ url = "why-story.md", format = "text", auto = true ],
 
     // `liveCard`/`liveSource` name the demo an inline editor is republishing
-    // and its current text — the host recompiles that pair live. Editing the
-    // whole page is `?viewer=edit`, which is the viewer's job, not this one's.
+    // and its current text — the host recompiles that pair live (the panels
+    // are in live.declare). Editing the whole page is `?viewer=edit`, which is
+    // the viewer's job, not this one's.
 
     liveCard: string = "",
     liveSource: string = "",
@@ -1067,19 +909,16 @@ App [ tagline: string = "a UI language for you and your AI",
     gutter: number = { Math.max(24, (app.width - app.measure) / 2) },
     heroFont: number = { app.width < 700 ? 44 : 60 },
 
-    // the site's heading weight — every Heading here, and the hosted
-    // Architecture article's titles through the island bridge. Avenir Next runs
-    // Regular 400, Medium 500, Demi Bold 600, Bold 700, Heavy 900; heavier
-    // weights want looser tracking, so the tracking derives from the weight
+    // the site's heading weight, and the tracking that goes with it — every
+    // Heading here, and the hosted Architecture article's titles through the
+    // island
 
     headWeight: number = 600,
-    headTrack: number = { app.headWeight >= 900 ? -0.006 : app.headWeight >= 700 ? -0.014 : -0.02 },
+    headTrack: number = -0.02,
 
-    // the UI face — the site's Helvetica (fonts.declare), switchable to Avenir
-    // from the type tuner while that is assessed
+    // the UI face, from fonts.declare
 
-    faceName: string = "helvetica",
-    uiFace: string[] = { app.faceName == "avenir" ? Faces.avenir : Faces.helvetica },
+    uiFace: string[] = { Faces.helvetica },
 
     // the front page's content — carried by the PAGE's own scroll (the App
     // scrolls by default, and its scroller is the browser's): taller than the
@@ -1089,9 +928,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
         // full-bleed blueprint behind the column, clamped to the page's full
         // extent (page.y + page.height), so the paper runs to the very bottom
-        // of the scroll range and no further — sizing to height alone left a
-        // 96px paperless band at the bottom. Reading the page keeps this out of
-        // the page's own auto-extent, so no cycle.
+        // of the scroll range and no further
 
         grid: GridBg [ bottom = { parent.page.y + parent.page.height } ],
 
@@ -1223,15 +1060,13 @@ App [ tagline: string = "a UI language for you and your AI",
                             // than this — open it and you count ~800 — so a bare
                             // "lines of Declare" reads as caught out rather than
                             // modest. Naming the comment lines is what makes the
-                            // smaller number legible as the honest one. Each figure
-                            // is its own read: a helper taking the record would put
-                            // the reads inside a body the extractor cannot see.
+                            // smaller number legible as the honest one.
 
-                            MiniMetric [ value = { "" + (app.stats.read(["calendar", "code"]) ?? "—") },
+                            MiniMetric [ value = { "" + (app.stats.value?.calendar?.code ?? "—") },
                                 note = { "lines of code, plus "
-                                    + (app.stats.read(["calendar", "comment"]) ?? "—")
+                                    + (app.stats.value?.calendar?.comment ?? "—")
                                     + " of comments — four views, zoom, drag and edit" } ],
-                            MiniMetric [ value = { app.stats.read(["calendar", "wireGzip"]) ? Math.round(app.stats.read(["calendar", "wireGzip"]) / 1024) + " KB" : "—" },
+                            MiniMetric [ value = { app.stats.value?.calendar?.wireGzip ? Math.round(app.stats.value.calendar.wireGzip / 1024) + " KB" : "—" },
                                 note = "over the wire, gzipped — app (structure, logic, styling) and runtime" ],
                             MiniMetric [ value = "0",
                                 note = "lines written by hand — an LLM wrote it" ]
@@ -1293,8 +1128,8 @@ App [ tagline: string = "a UI language for you and your AI",
                         // "before its data" is the difference between a small app and a
                         // small download.
 
-                        figures = { hpLines(app.stats.read(["tracker","total"]), app.stats.read(["tracker","code"]), app.stats.read(["tracker","comment"]))
-                              + hpWire(app.stats.read(["tracker","wireGzip"])) + ", before its data"
+                        figures = { hpLines(app.stats.value?.tracker?.total, app.stats.value?.tracker?.code, app.stats.value?.tracker?.comment)
+                              + hpWire(app.stats.value?.tracker?.wireGzip) + ", before its data"
                               + " · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies" } ],
 
                     dsk: AppCard [ title = "Declare Desktop", num = "3",
@@ -1302,8 +1137,8 @@ App [ tagline: string = "a UI language for you and your AI",
                         url    = "apps/desktop/desktop.declare",
                         srcUrl = "apps/desktop/desktop.declare?viewer",
                         blurb = "Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them",
-                        figures = { hpLines(app.stats.read(["desktop","total"]), app.stats.read(["desktop","code"]), app.stats.read(["desktop","comment"]))
-                              + hpWire(app.stats.read(["desktop","wireGzip"])) + " · every pixel drawn from shapes, no image assets" } ]
+                        figures = { hpLines(app.stats.value?.desktop?.total, app.stats.value?.desktop?.code, app.stats.value?.desktop?.comment)
+                              + hpWire(app.stats.value?.desktop?.wireGzip) + " · every pixel drawn from shapes, no image assets" } ]
                     ]
                 ],
 
@@ -1364,8 +1199,8 @@ App [ tagline: string = "a UI language for you and your AI",
                 // broken.
                 //
                 // Each beat sits in a bare cell because the ResponsiveLayout
-                // sizes its own children and a Point carries a width of its own
-                // (R4 says so, by name). The cell takes the share; the Point
+                // sizes its own children and a Point carries a width of its own:
+                // one attribute, one owner. The cell takes the share; the Point
                 // fills the cell.
 
                 beats: View [ width = { Math.min(880, parent.width) }, x = center,
@@ -1430,9 +1265,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
             /* ### Footer */
 
-            // The footer carries its own bottom margin. A spacer view here would
-            // also take the page flow's 112px spacing above it, which is 140px of
-            // dead band under the footer for 28px of wanted air.
+            // the footer carries its own bottom margin (see Footer)
 
             footer: Footer [ ]
             ]
@@ -1443,9 +1276,8 @@ App [ tagline: string = "a UI language for you and your AI",
        An in-app view (`app.location == "why"`) wearing the same skin as the page —
        theme, graph-paper grid, and the header renders here too. The host mirrors
        `app.location` to the URL fragment (#why), so it deep-links and honours the
-       back button — for free, from the one built-in attribute. The article itself is
-       prose in `"""` blocks: HTML collapses the line breaks, so the source wraps
-       and the page flows. */
+       back button — for free, from the one built-in attribute. The article is
+       two Markdown files, the essay and the note after it. */
 
     whyView: View [ shows = "why", width = { app.width }, fill = { provided("theme").ink },
         grid: GridBg [ bottom = { parent.body.y + parent.body.height } ],
@@ -1454,8 +1286,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
                 // the air under the footer is the column's own bottom inset —
                 // an unset height counts it in, so the page's scroll range ends
-                // where the paper does. (A tail view in the flow took the
-                // layout's own 22 above it as well; 62 is that pair.)
+                // where the paper does
 
                 padding = [0, 0, 62, 0],
                 layout: SimpleLayout [ axis = y, spacing = 22 ],
@@ -1524,11 +1355,9 @@ App [ tagline: string = "a UI language for you and your AI",
        loading and failure are lifecycle states the view derives from, never
        a blank. */
 
-    languageView: DocView [ shows = "language", eyebrow = "THE LANGUAGE",
+    languageView: DocView [ shows = "language", src = { app.lang }, eyebrow = "THE LANGUAGE",
         waiting = "Loading the language…",
-        trouble = "The language file did not load — ",
-        loading = { app.lang.loading }, failed = { app.lang.failed }, loaded = { app.lang.loaded },
-        reason = { app.lang.error || "" }, markdown = { app.lang.value || "" } ],
+        trouble = "The language file did not load — " ],
 
     /* ## The "Get Started" view
 
@@ -1539,19 +1368,15 @@ App [ tagline: string = "a UI language for you and your AI",
        the static document like any other reachable location. Loading and failure
        are lifecycle states the view derives from, never a blank. */
 
-    getStartedView: DocView [ shows = "getstarted", eyebrow = "GETTING STARTED",
+    getStartedView: DocView [ shows = "getstarted", src = { app.guide }, eyebrow = "GETTING STARTED",
         waiting = "Loading the guide…",
-        trouble = "The guide did not load — ",
-        loading = { app.guide.loading }, failed = { app.guide.failed }, loaded = { app.guide.loaded },
-        reason = { app.guide.error || "" }, markdown = { app.guide.value || "" } ],
+        trouble = "The guide did not load — " ],
 
     /* ## The FAQ view — the Get Started pattern at #faq */
 
-    faqView: DocView [ shows = "faq", eyebrow = "FAQ",
+    faqView: DocView [ shows = "faq", src = { app.faq }, eyebrow = "FAQ",
         waiting = "Loading…",
-        trouble = "The FAQ did not load — ",
-        loading = { app.faq.loading }, failed = { app.faq.failed }, loaded = { app.faq.loaded },
-        reason = { app.faq.error || "" }, markdown = { app.faq.value || "" } ],
+        trouble = "The FAQ did not load — " ],
 
     /* ## The Architecture view — a whole program, hosted
 
@@ -1576,10 +1401,9 @@ App [ tagline: string = "a UI language for you and your AI",
             // the site's appearance and type, provided to the tenant by name —
             // it reads each with hostProvided(name, default)
 
-            provides = ["hosted", "dark", "face", "headWeight"],
+            provides = ["hosted", "dark", "headWeight"],
             hosted: boolean = true,
             dark: boolean = { app.isDark },
-            face: string = { app.faceName },
             headWeight: number = { app.headWeight },
 
             // the tenant's own full height, as it exposes it: the island takes it, so the homepage's page grows to hold the whole
@@ -1593,7 +1417,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
        `ignoreScroll` — the scroll carries everyone but these; they ride the
        window while the page's own scroll carries the content: the top bar, the
-       type tuner, the pointer dot, the mobile nav sheet and the Apps dropdown. */
+       pointer dot, the mobile nav sheet and the Apps dropdown. */
 
     // the bar is ALWAYS present, stuck to the top: a first-time visitor sees
     // the whole map without having to scroll for it
@@ -1652,8 +1476,7 @@ App [ tagline: string = "a UI language for you and your AI",
                 ],
 
             // the appearance switch — one icon, two states: it shows the mode
-            // you are in, and a press flips to the other. Until pressed, the
-            // page tracks the system; after, it keeps what you chose.
+            // you are in, and a press flips to the other
 
             modeBtn: View [ width = 34, height = 33, cornerRadius = 8,
                 fill = { pressed ? provided("theme").pillPress : hovered ? provided("theme").pillHover : null },
@@ -1675,39 +1498,6 @@ App [ tagline: string = "a UI language for you and your AI",
                 d2: View [ x = center, y = 15, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? provided("theme").text : provided("theme").muted } ],
                 d3: View [ x = center, y = 22, width = 3, height = 3, cornerRadius = 1.5, fill = { parent.hovered || parent.pressed ? provided("theme").text : provided("theme").muted } ]
                 ]
-            ]
-        ],
-
-    // ── type tuner (experiment) ─────────────────────────────────────
-    // a floating panel for assessing the face and the heading weight live;
-    // it rides the viewport, bottom right, above everything else. Hidden while
-    // the page is set in Helvetica — flip `showTuner` to bring it back.
-
-    showTuner: boolean = false,
-
-    // It is a `Card`: the library's themed surface, so the fill, the hairline and
-    // the inset that stacks its contents all come from the preset below instead
-    // of being spelled out here. The card takes the height its content needs,
-    // padding counted in, so there is no arithmetic to keep in step.
-
-    tuner: Card [ ignoreScroll = true, width = 300, x = { app.width - 320 }, y = { app.height - this.height - 20 },
-        visible = { app.showTuner },
-
-        // no theme of its own: the App's record already carries the library
-        // preset, so the Card and its Segmenteds find every token they read
-
-        cornerRadius = 12, padding = 14, shadow = { shadow(0, 10, 30, 0x00000040) },
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Eyebrow [ fontSize = 11, textColor = { provided("theme").textMuted }, text = "type tuner · headings and face" ],
-        Segmented [ width = 100%, height = 30,
-            value = { "" + app.headWeight },
-            choices = { [ ({ id: "600", label: "Demi 600" }), ({ id: "700", label: "Bold 700" }), ({ id: "900", label: "Heavy 900" }) ] },
-            input(v: object) { app.headWeight = Number(v) }
-            ],
-        Segmented [ width = 100%, height = 30,
-            value = { app.faceName },
-            choices = { [ ({ id: "helvetica", label: "Helvetica" }), ({ id: "avenir", label: "Avenir Next" }) ] },
-            input(v: object) { app.faceName = "" + v }
             ]
         ],
 

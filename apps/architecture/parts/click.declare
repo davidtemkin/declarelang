@@ -11,6 +11,10 @@ The nine steps are a `Dataset`, and the discs on the lanes are replicated from
 it. Nothing here is a list written out nine times.
 */
 
+// one step of the trip: the lane it happens on, and what happens
+
+schema Step [ lane: number, head: string ]
+
 // one step: a numbered disc on its lane
 
 class StepNode [ width = 30, height = 30, cornerRadius = 15,
@@ -51,7 +55,7 @@ class Lanes [ height = 330,
         d.lineWidth = 1.5
         d.setLineDash([3, 4])
         d.beginPath()
-        const rows = (:rows ?? []) as any[]
+        const rows = :rows ?? []
         for (let i = 0; i < rows.length; i++) {
             const x = this.colX(i) + 15
             const y = this.laneY(rows[i].lane) + 15
@@ -111,7 +115,7 @@ class ClickFig [
 
     // the nine steps: which lane, and what happens
 
-    steps: Dataset { { "rows": [
+    steps: Dataset [ schema = [ rows[]: Step ] ] { { "rows": [
         { "lane": 0, "head": "Pointer arrives" },
         { "lane": 1, "head": "Hit walk" },
         { "lane": 1, "head": "It was a click" },

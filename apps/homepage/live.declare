@@ -1,0 +1,144 @@
+/*
+# The live demos
+
+The homepage's numbered sections 02–04 each run a small Declare program beside
+its own source, and the source is editable. This file is everything that takes:
+an editable field, the panel around it, the frame the running program sits in,
+and the section that pairs them. It is this site's own machinery, and it rides
+two channels the homepage's host provides: `app.demoSources` seeds each demo's
+source, and `app.liveCard` / `app.liveSource` publish an edit for the host to
+recompile, which answers on `app.liveReport` when the edit does not compile.
+The demo programs themselves are the files in `demos/`.
+
+A `CodeField` is a native editable field seeded (uncontrolled, `initial`) from
+the demo’s source — it follows the source until you type, then holds the edit,
+publishing each keystroke on `app.liveSource`. A `SourcePanel` frames it
+(LIVE·EDITABLE chip, Revert, hairline); a `PreviewFrame` hosts the compiled app
+as an **embedded child app** — an `AppIsland`, no iframe — so the preview can’t
+drift from the source.
+*/
+
+class CodeField extends TextInput [ multiline = true, spellcheck = false,
+    fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").lead },
+    editName: string = "",
+    src: string = "",
+    initial = { src },
+    onInput() { app.liveCard = editName; app.liveSource = text }
+    ]
+
+
+// Neither the field nor the panel carries a height: a field with none sizes to
+// its text, and the panel sizes to the field. So the code is never a scrolling
+// listing — it re-fits as the column re-flows, and as you type in it. The
+// preview beside it takes the same height. Revert restores the pristine `src`
+// and asks the host to recompile.
+
+class SourcePanel [
+    editName: string = "",
+    src: string = "",
+    fill = { provided("theme").panel }, cornerRadius = 12, stroke = { stroke(1, provided("theme").panelLine) },
+
+    // A control surface inside the copy column, so the column's provision
+    // stops at this box: the chip, the Revert label and the compile report are
+    // furniture, and the code itself is a native editable field whose
+    // selection is the platform's, not this flag's.
+
+    selectable = false,
+
+    // the panel is its field, plus the chip row above it and a margin below —
+    // and, while a broken edit has a report, that report's band: it lands
+    // UNDER the code (its own y is parent.height − its height), never over the
+    // closing lines, because the page invites you to break the panel and read
+
+    height = { this.field.y + this.field.height + 8 + (this.err.visible ? this.err.height : 0) },
+
+    // the affordance chip: this code runs, and you can type in it. Both chips
+    // are a label in a `padding` — the label sits at the content origin and the
+    // chip's width is simply what it holds, so the inset is stated once.
+
+    live: View [ x = 12, y = 7, height = 18, cornerRadius = 5, fill = { provided("theme").accent },
+        padding = [4, 7, 4, 7],
+        width = { this.contentWidth },
+        t: Text [ fontFamily = { app.uiFace }, fontSize = 9, fontWeight = bold,
+            letterSpacing = 0.8, wrap = false, textColor = { provided("theme").ink }, text = "LIVE · EDITABLE" ]
+        ],
+    revert: View [ y = 5, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").revertLine) },
+        padding = [3, 8, 3, 8],
+        x = { parent.width - this.width - 10 },
+        width = { this.contentWidth },
+        fill = { hovered ? provided("theme").hover : null },
+        onClick() { classroot.field.text = classroot.src
+                    app.liveCard = classroot.editName
+                    app.liveSource = classroot.src },
+        rlbl: Text [ fontFamily = { app.uiFace }, fontSize = 11, fontWeight = semibold,
+            textColor = { parent.hovered ? provided("theme").text : provided("theme").lead }, text = "Revert" ]
+        ],
+
+    // The panel itself takes no `padding`: the hairline and the error band are
+    // deliberately full-bleed — a rule that stopped short of the panel's edge
+    // would read as a mistake — so an inset here would have to be undone by
+    // both of them. The two children that ARE inset say so themselves.
+
+    hairline: Divider [ y = 31, color = { provided("theme").panelLine } ],
+    field: CodeField [ x = 12, y = 40, width = { parent.width - 24 },
+        editName = { classroot.editName }, src = { classroot.src } ],
+
+    // the compile report, at the panel — a broken edit shows its error right here
+    // (the last good preview keeps running beside it); host feeds app.liveReport
+
+    err: View [ width = 100%, fill = { provided("theme").errBg },
+        visible = { app.liveCard == classroot.editName && app.liveReport != "" },
+        y = { parent.height - this.height },
+        height = { this.msg.height + 16 },
+        bar: View [ width = 3, height = 100%, fill = { provided("theme").errBar } ],
+        msg: Text [ x = 14, y = 8, width = { parent.width - 28 }, wrap = true,
+            fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").errText },
+            text = { app.liveReport } ]
+        ]
+    ]
+
+
+// the running demo is transparent: it sits on the stage colour, which follows
+// the page, and draws only in colours that read on either ground
+
+class PreviewFrame [ cornerRadius = 12, clip = true, fill = { provided("theme").stage },
+    stroke = { stroke(1, provided("theme").line) },
+    runName: string = "",
+    run: AppIsland [ width = 100%, height = 100%, program = { classroot.runName } ]
+    ]
+
+
+/*
+## A live demo section
+
+Sections 02–04 share one shape — a `SectionHead`, a caption, and a live
+`SourcePanel` + `PreviewFrame` pair running the demo for real — so they are one
+class, named for that role, and the three use sites are the words that differ.
+`demo` is the demo's name in `app.demoSources`, the host→app seed channel: it
+picks the source the editor starts from AND the program the island runs, which
+is exactly the pairing that must never drift.
+
+The two panels share the row 58/42 and stack below 760; the preview takes the
+source panel's height, so the code is never a scrolling listing and the picture
+beside it is always the same size as the code that makes it.
+*/
+
+class DemoSection [ width = 100%,
+    num:     string = "",
+    head:    string = "",
+    lead:    string = "",
+    caption: string = "",
+    demo:    string = "",
+    layout: SimpleLayout [ axis = y, spacing = 36 ],
+    SectionHead [ num = { classroot.num }, head = { classroot.head }, lead = { classroot.lead } ],
+    demoBody: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Body [ fontSize = 15, width = 100%, text = { classroot.caption } ],
+        cards: View [ width = 100%,
+            layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 20, share: ({ src: 58, prev: 42 }) }), ({ from: 0, flow: "stack", gap: 20, share: ({ src: 100, prev: 100 }) })] } ],
+            src: SourcePanel [ editName = { classroot.demo },
+                src = { app.demoSources[classroot.demo] || "" } ],
+            prev: PreviewFrame [ runName = { classroot.demo }, height = { parent.src.height } ]
+            ]
+        ]
+    ]

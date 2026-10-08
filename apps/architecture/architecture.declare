@@ -59,7 +59,6 @@ App [ appName = "What's under the hood · Declare",
     // the defaults hold and the app follows the system.
 
     hosted: boolean = { hostProvided("hosted", false) },
-    face: string = { hostProvided("face", "") },
     headWeight: number = { hostProvided("headWeight", 600) },
     inDark: boolean = { hostProvided("dark", app.dark) },
     headTrack: number = { app.headWeight >= 900 ? -0.006 : app.headWeight >= 700 ? -0.014 : -0.02 },
@@ -77,9 +76,9 @@ App [ appName = "What's under the hood · Declare",
 
     fill = { app.hosted ? null : provided("theme").ground },
 
-    // Helvetica, as on the homepage — unless a host hands down another face
+    // the site's face, as on the homepage
 
-    uiFace: string[] = { app.face == "avenir" ? Faces.avenir : Faces.helvetica },
+    uiFace: string[] = { Faces.helvetica },
     fontFamily = { app.uiFace },
     fontSize = 17,
     textColor = { provided("theme").body },

@@ -148,12 +148,17 @@ App [ fill = { provided("theme").background },
         ],
 
     // the url the two sources fetch: the host's program when embedded, the
-    // followed file when the location names one, nothing when the seeds serve
+    // followed file when the location names one, nothing when the seeds serve.
+    // A followed file is named by its path from the deploy root, and the
+    // sources resolve against the opened program's own directory, so the path
+    // climbs from there to the root: the same request on a host serving at its
+    // origin and on one serving under a subpath (a project's GitHub Pages).
 
     srcUrl(q: string) -> string {
         if (app.hostProgram != "") return app.hostProgram + q
         if (app.fileRel == "") return ""
-        return "/" + app.fileRel + q
+        const depth = app.seededPath().replace(/^\/+/, "").split("/").length - 1
+        return "../".repeat(depth) + app.fileRel + q
         },
 
     // the program a host names as the subject (the desktop's viewer window); "" standalone
