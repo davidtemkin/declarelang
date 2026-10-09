@@ -5,6 +5,7 @@
 // the filter and backdrop lists' CSS is effects.ts's.
 import { colorToCss, gradientCss } from "./value.js";
 import { rasterPad, replay } from "./draw.js";
+import { isDeferred } from "./deferred-surface.js";
 let maskWarned = false;
 function warnMaskStencil() {
     if (maskWarned)
@@ -80,10 +81,10 @@ export function applyDomMask(s) {
     }
     const stencil = spec.stencil;
     const src = stencil.$surface;
-    if (src === null) {
+    if (src === null || isDeferred(src)) {
         set("", "", "");
         return;
-    } // not attached yet — the stencil's flush re-pushes
+    } // not attached (or not shown) yet — the stencil's flush re-pushes
     (src.maskUsers ??= new Set()).add(s);
     const m = maskBitmap(src);
     if (m === null) {

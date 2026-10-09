@@ -2,6 +2,9 @@ import { type Kernel, type KernelCaps } from "./kernel-loader.js";
 /** The slot table, as a LIVE binding: attributes.ts reads numeric slots
  *  straight off it (`table[cell]`), no call in between. Empty until load. */
 export declare let table: Float64Array;
+/** The NULL flag per cell, beside the table (1: the slot holds null; its
+ *  number is 0). Read only for a nullable slot (attributes.ts). */
+export declare let nulls: Uint8Array;
 /** The kernel's active-rule word (−1 = no DYNAMIC rule running) and the
  *  probe collector, exported so a getter's tracking check is two reads and
  *  no call: `S.collecting !== null || ACTIVE[0] >= 0`. */
@@ -200,8 +203,10 @@ export declare class Constraint {
     landInKernel(land: {
         cell: number;
         bool: boolean;
+        nullable: boolean;
         accepts: (v: unknown) => boolean;
     }): void;
+    private landsNull;
     /** What the kernel lands for `v`: the number itself, or — for a value the
      *  table cannot take — the JS write lands it and the cell's own value goes
      *  back, which the kernel's equality gate lets through as no change. The gate

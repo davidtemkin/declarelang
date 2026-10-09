@@ -551,8 +551,8 @@ export function tsType(t: AttrType): string {
     case "length": return "Length";
     case "radius": return "Radius";
     case "inset": return "Inset";
-    case "number": return "number";
-    case "boolean": return "boolean";
+    case "number": return t.nullable === true ? "number | null" : "number";
+    case "boolean": return t.nullable === true ? "boolean | null" : "boolean";
     case "string": return "string";
     case "color": return "Color";
     case "shape": return "Shape";
@@ -579,7 +579,7 @@ export function tsType(t: AttrType): string {
     case "faceSource": return "string | readonly string[]";
     case "faceWeight": return "FontWeight | readonly [number, number]";
     case "array": return t.of !== undefined ? `${t.of}[]` : "any[]";
-    case "object": return "any";
+    case "object": return t.written !== undefined ? t.written.replace(/->/g, "=>") : "any";
     case "view": return t.required === true ? "View" : "View | null";
   }
 }
@@ -627,7 +627,10 @@ export function signatureTsType(written: string, isClassName: (n: string) => boo
   if (PAYLOAD_TYPES.has(written)) return nul(written);   // `onPointerUp(e: PointerUpEvent)`
   const t = declaredType(written);
   if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "class" ? t.of : tsType(t));
-  return isClassName(written) ? nul(written) : null;
+  if (isClassName(written)) return nul(written);
+  // any other TypeScript type, as written — its names are TypeScript's to
+  // check, at the parameter (typecheck.ts probeTypes)
+  return nul(written.replace(/->/g, "=>"));
 }
 
 /** A method member's ambient signature — what a CALLER checks against (the
@@ -841,6 +844,8 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  fetch(): Promise<void>;`,
     `  clear(): void;`,
   ],
+  // Play from the start (media.ts): a sound held in memory starts another voice over any still sounding.
+  Media: [`  play(): void;`],
   Animator: [`  start(): void;`, `  stop(): void;`],
   AnimatorGroup: [`  start(): void;`, `  stop(): void;`],
   // Take the NEXT target outright instead of travelling to it — for a value

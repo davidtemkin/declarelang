@@ -2,12 +2,13 @@ The abstract base of the timed-media leaves — `Video` and `Audio` extend it. N
 instantiable: write the leaf that says what you have. Everything a clip *is* lives here;
 the leaves add only whether there is a picture.
 
-There are **no player controls and no methods to call**. Transport is attributes: you do
-not tell a clip to play, you declare the condition under which it is playing, and it
-follows — so a clip below the fold is not decoding while nobody is looking, and one that
-scrolls into view starts because the answer changed. Build a scrubber out of `position`
-and `duration` the same way you would build any other control — out of the standard
-library, in Declare.
+There are **no player controls**, and transport is attributes: you declare the condition
+under which a clip is playing, and it follows — so a clip below the fold is not decoding
+while nobody is looking, and one that scrolls into view starts because the answer changed.
+The one call is `play()`, for a sound that answers an event rather than a state: it plays
+from the start each time the event happens. Build a scrubber out of `position` and
+`duration` the same way you would build any other control — out of the standard library,
+in Declare.
 
 ```declare-fragment
 clip: Video [ source = "shots/tour.mp4", stretches = both, loop = true,
@@ -44,9 +45,8 @@ class that appears broken until you find the flag).
 ## position
 The playhead, in seconds. **Two-way** — read it to follow along (a progress bar is
 `width = { parent.width * (clip.position / clip.duration) }`), assign it to seek. The
-runtime writes it back about four times a second, not once a frame. An assignment
-within a quarter second of the clip's own playhead is not a seek, so the write-backs
-can never bounce out as seeks and stutter playback.
+runtime writes it back about four times a second, not once a frame. Assigning the value it
+already holds changes nothing, so to start a sound over, call `play()`.
 
 For a playhead that moves smoothly, keep your own number and advance it in a
 `Time [ tick = frame ]` member's `onTick(dt)`, taking the clip's `position` whenever the
@@ -91,3 +91,10 @@ media loader does not say why — so the fact is boolean by honesty, not austeri
 ## onEnded
 Fired when the clip reaches its end. Like every Declare event it is delivered to the
 handler that declared interest and does not bubble.
+
+## play()
+Plays from the start — the call for a sound that answers an event, which sounds again each
+time the event happens however far the last one got: `onChange() { if (fired) shot.play() }`.
+Setting `playing = true` goes on from where the playhead is; `play()` starts over. On an
+`Audio` held in memory (`inMemory = true`) it starts another voice instead, over any still
+sounding.

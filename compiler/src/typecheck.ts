@@ -58,7 +58,7 @@ import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas, resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText } from "./scaffold.js";
 import { SCHEMAS, attrType, descendsFrom, type ClassSchema } from "../../runtime/dist/schema.js";
-import { declaredType, type AttrType } from "../../runtime/dist/value.js";
+import { declaredType, isAuthoredUnion, type AttrType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
 
 /** TS primitives a Declare type name can resolve to — where "declare it" is
@@ -106,6 +106,8 @@ interface Unit {
  *  framed is skipped, not failed. */
 export function typecheckBodies(text: string, program: Program): { errors: DeclareError[]; oracle: TypeOracle | null } {
   const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
+  WORD_TYPES = new Set();
+  for (const sc of Object.values(schemas)) for (const t of Object.values(sc.attrs)) if (t.kind === "enum" && !isAuthoredUnion(t.name)) WORD_TYPES.add(t.name);
   const rprog = program;
   // Resolve the program's schemas (typed data): the named `schema =` forms
   // become resolved shape literals, which is what the Dataset `.value`
@@ -136,7 +138,7 @@ export function typecheckBodies(text: string, program: Program): { errors: Decla
   // Pass 2 — the check-blocks, typed by the instance types pass 1 assigned.
   for (const cls of rprog.classes) emitter.walkElement(cls.body, [], true);
   emitter.walkElement(rprog.root, [], false);
-  if (emitter.units.length === 0) return { errors: [], oracle: null };
+  if (emitter.units.length === 0 && emitter.declTypePos.size === 0) return { errors: [], oracle: null };
 
   const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
   const starts = lineStarts(text);
@@ -155,11 +157,21 @@ export function typecheckBodies(text: string, program: Program): { errors: Decla
   for (const pos of emitter.literalPaths) out.push(Diag.literalDatapath(pos));
   for (const d of diags) {
     const u = emitter.unitAt(d.line);
+    const dt = emitter.declTypePos.get(d.line);
+    if (dt !== undefined) {
+      const m = /Cannot find name '([^']+)'/.exec(d.message);
+      out.push(Diag.typeError(m !== null
+        ? `unknown type '${m[1]}' in '${dt.written}' — a declared type is TypeScript's: a built-in (string, Map, Record, Date, …), one of Declare's (Color, Length, …), a class, a schema, or a type a script block declares`
+        : dt.isDefault === true ? `this default is not a ${dt.written} — ${d.message}` : `the type '${dt.written}' — ${d.message}`, dt.pos, d.code));
+      continue;
+    }
     if (u === null) {
       // Not inside a body — but it may be on a synthesized instance MEMBER, and
       // an instance is a singleton subclass, so its overrides are checked like
       // any subclass's. Report those at the member the author wrote.
       const mp = emitter.memberPos.get(d.line);
+      // an unknown name in a signature's type is the probe's to report, at the parameter
+      if (mp !== undefined && (d.code === 2304 || d.code === 2552)) continue;
       if (mp !== undefined) out.push(Diag.typeError(explainMember(d, mp), mp.pos, d.code));
       continue;
     }
@@ -175,6 +187,9 @@ export function typecheckBodies(text: string, program: Program): { errors: Decla
     // `this.root.`), so a column is carried back through them to the text the
     // author wrote.
     const inBody = d.line >= u.bodyStart && d.line < u.bodyStart + u.lineCount;
+    // the wrapper's header declares the parameters' types: an unknown name
+    // there is a signature's, reported at the parameter by its probe
+    if (!inBody && (d.code === 2304 || d.code === 2552)) continue;
     const rel = Math.min(Math.max(d.line - u.bodyStart, 0), u.lineCount - 1);
     let pos: Pos;
     if (!inBody) pos = posAt(u.origStartLine, u.origStartCol, starts);
@@ -298,10 +313,30 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
   const home = u.slot !== null ? `the { } body of '${u.slot}'` : "this method body";
 
   let m: RegExpMatchArray | null;
+  // A WORD THAT WIDENED. `const tag = { fontWeight: "semibold" }` types its
+  // field `string` — a string held in a local before it is passed loses its
+  // literal type. TypeScript's remedies are the language's: give the local its
+  // type, or write the record where it is passed; a text style can also be
+  // named once.
+  m = msg.match(/(?:Type|Argument of type) 'string' is not assignable to (?:parameter of )?type '([^']+)'/);
+  if (m !== null && (d.code === 2345 || d.code === 2769 || (d.code === 2322 && u.slot === null))) {
+    const want = m[1].replace(/ \| (undefined|null)/g, "");
+    if (WORD_TYPES.has(want) || declaredType(want)?.kind === "enum" || /^"[^"]*"( \| "[^"]*")+$/.test(want)) {
+      const fix = TEXT_STYLE_WORDS.has(want)
+        ? `Give the local its type (const tag: TextStyle = { fontWeight: "semibold" }), write the record where it is passed (d.fillText(s, x, y, { fontWeight: "semibold" })), or name the style once — style Tag [ fontWeight = semibold ] — and pass Tag`
+        : `Give the local its type, or write the value where it is passed, where the expected type applies`;
+      return `${article(want)} is one of a fixed set of words, and this one reached here as a plain string: a word kept in a local object or variable before it is passed loses its exactness. ${fix}`;
+    }
+  }
   switch (d.code) {
     // The SEAM error — the body's value doesn't fit the slot's declared type.
     case 2322:
       m = msg.match(/Type '(.+?)' is not assignable to type '(.+?)'/s);
+      // A mismatch INSIDE the value (a record's field, an array's item) is not
+      // the slot's own type: name the slot's type, and keep TypeScript's detail.
+      if (m !== null && u.slot !== null && u.slotTs !== null && m[2] !== u.slotTs && !u.slotTs.startsWith(m[2] + " |")) {
+        return `${home} does not fit '${u.slot}', typed ${u.slotTs} — ${msg.replace(/\s+/g, " ")}`;
+      }
       if (m !== null && u.slot !== null) {
         const canon =
           m[1] === "boolean" && u.slotTs === "Length"
@@ -443,6 +478,25 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
   }
 }
 
+/** A plain literal — a number, a string, a boolean, null, or a list of them —
+ *  as the TypeScript expression it writes; undefined for any other literal. */
+function plainLiteralText(lit: import("../../runtime/dist/parser.js").Literal): string | undefined {
+  const l = lit as { kind: string; value?: unknown; name?: string; items?: unknown[] };
+  if (l.kind === "number" || l.kind === "string") return JSON.stringify(l.value);
+  if (l.kind === "ident") return l.name === "true" || l.name === "false" || l.name === "null" ? l.name : undefined;
+  if (l.kind === "list") {
+    const items = (l.items ?? []).map((it) => plainLiteralText(it as never));
+    return items.every((x) => x !== undefined) ? `[${items.join(", ")}]` : undefined;
+  }
+  return undefined;
+}
+
+/** The scaffold's named word sets — the enum aliases, whose values are a
+ *  closed list of strings (set per typecheck from the schemas, as the scaffold
+ *  emits them) — and the one of them a text style names. */
+let WORD_TYPES = new Set<string>();
+const TEXT_STYLE_WORDS = new Set(["FontWeight"]);
+
 /** "boolean" → "a boolean", "unknown"/"any" pass bare — tiny readability. */
 function article(type: string): string {
   return /^(a|e|i|o|u)/i.test(type) ? `an ${type}` : `a ${type}`;
@@ -500,6 +554,9 @@ class CaseEmitter {
    *  override is a real error (TS2416). Those land OUTSIDE any body unit, and
    *  were being dropped — this is what gives them a position to be reported at. */
   readonly memberPos = new Map<number, { pos: Pos; name: string; tag: string }>();
+  /** Case-file line → a declaration whose TypeScript type a probe line names
+   *  (`type _D3 = Map<string, Strng>;`): an error on it is the declaration's. */
+  readonly declTypePos = new Map<number, { pos: Pos; written: string; isDefault?: true }>();
 
   /** Pass 1 — bottom-up: assign every element its instance type, emitting a
    *  `declare class _E<n> extends <tag> { … }` for each element that adds
@@ -538,6 +595,7 @@ class CaseEmitter {
   private namedMembers = new Map<Element, readonly string[]>();
 
   assignTypes(el: Element, classRoot: boolean): string {
+    this.probeTypes(el);
     const members: string[] = [];
     const childTypes = new Set<string>();
     const named: string[] = [];
@@ -667,6 +725,41 @@ class CaseEmitter {
     return el.tag === "DataSource" || (this.schemas[el.tag] !== undefined && descendsFrom(this.schemas[el.tag], "DataSource"));
   }
 
+  /** WRITTEN TYPES, checked by TypeScript where the author wrote them — a
+   *  class's or an instance's. A declaration's type outside Declare's
+   *  vocabulary (`Map<string, Row>`) gets one probe line naming it, and so does
+   *  a method's parameter or return type; a plain literal default — a number,
+   *  a string, a boolean, null, a list of them — is checked against its type.
+   *  An error on a probe line is reported at the written type (declTypePos).
+   *  Declare's own literal forms (#hex, bare tokens, percents) are read by the
+   *  slot's coercion, which reports its own mismatches; and a `null` default
+   *  on one of Declare's own types is that type's rule (an `array` slot admits
+   *  it), on a TypeScript type TypeScript's. */
+  private probeTypes(el: Element): void {
+    const isC = (n: string): boolean => this.schemas[n] !== undefined || this.classHasChildren.has(n);
+    const isShape = (n: string): boolean => this.shapeNames.has(n);
+    // (a parameter's `?` is its own nullability; the names are the type's)
+    const probe = (written: string, pos: Pos): void => {
+      const t = resolveWrittenType(written.replace(/\?$/, ""), isC, isShape);
+      if (t === null || !((t.kind === "object" && t.written !== undefined) || t.kind === "fn")) return;
+      this.lines.push(`type _D${this.typeCounter++} = ${tsType(t)};`);
+      this.declTypePos.set(this.lines.length, { pos, written });
+    };
+    for (const d of el.decls) {
+      probe(d.type, d.typePos);
+      const t = resolveWrittenType(d.type, isC, isShape);
+      const plain = t === null || d.def === null ? undefined : plainLiteralText(d.def);
+      if (plain !== undefined && !(plain === "null" && !(t!.kind === "object" && t!.written !== undefined))) {
+        this.lines.push(`const _V${this.typeCounter++}: ${tsType(t!)} = ${plain};`);
+        this.declTypePos.set(this.lines.length, { pos: d.def!.pos, written: d.type, isDefault: true });
+      }
+    }
+    for (const m of el.methods) {
+      for (const p of m.params) if (p.type !== undefined) probe(p.type, p.typePos ?? m.pos);
+      if (m.returns !== undefined) probe(m.returns, m.returnsPos ?? m.pos);
+    }
+  }
+
   /** The DOCUMENT type text a Dataset element's resolved `schema =` declares
    *  (`{ cols: Col[] }`, `TaskDoc`, `Task[]`), or null. Feeds two walls: the
    *  `.value` narrowing (readers) and the `contents` slot annotation below
@@ -707,8 +800,9 @@ class CaseEmitter {
     for (const d of el.decls) {
       if (d.def?.kind === "code") {
         // A declaration-default binding checks against the DECL's own declared
-        // type (the tag schema does not carry an inline decl).
-        const t = declaredType(d.type);
+        // type (the tag schema does not carry an inline decl) — resolved as
+        // the declaration itself is, so a TypeScript type checks its default.
+        const t = resolveWrittenType(d.type, (n) => this.schemas[n] !== undefined || this.classHasChildren.has(n), (n) => this.shapeNames.has(n));
         this.emit(d.def.src, d.def.pos, d.name, t === null ? "unknown" : tsType(t), levels, true, [], classBody, d.def);
       }
     }

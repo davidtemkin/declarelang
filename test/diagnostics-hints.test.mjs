@@ -257,7 +257,7 @@ await test("a { } reading Date.now() / new Date() warns that it evaluates once; 
 });
 
 // ── a bare object literal inside { } — the #24 dead end, named (probe-based) ──
-await test("a bare object literal inside { } names the real mistake; the double-brace form compiles; the paren idiom is rejected; other errors keep their fragment", async () => {
+await test("a bare object literal inside { } names the real mistake; the double-brace form compiles; the paren idiom compiles with a hint; other errors keep their fragment", async () => {
   const r = await compile('App [ width = 100, height = 100, cfg: object = { a: "one", b: "two" } ]', { originDir: process.cwd() });
   assert.ok(r.errors.length > 0, "still an error");
   assert.ok(r.errors[0].message.includes("its own braces"), r.errors[0].message);
@@ -265,10 +265,11 @@ await test("a bare object literal inside { } names the real mistake; the double-
   // the disambiguating parens, so nesting the object in its own braces is enough.
   const ok = await compile('App [ width = 100, height = 100, cfg: object = { { a: "one", b: "two" } } ]', { originDir: process.cwd() });
   assert.deepEqual(ok.errors.map((e) => e.message), []);
-  // The once-idiomatic parenthesized form is now REJECTED as redundant parentheses —
-  // the { } already delimits the expression (DT ruling, 2026-09-08).
+  // The parenthesized form is TypeScript, so it compiles; a HINT names the
+  // shorter form (DT 2026-10-08).
   const paren = await compile('App [ width = 100, height = 100, cfg: object = { ({ a: "one", b: "two" }) } ]', { originDir: process.cwd() });
-  assert.ok(paren.errors.some((e) => e.message.includes("redundant parentheses")), paren.errors.map((e) => e.message).join("; "));
+  assert.deepEqual(paren.errors.map((e) => e.message), []);
+  assert.ok((paren.hints ?? []).some((e) => e.message.includes("redundant parentheses")), JSON.stringify(paren.hints));
   const other = await compile('App [ width = 100, height = 100, n: number = { foo bar } ]', { originDir: process.cwd() });
   assert.ok(other.errors.length > 0 && !other.errors[0].message.includes("its own braces"), other.errors[0]?.message);
 });

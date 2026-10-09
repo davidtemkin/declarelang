@@ -84,6 +84,7 @@ if (MAC && !macLive() && hostBinary() !== null) {
 // renderers must never quietly prove two. Checked here, once the origin exists,
 // so the message can name the command that fixes it.
 if (MAC && !macLive()) {
+  if (ownHost !== null) { try { process.kill(ownHost.pid); } catch { /* already gone */ } }
   console.error("conform: --mac was requested but no native host is running.\n" +
     "  DECLARE_CONTROL=1 '" + (hostBinary() ?? `/Applications/${APP_NAME}.app/Contents/MacOS/${APP_NAME}`) + "' &\n" +
     (hostBinary() === null ? "  (" + NO_HOST + ")\n" : "") +

@@ -6,6 +6,9 @@ import { type Where } from "./errors.js";
  *  equality, not identity). */
 export interface AttrSpec<S, V> {
     def: V;
+    /** A NULLABLE number ("n") or boolean ("b") — a declared `number | null`:
+     *  a table slot whatever its default, its null carried by the cell's flag. */
+    nullable?: "n" | "b";
     push?: (self: S, v: V) => void;
     equal?: (a: V, b: V) => boolean;
     /** A declaration default that is a BINDING (`fontSize: number = provided(
@@ -72,6 +75,7 @@ export declare function slotCellOf(self: object, name: string): number;
 export declare function kernelLanding(self: object, name: string): {
     cell: number;
     bool: boolean;
+    nullable: boolean;
     accepts: (v: unknown) => boolean;
 } | null;
 /** Is `self.name` a boolean slot (a kernel-written 0/1 lands as true/false)? */

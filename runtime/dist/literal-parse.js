@@ -314,6 +314,8 @@ export function parseLiteral(type, lit) {
                 return ok({ align: lit.name });
             return fail(diag `a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)`);
         case "number":
+            if (type.nullable === true && lit.kind === "ident" && lit.name === "null")
+                return ok(null);
             if (lit.kind === "number") {
                 if (lit.hex && lit.hexLen === 8)
                     return fail(diag `a number`, diag `${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
@@ -338,6 +340,8 @@ export function parseLiteral(type, lit) {
             if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) {
                 return ok(lit.name === "true");
             }
+            if (type.nullable === true && lit.kind === "ident" && lit.name === "null")
+                return ok(null);
             return fail(diag `a boolean (true or false)`);
         case "string":
             if (lit.kind === "string")
@@ -413,6 +417,13 @@ export function parseLiteral(type, lit) {
         case "object":
             if (lit.kind === "ident" && lit.name === "null")
                 return ok(null);
+            // a TypeScript-typed declaration: any plain literal is its value, and
+            // TypeScript judges the type (the declared-type probe)
+            if (type.written !== undefined) {
+                const plain = plainLiteral(lit);
+                if (plain !== undefined)
+                    return ok(plain);
+            }
             return fail(diag `an object — a { } constraint (plain TS), or null`);
         case "view":
             if (lit.kind === "ident" && lit.name === "null") {
@@ -472,5 +483,26 @@ export function parseLiteral(type, lit) {
             return "error" in r ? fail(r.error) : ok(r.value);
         }
     }
+}
+/** A literal as the plain value it writes — a number, a string, a boolean,
+ *  null, or a list of those — or undefined when it is none of these. */
+function plainLiteral(lit) {
+    if (lit.kind === "number")
+        return lit.value;
+    if (lit.kind === "string")
+        return lit.value;
+    if (lit.kind === "ident")
+        return lit.name === "true" ? true : lit.name === "false" ? false : lit.name === "null" ? null : undefined;
+    if (lit.kind === "list") {
+        const out = [];
+        for (const it of lit.items) {
+            const v = plainLiteral(it);
+            if (v === undefined)
+                return undefined;
+            out.push(v);
+        }
+        return out;
+    }
+    return undefined;
 }
 //# sourceMappingURL=literal-parse.js.map

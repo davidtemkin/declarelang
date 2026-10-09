@@ -276,7 +276,8 @@ export interface Provenance {
     writer: string | null;
     /** The authored `{ … }` text, when this constraint came from a program. */
     source: string | null;
-    pos: { line: number; col: number } | null;
+    /** Where it was written: `file` names an included file (absent: the program's own). */
+    pos: { line: number; col: number; file?: string } | null;
   } | null;
   /** A Spring child currently driving this slot, with its live target. */
   spring: { target: unknown; stiffness: unknown; damping: unknown } | null;

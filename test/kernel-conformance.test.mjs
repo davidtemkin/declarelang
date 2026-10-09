@@ -28,7 +28,7 @@ import { VIEW_LAYOUT_FIELDS } from "../runtime/dist/kernel-loader.js";
 // opcodes, as declare_kernel.h numbers them
 const OP = { END: 0, LOAD: 1, CONST: 2, ADD: 3, SUB: 4, MUL: 5, DIV: 6, MOD: 7, NEG: 8, MIN: 9, MAX: 10,
   ABS: 11, FLOOR: 12, CEIL: 13, ROUND: 14, SQRT: 15, LT: 16, LE: 17, GT: 18, GE: 19, EQ: 20, NE: 21,
-  AND: 22, OR: 23, NOT: 24, SELECT: 25, CLAMP: 26 };
+  AND: 22, OR: 23, NOT: 24, SELECT: 25, CLAMP: 26, NULL: 27, COALESCE: 28 };
 const KIND = { EXPR: 0, BODY: 1, DYNAMIC: 2 };
 const FLAG = { YIELDING: 1, PHASE1: 2 };
 const ERR = { OK: 0, OWNED: -3, CYCLE: -4, AFTER: -5, BOUND: -6 };
@@ -121,12 +121,63 @@ await bothAgree("every arithmetic opcode agrees, including the awkward ones", (K
   ];
   for (const [label, words, n, xv, yv] of cases) {
     K.set(x, xv); K.set(y, yv);
-    const at = K.addCode(words.map((w, i) => (words[i - 1] === OP.LOAD ? (w === 0 ? x : y) : w)));
+    // the word after a LOAD opcode is its cell (0: x, 1: y) — found by walking
+    // the code, since an operand may itself equal an opcode's number
+    const cellsAt = new Set();
+    for (let i = 0; i < words.length; i++) if (words[i] === OP.LOAD) cellsAt.add(++i);
+    const at = K.addCode(words.map((w, i) => (cellsAt.has(i) ? (w === 0 ? x : y) : w)));
     const rule = K.addExprRule(out, 0, [x, y], at, n);
     K.run(rule);
     r(label, String(K.table[out]));
     K.dispose(rule);
   }
+});
+
+// NULL IN A NUMBER CELL (a declared `number | null`): the cell holds 0 and its
+// flag; arithmetic and ordering read the 0 — JavaScript's null there — and ==,
+// ?? and a choice that yields the value read the flag, as JavaScript does.
+await bothAgree("null in a number cell: written, compared, coalesced, carried through, and cleared by a number", (K, h, r) => {
+  const x = K.addCell(0, false), y = K.addCell(0, false), out = K.addCell(0, false);
+  const setNull = (c) => { K.table[c] = 0; K.nulls[c] = 1; K.touch(c); };
+  const read = (c) => (K.nulls[c] === 1 ? "null" : String(K.table[c]));
+  const cases = [
+    // label, code (X and Y name the cells), x (null = "null"), y, what JavaScript gives
+    ["x ?? y with x null", [OP.LOAD, "X", OP.LOAD, "Y", OP.COALESCE, OP.END], "null", 7, "7"],
+    ["x ?? y with x 0", [OP.LOAD, "X", OP.LOAD, "Y", OP.COALESCE, OP.END], 0, 7, "0"],
+    ["null == null", [OP.LOAD, "X", OP.NULL, OP.EQ, OP.END], "null", 0, "1"],
+    ["null == 0 is false", [OP.LOAD, "X", OP.LOAD, "Y", OP.EQ, OP.END], "null", 0, "0"],
+    ["null != 0", [OP.LOAD, "X", OP.LOAD, "Y", OP.NE, OP.END], "null", 0, "1"],
+    ["0 == null is false", [OP.LOAD, "X", OP.NULL, OP.EQ, OP.END], 0, 0, "0"],
+    ["null + 1", [OP.LOAD, "X", OP.LOAD, "Y", OP.ADD, OP.END], "null", 1, "1"],
+    ["null < 1", [OP.LOAD, "X", OP.LOAD, "Y", OP.LT, OP.END], "null", 1, "1"],
+    ["min(null, 5) is 0, not null", [OP.LOAD, "X", OP.LOAD, "Y", OP.MIN, OP.END], "null", 5, "0"],
+    ["!null", [OP.LOAD, "X", OP.NOT, OP.END], "null", 0, "1"],
+    ["a choice carries null", [OP.LOAD, "Y", OP.LOAD, "X", OP.LOAD, "Y", OP.SELECT, OP.END], "null", 1, "null"],
+    ["the null constant", [OP.NULL, OP.END], 3, 0, "null"],
+  ];
+  for (const [label, words, xv, yv, want] of cases) {
+    if (xv === "null") setNull(x); else K.set(x, xv);
+    K.set(y, yv);
+    const at = K.addCode(words.map((w) => (w === "X" ? x : w === "Y" ? y : w)));
+    const rule = K.addExprRule(out, 0, [x, y], at, words.length);
+    K.run(rule);
+    r(label, read(out));
+    assert.equal(read(out), want, `${label}: JavaScript gives ${want}`);
+    K.dispose(rule);
+  }
+  // a number written over null clears it, even when the number is the 0 it held
+  setNull(out);
+  K.set(out, 0);
+  r("0 over null", read(out));
+  // a host body returns null through the body-null byte
+  const body = K.addRule(out, KIND.BODY, 0, [x], 0);
+  h.bodies.set(body, () => { K.bodyNull[0] = 1; return 0; });
+  K.own(out, body);
+  K.run(body);
+  r("a body's null lands", read(out));
+  h.bodies.set(body, () => 4);
+  K.invalidate(body); K.settle();
+  r("a body's number replaces it", read(out));
 });
 
 await bothAgree("a write to an owned cell is refused, and a YIELDING owner steps aside", (K, h, r) => {

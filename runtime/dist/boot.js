@@ -520,9 +520,9 @@ export function renderProgram(program, host, backend) {
 }
 /** Instantiate a compiled PROGRAM (the parsed, checked, deps-applied shape a
  *  build ships — declarec's artifact, a prewarmed `run` entry, the in-browser
- *  compiler's compileProgram) into its App tree, with no parse and no check:
- *  the program-object twin of index.ts `build(source)`, for a host that never
- *  carries the parser. `deps` zips an extracted dependency list on when the
+ *  compiler's compileProgram, a compile() result's `program`) into its App
+ *  tree, with no parse and no check: every program the runtime runs arrives
+ *  this way. `deps` zips an extracted dependency list on when the
  *  program does not carry one already; `provides` are the topmost host's
  *  values, there from the first evaluation. */
 export function buildProgram(program, opts = {}) {
@@ -534,7 +534,7 @@ export function buildProgram(program, opts = {}) {
     return root;
 }
 /** Like renderProgram(), but first loads the program's own web `font` faces so
- *  first paint measures against the real metrics (mirrors renderAsync).
+ *  first paint measures against the real metrics.
  *  `assetBase` states the program's own directory when the page is served from
  *  elsewhere — its relative bitmaps and faces resolve there (image.ts). */
 export async function renderProgramAsync(program, host, backend, options) {

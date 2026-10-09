@@ -184,7 +184,8 @@ inside a card the layout owns that position.
 
 Position is `x` and `y`, measured from the parent's content origin. Two named literals
 cover the common cases: `x = center` and `x = end` (and the same on `y`) center a view in
-its parent, or push it flush to the far edge, and follow as sizes change.
+its parent, or push it flush to the far edge, and follow as sizes change. A scaled or
+rotated view is placed by the box it visibly covers, as a layout places it.
 
 Hand placement is the right tool on free-form surfaces — a diagram, a canvas of cards,
 an overlay, the cells of a calendar whose geometry is a formula — and in a few small

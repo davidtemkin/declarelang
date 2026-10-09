@@ -24,7 +24,7 @@ _Original design follows._
 | compile: parse → include → check → resolve, all-errors-per-phase, DECLARE#### codes | `compiler/src/compile.ts`, `runtime/src/check.ts`, `diagnostics.ts` | shipped |
 | typecheck (tsc over `{ }` bodies vs generated scaffold) | `compiler/src/typecheck.ts` | shipped, **on by default** |
 | static dep extraction (per-constraint reads, interprocedural) | `compiler/src/dep-extract.ts`, emitted in `compile()` result | shipped |
-| headless instantiation, no DOM (`build()`), reactive `settle()` | `runtime/src/index.ts`, `reactive.ts` | shipped (tests use it) |
+| headless instantiation, no DOM (`buildProgram()`), reactive `settle()` | `runtime/src/boot.ts`, `reactive.ts` | shipped (tests use it) |
 | real-Chrome pixel harness: launch, render both backends, AA-tolerant compare | `test/perceptual.test.mjs` (78 cases) | shipped, test-only |
 | behavioral driving (puppeteer synthetic input, post-mutation pixel checks) | `test/perceptual.test.mjs` R5/R7 | shipped, test-only |
 | production build (esbuild bundle, slim registry) | `tools/declarec.mjs` | shipped |
@@ -50,7 +50,7 @@ Climbs as far as it can; stops at the first rung that fails; reports **everythin
 |---|---|---|---|
 | 1–2 | parse, include, check, resolve | ~16 ms | none — `compile()` |
 | 3 | typecheck (tsc over bodies) + dep extraction | ~80 ms | **on by default** (as on every surface — typecheck is always on) |
-| 4 | headless boot: `build()` the tree in Node, `settle()`, catch runtime errors, constraint-cycle check, report tree stats **and real geometry** | ~ms | thin wrapper + an injected text measurer (§2.8) |
+| 4 | headless boot: build the compiled tree in Node (`buildProgram()`), `settle()`, catch runtime errors, constraint-cycle check, report tree stats **and real geometry** | ~ms | thin wrapper + an injected text measurer (§2.8) |
 | 5 | behavioral: launch headless Chrome, run the app, execute an **assert script** (§2.4) with synthetic input and stepped time | ~2–5 s | the bulk of Part A |
 | 6 | visual: capture **named states** (§2.5), perceptual-diff against blessed baselines | ~2–5 s | reuse test compare fns; add baseline bless/update flow |
 
@@ -267,7 +267,7 @@ Ordered so every phase lands something usable alone; estimates are working-sessi
 | phase | delivers | est |
 |---|---|---|
 | **0. enablers** | docs-examples-compile CI test (incl. fixing spec §9's JSON example); verify skeleton = compile+typecheck with unified output (rungs 1–3) | ~half day |
-| **1. headless boot** | rung 4: Node `build()`+`settle()` wrapper, runtime-error mapping to diagnostic register, tree stats | ~half day |
+| **1. headless boot** | rung 4: Node `buildProgram()`+`settle()` wrapper, runtime-error mapping to diagnostic register, tree stats | ~half day |
 | **2. inspect + clock** | `runtime/src/inspect.ts` (inspect/find/explain/stats, versioned schema); manual clock + `settleMotion`; `window.__declare` bridge | ~2 days — the heart of Part A |
 | **3. behavioral** | `drive`/`expect` API over puppeteer + bridge; fixture static host; assert-script runner; rung-5 reporting | ~2 days |
 | **4. visual** | named states, capture, perceptual-diff + bless flow, `--backend both` parity; calendar + site get states+baselines as the reference users | ~1 day |

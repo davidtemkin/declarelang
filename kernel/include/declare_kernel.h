@@ -56,6 +56,8 @@ enum {
   DK_OP_AND, DK_OP_OR, DK_OP_NOT,
   DK_OP_SELECT,   /* c a b → c ? a : b (both evaluated; pure)                  */
   DK_OP_CLAMP,    /* x lo hi                                                  */
+  DK_OP_NULL,     /*                 → push null (0, flagged)                  */
+  DK_OP_COALESCE, /* a b → a ?? b                                              */
   DK_OP__COUNT
 };
 
@@ -135,6 +137,10 @@ void kernel_usage(dk_kernel *k, uint32_t *out);
 
 /* The slot table (F64 cells; REF cells hold nothing the host reads). */
 double *kernel_table(dk_kernel *k);
+/* the null flag per cell (1: the cell holds null; its slot holds 0), and the
+ * byte a host body sets when its result is null */
+uint8_t *kernel_nulls(dk_kernel *k);
+uint8_t *kernel_body_null(dk_kernel *k);
 uint32_t kernel_cells(dk_kernel *k);
 uint32_t kernel_rules(dk_kernel *k);
 uint32_t kernel_elems(dk_kernel *k);

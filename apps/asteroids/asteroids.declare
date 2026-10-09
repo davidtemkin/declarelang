@@ -1,0 +1,162 @@
+/*
+# Asteroids
+
+Atari's 1979 arcade game, with the same shapes, letters, sounds, motion and patterns.
+Given the same controls, it plays the arcade's game frame for frame, checked against
+MAME's emulation: every value of the game's state on every frame, and the vector picture
+the beam draws. Keys: ← → or A S turn, ↑ or ' thrust, Space or Return fire, ↓, Shift or /
+hyperspace, Return or 1 start, Escape pause.
+
+The shape to notice:
+
+- **The game is a dataset with its own rules.** `Game` in game.declare holds what is on
+  the field as records — rocks, shots, saucer shots, the saucer and the ship — and the
+  rest of the game as attributes, with a method per rule. `step` moves it all on by one
+  frame.
+- **Time enters as integration.** A frame `Time` moves the game on a frame at a time: in
+  step with the display where its frames divide the arcade's 16 ms closely enough, as at
+  60 Hz and its multiples, and every 16 ms of banked time on any other display.
+- **The screen follows the data.** Views are replicated from the records the beam drew
+  this frame; texts, the high-score table and the sound board are constraints on the
+  game's `mode` and state. Nothing in the views updates anything.
+- **Everything is a whole number** in the arcade's own units, so the game is the same
+  game every time.
+
+What the beam draws is in art.declare: outlines, dots and letters decoded from the
+arcade's vector ROM. The sound board is in sounds.declare: clips recorded from MAME's
+emulation of the arcade's sound circuits. There is one player; "1 COIN 1 PLAY" is shown,
+but one key starts a game. High-score entry is not included, and the table shows fixed
+scores. In an explosion's first frames, the shrapnel can sit up to about three screen
+units from where the arcade draws it.
+*/
+
+include [ "game.declare", "art.declare", "sounds.declare" ]
+
+App [ fill = black,
+    // the field before power-on, which fills it
+
+    game: Game { { "rocks": [], "shots": [], "saucerShots": [],
+        "saucer": { "inPlay": false, "size": "large", "x": 0, "y": 0, "vx": 0, "vy": 0, "blast": 0, "struck": false },
+        "ship": { "state": "waiting", "x": 0, "y": 0, "vx": 0, "vy": 0, "heading": 0, "wait": 0,
+            "landing": "safe", "blast": 0, "struck": false } } },
+    sounds: SoundBoard [ game = { app.game }, paused = { app.paused } ],
+
+    // the arcade's buttons, on the keyboard
+
+    controls() -> Controls {
+        return {
+            left: Keys.isDown("ArrowLeft") || Keys.isDown("KeyA"),
+            right: Keys.isDown("ArrowRight") || Keys.isDown("KeyS"),
+            thrust: Keys.isDown("ArrowUp") || Keys.isDown("Quote"),
+            fire: Keys.isDown("Space") || Keys.isDown("Enter"),
+            hyperspace: Keys.isDown("ArrowDown") || Keys.isDown("ShiftLeft") || Keys.isDown("ShiftRight")
+                || Keys.isDown("Slash"),
+            start: Keys.isDown("Enter") || Keys.isDown("Digit1")
+            }
+        },
+
+    // Escape pauses a game in play; any key goes on with it. The key that goes on also counts as
+    // pressed, so a turn or thrust held to resume carries on at once.
+
+    paused: boolean = false,
+    keys: Keys [
+        onKeyDown(e: KeyEvent) {
+            if (e.repeat || e.meta || e.ctrl || e.alt) return
+            if (app.paused) app.paused = false
+            else if (e.key == "Escape" && app.game.playing) app.paused = true
+            }
+        ],
+
+    // The arcade moves the game on a frame every 16 ms. Where a whole number of the display's
+    // frames comes within 5% of that, as at 60 Hz and its multiples, the game moves on every
+    // that many display frames, so each of its frames is shown for the same time, and it runs
+    // that much slower or faster than the arcade. On any other display, time banks between
+    // display frames and the game moves on every 16 ms of it.
+
+    clock: Time [ tick = frame, running = { !app.paused },
+        frameTime: number = 0,          // the display's frame, averaged, in seconds
+        shown: number = 0,              // display frames since the game last moved on
+        banked: number = 0,
+        onTick(dt: number) {
+            for (let n = this.gameFrames(dt); n > 0; n--) app.game.step(app.controls())
+            },
+        gameFrames(dt: number) -> number {
+            // a late frame stands for the display frames it covered, and stays out of the average
+            if (frameTime == 0) frameTime = dt
+            else if (dt < 1.5 * frameTime) frameTime = 0.95 * frameTime + 0.05 * dt
+            const per = Math.max(1, Math.round(0.016 / frameTime))
+            if (Math.abs(per * frameTime - 0.016) <= 0.05 * 0.016) {
+                shown = shown + Math.max(1, Math.round(dt / frameTime))
+                const n = Math.floor(shown / per)
+                shown = shown - n * per
+                return n
+                }
+            banked = banked + dt
+            const n = Math.floor(banked / 0.016)
+            banked = banked - n * 0.016
+            return n
+            }
+        ],
+
+    // What the beam drew this frame. It draws as things move, before hits are found: a rock
+    // split off this frame is drawn from the next, and anything hit is drawn whole once more.
+
+    drawn: Dataset [ schema = [ rocks[]: Rock, shots[]: Shot ],
+        contents = { { rocks: app.game.value.rocks.filter((r) => r.drawn),
+            shots: app.game.value.shots.concat(app.game.value.saucerShots).filter((s) => s.drawn) } } ],
+
+    // the high scores shown between games (entering your own is not part of this game)
+
+    highScores: Dataset [ schema = [ rows[]: [ score: number, initials: string ] ] ] {
+        { "rows": [
+            { "score": 32460, "initials": "ACE" }, { "score": 28750, "initials": "BOB" },
+            { "score": 25110, "initials": "CAT" }, { "score": 22940, "initials": "DOT" },
+            { "score": 20380, "initials": "EVE" }, { "score": 18560, "initials": "FOX" },
+            { "score": 16720, "initials": "GUS" }, { "score": 15140, "initials": "HAL" },
+            { "score": 13800, "initials": "IVY" }, { "score": 12520, "initials": "JAN" } ] }
+        },
+
+    // The arcade's screen, scaled to fit the window.
+
+    screen: View [ width = 1044, height = 788, clip = true,
+        scale = { Math.min(app.width / width, app.height / height) },
+        x = { (app.width - width * scale) / 2 },
+        y = { (app.height - height * scale) / 2 },
+
+        field: View [ width = 100%, height = 100%, visible = { app.game.mode != "scores" },
+            rocks: View [ width = 100%, height = 100%, datapath = { app.drawn.value },
+                FieldFigure [ datapath = :rocks[], classFor = { :blast > 0 && !:struck ? Shrapnel : RockOutline } ],
+                ShotDot [ datapath = :shots[] ]
+                ],
+            saucer: View [ width = 100%, height = 100%, datapath = { app.game.value.saucer },
+                SaucerOutline [ exists = { :inPlay && (:blast == 0 || :struck) } ],
+                Shrapnel [ exists = { :inPlay && :blast > 0 && !:struck } ]
+                ],
+            ship: View [ width = 100%, height = 100%, datapath = { app.game.value.ship },
+                ShipOutline [ exists = { :state == "flying" || :struck }, flame = { app.game.flame } ],
+                Wreck [ exists = { :state == "exploding" && !:struck }, debris = { app.game.debris } ]
+                ]
+            ],
+
+        scoreTable: View [ width = 100%, height = 100%, datapath = { app.highScores.value },
+            visible = { app.game.mode == "scores" },
+            ArcadeText [ cx = 400, cy = 728, magnify = 2, text = "HIGH SCORES" ],
+            HighScoreLine [ datapath = :rows[] ]
+            ],
+
+        Score [ cx = 100, cy = 876, magnify = 2, points = { app.game.score } ],
+        ReserveShips [ count = { app.game.shipsLeft } ],
+        Score [ cx = 480, cy = 876, points = { app.highScores.value.rows[0].score } ],
+        Score [ cx = 768, cy = 876, magnify = 2, visible = { !app.game.playing } ],      // a second player's, between games
+        ArcadeText [ cx = 320, cy = 228, magnify = 2, text = "1 COIN 1 PLAY", visible = { !app.game.playing } ],
+        ArcadeText [ cx = 400, cy = 728, magnify = 2, text = "PLAYER 1", visible = { app.game.mode == "starting" } ],
+        ArcadeText [ cx = 400, cy = 628, magnify = 2, text = "GAME OVER", visible = { app.game.mode == "over" } ],
+        Copyright [ ],
+
+        // paused: the screen dimmed, and the word at full brightness where the arcade puts
+        // its messages
+
+        View [ width = 100%, height = 100%, fill = black, opacity = 0.6, visible = { app.paused } ],
+        ArcadeText [ cx = 436, cy = 628, magnify = 2, intensity = 15, text = "PAUSED", visible = { app.paused } ]
+        ]
+    ]

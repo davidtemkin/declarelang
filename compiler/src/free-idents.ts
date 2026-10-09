@@ -94,6 +94,10 @@ export function freeIdentifiers(
         for (const d of s.declarationList.declarations) bindingNames(d.name, into);
       } else if ((ts.isFunctionDeclaration(s) || ts.isClassDeclaration(s)) && s.name !== undefined) {
         into.add(s.name.text);
+      } else if (ts.isEnumDeclaration(s) || ts.isTypeAliasDeclaration(s) || ts.isInterfaceDeclaration(s)) {
+        into.add(s.name.text);   // an enum is a value; a type's name is the body's own, never a member
+      } else if (ts.isModuleDeclaration(s) && ts.isIdentifier(s.name)) {
+        into.add(s.name.text);
       }
     }
   };
@@ -116,6 +120,8 @@ export function freeIdentifiers(
        ts.isMethodSignature(p) || ts.isGetAccessorDeclaration(p) || ts.isSetAccessorDeclaration(p) ||
        ts.isEnumMember(p)) && p.name === id
     ) return null;
+    if ((ts.isTypeParameterDeclaration(p) || ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p) ||
+         ts.isEnumDeclaration(p) || ts.isModuleDeclaration(p)) && p.name === id) return null;
     if (ts.isLabeledStatement(p) && p.label === id) return null;
     if ((ts.isBreakStatement(p) || ts.isContinueStatement(p)) && p.label === id) return null;
     if (ts.isQualifiedName(p) || ts.isMetaProperty(p)) return null;

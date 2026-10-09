@@ -1,0 +1,81 @@
+// DRAW-OP CONFORMANCE for the drawing's lengths — drawops.declare's grid and rules, one
+// cell per case. Shadow blur and offsets, and the lengths inside a filter, are the
+// drawing's own units: under the drawing's own scale or rotation they scale and turn with
+// everything else. Each cell is a shadow or filter case from drawops.declare drawn at half
+// size and scaled by two, or turned a quarter; dropShadow is the one case drawops.declare
+// lacks, at its own size. mac-host/drawconform.mjs --probe
+// test/probe/drawops-lengths.declare scores it.
+
+App [ width = 1200, height = 750, fill = #202024,
+
+    cols: number = 6,
+    cellW: number = 200,
+    cellH: number = 150,
+
+    cells: array = ["shadowScaled", "shadowRotated", "filterScaled", "dropShadowScaled", "dropShadow"],
+
+    grid: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
+        draw(d: Draw) {
+            const list = app.cells
+            for (let i = 0; i < list.length; i = i + 1) {
+                const cx = (i % app.cols) * app.cellW
+                const cy = Math.floor(i / app.cols) * app.cellH
+                d.save()
+                d.translate(cx, cy)
+                d.fillStyle = "#101014"
+                d.fillRect(2, 2, app.cellW - 4, app.cellH - 4)
+                app.cell(d, list[i])
+                d.restore()
+                }
+            }
+        ],
+
+    cell(d: Draw, k: string) {
+        if (k == "shadowScaled") {
+            d.save()
+            d.scale(2, 2)
+            d.shadowColor = "rgba(255,255,255,0.95)"
+            d.shadowBlur = 8
+            d.shadowOffsetX = 4
+            d.shadowOffsetY = 3
+            d.fillStyle = "#37474F"
+            d.fillRect(30, 25, 40, 27)
+            d.restore()
+            }
+        else if (k == "shadowRotated") {
+            d.save()
+            d.translate(100, 75)
+            d.rotate(Math.PI / 2)
+            d.shadowColor = "rgba(0,0,0,0.85)"
+            d.shadowOffsetX = 14
+            d.shadowOffsetY = 0
+            d.fillStyle = "#FFCC80"
+            d.fillRect(-30, -40, 60, 70)
+            d.restore()
+            }
+        else if (k == "filterScaled") {
+            d.save()
+            d.scale(2, 2)
+            d.filter = "blur(4px)"
+            d.fillStyle = "#FFEE58"
+            d.fillRect(28, 23, 45, 30)
+            d.restore()
+            }
+        else if (k == "dropShadow") {
+            // dropShadowScaled's picture at its own size: drawops.declare has no drop-shadow cell
+            d.save()
+            d.filter = "drop-shadow(10px 8px 6px #E53935)"
+            d.fillStyle = "#E1F5FE"
+            d.fillRect(50, 40, 80, 60)
+            d.restore()
+            }
+        else if (k == "dropShadowScaled") {
+            d.save()
+            d.scale(2, 2)
+            d.filter = "drop-shadow(5px 4px 3px #E53935)"
+            d.fillStyle = "#E1F5FE"
+            d.fillRect(25, 20, 40, 30)
+            d.restore()
+            }
+        }
+    ]

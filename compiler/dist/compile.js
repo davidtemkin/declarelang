@@ -43,7 +43,7 @@
 // is clean: under an unknown tag or member the scope surfaces would be
 // guesses, and phased diagnostics (syntax → types → resolution) beat noisy
 // ones.
-import { parseProgram } from "../../runtime/dist/parser.js";
+import { parseProgram, applyLineMap } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors } from "../../runtime/dist/errors.js";
 import { check } from "../../runtime/dist/check.js";
 import { programSchemas } from "../../runtime/dist/program-schema.js";
@@ -774,6 +774,7 @@ export async function compile(source, opts = {}) {
                         continue;
                     libSources.push(lib.source);
                     libIds.push(lib.canonical);
+                    libSplices.push([]); // a library file has no script splices of its own here
                     provided.push({ cls, comment: typeof r.comment === "string" ? r.comment : `${cls} — provided with the class library` });
                 }
             }
@@ -797,6 +798,7 @@ export async function compile(source, opts = {}) {
             startLine += lines; // the joining "\n" closes the segment's last line; no blank line is added
         }
     }
+    const posMap = makePosMapper(mainSource, mainSplices, segments, (id) => displayFile(id, opts.originDir ?? ""));
     const rb = makeRebaser(mainSource, mainSplices, segments, (id) => displayFile(id, opts.originDir ?? ""));
     const rbAll = (es) => es.map(rb);
     // Re-parse the merged source so every later phase indexes into ONE text.
@@ -953,6 +955,7 @@ export async function compile(source, opts = {}) {
     const byPos = (a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
     r.errors.sort(byPos);
     r.warnings.sort(byPos);
+    idiom.hints.push(...r.hints);
     idiom.hints.sort(byPos);
     const hs = () => rbAll(idiom.hints);
     if (r.errors.length > 0) {
@@ -982,7 +985,7 @@ export async function compile(source, opts = {}) {
     // blocks are not stripped: a script block is real TypeScript
     // (`function f(n: number): number`), so it is genuinely transpiled, below.
     {
-        const strip = (src, expression) => applyEdits(src, stripEditsFor(src, expression).map((e) => ({ ...e, text: "" })));
+        const strip = (src, expression) => applyEdits(src, stripEditsFor(src, expression).map((e) => ({ ...e, text: e.text ?? "" })));
         const stripElement = (el) => {
             for (const a of el.attrs)
                 if (a.value.kind === "code")
@@ -1105,6 +1108,14 @@ export async function compile(source, opts = {}) {
     const okWarnings = rbAll([...r.warnings, ...regWarnings]);
     const okHints = hs();
     const result = { source: emittedSource(merged, spans, provided), deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, hints: okHints, ...diagnose([], okWarnings, "name", "name", okHints) };
+    // The program's own positions, from the merged text onto the author's
+    // files — last, once nothing more here reads them as merged coordinates.
+    // Every consumer builds from this program (programFromCompiled, the compile
+    // worker, the cache's programJson); a bare re-parse of `source` does not
+    // carry them, because the emitted text gathers the scripts into one block
+    // and its lines are not the merged text's.
+    if (posMap !== null)
+        applyLineMap(depProgram, programLineMap(countLines(merged), (line) => posMap({ line, col: 1 })));
     return attachProgram(result, depProgram);
 }
 /** Apply non-overlapping edits to `text` in one pass, each span in `text`'s own
@@ -1375,8 +1386,17 @@ function displayFile(id, originDir) {
     return id;
 }
 function makeRebaser(mainSource, mainSplices, segments, display) {
-    if (segments.length === 0 && mainSplices.length === 0)
+    const map = makePosMapper(mainSource, mainSplices, segments, display);
+    if (map === null)
         return (e) => e;
+    return (e) => e.pos === undefined ? e : new DeclareError(e.rawMessage, map(e.pos), { code: e.code, hint: e.hint });
+}
+/** A merged-text position → where the author wrote it (null: the merged text
+ *  IS the author's file, nothing to map). The one mapping behind diagnostics
+ *  (makeRebaser) and the program's own positions (programLineMap). */
+function makePosMapper(mainSource, mainSplices, segments, display) {
+    if (segments.length === 0 && mainSplices.length === 0)
+        return null;
     const last = segments[segments.length - 1];
     const preludeLines = last === undefined ? 0 : last.startLine + last.lines - 1;
     const mainStarts = lineStarts(mainSource);
@@ -1390,12 +1410,8 @@ function makeRebaser(mainSource, mainSplices, segments, display) {
         }
         return back;
     };
-    return (e) => {
-        const p = e.pos;
-        if (p === undefined)
-            return e;
+    return (p) => {
         const line = p.line - preludeLines;
-        let pos;
         if (line < 1) {
             // inside the prelude: find the segment, rebase onto its own lines
             const seg = segments.find((s) => p.line >= s.startLine && p.line < s.startLine + s.lines) ?? last;
@@ -1405,13 +1421,33 @@ function makeRebaser(mainSource, mainSplices, segments, display) {
                 segStarts.set(seg, starts);
             }
             const offset = (starts[p.line - seg.startLine] ?? 0) + Math.max(0, p.col - 1);
-            pos = backOf(seg.source, seg.splices, seg.file)(offset);
+            return backOf(seg.source, seg.splices, seg.file)(offset);
         }
-        else {
-            pos = backOf(mainSource, mainSplices, undefined)((mainStarts[line - 1] ?? 0) + Math.max(0, p.col - 1));
-        }
-        return new DeclareError(e.rawMessage, pos, { code: e.code, hint: e.hint });
+        return backOf(mainSource, mainSplices, undefined)((mainStarts[line - 1] ?? 0) + Math.max(0, p.col - 1));
     };
+}
+/** The program's positions as RUNS of lines — `[firstLine, count, fileIndex,
+ *  firstFileLine]`, file 0 the program's own — so the runtime's positions
+ *  (explain, the wake trace, a runtime error) name the author's file and line,
+ *  not a line of the merged text the program was parsed from. `lineOf` maps a
+ *  line of that text; `n` is its line count. */
+function programLineMap(n, lineOf) {
+    const files = [""];
+    const runs = [];
+    for (let line = 1; line <= n; line++) {
+        const p = lineOf(line);
+        let fi = files.indexOf(p.file ?? "");
+        if (fi < 0) {
+            fi = files.length;
+            files.push(p.file);
+        }
+        const r = runs[runs.length - 1];
+        if (r !== undefined && r[2] === fi && r[3] + r[1] === p.line && r[0] + r[1] === line)
+            r[1]++;
+        else
+            runs.push([line, 1, fi, p.line]);
+    }
+    return { files, runs };
 }
 /** The offsets at which each line of `source` starts. */
 function lineStarts(source) {
@@ -1493,6 +1529,8 @@ function posOf(source, offset) {
 class Resolver {
     errors = [];
     warnings = [];
+    /** A correct program the compiler knows a shorter spelling for (the hint tier). */
+    hints = [];
     edits = [];
     /** Public so the idiom passes below (DECLARE4011–4013) can ask the same
      *  schema chain the resolver asks, without rebuilding it. */
@@ -1791,12 +1829,14 @@ class Resolver {
     resolveBodyText(src, brace, expression, params, levels, mainRoot, scope, slot) {
         const bodyStart = brace.offset + 1; // the body begins just after `{`
         // Redundant whole-body parentheses (`{ (expr) }`, `{ ({ … }) }`) — the { }
-        // already delimits the expression, so the outer ( ) do nothing. Rejected on
-        // value bodies (the paren idiom lived there); statement bodies are left be.
+        // already delimits the expression, so the outer ( ) do nothing. TypeScript
+        // writes them by habit (an arrow returning an object), and a body is
+        // TypeScript, so they are a HINT naming the shorter form, never an error
+        // (DT 2026-10-08, superseding the 2026-09-08 refusal).
         if (expression) {
             const rp = wholeBodyParen(src);
             if (rp !== null)
-                this.errors.push(Diag.redundantParens(rp.inner, this.posAt(bodyStart + rp.start)));
+                this.hints.push(Diag.redundantParens(rp.inner, this.posAt(bodyStart + rp.start)));
         }
         // Datapath islands (R8) resolve HERE, at compile time (data-paths.md §5's
         // emitted plans): each island becomes its explicit runtime form over

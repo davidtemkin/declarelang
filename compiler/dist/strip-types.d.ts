@@ -1,6 +1,9 @@
+/** One edit to a body: delete [start, end), or — `text` given — put the
+ *  construct's JavaScript there (an enum, a namespace, a class). */
 export interface StripEdit {
     start: number;
     end: number;
+    text?: string;
 }
 /** The body-local spans to delete from one `{ }` body. `expression` selects
  *  the parse mode (a value body is an expression; a method body, statements).

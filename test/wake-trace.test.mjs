@@ -3,12 +3,12 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { build, settle, bridgeFor } from "../runtime/dist/index.js";
+import { buildProgram, settle, bridgeFor } from "../runtime/dist/index.js";
 
 async function app(src) {
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const a = build(r.source);
+  const a = buildProgram(r.program);
   settle();
   return a;
 }

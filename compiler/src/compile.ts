@@ -44,7 +44,7 @@
 // guesses, and phased diagnostics (syntax → types → resolution) beat noisy
 // ones.
 
-import { parseProgram, type Element, type Program, type ClassDecl } from "../../runtime/dist/parser.js";
+import { parseProgram, applyLineMap, type Element, type Program, type ClassDecl } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors, type Pos } from "../../runtime/dist/errors.js";
 import { check } from "../../runtime/dist/check.js";
 import { programSchemas } from "../../runtime/dist/program-schema.js";
@@ -823,6 +823,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
           if (lib === null || lib === undefined || resolved.visited.has(lib.canonical)) continue;
           libSources.push(lib.source);
           libIds.push(lib.canonical);
+          libSplices.push([]);   // a library file has no script splices of its own here
           provided.push({ cls, comment: typeof r.comment === "string" ? r.comment : `${cls} — provided with the class library` });
         }
       }
@@ -846,6 +847,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
       startLine += lines; // the joining "\n" closes the segment's last line; no blank line is added
     }
   }
+  const posMap = makePosMapper(mainSource, mainSplices, segments, (id) => displayFile(id, opts.originDir ?? ""));
   const rb = makeRebaser(mainSource, mainSplices, segments, (id) => displayFile(id, opts.originDir ?? ""));
   const rbAll = (es: readonly DeclareError[]): DeclareError[] => es.map(rb);
 
@@ -991,6 +993,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   const byPos = (a: DeclareError, b: DeclareError) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);
   r.errors.sort(byPos);
   r.warnings.sort(byPos);
+  idiom.hints.push(...r.hints);
   idiom.hints.sort(byPos);
   const hs = (): DeclareError[] => rbAll(idiom.hints);
   if (r.errors.length > 0) {
@@ -1023,7 +1026,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   // (`function f(n: number): number`), so it is genuinely transpiled, below.
   {
     const strip = (src: string, expression: boolean): string =>
-      applyEdits(src, stripEditsFor(src, expression).map((e) => ({ ...e, text: "" })));
+      applyEdits(src, stripEditsFor(src, expression).map((e) => ({ ...e, text: e.text ?? "" })));
     const stripElement = (el: Element): void => {
       for (const a of el.attrs) if (a.value.kind === "code") a.value.src = strip(a.value.src, true);
       for (const d of el.decls) if (d.def?.kind === "code") d.def.src = strip(d.def.src, true);
@@ -1133,6 +1136,13 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   const okWarnings = rbAll([...r.warnings, ...regWarnings]);
   const okHints = hs();
   const result: Compiled = { source: emittedSource(merged, spans, provided), deps: serializeDeps(depProgram), links: serializeLinks(depProgram), linkRegistry, errors: [], warnings: okWarnings, hints: okHints, ...diagnose([], okWarnings, "name", "name", okHints) };
+  // The program's own positions, from the merged text onto the author's
+  // files — last, once nothing more here reads them as merged coordinates.
+  // Every consumer builds from this program (programFromCompiled, the compile
+  // worker, the cache's programJson); a bare re-parse of `source` does not
+  // carry them, because the emitted text gathers the scripts into one block
+  // and its lines are not the merged text's.
+  if (posMap !== null) applyLineMap(depProgram, programLineMap(countLines(merged), (line) => posMap({ line, col: 1 })));
   return attachProgram(result, depProgram);
 }
 
@@ -1349,7 +1359,16 @@ function displayFile(id: string, originDir: string): string {
 }
 
 function makeRebaser(mainSource: string, mainSplices: readonly Splice[], segments: readonly PreludeSegment[], display: (id: string) => string): (e: DeclareError) => DeclareError {
-  if (segments.length === 0 && mainSplices.length === 0) return (e) => e;
+  const map = makePosMapper(mainSource, mainSplices, segments, display);
+  if (map === null) return (e) => e;
+  return (e) => e.pos === undefined ? e : new DeclareError(e.rawMessage, map(e.pos), { code: e.code, hint: e.hint });
+}
+
+/** A merged-text position → where the author wrote it (null: the merged text
+ *  IS the author's file, nothing to map). The one mapping behind diagnostics
+ *  (makeRebaser) and the program's own positions (programLineMap). */
+function makePosMapper(mainSource: string, mainSplices: readonly Splice[], segments: readonly PreludeSegment[], display: (id: string) => string): ((p: { line: number; col: number }) => Pos) | null {
+  if (segments.length === 0 && mainSplices.length === 0) return null;
   const last = segments[segments.length - 1];
   const preludeLines = last === undefined ? 0 : last.startLine + last.lines - 1;
   const mainStarts = lineStarts(mainSource);
@@ -1360,23 +1379,37 @@ function makeRebaser(mainSource: string, mainSplices: readonly Splice[], segment
     if (back === undefined) { back = carryBack(spliced, splices, file, display); backs.set(splices, back); }
     return back;
   };
-  return (e) => {
-    const p = e.pos;
-    if (p === undefined) return e;
+  return (p) => {
     const line = p.line - preludeLines;
-    let pos: Pos;
     if (line < 1) {
       // inside the prelude: find the segment, rebase onto its own lines
       const seg = segments.find((s) => p.line >= s.startLine && p.line < s.startLine + s.lines) ?? last;
       let starts = segStarts.get(seg);
       if (starts === undefined) { starts = lineStarts(seg.source); segStarts.set(seg, starts); }
       const offset = (starts[p.line - seg.startLine] ?? 0) + Math.max(0, p.col - 1);
-      pos = backOf(seg.source, seg.splices, seg.file)(offset);
-    } else {
-      pos = backOf(mainSource, mainSplices, undefined)((mainStarts[line - 1] ?? 0) + Math.max(0, p.col - 1));
+      return backOf(seg.source, seg.splices, seg.file)(offset);
     }
-    return new DeclareError(e.rawMessage, pos, { code: e.code, hint: e.hint });
+    return backOf(mainSource, mainSplices, undefined)((mainStarts[line - 1] ?? 0) + Math.max(0, p.col - 1));
   };
+}
+
+/** The program's positions as RUNS of lines — `[firstLine, count, fileIndex,
+ *  firstFileLine]`, file 0 the program's own — so the runtime's positions
+ *  (explain, the wake trace, a runtime error) name the author's file and line,
+ *  not a line of the merged text the program was parsed from. `lineOf` maps a
+ *  line of that text; `n` is its line count. */
+function programLineMap(n: number, lineOf: (line: number) => Pos): { files: string[]; runs: number[][] } {
+  const files = [""];
+  const runs: number[][] = [];
+  for (let line = 1; line <= n; line++) {
+    const p = lineOf(line);
+    let fi = files.indexOf(p.file ?? "");
+    if (fi < 0) { fi = files.length; files.push(p.file!); }
+    const r = runs[runs.length - 1];
+    if (r !== undefined && r[2] === fi && r[3] + r[1] === p.line && r[0] + r[1] === line) r[1]++;
+    else runs.push([line, 1, fi, p.line]);
+  }
+  return { files, runs };
 }
 
 /** The offsets at which each line of `source` starts. */
@@ -1448,6 +1481,8 @@ function posOf(source: string, offset: number): Pos {
 class Resolver {
   readonly errors: DeclareError[] = [];
   readonly warnings: DeclareError[] = [];
+  /** A correct program the compiler knows a shorter spelling for (the hint tier). */
+  readonly hints: DeclareError[] = [];
   readonly edits: Edit[] = [];
   /** Public so the idiom passes below (DECLARE4011–4013) can ask the same
    *  schema chain the resolver asks, without rebuilding it. */
@@ -1773,11 +1808,13 @@ class Resolver {
   ): void {
     const bodyStart = brace.offset + 1; // the body begins just after `{`
     // Redundant whole-body parentheses (`{ (expr) }`, `{ ({ … }) }`) — the { }
-    // already delimits the expression, so the outer ( ) do nothing. Rejected on
-    // value bodies (the paren idiom lived there); statement bodies are left be.
+    // already delimits the expression, so the outer ( ) do nothing. TypeScript
+    // writes them by habit (an arrow returning an object), and a body is
+    // TypeScript, so they are a HINT naming the shorter form, never an error
+    // (DT 2026-10-08, superseding the 2026-09-08 refusal).
     if (expression) {
       const rp = wholeBodyParen(src);
-      if (rp !== null) this.errors.push(Diag.redundantParens(rp.inner, this.posAt(bodyStart + rp.start)));
+      if (rp !== null) this.hints.push(Diag.redundantParens(rp.inner, this.posAt(bodyStart + rp.start)));
     }
     // Datapath islands (R8) resolve HERE, at compile time (data-paths.md §5's
     // emitted plans): each island becomes its explicit runtime form over

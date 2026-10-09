@@ -12,6 +12,7 @@
 // of its own (the DOM, the Mac) is handed the runs and flows them natively; on
 // canvas the flow lays them out itself, one `Text` per styled piece (plus a
 // chip behind code, a rule through strike), by the same arithmetic.
+import { isDeferred } from "./deferred-surface.js";
 import { View, onDiscard, fireEvent, inlineViewHost } from "./view.js";
 import { Image } from "./image.js";
 import { isStructural } from "./backend.js";
@@ -641,6 +642,8 @@ export function richRunsOf(inline, style, family) {
  *  runs) and `flowWidth` are set by its owner before attach; it renders natively
  *  (DOM) or manually (canvas) and auto-sizes its height to the flowed content. */
 export class TextFlow extends View {
+    /** The renderer flows and measures this text: it keeps a real surface while hidden. */
+    $eagerSurface() { return true; }
     content = [];
     /** True when `content` is a whole document (structural nodes among its
      *  blocks) — handed only to a backend that lays documents out (`richBlocks`). */
@@ -1201,6 +1204,7 @@ export function tableCells(b, cells, weight, color, ctx) {
 // parser. Shared attributes (lineHeight/bodyColor/fontScale) and the `link` event
 // live on the base, so both formats inherit them.
 export class RichText extends View {
+    $eagerSurface() { return true; }
     built = [];
     /** What a refused piece of content does: `strip` (drop it, keep going, say so
      *  once) or `error` (throw). HTMLText declares it; Markdown has no such
@@ -1462,7 +1466,7 @@ export class RichText extends View {
         // ever ran. Re-parent them at the end, in model order, now the flows are in.
         if (this.$surface !== null)
             for (const v of host.views())
-                if (v.$surface !== null)
+                if (v.$surface !== null && !isDeferred(v.$surface))
                     this.$surface.insertChild(v.$surface, null);
         this.laid = children; // kept so a width change can re-width
         const opening = children[0]?.view;

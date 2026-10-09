@@ -722,6 +722,10 @@ export interface RenderBackend {
     /** Root the tree's top surface into a host element on the page. (DOM:
      *  append the element. Canvas: host a <canvas> and start its render loop.) */
     attachRoot(host: HTMLElement, root: Surface): void;
+    /** A view hidden when it attaches gets no surface of its own until it is
+     *  first shown (deferred-surface.ts): the renderer has per-view elements
+     *  worth not making for what nobody has seen. */
+    readonly defersHidden?: boolean;
 }
 export interface IslandSlotEvent {
     /** The island view (runtime View — typed loosely to keep this module leaf-ish). */

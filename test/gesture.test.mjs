@@ -125,13 +125,13 @@ assert.deepEqual(claimsCompiled.errors, [], "claims fixture compiles clean");
 const lockCompiled = await compile(LOCK_RAW);
 assert.deepEqual(lockCompiled.errors, [], "lock fixture compiles clean");
 
-const pageHtml = (backendClass, source, { embedded = false } = {}) => `<!doctype html>
+const pageHtml = (backendClass, compiled, { embedded = false } = {}) => `<!doctype html>
 <meta charset="utf-8">
 <style>html,body{margin:0;padding:0}</style>
 ${embedded ? '<div data-declare-app="1"><div id="host"></div></div>' : '<div id="host"></div>'}
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  window.__app = render(${JSON.stringify(source)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  window.__app = renderProgram(JSON.parse(${JSON.stringify(JSON.stringify(compiled.program))}), document.getElementById("host"), new ${backendClass}());
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__rendered = true; }));
 </script>`;
 
@@ -303,27 +303,27 @@ const sinkCompiled = await compile(SINK_RAW);
 assert.deepEqual(sinkCompiled.errors, [], "scroller-sink fixture compiles clean");
 
 const pages = {
-  "/dom-sink": pageHtml("DomBackend", sinkCompiled.source),
-  "/canvas-sink": pageHtml("CanvasBackend", sinkCompiled.source),
-  "/dom-wheel": pageHtml("DomBackend", wheelCompiled.source),
-  "/dom-jump": pageHtml("DomBackend", jumpCompiled.source),
-  "/dom-claims": pageHtml("DomBackend", claimsCompiled.source),
-  "/dom-takeover": pageHtml("DomBackend", takeoverCompiled.source),
-  "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled.source),
-  "/dom-lock": pageHtml("DomBackend", lockCompiled.source),
-  "/dom-page": pageHtml("DomBackend", pageCompiled.source),
-  "/dom-fit": pageHtml("DomBackend", fitCompiled.source),
-  "/canvas-fit": pageHtml("CanvasBackend", fitCompiled.source),
-  "/canvas-page": pageHtml("CanvasBackend", pageCompiled.source),
+  "/dom-sink": pageHtml("DomBackend", sinkCompiled),
+  "/canvas-sink": pageHtml("CanvasBackend", sinkCompiled),
+  "/dom-wheel": pageHtml("DomBackend", wheelCompiled),
+  "/dom-jump": pageHtml("DomBackend", jumpCompiled),
+  "/dom-claims": pageHtml("DomBackend", claimsCompiled),
+  "/dom-takeover": pageHtml("DomBackend", takeoverCompiled),
+  "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled),
+  "/dom-lock": pageHtml("DomBackend", lockCompiled),
+  "/dom-page": pageHtml("DomBackend", pageCompiled),
+  "/dom-fit": pageHtml("DomBackend", fitCompiled),
+  "/canvas-fit": pageHtml("CanvasBackend", fitCompiled),
+  "/canvas-page": pageHtml("CanvasBackend", pageCompiled),
   // the CLAIMS app (fits its box) mounted INSIDE a marked host app — the
   // embedded-island root default, both backends
-  "/dom-embedded": pageHtml("DomBackend", claimsCompiled.source, { embedded: true }),
-  "/canvas-embedded": pageHtml("CanvasBackend", claimsCompiled.source, { embedded: true }),
-  "/dom-coarse": pageHtml("DomBackend", coarseCompiled.source),
-  "/dom-selection": pageHtml("DomBackend", selCompiled.source),
-  "/dom-walk": pageHtml("DomBackend", walkCompiled.source),
-  "/dom-rot": pageHtml("DomBackend", rotCompiled.source),
-  "/canvas-rot": pageHtml("CanvasBackend", rotCompiled.source),
+  "/dom-embedded": pageHtml("DomBackend", claimsCompiled, { embedded: true }),
+  "/canvas-embedded": pageHtml("CanvasBackend", claimsCompiled, { embedded: true }),
+  "/dom-coarse": pageHtml("DomBackend", coarseCompiled),
+  "/dom-selection": pageHtml("DomBackend", selCompiled),
+  "/dom-walk": pageHtml("DomBackend", walkCompiled),
+  "/dom-rot": pageHtml("DomBackend", rotCompiled),
+  "/canvas-rot": pageHtml("CanvasBackend", rotCompiled),
 };
 
 const server = http.createServer(async (req, res) => {

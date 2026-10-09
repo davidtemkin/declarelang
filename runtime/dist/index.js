@@ -1,95 +1,17 @@
 // Declare runtime — public surface for R0–R8.
 //
-// The pipeline: parse the source (classes + root) → typecheck it against the
-// class schemas (reporting every error, not just the first) → instantiate
-// a Node/View tree → attach it to a render backend → root it on the page.
-// `build` stops before rendering (used by tools and tests); `render` runs
-// the whole pipeline. `check` alone is the compiler-facing pass.
+// Every program the runtime runs is a compiled one: compile() (the compile
+// layer, `dist/compile.js`) parses, resolves, checks and lowers the source,
+// and the runtime instantiates the program it hands over — `buildProgram`
+// for a tree with no renderer, `renderProgram`/`renderProgramAsync` to mount
+// it (boot.ts). The parser and checker exported here serve the compiler and
+// the tools; nothing here builds a program from source text.
 //
-// This module graph is ZERO-dependency and browser-loadable by design. The
-// bare-name scope resolution of R6 needs the TypeScript parser, so it lives
-// in the separate compile layer (`dist/compile.js`, Node-side): run a source
-// through compile() first for full diagnostics and the resolved program;
-// build()/render() consume that output (or any source whose bodies use only
-// explicit paths). An unresolved bare name that reaches the runtime fails
-// loudly at its binding's first evaluation (a ReferenceError naming it).
-import { parseProgram } from "./parser.js";
-import { check } from "./check.js";
-import { instantiate } from "./instantiate.js";
-import { applyDeps } from "./deps.js";
-import { applyLinks } from "./links.js";
-import { Diag } from "./diagnostics.js";
-import { resolveIncludesHostless, NO_INCLUDES } from "./include.js";
-import { App, withHostProvides } from "./view.js";
-import { fontsReady } from "./font-value.js";
-import { DeclareError, DeclareErrors } from "./errors.js";
-// The render/wire/font glue lives in boot.ts (compiler-free) so the precompiled
-// production entry (`renderProgram`) can drop the parser + checker entirely.
-import { mountApp } from "./boot.js";
-import { setAppAssetBase } from "./asset-base.js";
-/** Parse, resolve `include`s, typecheck, and instantiate a Declare source into
- *  its App tree (no rendering). Raises a DeclareErrors carrying *every* error at
- *  once (include-resolution + type). */
-export function build(source, opts = {}) {
-    const parsed = parseProgram(source);
-    // The runtime is HOSTLESS by construction: a compiled program arrives
-    // self-contained, so there is nothing to fetch and build() stays synchronous.
-    // Include resolution that actually READS files is a compile-time job, riding an
-    // async seam (include.ts) precisely so a browser host can fetch.
-    if (opts.host !== undefined && opts.host !== NO_INCLUDES) {
-        throw new DeclareErrors([Diag.structure("build() resolves no includes — compile the source first (compile() folds every include into one self-contained program, which is what build() runs)")]);
-    }
-    const { program, errors: incErrors } = resolveIncludesHostless(parsed);
-    const errors = [...incErrors, ...check(program)];
-    errors.sort((a, b) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0));
-    if (errors.length > 0)
-        throw new DeclareErrors(errors);
-    if (opts.deps !== undefined)
-        applyDeps(program, opts.deps);
-    if (opts.links !== undefined)
-        applyLinks(program, opts.links);
-    const root = withHostProvides(opts.provides, () => instantiate(program));
-    if (!(root instanceof App)) {
-        throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
-    }
-    return root;
-}
-/** Parse, resolve includes, check, instantiate, and render a Declare source
- *  into `host` via `backend`. */
-export function render(source, host, backend, opts = {}) {
-    return mountApp(build(source, opts), host, backend);
-}
+// This module graph is ZERO-dependency and browser-loadable by design.
 // NOTE: `pageWeight` (production over-the-wire KB, gzipped) and `sourceLines`
 // are set by the HOST/build, not measured from the dev page — a dev page loads
 // unbundled ES modules and would read ~10× the shipping size. The build that
 // produces the shipping bundle knows the real figure and provides it.
-/** Like render(), but first waits for the fonts the tree starts with — each
- *  until its faces arrive, one fails, or its `wait` runs out (font.ts
- *  fontsReady) — so first paint measures in real faces when they come in time.
- *  A tree with only system fonts, or none, awaits nothing.
- *
- *  `opts.assetBase` states THIS app's own directory, which an embedded child
- *  needs: its relative faces and bitmaps live beside its program, while the
- *  document they render into belongs to the host page (asset-base.ts). */
-export async function renderAsync(source, host, backend, opts = {}) {
-    const app = build(source, opts);
-    // the host's chance to reach the app before its first settle — an island
-    // links its boundary here, so what the host provides is in the first frame
-    opts.beforeMount?.(app);
-    if (opts.assetBase != null) {
-        setAppAssetBase(app, opts.assetBase);
-        // DELIBERATELY no per-app DATA base here: an island child's relative data
-        // urls resolve through the PAGE's transport — its host's space — which is
-        // what island contracts actually speak (the desktop passes the viewer
-        // `program=desktop.declare`, a path in the DESKTOP's directory; the mac
-        // runner resolves children the same way). Coupling the child's data base
-        // to its asset base 404'd every such contract (found live: the viewer in
-        // a desktop window lost all three panes). The sibling rule holds for
-        // BOOTED apps — bootHost registers their data base — not for tenants.
-    }
-    await fontsReady(app);
-    return mountApp(app, host, backend);
-}
 export { parse, parseProgram, parseLibrary } from "./parser.js";
 export { resolveIncludes, NO_INCLUDES } from "./include.js";
 export { check, checkAttr, checkMethod, checkClassValue } from "./check.js";

@@ -1,6 +1,8 @@
 import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 export declare abstract class Media extends View {
+    /** A media element plays, and reports its duration, while hidden. */
+    protected $eagerSurface(): boolean;
     source: string;
     /** Playing or not — the whole transport. Author-writable (`playing = true`,
      *  or a constraint) and runtime-written: the element reports its own play,
@@ -14,8 +16,8 @@ export declare abstract class Media extends View {
      *  not (sound is its only product — an Audio muted by default is a
      *  class that appears broken until you find the flag). */
     muted: boolean;
-    /** The playhead, in seconds. Writing it seeks. The runtime writes it back as
-     *  the clip runs — on the platform's `timeupdate`, which fires about four
+    /** The playhead, in seconds. Writing it seeks — to wherever it is written, however
+     *  near the playhead that is. The runtime writes it back as the clip runs — on the platform's `timeupdate`, which fires about four
      *  times a second, NOT once a frame: a per-frame write would churn the graph
      *  for a number almost nothing needs that finely. A smooth playhead is the
      *  program's own number, advanced in a frame `onTick(dt)` and re-synced to
@@ -61,7 +63,7 @@ export declare abstract class Media extends View {
     /** Let go of the current element. An `<audio>` never enters the document,
      *  so nothing else would ever stop it: a re-pointed clip would play over its
      *  successor, and a discarded one on after its view is gone. */
-    private $release;
+    protected $release(): void;
     /** (Re)load `source` — at attach, and from the `source` pusher. */
     $load(): void;
     /** Author (or constraint) asked to play or pause. `play()` can be REFUSED —
@@ -69,8 +71,16 @@ export declare abstract class Media extends View {
      *  rejected promise. When it is refused the slot goes back to false, because
      *  a `playing` that reads true over silence (or a still picture) is a lie. */
     $syncPlaying(): void;
-    /** Author asked to seek. Guarded by a quarter-second so the runtime's own
-     *  `timeupdate` writes — which land in this same slot — cannot bounce back
-     *  out as seeks and stutter the playhead. */
+    /** True while the runtime writes the playhead back, so its own report is not taken for
+     *  the author asking to seek. */
+    protected $reporting: boolean;
+    /** The runtime's write of where the playhead is. */
+    protected $report(seconds: number): void;
+    /** Author asked to seek. */
     $seek(): void;
+    /** Play from the start — the call for a sound that answers an event, which sounds again
+     *  each time the event happens however far the last one got. `playing = true` goes on
+     *  from where the playhead is; this starts over. A sound held in memory (`Audio [ inMemory = true ]`)
+     *  starts another voice instead, over any still sounding. */
+    play(): void;
 }

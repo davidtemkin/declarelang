@@ -1,6 +1,6 @@
 // headless — execute a compiled program to its t=0 snapshot WITHOUT a page
-// (docs/system-design/capabilities.md §4). Real execution on the real runtime: build()
-// (parse + check + instantiate), attach to the HeadlessBackend, write the
+// (docs/system-design/capabilities.md §4). Real execution on the real runtime: buildProgram()
+// (instantiate the compiled program), attach to the HeadlessBackend, write the
 // ENVIRONMENT VECTOR explicitly (a browser fills it implicitly; headless makes
 // it a parameter), settle(). Initialization only — constraints, replication,
 // layout, state application all run; handlers, timers, and live network do
@@ -9,7 +9,7 @@
 // Browser-safe by construction (the runtime graph is zero-dep), so the browser
 // compiler can do everything the Node one can — the parity principle.
 
-import { build, buildProgram, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams, type BuildOptions } from "../../runtime/dist/index.js";
+import { buildProgram, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 import type { Program } from "../../runtime/dist/parser.js";
 
 /** The explicit environment vector (capabilities.md §3). The defaults are ONE
@@ -85,13 +85,6 @@ export interface HeadlessOptions {
  *  number of times. Callers walk the tree, then `app.discard()`. */
 export function settleHeadless(program: Program, opts: HeadlessOptions = {}): App {
   return settleWith(() => buildProgram(program, { provides: opts.provides }), opts.env);
-}
-
-/** The same, through the runtime's `build(source)`: parse, check, instantiate a
- *  compile()'s output source with its `deps`. For tests of that entry point. */
-export function settleSource(source: string, opts: BuildOptions & { env?: Environment } = {}): App {
-  const { env, ...buildOpts } = opts;
-  return settleWith(() => build(source, buildOpts), env);
 }
 
 function settleWith(make: () => App, envOpt: Environment | undefined): App {

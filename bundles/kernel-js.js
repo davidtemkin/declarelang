@@ -59,12 +59,16 @@ var OP_OR = 23;
 var OP_NOT = 24;
 var OP_SELECT = 25;
 var OP_CLAMP = 26;
+var OP_NULL = 27;
+var OP_COALESCE = 28;
 var truthy = /* @__PURE__ */ __name((x) => x === x && x !== 0, "truthy");
 function instantiateKernelJS(host, caps = {}) {
   const ringCap = caps.ring ?? 1 << 14;
   const trackCap = caps.track_ring ?? 1 << 14;
   let capacity = Math.max(1024, caps.extra_cells ?? 1 << 16);
   let table = new Float64Array(capacity);
+  let nullOf = new Uint8Array(capacity);
+  const bodyNull = new Uint8Array(1);
   let kindOf = new Uint8Array(capacity);
   let ownerOf = new Int32Array(capacity);
   let setFlag = new Uint8Array(capacity);
@@ -152,6 +156,9 @@ function instantiateKernelJS(host, caps = {}) {
     const t = new Float64Array(cap);
     t.set(table);
     table = t;
+    const nu = new Uint8Array(cap);
+    nu.set(nullOf);
+    nullOf = nu;
     const k2 = new Uint8Array(cap);
     k2.set(kindOf);
     kindOf = k2;
@@ -178,6 +185,7 @@ function instantiateKernelJS(host, caps = {}) {
     markOf = m;
     capacity = cap;
     self.table = table;
+    self.nulls = nullOf;
     self.capacity = cap;
     onGrowCb?.();
   }, "grow");
@@ -368,9 +376,10 @@ function instantiateKernelJS(host, caps = {}) {
       wake(cell);
       return OK;
     }
-    if (table[cell] === v)
+    if (table[cell] === v && nullOf[cell] === 0)
       return OK;
     table[cell] = v;
+    nullOf[cell] = 0;
     markDirty(cell);
     if (kdirtyFlag[cell] === 0) {
       kdirtyFlag[cell] = 1;
@@ -379,6 +388,25 @@ function instantiateKernelJS(host, caps = {}) {
     wake(cell);
     return OK;
   }, "setValue");
+  const setNull = /* @__PURE__ */ __name((cell) => {
+    if (cell >= ncells)
+      return ERR_BAD;
+    if ((kindOf[cell] & 127) !== F64) {
+      wake(cell);
+      return OK;
+    }
+    if (nullOf[cell] === 1)
+      return OK;
+    table[cell] = 0;
+    nullOf[cell] = 1;
+    markDirty(cell);
+    if (kdirtyFlag[cell] === 0) {
+      kdirtyFlag[cell] = 1;
+      kdirtyList.push(cell);
+    }
+    wake(cell);
+    return OK;
+  }, "setNull");
   const unkdirty = /* @__PURE__ */ __name((cell) => {
     if (kdirtyFlag[cell] === 1 && kdirtyList.length > 0 && kdirtyList[kdirtyList.length - 1] === cell) {
       kdirtyFlag[cell] = 0;
@@ -439,8 +467,15 @@ ${new Error().stack ?? ""}`);
     if ((rState[rule] & (ST_QUEUED | ST_RUNNING)) === 0)
       freeRule(rule);
   }, "dispose");
+  let evalNull = 0;
   const evalExpr = /* @__PURE__ */ __name((rule) => {
     const st = [];
+    const nl = [];
+    const push = /* @__PURE__ */ __name((x, n = 0) => {
+      st.push(x);
+      nl.length = st.length;
+      nl[st.length - 1] = n;
+    }, "push");
     let c = rCode0[rule];
     const end = rCode0[rule] + rNcode[rule];
     while (c < end) {
@@ -451,120 +486,138 @@ ${new Error().stack ?? ""}`);
           break;
         case OP_LOAD: {
           const cell = code[c++];
-          st.push(cell < ncells ? table[cell] : 0);
+          if (cell < ncells)
+            push(table[cell], nullOf[cell]);
+          else
+            push(0);
           break;
         }
         case OP_CONST: {
           const i = code[c++];
-          st.push(i < consts.length ? consts[i] : 0);
+          push(i < consts.length ? consts[i] : 0);
+          break;
+        }
+        case OP_NULL:
+          push(0, 1);
+          break;
+        case OP_COALESCE: {
+          const nb = nl[st.length - 1], b = st.pop();
+          const na = nl[st.length - 1], a = st.pop();
+          if (na)
+            push(b, nb);
+          else
+            push(a);
           break;
         }
         case OP_ADD: {
           const b = st.pop(), a = st.pop();
-          st.push(a + b);
+          push(a + b);
           break;
         }
         case OP_SUB: {
           const b = st.pop(), a = st.pop();
-          st.push(a - b);
+          push(a - b);
           break;
         }
         case OP_MUL: {
           const b = st.pop(), a = st.pop();
-          st.push(a * b);
+          push(a * b);
           break;
         }
         case OP_DIV: {
           const b = st.pop(), a = st.pop();
-          st.push(a / b);
+          push(a / b);
           break;
         }
         case OP_MOD: {
           const b = st.pop(), a = st.pop();
-          st.push(a - b * Math.trunc(a / b));
+          push(a - b * Math.trunc(a / b));
           break;
         }
         case OP_NEG:
-          st.push(-st.pop());
+          push(-st.pop());
           break;
         // min/max keep the C's NaN rule: NaN wins, and -0 vs 0 is not ordered
         case OP_MIN: {
           const b = st.pop(), a = st.pop();
-          st.push(a < b ? a : b < a ? b : a !== a ? a : b);
+          push(a < b ? a : b < a ? b : a !== a ? a : b);
           break;
         }
         case OP_MAX: {
           const b = st.pop(), a = st.pop();
-          st.push(a > b ? a : b > a ? b : a !== a ? a : b);
+          push(a > b ? a : b > a ? b : a !== a ? a : b);
           break;
         }
         case OP_ABS:
-          st.push(Math.abs(st.pop()));
+          push(Math.abs(st.pop()));
           break;
         case OP_FLOOR:
-          st.push(Math.floor(st.pop()));
+          push(Math.floor(st.pop()));
           break;
         case OP_CEIL:
-          st.push(Math.ceil(st.pop()));
+          push(Math.ceil(st.pop()));
           break;
         case OP_ROUND:
-          st.push(Math.floor(st.pop() + 0.5));
+          push(Math.floor(st.pop() + 0.5));
           break;
         // Math.round's rule, spelled out
         case OP_SQRT:
-          st.push(Math.sqrt(st.pop()));
+          push(Math.sqrt(st.pop()));
           break;
         case OP_LT: {
           const b = st.pop(), a = st.pop();
-          st.push(a < b ? 1 : 0);
+          push(a < b ? 1 : 0);
           break;
         }
         case OP_LE: {
           const b = st.pop(), a = st.pop();
-          st.push(a <= b ? 1 : 0);
+          push(a <= b ? 1 : 0);
           break;
         }
         case OP_GT: {
           const b = st.pop(), a = st.pop();
-          st.push(a > b ? 1 : 0);
+          push(a > b ? 1 : 0);
           break;
         }
         case OP_GE: {
           const b = st.pop(), a = st.pop();
-          st.push(a >= b ? 1 : 0);
+          push(a >= b ? 1 : 0);
           break;
         }
-        case OP_EQ: {
-          const b = st.pop(), a = st.pop();
-          st.push(a === b ? 1 : 0);
-          break;
-        }
+        case OP_EQ:
         case OP_NE: {
-          const b = st.pop(), a = st.pop();
-          st.push(a !== b ? 1 : 0);
+          const nb = nl[st.length - 1], b = st.pop();
+          const na = nl[st.length - 1], a = st.pop();
+          const eq = na || nb ? na && nb : a === b;
+          push((eq ? 1 : 0) === (op === OP_EQ ? 1 : 0) ? 1 : 0);
           break;
         }
         case OP_AND: {
           const b = st.pop(), a = st.pop();
-          st.push(truthy(a) && truthy(b) ? 1 : 0);
+          push(truthy(a) && truthy(b) ? 1 : 0);
           break;
         }
         case OP_OR: {
           const b = st.pop(), a = st.pop();
-          st.push(truthy(a) || truthy(b) ? 1 : 0);
+          push(truthy(a) || truthy(b) ? 1 : 0);
           break;
         }
         case OP_NOT:
-          st.push(truthy(st.pop()) ? 0 : 1);
+          push(truthy(st.pop()) ? 0 : 1);
           break;
         case OP_SELECT: {
-          const b = st.pop(), a = st.pop(), cnd = st.pop();
-          st.push(truthy(cnd) ? a : b);
+          const nb = nl[st.length - 1], b = st.pop();
+          const na = nl[st.length - 1], a = st.pop();
+          const cnd = st.pop();
+          if (truthy(cnd))
+            push(a, na);
+          else
+            push(b, nb);
           break;
         }
         case OP_CLAMP: {
           const hi = st.pop(), lo = st.pop(), x = st.pop();
-          st.push(x < lo ? lo : x > hi ? hi : x);
+          push(x < lo ? lo : x > hi ? hi : x);
           break;
         }
         default:
@@ -572,9 +625,10 @@ ${new Error().stack ?? ""}`);
           break;
       }
     }
+    evalNull = st.length > 0 ? nl[st.length - 1] ?? 0 : 0;
     return st.length > 0 ? st[st.length - 1] : 0;
   }, "evalExpr");
-  const apply = /* @__PURE__ */ __name((rule, v) => {
+  const apply = /* @__PURE__ */ __name((rule, v, isNull) => {
     const cell = rTarget[rule];
     if (cell < 0)
       return;
@@ -583,12 +637,15 @@ ${new Error().stack ?? ""}`);
         wake(cell);
       return;
     }
-    setValue(cell, v);
+    if (isNull)
+      setNull(cell);
+    else
+      setValue(cell, v);
   }, "apply");
   const run = /* @__PURE__ */ __name((rule) => {
     if (!known(rule))
       return ERR_BAD;
-    let v = 0;
+    let v = 0, isNull = 0;
     drainTrack();
     drain();
     const wasRunning = (rState[rule] & ST_RUNNING) !== 0;
@@ -596,9 +653,13 @@ ${new Error().stack ?? ""}`);
     switch (rKind[rule]) {
       case K_EXPR:
         v = evalExpr(rule);
+        isNull = evalNull;
         break;
       case K_BODY:
+        bodyNull[0] = 0;
         v = host.body(rule, rElem[rule], rTarget[rule]);
+        isNull = bodyNull[0];
+        bodyNull[0] = 0;
         break;
       case K_DYNAMIC: {
         unlinkAll(rule);
@@ -608,7 +669,10 @@ ${new Error().stack ?? ""}`);
         rSerial[rule] = serial;
         const prev = active[0];
         active[0] = rule;
+        bodyNull[0] = 0;
         v = host.body(rule, rElem[rule], rTarget[rule]);
+        isNull = bodyNull[0];
+        bodyNull[0] = 0;
         drainTrack();
         active[0] = prev;
         break;
@@ -634,7 +698,7 @@ ${new Error().stack ?? ""}`);
       return OK;
     }
     rState[rule] &= ~(ST_REWIRE | ST_UNLANDED);
-    apply(rule, v);
+    apply(rule, v, isNull);
     drain();
     return OK;
   }, "run");
@@ -770,6 +834,7 @@ ${new Error().stack ?? ""}`);
     cellHead[id] = 0;
     cellTail[id] = 0;
     table[id] = 0;
+    nullOf[id] = 0;
     return id;
   }, "addCellAt");
   let vl = null;
@@ -1117,6 +1182,8 @@ ${new Error().stack ?? ""}`);
   }, "layoutRun");
   const self = {
     table,
+    nulls: nullOf,
+    bodyNull,
     active,
     capacity,
     cells: /* @__PURE__ */ __name(() => ncells, "cells"),
@@ -1246,6 +1313,7 @@ ${new Error().stack ?? ""}`);
         cellHead[id] = 0;
         cellTail[id] = 0;
         table[id] = 0;
+        nullOf[id] = 0;
       }
       return base;
     }, "addCells"),
@@ -1258,6 +1326,7 @@ ${new Error().stack ?? ""}`);
         ownerOf[cell] = 0;
         setFlag[cell] = 0;
         table[cell] = 0;
+        nullOf[cell] = 0;
       }
     }, "clearCells"),
     freeCell: /* @__PURE__ */ __name((cell) => {

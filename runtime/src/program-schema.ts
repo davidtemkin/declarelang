@@ -19,7 +19,7 @@ import type { Element, Attr, AttrDecl, ClassDecl } from "./parser.js";
 import { DeclareError, diag, insetOrRadiusMessage, type Pos } from "./errors.js";
 import { SCHEMAS, ABSTRACT_SCHEMAS, ABSTRACT_CONCRETE, attrType, isReadOnly, TextSchema, RichTextSchema, type ClassSchema } from "./schema.js";
 import { fontObjectHint } from "./font-value.js";
-import { coerce, coerceToken, declaredType, describeLiteral, noteLiteral, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
+import { coerce, coerceToken, declaredType, describeLiteral, noteLiteral, nullablePrimitive, parseLiteralUnion, DECLARED_TYPE_NAMES, type AttrType, type AttrValue } from "./value.js";
 export { coerceToken };
 
 /** The default (no schemas declared) — one shared frozen set. */
@@ -311,10 +311,42 @@ export function resolveWrittenType(
   }
   const ref = reference(written, isClassName, isShape);
   if (ref !== null) return { ...ref, required: true } as AttrType;
+  const np = nullablePrimitive(written);
+  if (np !== null) return { kind: np === "n" ? "number" : "boolean", nullable: true } as AttrType;
   return declaredType(written)
     ?? literalUnion(written)
     ?? arrayOf(written)
-    ?? (written.startsWith("(") ? { kind: "fn", written } as AttrType : null);
+    ?? (isFunctionType(written) ? { kind: "fn", written } as AttrType : null)
+    // ANY OTHER TypeScript type — a generic, an object or tuple type, a union
+    // with null, a type a script block declares: stored as a plain value and
+    // checked by TypeScript as written; an unknown name in it is reported at
+    // the declaration by the typecheck (typecheck.ts, the declared-type probes).
+    // Declare's `T?` is TypeScript's `T | null`.
+    ?? ({ kind: "object", written: written.endsWith("?") ? `${asTypeScript(written.slice(0, -1))} | null` : written } as AttrType);
+}
+
+/** A written type as TypeScript names it: Declare's `array` and `object` are
+ *  TypeScript's `any[]` and `any`; every other declarable name is
+ *  TypeScript's own or an alias the checker declares. */
+function asTypeScript(written: string): string {
+  return written === "array" ? "any[]" : written === "object" ? "any" : written;
+}
+
+/** Is this written type a FUNCTION type — `(a: T) -> R` at the top level, not
+ *  a parenthesized type (`(A | B)[]`)? The parser writes every function type
+ *  with its return made explicit, so the test is the arrow after the group. */
+function isFunctionType(written: string): boolean {
+  if (!written.startsWith("(")) return false;
+  let depth = 0;
+  for (let i = 0; i < written.length; i++) {
+    const c = written[i];
+    if (c === "(" || c === "[" || c === "{" || c === "<") depth++;
+    else if (c === ")" || c === "]" || c === "}" || c === ">") {
+      depth--;
+      if (depth === 0) return written.startsWith(" -> ", i + 1);
+    }
+  }
+  return false;
 }
 
 /** The reference types a declared attribute may name: View, a class, a schema,

@@ -1,0 +1,6 @@
+// A sound held in memory, a streamed sound, and their plays. test/audio-in-memory.test.mjs drives it.
+
+App [ width = 200, height = 100,
+    held: Audio [ source = "../../apps/docs/resources/blip.wav", inMemory = true ],
+    stream: Audio [ source = "../../apps/docs/resources/blip.wav" ]
+    ]

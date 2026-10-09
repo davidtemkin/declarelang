@@ -165,7 +165,7 @@ export default async ({ drive, expect }) => {
 }
 ```
 
-**`drive`** — `click(path)` · `drag(path, dx, dy, steps?)` · `key(name)` · `type(text)` ·
+**`drive`** — `click(path)` · `drag(path, dx, dy, steps?)` · `wheel(path, dy, dx?)` · `key(name)` · `type(text)` ·
 `tab(n?)` · `wait(ms)` · `settleMotion(maxMs?)` · `settleData()` · `traceStart(n?)` ·
 `trace()` · `traceText()` (the wake trace, above — what the drive you just did changed, and
 why) · `page` (the raw puppeteer page, for what the vocabulary doesn't cover).

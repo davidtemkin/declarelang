@@ -24,7 +24,7 @@
 // Ownership is the other half: an author `{ }` constraint owns its slot and a
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
-import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, setPushHook, table, touchCell, trackCell, untracked, workPending, setOwnershipCheck } from "./reactive.js";
+import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, setPushHook, table, touchCell, trackCell, untracked, workPending, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage } from "./errors.js";
 import { THEME_PRESETS } from "./themes.js";
 // Class → its attribute tables. All are prototype-chained objects mirroring
@@ -37,6 +37,13 @@ const DEFAULTS = new WeakMap();
 const DEF_RULES = new WeakMap();
 const PUSHERS = new WeakMap();
 const EQUALS = new WeakMap();
+/** A slot's value off the table: null where a nullable slot's flag says so. */
+function slotValue(L, slot, c) {
+    if (L.nullable[slot] && nulls[c] === 1)
+        return null;
+    const n = table[c];
+    return L.kinds[slot] === "b" ? n !== 0 : n;
+}
 const LAYOUT = new WeakMap();
 /** Blocks returned by torn-down instances, per class, for reuse (cleared). */
 const FREE_BLOCKS = new WeakMap();
@@ -98,8 +105,7 @@ function pushKernelWrites(cells) {
         const push = tableFor(PUSHERS, view.constructor)?.[L.names[slot]];
         if (push === undefined)
             continue;
-        const n = table[cell];
-        push(view, L.kinds[slot] === "b" ? n !== 0 : n);
+        push(view, slotValue(L, slot, cell));
     }
 }
 setPushHook(pushKernelWrites);
@@ -128,8 +134,11 @@ export function kernelLanding(self, name) {
         return null;
     const c = self;
     const bool = slotIsBoolean(self, name);
+    const L = tableFor(LAYOUT, self.constructor);
+    const slot = L?.index[name];
+    const nullable = slot !== undefined && L !== null && L.nullable[slot] === true;
     return {
-        cell, bool,
+        cell, bool, nullable,
         accepts: (v) => (bool ? typeof v === "boolean" : typeof v === "number")
             && (c.$esc === undefined || !c.$esc.has(name))
             && (c.$changing === undefined || !c.$changing.has(name)),
@@ -277,16 +286,22 @@ export function defineAttributes(ctor, specs) {
         kinds: parentLayout ? [...parentLayout.kinds] : [],
         names: parentLayout ? [...parentLayout.names] : [],
         defaults: new Float64Array(0), count: parentLayout?.count ?? 0,
+        nullable: parentLayout ? [...parentLayout.nullable] : [],
+        defaultNulls: new Uint8Array(0),
     };
+    const layoutNulls = parentLayout ? [...parentLayout.defaultNulls] : [];
     const layoutDefaults = parentLayout ? [...parentLayout.defaults] : [];
     for (const name of Object.keys(specs)) {
         const spec = specs[name];
         defaults[name] = spec.def;
         pushers[name] = spec.push;
         equals[name] = spec.equal;
-        const kind = (spec.defBinding === undefined || spec.defRule === true) && spec.live === undefined && spec.tracked === undefined && spec.equal === undefined
-            ? (typeof spec.def === "number" ? "n" : typeof spec.def === "boolean" ? "b" : undefined)
-            : undefined;
+        const plainSlot = (spec.defBinding === undefined || spec.defRule === true) && spec.live === undefined && spec.tracked === undefined && spec.equal === undefined;
+        // a NULLABLE number or boolean (`number | null`) is a table slot too, its
+        // null carried by the cell's flag — whatever its default
+        const kind = !plainSlot ? undefined
+            : spec.nullable !== undefined ? spec.nullable
+                : (typeof spec.def === "number" ? "n" : typeof spec.def === "boolean" ? "b" : undefined);
         let slot = -1;
         if (kind !== undefined) {
             const inherited = layout.index[name];
@@ -294,7 +309,9 @@ export function defineAttributes(ctor, specs) {
             layout.index[name] = slot;
             layout.kinds[slot] = kind;
             layout.names[slot] = name;
-            layoutDefaults[slot] = kind === "b" ? (spec.def ? 1 : 0) : spec.def;
+            layout.nullable[slot] = spec.nullable !== undefined;
+            layoutNulls[slot] = spec.nullable !== undefined && spec.def == null ? 1 : 0;
+            layoutDefaults[slot] = spec.def == null ? 0 : kind === "b" ? (spec.def ? 1 : 0) : spec.def;
         }
         else if (layout.index[name] !== undefined) {
             layout.index[name] = undefined; // redeclared as non-numeric here: this class's instances use the JS store
@@ -308,6 +325,7 @@ export function defineAttributes(ctor, specs) {
         // through every derived input, since a pending settle has not landed it.
         // Tracked readers and the kernel always read the table: they re-run.
         const defRule = spec.defRule === true && defBinding !== undefined;
+        const nullableSlot = kind !== undefined && spec.nullable !== undefined;
         if (defRule) {
             let t = DEF_RULES.get(ctor);
             if (t === undefined)
@@ -350,6 +368,8 @@ export function defineAttributes(ctor, specs) {
                         else if (defRule && declStale(self, name, isSettling())) {
                             return evalDefault(self, name, defBinding, defOuter);
                         }
+                        if (nullableSlot && nulls[c] === 1)
+                            return null;
                         const n = table[c];
                         return kind === "b" ? n !== 0 : n;
                     }
@@ -426,6 +446,11 @@ export function defineAttributes(ctor, specs) {
     PUSHERS.set(ctor, pushers);
     EQUALS.set(ctor, equals);
     layout.defaults = Float64Array.from(layoutDefaults);
+    for (let i = 0; i < layout.count; i++) {
+        layoutNulls[i] ??= 0;
+        layout.nullable[i] ??= false;
+    }
+    layout.defaultNulls = Uint8Array.from(layoutNulls);
     LAYOUT.set(ctor, layout);
 }
 /** A class's slot index for a numeric attribute (−1 if it is not one) — the
@@ -460,6 +485,7 @@ function ensureBase(self) {
         BLOCK_VIEW.push(self);
     }
     table.set(L.defaults, base);
+    nulls.set(L.defaultNulls, base);
     self.$base = base;
     return base;
 }
@@ -696,6 +722,20 @@ function write(self, name, v, deep = false) {
         // for the applier and wakes its subscribers when it next runs anything),
         // and push the Surface call ourselves, on change only.
         const kind = L.kinds[slot];
+        if (v === null && L.nullable[slot]) {
+            // null into a nullable slot: the cell's flag, its number 0
+            const c = ensureBase(carrier) + slot;
+            if (nulls[c] === 1)
+                return;
+            if (carrier.$changing?.has(name) === true) {
+                throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
+            }
+            table[c] = 0;
+            nulls[c] = 1;
+            touchCell(c);
+            tableFor(PUSHERS, self.constructor)?.[name]?.(self, null);
+            return;
+        }
         if (typeof v !== (kind === "n" ? "number" : "boolean")) {
             // A union-typed slot (cornerRadius: a number OR a [tl, tr, br, bl]
             // list) leaves the table for this instance: the value goes to the JS
@@ -707,12 +747,15 @@ function write(self, name, v, deep = false) {
         }
         const c = ensureBase(carrier) + slot;
         const nv = kind === "b" ? (v ? 1 : 0) : v;
-        if (table[c] === nv)
+        const wasNull = L.nullable[slot] && nulls[c] === 1;
+        if (table[c] === nv && !wasNull)
             return;
         if (carrier.$changing?.has(name) === true) {
             throw new DeclareError(`onChange assigned '${name}', which is one of the values it was called for — a change handler may not write what it was told changed`);
         }
         table[c] = nv;
+        if (wasNull)
+            nulls[c] = 0;
         touchCell(c);
         tableFor(PUSHERS, self.constructor)?.[name]?.(self, v);
         return;
@@ -906,14 +949,14 @@ export function freeCells(self) {
         let attrs = carrier.$attrs;
         for (let slot = 0; slot < L.count; slot++) {
             const v = table[base + slot];
-            if (v === defs[slot])
+            if (v === defs[slot] && nulls[base + slot] === L.defaultNulls[slot])
                 continue;
             const name = L.names[slot];
             if (carrier.$esc !== undefined && carrier.$esc.has(name))
                 continue;
             if (attrs === undefined)
                 attrs = carrier.$attrs = Object.create(tableFor(DEFAULTS, self.constructor));
-            attrs[name] = L.kinds[slot] === "b" ? v !== 0 : v;
+            attrs[name] = slotValue(L, slot, base + slot);
         }
         kernel().clearCells(base, L.count);
         BLOCK_VIEW[BLOCK_AT.get(base)] = null;
@@ -975,7 +1018,7 @@ export function ownValues(self) {
             const name = L.names[slot];
             if (esc !== undefined && esc.has(name))
                 continue;
-            out[name] = L.kinds[slot] === "b" ? table[base + slot] !== 0 : table[base + slot];
+            out[name] = slotValue(L, slot, base + slot);
         }
     }
     return out;

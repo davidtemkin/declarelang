@@ -167,7 +167,11 @@ await test("culling is byte-identical on every drawing feature (drawops, canvas 
 // identical to a fresh load, which is what makes the skip an optimization and
 // not a semantic.
 await test("hidden drawings hold no backing store; showing one rasterizes it, identically", async () => {
-  const backing = `Array.from(document.querySelectorAll("canvas")).map((c) => c.width * c.height * 4)`;
+  // backing store PER VIEW, in the probe's order (a, b, c, e) — read off each
+  // view's own canvas, since a view not yet shown has no element at all
+  const backing = `[window.__app.a, window.__app.b, window.__app.c, window.__app.e].map((v) => {
+    const c = v.$surface?.element?.querySelector?.("canvas");
+    return c ? c.width * c.height * 4 : 0; })`;
   const shot = `document.querySelectorAll("canvas")[0] && (() => {
     const cs = Array.from(document.querySelectorAll("canvas")).filter((c) => c.width > 0);
     return cs.length === 1 ? cs[0].toDataURL() : "MULTIPLE:" + cs.length;

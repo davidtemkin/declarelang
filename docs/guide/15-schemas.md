@@ -26,8 +26,9 @@ Field types are the ones JSON can say: `string`, `number`, `boolean`, `any`, ano
 schema's name, a nested `[ … ]` record, or a literal union (`"open" | "closed"`,
 `0 | 1 | 2`). `?` marks a field the data may omit or send as null, and `[]` on the field's
 name marks an array — `tags[]: string` — the same spelling as the path that reads it,
-`:tags[]`. What the grammar leaves out of full TypeScript is deliberate: a schema states
-facts that can be checked against the data as it arrives. It is where an API
+`:tags[]`. TypeScript's spellings say the same: `tags: string[]`, and `note: string | null`
+for a field that may be null. What the grammar leaves out of full TypeScript is deliberate:
+a schema states facts that can be checked against the data as it arrives. It is where an API
 contract's prose — "`col` is 0, 1, or 2" — becomes a check.
 
 ## Attaching a schema

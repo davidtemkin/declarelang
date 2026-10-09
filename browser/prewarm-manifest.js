@@ -47,6 +47,9 @@ export const PREWARMED = [
   // it is for the INDEXED surfaces.
   { main: "apps/weather/weather.declare", props: { render: "dom" } },
   { main: "apps/marketmap/marketmap.declare", props: { render: "dom" } },
+  { main: "apps/asteroids/asteroids.declare", props: { render: "dom" } },
+  // off the menu, but the Desktop opens it as a window (a tenant resolves through
+  // this same tier), so its first paint keeps the compiler-free path
   { main: "apps/birds/birds.declare", props: { render: "dom" } },
   // Architecture is mounted as an AppIsland under the homepage's header — the
   // SAME ladder any tenant resolves on (host-client.js resolveCompiled:

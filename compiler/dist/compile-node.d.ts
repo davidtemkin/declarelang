@@ -5,7 +5,7 @@ export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocum
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export { highlight, lineMetrics, type LineMetrics } from "./highlight.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
-export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";

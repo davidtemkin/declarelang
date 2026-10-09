@@ -495,8 +495,8 @@ const pageHtml = (backendClass, source) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  window.__app = render(${JSON.stringify(source)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  window.__app = renderProgram(JSON.parse(${JSON.stringify(prog(source))}), document.getElementById("host"), new ${backendClass}());
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__rendered = true; }));
 </script>`;
 
@@ -525,7 +525,7 @@ const r3PageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { build, ${backendClass} } from "/dist/index.js";
+  import { buildProgram, ${backendClass} } from "/dist/index.js";
 
   // 20×12: left half red, right half blue.
   const bmp = document.createElement("canvas");
@@ -534,7 +534,7 @@ const r3PageHtml = (backendClass) => `<!doctype html>
   bctx.fillStyle = "#ff0000"; bctx.fillRect(0, 0, 10, 12);
   bctx.fillStyle = "#0000ff"; bctx.fillRect(10, 0, 10, 12);
 
-  const app = build(${JSON.stringify(R3_SOURCE)}.replaceAll("__IMG__", bmp.toDataURL()));
+  const app = buildProgram(JSON.parse(${JSON.stringify(prog(R3_SOURCE))}.replaceAll("__IMG__", bmp.toDataURL())));
 
   // A draw method is runtime API until R5 lands methods in the language:
   // a filled triangle plus a stroked line, recorded once at attach.
@@ -567,8 +567,8 @@ const r4PageHtml = (backendClass, source, permuted) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { build, ${backendClass} } from "/dist/index.js";
-  const app = build(${JSON.stringify(source)});
+  import { buildProgram, ${backendClass} } from "/dist/index.js";
+  const app = buildProgram(JSON.parse(${JSON.stringify(prog(source))}));
 
   // Runtime API until R5 lands methods; reads this.width/height, so the
   // recording is stale — and re-records — whenever either changes.
@@ -599,8 +599,8 @@ const clipPageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  const app = render(${JSON.stringify(CLIP_SOURCE)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  const app = renderProgram(JSON.parse(${JSON.stringify(prog(CLIP_SOURCE))}), document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__growClip = () => { app.children[0].height = 140; };
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__rendered = true; }));
@@ -616,7 +616,7 @@ const r7PageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
 
   // 20×12: left half red, right half blue (deterministic pixels, no asset).
   const bmp = document.createElement("canvas");
@@ -625,7 +625,7 @@ const r7PageHtml = (backendClass) => `<!doctype html>
   bctx.fillStyle = "#ff0000"; bctx.fillRect(0, 0, 10, 12);
   bctx.fillStyle = "#0000ff"; bctx.fillRect(10, 0, 10, 12);
 
-  const app = render(${JSON.stringify(R7_SOURCE)}.replaceAll("__IMG__", bmp.toDataURL()),
+  const app = renderProgram(JSON.parse(${JSON.stringify(prog(R7_SOURCE))}.replaceAll("__IMG__", bmp.toDataURL())),
     document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__mutate = () => {
@@ -652,8 +652,8 @@ const r8PageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  const app = render(${JSON.stringify(R8_SOURCE)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  const app = renderProgram(JSON.parse(${JSON.stringify(prog(R8_SOURCE))}), document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__mutate = () => {
     app.src.set(["rows", 1, "label"], "BETA");
@@ -682,8 +682,8 @@ const r9PageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  const app = render(${JSON.stringify(R9_SOURCE)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  const app = renderProgram(JSON.parse(${JSON.stringify(prog(R9_SOURCE))}), document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__mutate = () => {
     app.box.b.visible = false;
@@ -701,8 +701,8 @@ const r10PageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  const app = render(${JSON.stringify(R10_SOURCE)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  const app = renderProgram(JSON.parse(${JSON.stringify(prog(R10_SOURCE))}), document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__restyle = async () => {
     const before = window.__rafCalls;
@@ -742,8 +742,8 @@ const animPageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  const app = render(${JSON.stringify(ANIM_SOURCE)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  const app = renderProgram(JSON.parse(${JSON.stringify(prog(ANIM_SOURCE))}), document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__runAnim = () => new Promise((resolve) => {
     const box = app.box, to = box.slide.to, from = box.x;
@@ -790,8 +790,8 @@ const anim2PageHtml = (backendClass) => `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, ${backendClass} } from "/dist/index.js";
-  const app = render(${JSON.stringify(ANIM2_SOURCE)}, document.getElementById("host"), new ${backendClass}());
+  import { renderProgram, ${backendClass} } from "/dist/index.js";
+  const app = renderProgram(JSON.parse(${JSON.stringify(prog(ANIM2_SOURCE))}), document.getElementById("host"), new ${backendClass}());
   window.__app = app;
   window.__runAnim2 = () => new Promise((resolve) => {
     const box = app.box, from = box.x, to = 140; // 20 + 80 + 40 (composed)
@@ -810,6 +810,34 @@ const anim2PageHtml = (backendClass) => `<!doctype html>
   });
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__rendered = true; }));
 </script>`;
+
+// Each page boots the program compile() hands over, as a production page
+// does: compiled here, carried into the page as JSON, and built there by
+// buildProgram or renderProgram.
+const FRAME_CLIP_SOURCE = `App [ clip = true, width = 640, height = 480, fill = #202830,
+      panel: View [ x = 700, y = 40, width = 300, height = 200, fill = #2E3A45,
+          note: TextInput [ x = 10, y = 10, width = 280, height = 30, fill = #3A4855 ] ],
+      ]`;
+const FRAME_TALL_SOURCE = `App [ width = 640, height = 1600, fill = #202830,
+      head: View [ x = 20, y = 20, width = 600, height = 60, fill = #2E3A45 ],
+      foot: View [ x = 20, y = 1500, width = 600, height = 60, fill = #4C8DFF ],
+      ]`;
+const PROGRAMS = new Map();
+for (const r of [r6Compiled, r7Compiled, r8Compiled, r9Compiled, r10Compiled, animCompiled, anim2Compiled]) {
+  PROGRAMS.set(r.source, JSON.stringify(r.program));
+}
+for (const src of [SOURCE, R2_SOURCE, R3_SOURCE, CLIP_SOURCE, R4_SOURCE, R4_PERMUTED, R5_SOURCE,
+  C1_SOURCE, C2_SOURCE, BLEND_SOURCE, FROST_SOURCE, GFX_SOURCE, TINT_SOURCE, ROT_SOURCE, TREAT_SOURCE,
+  FRAME_CLIP_SOURCE, FRAME_TALL_SOURCE]) {
+  const r = await compile(src);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "a page's program compiles clean");
+  PROGRAMS.set(src, JSON.stringify(r.program));
+}
+const prog = (src) => {
+  const json = PROGRAMS.get(src);
+  if (json === undefined) throw new Error("a page's source was not compiled above — add it to the list");
+  return json;
+};
 
 function serveDist() {
   const fixtures = {
@@ -864,17 +892,11 @@ function serveDist() {
     // The box-clip CONTAINMENT test: an App declaring `clip = true` (the
     // calendar's fixed-window design) with a panel parked BEYOND the frame —
     // the browser must gain no scroll extent and focus must not shift the frame.
-    "/frame-clip": pageHtml("DomBackend", `App [ clip = true, width = 640, height = 480, fill = #202830,
-      panel: View [ x = 700, y = 40, width = 300, height = 200, fill = #2E3A45,
-          note: TextInput [ x = 10, y = 10, width = 280, height = 30, fill = #3A4855 ] ],
-      ]`),
+    "/frame-clip": pageHtml("DomBackend", FRAME_CLIP_SOURCE),
     // The EXTERIOR-scrolling test: an app LARGER than the window, no clip —
     // the browser scrolls over the app object natively (this must remain
     // expressible; the box-clip is the app's opt-in, not a platform clamp).
-    "/frame-tall": pageHtml("DomBackend", `App [ width = 640, height = 1600, fill = #202830,
-      head: View [ x = 20, y = 20, width = 600, height = 60, fill = #2E3A45 ],
-      foot: View [ x = 20, y = 1500, width = 600, height = 60, fill = #4C8DFF ],
-      ]`),
+    "/frame-tall": pageHtml("DomBackend", FRAME_TALL_SOURCE),
     // A bare harness page for the compile-WORKER identity test: loads the one
     // compiler client (which prefers the module worker) and exposes a compile
     // runner — no app, no backend; the compiler itself is the subject.

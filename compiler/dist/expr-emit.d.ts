@@ -28,6 +28,8 @@ export declare const OP: Readonly<{
     NOT: 24;
     SELECT: 25;
     CLAMP: 26;
+    NULL: 27;
+    COALESCE: 28;
 }>;
 export interface ExprCode {
     code: number[];

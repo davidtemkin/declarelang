@@ -191,6 +191,8 @@ export function revertDraft(view, name) {
  *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,
  *  a `Picker` → `value`). Custom controls become editors by extending it. */
 export class Editor extends View {
+    /** The field's element holds what is typed, the selection and focus. */
+    $eagerSurface() { return true; }
     /** @api Commit the current draft into the bound dataset field, if it
      *  validates — for a `commitOn = "manual"` field or a Save button. */
     commit() {

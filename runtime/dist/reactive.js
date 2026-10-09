@@ -36,6 +36,9 @@ let loading = null;
 /** The slot table, as a LIVE binding: attributes.ts reads numeric slots
  *  straight off it (`table[cell]`), no call in between. Empty until load. */
 export let table = new Float64Array(0);
+/** The NULL flag per cell, beside the table (1: the slot holds null; its
+ *  number is 0). Read only for a nullable slot (attributes.ts). */
+export let nulls = new Uint8Array(0);
 /** The kernel's active-rule word (−1 = no DYNAMIC rule running) and the
  *  probe collector, exported so a getter's tracking check is two reads and
  *  no call: `S.collecting !== null || ACTIVE[0] >= 0`. */
@@ -506,6 +509,7 @@ function bindKernel(k) {
         }, () => { undo?.(); undo = null; });
     }
     table = k.table;
+    nulls = k.nulls;
     ACTIVE = k.active;
     ring = k.ring;
     ringCount = k.ringCount;
@@ -803,14 +807,21 @@ export class Constraint {
             return;
         this.landedCell = land.cell;
         this.landsBool = land.bool;
+        this.landsNull = land.nullable;
         this.accepts = land.accepts;
     }
+    landsNull = false;
     /** What the kernel lands for `v`: the number itself, or — for a value the
      *  table cannot take — the JS write lands it and the cell's own value goes
      *  back, which the kernel's equality gate lets through as no change. The gate
      *  is JS `===` in both kernels (NaN never gates, -0 equals 0) — the one a JS
      *  write to a table slot already passed through: kernel.md §10a. */
     landing(v, tracked) {
+        // null into a nullable slot: the kernel lands it from the body-null byte
+        if (v === null && this.landsNull) {
+            K.bodyNull[0] = 1;
+            return 0;
+        }
         if (this.accepts(v))
             return this.landsBool ? (v ? 1 : 0) : v;
         if (!tracked) {

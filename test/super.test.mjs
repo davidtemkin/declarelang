@@ -3,7 +3,7 @@
 // beneath the calling body in the class chain — anywhere in the body, or not
 // at all. Handlers are methods and get no rule of their own.
 import assert from "node:assert";
-import { compile, settleSource } from "../compiler/dist/compile-node.js";
+import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
 provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: t.length * 7, fontBoundingBoxAscent: 11, fontBoundingBoxDescent: 3, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 }) });
@@ -15,7 +15,7 @@ function test(name, fn) {
 async function build(src) {
   const r = await compile(src);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleSource(r.source, { deps: r.deps });
+  return settleHeadless(r.program);
 }
 const errorsOf = async (src) => ((await compile(src)).errors ?? []).map((e) => e.message);
 console.log("super — calling the base's method");

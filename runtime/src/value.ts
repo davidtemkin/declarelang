@@ -424,7 +424,9 @@ export type AttrType =
   // (a radius at the top-left corner, an inset at the top edge), and the kind
   // is what carries that as far as the scaffold, whose `Radius` on a padding
   // slot told authors and agents that padding rounds corners.
-  | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset" }
+  // `nullable` (number and boolean): a declared `number | null` — a table slot
+  // whose cell carries null beside its number (attributes.ts, kernel.c)
+  | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset"; readonly nullable?: true }
   // A data-shape (B4, language §9's optional `schema` — the "shape" kind
   // above is the SVG clip path, unrelated): the slot holds parsed ShapeField
   // declarations, literal-only (`[ city: string, rows[]: [ … ] ]`).
@@ -432,7 +434,10 @@ export type AttrType =
   // The records door (planes.md §4): structured slots — an array of records,
   // a plain record, a View reference. Literal form: null only; the values
   // arrive from `{ }` bindings (plain TS) and runtime writes.
-  | { readonly kind: "object" }
+  // `written`: a TypeScript type outside the vocabulary above (`Map<string,
+  // number>`, `{ a: number }`, `string | null`) — stored as a plain value,
+  // checked by TypeScript as written (resolveWrittenType's fallback).
+  | { readonly kind: "object"; readonly written?: string }
   // `required`: a DECLARED attribute written without `?` (`target: View`) —
   // never empty, so null is not among its values. Schema slots never carry it.
   | { readonly kind: "view"; readonly required?: true }
@@ -576,6 +581,17 @@ export function parseLiteralUnion(text: string): string[] | null {
   const out: string[] = [];
   for (const l of lits) { try { out.push(JSON.parse(l) as string); } catch { return null; } }
   return out;
+}
+
+/** A NULLABLE number or boolean — `number | null`, `null | number`, `number?`
+ *  (and `| undefined`, which a slot holds as null): "n" or "b", else null. Such
+ *  a slot stays in the kernel's table, its null carried by the cell's flag. */
+export function nullablePrimitive(written: string): "n" | "b" | null {
+  const parts = written.endsWith("?") ? [written.slice(0, -1).trim(), "null"] : written.split("|").map((p) => p.trim());
+  if (parts.length !== 2) return null;
+  const base = parts.filter((p) => p !== "null" && p !== "undefined");
+  if (base.length !== 1) return null;
+  return base[0] === "number" ? "n" : base[0] === "boolean" ? "b" : null;
 }
 
 export function declaredType(name: string): AttrType | null {

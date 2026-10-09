@@ -3,6 +3,7 @@
 //   node mac-host/drawconform.mjs                 # chrome-canvas vs chrome-dom vs mac
 //   node mac-host/drawconform.mjs --only mac      # skip the web-vs-web column
 //   node mac-host/drawconform.mjs --out /tmp/dc   # keep the PNGs
+//   node mac-host/drawconform.mjs --probe test/probe/drawops-lengths.declare   # another probe on the same grid
 //
 // The existing visual rigs answer "is it the same picture": fidelity.mjs scores
 // a whole app over 160px tiles, and the perceptual suite holds DOM and canvas to
@@ -67,7 +68,8 @@ const server = createDeclareServer({
 const httpServer = http.createServer(server.handler).on("upgrade", server.upgrade);
 await new Promise((r) => httpServer.listen(0, "127.0.0.1", r));
 const ORIGIN = `http://127.0.0.1:${httpServer.address().port}`;
-const URL_ = `${ORIGIN}/test/probe/drawops.declare`;
+const PROBE = (() => { const i = process.argv.indexOf("--probe"); return i > 0 ? process.argv[i + 1] : "test/probe/drawops.declare"; })();
+const URL_ = `${ORIGIN}/${PROBE}`;
 
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 

@@ -44,6 +44,9 @@ let loading: Promise<Kernel> | null = null;
 /** The slot table, as a LIVE binding: attributes.ts reads numeric slots
  *  straight off it (`table[cell]`), no call in between. Empty until load. */
 export let table: Float64Array = new Float64Array(0);
+/** The NULL flag per cell, beside the table (1: the slot holds null; its
+ *  number is 0). Read only for a nullable slot (attributes.ts). */
+export let nulls: Uint8Array = new Uint8Array(0);
 /** The kernel's active-rule word (−1 = no DYNAMIC rule running) and the
  *  probe collector, exported so a getter's tracking check is two reads and
  *  no call: `S.collecting !== null || ACTIVE[0] >= 0`. */
@@ -468,7 +471,7 @@ function bindKernel(k: Kernel): void {
       () => { undo?.(); undo = null; },
     );
   }
-  table = k.table; ACTIVE = k.active; ring = k.ring; ringCount = k.ringCount; ringCap = k.ringCap;
+  table = k.table; nulls = k.nulls; ACTIVE = k.active; ring = k.ring; ringCount = k.ringCount; ringCap = k.ringCap;
   trackRing = k.trackRing; trackCount = k.trackCount; trackCap = k.trackCap;
   // THE VIEWS CAN BE REPLACED UNDER US. A rule with more dependencies than the
   // staging buffer holds makes the loader grow it, which in a browser can grow
@@ -730,16 +733,19 @@ export class Constraint {
   private landsBool = false;
   /** @internal Land values through the kernel (attributes.ts kernelLanding):
    *  before the rule exists, since the kernel learns its target when it is added. */
-  landInKernel(land: { cell: number; bool: boolean; accepts: (v: unknown) => boolean }): void {
+  landInKernel(land: { cell: number; bool: boolean; nullable: boolean; accepts: (v: unknown) => boolean }): void {
     if (this.id >= 0) return;
-    this.landedCell = land.cell; this.landsBool = land.bool; this.accepts = land.accepts;
+    this.landedCell = land.cell; this.landsBool = land.bool; this.landsNull = land.nullable; this.accepts = land.accepts;
   }
+  private landsNull = false;
   /** What the kernel lands for `v`: the number itself, or — for a value the
    *  table cannot take — the JS write lands it and the cell's own value goes
    *  back, which the kernel's equality gate lets through as no change. The gate
    *  is JS `===` in both kernels (NaN never gates, -0 equals 0) — the one a JS
    *  write to a table slot already passed through: kernel.md §10a. */
   private landing(v: unknown, tracked: boolean): number {
+    // null into a nullable slot: the kernel lands it from the body-null byte
+    if (v === null && this.landsNull) { K!.bodyNull[0] = 1; return 0; }
     if (this.accepts!(v)) return this.landsBool ? (v ? 1 : 0) : v as number;
     if (!tracked) { this.apply(v); return table[this.landedCell]; }
     const mine = K!.active[0];

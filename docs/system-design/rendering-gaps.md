@@ -178,7 +178,7 @@ so a capability that serves content-heavy interfaces counts as application value
 | paths, rects, fills, strokes, dashes | done | ✓ | ✓ | ✓ | | one shared path implementation on the Mac side |
 | gradients, linear and radial | done | ✓ | ✓ | ✓ | | the Mac layer path refuses the two-circle focal form and rasterizes instead |
 | conic gradient | done | ✓ | ✓ | partial | | swept by hand as wedges on Mac |
-| shadows | done | ✓ | ✓ | ✓ | | |
+| shadows | done | ✓ | ✓ | ✓ | | blur and offsets in the drawing's units, scaled by its transform and raster density like its geometry (Canvas2D's own are device pixels); held by test/draw-lengths.test.mjs |
 | clip, save, restore | done | ✓ | ✓ | ✓ | | |
 | text | done | ✓ | ✓ | partial | | see D2 |
 | `drawImage` from an Image view | done | ✓ | ✓ | ✓ | | |

@@ -38,6 +38,13 @@ export interface Kernel {
    *  place. Anyone who CACHES one — reactive.ts does — must re-read it from
    *  `onGrow`, which fires synchronously before the growing call returns. */
   table: Float64Array;
+  /** NULL per cell: 1 when the cell holds null (its table slot then holds 0).
+   *  A number written clears it — the kernel's own writes do so themselves;
+   *  the host's direct table writes to a nullable slot clear it too. */
+  nulls: Uint8Array;
+  /** Set to 1 by a host body whose result is null, before it returns: the
+   *  kernel lands null rather than the number the call returned. */
+  bodyNull: Uint8Array;
   /** active[0] is the running DYNAMIC rule, or -1: readable with no call. */
   active: Int32Array;
   /** cells that fit before the next growth (updated when the kernel grows) */
@@ -327,6 +334,7 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
   // never the cells in use plus the extra, which equals it only at load
   let capacity = base.cells + c.extra_cells;
   let tableAt = x.kernel_table(k);
+  let nullsAt = x.kernel_nulls(k);
   let scratchCap = SCRATCH_START;
   let scratchAt = mem.alloc(4 * scratchCap);
   let dirtyAt = mem.alloc(4 * capacity);
@@ -362,6 +370,8 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     scratch = mem.u32(scratchAt, scratchCap);
     dirtyView = mem.u32(dirtyAt, capacity);
     self.table = mem.f64(tableAt, capacity);
+    self.nulls = mem.u8(nullsAt, capacity);
+    self.bodyNull = mem.u8(x.kernel_body_null(k), 1);
     self.active = mem.i32(x.kernel_active_ptr(k), 1);
     self.ring = mem.u32(ringAt, ringCap);
     self.ringCount = mem.u32(x.kernel_ring_count(k), 1);
@@ -416,6 +426,7 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     caps = next;
     capacity = base.cells + caps.extra_cells;
     tableAt = x.kernel_table(k);
+    nullsAt = x.kernel_nulls(k);
     ringAt = x.kernel_ring(k, ringCapAt); trackAt = x.kernel_track_ring(k, ringCapAt);
     stateAt = x.kernel_state_ptr(k, ringCapAt); ruleCap = x.kernel_rule_cap(k);
     dirtyAt = mem.alloc(4 * capacity); kdirtyAt = mem.alloc(4 * capacity);
@@ -436,7 +447,7 @@ function bindWith(x: Calls, mem: Mem, image: Uint8Array, c: Required<KernelCaps>
     return edges.length;
   };
   const self: Kernel = {
-    table: table0, active: active0, capacity,
+    table: table0, nulls: mem.u8(nullsAt, capacity), bodyNull: mem.u8(x.kernel_body_null(k), 1), active: active0, capacity,
     cells: () => x.kernel_cells(k), rules: () => x.kernel_rules(k),
     tableSize: () => usage()[1],
     codeUse: () => { const u = usage(); return { code: u[8], consts: u[10] }; },

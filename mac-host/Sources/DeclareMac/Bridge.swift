@@ -18,6 +18,7 @@ final class Bridge {
     private(set) var ctx: JSContext!
     private(set) var tree: LayerTree!
     lazy var media = MediaEngine(bridge: self)
+    lazy var clips = ClipEngine(bridge: self)
     private weak var view: DeclareView?
     private var timers: [Int: Timer] = [:]
     /// The frame request, readable at the tick from ANY thread: the runtime
@@ -507,6 +508,26 @@ final class Bridge {
             as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "mediaSeek")
         host.setObject({ [weak self] (id: Int, key: String, v: Double) in DispatchQueue.main.async { self?.media.set(id, key, v) } }
             as @convention(block) (Int, String, Double) -> Void, forKeyedSubscript: "mediaSet")
+
+        // In-memory sounds (Clips.swift): the env's __declareClipHost by handle — clips decoded
+        // once, a mixer per Audio, a player per voice. On main, in order, like the media verbs.
+        host.setObject({ [weak self] (id: Int, url: String) in DispatchQueue.main.async { self?.clips.decode(id, url) } }
+            as @convention(block) (Int, String) -> Void, forKeyedSubscript: "clipDecode")
+        host.setObject({ [weak self] (id: Int) in DispatchQueue.main.async { self?.clips.sink(id) } }
+            as @convention(block) (Int) -> Void, forKeyedSubscript: "clipSink")
+        host.setObject({ [weak self] (id: Int, v: Double) in DispatchQueue.main.async { self?.clips.setVolume(id, v) } }
+            as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "clipVolume")
+        host.setObject({ [weak self] (id: Int) in DispatchQueue.main.async { self?.clips.releaseSink(id) } }
+            as @convention(block) (Int) -> Void, forKeyedSubscript: "clipRelease")
+        host.setObject({ [weak self] (id: Int, sink: Int, clip: Int, offset: Double, loop: Bool, rate: Double) in
+            DispatchQueue.main.async { self?.clips.start(id, sink: sink, clip: clip, offset: offset, loop: loop, rate: rate) }
+        } as @convention(block) (Int, Int, Int, Double, Bool, Double) -> Void, forKeyedSubscript: "clipStart")
+        host.setObject({ [weak self] (id: Int) in DispatchQueue.main.async { self?.clips.stop(id) } }
+            as @convention(block) (Int) -> Void, forKeyedSubscript: "clipStop")
+        host.setObject({ [weak self] (id: Int, on: Bool) in DispatchQueue.main.async { self?.clips.setLoop(id, on) } }
+            as @convention(block) (Int, Bool) -> Void, forKeyedSubscript: "clipLoop")
+        host.setObject({ [weak self] (id: Int, r: Double) in DispatchQueue.main.async { self?.clips.setRate(id, r) } }
+            as @convention(block) (Int, Double) -> Void, forKeyedSubscript: "clipRate")
 
         // Shape-clip hit testing: Core Graphics owns the path, so it answers.
         host.setObject({ [weak self] (d: String, x: Double, y: Double) -> Bool in

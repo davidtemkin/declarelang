@@ -12,7 +12,7 @@
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleSource } from "../compiler/dist/compile-node.js";
+import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHeadless } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
 import { wrapLines, wrapEditable, provideMeasurer } from "../runtime/dist/measure.js";
 import { stroke, outline } from "../runtime/dist/value.js";
@@ -26,7 +26,7 @@ import {
   checkAttr,
   checkMethod,
   instantiate,
-  build,
+  buildProgram,
   DOMIsland,
   Node,
   View,
@@ -70,6 +70,30 @@ const SAMPLE = `App [ width=240, height=160, fill=#1E3A49,
 // Parse a one-attribute element and hand back that Attr — the convenient way
 // to feed checkAttr/coerce a positioned literal exactly as the parser makes it.
 const attrOf = (src) => parse(src).attrs[0];
+
+// What a test program reports to the test, through a script block (a body
+// reaches no host global itself): hit(k) counts one evaluation under
+// globalThis[k], note(k, v) appends v to the array globalThis[k].
+const TALLY = `script {
+  function hit(k: string): number { const g = globalThis as any; g[k] = (g[k] ?? 0) + 1; return 0 }
+  function note(k: string, v: unknown): void { const g = globalThis as any; (g[k] ??= []).push(v) }
+}
+`;
+
+// Compile a source and build the program compile() hands over, unrendered and
+// unsettled; a compile error throws, carrying every error.
+async function build(src) {
+  return buildProgram(await compiled(src));
+}
+
+// The program compile() hands over for a source; a compile error throws,
+// carrying every error. `buildProgram(await compiled(src))` builds in the same
+// tick as what follows it, before the runtime's own settle can run.
+async function compiled(src) {
+  const r = await compile(src);
+  if (r.errors.length > 0) throw new DeclareErrors(r.errors);
+  return r.program;
+}
 
 // ── Node / View tree primitives ─────────────────────────────────────────────
 
@@ -201,13 +225,13 @@ await test("check() names attribute, expected type, and found value per type", (
   }
 });
 
-await test("every pointer event carries both frames — local x/y through the view's transform, rootX/rootY, and deltaX/deltaY since the press", () => {
-  const app = build(`App [ width = 400, height = 300,
+await test("every pointer event carries both frames — local x/y through the view's transform, rootX/rootY, and deltaX/deltaY since the press", async () => {
+  const app = buildProgram(await compiled(`App [ width = 400, height = 300,
     got: object = null,
     plain: View [ x = 100, y = 50, width = 80, height = 40,
       onPointerMove(e: PointerEvent) { parent.got = e }, onPointerDown(e: PointerEvent) { parent.got = e } ],
     turned: View [ x = 200, y = 100, width = 100, height = 100, scale = 2, rotation = 90,
-      onPointerMove(e: PointerEvent) { parent.got = e } ] ]`);
+      onPointerMove(e: PointerEvent) { parent.got = e } ] ]`));
   settle();
   const sinkOf = (v) => v.$inputSink();
   sinkOf(app.plain)("pointerDown", 120, 60, { deltaX: 0, deltaY: 0 });
@@ -227,15 +251,15 @@ await test("every pointer event carries both frames — local x/y through the vi
   app.discard();
 });
 
-await test("a dragged view sizes its container from where it was picked up — no growth, no collapse — until the release", () => {
-  const app = build(`App [ width = 400, height = 300,
+await test("a dragged view sizes its container from where it was picked up — no growth, no collapse — until the release", async () => {
+  const app = buildProgram(await compiled(`App [ width = 400, height = 300,
     box: View [ width = 200,
       View [ width = 200, height = 100 ],
       card: View [ y = 100, width = 80, height = 50,
         sy: number = 0,
         onPointerDown(e: PointerEvent) { this.sy = this.y },
         onPointerMove(e: PointerEvent) { this.y = this.sy + e.deltaY },
-        onPointerUp(e: PointerUpEvent) { this.y = 60 } ] ] ]`);
+        onPointerUp(e: PointerUpEvent) { this.y = 60 } ] ] ]`));
   settle();
   const sink = app.box.card.$inputSink();
   assert.equal(app.box.contentHeight, 150, "before: the card's bottom");
@@ -259,6 +283,23 @@ await test("a datapath { } that is a literal is refused in the source — no Dat
   }
   const ok = await compile(`App [ d: Dataset { { "rows": [ { "n": 1 } ] } }, row: View [ datapath = { [app.d.value][0] }, View [ datapath = :rows[], width = { :n } ] ] ]`);
   assert.equal((ok.errors ?? []).filter((x) => x.code === "DECLARE3006").length, 0, "an expression that starts with [ is not a literal");
+});
+
+await test("a word kept in a local before it is passed is said plainly, with the language's two fixes", async () => {
+  const style = await compile(`App [ width = 100, height = 100, v: View [ width = 100, height = 100,
+    draw(d: Draw) { const tag = { fontSize: 12, fontWeight: "semibold" }; d.fillText("x", 0, 10, tag) } ] ]`);
+  const e = (style.errors ?? []).find((x) => x.code === "DECLARE6001");
+  assert.ok(e, "refused");
+  assert.match(e.message, /a FontWeight is one of a fixed set of words/);
+  assert.match(e.message, /style Tag \[ fontWeight = semibold \]/, "names a style declaration");
+  const word = await compile(`App [ width = 100, height = 100, turn(a: Axis) { }, onClick() { const o = { a: "x" }; turn(o.a) } ]`);
+  const w = (word.errors ?? []).find((x) => x.code === "DECLARE6001");
+  assert.match(w.message, /an Axis is one of a fixed set of words/);
+  assert.ok(!/style Tag/.test(w.message), "the style advice only where a text style is meant");
+  const fine = await compile(`style Tag [ fontSize = 12, fontWeight = semibold ]
+    App [ width = 100, height = 100, v: View [ width = 100, height = 100,
+      draw(d: Draw) { d.fillText("x", 0, 10, Tag); d.fillText("y", 0, 30, { fontWeight: "semibold" }) } ] ]`);
+  assert.deepEqual((fine.errors ?? []).map((x) => x.message), [], "both fixes check");
 });
 
 await test("a declared name TypeScript's standard library already owns is said plainly, at the declaration", async () => {
@@ -387,10 +428,10 @@ await test("coerce() maps each literal to its typed value", () => {
   assert.deepEqual(coerce({ kind: "color" }, lit("null")), { ok: true, value: null });
 });
 
-// ── build(): parse + check + instantiate, end to end ───────────────────────
+// ── compile, then buildProgram(): end to end ────────────────────────────────
 
-await test("build() makes a typed tree with coerced attributes", () => {
-  const app = build(SAMPLE);
+await test("buildProgram() makes a typed tree with coerced attributes", async () => {
+  const app = buildProgram(await compiled(SAMPLE));
   assert.ok(app instanceof App);
   assert.equal(app.width, 240);
   assert.equal(app.height, 160);
@@ -407,9 +448,9 @@ await test("build() makes a typed tree with coerced attributes", () => {
   assert.equal(child.parent, app);
 });
 
-await test("DOMIsland — a foreign-content island: a View sized by constraints, carrying a slot", () => {
-  const app = build(`App [ w: number = 200,
-    island: DOMIsland [ x = 20, y = 10, width = { parent.w }, height = 120, slot = "edit:reactivity" ] ]`);
+await test("DOMIsland — a foreign-content island: a View sized by constraints, carrying a slot", async () => {
+  const app = buildProgram(await compiled(`App [ w: number = 200,
+    island: DOMIsland [ x = 20, y = 10, width = { parent.w }, height = 120, slot = "edit:reactivity" ] ]`));
   const island = app.children[0];
   assert.ok(island instanceof DOMIsland);
   assert.ok(island instanceof View);          // it lays out and constrains like any view
@@ -421,12 +462,12 @@ await test("DOMIsland — a foreign-content island: a View sized by constraints,
   assert.equal(island.width, 340);
 });
 
-await test("App fills its host by default: unset width/height follow hostWidth/hostHeight, reactively", () => {
+await test("App fills its host by default: unset width/height follow hostWidth/hostHeight, reactively", async () => {
   // A child would make a plain view auto-size to CONTENT (40+10); the App
   // retargets auto-extent to its host instead. (hostWidth is the runtime-fed
   // enclosing extent — read-only to user code, but the runtime writes it here
   // exactly as index.ts does.)
-  const app = build(`App [ View [ x = 10, y = 10, width = 40, height = 20 ] ]`);
+  const app = buildProgram(await compiled(`App [ View [ x = 10, y = 10, width = 40, height = 20 ] ]`));
   app.$attach(mockBackend([]), null);           // installs App.bindExtent (host-tracking derive)
   app.hostWidth = 500; app.hostHeight = 360;
   settle();
@@ -437,7 +478,7 @@ await test("App fills its host by default: unset width/height follow hostWidth/h
   assert.equal(app.width, 720, "width tracks hostWidth on resize");
 
   // An explicit size still wins — the derive is skipped for a set slot.
-  const fixed = build(`App [ width = 480, height = 320, View [ width = 40 ] ]`);
+  const fixed = buildProgram(await compiled(`App [ width = 480, height = 320, View [ width = 40 ] ]`));
   fixed.$attach(mockBackend([]), null);
   fixed.hostWidth = 500; fixed.hostHeight = 500;
   settle();
@@ -445,8 +486,8 @@ await test("App fills its host by default: unset width/height follow hostWidth/h
   assert.equal(fixed.height, 320, "an explicit height overrides the host default");
 });
 
-await test("App minWidth/minHeight floor the auto-extent; the host can go narrower, the app holds", () => {
-  const app = build(`App [ minWidth = 600, minHeight = 400 ]`);
+await test("App minWidth/minHeight floor the auto-extent; the host can go narrower, the app holds", async () => {
+  const app = buildProgram(await compiled(`App [ minWidth = 600, minHeight = 400 ]`));
   app.$attach(mockBackend([]), null);
   app.hostWidth = 900; app.hostHeight = 700;    // roomy host: floors are moot
   settle();
@@ -462,15 +503,15 @@ await test("App minWidth/minHeight floor the auto-extent; the host can go narrow
   assert.equal(app.height, 400, "the other axis stays floored independently");
 });
 
-await test("build() coerces every color literal form (case-insensitive names)", () => {
-  const app = build(`App [ fill=Navy,
-    View [ fill=#0f0 ], View [ fill=0xff0000 ], View [ fill=null ] ]`);
+await test("buildProgram() coerces every color literal form (case-insensitive names)", async () => {
+  const app = buildProgram(await compiled(`App [ fill=Navy,
+    View [ fill=#0f0 ], View [ fill=0xff0000 ], View [ fill=null ] ]`));
   assert.equal(app.fill, 0x000080);
   assert.deepEqual(app.children.map((c) => c.fill), [0x00ff00, 0xff0000, null]);
 });
 
-await test("build() raises every check error as one DeclareErrors", () => {
-  assert.throws(() => build('App [ width="wide", View [ visible=1 ] ]'), (e) => {
+await test("buildProgram() raises every check error as one DeclareErrors", async () => {
+  await assert.rejects(async () => build('App [ width="wide", View [ visible=1 ] ]'), (e) => {
     assert.ok(e instanceof DeclareErrors);
     assert.ok(e instanceof DeclareError); // catchable as the base type
     assert.equal(e.errors.length, 2);
@@ -481,25 +522,25 @@ await test("build() raises every check error as one DeclareErrors", () => {
   });
 });
 
-await test("build() with a single error reads as that error", () => {
-  assert.throws(() => build("App [ zap=1 ]"), (e) => {
+await test("buildProgram() with a single error reads as that error", async () => {
+  await assert.rejects(async () => build("App [ zap=1 ]"), (e) => {
     assert.ok(e instanceof DeclareErrors);
     assert.match(e.message, /^App has no attribute 'zap' \(line 1, col 7\)$/);
     return true;
   });
 });
 
-await test("build() requires the root to be App", () => {
-  assert.throws(() => build("View [ width=1 ]"), /root must be 'App/);
+await test("buildProgram() requires the root to be App", async () => {
+  await assert.rejects(async () => build("View [ width=1 ]"), /root must be 'App/);
 });
 
-await test("a percent resolves against the parent; the root has none (R4)", () => {
+await test("a percent resolves against the parent; the root has none (R4)", async () => {
   assert.deepEqual(check(parse("App [ width=50% ]")), []); // valid *source* — rootness is context
-  assert.throws(
-    () => build("App [ width=50% ]"),
+  await assert.rejects(
+    async () => build("App [ width=50% ]"),
     /App\.width = 50%: the root has no parent for a percent to resolve against \(line 1, col 13\)/
   );
-  const app = build("App [ width=200, height=80, View [ width=50%, height=25%, x=10% ] ]");
+  const app = buildProgram(await compiled("App [ width=200, height=80, View [ width=50%, height=25%, x=10% ] ]"));
   const child = app.children[0];
   assert.equal(child.width, 100, "50% of parent width");
   assert.equal(child.height, 20, "25% of parent height");
@@ -565,7 +606,7 @@ await test("Image: cover/contain accepted, natural dimensions read-only (assessm
     ratio: number = { app.pic.naturalWidth > 0 ? app.pic.naturalHeight / app.pic.naturalWidth : 0 },
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.pic.stretches, "cover");
     assert.equal(app.pic.naturalWidth, 0, "0 until loaded (headless never loads)");
@@ -592,11 +633,11 @@ await test("check() rejects bad Text/Image values with pointed messages", () => 
   }
 });
 
-await test("build() instantiates Text/Image with coerced fields and defaults", () => {
-  const app = build(`App [ width=10, height=10,
+await test("buildProgram() instantiates Text/Image with coerced fields and defaults", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     Text [ text="hello", textColor=#FFE28A, fontSize=20, fontWeight=bold, fontFamily="Arial" ],
     Image [ source="a.png", stretches=width ],
-    Text [ ], Image [ ] ]`);
+    Text [ ], Image [ ] ]`));
   const [t, i, t2, i2] = app.children;
   assert.ok(t instanceof Text && t instanceof View);
   assert.equal(t.text, "hello");
@@ -645,8 +686,8 @@ await test("validatePathData handles repeats, signs, decimals, exponents", () =>
   assert.match(validatePathData("M0 0 Z 5"), /'5' is not a path command/);
 });
 
-await test("build() lands clip on the view; null clip stays null", () => {
-  const app = build('App [ width=1, height=1, View [ clip="M0 0 L9 0 L9 9 Z" ], View [ ] ]');
+await test("buildProgram() lands clip on the view; null clip stays null", async () => {
+  const app = buildProgram(await compiled('App [ width=1, height=1, View [ clip="M0 0 L9 0 L9 9 Z" ], View [ ] ]'));
   assert.equal(app.children[0].clip, "M0 0 L9 0 L9 9 Z");
   assert.equal(app.children[1].clip, null);
 });
@@ -867,19 +908,19 @@ await test("check() reports { } syntax errors with the slot and position", () =>
 
 // ── R4: the reactive core, driven through real views ───────────────────────
 
-await test("build() evaluates constraints once the tree is linked", () => {
-  const app = build("App [ width=100, height=60, View [ x={ parent.width - 10 }, y={ this.x / 2 } ] ]");
+await test("buildProgram() evaluates constraints once the tree is linked", async () => {
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ x={ parent.width - 10 }, y={ this.x / 2 } ] ]"));
   const v = app.children[0];
   assert.equal(v.x, 90);
   assert.equal(v.y, 45);
 });
 
-await test("precision: a write re-evaluates only what actually read it", () => {
+await test("precision: a write re-evaluates only what actually read it", async () => {
   globalThis.__rw = 0;
   globalThis.__rh = 0;
-  const app = build(`App [ width=100, height=60,
-    View [ width={ globalThis.__rw++, parent.width - 10 } ],
-    View [ height={ globalThis.__rh++, parent.height - 10 } ] ]`);
+  const app = buildProgram(await compiled(`${TALLY}App [ width=100, height=60,
+    View [ width={ hit("__rw"), parent.width - 10 } ],
+    View [ height={ hit("__rh"), parent.height - 10 } ] ]`));
   settle();
   assert.deepEqual([globalThis.__rw, globalThis.__rh], [1, 1], "one initial evaluation each");
   app.width = 200;
@@ -888,9 +929,9 @@ await test("precision: a write re-evaluates only what actually read it", () => {
   assert.equal(app.children[0].width, 190);
 });
 
-await test("batching: a burst of writes settles into one re-evaluation", () => {
+await test("batching: a burst of writes settles into one re-evaluation", async () => {
   globalThis.__rb = 0;
-  const app = build("App [ width=100, height=60, View [ width={ globalThis.__rb++, parent.width - 10 } ] ]");
+  const app = buildProgram(await compiled(`${TALLY}App [ width=100, height=60, View [ width={ hit("__rb"), parent.width - 10 } ] ]`));
   settle();
   app.width = 120;
   app.width = 140;
@@ -902,13 +943,13 @@ await test("batching: a burst of writes settles into one re-evaluation", () => {
   assert.equal(app.children[0].width, 150);
 });
 
-await test("a diamond evaluates its join once per settle", () => {
+await test("a diamond evaluates its join once per settle", async () => {
   globalThis.__rj = 0;
   // width feeds both mids; the join reads both mids' outputs.
-  const app = build(`App [ width=100, height=60,
+  const app = buildProgram(await compiled(`${TALLY}App [ width=100, height=60,
     View [ width={ parent.width - 10 } ],
     View [ width={ parent.width - 20 } ],
-    View [ x={ globalThis.__rj++, parent.children[0].width + parent.children[1].width } ] ]`);
+    View [ x={ hit("__rj"), parent.children[0].width + parent.children[1].width } ] ]`));
   settle();
   assert.equal(globalThis.__rj, 1);
   app.width = 200;
@@ -917,10 +958,10 @@ await test("a diamond evaluates its join once per settle", () => {
   assert.equal(app.children[2].x, 190 + 180);
 });
 
-await test("writes are equality-gated: re-producing a value stops the cascade", () => {
+await test("writes are equality-gated: re-producing a value stops the cascade", async () => {
   globalThis.__re = 0;
-  const app = build(`App [ width=100, height=60,
-    View [ height=40, width={ globalThis.__re++, this.height * 2 } ] ]`);
+  const app = buildProgram(await compiled(`${TALLY}App [ width=100, height=60,
+    View [ height=40, width={ hit("__re"), this.height * 2 } ] ]`));
   const log = [];
   app.$attach(mockBackend(log), null);
   settle();
@@ -932,8 +973,8 @@ await test("writes are equality-gated: re-producing a value stops the cascade", 
   assert.deepEqual(log, [], "no Surface call was pushed");
 });
 
-await test("a live attribute pushes exactly its own Surface call", () => {
-  const app = build("App [ width=100, height=60, View [ x=1, y=2 ] ]");
+await test("a live attribute pushes exactly its own Surface call", async () => {
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ x=1, y=2 ] ]"));
   const log = [];
   app.$attach(mockBackend(log), null);
   settle();
@@ -943,8 +984,8 @@ await test("a live attribute pushes exactly its own Surface call", () => {
   assert.deepEqual(log, [["setX", 33]], "one write, one Surface mutation — nothing re-flushed");
 });
 
-await test("a direct write to a constrained attribute is an error", () => {
-  const app = build("App [ width=100, height=60, View [ width={ parent.width / 2 } ] ]");
+await test("a direct write to a constrained attribute is an error", async () => {
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ width={ parent.width / 2 } ] ]"));
   assert.throws(
     () => { app.children[0].width = 7; },
     (e) => {
@@ -956,14 +997,14 @@ await test("a direct write to a constrained attribute is an error", () => {
   assert.equal(app.children[0].width, 50, "the binding still owns the slot");
 });
 
-await test("a constraint cycle is detected and named, not spun forever", () => {
-  build("App [ width=100, height=60, View [ x={ this.y + 1 }, y={ this.x + 1 } ] ]");
+await test("a constraint cycle is detected and named, not spun forever", async () => {
+  buildProgram(await compiled("App [ width=100, height=60, View [ x={ this.y + 1 }, y={ this.x + 1 } ] ]"));
   assert.throws(() => settle(), /constraint cycle: View\.[xy] .*depends on its own output/);
   settle(); // the aborted queue was cleared; the scheduler is reusable
 });
 
-await test("percent lengths re-resolve reactively when the parent resizes", () => {
-  const app = build("App [ width=200, height=80, View [ width=50%, height=25% ] ]");
+await test("percent lengths re-resolve reactively when the parent resizes", async () => {
+  const app = buildProgram(await compiled("App [ width=200, height=80, View [ width=50%, height=25% ] ]"));
   const log = [];
   app.$attach(mockBackend(log), null);
   settle();
@@ -975,8 +1016,8 @@ await test("percent lengths re-resolve reactively when the parent resizes", () =
   assert.ok(!log.some(([m]) => m === "setHeight"), "the height axis did not stir");
 });
 
-await test("a draw body re-records when an attribute it read changes — after values settle", () => {
-  const app = build("App [ width=100, height=60, View [ width={ parent.width - 40 }, height=10 ] ]");
+await test("a draw body re-records when an attribute it read changes — after values settle", async () => {
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ width={ parent.width - 40 }, height=10 ] ]"));
   const v = app.children[0];
   v.draw = function (d) { d.fillRect(0, 0, this.width, this.height); };
   const log = [];
@@ -992,12 +1033,12 @@ await test("a draw body re-records when an attribute it read changes — after v
   assert.deepEqual(log[drawAt][1].bounds, { x: 0, y: 0, w: 100, h: 10 }, "recorded against the settled width");
 });
 
-await test("attribute declaration order is inert (ruled): permuted members, identical results", () => {
+await test("attribute declaration order is inert (ruled): permuted members, identical results", async () => {
   // In A the width binding evaluates before x is even bound; in B the other
   // way round. Quiescence must erase the difference — and keep erasing it
   // through a mutation cascade.
-  const a = build("App [ width=100, height=50, View [ width={ parent.width - this.x }, x={ parent.height / 5 } ] ]");
-  const b = build("App [ width=100, height=50, View [ x={ parent.height / 5 }, width={ parent.width - this.x } ] ]");
+  const a = buildProgram(await compiled("App [ width=100, height=50, View [ width={ parent.width - this.x }, x={ parent.height / 5 } ] ]"));
+  const b = buildProgram(await compiled("App [ width=100, height=50, View [ x={ parent.height / 5 }, width={ parent.width - this.x } ] ]"));
   settle();
   const shape = (app) => [app.children[0].x, app.children[0].width];
   assert.deepEqual(shape(a), shape(b));
@@ -1107,11 +1148,11 @@ await test("the State verbs are reachable from source — gate XOR verbs", async
   // unreachable from a { } body until 2026-07-28: the scaffold's LANGUAGE_API
   // table simply lacked the State entry, so member resolution refused them.
   // ("The lack of State.apply is a language gap, not a docs gap.")
-  const app = build(`App [ width=100, height=60,
+  const app = buildProgram(await compiled(`App [ width=100, height=60,
     v: View [ width = 10, big: State [ width = 99 ] ],
     go() { this.v.big.toggle() },
-    gated: State [ applied = { this.root.width > 50 } ],   // raw build(): 'app' is compile's rewrite
-    bad() { this.gated.apply() } ]`);
+    gated: State [ applied = { this.root.width > 50 } ],
+    bad() { this.gated.apply() } ]`));
   assert.equal(app.v.width, 10);
   app.go(); assert.equal(app.v.width, 99, "toggle applies the override");
   app.go(); assert.equal(app.v.width, 10, "toggle removes it");
@@ -1138,7 +1179,7 @@ await test("a constraint a State or an Animator took over follows its inputs aga
     const r = await compile(`App [ width = 10, height = 10, t: number = 5, on: boolean = false,
       box: View [ ${decl}, State [ applied = { app.on }, ${over} ] ] ]`, {});
     assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-    const app = settleSource(r.source, { deps: r.deps });
+    const app = settleHeadless(r.program);
     app.on = true; settle(); app.on = false; settle(); app.t = 8; settle();
     assert.deepEqual(read(app.box), after, decl);
   };
@@ -1152,7 +1193,7 @@ await test("a constraint a State or an Animator took over follows its inputs aga
   try {
     const r = await compile(`App [ width = 10, height = 10, t: number = 5,
       box: View [ width = { app.t * 2 }, an: Animator [ attribute = width, to = 100, duration = 100 ] ] ]`, {});
-    const app = settleSource(r.source, { deps: r.deps });
+    const app = settleHeadless(r.program);
     app.box.an.start(); settle();
     for (let i = 0; i < 40; i++) { tNow += 16.7; const cb = pending; pending = null; if (cb) cb(tNow); }
     assert.equal(app.box.width, 10, "handed back to the formula");
@@ -1220,7 +1261,7 @@ await test("function types — `(id: string) -> void`, the type a method IS", as
     arm(f: (id: string) -> void?) { this.cb = f } ]`);
   // an unknown name INSIDE the type is named, not the whole type
   assert.match(await errs(`App [ width=1, height=1, callCb(f: (id: Nonsense) -> void) { } ]`),
-    /unknown type 'Nonsense' for parameter 'f'/);
+    /unknown type 'Nonsense' in '\(id: Nonsense\) -> void'/);
   // only `null` is a literal for a function slot
   assert.match(await errs(`App [ width=1, height=1, cb: (id: string) -> void = 5 ]`),
     /expects a function \(id: string\) -> void, or null for none/);
@@ -1440,8 +1481,8 @@ await test("check() errors come out in source order across member kinds", () => 
 
 // ── R5: instantiate — methods, scope, init ──────────────────────────────────
 
-await test("build() installs methods: callable, this/parent scope, extraction-safe", () => {
-  const app = build("App [ width=100, height=60, View [ nudge(dx: number) { this.x = this.x + dx }, center() { this.x = (parent.width - this.width) / 2 } ] ]");
+await test("buildProgram() installs methods: callable, this/parent scope, extraction-safe", async () => {
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ nudge(dx: number) { this.x = this.x + dx }, center() { this.x = (parent.width - this.width) / 2 } ] ]"));
   const v = app.children[0];
   v.nudge(5);
   assert.equal(v.x, 5, "writes are immediate (the R4 write path)");
@@ -1453,47 +1494,47 @@ await test("build() installs methods: callable, this/parent scope, extraction-sa
   assert.equal(v.x, 43, "methods close over their instance");
 });
 
-await test("a method may return a value (statement body, not an expression wrap)", () => {
-  const app = build("App [ width=100, height=60, View [ twice(n: number) -> number { return n * 2 } ] ]");
+await test("a method may return a value (statement body, not an expression wrap)", async () => {
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ twice(n: number) -> number { return n * 2 } ] ]"));
   assert.equal(app.children[0].twice(21), 42);
 });
 
-await test("a method may replace a runtime METHOD, not a runtime field (instantiation-context fact)", () => {
+await test("a method may replace a runtime METHOD, not a runtime field (instantiation-context fact)", async () => {
   // check() passes all three — the checker is runtime-free by design. The
   // runtime installs an override of one of its own METHODS (a method is a
   // method; super reaches the runtime's) and refuses a name that is a FIELD
   // or a member of every object, like percent-on-root.
   assert.deepEqual(check(parse("View [ exposes() { } ]")), []);
-  const app = build("App [ width=1, height=1, v: View [ hits: number = 0, scrollTo(y: number) { this.hits = this.hits + 1 } ] ]");
+  const app = buildProgram(await compiled("App [ width=1, height=1, v: View [ hits: number = 0, scrollTo(y: number) { this.hits = this.hits + 1 } ] ]"));
   app.v.scrollTo(10);
   assert.equal(app.v.hits, 1, "the declared scrollTo replaced the runtime's");
-  assert.throws(
-    () => build("App [ width=1, height=1, View [ exposes() { } ] ]"),
+  await assert.rejects(
+    async () => build("App [ width=1, height=1, View [ exposes() { } ] ]"),
     /View\.exposes: 'exposes' is a built-in field of the runtime View, not a method/
   );
-  assert.throws(
-    () => build("App [ width=1, height=1, View [ toString() { } ] ]"),
+  await assert.rejects(
+    async () => build("App [ width=1, height=1, View [ toString() { } ] ]"),
     /'toString' is a member of every object/
   );
 });
 
-await test("onInit fires once construction completes, children before parents", () => {
+await test("onInit fires once construction completes, children before parents", async () => {
   globalThis.__init = [];
-  build(`App [ width=100, height=60,
-    onInit() { globalThis.__init.push(["app", this.children[0].width]) },
-    View [ onInit() { globalThis.__init.push(["outer", this.width]) },
-      View [ onInit() { globalThis.__init.push(["inner", 0]) } ] ],
-    View [ width={ parent.width / 2 }, onInit() { globalThis.__init.push(["bound", this.width]) } ] ]`);
+  buildProgram(await compiled(`${TALLY}App [ width=100, height=60,
+    onInit() { note("__init", ["app", this.children[0].width]) },
+    View [ onInit() { note("__init", ["outer", this.width]) },
+      View [ onInit() { note("__init", ["inner", 0]) } ] ],
+    View [ width={ parent.width / 2 }, onInit() { note("__init", ["bound", this.width]) } ] ]`));
   assert.deepEqual(globalThis.__init.map(([n]) => n), ["inner", "outer", "bound", "app"]);
   assert.equal(globalThis.__init[2][1], 50, "bindings evaluated before init");
   assert.equal(globalThis.__init[3][1], 0, "init sees the settled tree (app reads its child)");
 });
 
-await test("a view with a pointer handler gets an input sink; one without gets none", () => {
-  const app = build(`App [ width=100, height=60,
+await test("a view with a pointer handler gets an input sink; one without gets none", async () => {
+  const app = buildProgram(await compiled(`App [ width=100, height=60,
     View [ onPointerUp() { } ],
     View [ x=1 ],
-    View [ onInit() { } ] ]`);
+    View [ onInit() { } ] ]`));
   const logs = [[], [], [], []];
   const backend = {
     createSurface: (() => {
@@ -1508,13 +1549,13 @@ await test("a view with a pointer handler gets an input sink; one without gets n
     "the App is wired because it scrolls; among plain views only the pointer-handling one is (init alone does not make a view interactive)");
 });
 
-await test("a scroller takes the pointer with no handler of its own", () => {
+await test("a scroller takes the pointer with no handler of its own", async () => {
   // `scrolls` declares that this view answers drags and wheels over its box —
   // the platform's scroll process is the handler — so it is wired like any
   // other interactive view, and content behind it is not reachable through it.
-  const app = build(`App [ width=100, height=60,
+  const app = buildProgram(await compiled(`App [ width=100, height=60,
     View [ scrolls = y ],
-    View [ x=1 ] ]`);
+    View [ x=1 ] ]`));
   const logs = [[], [], []];
   const backend = {
     createSurface: (() => { let i = 0; return () => mockBackend(logs[i++]).createSurface(); })(),
@@ -1525,11 +1566,11 @@ await test("a scroller takes the pointer with no handler of its own", () => {
                    "the scrolling view is wired; its plain sibling is not");
 });
 
-await test("dispatch: the sink calls the right handler with view-local {x,y}", () => {
+await test("dispatch: the sink calls the right handler with view-local {x,y}", async () => {
   globalThis.__ev = [];
-  const app = build(`App [ width=100, height=60,
-    View [ onClick(e: PointerEvent) { globalThis.__ev.push(["click", e.x, e.y]); this.x = e.x },
-           onPointerDown(e: PointerEvent) { globalThis.__ev.push(["down", e.x, e.y]) } ] ]`);
+  const app = buildProgram(await compiled(`${TALLY}App [ width=100, height=60,
+    View [ onClick(e: PointerEvent) { note("__ev", ["click", e.x, e.y]); this.x = e.x },
+           onPointerDown(e: PointerEvent) { note("__ev", ["down", e.x, e.y]) } ] ]`));
   const log = [];
   app.$attach(mockBackend(log), null);
   // the App is wired too (it scrolls), so the CHILD's sink is the later one
@@ -1704,12 +1745,12 @@ await test("onHold: a press held in place fires hold, and does not consume the g
   } finally { h.done(); }
 });
 
-await test("the hit test: app.viewAt answers with the SAME walk the pointer is routed by", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("the hit test: app.viewAt answers with the SAME walk the pointer is routed by", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     a: View [ x = 10, y = 10, width = 80, height = 80,
         inner: View [ x = 10, y = 10, width = 20, height = 20 ] ],
     glass: View [ x = 100, y = 10, width = 60, height = 60, pointerEvents = "none" ],
-    ]`);
+    ]`));
   settle();
   assert.equal(app.viewAt(25, 25), app.a.inner, "topmost (deepest) view wins");
   assert.equal(app.viewAt(80, 80), app.a, "a point in the parent only");
@@ -1721,11 +1762,11 @@ await test("the hit test: app.viewAt answers with the SAME walk the pointer is r
   assert.ok(!app.a.containsPoint(150, 50), "…and outside it");
 });
 
-await test("the hit test honours CLIP, which the old inspector walk did not", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("the hit test honours CLIP, which the old inspector walk did not", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     box: View [ x = 10, y = 10, width = 50, height = 50, clip = true,
         over: View [ x = 40, y = 40, width = 60, height = 60 ] ],
-    ]`);
+    ]`));
   settle();
   assert.equal(app.viewAt(55, 55), app.box.over, "inside the clip, the child is hit");
   assert.equal(app.viewAt(90, 90), app, "the overflowing part is clipped away — not hit");
@@ -1747,8 +1788,8 @@ await test("raw touch: a view declaring the family gets the finger list, ids sta
   } finally { h.done(); }
 });
 
-await test("draw(d) { … } — the language surface — rides the recorded-draw machinery", () => {
-  const app = build("App [ width=100, height=60, View [ width=8, height=10, draw(d: Draw) { d.fillRect(0, 0, this.width, 5) } ] ]");
+await test("draw(d) { … } — the language surface — rides the recorded-draw machinery", async () => {
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ width=8, height=10, draw(d: Draw) { d.fillRect(0, 0, this.width, 5) } ] ]"));
   const log = [];
   app.$attach(mockBackend(log), null);
   settle();
@@ -1773,7 +1814,7 @@ await test("a { } reading db.value.issues wakes on region writes; null guards ke
     grab() -> object { return app.db.value },
   ]`, { originDir: process.cwd() });
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.plain.width, 1);
     assert.equal(app.derived.width, 1);
@@ -1798,7 +1839,7 @@ await test("datapath = { d.value.<branch> } still resolves through the tracked v
       View [ datapath = :items[], width = :n, height = 2 ] ],
   ]`, { originDir: process.cwd() });
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.deepEqual(app.list.children.map((v) => v.width), [3, 4]);
     app.d.insert(["rss", "channel", "items"], 2, { n: 5 }); settle();
@@ -1808,9 +1849,9 @@ await test("datapath = { d.value.<branch> } still resolves through the tracked v
 
 // ── markdown code blocks: the overlay scrollbar's seat (#25) ────────────────
 
-await test("a code block's scroller carries its bottom padding — the scrollbar sits there, the height never changes", () => {
-  const mk = (line) => {
-    const app = build(`App [ width = 300, height = 200, md: Markdown [ x = 10, y = 10, width = 260 ] ]`);
+await test("a code block's scroller carries its bottom padding — the scrollbar sits there, the height never changes", async () => {
+  const mk = async (line) => {
+    const app = buildProgram(await compiled(`App [ width = 300, height = 200, md: Markdown [ x = 10, y = 10, width = 260 ] ]`));
     app.$attach(new CanvasBackend(), null);   // blocks build only against a surface (render() needs one)
     app.md.text = "\`\`\`\n" + line + "\n\`\`\`";
     settle();
@@ -1819,9 +1860,9 @@ await test("a code block's scroller carries its bottom padding — the scrollbar
     walk(app);
     return { app, hit };
   };
-  const short = mk("x = 1");
+  const short = await mk("x = 1");
   assert.ok(short.hit, "found the code scroller");
-  const long = mk("a single very long line of code that overflows the fenced block width by a lot, forcing horizontal scrolling");
+  const long = await mk("a single very long line of code that overflows the fenced block width by a lot, forcing horizontal scrolling");
   assert.ok(long.hit, "found the overflowing scroller");
   assert.equal(long.hit.box.height, short.hit.box.height, "an overflowing line does not change the block's height");
   for (const h of [short.hit, long.hit]) {
@@ -1990,7 +2031,7 @@ await test("a Node class is non-visual — a reactive node reached from a view",
 class Store extends Node [ n: number = 0, tag: string = "a", bump() { this.n = this.n + 1; this.tag = "b" } ]
 App [ store: Store [ ], out: Text [ text = { App.store.tag + App.store.n } ] ]`);
   assert.deepEqual(r.diagnostics.filter((d) => d.severity === "error"), []);
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   assert.ok(app.store instanceof Node && !(app.store instanceof View), "the model is a Node, not a View");
   assert.ok(!app.children.some((c) => c === app.store && c instanceof View), "excluded from the visual child set");
   assert.equal(app.out.text, "a0", "a view reads the model's reactive state");
@@ -2013,7 +2054,7 @@ App [ store: Store [ ],
     row: View [ datapath = { App.store.items.value.rows[App.store.pick] },
         out: Text [ text = :label ] ] ]`);
   assert.deepEqual(r.diagnostics.filter((d) => d.severity === "error"), []);
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   assert.ok(app.store.items instanceof Dataset, "the model owns the Dataset node");
   assert.equal(app.row.out.text, "alpha", "a view reads through the model's dataset");
   app.store.next();
@@ -2038,10 +2079,10 @@ App [ width = 1 ]`);
   assert.deepEqual(infos.map((i) => i.defaults), [{ tone: 3 }, { deep: true }]);
 });
 
-await test("build() registers the runtime twin: real subclasses, named after the class", () => {
-  const app = build(`class A extends Text [ tone: number = 3 ]
+await test("buildProgram() registers the runtime twin: real subclasses, named after the class", async () => {
+  const app = buildProgram(await compiled(`class A extends Text [ tone: number = 3 ]
 class B extends A [ ]
-App [ width = 1, height = 1, B [ ] ]`);
+App [ width = 1, height = 1, B [ ] ]`));
   const b = app.children[0];
   assert.equal(b.constructor.name, "B");
   assert.ok(b instanceof Text, "a user class IS its base at runtime");
@@ -2051,17 +2092,17 @@ App [ width = 1, height = 1, B [ ] ]`);
 
 // ── R6: check() over classes and declarations ────────────────────────────────
 
-await test("3.2: settleMotion waits for transitions, not for life (perpetual tickers — ruled 2026-08-06)", () => {
+await test("3.2: settleMotion waits for transitions, not for life (perpetual tickers — ruled 2026-08-06)", async () => {
   const clock = new Clock({ now: () => tNow, request: (cb) => { pending = cb; return 1; }, cancel: () => { pending = null; } });
   let tNow = 0; let pending = null;
   setClock(clock);
   try {
-    const app = build(`App [ width = 100, height = 100,
+    const app = buildProgram(await compiled(`App [ width = 100, height = 100,
       v: number = 0,
       beat: Time [ tick = frame, onTick(dt: number) { this.parent.v = this.parent.v + dt } ],
       box: View [ x = 0, width = 10, height = 10,
         s: Spring [ attribute = x, to = 50 ] ],
-    ]`);
+    ]`));
     try {
       assert.equal(clock.busy, true, "the Time ticks (life paints)");
       // drive frames until the spring rests: settling must FALL even though
@@ -2075,13 +2116,13 @@ await test("3.2: settleMotion waits for transitions, not for life (perpetual tic
   } finally { setClock(new Clock()); }
 });
 
-await test("exists = { … }: a child built while true, discarded while false, in its declared place", () => {
-  const app = build(`App [ width = 100, height = 100, on: boolean = false,
+await test("exists = { … }: a child built while true, discarded while false, in its declared place", async () => {
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100, on: boolean = false,
     h: number = { 10 + (this.col.b?.height ?? 0) },
     col: View [ width = 100,
       a: View [ width = 10, height = 10 ],
       b: View [ width = 10, height = 20, exists = { parent.parent.on } ],
-      c: View [ width = 10, height = 10 ] ] ]`);
+      c: View [ width = 10, height = 10 ] ] ]`));
   try {
     settle();
     assert.equal(app.col.b, undefined, "absent while false");
@@ -2099,10 +2140,10 @@ await test("exists = { … }: a child built while true, discarded while false, i
   } finally { app.discard(); }
 });
 
-await test("exists on a member that is not a view: built, initialised and started while true, discarded while false", () => {
-  const app = build(`App [ width = 100, height = 100, on: boolean = false, inits: number = 0, level: number = 0,
+await test("exists on a member that is not a view: built, initialised and started while true, discarded while false", async () => {
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100, on: boolean = false, inits: number = 0, level: number = 0,
     probe: Node [ exists = { parent.on }, onInit() { this.parent.inits = this.parent.inits + 1 } ],
-    lift: Spring [ exists = { this.parent.on }, attribute = level, to = 5 ] ]`);
+    lift: Spring [ exists = { this.parent.on }, attribute = level, to = 5 ] ]`));
   try {
     settle();
     assert.equal(app.probe, undefined, "absent while false");
@@ -2128,12 +2169,12 @@ await test("exists: a named child that may be absent is typed so — its reader 
   assert.deepEqual(good.errors.map((e) => e.message), []);
 });
 
-await test("defaultplacement: a subclass's and a use site's children go into the child the class names", () => {
-  const app = build(`class Sheet [ width = 200, height = 200, defaultplacement = body,
+await test("defaultplacement: a subclass's and a use site's children go into the child the class names", async () => {
+  const app = buildProgram(await compiled(`class Sheet [ width = 200, height = 200, defaultplacement = body,
       head: View [ width = 200, height = 20 ],
       body: View [ y = 20, width = 200, height = 180 ] ]
     class DetailSheet extends Sheet [ figs: View [ width = 10, height = 10 ], acts: View [ width = 10, height = 10 ] ]
-    App [ width = 300, height = 300, d: DetailSheet [ extra: View [ width = 10, height = 10 ] ] ]`);
+    App [ width = 300, height = 300, d: DetailSheet [ extra: View [ width = 10, height = 10 ] ] ]`));
   try {
     settle();
     const d = app.d;
@@ -2149,17 +2190,17 @@ await test("defaultplacement: the checker names a missing child, and a use of it
   assert.match(check(parseProgram(`App [ v: View [ defaultplacement = x, x: View [ ] ] ]`)).map((e) => e.message).join("\\n"), /defaultplacement belongs on a class/);
 });
 
-await test("Spring.arrive(): the next target is taken outright; a later change still travels", () => {
+await test("Spring.arrive(): the next target is taken outright; a later change still travels", async () => {
   const clock = new Clock({ now: () => tNow, request: (cb) => { pending = cb; return 1; }, cancel: () => { pending = null; } });
   let tNow = 0; let pending = null;
   setClock(clock);
   try {
-    const app = build(`App [ width = 100, height = 100,
+    const app = buildProgram(await compiled(`App [ width = 100, height = 100,
       count: number = 0,
       shown: number = 0,
       tally: Spring [ attribute = shown, to = { parent.count }, stiffness = 140, damping = 22 ],
       land(n: number) { this.tally.arrive(); this.count = n },
-    ]`);
+    ]`));
     try {
       app.land(50);
       settle();
@@ -2179,7 +2220,7 @@ await test("P1-2: set-then-fetch in one handler requests the NEW address (settle
     d: DataSource [ url = { "https://x.test/" + app.q } ],
   ]`, {});
   assert.equal(r12.errors.length, 0, r12.errors.map((e) => e.message).join("; "));
-  const app = build(r12.source, { deps: r12.deps });
+  const app = buildProgram(r12.program);
   const seen = [];
   const prev = provideTransport((url) => { seen.push(url); return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({}) }); });
   try {
@@ -2221,7 +2262,7 @@ await test("align: center / end / baseline on a row; center on a stack — the g
         a: View [ width = 100, height = 10 ], b: View [ width = 40, height = 10 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });   // headless boot: real metrics, the library's theme
+  const app = settleHeadless(r.program);   // headless boot: real metrics, the library's theme
   try {
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
     const row = app.row;
@@ -2246,7 +2287,7 @@ await test("align: WrappingLayout rows align per row; justify is the renamed row
         a: View [ width = 100, height = 10 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
     assert.equal(bl(app.w.a), bl(app.w.b), "row one: the 24px and 12px runs share a baseline");
@@ -2287,7 +2328,7 @@ await test("align: center/end place within the VIEW's cross extent — a parent-
         b: View [ width = 100, height = 30 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.card.a.width, 228, "the constraint resolved against the parent");
     assert.equal(app.card.a.x, 16, "center on a stack: the 228-wide child splits the card's 32 of slack");
@@ -2316,7 +2357,7 @@ await test("align: the LINE is the band when the view measures these very childr
         a: View [ width = 20, height = 40 ], b: View [ width = 20, height = 20 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.auto.width, 120, "auto-extent still wraps the run");
     assert.equal(app.auto.a.x, 0, "the widest child owns the line");
@@ -2336,7 +2377,7 @@ await test("align: a child sized wider than the band keeps the line — it never
         wide: View [ width = 200, height = 20 ], small: View [ width = 40, height = 20 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.narrow.wide.x, 0, "the over-wide child starts at the origin, not at -60");
     assert.equal(app.narrow.small.x, 80, "its siblings centre on the line it set");
@@ -2351,7 +2392,7 @@ await test("align: a size that ARRIVES — a measured Text centres in the band i
         short: Text [ fontSize = 14, wrap = false, text = "short" ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     const mid = (v) => +(v.x + v.width / 2).toFixed(3);
     assert.ok(app.col.long.width > 0 && app.col.long.width < 300, "the measurement arrived and is the widest");
@@ -2375,7 +2416,7 @@ await test("align: WrappingLayout — one row aligns in the view, two or more al
         c: View [ width = 60, height = 30 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.one.a.height, 50, "the constraint resolved against the flow's view");
     assert.equal(app.one.a.y, 20, "a flow that never wrapped IS the content: centre it in the view's height");
@@ -2394,7 +2435,7 @@ await test("align = baseline: the shared line, not the band — a tall box does 
         big: Text [ fontSize = 24, text = "height" ], sm: Text [ fontSize = 13, text = "from" ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
     assert.equal(bl(app.r.big), bl(app.r.sm), "one baseline");
@@ -2416,7 +2457,7 @@ await test("a layout written in a class body reads that class's instance as `cla
             inner: Stack [ gap = 2, b: View [ width = 10, height = 10 ], c: View [ width = 10, height = 10 ] ] ],
         pn: Panel [ n = 7 ] ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.outer.inner.y, 40, "the outer Stack's own gap");
     assert.equal(app.outer.inner.c.y, 12, "the nested Stack's own gap, not its parent's");
@@ -2436,7 +2477,7 @@ await test("WrappingLayout: indent / hangingIndent inset the first row and the r
         d: View [ width = 50, height = 10 ], e: View [ width = 50, height = 10 ] ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     // indent 30: a at 30, b at 120; c would end at 210 > 200 → row two at the hanging indent 12
     assert.deepEqual([app.p.a.x, app.p.b.x], [30, 120], "the first row starts at indent");
@@ -2476,7 +2517,7 @@ await test("align = baseline: a Markdown claims its FIRST line's baseline; a doc
   ]`, {});
   assert.equal(r.errors.length, 0, "the checker accepts a Markdown under align = baseline (its schema claims one): " + r.errors.map((e) => e.message).join("; "));
   const errs = []; const orig = console.error; console.error = (m) => errs.push(String(m));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     console.error = orig;
     const bl = (v) => +(v.y + v.baseline).toFixed(3);
@@ -2495,7 +2536,7 @@ await test("align = baseline BOUND: the runtime refuses a baseline-less child on
       t: Text [ text = "a" ], box: View [ width = 10, height = 10 ] ] ]`, {});
   assert.equal(r.errors.length, 0, "a bound align is beyond the checker; it compiles");
   const errs = []; const orig = console.error; console.error = (m) => errs.push(String(m));
-  const app = settleSource(r.source, { deps: r.deps });   // attached: a refusal is judged only on an attached child
+  const app = settleHeadless(r.program);   // attached: a refusal is judged only on an attached child
   try {
     app.r.width = 90; settle(); app.r.width = 80; settle();   // re-lays twice more
     console.error = orig;
@@ -2514,7 +2555,7 @@ await test("P2-2: explain() names the layout that owns a child's geometry", asyn
     ],
   ]`, {});
   assert.equal(r22.errors.length, 0, r22.errors.map((e) => e.message).join("; "));
-  const app = build(r22.source, { deps: r22.deps });
+  const app = buildProgram(r22.program);
   try {
     const p = explain(app.col.b, "y");
     assert.ok(p.constraint !== null, "layout ownership reports as a constraint");
@@ -2526,7 +2567,7 @@ await test("P2-2: explain() names the layout that owns a child's geometry", asyn
   }
 });
 
-await test("declaration order is the author's business — decls after the App, forward extends, and the two unbuildable shapes (ruled 2026-08-06)", () => {
+await test("declaration order is the author's business — decls after the App, forward extends, and the two unbuildable shapes (ruled 2026-08-06)", async () => {
   // The parser accepts declarations on either side of the root instance, and
   // programSchemas builds in dependency order regardless of source order —
   // the natural writing motion (a class extracted and pasted at the bottom)
@@ -2545,8 +2586,56 @@ await test("declaration order is the author's business — decls after the App, 
   assert.throws(() => parseProgram("App [ width = 10 ]\nApp [ width = 5 ]"), /expected end of input/,
     "one root instance, still");
   // and the late class is a full citizen at runtime
-  const app = build("App [ width = 10, height = 10, k: K [ ] ]\nclass K extends View [ f: number = 7 ]");
+  const app = buildProgram(await compiled("App [ width = 10, height = 10, k: K [ ] ]\nclass K extends View [ f: number = 7 ]"));
   assert.equal(app.k.f, 7, "a class declared below the App instantiates");
+});
+
+await test("a declared type is TypeScript's — an unknown name in it is reported at the declaration", async () => {
+  const r = await compile("class A extends View [ k: Widget ]\nApp [ width=1, A [ ] ]");
+  assert.match(r.errors[0]?.message ?? "", /unknown type 'Widget' in 'Widget' — a declared type is TypeScript's/);
+  assert.equal(r.errors[0].pos.line, 1, "at the declaration");
+});
+
+await test("declarations and signatures take TypeScript's types, and keep Declare's member syntax beside them", async () => {
+  const pre = `schema Session [ id: number ]\nclass Panel extends View [ ]\nscript { type Pick2 = "a" | "b" }\n`;
+  const run = async (decl) => {
+    const r = await compile(pre + `App [ width=1, height=1, ${decl} ]`);
+    assert.deepEqual(r.errors.map((e) => e.message), [], decl);
+    const app = instantiate(parseProgram(r.source)); settle();
+    const v = app.v; app.discard(); return v;
+  };
+  assert.deepEqual(await run(`v: Array<number> = [1, 2]`), [1, 2]);
+  assert.deepEqual(await run(`v: Record<string, number> = { { a: 1 } }`), { a: 1 });
+  assert.ok((await run(`v: Map<string, number> = { new Map() }`)) instanceof Map);
+  assert.equal(await run(`v: 1 | 2 | 3 = 2`), 2);
+  assert.equal(await run(`v: string | null = null`), null);
+  assert.equal(await run(`v: string? = "x"`), "x");
+  assert.equal(await run(`v: Panel | null = null`), null);
+  assert.deepEqual(await run(`v: { a: number; b: string } = { { a: 1, b: "x" } }`), { a: 1, b: "x" });
+  assert.deepEqual(await run(`v: [number, number] = [3, 4]`), [3, 4]);
+  assert.equal(typeof await run(`v: (x: number) => number = { (x: number) => x * 2 }`), "function");
+  assert.equal(await run(`v: Pick2 = "b"`), "b");
+  assert.equal(await run(`v: Session["id"] = 5`), 5);
+  assert.deepEqual(await run(`v: (string | number)[] = [1, "a"]`), [1, "a"]);
+  // TypeScript judges the names and the defaults, at the declaration
+  const refuse = async (decl, re) => { const r = await compile(pre + `App [ width=1, height=1, ${decl} ]`); assert.match(r.errors[0]?.message ?? "clean", re, decl); };
+  await refuse(`v: Map<string, Nmber> = { new Map() }`, /unknown type 'Nmber' in 'Map<string, Nmber>'/);
+  await refuse(`v: number[] = ["x"]`, /this default is not a number\[\]/);
+  await refuse(`v: Record<string, number> = { { a: "x" } }`, /does not fit 'v', typed Record<string, number> — Type 'string' is not assignable to type 'number'/);
+  // a value written object-style is named as one, not taken for a type
+  await refuse(`v: { a: 1 }`, /declares an object TYPE with no value — to set 'v' to a value, write 'v = \{ \{ … \} \}'/);
+  await refuse(`v: [1, 2]`, /declares a tuple TYPE with no value/);
+  // the member syntax keeps its meaning: a spaced `[` opens a named child
+  const child = await compile(`App [ width=1, height=1, w: View [ width = 4 ] ]`);
+  assert.deepEqual(child.errors.map((e) => e.message), []);
+  // signatures: TypeScript's types and its optional parameter
+  const sig = await compile(pre + `App [ width=1, height=1, n: number = 0,
+    f(m: Map<string, number>, c?: number): number { return m.size + (c ?? 0) },
+    onInit() { n = f(new Map([["a", 1]]), 2) } ]`);
+  assert.deepEqual(sig.errors.map((e) => e.message), []);
+  const app = instantiate(parseProgram(sig.source)); settle();
+  assert.equal(app.n, 3);
+  app.discard();
 });
 
 await test("check() validates class declarations, every error positioned", () => {
@@ -2555,8 +2644,6 @@ await test("check() validates class declarations, every error positioned", () =>
   assert.match(errs("class View extends View [ ]\nApp [ width=1 ]")[0], /'View' is a built-in class — a class of the program can't take its name/);
   assert.match(errs("class A extends View [ x: number = 1 ]\nApp [ width=1 ]")[0],
     /View already has an attribute 'x' — a declaration introduces a new one/);
-  assert.match(errs("class A extends View [ k: Widget ]\nApp [ width=1 ]")[0],
-    /unknown type 'Widget' — a declared attribute's type is one of number, string, boolean, Color, Length, Radius, Shape/);
   assert.match(errs("class A extends View [ k: string = 5 ]\nApp [ width=1 ]")[0],
     /A\.k's default expects a string, got the number 5/);
   assert.match(errs("class A extends View [ k: Length = 50% ]\nApp [ width=1 ]")[0],
@@ -2662,9 +2749,9 @@ await test("check(): a named child may not take an attribute's name", () => {
 
 // ── R6: instantiate — user components, classroot, named children ────────────
 
-await test("a user component instantiates many times with per-instance state", () => {
-  const app = build(`class Box extends View [ tone: number = 7, width = 100, height = { this.width / 2 } ]
-App [ width=500, height=100, Box [ ], Box [ tone = 9, width = 200 ], Box [ height = 33 ] ]`);
+await test("a user component instantiates many times with per-instance state", async () => {
+  const app = buildProgram(await compiled(`class Box extends View [ tone: number = 7, width = 100, height = { this.width / 2 } ]
+App [ width=500, height=100, Box [ ], Box [ tone = 9, width = 200 ], Box [ height = 33 ] ]`));
   settle();
   const [b0, b1, b2] = app.children;
   assert.deepEqual([b0.tone, b0.width, b0.height], [7, 100, 50], "class-body defaults + constraint");
@@ -2675,9 +2762,9 @@ App [ width=500, height=100, Box [ ], Box [ tone = 9, width = 200 ], Box [ heigh
   assert.equal(b0.constructor, b1.constructor, "instances share one synthesized class");
 });
 
-await test("declared attributes are fully reactive: constraints re-run, writes are equality-gated", () => {
-  const app = build(`class Box extends View [ n: number = 2, width = { this.n * 10 } ]
-App [ width=1, height=1, Box [ ] ]`);
+await test("declared attributes are fully reactive: constraints re-run, writes are equality-gated", async () => {
+  const app = buildProgram(await compiled(`class Box extends View [ n: number = 2, width = { this.n * 10 } ]
+App [ width=1, height=1, Box [ ] ]`));
   settle();
   const box = app.children[0];
   assert.equal(box.width, 20);
@@ -2686,9 +2773,9 @@ App [ width=1, height=1, Box [ ] ]`);
   assert.equal(box.width, 50, "a constraint reading a declared attribute re-runs on its write");
 });
 
-await test("classroot wires per member origin: body children point at the instance, the instance outward", () => {
-  const app = build(`class W extends View [ inner: View [ deep: View [ ] ] ]
-App [ width=1, height=1, w: W [ site: View [ ] ] ]`);
+await test("classroot wires per member origin: body children point at the instance, the instance outward", async () => {
+  const app = buildProgram(await compiled(`class W extends View [ inner: View [ deep: View [ ] ] ]
+App [ width=1, height=1, w: W [ site: View [ ] ] ]`));
   const w = app.w;
   assert.equal(w.classroot, app, "the instance is written in App's body");
   assert.equal(w.inner.classroot, w, "a class-body child belongs to the class instance");
@@ -2697,13 +2784,13 @@ App [ width=1, height=1, w: W [ site: View [ ] ] ]`);
   assert.equal(app.classroot, null, "nothing encloses the root");
 });
 
-await test("named children are members: real properties, on the parent, collision-guarded", () => {
-  const app = build("App [ width=1, height=1, box: View [ cap: Text [ ] ] ]");
+await test("named children are members: real properties, on the parent, collision-guarded", async () => {
+  const app = buildProgram(await compiled("App [ width=1, height=1, box: View [ cap: Text [ ] ] ]"));
   assert.equal(app.box, app.children[0]);
   assert.equal(app.box.cap, app.box.children[0], "the name lives on the child's parent");
   assert.equal(app.cap, undefined);
-  assert.throws(
-    () => build("App [ width=1, height=1, travelHost: View [ ] ]"),
+  await assert.rejects(
+    async () => build("App [ width=1, height=1, travelHost: View [ ] ]"),
     /'travelHost' is a member of the running App \(the runtime's own\)/,
     "refused in the source (the instantiate backstop still stands for a direct instantiate)"
   );
@@ -2716,18 +2803,18 @@ await test("a declared attribute may not shadow a runtime built-in (instantiatio
   assert.match(errs[0].message, /'exposes' is a member of the running View \(the runtime's own\) — a declared attribute cannot take its name/);
 });
 
-await test("class methods and handlers: per-instance, extraction-safe, overridable at the use site", () => {
-  const app = build(`class Box extends View [ n: number = 1, twice() { return this.n * 2 } ]
-App [ width=1, height=1, Box [ n = 21 ], Box [ twice() { return -1 } ] ]`);
+await test("class methods and handlers: per-instance, extraction-safe, overridable at the use site", async () => {
+  const app = buildProgram(await compiled(`class Box extends View [ n: number = 1, twice() { return this.n * 2 } ]
+App [ width=1, height=1, Box [ n = 21 ], Box [ twice() { return -1 } ] ]`));
   const f = app.children[0].twice;
   assert.equal(f(), 42, "extraction-safe (the R5 rule holds for class members)");
   assert.equal(app.children[1].twice(), -1, "a use-site method overrides the class's");
 });
 
-await test("onInit fires on user classes; a direct instantiate of a self-containing class still dies soundly", () => {
+await test("onInit fires on user classes; a direct instantiate of a self-containing class still dies soundly", async () => {
   globalThis.__r6init = [];
-  build(`class W extends View [ onInit() { globalThis.__r6init.push(this.constructor.name) }, View [ ] ]
-App [ width=1, height=1, W [ ] ]`);
+  buildProgram(await compiled(`${TALLY}class W extends View [ onInit() { note("__r6init", this.constructor.name) }, View [ ] ]
+App [ width=1, height=1, W [ ] ]`));
   assert.deepEqual(globalThis.__r6init, ["W"]);
   // instantiate(parseProgram(...)) without check: programSchemas throws its first error.
   assert.throws(
@@ -2891,7 +2978,7 @@ App [ width=1, height=1, W [ ] ]`;
 });
 
 await test("the resolved counter idiom runs: a class handler mutates classroot state", async () => {
-  const app = build(await resolved(`class Tally extends View [ count: number = 0,
+  const app = buildProgram(await compiled(`class Tally extends View [ count: number = 0,
     hit: View [ onClick() { count = count + 1 } ],
     cap: Text [ text = { "n" + count } ] ]
 App [ width=1, height=1, a: Tally [ ], b: Tally [ count = 5 ] ]`));
@@ -2911,7 +2998,7 @@ await test("compile(): a bare component tag auto-includes its library — no inc
   assert.equal(r.errors.length, 0, "Gauge resolves from the bundled library (library/autoincludes.json)");
   assert.ok(r.source, "compiled to a self-contained source");
   assert.match(r.source, /class Gauge \[/, "the library's source is spliced into the merged program");
-  assert.doesNotThrow(() => { const app = build(r.source); settle(); void app; }, "the merged source is hostless and instantiates");
+  assert.doesNotThrow(() => { const app = buildProgram(r.program); settle(); void app; }, "the merged source is hostless and instantiates");
 });
 
 await test("compile(): a tag absent from the manifest stays a genuine unknown-component error", async () => {
@@ -2953,7 +3040,7 @@ const checkL = async (src) => (await compile(src, {})).errors;
 const buildL = async (src) => {
   const r = await compile(src, {});
   if (r.errors.length > 0) throw new DeclareErrors(r.errors);
-  return build(r.source, { deps: r.deps, links: r.links });
+  return buildProgram(r.program);
 };
 
 await test("the layout member checks: axis is an enum, spacing a number, null legal", async () => {
@@ -3287,14 +3374,14 @@ await test("the layout slot is swappable and cancellable at runtime (the doc's r
   assert.equal(app.children[1].y, 3);
 });
 
-await test("one strategy arranges one view", () => {
-  const a = build("App [ width=1, height=1, View [ width=1, height=1 ] ]");
+await test("one strategy arranges one view", async () => {
+  const a = buildProgram(await compiled("App [ width=1, height=1, View [ width=1, height=1 ] ]"));
   class TestStack2 extends Layout {
     place() { return this.laid().map(() => ({ y: 0 })); }
   }
   const s = new TestStack2();
   a.layout = s;
-  const b = build("App [ width=1, height=1 ]");
+  const b = buildProgram(await compiled("App [ width=1, height=1 ]"));
   assert.throws(() => { b.layout = s; }, /already arranges a App — one strategy per view/);
 });
 
@@ -3520,15 +3607,15 @@ await test("check: `virtualize` is replication metadata too — same gate as `ke
     `expected a replication-metadata refusal, got: ${plain.map((e) => e.message).join(" | ")}`);
 });
 
-await test("run: a derived Dataset recomputes, keyed replication reuses instances", () => {
-  const app = build(`App [ width = 10, height = 10,
+await test("run: a derived Dataset recomputes, keyed replication reuses instances", async () => {
+  const app = buildProgram(await compiled(`App [ width = 10, height = 10,
     n: number = 1,
     src: Dataset { {"rows": [{"id":"a"},{"id":"b"}]} },
-    grid: Dataset [ contents = { classroot.make() } ],
-    list: View [ datapath = { classroot.grid.value },
+    grid: Dataset [ contents = { app.make() } ],
+    list: View [ datapath = { app.grid.value },
       View [ datapath = :rows[], key = :id ] ],
     make() { const r = this.src.read(["rows"]) ?? []; return { rows: r.map((x) => ({ id: x.id, v: this.n })) }; },
-  ]`);
+  ]`));
   const rows = () => app.list.children.filter((c) => c.constructor.name === "View");
   assert.equal(rows().length, 2, "derived collection produced two instances");
   const before = rows();
@@ -3544,50 +3631,48 @@ await test("check: a data node may bind url with { } — and a class may extend 
   assert.deepEqual(check(parseProgram(`class Feed extends DataSource [ url = "/d.json" ]\nApp [ feed: Feed [ ] ]`)), []);
 });
 
-// A small data-backed tree, without the compile layer: scope nouns are written
-// explicitly (classroot = the App for use-site members), exactly what
-// compile() would emit.
-const dataApp = (extra = "") => build(`App [ width=10, height=10,
+// A small data-backed tree, reporting through the tally.
+const dataApp = async (extra = "") => buildProgram(await compiled(`${TALLY}App [ width=10, height=10,
   d: Dataset { {"a": {"x": 1, "y": 2}, "user": {"name": "Ada", "age": 36}, "rows": [1, 2]} },
-  box: View [ datapath = { classroot.d.value }, width = 4, height = 4${extra} ],
-  ]`);
+  box: View [ datapath = { app.d.value }, width = 4, height = 4${extra} ],
+  ]`));
 
-await test("a :path value binding reads through the inherited cursor (and coerces)", () => {
-  const app = build(`App [ width=10, height=10,
+await test("a :path value binding reads through the inherited cursor (and coerces)", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"user": {"name": "Ada", "age": 36}} },
-    box: View [ datapath = { classroot.d.value },
+    box: View [ datapath = { app.d.value },
       t: Text [ text = :user.name ],
       age: Text [ text = :user.age ],
       w: View [ width = :user.age ],
     ],
-  ]`);
+  ]`));
   assert.equal(app.box.t.text, "Ada");
   assert.equal(app.box.age.text, "36", "a number renders into a string slot");
   assert.equal(app.box.w.width, 36);
 });
 
-await test("an unresolved :path lands the slot's default (the doc's rule)", () => {
-  const app = build(`App [ width=10, height=10,
+await test("an unresolved :path lands the slot's default (the doc's rule)", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"a": 1} },
-    box: View [ datapath = { classroot.d.value },
+    box: View [ datapath = { app.d.value },
       t: Text [ text = :missing.field ],
       v: View [ width = :nope ],
     ],
     lost: Text [ text = :anything ],
-  ]`);
+  ]`));
   assert.equal(app.box.t.text, "", "missing region → the default");
   assert.equal(app.box.v.width, 0);
   assert.equal(app.lost.text, "", "no cursor anywhere → null → the default");
 });
 
-await test("$data is the runtime form; islands in bodies read it", () => {
-  const app = build(`App [ width=10, height=10,
+await test("$data is the runtime form; islands in bodies read it", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"user": {"name": "Ada"}, "hi": 5} },
-    box: View [ datapath = { classroot.d.value },
+    box: View [ datapath = { app.d.value },
       t: Text [ text = { "Hi " + :user.name } ],
       v: View [ width = { :hi * 2 } ],
     ],
-  ]`);
+  ]`));
   assert.equal(app.box.t.text, "Hi Ada");
   assert.equal(app.box.v.width, 10);
   assert.equal(app.box.$data("user.name"), "Ada");
@@ -3595,24 +3680,24 @@ await test("$data is the runtime form; islands in bodies read it", () => {
   assert.equal(app.$data("user.name"), null, "no cursor above the App");
 });
 
-await test("datapath = :rel.path extends the INHERITED cursor", () => {
-  const app = build(`App [ width=10, height=10,
+await test("datapath = :rel.path extends the INHERITED cursor", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"a": {"deep": {"x": 7}}} },
-    box: View [ datapath = { classroot.d.value },
+    box: View [ datapath = { app.d.value },
       inner: View [ datapath = :a.deep,
         t: Text [ text = { "" + :x } ],
       ],
     ],
-  ]`);
+  ]`));
   assert.equal(app.box.inner.t.text, "7");
 });
 
-await test("wake precision: a one-field set wakes exactly that region's readers", () => {
+await test("wake precision: a one-field set wakes exactly that region's readers", async () => {
   globalThis.__wx = 0; globalThis.__wy = 0; globalThis.__wa = 0;
-  const app = dataApp(`,
-      wx: View [ width = { globalThis.__wx++, :a.x } ],
-      wy: View [ width = { globalThis.__wy++, :a.y } ],
-      wa: View [ opacity = { globalThis.__wa++, (:a ? 1 : 1) } ]`);
+  const app = await dataApp(`,
+      wx: View [ width = { hit("__wx"), :a.x } ],
+      wy: View [ width = { hit("__wy"), :a.y } ],
+      wa: View [ opacity = { hit("__wa"), (:a ? 1 : 1) } ]`);
   settle();
   const [x0, y0, a0] = [globalThis.__wx, globalThis.__wy, globalThis.__wa];
   app.d.set(["a", "x"], 5);
@@ -3630,10 +3715,10 @@ await test("wake precision: a one-field set wakes exactly that region's readers"
   assert.equal(globalThis.__wy, y0);
 });
 
-await test("replacing a container wakes the readers inside the old region", () => {
+await test("replacing a container wakes the readers inside the old region", async () => {
   globalThis.__wx = 0;
-  const app = dataApp(`,
-      wx: View [ width = { globalThis.__wx++, :a.x } ]`);
+  const app = await dataApp(`,
+      wx: View [ width = { hit("__wx"), :a.x } ]`);
   const before = globalThis.__wx;
   app.d.set(["a"], { x: 9, y: 9 });
   settle();
@@ -3641,11 +3726,11 @@ await test("replacing a container wakes the readers inside the old region", () =
   assert.equal(globalThis.__wx, before + 1);
 });
 
-await test("replacing the whole value wakes every reader; a cursor gained later re-anchors", () => {
-  const app = build(`App [ width=10, height=10,
+await test("replacing the whole value wakes every reader; a cursor gained later re-anchors", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"n": 1} },
     box: View [ t: Text [ text = { "" + (:n ?? "none") } ] ],
-  ]`);
+  ]`));
   assert.equal(app.box.t.text, "none", "no cursor yet");
   app.box.datapath = app.d.$cursorAt([]);
   settle();
@@ -3720,15 +3805,15 @@ await test("B2 writes: pointer + segments intake, /- append, dot-strings refused
   assert.equal(d.read(["rows", 0, "n"]), 3, "the refused write wrote nothing");
 });
 
-await test("B2 reactivity: an append wakes order readers; a pointer write wakes the region (replication end to end)", () => {
-  const app = build(`App [ width=10, height=10,
+await test("B2 reactivity: an append wakes order readers; a pointer write wakes the region (replication end to end)", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"rows": [ {"n": "a"}, {"n": "b"} ]} },
-    list: View [ datapath = { parent.d.value },   // raw build(): no bare-name resolution
+    list: View [ datapath = { parent.d.value },
       View [ datapath = :rows[], t: Text [ text = :n ] ],
     ],
     go() { this.d.set("/rows/-", { n: "c" }) },
     fix() { this.d.set(["rows", 0, "n"], "A") },
-  ]`);
+  ]`));
   const texts = () => app.list.children.filter((c) => c.t).map((c) => c.t.text);
   assert.deepEqual(texts(), ["a", "b"]);
   app.go(); settle();
@@ -3769,8 +3854,8 @@ await test("RFC 9535 semantics: the strict evaluator over the v1 subset (B3, jso
   assert.deepEqual(vals(deep, ["g", { w: 1 }, "t", { w: 1 }]), [1, 2, 3]);
 });
 
-await test("selector plans evaluate and TRACK end to end: $data slices/wildcards re-derive on edits (§9)", () => {
-  const app = build(`App [ width=10, height=10,
+await test("selector plans evaluate and TRACK end to end: $data slices/wildcards re-derive on edits (§9)", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"rows": [ {"n": 1}, {"n": 2}, {"n": 3}, {"n": 4} ]} },
     box: View [ datapath = { parent.d.value },
       mid: Text [ text = { (:rows[1:3]).map(r => r.n).join("+") } ],
@@ -3780,7 +3865,7 @@ await test("selector plans evaluate and TRACK end to end: $data slices/wildcards
     bump() { this.d.set(["rows", 1, "n"], 20) },
     grow() { this.d.set("/rows/-", { n: 5 }) },
     cut() { this.d.removeAt(["rows"], 0) },
-  ]`);
+  ]`));
   assert.equal(app.box.mid.text, "2+3");
   assert.equal(app.box.all.text, "1,2,3,4");
   assert.equal(app.box.last.text, "4");
@@ -3793,15 +3878,15 @@ await test("selector plans evaluate and TRACK end to end: $data slices/wildcards
   assert.equal(app.box.mid.text, "3+4", "membership shifts re-derive the slice");
 });
 
-await test("slice replication: datapath = :rows[2:5][] instances the selection at its TRUE indices", () => {
-  const app = build(`App [ width=10, height=10,
+await test("slice replication: datapath = :rows[2:5][] instances the selection at its TRUE indices", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"rows": [ {"n": "a"}, {"n": "b"}, {"n": "c"}, {"n": "d"}, {"n": "e"}, {"n": "f"} ]} },
     list: View [ datapath = { parent.d.value },
       View [ datapath = :rows[2:5][], t: Text [ text = :n ] ],
     ],
     fix() { this.d.set(["rows", 3, "n"], "D") },
     cut() { this.d.removeAt(["rows"], 0) },
-  ]`);
+  ]`));
   const texts = () => app.list.children.filter((c) => c.t).map((c) => c.t.text);
   assert.deepEqual(texts(), ["c", "d", "e"], "the window is rows 2..4");
   // The cursors point at the REAL places — the materialization contract (§3.1).
@@ -3827,7 +3912,7 @@ await test("compiled selector plans round-trip: emitted program instantiates and
   assert.deepEqual(again.errors, []);
   assert.equal(again.source, compiled.source, "resolve twice = resolve once, selectors included");
   assert.ok(compiled.deps.some((d) => d.some((rp) => rp.startsWith(":rows["))), "the dep currency carries the selective read");
-  const app = build(compiled.source);
+  const app = buildProgram(compiled.program);
   assert.equal(app.box.t.text, "1|2");
 });
 
@@ -3860,7 +3945,7 @@ await test("DataSource lifecycle: loading → loaded, one arrival burst", async 
     const src = new DataSource();
     src.url = "/data/rows.json";
     globalThis.__st = 0;
-    const app = build(`App [ width=10, height=10, t: Text [ ] ]`);
+    const app = buildProgram(await compiled(`App [ width=10, height=10, t: Text [ ] ]`));
     // A constraint over the lifecycle: all four booleans derive from status.
     const { Constraint } = await import("../runtime/dist/reactive.js");
     const seen = [];
@@ -3980,10 +4065,10 @@ await test("DataSource auto: fetches once per distinct address, never for a re-d
   try {
     const hits = [];
     globalThis.fetch = async (url) => { hits.push(url); return { ok: true, json: async () => ({ from: url }) }; };
-    const app = build(`App [ width=10, height=10,
+    const app = buildProgram(await compiled(`App [ width=10, height=10,
       zip: string = "",
       s: DataSource [ url = { parent.zip != "" ? "/w/" + parent.zip : "" }, auto = true ],
-      ]`);
+      ]`));
     settle();
     assert.deepEqual(hits, [], "an empty url is not an address — nothing fetches");
     app.zip = "94110";
@@ -4005,12 +4090,12 @@ await test("DataSource onLoad fires after value+status settle (the declared hand
   const realFetch = globalThis.fetch;
   try {
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ msg: "hi" }) });
-    const app = build(`App [ width=10, height=10,
+    const app = buildProgram(await compiled(`App [ width=10, height=10,
       seen: string = "",
       s: DataSource [ url = "/d.json",
         onLoad() { parent.seen = \`\${this.loaded}:\${this.loading}:\${this.value.msg}\` },
         ],
-      ]`);
+      ]`));
     await app.s.fetch();
     settle();
     assert.equal(app.seen, "true:false:hi", "the handler observes the settled arrival, not a half-state");
@@ -4022,21 +4107,21 @@ await test("DataSource onLoad fires after value+status settle (the declared hand
 
 // ── R8: replication — instances per record, in data order, full citizens ───
 
-const listApp = () => build(`App [ width=100, height=100,
+const listApp = async () => buildProgram(await compiled(`${TALLY}App [ width=100, height=100,
   d: Dataset { {"rows": [ {"n": "a", "w": 10}, {"n": "b", "w": 20}, {"n": "c", "w": 30} ]} },
-  list: View [ width = 100, height = 90, datapath = { classroot.d.value },
-    View [ datapath = :rows[], height = 5, width = { globalThis.__runs++, :w },
-      onInit() { globalThis.__inits++; globalThis.__names.push("" + :n) },
+  list: View [ width = 100, height = 90, datapath = { app.d.value },
+    View [ datapath = :rows[], height = 5, width = { hit("__runs"), :w },
+      onInit() { hit("__inits"); note("__names", "" + :n) },
     ],
     foot: View [ width = 1, height = 1 ],
   ],
-]`);
+]`));
 
 const resetCounters = () => { globalThis.__runs = 0; globalThis.__inits = 0; globalThis.__names = []; };
 
-await test("replication: one instance per record, in data order, before static siblings", () => {
+await test("replication: one instance per record, in data order, before static siblings", async () => {
   resetCounters();
-  const app = listApp();
+  const app = await listApp();
   const kids = app.list.children;
   assert.equal(kids.length, 4, "3 instances + the static foot");
   assert.deepEqual(kids.slice(0, 3).map((v) => v.width), [10, 20, 30]);
@@ -4045,9 +4130,9 @@ await test("replication: one instance per record, in data order, before static s
   assert.deepEqual(globalThis.__names, ["a", "b", "c"], "instance bodies read their own record");
 });
 
-await test("replication: insert makes exactly one instance; existing ones are reused", () => {
+await test("replication: insert makes exactly one instance; existing ones are reused", async () => {
   resetCounters();
-  const app = listApp();
+  const app = await listApp();
   const [i0, i1, i2] = app.list.children;
   app.d.insert(["rows"], 1, { n: "x", w: 15 });
   settle();
@@ -4061,9 +4146,9 @@ await test("replication: insert makes exactly one instance; existing ones are re
   assert.equal(globalThis.__names[3], "x");
 });
 
-await test("replication: removal discards the instance and retires its machinery", () => {
+await test("replication: removal discards the instance and retires its machinery", async () => {
   resetCounters();
-  const app = listApp();
+  const app = await listApp();
   const removed = app.list.children[1]; // "b"
   const record = app.d.value.rows[1];
   app.d.removeAt(["rows"], 1);
@@ -4082,9 +4167,9 @@ await test("replication: removal discards the instance and retires its machinery
   assert.equal(globalThis.__runs, runsAfter + 1, "exactly the live reader re-ran");
 });
 
-await test("replication: a move reorders the SAME instances to data order", () => {
+await test("replication: a move reorders the SAME instances to data order", async () => {
   resetCounters();
-  const app = listApp();
+  const app = await listApp();
   const [a, b, c] = app.list.children;
   app.d.move(["rows"], 0, 2); // a b c → b c a
   settle();
@@ -4094,9 +4179,9 @@ await test("replication: a move reorders the SAME instances to data order", () =
   assert.equal(globalThis.__inits, 3, "no lifecycle re-fired");
 });
 
-await test("replication: a field write re-runs exactly that instance's binding", () => {
+await test("replication: a field write re-runs exactly that instance's binding", async () => {
   resetCounters();
-  const app = listApp();
+  const app = await listApp();
   settle();
   const before = globalThis.__runs;
   app.d.set(["rows", 2, "w"], 33);
@@ -4105,13 +4190,13 @@ await test("replication: a field write re-runs exactly that instance's binding",
   assert.equal(globalThis.__runs, before + 1, "one region, one reader, one run");
 });
 
-await test("replication: an unresolved match is zero instances — until the region becomes an array", () => {
-  const app = build(`App [ width=10, height=10,
+await test("replication: an unresolved match is zero instances — until the region becomes an array", async () => {
+  const app = buildProgram(await compiled(`App [ width=10, height=10,
     d: Dataset { {"other": 1} },
-    list: View [ datapath = { classroot.d.value },
+    list: View [ datapath = { app.d.value },
       View [ width = 1, height = 1, datapath = :rows[] ],
     ],
-  ]`);
+  ]`));
   assert.equal(app.list.children.length, 0);
   app.d.set(["rows"], [1, 2]);
   settle();
@@ -4121,9 +4206,9 @@ await test("replication: an unresolved match is zero instances — until the reg
   assert.equal(app.list.children.length, 0, "clearing the data clears the block");
 });
 
-await test("replication: a burst of edits reconciles once, to the final data", () => {
+await test("replication: a burst of edits reconciles once, to the final data", async () => {
   resetCounters();
-  const app = listApp();
+  const app = await listApp();
   app.d.set(["rows", 0, "w"], 12);
   app.d.insert(["rows"], 3, { n: "z", w: 40 });
   app.d.removeAt(["rows"], 1);
@@ -4172,14 +4257,14 @@ await test("ignoreLayout: a marked child keeps its own position; the arrangement
   assert.deepEqual([app.row.children[0].x, app.row.children[2].x], [0, 34], "the flow strings the others as if it were absent");
 });
 
-await test("replication: surfaces mirror the reconciled order (canvas, Node-safe)", () => {
-  const app = build(`App [ width=100, height=100,
+await test("replication: surfaces mirror the reconciled order (canvas, Node-safe)", async () => {
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
     d: Dataset { {"rows": [ {"w": 1}, {"w": 2}, {"w": 3} ]} },
-    list: View [ width = 50, height = 90, datapath = { classroot.d.value },
+    list: View [ width = 50, height = 90, datapath = { app.d.value },
       View [ height = 5, width = :w, datapath = :rows[] ],
       foot: View [ width = 9, height = 9 ],
     ],
-  ]`);
+  ]`));
   const backend = new CanvasBackend();
   app.$attach(backend, null);
   const order = () => app.list.$surface.children.map((s) => s.width);
@@ -4196,17 +4281,17 @@ await test("replication: surfaces mirror the reconciled order (canvas, Node-safe
   assert.deepEqual(order(), [3, 7, 1, 9], "a removed instance's surface is gone");
 });
 
-await test("replication: two blocks under one parent keep their slots", () => {
-  const app = build(`App [ width=100, height=100,
+await test("replication: two blocks under one parent keep their slots", async () => {
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
     d: Dataset { {"xs": [1, 2], "ys": [{"w": 5}]} },
     head: View [ width = 1, height = 1 ],
-    list: View [ width = 50, height = 90, datapath = { classroot.d.value },
+    list: View [ width = 50, height = 90, datapath = { app.d.value },
       lead: View [ width = 2, height = 2 ],
       View [ height = 1, width = :w, datapath = :ys[] ],
       View [ height = 2, width = { 40 + (:w ?? 0) }, datapath = :ys[] ],
       tail: View [ width = 3, height = 3 ],
     ],
-  ]`);
+  ]`));
   const widths = () => app.list.children.map((v) => v.width);
   assert.deepEqual(widths(), [2, 5, 45, 3]);
   app.d.insert(["ys"], 0, { w: 6 });
@@ -4233,7 +4318,7 @@ await test("replicated instances are full citizens: methods, classroot, user cla
   ]`;
   const compiled = await compile(src);
   assert.deepEqual(compiled.errors, []);
-  const app = build(compiled.source);
+  const app = buildProgram(compiled.program);
   const rows = app.list.children;
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((r) => r.t.text), ["row/a", "row/b"]);
@@ -4264,7 +4349,7 @@ await test("compile(): :paths lower to emitted plans (data-paths.md §5); resolu
   const again = await compile(compiled.source);
   assert.deepEqual(again.errors, []);
   assert.equal(again.source, compiled.source, "resolve twice = resolve once");
-  const app = build(compiled.source);
+  const app = buildProgram(compiled.program);
   assert.equal(app.box.t.text, "2:4");
   // The dep currency is unchanged: the region read still serializes as `:n`
   // (bind.ts keeps region reads on the tracking path by that spelling).
@@ -4484,13 +4569,13 @@ await test("Node.insertChild / removeChild keep links straight", () => {
 
 // ── Styling rung: prevailing attributes ─────────────────────────────────────
 
-await test("Text renders through the effective style: the style derive follows a provided value", () => {
+await test("Text renders through the effective style: the style derive follows a provided value", async () => {
   const log = [];
   // A container PROVIDES fontSize; the Text reads it. A dynamic provided value is
   // a { } over a real slot (a literal provision is static) — writing the slot
   // re-provides, and every reading run re-styles in one settle.
-  const app = build(`App [ fs: number = 9, fontSize = { this.fs }, textColor = #FFFFFF,
-    t: Text [ text = "hi", width = 10, height = 10 ] ]`);
+  const app = buildProgram(await compiled(`App [ fs: number = 9, fontSize = { this.fs }, textColor = #FFFFFF,
+    t: Text [ text = "hi", width = 10, height = 10 ] ]`));
   app.$attach(mockBackend(log), null);
   const styles = () => log.filter(([m]) => m === "setTextStyle").map(([, v]) => v);
   assert.equal(styles().at(-1).fontSize, 9, "the initial push carries the effective value");
@@ -4637,11 +4722,11 @@ await test("graphics pass: drawImage records a handle op from an Image view, and
   for (const o of list.ops) assert.doesNotThrow(() => structuredClone(o), "plain data — the op crosses a worker boundary");
 });
 
-await test("decoration values gate on structural equality (a re-produced equal record stops the cascade)", () => {
+await test("decoration values gate on structural equality (a re-produced equal record stops the cascade)", async () => {
   globalThis.__evals = 0;
-  const counted = build(`App [ width = 100,
+  const counted = buildProgram(await compiled(`${TALLY}App [ width = 100,
     box: View [ shadow = { shadow(0, 1, 2, 0x222222 + (parent.width - parent.width)) },
-      dep: View [ height = { globalThis.__evals++, parent.shadow ? parent.shadow.blur : 0 } ] ] ]`);
+      dep: View [ height = { hit("__evals"), parent.shadow ? parent.shadow.blur : 0 } ] ] ]`));
   assert.equal(counted.box.dep.height, 2);
   const base = globalThis.__evals;
   counted.width = 200; // re-runs the shadow binding → a FRESH but equal record
@@ -4650,10 +4735,10 @@ await test("decoration values gate on structural equality (a re-produced equal r
   delete globalThis.__evals;
 });
 
-await test("constructors are in scope inside { } bodies; bare `stroke` is still the slot", () => {
-  const app = build(`App [ stroke = stroke(2, #101010),
-    box: View [ width = { this.stroke ? this.stroke.width * 10 : 0 },
-                fill = { gradient(0xFFFFFF, 0xF0F0F0) } ] ]`);
+await test("constructors are in scope inside { } bodies; bare `stroke` is still the slot", async () => {
+  const app = buildProgram(await compiled(`App [ stroke = stroke(2, #101010),
+    box: View [ width = { this.stroke && "width" in this.stroke ? this.stroke.width * 10 : 0 },
+                fill = { gradient(0xFFFFFF, 0xF0F0F0) } ] ]`));
   assert.equal(app.box.width, 0, "this.stroke is the slot (unset on box)");
   assert.equal(app.box.fill.stops.length, 2, "gradient(…) constructs in TS position");
   assert.equal(app.box.fill.angle, 180);
@@ -4687,9 +4772,9 @@ await test("gradient/stop are reserved member names (unreachable in call positio
   assert.match(errs2[0].message, /value constructor/);
 });
 
-await test("flush pushes decoration pay-per-use; pushers carry post-attach changes", () => {
+await test("flush pushes decoration pay-per-use; pushers carry post-attach changes", async () => {
   const log = [];
-  const plain = build("App [ width=10, height=10, fill=#EAEAEA ]");
+  const plain = buildProgram(await compiled("App [ width=10, height=10, fill=#EAEAEA ]"));
   plain.$attach(mockBackend(log), null);
   assert.ok(log.some(([m, v]) => m === "setFill" && v === 0xeaeaea), "fill crossed the seam");
   assert.ok(!log.some(([m]) => m === "setCornerRadius" || m === "setStroke" || m === "setShadow"),
@@ -4697,7 +4782,7 @@ await test("flush pushes decoration pay-per-use; pushers carry post-attach chang
   plain.cornerRadius = 4;
   assert.deepEqual(log.at(-1), ["setCornerRadius", 4], "the pusher carries a late set");
   const log2 = [];
-  const fancy = build("App [ width=10, height=10, cornerRadius=6, stroke=stroke(1, #E2E2E2), shadow=shadow(0,1,2,#00000044) ]");
+  const fancy = buildProgram(await compiled("App [ width=10, height=10, cornerRadius=6, stroke=stroke(1, #E2E2E2), shadow=shadow(0,1,2,#00000044) ]"));
   fancy.$attach(mockBackend(log2), null);
   assert.ok(log2.some(([m, v]) => m === "setCornerRadius" && v === 6));
   assert.ok(log2.some(([m, v]) => m === "setStroke" && v.width === 1));
@@ -4706,9 +4791,9 @@ await test("flush pushes decoration pay-per-use; pushers carry post-attach chang
 
 // ── cornerRadius: one number, or four corners ────────────────────────────────
 
-await test("cornerRadius = [tl, tr, br, bl]: the list crosses the seam whole, frozen", () => {
+await test("cornerRadius = [tl, tr, br, bl]: the list crosses the seam whole, frozen", async () => {
   const log = [];
-  const app = build("App [ width=10, height=10, cornerRadius = [8, 8, 0, 0] ]");
+  const app = buildProgram(await compiled("App [ width=10, height=10, cornerRadius = [8, 8, 0, 0] ]"));
   app.$attach(mockBackend(log), null);
   assert.deepEqual(app.cornerRadius, [8, 8, 0, 0], "the slot holds the four corners");
   assert.ok(Object.isFrozen(app.cornerRadius), "a bare literal is set once");
@@ -4735,8 +4820,8 @@ App [ width=100, height=100, on: boolean = false,
     b: View [ width=40, height=20, cornerRadius = 2,
         Spring [ attribute = cornerRadius, to = { on ? 4 : 2 } ] ] ]`);
   assert.deepEqual(r.errors ?? [], [], "declares, typechecks, and animates");
-  const app = build(`class Tab extends View [ r: Radius = [8, 8, 0, 0], cornerRadius = { this.r } ]
-App [ width=100, height=100, t: Tab [ width=40, height=20 ] ]`);
+  const app = buildProgram(await compiled(`class Tab extends View [ r: Radius = [8, 8, 0, 0], cornerRadius = { this.r } ]
+App [ width=100, height=100, t: Tab [ width=40, height=20 ] ]`));
   assert.deepEqual([...app.t.cornerRadius], [8, 8, 0, 0], "the declared list reaches the painted slot");
 });
 
@@ -4791,12 +4876,10 @@ await test("check: a theme is a token record; a class-keyed entry has no home", 
 
 await test("font: a Font in a family slot names its family — a system font's, a web font's own registered name, a list in order", async () => {
   const { familyCss } = await import("../runtime/dist/font-value.js");
-  // build() runs uncompiled source, so bodies use explicit paths (the compiler
-  // is what rewrites `app` to this.root).
-  const app = build(`App [ fontFamily = { [this.body, "sans-serif"] },
+  const app = buildProgram(await compiled(`App [ fontFamily = { [this.body, "sans-serif"] },
     body: Font [ family = "Helvetica, Arial" ],
     title: Font [ FontFace [ src = "https://example.com/arimo-700.woff2", weight = bold ] ],
-    t: Text [ text = "hi", fontFamily = { this.parent.title } ] ]`);
+    t: Text [ text = "hi", fontFamily = { this.parent.title } ] ]`));
   app.body.$start(); app.title.$start();
   settle();
   // fontFamily on the App is a PROVISION: the provided value is the list itself;
@@ -4806,16 +4889,16 @@ await test("font: a Font in a family slot names its family — a system font's, 
   assert.match(familyCss(app.t.fontFamily), /^declare-font-\d+-1$/, "a web font names its own registered family, never an author string");
   assert.equal(app.body.loaded, true, "a system font is loaded from the start");
   // The literal forms stay: a family string, or a list of them.
-  assert.equal(build(`App [ fontFamily = "Tahoma, sans-serif" ]`).$provides.fontFamily, "Tahoma, sans-serif");
-  assert.equal(build(`App [ fontFamily = ["Helvetica Neue", "sans-serif"] ]`).$provides.fontFamily, "Helvetica Neue, sans-serif");
+  assert.equal((buildProgram(await compiled(`App [ fontFamily = "Tahoma, sans-serif" ]`))).$provides.fontFamily, "Tahoma, sans-serif");
+  assert.equal((buildProgram(await compiled(`App [ fontFamily = ["Helvetica Neue", "sans-serif"] ]`))).$provides.fontFamily, "Helvetica Neue, sans-serif");
 });
 
 await test("font: a FontFace's literals — a url()/local() list, weight numbers and range(lo, hi) — become the CSS a face registers with", async () => {
   const { faceSourceCss, faceWeightDescriptor } = await import("../runtime/dist/face-literal.js");
-  const app = build(`App [ f: Font [
+  const app = buildProgram(await compiled(`App [ f: Font [
     a: FontFace [ src = [local("Work Sans Bold"), "ws.woff2"], weight = bold ],
     b: FontFace [ src = url("b.woff2"), weight = 350, italic = true ],
-    c: FontFace [ src = "vari.woff2", weight = range(100, 900) ] ] ]`);
+    c: FontFace [ src = "vari.woff2", weight = range(100, 900) ] ] ]`));
   const same = (u) => u;
   assert.equal(faceSourceCss(app.f.a.src, same), `local("Work Sans Bold"), url("ws.woff2")`, "local() names an installed face; a list tries each");
   assert.equal(faceSourceCss(app.f.b.src, same), `url("b.woff2")`);
@@ -4826,10 +4909,10 @@ await test("font: a FontFace's literals — a url()/local() list, weight numbers
 
 await test("numeric font weights: fontWeight = 350 beside the keywords; a FontFace takes a number or range(lo, hi)", async () => {
   const { cssWeight } = await import("../runtime/dist/measure.js");
-  const app = build(`App [ fontWeight = 350,
+  const app = buildProgram(await compiled(`App [ fontWeight = 350,
     a: Text [ text = "a" ],
     b: Text [ fontWeight = bold, text = "b" ],
-    c: Text [ fontWeight = { 400 + 250 }, text = "c" ] ]`);
+    c: Text [ fontWeight = { 400 + 250 }, text = "c" ] ]`));
   assert.equal(app.a.fontWeight, 350, "the number is the value, provided to the run");
   assert.equal(cssWeight(app.a.fontWeight), "350");
   assert.equal(cssWeight(app.b.fontWeight), "700");
@@ -4839,7 +4922,7 @@ await test("numeric font weights: fontWeight = 350 beside the keywords; a FontFa
     ["App [ f: Font [ FontFace [ src = \"f.woff2\", weight = 1200 ] ] ]", /a numeric weight is a whole number 1–1000/],
     ["App [ f: Font [ FontFace [ src = \"f.woff2\", weight = range(900, 100) ] ] ]", /lo < hi/],
     ["App [ f: Font [ FontFace [ src = \"f.woff2\", weight = \"bold\" ] ] ]", /a FontFace weight is a token/],
-  ]) assert.throws(() => build(src), re, src);
+  ]) await assert.rejects(async () => build(src), re, src);
 });
 
 await test("font: a font's shape is checked — FontFace placement and children, family vs faces, sources, the retired declaration", () => {
@@ -4859,21 +4942,21 @@ await test("font: a font NAME in a bare family slot or list names the object for
   assert.match(check(parseProgram(`App [ fontFamily = Nope ]`)).map((e) => e.message)[0], /'Nope' is not a family/);
 });
 
-await test("a node inside data is a leaf — never walked or proxied, so a record's id keeps its identity", () => {
+await test("a node inside data is a leaf — never walked or proxied, so a record's id keeps its identity", async () => {
   // A Segmented whose choice ids were Fonts overflowed the stack at boot (the data
   // layer walked the node's parent pointers); proxying one broke `id === value`.
-  const app = build(`App [ a: Font [ family = "A" ], d: Dataset { { "items": [] } },
-    t: Text [ text = { this.parent.d.value?.items?.[0]?.id === this.parent.a ? "same" : "different" } ] ]`);
+  const app = buildProgram(await compiled(`App [ a: Font [ family = "A" ], d: Dataset { { "items": [] } },
+    t: Text [ text = { this.parent.d.value?.items?.[0]?.id === this.parent.a ? "same" : "different" } ] ]`));
   app.d.set(["items"], [{ id: app.a, label: "A" }]);
   settle();
   assert.equal(app.t.text, "same", "read through a tracked constraint, the id is the Font itself");
 });
 
-await test("letterSpacing: a provided text value (px tracking), coerced as a number", () => {
-  const app = build(`App [ letterSpacing = 2, t: Text [ text = "hi" ] ]`);
+await test("letterSpacing: a provided text value (px tracking), coerced as a number", async () => {
+  const app = buildProgram(await compiled(`App [ letterSpacing = 2, t: Text [ text = "hi" ] ]`));
   assert.equal(app.$provides.letterSpacing, 2, "provided on the container");
   assert.equal(app.t.letterSpacing, 2, "the Text leaf reads the provided value");
-  assert.equal(build(`App [ t: Text [ text = "hi" ] ]`).t.letterSpacing, 0, "default 0 = natural advances");
+  assert.equal((buildProgram(await compiled(`App [ t: Text [ text = "hi" ] ]`))).t.letterSpacing, 0, "default 0 = natural advances");
   // The number type is enforced where letterSpacing is a declared slot (Text).
   assert.match(check(parseProgram(`App [ t: Text [ letterSpacing = "wide" ] ]`)).map((e) => e.message)[0], /letterSpacing/);
 });
@@ -4881,7 +4964,7 @@ await test("letterSpacing: a provided text value (px tracking), coerced as a num
 await test("binding defaults: a declared attribute may default to { provided(\"theme\").token } — live, per instance", async () => {
   // The theme is a PROVIDED value: the App provides it (a { } over a slot, so a
   // swap re-derives), a widget reads it. The default binding follows.
-  const app = build(await resolved(`class Knob extends View [
+  const app = buildProgram(await compiled(`class Knob extends View [
     labelColor: Color = { provided("theme").buttonText },
   ]
 App [ th: Theme = { { buttonText: 0xEEEEEE } }, theme = { th },
@@ -4982,13 +5065,13 @@ await test("sample: cubicBezier / steps / back / laszlo", () => {
   assert.equal(sample(lz, 0.25, 0), 0.25, "laszlo with zero travel degrades to linear (no 0/0)");
 });
 
-await test("build(): motion accepts family tokens and the four constructors", () => {
-  const app = build(`App [ width=1, height=1, View [
+await test("buildProgram(): motion accepts family tokens and the four constructors", async () => {
+  const app = buildProgram(await compiled(`App [ width=1, height=1, View [
     a: Animator [ attribute=x, to=1, motion=quartOut ],
     b: Animator [ attribute=x, to=1, motion=cubicBezier(0.42, 0, 0.58, 1) ],
     c: Animator [ attribute=x, to=1, motion=laszloBoth ],
     d: Animator [ attribute=x, to=1, motion=steps(4, jumpStart) ],
-    e: Animator [ attribute=x, to=1, motion=back(2) ] ] ]`);
+    e: Animator [ attribute=x, to=1, motion=back(2) ] ] ]`));
   const v = app.children[0];
   assert.deepEqual(v.a.motion, { k: "poly", fam: "quart", dir: "out" }, "family token");
   assert.equal(v.b.motion.k, "bezier", "cubicBezier constructor");
@@ -5262,10 +5345,10 @@ await test("Animator: autoStart honors `started` — default false stays put, tr
   b.$autoStart(); // once per lifetime — idempotent
 });
 
-await test("Animator: displaces a constraint owner, then resumes it re-evaluated on completion", () => {
+await test("Animator: displaces a constraint owner, then resumes it re-evaluated on completion", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build("App [ width=100, height=100, View [ y=10, x={ parent.width - 40 } ] ]");
+  const app = buildProgram(await compiled("App [ width=100, height=100, View [ y=10, x={ parent.width - 40 } ] ]"));
   settle();
   const v = app.children[0];
   assert.equal(v.x, 60, "the constraint drives x initially");
@@ -5350,11 +5433,11 @@ await test("Animator: handlers are allowed (declared events); decls, children, t
   assert.match(msgs, /an animator drives an attribute — it has no children/);
 });
 
-await test("build(): a named animator is a reachable member with coerced attrs; target = parent", () => {
+await test("buildProgram(): a named animator is a reachable member with coerced attrs; target = parent", async () => {
   setClock(new Clock(fakeScheduler())); // isolate any auto-start onto a throwaway clock
-  const app = build(`App [ width=100, height=100,
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
     View [ height=25,
-      slide: Animator [ attribute=height, to=255, from=25, duration=300, motion=easeBoth, repeat=2, started=false ] ] ]`);
+      slide: Animator [ attribute=height, to=255, from=25, duration=300, motion=easeBoth, repeat=2, started=false ] ] ]`));
   const v = app.children[0];
   assert.ok(v.slide instanceof Animator, "named animator is reachable as a member");
   assert.equal(v.slide.attribute, "height");
@@ -5366,12 +5449,12 @@ await test("build(): a named animator is a reachable member with coerced attrs; 
   assert.equal(v.slide.parent, v, "the target defaults to the parent node");
 });
 
-await test("build(): slide.start() from the pipeline drives the parent's slot to `to`", () => {
+await test("buildProgram(): slide.start() from the pipeline drives the parent's slot to `to`", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
     View [ height=25,
-      slide: Animator [ attribute=height, to=225, duration=100, motion=linear, started=false ] ] ]`);
+      slide: Animator [ attribute=height, to=225, duration=100, motion=linear, started=false ] ] ]`));
   const v = app.children[0];
   assert.equal(v.height, 25);
   v.slide.start();
@@ -5384,11 +5467,11 @@ await test("build(): slide.start() from the pipeline drives the parent's slot to
   assert.equal(sched.scheduled, false, "idle after completion");
 });
 
-await test("build(): started=true auto-starts the animator at init (opt-in)", () => {
+await test("buildProgram(): started=true auto-starts the animator at init (opt-in)", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
-    View [ Animator [ attribute=x, to=80, duration=100, motion=linear, started=true ] ] ]`);
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
+    View [ Animator [ attribute=x, to=80, duration=100, motion=linear, started=true ] ] ]`));
   assert.equal(sched.scheduled, true, "started=true → auto-started during build's init");
   const v = app.children[0];
   sched.frame(0);
@@ -5405,11 +5488,11 @@ await test("build(): started=true auto-starts the animator at init (opt-in)", ()
 // and Spring alike; `started` is the request. `atRest` (arrived under the wrong
 // name, false at birth) is gone — a spring born on its target used to read
 // "not at rest" forever, and every clock gated on it spun (Murmur run 2).
-await test("Animator: the two facts of motion — running while in flight, arrived only at natural completion", () => {
+await test("Animator: the two facts of motion — running while in flight, arrived only at natural completion", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
-    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear ] ] ]`);
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear ] ] ]`));
   const a = app.v.anim;
   assert.equal(a.running, false, "false at birth"); assert.equal(a.arrived, false, "not arrived at birth");
   a.start(); settle();
@@ -5425,11 +5508,11 @@ await test("Animator: the two facts of motion — running while in flight, arriv
   assert.equal(a.running, false, "stopped mid-flight: not running"); assert.equal(a.arrived, false, "…and not arrived");
 });
 
-await test("Spring: born on its target it is neither running nor arrived; travels, lands, and a stop() in flight is neither", () => {
+await test("Spring: born on its target it is neither running nor arrived; travels, lands, and a stop() in flight is neither", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
-    v: View [ target: number = 0, s: Spring [ attribute=x, to = { parent.target }, stiffness = 300, damping = 30 ] ] ]`);
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
+    v: View [ target: number = 0, s: Spring [ attribute=x, to = { parent.target }, stiffness = 300, damping = 30 ] ] ]`));
   const v = app.v, s = v.s;
   assert.equal(s.running, false, "born on target: not running"); assert.equal(s.arrived, false, "born on target: not arrived (never travelled)");
   v.target = 100; settle();
@@ -5443,12 +5526,12 @@ await test("Spring: born on its target it is neither running nor arrived; travel
   assert.ok(v.x > 100 && v.x < 200, "pinned where it stopped: " + v.x);
 });
 
-await test("Animator: `started` is REACTIVE — a constraint flipping it starts and stops the run (issue #19)", () => {
+await test("Animator: `started` is REACTIVE — a constraint flipping it starts and stops the run (issue #19)", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
     v: View [ open: boolean = false,
-      anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started = { parent.open } ] ] ]`);
+      anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started = { parent.open } ] ] ]`));
   const v = app.v;
   assert.equal(v.anim.started, false, "the binding's boot value");
   assert.equal(sched.scheduled, false, "false at init → nothing running (opt-in auto-start)");
@@ -5474,11 +5557,11 @@ await test("Animator: `started` is REACTIVE — a constraint flipping it starts 
   assert.equal(v.x, 100, "which lands on `to`");
 });
 
-await test("Animator: `paused` is clock MEMBERSHIP — a paused animator holds zero frames (idle-zero)", () => {
+await test("Animator: `paused` is clock MEMBERSHIP — a paused animator holds zero frames (idle-zero)", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
-    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started=true ] ] ]`);
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started=true ] ] ]`));
   const v = app.v;
   sched.frame(0);
   sched.frame(40);
@@ -5502,13 +5585,13 @@ await test("Animator: `paused` is clock MEMBERSHIP — a paused animator holds z
   assert.equal(sched.scheduled, false, "paused writes on a finished animator stay inert");
 });
 
-await test("AnimatorGroup: group `paused` idles the clock; members re-anchor on resume", () => {
+await test("AnimatorGroup: group `paused` idles the clock; members re-anchor on resume", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
     v: View [ g: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=true,
       Animator [ attribute=x, to=100 ],
-      Animator [ attribute=y, to=200 ] ] ] ]`);
+      Animator [ attribute=y, to=200 ] ] ] ]`));
   const v = app.v;
   sched.frame(0);
   sched.frame(30);
@@ -5528,11 +5611,11 @@ await test("AnimatorGroup: group `paused` idles the clock; members re-anchor on 
   assert.equal(sched.scheduled, false, "idle after completion");
 });
 
-await test("Animator: start() under `paused = true` arms without enrolling (zero frames until resume)", () => {
+await test("Animator: start() under `paused = true` arms without enrolling (zero frames until resume)", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
-    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, paused=true ] ] ]`);
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, paused=true ] ] ]`));
   const v = app.v;
   v.anim.start();
   assert.equal(v.anim.running, true, "armed");
@@ -5545,14 +5628,14 @@ await test("Animator: start() under `paused = true` arms without enrolling (zero
   assert.equal(v.x, 100, "then runs to completion");
 });
 
-await test("AnimatorGroup: a reactive `started` drives the whole group (issue #19)", () => {
+await test("AnimatorGroup: a reactive `started` drives the whole group (issue #19)", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=100, height=100,
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
     v: View [ open: boolean = false,
       grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started = { parent.open },
         Animator [ attribute=x, to=10, started=true ],
-        Animator [ attribute=y, to=20 ] ] ] ]`);
+        Animator [ attribute=y, to=20 ] ] ] ]`));
   const v = app.v;
   assert.equal(sched.scheduled, false, "the group is the driver — a member's own started=true does not pre-fire");
   v.open = true;
@@ -5564,7 +5647,7 @@ await test("AnimatorGroup: a reactive `started` drives the whole group (issue #1
   assert.equal(v.y, 20, "member y ran under the group");
 });
 
-await test("build(): the target is the parent — a user-declared numeric slot animates too", () => {
+await test("buildProgram(): the target is the parent — a user-declared numeric slot animates too", async () => {
   const src = `class WeatherTab extends View [
       openHeight: number = 255,
       height = 25,
@@ -5575,7 +5658,7 @@ await test("build(): the target is the parent — a user-declared numeric slot a
   assert.deepEqual(check(parseProgram(src)), [], "height (View) and openHeight (user) both animate");
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(src);
+  const app = buildProgram(await compiled(src));
   const tab = app.tab;
   assert.ok(tab.slide instanceof Animator && tab.grow instanceof Animator);
   assert.equal(tab.grow.parent, tab, "target = parent (the user class instance)");
@@ -5635,15 +5718,15 @@ await test("Animator: onStop fires on imperative stop() too (no finished-vs-stop
   assert.deepEqual(log, ["stop"]);
 });
 
-await test("Animator: on* handlers fire through the pipeline (build) with repeat", () => {
+await test("Animator: on* handlers fire through the pipeline (build) with repeat", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   globalThis.__aev = [];
-  const app = build(`App [ width=100, height=100, View [
+  const app = buildProgram(await compiled(`${TALLY}App [ width=100, height=100, View [
     Animator [ attribute=x, to=100, duration=100, motion=linear, repeat=2, started=false,
-      onStart() { globalThis.__aev.push("start") },
-      onRepeat() { globalThis.__aev.push("repeat") },
-      onStop() { globalThis.__aev.push("stop") } ] ] ]`);
+      onStart() { note("__aev", "start") },
+      onRepeat() { note("__aev", "repeat") },
+      onStop() { note("__aev", "stop") } ] ] ]`));
   const anim = app.children[0].children[0];
   assert.ok(anim instanceof Animator);
   anim.start();
@@ -5727,10 +5810,10 @@ await test("Animator: displaces a LAYOUT-laid axis; the layout re-lays on comple
   assert.equal(sched.scheduled, false);
 });
 
-await test("Animator: displaces a percent binding; it re-resolves against the new parent on completion", () => {
+await test("Animator: displaces a percent binding; it re-resolves against the new parent on completion", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=200, height=100, View [ width=50%, height=20 ] ]`);
+  const app = buildProgram(await compiled(`App [ width=200, height=100, View [ width=50%, height=20 ] ]`));
   settle();
   const v = app.children[0];
   assert.equal(v.width, 100, "50% of 200");
@@ -5841,10 +5924,10 @@ await test("A2 additive: a later ABSOLUTE `to` measures its delta against the EX
   assert.equal(view.x, 40, "the later absolute `to` lands where its author said, composing with what was in flight");
 });
 
-await test("A2 additive: a lone animator still displaces a constraint ONCE and resumes it (ledger-held displaced)", () => {
+await test("A2 additive: a lone animator still displaces a constraint ONCE and resumes it (ledger-held displaced)", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build("App [ width=100, height=100, View [ y=10, x={ parent.width - 40 } ] ]");
+  const app = buildProgram(await compiled("App [ width=100, height=100, View [ y=10, x={ parent.width - 40 } ] ]"));
   settle();
   const v = app.children[0];
   assert.equal(v.x, 60);
@@ -5892,13 +5975,13 @@ function groupOf(view) {
   return view.children.find((c) => c instanceof AnimatorGroup);
 }
 
-await test("A2 AnimatorGroup simultaneous: members animate together off one clock", () => {
+await test("A2 AnimatorGroup simultaneous: members animate together off one clock", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=200, height=200, View [ x=0, y=0,
+  const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
     grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=false,
       Animator [ attribute=x, to=100 ],
-      Animator [ attribute=y, to=50 ] ] ] ]`);
+      Animator [ attribute=y, to=50 ] ] ] ]`));
   const v = app.children[0];
   const grp = v.grp;
   assert.ok(grp instanceof AnimatorGroup, "the named group is reachable as a member");
@@ -5916,13 +5999,13 @@ await test("A2 AnimatorGroup simultaneous: members animate together off one cloc
   assert.equal(sched.scheduled, false, "the group goes idle when its last member finishes");
 });
 
-await test("A2 AnimatorGroup sequential: members animate one after another", () => {
+await test("A2 AnimatorGroup sequential: members animate one after another", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=200, height=200, View [ x=0, y=0,
+  const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
     grp: AnimatorGroup [ process=sequential, duration=100, motion=linear, started=false,
       Animator [ attribute=x, to=100 ],
-      Animator [ attribute=y, to=50 ] ] ] ]`);
+      Animator [ attribute=y, to=50 ] ] ] ]`));
   const v = app.children[0];
   const grp = v.grp;
   grp.start();
@@ -5944,13 +6027,13 @@ await test("A2 AnimatorGroup sequential: members animate one after another", () 
   assert.equal(sched.scheduled, false);
 });
 
-await test("A2 AnimatorGroup: stop() cascades — halts every running member in place, then idles", () => {
+await test("A2 AnimatorGroup: stop() cascades — halts every running member in place, then idles", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=200, height=200, View [ x=0, y=0,
+  const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
     grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=false,
       Animator [ attribute=x, to=100 ],
-      Animator [ attribute=y, to=50 ] ] ] ]`);
+      Animator [ attribute=y, to=50 ] ] ] ]`));
   const v = app.children[0];
   const grp = v.grp;
   grp.start();
@@ -5967,13 +6050,13 @@ await test("A2 AnimatorGroup: stop() cascades — halts every running member in 
   assert.equal(my.running, false, "member y is stopped");
 });
 
-await test("A2 AnimatorGroup: started=true auto-starts the group at init (members are group-driven)", () => {
+await test("A2 AnimatorGroup: started=true auto-starts the group at init (members are group-driven)", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=200, height=200, View [ x=0, y=0,
+  const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
     AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=true,
       Animator [ attribute=x, to=100 ],
-      Animator [ attribute=y, to=50 ] ] ] ]`);
+      Animator [ attribute=y, to=50 ] ] ] ]`));
   assert.equal(sched.scheduled, true, "started=true → the group auto-started at build's init");
   const v = app.children[0];
   const grp = groupOf(v);
@@ -5985,12 +6068,12 @@ await test("A2 AnimatorGroup: started=true auto-starts the group at init (member
   assert.equal(sched.scheduled, false);
 });
 
-await test("A2 AnimatorGroup: repeat replays the WHOLE group, landing exactly", () => {
+await test("A2 AnimatorGroup: repeat replays the WHOLE group, landing exactly", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=200, height=200, View [ x=0,
+  const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0,
     grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, repeat=2, started=false,
-      Animator [ attribute=x, from=0, to=100 ] ] ] ]`);
+      Animator [ attribute=x, from=0, to=100 ] ] ] ]`));
   const v = app.children[0];
   v.grp.start();
   sched.frame(0);
@@ -6032,14 +6115,14 @@ await test("A2 AnimatorGroup: check accepts groups + member cascade; rejects non
     `a member with no slot and no cascade is an error: ${noSlot.map((e) => e.message).join(" | ")}`);
 });
 
-await test("A2 AnimatorGroup: nested groups run in order and inherit cascade transitively", () => {
+await test("A2 AnimatorGroup: nested groups run in order and inherit cascade transitively", async () => {
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width=200, height=200, View [ x=0, y=0,
+  const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
     outer: AnimatorGroup [ process=sequential, duration=100, motion=linear, started=false,
       Animator [ attribute=x, to=100 ],
       AnimatorGroup [ process=simultaneous,
-        Animator [ attribute=y, to=50 ] ] ] ] ]`);
+        Animator [ attribute=y, to=50 ] ] ] ] ]`));
   const v = app.children[0];
   // the nested group's member inherited duration=100 / motion=linear from the
   // OUTER group (it set neither) — transitive cascade
@@ -6062,12 +6145,12 @@ await test("A2 AnimatorGroup: nested groups run in order and inherit cascade tra
   assert.equal(sched.scheduled, false);
 });
 
-await test("A2 AnimatorGroup: build cascades duration/motion to members; members keep their own attribute", () => {
+await test("A2 AnimatorGroup: build cascades duration/motion to members; members keep their own attribute", async () => {
   setClock(new Clock(fakeScheduler())); // isolate any auto-start
-  const app = build(`App [ width=200, height=200, View [ x=0, y=0,
+  const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
     grp: AnimatorGroup [ process=simultaneous, duration=250, motion=easeIn, started=false,
       Animator [ attribute=x, to=100 ],
-      Animator [ attribute=y, to=50, duration=99 ] ] ] ]`);
+      Animator [ attribute=y, to=50, duration=99 ] ] ] ]`));
   const grp = app.children[0].grp;
   const [mx, my] = grp.children;
   assert.ok(mx instanceof Animator && my instanceof Animator, "members are Animators under the group");
@@ -6103,16 +6186,15 @@ await test("include resolves a class declared in another file", async () => {
   const host = memHost({
     "/components.declare": "class Card extends View [ ]",
   });
-  // Includes are resolved by compile(), never by build(): compile folds every
-  // included file into ONE self-contained program, and that is what runs. build()
-  // takes no host at all now — the seam is async (a browser cannot read a file
-  // synchronously), and the runtime stays synchronous by never needing it.
+  // Includes are resolved by compile(): it folds every included file into ONE
+  // self-contained program, and that is what runs. The seam is async (a browser
+  // cannot read a file synchronously); the runtime never needs it.
   const r = await compile(
     'include [ "components.declare" ]\nApp [ width=10, height=10, Card [ ] ]',
     { host, originDir: "/" }
   );
   assert.deepEqual(r.errors, [], "the include resolves clean");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   assert.equal(app.children.length, 1, "the included class instantiated as a child");
   assert.ok(app.children[0] instanceof View, "Card instance is a View");
   assert.equal(app.children[0].constructor.name, "Card", "instantiated as the included class Card");
@@ -6131,8 +6213,8 @@ App [ width = 200, height = 80,
   const b = await compile(`script { function other(n: number): number { return n + 100 } }
 App [ width = 10, height = 10, v: View [ width = { other(1) }, height = 1 ] ]`, { originDir: process.cwd() });
   assert.deepEqual([...a.errors, ...b.errors].map((e) => e.message), []);
-  const appA = settleSource(a.source, { deps: a.deps });
-  const appB = settleSource(b.source, { deps: b.deps });   // built second: the "last program"
+  const appA = settleHeadless(a.program);
+  const appB = settleHeadless(b.program);   // built second: the "last program"
   try {
     assert.equal(appB.v.width, 101);
     assert.equal(appA.list.children.length, 1, "the first row built with its program");
@@ -6343,8 +6425,8 @@ await test("parseLibrary rejects a non-string include entry", () => {
   assert.throws(() => parseLibrary("include [ foo ]"), /an include path is a quoted string/);
 });
 
-await test("a source with no includes behaves exactly as before (no host needed)", () => {
-  const app = build("App [ width=10, height=10, View [ ] ]");
+await test("a source with no includes behaves exactly as before (no host needed)", async () => {
+  const app = buildProgram(await compiled("App [ width=10, height=10, View [ ] ]"));
   assert.equal(app.children.length, 1, "zero-include build is unchanged and needs no host");
 });
 
@@ -6352,7 +6434,7 @@ await test("a source with no includes behaves exactly as before (no host needed)
 //
 // The hard requirement: a program that USES an include compiles to ONE source
 // with every included class spliced in, no `include` directive left, and every
-// body bare-name-resolved — so build()/render() run it with NO host.
+// body bare-name-resolved — so the runtime runs it with NO host.
 
 await test("compile() emits a self-contained source: no include directive, includes the class, builds hostless", async () => {
   const host = memHost({
@@ -6366,7 +6448,7 @@ await test("compile() emits a self-contained source: no include directive, inclu
   assert.match(r.source, /class Card extends View/, "(1) the included class is present");
   assert.match(r.source, /this\.w = other/, "(3) the included body's bare name resolved");
   // (c) the emitted source builds with NO host and instantiates the component.
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   assert.equal(app.children.length, 1, "hostless build instantiates the app tree");
   assert.equal(app.children[0].constructor.name, "Card", "…as the included class Card");
 });
@@ -6383,7 +6465,7 @@ await test("compile() emit: a diamond splices the shared file's class exactly on
   assert.equal((r.source.match(/class Shared extends View/g) ?? []).length, 1, "Shared appears exactly once");
   // dependency-first order: the base Shared precedes its subclasses B and C.
   assert.ok(r.source.indexOf("class Shared") < r.source.indexOf("class B"), "base above subclass");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   assert.deepEqual(app.children.map((c) => c.constructor.name), ["B", "C"], "both included subclasses instantiate hostless");
 });
 
@@ -6398,7 +6480,7 @@ await test("compile() emit: an included body's bare name is fully resolved (noth
   assert.equal(r.errors.length, 0, "compiles clean: " + r.report);
   // `gap` inside the named child's body means the enclosing class root's gap.
   assert.match(r.source, /text = \{ "" \+ classroot\.gap \}/, "the included nested body resolved to classroot.gap");
-  assert.doesNotThrow(() => build(r.source), "the emitted source is self-contained");
+  assert.doesNotThrow(() => buildProgram(r.program), "the emitted source is self-contained");
 });
 
 await test("compile() emit: collision across included files still reports (file-named)", async () => {
@@ -6423,12 +6505,12 @@ await test("compile() emit: a missing include still reports (file-named), no sou
 
 // ── States (docs/system-design/states.md): overrides, precedence, child subtree ───
 
-await test("state: a gated override applies and reverts to the base value", () => {
-  const app = build(`class Tile extends View [ width = 80, height = 40, fill = #111111,
+await test("state: a gated override applies and reverts to the base value", async () => {
+  const app = buildProgram(await compiled(`class Tile extends View [ width = 80, height = 40, fill = #111111,
       editing: boolean = false,
       grow: State [ applied = { parent.editing }, height = 200, fill = #222222 ],
     ]
-    App [ width = 100, height = 100, card: Tile [] ]`);
+    App [ width = 100, height = 100, card: Tile [] ]`));
   const card = app.card;
   assert.equal(card.height, 40, "base height before apply");
   assert.equal(card.fill, 0x111111, "base fill before apply");
@@ -6442,13 +6524,13 @@ await test("state: a gated override applies and reverts to the base value", () =
   assert.equal(card.fill, 0x111111, "fill reverts to base on remove");
 });
 
-await test("state: declaration order is precedence — later-declared wins, both insert orders", () => {
-  const app = build(`class Btn extends View [ width = 50, height = 20, fill = #000000,
+await test("state: declaration order is precedence — later-declared wins, both insert orders", async () => {
+  const app = buildProgram(await compiled(`class Btn extends View [ width = 50, height = 20, fill = #000000,
       hot: boolean = false, disabled: boolean = false,
       hover: State [ applied = { parent.hot }, fill = #00FF00 ],
       off:   State [ applied = { parent.disabled }, fill = #FF0000 ],
     ]
-    App [ width = 100, height = 100, b: Btn [] ]`);
+    App [ width = 100, height = 100, b: Btn [] ]`));
   const b = app.b;
   assert.equal(b.fill, 0x000000, "base");
   // lower (hover) first, then higher (off) displaces it on top
@@ -6471,14 +6553,14 @@ await test("state: declaration order is precedence — later-declared wins, both
   assert.equal(b.fill, 0x000000, "base restored");
 });
 
-await test("state: a structural state adds and tears down a child subtree", () => {
-  const app = build(`class Disc extends View [ width = 100, height = 20, fill = #EEEEEE,
+await test("state: a structural state adds and tears down a child subtree", async () => {
+  const app = buildProgram(await compiled(`class Disc extends View [ width = 100, height = 20, fill = #EEEEEE,
       open: boolean = false,
       opened: State [ applied = { parent.open },
         detail: View [ width = 90, height = 10, fill = #123456 ],
       ],
     ]
-    App [ width = 100, height = 100, d: Disc [] ]`);
+    App [ width = 100, height = 100, d: Disc [] ]`));
   const d = app.d;
   const viewKids = () => d.children.filter((c) => c instanceof View);
   assert.equal(viewKids().length, 0, "no detail before apply (the state node is non-View)");
@@ -6492,11 +6574,11 @@ await test("state: a structural state adds and tears down a child subtree", () =
   assert.equal(d.detail, undefined, "named member dropped on remove");
 });
 
-await test("state: the verbs apply/remove/toggle drive an ungated state imperatively", () => {
-  const app = build(`class Panel extends View [ width = 80, height = 40,
+await test("state: the verbs apply/remove/toggle drive an ungated state imperatively", async () => {
+  const app = buildProgram(await compiled(`class Panel extends View [ width = 80, height = 40,
       edit: State [ height = 200 ],
     ]
-    App [ width = 100, height = 100, p: Panel [] ]`);
+    App [ width = 100, height = 100, p: Panel [] ]`));
   const p = app.p;
   assert.equal(p.height, 40, "base");
   p.edit.apply();
@@ -6510,8 +6592,8 @@ await test("state: the verbs apply/remove/toggle drive an ungated state imperati
   assert.equal(p.height, 40, "toggle() off");
 });
 
-await test("state: a structural state attaches and destroys the child's SURFACE on a live tree", () => {
-  // The build()-based tests above prove model linkage; this proves the render
+await test("state: a structural state attaches and destroys the child's SURFACE on a live tree", async () => {
+  // The unattached tests above prove model linkage; this proves the render
   // path — buildChildren attaches the child's surface when the target is live,
   // and discard destroys it on remove. A mock RenderBackend counts surfaces
   // (every Surface method is a no-op except destroy, which decrements the live
@@ -6531,13 +6613,13 @@ await test("state: a structural state attaches and destroys the child's SURFACE 
     createSurface() { this.live++; return mockSurface(this); }
     attachRoot() {}
   }
-  const app = build(`class Disc extends View [ width = 100, height = 20, fill = #EEEEEE,
+  const app = buildProgram(await compiled(`class Disc extends View [ width = 100, height = 20, fill = #EEEEEE,
       open: boolean = false,
       opened: State [ applied = { parent.open },
         detail: View [ width = 90, height = 10, fill = #123456 ],
       ],
     ]
-    App [ width = 100, height = 100, d: Disc [] ]`);
+    App [ width = 100, height = 100, d: Disc [] ]`));
   const backend = new MockBackend();
   app.$attach(backend, null);
   const base = backend.live;
@@ -6549,18 +6631,18 @@ await test("state: a structural state attaches and destroys the child's SURFACE 
   assert.equal(backend.live, base, "the detail surface is destroyed on remove");
 });
 
-await test("state: a subtree built during the push sweep leaves the sweep's other pushes intact", () => {
+await test("state: a subtree built during the push sweep leaves the sweep's other pushes intact", async () => {
   // The kernel's written cells reach their surfaces in one sweep at the settle's
   // close. A State applying in that sweep builds its subtree there, and the
   // subtree's own kernel-landed gates drain the written-cell list again; the
   // outer sweep must still push every cell it was handed.
-  const app = build(`class Tile extends View [ height = 20, wide: boolean = true,
+  const app = buildProgram(await compiled(`class Tile extends View [ height = 20, wide: boolean = true,
       w: State [ applied = { classroot.wide }, r: View [ width = 100%, height = 10 ] ] ]
     App [ width = 400, height = 400, n: number = 0,
       s: State [ applied = { parent.n > 0 }, box: View [ width = 300, c1: Tile [ width = 100 ], c2: Tile [ width = 100 ] ] ],
       a: View [ width = { parent.n * 2 }, height = 5 ],
       b: View [ width = { parent.n * 3 }, height = 5 ],
-      c: View [ width = { parent.n * 4 }, height = 5 ] ]`);
+      c: View [ width = { parent.n * 4 }, height = 5 ] ]`));
   app.$attach(new CanvasBackend(), null);
   app.n = 10;
   settle();
@@ -6569,11 +6651,11 @@ await test("state: a subtree built during the push sweep leaves the sweep's othe
   assert.equal(app.box.c1.r.$surface.width, 100, "the nested subtree's own push");
 });
 
-await test("state: a gated state rejects the verbs (gate XOR verbs)", () => {
-  const app = build(`class Gated extends View [ width = 80, height = 40, on: boolean = false,
+await test("state: a gated state rejects the verbs (gate XOR verbs)", async () => {
+  const app = buildProgram(await compiled(`class Gated extends View [ width = 80, height = 40, on: boolean = false,
       s: State [ applied = { parent.on }, height = 200 ],
     ]
-    App [ width = 100, height = 100, g: Gated [] ]`);
+    App [ width = 100, height = 100, g: Gated [] ]`));
   assert.throws(() => app.g.s.apply(), /bound by a constraint/, "apply() on a gated state errors");
   assert.throws(() => app.g.s.toggle(), /bound by a constraint/, "toggle() too");
 });
@@ -6760,23 +6842,23 @@ await test("keys: clearHeld releases everything and disarms chords", () => {
 
 // ── Focus service (docs/system-design/input.md, Layer 2) ──────────────────────────
 
-await test("focus: the default sequence is tree preorder of focusable+visible views", () => {
+await test("focus: the default sequence is tree preorder of focusable+visible views", async () => {
   Focus.reset();
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     a: View [ focusable = true ],
     group: View [ b: View [ focusable = true ], c: View [ focusable = true ] ],
     d: View [ focusable = true ],
-  ]`);
+  ]`));
   Focus.setRoot(app);
   assert.deepEqual(Focus.sequenceFor(null), [app.a, app.group.b, app.group.c, app.d],
     "non-focusable container descended, focusables in source order");
 });
 
-await test("focus: next / prev step through the sequence and cycle", () => {
+await test("focus: next / prev step through the sequence and cycle", async () => {
   Focus.reset();
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     a: View [ focusable = true ], b: View [ focusable = true ], c: View [ focusable = true ],
-  ]`);
+  ]`));
   Focus.setRoot(app);
   Focus.focus(app.a);
   assert.equal(Focus.getFocus(), app.a);
@@ -6786,26 +6868,26 @@ await test("focus: next / prev step through the sequence and cycle", () => {
   Focus.prev(); assert.equal(Focus.getFocus(), app.c, "prev wraps back");
 });
 
-await test("focus: a tabOrder() override reorders a container's members", () => {
+await test("focus: a tabOrder() override reorders a container's members", async () => {
   Focus.reset();
-  const app = build(`class Rev extends View [ width = 50, height = 50,
+  const app = buildProgram(await compiled(`class Rev extends View [ width = 50, height = 50,
       tabOrder() { return [this.c, this.b] },
       b: View [ focusable = true ], c: View [ focusable = true ],
     ]
-    App [ width = 100, height = 100, r: Rev [] ]`);
+    App [ width = 100, height = 100, r: Rev [] ]`));
   Focus.setRoot(app);
   assert.deepEqual(Focus.sequenceFor(null), [app.r.c, app.r.b], "override reverses b/c");
 });
 
-await test("focus: a focusTrap bounds the group, cycles within, and escapes at the edge", () => {
+await test("focus: a focusTrap bounds the group, cycles within, and escapes at the edge", async () => {
   Focus.reset();
   globalThis.__esc = 0;
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`${TALLY}App [ width = 100, height = 100,
     a: View [ focusable = true ],
-    dialog: View [ focusTrap = true, onEscapeFocus() { globalThis.__esc = globalThis.__esc + 1 },
+    dialog: View [ focusTrap = true, onEscapeFocus() { hit("__esc") },
       p: View [ focusable = true ], q: View [ focusable = true ] ],
     b: View [ focusable = true ],
-  ]`);
+  ]`));
   Focus.setRoot(app);
   assert.deepEqual(Focus.sequenceFor(app.a), [app.a, app.b], "the trap's contents are excluded from the outer group");
   Focus.focus(app.dialog.p);
@@ -6814,11 +6896,11 @@ await test("focus: a focusTrap bounds the group, cycles within, and escapes at t
   assert.equal(globalThis.__esc, 1, "onEscapeFocus fired at the boundary");
 });
 
-await test("focus: byKeyboard() — the focus-visible modality: Tab sets it, a direct focus clears it", () => {
+await test("focus: byKeyboard() — the focus-visible modality: Tab sets it, a direct focus clears it", async () => {
   Focus.reset();
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     a: View [ focusable = true ], b: View [ focusable = true ],
-  ]`);
+  ]`));
   Focus.setRoot(app);
   Focus.focus(app.a);
   assert.equal(Focus.byKeyboard(), false, "a pointer/programmatic focus is not keyboard modality");
@@ -6845,7 +6927,7 @@ await test("contentHeight over a replication-populated container re-derives on A
     t: Text [ text = "x" ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = build(r.source, { deps: r.deps });
+  const app = buildProgram(r.program);
   settle();
   assert.equal(app.panel.height, 30, "one row of 20 -> 30");
   app.n = 2;
@@ -6880,7 +6962,7 @@ await test("a Text's contentWidth measures its glyphs and re-measures on a bound
       t: Text [ text = { app.label } ] ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.ok(app.pill.t.contentWidth > 0, `Text.contentWidth reflects glyphs (was the base 0), got ${app.pill.t.contentWidth}`);
     const narrow = app.pill.width;
@@ -6902,7 +6984,7 @@ await test("Text.lineHeight: a fontSize multiplier drives wrapped height, conten
     b: Text [ width = 120, fontSize = 16, lineHeight = 1.5, text = "a paragraph long enough to wrap onto several lines for the measure" ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.ok(app.a.height > 16, `the natural paragraph wrapped (${app.a.height})`);
     assert.ok(app.b.height > app.a.height * 1.1,
@@ -6917,14 +6999,14 @@ await test("Text.lineHeight: a fontSize multiplier drives wrapped height, conten
   }
 });
 
-await test("createView: imperative creation by name — a full citizen, loudly-checked names", () => {
-  const app = build(`class Chip extends View [ width = 30, height = 10,
+await test("createView: imperative creation by name — a full citizen, loudly-checked names", async () => {
+  const app = buildProgram(await compiled(`class Chip extends View [ width = 30, height = 10,
     label: string = "",
     t: Text [ text = { classroot.label } ],
   ]
 App [ width = 200, height = 100,
   slot: View [ x = 10, y = 10, width = 100, height = 60 ],
-]`);
+]`));
   const made = app.slot.createView("Chip", { label: "made", x: 5 });
   assert.equal(made.constructor.name, "Chip");
   assert.equal(app.slot.children[app.slot.children.length - 1], made, "inserted LAST among the parent's children");
@@ -6961,7 +7043,7 @@ await test("one geometry: scale/rotation compose into layout, auto-size, and the
     t: Text [ text = "x" ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   // A: 120 + 10 + 60 + 10 → c at 200; run 320 wide, 120 tall
   assert.equal(app.row.c.x, 200, "the scaled child's slot is its footprint");
   assert.equal(app.row.width, 320, "auto-size packs the footprints");
@@ -6994,7 +7076,7 @@ await test("createView/discard notify: auto-size engages on an EMPTY parent; lay
     t: Text [ text = "x" ],
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   app.empty.createView("View", { width: 50, height: 40 });
   settle();
   assert.equal(app.empty.width, 50, "auto-size engages on imperative arrival into an empty parent");
@@ -7063,9 +7145,9 @@ await test("focus: byKeyboard() is a TRACKED read — a styling constraint follo
   // reads Focus.byKeyboard(), so a modality flip re-derives it — including a
   // pointer press on an already-keyboard-focused control (edge must vanish).
   Focus.reset();
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     a: View [ focusable = true ], b: View [ focusable = true ],
-  ]`);
+  ]`));
   Focus.setRoot(app);
   const { Constraint } = await import("../runtime/dist/reactive.js");
   const seen = [];
@@ -7081,17 +7163,17 @@ await test("focus: byKeyboard() is a TRACKED read — a styling constraint follo
   assert.deepEqual(seen, [false, true, false], "the press re-derived the edge away");
 });
 
-await test("focus: two apps on one page — Tab cycles within the focused view's OWN tree", () => {
+await test("focus: two apps on one page — Tab cycles within the focused view's OWN tree", async () => {
   // The embedded-preview case: the page's rootView is the HOST app, but focus
   // sits in a second tree (the child app). Tab must cycle within the child,
   // never jump to the host's first stop (the docs editor bug).
   Focus.reset();
-  const host = build(`App [ width = 100, height = 100,
+  const host = buildProgram(await compiled(`App [ width = 100, height = 100,
     editor: View [ focusable = true ], other: View [ focusable = true ],
-  ]`);
-  const child = build(`App [ width = 50, height = 50,
+  ]`));
+  const child = buildProgram(await compiled(`App [ width = 50, height = 50,
     p: View [ focusable = true ], q: View [ focusable = true ],
-  ]`);
+  ]`));
   Focus.setRoot(host); // the top-level app owns the page's focus root
   Focus.focus(child.p);
   Focus.next(); assert.equal(Focus.getFocus(), child.q, "Tab stays in the child app");
@@ -7101,13 +7183,13 @@ await test("focus: two apps on one page — Tab cycles within the focused view's
   assert.equal(Focus.getFocus(), null, "a discarded child's focus is dropped, not moved to the host's editor");
 });
 
-await test("focus: keyboard delivery — Tab traverses, other keys reach the focused view", () => {
+await test("focus: keyboard delivery — Tab traverses, other keys reach the focused view", async () => {
   Focus.reset();
   globalThis.__k = [];
-  const app = build(`App [ width = 100, height = 100,
-    a: View [ focusable = true, onKeyDown(e: KeyEvent) { globalThis.__k.push("a:" + e.code) } ],
-    b: View [ focusable = true, onKeyDown(e: KeyEvent) { globalThis.__k.push("b:" + e.code) } ],
-  ]`);
+  const app = buildProgram(await compiled(`${TALLY}App [ width = 100, height = 100,
+    a: View [ focusable = true, onKeyDown(e: KeyEvent) { note("__k", "a:" + e.code) } ],
+    b: View [ focusable = true, onKeyDown(e: KeyEvent) { note("__k", "b:" + e.code) } ],
+  ]`));
   Focus.setRoot(app);
   Focus.focus(app.a);
   const K = new KeysService();
@@ -7120,11 +7202,11 @@ await test("focus: keyboard delivery — Tab traverses, other keys reach the foc
   assert.deepEqual(globalThis.__k, ["a:KeyH", "b:KeyJ"], "keys follow focus");
 });
 
-await test("focus: discarding the focused subtree moves focus to a live neighbor", () => {
+await test("focus: discarding the focused subtree moves focus to a live neighbor", async () => {
   Focus.reset();
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     a: View [ focusable = true ], b: View [ focusable = true ],
-  ]`);
+  ]`));
   Focus.setRoot(app);
   Focus.focus(app.b);
   assert.equal(Focus.getFocus(), app.b);
@@ -7137,11 +7219,11 @@ await test("focus: discarding the focused subtree moves focus to a live neighbor
 const lastSpec = (log) => log.filter((e) => e[0] === "setEditable").at(-1)?.[1];
 const activations = (log) => log.filter((e) => e[0] === "activateEditable").map((e) => e[1]);
 
-await test("textinput: installs a native editable spec and is focusable by default", () => {
+await test("textinput: installs a native editable spec and is focusable by default", async () => {
   const log = [];
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     inp: TextInput [ text = "hi", placeholder = "name" ],
-  ]`);
+  ]`));
   app.$attach(mockBackend(log), null);
   const spec = lastSpec(log);
   assert.equal(spec.value, "hi");
@@ -7151,33 +7233,33 @@ await test("textinput: installs a native editable spec and is focusable by defau
   assert.equal(app.inp.focusable, true, "a TextInput is a tab stop by default");
 });
 
-await test("textinput: spellcheck = false carries to the editable spec (code field)", () => {
+await test("textinput: spellcheck = false carries to the editable spec (code field)", async () => {
   const log = [];
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     code: TextInput [ text = "x", multiline = true, spellcheck = false ],
-  ]`);
+  ]`));
   app.$attach(mockBackend(log), null);
   const spec = lastSpec(log);
   assert.equal(spec.multiline, true);
   assert.equal(spec.spellcheck, false, "a code field turns native squiggles off");
 });
 
-await test("textinput: a native edit updates the model text and fires input", () => {
+await test("textinput: a native edit updates the model text and fires input", async () => {
   const log = [];
   globalThis.__inp = [];
-  const app = build(`App [ width = 100, height = 100,
-    inp: TextInput [ text = "hi", onInput(v: string) { globalThis.__inp.push(v) } ],
-  ]`);
+  const app = buildProgram(await compiled(`${TALLY}App [ width = 100, height = 100,
+    inp: TextInput [ text = "hi", onInput(v: string) { note("__inp", v) } ],
+  ]`));
   app.$attach(mockBackend(log), null);
   lastSpec(log).onInput("hello");
   assert.equal(app.inp.text, "hello", "the native value flows to the model");
   assert.deepEqual(globalThis.__inp, ["hello"], "the input event fired with the value");
 });
 
-await test("textinput: Declare focus activates the native caret, blur deactivates", () => {
+await test("textinput: Declare focus activates the native caret, blur deactivates", async () => {
   Focus.reset();
   const log = [];
-  const app = build(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`);
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`));
   app.$attach(mockBackend(log), null);
   Focus.setRoot(app);
   Focus.focus(app.inp);
@@ -7186,10 +7268,10 @@ await test("textinput: Declare focus activates the native caret, blur deactivate
   assert.equal(activations(log).at(-1), false, "blur takes it away");
 });
 
-await test("textinput: a native focus routes back to Declare focus", () => {
+await test("textinput: a native focus routes back to Declare focus", async () => {
   Focus.reset();
   const log = [];
-  const app = build(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`);
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`));
   app.$attach(mockBackend(log), null);
   Focus.setRoot(app);
   const spec = lastSpec(log);
@@ -7406,7 +7488,7 @@ await test("the fetch host never memoizes a MISS: one blocked request does not p
 const KEY_DOWN_ARROW = { code: "ArrowDown", key: "ArrowDown", shift: false, ctrl: false, alt: false, meta: false, repeat: false };
 
 // Subscription bodies use `app` — a COMPILE-time resolution (R6) — so these
-// route through the full pipeline, not the runtime-only build() helper.
+// route through the full pipeline.
 async function compileAndBoot(src) {
   const r = await compile(src, {});
   assert.notEqual(r.source, null, "compiles: " + r.errors.map((e) => e.message).join("; "));
@@ -7481,12 +7563,12 @@ await test("sources: a source member does not collide with `<->` lexing", async 
 
 // ── interaction intrinsics: hovered/pressed (interaction.ts) ─────────────────
 
-await test("hovered: the hit chain — leaf and ancestors, updated by pointer writes", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("hovered: the hit chain — leaf and ancestors, updated by pointer writes", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hb: boolean = { this.b.hovered },
     b: View [ x = 50, y = 50, width = 60, height = 40,
         t: Text [ x = 10, y = 10, text = "hi" ] ],
-    ]`);
+    ]`));
   app.hovering = true; settle();
   assert.equal(app.hb, false, "no pointer yet");
   app.pointerX = 60; app.pointerY = 60; settle();
@@ -7495,13 +7577,13 @@ await test("hovered: the hit chain — leaf and ancestors, updated by pointer wr
   assert.equal(app.hb, false, "moved off");
 });
 
-await test("hovered: occlusion — a covering view suppresses the chain; pointerEvents none falls through", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("hovered: occlusion — a covering view suppresses the chain; pointerEvents none falls through", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hb: boolean = { this.b.hovered },
     glassOn: boolean = true,
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
     glass: View [ width = 200, height = 200, visible = { parent.glassOn } ],
-    ]`);
+    ]`));
   app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
   assert.equal(app.hb, false, "glass over b: b is not on the chain");
   app.glass.pointerEvents = "none"; settle();
@@ -7510,11 +7592,11 @@ await test("hovered: occlusion — a covering view suppresses the chain; pointer
   assert.equal(app.hb, true, "invisible glass never hits");
 });
 
-await test("pressed: down arms the chain snapshot; drag-off releases; drag-back re-arms; up clears", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("pressed: down arms the chain snapshot; drag-off releases; drag-back re-arms; up clears", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     pb: boolean = { this.b.pressed },
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
-    ]`);
+    ]`));
   app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
   app.pointerDown = true; settle();
   assert.equal(app.pb, true, "pressed on down over b");
@@ -7526,11 +7608,11 @@ await test("pressed: down arms the chain snapshot; drag-off releases; drag-back 
   assert.equal(app.pb, false, "up clears");
 });
 
-await test("hovered: geometry moving under a STATIONARY pointer re-fires (the walk's reads are deps)", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("hovered: geometry moving under a STATIONARY pointer re-fires (the walk's reads are deps)", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hb: boolean = { this.b.hovered },
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
-    ]`);
+    ]`));
   app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
   assert.equal(app.hb, true);
   app.b.x = 150; settle();                       // the view leaves; the pointer never moved
@@ -7539,12 +7621,12 @@ await test("hovered: geometry moving under a STATIONARY pointer re-fires (the wa
   assert.equal(app.hb, true, "and back");
 });
 
-await test("interaction on touch: no hover, but pressed works while down", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("interaction on touch: no hover, but pressed works while down", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hb: boolean = { this.b.hovered },
     pb: boolean = { this.b.pressed },
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
-    ]`);
+    ]`));
   app.hovering = false;                           // a touch has no hover
   app.pointerX = 60; app.pointerY = 60; settle();
   assert.equal(app.hb, false, "no hover on touch");
@@ -7554,13 +7636,13 @@ await test("interaction on touch: no hover, but pressed works while down", () =>
   assert.equal(app.pb, false);
 });
 
-await test("hovered: an ignoreClip child hits OUTSIDE its clipping parent's box (the resize-halo shape)", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("hovered: an ignoreClip child hits OUTSIDE its clipping parent's box (the resize-halo shape)", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hh: boolean = { this.win.halo.hovered },
     hw: boolean = { this.win.hovered },
     win: View [ x = 50, y = 50, width = 60, height = 40, clip = true,
         halo: View [ ignoreClip = true, x = -10, y = -10, width = 80, height = 60 ] ],
-    ]`);
+    ]`));
   app.hovering = true;
   app.pointerX = 45; app.pointerY = 45; settle();   // outside win's box, inside the halo's reach
   assert.equal(app.hh, true, "the opted-out chrome still hits beyond the clip");
@@ -7569,19 +7651,19 @@ await test("hovered: an ignoreClip child hits OUTSIDE its clipping parent's box 
   assert.equal(app.hh, false);
 });
 
-await test("hovered/pressed under the PAGE scroll — the walk's transform carries the scroll term", () => {
+await test("hovered/pressed under the PAGE scroll — the walk's transform carries the scroll term", async () => {
   // The scroll-blind-walk bug (measured 2026-07-30): app.pointerX/Y are
   // viewport coordinates — the root's FRAME — while children sit in content
   // coordinates. The transform adds the scroll back per level; every view
   // below the fold presses where it PAINTS, and ignoreScroll chrome (which
   // rides the frame) keeps hitting at its unshifted place.
-  const app = build(`App [ width = 200, height = 200,
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hd: boolean = { this.deep.hovered },
     pd: boolean = { this.deep.pressed },
     hbar: boolean = { this.bar.hovered },
     bar: View [ ignoreScroll = true, width = 200, height = 20 ],
     deep: View [ x = 50, y = 900, width = 60, height = 40 ],
-    ]`);
+    ]`));
   app.hovering = true; app.scrollY = 880; settle();
   app.pointerX = 60; app.pointerY = 40; settle();       // viewport 40 = content 920 → inside deep
   assert.equal(app.hd, true, "a below-the-fold view hovers at its painted position");
@@ -7595,24 +7677,24 @@ await test("hovered/pressed under the PAGE scroll — the walk's transform carri
   assert.equal(app.hbar, true, "chrome unmoved");
 });
 
-await test("hovered: scrolling under a STATIONARY pointer re-fires (the offset is a dependency)", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("hovered: scrolling under a STATIONARY pointer re-fires (the offset is a dependency)", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hd: boolean = { this.deep.hovered },
     deep: View [ x = 50, y = 250, width = 60, height = 40 ],
-    ]`);
+    ]`));
   app.hovering = true; app.pointerX = 60; app.pointerY = 100; settle();
   assert.equal(app.hd, false, "below the fold, unscrolled");
   app.scrollY = 170; settle();                          // content 270 slides under the pointer
   assert.equal(app.hd, true, "the scroll alone re-derived the chain");
 });
 
-await test("hovered in a scrolled PANE — frame-space at every level, and the pane bounds its subtree", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("hovered in a scrolled PANE — frame-space at every level, and the pane bounds its subtree", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     hi: boolean = { this.pane.inner.hovered },
     pane: View [ x = 20, y = 20, width = 100, height = 100, scrolls = y,
         inner: View [ x = 0, y = 400, width = 100, height = 40 ],
         tall: View [ x = 0, y = 800, width = 100, height = 10 ] ],
-    ]`);
+    ]`));
   app.hovering = true;
   app.pointerX = 60; app.pointerY = 50; settle();       // pane-frame (40,30); content 30 → nothing
   assert.equal(app.hi, false, "unscrolled: inner is 400px down the pane's content");
@@ -7622,10 +7704,10 @@ await test("hovered in a scrolled PANE — frame-space at every level, and the p
   assert.equal(app.hi, false, "the pane bounds its subtree at its frame — no hits past the edge");
 });
 
-await test("viewAt/containsPoint keep the CONTENT-space contract at any scroll (the drag pairing)", () => {
-  const app = build(`App [ width = 200, height = 200,
+await test("viewAt/containsPoint keep the CONTENT-space contract at any scroll (the drag pairing)", async () => {
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     deep: View [ x = 50, y = 900, width = 60, height = 40 ],
-    ]`);
+    ]`));
   app.scrollY = 880; settle();
   // Drag events carry root-CONTENT coordinates; viewAt takes exactly those.
   assert.equal(app.viewAt(60, 920), app.deep, "viewAt answers in content space, scrolled");
@@ -7642,11 +7724,11 @@ await test("explainHit narrates WHY a point resolved — the walk's own decision
   // from the router's real answer — and being backend-neutral, it is the same
   // answer over the DOM bridge, the canvas host, and the native `eval`.
   const { explainHit } = await import("../runtime/dist/inspect.js");
-  const app = build(`App [ width = 200, height = 200,
+  const app = buildProgram(await compiled(`App [ width = 200, height = 200,
     box:  View [ x = 20, y = 20, width = 100, height = 100 ],
     gone: View [ x = 40, y = 40, width = 40, height = 40, visible = false ],
     dot:  View [ x = 40, y = 40, width = 40, height = 40, pointerEvents = "none" ],
-    ]`);
+    ]`));
   settle();
   const r = explainHit(app, 50, 50);
   // the pointer-transparent dot and the invisible sibling are both SKIPPED, each
@@ -7659,17 +7741,17 @@ await test("explainHit narrates WHY a point resolved — the walk's own decision
     "the narration and viewAt cannot disagree — they are one walk");
 });
 
-await test("rootOrigin + the focus follower: geometry is scroll-true (ONE WALK, everywhere)", () => {
+await test("rootOrigin + the focus follower: geometry is scroll-true (ONE WALK, everywhere)", async () => {
   // The scroll-blind focus ring (found 2026-07-31): the follower hand-summed
   // ancestor x/y, so a control inside a scrolled pane wore its ring a full
   // scrollY away. Both now ride interaction.ts's walk: an intermediate pane's
   // scroll subtracts (the control moved on screen), the root's own scroll adds
   // back (ring and control share the root's content space) — and the scroll
   // read is a DEPENDENCY, so scrolling re-fires the follower live.
-  const app = build(`App [ width = 200, height = 300,
+  const app = buildProgram(await compiled(`App [ width = 200, height = 300,
     pane: View [ x = 20, y = 30, width = 160, height = 200, scrolls = y,
         deep: View [ x = 10, y = 400, width = 60, height = 24 ] ],
-    ]`);
+    ]`));
   settle();
   assert.deepEqual(app.pane.deep.rootOrigin(), { x: 30, y: 430 }, "unscrolled: plain accumulation");
   app.pane.scrollY = 380; settle();
@@ -7754,24 +7836,39 @@ await test("typed bodies: a cast SHARING a body with a :path island strips and r
   assert.equal(app.card.m.text, "pin", "a cast TYPE containing a colon does not confuse the island scan");
 });
 
-await test("typed bodies: TS-only forms that CANNOT run are rejected at check with the rule named", async () => {
+// A body is TypeScript: annotations, generics, local types and the constructs
+// TypeScript compiles (an enum, a class) are written as TypeScript writes
+// them — checked, then stripped or compiled before the body runs.
+await test("typed bodies: annotations, generics, local types, enums and classes are TypeScript as written", async () => {
   const cases = [
-    [`App [ width=1, height=1, t: Text [ text = { [1,2].map((x: number) => x + 1).join(":") } ] ]`,
-      /annotates a name \('x'\).*cast narrows/],
-    [`App [ width=1, height=1, n: number = 0, onClick() { const k: number = 2; n = k } ]`,
-      /annotates a name \('k'\)/],
-    [`App [ width=1, height=1, n: number = 0, onClick() { type K = number; n = 2 } ]`,
-      /declares a type — type declarations don't live in a \{ \} body/],
-    [`App [ width=1, height=1, t: Text [ text = { (<T>(x: T) => x)("hi") } ] ]`,
-      /type parameter|annotates a name/],
-    [`App [ width=1, height=1, t: Text [ text = { ((x?) => "" + x)(1) } ] ]`,
-      /annotates a name \('x'\)/],
+    [`t: Text [ text = { [1,2].map((x: number) => x + 1).join(":") } ]`, (a) => a.t.text, "2:3"],
+    [`t: Text [ text = { (<T,>(x: T): T => x)("hi") } ]`, (a) => a.t.text, "hi"],
+    [`t: Text [ text = { ((x?: number) => "" + (x ?? 0))() } ]`, (a) => a.t.text, "0"],
+    [`n: number = 0, onInit() { const k: number = 2; type K = { v: number }; const o: K = { v: k }; n = o.v }`, (a) => a.n, 2],
+    [`n: number = 0, onInit() { enum E { A = 3, B } n = E.B }`, (a) => a.n, 4],
+    [`n: number = 0, onInit() { class C { private x: number; constructor(public y: number) { this.x = y * 2 } get v(): number { return this.x } } n = new C(5).v }`, (a) => a.n, 10],
   ];
-  for (const [src, re] of cases) {
+  for (const [members, read, want] of cases) {
+    const src = `App [ width=1, height=1, ${members} ]`;
     const r = await compile(src, {});
-    assert.equal(r.source, null, "must be rejected: " + src);
-    assert.match(r.errors.map((e) => e.message).join("\n"), re, src);
+    assert.notEqual(r.source, null, src + " — " + r.errors.map((e) => e.message).join("; "));
+    const app = instantiate(parseProgram(r.source));
+    settle();
+    assert.equal(read(app), want, src);
+    app.discard();
   }
+});
+
+await test("typed bodies: TypeScript's optional marker is never read as a datapath, and a datapath ternary still is", async () => {
+  const r = await compile(`App [ width=1, height=1, d: Dataset { { "on": true, "title": "T" } },
+    w: View [ datapath = { app.d.value }, t: Text [ text = { :on ? :title : "—" } ] ],
+    n: number = 0, onInit() { const f = function (a?:number):number { return a ?? 7 }; n = f() } ]`, {});
+  assert.notEqual(r.source, null, r.errors.map((e) => e.message).join("; "));
+  const app = instantiate(parseProgram(r.source));
+  settle();
+  assert.equal(app.w.t.text, "T");
+  assert.equal(app.n, 7);
+  app.discard();
 });
 
 await test("typed bodies: casts beside islands in a STATEMENT body (handler) strip and run", async () => {
@@ -7942,7 +8039,7 @@ await test("settleHeadless: text measures and auto-extents settle without a DOM"
   // The approximate measurer (headless.ts) is enough to SETTLE any tree —
   // real numbers for auto-extents, deterministic on every host.
   const r = await compile(`App [ t: Text [ text = "hello measured world" ] ]`);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     const t = app.children[0];
     assert.ok(t.width > 0 && t.height > 0, `auto-extent computed headless (w ${t.width}, h ${t.height})`);
@@ -7983,9 +8080,9 @@ await test("E-series diagnostics name the fix: bare ident, layout-in-State, dott
   assert.equal(await msg(`App [ width=1, height=1, f(): number { return 1 } ]`), "");
   assert.equal(await msg(`App [ width=1, height=1, f(x: number) -> number { return x } ]`), "");
   assert.match(await msg(`App [ width=1, height=1, f(v: Nonsense) { return 1 } ]`),
-    /unknown type 'Nonsense' for parameter 'v'/);
+    /unknown type 'Nonsense' in 'Nonsense'/);
   assert.match(await msg(`App [ width=1, height=1, f(v: number) -> Nonsense { return v } ]`),
-    /unknown return type 'Nonsense'/);
+    /unknown type 'Nonsense' in 'Nonsense'/);
   // The recognition layer still reports ALL recovered TS-isms in one pass —
   // but a typed signature is no longer one of them, so this program's only
   // remaining diagnostic is the dotted member.
@@ -8018,7 +8115,7 @@ await test("location: a schema attr — settable in [ ], writable from handlers,
     go: View [ onClick() { app.location = "why" } ],
   ]`);
   assert.equal(r.errors.length, 0, "the literal [ ] form checks — location is a schema attr");
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.location, "home", "the declared initial (§3 default rule)");
     assert.equal(app.why.visible, false, "derived state follows the initial");
@@ -8050,7 +8147,7 @@ await test("@name reveal: heading slugs, named-view priority, -2 suffixes, held 
     md: Markdown [ width = 380, text = "# Intro\\n\\nbody text\\n\\n## Fine Details\\n\\nmore" ],
   ]`);
   assert.equal(r.errors.length, 0);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     app.location = "home@fine-details"; settle();
     assert.equal(app.$resolveReveal(), "fine-details", "a heading's slug resolves and reveals");
@@ -8074,7 +8171,7 @@ App [ width = 200, height = 200, location = "x",
     b: Spot [ width = 10, height = 10 ],
   ]`);
   assert.equal(r2b.errors.length, 0, "class-internal anchors don't collide in the registry");
-  const app2 = settleSource(r2b.source, { deps: r2b.deps });
+  const app2 = settleHeadless(r2b.program);
   try {
     app2.location = "x@sec"; settle();
     assert.equal(app2.$resolveReveal(), "sec", "first instance = the base name (preorder)");
@@ -8093,7 +8190,7 @@ App [ width = 200, height = 200, location = "x",
     md: Markdown [ width = 380, text = "# Intro\\n\\nbody" ],
   ]`);
   assert.equal(r3.errors.length, 0);
-  const app3 = settleSource(r3.source, { deps: r3.deps });
+  const app3 = settleHeadless(r3.program);
   try {
     app3.location = "x@intro"; settle();
     assert.equal(app3.$resolveReveal(), "intro", "a named view wins the base name");
@@ -8113,7 +8210,7 @@ await test("settleHeadless: network is refused, never initiated — the source l
     src: DataSource [ url = "https://declare-headless-must-not-fetch.invalid/x.json" ],
     onInit() { this.src.fetch() },
   ]`);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.src.loading, true, "t=0 snapshot: honestly absent, still loading");
     await new Promise((resolve) => setTimeout(resolve, 0)); // let the refusal land
@@ -8134,7 +8231,7 @@ await test("center/end: the geometric box on EVERY view — Text too (centering 
   ]`;
   const r = await compile(src, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   assert.equal(app.box.x, 150); assert.equal(app.box.y, 80);
   assert.equal(app.corner.x, 370); assert.equal(app.corner.y, 170);
   // Text y = center now centers the GEOMETRIC BOX, like every other view:
@@ -8151,7 +8248,7 @@ await test("center/end: reactive against parent resize (the literal is a standin
       box: View [ width = 100, height = 40, x = center, fill = navy ] ],
   ]`;
   const r = await compile(src, {});
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   assert.equal(app.inner.box.x, 100);
   app.inner.width = 500;
   settle();
@@ -8173,11 +8270,11 @@ await test("center/end: a size slot refuses the position literal, naming the rul
 // the effective font changes — the prevailing slots, so a provider's write
 // re-derives a consumer's read. `baseline` is the first line's baseline y.
 
-await test("Text metrics: ascent/descent/capHeight/xHeight/baseline are measured, ordered, and consistent", () => {
-  const app = build(`App [ width=400, height=200,
+await test("Text metrics: ascent/descent/capHeight/xHeight/baseline are measured, ordered, and consistent", async () => {
+  const app = buildProgram(await compiled(`App [ width=400, height=200,
     a: Text [ text="Title", fontSize=32 ],
     b: Text [ y=60, text="body", fontSize=16 ],
-    ]`);
+    ]`));
   const [a, b] = app.children;
   assert.ok(a.ascent > 0 && a.descent > 0, "metrics are positive");
   assert.equal(a.baseline, a.ascent, "the first baseline sits at the font ascent");
@@ -8186,13 +8283,13 @@ await test("Text metrics: ascent/descent/capHeight/xHeight/baseline are measured
   assert.ok(a.ascent > b.ascent, "a larger size measures a larger ascent");
 });
 
-await test("Text metrics are REACTIVE to the effective font — a constraint riding baseline follows a size change", () => {
+await test("Text metrics are REACTIVE to the effective font — a constraint riding baseline follows a size change", async () => {
   // The cross-size baseline-alignment idiom the metrics exist for: b's y
   // derives from both baselines; growing a's font re-derives it.
-  const app = build(`App [ width=400, height=200,
+  const app = buildProgram(await compiled(`App [ width=400, height=200,
     a: Text [ text="Title", fontSize=32 ],
     b: Text [ x=120, y={ parent.a.y + parent.a.baseline - this.baseline }, text="beside", fontSize=14 ],
-    ]`);
+    ]`));
   const [a, b] = app.children;
   const y0 = b.y;
   assert.ok(Math.abs(a.baseline - (y0 + b.baseline)) < 1e-9, "baselines aligned at build");
@@ -8221,7 +8318,7 @@ await test("visibility facts: the camera case — an ancestor's transform re-der
           visible = { app.world.card.onScreen } ],
       ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   const seen = () => app.readout.visible;
   const how = () => app.readout.opacity * 8;
   const what = () => app.readout.width;
@@ -8261,7 +8358,7 @@ await test("visibility facts: pay-per-use — an unbound view installs no comput
       plain: View [ x = 10, y = 10, width = 50, height = 50 ],
       ]`, {});
   assert.equal(r.errors.length, 0);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     // untracked reads see the resting defaults and arm nothing
     assert.equal(app.plain.onScreen, true);
@@ -8283,7 +8380,7 @@ App [ width = 100, height = 100,
   col: View [ datapath = { app.ds.value }, Row [ datapath = :items[] ] ]
   ]`, {});
   if (r.errors.length > 0) throw new DeclareErrors(r.errors);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   app.ds.insert(["items"], 0, { id: 1 });      // an arrival after boot — the replicator's pipeline
   settle();
   const row = app.col.children[0];
@@ -8356,13 +8453,13 @@ summarize("unit");
 
 // ── the device profile: three independent facts, none of them a guess ───────
 
-await test("device profile: the facts are read-only, and a hybrid is expressible", () => {
-  const app = build(`App [ width = 100, height = 100,
+await test("device profile: the facts are read-only, and a hybrid is expressible", async () => {
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     touchy: boolean = { this.touchDevice },
     floor:  boolean = { this.hasTouch },
     fine:   boolean = { this.hasPointer },
     live:   string  = { this.lastPointerType },
-    ]`);
+    ]`));
   settle();
   // the runtime feeds them (boot.ts); the defaults describe a plain desktop
   assert.equal(app.touchy, false);
@@ -8393,16 +8490,16 @@ await test("device profile: an app may not WRITE the profile (the runtime owns i
 
 // ── Time: the clock as a component (time.ts) — the per-frame door ─────────────
 
-await test("Time [ tick = frame ]: onTick(dt) is called per frame, with dt in SECONDS", () => {
+await test("Time [ tick = frame ]: onTick(dt) is called per frame, with dt in SECONDS", async () => {
   // the clock must be the fake one BEFORE the tree builds: a Time member
   // joins the clock at init (autoStart), like an animator
   const sched = fakeScheduler();
   setClock(new Clock(sched));
-  const app = build(`App [ width = 100, height = 100,
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     ticks: number = 0,
     elapsed: number = 0,
     f: Time [ tick = frame, onTick(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.elapsed = this.parent.elapsed + dt } ],
-    ]`);
+    ]`));
   settle();
   sched.frame(0);      // the first frame only establishes the baseline
   assert.equal(app.ticks, 0, "no step until there are two timestamps");
@@ -8413,14 +8510,14 @@ await test("Time [ tick = frame ]: onTick(dt) is called per frame, with dt in SE
   assert.equal(app.ticks, 2);
 });
 
-await test("Time: `running` gates the tick — a live slot, and dt never jumps on resume", () => {
-  const app = build(`App [ width = 100, height = 100,
+await test("Time: `running` gates the tick — a live slot, and dt never jumps on resume", async () => {
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
     go: boolean = false,
     ticks: number = 0,
     biggest: number = 0,
     f: Time [ tick = frame, running = { this.parent.go },
         onTick(dt: number) { this.parent.ticks = this.parent.ticks + 1; if (dt > this.parent.biggest) this.parent.biggest = dt } ],
-    ]`);
+    ]`));
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   settle();
@@ -8451,15 +8548,15 @@ const fakeTimeHost = (start) => {
 /** 10:15:42 local on Wednesday 2026-08-26 — 42s into a minute, so boundary math is checkable */
 const T0 = new Date(2026, 7, 26, 10, 15, 42, 0).getTime();
 
-await test("a derived Dataset inside a model class derives, re-derives on a write, and drives replication", () => {
-  const app = build(`schema Row [ n: number ]
+await test("a derived Dataset inside a model class derives, re-derives on a write, and drives replication", async () => {
+  const app = buildProgram(await compiled(`schema Row [ n: number ]
     class Log extends Node [
       sessions: Dataset { { "rows": [ { "n": 1 }, { "n": 2 } ] } },
       total() -> number { return (this.sessions.value?.rows ?? []).reduce((a, r) => a + r.n, 0) },
       week: Dataset [ schema = [ rows[]: Row, sum: number ], contents = { ({ rows: classroot.sessions.value?.rows ?? [], sum: classroot.total() }) } ]
       ]
     App [ width = 200, height = 200, log: Log [ ],
-      list: View [ datapath = { parent.log.week.value }, View [ datapath = :rows[], width = { :n * 10 }, height = 4 ] ] ]`);
+      list: View [ datapath = { parent.log.week.value }, View [ datapath = :rows[], width = { :n * 10 }, height = 4 ] ] ]`));
   settle();
   assert.equal(app.log.week.value.sum, 3, "the model's derived Dataset derived");
   assert.deepEqual(app.list.childViews.map((v) => v.width), [10, 20], "…and drives replication from outside the model");
@@ -8469,14 +8566,14 @@ await test("a derived Dataset inside a model class derives, re-derives on a writ
   app.discard();
 });
 
-await test("a MODEL CLASS starts its members as a view does — a Time ticks, an animator runs, a spring snaps to its first target", () => {
+await test("a MODEL CLASS starts its members as a view does — a Time ticks, an animator runs, a spring snaps to its first target", async () => {
   // The guide's Store/Log shape: sources and motion inside a class with no view
   // base. Its members used to get only `init`: a Time never armed (a live poll
   // silently never re-fetched), an animator never started.
   const h = fakeTimeHost(T0);
   setTimeHost(h);
   try {
-    const app = build(`class Model extends Node [
+    const app = buildProgram(await compiled(`class Model extends Node [
         ticks: number = 0,
         poll: Time [ tick = minute, onTick(dt: number) { classroot.ticks = classroot.ticks + 1 } ],
         target: number = 40,
@@ -8485,7 +8582,7 @@ await test("a MODEL CLASS starts its members as a view does — a Time ticks, an
         swept: number = 0,
         sweep: Animator [ attribute = swept, from = 0, to = 1, duration = 100, started = true ]
         ]
-      App [ width = 100, height = 100, model: Model [ ] ]`);
+      App [ width = 100, height = 100, model: Model [ ] ]`));
     settle();
     assert.equal(h.timers.length, 1, "the model's Time armed its alarm");
     h.fire(); settle();
@@ -8496,17 +8593,17 @@ await test("a MODEL CLASS starts its members as a view does — a Time ticks, an
   } finally { setTimeHost(null); }
 });
 
-await test("Time [ tick = minute ]: facts stand at boot, the alarm aims at the flip, a tracked read wakes there, an untracked read is live", () => {
+await test("Time [ tick = minute ]: facts stand at boot, the alarm aims at the flip, a tracked read wakes there, an untracked read is live", async () => {
   const h = fakeTimeHost(T0);
   setTimeHost(h);
   try {
-    const app = build(`App [ width = 100, height = 100,
+    const app = buildProgram(await compiled(`App [ width = 100, height = 100,
       clock: Time [ tick = minute, onTick(dt: number) { this.parent.ticks = this.parent.ticks + 1; this.parent.lastDt = dt } ],
       ticks: number = 0, lastDt: number = 0,
       // bound VIEW attributes: real constraints with cells (an App-level x: number = { ... }
       // is a per-read declaration default, which a JS read would evaluate untracked)
       m: View [ width = { this.parent.clock.minute } ], s: View [ width = { this.parent.clock.second } ],
-      ]`);
+      ]`));
     settle();
     assert.equal(app.m.width, 15, "the minute fact stands from the first settle");
     assert.equal(app.s.width, 42, "…and so does the second — as of the boot tick");
@@ -8530,16 +8627,16 @@ await test("Time [ tick = minute ]: facts stand at boot, the alarm aims at the f
   } finally { setTimeHost(null); }
 });
 
-await test("Time: nothing arms until something reads a fact or handles a tick; `running` is the live gate", () => {
+await test("Time: nothing arms until something reads a fact or handles a tick; `running` is the live gate", async () => {
   const h = fakeTimeHost(T0);
   setTimeHost(h);
   try {
-    const idle = build(`App [ width = 100, height = 100, clock: Time [ tick = second ] ]`);
+    const idle = buildProgram(await compiled(`App [ width = 100, height = 100, clock: Time [ tick = second ] ]`));
     settle();
     assert.equal(h.timers.length, 0, "no reader, no handler: no alarm (idle-zero)");
     assert.equal(idle.clock.second, 42, "…yet an untracked read is answered, live");
     idle.discard();
-    const app = build(`App [ width = 100, height = 100, clock: Time [ tick = second ], s: View [ width = { this.parent.clock.second } ] ]`);
+    const app = buildProgram(await compiled(`App [ width = 100, height = 100, clock: Time [ tick = second ], s: View [ width = { this.parent.clock.second } ] ]`));
     settle();
     assert.equal(h.timers.length, 1, "a tracked read arms the alarm");
     assert.equal(h.timers[0].ms, 1000, "the default tick is second, aligned");
@@ -8551,11 +8648,11 @@ await test("Time: nothing arms until something reads a fact or handles a tick; `
   } finally { setTimeHost(null); }
 });
 
-await test("Time: a hidden page pauses the tick; on return the facts refresh at once and the alarm re-aims", () => {
+await test("Time: a hidden page pauses the tick; on return the facts refresh at once and the alarm re-aims", async () => {
   const h = fakeTimeHost(T0);
   setTimeHost(h);
   try {
-    const app = build(`App [ width = 100, height = 100, clock: Time [ tick = minute ], m: View [ width = { this.parent.clock.minute } ] ]`);
+    const app = buildProgram(await compiled(`App [ width = 100, height = 100, clock: Time [ tick = minute ], m: View [ width = { this.parent.clock.minute } ] ]`));
     settle();
     assert.equal(h.timers.length, 1);
     app.pageVisible = false; settle();
@@ -8579,7 +8676,7 @@ await test("Time is subclassable: a class body formats the facts (numbers in, th
           text: string = { (this.hour % 12 == 0 ? 12 : this.hour % 12) + ":" + (this.minute < 10 ? "0" : "") + this.minute + (this.hour >= 12 ? " PM" : " AM") } ]
       App [ width = 100, height = 100, clock: Wall [ ], label: Text [ text = { app.clock.text } ] ]`);
     assert.deepEqual(r.errors.map((e) => e.message), []);
-    const app = settleSource(r.source, { deps: r.deps });
+    const app = settleHeadless(r.program);
     try {
       assert.equal(app.label.text, "10:15 AM");
       h.fire(); settle();
@@ -8604,7 +8701,7 @@ await test("afterSettle: the step runs at the close, after the handler's writes 
     measure() { app.seenWidth = app.grew.width },
   ]`);
   assert.equal(r.errors.length, 0, "afterSettle is in body scope and typechecks: " + (r.errors[0]?.message ?? ""));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.grew.width, 10);
     app.bump();
@@ -8622,7 +8719,7 @@ await test("afterSettle: a step that re-arms itself forever is caught with its o
     kick() { afterSettle(app.loop) },
   ]`);
   assert.equal(r.errors.length, 0);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     app.kick();
     assert.throws(() => settle(), /afterSettle: steps re-armed \d+ times in one settle/,
@@ -8638,7 +8735,7 @@ await test("onReady: fires once, at the close of the first settle, after geometr
     onReady() { app.readyWidth = app.col.width; app.readies = app.readies + 1 },
   ]`);
   assert.equal(r.errors.length, 0, "onReady is an admitted App event: " + (r.errors[0]?.message ?? ""));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     assert.equal(app.readyWidth, 100, "the handler read computed geometry, not defaults");
     assert.equal(app.readies, 1);
@@ -8656,7 +8753,7 @@ await test("onArrive: the landing to onFollow's door — anchorless, per follow,
     onArrive(target: View) { app.landedOn = target.shows; app.arrivals = app.arrivals + 1 },
   ]`);
   assert.equal(r.errors.length, 0, "onArrive(target: View) is an admitted App event: " + (r.errors[0]?.message ?? ""));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     app.follow("#detail");
     settle();
@@ -8675,7 +8772,7 @@ await test("onArrive: anchored — same waiting as the reveal, the measured view
     onArrive(target: View) { app.got = "arrived" },
   ]`);
   assert.equal(r.errors.length, 0);
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     app.location = "home@fine-details"; settle();
     assert.equal(app.$resolveReveal(), "fine-details", "resolution still reports the landing");
@@ -8719,7 +8816,7 @@ await test("app.reveal(target): the default landing stays callable from a handle
     onArrive(target: View) { app.reveal(target) },
   ]`);
   assert.equal(r.errors.length, 0, "reveal(target) typechecks in body scope: " + (r.errors[0]?.message ?? ""));
-  const app = settleSource(r.source, { deps: r.deps });
+  const app = settleHeadless(r.program);
   try {
     app.follow("#detail");
     settle(); // headless: the scroll is a no-op — composing it back must not throw

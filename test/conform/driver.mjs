@@ -32,8 +32,8 @@
 // platform's own arbitration — touch-action, scroll chaining, compositing —
 // which exists only in the browser and must stay in the browser suites.
 
-import { execFileSync } from "node:child_process";
 import { CTL_IN, CTL_OUT } from "../../mac-host/app.mjs";
+import { hostWindows } from "../../mac-host/win.mjs";
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 
 const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
@@ -212,8 +212,10 @@ export function macRequested() {
 }
 
 export function macLive() {
+  // win.mjs looks for this app's own windows: a variant app ("Declare Mac Overlay") owns
+  // them under its own name
   try {
-    return execFileSync(new URL("../../mac-host/winb", import.meta.url).pathname, { encoding: "utf8" }).trim() !== "";
+    return hostWindows().length > 0;
   } catch {
     return false;
   }

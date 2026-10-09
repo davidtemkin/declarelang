@@ -1,0 +1,700 @@
+// Asteroids — the game: what is on the field, and the rules that move it on by one frame,
+// 62.5 times a second.
+//
+// Every quantity is a whole number. The field is 8192 units across and 6144 up, and wraps
+// round at the edges; speeds are units a frame; directions are 256ths of a turn,
+// counterclockwise from the right. Given the same controls, the game unfolds exactly as it
+// did on the 1979 arcade machine, down to where every rock goes.
+//
+// The arcade has room for 27 rocks, 4 of the player's shots and 2 of the saucer's, and the
+// field holds that many of each, every one in play or not. The rules go through each list
+// in order, and something new takes the first one not in play. A rock out of play stays
+// where it was last seen, and comes back into play from there. Each one's `id` is its place
+// in its list, so the screen keeps one view for it from frame to frame.
+
+script {
+    function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
+    function wrap(v: number, size: number): number { return ((v % size) + size) % size }
+    }
+
+schema Rock [
+    id: number,
+    inPlay: boolean,
+    size: "large" | "medium" | "small",
+    shape: number,                      // one of four outlines
+    x: number, y: number,
+    vx: number, vy: number,
+    blast: number,                      // 0, or an explosion counting up from 160 to 255
+    drawn: boolean,                     // the beam drew it this frame
+    struck: boolean ]                   // hit after it was drawn, so drawn whole
+
+schema Shot [ id: number, inPlay: boolean, x: number, y: number, vx: number, vy: number,
+    life: number,                       // counts down every fourth frame
+    drawn: boolean ]
+
+schema Saucer [ inPlay: boolean, size: "large" | "small", x: number, y: number, vx: number, vy: number,
+    blast: number, struck: boolean ]
+
+schema Ship [
+    state: "waiting" | "flying" | "exploding" | "jumping",
+    x: number, y: number,
+    vx: number, vy: number,             // in 256ths of a unit a frame
+    heading: number,
+    wait: number,                       // frames until it tries to come back
+    landing: "safe" | "fatal",          // how a hyperspace jump will end
+    blast: number,
+    struck: boolean ]
+
+schema Playfield [ rocks[]: Rock, shots[]: Shot, saucerShots[]: Shot, saucer: Saucer, ship: Ship ]
+
+// what the rules share between rocks, shots, the saucer and the ship
+
+schema Moving [ x: number, y: number, vx: number, vy: number ]
+schema Breakable [ vx: number, vy: number, blast: number, struck: boolean ]
+
+schema Controls [ left: boolean, right: boolean, thrust: boolean, fire: boolean, hyperspace: boolean, start: boolean ]
+
+// A sound that plays for 16 frames once started; `pending` is a start that takes effect on
+// the next frame.
+
+schema Blip [ on: boolean, left: number, pending: boolean ]
+
+class Game extends Dataset [ schema = Playfield,
+    onInit() { this.powerOn() },
+
+    frame: number = 0,                  // frames since power-on, counting round at 65536
+    rand: number = 0,                   // the random generator's state
+    playing: boolean = false,
+    sinceStart: number = 0,             // frames since this game began
+    score: number = 0,
+    shipsLeft: number = 0,              // in reserve
+    waveSize: number = 2,
+    nextWaveIn: number = 0,             // frames until the next wave may come
+    fireWasDown: boolean = false,
+    thrustHeld: boolean = false,
+    saucerCountdown: number = 0,        // to the next saucer, then to its next shot
+    saucerInterval: number = 0,         // where that countdown starts: shorter with each saucer
+    saucerHoldback: number = 0,         // after a rock is hit, holds the next saucer back
+    holdbackRocks: number = 0,          // with fewer rocks than this, no holding back
+
+    // the sound board
+
+    shotSound: Blip = { { on: false, left: 0, pending: false } },
+    saucerShotSound: Blip = { { on: false, left: 0, pending: false } },
+    thrustSound: boolean = false,
+    boomPitch: "low" | "mid" | "high" = "low",
+    boomCount: number = 0,              // the explosion fades as this counts down from 63
+    extraShipTone: number = 0,
+    beating: boolean = false,           // the heartbeat
+    beatHigh: boolean = false,          // which of its two notes
+    beatOn: number = 0,
+    beatOff: number = 0,
+    beatGap: number = 0,                // shortens as a wave goes on
+
+    // where an exploding ship's six pieces are, in 256ths of a unit (x then y), and their speeds
+
+    debris: number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    debrisSpeeds: number[] = [-40, 30, 50, -20, 0, -60, 60, 20, 10, 70, -40, -40],
+
+    // a quarter turn of the sine in 65 steps, up to 127: thrust and shots follow it
+
+    sines: number[] = [0, 3, 6, 9, 12, 16, 19, 22, 25, 28, 31, 34, 37, 40, 43, 46, 49, 51, 54, 57,
+        60, 63, 65, 68, 71, 73, 76, 78, 81, 83, 85, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106,
+        107, 109, 111, 112, 113, 115, 116, 117, 118, 120, 121, 122, 122, 123, 124, 125, 125, 126,
+        126, 126, 127, 127, 127, 127],
+
+    // the direction for each sixteenth of the first eighth of a turn: a small saucer's aim
+
+    angles: number[] = [0, 2, 5, 7, 10, 12, 15, 17, 19, 21, 23, 25, 26, 28, 29, 31],
+
+    // What the player is looking at. Between games, the high scores and the field take turns
+    // of 1024 frames.
+
+    mode: "attract" | "scores" | "starting" | "playing" | "over" = {
+        !playing ? (frame % 2048 < 1024 ? "scores" : "attract")
+        : sinceStart <= 128 ? "starting"
+        : shipsLeft == 0 && !this.value.shots.some((s) => s.inPlay) ? "over"
+        : "playing" },
+    flame: boolean = { thrustHeld && frame % 8 >= 4 },      // the exhaust flickers
+    boomVolume: number = { playing ? boomCount >> 2 : 0 },
+
+    // ── power-on and a new game ──
+
+    powerOn() {
+        const rock = { inPlay: false, size: "large", shape: 0, x: 0, y: 0, vx: 0, vy: 0, blast: 0, drawn: false, struck: false }
+        const shot = { inPlay: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, drawn: false }
+        const f = {
+            rocks: Array.from({ length: 27 }, (_, i) => ({ ...rock, id: i })),
+            shots: Array.from({ length: 4 }, (_, i) => ({ ...shot, id: i })),
+            saucerShots: Array.from({ length: 2 }, (_, i) => ({ ...shot, id: 4 + i })),     // shown with the player's
+            saucer: { inPlay: false, size: "large", x: 0, y: 0, vx: 0, vy: 0, blast: 0, struck: false },
+            ship: { state: "waiting", x: 0, y: 0, vx: 0, vy: 0, heading: 0, wait: 0, landing: "safe", blast: 0, struck: false }
+            } as Playfield
+        frame = 0; rand = 0; playing = false
+        nextWaveIn = 0; holdbackRocks = 0; saucerInterval = 0
+        this.clearField(f)
+        this.commit(f)
+        },
+
+    // One action starts a one-player game: three ships, "PLAYER 1" for 128 frames, and the
+    // first wave on its last frame.
+
+    begin(f: Playfield) {
+        playing = true
+        sinceStart = 0
+        shipsLeft = 3
+        this.centerShip(f)
+        f.ship.state = "waiting"
+        f.ship.wait = 1
+        saucerInterval = 146; saucerCountdown = 146
+        holdbackRocks = 5
+        nextWaveIn = 127
+        beatHigh = true; beatOff = 4; beatGap = 48
+        this.clearField(f)
+        },
+
+    clearField(f: Playfield) {
+        this.silence()
+        score = 0
+        waveSize = 2
+        f.ship.blast = 0
+        f.saucer.inPlay = false; f.saucer.blast = 0
+        for (const s of [...f.shots, ...f.saucerShots]) s.inPlay = false
+        this.newWave(f)
+        },
+
+    // ── a frame ──
+
+    step(c: Controls) {
+        frame = (frame + 1) % 65536
+        thrustHeld = c.thrust
+        const f = this.draft()
+        if (!playing && c.start) { this.begin(f); this.commit(f); return }
+        this.upkeep(f)
+        if (mode != "scores") {
+            if (!playing || sinceStart >= 128) {        // ship and saucer wake on the last frame of "PLAYER 1"
+                this.fire(f, c)
+                this.hyperspace(f, c)
+                this.flyShip(f, c)
+                this.runSaucer(f)
+                }
+            this.moveAll(f)
+            this.findHits(f)
+            }
+        this.playSounds(f)
+        this.random()
+        if (nextWaveIn > 0) nextWaveIn = nextWaveIn - 1
+        else if (this.rocksLeft(f) == 0) this.newWave(f)
+        this.commit(f)
+        },
+
+    // The heartbeat quickens; and two frames after a lost ship's wreck clears, the saucer
+    // leaves — or, with no ships left, the game is over.
+
+    upkeep(f: Playfield) {
+        if (!playing) return
+        sinceStart = sinceStart + 1
+        if (sinceStart <= 128) return
+        if (frame % 64 == 0 && beatGap != 8) beatGap = beatGap - 1
+        if (f.ship.state == "waiting" && f.ship.wait == 16) {
+            if (shipsLeft > 0) this.saucerLeaves(f)
+            else {
+                playing = false
+                frame = 65280 + frame % 256         // the high scores wait until the clock comes round
+                this.silence()
+                }
+            }
+        },
+
+    // ── the ship ──
+
+    // One shot for each press of fire, while the ship flies and a shot is free.
+
+    fire(f: Playfield, c: Controls) {
+        if (!playing) return
+        const pressed = c.fire && !fireWasDown
+        fireWasDown = c.fire
+        const shot = f.shots.find((s) => !s.inPlay)
+        if (!pressed || f.ship.state != "flying" || shot == null) return
+        this.launch(shot, f.ship.x, f.ship.y, f.ship.vx >> 8, f.ship.vy >> 8, f.ship.heading)
+        shotSound = this.cue(shotSound)
+        },
+
+    // Hyperspace puts the ship in a random column and row of the field, keeping its place
+    // within them. A jump is safe among many rocks; among few, it may end in an explosion.
+
+    hyperspace(f: Playfield, c: Controls) {
+        const ship = f.ship
+        if (!playing || ship.state != "flying" || !c.hyperspace) return
+        ship.state = "jumping"
+        ship.wait = 48
+        ship.vx = ship.vx & 255; ship.vy = ship.vy & 255            // the fractions carry over
+        ship.x = clamp(this.random() % 32, 3, 28) * 256 + ship.x % 256
+        let r = 0
+        for (let i = 0; i < 5; i++) r = this.random()
+        let row = r % 32
+        ship.landing = "safe"
+        if (row >= 24) {
+            row = (row % 8) * 2 + 4
+            if (row >= this.rocksLeft(f)) ship.landing = "fatal"
+            }
+        ship.y = clamp(row, 3, 20) * 256 + ship.y % 256
+        },
+
+    // A flying ship turns and thrusts. A waiting or jumping ship counts down to coming back:
+    // from hyperspace wherever it landed; otherwise in the centre, once nothing is near and
+    // no saucer is about.
+
+    flyShip(f: Playfield, c: Controls) {
+        const ship = f.ship
+        if (!playing || ship.state == "exploding") return
+        if (ship.state == "flying") {
+            if (c.left) ship.heading = (ship.heading + 3) % 256
+            else if (c.right) ship.heading = (ship.heading + 253) % 256
+            this.thrust(ship, c)
+            return
+            }
+        ship.wait = ship.wait - 1
+        if (ship.wait > 0) return
+        if (ship.state == "jumping" && ship.landing == "fatal") this.wreckShip(f, false)
+        else if (ship.state == "jumping") ship.state = "flying"
+        else if (!this.clearOfDanger(f)) ship.wait = 1
+        else if (f.saucer.inPlay) ship.wait = 2
+        else ship.state = "flying"
+        },
+
+    // Nothing in play within four 256ths of the field of the ship, across and up.
+
+    clearOfDanger(f: Playfield) -> boolean {
+        const near = (a, b) => (Math.floor(a / 256) - Math.floor(b / 256) + 260) % 256 < 8
+        const things = [f.saucer, ...f.rocks].filter((o) => o.inPlay)
+        return !things.some((o) => near(o.x, f.ship.x) && near(o.y, f.ship.y))
+        },
+
+    // Every other frame: thrust adds along the heading, up to 63 units a frame; without it,
+    // drag takes off two 256ths for every unit of speed, and one more going forward.
+
+    thrust(ship: Ship, c: Controls) {
+        if (frame % 2 == 1) return
+        thrustSound = c.thrust
+        if (c.thrust) {
+            ship.vx = this.limit(ship.vx + 2 * this.cosine(ship.heading))
+            ship.vy = this.limit(ship.vy + 2 * this.sine(ship.heading))
+            }
+        else {
+            if (ship.vx != 0) ship.vx = ship.vx - 2 * (ship.vx >> 8) - (ship.vx >= 0 ? 1 : 0)
+            if (ship.vy != 0) ship.vy = ship.vy - 2 * (ship.vy >> 8) - (ship.vy >= 0 ? 1 : 0)
+            }
+        },
+    limit(v: number) -> number { return v > 16383 ? 16383 : v < -16384 ? -16383 : v },
+
+    centerShip(f: Playfield) {
+        f.ship.x = 4192; f.ship.y = 3168
+        f.ship.vx = f.ship.vx & 255; f.ship.vy = f.ship.vy & 255
+        },
+
+    // The ship explodes where it is, keeping only the fractions of its speed. Hit by
+    // something, it was already drawn whole this frame; failing a jump, it was not.
+
+    wreckShip(f: Playfield, struck: boolean) {
+        shipsLeft = shipsLeft - 1
+        f.ship.state = "exploding"
+        f.ship.blast = 160
+        f.ship.struck = struck
+        f.ship.vx = f.ship.vx & 255; f.ship.vy = f.ship.vy & 255
+        if (!struck) this.boom("low", 62)
+        },
+
+    // ── the saucer, every fourth frame ──
+
+    // With no saucer about, a countdown runs to the next one — held while the ship is away,
+    // and for a while after a rock is hit unless only a few are left. A saucer wanders up
+    // or down at random every 128 frames, and shoots when its countdown runs out: a large one
+    // anywhere, a small one at the ship.
+
+    runSaucer(f: Playfield) {
+        const s = f.saucer
+        if (frame % 4 != 0 || s.blast > 0) return
+        if (!s.inPlay) {
+            if (playing && f.ship.state != "flying") return
+            if (saucerHoldback > 0) saucerHoldback = saucerHoldback - 1
+            saucerCountdown = saucerCountdown - 1
+            if (saucerCountdown != 0) return
+            saucerCountdown = 1
+            const rocks = this.rocksLeft(f)
+            if (saucerHoldback > 0 && (rocks == 0 || rocks >= holdbackRocks)) return
+            this.newSaucer(s)
+            return
+            }
+        if (frame % 128 == 0) s.vy = [-16, 0, 0, 16][this.random() % 4]
+        if (playing && f.ship.state != "flying") return
+        saucerCountdown = saucerCountdown - 1
+        if (saucerCountdown != 0) return
+        saucerCountdown = 10
+        const dir = s.size == "large" ? this.random() : this.aim(f)
+        const shot = f.saucerShots.find((t) => !t.inPlay)
+        if (shot == null) return
+        this.launch(shot, s.x, s.y, s.vx, s.vy, dir)
+        saucerShotSound = this.cue(saucerShotSound)
+        },
+
+    // A saucer comes in from a random side at a random height, a little of the last one's
+    // height carrying over. Each comes sooner than the last; early on they are large, later
+    // they may be small, and past 30,000 they always are.
+
+    newSaucer(s: Saucer) {
+        const sooner = (saucerInterval + 250) % 256      // counted in eight bits: after power-on, 250
+        if (sooner >= 32) saucerInterval = sooner
+        const r = this.random()
+        const row = r >> 3
+        s.y = (row >= 24 ? row - 8 : row) * 256 + (r % 8) * 32 + ((s.y % 256) >> 3)
+        if ((rand >> 14) % 2 == 1) { s.x = 0; s.vx = 16 }           // the generator's second-top bit
+        else { s.x = 8191; s.vx = -16 }
+        s.inPlay = true
+        s.size = saucerInterval < 128 && (score >= 30000 || saucerInterval >> 1 < this.random()) ? "small" : "large"
+        },
+
+    saucerLeaves(f: Playfield) {
+        saucerCountdown = saucerInterval
+        f.saucer.inPlay = false
+        f.saucer.vx = 0; f.saucer.vy = 0
+        },
+
+    // A small saucer aims at where the ship will be, from the distance between them in 64ths
+    // of the field (as signed bytes; across, it takes the shorter way round), and misses by a
+    // random few steps — fewer past 35,000.
+
+    aim(f: Playfield) -> number {
+        const s = f.saucer, ship = f.ship
+        let dx = (((ship.x - s.x) >> 6) - (s.vx >> 1)) & 255
+        if (dx >= 64 && dx < 192) dx = 255 - dx
+        const dy = (((ship.y - s.y) >> 6) - (s.vy >> 1)) & 255
+        const sharp = score >= 35000
+        let miss = this.random() & (sharp ? 0x87 : 0x8F)
+        if (miss >= 128) miss = miss | (sharp ? 0x78 : 0x70)         // a miss the other way
+        return (this.direction(dx, dy) + miss + (sharp ? 1 : 0)) % 256
+        },
+
+    // The direction of (dx, dy), each a signed byte.
+
+    direction(dx: number, dy: number) -> number {
+        const neg = (b) => (256 - b) % 256
+        const ay = dy >= 128 ? neg(dy) : dy
+        const d = dx >= 128 ? neg(this.eighth(neg(dx), ay) ^ 128) : this.eighth(dx, ay)
+        return dy >= 128 ? neg(d) : d
+        },
+    eighth(ax: number, ay: number) -> number {
+        if (ax == ay) return 32
+        if (ay < ax) return angles[Math.floor(16 * ay / ax)]
+        return (64 - angles[Math.floor(16 * ax / ay)]) % 256
+        },
+
+    // ── shots ──
+
+    // A shot starts a step and a half out along its direction, at half the step's speed plus
+    // its firer's, up to 111 units a frame, and lasts 18 counts.
+
+    launch(shot: Shot, x: number, y: number, vx: number, vy: number, dir: number) {
+        const ax = this.cosine(dir) >> 1, ay = this.sine(dir) >> 1
+        shot.inPlay = true
+        shot.life = 18
+        shot.vx = clamp(ax + vx, -111, 111); shot.vy = clamp(ay + vy, -111, 111)
+        shot.x = x + ax + (ax >> 1); shot.y = y + ay + (ay >> 1)
+        },
+
+    sine(dir: number) -> number {
+        const a = dir % 128
+        const v = sines[a <= 64 ? a : 128 - a]
+        return dir >= 128 ? -v : v
+        },
+    cosine(dir: number) -> number { return this.sine((dir + 64) % 256) },
+
+    // ── everything moves ──
+
+    // Shots, the saucer's shots, the saucer, the ship, then the rocks: explosions run on,
+    // everything else moves, wrapping round the field (a saucer leaving at the side is gone),
+    // and shots age. The beam draws each as it goes.
+
+    moveAll(f: Playfield) {
+        for (const s of [...f.shots, ...f.saucerShots]) {
+            if (!s.inPlay) continue
+            this.move(s)
+            s.drawn = true
+            if (frame % 4 == 0) s.life = s.life - 1
+            if (s.life == 0) s.inPlay = false
+            }
+        const saucer = f.saucer
+        if (saucer.inPlay && saucer.blast > 0) this.burnSaucer(f)
+        else if (saucer.inPlay && (saucer.x + saucer.vx < 0 || saucer.x + saucer.vx >= 8192)) this.saucerLeaves(f)
+        else if (saucer.inPlay) this.move(saucer)
+        const ship = f.ship
+        if (ship.state == "exploding") this.burnShip(f)
+        else if (ship.state == "flying") {
+            ship.x = wrap(ship.x + (ship.vx >> 8), 8192)
+            ship.y = wrap(ship.y + (ship.vy >> 8), 6144)
+            }
+        let cleared = false
+        for (const r of f.rocks) {
+            if (!r.inPlay) continue
+            if (r.blast == 0) this.move(r)
+            else r.blast = this.burn(r.blast)
+            if (r.blast >= 256) { r.inPlay = false; r.blast = 0; cleared = true }
+            else r.drawn = true
+            }
+        if (cleared && this.rocksLeft(f) == 0) nextWaveIn = 127
+        },
+    move(o: Moving) {
+        o.x = wrap(o.x + o.vx, 8192)
+        o.y = wrap(o.y + o.vy, 6144)
+        },
+
+    // An explosion runs fast at first and slows as it nears 256.
+
+    burn(blast: number) -> number { return blast + ((256 - blast) >> 4) + 1 },
+    burnSaucer(f: Playfield) {
+        f.saucer.blast = this.burn(f.saucer.blast)
+        if (f.saucer.blast < 256) return
+        f.saucer.blast = 0
+        f.saucer.inPlay = false
+        saucerCountdown = saucerInterval
+        },
+
+    // The ship's wreck runs at a steady pace, a step every other frame; once it clears, the
+    // ship waits in the centre.
+
+    burnShip(f: Playfield) {
+        const ship = f.ship
+        ship.blast = ship.blast + frame % 2
+        if (ship.blast < 256) { this.scatter(ship.blast); return }
+        ship.blast = 0
+        ship.state = "waiting"
+        ship.wait = 17
+        this.centerShip(f)
+        },
+
+    // The wreck's pieces fly apart at their own speeds and disappear one by one. In its first
+    // frames each piece starts again a few units out, keeping the fraction from the last wreck.
+
+    scatter(blast: number) {
+        const d = debris.slice()
+        if (blast < 162) for (let k = 0; k < 12; k++) d[k] = (debrisSpeeds[k] >> 4) * 256 + (d[k] & 255)
+        for (let p = (255 - blast) >> 4; p >= 0; p--) {
+            d[2 * p] = d[2 * p] + debrisSpeeds[2 * p]
+            d[2 * p + 1] = d[2 * p + 1] + debrisSpeeds[2 * p + 1]
+            }
+        debris = d
+        },
+
+    // ── hits ──
+
+    // The player's shots, the saucer's shots, the saucer and the ship each look, in that
+    // order, for the first thing they touch, and are used up by a hit: a shot is gone, the
+    // saucer explodes, the ship is lost.
+
+    findHits(f: Playfield) {
+        for (const s of f.shots) if (s.inPlay && this.strikes(f, s, "shot")) s.inPlay = false
+        for (const s of f.saucerShots) if (s.inPlay && this.strikes(f, s, "saucer shot")) s.inPlay = false
+        if (f.saucer.inPlay && f.saucer.blast == 0 && this.strikes(f, f.saucer, "saucer")) this.explode(f.saucer)
+        if (f.ship.state == "flying" && this.strikes(f, f.ship, "ship")) this.wreckShip(f, true)
+        },
+
+    // Whether the hitter touches something it can hit — a player's shot, the saucer, the ship
+    // or a rock; the saucer or its shots, the ship or a rock; the ship, a rock — and if so,
+    // what becomes of what it hit.
+
+    strikes(f: Playfield, hitter: Moving, by: "shot" | "saucer shot" | "saucer" | "ship") -> boolean {
+        const reach = by == "ship" ? 28 : by == "saucer" ? (f.saucer.size == "small" ? 19 : 37) : 0
+        const saucer = f.saucer
+        if (by == "shot" && saucer.inPlay && saucer.blast == 0
+            && this.touching(hitter, saucer, (saucer.size == "small" ? 42 : 72) + reach)) {
+            this.saucerHit(f)
+            return true
+            }
+        if (by != "ship" && f.ship.state == "flying" && this.touching(hitter, f.ship, 42 + reach)) {
+            this.wreckShip(f, true)
+            if (by == "saucer") this.saucerHit(f)       // they collide: the player scores it
+            else this.boom("mid", 63)
+            return true
+            }
+        for (const r of f.rocks) {
+            const box = (r.size == "small" ? 42 : r.size == "medium" ? 72 : 132) + reach
+            if (!r.inPlay || r.blast > 0 || !this.touching(hitter, r, box)) continue
+            this.rockHit(f, r, by == "shot" || by == "ship")
+            return true
+            }
+        return false
+        },
+
+    // Close enough: both distances within the target's box and their sum within one and a
+    // half boxes, which rounds the corners. Distances are halved, and nothing more than 511
+    // units off in either direction counts.
+
+    touching(a: Moving, b: Moving, box: number) -> boolean {
+        const dx = b.x - a.x, dy = b.y - a.y
+        if (dx < -512 || dx > 511 || dy < -512 || dy > 511) return false
+        const ax = (dx < 0 ? -dx - 1 : dx) >> 1, ay = (dy < 0 ? -dy - 1 : dy) >> 1
+        return ax <= box && ay <= box && ax + ay < box + (box >> 1)
+        },
+
+    saucerHit(f: Playfield) {
+        saucerCountdown = saucerInterval
+        if (playing) this.award(f.saucer.size == "small" ? 1000 : 200)
+        this.boom(f.saucer.size == "small" ? "mid" : "low", 63)
+        this.explode(f.saucer)
+        },
+
+    // A rock breaks into two of the next size down — the first two not in play — each with
+    // its parent's speed nudged at random and set a few units apart. A small rock just goes.
+
+    rockHit(f: Playfield, rock: Rock, scores: boolean) {
+        saucerHoldback = 80
+        if (playing && scores) this.award(rock.size == "large" ? 20 : rock.size == "medium" ? 50 : 100)
+        const smaller = rock.size == "large" ? "medium" : "small"
+        let from = 0
+        for (let k = 0; k < 2 && rock.size != "small"; k++) {
+            const i = f.rocks.findIndex((r, j) => j >= from && !r.inPlay)
+            if (i < 0) break
+            const child = f.rocks[i]
+            child.inPlay = true
+            child.size = smaller
+            child.shape = (this.random() >> 3) % 4
+            child.x = rock.x; child.y = rock.y
+            child.blast = 0; child.drawn = false; child.struck = false
+            this.nudge(child, rock.vx, rock.vy)
+            if (k == 0) child.x = child.x ^ ((child.vx & 31) * 2)
+            else child.y = child.y ^ ((child.vy & 31) * 2)
+            from = i + 1
+            }
+        this.boom(rock.size == "large" ? "low" : rock.size == "medium" ? "mid" : "high", 63)
+        this.explode(rock)
+        },
+
+    explode(o: Breakable) {
+        o.blast = 160
+        o.vx = 0; o.vy = 0
+        o.struck = true
+        },
+
+    // An extra ship for every 10,000; the score turns over at 100,000.
+
+    award(points: number) {
+        const before = score
+        score = (score + points) % 100000
+        if (Math.floor(score / 10000) != Math.floor(before / 10000)) {
+            shipsLeft = shipsLeft + 1
+            extraShipTone = 176
+            }
+        },
+
+    // ── waves ──
+
+    // Each wave has two more rocks than the last, up to 11, coming in large from the left
+    // edge or the bottom at random speeds — but not while a saucer is about.
+
+    newWave(f: Playfield) {
+        for (const r of f.rocks) r.inPlay = false
+        if (nextWaveIn > 0 || f.saucer.inPlay) return
+        holdbackRocks = Math.min(holdbackRocks + 1, 10)
+        waveSize = Math.min(waveSize + 2, 11)
+        for (const r of f.rocks.slice(0, waveSize)) {
+            r.inPlay = true
+            r.size = "large"
+            r.shape = (this.random() >> 3) % 4
+            r.blast = 0
+            this.nudge(r, 0, 0)
+            const e = this.random()
+            const at = (e >> 1) % 32
+            if (e % 2 == 1) { r.x = 0; r.y = (at >= 24 ? at - 8 : at) * 256 + r.y % 256 }
+            else { r.x = at * 256 + r.x % 256; r.y = 0 }
+            }
+        saucerCountdown = 127
+        beatGap = 48
+        },
+
+    // A rock's speed: the given one nudged by up to 16 each way, but no slower than 6 and no
+    // faster than 31. (The generator turns over between the two directions.)
+
+    nudge(r: Moving, vx: number, vy: number) {
+        r.vx = this.rockSpeed(vx + this.wobble(this.random()))
+        this.random(); this.random(); this.random()
+        r.vy = this.rockSpeed(vy + this.wobble(this.random()))
+        },
+    wobble(b: number) -> number { return (b & 15) - (b >= 128 ? 16 : 0) },
+    rockSpeed(v: number) -> number { return v >= 0 ? clamp(v, 6, 31) : clamp(v, -31, -6) },
+    rocksLeft(f: Playfield) -> number { return f.rocks.filter((r) => r.inPlay).length },
+
+    // ── sound ──
+
+    // Once a frame while a game is on: the shot sounds count down, thrust stops when the ship
+    // isn't flying, the heartbeat beats while there are rocks and a ship (or one in
+    // hyperspace), and the explosion fades.
+
+    playSounds(f: Playfield) {
+        if (extraShipTone > 0) extraShipTone = Math.max(0, extraShipTone - 2)
+        if (!playing) return
+        saucerShotSound = this.countdown(saucerShotSound)
+        shotSound = this.countdown(shotSound)
+        if (f.ship.state != "flying") thrustSound = false
+        if (this.rocksLeft(f) == 0 || f.ship.state == "exploding" || f.ship.state == "waiting") this.rest()
+        else if (beatOn > 0) {
+            beatOn = beatOn - 1
+            if (beatOn == 0) this.rest()
+            }
+        else {
+            beatOff = (beatOff + 255) % 256
+            if (beatOff == 0) { beatOn = 4; beating = true; beatHigh = !beatHigh }
+            }
+        if (boomCount > 0) boomCount = boomCount - 1
+        },
+
+    // A start cuts a sound already playing for a frame, then plays it for 16.
+
+    cue(b: Blip) -> Blip { return { on: b.on, left: b.left, pending: true } },
+    countdown(b: Blip) -> Blip {
+        if (!b.on) return b.pending ? { on: true, left: 16, pending: false } : b
+        if (b.left == 0 || b.pending) return { on: false, left: b.left, pending: b.pending }
+        return { on: b.left > 1, left: b.left - 1, pending: false }
+        },
+    rest() { beating = false; beatOff = beatGap },
+    boom(pitch: "low" | "mid" | "high", count: number) { boomPitch = pitch; boomCount = count },
+
+    silence() {
+        shotSound = { on: false, left: 0, pending: false }
+        saucerShotSound = { on: false, left: 0, pending: false }
+        thrustSound = false
+        boomPitch = "low"; boomCount = 0
+        extraShipTone = 0
+        },
+
+    // ── the field as data ──
+
+    // A working copy for the frame, nothing yet drawn or struck.
+
+    draft() -> Playfield {
+        const v = this.value
+        return {
+            rocks: v.rocks.map((r) => ({ ...r, drawn: false, struck: false })),
+            shots: v.shots.map((s) => ({ ...s, drawn: false })),
+            saucerShots: v.saucerShots.map((s) => ({ ...s, drawn: false })),
+            saucer: { ...v.saucer, struck: false },
+            ship: { ...v.ship, struck: false } }
+        },
+    commit(f: Playfield) {
+        this.set(["rocks"], f.rocks)
+        this.set(["shots"], f.shots)
+        this.set(["saucerShots"], f.saucerShots)
+        this.set(["saucer"], f.saucer)
+        this.set(["ship"], f.ship)
+        },
+
+    // The arcade's random numbers: a 16-bit shift register, never zero. Each draw gives a byte.
+
+    random() -> number {
+        let v = (rand * 2) % 65536
+        if (v >= 32768) v = v + 1
+        if (v & 2) v = v ^ 1
+        if (v == 0) v = 1
+        rand = v
+        return v % 256
+        }
+    ]

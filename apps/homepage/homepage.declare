@@ -883,7 +883,7 @@ App [ tagline: string = "a UI language for you and your AI",
             ({ label: "Tracker",  link: "apps/tracker/tracker.declare",  children: [] }),
             ({ label: "Weather",  link: "apps/weather/weather.declare",  children: [] }),
             ({ label: "Market Map", link: "apps/marketmap/marketmap.declare", children: [] }),
-            ({ label: "Birds",    link: "apps/birds/birds.declare",      children: [] }),
+            ({ label: "Asteroids", link: "apps/asteroids/asteroids.declare", children: [] }),
             ] }),
         ({ label: "Docs",     link: "apps/docs/docs.declare", children: [] }),
         // last, and the only item that leaves the site — an off-site link placed

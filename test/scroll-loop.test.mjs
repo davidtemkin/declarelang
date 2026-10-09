@@ -47,8 +47,8 @@ const html = `<!doctype html>
 <style>html,body{margin:0;padding:0}</style>
 <div id="host"></div>
 <script type="module">
-  import { render, CanvasBackend } from "/dist/index.js";
-  window.__app = render(${JSON.stringify(compiled.source)}, document.getElementById("host"), new CanvasBackend());
+  import { renderProgram, CanvasBackend } from "/dist/index.js";
+  window.__app = renderProgram(JSON.parse(${JSON.stringify(JSON.stringify(compiled.program))}), document.getElementById("host"), new CanvasBackend());
   requestAnimationFrame(() => requestAnimationFrame(() => { window.__rendered = true; }));
 </script>`;
 

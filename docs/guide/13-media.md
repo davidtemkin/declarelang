@@ -4,8 +4,9 @@
 # Images, video and audio
 
 [`Image`](declare-docs:Image), [`Video`](declare-docs:Video) and [`Audio`](declare-docs:Audio) are ordinary views whose loading and playback are reactive
-state. There are no load callbacks and no player methods: a picture reports `loaded` and
-`failed` as facts you derive from, and a clip plays while a condition you state is true.
+state. There are no load callbacks: a picture reports `loaded` and `failed` as facts you
+derive from, and a clip plays while a condition you state is true. The one call is for a
+sound that answers an event, which plays each time the event happens.
 
 > **Media is state. You declare when a clip plays; you read whether a picture has
 > arrived.**
@@ -77,13 +78,35 @@ App [ width = 320, height = 90, textColor = #172530,
     row: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
         Button [ label = { app.blip.playing ? "Playing…" : "Play" }, primary = true,
-            onClick() { app.blip.position = 0; app.blip.playing = true }
+            onClick() { app.blip.play() }
             ],
         Text [ fontSize = 13, textColor = #6A7883,
             text = { app.blip.ended ? "ended" : app.blip.playing ? "playing" : "a short tone" } ]
         ]
     ]
 ```
+
+## Sounds that answer events
+
+Some sounds answer a moment rather than a state: a click, a shot, a footstep. Each time
+the moment comes the sound plays from its start, however far the last one got, and that
+is a call: [`play()`](declare-docs:Media.method.play), as the button above makes. `playing = true` goes on from where the
+playhead is; `play()` starts over.
+
+A streamed sound starts when enough of it has arrived, and plays one thing at a time.
+For a short sound that has to start on the frame it is asked for, and may sound again
+before it has finished, set [`inMemory`](declare-docs:Audio.inMemory): the sound is decoded once and held whole,
+and each `play()` is a voice of its own, so two shots a moment apart are two shots. A
+steady sound, an engine or a hum, loops in memory with `playing` as a constraint.
+
+```declare-fragment
+shot: Audio [ source = "sounds/fire.wav", inMemory = true ],
+engine: Audio [ source = "sounds/engine.wav", inMemory = true, loop = true, playing = { ship.thrusting } ],
+ship: Ship [ trackChanges = ["shots"], onChange() { app.shot.play() } ]
+```
+
+A sound held in memory costs its whole length there, so a track that runs for minutes stays
+streamed.
 
 ## A scrubber
 
@@ -95,9 +118,8 @@ broken, so a smooth playhead is the program's own number. A frame `Time` advance
 by `dt` and takes the clip's word whenever the two disagree: a clip still loading, a
 stall, a seek.
 
-Seeking is an assignment to `position`. An assignment within a quarter second of where
-the clip already is does not seek, so the clip's own write-backs never stutter it. The
-track takes the press and the drag. `onPointerMove` also fires when the pointer merely
+Seeking is an assignment to `position`; the clip's own write-backs are not seeks, so they
+never stutter it. The track takes the press and the drag. `onPointerMove` also fires when the pointer merely
 passes over, so it seeks only while the track is `pressed`:
 
 ```declare-fragment

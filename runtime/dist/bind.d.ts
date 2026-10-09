@@ -64,6 +64,7 @@ export declare function bindDatapath(view: Node, path: string | readonly string[
 export declare function bindCursor(view: Node, src: string, pos: Pos, classroot: Node | null): void;
 export declare function percentAxis(name: string): "width" | "height" | null;
 export declare function bindPercent(view: View, name: string, percent: number, pos: Pos): void;
+export declare function isTransformSlot(name: string): boolean;
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).
  *  Symbolic like a percent, resolved as a standing constraint over the
  *  parent's extent AND the view's own. `center` centers the view's box (its
@@ -71,8 +72,13 @@ export declare function bindPercent(view: View, name: string, percent: number, p
  *  (a label wanting its cap band optically centered uses the library's
  *  TextLabel). `end` aligns end edges — the geometric box, always. The written-out
  *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
- *  spelling: only the named literal invokes the optics. */
-export declare function bindAlign(view: View, name: "x" | "y", align: "center" | "end", pos: Pos): void;
+ *  spelling: only the named literal invokes the optics.
+ *
+ *  A TRANSFORMED view is placed by the box it visibly covers (its footprint),
+ *  as a layout places it — one geometry: two bars rotated ±45° about their
+ *  corner and both centered cross at the middle. `transformLater` says a
+ *  transform slot binds after this, in the same batch. */
+export declare function bindAlign(view: View, name: "x" | "y", align: "center" | "end", pos: Pos, transformLater?: boolean): void;
 /** A DECLARED slot's `{ }` default as a standing rule (attributes.ts
  *  AttrSpec.defRule): installed at construction on a slot no attribute channel
  *  set, YIELDING — an author write, a newer owner, or a runtime write retires

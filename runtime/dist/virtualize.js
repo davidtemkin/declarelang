@@ -57,7 +57,7 @@ import { View, onDiscard, markWindowedBlock, setRowIndex, markEvicting, fireReti
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, release } from "./attributes.js";
 import { arriveSubtree } from "./spring.js";
-import { heldAtEnd } from "./scroll-anchor.js";
+import { heldAtEnd, readsAtEnd } from "./scroll-anchor.js";
 import { insetLead } from "./value.js";
 import { armTree, focusedWithin, reportInstanceThrow, subtreeDiverged } from "./replicate.js";
 const DEFAULT_UNIT = 24; // pre-measurement row-extent estimate (corrected by the first real row)
@@ -455,10 +455,14 @@ export class Windowing {
         const lead = host.leadingAnchor();
         this.leading = lead !== null ? lead.y + lead.height + gap : 0;
         this.trailing = this.trailingSiblings(gap);
-        const pRel = y - offset - this.leading; // how far the scroller is into the rows (below 0: the room above them)
         const total = this.span();
         const lEnd = Math.max(0, total + this.rowsTrail() - viewH);
         const scale = extentScale(total, viewH);
+        // an end pane whose reader is at its end (scroll-anchor.ts) is read there:
+        // its rows are the ones to build, not those at the offset it is leaving
+        if (!scrolling && readsAtEnd(scroller))
+            y = offset + this.leading + this.dev + lEnd;
+        const pRel = y - offset - this.leading; // how far the scroller is into the rows (below 0: the room above them)
         if (this.bar) {
             // the thumb's mapping: the rest of the ledger in proportion to the rest of the track
             const pLo = -(offset + this.leading);

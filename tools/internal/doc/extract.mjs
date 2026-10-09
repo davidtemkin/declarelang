@@ -357,7 +357,7 @@ const METHODS = readMethods([
   "runtime/src/rich-text.ts", "runtime/src/markdown.ts", "runtime/src/html-text.ts", "runtime/src/text-input.ts", "runtime/src/layout.ts",
   "runtime/src/data.ts", "runtime/src/animator.ts", "runtime/src/spring.ts",
   "runtime/src/state.ts", "runtime/src/node.ts", "runtime/src/editor.ts",
-  "runtime/src/streams.ts",
+  "runtime/src/streams.ts", "runtime/src/media.ts", "runtime/src/audio.ts",
 ]);
 // A class is ABSTRACT when no registry can instantiate it by name: Layout,
 // TweenLayout, RichText and Editor are bases you extend, never tags you write.

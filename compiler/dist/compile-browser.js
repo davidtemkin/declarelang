@@ -41,7 +41,7 @@ export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/chec
 // the static host's `?extract`. See static-html.ts / headless.ts.
 export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey } from "./crawl.js";
-export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches
  *  how the warm-load stores prefetched files (e.g. "library/bar.declare"). */
 function normalizePath(p) {

@@ -293,6 +293,7 @@ export function parseLiteral(type: AttrType, lit: Literal): Coerced {
       if (lit.kind === "ident" && (lit.name === "center" || lit.name === "end")) return ok({ align: lit.name });
       return fail(diag`a Length (a number of pixels, a percent like 50%, or the position literals center | end on x/y)`);
     case "number":
+      if (type.nullable === true && lit.kind === "ident" && lit.name === "null") return ok(null);
       if (lit.kind === "number") {
         if (lit.hex && lit.hexLen === 8) return fail(diag`a number`, diag`${describeLiteral(lit)} (an 8-digit 0x is an alpha color, not a number — write a number in decimal)`);
         return ok(lit.value);
@@ -315,6 +316,7 @@ export function parseLiteral(type: AttrType, lit: Literal): Coerced {
       if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) {
         return ok(lit.name === "true");
       }
+      if (type.nullable === true && lit.kind === "ident" && lit.name === "null") return ok(null);
       return fail(diag`a boolean (true or false)`);
     case "string":
       if (lit.kind === "string") return ok(lit.value);
@@ -381,6 +383,12 @@ export function parseLiteral(type: AttrType, lit: Literal): Coerced {
       return fail(diag`an array — a { } constraint (plain TS: items = { [ … ] }), or null`);
     case "object":
       if (lit.kind === "ident" && lit.name === "null") return ok(null);
+      // a TypeScript-typed declaration: any plain literal is its value, and
+      // TypeScript judges the type (the declared-type probe)
+      if (type.written !== undefined) {
+        const plain = plainLiteral(lit);
+        if (plain !== undefined) return ok(plain as AttrValue);
+      }
       return fail(diag`an object — a { } constraint (plain TS), or null`);
     case "view":
       if (lit.kind === "ident" && lit.name === "null") {
@@ -437,4 +445,18 @@ export function parseLiteral(type: AttrType, lit: Literal): Coerced {
       return "error" in r ? fail(r.error) : ok(r.value as unknown as AttrValue);
     }
   }
+}
+
+/** A literal as the plain value it writes — a number, a string, a boolean,
+ *  null, or a list of those — or undefined when it is none of these. */
+function plainLiteral(lit: Literal): unknown {
+  if (lit.kind === "number") return lit.value;
+  if (lit.kind === "string") return lit.value;
+  if (lit.kind === "ident") return lit.name === "true" ? true : lit.name === "false" ? false : lit.name === "null" ? null : undefined;
+  if (lit.kind === "list") {
+    const out: unknown[] = [];
+    for (const it of lit.items) { const v = plainLiteral(it); if (v === undefined) return undefined; out.push(v); }
+    return out;
+  }
+  return undefined;
 }

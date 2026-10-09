@@ -90,8 +90,8 @@ verify rung 4 and backend parity required the same seams.
 
 ## 4. Headless execution — the t=0 snapshot
 
-`settleHeadless(compiledSource, opts)` (compiler/src/headless.ts) is real
-program execution: runtime `build()` (parse + check + instantiate), attach to
+`settleHeadless(program, opts)` (compiler/src/headless.ts) is real
+program execution: runtime `buildProgram()` (instantiate the compiled program), attach to
 the `HeadlessBackend` (runtime/src/headless-backend.ts — a no-op `Surface`,
 typed against the interface so tsc keeps it complete), write the environment
 vector, `settle()`. The same execution tier as the unit suite, prebuild, and

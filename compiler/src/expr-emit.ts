@@ -24,6 +24,7 @@ export const OP = Object.freeze({
   MIN: 9, MAX: 10, ABS: 11, FLOOR: 12, CEIL: 13, ROUND: 14, SQRT: 15,
   LT: 16, LE: 17, GT: 18, GE: 19, EQ: 20, NE: 21, AND: 22, OR: 23, NOT: 24,
   SELECT: 25, CLAMP: 26,
+  NULL: 27, COALESCE: 28,
 });
 
 export interface ExprCode { code: number[]; paths: string[]; consts: number[] }
@@ -39,7 +40,7 @@ export const OP_LETTERS: Record<number, string> = {
   [OP.ADD]: "+", [OP.SUB]: "-", [OP.MUL]: "*", [OP.DIV]: "/", [OP.MOD]: "%", [OP.NEG]: "~",
   [OP.MIN]: "m", [OP.MAX]: "M", [OP.ABS]: "a", [OP.FLOOR]: "f", [OP.CEIL]: "c", [OP.ROUND]: "r", [OP.SQRT]: "q",
   [OP.LT]: "<", [OP.LE]: "l", [OP.GT]: ">", [OP.GE]: "g", [OP.EQ]: "=", [OP.NE]: "!", [OP.AND]: "&", [OP.OR]: "|", [OP.NOT]: "n",
-  [OP.SELECT]: "?", [OP.CLAMP]: "^",
+  [OP.SELECT]: "?", [OP.CLAMP]: "^", [OP.NULL]: "N", [OP.COALESCE]: "Q",
 };
 export function encodeExpr(e: ExprCode, deps: readonly string[]): string {
   const out: string[] = [];
@@ -181,6 +182,9 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
     if (typeOnly(n)) return value(typeOnly(n)!, env);
     if (ts.isNumericLiteral(n)) { code.push(OP.CONST, constIndex(Number(n.text))); return; }
     if (n.kind === K.TrueKeyword) { code.push(OP.CONST, constIndex(1)); return; }
+    // null, and `a ?? b`: a nullable slot (`number | null`) holds null beside
+    // its number, and both kernels carry it through (kernel.c eval)
+    if (n.kind === K.NullKeyword) { code.push(OP.NULL); return; }
     if (n.kind === K.FalseKeyword) { code.push(OP.CONST, constIndex(0)); return; }
     if (ts.isPrefixUnaryExpression(n)) {
       if (n.operator === K.MinusToken) { if (ts.isNumericLiteral(n.operand)) { code.push(OP.CONST, constIndex(-Number(n.operand.text))); return; } value(n.operand, env); code.push(OP.NEG); return; }
@@ -198,6 +202,7 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
         if (logical === "and") { value(n.right, env); value(n.left, env); } else { value(n.left, env); value(n.right, env); }
         code.push(OP.SELECT); return;
       }
+      if (n.operatorToken.kind === K.QuestionQuestionToken) { value(n.left, env); value(n.right, env); code.push(OP.COALESCE); return; }
       const op = BIN[n.operatorToken.kind];
       if (op === undefined) return fail();
       value(n.left, env); value(n.right, env); code.push(op); return;

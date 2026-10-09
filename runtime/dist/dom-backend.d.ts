@@ -13,6 +13,7 @@ export declare function localPoint(el: HTMLElement, cx: number, cy: number): {
     y: number;
 };
 export declare class DomBackend implements RenderBackend {
+    readonly defersHidden = true;
     /** Fragment-href realization base (location.md §0.9). null (the default,
      *  top level) = this document's own page. "" = an EMBEDDED app: fragment
      *  refs realize no native anchor at all (they would target the HOST page's
@@ -85,6 +86,9 @@ export declare class DomSurface implements Surface {
      *  host page — its gesture default is `manipulation`, never the geometry
      *  read (refreshTouchAction). */
     embeddedRoot: boolean;
+    /** This surface is an app's root (attachRoot stamps it, with the
+     *  `data-declare-app` mark other code reads off the DOM). */
+    isRoot: boolean;
     /** A scrolling pane's browser-drawn scrollbar follows the pane's own fill
      *  (the editable-scheme rule, applied to scrollers). */
     private applyScrollScheme;

@@ -36,6 +36,7 @@
 // One reconcile per settle wave, one frame per mutation burst: the
 // Replicator is an ordinary Constraint, so N data edits in a turn coalesce
 // into one reconcile, whose Surface work lands in the backends' single rAF.
+import { isDeferred } from "./deferred-surface.js";
 import { diag } from "./errors.js";
 import { Node } from "./node.js";
 import { View, inheritedCursor, onDiscard, setRowIndex, fireRetireTree, nodeLabel } from "./view.js";
@@ -496,13 +497,13 @@ export class Replicator {
                     try {
                         if (v.$surface === null)
                             v.$attach(this.parent.$backend, ps, before);
-                        else
+                        else if (!isDeferred(v.$surface))
                             ps.insertChild(v.$surface, before);
                     }
                     catch (e) {
                         reportInstanceThrow(v, "attaching", e);
                     }
-                    before = v.$surface ?? before;
+                    before = v.$surface !== null && !isDeferred(v.$surface) ? v.$surface : before;
                 }
             }
         }
@@ -552,7 +553,7 @@ export class Replicator {
     surfaceAfter(index) {
         for (let i = index; i < this.parent.children.length; i++) {
             const sib = this.parent.children[i];
-            if (sib instanceof View && sib.$surface !== null)
+            if (sib instanceof View && sib.$surface !== null && !isDeferred(sib.$surface))
                 return sib.$surface;
         }
         return null;

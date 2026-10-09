@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { settleSource } from "../compiler/dist/headless.js";
+import { settleHeadless } from "../compiler/dist/headless.js";
 import { settle } from "../runtime/dist/index.js";
 import { ownerOf } from "../runtime/dist/attributes.js";
 
@@ -49,7 +49,7 @@ await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturb
     const src = `App [ width = 800, height = 600, box: View [ x = 10, y = 10, ${pad}${kids.join(", ")} ], probe: Text [ text = { "" + app.box.width + app.box.height } ] ]`;
     const r = await compile(src, { originDir: process.cwd() });
     assert.ok(r.errors.length === 0, "compile: " + (r.errors[0]?.message ?? ""));
-    const app = settleSource(r.source, { deps: r.deps });
+    const app = settleHeadless(r.program);
     settle();
     const box = app.box;
     check(box, `tree ${t}`);
@@ -71,7 +71,7 @@ await test("kernel auto-extent ≡ extentOf on 40 random containers × 8 perturb
 await test("a child list change re-lists the rule; a 3D child hands the derive back to JS", async () => {
   const src = `App [ width = 800, height = 600, box: View [ x = 0, y = 0, a: View [ x = 10, y = 10, width = 100, height = 50 ] ] ]`;
   const r = await compile(src, { originDir: process.cwd() });
-  const app = settleSource(r.source, { deps: r.deps }); settle();
+  const app = settleHeadless(r.program); settle();
   check(app.box, "one child");
   const b = app.box.createView("View", { x: 200, y: 5, width: 40, height: 300 });
   settle();
@@ -95,7 +95,7 @@ await test("a drag inside a container whose size was set since leaves that size 
       onPointerDown(e: PointerEvent) { this.sy = this.y },
       onPointerMove(e: PointerEvent) { this.y = this.sy + e.deltaY } ] ] ]`;
   const r = await compile(src, { originDir: process.cwd() });
-  const app = settleSource(r.source, { deps: r.deps }); settle();
+  const app = settleHeadless(r.program); settle();
   assert.ok(ownerOf(app.box, "height")?.isNative, "sized from its content, by the kernel");
   assert.equal(app.box.height, 150);
   app.box.height = 240; settle();
@@ -106,6 +106,33 @@ await test("a drag inside a container whose size was set since leaves that size 
   assert.equal(app.box.height, 240, "the size written stands through the drag");
   sink("pointerUp", 10, 140, { deltaX: 0, deltaY: 30 }); settle();
   assert.equal(app.box.height, 240, "and after it");
+  app.discard();
+});
+
+await test("a position literal places a transformed view by the box it covers, as a layout does", async () => {
+  // Two bars rotated ±45° about their corner (the default pivot), both centered:
+  // they cross at the middle — an ×, not a <.
+  const src = `App [ width = 400, height = 300, turn: number = 30,
+    box: View [ width = 44, height = 44,
+      a: View [ x = center, y = center, width = 16, height = 2, rotation = 45 ],
+      b: View [ x = center, y = center, width = 16, height = 2, rotation = -45 ],
+      c: View [ x = end, y = end, width = 20, height = 10, rotation = 90 ],
+      d: View [ x = center, y = center, width = 20, height = 10 ],
+      e: View [ x = center, y = center, width = 16, height = 2, rotation = { app.turn } ] ] ]`;
+  const r = await compile(src, { originDir: process.cwd() });
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+  const app = settleHeadless(r.program); settle();
+  const mid = (v) => { const b = v.bounds(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  for (const n of ["a", "b", "d", "e"]) {
+    const [cx, cy] = mid(app.box[n]);
+    assert.ok(close(cx, 22, 1e-9) && close(cy, 22, 1e-9), `${n} is centered by what it covers: (${cx}, ${cy})`);
+  }
+  const c = app.box.c.bounds();
+  assert.ok(close(c.x + c.width, 44, 1e-9) && close(c.y + c.height, 44, 1e-9), `end aligns the covered box's end: ${JSON.stringify(c)}`);
+  assert.equal(app.box.d.x, 12, "an untransformed view: the plain formula");
+  app.turn = 60; settle();
+  const [ex, ey] = mid(app.box.e);
+  assert.ok(close(ex, 22, 1e-9) && close(ey, 22, 1e-9), `and it follows the rotation: (${ex}, ${ey})`);
   app.discard();
 });
 
@@ -120,7 +147,7 @@ await test("a rich text's fontScale is TYPE, not geometry: the container measure
 
   const at = async (fs) => {
     const r = await compile(src(fs), { originDir: process.cwd() });
-    const app = settleSource(r.source, { deps: r.deps }); settle();
+    const app = settleHeadless(r.program); settle();
     check(app.box, `fontScale ${fs}`);                       // kernel derive ≡ extentOf
     const out = { box: app.box.height, doc: app.box.doc.height, scale: app.box.doc.scale };
     app.discard();

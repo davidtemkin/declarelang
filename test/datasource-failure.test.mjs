@@ -20,7 +20,7 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { build } from "../runtime/dist/index.js";
+import { buildProgram } from "../runtime/dist/index.js";
 import { provideTransport } from "../runtime/dist/data.js";
 
 const reply = (status, body, type = "json") => Promise.resolve({
@@ -34,7 +34,7 @@ const reply = (status, body, type = "json") => Promise.resolve({
 async function app(attrs = `url = "/api/thing"`) {
   const r = await compile(`App [ width=1, height=1, ds: DataSource [ ${attrs} ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  return build(r.source);
+  return buildProgram(r.program);
 }
 
 await test("a refusal keeps its BODY — the part that says why", async () => {

@@ -41,6 +41,8 @@ function providesOf(island) {
  *  IS (DOMIsland: foreign DOM; AppIsland: a Declare program); this base owns
  *  the bridge — the external-fact surface and the message verbs. */
 export class Island extends View {
+    /** An embedded program runs, and is read, while hidden. */
+    $eagerSurface() { return true; }
     /** @internal the linked tenant's delivery sink (null = nothing linked). */
     tenantSink = null;
     /** @internal the values the hosted side exposes, by name (`exposed` reads). */

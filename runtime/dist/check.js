@@ -26,12 +26,12 @@
 // element an anonymous schema, and named children join the one member
 // namespace.
 import { DeclareError, insetOrRadiusMessage, noBaselineMessage, stackBaselineMessage, placedAttributeMessage } from "./errors.js";
-import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, PAYLOAD_TYPE_NAMES, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
+import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
 import { runtimeFieldsOf, runtimeMethodsOf } from "./runtime-methods.js";
 import { cssAttributeHint, hintedForeignName } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
-import { coerce, describeLiteral, noteLiteral, declaredType, isAuthoredUnion, parseLiteralUnion, DECLARED_TYPE_NAMES } from "./value.js";
+import { coerce, describeLiteral, noteLiteral } from "./value.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
 // The program-under-check's declared schema names — set at check() entry
 // (checkElement recurses too deep to thread one more parameter through).
@@ -234,33 +234,10 @@ export function check(input) {
  *  if it is in the declarable value vocabulary (`number`, `string`, `View`, an
  *  enum) or names a class in this program. */
 function checkSignatureTypes(el, errors, schemas) {
-    const known = (n) => {
-        if (n.endsWith("[]"))
-            return known(n.slice(0, -2)); // Window[] checks by its element
-        // A function type validates by its PARTS: every TYPE inside it must itself
-        // be known. Parameter NAMES are not types, so strip `name:` first —
-        // `(id: string) -> void` checks `string` and `void`, not `id`.
-        if (n.startsWith("(")) {
-            const types = n.replace(/[A-Za-z_$][\w$]*\s*:/g, " ").match(/[A-Za-z_$][\w$]*/g) ?? [];
-            return types.every((w) => w === "void" || known(w));
-        }
-        // a literal union is TypeScript's own and needs no registry
-        if (isAuthoredUnion(n))
-            return parseLiteralUnion(n) !== null;
-        return declaredType(n) !== null || schemas[n] !== undefined || PAYLOAD_TYPE_NAMES.has(n) || CHECK_SHAPES.has(n);
-    };
+    // A signature's types are TypeScript's: whether the names in them exist is
+    // TypeScript's to say, at the parameter (typecheck.ts, the declared-type
+    // probes) — a built-in, a class, a schema, a type a script block declares.
     const schema = schemas[el.tag];
-    /** The first name inside a written type that is not a known type — so a
-     *  function type's error can point at `Nonsense`, not at the whole
-     *  `(id: Nonsense) -> void`. */
-    const firstUnknown = (n) => {
-        if (n.endsWith("[]"))
-            return firstUnknown(n.slice(0, -2));
-        if (!n.startsWith("("))
-            return known(n) ? null : n;
-        const types = n.replace(/[A-Za-z_$][\w$]*\s*:/g, " ").match(/[A-Za-z_$][\w$]*/g) ?? [];
-        return types.find((w) => w !== "void" && !known(w)) ?? null;
-    };
     for (const m of el.methods) {
         // A HANDLER's payload is not the author's to choose. `onMouseUp` receives a
         // PointerUpEvent; writing anything else is the override mismatch TypeScript
@@ -290,14 +267,6 @@ function checkSignatureTypes(el, errors, schemas) {
                     : `parameter '${prm.name}' has no type — a signature is typed name-first: '${m.name}(${prm.name}: number)' (a primitive, a class, a function type, or 'object' for a genuinely shapeless value)`, m.pos));
                 continue;
             }
-            const badP = prm.type === undefined ? null : firstUnknown(prm.type);
-            if (badP !== null) {
-                errors.push(new DeclareError(`unknown type '${badP}' for parameter '${prm.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class in this program, a literal union ('"a" | "b"'), or a function type '(a: T) -> R'`, prm.typePos ?? m.pos));
-            }
-        }
-        const badR = m.returns === undefined ? null : firstUnknown(m.returns);
-        if (badR !== null) {
-            errors.push(new DeclareError(`unknown return type '${badR}' for '${m.name}' — a signature type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class in this program, a literal union ('"a" | "b"'), or a function type '(a: T) -> R'`, m.returnsPos ?? m.pos));
         }
     }
     for (const c of el.children)

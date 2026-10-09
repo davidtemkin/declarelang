@@ -1,0 +1,270 @@
+// What the beam draws: the arcade's outlines, dots and letters, decoded from its vector
+// ROM. Positions are in screen units, x to the right and y up; the visible screen is 1044
+// by 788 of them, its lower-left corner at (-10, 118). A shape is a list of strokes, each
+// stroke the points x, y, x, y… it joins; a stroke of one point is a dot.
+
+// A shape drawn by the beam, its origin at (cx, cy).
+
+class Figure [
+    cx: number = 0,
+    cy: number = 0,
+    strokes: number[][] = { [] },
+    hold: number = 64,                      // how long the beam rests on each dot, in clock ticks
+    magnify: number = 1,                    // screen units per unit of the shape
+    intensity: number = 7,                  // the beam's brightness, 0 to 15
+    originX: number = { width / 2 },        // where the origin sits in the view
+    originY: number = { height / 2 },
+    x = { cx + 10 - originX },
+    y = { 906 - cy - originY },
+    pivotX = { originX },
+    pivotY = { originY },
+
+    // The beam as the arcade's monitor shows it: a blue-white core in a soft blue bloom. The
+    // arcade sets the beam's brightness, 0 to 15, and the picture follows it as the tube does:
+    // a brighter beam is brighter, and its spot is wider and blooms further, so the ship and
+    // saucer (12) stand out, and the rocks and letters (7) are dim. Each stroke is traced once
+    // and stroked twice, the bloom and then the core.
+
+    draw(d: Draw) {
+        const level = intensity / 15
+        const px = (sx) => originX + sx * magnify
+        const py = (sy) => originY - sy * magnify
+        for (const s of strokes) {
+            if (s.length == 2) {
+                this.dot(d, px(s[0]), py(s[1]), intensity * hold)
+                continue
+                }
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.shadowColor = "rgba(110,150,255,0.9)"
+            d.beginPath()
+            d.moveTo(px(s[0]), py(s[1]))
+            for (let i = 2; i < s.length; i += 2) d.lineTo(px(s[i]), py(s[i + 1]))
+            d.globalAlpha = 0.85 * level * level
+            d.shadowBlur = 3 + 7 * level
+            d.strokeStyle = "rgb(130,170,255)"
+            d.lineWidth = 2 + 3 * level
+            d.stroke()
+            d.globalAlpha = level
+            d.shadowBlur = 1 + level
+            d.strokeStyle = "#EEF3FF"
+            d.lineWidth = 1.2 + level
+            d.stroke()
+            }
+        },
+
+    // A dot is the beam resting on one spot: all the light it leaves there, its brightness
+    // times how long it rests, lands in one place, so it is round, and brighter and
+    // wider-blooming than any line.
+
+    dot(d: Draw, x: number, y: number, light: number) {
+        d.shadowColor = "rgba(110,150,255,0.9)"
+        d.beginPath()
+        d.arc(x, y, 1 + 3 * Math.min(1, light / 2000), 0, 2 * Math.PI)
+        d.globalAlpha = Math.min(0.85, light / 1500)
+        d.shadowBlur = 8
+        d.fillStyle = "rgb(130,170,255)"
+        d.fill()
+        d.beginPath()
+        d.arc(x, y, 0.8 + 0.8 * Math.min(1, light / 1000), 0, 2 * Math.PI)
+        d.globalAlpha = 1 - Math.exp(-light / 150)
+        d.shadowBlur = 2
+        d.fillStyle = "#F4F7FF"
+        d.fill()
+        }
+    ]
+
+
+// Something on the playfield, drawn where its record says it is: eight field units to a
+// screen unit, the field's bottom edge at screen height 128.
+
+class FieldFigure extends Figure [
+    cx = { :x >> 3 },
+    cy = { (:y >> 3) + 128 }
+    ]
+
+
+class RockOutline extends FieldFigure [ width = 72, height = 72,
+    outlines: number[][][] = { [
+        [[0, 16, 16, 32, 32, 16, 24, 0, 32, -16, 8, -32, -16, -32, -32, -16, -32, 16, -16, 32, 0, 16]],
+        [[16, 8, 32, 16, 16, 32, 0, 24, -16, 32, -32, 16, -24, 0, -32, -16, -16, -32, -8, -24, 16, -32, 32, -8, 16, 8]],
+        [[-16, 0, -32, -8, -16, -32, 0, -8, 0, -32, 16, -32, 32, -8, 32, 8, 16, 32, -8, 32, -32, 8, -16, 0]],
+        [[8, 0, 32, 8, 32, 16, 8, 32, -16, 32, -8, 16, -32, 16, -32, -8, -16, -32, 8, -24, 16, -32, 32, -16, 8, 0]]
+        ] },
+    strokes = { outlines[:shape] },
+    magnify = { :size == "large" ? 1 : :size == "medium" ? 0.5 : 0.25 }
+    ]
+
+
+class SaucerOutline extends FieldFigure [ width = 48, height = 32,
+    strokes = { [
+        [-8, 4, 8, 4],
+        [20, -4, -20, -4, -8, -12, 8, -12, 20, -4, 8, 4, 4, 12, -4, 12, -8, 4, -20, -4]
+        ] },
+    magnify = { :size == "large" ? 1 : 0.5 },
+    intensity = 12
+    ]
+
+
+class ShipOutline extends FieldFigure [ width = 36, height = 36,
+    flame: boolean = false,
+    hull: number[] = [-6, -4, -6, 4, -10, 8, 14, 0, -10, -8, -6, -4],
+    exhaust: number[] = [-6, -4, -14, 0, -6, 4],
+    strokes = { flame ? [hull, exhaust] : [hull] },
+    rotation = { -this.degrees(:heading) },
+    intensity = 12,
+
+    // The arcade draws a quarter turn of headings in 17 steps and mirrors them for the other
+    // three quarters: a heading is folded into the first quarter, rounded down to a step of
+    // 5.625 degrees, and unfolded.
+
+    degrees(heading: number) -> number {
+        const below = heading >= 128
+        const a = below ? 256 - heading : heading
+        const left = a >= 64
+        const step = ((left ? 128 - a : a) >> 2) * 5.625
+        return (left ? 180 - step : step) * (below ? -1 : 1)
+        }
+    ]
+
+
+// A ship that has exploded: six pieces of its outline flying apart, fewer as its explosion
+// goes on. `debris` is where each piece is, x then y, in 256ths of a field unit.
+
+class Wreck extends FieldFigure [ width = 140, height = 140,
+    debris: number[] = [],
+    pieces: number[] = [-8, -12, 4, -8, 6, 2, -8, 8, -6, 2, 4, -4],
+    strokes = { this.flying(debris, :blast) },
+    intensity = 12,
+    flying(debris: number[], blast: number) -> number[][] {
+        return Array.from({ length: Math.min(6, ((255 - blast) >> 4) + 1) }, (_, p) => {
+            const x = debris[2 * p] >> 8, y = debris[2 * p + 1] >> 8
+            return [x, y, x + pieces[2 * p], y + pieces[2 * p + 1]]
+            })
+        }
+    ]
+
+
+// A shot. The arcade draws it at a scale taken from its life, so the beam rests on it for
+// 64, 128 or 256 ticks as its life counts down, and it twinkles.
+
+class ShotDot extends FieldFigure [ width = 12, height = 12,
+    strokes = { [[0, 0]] },
+    hold = { :life % 2 == 1 ? 64 : :life % 4 == 2 ? 128 : 256 },
+    intensity = 15
+    ]
+
+
+// The cloud an explosion leaves. As the explosion counts from 160 to 255 the cloud doubles
+// in size every 16 counts, up to full size, and every fourth count changes its spread
+// between four (10, 12, 14 and 16 apart), which makes it twinkle.
+
+class Shrapnel extends FieldFigure [ width = 72, height = 72,
+    strokes = { [[-10, 0], [-20, -10], [-10, -20], [5, -15], [15, -20], [15, -10],
+        [20, 5], [15, 20], [-5, 15], [-20, 20]] },
+    magnify = { 2 ** ((:blast >> 4) - 15) * (1 + 0.2 * ((:blast >> 2) % 4)) },
+    hold = { 64 * 2 ** ((:blast >> 4) - 15) }                  // shorter, and dimmer, while it is small
+    ]
+
+
+// A line of text in the arcade's font, its origin at the lower-left corner of the first
+// letter; letters are 12 shape units apart.
+
+class ArcadeText extends Figure [
+    text: string = "",
+    letters: string = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    glyphs: number[][][] = { [
+        [],
+        [[0, 0, 0, 12, 8, 12, 8, 0, 0, 0]],
+        [[4, 0, 4, 12]],
+        [[0, 12, 8, 12, 8, 6, 0, 6, 0, 0, 8, 0]],
+        [[0, 0, 8, 0, 8, 12, 0, 12], [0, 6, 8, 6]],
+        [[0, 12, 0, 6, 8, 6], [8, 12, 8, 0]],
+        [[0, 0, 8, 0, 8, 6, 0, 6, 0, 12, 8, 12]],
+        [[0, 6, 8, 6, 8, 0, 0, 0, 0, 12]],
+        [[0, 12, 8, 12, 8, 0]],
+        [[0, 0, 8, 0, 8, 12, 0, 12, 0, 0], [0, 6, 8, 6]],
+        [[8, 0, 8, 12, 0, 12, 0, 6, 8, 6]],
+        [[0, 0, 0, 8, 4, 12, 8, 8, 8, 0], [0, 4, 8, 4]],
+        [[0, 0, 0, 12, 6, 12, 8, 10, 8, 8, 6, 6, 0, 6], [6, 6, 8, 4, 8, 2, 6, 0, 0, 0]],
+        [[0, 0, 0, 12, 8, 12], [0, 0, 8, 0]],
+        [[0, 0, 0, 12, 4, 12, 8, 8, 8, 4, 4, 0, 0, 0]],
+        [[0, 0, 0, 12, 8, 12], [6, 6, 0, 6], [0, 0, 8, 0]],
+        [[0, 0, 0, 12, 8, 12], [6, 6, 0, 6]],
+        [[0, 0, 0, 12, 8, 12, 8, 8], [4, 4, 8, 4, 8, 0, 0, 0]],
+        [[0, 0, 0, 12], [0, 6, 8, 6], [8, 12, 8, 0]],
+        [[0, 0, 8, 0], [4, 0, 4, 12], [8, 12, 0, 12]],
+        [[0, 4, 4, 0, 8, 0, 8, 12]],
+        [[0, 0, 0, 12], [6, 12, 0, 6, 6, 0]],
+        [[0, 12, 0, 0, 8, 0]],
+        [[0, 0, 0, 12, 4, 8, 8, 12, 8, 0]],
+        [[0, 0, 0, 12, 8, 0, 8, 12]],
+        [[0, 0, 0, 12, 8, 12, 8, 0, 0, 0]],
+        [[0, 0, 0, 12, 8, 12, 8, 6, 0, 6]],
+        [[0, 0, 0, 12, 8, 12, 8, 4, 4, 0, 0, 0], [4, 4, 8, 0]],
+        [[0, 0, 0, 12, 8, 12, 8, 6, 0, 6], [2, 6, 8, 0]],
+        [[0, 0, 8, 0, 8, 6, 0, 6, 0, 12, 8, 12]],
+        [[4, 0, 4, 12], [0, 12, 8, 12]],
+        [[0, 12, 0, 0, 8, 0, 8, 12]],
+        [[0, 12, 4, 0, 8, 12]],
+        [[0, 12, 0, 0, 4, 4, 8, 0, 8, 12]],
+        [[0, 0, 8, 12], [0, 12, 8, 0]],
+        [[4, 0, 4, 8, 0, 12], [8, 12, 4, 8]],
+        [[0, 12, 8, 12, 0, 0, 8, 0]]
+        ] },
+    width = { 12 * text.length * magnify + 2 },        // with a unit to spare round the beam
+    height = { 12 * magnify + 2 },
+    originX = 1,
+    originY = { height - 1 },
+    strokes = { this.spell(text) },
+    spell(s: string) -> number[][] {                    // each letter's strokes, moved to its place
+        return Array.from(s).flatMap((c, i) =>
+            glyphs[letters.indexOf(c)].map((g) => g.map((v, k) => k % 2 == 0 ? v + 12 * i : v)))
+        }
+    ]
+
+
+// A score as the arcade shows it: five places, no leading zeros, and nothing scored still
+// shown as "00".
+
+class Score extends ArcadeText [
+    points: number = 0,
+    text = { String(points).padStart(2, "0").padStart(5, " ") }
+    ]
+
+
+// A line of the high-score table: rank, a dim dot, score and initials.
+
+class HighScoreLine extends ArcadeText [ cx = 380, cy = { 668 - 32 * rowIndex }, magnify = 2,
+    text = { String(rowIndex + 1).padStart(2) + " " + String(:score).padStart(5) + " " + :initials },
+    draw(d: Draw) {
+        super.draw(d)
+        this.dot(d, 48, d.h - 1, 4 * 64)                     // brightness 4, held 64 ticks
+        }
+    ]
+
+
+// The ships in reserve, in a row under the score.
+
+class ReserveShips extends Figure [ width = 120, height = 28, originX = 8, originY = 15,
+    cx = 160, cy = 852,
+    count: number = 0,
+    icon: number[] = [-4, -6, 4, -6, 8, -10, 0, 14, -8, -10, -4, -6],
+    strokes = { Array.from({ length: count }, (_, i) => icon.map((v, k) => k % 2 == 0 ? v + 16 * i : v)) }
+    ]
+
+
+class Copyright extends Figure [ width = 184, height = 14, originX = 1, originY = 13,
+    cx = 400, cy = 126,
+    strokes = { [
+        [0, 2, 6, 0, 12, 2, 12, 10, 6, 12, 0, 10, 0, 2], [8, 8, 4, 8, 4, 4, 8, 4],
+        [20, 0, 20, 12], [36, 0, 36, 12, 28, 12, 28, 6, 36, 6], [40, 12, 48, 12, 48, 0],
+        [60, 0, 60, 12, 52, 12, 52, 6, 60, 6],
+        [76, 0, 76, 8, 80, 12, 84, 8, 84, 0], [76, 4, 84, 4], [92, 0, 92, 12], [88, 12, 96, 12],
+        [100, 0, 100, 8, 104, 12, 108, 8, 108, 0], [100, 4, 108, 4],
+        [112, 0, 112, 12, 120, 12, 120, 6, 112, 6], [114, 6, 120, 0],
+        [124, 0, 132, 0], [128, 0, 128, 12], [132, 12, 124, 12],
+        [148, 0, 156, 0], [152, 0, 152, 12], [156, 12, 148, 12],
+        [160, 0, 160, 12, 168, 0, 168, 12], [172, 0, 172, 12, 180, 12], [172, 0, 180, 0]
+        ] }
+    ]

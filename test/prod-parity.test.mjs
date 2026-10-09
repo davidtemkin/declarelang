@@ -2,7 +2,7 @@
 // pixel for pixel. The dual-mode tenet says both modes test one output oracle;
 // this is that oracle enforced end-to-end across the two program pipelines:
 //
-//   dev page    <url>.declare       — parse → check → instantiate (renderAsync)
+//   dev page    <url>.declare       — compile → instantiate the compiled program
 //   build page  /build/<dir>/       — declarec: compact → embed → hydrate →
 //                                     instantiate (renderProgram, no parser)
 //

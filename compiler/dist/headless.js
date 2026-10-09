@@ -1,6 +1,6 @@
 // headless — execute a compiled program to its t=0 snapshot WITHOUT a page
-// (docs/system-design/capabilities.md §4). Real execution on the real runtime: build()
-// (parse + check + instantiate), attach to the HeadlessBackend, write the
+// (docs/system-design/capabilities.md §4). Real execution on the real runtime: buildProgram()
+// (instantiate the compiled program), attach to the HeadlessBackend, write the
 // ENVIRONMENT VECTOR explicitly (a browser fills it implicitly; headless makes
 // it a parameter), settle(). Initialization only — constraints, replication,
 // layout, state application all run; handlers, timers, and live network do
@@ -8,7 +8,7 @@
 //
 // Browser-safe by construction (the runtime graph is zero-dep), so the browser
 // compiler can do everything the Node one can — the parity principle.
-import { build, buildProgram, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
+import { buildProgram, settle, App, HeadlessBackend, provideMeasurer, provideTransport, provideStreams } from "../../runtime/dist/index.js";
 export const DEFAULT_ENV = { hostWidth: 1200, hostHeight: 800, dark: false };
 /** A deterministic stand-in for canvas text metrics on hosts with no DOM —
  *  per-character class widths, one constant table. Enough to SETTLE any tree
@@ -64,12 +64,6 @@ export function approximateMeasurer() {
  *  number of times. Callers walk the tree, then `app.discard()`. */
 export function settleHeadless(program, opts = {}) {
     return settleWith(() => buildProgram(program, { provides: opts.provides }), opts.env);
-}
-/** The same, through the runtime's `build(source)`: parse, check, instantiate a
- *  compile()'s output source with its `deps`. For tests of that entry point. */
-export function settleSource(source, opts = {}) {
-    const { env, ...buildOpts } = opts;
-    return settleWith(() => build(source, buildOpts), env);
 }
 function settleWith(make, envOpt) {
     const env = { ...DEFAULT_ENV, ...envOpt };

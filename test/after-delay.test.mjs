@@ -3,7 +3,7 @@
 // seam (wallclock.ts), so a hand-driven host drives them here; and a { } body
 // is answered with these, never with the host's timers or fetch.
 import assert from "node:assert";
-import { compile, settleSource } from "../compiler/dist/compile-node.js";
+import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { setTimeHost } from "../runtime/dist/wallclock.js";
 let pass = 0, fail = 0;
@@ -14,7 +14,7 @@ async function test(name, fn) {
 async function build(src) {
   const r = await compile(src);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleSource(r.source, { deps: r.deps });
+  return settleHeadless(r.program);
 }
 async function errorsOf(src) {
   const r = await compile(src);

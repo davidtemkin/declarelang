@@ -49,7 +49,7 @@ export { checkAttr, checkMethod, checkClassValue } from "../../runtime/dist/chec
 export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";
-export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export type { Environment, HeadlessOptions } from "./headless.js";
 
 /** Collapse `.` / `..` segments in a POSIX-ish path so the resolved key matches

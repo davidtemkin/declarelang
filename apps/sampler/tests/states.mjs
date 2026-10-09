@@ -33,7 +33,7 @@ export default [
   {
     name: "controls-dark",
     route: async ({ drive }) => {
-      await drive.click("app.bar.appear");                    // light → dark
+      await drive.click("app.bar.right.appear");                    // light → dark
       await settle(drive);
     },
   },
@@ -45,7 +45,7 @@ export default [
     name: "styling-menu-dark",
     scheme: "dark",
     route: async ({ drive }) => {
-      await drive.click("app.bar.styling");
+      await drive.click("app.bar.right.styling");
       await settle(drive);
     },
   },
@@ -54,7 +54,7 @@ export default [
   {
     name: "styling-menu",
     route: async ({ drive }) => {
-      await drive.click("app.bar.styling");
+      await drive.click("app.bar.right.styling");
       await settle(drive);
     },
   },

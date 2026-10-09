@@ -1,0 +1,46 @@
+// The sound board: clips recorded from MAME's emulation of the arcade's sound circuits,
+// each played as the game says its circuit is set. Every one is held whole, so it starts on
+// the frame it is asked for. A short sound starts over each time it is switched on, cutting
+// off the last as the arcade's one circuit for it does; a steady one loops while it is on.
+// A paused game is silent.
+
+class Effect extends Audio [ inMemory = true,
+    on: boolean = false,
+    trackChanges = ["on"],
+    onChange() {
+        if (!on) return
+        playing = false
+        this.play()
+        }
+    ]
+
+
+class Hum extends Audio [ inMemory = true, loop = true,
+    on: boolean = false,
+    playing = { on }
+    ]
+
+
+class SoundBoard [ width = 0, height = 0,
+    game: Game,
+    paused: boolean = false,
+    live: boolean = { game.playing && !paused },    // between games, the arcade is silent
+    saucer: Saucer = { game.value.saucer },
+    saucerFlying: boolean = { live && saucer.inPlay && saucer.blast == 0 },
+
+    shot: Effect [ source = "sounds/fire.wav", on = { live && game.shotSound.on } ],
+    saucerShot: Effect [ source = "sounds/saucerfire.wav", on = { live && game.saucerShotSound.on } ],
+    beatLow: Effect [ source = "sounds/thumplow.wav", on = { live && game.beating && !game.beatHigh } ],
+    beatHigh: Effect [ source = "sounds/thumphigh.wav", on = { live && game.beating && game.beatHigh } ],
+    extraShip: Effect [ source = "sounds/life.wav", on = { !paused && game.extraShipTone > 0 } ],
+    thrust: Hum [ source = "sounds/thrust.wav", on = { live && game.thrustSound } ],
+    largeSaucer: Hum [ source = "sounds/saucerlarge.wav", on = { saucerFlying && saucer.size == "large" } ],
+    smallSaucer: Hum [ source = "sounds/saucersmall.wav", on = { saucerFlying && saucer.size == "small" } ],
+
+    // An explosion is noise at one of three pitches, fading a step each frame.
+
+    loudness: number = { paused ? 0 : game.boomVolume / 15 },
+    lowBoom: Hum [ source = "sounds/boomlow.wav", on = { loudness > 0 && game.boomPitch == "low" }, volume = { loudness } ],
+    midBoom: Hum [ source = "sounds/boommid.wav", on = { loudness > 0 && game.boomPitch == "mid" }, volume = { loudness } ],
+    highBoom: Hum [ source = "sounds/boomhigh.wav", on = { loudness > 0 && game.boomPitch == "high" }, volume = { loudness } ]
+    ]

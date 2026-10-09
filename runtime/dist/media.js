@@ -26,6 +26,8 @@ import { View, fireEvent } from "./view.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { resolveAsset } from "./asset-base.js";
 export class Media extends View {
+    /** A media element plays, and reports its duration, while hidden. */
+    $eagerSurface() { return true; }
     /** Discards a superseded load: only the latest request may land. */
     loadSeq = 0;
     el = null;
@@ -123,7 +125,7 @@ export class Media extends View {
         el.ontimeupdate = () => {
             if (seq !== this.loadSeq)
                 return;
-            setBound(this, "position", el.currentTime);
+            this.$report(el.currentTime);
         };
         el.src = resolveAsset(this.source, this.root);
     }
@@ -151,15 +153,44 @@ export class Media extends View {
             el.pause();
         }
     }
-    /** Author asked to seek. Guarded by a quarter-second so the runtime's own
-     *  `timeupdate` writes — which land in this same slot — cannot bounce back
-     *  out as seeks and stutter the playhead. */
+    /** True while the runtime writes the playhead back, so its own report is not taken for
+     *  the author asking to seek. */
+    $reporting = false;
+    /** The runtime's write of where the playhead is. */
+    $report(seconds) {
+        this.$reporting = true;
+        try {
+            setBound(this, "position", seconds);
+        }
+        finally {
+            this.$reporting = false;
+        }
+    }
+    /** Author asked to seek. */
     $seek() {
+        if (this.$reporting)
+            return;
         const el = this.el;
         if (el === null)
             return;
-        if (Math.abs(el.currentTime - this.position) > 0.25)
-            el.currentTime = this.position;
+        el.currentTime = this.position;
+    }
+    /** Play from the start — the call for a sound that answers an event, which sounds again
+     *  each time the event happens however far the last one got. `playing = true` goes on
+     *  from where the playhead is; this starts over. A sound held in memory (`Audio [ inMemory = true ]`)
+     *  starts another voice instead, over any still sounding. */
+    play() {
+        const el = this.el;
+        this.$report(0);
+        if (el === null) {
+            setBound(this, "playing", true);
+            return;
+        }
+        el.currentTime = 0;
+        if (this.playing)
+            this.$syncPlaying();
+        else
+            setBound(this, "playing", true);
     }
 }
 defineAttributes(Media, {

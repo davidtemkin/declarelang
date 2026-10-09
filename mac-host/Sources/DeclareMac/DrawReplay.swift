@@ -178,9 +178,9 @@ enum DrawReplay {
 
         /// Blur (CoreImage) and draw back into user space — the recording's own
         /// rect, flipped locally because CG draws images bottom-up.
-        func composite(_ layer: CGContext, blur: String, blend2: CGBlendMode = .normal) {
+        func composite(_ layer: CGContext, blur: String, blend2: CGBlendMode = .normal, under t: CGAffineTransform) {
             guard let img = layer.makeImage() else { return }
-            let out = filtered(img, css: blur)
+            let out = filtered(img, css: blur, under: t)
             guard let final = out else { return }
             let c = target()   // the scratch is already popped, so this is the destination
             c.saveGState()
@@ -195,11 +195,21 @@ enum DrawReplay {
         /// The whole CSS filter list over one op's pixels, in list order — the
         /// view chain's functions, in ENCODED sRGB (the null working space), a
         /// blur NOT clamped at the edge (see below) and a drop-shadow laid under
-        /// what the chain has made so far. Lengths are device pixels, as
-        /// canvas filter lengths are.
-        func filtered(_ img: CGImage, css: String) -> CGImage? {
+        /// what the chain has made so far. Lengths are the drawing's units, as
+        /// every length in a drawing is: resolved through `t`, the transform the
+        /// mark was painted under — radii by its magnitude, a drop-shadow's offset
+        /// as a vector (applyChain scales by the magnitude and flips y back). A CSS
+        /// `drop-shadow()`'s blur length is the Gaussian's deviation, where the list's
+        /// shadow blur is a radius (a view's `shadow(…)`), so it goes in doubled.
+        func filtered(_ img: CGImage, css: String, under t: CGAffineTransform) -> CGImage? {
             let ci = CIImage(cgImage: img, options: [.colorSpace: NSNull()])
-            let out = DrawReplay.applyChain(ci, FilterList(css: css).items, lengthScale: 1)
+            let s = abs(t.a * t.d - t.b * t.c).squareRoot()
+            let items = FilterList(css: css).items.map { f -> FilterFn in
+                guard f.fn == "shadow", s > 0 else { return f }
+                let x = t.a * f.dx + t.c * f.dy, y = t.b * f.dx + t.d * f.dy
+                return FilterFn(fn: f.fn, v: f.v, color: f.color, dx: x / s, dy: -y / s, blur: f.blur * 2)
+            }
+            let out = DrawReplay.applyChain(ci, items, lengthScale: s)
             return ciContext.createCGImage(out.cropped(to: ci.extent), from: ci.extent)
         }
 
@@ -221,27 +231,29 @@ enum DrawReplay {
             scratch.setAlpha(st.alpha)
             scratch.setBlendMode(.normal)
             body(scratch)
-            composite(scratch, blur: marker.1.filter, blend2: st.blend)
+            composite(scratch, blur: marker.1.filter, blend2: st.blend, under: scratch.ctm)
             filterLayers.append(marker)                 // the filter is still in effect
         }
 
         func applyShadow(_ c: CGContext) {
             if let sc = st.shadowColor, sc.alphaComponent > 0, (st.shadowBlur > 0 || st.shadowDx != 0 || st.shadowDy != 0) {
-                // ⚠ NEGATE Y. Core Graphics places a shadow in its own device
-                // space, which is y-UP, while canvas states the offset y-DOWN —
-                // so a positive shadowOffsetY landed ABOVE the shape here. The
-                // MAGNITUDE needs no correction: CG does not put the CTM through
-                // the offset, measured — a shadowOffsetX of 12 lands 12 device px
-                // out under a backing scale of 2, matching Chrome exactly. Only
-                // the sign was ever wrong, which is why the x cell passed and the
-                // y extent was zero.
+                // A shadow's lengths are the drawing's units, as every length in
+                // a drawing is; Core Graphics takes them in DEVICE space and does
+                // not put the CTM through them, so they are resolved here through
+                // the transform this mark is painted under. The offset is a
+                // vector through its linear part — which carries the flip, so a
+                // canvas offset (y-down) lands y-up as CG's device space is — and
+                // the blur scales by its magnitude.
                 // ⚠ NOT shadowBlur/2. Canvas defines its shadow as a gaussian of
                 // sigma = shadowBlur/2, and it is tempting to read CG's `blur` as
                 // that sigma — but CG's parameter behaves like the full extent,
                 // so halving it blurred half as much. Measured on drawops:
                 // Chrome's glow ramps over 12 device px where `/2` gave 4.
-                c.setShadow(offset: CGSize(width: st.shadowDx, height: -st.shadowDy),
-                            blur: st.shadowBlur, color: sc.cgColor)
+                let t = c.ctm
+                let s = abs(t.a * t.d - t.b * t.c).squareRoot()
+                c.setShadow(offset: CGSize(width: t.a * st.shadowDx + t.c * st.shadowDy,
+                                           height: t.b * st.shadowDx + t.d * st.shadowDy),
+                            blur: st.shadowBlur * s, color: sc.cgColor)
             } else {
                 c.setShadow(offset: .zero, blur: 0, color: nil)
             }

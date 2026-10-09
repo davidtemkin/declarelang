@@ -1,32 +1,25 @@
-App [ width = 400, height = 220, fill = white, textColor = black,
-    rec: Dataset { { "name": "Ada", "email": "ada@example.com" } },
+schema Expense [ id: number, category: string, amount: number ]
+schema Totals [ count: number, amount: number ]
 
-    canSave: boolean = { app.col.nameF.valid && app.col.mailF.valid
-                      && (app.col.nameF.dirty || app.col.mailF.dirty) },
+class Ledger extends Dataset [ schema = [ rows[]: Expense ],
+    food: Dataset [ schema = Totals, contents = { classroot.totalFor("food") } ],
+    totalFor(category: string) -> Totals {
+        const rows = this.value.rows.filter((e) => e.category == category)
+        return ({ count: rows.length, amount: rows.reduce((n, e) => n + e.amount, 0) })
+        },
+    add(category: string, amount: number) {
+        this.set(["rows", "-"], ({ id: this.value.rows.length + 1, category: category, amount: amount }))
+        }
+    ]
 
-    col: View [ x = 20, y = 20, width = 360, datapath = { rec.value },
+
+App [ width = 320, height = 110, fill = white, textColor = #172530,
+    ledger: Ledger [ ] { { "rows": [ { "id": 1, "category": "food", "amount": 12 }, { "id": 2, "category": "travel", "amount": 45 } ] } },
+    col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-
-        nameF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :name,
-            validate(v: string) -> string { return v.length > 0 ? "" : "Name is required" }
-            ],
-        mailF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :email,
-            validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }
-            ],
-
-        msg: Text [ width = 340, textColor = firebrick,
-            text = { app.col.nameF.error != "" ? app.col.nameF.error : app.col.mailF.error } ],
-
-        row: View [ height = 30,
-            layout: SimpleLayout [ axis = x, spacing = 8 ],
-            Button [ label = "Save", primary = true, disabled = { !app.canSave },
-                onClick() { app.col.nameF.commit(); app.col.mailF.commit() }
-                ],
-            Button [ label = "Revert",
-                onClick() { app.col.nameF.revert(); app.col.mailF.revert() }
-                ]
+        Text [ text = { app.ledger.food.value.count + " food expenses, $" + app.ledger.food.value.amount } ],
+        Button [ label = "Add a $20 lunch",
+            onClick() { app.ledger.add("food", 20) }
             ]
         ]
     ]

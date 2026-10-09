@@ -96,6 +96,8 @@ export async function bootInWorker(program, { budgetMs = 15000 } = {}) {
 }
 
 // ── the worker ────────────────────────────────────────────────────────────
+/** The synthetic host the boot fills: a laptop window. */
+const HOST_W = 1280, HOST_H = 800;
 if (!isMainThread) {
   const { program } = workerData;
   const record = { ok: false, nodes: 0, ms: 0, errors: [], notes: [], samples: [] };
@@ -113,6 +115,12 @@ if (!isMainThread) {
     const { buildProgram, settle } = await import("../../runtime/dist/index.js");
     const t0 = performance.now();
     const app = buildProgram(program);
+    // A HOST TO FILL. A page feeds the App its window's size at mount; with no
+    // window it would be 0 × 0, and every app sized from its host would boot
+    // with no geometry for the checks below to read. A laptop window stands in.
+    const { setBound } = await import("../../runtime/dist/attributes.js");
+    setBound(app, "hostWidth", HOST_W);
+    setBound(app, "hostHeight", HOST_H);
     settle();
     record.ms = Math.round((performance.now() - t0) * 10) / 10;
     // DATA FROM THE NETWORK never arrives headless, so the rows it would
@@ -126,6 +134,7 @@ if (!isMainThread) {
     }
     const walk = (n) => { record.nodes++; for (const c of n.children ?? []) walk(c); };
     walk(app);
+    for (const n of await outOfReach(app)) record.notes.push(n);
     if (contained.length > 0) for (const c of new Set(contained)) record.errors.push(`boot: ${c}`);   // each row reports its own copy: once is enough
     else record.ok = true;
   } catch (e) {
@@ -162,6 +171,53 @@ function installSyntheticHost() {
   globalThis.document = { __declareSyntheticMeasurer: true, createElement: () => ({ getContext: () => ctx }) };
   globalThis.requestAnimationFrame ??= () => 0; // motion needs the driven clock (phase 2)
   globalThis.cancelAnimationFrame ??= () => {};
+}
+
+/** CONTROLS NOBODY CAN REACH. A control that lies outside an ancestor which
+ *  clips and does not scroll — with no scroller between them to bring it in —
+ *  can never be seen or pressed; nor can one placed above or left of a
+ *  scroller's origin, where no scroll reaches. Every other rung passes such a
+ *  program (Cadence 12: a sheet's Save below its clip). Reported as a note,
+ *  not a failure: a carousel that keeps cards outside its clip on purpose
+ *  looks the same. Measured on the booted geometry; the App's own frame is
+ *  not a clip here, because apps park closed panels off-stage by design. */
+async function outOfReach(app) {
+  const { View } = await import("../../runtime/dist/view.js");
+  const { rootFrameBox } = await import("../../runtime/dist/interaction.js");
+  const { pathOf } = await import("../../runtime/dist/inspect.js");
+  const isControl = (v) => { for (let c = v.constructor; c && c !== View; c = Object.getPrototypeOf(c)) if (c.name === "Control") return true; return false; };
+  const clips = (v) => v.clip !== null && v.clip !== false && v.clip !== "";
+  const out = [];
+  const say = (v, why) => out.push(`a control may be out of reach — ${pathOf(app, v)} (${v.constructor.name}) ${why}`);
+  const round = (b) => `x ${Math.round(b.x)}–${Math.round(b.x + b.width)}, y ${Math.round(b.y)}–${Math.round(b.y + b.height)}`;
+  const visit = (v) => {
+    if (isControl(v) && v.width > 0 && v.height > 0) {
+      const box = rootFrameBox(v);
+      for (let a = v.parent, child = v; a instanceof View && a.parent !== null; child = a, a = a.parent) {
+        if (a.scrolls !== "none") {
+          // in the scroller's content: nothing scrolls above or left of the origin
+          const c = rootFrameBox(v, undefined, a);
+          if (c.y + c.height <= 0 || c.x + c.width <= 0) say(v, `lies above or left of ${pathOf(app, a)}, a scroller, where no scroll reaches (${round(c)} in its content)`);
+          break;
+        }
+        if (clips(a) && !child.ignoreClip) {
+          const k = rootFrameBox(a);
+          // a clip with no area is a panel closed or not yet laid out: it hides
+          // its content by design, and says nothing about reach
+          if (k.width <= 0 || k.height <= 0) break;
+          const outside = box.x >= k.x + k.width || box.x + box.width <= k.x || box.y >= k.y + k.height || box.y + box.height <= k.y;
+          const partly = !outside && (box.x < k.x - 0.5 || box.y < k.y - 0.5 || box.x + box.width > k.x + k.width + 0.5 || box.y + box.height > k.y + k.height + 0.5);
+          if (outside || partly) {
+            say(v, `${outside ? "lies outside" : "is cut off by"} ${pathOf(app, a)}, which clips and does not scroll (the control ${round(box)}; the clip ${round(k)})`);
+            break;
+          }
+        }
+      }
+    }
+    for (const c of v.children ?? []) if (c instanceof View) visit(c);
+  };
+  visit(app);
+  return out;
 }
 
 /** Hand every unloaded, schema-declaring DataSource under `app` a sample

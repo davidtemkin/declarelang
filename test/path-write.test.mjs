@@ -3,7 +3,7 @@
 // view's cursor), so everything reading that field follows in the same settle —
 // the row never needs to know where in the collection it sits.
 import assert from "node:assert";
-import { compile, settleSource } from "../compiler/dist/compile-node.js";
+import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
 provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: t.length * 7, fontBoundingBoxAscent: 11, fontBoundingBoxDescent: 3, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 }) });
@@ -15,7 +15,7 @@ function test(name, fn) {
 async function build(src) {
   const r = await compile(src);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleSource(r.source, { deps: r.deps });
+  return settleHeadless(r.program);
 }
 async function errorsOf(src) {
   const r = await compile(src);

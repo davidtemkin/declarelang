@@ -139,10 +139,9 @@ export const Diag = {
     syntax: (message, pos) => err(code4(1001), message, pos),
     // A value body wrapped ENTIRELY in parentheses — the constraint's own { }
     // already delimits the expression, so `{ (expr) }` and `{ ({ … }) }` add a
-    // layer that does nothing. Rejected so the one paren-free form (`{ expr }`,
-    // `{ { … } }`) is the only form — the paren idiom the object-literal
-    // diagnostic once taught is retired (DT ruling, 2026-09-08).
-    redundantParens: (inner, pos) => err(code4(1002), `redundant parentheses — the { } already delimits the expression, so the outer ( ) do nothing here; write { ${inner} }`, pos),
+    // layer that does nothing. A hint naming the paren-free form (`{ expr }`,
+    // `{ { … } }`), never an error: a body is TypeScript, which allows them.
+    redundantParens: (inner, pos) => err(code4(1002), `redundant parentheses — the { } already delimits the expression, so the outer ( ) do nothing here; { ${inner} } says the same`, pos),
     // 2xxx structure. `unknownClass` takes the known-class names and
     // appends a calibrated near-miss ("did you mean 'Text'?") — the fix, named
     // (diagnostics.md §4); the rule rides the hint.
@@ -327,6 +326,7 @@ export function renderReport(diagnostics) {
  *  `Declare explain DECLARE3001`). */
 export const DIAGNOSTIC_CATALOG = [
     { code: code4(1001), phase: "syntax", summary: "the parser rejected a token or shape" },
+    { code: code4(1002), phase: "syntax", summary: "a value body wrapped whole in parentheses — { expr } says it (hint)" },
     { code: code4(2000), phase: "structure", summary: "structural error (unclassified)" },
     { code: code4(2001), phase: "structure", summary: "unknown class tag" },
     { code: code4(2002), phase: "structure", summary: "a name is declared more than once" },

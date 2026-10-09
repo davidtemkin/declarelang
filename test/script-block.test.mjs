@@ -113,14 +113,14 @@ await test("blocks share ONE scope at runtime — a block-2 function calls block
   // early `return`, and the first cross-block call threw ReferenceError.
   // The no-imports path now merges like the imports path: one body, one
   // bindings return.
-  const { build, settle } = await import("../runtime/dist/index.js");
+  const { buildProgram, settle } = await import("../runtime/dist/index.js");
   const r = await compile(`
 script { function one(n: number): number { return n + 1 } }
 script { let base = 100
     function two(n: number): number { return one(n) * 2 + base } }
 App [ width=1, height=1, t: Text [ text = { "" + two(5) } ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   settle();
   assert.equal(app.t.text, "112", "cross-block call AND cross-block state resolve lexically");
 });

@@ -204,8 +204,9 @@ shows the Declare form.
   layout, fonts, paint and input exist only at run time. `npm start` serves a program at its
   file's path (`my-apps/app.declare` at `http://127.0.0.1:8200/my-apps/app.declare`).
   Without a browser of your own, `npx declare-look app.declare --size 390x844 --shot
-  out.png` runs it headless and saves a screenshot; it can also click, read a value, and
-  switch to dark mode or touch. A screenshot you read stays in your context for the rest
+  out.png` runs it headless and saves a screenshot; it can also click, drag, scroll, type
+  and press keys, in the order you write them, read values, and switch to dark mode or
+  touch (`--help` lists them). A screenshot you read stays in your context for the rest
   of the session, like any read, so look when there is something to see, not after every
   edit.
 - **Before you hand it over, use it once as a person would.** Scroll a long list from end

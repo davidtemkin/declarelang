@@ -247,7 +247,7 @@ refusal.
      (the Node `fs` host, imported only by the Node entry so `index.ts` stays
      zero-dep). `compile()` emits ONE **self-contained** source — each library's
      own `include` directives excised, concatenated dependency-first ahead of the
-     main file — so the hostless browser `render()` runs the merge with no host;
+     main file — so the runtime runs the merge with no host;
   3. a shared `apps/weather/components.declare` with a simple `TabSlider` (a
      plain `class TabSlider extends View` owning `select(tab)`) alongside
      `StatRow` / `WeatherTab` / `WeatherSummary` / `Screen`;

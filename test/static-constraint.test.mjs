@@ -6,7 +6,7 @@ import assert from "node:assert";
 import { compile } from "../compiler/dist/compile-node.js";
 import { annotateProgram } from "../compiler/dist/dep-extract.js";
 import { parseProgram } from "../runtime/dist/parser.js";
-import { instantiate, settle, build, serializeDeps, applyDeps, forEachCodeValue } from "../runtime/dist/index.js";
+import { instantiate, settle, buildProgram, serializeDeps, applyDeps, forEachCodeValue } from "../runtime/dist/index.js";
 import { Clock, setClock } from "../runtime/dist/animate.js";
 
 // Every case starts at once; each reports as it settles, and the totals wait
@@ -130,11 +130,11 @@ test("serializeDeps → applyDeps round-trips onto the identical constraints (no
   assert.deepEqual(got, ref, "applied deps landed on different constraints than they were extracted from");
 });
 
-test("dev path (build with opts.deps) takes the static path and stays reactive", async () => {
+test("a program re-read from compiled text, its deps zipped on, takes the static path and stays reactive", async () => {
   const src = (await compile(`App [ n: number = 4, v: View [ width = { app.n * 5 } ] ]`, {})).source;
   const p = parseProgram(src); annotateProgram(p);
   const deps = serializeDeps(p);
-  const app = build(src, { deps });          // ← exactly what renderAsync does in the browser
+  const app = buildProgram(parseProgram(src), { deps });   // ← what a compile result that crossed a boundary boots as
   settle();
   assert.equal(app.v.$owners?.width?.isStatic, true, "dev path should wire the static edge");
   assert.equal(app.v.width, 20);
@@ -243,7 +243,7 @@ test("a method handed a datapath read (:@, :field) reads through it, and follows
 // tracking path — branch-union OVER-subscription — never under-subscription, so
 // suspension has to re-arm the edges. Both callers of suspend() are covered.
 //
-// Invisible on the tracking path (build(): run() re-tracks every run, so resume
+// Invisible on the tracking path (run() re-tracks every run, so resume
 // self-heals) and easy to miss on the animator, which repairs the value at every
 // stop — the loss shows only when a dep moves in the quiet interval AFTER the
 // resume. Found via a stuck `visible = { app.panelVisible }` on a view whose

@@ -115,6 +115,8 @@ static JSValueRef js_setHost(JSContextRef ctx, JSObjectRef function, JSObjectRef
 FN(js_arena_size)   { return N(kernel_arena_size(P(0), U(1), (const dk_caps *)P(2))); }
 FN(js_load)         { jsc_host *h = host_of(thisObject); return h ? PTR(kernel_load(P(0), U(1), (const dk_caps *)P(2), P(3), U(4), &h->host)) : N(0); }
 FN(js_table)        { return PTR(kernel_table(K)); }
+FN(js_nulls)        { return PTR(kernel_nulls(K)); }
+FN(js_body_null)    { return PTR(kernel_body_null(K)); }
 FN(js_cells)        { return N(kernel_cells(K)); }
 FN(js_rules)        { return N(kernel_rules(K)); }
 FN(js_elems)        { return N(kernel_elems(K)); }
@@ -217,7 +219,7 @@ void declare_kernel_install(JSGlobalContextRef ctx) {
   JSObjectRef o = JSObjectMake(ctx, cls, h);
   def(ctx, o, "alloc", js_alloc); def(ctx, o, "view", js_view); def(ctx, o, "setHost", js_setHost); def(ctx, o, "prof", js_prof);
   def(ctx, o, "kernel_arena_size", js_arena_size); def(ctx, o, "kernel_load", js_load);
-  def(ctx, o, "kernel_table", js_table); def(ctx, o, "kernel_cells", js_cells); def(ctx, o, "kernel_rules", js_rules); def(ctx, o, "kernel_elems", js_elems);
+  def(ctx, o, "kernel_table", js_table); def(ctx, o, "kernel_nulls", js_nulls); def(ctx, o, "kernel_body_null", js_body_null); def(ctx, o, "kernel_cells", js_cells); def(ctx, o, "kernel_rules", js_rules); def(ctx, o, "kernel_elems", js_elems);
   def(ctx, o, "kernel_cell", js_cell); def(ctx, o, "kernel_write", js_write); def(ctx, o, "kernel_set", js_set); def(ctx, o, "kernel_touch", js_touch);
   def(ctx, o, "kernel_is_set", js_is_set); def(ctx, o, "kernel_own", js_own); def(ctx, o, "kernel_release", js_release); def(ctx, o, "kernel_owner", js_owner);
   def(ctx, o, "kernel_run", js_run); def(ctx, o, "kernel_invalidate", js_invalidate); def(ctx, o, "kernel_dispose", js_dispose);

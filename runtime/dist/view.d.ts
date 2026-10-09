@@ -584,6 +584,14 @@ export declare class View extends Node {
      *  can ever wake work for a removed view. Children first; teardown ONLY —
      *  unlinking (and notifying the ex-parent) is discard's, the verb above. */
     $teardown(): void;
+    /** Does this view need its real surface even while hidden? A view the
+     *  renderer measures or that holds live state in its element says yes. */
+    protected $eagerSurface(): boolean;
+    /** Trade a stand-in for a real surface (deferred-surface.ts): when first
+     *  shown, or — `forced` — when something beneath needs it while hidden.
+     *  The current state is flushed into it, as at attach, and it goes in before
+     *  the next sibling that has one; its shown children follow it in. */
+    $materialize(forced?: boolean): void;
     /** Push this view's full visual state across the seam. Subclasses extend
      *  it with their capabilities (Text, Image); it runs before the children
      *  attach, so a backend that keeps content in arrival order (the DOM) gets

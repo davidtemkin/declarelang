@@ -33,25 +33,11 @@ export interface Resolved {
     dir: string;
     source: string;
 }
-/** A host that resolves nothing — the default in the zero-dependency graph
- *  (index.ts): a source with no `include`s never calls it, so behavior is
- *  unchanged; a source WITH includes but no real host reports each as
- *  unresolvable rather than importing a filesystem into the runtime graph. */
+/** A host that resolves nothing — compile()'s default when it is given none:
+ *  a source with no `include`s never calls it; a source WITH includes but no
+ *  real host reports each as unresolvable rather than importing a filesystem
+ *  into the zero-dependency graph. */
 export declare const NO_INCLUDES: IncludeHost;
-/** The HOSTLESS case, synchronously — the RUNTIME's path.
- *
- *  `compile()` emits one self-contained program (the walk splices every library's
- *  source ahead of the excised main), so at runtime there is nothing left to
- *  resolve: build() runs with NO_INCLUDES over an already-empty include list.
- *  Keeping that case here, sync, is what lets the seam above be async without
- *  making the runtime's build()/render() async for I/O nobody performs.
- *
- *  A source that still carries `include`s and has no host is the honest error the
- *  walk produced — one `missingInclude` per directive, same diagnostic, same order. */
-export declare function resolveIncludesHostless(program: Program): {
-    program: Program;
-    errors: DeclareError[];
-};
 /** Resolve a program's `include`s (composition.md §1): recursively parse each
  *  included library relative to the including file, fold every library's
  *  top-level declarations into the accumulator (the main program's first), and

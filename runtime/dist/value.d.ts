@@ -232,10 +232,12 @@ export declare function isPercent(v: AttrValue): v is Percent;
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType = {
     readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset";
+    readonly nullable?: true;
 } | {
     readonly kind: "dataschema";
 } | {
     readonly kind: "object";
+    readonly written?: string;
 } | {
     readonly kind: "view";
     readonly required?: true;
@@ -305,6 +307,10 @@ export declare const isAuthoredUnion: (name: string) => boolean;
  *  must reconstruct the text exactly, so a member containing `|` (`"a|b" |
  *  "c"`) parses correctly — a bare split on `|` did not (review, 2026-09-04). */
 export declare function parseLiteralUnion(text: string): string[] | null;
+/** A NULLABLE number or boolean — `number | null`, `null | number`, `number?`
+ *  (and `| undefined`, which a slot holds as null): "n" or "b", else null. Such
+ *  a slot stays in the kernel's table, its null carried by the cell's flag. */
+export declare function nullablePrimitive(written: string): "n" | "b" | null;
 export declare function declaredType(name: string): AttrType | null;
 /** The declarable type names, for the checker's "expected one of …" message. */
 export declare const DECLARED_TYPE_NAMES: readonly string[];

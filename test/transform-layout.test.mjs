@@ -37,6 +37,7 @@ import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { launchChrome } from "../tools/internal/chrome.mjs";
+import { compile } from "../compiler/dist/compile-node.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -70,16 +71,19 @@ const browser = await launchChrome({ executablePath: findChrome(), headless: tru
 
 /** Mount one program on the DOM backend and report the geometry that matters:
  *  every element's client rect, and the extent of every real scroller. */
-async function measure(program) {
+async function measure(source) {
+  const r = await compile(source);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "the scene compiles clean");
+  const program = JSON.stringify(r.program);
   const page = await browser.newPage();
   await page.setViewport({ width: 600, height: 400 });
   await page.goto(BASE + "/", { waitUntil: "domcontentloaded" });
-  const out = await page.evaluate(async (base, src) => {
-    const { build, mountApp, DomBackend } = await import(base + "/runtime/dist/index.js");
+  const out = await page.evaluate(async (base, programJson) => {
+    const { buildProgram, mountApp, DomBackend } = await import(base + "/runtime/dist/index.js");
     const host = document.createElement("div");
     host.style.cssText = "position:absolute;left:0;top:0;width:600px;height:400px";
     document.body.appendChild(host);
-    mountApp(build(src), host, new DomBackend());
+    mountApp(buildProgram(JSON.parse(programJson)), host, new DomBackend());
     await new Promise((r) => setTimeout(r, 60));
     const all = [...host.querySelectorAll("*")];
     const r = (e) => { const b = e.getBoundingClientRect();

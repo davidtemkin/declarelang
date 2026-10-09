@@ -8,9 +8,24 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { build, settle, Dataset } from "../runtime/dist/index.js";
+import { buildProgram, DeclareErrors, settle, Dataset } from "../runtime/dist/index.js";
 import { provideTransport } from "../runtime/dist/data.js";
 import { validateShape } from "../runtime/dist/data-schema.js";
+
+/** Compile a source and build the program compile() hands over; a compile error
+ *  throws, carrying every error. */
+async function build(src) {
+  return buildProgram(await compiled(src));
+}
+
+// The program compile() hands over for a source; a compile error throws,
+// carrying every error. `buildProgram(await compiled(src))` builds in the same
+// tick as what follows it, before the runtime's own settle can run.
+async function compiled(src) {
+  const r = await compile(src);
+  if (r.errors.length > 0) throw new DeclareErrors(r.errors);
+  return r.program;
+}
 
 const jsonResponse = (body, ok = true) =>
   Promise.resolve({ ok, status: ok ? 200 : 500, json: () => Promise.resolve(body), text: () => Promise.resolve(JSON.stringify(body)) });
@@ -24,13 +39,13 @@ await test("the shape literal parses and rides the artifact; embedded data valid
   const src = (body) => `App [ width=1, height=1,
     e: Dataset [ schema = [ rows[]: [ id: string ] ] ] { ${body} },
   ]`;
-  assert.ok(build((await compile(src('{ "rows": [ { "id": "a" } ] }'))).source), "a conforming body builds");
+  assert.ok(buildProgram(await compiled(src('{ "rows": [ { "id": "a" } ] }'))), "a conforming body builds");
   await assert.rejects(
-    async () => build((await compile(src('{ "rows": [ { "id": 7 } ] }'))).source),
+    async () => buildProgram(await compiled(src('{ "rows": [ { "id": 7 } ] }'))),
     /embedded data does not match the schema — \/rows\/0\/id — expected string, got number/
   );
   await assert.rejects(
-    async () => build((await compile(src('{ "rows": [ {} ] }'))).source),
+    async () => buildProgram(await compiled(src('{ "rows": [ {} ] }'))),
     /\/rows\/0\/id is missing — the schema requires string \(mark it 'id\?'/
   );
 });
@@ -40,7 +55,7 @@ await test("validate-on-receipt: a bad response lands in .failed with the pointe
     ds: DataSource [ url = "/x", schema = [ city: string, rows[]: [ id: string ] ] ],
   ]`);
   assert.deepEqual(src.errors, []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   const prev = provideTransport(() => jsonResponse({ city: "SF", rows: [{ id: "a" }] }));
   try {
     await app.ds.fetch();
@@ -79,7 +94,7 @@ await test("INFERRED identity drives reconciliation — no key=, no schema, no d
     ],
   ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   settle();
   const before = app.list.children.filter((c) => c.t);
   assert.deepEqual(before.map((v) => v.t.text), ["ONE", "TWO"]);
@@ -109,7 +124,7 @@ await test("the ! marker refuses with the convention named; key= overrides an un
     ],
   ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   settle();
   const before = app.list.children.filter((c) => c.t);
   app.raw.set(["rows", 0, "label"], "uno");
@@ -132,7 +147,7 @@ await test("windowed retention keys by INFERRED identity across wholesale replac
     ],
   ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   const rows = (n) => Array.from({ length: n }, (_, i) => ({ id: i, label: "row " + i }));
   app.d.value = { rows: rows(1000) };
   settle();
@@ -183,14 +198,14 @@ await test("DataSource.credentials — a token surface, the Fetch API's spelling
     ];
     for (const [decl, want] of cases) {
       seen.length = 0;
-      const app = build(src(decl));
+      const app = buildProgram(await compiled(src(decl)));
       app.d.fetch();
       await new Promise((r) => setTimeout(r, 20));
       assert.deepEqual(seen[0], want, `init for '${decl || "(unset)"}'`);
     }
     // orthogonal to the verb: a POST carries body, headers AND credentials
     seen.length = 0;
-    const app = build(src(`, method = "POST", body = { { a: 1 } }, credentials = include`));
+    const app = buildProgram(await compiled(src(`, method = "POST", body = { { a: 1 } }, credentials = include`)));
     app.d.fetch();
     await new Promise((r) => setTimeout(r, 20));
     assert.deepEqual(seen[0], { method: "POST", body: '{"a":1}',
@@ -260,7 +275,7 @@ await test("typed data: the verbs are held to the shape — refused at the write
       nest: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "title": "a", "done": false, "status": "open", "born": 1 } ] } },
     ]`);
   assert.deepEqual(src.errors, []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   assert.throws(() => app.nest.set(["tasks", 0, "done"], "yes"), /'\/tasks\/0\/done' refuses this write — expected boolean, got string/);
   assert.throws(() => app.nest.set(["tasks", 0, "status"], "paused"), /expected "open" \| "closed", got string/, "a literal union validates by membership");
   assert.throws(() => app.nest.set(["tasks", 0, "pri"], 7), /expected 0 \| 1 \| 2, got number/, "…numbers too");
@@ -283,7 +298,7 @@ await test("typed data: an array-root document (schema = Row[]) — validated ar
       t: Text [ text = { (ds.value ?? []).map(r => r.label).join(",") } ],
     ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   const prev = provideTransport(() => jsonResponse([{ id: "a", label: "x" }]));
   try {
     await app.ds.fetch();
@@ -322,20 +337,21 @@ await test("typed data: the producer's wall — `contents` on a schema'd derived
   assert.deepEqual(good.errors.map((e) => e.message), [], "a typed producer chain is clean end to end");
 });
 
-await test("typed data: the crossings a TS arrival types first each name their rewrite", async () => {
+await test("typed data: TypeScript's spellings of a field are the same field; the rest name their rewrite", async () => {
   const say = async (src) => (await compile(src + "\nApp [ width=1, height=1 ]")).errors[0]?.message ?? "clean";
-  assert.match(await say(`schema T [ tags: string[] ]`), /the array marker rides the NAME: write 'tags\[\]: string'/);
-  assert.match(await say(`schema T [ note: string? ]`), /the optional marker rides the FIELD name: write 'note\?: string'/);
+  const fieldsOf = async (src) => (await compile(src + "\nApp [ width=1, height=1 ]")).program.shapes[0].fields.map((f) => `${f.name}${f.array ? "[]" : ""}${f.optional ? "?" : ""}`);
+  assert.deepEqual(await fieldsOf(`schema T [ tags: string[], note: string?, km: number | null, w: number | undefined ]`),
+    await fieldsOf(`schema T [ tags[]: string, note?: string, km?: number, w?: number ]`), "the two spellings declare the same fields");
+  assert.match(await say(`schema T [ tags[]: string[] ]`), /marked an array twice/);
   assert.match(await say(`schema T [ x: string = "a" ]`), /a schema field takes no default/);
-  assert.match(await say(`schema T [ km: number | null ]`), /may be null or missing is written with '\?' on its NAME: 'km\?: number'/);
   assert.match(await say(`schema T [ km: number | string ]`), /a schema field has one type/);
   assert.match(await say(`schema T [ f(x) { return 1 } ]`), /a schema declares shape, not behavior/);
   assert.match(await say(`schema A [ x: string ]\nschema B extends A [ y: string ]`), /schemas do not extend — a schema is composed by NESTING/);
   assert.match(await say(`schema T [ a: 1 | "b" ]`), /a literal union is all strings or all numbers/);
   const tag = await compile(`schema Task [ id: string ]\nApp [ width=1, height=1, Task [ ] ]`);
   assert.match(tag.errors[0].message, /'Task' is a schema — a data shape, not a class/);
-  const q = await compile(`App [ width=1, height=1, f(c?: number) { return 1 } ]`);
-  assert.match(q.errors[0].message, /in a signature the '\?' marks the TYPE: write 'c: number\?'/);
+  const q = await compile(`App [ width=1, height=1, f(c?: number) -> number { return c ?? 1 }, n: number = { app.f() } ]`);
+  assert.deepEqual(q.errors.map((e) => e.message), [], "TypeScript's optional parameter is Declare's nullable one");
 });
 
 await test("typed data: a schema-typed slot is LIVE past its identity — the record's own field wakes its readers", async () => {
@@ -347,7 +363,7 @@ await test("typed data: a schema-typed slot is LIVE past its identity — the re
       detail: Text [ text = { app.sel ? app.sel.title : "none" } ],
     ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   settle();
   app.pick("t1");
   settle();
@@ -402,7 +418,7 @@ await test("DataSource carries headers — the API-keyed / Bearer-token endpoint
       body = { { query: "{ q }" } } ],
   ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   settle();
   let seen = null;
   const prev = provideTransport((url, init) => { seen = init; return jsonResponse({ ok: 1 }); });
@@ -432,7 +448,7 @@ await test("a literal union is sayable in EVERY type position, not just a schema
       t: Text [ text = { app.phase } ],
     ]`);
   assert.deepEqual(src.errors.map((e) => e.message), [], "declaration, parameter and return all accept it");
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   settle();
   assert.equal(app.t.text, "idle", "the value flows like any other");
   app.go();
@@ -451,9 +467,11 @@ await test("a literal union is sayable in EVERY type position, not just a schema
   // literals, not split on '|' (review, 2026-09-04)
   const piped = await compile(`App [ width=1, height=1, sep: "a|b" | "c" = "a|b" ]`);
   assert.deepEqual(piped.errors.map((e) => e.message), [], "a member containing '|' parses");
-  // and a NUMBER union on a declaration is refused by name, not by accident
+  // and a NUMBER union is a TypeScript type like any other
   const numeric = await compile(`App [ width=1, height=1, col: 0 | 1 | 2 = 0 ]`);
-  assert.match(numeric.errors[0].message, /number-literal union is a schema-field type/);
+  assert.deepEqual(numeric.errors.map((e) => e.message), []);
+  const off = await compile(`App [ width=1, height=1, col: 0 | 1 | 2 = 5 ]`);
+  assert.match(off.errors[0].message, /this default is not a 0 \| 1 \| 2/);
 });
 
 await test("spell a member the way its declaration spells it — an authored union takes the QUOTED member only (ruling 2026-09-05)", async () => {

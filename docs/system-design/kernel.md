@@ -287,6 +287,23 @@ the kernel dispose a yielding base (a declared default) outright (the base now g
 claim while suspended and re-claims it on restore). Pinned in `test/unit.test.mjs` ("a
 constraint a State or an Animator took over follows its inputs again once handed back").
 
+### Null in a number cell
+
+A declared `number | null` (or `boolean | null`, or `T?` of either) is a table
+slot like any number: the kernel keeps one null flag per cell beside the table,
+and a null is the slot's 0 with its flag set. Every number written — by the
+host or by the kernel's own `set_value` — clears the flag, so a kernel write
+never leaves a stale null. Expressions carry a null bit beside each stack entry:
+arithmetic and ordering read the 0, which is JavaScript's own reading of null
+there (`null + 1`, `null < 1`, `!null`, `Math.min(null, 5)`); `==`/`!=`, `??`
+(`COALESCE`) and a choice (`SELECT`) that yields the value read the flag, as
+JavaScript does; `null` is its own opcode (`NULL`). A host body cannot return
+null across the double return, so it sets the kernel's `body_null` byte before
+returning and the landing lands null. The conformance suite holds both kernels
+to the same answers and each to JavaScript's. Measured: 2,000 views driven every
+frame through a `number | null` slot read with `??` run at the cost of a plain
+`number` (my-apps/sweep/nullable-bench.mjs).
+
 ## 11. Closed: choosing the kernel automatically
 
 Considered and closed, 2026-09-27 (DT): no build-time heuristic reads the thing that decides

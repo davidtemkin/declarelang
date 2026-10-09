@@ -439,6 +439,7 @@ function paintedAbove(a: HTMLElement, b: HTMLElement): boolean {
 }
 
 export class DomBackend implements RenderBackend {
+  readonly defersHidden = true;
   /** Fragment-href realization base (location.md §0.9). null (the default,
    *  top level) = this document's own page. "" = an EMBEDDED app: fragment
    *  refs realize no native anchor at all (they would target the HOST page's
@@ -471,6 +472,7 @@ export class DomBackend implements RenderBackend {
     // (index.ts isEmbedded), and the boundary the input router stops at so an
     // outer app never double-handles a click that belongs to an embedded child.
     rootEl.dataset.declareApp = "";
+    (root as DomSurface).isRoot = true;
     // Selection is realized at the LEAVES (see the ruling above the class):
     // the root writes no `user-select` at all. What the root does own is the
     // tap flash — WebKit's gray tap-highlight rectangle is feedback for a
@@ -833,14 +835,14 @@ export class DomSurface implements Surface {
     if (this.clampRule !== null && v !== was) this.renderClamped();   // the lines were cut at the old width
     this.element.style.width = v + "px";
     this.box.width = v;   // border-radius/background track the box via CSS — no re-raster
-    if (this.element.dataset.declareApp !== undefined) { this.applyRootSize(); this.refreshTouchAction(); }
+    if (this.isRoot) { this.applyRootSize(); this.refreshTouchAction(); }
   }
 
   setHeight(v: number): void {
     this.frameH = v;
     this.element.style.height = v + "px";
     this.box.height = v;
-    if (this.element.dataset.declareApp !== undefined) { this.applyRootSize(); this.refreshTouchAction(); }
+    if (this.isRoot) { this.applyRootSize(); this.refreshTouchAction(); }
   }
 
   /** The view-model frame (setWidth/setHeight, verbatim) — the ROOT element
@@ -853,6 +855,9 @@ export class DomSurface implements Surface {
    *  host page — its gesture default is `manipulation`, never the geometry
    *  read (refreshTouchAction). */
   embeddedRoot = false;
+  /** This surface is an app's root (attachRoot stamps it, with the
+   *  `data-declare-app` mark other code reads off the DOM). */
+  isRoot = false;
 
   // ── Box decoration: CSS properties as PAINT PRIMITIVES — background (a color
   // or a linear gradient), border-radius (one value or four corners), and
@@ -892,7 +897,7 @@ export class DomSurface implements Surface {
     // where the background is only sampled-with-a-wash, the meta is honored
     // as the chrome's own tone (and tracked live). Top-level roots only; an
     // embedded island must not touch the shared page.
-    if (this.element.dataset.declareApp !== undefined && this.box.fill !== null) {
+    if (this.isRoot && this.box.fill !== null) {
       const doc = this.element.ownerDocument;
       if (doc.body !== null && this.element.closest("[data-declare-embed]") === null) {
         doc.documentElement.style.background = this.box.fill;
@@ -1315,7 +1320,7 @@ export class DomSurface implements Surface {
     if (this.extentW === w && this.extentH === h) return;
     this.extentW = w;
     this.extentH = h;
-    if (this.element.dataset.declareApp !== undefined) {
+    if (this.isRoot) {
       this.applyRootSize();
       this.refreshTouchAction();
     }
@@ -1412,7 +1417,7 @@ export class DomSurface implements Surface {
    *  that owns a scroll box (a pane, an embedded root). */
   private pageScroller(): Window | null {
     const el = this.element;
-    if (el.dataset.declareApp === undefined || this.embeddedRoot) return null;
+    if (!this.isRoot || this.embeddedRoot) return null;
     return el.ownerDocument.defaultView;
   }
 
@@ -1544,7 +1549,7 @@ export class DomSurface implements Surface {
    *  root default — a separate question from the axis one. */
   applyScrollStyle(): void {
     const el = this.element;
-    if (el.dataset.declareApp !== undefined) {
+    if (this.isRoot) {
       // THE PAGE REALIZATION (ruled 2026-07-29, v3 after WebKit measurement):
       // the App is the outermost view, so its scroll regime IS the browser's
       // own page scroll — never a pane. Realization: the root ELEMENT sizes
@@ -1891,7 +1896,7 @@ export class DomSurface implements Surface {
         ta = w.claimAxis === "x" ? "pan-y" : w.claimAxis === "y" ? "pan-x" : "none";
       }
     }
-    else if (el.dataset.declareApp !== undefined) {
+    else if (this.isRoot) {
       // The ROOT default keys on the App's reactive page-scrollability fact
       // (setPageScrollable — geometry, never any attribute): pan stays with
       // the user exactly when the page has somewhere to go; when it doesn't,
@@ -2434,16 +2439,22 @@ export class DomSurface implements Surface {
     const w = Math.max(1, Math.ceil(b.w * kk));
     const h = Math.max(1, Math.ceil(b.h * kk));
     domRasterBytes -= this.rasterBytes;
-    c.width = w;
-    c.height = h;
+    // A new size allocates a new backing store; the same size keeps it and resets the context
+    // (assigning a canvas's size always reallocates, even the size it has). An engine without
+    // reset() takes the assignment.
+    const ctx = c.getContext("2d")!;
+    if (c.width !== w || c.height !== h || typeof ctx.reset !== "function") {
+      c.width = w;
+      c.height = h;
+    } else ctx.reset();
     this.rasterBytes = w * h * 4;
     domRasterBytes += this.rasterBytes;
     this.rasterK = kk;
-    c.style.left = b.x + "px";
-    c.style.top = b.y + "px";
-    c.style.width = b.w + "px";
-    c.style.height = b.h + "px";
-    const ctx = c.getContext("2d")!;
+    const left = b.x + "px", top = b.y + "px", width = b.w + "px", height = b.h + "px";
+    if (c.style.left !== left) c.style.left = left;
+    if (c.style.top !== top) c.style.top = top;
+    if (c.style.width !== width) c.style.width = width;
+    if (c.style.height !== height) c.style.height = height;
     ctx.setTransform(kk, 0, 0, kk, -b.x * kk, -b.y * kk);
     replay(ctx, this.drawing!);
     if (this.maskUsers !== null) for (const u of this.maskUsers) u.applyMask();   // a stencil re-rastered: its users re-export

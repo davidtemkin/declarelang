@@ -15,7 +15,7 @@
 // here would pass whatever the face was. The width agreement is a browser fact
 // and is checked where real metrics exist.
 import assert from "node:assert";
-import { compile, settleSource } from "../compiler/dist/compile-node.js";
+import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
 provideMeasurer({ set font(_) {}, set letterSpacing(_) {}, measureText: (t) => ({ width: String(t).length * 7, fontBoundingBoxAscent: 11, fontBoundingBoxDescent: 3, actualBoundingBoxAscent: 10, actualBoundingBoxDescent: 3 }) });
@@ -28,7 +28,7 @@ function test(name, fn) {
 async function build(src) {
   const r = await compile(src, {});
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleSource(r.source, { deps: r.deps, env: { hostWidth: 600, hostHeight: 400 } });
+  return settleHeadless(r.program, { env: { hostWidth: 600, hostHeight: 400 } });
 }
 async function errs(src) {
   const r = await compile(src, {});

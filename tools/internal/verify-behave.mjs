@@ -234,6 +234,33 @@ bootHost(cfg);
           await page.mouse.move(c.x + dx, c.y + dy, { steps });
           await page.mouse.up();
         },
+        /** Turn the wheel over a view: `dy` (and `dx`) in pixels, as a trackpad
+         *  or wheel would — the view under the pointer, or a scroller above it,
+         *  takes it. */
+        async wheel(path, dy, dx = 0) {
+          const c = await center(path);
+          step(`wheel ${path} by (${dx}, ${dy})`);
+          await page.mouse.move(c.x, c.y);
+          // A native scroll lands after the wheel event: count the page's scroll
+          // events and wait, in real time (the page's own timers are the driven
+          // clock's), until they have been quiet a moment.
+          await page.evaluate(() => {
+            window.__declareScrolls = 0;
+            if (window.__declareScrollCount === undefined) {
+              window.__declareScrollCount = () => { window.__declareScrolls++; };
+              addEventListener("scroll", window.__declareScrollCount, true);
+            }
+          });
+          await page.mouse.wheel({ deltaX: dx, deltaY: dy });
+          const real = (ms) => new Promise((r) => setTimeout(r, ms));
+          let seen = -1, quiet = 0;
+          for (let t = 0; t < 1500 && quiet < 120; t += 40) {
+            await real(40);
+            const n = await page.evaluate(() => window.__declareScrolls);
+            quiet = n === seen ? quiet + 40 : 0;
+            seen = n;
+          }
+        },
         async key(name) { step(`key ${name}`); await page.keyboard.press(name); },
         async type(text) { step(`type "${text}"`); await page.keyboard.type(text); },
         async tab(n = 1) { for (let i = 0; i < n; i++) await this.key("Tab"); },

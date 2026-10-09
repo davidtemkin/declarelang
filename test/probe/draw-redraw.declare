@@ -1,0 +1,26 @@
+// A drawing that changes and keeps its size: `a` draws its first picture, then its second;
+// `b` draws only the second. After the change the two must be the same picture, with
+// nothing of the first left behind and none of its settings carried over.
+// test/draw-redraw.test.mjs
+
+class Mark [ width = 120, height = 120,
+    second: boolean = false,
+    draw(d: Draw) {
+        d.strokeStyle = "#FFFFFF"
+        d.lineWidth = 2
+        d.strokeRect(10, 10, 100, 100)                  // the same bounds in both pictures
+        d.fillStyle = second ? "#40D0FF" : "#FF4040"
+        d.fillRect(second ? 60 : 20, 30, 40, 60)
+        if (!second) {
+            // settings left set at the end of the first picture
+            d.globalAlpha = 0.3
+            d.translate(15, 15)
+            }
+        }
+    ]
+
+
+App [ width = 280, height = 140, fill = black,
+    a: Mark [ x = 10, y = 10 ],
+    b: Mark [ x = 150, y = 10, second = true ]
+    ]

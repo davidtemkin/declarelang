@@ -126,6 +126,39 @@ if (!CHROME) {
     assert.ok(pre.probe.colors >= 2, "expected ≥2 span colors, got " + pre.probe.colors);
   });
 
+  // A HIDDEN FLOW STILL HAS A HEIGHT. A Markdown inside a hidden pane is a
+  // whole view, so its height is its content's — measured offscreen while it
+  // has no box, never the 0 a display:none subtree reads. Two panes: one hidden
+  // from the start, one shown and then hidden; both must match a visible twin.
+  const hiddenDoc = `App [ width = 480, height = 600, later: boolean = true,
+    onReady() { afterDelay(150, () => { app.later = false }) },
+    twin: Markdown [ x = 0, y = 0, width = 300, text = "# Title\\n\\nSome paragraph text that wraps onto more than one line at this width." ],
+    never: View [ y = 200, width = 400, height = 150, visible = false,
+      md: Markdown [ width = 300, text = "# Title\\n\\nSome paragraph text that wraps onto more than one line at this width." ] ],
+    once: View [ y = 350, width = 400, height = 150, visible = { app.later },
+      md: Markdown [ width = 300, text = "# Title\\n\\nSome paragraph text that wraps onto more than one line at this width." ] ],
+    out: Text [ y = 560, text = { "twin=" + app.twin.height + " never=" + app.never.md.height + " once=" + app.once.md.height + " later=" + app.later } ]
+    ]`;
+  const hid = await (async () => {
+    const b = await buildProduction(hiddenDoc, {});
+    assert.ok(b.ok, "hidden build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
+    try {
+      const page = await browser.newPage();
+      await page.setContent(inlineAppPage(b), { waitUntil: "networkidle0" });
+      await new Promise((r) => setTimeout(r, 900));
+      return await page.evaluate(() => Array.from(document.querySelectorAll("#host *")).map((e) => e.textContent).find((t) => /^twin=/.test(t ?? "")) ?? "");
+    } finally { await browser.close(); }
+  })();
+  await test("a hidden Markdown measures its content, hidden from the start or hidden later", () => {
+    const m = /twin=(\d+) never=(\d+) once=(\d+) later=(\w+)/.exec(hid);
+    assert.ok(m, "readout: " + hid);
+    assert.equal(m[4], "false", "the second pane was hidden");
+    assert.ok(Number(m[1]) > 40, "the twin has a height: " + hid);
+    assert.equal(m[2], m[1], "hidden from the start: " + hid);
+    assert.equal(m[3], m[1], "hidden after showing: " + hid);
+  });
+
   // The four prevailing typography tokens' FIRST integration coverage
   // (compositing.md Part III — the coverage sweep found them absolute
   // zeros): a container provides headingColor/headingWeight/codeColor/

@@ -1,7 +1,7 @@
 Sound, declared. The whole transport — `source`, `playing`, `position`, `duration`,
 `volume`, the read-only `ended`/`buffering`/`loaded`/`failed` — is `Media`'s shared
-surface; see that page. `Audio` adds nothing to it, which is the point: it is the
-transport with nothing to look at.
+surface; see that page. `Audio` is the transport with nothing to look at, and adds one
+choice: whether the sound is streamed or held whole, `inMemory`.
 
 It is still a view, because everything in the tree is one, but it draws nothing and its
 box means nothing — give it no size and it takes none. Where you put it is an
@@ -21,3 +21,20 @@ policy is handled where it belongs: a `play` the platform refuses lands `playing
 
 A player's chrome — the scrubber, the volume thumb, the track grid — is an application.
 Build it out of these attributes, in Declare.
+
+## inMemory
+Hold the sound whole in memory, rather than stream it. Default `false`. A streamed sound
+starts when enough of it has arrived and plays one thing at a time, which is right for a
+track; a sound held in memory is decoded once and starts on the frame it is asked for, and each `play()`
+is a voice of its own, so a sound that answers an event — a shot, a click, a footstep —
+sounds every time the event happens, over itself if need be. `playing` is true while any
+voice sounds, and setting it false stops them all; `loop`, `volume` and `muted` apply to
+every voice.
+
+```declare-fragment
+shot: Audio [ source = "sounds/fire.wav", inMemory = true ]
+hum: Audio [ source = "sounds/engine.wav", inMemory = true, loop = true, playing = { ship.thrusting } ]
+```
+
+Held in memory, a sound costs its whole length as samples, 10 to 20 MB a minute, so a long
+track belongs streamed.

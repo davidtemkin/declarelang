@@ -90,7 +90,7 @@ function probeFns(deps) {
  *  `K<number>` a constant, one letter per operator. */
 const LETTER_OP = {
     "+": 3, "-": 4, "*": 5, "/": 6, "%": 7, "~": 8, m: 9, M: 10, a: 11, f: 12, c: 13, r: 14, q: 15,
-    "<": 16, l: 17, ">": 18, g: 19, "=": 20, "!": 21, "&": 22, "|": 23, n: 24, "?": 25, "^": 26,
+    "<": 16, l: 17, ">": 18, g: 19, "=": 20, "!": 21, "&": 22, "|": 23, n: 24, "?": 25, "^": 26, N: 27, Q: 28,
 };
 function exprOf(e, deps) {
     if (e === undefined)
@@ -556,6 +556,27 @@ export function bindPercent(view, name, percent, pos) {
     own(view, name, k);
     k.run();
 }
+/** The slots a view's 2D transform is made of (View.$localTransform). */
+const TRANSFORM_SLOTS = ["scale", "scaleX", "scaleY", "rotation", "skewX", "skewY"];
+export function isTransformSlot(name) { return TRANSFORM_SLOTS.includes(name); }
+/** Can this view be transformed — is it now, is a transform slot set or bound,
+ *  does a child animate one? Asked once, when a position literal binds. */
+function mayTransform(view) {
+    if (view.$is3D())
+        return true;
+    const f = view.footprint();
+    if (f.x !== 0 || f.y !== 0 || f.width !== view.width || f.height !== view.height)
+        return true;
+    for (const s of TRANSFORM_SLOTS)
+        if (isSetOrOwned(view, s))
+            return true;
+    for (const c of view.children) {
+        const a = c.attribute;
+        if (typeof a === "string" && TRANSFORM_SLOTS.includes(a))
+            return true;
+    }
+    return false;
+}
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).
  *  Symbolic like a percent, resolved as a standing constraint over the
  *  parent's extent AND the view's own. `center` centers the view's box (its
@@ -563,8 +584,13 @@ export function bindPercent(view, name, percent, pos) {
  *  (a label wanting its cap band optically centered uses the library's
  *  TextLabel). `end` aligns end edges — the geometric box, always. The written-out
  *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
- *  spelling: only the named literal invokes the optics. */
-export function bindAlign(view, name, align, pos) {
+ *  spelling: only the named literal invokes the optics.
+ *
+ *  A TRANSFORMED view is placed by the box it visibly covers (its footprint),
+ *  as a layout places it — one geometry: two bars rotated ±45° about their
+ *  corner and both centered cross at the middle. `transformLater` says a
+ *  transform slot binds after this, in the same batch. */
+export function bindAlign(view, name, align, pos, transformLater = false) {
     const cls = view.constructor.name;
     const size = name === "x" ? "width" : "height";
     if (!(view.parent instanceof View)) {
@@ -577,12 +603,18 @@ export function bindAlign(view, name, align, pos) {
     // 0, the whole size); a view whose alignBand is overridden keeps the
     // JavaScript form, which asks it.
     const insetA = size === "width" ? "insetX" : "insetY";
-    if (kernelDerives() && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name, align === "end"
+    const transformed = transformLater || mayTransform(view);
+    if (kernelDerives() && !transformed && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name, align === "end"
         ? { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0] }
         : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] }, null, `${cls}.${name} = ${align}`, align === "end" ? `parent.contentBox(${size}) - this.${size}` : `(parent.contentBox(${size}) - this.${size}) / 2`, pos, false, [], true))
         return;
     const k = new Constraint(`${cls}.${name} = ${align}`, () => {
         const P = view.parent.contentBox(size);
+        if (transformed) {
+            // the transformed box: its lead offset from the origin, and its extent
+            const f = view.footprint();
+            return align === "end" ? P - (f[name] + f[size]) : (P - f[size]) / 2 - f[name];
+        }
         if (align === "end")
             return P - view[size];
         const band = view.$alignBand(name);

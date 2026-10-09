@@ -13,6 +13,7 @@
 // canvas the flow lays them out itself, one `Text` per styled piece (plus a
 // chip behind code, a rule through strike), by the same arithmetic.
 
+import { isDeferred } from "./deferred-surface.js";
 import { View, onDiscard, fireEvent, inlineViewHost } from "./view.js";
 import { Image } from "./image.js";
 import { isStructural, type RenderBackend, type RichBlock, type RichNode, type RichRun, type SlotBox, type Surface } from "./backend.js";
@@ -635,6 +636,8 @@ export function richRunsOf(inline: Inline[], style: Style, family: string): Rich
  *  runs) and `flowWidth` are set by its owner before attach; it renders natively
  *  (DOM) or manually (canvas) and auto-sizes its height to the flowed content. */
 export class TextFlow extends View {
+  /** The renderer flows and measures this text: it keeps a real surface while hidden. */
+  protected override $eagerSurface(): boolean { return true; }
   content: RichNode[] = [];
   /** True when `content` is a whole document (structural nodes among its
    *  blocks) — handed only to a backend that lays documents out (`richBlocks`). */
@@ -1168,6 +1171,7 @@ export function tableCells(b: Extract<Block, { t: "table" }>, cells: Inline[][],
 // parser. Shared attributes (lineHeight/bodyColor/fontScale) and the `link` event
 // live on the base, so both formats inherit them.
 export abstract class RichText extends View {
+  protected override $eagerSurface(): boolean { return true; }
   // FACE + rich-text STRUCTURE slots (off View — docs/system-design/style.md):
   // each defaults to the nearest provided value, so prose inherits its region's
   // style; `selectable` defaults TRUE (a flowing document selects by nature).
@@ -1454,7 +1458,7 @@ export abstract class RichText extends View {
     // carries the selectable text and takes pointer events across the whole
     // line, so every click on the view landed on the text instead and no handler
     // ever ran. Re-parent them at the end, in model order, now the flows are in.
-    if (this.$surface !== null) for (const v of host.views()) if (v.$surface !== null) this.$surface.insertChild(v.$surface, null);
+    if (this.$surface !== null) for (const v of host.views()) if (v.$surface !== null && !isDeferred(v.$surface)) this.$surface.insertChild(v.$surface, null);
     this.laid = children;                 // kept so a width change can re-width
     const opening = children[0]?.view;
     if (opening instanceof TextFlow) opening.onBaseline = () => this.$claimBaseline();

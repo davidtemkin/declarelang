@@ -116,6 +116,8 @@ export declare function richRunsOf(inline: Inline[], style: Style, family: strin
  *  runs) and `flowWidth` are set by its owner before attach; it renders natively
  *  (DOM) or manually (canvas) and auto-sizes its height to the flowed content. */
 export declare class TextFlow extends View {
+    /** The renderer flows and measures this text: it keeps a real surface while hidden. */
+    protected $eagerSurface(): boolean;
     content: RichNode[];
     /** True when `content` is a whole document (structural nodes among its
      *  blocks) — handed only to a backend that lays documents out (`richBlocks`). */
@@ -313,6 +315,7 @@ export declare function tableCells(b: Extract<Block, {
     t: "table";
 }>, cells: Inline[][], weight: FontWeight, color: number, ctx: Ctx): RichBlock[];
 export declare abstract class RichText extends View {
+    protected $eagerSurface(): boolean;
     textColor: Color;
     fontSize: number;
     /** A family string, a Font, or a list of them. */

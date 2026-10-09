@@ -36,6 +36,7 @@ const SUITE = [
   "test/subclass-roots.test.mjs",  // a class extends ANY built-in: Spring, DataSource, AnimatorGroup, Keys, State, …
   "test/override-runtime.test.mjs", // a method replaces a built-in's RUNTIME method; super reaches the runtime's; the method table is pinned
   "test/materialization.test.mjs",
+  "test/deferred-dom.test.mjs",    // a view not shown gets no DOM until first shown — and nothing the program can observe changes
   "test/dataschema.test.mjs",
   "test/datasource-failure.test.mjs",
   "test/table.test.mjs",
@@ -87,10 +88,14 @@ const SUITE = [
   "test/raster-memo.test.mjs",
   "test/canvas-filter.test.mjs",   // the Safari filter fallback, pinned from Chrome via the forced-fallback lever
   "test/draw-bounds.test.mjs",     // text bounds, per-op extents, replayArea, byte-identical culling
+  "test/draw-lengths.test.mjs",
+  "test/draw-redraw.test.mjs",
+  "test/audio-in-memory.test.mjs",
   "test/island.test.mjs",
   "test/island-browser.test.mjs",
   "test/two-way.test.mjs",         // the apps/two-way showcase: the whole embedder surface on one page
   "test/verify-apps.test.mjs",
+  "test/verify-boot.test.mjs",      // rung 4 as an author runs it: the host it fills, out-of-reach controls, the boot budget
   // THE KERNEL and the precompiled bodies (the native-partition arc): the two
   // kernels against one written contract (C→wasm vs kernel-js.ts), the kernel's
   // own expression / extent / visibility rules, the Mac geometry binary, a boot

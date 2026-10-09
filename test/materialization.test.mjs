@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { build, settle, HeadlessBackend, provideMeasurer } from "../runtime/dist/index.js";
+import { buildProgram, settle, HeadlessBackend, provideMeasurer } from "../runtime/dist/index.js";
 import { approximateMeasurer } from "../compiler/dist/headless.js";
 import { blocksOf, materializationInfo } from "../runtime/dist/replicate.js";
 
@@ -35,7 +35,7 @@ async function makeApp(policy, n = 1000) {
   ]`;
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.d.value = { rows: rows(n) };
   settle();
   return app;
@@ -157,7 +157,7 @@ await test("`virtualized` is TRACKED: a constraint on it follows engage/disengag
     flag: boolean = { app.sc.content.virtualized } ]`;
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.d.value = { rows: rows(400) };
   settle();
   assert.equal(app.flag, false, "a constraint reads it before engaging");
@@ -191,7 +191,7 @@ await test("the policy is REACTIVE: `virtualize = { … }` engages and disengage
           t: Text [ text = :label ] ] ] ] ]`;
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "a { } policy compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.d.value = { rows: rows(400) };
   settle();
   assert.equal(materializationInfo(app.sc.content).windowed, false, "starts full — the constraint reads false");
@@ -227,7 +227,7 @@ await test("the policy slot: a boolean, and honest fallbacks", async () => {
   ]`;
   const r = await compile(src);
   assert.deepEqual(r.errors, []);
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.d.value = { rows: rows(1500) };
   settle();
   const info = materializationInfo(app.sc.content);
@@ -247,7 +247,7 @@ await test("the policy slot: a boolean, and honest fallbacks", async () => {
   ]`;
   const xr = await compile(xsrc);
   assert.deepEqual(xr.errors, []);
-  const xapp = build(xr.source);
+  const xapp = buildProgram(xr.program);
   xapp.d.value = { rows: rows(1500) };
   settle();
   const xinfo = materializationInfo(xapp.sc.content);
@@ -268,7 +268,7 @@ await test("membership init also governs keyed re-derivation (the ruling is gene
   ]`;
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   settle();
   assert.equal(app.counter, 2, "two members, two inits");
   app.raw.set(["rows", 0, "id"], "a"); // an equal write — nothing should move
@@ -342,7 +342,7 @@ await test("structural-equality fallback (B6 early): a keyless derived recompute
   ]`;
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   settle();
   const before = app.list.children.filter((c) => c.t);
   assert.equal(before.length, 2);
@@ -373,7 +373,7 @@ await test("onRetire (D5 semantics, D8 name): departure fires it; window evictio
     ],
   ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
-  const app = build(src.source);
+  const app = buildProgram(src.program);
   app.d.value = { rows: rows(1000) };
   settle();
   assert.equal(app.retired, 0);
@@ -418,7 +418,7 @@ await test("VARIABLE extents (the measured ladder): per-row heights place exactl
   ]`;
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   const hs = Array.from({ length: 1000 }, (_, i) => 20 + (i % 5) * 15);
   app.d.value = { rows: hs.map((h, i) => ({ id: i, h, label: "row " + i })) };
   settle();
@@ -503,7 +503,7 @@ async function makeLate(src = LATE) {
   provideMeasurer(approximateMeasurer());
   const r = await compile(src);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   settle();
   return app;
@@ -575,7 +575,7 @@ await test("windowed rows directly in the scroller: its contentHeight reads the 
       layout: SimpleLayout [ axis = y ],
       View [ datapath = :rows[], virtualize = true, width = 300, height = 30 ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.d.value = { rows: rows(1000) }; settle();
   assert.equal(materializationInfo(app.sc).windowed, true);
   assert.equal(app.sc.contentHeight, 1000 * 30, "the window's rows alone would read a few hundred px");
@@ -593,7 +593,7 @@ App [ width = 400, height = 400,
       Entry [ datapath = :rows[], virtualize = ${virtualize},
         classFor = { :kind == "photo" ? Photo : :kind == "heading" ? Heading : Note } ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   const kinds = ["heading", "note", "photo", "note"];
   app.d.value = { rows: Array.from({ length: n }, (_, i) => ({ id: i, kind: kinds[i % 4], text: "r" + i })) };
   settle();
@@ -657,7 +657,7 @@ App [ width = 300, height = 300, d: Dataset { { "rows": [], "groups": [] } },
   list: View [ datapath = { d.value }, Row [ datapath = :rows[] ] ],
   groups: View [ datapath = { d.value }, View [ datapath = :groups[], Row [ datapath = :items[] ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.d.value = { rows: [{ id: "a" }, { id: "b" }, { id: "c" }],
     groups: [{ items: [{ id: "x" }, { id: "y" }] }, { items: [{ id: "z" }] }] };
   settle();
@@ -704,7 +704,7 @@ await test(`scrollAnchor = end (virtualize = ${policy}): rows that grow as the p
     ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(200) };
   for (let i = 0; i < 8; i++) settle();
@@ -737,7 +737,7 @@ await test("windowed: a list never shown builds no rows; one left keeps its rows
         ]
       ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { threads: ["a", "b", "c"].map((id) => ({ id, rows: rows(1000) })) };
   for (let i = 0; i < 6; i++) settle();
@@ -800,7 +800,7 @@ await test("windowed: a row let go takes its datasets' bindings with it", async 
         content: View [ width = 300, datapath = { d.value }, layout: SimpleLayout [ axis = y ],
           Msg [ datapath = :rows[], virtualize = true ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: Array.from({ length: 400 }, (_, i) => ({ id: i, reactions: i % 3 == 0 ? ["u1", "u2"] : [] })) };
   for (let i = 0; i < 6; i++) settle();
@@ -828,7 +828,7 @@ await test("windowed: corrections above the reader never move what is on screen 
     ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(2000) };
   for (let i = 0; i < 4; i++) settle();
@@ -865,7 +865,7 @@ await test("windowed: rows sized by their content settle before they have a heig
     ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.d.value = { rows: rows(500) };
   settle();                                   // unattached: no row has a height yet
   app.$attach(new HeadlessBackend(), null);
@@ -889,7 +889,7 @@ await test("windowed → full: the parent's height returns to its auto-extent", 
     ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(300) };
   for (let i = 0; i < 4; i++) settle();
@@ -916,7 +916,7 @@ await test("windowed rows directly in the scroller: a row opening above the read
     ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(1000) };
   for (let i = 0; i < 4; i++) settle();
@@ -954,7 +954,7 @@ await test("windowed: a re-pointed row takes the size of its new record's conten
     ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(3000) };
   for (let i = 0; i < 4; i++) settle();
@@ -983,7 +983,7 @@ await test("engaging with new data in the same update: no record is shown twice"
         layout: SimpleLayout [ axis = y ],
         View [ datapath = :rows[], virtualize = { app.big }, width = 300, height = 30 ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(400) };
   for (let i = 0; i < 3; i++) settle();
@@ -1025,7 +1025,7 @@ await test(`scrollAnchor = end (virtualize = ${policy}): a program scroll away f
         layout: SimpleLayout [ axis = y ],
         View [ datapath = :rows[], virtualize = ${policy}, width = 300, height = { 20 + (:n % 5) * 9 } ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(2000) };
   for (let i = 0; i < 6; i++) settle();
@@ -1041,6 +1041,34 @@ await test(`scrollAnchor = end (virtualize = ${policy}): a program scroll away f
 });
 }
 
+// An end pane opens at its end, and its reader stays there while the rows
+// measure: rows far taller than the list's first estimate grow its extent
+// several times over, and the offset the pane held a moment ago then points
+// into the middle of the records. The window reads where the reader is — the
+// end — so no row away from it is ever built (each one built was work thrown
+// away before it was seen).
+await test("scrollAnchor = end (virtualize = true): a long pane opens at its end, building no row away from it", async () => {
+  const r = await compile(`script {
+  function seen(i: number): number { const g = globalThis as any; g.__built = Math.min(g.__built ?? Infinity, i); return 0 }
+}
+App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, scrollAnchor = end, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 300, height = { 80 + seen(:n) } ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = buildProgram(r.program);
+  app.$attach(new HeadlessBackend(), null);
+  globalThis.__built = Infinity;
+  app.d.value = { rows: rows(20000) };
+  for (let i = 0; i < 8; i++) settle();
+  const max = app.sc.contentHeight - app.sc.height;
+  assert.ok(Math.abs(app.sc.scrollY - max) < 1, `at the end: scrollY ${app.sc.scrollY} of ${max}`);
+  assert.ok(globalThis.__built >= 20000 - 40, `the first row built is near the end: ${globalThis.__built}`);
+  delete globalThis.__built;
+});
+
 // The full build's place: the top edge running through a row's bottom padding
 // (nothing inside it reaches past the edge) — the row below is what is read,
 // so the row above growing grows upward, out of view, and moves nothing.
@@ -1055,7 +1083,7 @@ await test("scrollAnchor = content: an edge in a row's padding keeps the row bel
           layout: SimpleLayout [ axis = y ],
           body: View [ width = 200, height = { :n == app.big ? 90 : 30 } ] ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(200) };
   for (let i = 0; i < 4; i++) settle();
@@ -1083,7 +1111,7 @@ await test("windowed: a view after the rows sits after the last row and counts i
         View [ datapath = :rows[], virtualize = true, width = 300, height = 30 ],
         after: View [ width = 300, height = 40 ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(500) };
   for (let i = 0; i < 4; i++) settle();
@@ -1102,7 +1130,7 @@ await test("windowed: a reader at the end stays exactly at the end as the rows t
         layout: SimpleLayout [ axis = y ],
         View [ datapath = :rows[], virtualize = true, width = 300, height = { 20 + (:n % 7) * 13 } ] ] ] ]`);
   assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
-  const app = build(r.source);
+  const app = buildProgram(r.program);
   app.$attach(new HeadlessBackend(), null);
   app.d.value = { rows: rows(3000) };
   for (let i = 0; i < 4; i++) settle();
@@ -1158,7 +1186,7 @@ App [ width = 400, height = 400, theme = { SanFrancisco },
   console.error = (...a) => { errs.push(a.map(String).join(" ")); };
   let app;
   try {
-    app = build(r.source);
+    app = buildProgram(r.program);
     settle();
     app.d.value = { rows: [{ label: "x" }, { label: "y" }] };
     app.on = true;

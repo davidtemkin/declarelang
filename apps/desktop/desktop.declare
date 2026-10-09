@@ -47,7 +47,7 @@ use [ BracketIcon, CodeIcon, AutoIcon, LightbulbIcon, BrandMark, HelpSearch ]
 // file itself, which the Declare Viewer window displays.
 
 ship [
-    islands = ["../../../library/platform-apps/viewer/viewer", "../../calendar/calendar", "../../birds/birds", "../../marketmap/marketmap"],
+    islands = ["../../../library/platform-apps/viewer/viewer", "../../calendar/calendar", "../../birds/birds", "../../marketmap/marketmap", "../../asteroids/asteroids"],
     files = ["desktop.declare"]
     ]
 
@@ -1771,9 +1771,9 @@ and the `launch` verb behind its dock icon and menu items.
 
 One taxonomy covers every citizen. A **built-in** app (Files, Jots) opens
 windows of this very program. A **hosted** app (Calendar, 50 Birds, Market Map,
-Declare Viewer) is a foreign program carried the same way — hosting is a subclass with
-a program path, not a different mechanism. An **inert** app (Write, Mail,
-Music, Terminal) owns a quip and raises the alert. Chrome never switches on an
+Asteroids, Declare Viewer) is a foreign program carried the same way — hosting is a subclass with
+a program path, not a different mechanism. An **inert** app (Mail, Music,
+Terminal) owns a quip and raises the alert. Chrome never switches on an
 app id: the dock icon, the About box, the alert sheet, and a minimized
 window's badge all read the one instance, so the art, the name, and the
 running dot cannot disagree — and adding an application is one class plus one
@@ -1966,24 +1966,42 @@ class MarketMapApp extends HostedApp [ id = "marketmap", label = "Market Map", t
     ]
 
 
-class WriteApp extends InertApp [ id = "write", label = "Write", title = "Write",
-    quip = "No.", hue1 = #F49B45, hue2 = #C96B1D, drawn = true,
+class AsteroidsApp extends HostedApp [ id = "asteroids", label = "Asteroids", title = "Asteroids",
+    blurb = "The actual apps/asteroids — Atari's 1979 arcade game, frame for frame — hosted as an embedded app.",
+    hue1 = #2A2E35, hue2 = #0B0C0E, drawn = true,
+    prog = "../../asteroids/asteroids", base = "../asteroids/", src = "../asteroids/asteroids.declare",
     face(d: Draw) {
-        // the pencil: eraser upper-left, tip lower-right. Body + tip in
-        // white; the eraser seam struck back in the plate's hue.
-        d.fillStyle = 0xFFFFFF
-        d.beginPath()
-        d.moveTo(7.8, 12.2); d.lineTo(14.2, 5.8); d.lineTo(35.7, 27.3); d.lineTo(29.3, 33.7)
-        d.closePath(); d.fill()
-        d.beginPath()
-        d.moveTo(35.7, 27.3); d.lineTo(29.3, 33.7); d.lineTo(39.5, 37.5)
-        d.closePath(); d.fill()
-        d.strokeStyle = this.hue1
-        d.lineWidth = 1.6
-        d.beginPath()
-        d.moveTo(11.4, 15.7); d.lineTo(17.7, 9.4)
-        d.moveTo(13.5, 17.8); d.lineTo(19.8, 11.5)
-        d.stroke()
+        // the arcade's screen: a rock and the saucer on dark grey glass, drawn as a vector
+        // monitor shows them — a soft blue bloom round a blue-white core, each corner a
+        // touch brighter where the beam dwells
+        const glass = d.createRadialGradient(24, 21, 2, 24, 24, 34)
+        glass.addColorStop(0, "#2A2E35"); glass.addColorStop(0.65, "#17191D"); glass.addColorStop(1, "#0B0C0E")
+        d.fillStyle = glass
+        d.fillRect(0, 0, 48, 48)
+        const beam = (pts, cx, cy, size, turn) => {
+            const c = Math.cos(turn), s = Math.sin(turn), at = []
+            for (let i = 0; i < pts.length; i += 2)
+                at.push([cx + (pts[i] * c - pts[i + 1] * s) * size, cy - (pts[i] * s + pts[i + 1] * c) * size])
+            const trace = () => {
+                d.beginPath()
+                d.moveTo(at[0][0], at[0][1])
+                for (const p of at.slice(1)) d.lineTo(p[0], p[1])
+                d.stroke()
+                }
+            d.lineJoin = "round"; d.lineCap = "round"
+            d.shadowColor = "rgba(110,150,255,0.65)"; d.shadowBlur = 3
+            d.strokeStyle = "rgba(150,185,255,0.32)"; d.lineWidth = 2.2
+            trace()
+            d.shadowColor = "rgba(190,210,255,0.9)"; d.shadowBlur = 1.5
+            d.strokeStyle = "#EEF3FF"; d.lineWidth = 1.15
+            trace()
+            d.shadowBlur = 0
+            d.fillStyle = "#FFFFFF"
+            for (const p of at) { d.beginPath(); d.arc(p[0], p[1], 0.75, 0, Math.PI * 2); d.fill() }
+            }
+        beam([0, 16, 16, 32, 32, 16, 24, 0, 32, -16, 8, -32, -16, -32, -32, -16, -32, 16, -16, 32, 0, 16], 29.09, 17.75, 0.334, 0.15)
+        beam([-8, 4, 8, 4], 16.33, 35.79, 0.37, 0)
+        beam([20, -4, -20, -4, -8, -12, 8, -12, 20, -4, 8, 4, 4, 12, -4, 12, -8, 4, -20, -4], 16.33, 35.79, 0.37, 0)
         }
     ]
 
@@ -2314,7 +2332,7 @@ class Launcher extends Node [
     jots:     JotsApp     [ ],
     birds:    BirdsApp    [ ],
     marketmap: MarketMapApp [ ],
-    write:    WriteApp    [ ],
+    asteroids: AsteroidsApp [ ],
     mail:     MailApp     [ ],
     music:    MusicApp    [ ],
     terminal: TerminalApp [ ],
@@ -2323,7 +2341,7 @@ class Launcher extends Node [
     // the dock's order, and the enumeration every by-id lookup walks
 
     roster: DesktopApp[] = { [this.files, this.markdown, this.viewer, this.calendar,
-        this.jots, this.birds, this.marketmap, this.write, this.mail, this.music, this.terminal] },
+        this.jots, this.birds, this.marketmap, this.asteroids, this.mail, this.music, this.terminal] },
 
     byId(id: string) -> DesktopApp { return this.roster.find((a) => a.id == id) ?? null },
 

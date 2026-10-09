@@ -65,6 +65,13 @@ export interface Kernel {
      *  place. Anyone who CACHES one — reactive.ts does — must re-read it from
      *  `onGrow`, which fires synchronously before the growing call returns. */
     table: Float64Array;
+    /** NULL per cell: 1 when the cell holds null (its table slot then holds 0).
+     *  A number written clears it — the kernel's own writes do so themselves;
+     *  the host's direct table writes to a nullable slot clear it too. */
+    nulls: Uint8Array;
+    /** Set to 1 by a host body whose result is null, before it returns: the
+     *  kernel lands null rather than the number the call returned. */
+    bodyNull: Uint8Array;
     /** active[0] is the running DYNAMIC rule, or -1: readable with no call. */
     active: Int32Array;
     /** cells that fit before the next growth (updated when the kernel grows) */

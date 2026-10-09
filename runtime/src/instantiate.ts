@@ -97,9 +97,9 @@ import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import type { Theme } from "./value.js";
 import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
-import { coerce, coerceToken, isPercent, isAlign, type AttrType, type AttrValue } from "./value.js";
+import { coerce, coerceToken, isPercent, isAlign, nullablePrimitive, type AttrType, type AttrValue } from "./value.js";
 import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules, type AttrSpec, type DeclRecord } from "./attributes.js";
-import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
+import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, bindData, bindDatapath, bindCursor, isTransformSlot } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator, type VirtualizePolicy } from "./replicate.js";
 import { classOfFor, KindedReplicator } from "./class-for.js";
@@ -482,6 +482,11 @@ function partitionPending(pending: readonly Pending[]): { provisions: Pending[];
 }
 
 function installBatch(ordered: readonly Pending[], ctx: Ctx): void {
+  // a position literal on a view whose transform binds in this same batch is
+  // told so: it places the transformed box (bind.ts bindAlign)
+  let transforming: Set<View> | null = null;
+  for (const p of ordered) if ("align" in p) { transforming = new Set(); break; }
+  if (transforming !== null) for (const p of ordered) if (!("align" in p) && "attr" in p && p.view instanceof View && isTransformSlot(p.attr.name)) transforming.add(p.view);
   for (const p of ordered) {
     if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined, p.yielding === true, false, p.attr.value.kind === "code" ? p.attr.value.expr : undefined);
     else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
@@ -503,7 +508,7 @@ function installBatch(ordered: readonly Pending[], ctx: Ctx): void {
       const v = p.view as unknown as { classroot?: View | null };
       bindDeclDefault(p.view, p.declDefault, p.rec.source!, p.rec.pos as Pos, p.rec.outer ? (v.classroot ?? null) : p.view, p.rec.deps ?? undefined, p.rec.expr);
     }
-    else if ("align" in p) bindAlign(p.view, p.attr.name as "x" | "y", p.align, p.attr.value.pos);
+    else if ("align" in p) bindAlign(p.view, p.attr.name as "x" | "y", p.align, p.attr.value.pos, transforming?.has(p.view) === true);
     else bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos);
   }
 }
@@ -756,9 +761,11 @@ function synthesize(
       // EXPR bodies read and the kernel lands), starting at 0/false — a value
       // no reader sees: until the rule lands, a read evaluates the `{ }` live
       const literal = Object.hasOwn(defs, d.name) ? defs[d.name] : undefined;
+      const nullable = nullablePrimitive(d.type);
       const tableStart = rule && literal === undefined ? (d.type === "number" ? 0 : d.type === "boolean" ? false : undefined) : undefined;
       specs[d.name] = {
-        def: literal !== undefined ? literal : tableStart,
+        def: literal !== undefined ? literal : nullable !== null ? null : tableStart,
+        nullable: nullable ?? undefined,
         // The runtime half of the slot's identity: a `readonly` declaration
         // makes the accessor's setter throw (its `{ }` default is the value,
         // evaluated live and un-overridable).

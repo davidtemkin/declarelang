@@ -511,6 +511,54 @@
     } catch (e) { g.console.error("media: " + (e && e.message || e)); }
   };
 
+  // ── in-memory sounds: clip-host.ts's seam over AVAudioEngine ──────────────
+  // `Audio [ inMemory = true ]` asks the runtime's clip host to decode a sound once and
+  // start voices of it; in the browser that is Web Audio, here it is Clips.swift. Clips,
+  // sinks (one per Audio) and voices are handles; facts come back through
+  // __declareClipEvent. The native host has no autoplay rule, so a voice always starts.
+  let clipSeq = 1;
+  const clipWaits = new Map(), voiceEnds = new Map();
+  g.__declareClipHost = {
+    decode(url) {
+      const id = clipSeq++;
+      let abs = url;
+      try { abs = new g.URL(url, g.__declareBase || "http://127.0.0.1/").href; } catch (e) { /* keep raw */ }
+      return new Promise((resolve, reject) => { clipWaits.set(id, { resolve, reject }); H.clipDecode(id, abs); });
+    },
+    sink() {
+      const id = clipSeq++;
+      H.clipSink(id);
+      return {
+        setVolume(volume, muted) { H.clipVolume(id, muted ? 0 : volume); },
+        start(clip, offset, loop, rate, onEnded) {
+          const v = clipSeq++;
+          voiceEnds.set(v, onEnded);
+          H.clipStart(v, id, clip, offset, !!loop, rate);
+          return {
+            stop() { voiceEnds.delete(v); H.clipStop(v); },
+            setLoop(on) { H.clipLoop(v, !!on); },
+            setRate(r) { H.clipRate(v, r); },
+          };
+        },
+        release() { H.clipRelease(id); },
+      };
+    },
+  };
+  g.__declareClipEvent = (id, type, a) => {
+    try {
+      if (type === "decoded" || type === "error") {
+        const w = clipWaits.get(id);
+        clipWaits.delete(id);
+        if (type === "decoded") w?.resolve({ clip: id, duration: a });
+        else w?.reject(new Error("the sound did not decode"));
+      } else if (type === "ended") {
+        const f = voiceEnds.get(id);
+        voiceEnds.delete(id);
+        f?.();
+      }
+    } catch (e) { g.console.error("clip: " + (e && e.message || e)); }
+  };
+
   // ── the measurer: a canvas-2d-shaped façade over Core Text ────────────────
   // measure.ts asks for exactly this interface (provideMeasurer), so the one
   // text-metrics seam the runtime already has is where the platform plugs in.

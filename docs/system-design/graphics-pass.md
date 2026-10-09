@@ -36,8 +36,10 @@ Rules that hold for every stage:
   A blurred button is still its box; a masked-out region still takes the press.
 - **View units.** Every length (a blur radius, a shadow offset, a mask gradient's
   geometry) is in the view's own units and scales with the view's transform — the
-  rule `backdrop` already follows. (`d.filter` inside a drawing keeps Canvas2D's
-  device-space contract; replayFiltered documents that discrepancy and it stays.)
+  rule `backdrop` already follows. Inside a drawing the same holds: shadow blur and
+  offsets and the lengths in `d.filter` are the drawing's own units, resolved through
+  the transform in force at each mark (draw.ts `DrawingLengths`), where Canvas2D
+  itself measures them in device pixels.
 - **Bleed.** A filter's output may extend past the box (blur 3σ, a shadow's offset +
   blur) exactly as `rasterPad` states for drawings; layout and auto-size ignore it.
 - **Isolation.** A view with a `filter` or a `mask` is a new isolating boundary in

@@ -189,6 +189,7 @@ function bindWith(x, mem, image, c, hooks) {
     // never the cells in use plus the extra, which equals it only at load
     let capacity = base.cells + c.extra_cells;
     let tableAt = x.kernel_table(k);
+    let nullsAt = x.kernel_nulls(k);
     let scratchCap = SCRATCH_START;
     let scratchAt = mem.alloc(4 * scratchCap);
     let dirtyAt = mem.alloc(4 * capacity);
@@ -223,6 +224,8 @@ function bindWith(x, mem, image, c, hooks) {
         scratch = mem.u32(scratchAt, scratchCap);
         dirtyView = mem.u32(dirtyAt, capacity);
         self.table = mem.f64(tableAt, capacity);
+        self.nulls = mem.u8(nullsAt, capacity);
+        self.bodyNull = mem.u8(x.kernel_body_null(k), 1);
         self.active = mem.i32(x.kernel_active_ptr(k), 1);
         self.ring = mem.u32(ringAt, ringCap);
         self.ringCount = mem.u32(x.kernel_ring_count(k), 1);
@@ -285,6 +288,7 @@ function bindWith(x, mem, image, c, hooks) {
         caps = next;
         capacity = base.cells + caps.extra_cells;
         tableAt = x.kernel_table(k);
+        nullsAt = x.kernel_nulls(k);
         ringAt = x.kernel_ring(k, ringCapAt);
         trackAt = x.kernel_track_ring(k, ringCapAt);
         stateAt = x.kernel_state_ptr(k, ringCapAt);
@@ -307,7 +311,7 @@ function bindWith(x, mem, image, c, hooks) {
         return edges.length;
     };
     const self = {
-        table: table0, active: active0, capacity,
+        table: table0, nulls: mem.u8(nullsAt, capacity), bodyNull: mem.u8(x.kernel_body_null(k), 1), active: active0, capacity,
         cells: () => x.kernel_cells(k), rules: () => x.kernel_rules(k),
         tableSize: () => usage()[1],
         codeUse: () => { const u = usage(); return { code: u[8], consts: u[10] }; },

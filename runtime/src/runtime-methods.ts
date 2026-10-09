@@ -26,7 +26,7 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   App: ["post", "navigate", "destinationOf", "follow", "inspect", "openWindow", "reveal", "provide", "exposed", "watchExposed"],
   Text: [],
   Image: [],
-  Media: [],
+  Media: ["play"],
   Video: [],
   Audio: [],
   // THE BOUNDARY lives on the base Island, which is not itself a schema

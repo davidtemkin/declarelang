@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { settleSource } from "../compiler/dist/headless.js";
+import { settleHeadless } from "../compiler/dist/headless.js";
 import { settle } from "../runtime/dist/index.js";
 
 let seed = 23;
@@ -74,8 +74,8 @@ App [ width = 900, height = 700,
     // was caught, and that can differ — the native stack and the pass are
     // different members of one loop.
     let a = null, b = null, ea = null, eb = null;
-    try { a = settleSource(r.source, { deps: r.deps }); settle(); } catch (e) { ea = e; }
-    forced(() => { try { b = settleSource(r.source, { deps: r.deps }); settle(); } catch (e) { eb = e; } });
+    try { a = settleHeadless(r.program); settle(); } catch (e) { ea = e; }
+    forced(() => { try { b = settleHeadless(r.program); settle(); } catch (e) { eb = e; } });
     if (ea !== null || eb !== null) {
       assert.ok(ea !== null && eb !== null, `tree ${t}: one build cycled and the other did not — ${(ea ?? eb).message}`);
       assert.match(ea.message, /constraint cycle/); assert.match(eb.message, /constraint cycle/);
@@ -112,7 +112,7 @@ App [ width = 900, height = 700,
 });
 
 await test("the stack hands back to the pass for alignment, spacers, a 3D child, and a windowed block", async () => {
-  const build = async (src) => { const r = await compile(src, { originDir: process.cwd() }); assert.equal(r.errors.length, 0, r.errors[0]?.message); const app = settleSource(r.source, { deps: r.deps }); settle(); return app; };
+  const build = async (src) => { const r = await compile(src, { originDir: process.cwd() }); assert.equal(r.errors.length, 0, r.errors[0]?.message); const app = settleHeadless(r.program); settle(); return app; };
   const aligned = await build(`App [ width = 300, height = 300, layout: SimpleLayout [ axis = x, align = center ], View [ width = 10, height = 10 ] ]`);
   assert.equal(aligned.layout.$native, false, "aligned");
   const spaced = await build(`App [ width = 300, height = 300, layout: SimpleLayout [ axis = x ], View [ width = 10, height = 10 ], Spacer [ ] ]`);
@@ -139,7 +139,7 @@ await test("a re-armed stack leaves each child's place owned by the rule that pl
         View [ width = { parent.width }, height = 100% ], View [ width = 100%, height = { parent.height / 2 } ] ],
       c: View [ width = 10, height = 20, View [ width = 10, height = 100% ] ] ] ]`, { originDir: process.cwd() });
   assert.equal(r.errors.length, 0, r.errors[0]?.message);
-  const app = settleSource(r.source, { deps: r.deps }); settle();
+  const app = settleHeadless(r.program); settle();
   for (let round = 0; round < 6; round++) {
     app.open = !app.open; settle();
     assert.equal(app.box.layout.$native, true, "the kernel places the stack");

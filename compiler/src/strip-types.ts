@@ -25,7 +25,9 @@
 import ts from "typescript";
 import { scanDatapaths, islandEdits, type PathIsland } from "../../runtime/dist/datapath.js";
 
-export interface StripEdit { start: number; end: number }
+/** One edit to a body: delete [start, end), or — `text` given — put the
+ *  construct's JavaScript there (an enum, a namespace, a class). */
+export interface StripEdit { start: number; end: number; text?: string }
 
 /** The body-local spans to delete from one `{ }` body. `expression` selects
  *  the parse mode (a value body is an expression; a method body, statements).
@@ -65,7 +67,47 @@ export function stripEditsFor(src: string, expression: boolean): StripEdit[] {
   const diags = (sf as unknown as { parseDiagnostics?: readonly unknown[] }).parseDiagnostics;
   if (diags !== undefined && diags.length > 0) return [];
   const edits: StripEdit[] = [];
+  const cut = (start: number, end: number): void => { edits.push({ start: start + delta, end: end + delta }); };
+  /** `<…>` around a type parameter or argument list: walk out from its node span. */
+  const angles = (list: ts.NodeArray<ts.Node>): void => {
+    const lt = text.lastIndexOf("<", list.pos);
+    const gt = text.indexOf(">", list.end);
+    if (lt >= 0 && gt > lt) cut(lt, gt + 1);
+  };
   const visit = (n: ts.Node): void => {
+    // A type is all type: nothing inside it runs, and it goes with whatever holds it.
+    if (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) return;   // `f<T>` is an expression, stripped below
+    // DECLARATIONS OF TYPES go whole: they exist only for the checker.
+    if (ts.isTypeAliasDeclaration(n) || ts.isInterfaceDeclaration(n) || hasDeclare(n) || (ts.isFunctionDeclaration(n) && n.body === undefined)) {
+      cut(n.getStart(sf), n.getEnd());
+      return;
+    }
+    // RUNTIME CONSTRUCTS that TypeScript itself compiles — an enum, a namespace,
+    // a class (modifiers, parameter properties, field types) — become the
+    // JavaScript TypeScript writes for them, the construct taken whole.
+    if (ts.isEnumDeclaration(n) || ts.isModuleDeclaration(n) || ts.isClassDeclaration(n) || ts.isClassExpression(n)) {
+      const js = javascriptOf(text.slice(n.getStart(sf), n.getEnd()), ts.isClassExpression(n));
+      if (js !== null) { edits.push({ start: n.getStart(sf) + delta, end: n.getEnd() + delta, text: js }); return; }
+    }
+    // ANNOTATIONS on what a body declares: a name's type and its `?`/`!`, a
+    // function's type parameters and return type, a `this` parameter.
+    if (ts.isVariableDeclaration(n) && n.type !== undefined) cut(n.name.getEnd(), n.type.getEnd());
+    if (ts.isParameter(n)) {
+      if (ts.isIdentifier(n.name) && n.name.text === "this") {
+        const ps = (n.parent as ts.SignatureDeclaration).parameters;
+        const k = ps.indexOf(n);
+        if (k < ps.length - 1) cut(n.getStart(sf), ps[k + 1].getStart(sf));
+        else if (k > 0) cut(ps[k - 1].getEnd(), n.getEnd());
+        else cut(n.getStart(sf), n.getEnd());
+        return;
+      }
+      const last = n.type ?? n.questionToken;
+      if (last !== undefined) cut(n.name.getEnd(), last.getEnd());
+    }
+    if (ts.isFunctionLike(n)) {
+      if (n.typeParameters !== undefined) angles(n.typeParameters);
+      if (n.type !== undefined) cut(text.lastIndexOf(":", n.type.getStart(sf)), n.type.getEnd());
+    }
     if (ts.isAsExpression(n) || ts.isSatisfiesExpression(n) || ts.isNonNullExpression(n)) {
       edits.push({ start: n.expression.getEnd() + delta, end: n.getEnd() + delta });
     } else if (ts.isTypeAssertionExpression(n)) {
@@ -114,7 +156,7 @@ export function stripEditsFor(src: string, expression: boolean): StripEdit[] {
     if (e.start < 0 || e.end > rsrc.length || e.end <= e.start) continue;
     const s = toOrig(e.start);
     const t = toOrig(e.end);
-    if (s !== null && t !== null && t > s) out.push({ start: s, end: t });
+    if (s !== null && t !== null && t > s) out.push(e.text === undefined ? { start: s, end: t } : { start: s, end: t, text: e.text });
   }
   return out;
 }
@@ -140,33 +182,44 @@ export function tsBodySyntax(src: string, expression: boolean): string | null {
   let hexIdent = false;
   const scan = (n: ts.Node): void => {
     if (hexIdent) return;
-    if (ts.isPrivateIdentifier(n) && /^#[0-9a-fA-F]{3,8}$/.test(n.text)) { hexIdent = true; return; }
+    // A private name is TypeScript's where it is one — a class member's name,
+    // after `.` (`this.#add`), before `in` — and a colour everywhere else.
+    if (ts.isPrivateIdentifier(n) && /^#[0-9a-fA-F]{3,8}$/.test(n.text) && !isPrivateName(n)) { hexIdent = true; return; }
     ts.forEachChild(n, scan);
   };
   scan(sf);
   if (hexIdent) return `${what} — Invalid character.`;
-  // TS forms that PARSE but are neither runnable nor stripped — a body carries
-  // type OPERATORS (`x as T`, `satisfies`, `!`, `<T>x` — strip-then-run, above),
-  // but never type ANNOTATIONS or type DECLARATIONS. Unrejected, an annotation
-  // survives to `new Function` and dies at runtime; the language rule (bodies are
-  // where a compile-time error is guaranteed instead) is enforced here, at check,
-  // with the rewrite named.
-  let tsOnly: string | null = null;
-  const scanTsOnly = (n: ts.Node): void => {
-    if (tsOnly !== null) return;
-    if (ts.isTypeAliasDeclaration(n) || ts.isInterfaceDeclaration(n) || ts.isEnumDeclaration(n) || ts.isModuleDeclaration(n)) {
-      tsOnly = `declares a type — type declarations don't live in a { } body; narrow with a cast (x as T), and declare shapes on attributes (name: type = …)`;
-    } else if ((ts.isParameter(n) && (n.type !== undefined || n.questionToken !== undefined)) ||
-               (ts.isVariableDeclaration(n) && (n.type !== undefined || n.exclamationToken !== undefined))) {
-      tsOnly = `annotates a name ('${n.name.getText(sf)}') — names declared in a body take no type annotation (contextual typing covers them); a cast narrows an expression (x as T), and declared types live on the attribute (name: type = …)`;
-    } else if ((ts.isArrowFunction(n) || ts.isFunctionExpression(n) || ts.isFunctionDeclaration(n)) && (n.typeParameters !== undefined || n.type !== undefined)) {
-      tsOnly = n.typeParameters !== undefined
-        ? `declares a type parameter — generics don't live in a { } body; narrow with a cast (x as T) at the use site`
-        : `annotates a return type — a body's functions take no signature annotations; a cast on the result (f() as T) narrows it`;
-    }
-    if (tsOnly === null) ts.forEachChild(n, scanTsOnly);
-  };
-  scanTsOnly(sf);
-  if (tsOnly !== null) return `${what} — ${tsOnly}`;
   return null;
+}
+
+/** A statement written `declare …` — a type-level promise, no code. */
+function hasDeclare(n: ts.Node): boolean {
+  return ts.canHaveModifiers(n) && (ts.getModifiers(n) ?? []).some((m) => m.kind === ts.SyntaxKind.DeclareKeyword);
+}
+
+/** The JavaScript TypeScript writes for one construct (a class, an enum, a
+ *  namespace), with the body's datapath markers put back as the `:path` reads
+ *  they stand for. Null when a marker cannot be put back (a computed path) —
+ *  the construct is then left as written, for the checker to report. */
+function javascriptOf(src: string, expression: boolean): string | null {
+  const out = ts.transpileModule(expression ? `(${src})` : src, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, useDefineForClassFields: true },
+    reportDiagnostics: false,
+  }).outputText;
+  let js = out.replace(/^\/\/# sourceMappingURL=.*$/m, "").replace(/^export \{\};\s*$/m, "").trimEnd();
+  if (expression) js = js.replace(/;$/, "");
+  js = js.replace(/\$DP\(("(?:[^"\\]|\\.)*")\)/g, (_m, q: string) => ":" + (JSON.parse(q) as string));
+  return js.includes("$DP") ? null : js;
+}
+
+/** Is this private identifier TypeScript's private name — a class member's
+ *  name, the name after `.` (`this.#add`), the left of `#x in obj` — rather
+ *  than a `#hex` colour standing on its own? */
+function isPrivateName(n: ts.PrivateIdentifier): boolean {
+  const p = n.parent;
+  if (p === undefined) return false;
+  if (ts.isPropertyAccessExpression(p) && p.name === n) return true;
+  if ((ts.isPropertyDeclaration(p) || ts.isMethodDeclaration(p) || ts.isGetAccessorDeclaration(p) || ts.isSetAccessorDeclaration(p)) && p.name === n) return true;
+  if (ts.isBinaryExpression(p) && p.left === n && p.operatorToken.kind === ts.SyntaxKind.InKeyword) return true;
+  return false;
 }

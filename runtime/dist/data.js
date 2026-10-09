@@ -47,12 +47,19 @@ import { isArrayDoc } from "./shape-resolve.js";
 // container → per-key region cells. Module-level (identity-keyed, so datasets
 // can never collide) and weak: cells live exactly as long as their data.
 const CELLS = new WeakMap();
-// container → its current location. Written when a dataset adopts a value
-// (arrival, embedded parse, an inserted subtree); healed lazily by toCursor
-// when structure has shifted underneath it. This is what lets the doc's
-// `datapath = { weatherData.value.rss.channel }` — plain TS dereferences —
-// come back out as a place: the value itself knows where it lives.
 const TAGS = new WeakMap();
+function pathOf(t) {
+    if (t.at !== undefined)
+        return [...t.at];
+    const keys = [];
+    let u = t;
+    for (; u !== null && u.at === undefined; u = u.up)
+        keys.push(u.key);
+    const out = u === null ? [] : [...u.at];
+    for (let i = keys.length - 1; i >= 0; i--)
+        out.push(keys[i]);
+    return out;
+}
 /** A data CONTAINER is an array or a plain object — the shapes data is made of.
  *  Any other object in a value tree (a Font or a view a record points at, a Date)
  *  is a LEAF: never walked, tagged, merged or proxied. A node carries parent
@@ -145,9 +152,18 @@ function wakeTree(v, data) {
 function tagTree(data, v, path) {
     if (!isContainer(v))
         return;
-    TAGS.set(v, { data, path });
+    const t = { data, up: null, key: "", at: path };
+    TAGS.set(v, t);
     for (const k of Object.keys(v))
-        tagTree(data, v[k], [...path, k]);
+        tagUnder(data, v[k], t, k);
+}
+function tagUnder(data, v, up, key) {
+    if (!isContainer(v))
+        return;
+    const t = { data, up, key };
+    TAGS.set(v, t);
+    for (const k of Object.keys(v))
+        tagUnder(data, v[k], t, k);
 }
 // ── Derived datasets hold their sources' records ────────────────────────────
 // A derived dataset (`contents = { … }`) usually SELECTS records — filter,
@@ -174,12 +190,16 @@ const foreign = (data, v) => {
  *  else — what the code made — is tagged to `data`, its children landed the
  *  same way. */
 function adoptTree(data, v, path) {
+    return adoptUnder(data, v, { data, up: null, key: "", at: path });
+}
+/** adoptTree's walk: `place` is the tag `v` takes if it is this dataset's. */
+function adoptUnder(data, v, place) {
     v = unwrapValue(v);
     if (!isContainer(v) || foreign(data, v))
         return v;
-    TAGS.set(v, { data, path });
+    TAGS.set(v, place);
     for (const k of Object.keys(v)) {
-        const c = v[k], raw = adoptTree(data, c, [...path, k]);
+        const c = v[k], raw = adoptUnder(data, c, { data, up: place, key: k });
         if (raw !== c)
             v[k] = raw;
     }
@@ -968,15 +988,16 @@ export function toCursor(v, context) {
     if (tag === undefined) {
         throw new DeclareError(`${context}: this value belongs to no Dataset/DataSource — a cursor can only point into declared data`);
     }
-    if (resolveTracked(tag.data, tag.path) !== v) {
+    let path = pathOf(tag);
+    if (resolveTracked(tag.data, path) !== v) {
         const healed = locateByIdentity(unwrapValue(tag.data.value), v, []);
         if (healed === null) {
             throw new DeclareError(`${context}: this value is no longer anywhere in its dataset`);
         }
-        tag.path = healed;
-        resolveTracked(tag.data, tag.path); // track the healed chain
+        tag.at = path = healed;
+        resolveTracked(tag.data, path); // track the healed chain
     }
-    return tag.data.$cursorAt(tag.path);
+    return tag.data.$cursorAt(path);
 }
 /** Navigate `path`, registering a tracked read at EVERY step (unlike
  *  Dataset.read's deepest-slot rule): a cursor stands on its whole chain. */
@@ -1002,14 +1023,15 @@ function homeOf(data, container, segs, verb) {
     if (t === undefined || t.data === data) {
         throw new DeclareError(`'${showPath(segs)}' refuses this ${verb} — ${name} computes its value with contents, and this part was made by that computation, not taken from a source; the next recompute would replace it. Write the source dataset instead (what a row needs beyond its record, compute in the row)`);
     }
-    if (resolveRaw(t.data, t.path) !== container) {
+    let path = pathOf(t);
+    if (resolveRaw(t.data, path) !== container) {
         const healed = locateByIdentity(unwrapValue(t.data.value), container, []);
         if (healed === null) {
             throw new DeclareError(`'${showPath(segs)}' refuses this ${verb} — the record ${name} holds is no longer in ${authoredName(t.data) ?? "its source"}`);
         }
-        t.path = healed;
+        t.at = path = healed;
     }
-    return t;
+    return { data: t.data, path };
 }
 /** Navigate `path` in the raw tree, untracked. */
 function resolveRaw(data, path) {
@@ -1051,7 +1073,7 @@ export function coerceData(type, v, def) {
                     : def;
         case "number":
         case "length":
-            return typeof v === "number" ? v : def;
+            return typeof v === "number" ? v : v === null && type.kind === "number" && type.nullable === true ? null : def;
         case "radius":
         case "inset":
             // a number, or the four corners as a data-borne list of four numbers
@@ -1059,7 +1081,7 @@ export function coerceData(type, v, def) {
                 : Array.isArray(v) && v.length === 4 && v.every((c) => typeof c === "number") ? v
                     : def;
         case "boolean":
-            return typeof v === "boolean" ? v : def;
+            return typeof v === "boolean" ? v : v === null && type.nullable === true ? null : def;
         case "color":
             return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : def;
         case "fill":
@@ -1076,7 +1098,7 @@ export function coerceData(type, v, def) {
         case "array":
             return Array.isArray(v) ? v : def;
         case "object":
-            return typeof v === "object" ? v : def;
+            return type.written !== undefined ? v : typeof v === "object" ? v : def; // a TypeScript type: TypeScript's to judge
         case "view":
             return def; // a View reference never arrives from data
         case "record":

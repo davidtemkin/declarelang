@@ -314,6 +314,18 @@ export function parseLiteralUnion(text) {
     }
     return out;
 }
+/** A NULLABLE number or boolean — `number | null`, `null | number`, `number?`
+ *  (and `| undefined`, which a slot holds as null): "n" or "b", else null. Such
+ *  a slot stays in the kernel's table, its null carried by the cell's flag. */
+export function nullablePrimitive(written) {
+    const parts = written.endsWith("?") ? [written.slice(0, -1).trim(), "null"] : written.split("|").map((p) => p.trim());
+    if (parts.length !== 2)
+        return null;
+    const base = parts.filter((p) => p !== "null" && p !== "undefined");
+    if (base.length !== 1)
+        return null;
+    return base[0] === "number" ? "n" : base[0] === "boolean" ? "b" : null;
+}
 export function declaredType(name) {
     return Object.hasOwn(DECLARED_TYPES, name) ? DECLARED_TYPES[name] : null;
 }

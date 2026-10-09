@@ -18,6 +18,8 @@ interface TenantSink {
  *  IS (DOMIsland: foreign DOM; AppIsland: a Declare program); this base owns
  *  the bridge — the external-fact surface and the message verbs. */
 export declare class Island extends View {
+    /** An embedded program runs, and is read, while hidden. */
+    protected $eagerSurface(): boolean;
     provides: readonly string[];
     /** @internal the linked tenant's delivery sink (null = nothing linked). */
     tenantSink: TenantSink | null;

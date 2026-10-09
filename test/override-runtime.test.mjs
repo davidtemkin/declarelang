@@ -11,7 +11,7 @@
 // program's own, and the runtime never calls it.
 import assert from "node:assert";
 import { readFileSync } from "node:fs";
-import { compile, settleSource } from "../compiler/dist/compile-node.js";
+import { compile, settleHeadless } from "../compiler/dist/compile-node.js";
 import { settle } from "../runtime/dist/reactive.js";
 import { provideMeasurer } from "../runtime/dist/measure.js";
 import { provideTransport, DataSource } from "../runtime/dist/data.js";
@@ -32,7 +32,7 @@ async function test(name, fn) {
 async function build(src) {
   const r = await compile(src);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles");
-  return settleSource(r.source, { deps: r.deps });
+  return settleHeadless(r.program);
 }
 const errorsOf = async (src) => ((await compile(src)).errors ?? []).map((e) => e.message);
 const warningsOf = async (src) => { const r = await compile(src); assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "compiles"); return r.warnings ?? []; };
@@ -170,7 +170,7 @@ App [ width = 1, height = 1, f: F [ url = "/x" ] ]`);
   await test("a method named after a runtime FIELD is still refused, saying field", async () => {
     const r = await compile(`App [ width = 1, height = 1, v: View [ exposes() { } ] ]`);
     assert.deepEqual((r.errors ?? []).map((e) => e.message), [], "the checker is runtime-free by design");
-    assert.throws(() => settleSource(r.source, { deps: r.deps }), /View\.exposes: 'exposes' is a built-in field of the runtime View, not a method/);
+    assert.throws(() => settleHeadless(r.program), /View\.exposes: 'exposes' is a built-in field of the runtime View, not a method/);
   });
   await test("the super call is typechecked against the runtime method's documented signature", async () => {
     const errs = await errorsOf(`

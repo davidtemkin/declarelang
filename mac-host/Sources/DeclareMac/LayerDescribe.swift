@@ -168,7 +168,11 @@ enum LayerDescribe {
                 // draws no shadow of its own; that shape keeps the raster path
                 if src.gradient != nil { return nil }
                 shadowNonce += 1
-                p.shadow = ShadowSpec(color: sc, blur: st.shadowBlur, dx: st.shadowDx, dy: st.shadowDy)
+                // the drawing's units, resolved through its own transform into the
+                // layer's points (the CTM is baked into the path points the same way)
+                let m = st.ctm
+                p.shadow = ShadowSpec(color: sc, blur: st.shadowBlur * abs(m.a * m.d - m.b * m.c).squareRoot(),
+                                      dx: m.a * st.shadowDx + m.c * st.shadowDy, dy: m.b * st.shadowDx + m.d * st.shadowDy)
                 p.nonce = shadowNonce
             }
             switch src {
@@ -315,16 +319,15 @@ enum LayerDescribe {
             if p.isStroke { shape.strokeColor = c } else { shape.fillColor = c }
             shape.opacity = Float(p.alpha)
             if let sh = p.shadow, let sc = CSSColor.parse(sh.color) {
-                // canvas: device-space offset and blur, y-DOWN. Layer: points,
-                // y-UP. Divide by the backing scale, negate y. The radius
-                // carries across as the same quantity CG's `blur` is — the
-                // rasterizer passes shadowBlur through unhalved and matches
-                // Chrome at 0% (drawconform shadowBlur), so this does too;
-                // that cell is what holds this to account.
+                // the spec is in the view's points, y-DOWN; a layer's shadow is in
+                // points, y-UP, so y is negated. The radius carries across as the
+                // same quantity CG's `blur` is — the rasterizer passes shadowBlur
+                // through unhalved and matches Chrome at 0% (drawconform
+                // shadowBlur), so this does too; that cell holds this to account.
                 shape.shadowColor = sc.cgColor
                 shape.shadowOpacity = 1
-                shape.shadowRadius = sh.blur / scale
-                shape.shadowOffset = CGSize(width: sh.dx / scale, height: -sh.dy / scale)
+                shape.shadowRadius = sh.blur
+                shape.shadowOffset = CGSize(width: sh.dx, height: -sh.dy)
                 shape.actions?["shadowOpacity"] = NSNull()
                 shape.actions?["shadowRadius"] = NSNull()
                 shape.actions?["shadowOffset"] = NSNull()

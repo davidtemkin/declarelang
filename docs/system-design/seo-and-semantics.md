@@ -26,16 +26,16 @@ a near-static property of the tree the runtime already builds.
 
 ## Prerender mechanism (compiler/build-time, no browser)
 
-The runtime is already ~90% headless: `test/unit.test.mjs` runs `build(source)` in Node today
-and gets a fully instantiated, typed, constraint-resolved tree. Its comment names the only two
-things that need a browser: **rendering** and **text/image measurement**.
+The runtime is already ~90% headless: `test/unit.test.mjs` builds compiled programs in Node
+(`buildProgram`) and gets a fully instantiated, typed, constraint-resolved tree. Only two
+things need a browser: **rendering** and **text/image measurement**.
 
 So the path is **an `SsrBackend`** — a third backend implementing the existing `Surface`
 interface (`runtime/src/backend.ts`), alongside `DomBackend`/`CanvasBackend`, that runs in Node
 and appends to an HTML string instead of touching DOM nodes. Then:
 
 ```
-renderToString(source) = build(source) → settle() the reactive graph → walk via SsrBackend → HTML
+renderToString(source) = compile(source) → buildProgram → settle() the reactive graph → walk via SsrBackend → HTML
 ```
 
 Wire it into `prebuild.mjs`; inject the result into the page shell. Deterministic, fast, no

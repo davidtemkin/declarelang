@@ -1,0 +1,34 @@
+// One picture three ways, which must come out the same: drawn at its own size (a),
+// at half size in a drawing that scales itself by two (b), and at half size in a
+// view scaled by two (c). Shadow blur and offsets, and the lengths inside a filter,
+// are the drawing's units, so they scale with everything else. test/draw-lengths.test.mjs
+
+class Mark [ width = 120, height = 120,
+    k: number = 1,                                  // the drawing's own units per view unit
+    selfScale: boolean = false,                     // scale inside the drawing instead
+    draw(d: Draw) {
+        const u = selfScale ? 0.5 : k
+        if (selfScale) d.scale(2, 2)
+        d.lineWidth = 3 * u
+        d.strokeStyle = "#FFFFFF"
+        d.shadowColor = "rgba(80,140,255,1)"
+        d.shadowBlur = 8 * u
+        d.shadowOffsetX = 5 * u
+        d.shadowOffsetY = 4 * u
+        d.beginPath()
+        d.moveTo(20 * u, 30 * u); d.lineTo(70 * u, 20 * u); d.lineTo(50 * u, 60 * u)
+        d.stroke()
+        d.shadowBlur = 0; d.shadowOffsetX = 0; d.shadowOffsetY = 0
+        d.filter = `blur(${3 * u}px) drop-shadow(${4 * u}px ${3 * u}px ${2 * u}px red)`
+        d.fillStyle = "#FFD040"
+        d.fillRect(30 * u, 75 * u, 40 * u, 25 * u)
+        d.filter = "none"
+        }
+    ]
+
+
+App [ width = 420, height = 140, fill = black,
+    a: Mark [ x = 10, y = 10 ],
+    b: Mark [ x = 150, y = 10, selfScale = true ],
+    c: Mark [ x = 290, y = 10, width = 60, height = 60, k = 0.5, scale = 2 ]
+    ]

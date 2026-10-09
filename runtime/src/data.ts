@@ -63,7 +63,25 @@ const CELLS = new WeakMap<object, Map<string, Cell>>();
 // when structure has shifted underneath it. This is what lets the doc's
 // `datapath = { weatherData.value.rss.channel }` — plain TS dereferences —
 // come back out as a place: the value itself knows where it lives.
-const TAGS = new WeakMap<object, { data: Dataset; path: string[] }>();
+//
+// A tag holds its parent's tag and its own key, not a copy of its whole path:
+// a dataset of many records would otherwise keep one path array per container.
+// The path is built when it is asked for (pathOf). `at` is an explicit path:
+// where tagging started (the value's root, an inserted subtree), or where a
+// read found the container moved and healed its place. A path is a hint every
+// reader verifies (and heals by identity when the structure has shifted).
+type Tag = { data: Dataset; up: Tag | null; key: string; at?: string[] };
+const TAGS = new WeakMap<object, Tag>();
+
+function pathOf(t: Tag): string[] {
+  if (t.at !== undefined) return [...t.at];
+  const keys: string[] = [];
+  let u: Tag | null = t;
+  for (; u !== null && u.at === undefined; u = u.up) keys.push(u.key);
+  const out = u === null ? [] : [...u.at!];
+  for (let i = keys.length - 1; i >= 0; i--) out.push(keys[i]);
+  return out;
+}
 
 /** A data CONTAINER is an array or a plain object — the shapes data is made of.
  *  Any other object in a value tree (a Font or a view a record points at, a Date)
@@ -149,8 +167,16 @@ function wakeTree(v: unknown, data?: Dataset): void {
 
 function tagTree(data: Dataset, v: unknown, path: string[]): void {
   if (!isContainer(v)) return;
-  TAGS.set(v, { data, path });
-  for (const k of Object.keys(v)) tagTree(data, v[k], [...path, k]);
+  const t: Tag = { data, up: null, key: "", at: path };
+  TAGS.set(v, t);
+  for (const k of Object.keys(v)) tagUnder(data, v[k], t, k);
+}
+
+function tagUnder(data: Dataset, v: unknown, up: Tag, key: string): void {
+  if (!isContainer(v)) return;
+  const t: Tag = { data, up, key };
+  TAGS.set(v, t);
+  for (const k of Object.keys(v)) tagUnder(data, v[k], t, k);
 }
 
 // ── Derived datasets hold their sources' records ────────────────────────────
@@ -180,11 +206,16 @@ const foreign = (data: Dataset, v: unknown): boolean => {
  *  else — what the code made — is tagged to `data`, its children landed the
  *  same way. */
 function adoptTree(data: Dataset, v: unknown, path: string[]): unknown {
+  return adoptUnder(data, v, { data, up: null, key: "", at: path });
+}
+
+/** adoptTree's walk: `place` is the tag `v` takes if it is this dataset's. */
+function adoptUnder(data: Dataset, v: unknown, place: Tag): unknown {
   v = unwrapValue(v);
   if (!isContainer(v) || foreign(data, v)) return v;
-  TAGS.set(v, { data, path });
+  TAGS.set(v, place);
   for (const k of Object.keys(v)) {
-    const c = v[k], raw = adoptTree(data, c, [...path, k]);
+    const c = v[k], raw = adoptUnder(data, c, { data, up: place, key: k });
     if (raw !== c) v[k] = raw;
   }
   return v;
@@ -267,8 +298,7 @@ export class Dataset extends Node {
   $cursorAt(path: readonly string[]): Cursor {
     const key = path.join("\u0000");
     let c = this.cursors.get(key);
-    if (c === undefined) this.cursors.set(key, (c = { data: this, path: [...path] }));
-    return c;
+    if (c === undefined) this.cursors.set(key, (c = { data: this, path: [...path] }));    return c;
   }
 
   /** Tracked read of the region at `path` (root-relative). Registers exactly
@@ -971,15 +1001,16 @@ export function toCursor(v: unknown, context: string): Cursor | null {
       `${context}: this value belongs to no Dataset/DataSource — a cursor can only point into declared data`
     );
   }
-  if (resolveTracked(tag.data, tag.path) !== v) {
+  let path = pathOf(tag);
+  if (resolveTracked(tag.data, path) !== v) {
     const healed = locateByIdentity(unwrapValue(tag.data.value), v, []);
     if (healed === null) {
       throw new DeclareError(`${context}: this value is no longer anywhere in its dataset`);
     }
-    tag.path = healed;
-    resolveTracked(tag.data, tag.path); // track the healed chain
+    tag.at = path = healed;
+    resolveTracked(tag.data, path); // track the healed chain
   }
-  return tag.data.$cursorAt(tag.path);
+  return tag.data.$cursorAt(path);
 }
 
 /** Navigate `path`, registering a tracked read at EVERY step (unlike
@@ -1007,14 +1038,15 @@ function homeOf(data: Dataset, container: object, segs: readonly string[], verb:
       `'${showPath(segs)}' refuses this ${verb} — ${name} computes its value with contents, and this part was made by that computation, not taken from a source; the next recompute would replace it. Write the source dataset instead (what a row needs beyond its record, compute in the row)`
     );
   }
-  if (resolveRaw(t.data, t.path) !== container) {
+  let path = pathOf(t);
+  if (resolveRaw(t.data, path) !== container) {
     const healed = locateByIdentity(unwrapValue(t.data.value), container, []);
     if (healed === null) {
       throw new DeclareError(`'${showPath(segs)}' refuses this ${verb} — the record ${name} holds is no longer in ${authoredName(t.data) ?? "its source"}`);
     }
-    t.path = healed;
+    t.at = path = healed;
   }
-  return t;
+  return { data: t.data, path };
 }
 
 /** Navigate `path` in the raw tree, untracked. */
@@ -1054,7 +1086,7 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
         : def;
     case "number":
     case "length":
-      return typeof v === "number" ? v : def;
+      return typeof v === "number" ? v : v === null && type.kind === "number" && type.nullable === true ? null : def;
     case "radius":
     case "inset":
       // a number, or the four corners as a data-borne list of four numbers
@@ -1062,7 +1094,7 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
         : Array.isArray(v) && v.length === 4 && v.every((c) => typeof c === "number") ? v
         : def;
     case "boolean":
-      return typeof v === "boolean" ? v : def;
+      return typeof v === "boolean" ? v : v === null && type.nullable === true ? null : def;
     case "color":
       return typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 0xffffff ? v : def;
     case "fill":
@@ -1079,7 +1111,7 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
     case "array":
       return Array.isArray(v) ? v : def;
     case "object":
-      return typeof v === "object" ? v : def;
+      return type.written !== undefined ? v : typeof v === "object" ? v : def;   // a TypeScript type: TypeScript's to judge
     case "view":
       return def; // a View reference never arrives from data
     case "record":

@@ -13,7 +13,7 @@ async function boot(src) {
   const r = await compile(src, {});
   assert.notEqual(r.source, null, "compiles: " + r.errors.map((e) => e.message).join("; "));
   const program = parseProgram(r.source);
-  applyDeps(program, r.deps);          // zip the compiler's read-paths back on (what renderAsync does)
+  applyDeps(program, r.deps);          // zip the compiler's read-paths back on, as a program read from compiled text is
   const app = instantiate(program);
   settle();
   return app;

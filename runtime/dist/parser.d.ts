@@ -387,6 +387,15 @@ export declare function parse(source: string): Element;
  *  file compiles. The languages Declare keeps company with (Go, Rust, Swift,
  *  Kotlin, LZX) are all order-free at the top level; the define-before-use
  *  holdouts (C, F#, XAML's StaticResource) are the resented company. */
+/** Rewrite a program's positions with a line map (the compiler's LineMap:
+ *  `files`, file 0 the program's own, and runs `[firstLine, count, fileIndex,
+ *  firstFileLine]`), so a position names the file and line its author wrote.
+ *  The offset is left as it is — it indexes the text the program was parsed
+ *  from. In place; each position is rewritten once. */
+export declare function applyLineMap(program: Program, map: {
+    files: readonly string[];
+    runs: readonly (readonly number[])[];
+}): void;
 export declare function parseProgram(source: string): Program;
 /** Parse an INCLUDED file (composition.md §1): the same top-level
  *  declarations as a program, then eof — a library declares classes, themes,

@@ -52,6 +52,35 @@ export function revealRichAnchor(h: RichHost, slug: string, inset: number): bool
   return true;
 }
 
+/** A HIDDEN FLOW STILL HAS A HEIGHT. A view that is not shown keeps its values
+ *  — a constraint may size something from a hidden Markdown — but a flow under
+ *  a `display: none` ancestor has no layout box, and every read of it answers 0.
+ *  So a read of a flow that is not rendered is taken in a measuring room
+ *  instead: the flow moves into an offscreen, rendered, invisible container for
+ *  the read and goes straight back. Its runs carry their own type, so the room
+ *  lays it out as its home would. */
+function whileRendered<T>(h: RichHost, read: () => T): T {
+  const host = h.richEl;
+  if (host === null || host.getClientRects().length > 0) return read();
+  const home = host.parentNode, next = host.nextSibling;
+  const room = measuringRoom(host.ownerDocument);
+  room.appendChild(host);
+  try { return read(); } finally { home?.insertBefore(host, next); }
+}
+const ROOMS = new WeakMap<Document, HTMLDivElement>();
+function measuringRoom(doc: Document): HTMLDivElement {
+  let room = ROOMS.get(doc);
+  if (room === undefined || !room.isConnected) {
+    room = doc.createElement("div");
+    const s = room.style;
+    s.position = "fixed"; s.left = "-100000px"; s.top = "0"; s.visibility = "hidden"; s.pointerEvents = "none"; s.contain = "layout style";
+    room.setAttribute("aria-hidden", "true");
+    doc.body.appendChild(room);
+    ROOMS.set(doc, room);
+  }
+  return room;
+}
+
 /** Read back every slot placeholder's box, in flow-local coordinates, and
  *  publish the geometry fact. `offsetLeft`/`offsetTop` rather than a client
  *  rect ON PURPOSE: they are LAYOUT coordinates, so an ancestor `scale` (a CSS
@@ -79,6 +108,9 @@ export function measureRichSlots(h: RichHost): void {
  *  (flow-local LAYOUT coordinates — an ancestor `scale` is divided back out of
  *  the line rects, which are client coordinates). */
 export function richMetrics(h: RichHost): { firstBaseline: number | null; widest: number } {
+  return whileRendered(h, () => richMetricsNow(h));
+}
+function richMetricsNow(h: RichHost): { firstBaseline: number | null; widest: number } {
   const host = h.richEl;
   if (host === null) return { firstBaseline: null, widest: 0 };
   const probe = host.querySelector<HTMLElement>("[data-rich-baseline]");
@@ -108,9 +140,11 @@ export function setRichWidth(h: RichHost, width: number): number {
   const host = h.richEl;
   if (host === null) return -1;
   host.style.width = width + "px";
-  const flowed = host.offsetHeight;
-  measureRichSlots(h);
-  return flowed;
+  return whileRendered(h, () => {
+    const flowed = host.offsetHeight;
+    measureRichSlots(h);
+    return flowed;
+  });
 }
 
 /** Clamp the flow to `maxLines` (0 lifts the clamp), and answer its new height.
@@ -136,9 +170,11 @@ export function setRichClamp(h: RichHost, maxLines: number): number {
     s.webkitLineClamp = "";
     s.overflow = "";
   }
-  const height = Math.ceil(host.getBoundingClientRect().height);
-  measureRichSlots(h);   // the clamp just re-flowed the lines (same layout)
-  return height;
+  return whileRendered(h, () => {
+    const height = Math.ceil(host.getBoundingClientRect().height);
+    measureRichSlots(h);   // the clamp just re-flowed the lines (same layout)
+    return height;
+  });
 }
 
 /** One paragraph, heading or `pre` as its element — a real `<p>`/`<h*>`/`<pre>`
@@ -500,6 +536,8 @@ export function setRichContent(
     const measured = host;
     if (h.richObserver === null) {
       h.richObserver = new ResizeObserver(() => {
+        // hidden, the flow has no box and reads 0: that is not its height
+        if (measured.getClientRects().length === 0) return;
         h.onRichResize?.(measured.offsetHeight);
         measureRichSlots(h);
       });
@@ -507,11 +545,13 @@ export function setRichContent(
     }
     h.onRichResize = onResize;
   }
-  const flowed = host.offsetHeight;   // forced layout → the flowed height
-  // The layout the line above forced is the one the slots were placed in, so
-  // reading their boxes here costs nothing extra — and the views are in place
+  // The layout the height read forces is the one the slots were placed in, so
+  // reading their boxes there costs nothing extra — and the views are in place
   // for the very first paint instead of one frame behind it. The observer
   // above re-publishes whenever a later measurement moves them.
-  measureRichSlots(h);
-  return flowed;
+  return whileRendered(h, () => {
+    const flowed = host!.offsetHeight;   // forced layout → the flowed height
+    measureRichSlots(h);
+    return flowed;
+  });
 }

@@ -82,10 +82,10 @@ export async function bootHost(cfg) {
   // any boot path that didn't emit that pre-paint remover. Null-safe + idempotent.
   document.getElementById("declare-static")?.remove();
   const Backend = BACKENDS[cfg.backend] ?? DomBackend;
-  // Build (parse+check+instantiate), then SEED app.location from the URL BEFORE the
+  // Build the compiled program, then SEED app.location from the URL BEFORE the
   // first paint (docs/system-design/location.md §2): a deep link is just an initial state, so
   // every constraint derives from it as if the user had already navigated there —
-  // no home→target flash. Un-fused from renderAsync so the seed lands pre-mount.
+  // no home→target flash. Build and mount are separate steps so the seed lands pre-mount.
   await kernelReady();   // the reactive core (kernel.md), once per page
   // THE PAGE AS THE TOPMOST HOST (islands.md): values the program reads with
   // `hostProvided("name", …)`, there from its very first evaluation — from a

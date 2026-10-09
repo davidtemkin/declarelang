@@ -42,6 +42,8 @@ export class Image extends View {
         super.$flush(s);
         // Pushers fire on *change*; attach's flush carries the pre-attach state
         // across (the image element itself arrives via load's async landing).
+        if (this.bitmap !== null)
+            s.setImage(this.bitmap); // a surface after the load (first shown later) takes what arrived
         s.setImageStretch(this.stretches);
         if (this.alignX !== "center" || this.alignY !== "center")
             s.setImageAlign?.(this.alignX, this.alignY);

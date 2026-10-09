@@ -7,6 +7,7 @@
 import { colorToCss, gradientCss } from "./value.js";
 import { rasterPad, replay } from "./draw.js";
 import type { DomSurface } from "./dom-backend.js";
+import { isDeferred } from "./deferred-surface.js";
 
 let maskWarned = false;
 function warnMaskStencil(): void {
@@ -70,7 +71,7 @@ export function applyDomMask(s: DomSurface): void {
   if (spec.kind === "gradient") { set(gradientCss(spec.gradient), "100% 100%", "0 0"); return; }
   const stencil = spec.stencil;
   const src = stencil.$surface as DomSurface | null;
-  if (src === null) { set("", "", ""); return; }          // not attached yet — the stencil's flush re-pushes
+  if (src === null || isDeferred(src)) { set("", "", ""); return; }   // not attached (or not shown) yet — the stencil's flush re-pushes
   (src.maskUsers ??= new Set()).add(s);
   const m = maskBitmap(src);
   if (m === null) {

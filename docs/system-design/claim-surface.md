@@ -77,7 +77,7 @@ renderers. The conformance oracle, not `gesture.test.mjs`, holds these rows
 
 - **Embedding is a marked channel.** The embedded fact reads
   `data-declare-app` / `data-declare-embed` ancestry. The sanctioned paths
-  (AppIsland → DOMIsland, boot.ts `isEmbedded`) stamp it. A raw `render()`
+  (AppIsland → DOMIsland, boot.ts `isEmbedded`) stamp it. A raw `renderProgram()`
   into an unmarked div of a foreign scrolling page will read as top-level and
   claim the geometry default — out of contract, by design.
 - **The COARSE stance is superseded (2026-07-30) by the subtractive

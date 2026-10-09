@@ -158,6 +158,11 @@ export function scanDatapaths(src: string): PathIsland[] {
   const code = (inSubstitution: boolean): void => {
     let depth = 0;
     let ends = false;
+    // TypeScript's OPTIONAL MARKER: a `?` attached to a name (`a?: T`, `a?:T`)
+    // is never a ternary — `name ?:` cannot begin a branch in TypeScript — so
+    // a colon after it is the annotation's, not a datapath. A ternary on a
+    // datapath keeps its space: `ok ? :title : "—"`.
+    let optional = false;
     while (i < n) {
       const c = src[i];
       if (c === " " || c === "\t" || c === "\r" || c === "\n") { i++; continue; }
@@ -168,6 +173,9 @@ export function scanDatapaths(src: string): PathIsland[] {
         i += 2;
         continue;
       }
+      // the optional marker holds for the one token after it
+      const afterOptional = optional;
+      optional = false;
       if (c === '"' || c === "'") { string(c); ends = true; continue; }
       if (c === "`") { template(); ends = true; continue; }
       if (c === "{") { depth++; i++; ends = false; continue; }
@@ -176,7 +184,7 @@ export function scanDatapaths(src: string): PathIsland[] {
         depth--; i++; ends = true; // an object literal's end is an operand
         continue;
       }
-      if (c === ":" && !ends && (isIdentStart(src[i + 1]) || src[i + 1] === "@")) {
+      if (c === ":" && !ends && !afterOptional && (isIdentStart(src[i + 1]) || src[i + 1] === "@")) {
         const start = i;
         i++;
         let path = "";
@@ -302,6 +310,7 @@ export function scanDatapaths(src: string): PathIsland[] {
         continue;
       }
       if (c === ")" || c === "]") { i++; ends = true; continue; }
+      optional = c === "?" && i > 0 && isIdentPart(src[i - 1]) && src[i + 1] !== "." && src[i + 1] !== "?";
       i++; // every other punctuation expects an expression next
       ends = false;
     }

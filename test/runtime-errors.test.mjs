@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
-import { build, settle } from "../runtime/dist/index.js";
+import { buildProgram, settle } from "../runtime/dist/index.js";
 import { Clock, setClock } from "../runtime/dist/animate.js";
 import { provideTransport } from "../runtime/dist/data.js";
 
@@ -54,7 +54,7 @@ await test("a thrown handler is logged with its name and node path — and the b
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
   let a;
-  const lines = await logged(() => { a = build(r.source); settle(); });
+  const lines = await logged(() => { a = buildProgram(r.program); settle(); });
   assert.equal(a.ok.text, "alive", "the sibling still built — one broken handler is not fatal");
   assert.ok(lines.some((l) => l.includes("[Declare] onInit on app.boom threw")),
     `the log names the handler AND the node: ${JSON.stringify(lines)}`);
@@ -69,7 +69,7 @@ await test("a throwing onTick cannot wedge the tab: three in a row stop the Time
   assert.deepEqual(r.errors.map((e) => e.message), []);
   let a;
   const lines = await logged(() => {
-    a = build(r.source); settle();
+    a = buildProgram(r.program); settle();
     // frame 0 is the baseline; 16/32/48 each throw; the third stops it
     for (const t of [0, 16, 32, 48, 64, 80]) sched.frame(t);
   });
@@ -91,7 +91,7 @@ await test("a throwing onLoad does NOT mark the source failed — the data arriv
     ds: DataSource [ url = "/api/thing", onLoad() { (null as any).x } ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const a = build(r.source);
+  const a = buildProgram(r.program);
   const prev = provideTransport(() => reply(200, { n: 7 }));
   try {
     const lines = await logged(() => a.ds.fetch());
@@ -108,7 +108,7 @@ await test("a throwing onMessage does not kill the stream (fire's guard)", async
     es: EventStream [ url = "", onMessage(m: StreamMessage) { app.got = app.got + 1; (null as any).x } ],
   ]`);
   assert.deepEqual(r.errors.map((e) => e.message), []);
-  const a = build(r.source);
+  const a = buildProgram(r.program);
   settle();
   const lines = await logged(() => {
     // deliver two messages through the same protected fire the seam uses:

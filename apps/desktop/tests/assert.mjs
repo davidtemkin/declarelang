@@ -83,14 +83,14 @@ export default async ({ drive, expect, page }) => {
   eq(await facts(), { activeApp: "files", miniCount: 0, front: "Documentation", birdsRunning: true, windows: 2 },
     "after refocus click");
 
-  // THE ALERT: an inert dock icon (Write, past the launchables) raises it;
+  // THE ALERT: an inert dock icon (Mail, past the launchables) raises it;
   // OK dismisses
-  await drive.click(await dockIcon("write"));
+  await drive.click(await dockIcon("mail"));
   await drive.wait(300);
   await drive.settleMotion();
   const shown = await page.evaluate(() => ({ vis: window.__app.alert.visible,
     name: window.__app.alert.subject ? window.__app.alert.subject.title : (window.__app.alert.name ?? "") }));
-  eq(shown, { vis: true, name: "Write" }, "the inert icon raised the alert");
+  eq(shown, { vis: true, name: "Mail" }, "the inert icon raised the alert");
   await drive.click("app.alert.panel.ok");
   await drive.wait(200);
   await drive.settleMotion();

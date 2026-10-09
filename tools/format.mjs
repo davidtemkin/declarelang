@@ -64,7 +64,8 @@
 // identical modulo the trailing comma a close style adds/removes, `{ }` island
 // lines byte-identical. A violation aborts (and never writes).
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 // ── Lexer ───────────────────────────────────────────────────────────────────
 // Mirrors runtime/src/parser.ts's tokenize(), but keeps trivia: comments are
@@ -829,7 +830,9 @@ export function formatSource(src) {
 
 // ── CLI ─────────────────────────────────────────────────────────────────────
 
-const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].split("/").pop());
+// run as a command — directly, or through the `declare-format` link npx makes,
+// which is why the paths are compared after resolving links
+const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   const args = process.argv.slice(2);
   const write = args.includes("--write");

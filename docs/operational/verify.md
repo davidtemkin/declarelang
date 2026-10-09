@@ -14,13 +14,17 @@ npx declare-verify app.declare
 | 1 | structure | parse errors | — |
 | 2 | resolution | unresolved names, tags, datapaths | — |
 | 3 | analysis | type errors, constraint reads without a known target | — |
-| 4 | boot | fails to construct / settle headlessly | — |
+| 4 | boot | fails to construct / settle headlessly, or never settles; notes a control nobody can reach | — |
 | 5 | behavior | drive/expect mismatch | `--assert <script.mjs>` |
 | 6 | visual | mismatch against named baselines | `--states <script.mjs>` `--baselines <dir>` |
 
 Rungs 1–4 run in a **synthetic environment** — Node, the runtime's own backend,
 approximated text metrics (the run prints `synthetic metrics`) — which is why they need
-no browser and stay sub-second. Rungs 5 and 6 run the app in **headless Chromium**,
+no browser and stay sub-second. Rung 4 boots the program in a host the size of a laptop
+window (1280×800), hands each `DataSource` with a `schema` a sample of it, and stops a
+boot that has not settled within its budget, naming the line it was running. It also
+notes a control that lies outside a view which clips and does not scroll, or above a
+scroller's origin: no one can see or press it. Rungs 5 and 6 run the app in **headless Chromium**,
 drive it with real input, and assert through the
 [introspection bridge](declare-docs:operational:introspection) with motion made
 deterministic by the driven clock.
@@ -36,6 +40,8 @@ deterministic by the driven clock.
 | `--states <script.mjs>` · `--baselines <dir>` | rung-6 named states and their baseline images (default: `baselines/` beside the states script) |
 | `--bless` | write current renders as the baselines |
 | `--wrap` | wrap a bare `class … extends` in a probe app, so a library class verifies standalone |
+| `--boot-budget=ms` | how long rung 4 waits for the boot to settle (default 15000) |
+| `--samples` | print the sample each `DataSource` was handed at rung 4 |
 | `--only <file>` | verify the whole program, print only the diagnostics positioned in that one file (an include, by the path you would write it). The others are counted, and still fail the rung |
 
 Positions name their file: an error in the program file reads `(line 12, col 7)`;
@@ -56,20 +62,23 @@ question is a live page, not a re-run. The tiers and their blind spots are tabul
 
 ## Looking at it, in one call
 
-The usual check — open the program at a size, maybe press something, read some values, take
-a picture — needs no script:
+The usual check — open the program at a size, use it a little, read some values, take a
+picture — needs no script:
 
 ```bash
 npx declare-look app.declare --size 390x844 --touch --dark \
-    --click app.toolbar.add --read app.list.contentHeight --shot phone.png
+    --click app.toolbar.add --type "Buy milk" --key Enter \
+    --wheel app.list 600 --read app.list.scrollY --shot phone.png
 ```
 
-Flags are applied in that order, each `--read` prints `path.attr = value`, and it runs as
-rung 5 — the same browser and reporting. Motion is run to rest once the page opens and after
-each `--click`, so a read or a picture shows where things land rather than a spring
-mid-flight; `--no-settle` takes them as they are.
-Anything more (a drag, a pinch, polling a live feed) is an assert script, below — and it
-stays behind as a test.
+The actions — `--click PATH`, `--drag PATH DX,DY`, `--wheel PATH DY`, `--type TEXT`,
+`--key NAME`, `--wait MS`, `--read PATH.ATTR` (printed as `path.attr = value`) and
+`--shot FILE` — run in the order written, and each may repeat; `--console` prints what the
+page writes to its console, and `--help` says it all with examples. It runs as rung 5 — the
+same browser and reporting. Motion is run to rest once the page opens and after each action,
+so a read or a picture shows where things land rather than a spring mid-flight;
+`--no-settle` takes them as they are. Anything more (a pinch, polling a live feed, a check
+to keep) is an assert script, below — and it stays behind as a test.
 
 ## Writing an assert script
 

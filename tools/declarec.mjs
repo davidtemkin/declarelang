@@ -12,7 +12,7 @@
 // can produce (and cache) the same artifact on demand.
 
 import { readFile, writeFile, mkdir, cp, rm, readdir } from "node:fs/promises";
-import { existsSync, statSync } from "node:fs";
+import { existsSync, statSync, realpathSync } from "node:fs";
 import { dirname, resolve, basename, join, relative, sep, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
@@ -1044,6 +1044,8 @@ async function cli(argv) {
 // contract is "files written = done"; termination must not depend on the
 // crawled app's timer hygiene. (Imported-as-module callers — the dev server —
 // are unaffected: this branch is CLI-only.)
-if (import.meta.url === `file://${process.argv[1]}`) {
+// (run as a command — directly, or through the `declarec` link npx makes, which is
+// why the paths are compared after resolving links)
+if (process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   cli(process.argv).then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
 }

@@ -613,13 +613,24 @@ function buildGradient(ctx: CanvasRenderingContext2D, g: GradientRec): CanvasGra
  *  the same painted extent everywhere. */
 export function rasterPad(list: DisplayList): number {
   if (list.exact) return 0;
-  let blur = 0, shadowBlur = 0, shadowOff = 0;
+  // the lengths are in the drawing's units where they are set (DrawingLengths),
+  // so each is carried through the transforms in force to the recording's units
+  let blur = 0, shadowBlur = 0, shadowOff = 0, mag = 1;
+  const saved: number[] = [];
   for (const o of list.ops) {
-    if (o.op === "set") {
-      if (o.k === "filter" && typeof o.v === "string") {
-        for (const m of (o.v as string).matchAll(/blur\((\d+(?:\.\d+)?)px\)/g)) blur = Math.max(blur, Number(m[1]));
-      } else if (o.k === "shadowBlur" && typeof o.v === "number") shadowBlur = Math.max(shadowBlur, o.v);
-      else if ((o.k === "shadowOffsetX" || o.k === "shadowOffsetY") && typeof o.v === "number") shadowOff = Math.max(shadowOff, Math.abs(o.v));
+    switch (o.op) {
+      case "save": saved.push(mag); break;
+      case "restore": mag = saved.pop() ?? 1; break;
+      case "scale": mag *= Math.sqrt(Math.abs(o.x * o.y)); break;
+      case "transform": mag *= Math.sqrt(Math.abs(o.m[0] * o.m[3] - o.m[1] * o.m[2])); break;
+      case "setTransform": mag = Math.sqrt(Math.abs(o.m[0] * o.m[3] - o.m[1] * o.m[2])); break;
+      case "resetTransform": mag = 1; break;
+      case "set":
+        if (o.k === "filter" && typeof o.v === "string") {
+          for (const m of (o.v as string).matchAll(/blur\((\d+(?:\.\d+)?)px\)/g)) blur = Math.max(blur, Number(m[1]) * mag);
+        } else if (o.k === "shadowBlur" && typeof o.v === "number") shadowBlur = Math.max(shadowBlur, o.v * mag);
+        else if ((o.k === "shadowOffsetX" || o.k === "shadowOffsetY") && typeof o.v === "number") shadowOff = Math.max(shadowOff, Math.abs(o.v) * mag);
+        break;
     }
   }
   // clamped: a giant blur's far tail is invisible, and an unbounded pad can
@@ -850,6 +861,75 @@ function setRelative(c: CanvasRenderingContext2D, base: DOMMatrix, m: readonly n
     base.a * m[4] + base.c * m[5] + base.e, base.b * m[4] + base.d * m[5] + base.f);
 }
 
+/** The lengths Canvas2D measures in DEVICE pixels — shadow blur and offsets, and
+ *  the lengths inside a filter (`blur()`, `drop-shadow()`) — are the drawing's own
+ *  units in Declare, like a line's width: each is resolved through the transform in
+ *  force when a mark is painted. A drawing is the same picture at any size, density
+ *  or magnification — a glow grows with the icon it surrounds. This holds the values
+ *  as the drawing set them (saved and restored with the context) and writes their
+ *  device equivalents just before each paint. */
+class DrawingLengths {
+  private blur = 0; private ox = 0; private oy = 0; private filter = "none";
+  private stack: [number, number, number, string][] = [];
+  private applied = false;
+  constructor(private readonly ctxs: CanvasRenderingContext2D[], private readonly withFilter: boolean) {}
+  /** Take a `set` the drawing made; false when it is not one of these lengths. */
+  set(k: string, v: unknown): boolean {
+    switch (k) {
+      case "shadowBlur": this.blur = Number(v) || 0; return true;
+      case "shadowOffsetX": this.ox = Number(v) || 0; return true;
+      case "shadowOffsetY": this.oy = Number(v) || 0; return true;
+      case "filter": if (!this.withFilter) return false; this.filter = String(v); return true;
+    }
+    return false;
+  }
+  save(): void { this.stack.push([this.blur, this.ox, this.oy, this.filter]); }
+  restore(): void { const t = this.stack.pop(); if (t !== undefined) [this.blur, this.ox, this.oy, this.filter] = t; }
+  get filterCss(): string { return this.filter; }
+  /** Write the device lengths for the mark about to be painted. */
+  apply(): void {
+    const live = this.blur !== 0 || this.ox !== 0 || this.oy !== 0 || (this.filter !== "none" && this.filter !== "");
+    if (!live && !this.applied) return;
+    this.applied = live;
+    const m = this.ctxs[0].getTransform();
+    const s = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c));
+    for (const c of this.ctxs) {
+      c.shadowBlur = this.blur * s;
+      c.shadowOffsetX = m.a * this.ox + m.c * this.oy;
+      c.shadowOffsetY = m.b * this.ox + m.d * this.oy;
+      if (this.withFilter) c.filter = deviceFilter(this.filter, m);
+    }
+  }
+}
+
+/** A filter string with its lengths resolved through `m`: blur radii scaled by its
+ *  magnitude, a drop-shadow's offset carried through it like a vector. */
+export function deviceFilter(css: string, m: { a: number; b: number; c: number; d: number }): string {
+  if (css === "none" || css === "") return "none";
+  const s = Math.sqrt(Math.abs(m.a * m.d - m.b * m.c));
+  if (s === 1 && m.b === 0 && m.c === 0) return css;
+  let out = "", i = 0;
+  while (i < css.length) {
+    const open = css.indexOf("(", i);
+    if (open < 0) { out += css.slice(i); break; }
+    let depth = 1, j = open + 1;
+    while (j < css.length && depth > 0) { if (css[j] === "(") depth++; else if (css[j] === ")") depth--; j++; }
+    const name = css.slice(i, open), args = css.slice(open + 1, j - 1), fn = name.trim().toLowerCase();
+    if (fn === "blur") out += `${name}(${args.replace(/(-?\d*\.?\d+)px/g, (_, n) => `${Number(n) * s}px`)})`;
+    else if (fn === "drop-shadow") {
+      const lens: number[] = [];
+      const rest = args.replace(/(-?\d*\.?\d+)px/g, (_, n) => { lens.push(Number(n)); return "\u0000"; });
+      const [dx = 0, dy = 0, r = 0] = lens;
+      const dev = [m.a * dx + m.c * dy, m.b * dx + m.d * dy, r * s];
+      let k = 0;
+      out += `${name}(${rest.replace(/\u0000/g, () => `${dev[k++] ?? 0}px`)})`;
+    }
+    else out += css.slice(i, j);
+    i = j;
+  }
+  return out;
+}
+
 function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bounds | null): void {
   ctx.save();
   // A recording replays as onto a FRESH context: the canvas defaults, not
@@ -881,18 +961,19 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
   // a recording's setTransform / resetTransform are relative to it, as they
   // are on the canvas of its own a drawing has on the DOM
   const base = ctx.getTransform();
+  const lengths = new DrawingLengths([ctx], true);
   for (let i = 0; i < list.ops.length; i++) {
     const o = list.ops[i];
     if (culled(list, i, cull)) continue;
     switch (o.op) {
       case "fillStyle": ctx.fillStyle = o.grad ? buildGradient(ctx, o.grad) : o.v!; break;
       case "strokeStyle": ctx.strokeStyle = o.grad ? buildGradient(ctx, o.grad) : o.v!; break;
-      case "set": (ctx as unknown as Record<string, unknown>)[o.k] = o.v; break;
+      case "set": if (!lengths.set(o.k, o.v)) (ctx as unknown as Record<string, unknown>)[o.k] = o.v; break;
       case "setLineDash": ctx.setLineDash(o.segments as number[]); break;
-      case "fillRect": ctx.fillRect(o.x, o.y, o.w, o.h); break;
-      case "strokeRect": ctx.strokeRect(o.x, o.y, o.w, o.h); break;
+      case "fillRect": lengths.apply(); ctx.fillRect(o.x, o.y, o.w, o.h); break;
+      case "strokeRect": lengths.apply(); ctx.strokeRect(o.x, o.y, o.w, o.h); break;
       case "clearRect": ctx.clearRect(o.x, o.y, o.w, o.h); break;
-      case "drawImage": { const im = drawImageBitmap(o.h); if (im !== undefined) ctx.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh); break; }
+      case "drawImage": { const im = drawImageBitmap(o.h); if (im !== undefined) { lengths.apply(); ctx.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh); } break; }
       case "beginPath": ctx.beginPath(); break;
       case "moveTo": ctx.moveTo(o.x, o.y); break;
       case "lineTo": ctx.lineTo(o.x, o.y); break;
@@ -904,13 +985,13 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
       case "quadraticCurveTo": ctx.quadraticCurveTo(o.cpx, o.cpy, o.x, o.y); break;
       case "bezierCurveTo": ctx.bezierCurveTo(o.cp1x, o.cp1y, o.cp2x, o.cp2y, o.x, o.y); break;
       case "closePath": ctx.closePath(); break;
-      case "fill": o.rule ? ctx.fill(o.rule) : ctx.fill(); break;
-      case "stroke": ctx.stroke(); break;
+      case "fill": lengths.apply(); o.rule ? ctx.fill(o.rule) : ctx.fill(); break;
+      case "stroke": lengths.apply(); ctx.stroke(); break;
       case "clip": o.rule ? ctx.clip(o.rule) : ctx.clip(); break;
-      case "fillText": ctx.fillText(o.text, o.x, o.y, o.maxWidth); break;
-      case "strokeText": ctx.strokeText(o.text, o.x, o.y, o.maxWidth); break;
-      case "save": ctx.save(); break;
-      case "restore": ctx.restore(); break;
+      case "fillText": lengths.apply(); ctx.fillText(o.text, o.x, o.y, o.maxWidth); break;
+      case "strokeText": lengths.apply(); ctx.strokeText(o.text, o.x, o.y, o.maxWidth); break;
+      case "save": ctx.save(); lengths.save(); break;
+      case "restore": ctx.restore(); lengths.restore(); break;
       case "translate": ctx.translate(o.x, o.y); break;
       case "rotate": ctx.rotate(o.angle); break;
       case "scale": ctx.scale(o.x, o.y); break;
@@ -921,6 +1002,20 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
   }
   ctx.beginPath();
   ctx.restore();
+}
+
+/** A filter string as parsed device lengths, resolved through `m` (deviceFilter);
+ *  cached by the resolved string, since a drawing repaints under one transform. */
+const deviceSpecs = new Map<string, FilterSpec>();
+function deviceSpec(css: string, m: DOMMatrix): FilterSpec {
+  const dev = deviceFilter(css, m);
+  let f = deviceSpecs.get(dev);
+  if (f === undefined) {
+    f = parseFilter(dev);
+    if (deviceSpecs.size > 256) deviceSpecs.clear();
+    deviceSpecs.set(dev, f);
+  }
+  return f;
 }
 
 /** The device-pixel rectangle a filtered op can change: its recorded extent
@@ -988,7 +1083,9 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
   sx.setTransform(ctx.getTransform());
 
   let spec: FilterSpec | null = null;
-  const saved: (FilterSpec | null)[] = [];      // `filter` is part of the gstate
+  let filterCss = "none";
+  const saved: [FilterSpec | null, string][] = [];      // `filter` is part of the gstate
+  const lengths = new DrawingLengths([ctx, sx], false);
 
   const both = (fn: (c: CanvasRenderingContext2D) => void): void => { fn(ctx); fn(sx); };
   /** Draw one mark through the filter: onto the scratch at full opacity and
@@ -1002,22 +1099,14 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
     sx.globalCompositeOperation = "source-over";
     paint(sx);
     sx.restore();
-    // ⚠ NO TRANSFORM CORRECTION. `ctx.filter` lengths are DEVICE space and are
-    // not affected by the CTM — measured on Chrome, a blur(10px) edge ramps over
-    // the same 32 device px at scale 1, 2 and 4, and blur.declare's sigma reads
-    // 19.7 at dpr 1 and at dpr 2 alike. An earlier version scaled the radius by
-    // the transform's magnitude, which was wrong at every dpr and merely
-    // CANCELLED at dpr 2 against a pyramid that under-blurred by about the same
-    // factor. Two errors agreeing is not a measurement.
-    //
-    // (Frost is the opposite case and keeps its own scaling: a backdrop blur is
-    // stated in VIEW units, and CSS backdrop-filter scales with the element's
-    // transform, so paintFrost multiplies by the magnitude on purpose.)
+    // the filter's lengths are the drawing's units (DrawingLengths): resolved
+    // through the transform this mark is painted under, into device pixels
+    const dev = deviceSpec(filterCss, ctx.getTransform());
     // only what this op can reach: its extent in device pixels, grown by the
     // filter's own reach, within the visible region — null = the whole canvas
-    const region = filterRegion(list.extents?.[opIndex] ?? null, cull, ctx.getTransform(), spec!, W, H);
+    const region = filterRegion(list.extents?.[opIndex] ?? null, cull, ctx.getTransform(), dev, W, H);
     if (region !== undefined) {
-      const out = applyFilterFallback(scratch as HTMLCanvasElement, spec!, false, region);   // an OffscreenCanvas in the worker: the same 2D surface
+      const out = applyFilterFallback(scratch as HTMLCanvasElement, dev, false, region);   // an OffscreenCanvas in the worker: the same 2D surface
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.drawImage(out, region?.x ?? 0, region?.y ?? 0);
@@ -1029,6 +1118,7 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
     sx.restore();
   };
   const paint = (fn: (c: CanvasRenderingContext2D) => void): void => {
+    lengths.apply();
     if (spec === null) fn(ctx); else filtered(fn);
   };
 
@@ -1047,6 +1137,9 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
           const css = String(o.v);
           const f = css === "none" || css === "" ? null : parseFilter(css);
           spec = f !== null && !isIdentity(f) ? f : null;
+          filterCss = spec === null ? "none" : css;
+        } else if (lengths.set(o.k, o.v)) {
+          // a shadow length: written per mark, in device pixels
         } else if (o.k === "globalAlpha" || o.k === "globalCompositeOperation") {
           (ctx as unknown as Record<string, unknown>)[o.k] = o.v;     // composite-time, target only
         } else {
@@ -1074,8 +1167,8 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
       case "clip": o.rule ? ctx.clip(o.rule) : ctx.clip(); break;    // applies AFTER the filter
       case "fillText": paint((c) => c.fillText(o.text, o.x, o.y, o.maxWidth)); break;
       case "strokeText": paint((c) => c.strokeText(o.text, o.x, o.y, o.maxWidth)); break;
-      case "save": saved.push(spec); both((c) => c.save()); break;
-      case "restore": spec = saved.length ? saved.pop()! : null; both((c) => c.restore()); break;
+      case "save": saved.push([spec, filterCss]); lengths.save(); both((c) => c.save()); break;
+      case "restore": [spec, filterCss] = saved.length ? saved.pop()! : [null, "none"]; lengths.restore(); both((c) => c.restore()); break;
       case "translate": both((c) => c.translate(o.x, o.y)); break;
       case "rotate": both((c) => c.rotate(o.angle)); break;
       case "scale": both((c) => c.scale(o.x, o.y)); break;

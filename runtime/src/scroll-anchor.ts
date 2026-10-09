@@ -209,6 +209,17 @@ export function heldAtEnd(s: View): boolean {
   return st !== undefined && (st.atEnd || st.wantEnd) && (s as unknown as { scrollAnchor?: string }).scrollAnchor === "end";
 }
 
+/** An end pane whose reader is at its end, whatever its offset says this
+ *  moment: not opened yet (the anchor opens it at its end), or still where the
+ *  anchor last put it (the content grew since, and the anchor puts it at the
+ *  new end before this update is drawn). A virtualized list inside reads its
+ *  rows there, not at the offset the pane is about to leave. */
+export function readsAtEnd(s: View): boolean {
+  const st = STATE.get(s);
+  if (st === undefined || st.held || (s as unknown as { scrollAnchor?: string }).scrollAnchor !== "end") return false;
+  return !st.opened || (st.atEnd && st.endY !== null && Math.abs(s.scrollY - st.endY) < 0.5);
+}
+
 /** A program request: to the far end, it is travelling — an end pane keeps
  *  following while it gets there (and a pane already there has arrived);
  *  anywhere else, it supersedes one still travelling (view.ts scrollTo). */

@@ -44,6 +44,7 @@ import { judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
 import { handlerName } from "./handlers.js";
 import { splitPath } from "./path-plan.js";
 import { selectValue } from "./select.js";
+import { DeferredSurface, isDeferred } from "./deferred-surface.js";
 // view → the installed strategy's detach. Module-private bookkeeping rather
 // than a View field: only the pusher below touches it, and a layout-free
 // view (the common case) carries nothing.
@@ -219,6 +220,34 @@ const EXTENT = new WeakMap();
 /** The handler names the pointer family answers to, made once (inputSink asks every view). */
 const POINTER_HANDLERS = POINTER_TYPES.map(handlerName);
 const AXIS_OF = { width: "x", height: "y" };
+/** Views attached inside a settle (View.$attach): the settle's close brings
+ *  in each one shown by then. */
+let UNDECIDED = [];
+function decideAtClose(v) {
+    if (UNDECIDED.length === 0)
+        afterSettle(() => {
+            const list = UNDECIDED;
+            UNDECIDED = [];
+            for (const u of list)
+                if (u.$surface !== null && isDeferred(u.$surface) && u.visible)
+                    u.$materialize();
+        });
+    UNDECIDED.push(v);
+}
+/** The surface the next shown sibling after `v` has — where `v`'s own goes
+ *  in before (a sibling still waiting for its first show has none). */
+function realSurfaceAfter(v) {
+    const p = v.parent;
+    if (p === null)
+        return null;
+    const sibs = p.children;
+    for (let i = sibs.indexOf(v) + 1; i < sibs.length; i++) {
+        const s = sibs[i].$surface;
+        if (s !== null && s !== undefined && !isDeferred(s))
+            return s;
+    }
+    return null;
+}
 export class View extends Node {
     /** The navigation target the compiler's link extraction (links.ts) found for
      *  this instance's activation handler — stamped by instantiate from the source
@@ -252,6 +281,9 @@ export class View extends Node {
         }
         const stencil = m;
         (stencil.maskUsers ??= new Set()).add(this);
+        // a stencil is read by the renderer even while hidden: it takes its surface now
+        if (stencil.$surface !== null && isDeferred(stencil.$surface))
+            stencil.$materialize(true);
         s.setMask?.({ kind: "view", stencil: stencil });
     }
     /** The enclosing class instance — the node this view was *written* inside
@@ -286,12 +318,32 @@ export class View extends Node {
         // natural size already own or fill the slots they size, so a leaf's
         // intrinsics always win over this).
         this.$bindExtent();
-        const s = (this.$surface = backend.createSurface());
+        // HIDDEN AT ATTACH, on a renderer that defers (deferred-surface.ts): a
+        // stand-in until first shown, and everything under a stand-in waits with
+        // it. A view that needs its real surface while hidden (rich text measures
+        // through it) brings its waiting ancestors in first.
+        if (parentSurface !== null && isDeferred(parentSurface) && this.$eagerSurface()) {
+            this.parent.$materialize(true);
+            parentSurface = this.parent.$surface;
+            before = null;
+        }
+        // INSIDE A SETTLE, whether this view is shown is not settled yet (a row's
+        // own bindings — its `visible` among them — install after it attaches): it
+        // waits with a stand-in, and the settle's close brings it in if it is shown
+        // then, with the values the settle arrived at.
+        const later = backend.defersHidden === true && parentSurface !== null && !isDeferred(parentSurface) && isSettling() && !this.$eagerSurface();
+        const defer = parentSurface !== null && (isDeferred(parentSurface) || later || (backend.defersHidden === true && !this.visible && !this.$eagerSurface()));
+        if (later)
+            decideAtClose(this);
+        const s = (this.$surface = defer ? new DeferredSurface() : backend.createSurface());
         this.$flush(s);
-        parentSurface?.insertChild(s, before);
+        if (!defer)
+            parentSurface?.insertChild(s, before !== null && isDeferred(before) ? realSurfaceAfter(this) : before);
+        // Each child joins the surface this view has NOW: the flush, or a child
+        // that needs a real surface while hidden, may have brought this view in.
         for (const child of this.children) {
             if (child instanceof View)
-                child.$attach(backend, s);
+                child.$attach(backend, this.$surface ?? s);
         }
         // A travel request made before attach (the ordinary case — `onInit` runs
         // at initTree, which precedes App.attach) lands HERE, now that surfaces
@@ -808,6 +860,41 @@ export class View extends Node {
         this.$backend = null;
         s?.destroy();
     }
+    /** Does this view need its real surface even while hidden? A view the
+     *  renderer measures or that holds live state in its element says yes. */
+    $eagerSurface() { return false; }
+    /** Trade a stand-in for a real surface (deferred-surface.ts): when first
+     *  shown, or — `forced` — when something beneath needs it while hidden.
+     *  The current state is flushed into it, as at attach, and it goes in before
+     *  the next sibling that has one; its shown children follow it in. */
+    $materialize(forced = false) {
+        const stand = this.$surface;
+        if (stand === null || !isDeferred(stand) || this.$backend === null)
+            return;
+        const p = this.parent instanceof View ? this.parent : null;
+        if (p === null || p.$surface === null)
+            return;
+        if (isDeferred(p.$surface)) {
+            if (!forced)
+                return; // an ancestor still waits; it brings this in when shown
+            p.$materialize(true);
+            if (p.$surface === null || isDeferred(p.$surface))
+                return;
+            // the parent coming in brings its shown children with it — this one among them
+            if (this.$surface === null || !isDeferred(this.$surface))
+                return;
+        }
+        const s = (this.$surface = this.$backend.createSurface());
+        this.$flush(s);
+        p.$surface.insertChild(s, realSurfaceAfter(this));
+        for (const c of this.children)
+            if (c instanceof View && c.visible)
+                c.$materialize();
+        // what reached the stand-in outside the flush (a row's place, a scroll
+        // request), in its latest form
+        stand.replayInto(s);
+        this.$applyTravel();
+    }
     /** Push this view's full visual state across the seam. Subclasses extend
      *  it with their capabilities (Text, Image); it runs before the children
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
@@ -898,8 +985,13 @@ export class View extends Node {
             s.setCursor("pointer");
         if (this.link !== "")
             s.setLink?.(this.link, this.label ?? "");
-        if (this.draw)
-            this.$bindDraw();
+        // (a stand-in shows nothing: the drawing records when the view is first shown)
+        if (this.draw && !isDeferred(s)) {
+            if (this.$drawing !== null)
+                this.$drawing.run();
+            else
+                this.$bindDraw();
+        }
     }
     /** THE HIT TEST: the view under a root-space point, or null. The same walk
      *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
@@ -991,6 +1083,13 @@ export class View extends Node {
      *  re-runs then. */
     travelWith(scroller) {
         this.travelHost = scroller;
+        // A caller acts on the answer at once (positions in the scroller's
+        // content space, or in root space): both surfaces are needed now, so a
+        // stand-in on either side comes in first (deferred-surface.ts).
+        if (this.$surface !== null && isDeferred(this.$surface))
+            this.$materialize(true);
+        if (scroller !== null && scroller.$surface !== null && isDeferred(scroller.$surface))
+            scroller.$materialize(true);
         return this.$applyTravel();
     }
     /** The standing travel request (undefined = never asked). Applied here and
@@ -1010,7 +1109,7 @@ export class View extends Node {
             this.$repushPosition();
             return false;
         }
-        if (scroller.$surface === null)
+        if (scroller.$surface === null || isDeferred(scroller.$surface))
             return false;
         s.travelWith(scroller.$surface);
         // The position host changed, so the content origin this view's x/y is
@@ -1136,7 +1235,7 @@ export class View extends Node {
                 return; // already frontmost
             p.removeChild(this);
             p.insertChild(this, p.children.length);
-            if (!away && this.$surface !== null && p.$surface !== null)
+            if (!away && this.$surface !== null && p.$surface !== null && !isDeferred(this.$surface))
                 p.$surface.insertChild(this.$surface, null);
             return;
         }
@@ -1145,8 +1244,8 @@ export class View extends Node {
         p.removeChild(this);
         const at = p.children.indexOf(below);
         p.insertChild(this, at < 0 ? p.children.length : at);
-        if (!away && this.$surface !== null && p.$surface !== null && below.$surface !== null) {
-            p.$surface.insertChild(this.$surface, below.$surface);
+        if (!away && this.$surface !== null && p.$surface !== null && !isDeferred(this.$surface)) {
+            p.$surface.insertChild(this.$surface, realSurfaceAfter(this));
         }
     }
     /** This view's input route, or null when it answers no pointer event —
@@ -1419,7 +1518,10 @@ defineAttributes(View, {
     stroke: { def: null, push: (v, st) => v.$surface?.setStroke(st), equal: strokeEqual },
     shadow: { def: null, push: (v, sh) => v.$surface?.setShadow(sh), equal: shadowEqual },
     visible: { def: true, push: (v, b) => {
-            v.$surface?.setVisible(b);
+            if (b && v.$surface !== null && isDeferred(v.$surface))
+                v.$materialize();
+            else
+                v.$surface?.setVisible(b);
             // Un-hiding re-arms the measurement veto for every rich flow underneath
             // (location.md §0.5.3): a flow inside a display:none subtree measured 0,
             // and its TRUE height arrives only after this flip, through the backend's

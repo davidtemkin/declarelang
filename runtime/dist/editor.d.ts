@@ -47,6 +47,8 @@ export declare function revertDraft(view: View, name: string): void;
  *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,
  *  a `Picker` → `value`). Custom controls become editors by extending it. */
 export declare abstract class Editor extends View {
+    /** The field's element holds what is typed, the selection and focus. */
+    protected $eagerSurface(): boolean;
     /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
     commitOn: string;
     /** The current validation message, "" when valid (reactive). */

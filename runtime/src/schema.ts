@@ -769,13 +769,16 @@ const VideoSchema: ClassSchema = {
 };
 
 // Audio: Media with nothing to look at — a faceless leaf whose box means
-// nothing. Its one schema-visible difference is behavioral, not structural:
-// `muted` defaults FALSE (sound is its only product; autoplay refusal is
-// handled by `playing` snapping back, not by shipping it silent).
+// nothing. `muted` defaults FALSE (sound is its only product; autoplay refusal
+// is handled by `playing` snapping back, not by shipping it silent), and
+// `inMemory` holds a short sound whole instead of streaming it.
 const AudioSchema: ClassSchema = {
   name: "Audio",
   base: MediaSchema,
-  attrs: {},
+  attrs: {
+    // a short sound held whole in memory, started at once, its plays overlapping (audio.ts)
+    inMemory: { kind: "boolean" },
+  },
 };
 
 // DOMIsland (foreign-content island): a leaf View whose BOX is owned by Declare — it

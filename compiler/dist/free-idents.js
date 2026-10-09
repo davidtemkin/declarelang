@@ -75,6 +75,12 @@ export function freeIdentifiers(src, opts) {
             else if ((ts.isFunctionDeclaration(s) || ts.isClassDeclaration(s)) && s.name !== undefined) {
                 into.add(s.name.text);
             }
+            else if (ts.isEnumDeclaration(s) || ts.isTypeAliasDeclaration(s) || ts.isInterfaceDeclaration(s)) {
+                into.add(s.name.text); // an enum is a value; a type's name is the body's own, never a member
+            }
+            else if (ts.isModuleDeclaration(s) && ts.isIdentifier(s.name)) {
+                into.add(s.name.text);
+            }
         }
     };
     /** Is this identifier occurrence a *value reference* (as opposed to a
@@ -97,6 +103,9 @@ export function freeIdentifiers(src, opts) {
         if ((ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) ||
             ts.isMethodSignature(p) || ts.isGetAccessorDeclaration(p) || ts.isSetAccessorDeclaration(p) ||
             ts.isEnumMember(p)) && p.name === id)
+            return null;
+        if ((ts.isTypeParameterDeclaration(p) || ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p) ||
+            ts.isEnumDeclaration(p) || ts.isModuleDeclaration(p)) && p.name === id)
             return null;
         if (ts.isLabeledStatement(p) && p.label === id)
             return null;

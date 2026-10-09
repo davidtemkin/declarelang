@@ -96,6 +96,15 @@ struct dk_kernel {
   int32_t  *cell_owner;       /* rule id or -1 */
   uint32_t *cell_elem;
   uint8_t  *cell_dirty;
+  /* NULL: a number cell may hold null (a declared `number | null`). The slot
+   * holds 0 and this flag is set; any number written clears it. Arithmetic
+   * reads the 0 — JavaScript's own reading of null there — and the operators
+   * where null differs from 0 (==, ??, a choice that yields the value) read
+   * the flag. */
+  uint8_t  *cell_null;
+  /* a host body's result was null: the host sets it before returning, and
+   * the landing reads and clears it (a null cannot cross a double return) */
+  uint8_t  body_null;
   uint32_t *dirty_list; uint32_t ndirty;
   uint32_t *cell_dyn;         /* head node of the cell's dynamic subscribers */
   uint32_t *cell_dyn_tail;    /* … and its tail: subscribers wake in LINK order (the JS core's Set order) */
@@ -181,6 +190,7 @@ static uint32_t layout(dk_kernel **out, const Image *im, const dk_caps *caps, ui
   dk_kernel *k = (dk_kernel *)take(&b, sizeof(dk_kernel));
   double   *slots = (double *)take(&b, 8 * cells);
   uint8_t  *kind = (uint8_t *)take(&b, cells), *set = (uint8_t *)take(&b, cells), *dirty = (uint8_t *)take(&b, cells);
+  uint8_t  *cnull = (uint8_t *)take(&b, cells);
   int32_t  *owner = (int32_t *)take(&b, 4 * cells);
   uint32_t *celem = (uint32_t *)take(&b, 4 * cells), *dlist = (uint32_t *)take(&b, 4 * cells), *cdyn = (uint32_t *)take(&b, 4 * cells);
   uint32_t *ctail = (uint32_t *)take(&b, 4 * cells), *cmark = (uint32_t *)take(&b, 4 * cells);
@@ -201,7 +211,7 @@ static uint32_t layout(dk_kernel **out, const Image *im, const dk_caps *caps, ui
   if (base) {
     zero(k, sizeof(dk_kernel));
     k->cell_cap = cells; k->rule_cap = rules; k->elem_cap = elems; k->node_cap = nodes;
-    k->slots = slots; k->cell_kind = kind; k->cell_set = set; k->cell_dirty = dirty; k->cell_owner = owner;
+    k->slots = slots; k->cell_kind = kind; k->cell_set = set; k->cell_dirty = dirty; k->cell_owner = owner; k->cell_null = cnull;
     k->cell_elem = celem; k->dirty_list = dlist; k->cell_dyn = cdyn; k->cell_dyn_tail = ctail; k->cell_mark = cmark; k->elems = el; k->rules = ru;
     k->sub_off = soff; k->sub = sub; k->edges = edges; k->code = code; k->consts = consts;
     k->nodes = nd; k->q[0] = q0; k->q[1] = q1; k->qcap = qcap; k->fill = fill;
@@ -239,7 +249,7 @@ dk_kernel *kernel_load(const void *image, uint32_t bytes, const dk_caps *caps,
   /* ONLY the image's cells are initialized here: runtime cells are set up by
    * kernel_add_cell as they are handed out, so the capacity beyond the image
    * is reserved address space the host never has to touch. */
-  for (uint32_t i = 0; i < im.ncells; i++) { k->cell_owner[i] = -1; k->cell_dyn[i] = NONE; k->cell_dyn_tail[i] = NONE; k->cell_mark[i] = 0; k->cell_set[i] = 0; k->cell_dirty[i] = 0; k->cell_kdirty[i] = 0; }
+  for (uint32_t i = 0; i < im.ncells; i++) { k->cell_owner[i] = -1; k->cell_dyn[i] = NONE; k->cell_dyn_tail[i] = NONE; k->cell_mark[i] = 0; k->cell_set[i] = 0; k->cell_dirty[i] = 0; k->cell_kdirty[i] = 0; k->cell_null[i] = 0; }
   for (uint32_t i = 0; i < im.nelems; i++) {
     const uint8_t *p = im.elems + 12 * i;
     k->elems[i].base = rd32(p); k->elems[i].parent = rd32(p + 4); k->elems[i].nslots = rd32(p + 8);
@@ -300,6 +310,7 @@ dk_kernel *kernel_grow(dk_kernel *k, const void *image, uint32_t bytes, const dk
   uint32_t c = k->ncells;
   copy(n->slots, k->slots, 8 * c);
   copy(n->cell_kind, k->cell_kind, c); copy(n->cell_set, k->cell_set, c); copy(n->cell_dirty, k->cell_dirty, c); copy(n->cell_kdirty, k->cell_kdirty, c);
+  copy(n->cell_null, k->cell_null, c);
   copy(n->cell_owner, k->cell_owner, 4 * c); copy(n->cell_elem, k->cell_elem, 4 * c);
   copy(n->cell_dyn, k->cell_dyn, 4 * c); copy(n->cell_dyn_tail, k->cell_dyn_tail, 4 * c); copy(n->cell_mark, k->cell_mark, 4 * c);
   copy(n->dirty_list, k->dirty_list, 4 * k->ndirty); copy(n->kdirty_list, k->kdirty_list, 4 * k->nkdirty);
@@ -319,7 +330,7 @@ dk_kernel *kernel_grow(dk_kernel *k, const void *image, uint32_t bytes, const dk
   k->cell_cap = n->cell_cap; k->rule_cap = n->rule_cap; k->elem_cap = n->elem_cap; k->node_cap = n->node_cap;
   k->qcap = n->qcap; k->ring_cap = n->ring_cap; k->tring_cap = n->tring_cap;
   k->code_cap = n->code_cap; k->const_cap = n->const_cap;
-  k->slots = n->slots; k->cell_kind = n->cell_kind; k->cell_set = n->cell_set; k->cell_dirty = n->cell_dirty;
+  k->slots = n->slots; k->cell_kind = n->cell_kind; k->cell_set = n->cell_set; k->cell_dirty = n->cell_dirty; k->cell_null = n->cell_null;
   k->cell_owner = n->cell_owner; k->cell_elem = n->cell_elem; k->dirty_list = n->dirty_list;
   k->cell_dyn = n->cell_dyn; k->cell_dyn_tail = n->cell_dyn_tail; k->cell_mark = n->cell_mark;
   k->elems = n->elems; k->rules = n->rules; k->sub_off = n->sub_off; k->sub = n->sub; k->edges = n->edges;
@@ -335,6 +346,8 @@ void kernel_usage(dk_kernel *k, uint32_t *out) {
 }
 
 double *kernel_table(dk_kernel *k) { return k->slots; }
+uint8_t *kernel_nulls(dk_kernel *k) { return k->cell_null; }
+uint8_t *kernel_body_null(dk_kernel *k) { return &k->body_null; }
 uint32_t kernel_cells(dk_kernel *k) { return k->ncells; }
 uint32_t kernel_rules(dk_kernel *k) { return k->nrules; }
 uint32_t kernel_elems(dk_kernel *k) { return k->nelems; }
@@ -488,12 +501,24 @@ static void drain_track(dk_kernel *k) {
 uint32_t *kernel_ring_count(dk_kernel *k) { return &k->ring_count; }
 void kernel_flush(dk_kernel *k) { drain_track(k); drain(k); }
 
+/* null over a cell: a change unless it already holds null */
+static int set_null(dk_kernel *k, uint32_t cell) {
+  if (cell >= k->ncells) return DK_ERR_BAD;
+  if ((k->cell_kind[cell] & 0x7f) != DK_F64) { wake(k, cell); return DK_OK; }
+  if (k->cell_null[cell]) return DK_OK;
+  k->slots[cell] = 0.0; k->cell_null[cell] = 1;
+  mark_dirty(k, cell);
+  if (!k->cell_kdirty[cell]) { k->cell_kdirty[cell] = 1; k->kdirty_list[k->nkdirty++] = cell; }
+  wake(k, cell);
+  return DK_OK;
+}
+
 /* the one write path: gate, store, dirty, wake */
 static int set_value(dk_kernel *k, uint32_t cell, double v) {
   if (cell >= k->ncells) return DK_ERR_BAD;
   if ((k->cell_kind[cell] & 0x7f) != DK_F64) { wake(k, cell); return DK_OK; }
-  if (k->slots[cell] == v) return DK_OK;           /* === : NaN never gates */
-  k->slots[cell] = v;
+  if (k->slots[cell] == v && !k->cell_null[cell]) return DK_OK;   /* === : NaN never gates; a number over null is a change */
+  k->slots[cell] = v; k->cell_null[cell] = 0;
   mark_dirty(k, cell);
   if (!k->cell_kdirty[cell]) { k->cell_kdirty[cell] = 1; k->kdirty_list[k->nkdirty++] = cell; }
   wake(k, cell);
@@ -613,17 +638,24 @@ void kernel_release(dk_kernel *k, uint32_t cell, uint32_t rule) {
 
 /* ── EXPR ───────────────────────────────────────────────────────────────── */
 #define STACK 64
-static double eval(dk_kernel *k, const Rule *r) {
-  double st[STACK]; uint32_t sp = 0;
+/* Each stack entry carries a null bit beside its number (a null's number is
+ * 0, which is what arithmetic and ordering read: JavaScript's null there).
+ * Every operator yields a non-null number but LOAD, NULL, SELECT and COALESCE,
+ * which pass a value through; == and != compare null as JavaScript does. */
+static double eval(dk_kernel *k, const Rule *r, int *isnull) {
+  double st[STACK]; uint8_t nl[STACK]; uint32_t sp = 0;
   const uint32_t *c = k->code + r->code0, *end = c + r->ncode;
 #define POP() (st[--sp])
-#define PUSH(x) do { if (sp < STACK) st[sp++] = (x); } while (0)
+#define PUSH(x) do { if (sp < STACK) { nl[sp] = 0; st[sp++] = (x); } } while (0)
+#define PUSHN(x, n) do { if (sp < STACK) { nl[sp] = (n); st[sp++] = (x); } } while (0)
 #define BIN(expr) do { double b = POP(), a = POP(); PUSH(expr); } while (0)
   while (c < end) {
     switch (*c++) {
       case DK_OP_END: goto done;
-      case DK_OP_LOAD: { uint32_t cell = *c++; PUSH(cell < k->ncells ? k->slots[cell] : 0.0); break; }
+      case DK_OP_LOAD: { uint32_t cell = *c++; if (cell < k->ncells) PUSHN(k->slots[cell], k->cell_null[cell]); else PUSH(0.0); break; }
       case DK_OP_CONST: { uint32_t i = *c++; PUSH(i < k->nconsts ? k->consts[i] : 0.0); break; }
+      case DK_OP_NULL: PUSHN(0.0, 1); break;
+      case DK_OP_COALESCE: { uint8_t nb = nl[sp - 1]; double b = POP(); uint8_t na = nl[sp - 1]; double a = POP(); if (na) PUSHN(b, nb); else PUSH(a); break; }
       case DK_OP_ADD: BIN(a + b); break;
       case DK_OP_SUB: BIN(a - b); break;
       case DK_OP_MUL: BIN(a * b); break;
@@ -641,22 +673,30 @@ static double eval(dk_kernel *k, const Rule *r) {
       case DK_OP_LE: BIN(a <= b ? 1.0 : 0.0); break;
       case DK_OP_GT: BIN(a > b ? 1.0 : 0.0); break;
       case DK_OP_GE: BIN(a >= b ? 1.0 : 0.0); break;
-      case DK_OP_EQ: BIN(a == b ? 1.0 : 0.0); break;
-      case DK_OP_NE: BIN(a != b ? 1.0 : 0.0); break;
+      case DK_OP_EQ: case DK_OP_NE: {
+        uint8_t nb = nl[sp - 1]; double b = POP(); uint8_t na = nl[sp - 1]; double a = POP();
+        int eq = (na || nb) ? (na && nb) : (a == b);   /* null == null; null != every number */
+        PUSH((eq == (c[-1] == DK_OP_EQ)) ? 1.0 : 0.0); break;
+      }
       /* JS truthiness: 0, -0 and NaN are false */
 #define TRUTHY(x) ((x) == (x) && (x) != 0.0)
       case DK_OP_AND: BIN((TRUTHY(a) && TRUTHY(b)) ? 1.0 : 0.0); break;
       case DK_OP_OR: BIN((TRUTHY(a) || TRUTHY(b)) ? 1.0 : 0.0); break;
       case DK_OP_NOT: { double a = POP(); PUSH(TRUTHY(a) ? 0.0 : 1.0); break; }
-      case DK_OP_SELECT: { double b = POP(), a = POP(), cnd = POP(); PUSH(TRUTHY(cnd) ? a : b); break; }
+      case DK_OP_SELECT: {
+        uint8_t nb = nl[sp - 1]; double b = POP(); uint8_t na = nl[sp - 1]; double a = POP(); double cnd = POP();
+        if (TRUTHY(cnd)) PUSHN(a, na); else PUSHN(b, nb); break;
+      }
       case DK_OP_CLAMP: { double hi = POP(), lo = POP(), x = POP(); PUSH(x < lo ? lo : (x > hi ? hi : x)); break; }
       default: goto done;
     }
   }
 done:
+  *isnull = sp ? nl[sp - 1] : 0;
   return sp ? st[sp - 1] : 0.0;
 #undef POP
 #undef PUSH
+#undef PUSHN
 #undef BIN
 }
 
@@ -664,24 +704,24 @@ done:
 static double vis_run(dk_kernel *k, Rule *r);
 static double extent_run(dk_kernel *k, Rule *r);
 static double layout_run(dk_kernel *k, Rule *r);
-static void apply(dk_kernel *k, Rule *r, double v) {
+static void apply(dk_kernel *k, Rule *r, double v, int isnull) {
   if (r->target < 0) return;                          /* the host applied it */
   uint32_t cell = (uint32_t)r->target;
   if ((k->cell_kind[cell] & 0x7f) == DK_REF) { if (v != 0.0) wake(k, cell); return; }
-  set_value(k, cell, v);
+  if (isnull) set_null(k, cell); else set_value(k, cell, v);
 }
 
 static int run(dk_kernel *k, uint32_t rule) {
   Rule *r = &k->rules[rule];
-  double v;
+  double v; int isnull = 0;
   drain_track(k);   /* reads appended by the rule that is active now (a nested run) link to it before we switch */
   drain(k);   /* writes the host made since the last drain wake their dependents before this run */
   r = &k->rules[rule];
   uint8_t wasRunning = r->state & ST_RUNNING;
   r->state |= ST_RUNNING;
   switch (r->kind) {
-    case DK_EXPR: v = eval(k, r); break;
-    case DK_BODY: v = CALL_BODY(k, rule, r->elem, r->target); r = &k->rules[rule]; break;   /* a body may grow the tables */
+    case DK_EXPR: v = eval(k, r, &isnull); break;
+    case DK_BODY: k->body_null = 0; v = CALL_BODY(k, rule, r->elem, r->target); r = &k->rules[rule]; isnull = k->body_null; k->body_null = 0; break;   /* a body may grow the tables */
     case DK_VIS: v = vis_run(k, r); break;
     case DK_EXTENT: v = extent_run(k, r); break;
     case DK_LAYOUT: v = layout_run(k, r); break;
@@ -689,7 +729,9 @@ static int run(dk_kernel *k, uint32_t rule) {
       unlink_all(k, rule);
       r->serial = ++k->serial; if (r->serial == 0) r->serial = ++k->serial;   /* 0 = never */
       int32_t prev = k->active; k->active = (int32_t)rule;
+      k->body_null = 0;
       v = CALL_BODY(k, rule, r->elem, r->target);
+      isnull = k->body_null; k->body_null = 0;
       r = &k->rules[rule];   /* a body may grow the tables */
       drain_track(k);   /* the body's reads, appended while it ran */
       k->active = prev;
@@ -706,7 +748,7 @@ static int run(dk_kernel *k, uint32_t rule) {
     return DK_OK;
   }
   r->state &= (uint8_t)~(ST_REWIRE | ST_UNLANDED);
-  apply(k, r, v);
+  apply(k, r, v, isnull);
   drain(k);   /* … and the writes the body made wake theirs */
   return DK_OK;
 }
@@ -865,7 +907,7 @@ int32_t kernel_add_cell(dk_kernel *k, uint8_t kind, int structural) {
   else { if (k->ncells >= k->cell_cap) return DK_ERR_FULL; id = k->ncells++; }
   k->cell_kind[id] = (uint8_t)((kind & 0x7f) | (structural ? 0x80 : 0));
   k->cell_owner[id] = -1; k->cell_set[id] = 0; k->cell_dirty[id] = 0; k->cell_dyn[id] = NONE; k->cell_dyn_tail[id] = NONE; k->cell_mark[id] = 0;
-  k->cell_elem[id] = NONE; k->slots[id] = 0.0; k->cell_kdirty[id] = 0;
+  k->cell_elem[id] = NONE; k->slots[id] = 0.0; k->cell_kdirty[id] = 0; k->cell_null[id] = 0;
   return (int32_t)id;
 }
 
@@ -922,7 +964,7 @@ int32_t kernel_add_cells(dk_kernel *k, uint32_t n, uint8_t kind) {
   for (uint32_t id = base; id < base + n; id++) {
     k->cell_kind[id] = (uint8_t)(kind & 0x7f);
     k->cell_owner[id] = -1; k->cell_set[id] = 0; k->cell_dirty[id] = 0; k->cell_dyn[id] = NONE; k->cell_dyn_tail[id] = NONE; k->cell_mark[id] = 0;
-    k->cell_elem[id] = NONE; k->slots[id] = 0.0; k->cell_kdirty[id] = 0;
+    k->cell_elem[id] = NONE; k->slots[id] = 0.0; k->cell_kdirty[id] = 0; k->cell_null[id] = 0;
   }
   return (int32_t)base;
 }
@@ -938,7 +980,7 @@ void kernel_clear_cells(dk_kernel *k, uint32_t base, uint32_t n) {
       nd = next;
     }
     k->cell_dyn[cell] = NONE; k->cell_dyn_tail[cell] = NONE; k->cell_mark[cell] = 0;
-    k->cell_owner[cell] = -1; k->cell_set[cell] = 0; k->cell_dirty[cell] = 0; k->slots[cell] = 0.0;
+    k->cell_owner[cell] = -1; k->cell_set[cell] = 0; k->cell_dirty[cell] = 0; k->slots[cell] = 0.0; k->cell_null[cell] = 0;
   }
 }
 

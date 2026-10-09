@@ -32,7 +32,7 @@ provideLib((name) => {
 export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey } from "./crawl.js";
 export { highlight, lineMetrics } from "./highlight.js";
-export { settleHeadless, settleSource, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
+export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";
 export { DiskTracker, diskProbe, statValidator, hashValidator } from "./cache-node.js";
 export { isUpToDate, validatorsEqual, lookupKey, contentTag, fnv1a } from "./closure.js";
 /** The bundled class library root (`declarelang/library`) — its `autoincludes.json`

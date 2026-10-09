@@ -106,12 +106,12 @@ width = { 100% },                                 // ✗ compute it instead:
 width = { parent.width - 40 }                    // ✓
 ```
 
-A body is TypeScript at full expression strength: ternaries, template literals, array chains,
-closures, and casts (`x as T`, `x!`), which are type-checked and then stripped. Two limits, each
-a compile error naming the rewrite. **A value body is a single expression** — statements live in
-methods. **Type annotations do not live in bodies** — a declared type belongs on the attribute,
-as `name: type = …`; that covers locals and lambda parameters too — narrow with `x as T`.
-(A top-level `script { }` is plain TypeScript and exempt.)
+A body is TypeScript, written as TypeScript writes it: ternaries, template literals, array
+chains, closures, casts (`x as T`, `x!`), annotations on locals and parameters, generics, and a
+method body's own `type`, `interface`, `enum` and `class` declarations. Everything type-level is
+checked, then stripped; what TypeScript compiles (an enum, a class's parameter properties), the
+compiler compiles. One limit, a compile error naming the rewrite: **a value body is a single
+expression** — statements live in methods.
 
 **A `:path` may also appear inside a `{ }` body**, and this is central rather than exotic: it is
 how anything conditional over replicated data gets written. `text = { :on ? :title : "—" }` reads
@@ -159,16 +159,21 @@ calls (`fillStyle`, `beginPath`, `moveTo`, `stroke`, …); what it records, ever
 
 **`name = value` sets an attribute that exists; `name: Type = value` declares a new one.**
 Declaring is how reactive state enters a program; setting is how it is wired. A declaration's
-type comes from the same vocabulary a signature's does (below): a primitive, a class, a
-schema you declared (§7), a function, or an array of any of them — or `object` / `array`
-for a record or list of no declared shape.
+type is a TypeScript type — `number`, `string[]`, `"idle" | "busy"`, `Map<string, Row>`,
+`{ x: number; y: number }`, `[number, number]`, `(id: string) => void`, `Row | null` — naming
+TypeScript's built-ins, Declare's own (`Color`, `Length`, …), your classes, your schemas
+(§7), or a type a `script` block declares; `object` / `array` stand for a record or list of
+no declared shape. `T?` is Declare's shorthand for `T | null`. A type that a declaration
+cannot hold in place (a conditional or template-literal type) is named once in a `script`
+block and used by name. The one place a type meets the member syntax is a `[` after it:
+glued and empty it is an array (`w: Window[]`); after a space it opens a named child
+(`w: Window [ … ]`).
 
 **A method's signature is typed, name-first**: `select() { … }`, `input(v: boolean) { … }`,
-`quant(v: number) -> number { … }`. Every parameter carries a written type — a primitive, a
-class, a schema (`t: Task`), an event payload (`onPointerUp(e: PointerUpEvent)`), a function
-(`f: (id: string) -> void`), an array of one (`Window[]`), or `object` / `array`; a `?` after the type
-(`c: Menu?`) says the value may be absent, and the body must check. Omit `-> Ret` for a
-method that returns nothing. A computed *value* is still not a method but an attribute with
+`quant(v: number) -> number { … }`. Every parameter carries a written type — any type a
+declaration takes, an event payload among them (`onPointerUp(e: PointerUpEvent)`); `c?: Menu`,
+or Declare's `c: Menu?`, says the value may be absent, and the body must check. The return
+is written `-> Ret` or TypeScript's `: Ret`; omit it for a method that returns nothing. A computed *value* is still not a method but an attribute with
 a `{ }` default, `segIndex: number = { … }` — an attribute stays reactively true; a method
 runs when called. A subclass's method, handlers included, **replaces** the base's of the same
 name, a built-in's own runtime methods (`fetch`, `start`, `scrollTo`) among them; `super.name(args)`
@@ -582,8 +587,9 @@ and its `.value` is then *typed* — `nest.value.tasks` is `Task[]` in every `{ 
 misspelled field dies at compile time and the `as` casts go. The runtime enforces the same
 declaration at every boundary, the mutation verbs included. The schema grammar is
 the subset of TypeScript that JSON data can carry, so one declaration is checked by the
-compiler *and* enforced against live data. Extra keys always pass: a schema
-declares what the program relies on.
+compiler *and* enforced against live data; TypeScript's spellings of a field are the same
+field (`tags: string[]` is `tags[]: string`, `km: number | null` is `km?: number`). Extra
+keys always pass: a schema declares what the program relies on.
 
 **Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`:
 the right-hand side names a *place in data*, either a datapath or a `{ }` yielding a field name,

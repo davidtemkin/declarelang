@@ -43,7 +43,7 @@ export default [
     clock: CLOCK,
     mask: perfMask(1024, 768),
     route: async ({ drive }) => {
-      await drive.click("app.tools.acts.sortBtn");
+      await drive.click("app.tools.acts.sorting.sortBtn");
       await drive.settleMotion();
       await drive.wait(1400);           // past the focus ring's idle fade
       await drive.settleMotion();

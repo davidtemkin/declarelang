@@ -485,4 +485,12 @@ export declare function replay(ctx: CanvasRenderingContext2D, list: DisplayList,
  *  every drawing has a canvas of its own; the canvas renderer, which replays
  *  onto one shared scene, isolates it (canvas-backend replayOnScene). */
 export declare function listIsolated(list: DisplayList): boolean;
+/** A filter string with its lengths resolved through `m`: blur radii scaled by its
+ *  magnitude, a drop-shadow's offset carried through it like a vector. */
+export declare function deviceFilter(css: string, m: {
+    a: number;
+    b: number;
+    c: number;
+    d: number;
+}): string;
 export {};

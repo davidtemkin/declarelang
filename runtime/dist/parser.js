@@ -238,9 +238,19 @@ function tokenize(src) {
             tokens.push({ kind: "subfrom", text: "<-", pos: start });
             continue;
         }
+        // `=>` — a TypeScript function type's arrow, beside Declare's own `->`;
+        // lexed before `=`. No Declare literal begins with `>`, so `name: T = v`
+        // is untouched.
+        if (c === "=" && src[i + 1] === ">") {
+            advance();
+            advance();
+            tokens.push({ kind: "fatarrow", text: "=>", pos: start });
+            continue;
+        }
         // single-character punctuation
         const punct = {
             "[": "lbracket", "]": "rbracket", "(": "lparen", ")": "rparen", "=": "eq", ",": "comma", ":": "colon", ".": "dot", "*": "star", "!": "bang", "|": "pipe", "@": "at",
+            "<": "lt", ">": "gt", "&": "amp",
         };
         if (punct[c]) {
             advance();
@@ -429,91 +439,184 @@ class Parser {
      *  has always been in this AST — a compound one is no different. Translating
      *  it to TypeScript is a single `->` → `=>` rewrite (scaffold.ts); validating
      *  the names inside it is the checker's job, as for every written type. */
+    /** A written TYPE — a declaration's, a parameter's, a return's — as
+     *  normalized text. The grammar is TypeScript's: unions and intersections,
+     *  `T[]` and `T["k"]` glued to the type, generics, tuples, object types,
+     *  function types (`(a: T) => R`, or Declare's own `->`), parenthesized
+     *  types, string and number literal types, `keyof`/`typeof`/`readonly`. Two
+     *  spellings are Declare's beside it: `T?` (= `T | null`) and `->`. The one
+     *  place a type meets Declare's member syntax is a `[` after the type: glued
+     *  and empty it is an array (`Window[]`), glued around a literal it is an
+     *  indexed access (`Row["id"]`); with a space it opens a named child's body
+     *  (`w: Window [ … ]`). A type TypeScript can write but a declaration cannot
+     *  hold (a conditional type, a template literal type) is named once in a
+     *  `script` block and used by name. */
     parseTypeRef(what) {
-        if (this.peek().kind === "lparen") {
-            const open = this.peek();
-            let text = "(";
+        const pos = this.peek().pos;
+        return { text: this.typeUnion(what), pos };
+    }
+    /** `nullable`: whether a trailing `?` is taken here — a function type's
+     *  return leaves it to the function (`(x: T) -> R?` is a callback that may
+     *  be null), as Declare's `?` has always read. */
+    typeUnion(what, nullable = true) {
+        const parts = [this.typeIntersection(what)];
+        while (this.peek().kind === "pipe") {
             this.next();
-            while (this.peek().kind !== "rparen" && this.peek().kind !== "eof") {
-                text += this.expect("ident", "a parameter name").text;
-                if (this.peek().kind === "colon") {
+            parts.push(this.typeIntersection(what));
+        }
+        let text = parts.join(" | ");
+        if (nullable && this.peek().kind === "query") {
+            this.next();
+            text += "?";
+        }
+        return text;
+    }
+    typeIntersection(what) {
+        const parts = [this.typePostfix(what)];
+        while (this.peek().kind === "amp") {
+            this.next();
+            parts.push(this.typePostfix(what));
+        }
+        return parts.join(" & ");
+    }
+    /** The end offset of the token just consumed, for the glued `[` tests. */
+    lastEnd() {
+        const t = this.tokens[this.i - 1];
+        return t.pos.offset + t.text.length;
+    }
+    typePostfix(what) {
+        let text = this.typePrimary(what);
+        for (;;) {
+            const prev = this.tokens[this.i - 1].kind;
+            const glued = (prev === "ident" || prev === "rbracket" || prev === "rparen" || prev === "gt") && this.peek().pos.offset === this.lastEnd();
+            if (!glued || this.peek().kind !== "lbracket")
+                break;
+            const inner = this.peekAt(1);
+            if (inner.kind === "rbracket") {
+                this.next();
+                this.next();
+                text += "[]";
+                continue;
+            }
+            if ((inner.kind === "string" || inner.kind === "number") && this.peekAt(2).kind === "rbracket") {
+                this.next();
+                this.next();
+                this.next();
+                text += `[${inner.kind === "string" ? JSON.stringify(inner.str) : inner.text}]`;
+                continue;
+            }
+            break; // a glued `[` around members is a named child's body
+        }
+        return text;
+    }
+    typePrimary(what) {
+        const t = this.peek();
+        if (t.kind === "lparen") {
+            // a FUNCTION type when what follows `(` is a parameter list; else a
+            // parenthesized type (`(A | B)[]`)
+            const mark = this.i;
+            const fn = this.tryFunctionType();
+            if (fn !== null)
+                return fn;
+            this.i = mark;
+            this.next();
+            const inner = this.typeUnion(what);
+            this.expect("rparen", "')'");
+            return `(${inner})`;
+        }
+        if (t.kind === "string") {
+            this.next();
+            return JSON.stringify(t.str);
+        }
+        if (t.kind === "number") {
+            this.next();
+            return t.text;
+        }
+        if (t.kind === "lbracket") {
+            // a TUPLE type
+            this.next();
+            const items = [];
+            while (this.peek().kind !== "rbracket") {
+                items.push(this.typeUnion("a tuple element type"));
+                if (this.peek().kind === "comma")
                     this.next();
-                    text += ": " + this.parseTypeRef("a parameter type name").text;
-                }
-                if (this.peek().kind === "comma") {
-                    this.next();
-                    text += ", ";
-                }
                 else
                     break;
             }
-            this.expect("rparen", "')'");
-            text += ")";
-            // `-> Ret` is optional: a function type without one is void, the same
-            // rule a method signature follows. It is MADE explicit here so every
-            // function type carries a return, and the TypeScript translation stays a
-            // single token rewrite at every nesting depth.
-            text += this.peek().kind === "arrow"
-                ? (this.next(), " -> " + this.parseTypeRef("a return type name").text)
-                : " -> void";
-            if (this.peek().kind === "query") {
-                this.next();
-                text += "?";
-            }
-            return { text, pos: open.pos };
+            this.expect("rbracket", "']'");
+            return `[${items.join(", ")}]`;
         }
-        // A LITERAL UNION — `"idle" | "loading" | "done"`. Schema FIELDS have taken
-        // these since typed data; an ordinary declaration could not, so the same
-        // closed set was sayable about data and unsayable about the state derived
-        // from it (a real port hit exactly that, 2026-09-04: `status: "idle" |
-        // "loading" = "idle"` on an App, refused, while the same union in its
-        // schema was fine). One type system, one spelling — and it is TypeScript's
-        // own, so the scaffold passes it through untouched.
-        if (this.peek().kind === "number") {
-            // A number-literal union (`0 | 1 | 2`) is a SCHEMA-FIELD type today; on
-            // a declaration or a signature it is not yet sayable (its enum tokens
-            // would have to carry numbers — register). Say so, rather than the
-            // generic "expected a type name, got '0'" this fell to in review.
-            throw new DeclareError(`a number-literal union is a schema-field type — on an attribute or a signature write 'number' (a numeric closed set here is not yet sayable; string unions are: "a" | "b")`, this.peek().pos);
-        }
-        if (this.peek().kind === "string") {
-            const first = this.peek();
-            const parts = [];
-            for (;;) {
-                parts.push(JSON.stringify(this.expect("string", "a string literal in the union").str));
-                if (this.peek().kind === "pipe") {
-                    this.next();
-                    continue;
-                }
-                break;
-            }
-            const utext = parts.join(" | ");
-            if (this.peek().kind === "query") {
-                this.next();
-                return { text: utext + "?", pos: first.pos };
-            }
-            return { text: utext, pos: first.pos };
+        if (t.kind === "code") {
+            // an OBJECT type — its braces are a code token, as a body's are
+            this.next();
+            return `{ ${t.str.trim()} }`;
         }
         const name = this.expect("ident", what);
+        if (name.text === "keyof" || name.text === "typeof" || name.text === "readonly" || name.text === "unique") {
+            return `${name.text} ${this.typePostfix(what)}`;
+        }
         let text = name.text;
-        // `Window[]` — an element-typed array (the type is TS's own; only the
-        // written-type grammar had to admit it). The `[]` must be GLUED to the
-        // name: `w: Window [ ]` with a space is a named CHILD with an empty body,
-        // and adjacency is what separates the two readings — the same convention
-        // TS itself writes, and the formatter keeps.
-        let end = name.pos.offset + name.text.length;
-        while (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket"
-            && this.peek().pos.offset === end) {
-            end = this.peekAt(1).pos.offset + 1;
+        while (this.peek().kind === "dot" && this.peekAt(1).kind === "ident") {
             this.next();
-            this.next();
-            text += "[]";
+            text += "." + this.next().text;
         }
-        if (this.peek().kind === "query") {
+        if (this.peek().kind === "lt") {
             this.next();
-            return { text: text + "?", pos: name.pos };
+            const args = [];
+            while (this.peek().kind !== "gt") {
+                args.push(this.typeUnion("a type argument"));
+                if (this.peek().kind === "comma")
+                    this.next();
+                else
+                    break;
+            }
+            this.expect("gt", "'>'");
+            text += `<${args.join(", ")}>`;
         }
-        return { text, pos: name.pos };
+        return text;
+    }
+    /** `(a: T, b?: U) -> R` or `=> R` — or null, consuming nothing the caller
+     *  keeps, when the parentheses do not hold a parameter list. A function type
+     *  with no return is void, as a method's signature is. */
+    tryFunctionType() {
+        this.next(); // (
+        const params = [];
+        while (this.peek().kind !== "rparen") {
+            if (this.peek().kind !== "ident")
+                return null;
+            let p = this.next().text;
+            if (this.peek().kind === "query") {
+                this.next();
+                p += "?";
+            }
+            if (this.peek().kind === "colon") {
+                this.next();
+                try {
+                    p += ": " + this.typeUnion("a parameter type name");
+                }
+                catch {
+                    return null;
+                }
+            }
+            params.push(p);
+            if (this.peek().kind === "comma") {
+                this.next();
+                continue;
+            }
+            if (this.peek().kind !== "rparen")
+                return null;
+        }
+        this.next(); // )
+        let text = `(${params.join(", ")})`;
+        // `-> Ret` / `=> Ret` is optional: made explicit, so every function type
+        // carries a return and the TypeScript translation stays one token rewrite
+        if (this.peek().kind === "arrow" || this.peek().kind === "fatarrow") {
+            this.next();
+            text += " -> " + this.typeUnion("a return type name", false);
+        }
+        else
+            text += " -> void";
+        return text;
     }
     /** `'class' Name ['extends' Base] '[' members ']'` — `extends` is a contextual
      *  ident. A class with no base is a View, the common case; any other base
@@ -620,7 +723,24 @@ class Parser {
                 // See the header note on this rule — the parser never asks whether
                 // `Type` names a class or a value type.
                 this.next();
+                // `v: [number, number]` — a TUPLE type, when what the brackets hold is
+                // a type list and a default, a separator or the end follows it.
+                let tuple = null;
                 if (this.peek().kind === "lbracket") {
+                    const mark = this.i;
+                    try {
+                        const t = this.parseTypeRef("a type");
+                        const after = this.peek().kind;
+                        if (after === "eq" || after === "comma" || after === "rbracket")
+                            tuple = t;
+                        else
+                            this.i = mark;
+                    }
+                    catch {
+                        this.i = mark;
+                    }
+                }
+                if (tuple === null && this.peek().kind === "lbracket") {
                     // `Button: [ … ]` — a class-keyed ENTRY; the checker refuses it
                     // (no declaration admits one).
                     const child = { tag: name.text, name: null, entry: true, attrs: [], decls: [], methods: [], children: [], pos: name.pos };
@@ -634,8 +754,8 @@ class Parser {
                     }
                     break;
                 }
-                const type = this.parseTypeRef("a type or class name");
-                if (this.peek().kind === "lbracket") {
+                const type = tuple ?? this.parseTypeRef("a type or class name");
+                if (tuple === null && this.peek().kind === "lbracket") {
                     if (readOnly) {
                         throw new DeclareError(`readonly marks an attribute declaration — a child instance cannot carry it`, declPos);
                     }
@@ -666,6 +786,13 @@ class Parser {
                     });
                 }
                 else {
+                    // `theme: { bg: 0xE9EAEC }` and `v: [1, 2]` are usually a VALUE written
+                    // object-style; as written they declare a type with nothing in it,
+                    // which TypeScript refuses as well (no initializer). Say both readings.
+                    if ((type.text.startsWith("{") || type.text.startsWith("[")) && this.peek().kind !== "eq" && !type.text.endsWith("?") && !/\| (null|undefined)$/.test(type.text)) {
+                        const shape = type.text.startsWith("{") ? "an object" : "a tuple";
+                        throw new DeclareError(`'${name.text}: ${type.text.length > 40 ? type.text.slice(0, 37) + "…" : type.text}' declares ${shape} TYPE with no value — to set '${name.text}' to a value, write '${name.text} = ${type.text.startsWith("{") ? "{ { … } }" : "[ … ]"}'; to declare it with a type, give it one: '${name.text}: ${type.text.startsWith("{") ? "{ a: number }" : "[number, number]"} = …'`, declPos);
+                    }
                     let def = null;
                     if (this.peek().kind === "eq") {
                         this.next();
@@ -689,15 +816,19 @@ class Parser {
                 while (this.peek().kind === "ident") {
                     const pname = this.next().text;
                     let ptype, ptypePos, pnullable = false;
+                    // `c?: T` — TypeScript's optional parameter, the same as Declare's `c: T?`
+                    // (a parameter that may be null may be omitted)
+                    let optional = false;
                     if (this.peek().kind === "query") {
-                        const ty = this.peekAt(1).kind === "colon" && this.peekAt(2).kind === "ident" ? this.peekAt(2).text : "Type";
-                        throw new DeclareError(`'${pname}?' — in a signature the '?' marks the TYPE: write '${pname}: ${ty}?' for a nullable parameter (the name-suffix '?' belongs to schema fields)`, this.peek().pos);
+                        this.next();
+                        optional = true;
                     }
                     if (this.peek().kind === "colon") {
                         this.next();
                         // `ident` (a name), `(` (a function type), or `"` (a literal union
                         // — the same spelling declarations and schema fields take)
-                        if (this.peek().kind === "ident" || this.peek().kind === "lparen" || this.peek().kind === "string") {
+                        const k = this.peek().kind;
+                        if (k === "ident" || k === "lparen" || k === "string" || k === "number" || k === "lbracket" || k === "code") {
                             const tr = this.parseTypeRef("a parameter type name");
                             ptypePos = tr.pos;
                             if (tr.text.endsWith("?")) {
@@ -706,6 +837,8 @@ class Parser {
                             }
                             else
                                 ptype = tr.text;
+                            if (optional)
+                                pnullable = true;
                         }
                         else
                             this.errors.push(new DeclareError(`'${pname}:' needs a type name — write '${pname}: number' (a primitive or a class), or drop the ':' for an untyped parameter`, this.peek().pos));
@@ -919,21 +1052,30 @@ class Parser {
                     throw new DeclareError(`a shape field's type is string | number | boolean | any, a schema name (capitalized), a literal union of strings, or a nested [ … ] — not '${ty.text}'`, ty.pos);
                 }
             }
-            // The crossings a TS arrival types first, each with its rewrite named
-            // (the every-error-carries-its-fix rule):
+            // TypeScript's spellings of the same field, beside the name-first ones:
+            // `tags: string[]` is `tags[]: string`; `x: T | null` and Declare's
+            // `x: T?` are a field that may be null (`x?: T`, which also admits it
+            // absent — a schema checks JSON, where the two arrive alike).
             if (this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket") {
-                throw new DeclareError(`'${name.text}: …[]' — in a schema the array marker rides the NAME: write '${name.text}[]: ${field.ref ?? field.type ?? "[ … ]"}' (it rhymes with the path that reads it, ':${name.text}[]')`, this.peek().pos);
+                if (field.array) {
+                    throw new DeclareError(`'${name.text}' is marked an array twice — write '${name.text}: ${field.ref ?? field.type ?? "[ … ]"}[]' or '${name.text}[]: ${field.ref ?? field.type ?? "[ … ]"}', not both (a field is one array deep)`, this.peek().pos);
+                }
+                this.next();
+                this.next();
+                field.array = true;
             }
             if (this.peek().kind === "query") {
-                throw new DeclareError(`'${name.text}: …?' — in a schema the optional marker rides the FIELD name: write '${name.text}?: ${field.ref ?? field.type ?? "[ … ]"}' (the type-suffix '?' belongs to attribute and signature types)`, this.peek().pos);
+                this.next();
+                field.optional = true;
+            }
+            while (this.peek().kind === "pipe" && this.peekAt(1).kind === "ident" && (this.peekAt(1).text === "null" || this.peekAt(1).text === "undefined")) {
+                this.next();
+                this.next();
+                field.optional = true;
             }
             if (this.peek().kind === "pipe") {
-                const alt = this.peekAt(1);
                 const shown = field.ref ?? field.type ?? "[ … ]";
-                if (alt.kind === "ident" && (alt.text === "null" || alt.text === "undefined")) {
-                    throw new DeclareError(`'${name.text}: ${shown} | ${alt.text}' — in a schema a field that may be null or missing is written with '?' on its NAME: '${name.text}?: ${shown}' ('?' admits both an absent field and a null)`, this.peek().pos);
-                }
-                throw new DeclareError(`'${name.text}: ${shown} | …' — a schema field has one type; a union is a literal union of strings or of numbers ('status: "open" | "closed"'). A field that may be missing is '${name.text}?: ${shown}'`, this.peek().pos);
+                throw new DeclareError(`'${name.text}: ${shown} | …' — a schema field has one type; a union is a literal union of strings or of numbers ('status: "open" | "closed"'), or a type with null ('${name.text}: ${shown} | null')`, this.peek().pos);
             }
             if (this.peek().kind === "eq") {
                 throw new DeclareError(`'${name.text} = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record`, this.peek().pos);
@@ -1344,6 +1486,49 @@ function parseTopDecls(p) {
  *  file compiles. The languages Declare keeps company with (Go, Rust, Swift,
  *  Kotlin, LZX) are all order-free at the top level; the define-before-use
  *  holdouts (C, F#, XAML's StaticResource) are the resented company. */
+/** Rewrite a program's positions with a line map (the compiler's LineMap:
+ *  `files`, file 0 the program's own, and runs `[firstLine, count, fileIndex,
+ *  firstFileLine]`), so a position names the file and line its author wrote.
+ *  The offset is left as it is — it indexes the text the program was parsed
+ *  from. In place; each position is rewritten once. */
+export function applyLineMap(program, map) {
+    const runs = map.runs;
+    if (runs.length === 0)
+        return;
+    const seen = new WeakSet();
+    const visit = (o) => {
+        if (o === null || typeof o !== "object" || seen.has(o))
+            return;
+        seen.add(o);
+        const p = o;
+        if (typeof p.line === "number" && typeof p.col === "number" && typeof p.offset === "number") {
+            let lo = 0, hi = runs.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi + 1) >> 1;
+                if (runs[mid][0] <= p.line)
+                    lo = mid;
+                else
+                    hi = mid - 1;
+            }
+            const r = runs[lo];
+            if (p.line >= r[0] && p.line < r[0] + r[1]) {
+                p.line = r[3] + (p.line - r[0]);
+                const file = map.files[r[2]];
+                if (file !== "" && file !== undefined)
+                    p.file = file;
+            }
+            return;
+        }
+        if (Array.isArray(o)) {
+            for (const x of o)
+                visit(x);
+            return;
+        }
+        for (const k in p)
+            visit(p[k]);
+    };
+    visit(program);
+}
 export function parseProgram(source) {
     const p = new Parser(tokenize(source));
     const before = parseTopDecls(p);

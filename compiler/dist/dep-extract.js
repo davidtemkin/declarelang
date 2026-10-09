@@ -605,7 +605,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
         for (const s of ordered) {
             if (ts.isPropertyAccessExpression(s) && s.parent && ts.isCallExpression(s.parent) && s.parent.expression === s)
                 continue;
-            if (ts.isPropertyAccessExpression(s) && NODE_SLOTS.has(s.name.text) && s !== ordered[ordered.length - 1]) {
+            if (ts.isPropertyAccessExpression(s) && (NODE_SLOTS.has(s.name.text) || RECORD_SLOTS.has(s.name.text)) && s !== ordered[ordered.length - 1]) {
                 // L-20: a chain THROUGH a node-typed slot. The slot read is the wired
                 // edge (repointing wakes every reader); everything beyond rides the
                 // tracking path — a prewired edge would pin the previous node's cells.
@@ -864,6 +864,11 @@ let ORACLE = null;
  *  prewired edge would pin the PREVIOUS node's cells across a repoint.
  *  Name-keyed (a sound over-approximation, like every name-keyed gate here). */
 let NODE_SLOTS = new Set();
+/** Schema-typed DECL names (`sel: Task?`, `picked: Task[]`): the slot holds a
+ *  record of a dataset, whose fields are cells on the data value tree, so a
+ *  chain THROUGH one goes as a chain through a node slot does — the slot read
+ *  is the wired edge, the rest rides the tracking path. Name-keyed. */
+let RECORD_SLOTS = new Set();
 const COMPONENT_TAGS = new Set(Object.keys(SCHEMAS));
 // Computed `{ }` DECL DEFAULTS (`name: type = { … }`) by name. Unlike a `name =
 // { … }` ATTRIBUTE (a standing constraint that owns a cell), a computed default has
@@ -1556,7 +1561,9 @@ export function extractProgram(program, oracle = null) {
     PARENT_OF = new Map();
     PROGRAM_ROOT = program.root;
     NODE_SLOTS = new Set();
+    RECORD_SLOTS = new Set();
     const DECLARED_CLASSES = new Set(program.classes.map((c) => c.name));
+    const SCHEMA_NAMES = new Set((program.shapes ?? []).map((s) => s.name));
     ({ fns: SCRIPT_FUNCTIONS, mutable: SCRIPT_MUTABLE, classes: SCRIPT_CLASSES } = scriptFunctions(program.scripts.map((s) => s.src)));
     const constraints = [];
     const collect = (el, classRoot) => {
@@ -1564,6 +1571,8 @@ export function extractProgram(program, oracle = null) {
             const t = (d.type ?? "").replace(/\?$/, "");
             if (t !== "" && (COMPONENT_TAGS.has(t) || DECLARED_CLASSES.has(t)))
                 NODE_SLOTS.add(d.name);
+            if (SCHEMA_NAMES.has(t.replace(/(\[\])+$/, "")))
+                RECORD_SLOTS.add(d.name);
         }
         for (const m of el.methods)
             USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });

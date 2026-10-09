@@ -14,7 +14,7 @@ const OK = 0, ERR_OWNED = -3, ERR_CYCLE = -4, ERR_AFTER = -5, ERR_BOUND = -6, ER
 const CYCLE_LIMIT = 100, AFTER_LIMIT = 100;
 const NONE = 0xffffffff;
 // the opcodes, in the header's order
-const OP_END = 0, OP_LOAD = 1, OP_CONST = 2, OP_ADD = 3, OP_SUB = 4, OP_MUL = 5, OP_DIV = 6, OP_MOD = 7, OP_NEG = 8, OP_MIN = 9, OP_MAX = 10, OP_ABS = 11, OP_FLOOR = 12, OP_CEIL = 13, OP_ROUND = 14, OP_SQRT = 15, OP_LT = 16, OP_LE = 17, OP_GT = 18, OP_GE = 19, OP_EQ = 20, OP_NE = 21, OP_AND = 22, OP_OR = 23, OP_NOT = 24, OP_SELECT = 25, OP_CLAMP = 26;
+const OP_END = 0, OP_LOAD = 1, OP_CONST = 2, OP_ADD = 3, OP_SUB = 4, OP_MUL = 5, OP_DIV = 6, OP_MOD = 7, OP_NEG = 8, OP_MIN = 9, OP_MAX = 10, OP_ABS = 11, OP_FLOOR = 12, OP_CEIL = 13, OP_ROUND = 14, OP_SQRT = 15, OP_LT = 16, OP_LE = 17, OP_GT = 18, OP_GE = 19, OP_EQ = 20, OP_NE = 21, OP_AND = 22, OP_OR = 23, OP_NOT = 24, OP_SELECT = 25, OP_CLAMP = 26, OP_NULL = 27, OP_COALESCE = 28;
 /** JS truthiness for a number: 0, -0 and NaN are false. */
 const truthy = (x) => x === x && x !== 0;
 export function instantiateKernelJS(host, caps = {}) {
@@ -26,6 +26,9 @@ export function instantiateKernelJS(host, caps = {}) {
     // allocEdge), so none of them is a ceiling.
     let capacity = Math.max(1024, caps.extra_cells ?? 1 << 16);
     let table = new Float64Array(capacity);
+    /** kernel.c cell_null: 1 when the cell holds null (its slot then holds 0) */
+    let nullOf = new Uint8Array(capacity);
+    const bodyNull = new Uint8Array(1);
     let kindOf = new Uint8Array(capacity); // low 7 bits kind, 0x80 structural
     // OWNER + 1, so 0 means none and a fresh table needs no fill: memory that is
     // reserved but never written stays out of the page's footprint
@@ -120,6 +123,9 @@ export function instantiateKernelJS(host, caps = {}) {
         const t = new Float64Array(cap);
         t.set(table);
         table = t;
+        const nu = new Uint8Array(cap);
+        nu.set(nullOf);
+        nullOf = nu;
         const k2 = new Uint8Array(cap);
         k2.set(kindOf);
         kindOf = k2;
@@ -146,6 +152,7 @@ export function instantiateKernelJS(host, caps = {}) {
         markOf = m;
         capacity = cap;
         self.table = table;
+        self.nulls = nullOf;
         self.capacity = cap;
         onGrowCb?.();
     };
@@ -339,9 +346,30 @@ export function instantiateKernelJS(host, caps = {}) {
             wake(cell);
             return OK;
         }
-        if (table[cell] === v)
-            return OK; // === : NaN never gates
+        if (table[cell] === v && nullOf[cell] === 0)
+            return OK; // === : NaN never gates; a number over null is a change
         table[cell] = v;
+        nullOf[cell] = 0;
+        markDirty(cell);
+        if (kdirtyFlag[cell] === 0) {
+            kdirtyFlag[cell] = 1;
+            kdirtyList.push(cell);
+        }
+        wake(cell);
+        return OK;
+    };
+    /** kernel.c set_null: null over a cell, a change unless it already holds null */
+    const setNull = (cell) => {
+        if (cell >= ncells)
+            return ERR_BAD;
+        if ((kindOf[cell] & 0x7f) !== F64) {
+            wake(cell);
+            return OK;
+        }
+        if (nullOf[cell] === 1)
+            return OK;
+        table[cell] = 0;
+        nullOf[cell] = 1;
         markDirty(cell);
         if (kdirtyFlag[cell] === 0) {
             kdirtyFlag[cell] = 1;
@@ -418,8 +446,12 @@ export function instantiateKernelJS(host, caps = {}) {
         if ((rState[rule] & (ST_QUEUED | ST_RUNNING)) === 0)
             freeRule(rule);
     };
+    /** kernel.c eval: a null bit beside each number; `evalNull` is the result's. */
+    let evalNull = 0;
     const evalExpr = (rule) => {
         const st = [];
+        const nl = []; // null bits, parallel to st; an op that yields a number pushes 0
+        const push = (x, n = 0) => { st.push(x); nl.length = st.length; nl[st.length - 1] = n; };
         let c = rCode0[rule];
         const end = rCode0[rule] + rNcode[rule];
         while (c < end) {
@@ -430,119 +462,137 @@ export function instantiateKernelJS(host, caps = {}) {
                     break;
                 case OP_LOAD: {
                     const cell = code[c++];
-                    st.push(cell < ncells ? table[cell] : 0);
+                    if (cell < ncells)
+                        push(table[cell], nullOf[cell]);
+                    else
+                        push(0);
                     break;
                 }
                 case OP_CONST: {
                     const i = code[c++];
-                    st.push(i < consts.length ? consts[i] : 0);
+                    push(i < consts.length ? consts[i] : 0);
+                    break;
+                }
+                case OP_NULL:
+                    push(0, 1);
+                    break;
+                case OP_COALESCE: {
+                    const nb = nl[st.length - 1], b = st.pop();
+                    const na = nl[st.length - 1], a = st.pop();
+                    if (na)
+                        push(b, nb);
+                    else
+                        push(a);
                     break;
                 }
                 case OP_ADD: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a + b);
+                    push(a + b);
                     break;
                 }
                 case OP_SUB: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a - b);
+                    push(a - b);
                     break;
                 }
                 case OP_MUL: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a * b);
+                    push(a * b);
                     break;
                 }
                 case OP_DIV: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a / b);
+                    push(a / b);
                     break;
                 }
                 case OP_MOD: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a - b * Math.trunc(a / b));
+                    push(a - b * Math.trunc(a / b));
                     break;
                 }
                 case OP_NEG:
-                    st.push(-st.pop());
+                    push(-st.pop());
                     break;
                 // min/max keep the C's NaN rule: NaN wins, and -0 vs 0 is not ordered
                 case OP_MIN: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a < b ? a : (b < a ? b : (a !== a ? a : b)));
+                    push(a < b ? a : (b < a ? b : (a !== a ? a : b)));
                     break;
                 }
                 case OP_MAX: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a > b ? a : (b > a ? b : (a !== a ? a : b)));
+                    push(a > b ? a : (b > a ? b : (a !== a ? a : b)));
                     break;
                 }
                 case OP_ABS:
-                    st.push(Math.abs(st.pop()));
+                    push(Math.abs(st.pop()));
                     break;
                 case OP_FLOOR:
-                    st.push(Math.floor(st.pop()));
+                    push(Math.floor(st.pop()));
                     break;
                 case OP_CEIL:
-                    st.push(Math.ceil(st.pop()));
+                    push(Math.ceil(st.pop()));
                     break;
                 case OP_ROUND:
-                    st.push(Math.floor(st.pop() + 0.5));
+                    push(Math.floor(st.pop() + 0.5));
                     break; // Math.round's rule, spelled out
                 case OP_SQRT:
-                    st.push(Math.sqrt(st.pop()));
+                    push(Math.sqrt(st.pop()));
                     break;
                 case OP_LT: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a < b ? 1 : 0);
+                    push(a < b ? 1 : 0);
                     break;
                 }
                 case OP_LE: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a <= b ? 1 : 0);
+                    push(a <= b ? 1 : 0);
                     break;
                 }
                 case OP_GT: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a > b ? 1 : 0);
+                    push(a > b ? 1 : 0);
                     break;
                 }
                 case OP_GE: {
                     const b = st.pop(), a = st.pop();
-                    st.push(a >= b ? 1 : 0);
+                    push(a >= b ? 1 : 0);
                     break;
                 }
-                case OP_EQ: {
-                    const b = st.pop(), a = st.pop();
-                    st.push(a === b ? 1 : 0);
-                    break;
-                }
+                case OP_EQ:
                 case OP_NE: {
-                    const b = st.pop(), a = st.pop();
-                    st.push(a !== b ? 1 : 0);
+                    const nb = nl[st.length - 1], b = st.pop();
+                    const na = nl[st.length - 1], a = st.pop();
+                    const eq = na || nb ? (na && nb) : a === b; // null == null; null != every number
+                    push((eq ? 1 : 0) === (op === OP_EQ ? 1 : 0) ? 1 : 0);
                     break;
                 }
                 case OP_AND: {
                     const b = st.pop(), a = st.pop();
-                    st.push(truthy(a) && truthy(b) ? 1 : 0);
+                    push(truthy(a) && truthy(b) ? 1 : 0);
                     break;
                 }
                 case OP_OR: {
                     const b = st.pop(), a = st.pop();
-                    st.push(truthy(a) || truthy(b) ? 1 : 0);
+                    push(truthy(a) || truthy(b) ? 1 : 0);
                     break;
                 }
                 case OP_NOT:
-                    st.push(truthy(st.pop()) ? 0 : 1);
+                    push(truthy(st.pop()) ? 0 : 1);
                     break;
                 case OP_SELECT: {
-                    const b = st.pop(), a = st.pop(), cnd = st.pop();
-                    st.push(truthy(cnd) ? a : b);
+                    const nb = nl[st.length - 1], b = st.pop();
+                    const na = nl[st.length - 1], a = st.pop();
+                    const cnd = st.pop();
+                    if (truthy(cnd))
+                        push(a, na);
+                    else
+                        push(b, nb);
                     break;
                 }
                 case OP_CLAMP: {
                     const hi = st.pop(), lo = st.pop(), x = st.pop();
-                    st.push(x < lo ? lo : (x > hi ? hi : x));
+                    push(x < lo ? lo : (x > hi ? hi : x));
                     break;
                 }
                 default:
@@ -550,9 +600,10 @@ export function instantiateKernelJS(host, caps = {}) {
                     break;
             }
         }
+        evalNull = st.length > 0 ? (nl[st.length - 1] ?? 0) : 0;
         return st.length > 0 ? st[st.length - 1] : 0;
     };
-    const apply = (rule, v) => {
+    const apply = (rule, v, isNull) => {
         const cell = rTarget[rule];
         if (cell < 0)
             return; // the host applied it itself
@@ -561,12 +612,15 @@ export function instantiateKernelJS(host, caps = {}) {
                 wake(cell);
             return;
         }
-        setValue(cell, v);
+        if (isNull)
+            setNull(cell);
+        else
+            setValue(cell, v);
     };
     const run = (rule) => {
         if (!known(rule))
             return ERR_BAD;
-        let v = 0;
+        let v = 0, isNull = 0;
         drainTrack(); // reads appended by whatever is active now link to IT, before we switch
         drain(); // host writes since the last drain wake their dependents first
         const wasRunning = (rState[rule] & ST_RUNNING) !== 0;
@@ -574,9 +628,13 @@ export function instantiateKernelJS(host, caps = {}) {
         switch (rKind[rule]) {
             case K_EXPR:
                 v = evalExpr(rule);
+                isNull = evalNull;
                 break;
             case K_BODY:
+                bodyNull[0] = 0;
                 v = host.body(rule, rElem[rule], rTarget[rule]);
+                isNull = bodyNull[0];
+                bodyNull[0] = 0;
                 break;
             case K_DYNAMIC: {
                 unlinkAll(rule);
@@ -586,7 +644,10 @@ export function instantiateKernelJS(host, caps = {}) {
                 rSerial[rule] = serial;
                 const prev = active[0];
                 active[0] = rule;
+                bodyNull[0] = 0;
                 v = host.body(rule, rElem[rule], rTarget[rule]);
+                isNull = bodyNull[0];
+                bodyNull[0] = 0;
                 drainTrack(); // the reads the body appended while it ran
                 active[0] = prev;
                 break;
@@ -613,7 +674,7 @@ export function instantiateKernelJS(host, caps = {}) {
             return OK;
         }
         rState[rule] &= ~(ST_REWIRE | ST_UNLANDED);
-        apply(rule, v);
+        apply(rule, v, isNull);
         drain(); // …and the body's writes wake theirs
         return OK;
     };
@@ -750,6 +811,7 @@ export function instantiateKernelJS(host, caps = {}) {
         cellHead[id] = 0;
         cellTail[id] = 0;
         table[id] = 0;
+        nullOf[id] = 0;
         return id;
     };
     // ── the view table and the two built-in view rules ───────────────────────
@@ -1049,7 +1111,7 @@ export function instantiateKernelJS(host, caps = {}) {
         return 0;
     };
     const self = {
-        table, active, capacity,
+        table, nulls: nullOf, bodyNull, active, capacity,
         cells: () => ncells,
         tableSize: () => capacity,
         codeUse: () => ({ code: code.length, consts: consts.length }),
@@ -1164,6 +1226,7 @@ export function instantiateKernelJS(host, caps = {}) {
                 cellHead[id] = 0;
                 cellTail[id] = 0;
                 table[id] = 0;
+                nullOf[id] = 0;
             }
             return base;
         },
@@ -1176,6 +1239,7 @@ export function instantiateKernelJS(host, caps = {}) {
                 ownerOf[cell] = 0;
                 setFlag[cell] = 0;
                 table[cell] = 0;
+                nullOf[cell] = 0;
             }
         },
         freeCell: (cell) => {

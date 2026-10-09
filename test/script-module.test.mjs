@@ -14,7 +14,7 @@ import os from "node:os";
 import { compile, compileTracked } from "../compiler/dist/compile-node.js";
 import { compile as compileCore } from "../compiler/dist/compile.js";
 import { parseProgram } from "../runtime/dist/parser.js";
-import { instantiate, settle } from "../runtime/dist/index.js";
+import { instantiate, settle, explain } from "../runtime/dist/index.js";
 import { test, summarize } from "./harness.mjs";
 
 const DIR = mkdtempSync(join(os.tmpdir(), "declare-script-"));
@@ -71,6 +71,26 @@ await test("in an included file, an error after its script file is on that file'
   assert.equal(r.source, null);
   assert.equal(r.errors[0].pos.file, "longroom.declare");
   assert.equal(r.errors[0].pos.line, 3);
+});
+
+await test("a running program's positions are the author's: explain() names the file and line, past script files and includes", async () => {
+  // long.ts is 30 lines; the main file's constraint is on its line 3, the room's on its line 3
+  writeFileSync(join(DIR, "posroom.declare"), `script [ "long.ts" ]\nclass PosRoom extends View [ n: number = 2,\n  width = { this.n * 10 } ]\n`);
+  const main = `script [ "long.ts" ]\ninclude [ "posroom.declare" ]\nApp [ v: number = 3, w: View [ width = { app.v * 2 } ],\n    r: PosRoom [ ] ]`;
+  const r = await compile(main, { originDir: DIR });
+  assert.ok(r.source, r.errors.map((e) => e.message).join("; "));
+  const check = (program, how) => {
+    const app = instantiate(program); settle();
+    const own = explain(app.w, "width").constraint.pos;
+    assert.equal(own.line, 3, `${how}: the program's own line, not the merged text's (${JSON.stringify(own)})`);
+    assert.equal(own.file, undefined, `${how}: the program's own file`);
+    const room = explain(app.r, "width").constraint.pos;
+    assert.equal(room.file, "posroom.declare", `${how}: an included file is named (${JSON.stringify(room)})`);
+    assert.equal(room.line, 3, `${how}: on its own line`);
+    app.discard();
+  };
+  check(r.program, "the compile's own program");
+  check(structuredClone(r.program), "the program as a worker posts it");
 });
 
 await test("a missing script file is a positioned error, like a missing include", async () => {

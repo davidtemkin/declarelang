@@ -37,6 +37,7 @@
 // Replicator is an ordinary Constraint, so N data edits in a turn coalesce
 // into one reconcile, whose Surface work lands in the backends' single rAF.
 
+import { isDeferred } from "./deferred-surface.js";
 import type { Element } from "./parser.js";
 import { diag } from "./errors.js";
 import { Node } from "./node.js";
@@ -570,11 +571,11 @@ export class Replicator {
           // frame-fed draw re-threw forever).
           try {
             if (v.$surface === null) v.$attach(this.parent.$backend, ps, before);
-            else ps.insertChild(v.$surface, before);
+            else if (!isDeferred(v.$surface)) ps.insertChild(v.$surface, before);
           } catch (e) {
             reportInstanceThrow(v, "attaching", e);
           }
-          before = v.$surface ?? before;
+          before = v.$surface !== null && !isDeferred(v.$surface) ? v.$surface : before;
         }
       }
     }
@@ -618,7 +619,7 @@ export class Replicator {
   private surfaceAfter(index: number): Surface | null {
     for (let i = index; i < this.parent.children.length; i++) {
       const sib = this.parent.children[i];
-      if (sib instanceof View && sib.$surface !== null) return sib.$surface;
+      if (sib instanceof View && sib.$surface !== null && !isDeferred(sib.$surface)) return sib.$surface;
     }
     return null;
   }
