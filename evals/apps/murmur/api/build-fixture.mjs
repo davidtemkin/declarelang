@@ -176,8 +176,6 @@ const VOICE_SCRIPTS = [
     "So I walked the whole ridge this morning before the fog came in, and I think the drainage problem is further up than we thought. There's a spring about two hundred metres above the switchback that's been cutting straight down the fall line. If we don't intercept it the new tread is going to wash out by the second winter. I took some pictures. I'll send them when I've got a signal." },
   { name: "3.m4a", voice: "Karen", from: "p3", rate: 190, text:
     "Okay I read it. I liked it more than I expected to, but the middle section absolutely drags. Chapter eleven could go entirely and you would lose nothing." },
-  { name: "4.m4a", voice: "Moira", from: "p7", rate: 172, text:
-    "Right, so, I've been thinking about this since Tuesday and I want to lay out the whole thing properly because I don't think we've actually agreed on what we're solving. There are three separate problems and we keep talking about them as if they're one. The first is that nobody knows who is bringing what. The second is that the space we booked is too small for the number of people who said yes, and the third, which nobody wants to say out loud, is that the date does not work for half the people we actually want there. I think we should move it. I know that's annoying. But moving it two weeks solves two of the three problems on its own, and the third one gets much easier once we're not pretending. Have a think and tell me I'm wrong." },
 ];
 
 // ── conversation text ────────────────────────────────────────────────────────
