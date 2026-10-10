@@ -233,17 +233,6 @@ class Score extends ArcadeText [
     ]
 
 
-// A line of the high-score table: rank, a dim dot, score and initials.
-
-class HighScoreLine extends ArcadeText [ cx = 380, cy = { 668 - 32 * rowIndex }, magnify = 2,
-    text = { String(rowIndex + 1).padStart(2) + " " + String(:score).padStart(5) + " " + :initials },
-    draw(d: Draw) {
-        super.draw(d)
-        this.dot(d, 48, d.h - 1, 4 * 64)                     // brightness 4, held 64 ticks
-        }
-    ]
-
-
 // The ships in reserve, in a row under the score.
 
 class ReserveShips extends Figure [ width = 120, height = 28, originX = 8, originY = 15,

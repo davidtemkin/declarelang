@@ -220,6 +220,95 @@ const EXTENT = new WeakMap();
 /** The handler names the pointer family answers to, made once (inputSink asks every view). */
 const POINTER_HANDLERS = POINTER_TYPES.map(handlerName);
 const AXIS_OF = { width: "x", height: "y" };
+const STATS = { deferred: 0, came: { shown: 0, settled: 0, "needed-below": 0, stencil: 0, travel: 0 }, hiddenCame: 0 };
+/** How many views attached on a stand-in, how many came in (by reason), and
+ *  how many of those came in while still hidden — brought in by a reader
+ *  that needs the surface, the cost the deferral exists to avoid. */
+export function deferralStats() {
+    return { deferred: STATS.deferred, came: { ...STATS.came }, hiddenCame: STATS.hiddenCame };
+}
+/** A development build checks the invariant after any settle in which views
+ *  waited or came in — for those views only, each against its parent, which
+ *  is where a problem shows (deferralProblems walks a whole tree, for tests) —
+ *  and reports each problem once, naming the view. A production build folds
+ *  this out. */
+let TOUCHED = null;
+const REPORTED = new Set();
+function noteDeferral(v) {
+    if (typeof __DECLARE_PRODUCTION__ !== "undefined" && __DECLARE_PRODUCTION__)
+        return;
+    if (TOUCHED === null) {
+        TOUCHED = new Set();
+        const check = () => {
+            // views still to be decided at this close are not problems yet
+            if (UNDECIDED.length > 0) {
+                afterSettle(check);
+                return;
+            }
+            const views = TOUCHED;
+            TOUCHED = null;
+            for (const u of views) {
+                const why = deferralProblemAt(u);
+                if (why === null)
+                    continue;
+                const line = `${pathOfView(u)}: ${why}`;
+                if (REPORTED.has(line))
+                    continue;
+                REPORTED.add(line);
+                console.error(`[Declare] deferred DOM: ${line}`);
+            }
+        };
+        afterSettle(check);
+    }
+    TOUCHED.add(v);
+}
+/** One view against the deferral invariant: null when it holds. */
+function deferralProblemAt(v) {
+    const p = v.parent;
+    if (!(p instanceof View) || v.$surface === null || p.$surface === null || isDeferred(p.$surface))
+        return null;
+    for (let u = v; u !== null; u = u.parent)
+        if (u instanceof View && !u.visible)
+            return null; // not shown: nothing to check
+    if (isDeferred(v.$surface))
+        return "shown, still waiting for its surface";
+    if (v.ignoreScroll || v.$surface.isTraveling?.() === true)
+        return null;
+    const mine = v.$surface.element, theirs = p.$surface.element;
+    return mine !== undefined && theirs !== undefined && !theirs.contains(mine) ? "its element is outside its parent's" : null;
+}
+function pathOfView(v) {
+    const parts = [];
+    for (let u = v; u !== null; u = u.parent) {
+        const q = u.parent;
+        parts.push(q === null ? u.constructor.name : `${u.constructor.name}[${q.children.indexOf(u)}]`);
+    }
+    return parts.reverse().join("/");
+}
+if (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__)
+    globalThis.__declareDeferral = { stats: () => deferralStats(), problems: (r) => deferralProblems(r) };
+/** Waiting views held back by a real ancestor that is hidden (shown once,
+ *  hidden since), filed under that ancestor: its next show brings them in. */
+const WAITING_UNDER = new WeakMap();
+/** How many views are filed there — while none are, a show looks nothing up. */
+let waitingUnderCount = 0;
+/** A view shown while deferral has work for it: it waits on a stand-in (it
+ *  comes in), or views were filed under it while it was hidden (they do). */
+function showDeferring(v) {
+    if (isDeferred(v.$surface))
+        v.$ensureReal("shown");
+    else
+        v.$surface?.setVisible(true);
+    // views waiting under this one while it was hidden: shown now, they come in
+    // (each re-files under a deeper hidden ancestor if one still hides it)
+    const held = waitingUnderCount > 0 ? WAITING_UNDER.get(v) : undefined;
+    if (held !== undefined) {
+        WAITING_UNDER.delete(v);
+        waitingUnderCount -= held.size;
+        for (const w of held)
+            w.$ensureReal("shown");
+    }
+}
 /** Views attached inside a settle (View.$attach): the settle's close brings
  *  in each one shown by then. */
 let UNDECIDED = [];
@@ -229,10 +318,28 @@ function decideAtClose(v) {
             const list = UNDECIDED;
             UNDECIDED = [];
             for (const u of list)
-                if (u.$surface !== null && isDeferred(u.$surface) && u.visible)
-                    u.$materialize();
+                u.$ensureReal("settled");
         });
     UNDECIDED.push(v);
+}
+/** The deferral invariant, over a tree: no view the user can see waits on a
+ *  stand-in, and every shown view's element sits inside its parent's (a
+ *  surface the view no longer holds would sit elsewhere). Returns one line
+ *  per problem. Tests call it; a dev build reports it at a settle's close. */
+export function deferralProblems(root) {
+    const out = [];
+    const walk = (v) => {
+        const why = deferralProblemAt(v);
+        if (why !== null)
+            out.push(`${pathOfView(v)}: ${why}`);
+        if (v.$surface !== null && isDeferred(v.$surface))
+            return;
+        for (const c of v.children)
+            if (c instanceof View)
+                walk(c);
+    };
+    walk(root);
+    return out;
 }
 /** The surface the next shown sibling after `v` has — where `v`'s own goes
  *  in before (a sibling still waiting for its first show has none). */
@@ -282,8 +389,7 @@ export class View extends Node {
         const stencil = m;
         (stencil.maskUsers ??= new Set()).add(this);
         // a stencil is read by the renderer even while hidden: it takes its surface now
-        if (stencil.$surface !== null && isDeferred(stencil.$surface))
-            stencil.$materialize(true);
+        stencil.$ensureReal("stencil");
         s.setMask?.({ kind: "view", stencil: stencil });
     }
     /** The enclosing class instance — the node this view was *written* inside
@@ -323,7 +429,7 @@ export class View extends Node {
         // it. A view that needs its real surface while hidden (rich text measures
         // through it) brings its waiting ancestors in first.
         if (parentSurface !== null && isDeferred(parentSurface) && this.$eagerSurface()) {
-            this.parent.$materialize(true);
+            this.parent.$ensureReal("needed-below");
             parentSurface = this.parent.$surface;
             before = null;
         }
@@ -335,6 +441,10 @@ export class View extends Node {
         const defer = parentSurface !== null && (isDeferred(parentSurface) || later || (backend.defersHidden === true && !this.visible && !this.$eagerSurface()));
         if (later)
             decideAtClose(this);
+        if (defer) {
+            STATS.deferred++;
+            noteDeferral(this);
+        }
         const s = (this.$surface = defer ? new DeferredSurface() : backend.createSurface());
         this.$flush(s);
         if (!defer)
@@ -863,33 +973,72 @@ export class View extends Node {
     /** Does this view need its real surface even while hidden? A view the
      *  renderer measures or that holds live state in its element says yes. */
     $eagerSurface() { return false; }
-    /** Trade a stand-in for a real surface (deferred-surface.ts): when first
-     *  shown, or — `forced` — when something beneath needs it while hidden.
-     *  The current state is flushed into it, as at attach, and it goes in before
-     *  the next sibling that has one; its shown children follow it in. */
-    $materialize(forced = false) {
+    /** Bring this view in if it waits on a stand-in (deferred-surface.ts): the
+     *  ONE way a waiting view takes its real surface. "shown" and "settled"
+     *  bring it in only when it and every waiting ancestor are shown; the others
+     *  are readers that need the surface while it is hidden. The waiting chain
+     *  above it comes in first, top down. Returns whether it has a real surface. */
+    $ensureReal(why) {
+        if (this.$surface === null)
+            return false;
+        if (!isDeferred(this.$surface))
+            return true;
+        const chain = [];
+        for (let u = this; u !== null && u.$surface !== null && isDeferred(u.$surface); u = u.parent instanceof View ? u.parent : null)
+            chain.push(u);
+        const top = chain[chain.length - 1];
+        const p = top.parent instanceof View ? top.parent : null;
+        if (p === null || p.$surface === null)
+            return false; // not attached
+        if (why === "shown" || why === "settled") {
+            if (chain.some((u) => !u.visible))
+                return false; // not shown yet: it comes in with what shows it
+            // a real ancestor that is hidden (shown once, hidden since): wait under it
+            for (let u = p; u !== null; u = u.parent) {
+                if (u instanceof View && !u.visible) {
+                    let set = WAITING_UNDER.get(u);
+                    if (set === undefined)
+                        WAITING_UNDER.set(u, (set = new Set()));
+                    if (!set.has(this)) {
+                        set.add(this);
+                        waitingUnderCount++;
+                    }
+                    return false;
+                }
+            }
+        }
+        for (let i = chain.length - 1; i >= 0; i--)
+            chain[i].$comeIn(why);
+        return this.$surface !== null && !isDeferred(this.$surface);
+    }
+    /** Is this view, and every ancestor, shown? */
+    $shownChain() {
+        for (let u = this; u !== null; u = u.parent)
+            if (u instanceof View && !u.visible)
+                return false;
+        return true;
+    }
+    /** One waiting view takes its real surface, its parent being real: the
+     *  current state flushed in as at attach, in before the next sibling that
+     *  has one, then its shown children, then what the stand-in kept. Each step
+     *  reads the tree as it is now — nothing here is held across a call. */
+    $comeIn(why) {
         const stand = this.$surface;
         if (stand === null || !isDeferred(stand) || this.$backend === null)
             return;
         const p = this.parent instanceof View ? this.parent : null;
-        if (p === null || p.$surface === null)
+        if (p === null || p.$surface === null || isDeferred(p.$surface))
             return;
-        if (isDeferred(p.$surface)) {
-            if (!forced)
-                return; // an ancestor still waits; it brings this in when shown
-            p.$materialize(true);
-            if (p.$surface === null || isDeferred(p.$surface))
-                return;
-            // the parent coming in brings its shown children with it — this one among them
-            if (this.$surface === null || !isDeferred(this.$surface))
-                return;
-        }
+        STATS.came[why]++;
+        if (!this.$shownChain())
+            STATS.hiddenCame++;
+        noteDeferral(this);
         const s = (this.$surface = this.$backend.createSurface());
         this.$flush(s);
         p.$surface.insertChild(s, realSurfaceAfter(this));
         for (const c of this.children)
             if (c instanceof View && c.visible)
-                c.$materialize();
+                c.$comeIn(why);
         // what reached the stand-in outside the flush (a row's place, a scroll
         // request), in its latest form
         stand.replayInto(s);
@@ -1086,10 +1235,8 @@ export class View extends Node {
         // A caller acts on the answer at once (positions in the scroller's
         // content space, or in root space): both surfaces are needed now, so a
         // stand-in on either side comes in first (deferred-surface.ts).
-        if (this.$surface !== null && isDeferred(this.$surface))
-            this.$materialize(true);
-        if (scroller !== null && scroller.$surface !== null && isDeferred(scroller.$surface))
-            scroller.$materialize(true);
+        this.$ensureReal("travel");
+        scroller?.$ensureReal("travel");
         return this.$applyTravel();
     }
     /** The standing travel request (undefined = never asked). Applied here and
@@ -1518,8 +1665,9 @@ defineAttributes(View, {
     stroke: { def: null, push: (v, st) => v.$surface?.setStroke(st), equal: strokeEqual },
     shadow: { def: null, push: (v, sh) => v.$surface?.setShadow(sh), equal: shadowEqual },
     visible: { def: true, push: (v, b) => {
-            if (b && v.$surface !== null && isDeferred(v.$surface))
-                v.$materialize();
+            // (the hot path stays one call: deferral's part is its own function)
+            if (b && (waitingUnderCount > 0 || isDeferred(v.$surface)))
+                showDeferring(v);
             else
                 v.$surface?.setVisible(b);
             // Un-hiding re-arms the measurement veto for every rich flow underneath

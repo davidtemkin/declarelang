@@ -25,7 +25,7 @@ export { renderProgram, renderProgramAsync, buildProgram, mountApp, mountEmbedde
 export { Inspect, setInspectionTarget, inspectionTarget } from "./inspect-service.js";
 export { pickAt, dependentsOf, expandValue, slotsOf } from "./inspect.js";
 export { Node } from "./node.js";
-export { View, App, withHostProvides, inheritedCursor, onDiscard } from "./view.js";
+export { View, App, withHostProvides, inheritedCursor, onDiscard, deferralStats, deferralProblems } from "./view.js";
 export { Island, DOMIsland, linkIslandTenant, islandProvisions } from "./island.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";

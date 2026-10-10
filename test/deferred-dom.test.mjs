@@ -65,11 +65,16 @@ async function inPage(source, steps) {
     rt.settle();
     const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
     await frame();
-    return await new (Object.getPrototypeOf(async function () {}).constructor)("app", "host", "settle", "frame", body)(app, host, rt.settle, frame);
+    const result = await new (Object.getPrototypeOf(async function () {}).constructor)("app", "host", "settle", "frame", "rt", body)(app, host, rt.settle, frame, rt);
+    rt.settle(); await frame();
+    return { result, problems: rt.deferralProblems(app) };
   }, BASE, JSON.stringify(r.program), steps);
   await page.close();
   assert.deepEqual(errors, [], "no page errors");
-  return out;
+  // every scenario ends with the invariant holding: nothing shown still waits,
+  // and every shown element sits inside its parent's
+  if (!steps.includes("/*no-invariant*/")) assert.deepEqual(out.problems, [], "the deferral invariant holds");
+  return out.result;
 }
 
 const bg = `(e) => getComputedStyle(e).backgroundColor`;
@@ -194,6 +199,57 @@ await test("travelling with a scroller not yet shown answers as it would shown: 
     return { rode, inside: paneEl !== undefined && paneEl.contains(riderEl) };`);
   assert.equal(out.rode, true, "travelWith answers true: the scroller's surface exists now");
   assert.equal(out.inside, true, "the rider's element rides inside the scroller's");
+});
+
+await test("a hidden panel of ordinary views stays unbuilt through settles and data changes: nothing comes in", async () => {
+  const out = await inPage(`App [ width = 300, height = 300,
+    d: Dataset { { "rows": [ { "n": 1 }, { "n": 2 } ] } },
+    panel: View [ visible = false, width = 300, height = 200, datapath = { d.value },
+      layout: SimpleLayout [ axis = y ],
+      View [ datapath = :rows[], width = 100, height = 20, fill = #FF0000, Text [ text = { "" + :n } ] ],
+      View [ width = 100, height = 20, fill = #00FF00 ] ] ]`, `
+    const before = rt.deferralStats();
+    const els = () => host.querySelectorAll("*").length;
+    const e0 = els();
+    app.d.value = { rows: [ { n: 1 }, { n: 2 }, { n: 3 } ] }; settle(); await frame();
+    const after = rt.deferralStats();
+    const came = Object.values(after.came).reduce((a, b) => a + b, 0) - Object.values(before.came).reduce((a, b) => a + b, 0);
+    return { e0, e1: els(), came };`);
+  assert.equal(out.came, 0, "no waiting view came in");
+  assert.equal(out.e1, out.e0, "no element was made for the hidden panel's new row");
+});
+
+await test("a row added inside a panel shown once and hidden since waits until the panel shows again", async () => {
+  const out = await inPage(`App [ width = 300, height = 300,
+    d: Dataset { { "rows": [ { "n": 1 } ] } },
+    panel: View [ width = 300, height = 200, datapath = { d.value },
+      layout: SimpleLayout [ axis = y ],
+      View [ datapath = :rows[], width = 100, height = 20, fill = #FF0000 ] ] ]`, `
+    const reds = () => [...host.querySelectorAll("*")].filter((e) => getComputedStyle(e).backgroundColor === "rgb(255, 0, 0)").length;
+    const shownFirst = reds();
+    app.panel.visible = false; settle(); await frame();
+    const before = rt.deferralStats().hiddenCame;
+    app.d.value = { rows: [ { n: 1 }, { n: 2 } ] }; settle(); await frame();
+    const whileHidden = reds();
+    const cameHidden = rt.deferralStats().hiddenCame - before;
+    app.panel.visible = true; settle(); await frame();
+    return { shownFirst, whileHidden, cameHidden, shownAgain: reds() };`);
+  assert.equal(out.shownFirst, 1, "the first row is drawn while the panel is shown");
+  assert.equal(out.cameHidden, 0, "nothing came in while the panel was hidden");
+  assert.equal(out.whileHidden, 1, "the new row made no element while the panel was hidden");
+  assert.equal(out.shownAgain, 2, "shown again, the new row is there");
+});
+
+await test("the invariant check names a shown view left waiting", async () => {
+  const out = await inPage(`App [ width = 300, height = 200,
+    box: View [ width = 50, height = 50, fill = #FF0000 ] ]`, `
+    /*no-invariant*/
+    // corrupt it on purpose: put the shown view back on a stand-in
+    const Stand = (await import(location.origin + "/runtime/dist/deferred-surface.js")).DeferredSurface;
+    app.box.$surface = new Stand();
+    return rt.deferralProblems(app);`);
+  assert.equal(out.length, 1, "one problem reported");
+  assert.match(out[0], /shown, still waiting/);
 });
 
 await test("focus and hits on a view never shown are as for any hidden view", async () => {

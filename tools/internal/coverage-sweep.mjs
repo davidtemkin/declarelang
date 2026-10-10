@@ -45,10 +45,10 @@ function walk(dir) {
 for (const d of CORPUS_DIRS) walk(join(ROOT, d));
 const corpus = sources
   // Neither the surface nor the REPORT may attest itself: the model carries
-  // every name by definition, and evals/README.md §Coverage quotes the dark
+  // every name by definition, and evals/harness/README.md §Coverage quotes the dark
   // list — counting it would launder each finding into "covered" one run
   // after it was reported.
-  .filter((p) => !p.endsWith("declare-model.json") && !p.endsWith("evals/README.md"))
+  .filter((p) => !p.endsWith("declare-model.json") && !p.endsWith("evals/harness/README.md"))
   .map((p) => ({ p, text: readFileSync(p, "utf8") }));
 
 // The JS tier, reported separately: a unit test poking `app.a.paused` from
@@ -86,5 +86,5 @@ if (asJson) {
     console.log(`  dark${d.jsOnly ? " (runtime-tested from .mjs; zero author-facing use)" : "                "}  ${d.id}`.replace(/ +  /, "  "));
   }
   if (dark.length === 0) console.log("  (no dark surface — every attribute has at least one example)");
-  console.log(`\nAim the next brief here — a dark attribute is a gap no eval can find (evals/README.md §coverage).`);
+  console.log(`\nAim the next brief here — a dark attribute is a gap no eval can find (evals/harness/README.md §coverage).`);
 }

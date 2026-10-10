@@ -488,7 +488,7 @@ This part is language SURFACE, not new measurement:
   ascent/descent sets (hhea, OS/2 typo, OS/2 win) that browsers disagree on —
   canvas `measureText` reports what THIS engine will actually render.
 - **Ruling wanted in-build**: `Text`-only, or also a per-font query service.
-- Adjacent, found by the coverage sweep (evals/README.md §Coverage): the four
+- Adjacent, found by the coverage sweep (evals/harness/README.md §Coverage): the four
   prevailing typography tokens `headingColor`/`headingWeight`/`codeColor`/
   `codeFamily` are absolute zeros — no theme, sample, doc example, or test
   touches them. Their first real user is their first integration test; light

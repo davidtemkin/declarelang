@@ -52,7 +52,7 @@ The guide's ordering and its "don't do this" moments should be *evidence-driven*
   E-3 responsive-layout-wants-to-constrain-`axis`). This is real evidence of what trips
   people, so the guide can *preempt* it — and it tells you exactly what **not** to front-load
   on page 1 (the marginal gotchas belong late or nowhere).
-- **`evals/`** (tasks + `RESULTS.md` + the E-series) — "what a model gets wrong from the docs
+- **`evals/`** (tasks, run reports + the E-series) — "what a model gets wrong from the docs
   alone" *is* the list of what the guide must teach better. As the editorial pass proceeds,
   new eval failures are new guide backlog.
 

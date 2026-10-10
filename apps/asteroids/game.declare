@@ -4,7 +4,10 @@
 // Every quantity is a whole number. The field is 8192 units across and 6144 up, and wraps
 // round at the edges; speeds are units a frame; directions are 256ths of a turn,
 // counterclockwise from the right. Given the same controls, the game unfolds exactly as it
-// did on the 1979 arcade machine, down to where every rock goes.
+// did on the 1979 arcade machine, down to where every rock goes, as the arcade plays from
+// power-on, when its high-score table is empty and it has no list to show between games.
+// It never shows the list: a game that ends with a better score becomes the high score,
+// where the arcade would ask for initials and add it to its list.
 //
 // The arcade has room for 27 rocks, 4 of the player's shots and 2 of the saucer's, and the
 // field holds that many of each, every one in play or not. The rules go through each list
@@ -67,6 +70,7 @@ class Game extends Dataset [ schema = Playfield,
     playing: boolean = false,
     sinceStart: number = 0,             // frames since this game began
     score: number = 0,
+    highScore: number = 0,              // the best score yet, shown at the top
     shipsLeft: number = 0,              // in reserve
     waveSize: number = 2,
     nextWaveIn: number = 0,             // frames until the next wave may come
@@ -107,11 +111,10 @@ class Game extends Dataset [ schema = Playfield,
 
     angles: number[] = [0, 2, 5, 7, 10, 12, 15, 17, 19, 21, 23, 25, 26, 28, 29, 31],
 
-    // What the player is looking at. Between games, the high scores and the field take turns
-    // of 1024 frames.
+    // what the player is looking at
 
-    mode: "attract" | "scores" | "starting" | "playing" | "over" = {
-        !playing ? (frame % 2048 < 1024 ? "scores" : "attract")
+    mode: "attract" | "starting" | "playing" | "over" = {
+        !playing ? "attract"
         : sinceStart <= 128 ? "starting"
         : shipsLeft == 0 && !this.value.shots.some((s) => s.inPlay) ? "over"
         : "playing" },
@@ -171,16 +174,14 @@ class Game extends Dataset [ schema = Playfield,
         const f = this.draft()
         if (!playing && c.start) { this.begin(f); this.commit(f); return }
         this.upkeep(f)
-        if (mode != "scores") {
-            if (!playing || sinceStart >= 128) {        // ship and saucer wake on the last frame of "PLAYER 1"
-                this.fire(f, c)
-                this.hyperspace(f, c)
-                this.flyShip(f, c)
-                this.runSaucer(f)
-                }
-            this.moveAll(f)
-            this.findHits(f)
+        if (!playing || sinceStart >= 128) {            // ship and saucer wake on the last frame of "PLAYER 1"
+            this.fire(f, c)
+            this.hyperspace(f, c)
+            this.flyShip(f, c)
+            this.runSaucer(f)
             }
+        this.moveAll(f)
+        this.findHits(f)
         this.playSounds(f)
         this.random()
         if (nextWaveIn > 0) nextWaveIn = nextWaveIn - 1
@@ -200,7 +201,8 @@ class Game extends Dataset [ schema = Playfield,
             if (shipsLeft > 0) this.saucerLeaves(f)
             else {
                 playing = false
-                frame = 65280 + frame % 256         // the high scores wait until the clock comes round
+                if (score > highScore) highScore = score
+                frame = 65280 + frame % 256         // the arcade sets its clock here as a game ends
                 this.silence()
                 }
             }

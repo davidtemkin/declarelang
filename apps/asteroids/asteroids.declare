@@ -2,9 +2,9 @@
 # Asteroids
 
 Atari's 1979 arcade game, with the same shapes, letters, sounds, motion and patterns.
-Given the same controls, it plays the arcade's game frame for frame, checked against
-MAME's emulation: every value of the game's state on every frame, and the vector picture
-the beam draws. Keys: ← → or A S turn, ↑ or ' thrust, Space or Return fire, ↓, Shift or /
+Given the same controls, it plays the arcade's game frame for frame from power-on to the
+end of the first game, checked against MAME's emulation: every value of the game's state
+on every frame, and the vector picture the beam draws. Keys: ← → or A S turn, ↑ or ' thrust, Space or Return fire, ↓, Shift or /
 hyperspace, Return or 1 start, Escape pause.
 
 The shape to notice:
@@ -17,17 +17,19 @@ The shape to notice:
   step with the display where its frames divide the arcade's 16 ms closely enough, as at
   60 Hz and its multiples, and every 16 ms of banked time on any other display.
 - **The screen follows the data.** Views are replicated from the records the beam drew
-  this frame; texts, the high-score table and the sound board are constraints on the
-  game's `mode` and state. Nothing in the views updates anything.
+  this frame; texts, scores and the sound board are constraints on the game's `mode`
+  and state. Nothing in the views updates anything.
 - **Everything is a whole number** in the arcade's own units, so the game is the same
   game every time.
 
 What the beam draws is in art.declare: outlines, dots and letters decoded from the
 arcade's vector ROM. The sound board is in sounds.declare: clips recorded from MAME's
 emulation of the arcade's sound circuits. There is one player; "1 COIN 1 PLAY" is shown,
-but one key starts a game. High-score entry is not included, and the table shows fixed
-scores. In an explosion's first frames, the shrapnel can sit up to about three screen
-units from where the arcade draws it.
+but one key starts a game. There is no list of high scores, between games or after one:
+the high score at the top starts at 32460, and a game that ends with a better score
+becomes it, where the arcade would ask for initials and then show its list. In an
+explosion's first frames, the shrapnel can sit up to about four screen units from where
+the arcade draws it.
 */
 
 include [ "game.declare", "art.declare", "sounds.declare" ]
@@ -35,7 +37,7 @@ include [ "game.declare", "art.declare", "sounds.declare" ]
 App [ fill = black,
     // the field before power-on, which fills it
 
-    game: Game { { "rocks": [], "shots": [], "saucerShots": [],
+    game: Game [ highScore = 32460 ] { { "rocks": [], "shots": [], "saucerShots": [],
         "saucer": { "inPlay": false, "size": "large", "x": 0, "y": 0, "vx": 0, "vy": 0, "blast": 0, "struck": false },
         "ship": { "state": "waiting", "x": 0, "y": 0, "vx": 0, "vy": 0, "heading": 0, "wait": 0,
             "landing": "safe", "blast": 0, "struck": false } } },
@@ -105,17 +107,6 @@ App [ fill = black,
         contents = { { rocks: app.game.value.rocks.filter((r) => r.drawn),
             shots: app.game.value.shots.concat(app.game.value.saucerShots).filter((s) => s.drawn) } } ],
 
-    // the high scores shown between games (entering your own is not part of this game)
-
-    highScores: Dataset [ schema = [ rows[]: [ score: number, initials: string ] ] ] {
-        { "rows": [
-            { "score": 32460, "initials": "ACE" }, { "score": 28750, "initials": "BOB" },
-            { "score": 25110, "initials": "CAT" }, { "score": 22940, "initials": "DOT" },
-            { "score": 20380, "initials": "EVE" }, { "score": 18560, "initials": "FOX" },
-            { "score": 16720, "initials": "GUS" }, { "score": 15140, "initials": "HAL" },
-            { "score": 13800, "initials": "IVY" }, { "score": 12520, "initials": "JAN" } ] }
-        },
-
     // The arcade's screen, scaled to fit the window.
 
     screen: View [ width = 1044, height = 788, clip = true,
@@ -123,7 +114,7 @@ App [ fill = black,
         x = { (app.width - width * scale) / 2 },
         y = { (app.height - height * scale) / 2 },
 
-        field: View [ width = 100%, height = 100%, visible = { app.game.mode != "scores" },
+        field: View [ width = 100%, height = 100%,
             rocks: View [ width = 100%, height = 100%, datapath = { app.drawn.value },
                 FieldFigure [ datapath = :rocks[], classFor = { :blast > 0 && !:struck ? Shrapnel : RockOutline } ],
                 ShotDot [ datapath = :shots[] ]
@@ -138,15 +129,9 @@ App [ fill = black,
                 ]
             ],
 
-        scoreTable: View [ width = 100%, height = 100%, datapath = { app.highScores.value },
-            visible = { app.game.mode == "scores" },
-            ArcadeText [ cx = 400, cy = 728, magnify = 2, text = "HIGH SCORES" ],
-            HighScoreLine [ datapath = :rows[] ]
-            ],
-
         Score [ cx = 100, cy = 876, magnify = 2, points = { app.game.score } ],
         ReserveShips [ count = { app.game.shipsLeft } ],
-        Score [ cx = 480, cy = 876, points = { app.highScores.value.rows[0].score } ],
+        Score [ cx = 480, cy = 876, points = { app.game.highScore } ],
         Score [ cx = 768, cy = 876, magnify = 2, visible = { !app.game.playing } ],      // a second player's, between games
         ArcadeText [ cx = 320, cy = 228, magnify = 2, text = "1 COIN 1 PLAY", visible = { !app.game.playing } ],
         ArcadeText [ cx = 400, cy = 728, magnify = 2, text = "PLAYER 1", visible = { app.game.mode == "starting" } ],

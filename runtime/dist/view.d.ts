@@ -84,6 +84,22 @@ export declare function fireRetireTree(v: View): void;
  *  reconstruction, the exact mirror of suppressInit on a rebuilt member
  *  whose episode continues. Parent-first, like construction's own order. */
 export declare function fireInitTree(v: View): void;
+/** Why a waiting view came in — counted for tooling and tests, so a reader
+ *  that brings in what nobody sees shows up as a number. */
+export type MaterializeReason = "shown" | "settled" | "needed-below" | "stencil" | "travel";
+/** How many views attached on a stand-in, how many came in (by reason), and
+ *  how many of those came in while still hidden — brought in by a reader
+ *  that needs the surface, the cost the deferral exists to avoid. */
+export declare function deferralStats(): {
+    deferred: number;
+    came: Record<MaterializeReason, number>;
+    hiddenCame: number;
+};
+/** The deferral invariant, over a tree: no view the user can see waits on a
+ *  stand-in, and every shown view's element sits inside its parent's (a
+ *  surface the view no longer holds would sit elsewhere). Returns one line
+ *  per problem. Tests call it; a dev build reports it at a settle's close. */
+export declare function deferralProblems(root: View): string[];
 export declare class View extends Node {
     /** The navigation target the compiler's link extraction (links.ts) found for
      *  this instance's activation handler — stamped by instantiate from the source
@@ -587,11 +603,19 @@ export declare class View extends Node {
     /** Does this view need its real surface even while hidden? A view the
      *  renderer measures or that holds live state in its element says yes. */
     protected $eagerSurface(): boolean;
-    /** Trade a stand-in for a real surface (deferred-surface.ts): when first
-     *  shown, or — `forced` — when something beneath needs it while hidden.
-     *  The current state is flushed into it, as at attach, and it goes in before
-     *  the next sibling that has one; its shown children follow it in. */
-    $materialize(forced?: boolean): void;
+    /** Bring this view in if it waits on a stand-in (deferred-surface.ts): the
+     *  ONE way a waiting view takes its real surface. "shown" and "settled"
+     *  bring it in only when it and every waiting ancestor are shown; the others
+     *  are readers that need the surface while it is hidden. The waiting chain
+     *  above it comes in first, top down. Returns whether it has a real surface. */
+    $ensureReal(why: MaterializeReason): boolean;
+    /** Is this view, and every ancestor, shown? */
+    private $shownChain;
+    /** One waiting view takes its real surface, its parent being real: the
+     *  current state flushed in as at attach, in before the next sibling that
+     *  has one, then its shown children, then what the stand-in kept. Each step
+     *  reads the tree as it is now — nothing here is held across a call. */
+    private $comeIn;
     /** Push this view's full visual state across the seam. Subclasses extend
      *  it with their capabilities (Text, Image); it runs before the children
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
