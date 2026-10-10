@@ -5,9 +5,7 @@ and no technology named. Built to be run as a two-arm comparison: the same
 brief, the same service, the same seeded events, one implementation in Declare
 and one in whatever an agent chooses.
 
-Where the earlier `evals/comparisons/react-tracker-idiomatic-2026-08-02` round
-compared *data density and performance* — LOC, dependencies, wire weight,
-ms/frame — this one compares **experience**: continuity between states, motion,
+It compares **experience**: continuity between states, motion,
 custom controls, typographic and spatial judgement, and two genuinely different
 layouts rather than one stretched.
 

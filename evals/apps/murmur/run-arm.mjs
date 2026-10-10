@@ -4,12 +4,9 @@
 //   node evals/apps/murmur/run-arm.mjs --sandbox <dir> --model opus \
 //        --arm declare-1 [--service 8330] [--dev 8340]
 //
-// The tracker comparison (evals/comparisons/react-tracker-idiomatic-2026-08-02)
-// measured LOC, dependencies, wire weight and ms/frame — and NOT what it cost
-// to write, because that arm was driven by hand and nothing was captured.
-// `claude -p --output-format json` reports usage, so this wrapper exists to
-// make build cost a first-class number: tokens, wall, and the turn count, per
-// arm, recorded the same way for every arm that follows.
+// `claude -p --output-format json` reports usage, so this wrapper makes build
+// cost a first-class number: tokens, wall, and the turn count, per arm,
+// recorded the same way for every arm.
 //
 // The contract below is adapted from the harness's SYSTEM_DISTRO
 // (evals/harness/solvers.mjs): the repo is the only source of truth, start at

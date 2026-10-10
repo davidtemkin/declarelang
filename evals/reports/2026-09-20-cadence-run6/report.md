@@ -55,4 +55,4 @@ These drove the changes in `05932487`: `rowSpacing` in place of the sentinel; `D
 
 ## Evidence
 
-Here: `app.declare` (the one-round result), `app-after-fixpass.declare`, `app.assert.mjs`, `reply-build.md`, `reply-fixpass.md`, `reply-appendix.md`, `shots/`.
+Here: `app.declare` (the one-round result), `app-after-fixpass.declare`, `app.assert.mjs`, `reply-build.md`, `reply-fixpass.md`, `reply-appendix.md`.

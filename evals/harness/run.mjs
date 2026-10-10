@@ -22,7 +22,7 @@
 // For each task × track × model it builds a hermetic sandbox, runs the solver
 // (one-shot = one call; iterated = a harness-owned verify loop), scores every
 // attempt with the ladder (score.mjs → verify), and appends a metrics line. Then
-// it regenerates evals/RESULTS.md. The reference solver spends no model budget —
+// it writes the run's RESULTS.md scoreboard into its run directory. The reference solver spends no model budget —
 // it's the shakedown/CI path that proves the whole pipeline end to end.
 
 import { readdirSync, existsSync, statSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, cpSync, rmSync } from "node:fs";
@@ -273,9 +273,8 @@ for (const task of tasks) {
   }
 }
 
-// a round writes its own scoreboard beside its evidence; only a classic in-tree
-// run rewrites the committed one
-const resultsPath = val("runs", null) ? join(runDir, "RESULTS.md") : join(ROOT, "evals/RESULTS.md");
+// every run writes its scoreboard beside its evidence, in its own run directory
+const resultsPath = join(runDir, "RESULTS.md");
 generateResults(metrics, { runName, solverId, resultsPath });
 console.log(`\n  metrics → ${metricsFile}`);
 console.log(`  results → ${resultsPath}`);

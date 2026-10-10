@@ -55,7 +55,7 @@ Reading: 58 tool results, 317 KB returned (≈79k tokens once) — `docs/declare
 
 ## Evidence
 
-Run directory `~/Code/eval-cadence-4/` — `logs/agent.stream.jsonl` (every event, incl. every read), `logs/tail.py` (tool calls in order), `logs/cost.py` (results by size + usage), the clone, the fixture log. Here: `app.declare`, `app.assert.mjs`, `prompt.txt`, `shots/`.
+Run directory `~/Code/eval-cadence-4/` — `logs/agent.stream.jsonl` (every event, incl. every read), `logs/tail.py` (tool calls in order), `logs/cost.py` (results by size + usage), the clone, the fixture log. Here: `app.declare`, `app.assert.mjs`, `prompt.txt`.
 
 ## The agent's own closing reply
 

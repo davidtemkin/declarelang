@@ -68,5 +68,4 @@ platform's own scroll process, which now has its own passage in the Space chapte
 
 ## Artifacts
 
-`*.declare` and `DESIGN.md` are the agent's own, verbatim. `shots/` holds the three screenshots
-taken at the end of the run: the two-pane 1440 layout, and the list and thread at 390.
+`*.declare` and `DESIGN.md` are the agent's own, verbatim.

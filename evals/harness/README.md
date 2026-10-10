@@ -1,0 +1,187 @@
+# The harness — many small tasks, scored mechanically
+
+The eval loop from `docs/system-design/verify-and-evals.md` §3: give a model a task brief
+and the language reference **alone** (no repo, no spec), have it write a program, and score
+that program mechanically with the verify ladder. The numbers tune the brief, the
+diagnostics, and — with receipts — the language. A pinned, out-of-tree series of these
+runs against the published download is a **round**: [`../ROUNDS.md`](../ROUNDS.md).
+
+## Run it
+
+```
+node evals/harness/run.mjs [flags]
+  --tasks compose,collection,modes   which tasks (default: all under evals/tasks/)
+  --tracks one-shot,iterated         (default: both)
+  --models <label>[,<label>]         labels for the run; passed to the solver
+  --solver reference|claude          generation seam (default: reference)
+  --budget N                         iterated-track iteration cap (default: task budget.json)
+  --run <name>                       run directory name (default: timestamp)
+```
+
+- **`--solver reference`** returns each task's own `reference.declare`. It spends **no
+  model budget** — it's the shakedown/CI path that proves the pipeline (sandbox →
+  solve → score → metrics → scoreboard) and that every task's hidden acceptance is
+  itself green. Run it after touching the harness or a task.
+- **`--solver claude`** invokes `claude -p` headless with the brief-only context and
+  reports token usage. This is the real eval. The **harness owns the verify loop**
+  (the iterated track re-prompts the model with the failure report each round), so
+  scoring is deterministic and every solver is model-agnostic.
+
+Each run's transcripts, sandboxes, `metrics.jsonl` and its `RESULTS.md` scoreboard land
+in `evals/runs/<name>/`, which git ignores.
+
+## Layout
+
+```
+tasks/<id>/
+  brief.md          framework-neutral: intent, copy, behavior — NO technology named
+  reference.declare a known-good solution (canon-formatted); the reference solver + self-test
+  assert.mjs        rung-5 acceptance, written against the brief (addresses views by role)
+  rubric.json       falsifiable visual questions for the future multimodal judge (unused until phase 6/7)
+  budget.json       iterated-track caps (provisional until the post-shakedown tuning)
+  idiom.json        optional anti/pro source markers — scores HOW a green solution works (see below)
+  fixtures/         data the app consumes (optional)
+harness/
+  run.mjs           orchestrator: sandbox × solve × score × record, per task/track/model
+  sandbox.mjs       builds the hermetic session dir (reference + brief + fixtures + tool contract)
+  solvers.mjs       the generation seam: reference | claude
+  score.mjs         wraps tools/verify.mjs → the structured score (the mechanical oracle)
+  results.mjs       metrics.jsonl → the run's RESULTS.md
+baselines/
+  declare-for-llms-2026-07.md   the frozen language reference a brief-only solver is given
+runs/               per-run artifacts (gitignored)
+```
+
+## What a run COST — the measurement model
+
+Scoring says whether the program is good. This says what producing it cost, and it is
+collected the same way every time so two runs can be compared at all. One command, against
+any run directory holding a `logs/agent.stream.jsonl`:
+
+```
+node evals/harness/measure.mjs <run-dir> [--json] [--calls]
+```
+
+Three metrics matter, in this order.
+
+**Tokens, by class, per model.** Input has three prices, not one — uncached input, input
+written to the cache, and input read back from it — and the third runs two orders of
+magnitude above the others in an agent run, so a single "input" figure hides where the
+money went. Thinking is reported separately from the rest of output because it is invisible
+in the transcript and easy to forget it was paid for.
+
+**Cost**, computed from those classes and the per-model rates in
+[`pricing.json`](pricing.json), which is dated and hand-maintained. The CLI
+reports its own figure too; both are printed, and a disagreement over 2% is called out as a
+probably-stale rate table rather than silently resolved. A model with no rates on file is
+costed from the CLI's figure alone, and the report says so — an invented rate would read as
+a finding about the model instead of about our bookkeeping.
+
+**Time, by activity.** Wall clock splits first into model time and everything else, then the
+remainder is attributed to the tool that spent it: `render` (driving a browser), `check`
+(compile, verify, suites), `read`, `edit`, `service`, and `shell: other` for anything
+unrecognised. This is the one place tokens and time come apart, because a browser render and
+an eight-minute suite cost minutes and almost no tokens. The classification is a heuristic
+over the command text, so `--calls` prints every call with the bucket it landed in: audit it
+rather than trust it.
+
+Two measured runs, for the shape of the thing:
+
+| | Cadence run 5 | Murmur run 2 |
+|---|---|---|
+| total | 50.1 min | 80.3 min |
+| model (the API) | 42.6 min · 85% | 61.9 min · 77% |
+| driving a browser | 1.1 min · 2% | 12.1 min · 15% |
+| editing files | 2.3 min · 5% | 3.5 min · 4% |
+| reading (98–128 calls) | 2.3 min · 4% | 0.4 min · 1% |
+| everything else | 1.9 min · 4% | 2.4 min · 3% |
+| cost | $26.41 | $57.16 |
+| turns | 149 | 274 |
+
+The model is three quarters to six sevenths of the clock in both, so tokens are the right
+primary metric and time is that metric plus a tail. The tail is not uniform: the run that
+drove a browser hard spent an eighth of its life there, and reading — the activity that
+feels expensive because the files are large — cost under a minute across a hundred calls.
+
+Turns, tool calls, and checks that reported failure are collected under a heading that says
+what they are: **shape, not judgment**. They describe how a run moved, they are easy to
+optimise for dishonestly, and cost and time already price whatever they would have told us.
+
+### The friction tier — diagnostics, not scores
+
+The same command prints a second section whose job is different: not how the run did, but
+**where it got stuck, and which lever would have helped**. Each signal is chosen because it
+answers a question we would otherwise guess at.
+
+| signal | what it tells us | the lever it points at |
+|---|---|---|
+| every diagnostic the language produced, by code, with the sentence it said (counted as times *seen* in tool output, so a re-run counts again) | which refusals authors actually meet, and which they meet more than once | the message, or the rule behind it |
+| codes hit twice or more | the message did not teach the first time | rewrite it to answer "what do I write instead" |
+| what `declare-help` was asked, and how often | what an author needs at the point of writing | the reference, and what the skill routes to |
+| searches that came back empty | the author expected something to exist under that name | naming, or a missing capability |
+| files read more than once | what the run kept returning to, and what it could not hold | document shape and length; what belongs in the skill |
+| corrections that needed eyes (a render, then an edit, with no check between) | the expensive class of correction — a round trip AND the tokens to read it | make the error catchable statically |
+| truncated outputs, permission denials | friction that is ours, not the language's | packaging and the tool contract |
+
+Two examples from the runs on file. Murmur hit `DECLARE6001` forty-four times, the
+typecheck code, the first instance being a `:path` read inside a `Spring` — one confusion,
+repeated, and a clear place to spend. It also made twenty corrections that needed eyes,
+which is why that run's browser time was an eighth of its clock. Cadence's most-asked help
+topics were the library controls, and its searches all found what they were looking for.
+
+## What's scored
+
+Every cell is judged by the verify ladder (`tools/verify.mjs`), not by taste:
+rungs 1–3 (compile, resolve, typecheck), rung 4 (headless boot), rung 5 (behavioral
+asserts with real input and deterministic motion). Rung 6 (visual judge) arrives with
+the multimodal-judge phase; `rubric.json` is authored now so tasks are ready for it.
+The **format-distance** metric (raw output vs. its canonical form) rides along free.
+
+A task may also carry an **`idiom.json`** — regex markers over the candidate source,
+scored 10 minus the summed weights of *anti*-marker hits (timers driving motion,
+coordinates computed into data, stored rect tables), floor 0. It exists because the
+ladder can't see HOW a program works, only THAT it works: an imperative solution that
+re-implements layout and springs by hand can climb all five rungs. *Pro* markers
+(a `layout:`, a `Spring [`, a `viewAt(`) are recorded as informational presence only —
+never scored, so an idiomatic shape the markers didn't anticipate isn't punished. The
+first idiom task is `shelf`, whose brief deliberately contains **no** idiomatic nudges:
+every requirement has an obvious mainstream answer, and the measure is whether the
+solver reaches for the language's model anyway.
+
+## Adding a task
+
+1. Write `brief.md` as intent + behavior, naming no technology (so it stays
+   baseline-ready and translation-trap-immune).
+2. Write `reference.declare` and format it to canon (`node tools/format.mjs --write`).
+3. Write `assert.mjs` against the brief — address views by **role/structure**, so any
+   solution shaped to the brief scores, not just the reference's exact tree.
+4. Self-test: `node tools/verify.mjs evals/tasks/<id>/reference.declare --assert evals/tasks/<id>/assert.mjs`
+   must be green through R5. (A failing reference means the acceptance is wrong.)
+5. `node evals/harness/run.mjs --tasks <id> --solver reference` — the cell must be green.
+
+## Coverage — the dark-surface detector
+
+The 2026-08 field round taught one structural lesson (assessment §6): **gaps
+survive app-scale evals exactly where no brief ever points.** Image fit hid
+behind square fixtures, typographic leading behind unmeasured prose, rotation
+behind agents designing within the language's reach. Five greenfield builds
+missed in three days what one pixel-target replication found in an hour —
+because a fixed external target is the only brief an agent can't quietly
+design around.
+
+Two standing rules follow, plus a tool:
+
+- **Replication is repertoire.** Pixel-target replication of an existing
+  design belongs in every round (code-to-code *translation* stays low-value;
+  that ruling holds).
+- **Briefs demand the dark surface deliberately.** When the sweep below names
+  a dark region, the next brief points at it — and every eval `Image` gets at
+  least one non-square source, because a 1:1 fixture hides every aspect bug
+  by construction.
+- **The sweep:** `node tools/internal/coverage-sweep.mjs` joins every schema
+  attribute against the whole corpus (apps, evals, tests, library, docs
+  examples) and lists the ones **exercised by nothing**. A report, not a
+  gate: a zero is a fact to aim a brief at. First run (2026-08-06): 13 of
+  178 attributes dark — among them `Animator.paused`/`relative`,
+  `Video.playbackRate`/`ended`, and the `heading*`/`code*` prevailing tokens
+  — which is 13 places the next silent field failure was already waiting.

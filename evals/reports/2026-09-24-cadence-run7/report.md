@@ -94,4 +94,4 @@ braces on a `DataSource` but not on the App.
 
 ## Evidence
 
-Run directory `~/Code/eval-cadence-7/` — `logs/agent.stream.jsonl` (every event, every read), `logs/question.stream.jsonl`, `report.py`/`tail.py`/`cost.py`. Here: `app.declare`, `prompt.txt`, `started.txt`, the two replies and the question, `shots/`.
+Run directory `~/Code/eval-cadence-7/` — `logs/agent.stream.jsonl` (every event, every read), `logs/question.stream.jsonl`, `report.py`/`tail.py`/`cost.py`. Here: `app.declare`, `prompt.txt`, `started.txt`, the two replies and the question.

@@ -60,8 +60,8 @@ runs on a subscription-authenticated CLI draw plan usage, not billed dollars.
 
 **Never crosses in:** the round tree itself, sandboxes, transcripts, agent-built
 programs (they are evidence, referenced by path; promoting one to `apps/` is a curation
-decision, not a merge), or a regenerated `evals/RESULTS.md` (that file belongs to
-in-tree harness runs).
+decision, not a merge), or a run's `RESULTS.md` scoreboard (it stays in that run's
+directory).
 
 ## Index
 

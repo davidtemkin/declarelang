@@ -14,4 +14,3 @@ Each file is a record of one occasion; what was acted on lives in the language, 
 | `findings-2026-08-23-pointer-corridor.md` | a reference that went red at round 001's drift check |
 | `field-report-storefront.md` | building the Aperture storefront UI |
 | `language-learnings.md` | the friction log and the E-series register |
-| `persona-tests-2026-07-18/` | three personas read the site and the guide |
