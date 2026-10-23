@@ -160,6 +160,32 @@ static void test_cycle(void) {
   printf("  cycle ok\n");
 }
 
+/* 4b. an abort keeps what is still queued: three rules read one cell; the first
+ * aborts the settle (as the host does when a step or a handler throws). The two
+ * queued behind it are not dropped — the next settle runs them, and only them:
+ * the rule that aborted is not retried. */
+static double aborts(dk_kernel *k, uint32_t r) { (void)r; kernel_abort(k); return 0; }
+static void test_abort(void) {
+  uint32_t nslots[1] = { 4 }; uint8_t kinds[4] = { 0, 0, 0, 0 }; double init[4] = { 0, 0, 0, 0 };
+  uint32_t e0[1] = { 0 };
+  R rules[3] = { { 1, DK_BODY, 0, e0, 1, 0, 0, 0 }, { 2, DK_BODY, 0, e0, 1, 0, 0, 0 }, { 3, DK_BODY, 0, e0, 1, 0, 0, 0 } };
+  Buf b = image(1, nslots, kinds, init, rules, 3, 0, 0);
+  dk_kernel *k = load(&b, (dk_caps){ 0, 0, 0, 0 });
+  kernel_run(k, 0); kernel_run(k, 1); kernel_run(k, 2); kernel_settle(k);
+  body_fn[0] = aborts; body_value[1] = 5; body_value[2] = 6; last_err = 0;
+  kernel_write(k, 0, 1);
+  logn = 0; logbuf[0] = 0;
+  CHECK(kernel_settle(k) == DK_ERR_ABORT && last_err == DK_ERR_ABORT && last_bad == 0);
+  CHECK(strcmp(logbuf, "b0 ") == 0);
+  CHECK(kernel_pending(k) == 1);             /* kept, not abandoned */
+  logn = 0; logbuf[0] = 0;
+  CHECK(kernel_settle(k) == 2);
+  CHECK(strcmp(logbuf, "b1 b2 ") == 0);      /* the rest, in order; the aborting rule is not retried */
+  CHECK(kernel_table(k)[2] == 5 && kernel_table(k)[3] == 6);
+  CHECK(kernel_pending(k) == 0 && kernel_settle(k) == 0);
+  printf("  abort ok\n");
+}
+
 /* 5. ownership: a bound slot refuses an author write; a yielding owner steps aside */
 static void test_ownership(void) {
   uint32_t nslots[1] = { 3 }; uint8_t kinds[3] = { 0, 0, 0 }; double init[3] = { 1, 0, 0 };
@@ -253,7 +279,7 @@ static void test_lifecycle(void) {
 
 int main(void) {
   printf("kernel-test\n");
-  test_chain(); test_diamond(); test_phases(); test_cycle(); test_ownership(); test_dynamic(); test_close(); test_lifecycle();
+  test_chain(); test_diamond(); test_phases(); test_cycle(); test_abort(); test_ownership(); test_dynamic(); test_close(); test_lifecycle();
   printf("%d checks, %d failed\n", checks, fails);
   return fails ? 1 : 0;
 }

@@ -859,6 +859,16 @@ static void abandon(dk_kernel *k) {
   }
 }
 
+/* After an abort: what is still queued (or still in the write ring) stays, and
+ * a settle is scheduled to run it. A step or a change handler that threw says
+ * nothing about the rules queued behind it — their inputs moved, and dropping
+ * them left each holding a value the world had left until one of its own
+ * inputs happened to move again. */
+static void rearm(dk_kernel *k) {
+  if (k->qhead[0] == k->qtail[0] && k->qhead[1] == k->qtail[1] && k->ring_count == 0) return;
+  if (!k->pending) { k->pending = 1; CALL_SCHEDULE(k); }
+}
+
 int32_t kernel_settle(dk_kernel *k) {
   if (k->flushing) return 0;
   k->pending = 0; k->aborted = 0;
@@ -892,7 +902,9 @@ int32_t kernel_settle(dk_kernel *k) {
   }
 out:
   k->flushing = 0; k->aborted = 0;
-  abandon(k);
+  /* a CYCLE or a STORM drops what is still queued: running it again would only
+     repeat the loop; an ABORT keeps it for the next settle (rearm) */
+  if (err == DK_ERR_ABORT) rearm(k); else abandon(k);
   CALL_END(k);
   if (err != DK_OK) { CALL_ERROR(k, err, bad); return err; }
   return runs;

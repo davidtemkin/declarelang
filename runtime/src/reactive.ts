@@ -119,10 +119,15 @@ export function noteWrite(self: object, name: string, from: unknown, to: unknown
  *  settle its writes open can say what opened it. `node` is whose code it is,
  *  so a reader sharing the runtime with the subject can keep the subject's. */
 export function noteOrigin(label: string, node: object | null = null): void { if (traceHook !== null) traceHook.origin(label, node); }
-/** An exception raised inside a body or a step during a settle: the kernel is
- *  told to abort, the settle unwinds cleanly on its side, and this is thrown
- *  from settle() (or run()) on ours. */
+/** An exception raised inside a step, a change handler, or a nested body: the
+ *  kernel is told to abort (a step, a handler), the settle unwinds cleanly on
+ *  its side, and this is thrown from settle() (or run()) on ours. */
 let pendingError: unknown = null;
+/** The first exception a SETTLE-DRIVEN body raised in this settle. Kept apart
+ *  from pendingError so a nested run()'s rethrow() later in the same settle
+ *  cannot hand it to an unrelated body; settle() throws it once the settle has
+ *  finished everything else. */
+let settleError: unknown = null;
 let scheduled = false;
 let inSettle = false;
 /** Is a settle running now (a rule body, a step, a change handler)? */
@@ -149,10 +154,23 @@ const HOST: KernelHost = {
       // A body threw. NESTED (entered through a JS run() — a replicator
       // constructing a row inside its own apply): hand the error to that JS
       // caller, which may contain it; rethrow() throws it as run() returns.
-      // SETTLE-DRIVEN (no JS between the kernel's loop and this body): abort
-      // the settle, and settle() throws it once the kernel has unwound.
-      if (pendingError === null) pendingError = e;
-      if (outer.length === 0) K!.abort();
+      // SETTLE-DRIVEN (no JS between the kernel's loop and this body): the
+      // failure is this rule's alone. It is named, it keeps its last value,
+      // and the settle goes on — every other rule queued in it still runs, so
+      // one throwing rule cannot leave the rules queued behind it holding the
+      // values the world is leaving (a theme switch half-applied: whatever
+      // updated before the throw switched, everything after kept the old
+      // colours, and nothing re-ran them until their own inputs moved again).
+      // settle() throws the first such error once the settle has finished.
+      // Nothing retries: the rule is not re-queued, so a body that throws on
+      // every run throws once per settle that wakes it, never in a loop.
+      if (outer.length > 0) { if (pendingError === null) pendingError = e; }
+      else {
+        const p = c.sourcePos;
+        const where = p === null ? "" : ` (${p.file !== undefined ? `${p.file}, ` : ""}line ${p.line}, col ${p.col})`;
+        console.error(`[Declare] ${c.label}${where} threw: ${(e as Error)?.message ?? e}`, e);
+        if (settleError === null) settleError = e;
+      }
       // a kernel-landed rule's cell keeps its value: the kernel lands what we return
       return c.landedCell >= 0 ? table[c.landedCell] : 0;
     }
@@ -1047,9 +1065,9 @@ export function settle(): void {
     finally { inSettle = false; }
   }
   if (traceHook !== null) traceHook.after(r);
-  if (r < 0 || pendingError !== null) {
-    const e = pendingError ?? new DeclareError(`kernel: settle failed (${r})`);
-    pendingError = null;
+  if (r < 0 || pendingError !== null || settleError !== null) {
+    const e = pendingError ?? settleError ?? new DeclareError(`kernel: settle failed (${r})`);
+    pendingError = null; settleError = null;
     after.length = 0;
     throw e;
   }

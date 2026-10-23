@@ -120,4 +120,55 @@ await test("a throwing onMessage does not kill the stream (fire's guard)", async
   assert.equal(lines.filter((l) => l.includes("onMessage on EventStream threw")).length, 2);
 });
 
+// A THROWING CONSTRAINT IS ITS OWN FAILURE. A theme switch woke three rules in
+// one settle and the middle one threw: the settle stopped there and dropped the
+// third, which kept the old theme's value until one of its own inputs moved
+// again — half the screen switched, half did not, and the uncaught error named
+// no rule. Now the rule that threw is named and keeps its last value, every
+// other rule in the settle still runs, and settle() still throws the error.
+const THEMED = `App [ width = 100, height = 100,
+    night: boolean = true,
+    wash: Text [ text = { app.night ? "dark fill" : "light fill" } ],
+    badge: Text [ text = { app.night ? "badge" : (null as any).x } ],
+    ink: Text [ text = { app.night ? "dark ink" : "light ink" } ],
+  ]`;
+
+await test("a constraint that throws is named, and the rules queued behind it in the settle still run", async () => {
+  const r = await compile(THEMED);
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+  const a = buildProgram(r.program);
+  settle();
+  assert.equal(a.ink.text, "dark ink");
+  let thrown = null;
+  const lines = await logged(() => {
+    a.night = false;
+    try { settle(); } catch (e) { thrown = e; }
+  });
+  assert.ok(thrown instanceof TypeError, `settle() still throws the body's own error: ${thrown}`);
+  assert.equal(a.wash.text, "light fill", "the rule before the throw updated");
+  assert.equal(a.ink.text, "light ink", "the rule queued behind the throw updated too");
+  assert.equal(a.badge.text, "badge", "the rule that threw keeps its last value");
+  const named = lines.filter((l) => l.startsWith("[Declare] ") && l.includes(" threw: "));
+  assert.equal(named.length, 1, `the throw is logged once: ${JSON.stringify(lines)}`);
+  assert.match(named[0], /Text\.text \(line 4, col \d+\) threw/, `the log names the rule that threw: ${named[0]}`);
+});
+
+await test("a constraint that throws on every run is not retried: once per settle that wakes it", async () => {
+  const r = await compile(THEMED);
+  const a = buildProgram(r.program);
+  settle();
+  const lines = await logged(() => {
+    a.night = false;
+    assert.throws(() => settle(), TypeError);
+    settle();   // nothing is left queued: no throw, no re-run
+    settle();
+  });
+  assert.equal(lines.filter((l) => l.includes(" threw: ")).length, 1, `one throw, one line: ${JSON.stringify(lines)}`);
+  a.night = true;
+  settle();   // the rule recovers the moment its input lets it
+  assert.deepEqual([a.wash.text, a.badge.text, a.ink.text], ["dark fill", "badge", "dark ink"]);
+  await logged(() => { a.night = false; assert.throws(() => settle(), TypeError); });
+  assert.deepEqual([a.wash.text, a.badge.text, a.ink.text], ["light fill", "badge", "light ink"]);
+});
+
 summarize("runtime-errors");

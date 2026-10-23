@@ -312,6 +312,36 @@ await bothAgree("a rule that re-runs without end is a cycle, and the settle repo
   r("settle", K.settle());
 });
 
+// AN ABORT KEEPS THE QUEUE. The host aborts a settle when a step or a change
+// handler throws; the rules that step's writes queued are not the thrower's,
+// and dropping them left each holding a value its inputs had moved past until
+// one of those inputs moved again. They stay queued, a settle is scheduled, and
+// it runs them. A cycle still drops its queue (the case above): re-running it
+// would only repeat the loop.
+await bothAgree("a settle a step aborts keeps what is still queued, and the next settle runs it", (K, h, r) => {
+  const src = K.addCell(0, false), mid = K.addCell(0, false);
+  const ran = [];
+  const ra = K.addRule(-1, KIND.BODY, 0, [src], 0);
+  const rb = K.addRule(-1, KIND.BODY, 0, [mid], 0);
+  const rc = K.addRule(-1, KIND.BODY, 0, [mid], 0);
+  h.bodies.set(ra, () => { ran.push("a"); return 1; });
+  h.bodies.set(rb, () => { ran.push("b"); return 1; });
+  h.bodies.set(rc, () => { ran.push("c"); return 1; });
+  K.run(ra); K.run(rb); K.run(rc);
+  r("land", K.settle());
+  ran.length = 0;
+  h.onAfter(() => { K.set(mid, 1); K.abort(); });   // a step that writes, then throws
+  K.set(src, 1);
+  r("settle", K.settle());
+  r("ran", ran.join(" "));
+  r("pending", K.pending());
+  ran.length = 0;
+  r("settle2", K.settle());
+  assert.equal(ran.join(" "), "c", "the rule queued behind the abort runs at the next settle");
+  r("ran2", ran.join(" "));
+  r("pending2", K.pending());
+});
+
 await bothAgree("after-settle steps and change events loop until quiet", (K, h, r) => {
   const cell = K.addCell(0, false), out = K.addCell(0, false);
   const at = K.addCode([OP.LOAD, cell, OP.LOAD, cell, OP.ADD, OP.END]);
