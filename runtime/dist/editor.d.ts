@@ -34,6 +34,12 @@ export declare function bindTwoWayDynamic(view: View, name: string, src: string,
 /** @api Judge the draft now: an editor that judges on leaving says what is
  *  wrong from here on. Leaving the field does this; so may a Save. */
 export declare function judgeDraft(view: View, name: string): void;
+/** @api A field the program owns (no `<->`) that declares `validate()`: it is
+ *  judged on its own draft slot whenever the draft changes — a keystroke or the
+ *  program's write alike — and on whatever else `validate` reads. `judgeOn`,
+ *  `judge()`, `error` and `valid` mean what they mean for a bound field; there
+ *  is no commit and no `dirty`, since nothing is written back. */
+export declare function judgeOwnDraft(view: View, name: string): void;
 /** @api The user changed the draft (a native edit, a picker selection). Refresh
  *  the session, and commit now if the policy is live (`commitOn === "input"`). */
 export declare function edited(view: View, name: string, commitOn: string): void;
@@ -44,8 +50,8 @@ export declare function edited(view: View, name: string, commitOn: string): void
 export declare function commitDraft(view: View, name: string): void;
 /** @api Discard the draft — reset the slot to the committed value. */
 export declare function revertDraft(view: View, name: string): void;
-/** @api The base class for an **editor** — a class that two-way edits a
- *  dataset value via `<->`. It owns the edit-session slots (`commitOn` / `error`
+/** @api The base class for an **editor** — a class that edits a value, two-way
+ *  through `<->` or as a field the program owns. It owns the edit-session slots (`commitOn` / `error`
  *  / `valid` / `dirty`) and the `commit()` / `revert()` verbs; a subclass only
  *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,
  *  a `Picker` → `value`). Custom controls become editors by extending it. */

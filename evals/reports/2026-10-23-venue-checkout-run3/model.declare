@@ -1,0 +1,251 @@
+/*
+## The data
+
+Everything comes from the service: the production and its performances, one
+performance's seat map, the account signed in, and the order a payment makes.
+Each is a source with the rules that are true of it whoever is looking — the
+seat map knows where a seat is and what it costs, the account which of its
+cards can still be used. The payment form is the person's draft of an order:
+what they have typed, what is wrong with it, and the order it would send.
+*/
+
+
+// ── what the service sends ──────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema HouseSeat [ id: string, number: number, status: "available" | "sold" ]
+schema HouseRow [ name: string, seats[]: HouseSeat ]
+schema HouseSection [ key: string, name: string, priceCents: number, feeCents: number, rows[]: HouseRow ]
+
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string, performanceId: string, tickets[]: Ticket ]
+
+// every refusal: a code, the sentence for the person, and what it is about
+
+schema Refusal [ error: string, message: string, field?: string, conflicts?: string[] ]
+
+// one chosen seat, with what it costs
+
+schema ChosenSeat [ id: string, label: string, section: string, row: string, number: number, priceCents: number, feeCents: number ]
+
+// the hall's extent in seat units (see HALL in venue.ts)
+
+schema Extent [ left: number, top: number, width: number, height: number ]
+
+
+/*
+## One performance's house
+
+The seat map, kept current by the event stream: a seat someone else buys is
+written sold here, so every view of the hall follows. It loads once per
+performance and nothing fetches it again while the person looks, so the
+stream's writes go into the source's own value.
+*/
+
+class SeatMap extends DataSource [ credentials = include,
+    schema = [ performanceId: string, sections[]: HouseSection ],
+    errorSchema = Refusal,
+
+    sections() -> HouseSection[] { return this.value?.sections ?? [] },
+
+    // "ORCH-C-14" → where it is in the map, or null
+
+    locate(id: string) -> number[]? {
+        const s = this.sections()
+        for (let i = 0; i < s.length; i++)
+            for (let j = 0; j < s[i].rows.length; j++) {
+                const k = s[i].rows[j].seats.findIndex((x) => x.id == id)
+                if (k >= 0) return [i, j, k]
+                }
+        return null
+        },
+
+    isFree(id: string) -> boolean {
+        const at = this.locate(id)
+        return at != null && this.sections()[at[0]].rows[at[1]].seats[at[2]].status == "available"
+        },
+
+    markSold(id: string) {
+        const at = this.locate(id)
+        if (at != null) this.set(["sections", at[0], "rows", at[1], "seats", at[2], "status"], "sold")
+        },
+
+    // what a chosen seat is, and what it costs
+
+    pick(id: string) -> ChosenSeat? {
+        const at = this.locate(id)
+        if (at == null) return null
+        const sec = this.sections()[at[0]], row = sec.rows[at[1]], seat = row.seats[at[2]]
+        return ({ id: id, label: `${sec.name}, row ${row.name}, seat ${seat.number}`, section: sec.name, row: row.name,
+                  number: seat.number, priceCents: sec.priceCents, feeCents: sec.feeCents })
+        },
+
+    freeIn(sec: HouseSection) -> number {
+        return sec.rows.reduce((n, r) => n + r.seats.filter((x) => x.status == "available").length, 0)
+        },
+    seatsIn(sec: HouseSection) -> number { return sec.rows.reduce((n, r) => n + r.seats.length, 0) },
+
+    free: number = { classroot.sections().reduce((n, s) => n + classroot.freeIn(s), 0) },
+    total: number = { classroot.sections().reduce((n, s) => n + classroot.seatsIn(s), 0) },
+
+    // each row's ring — its place counting back from the stage across every
+    // section — so a row's radius is its ring plus the walkways in front of it
+
+    firstRing(section: number) -> number {
+        return this.sections().slice(0, section).reduce((n, s) => n + s.rows.length, 0)
+        },
+
+    // the hall's extent: every seat, the stage, and a margin
+
+    extent: Extent = { classroot.measure() },
+    measure() -> Extent {
+        let minX = -HALL.stageHalf, maxX = HALL.stageHalf, minY = HALL.stageBack, maxY = HALL.stageFront
+        this.sections().forEach((s, si) => {
+            const first = this.firstRing(si)
+            s.rows.forEach((r, ri) => {
+                const rad = ringRadius(si, first + ri)
+                const n = r.seats.length
+                const a = seatPoint(0, n, rad), b = seatPoint(n - 1, n, rad)
+                minX = Math.min(minX, a.x); maxX = Math.max(maxX, b.x)
+                minY = Math.min(minY, a.y); maxY = Math.max(maxY, rad)
+                })
+            })
+        const m = HALL.margin
+        return ({ left: minX - m, top: minY - m, width: maxX - minX + 2 * m, height: maxY - minY + 2 * m })
+        }
+    ]
+
+
+/*
+## The account
+
+`/api/me`: the person signed in, or a refusal when no one is. The session is
+the service's cookie, so every request that carries it says so.
+*/
+
+class AccountSource extends DataSource [ credentials = include, schema = Account, errorSchema = Refusal,
+    signedIn: boolean = { classroot.loaded && !classroot.failed },
+    cards() -> SavedCard[] { return this.signedIn ? this.value?.cards ?? [] : [] },
+    expired(c: SavedCard) -> boolean { return isExpired(c.expMonth, c.expYear, app.clock.year, app.clock.month) },
+    usable() -> SavedCard[] { return this.cards().filter((c) => !this.expired(c)) },
+    card(id: string) -> SavedCard? { return this.cards().find((c) => c.id == id) ?? null }
+    ]
+
+
+/*
+## The payment form
+
+What the person has typed, and what is wrong with it. A field's message waits
+until the person has left it after typing, or has tried to pay; a refusal from
+the service is shown on the field it names until that field changes. The
+order it would send is derived from it, so pressing Pay sends exactly what is
+on the screen.
+*/
+
+class PaymentForm extends Node [
+    email: string = "",
+    name: string = "",
+    digits: string = "",            // the card number, digits only; shown grouped
+    expiry: string = "",            // "04 / 28", as shown
+    cvc: string = "",
+    line1: string = "",
+    line2: string = "",
+    city: string = "",
+    postal: string = "",
+    country: string = "US",
+    savedCvc: string = "",
+    method: string = "new",         // "new", or the id of a saved card
+
+    tried: boolean = false,         // a payment has been asked for: say everything
+    edited: string[] = [],          // fields typed in
+    left: string[] = [],            // fields left after typing
+    refusalField: string = "",      // the field the service refused, and its sentence
+    refusalText: string = "",
+
+    brand: string = { brandOf(classroot.digits) },
+    savedBrand: string = { app.account.card(classroot.method)?.brand ?? "" },
+
+    problems: FieldProblems = { classroot.judgeAll() },
+    judgeAll() -> FieldProblems {
+        return ({
+            email: emailProblem(this.email),
+            name: this.name.trim() == "" ? "Enter the name as it's printed on the card." : "",
+            number: cardNumberProblem(this.digits),
+            expiry: expiryProblem(this.expiry, app.clock.year, app.clock.month),
+            cvc: cvcProblem(this.cvc, this.brand),
+            line1: this.line1.trim() == "" ? "Enter the street address." : "",
+            line2: "",
+            city: this.city.trim() == "" ? "Enter the town or city." : "",
+            postal: postalProblem(this.postal, this.country),
+            savedCvc: cvcProblem(this.savedCvc, this.savedBrand)
+            })
+        },
+
+    // the fields this way of paying asks for, in the order they are shown
+
+    asked: string[] = { classroot.method == "new"
+        ? ["email", "name", "number", "expiry", "cvc", "line1", "city", "postal"]
+        : ["savedCvc"] },
+    firstProblem: string = { classroot.asked.find((f) => classroot.problems[f] != "") ?? "" },
+
+    // what a field shows under it now
+
+    message(f: string) -> string {
+        if (this.refusalField == f) return this.refusalText
+        return this.tried || this.left.includes(f) ? this.problems[f] : ""
+        },
+
+    typed(f: string) {
+        if (!this.edited.includes(f)) this.edited = [...this.edited, f]
+        if (this.refusalField == f) { this.refusalField = ""; this.refusalText = "" }
+        },
+    leave(f: string) {
+        if (this.edited.includes(f) && !this.left.includes(f)) this.left = [...this.left, f]
+        },
+    refuse(f: string, text: string) { this.refusalField = f; this.refusalText = text },
+
+    // signing in fills what the person has not typed themselves
+
+    adopt(a: Account) {
+        if (this.email == "") this.email = a.email
+        if (this.name == "") this.name = a.name
+        const b = a.billing
+        if (b != null && this.line1 == "" && this.city == "" && this.postal == "") {
+            this.line1 = b.line1; this.line2 = b.line2 ?? ""; this.city = b.city
+            this.postal = b.postalCode; this.country = b.country
+            }
+        const first = app.account.usable()[0]
+        if (first != null && this.digits == "") this.method = first.id
+        },
+    signedOut() { if (this.method != "new") this.method = "new"; this.savedCvc = "" },
+
+    // a refusal leaves everything but the security code
+
+    forgetCodes() { this.cvc = ""; this.savedCvc = "" },
+
+    // the order this form would place
+
+    payment() -> object {
+        if (this.method != "new") return ({ savedCardId: this.method, cvc: this.savedCvc })
+        const e = parseExpiry(this.expiry)
+        return ({
+            card: { number: this.digits, expMonth: e?.month ?? 0, expYear: e?.year ?? 0, cvc: this.cvc, name: this.name.trim() },
+            billing: { line1: this.line1.trim(), line2: this.line2.trim() == "" ? null : this.line2.trim(), city: this.city.trim(),
+                       postalCode: tidyPostal(this.postal, this.country), country: this.country }
+            })
+        },
+    sendTo() -> string { return this.method == "new" ? this.email.trim() : app.account.value?.email ?? this.email.trim() },
+
+    // after a sale, the card's details go; who they are stays
+
+    sold() {
+        this.digits = ""; this.expiry = ""; this.cvc = ""; this.savedCvc = ""
+        this.tried = false; this.edited = []; this.left = []; this.refusalField = ""; this.refusalText = ""
+        }
+    ]

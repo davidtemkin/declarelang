@@ -46,4 +46,4 @@ App [ width = 360, height = 240, fill = white, textColor = #172530,
 open · `apps/tracker/tracker.declare`: `ListRow`, a height spring that reveals the editor
 on arrival · `apps/desktop/desktop.declare`: `Window`, the dock-park journey on `miniT`.
 
-**Guide** Motion and states · Animated arrangements.
+**Guide** Motion and states · Animated layouts.

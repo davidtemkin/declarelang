@@ -1,4 +1,4 @@
-<!-- nav: Your own views and drawing -->
+<!-- nav: Your own views -->
 <!-- part: Building -->
 
 # Your own views and drawing

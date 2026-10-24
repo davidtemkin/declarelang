@@ -1214,11 +1214,15 @@ export class View extends Node {
         if (this.ignoreClip)
             s.setIgnoreClip?.(true);
         if (this.ignoreScroll)
-            s.setIgnoreScroll?.(true);
+            s.setIgnoreScroll?.(this.$pinsToFrame());
+        for (const a of this.$endAnchor)
+            s.setEndAnchor?.(a, true);
         if (this.cursor !== "")
             s.setCursor(this.cursor);
         if (this.pointerEvents !== "")
             s.setPointerEvents(this.pointerEvents);
+        if (this.direction !== "inherit")
+            s.setDirection?.(this.direction);
         if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0 || this.rotation !== 0
             || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0 || this.$is3D())
             pushTransform(this);
@@ -1343,6 +1347,18 @@ export class View extends Node {
         const o = rootFrameOrigin(this);
         const r = (this.root ?? this);
         return { x: o.x + r.scrollX, y: o.y + r.scrollY };
+    }
+    /** The axes this view is placed at the END of its parent on (`y = end`) —
+     *  for a view pinned to the page, its surface anchors there (setEndAnchor). */
+    $endAnchor = new Set();
+    /** Does `ignoreScroll` pin this view? Only against its OWN parent's scroll:
+     *  a child of a scroller, or of the App (the page). One nested deeper has no
+     *  scroll to opt out of — its parent does not scroll — so it scrolls with
+     *  its parent, on every backend and in every hit walk alike (the boot check
+     *  names it, and where it would pin). */
+    $pinsToFrame() {
+        const p = this.parent;
+        return this.ignoreScroll && p instanceof View && (!(p.parent instanceof View) || p.scrolls !== "none");
     }
     /** The view this one paints in when that is not its parent, else null. */
     get travelHost() {
@@ -1570,6 +1586,18 @@ export class View extends Node {
      *  without stealing its clicks (LZX's `clickable` intent, made automatic).
      *  A handler receives one plain event argument — the pointer position in
      *  this view's own coordinates. */
+    /** Does a press on this view's box stop here — a handler, a tip, a link or a
+     *  scroll axis declared (the rule `$inputSink` wires by)? What a checking
+     *  tool asks to know where a real press would go (interaction.ts pressAt). */
+    $takesPointer() {
+        const self = this;
+        for (const h of POINTER_HANDLERS)
+            if (typeof self[h] === "function")
+                return true;
+        // a native field takes its own presses (the caret, the focus), declared or not
+        const leaf = this.$leafRole?.();
+        return this.scrolls !== "none" || this.tooltipLabel !== "" || this.link !== "" || leaf === "textField";
+    }
     $inputSink() {
         const self = this;
         let handled = false;
@@ -1778,6 +1806,10 @@ const pushScrolls = (v, ax) => {
     // opening (or closing) a scroll axis changes whether this view takes the
     // pointer — the same rewire a late `link` or `tooltipLabel` triggers
     v.$rewireInput();
+    // …and whether its pinned children ride its frame
+    for (const c of v.children)
+        if (c instanceof View && c.ignoreScroll)
+            c.$surface?.setIgnoreScroll?.(c.$pinsToFrame());
 };
 /** visibleRect's rest state — one frozen instance, so an off-screen view's
  *  slot never churns (rectEqual gates the writes besides). */
@@ -1862,7 +1894,8 @@ defineAttributes(View, {
     flexes: { def: false, push: (v) => { const p = v.parent; if (p instanceof View)
             p.$childrenMutated(); } },
     ignoreClip: { def: false, push: (v, b) => v.$surface?.setIgnoreClip?.(b) },
-    ignoreScroll: { def: false, push: (v, b) => v.$surface?.setIgnoreScroll?.(b) },
+    direction: { def: "inherit", push: (v, d) => v.$surface?.setDirection?.(d) },
+    ignoreScroll: { def: false, push: (v, b) => v.$surface?.setIgnoreScroll?.(b && v.$pinsToFrame()) },
     opacity: { def: 1, push: (v, o) => v.$surface?.setOpacity(o) },
     cursor: { def: "", push: (v, c) => v.$surface?.setCursor(c) },
     pointerEvents: { def: "", push: (v, c) => v.$surface?.setPointerEvents(c) },

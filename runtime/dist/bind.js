@@ -664,7 +664,12 @@ export function bindAlign(view, name, align, pos, transformLater = false) {
     // JavaScript form, which asks it.
     const insetA = size === "width" ? "insetX" : "insetY";
     const transformed = transformLater || mayTransform(view);
-    if (kernelDerives() && !transformed && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name, align === "end"
+    // a child of the App placed at its end is measured against the WINDOW when
+    // it is pinned to it (alignRule) — the page frame, not the page's content
+    const frameChild = !(view.parent.parent instanceof View);
+    if (frameChild && align === "end")
+        view.$endAnchor.add(name);
+    if (kernelDerives() && !transformed && !frameChild && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name, align === "end"
         ? { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0] }
         : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] }, null, `${cls}.${name} = ${align}`, align === "end" ? `parent.contentBox(${size}) - this.${size}` : `(parent.contentBox(${size}) - this.${size}) / 2`, pos, false, [], true))
         return;
@@ -678,7 +683,13 @@ export function alignRule(view, name, align, pos, transformed = mayTransform(vie
     const cls = view.constructor.name;
     const size = name === "x" ? "width" : "height";
     const k = new Constraint(`${cls}.${name} = ${align}`, () => {
-        const P = view.parent instanceof View ? view.parent.contentBox(size) : 0;
+        // pinned to the page's frame: the window's extent, which is what it stands against
+        const pf = view.parent instanceof View && !(view.parent.parent instanceof View) && view.ignoreScroll;
+        const host = pf ? view.parent[size === "width" ? "hostWidth" : "hostHeight"] : undefined;
+        // (and its content sits above the home indicator's band, which the DOM
+        // runs its box through — anchorEnds; the same inset on every backend)
+        const homeBand = pf && size === "height" ? view.parent.safeBottom ?? 0 : 0;
+        const P = typeof host === "number" && host > 0 ? host - homeBand : view.parent instanceof View ? view.parent.contentBox(size) : 0;
         if (transformed) {
             // the transformed box: its lead offset from the origin, and its extent
             const f = view.footprint();

@@ -40,7 +40,11 @@ class ClassTab [ width = 100%, height = { app.touchDevice ? 44 : 30 }, cornerRad
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
     link = { "#reference/" + cname },
     onClick()     { app.goRef(classroot.cname); app.navOpen = false },
-    lbl: Mono [ x = 24, y = { 7 + (parent.height - 30) / 2 }, fontSize = 14, wrap = false,
+
+    // the label ends 12 short of the row edge; a title written to fit never
+    // reaches it, and one that does not is cut with an ellipsis there
+
+    lbl: Mono [ x = 24, y = { 7 + (parent.height - 30) / 2 }, fontSize = 14, wrap = false, width = { parent.width - 36 }, maxLines = 1,
         text = { classroot.cname },
         textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -88,7 +92,7 @@ class FoldHead extends Control [ width = 100%, height = { app.touchDevice ? 44 :
         },
     mark: Mono [ x = 8, y = { 8 + (parent.height - 28) / 2 }, fontSize = 10, wrap = false, textColor = { provided("theme").textMuted },
         text = { classroot.open ? "\u25BC" : "\u25B6" } ],
-    lbl: Text [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 14, fontWeight = semibold, wrap = false,
+    lbl: Text [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 14, fontWeight = semibold, wrap = false, width = { parent.width - 36 }, maxLines = 1,
         text = { classroot.label },
         textColor = { classroot.contains ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -1031,7 +1035,7 @@ class FormTab [ width = 100%, height = { app.touchDevice ? 44 : 28 }, cornerRadi
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
     link = { "#language/" + slug },
     onClick()     { app.goForm(classroot.slug); app.navOpen = false },
-    lbl: Mono [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 13, wrap = false,
+    lbl: Mono [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 13, wrap = false, width = { parent.width - 36 }, maxLines = 1,
         text = { "" + (:short ?? :name) },
         textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -1218,7 +1222,7 @@ class TypeTab [ width = 100%, height = { app.touchDevice ? 44 : 28 }, cornerRadi
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
     link = { "#type/" + tname },
     onClick()     { app.goType(classroot.tname); app.navOpen = false },
-    lbl: Mono [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 13, wrap = false,
+    lbl: Mono [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 13, wrap = false, width = { parent.width - 36 }, maxLines = 1,
         text = { classroot.tname },
         textColor = { classroot.lit ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -1326,7 +1330,7 @@ class ChapterTab [ width = 100%, height = { app.touchDevice ? 44 : 32 }, cornerR
 
     // numbered, because the chapters cite each other by number ("chapter 3")
 
-    lbl: Text [ x = 24, y = { 8 + (parent.height - 32) / 2 }, fontSize = 14, wrap = false,
+    lbl: Text [ x = 24, y = { 8 + (parent.height - 32) / 2 }, fontSize = 14, wrap = false, width = { parent.width - 36 }, maxLines = 1,
         text = { classroot.cnum + ". " + classroot.ctitle },
         textColor = { app.chapter == classroot.cid ? provided("theme").text : provided("theme").tabIdle } ]
     ]
@@ -1485,7 +1489,7 @@ class NavColumn [ width = 100%,
             fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
             link = "#language/",
             onClick() { app.goForm(""); app.navOpen = false },
-            Text [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 14, wrap = false, text = "All forms", textColor = { parent.lit ? provided("theme").text : provided("theme").tabIdle } ]
+            Text [ x = 24, y = { 6 + (parent.height - 28) / 2 }, fontSize = 14, wrap = false, width = { parent.width - 36 }, maxLines = 1, text = "All forms", textColor = { parent.lit ? provided("theme").text : provided("theme").tabIdle } ]
             ],
         FormGroup [ datapath = :forms.groups[] ],
         g3:    View [ height = 18 ],

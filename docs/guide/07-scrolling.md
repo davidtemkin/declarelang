@@ -63,9 +63,35 @@ App [
 
 `ignoreScroll = true` makes a child stand still against its scroller's frame — the
 window when the page is the scroller, the pane's own frame inside a `scrolls` view —
-and contribute nothing to the scroll range. It is the third of the opt-outs a child
+and contribute nothing to the scroll range. It is a child's opt-out from its **own
+parent's** scroll, so the pinned view is a child of the App (for the page) or of the
+pane: one declared deeper, inside a screen that does not scroll, has nothing to opt out
+of and moves with that screen. A bar that belongs to one screen is still a child of the
+App, shown with the screen's condition (`visible = { app.stage == "pay" }`); the boot
+check names one that is nested. It is the third of the opt-outs a child
 declares for itself, with [`ignoreLayout`](declare-docs:View.ignoreLayout) and [`ignoreClip`](declare-docs:View.ignoreClip)
 ([Size, position and layout](declare-docs:guide:layout)).
+
+**A bar at the window's foot** is placed with `y = end`, as a child of the App:
+
+```declare-fragment
+App [ edges = cover,
+    bar: View [ ignoreScroll = true, y = end, width = 100%, height = 64,
+        Button [ x = 16, y = 10, width = { parent.width - 32 }, label = "Pay" ] ]
+    ]
+```
+
+The browser itself holds it against the window's bottom edge, so it stays put while a
+phone's browser shows and hides its own bars and while the page bounces past its end. A
+position written from `app.hostHeight` follows those a frame late, and the bar jumps.
+With `edges = cover`, the page reaching under the phone's own chrome, such a bar also
+runs down through the band the home indicator uses: its fill reaches the screen's edge
+while what it holds stays above the band, and the browser sizes that band itself as
+Safari's bars come and go. Nothing is declared for it. One rule is Safari's own and no
+page changes it: while its bars are hidden, a tap near the bottom of the screen — in the
+strip they occupy, taller than the band — brings them back and does not reach the page.
+A button in a bar at the foot then takes a second tap. Where that matters, the primary
+action sits higher, in the page itself.
 
 A bar pinned against an edge also tells the keyboard where the scroller's view really
 starts. When Tab moves to a control the scroller has to bring into view, it scrolls the

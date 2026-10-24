@@ -44,4 +44,4 @@ App [ width = 420, height = 200, fill = whitesmoke, location = "home",
 bird, prev/next as links · `apps/docs/docs.declare`: `guide/<chapter>@<heading>`
 addresses.
 
-**Guide** URLs, links and history.
+**Guide** URLs, links, history.

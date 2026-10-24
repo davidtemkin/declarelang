@@ -532,6 +532,7 @@ export class View extends Node {
    *  `scrolls` view) and contributes nothing to the scroll range. The fixed
    *  header, the pinned toolbar, the overlay layer. */
   declare ignoreScroll: boolean;
+  declare direction: "inherit" | "ltr" | "rtl" | "auto";
   /** The pointer cursor while over this view (a CSS cursor keyword —
    *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
    *  views that take input: the sink is the hit target on both backends. */
@@ -1490,9 +1491,11 @@ export class View extends Node {
     s.setVisible(this.visible);
     s.setOpacity(this.opacity);
     if (this.ignoreClip) s.setIgnoreClip?.(true);
-    if (this.ignoreScroll) s.setIgnoreScroll?.(true);
+    if (this.ignoreScroll) s.setIgnoreScroll?.(this.$pinsToFrame());
+    for (const a of this.$endAnchor) s.setEndAnchor?.(a as "x" | "y", true);
     if (this.cursor !== "") s.setCursor(this.cursor);
     if (this.pointerEvents !== "") s.setPointerEvents(this.pointerEvents);
+    if (this.direction !== "inherit") s.setDirection?.(this.direction);
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0 || this.rotation !== 0
         || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0 || this.$is3D()) pushTransform(this);
     if (this.perspective !== 0) s.setPerspective?.(this.perspective);
@@ -1602,6 +1605,20 @@ export class View extends Node {
     const o = rootFrameOrigin(this as unknown as InteractionView);
     const r = (this.root ?? this) as View;
     return { x: o.x + r.scrollX, y: o.y + r.scrollY };
+  }
+
+  /** The axes this view is placed at the END of its parent on (`y = end`) —
+   *  for a view pinned to the page, its surface anchors there (setEndAnchor). */
+  $endAnchor = new Set<string>();
+
+  /** Does `ignoreScroll` pin this view? Only against its OWN parent's scroll:
+   *  a child of a scroller, or of the App (the page). One nested deeper has no
+   *  scroll to opt out of — its parent does not scroll — so it scrolls with
+   *  its parent, on every backend and in every hit walk alike (the boot check
+   *  names it, and where it would pin). */
+  $pinsToFrame(): boolean {
+    const p = this.parent;
+    return this.ignoreScroll && p instanceof View && (!(p.parent instanceof View) || p.scrolls !== "none");
   }
 
   /** The view this one paints in when that is not its parent, else null. */
@@ -1803,6 +1820,17 @@ export class View extends Node {
    *  without stealing its clicks (LZX's `clickable` intent, made automatic).
    *  A handler receives one plain event argument — the pointer position in
    *  this view's own coordinates. */
+  /** Does a press on this view's box stop here — a handler, a tip, a link or a
+   *  scroll axis declared (the rule `$inputSink` wires by)? What a checking
+   *  tool asks to know where a real press would go (interaction.ts pressAt). */
+  $takesPointer(): boolean {
+    const self = this as unknown as Record<string, unknown>;
+    for (const h of POINTER_HANDLERS) if (typeof self[h] === "function") return true;
+    // a native field takes its own presses (the caret, the focus), declared or not
+    const leaf = (this as unknown as { $leafRole?: () => string | null }).$leafRole?.();
+    return this.scrolls !== "none" || this.tooltipLabel !== "" || this.link !== "" || leaf === "textField";
+  }
+
   private $inputSink(): InputSink | null {
     const self = this as unknown as Record<string, unknown>;
     let handled = false;
@@ -2002,6 +2030,8 @@ const pushScrolls = (v: View, ax: string): void => {
   // opening (or closing) a scroll axis changes whether this view takes the
   // pointer — the same rewire a late `link` or `tooltipLabel` triggers
   v.$rewireInput();
+  // …and whether its pinned children ride its frame
+  for (const c of v.children) if (c instanceof View && c.ignoreScroll) c.$surface?.setIgnoreScroll?.(c.$pinsToFrame());
 };
 
 /** visibleRect's rest state — one frozen instance, so an off-screen view's
@@ -2079,7 +2109,8 @@ defineAttributes(View, {
   ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.$childrenMutated(); } },
   flexes: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.$childrenMutated(); } },
   ignoreClip: { def: false, push: (v, b: boolean) => v.$surface?.setIgnoreClip?.(b) },
-  ignoreScroll: { def: false, push: (v, b: boolean) => v.$surface?.setIgnoreScroll?.(b) },
+  direction: { def: "inherit", push: (v, d: string) => v.$surface?.setDirection?.(d) },
+  ignoreScroll: { def: false, push: (v, b: boolean) => v.$surface?.setIgnoreScroll?.(b && v.$pinsToFrame()) },
   opacity: { def: 1, push: (v, o) => v.$surface?.setOpacity(o) },
   cursor: { def: "", push: (v, c: string) => v.$surface?.setCursor(c) },
   pointerEvents: { def: "", push: (v, c: string) => v.$surface?.setPointerEvents(c) },

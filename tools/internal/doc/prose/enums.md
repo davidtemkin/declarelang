@@ -214,6 +214,13 @@ never do: `contain` puts the whole picture in the box and letterboxes the
 remainder, `cover` fills the box and crops the overflow. `none` paints at natural
 size. Both fits center the picture until `FitAlign` says otherwise.
 
+## Direction
+
+The direction a view's text runs in, and what it holds: `ltr`, `rtl`, or `auto` (from the
+first strong letter of the text); `inherit`, the default, takes the nearest ancestor's.
+A right-to-left paragraph is laid out from the right — its lines start there unless its
+`textAlign` says otherwise — and a field types from the right.
+
 ## TextAlign
 
 Horizontal alignment of wrapped lines inside the run's own width. It only means

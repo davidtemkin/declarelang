@@ -170,18 +170,38 @@ function publish(view: View, name: string, v: unknown): void {
  *  after any draft change or reseed. */
 function refresh(view: View, name: string): void {
   const s = sessionOf(view, name);
-  if (s === undefined) return;
+  if (s === undefined && typeof (view as unknown as Record<string, unknown>).validate !== "function") return;
   const draft = (view as unknown as Record<string, unknown>)[name];
   // the author's judgment first (their message, written for this form), then
-  // the schema floor (structure — "must be a number")
-  const err = runValidate(view, draft) ?? readDraft(declaredFloor(view, s), draft).error;
+  // the schema floor (structure — "must be a number"), which only a bound
+  // field has
+  const err = runValidate(view, draft) ?? (s === undefined ? null : readDraft(declaredFloor(view, s), draft).error);
   // `valid` is the truth from the first keystroke; the MESSAGE waits, when the
   // editor judges on leaving, until the field has been left once (or judge())
   const speaks = (view as unknown as { judgeOn?: string }).judgeOn !== "leave" || JUDGED.has(view);
   publish(view, "error", speaks ? err ?? "" : "");
   publish(view, "valid", err === null);
-  publish(view, "dirty", draft !== committed(view, s));
+  if (s !== undefined) publish(view, "dirty", draft !== committed(view, s));
 }
+
+/** @api A field the program owns (no `<->`) that declares `validate()`: it is
+ *  judged on its own draft slot whenever the draft changes — a keystroke or the
+ *  program's write alike — and on whatever else `validate` reads. `judgeOn`,
+ *  `judge()`, `error` and `valid` mean what they mean for a bound field; there
+ *  is no commit and no `dirty`, since nothing is written back. */
+export function judgeOwnDraft(view: View, name: string): void {
+  if (isTwoWay(view, name) || OWN_JUDGED.has(view)) return;
+  if (typeof (view as unknown as Record<string, unknown>).validate !== "function") return;
+  OWN_JUDGED.add(view);
+  const watch = new Constraint(
+    `${view.constructor.name}.validate`,
+    () => runValidate(view, (view as unknown as Record<string, unknown>)[name]),
+    () => refresh(view, name)
+  );
+  onDiscard(view, () => watch.dispose());
+  watch.run();
+}
+const OWN_JUDGED = new WeakSet<View>();
 
 /** @api The user changed the draft (a native edit, a picker selection). Refresh
  *  the session, and commit now if the policy is live (`commitOn === "input"`). */
@@ -215,8 +235,8 @@ export function revertDraft(view: View, name: string): void {
   refresh(view, name);
 }
 
-/** @api The base class for an **editor** — a class that two-way edits a
- *  dataset value via `<->`. It owns the edit-session slots (`commitOn` / `error`
+/** @api The base class for an **editor** — a class that edits a value, two-way
+ *  through `<->` or as a field the program owns. It owns the edit-session slots (`commitOn` / `error`
  *  / `valid` / `dirty`) and the `commit()` / `revert()` verbs; a subclass only
  *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,
  *  a `Picker` → `value`). Custom controls become editors by extending it. */

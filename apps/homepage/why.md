@@ -32,6 +32,14 @@ explains beats one that merely rejects, by a double-digit margin.
 
 The studies: [a zero-corpus DSL vs. Python →](https://arxiv.org/abs/2512.23214) · [feedback quality vs. repair →](https://arxiv.org/abs/2504.06939)
 
+We measure it too. Given the same brief — a box office with a drawn seat map,
+seats selling live while you choose, sign-in and checkout — the same agent,
+Claude Code (Opus 5.5), built it once in React and once in Declare, from a
+download it had never seen. Both passed all eleven of the same hidden
+acceptance checks. The React app was 4,861 lines; the Declare app, 1,437.
+
+[The runs, in full →](https://github.com/davidtemkin/declarelang/tree/main/evals/reports)
+
 ## Designed in, not bolted on
 
 Declare’s declarative layer is small — the whole language fits in a model’s

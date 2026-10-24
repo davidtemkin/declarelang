@@ -19,6 +19,7 @@ import { Focus, deliverKeys } from "./focus.js";
 import { wireFiles } from "./files.js";
 import { bridgeFor } from "./inspect.js";
 import { localPoint, watchScrolling, setPageScrollWatch } from "./dom-backend.js";
+import { noteFinger } from "./interaction.js";
 import { kernelReady, observe } from "./reactive.js";
 /** Is this mount host EMBEDDED inside another Declare app? A top-level app roots on
  *  a bare host (document.body's child); an embedded app is rendered into an
@@ -196,6 +197,7 @@ function wireSafeArea(app, w) {
     measure();
     w.setTimeout(measure, 0); // the cover reflow lands after the meta patch
     w.addEventListener("resize", measure);
+    w.visualViewport?.addEventListener("resize", measure); // Safari's bars change the bottom inset
 }
 /** Feed `app.touchDevice` — "am I running on a touch device?" — from the device's
  *  primary pointer: true on a phone or tablet (`(pointer: coarse)`), so mouse-only
@@ -313,8 +315,14 @@ function wireEnvironment(app, host, embedded) {
         app.hovering = e.pointerType !== "touch";
         app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
         app.pointerDown = true;
+        if (e.pointerType === "touch")
+            noteFinger(app, "down", e.clientX, e.clientY);
     };
-    const up = () => { app.pointerDown = false; };
+    const up = (e) => {
+        app.pointerDown = false;
+        if (e.pointerType === "touch")
+            noteFinger(app, "up", e.clientX, e.clientY);
+    };
     size();
     scroll();
     w.addEventListener("resize", size);
@@ -377,8 +385,16 @@ function wireEnvironmentEmbedded(app, host) {
         app.pointerY = p.y;
         app.hovering = e.pointerType !== "touch";
         app.pointerDown = true;
+        if (e.pointerType === "touch")
+            noteFinger(app, "down", p.x, p.y);
     };
-    const up = () => { app.pointerDown = false; };
+    const up = (e) => {
+        app.pointerDown = false;
+        if (e.pointerType === "touch") {
+            const p = localPoint(host, e.clientX, e.clientY);
+            noteFinger(app, "up", p.x, p.y);
+        }
+    };
     sync();
     // capture, for the same reason as the top-level wiring: coordinates must
     // land before the router dispatches a touch press's onPointerDown

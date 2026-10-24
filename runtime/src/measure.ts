@@ -50,6 +50,8 @@ export interface TextStyle {
   /** Clamp to this many lines, the last ending in an ellipsis; 0 = unclamped. */
   readonly maxLines?: number;
   readonly align?: "left" | "center" | "right";
+  /** The base direction the run is laid out in (its bidi paragraph level). */
+  readonly direction?: "ltr" | "rtl";
   readonly italic?: boolean;
   /** Fill the glyphs with a gradient (or solid Fill) — overrides `color` when
    *  set. Canvas realizes it over the text box; DOM clips a background to text. */

@@ -54,11 +54,27 @@ const TABLE = {
   // over: a pinned child hosts on the scroller's OWN layer instead of the content
   // layer that translates. gate.mjs measured the close — `ignorescroll` went
   // 1.18% → 0.01% differing, 1.17% → 0% structural, i.e. exactly the hole the
-  // baseline note had sized. v1 pins against the DIRECT parent's scroll, which is
-  // every use in the corpus; a pinned node nested deeper still rides the
-  // intervening boxes (the DOM walks to the nearest scrolling ancestor).
+  // baseline note had sized. It pins against the DIRECT parent's scroll on every
+  // backend: the view decides (View.$pinsToFrame) and pushes false for a node
+  // nested deeper, so no backend pins what the hit walk does not.
   setIgnoreScroll: {
     dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
+  // `y = end` on a view pinned to the page (2026-10-23): the browser anchors it
+  // to the window's edge itself (CSS bottom: 0), so it does not lag the toolbar
+  setEndAnchor: {
+    dom: true,
+    canvas: "deliberate — the canvas paints the frame itself, every frame, from the same position the hit walk uses; there is no browser chrome between them to lag",
+    mac: "deliberate — the Mac host's window has no retractable chrome; the written position is the edge",
+    headless: NOT_APPLICABLE,
+  },
+  // `direction` (2026-10-23): the base direction of a view's text and fields,
+  // inherited by what it holds. The DOM sets `dir`, which its descendants inherit.
+  setDirection: {
+    dom: true,
+    canvas: "deliberate — the canvas has no inherited text direction; a Text's own run carries it in its text style (TextStyle.direction, resolved up the tree by the Text)",
+    mac: "GAP (not yet built) — the Mac host lays text left to right; a right-to-left paragraph shapes and orders its runs, but its base direction and alignment are not passed",
     headless: NOT_APPLICABLE,
   },
   // ── the compositing seam (compositing.md, 2026-08-06) ────────────────────
@@ -443,7 +459,9 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 38,   // +setSemantics, +setLanguage (2026-10-18): a view's ARIA on its own element; an app's language (accessibility.md)
+  assert.equal(members.length, 40,   // +setEndAnchor (2026-10-23): a page-pinned view at the window's end edge, held there by the browser
+                                     // +setDirection (2026-10-23): the base direction of a view's text, `direction = rtl`
+                                     // +setSemantics, +setLanguage (2026-10-18): a view's ARIA on its own element; an app's language (accessibility.md)
                                 // +setScaling (2026-10-11): a subtree's resampling, `scaling = pixelated`
                                      // +scrollbarHeld (2026-10-02): a held thumb maps the pointer onto the range, so a windowed list holds its range still   // +userScrollByTouch (2026-09-30): a browser-driven scroll says a finger holds it, so anchoring waits   // +richMetrics (2026-09-26, the document flow): baseline + widest off the renderer's layout — DOM reports, canvas/mac use the manual flow's arithmetic
                                      // +setPadding (2026-09-19, padding moves to the view): the TRAILING inset a padded scroller must still show — the origin shift rides the children's own setX/setY and needs no row

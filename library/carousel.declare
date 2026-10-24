@@ -1,0 +1,165 @@
+/*
+# Carousel
+
+Pages side by side, one in view at a time. A finger drags the row of pages and it
+follows 1:1; on release it settles on a page on a spring — the next one when the drag
+went past a third of the width or was a quick flick, otherwise back where it started.
+Assigning `page` from anywhere springs the row there the same way.
+
+A carousel's children are its pages: each is laid out as wide and as tall as the
+carousel's content box, in order. A drag that goes up or down rather than sideways is
+left to the page around it (`claim = x`), and a press that never travels still reaches
+the page's own controls.
+
+```declare
+Carousel [ width = 100%, height = 160,
+    View [ fill = #F6D7C3, Text [ x = center, y = center, text = "One" ] ],
+    View [ fill = #CFE5D2, Text [ x = center, y = center, text = "Two" ] ],
+    View [ fill = #CFDCF2, Text [ x = center, y = center, text = "Three" ] ]
+    ]
+```
+
+## page
+The page in view, from 0. Constrain it (`page = { app.slide }`) and override `input` to own
+the destination, or leave it and read it back.
+
+## input()
+Where a settled swipe sends the new page. The default writes `page`.
+
+## pageCount()
+How many pages there are: the carousel's laid-out children, counted when a drag needs it.
+
+## offset
+The row's sideways displacement in pixels: `-page × width` at rest, the finger's position
+during a drag, and the spring's in between. Every page's `x` derives from it.
+
+## dragging
+True from pointer-down until the release.
+
+## clip
+On: the pages beside the current one are out of view until a drag brings them in.
+
+## claim
+`x`: a sideways drag is the carousel's, a vertical one stays the page's.
+
+## glide
+The spring that carries `offset` to the current page. While a finger is down its target
+is the offset itself, so it holds still and the drag owns the row.
+
+## _x0
+**Internal.** The root-space pointer x at pointer-down.
+
+## _o0
+**Internal.** The offset at pointer-down, that the pointer delta is applied to.
+
+## _lastX
+**Internal.** The pointer x at the last move, for the release speed.
+
+## _lastT
+**Internal.** The time of the last move, in milliseconds.
+
+## _v
+**Internal.** The pointer's recent speed in pixels per millisecond, smoothed over the last
+few moves: what tells a flick from a slow drag.
+
+## resist()
+**Internal.** Past the first or last page the drag meets resistance instead of tracking
+the finger: the pull is compressed toward half a page.
+
+## onPointerDown
+Latches the drag from wherever the row is, even mid-glide.
+
+## onPointerMove
+Moves the row with the pointer, and keeps the speed.
+
+## onPointerUp
+Chooses the page — one step for a drag past a third of the width or a flick faster than
+0.4 px/ms, otherwise none — and lets the spring carry the row there. A canceled release
+(the browser reclaimed the gesture) settles back on the current page.
+
+# CarouselLayout
+
+**Internal.** The carousel's arrangement: each child a content box wide and tall, the
+next one a width further on, all shifted by the carousel's `offset`.
+
+## place()
+One box per page, from the carousel's content extent and `offset`.
+
+## laidCount()
+How many children it lays out: the carousel's `pageCount()`.
+*/
+
+class CarouselLayout extends Layout [
+    place() {
+        const w = this.contentExtent("width")
+        const h = this.contentExtent("height")
+        const off = this.view == null ? 0 : (this.view as Carousel).offset
+        const kids = this.laid()
+        const out = [] as any
+        for (let i = 0; i < kids.length; i++) out.push({ x: i * w + off, y: 0, w: w, h: h })
+        return out
+        },
+    laidCount() -> number { return this.laid().length }
+    ]
+
+
+class Carousel extends View [
+    clip = true,
+    claim = x,
+    layout: CarouselLayout [ ],
+
+    page: number = 0,
+    input(p: number) { page = p },
+    pageCount() -> number { return (this.layout as CarouselLayout).laidCount() },
+
+    // the row follows the finger while it is down (the spring's target is the
+    // offset itself, so it holds still) and springs to the page once it lifts
+
+    offset: number = 0,
+    dragging: boolean = false,
+    glide: Spring [ attribute = offset, to = { classroot.dragging ? classroot.offset : -classroot.page * classroot.width },
+        stiffness = 260, damping = 30, epsilon = 0.4 ],
+
+    _x0: number = 0,
+    _o0: number = 0,
+    _lastX: number = 0,
+    _lastT: number = 0,
+    _v: number = 0,
+
+    resist(raw: number) -> number {
+        const last = -(pageCount() - 1) * width
+        const limit = width / 2
+        if (raw > 0) return raw * limit / (raw + limit)
+        if (raw < last) { const d = last - raw; return last - d * limit / (d + limit) }
+        return raw
+        },
+
+    onPointerDown(e: PointerEvent) {
+        dragging = true
+        _x0 = app.pointerX
+        _o0 = offset
+        _lastX = app.pointerX
+        _lastT = Date.now()
+        _v = 0
+        },
+    onPointerMove() {
+        if (!dragging) return
+        const now = Date.now()
+        const dt = now - _lastT
+        if (dt > 0) _v = 0.7 * ((app.pointerX - _lastX) / dt) + 0.3 * _v
+        _lastX = app.pointerX
+        _lastT = now
+        offset = resist(_o0 + app.pointerX - _x0)
+        },
+    onPointerUp(e: PointerUpEvent) {
+        if (!dragging) return
+        dragging = false
+        if (e.canceled) return
+        // a finger that stopped before it lifted is not a flick
+        const v = Date.now() - _lastT > 80 ? 0 : _v
+        const moved = offset + page * width
+        const step = moved < -width / 3 || v < -0.4 ? 1 : moved > width / 3 || v > 0.4 ? -1 : 0
+        const p = Math.max(0, Math.min(pageCount() - 1, page + step))
+        if (p != page) input(p)
+        }
+    ]

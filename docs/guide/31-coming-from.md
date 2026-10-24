@@ -1,4 +1,4 @@
-<!-- nav: Coming from other frameworks -->
+<!-- nav: Other frameworks -->
 <!-- part: Appendix -->
 
 # Coming from other frameworks

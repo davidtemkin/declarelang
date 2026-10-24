@@ -22,7 +22,7 @@ export const OPS = {
       { id: "clone", cmd: "git clone https://github.com/davidtemkin/declarelang.git && cd declarelang",
         description: "Get the repository.", test: false },
       { id: "install", cmd: "npm install",
-        description: "Install the toolchain's dependencies (TypeScript, esbuild, and the Chrome driver the checking tools run on). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script; if you instead add declarelang to another project as a git dependency, approve its build (`pnpm approve-builds`, or `\"pnpm\": { \"onlyBuiltDependencies\": [\"declarelang\"] }`) so its prepare step runs.",
+        description: "Install the toolchain's dependencies (TypeScript, esbuild, and the Chrome driver the checking tools run on). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script.",
         test: false },
       { id: "server", cmd: "npm start",
         description: "Start the dev server. It prints its address — http://127.0.0.1:8200/ unless that port is taken, in which case it says so and names the next (`PORT=8201 npm start`). Browse to any .declare file's URL under it and the server compiles and returns the running app.",

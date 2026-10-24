@@ -139,6 +139,8 @@ interface AppInteraction {
   driver: Constraint;
   /** A run is booked for the settle's close (records arrived mid-settle). */
   booked: boolean;
+  /** A finger's quick tap, held pressed a moment (noteFinger). */
+  tap: { echo: Set<InteractionView> | null; ends: Cell; down: { x: number; y: number; at: number; chain: Set<InteractionView> } | null; timer: ReturnType<typeof setTimeout> | null };
 }
 
 const APPS = new WeakMap<InteractionApp, AppInteraction>();
@@ -266,6 +268,23 @@ const VIEWS: HitAdapter<InteractionView> = {
 const POINTABLE: HitAccept<InteractionView> = (v) =>
   v.pointerEvents === "none" ? 'skipped — pointerEvents = "none" (this view is transparent; its children decide for themselves)' : null;
 const ANY: HitAccept<InteractionView> = () => null;
+// What a PRESS reaches: past views that declared no interest in the pointer —
+// no handler, tip, link or scroll axis — to what is beneath, as the backends
+// route a real press (dom-backend's sink walk, scene-walk's). The root always
+// answers, so a press on nothing is the app's.
+const PRESSABLE: HitAccept<InteractionView> = (v) => {
+  const gate = POINTABLE(v);
+  if (gate !== null) return gate;
+  const takes = (v as { $takesPointer?: () => boolean }).$takesPointer;
+  return v.parent == null || typeof takes !== "function" || takes.call(v) ? null : "skipped — it takes no presses (no handler, link, tip or scroll axis)";
+};
+
+/** The view a real press at this point would reach — `hitAt` passing over views
+ *  that take no presses, as the backends' input routing does. The checking
+ *  tools ask this, so a press they refuse is one a person's would miss. */
+export function pressAt(root: unknown, x: number, y: number): InteractionView | null {
+  return isView(root) ? walkHit(root, x, y, VIEWS, PRESSABLE) : null;
+}
 
 /** The topmost visible view whose box contains the point — THE hit walk
  *  (hit-walk.ts), read over the views. Exported because it is also the
@@ -274,6 +293,23 @@ const ANY: HitAccept<InteractionView> = () => null;
  *  for `hovered` must be the same answer, from the same code. */
 export function leafAt(v: InteractionView, lx: number, ly: number, pierce = false, trace?: HitNote[]): InteractionView | null {
   return walkHit(v, lx, ly, VIEWS, pierce ? ANY : POINTABLE, trace);
+}
+
+/** The views a press at a point PRESSES: from where a real press goes (past
+ *  views that take no presses — a row's own box over its controls) up through
+ *  what holds it. The hover chain starts at the topmost view; this one at the
+ *  press's target, so the control a finger is on shows pressed. */
+function pressChainAt(app: InteractionApp, x: number, y: number): Set<InteractionView> {
+  // the topmost view and what holds it, as ever (`pressed` is every view's
+  // fact), and the press's target and what holds it — the same unless a view
+  // that takes no presses lies over the target
+  const chain = chainAt(app, x, y);
+  let leaf = walkHit(app, x, y, VIEWS, PRESSABLE);
+  while (leaf !== null) {
+    chain.add(leaf);
+    leaf = paintParentOf(leaf);
+  }
+  return chain;
 }
 
 function chainAt(app: InteractionApp, x: number, y: number): Set<InteractionView> {
@@ -299,17 +335,43 @@ export function noteUserScroll(scroller: object, active: boolean): void {
   if ((USER_SCROLLS.size > 0) !== was) USER_SCROLL.changed();
 }
 
+const now = (): number => (typeof performance !== "undefined" ? performance.now() : Date.now());
+
+/** A FINGER'S TAP IS SEEN. A tap lifts within a frame or two of landing —
+ *  often inside one settle, so the press never reaches `pressed` at all — and a
+ *  control's pressed look was never on screen: a mouse holds a button down, a
+ *  finger does not. Told of each finger's down and lift as the events arrive
+ *  (boot.ts), the views a quick tap pressed stay pressed until MIN_PRESS has
+ *  gone by since it landed. A press that moved — a scroll took it — does not. */
+const MIN_PRESS = 120;
+export function noteFinger(app: unknown, phase: "down" | "up", x: number, y: number): void {
+  if (!isView(app)) return;
+  const st = ensureApp(app as InteractionApp), t = st.tap;
+  if (phase === "down") { t.down = { x, y, at: now(), chain: pressChainAt(app as InteractionApp, x, y) }; return; }
+  const d = t.down;
+  t.down = null;
+  if (d === null) return;
+  const held = now() - d.at;
+  if (held >= MIN_PRESS || Math.hypot(x - d.x, y - d.y) > 12) return;
+  if (t.timer !== null) clearTimeout(t.timer);
+  t.echo = d.chain;
+  t.ends.changed();
+  t.timer = setTimeout(() => { t.timer = null; t.echo = null; t.ends.changed(); }, MIN_PRESS - held);
+}
+
 function ensureApp(app: InteractionApp): AppInteraction {
   let state = APPS.get(app);
   if (state !== undefined) return state;
   // The press chain is a SNAPSHOT at the down edge; cleared on release.
   const press = { wasDown: false, chain: new Set<InteractionView>() };
+  const tap = { echo: null as Set<InteractionView> | null, ends: new Cell(), down: null as { x: number; y: number; at: number; chain: Set<InteractionView> } | null, timer: null as ReturnType<typeof setTimeout> | null };
   const recs = new Map<InteractionView, Rec>();
   let last: { x: number; y: number; down: boolean; hovering: boolean; result: { chain: Set<InteractionView>; down: boolean; hovering: boolean } } | null = null;
   const driver = new Constraint(
     "App.$interaction",
     () => {
       USER_SCROLL.track();
+      tap.ends.track();
       const x = app.pointerX;
       const y = app.pointerY;
       const down = app.pointerDown;
@@ -317,27 +379,30 @@ function ensureApp(app: InteractionApp): AppInteraction {
       // a scroll in progress under a resting pointer: hover holds (above)
       if (USER_SCROLLS.size > 0 && last !== null && last.x === x && last.y === y && last.down === down && last.hovering === hovering) return last.result;
       const chain = hovering ? chainAt(app, x, y) : new Set<InteractionView>();
-      if (down && !press.wasDown) press.chain = hovering ? new Set(chain) : chainAt(app, x, y);
+      if (down && !press.wasDown) press.chain = pressChainAt(app, x, y);
       if (!down) press.chain.clear();
       press.wasDown = down;
-      const result = { chain, down, hovering };
+      // a mouse press releases when dragged off what it pressed — judged by the
+      // press chain at the pointer, so a row's box over the control is not "off"
+      const under = down && hovering && press.chain.size > 0 ? pressChainAt(app, x, y) : null;
+      const result = { chain, down, hovering, under };
       last = { x, y, down, hovering, result };
       return result;
     },
     (v: unknown) => {
-      const { chain, down, hovering } = v as { chain: Set<InteractionView>; down: boolean; hovering: boolean };
+      const { chain, down, hovering, under } = v as { chain: Set<InteractionView>; down: boolean; hovering: boolean; under: Set<InteractionView> | null };
       for (const [view, rec] of recs) {
         if (view.parent === null && (view as unknown) !== (app as unknown)) { recs.delete(view); continue; }
         const h = chain.has(view);
         // A mouse press releases when dragged off the chain (platform rule);
         // a touch press (no hover chain) holds while the pointer is down.
-        const p = down && press.chain.has(view) && (hovering ? chain.has(view) : true);
+        const p = (down && press.chain.has(view) && (hovering ? (under ?? chain).has(view) : true)) || (tap.echo !== null && tap.echo.has(view));
         if (h !== rec.hovered) { rec.hovered = h; rec.hCell.changed(); }
         if (p !== rec.pressed) { rec.pressed = p; rec.pCell.changed(); }
       }
     }
   );
-  state = { recs, press, driver, booked: false };
+  state = { recs, press, driver, booked: false, tap };
   APPS.set(app, state);
   return state;
 }

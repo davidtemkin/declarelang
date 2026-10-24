@@ -76,8 +76,8 @@ One program renders through managed DOM elements, directly to a single canvas, o
 
 Concretely, measured from the deployed production artifacts:
 
-- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->138<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
-- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,506<!--/stat--> lines: <!--stat:tracker.code-->981<!--/stat--> of code and <!--stat:tracker.comment-->251<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->156<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
+- **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->140<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
+- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,506<!--/stat--> lines: <!--stat:tracker.code-->981<!--/stat--> of code and <!--stat:tracker.comment-->251<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->157<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
 - **Responsiveness**: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 
@@ -138,7 +138,7 @@ That starts the dev server; write a program to `my-apps/hello.declare` and brows
 
 ### Can I use Declare inside my own project? Is there an npm package?
 
-Today, the repository is the distribution: you clone it, and your apps live in a directory inside it (`my-apps/`), served by its dev server and built by its `declarec` tool. What you *ship* is fully standalone — a production build is a small set of static files you can host anywhere, with no trace of the toolchain. There's no npm package yet; treating the checkout as your toolchain (and `git pull` as your upgrade path) is the current model.
+Yes. Declare installs into your project as an ordinary dependency, fetched from GitHub rather than the npm registry: `npm install github:davidtemkin/declarelang` (with pnpm, approve esbuild's install script when it asks). Your app lives in your own repository, next to the back end it talks to. The dev server serves your project at `/` and the platform at `/declare/`, `declarec` builds it, and the version is pinned in your lockfile, so you upgrade when you choose. [Embedding Declare in a project](https://github.com/davidtemkin/declarelang/blob/main/docs/operational/embedding.md) has the whole setup. What you *ship* is fully standalone: a production build is a small set of static files you can host anywhere, with no trace of the toolchain. Cloning the repository, as above, is still the quickest way to try it, with your first programs in `my-apps/`.
 
 ### Is there editor support — syntax highlighting, autocomplete, a VS Code extension?
 

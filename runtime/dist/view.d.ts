@@ -198,6 +198,7 @@ export declare class View extends Node {
      *  `scrolls` view) and contributes nothing to the scroll range. The fixed
      *  header, the pinned toolbar, the overlay layer. */
     ignoreScroll: boolean;
+    direction: "inherit" | "ltr" | "rtl" | "auto";
     /** The pointer cursor while over this view (a CSS cursor keyword —
      *  "ew-resize", "col-resize", "pointer", …; "" = inherit). Meaningful on
      *  views that take input: the sink is the hit target on both backends. */
@@ -788,6 +789,15 @@ export declare class View extends Node {
         x: number;
         y: number;
     };
+    /** The axes this view is placed at the END of its parent on (`y = end`) —
+     *  for a view pinned to the page, its surface anchors there (setEndAnchor). */
+    $endAnchor: Set<string>;
+    /** Does `ignoreScroll` pin this view? Only against its OWN parent's scroll:
+     *  a child of a scroller, or of the App (the page). One nested deeper has no
+     *  scroll to opt out of — its parent does not scroll — so it scrolls with
+     *  its parent, on every backend and in every hit walk alike (the boot check
+     *  names it, and where it would pin). */
+    $pinsToFrame(): boolean;
     /** The view this one paints in when that is not its parent, else null. */
     private get travelHost();
     /** The host this view is listed under as a paint guest (planes.md §3.1). */
@@ -880,6 +890,10 @@ export declare class View extends Node {
      *  without stealing its clicks (LZX's `clickable` intent, made automatic).
      *  A handler receives one plain event argument — the pointer position in
      *  this view's own coordinates. */
+    /** Does a press on this view's box stop here — a handler, a tip, a link or a
+     *  scroll axis declared (the rule `$inputSink` wires by)? What a checking
+     *  tool asks to know where a real press would go (interaction.ts pressAt). */
+    $takesPointer(): boolean;
     private $inputSink;
     /** Re-derive the surface's input wiring — the pusher for attributes that
      *  GRANT interest by their value (`link`; a post-attach handler install goes

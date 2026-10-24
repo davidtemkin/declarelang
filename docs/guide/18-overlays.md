@@ -1,4 +1,4 @@
-<!-- nav: Menus, dialogs and overlays -->
+<!-- nav: Menus and overlays -->
 <!-- part: Building -->
 
 # Menus, dialogs and overlays

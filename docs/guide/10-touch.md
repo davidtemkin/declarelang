@@ -81,7 +81,9 @@ stream as `e.pinch` (trackpad); handle both and every device zooms.
 **[`claim`](declare-docs:View.claim) is the knob for "drag horizontally on a page that scrolls vertically."** It
 scopes a claim you already have rather than making one: declare the drag handler, then
 `claim = x`, and a finger traveling sideways is yours while a finger traveling down
-still scrolls the page. A [`DataGrid`](declare-docs:DataGrid) header drags this way. It cannot help once the
+still scrolls the page. A [`DataGrid`](declare-docs:DataGrid) header drags this way, and so does a
+[`Carousel`](declare-docs:Carousel): its pages follow the finger sideways and settle on a page
+when it lifts, while a vertical drag on them scrolls the page. It cannot help once the
 `onTouch*` family has taken **every** finger, because there is nothing left to narrow.
 
 **A long-press or a right-click goes to the nearest view that wants it**, as a pinch does.

@@ -44,6 +44,9 @@ export declare class TextInput extends Editor {
      *  it, exactly like any author write (attributes.ts set path), so a field can
      *  be seeded from a binding yet stay editable. */
     private $onNativeInput;
+    /** An input handler is running: a select() it makes waits until the field
+     *  holds the text the handler produced, so the caret lands in that text. */
+    private $inInput;
     /** The field's text folds into `contentHeight` as its measured lines (the
      *  same measure as the unset-height derive), so the documented cap reads as
      *  it does for any box: `height = { Math.min(contentHeight, 120) }` — a
@@ -63,7 +66,8 @@ export declare class TextInput extends Editor {
      *  clamp to the text, like every scroll write. Applied now if the field
      *  holds focus; otherwise HELD and applied at the next non-pointer focus
      *  (Tab, or a program's), re-resolved against the text of that moment — a
-     *  click into the field keeps the clicked caret. */
+     *  click into the field keeps the clicked caret. Called from an input
+     *  handler, it applies once the field shows the text the handler wrote. */
     select(at: number | "start" | "end" | "all", end?: number): void;
     private pendingSel;
     private $applySelection;

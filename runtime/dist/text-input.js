@@ -19,7 +19,7 @@ import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable } from "./measure.js";
 import { heldFamily } from "./font-value.js";
-import { isTwoWay, edited, commitDraft, judgeDraft, Editor } from "./editor.js";
+import { isTwoWay, edited, commitDraft, judgeDraft, judgeOwnDraft, Editor } from "./editor.js";
 import { insetSides, stroke } from "./value.js";
 import { hintsOf } from "./purpose.js";
 export class TextInput extends Editor {
@@ -50,6 +50,8 @@ export class TextInput extends Editor {
         if (!isSet(this, "text") && ownerOf(this, "text") === null && !isTwoWay(this, "text")) {
             bindDerived(this, "text", () => this.initial);
         }
+        // a field the program owns is judged by its own validate(), as a bound one is
+        judgeOwnDraft(this, "text");
         // The house FIELD rendition (library-charter §6: a bare TextInput must
         // carry real visual articulation — today's edgeless default is a defect).
         // Same YIELDING-derive pattern as the seed above: reactive on the
@@ -164,8 +166,7 @@ export class TextInput extends Editor {
                     Focus.blur();
                 if (this.commitOn === "blur" && isTwoWay(this, "text"))
                     commitDraft(this, "text");
-                if (isTwoWay(this, "text"))
-                    judgeDraft(this, "text");
+                judgeDraft(this, "text");
             },
             onEnter: () => {
                 if (this.commitOn === "enter" && isTwoWay(this, "text"))
@@ -203,9 +204,16 @@ export class TextInput extends Editor {
             // Fire, settle, THEN reconcile: if the handler moved the model the
             // element lands on the new value directly, rather than flashing the old
             // one and correcting a beat later.
-            fireEvent(this, "input", v);
-            settle();
-            this.$syncEditable();
+            this.$inInput = true;
+            try {
+                fireEvent(this, "input", v);
+                settle();
+                this.$syncEditable();
+            }
+            finally {
+                this.$inInput = false;
+            }
+            this.$applySelection();
             return;
         }
         if (this.text !== v)
@@ -216,8 +224,18 @@ export class TextInput extends Editor {
         // settled (the committed value in the dataset), not a value about to change.
         if (isTwoWay(this, "text"))
             edited(this, "text", this.commitOn);
-        fireEvent(this, "input", v);
+        this.$inInput = true;
+        try {
+            fireEvent(this, "input", v);
+        }
+        finally {
+            this.$inInput = false;
+        }
+        this.$applySelection();
     }
+    /** An input handler is running: a select() it makes waits until the field
+     *  holds the text the handler produced, so the caret lands in that text. */
+    $inInput = false;
     /** The field's text folds into `contentHeight` as its measured lines (the
      *  same measure as the unset-height derive), so the documented cap reads as
      *  it does for any box: `height = { Math.min(contentHeight, 120) }` — a
@@ -253,10 +271,11 @@ export class TextInput extends Editor {
      *  clamp to the text, like every scroll write. Applied now if the field
      *  holds focus; otherwise HELD and applied at the next non-pointer focus
      *  (Tab, or a program's), re-resolved against the text of that moment — a
-     *  click into the field keeps the clicked caret. */
+     *  click into the field keeps the clicked caret. Called from an input
+     *  handler, it applies once the field shows the text the handler wrote. */
     select(at, end) {
         this.pendingSel = { at, end };
-        if (this.focused)
+        if (this.focused && !this.$inInput)
             this.$applySelection();
     }
     pendingSel = null;

@@ -1087,8 +1087,7 @@ App [ tagline: string = "a UI language for you and your AI",
                         // small download.
 
                         figures = { hpLines(app.stats.value?.tracker?.total, app.stats.value?.tracker?.code, app.stats.value?.tracker?.comment)
-                              + hpWire(app.stats.value?.tracker?.wireGzip) + ", before its data"
-                              + " · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies" } ],
+                              + hpWire(app.stats.value?.tracker?.wireGzip) + ", before its data · no dependencies" } ],
 
                     dsk: AppCard [ title = "Declare Desktop", num = "3",
                         shot   = { app.isDark ? "shots/desktop-dark.webp" : "shots/desktop-light.webp" },

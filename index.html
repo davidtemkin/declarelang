@@ -54,7 +54,7 @@
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
 <p>529</p>
 <p>lines of code, plus 214 of comments — four views, zoom, drag and edit</p>
-<p>138 KB</p>
+<p>140 KB</p>
 <p>over the wire, gzipped — app (structure, logic, styling) and runtime</p>
 <p>0</p>
 <p>lines written by hand — an LLM wrote it</p>
@@ -66,14 +66,14 @@
 <p>→</p></a>
 <a href="apps/tracker/tracker.declare"><img loading="lazy" src="apps/homepage/shots/tracker-dark.webp"></a>
 <p>1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code</p>
-<p>1506 lines — 981 code, 251 comment · 156 KB over the wire, before its data · no dependencies · the same brief in idiomatic React: 2,703 lines, 9 dependencies</p>
+<p>1506 lines — 981 code, 251 comment · 157 KB over the wire, before its data · no dependencies</p>
 <a href="apps/tracker/tracker.declare?viewer"><p>View &amp; edit source →</p></a>
 <a href="apps/desktop/desktop.declare"><p>3</p>
 <h5>Declare Desktop</h5>
 <p>→</p></a>
 <a href="apps/desktop/desktop.declare"><img loading="lazy" src="apps/homepage/shots/desktop-dark.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3494 lines — 1992 code, 930 comment · 227 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3494 lines — 1992 code, 930 comment · 228 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -140,6 +140,8 @@
 <p>What an LLM gets from a mainstream stack is corpus leverage: fluency by imitation — broad, shallow, self-contradictory, unverifiable. The other kind is comprehension leverage: a language small enough to hand to a model whole, regular enough that its programs can be analyzed rather than pattern-matched, and backed by a compiler that turns each mistake into a precise correction. Corpus leverage arrives free with popularity. Comprehension leverage has to be designed in — and it is the only kind a new language can compete on.</p>
 <p>This is a measured bet, not a hunch. LLMs can learn a language they never trained on from a spec in context — in recent studies, a small language purpose-designed for LLM use, with zero training exposure, beat the same model writing Python, its best-trained language. And what bounds a model’s ability to repair its own mistakes is the quality of the feedback: a compiler that explains beats one that merely rejects, by a double-digit margin.</p>
 <p>The studies: <a href="https://arxiv.org/abs/2512.23214">a zero-corpus DSL vs. Python →</a> · <a href="https://arxiv.org/abs/2504.06939">feedback quality vs. repair →</a></p>
+<p>We measure it too. Given the same brief — a box office with a drawn seat map, seats selling live while you choose, sign-in and checkout — the same agent, Claude Code (Opus 5.5), built it once in React and once in Declare, from a download it had never seen. Both passed all eleven of the same hidden acceptance checks. The React app was 4,861 lines; the Declare app, 1,437.</p>
+<p><a href="https://github.com/davidtemkin/declarelang/tree/main/evals/reports">The runs, in full →</a></p>
 <h2>Designed in, not bolted on</h2>
 <p>Declare’s declarative layer is small — the whole language fits in a model’s context window with room left for your app — and everything inside a { } is ordinary TypeScript, so the hard part of generation rides the largest corpus there is. Where Declare looks familiar, it behaves the way a model — or you — will assume: assignment is assignment, and there is no bypass to forget. Where it’s genuinely new, it looks new — brackets for structure, :path for data — a visible cue to consult the spec instead of autocompleting from memory.</p>
 <p>And because a UI’s real structure — views, state, data, what reacts to what — is expressed in the language, the compiler can see all of it: it extracts every binding’s dependencies statically, checks the shape of the tree, and types the seams. What a model reasons about is exactly what the compiler verifies, and its errors are written for that loop — each one states the rule and names the rewrite that fixes it, because the primary reader of a compiler message, now, is an LLM deciding what to do next.</p>
@@ -468,33 +470,24 @@ Slider   [ value = { app.volume },
 </section>
 <section id="getstarted">
 <p>TRY IT NOW</p>
-<h1>Try it now</h1>
-<p>Just as SQL is a domain-specific language for querying data, Declare is purpose-built for creating modern UIs. The quickest way to see what it does is to have it build you something.</p>
 <h2>The easy way</h2>
-<p>Open Claude Code — or another coding agent — in an empty folder, and tell it what you want, with the address of Declare. Either of these will do, or write your own:</p>
+<p>Open Claude Code — or another coding agent — in an empty folder, and tell it what you want, for example:</p>
 <blockquote><p>Write me a kanban board using Declare, here: https://github.com/davidtemkin/declarelang</p></blockquote>
-<blockquote><p>Write me a budget app using Declare, here: https://github.com/davidtemkin/declarelang</p></blockquote>
-<p>There is nothing to install first. The agent downloads Declare, reads its guide, writes the app and checks its own work in a browser; along the way it asks to run a few commands — say yes. In 15–20 minutes it hands you a working app and the address to open it at.</p>
+<blockquote><p>Write me a personal budgeting app using Declare, here: https://github.com/davidtemkin/declarelang</p></blockquote>
+<p>Provide any required permissions.</p>
+<p>In 15–20 minutes you'll have your first Declare app. That's it.</p>
 <h2>Or do it yourself</h2>
+<p>Cloning the repository gives you everything: the toolchain you build with, the docs and example apps, and Declare's own source to read. For a project of your own, install Declare as a dependency instead (<a href="https://github.com/davidtemkin/declarelang/blob/main/docs/operational/embedding.md">Embedding Declare in a project</a>).</p>
 <pre><code class="language-bash">git clone https://github.com/davidtemkin/declarelang.git &amp;&amp; cd declarelang</code></pre>
 <p>Get the repository.</p>
 <pre><code class="language-bash">npm install</code></pre>
-<p>Install the toolchain's dependencies (TypeScript, esbuild, and the Chrome driver the checking tools run on). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script; if you instead add declarelang to another project as a git dependency, approve its build (<code>pnpm approve-builds</code>, or <code>"pnpm": { "onlyBuiltDependencies": ["declarelang"] }</code>) so its prepare step runs.</p>
+<p>Install the toolchain's dependencies (TypeScript, esbuild, and the Chrome driver the checking tools run on). The clone ships prebuilt — no build step before first run. pnpm works too — the repo pre-approves esbuild's install script.</p>
 <pre><code class="language-bash">npm start</code></pre>
 <p>Start the dev server. It prints its address — http://127.0.0.1:8200/ unless that port is taken, in which case it says so and names the next (<code>PORT=8201 npm start</code>). Browse to any .declare file's URL under it and the server compiles and returns the running app.</p>
 <p>Write a program to my-apps/hello.declare and browse to it under the server's address — http://127.0.0.1:8200/my-apps/hello.declare on the default port. The program URL is the app's address. </p>
-<h2>The whole model in one program</h2>
-<pre><code class="language-declare">App [ width = 400, height = 140, fill = darkslategray, textColor = whitesmoke,
-    count: number = 0,                               // reactive state
-    col: View [ x = center, y = center,
-        layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
-        Button [ label = "Add one", primary = true, onClick() { app.count = app.count + 1 } ],
-        Text [ text = { `Clicked ${app.count} times` } ]
-        ]
-    ]</code></pre>
-<p>Two delimiters carry the whole model: <strong><code>[ … ]</code></strong> is the view tree — views, attributes, children; <strong><code>{ … }</code></strong> is TypeScript — a value, a handler body. The <code>{ }</code> lines are <em>constraints</em>, standing relationships the runtime keeps true: click the view and the text updates, resize and it re-centers — you wrote no update logic for either. (The hand-built button above shows the composition model; a themed <code>Button</code> also ships in the small standard library.)</p>
-<h2>Where everything is</h2>
-<ul><li><a href="https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md"><strong>docs/declare.md</strong></a> — the language, in one file, for you and your LLM.</li><li><a href="https://github.com/davidtemkin/declarelang/blob/main/docs/guide/01-what-declare-is.md"><strong>The guide</strong></a> — what an idiomatic Declare app looks like, starting from an app just like the one above.</li><li><a href="https://github.com/davidtemkin/declarelang"><strong>GitHub</strong></a> — the full source. The homepage you are reading is itself a Declare app, and every app is editable in the browser.</li></ul>
+<h2>Learning Declare</h2>
+<p><a href="https://davidtemkin.github.io/declarelang/apps/docs/"><strong>The Declare docs</strong></a> are the place to start, and they come in four parts:</p>
+<ul><li><strong>The guide</strong>, in 31 chapters. It starts from first principles and covers each part of building an app, from layout, controls and data to motion, accessibility, touch and embedding. It also walks through a complete calendar app, and has a glossary and notes for people coming from other frameworks.</li><li><strong>The language</strong>, a page for each form the grammar accepts.</li><li><strong>The types</strong>, a page for each named vocabulary.</li><li><strong>The class reference</strong>, a page for every class with its members and live examples.</li></ul>
 <p>Built in <span>Declare</span></p>
 <p>·</p>
 <a href="apps/homepage/homepage.declare?viewer"><p>View Source</p></a>
@@ -554,7 +547,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 138 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,506 lines: 981 of code and 251 of comments, and no dependencies. It ships at 156 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 140 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,506 lines: 981 of code and 251 of comments, and no dependencies. It ships at 157 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -581,7 +574,7 @@ npm install
 npm start</code></pre>
 <p>That starts the dev server; write a program to <code>my-apps/hello.declare</code> and browse to its URL — on the dev server, the program's URL is the app's address. The repository ships prebuilt, so there's no build step before first run. (On a plain static host, the entry point is a page — <code>index.html</code>, or a production build's — rather than the bare <code>.declare</code> file; the site's service worker upgrades program URLs after a first visit.)</p>
 <h3>Can I use Declare inside my own project? Is there an npm package?</h3>
-<p>Today, the repository is the distribution: you clone it, and your apps live in a directory inside it (<code>my-apps/</code>), served by its dev server and built by its <code>declarec</code> tool. What you <em>ship</em> is fully standalone — a production build is a small set of static files you can host anywhere, with no trace of the toolchain. There's no npm package yet; treating the checkout as your toolchain (and <code>git pull</code> as your upgrade path) is the current model.</p>
+<p>Yes. Declare installs into your project as an ordinary dependency, fetched from GitHub rather than the npm registry: <code>npm install github:davidtemkin/declarelang</code> (with pnpm, approve esbuild's install script when it asks). Your app lives in your own repository, next to the back end it talks to. The dev server serves your project at <code>/</code> and the platform at <code>/declare/</code>, <code>declarec</code> builds it, and the version is pinned in your lockfile, so you upgrade when you choose. <a href="https://github.com/davidtemkin/declarelang/blob/main/docs/operational/embedding.md">Embedding Declare in a project</a> has the whole setup. What you <em>ship</em> is fully standalone: a production build is a small set of static files you can host anywhere, with no trace of the toolchain. Cloning the repository, as above, is still the quickest way to try it, with your first programs in <code>my-apps/</code>.</p>
 <h3>Is there editor support — syntax highlighting, autocomplete, a VS Code extension?</h3>
 <p>Not yet as a standalone extension. The first-class editing surface today is the toolchain's own: every program URL opens a highlighted reader and a live editor in the browser, and the compiler — with its mandatory type-checking and fix-naming diagnostics — is the authority an editor plugin would defer to anyway. The language's surface is small enough that most editors' TypeScript support already helps inside <code>{ }</code> bodies. A dedicated editor extension is an obvious gap, honestly labeled.</p>
 <h3>Can I save or share something I've edited in the browser?</h3>
@@ -821,7 +814,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=f46f41900323";
+  import boot from "./bundles/declare-boot.js?v=33b7ef3cbb0c";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

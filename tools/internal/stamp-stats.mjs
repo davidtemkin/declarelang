@@ -63,6 +63,9 @@ const FORMATS = {
   // measured from the file on every derive, so it cannot drift again, and the
   // claim it supports (the whole language fits in a context window) is
   // unaffected either way.
+  // the release a project pins (embedding.md's dependency line) — package.json's
+  // version, so the example names the current release, not the first one
+  "version":           () => JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version,
   "spec.tokens":       () => group(Math.round(specWords() * 1.33 / 1000) * 1000),
 };
 
@@ -75,7 +78,7 @@ function group(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/tenets/1 SATOR.md",
   "docs/tenets/2 AREPO.md", "docs/guide/01-what-declare-is.md", "docs/guide/27-with-an-llm.md",
   "docs/guide/28-calendar.md",
-  "docs/guide/26-packaging.md", "docs/operational/building.md",
+  "docs/guide/26-packaging.md", "docs/operational/building.md", "docs/operational/embedding.md",
   "skill/SKILL.md", ".claude/skills/declare/SKILL.md"];
 
 // THE PENDING RELEASE'S NOTES are a stamp target too — releases/v<version>.md

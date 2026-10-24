@@ -166,6 +166,21 @@ function layoutChecks(app: Node, { touch = false, realText = false }: BootCheckO
         }
       }
     }
+    // PINNED, BUT NOTHING TO PIN AGAINST: ignoreScroll opts a view out of its
+    // OWN parent's scroll, and this parent does not scroll — so it scrolls with
+    // the page, as its parent does, however it looks at the top of the page
+    if (v.ignoreScroll && !v.$pinsToFrame() && v.parent instanceof View) {
+      out.push(`${pathOf(app, v)} has ignoreScroll, but its parent ${pathOf(app, v.parent)} does not scroll, so it moves with ${pathOf(app, v.parent)}: a view stands still against its own parent's scroll. To stand still against the window, make it a child of the App; inside a pane, a child of the view that scrolls.`);
+    }
+    // A BAR AT THE WINDOW'S FOOT WRITTEN IN SCRIPT: pinned to the page with its
+    // y computed from the window's height follows the browser's bars and the
+    // overscroll bounce a frame late, and visibly jumps on a phone
+    if (v.$pinsToFrame() && !(v.parent?.parent instanceof View) && !v.$endAnchor.has("y")) {
+      const o = ownerOf(v, "y") as { source?: string | null } | null;
+      if (o !== null && /hostHeight/.test(o.source ?? "")) {
+        out.push(`${pathOf(app, v)} is pinned to the window and placed from its height (y = { ${(o.source ?? "").trim()} }), so on a phone it follows the browser's bars a frame late and jumps. Write y = end: the browser holds it against the window's foot itself, and runs it through the home indicator's band.`);
+      }
+    }
     // A TARGET TOO SMALL FOR A FINGER, on a touch screen
     if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44)) touchSmall.push(`${pathOf(app, v)} ${Math.round(v.width)}×${Math.round(v.height)}`);
     const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";

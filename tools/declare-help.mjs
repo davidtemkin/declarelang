@@ -271,6 +271,31 @@ function sayEntry(e) {
   if (e.id === "Icon") sayIcons();
 }
 
+/** A theme preset's own `name = value` pairs, read from its source: the
+ *  `theme Name [ … ]` block, split at its top-level commas, comments dropped. */
+function presetValues(source, name) {
+  let text;
+  try { text = readFileSync(join(ROOT, source), "utf8"); } catch { return []; }
+  const at = text.search(new RegExp(`^theme ${name}\\s*\\[`, "m"));
+  if (at < 0) return [];
+  let i = text.indexOf("[", at) + 1, depth = 0, cur = "";
+  const parts = [];
+  for (; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "/" && text[i + 1] === "/") { while (i < text.length && text[i] !== "\n") i++; continue; }
+    if (ch === "/" && text[i + 1] === "*") { i = text.indexOf("*/", i) + 1; continue; }
+    if (ch === "(" || ch === "[" || ch === "{") depth++;
+    if (ch === ")" || ch === "]" || ch === "}") { if (depth === 0) break; depth--; }
+    if (ch === "," && depth === 0) { parts.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  parts.push(cur);
+  return parts.map((p) => p.trim()).filter((p) => p.includes("=")).map((p) => {
+    const k = p.slice(0, p.indexOf("=")).trim(), v = p.slice(p.indexOf("=") + 1).trim().replace(/\s+/g, " ");
+    return [k, v];
+  });
+}
+
 /** Print a class's member table (§3 row 3): one line per member, elided past
  *  the budget with the pointer `--all` lifts. */
 function sayClass(cls) {
@@ -282,8 +307,16 @@ function sayClass(cls) {
     if (cls === "ThemeDefaults") say(`${cls} — the library's defaults for its optional theme tokens, laid under every provided theme · not a preset: no program names it`);
     else say(`${cls} — a theme preset (${t.appearance}) · \`theme = ${cls}\` on the App provides it · pair: ${t.pair}`);
     if (t.doc) say(`  ${firstSentence(t.doc)}`);
-    say(`  its tokens, and which classes read each: declare-help "theme tokens" · the record: ${t.source}`);
-    json = { kind: "theme", name: cls, appearance: t.appearance, pair: t.pair, doc: t.doc ?? null };
+    // what it sets each token to — the values a program spreads over or reads
+    const values = presetValues(t.source, cls);
+    if (values.length > 0) {
+      say(`  its values (${values.length}):`);
+      const cap = ALL ? Infinity : 24;
+      for (const [k, v] of values.slice(0, cap)) say(`    ${k} = ${v}`);
+      if (values.length > cap) say(`    …and ${values.length - cap} more — declare-help ${cls} --all`);
+    }
+    say(`  which classes read each token: declare-help "theme tokens" · the record: ${t.source}`);
+    json = { kind: "theme", name: cls, appearance: t.appearance, pair: t.pair, doc: t.doc ?? null, values: Object.fromEntries(values) };
     return true;
   }
   const lib = ownKey(SPINE.library, cls);
@@ -379,7 +412,7 @@ function sayIcons() {
 function sayTokens() {
   const row = (tk) => `  ${tk.name}${tk.default !== undefined ? ` = ${tk.default}` : ""} — read by ${tk.read.slice(0, 5).join(", ")}${tk.read.length > 5 ? ", …" : ""}`;
   say(`Theme tokens — the names the library reads from provided("theme"). Start from a preset (${TOKENS.presets.join(", ")}, each with a …Dark companion) and spread to change one: theme = { { ...SanFrancisco, accent: #CC3333 } }`);
-  say(`  required (${TOKENS.required.length}, no default — every theme states them):`);
+  say(`  required (${TOKENS.required.length}, no default — every theme states them; a preset's values: declare-help SanFrancisco):`);
   for (const tk of TOKENS.required) say(row(tk));
   const cap = ALL ? Infinity : Math.max(8, BUDGET_LINES - out.length - 3);
   say(`  optional (${TOKENS.optional.length}, each with a default a theme may change):`);

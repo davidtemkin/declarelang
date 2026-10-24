@@ -1,4 +1,4 @@
-<!-- nav: Time and change events -->
+<!-- nav: Time and changes -->
 <!-- part: Continuity -->
 
 # Time and change events

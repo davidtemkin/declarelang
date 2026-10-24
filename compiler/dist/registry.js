@@ -22,6 +22,7 @@
 //          (reachable via the `@` tier's duplicate-suffix resolution only).
 import ts from "typescript";
 import { DeclareError } from "../../runtime/dist/errors.js";
+import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
 const isReplicated = (el) => el.attrs.some((a) => a.name === "datapath" && a.value.kind === "path" && a.value.many);
 /** Build the registry from the App tree and enforce the placement and
  *  uniqueness rules. Class bodies are visited only to REJECT `shows` there. */
@@ -136,8 +137,33 @@ export function checkReferences(program, reg) {
             errors.push(new DeclareError(`'#${body}' names no declared destination or anchor${near}`, pos));
         }
     };
-    const walk = (el, inClass) => {
-        const link = el.attrs.find((a) => a.name === "link");
+    // `link` is navigation on a View (location.md §0.3); on any other class it
+    // is that class's own member, whatever it holds. A user class is followed
+    // down its bases to the built-in it extends.
+    const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+    const isView = (tag) => {
+        const seen = new Set();
+        for (let t = tag; t !== undefined && !seen.has(t); t = bases.get(t)) {
+            seen.add(t);
+            const sch = SCHEMAS[t];
+            if (sch !== undefined)
+                return descendsFrom(sch, "View");
+        }
+        return false;
+    };
+    // `location` is the App's: `app.location`, or a bare `location` in the App
+    // tree that no nearer element declares a member of that name for. Another
+    // element's `location` (`app.spot.location`) is that element's.
+    const readsLocation = (src, chain, inClass) => {
+        if (/\bapp\s*\.\s*location\b/.test(src))
+            return true;
+        if (inClass || !/(?<![.\w$])location\b/.test(src))
+            return false;
+        return !chain.slice(0, -1).some((e) => e.decls.some((d) => d.name === "location") || e.children.some((c) => c.name === "location"));
+    };
+    const walk = (el, inClass, outer) => {
+        const chain = [el, ...outer];
+        const link = isView(el.tag) ? el.attrs.find((a) => a.name === "link") : undefined;
         if (link !== undefined) {
             if (link.value.kind === "string")
                 checkRef(link.value.value, link.pos);
@@ -150,25 +176,26 @@ export function checkReferences(program, reg) {
         // arrivals once the destination-part rule strips the @name
         const sh = el.attrs.find((a) => a.name === "shows");
         const vis = el.attrs.find((a) => a.name === "visible");
-        if (sh !== undefined && vis !== undefined && vis.value.kind === "code" && /\bapp\.location\b|\blocation\b/.test(vis.value.src)) {
+        if (sh !== undefined && vis !== undefined && vis.value.kind === "code" && readsLocation(vis.value.src, chain, inClass)) {
             warnings.push(new DeclareError(`this view's shows already gates by location — a visible constraint reading location again is the double gate the lowering composes wrongly with; drop the location test from visible`, vis.pos));
         }
         // migration lint (§0.10): a handler that writes location on a view with no
-        // link is the pre-registry idiom — invisible to the crawler
-        if (link === undefined) {
+        // link is the pre-registry idiom — invisible to the crawler. A comparison
+        // (`app.location == …`) reads it and is not this case.
+        if (link === undefined && el.attrs.every((a) => a.name !== "link")) {
             for (const m of el.methods) {
-                if (m.name === "onClick" && /\bapp\.location\s*=/.test(m.body)) {
+                if (m.name === "onClick" && /\bapp\.location\s*=(?!=)/.test(m.body)) {
                     warnings.push(new DeclareError(`onClick writes app.location on a view with no 'link' — the crawler cannot see this edge. Declare 'link = "#…"' (the handler may stay for side effects; it runs before the follow)`, m.pos));
                     break;
                 }
             }
         }
         for (const c of el.children)
-            walk(c, inClass);
+            walk(c, inClass, chain);
     };
-    walk(program.root, false);
+    walk(program.root, false, []);
     for (const cls of program.classes)
-        walk(cls.body, true);
+        walk(cls.body, true, []);
     return { errors, warnings };
 }
 //# sourceMappingURL=registry.js.map

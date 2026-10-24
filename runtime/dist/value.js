@@ -8,6 +8,7 @@
 import { diag } from "./errors.js";
 import { sidesEqual, sidesUniform } from "./stroke-sides.js";
 import { parseLiteral } from "./literal-parse.js";
+import { PURPOSE_NAMES } from "./purpose.js";
 /** The base of the translucent encoding — see the Color doc above. */
 const ALPHA = 0x100000000;
 /** Encode rgb (0xRRGGBB) + alpha (0…255) as one Color number. */
@@ -285,6 +286,9 @@ const DECLARED_TYPES = {
     // default); `baseline` aligns children by the baseline each DECLARES.
     Justify: enumType("Justify", "start", "center", "end", "fill"),
     CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline"),
+    // What a text field holds (TextInput.purpose): declarable so a control built
+    // around a field (a combobox of countries) can say it and hand it on.
+    Purpose: enumType("Purpose", ...PURPOSE_NAMES),
 };
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */

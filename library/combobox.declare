@@ -54,6 +54,11 @@ override redirects it and leaves the attribute untouched.
 ## placeholder
 The entry's placeholder text while empty.
 
+## purpose
+What the choice is — `country`, `region`, `name` — given to the entry, so autofill and a
+password manager recognise the field, and a phone brings up the keyboard that suits it. Text
+that arrives whole and names exactly one item, as autofill's does, picks that item.
+
 ## query
 What the user has typed since the last pick. **Not the value** — the draft that filters
 the list.
@@ -144,6 +149,11 @@ class Combobox extends Control [
     value: object = null,       // the choice — the chosen member, or null
     placeholder: string = "",
 
+    // what the choice is — `country`, `region` — so autofill and a phone's
+    // keyboard treat the entry as that field; the entry carries it
+
+    purpose: Purpose = text,
+
     // the query — what the user has typed since last pick; `filtering` is
     // false until they type, so a bare disclosure shows the whole list
 
@@ -224,6 +234,7 @@ class Combobox extends Control [
         width = { classroot.width },
         height = { classroot.height },
         placeholder = { classroot.placeholder },
+        purpose = { classroot.purpose },
 
         // the field is what a screen reader edits, so it carries the combobox's name
 
@@ -231,6 +242,18 @@ class Combobox extends Control [
         accessibilityActiveItem = { classroot.list == null ? null : (classroot.list as any).accessibilityActiveItem },
         focusable = { !classroot.disabled },
         onInput(t: string) {
+            // text that arrives whole (autofill, a paste) and names exactly one
+            // item picks it; typing that passes through an item's name does not,
+            // so "Ann" on the way to "Anna" stays a query
+            const whole = t.length - classroot.query.length > 1
+            const exact = whole ? (classroot.items ?? []).filter((m) => classroot.labelOf(m).toLowerCase() == t.toLowerCase()) : []
+            if (exact.length == 1) {
+                classroot.query = "" + t
+                classroot.filtering = false
+                classroot.closeList()
+                classroot.input(exact[0])
+                return
+                }
             classroot.query = "" + t
             classroot.filtering = true
             classroot.syncList()

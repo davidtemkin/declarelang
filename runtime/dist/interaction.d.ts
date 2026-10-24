@@ -71,6 +71,10 @@ export declare function initInteraction(test: (n: unknown) => n is InteractionVi
 /** The view a view PAINTS in (planes.md §3.1): its `paintsIn` when that is not
  *  its parent, else its parent. Paint, hit and root geometry follow it. */
 export declare function paintParentOf(v: InteractionView): InteractionView | null;
+/** The view a real press at this point would reach — `hitAt` passing over views
+ *  that take no presses, as the backends' input routing does. The checking
+ *  tools ask this, so a press they refuse is one a person's would miss. */
+export declare function pressAt(root: unknown, x: number, y: number): InteractionView | null;
 /** The topmost visible view whose box contains the point — THE hit walk
  *  (hit-walk.ts), read over the views. Exported because it is also the
  *  language's own hit test (View.viewAt / View.containsPoint, view.ts): what an
@@ -78,6 +82,7 @@ export declare function paintParentOf(v: InteractionView): InteractionView | nul
  *  for `hovered` must be the same answer, from the same code. */
 export declare function leafAt(v: InteractionView, lx: number, ly: number, pierce?: boolean, trace?: HitNote[]): InteractionView | null;
 export declare function noteUserScroll(scroller: object, active: boolean): void;
+export declare function noteFinger(app: unknown, phase: "down" | "up", x: number, y: number): void;
 /** The view under a point in the root's FRAME space (viewport coordinates for
  *  a top-level app) — the walk's own space. view.ts wraps it as
  *  `app.viewAt(x, y)` with the CONTENT-space contract the language documents

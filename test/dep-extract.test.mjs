@@ -527,6 +527,19 @@ test("a same-named computed default ELSEWHERE does not make an App field read it
   assert.ok(r.source !== null, "expected it to compile: " + r.errors.map((e) => e.message).join("; "));
 });
 
+test("a method in one class never joins the read of a same-named default in another", async () => {
+  // A read of a computed default follows the default its receiver reaches (an
+  // unresolvable receiver takes the tracking path) — never a METHOD of that
+  // name: a carousel's `count()` (whose body reads what the analyzer cannot
+  // follow) once refused a segmented control's `count` reads, positioned in
+  // the segmented control's source.
+  const r = await compile(`class Seg [ count: number = { 3 }, segW: number = { 300 / this.count },
+      pill: View [ width = { (parent as Seg).segW } ] ]
+    class Car [ layout: SimpleLayout [ ], count() -> number { return this.layout.laid().length } ]
+    App [ Seg [ ], Car [ ] ]`, {});
+  assert.ok(r.source !== null, "expected it to compile: " + r.errors.map((e) => e.message).join("; "));
+});
+
 test("a subtree reskins by spreading the provided value it overrides — NOT self", async () => {
   // `p` provides a new theme derived from the one it inherits: `provided("theme")`
   // in a `theme` provision's own body resolves UP the chain (the value being
@@ -542,6 +555,73 @@ test("self-dep — content intrinsics are not self (`width` reading contentWidth
   const r = await extract(`App [ width = 100, height = 100,
       v: View [ width = { Math.min(this.contentWidth, 480) } ] ]`);
   assert.equal(errsOf(r, "width", null).length, 0);
+});
+
+section("\n─ E. name scoping: a name resolves through its receiver, never the program ─");
+
+test("a data field spelled like a node collection is not an aggregation over nodes", async () => {
+  // `members` / `views` / `children` name a node's collection only ON a node:
+  // a dataset field or a plain attribute spelled the same way is data.
+  for (const src of [
+    `App [ team: Dataset [ contents = { { members: ["ann","bob"] } } ],
+      t: Text [ text = { app.team.value.members.map((m) => m.toUpperCase()).join(", ") } ] ]`,
+    `App [ members: string[] = ["ann","bob"], t: Text [ text = { app.members.map((m) => m.toUpperCase()).join(", ") } ] ]`,
+  ]) {
+    const r = await compile(src, {});
+    assert.ok(r.source !== null, "expected it to compile: " + r.errors.map((e) => e.message).join("; "));
+  }
+  // …while the node's own collection is still refused
+  const e = await residueErrors(`App [ v: View [ ], w: View [ width = { app.v.childViews.map((c) => c.width).length } ] ]`);
+  assert.ok(e.some((x) => /node collection/.test(x.message)), JSON.stringify(e.map((x) => x.message)));
+});
+
+test("a deep receiver without the default reads its own slot — the tail is never dropped", async () => {
+  // Splitter declares a computed `active`; `app.card.active` is a named child.
+  // The read must wire `card.active.text`, not inline Splitter's formula and
+  // drop `.text` (the constraint went silently stale).
+  const src = (extra) => `App [ card: View [ active: Text [ text = "A" ] ],
+      mirror: Text [ text = { "mirror " + app.card.active.text } ],
+      via: Text [ text = { app.peek() } ],
+      peek(): string { return app.card.active.text },
+      ${extra} ]`;
+  for (const extra of ["split: Splitter [ ]", ""]) {
+    const r = await extract(src(extra));
+    assert.deepEqual(readsOf(r, "text", "mirror"), ["this.root.card.active.text"], extra);
+    assert.deepEqual(readsOf(r, "text", "via"), ["this.root.card.active.text"], "through a method body too — " + extra);
+  }
+});
+
+test("a resolved receiver with no default of that name inlines nothing", async () => {
+  // Drawer's `open` is a literal; Accordion's Pane has a computed `open` whose
+  // chain reaches `label`. `this.caption()` reads THIS drawer's plain slot — the
+  // Pane's formula must not join it (it made `label` read itself).
+  const r = await compile(`class Drawer extends View [ open: boolean = false, label: string = "",
+      caption(): string { return this.open ? "Hide" : "Show" } ]
+    App [ d: Drawer [ label = { this.caption() } ], acc: Accordion [ Pane [ label = "One" ] ] ]`, {});
+  assert.ok(r.source !== null, "expected it to compile: " + r.errors.map((e) => e.message).join("; "));
+  const x = await extract(`class Drawer extends View [ open: boolean = false, label: string = "",
+      caption(): string { return this.open ? "Hide" : "Show" } ]
+    App [ d: Drawer [ label = { this.caption() } ], acc: Accordion [ Pane [ label = "One" ] ] ]`);
+  assert.deepEqual(readsOf(x, "label", "d"), ["this.open"]);
+});
+
+test("a call's verdict never depends on a same-named method in an unrelated class", async () => {
+  // an object-typed receiver: the tracking path, with or without a class that
+  // happens to declare `toggle`
+  for (const extra of ["", ", s: Splitter [ ]"]) {
+    const src = `App [ stats: object = null, t: Text [ text = { "" + app.stats.toggle() } ]${extra} ]`;
+    const r = await compile(src, {});
+    assert.ok(r.source !== null, "expected it to compile: " + r.errors.map((e) => e.message).join("; "));
+    const x = await extract(src);
+    assert.equal(find(x, "text", "t").dynamic, true, "goes dynamic" + extra);
+  }
+  // a known node with no such method: refused either way (extracted from the
+  // resolved form directly — the typecheck would answer first, as a member miss)
+  for (const extra of ["", ", z: View [ frob(): number { return 2 } ]"]) {
+    const x = extractProgram(parseProgram(`App [ v: View [ ], t: Text [ text = { "" + this.root.v.frob() } ]${extra} ]`));
+    assert.ok(errsOf(x, "text", "t").some((e) => /unresolved call target \.frob\(\)/.test(e.message)),
+      "refused" + extra + ": " + JSON.stringify(errsOf(x, "text", "t")));
+  }
 });
 
 await chain;

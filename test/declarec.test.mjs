@@ -557,8 +557,13 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // rasters only its box; an open overlay's own shortcuts are in force; viewAt
   // passes over a view it is told to; a body names a class as a value; a row's
   // name leaves out the controls it holds — measured 138.2 KB, from 137.7.
+  // 139 → 140 KB (2026-10-23, the touch round): a tap's trailing mouse events kept
+  // off a screen the tap just changed; a quick tap shows the control pressed; a
+  // press reaches past views that take none; a field being typed in kept clear of
+  // the keyboard and pinned bars; a bar at the window's foot held there by the
+  // browser; a paragraph's direction — measured 139.8 KB, from 138.2.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 139 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 140 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 

@@ -1,4 +1,4 @@
-<!-- nav: URLs, links and history -->
+<!-- nav: URLs, links, history -->
 <!-- part: Building -->
 
 # URLs, links and history

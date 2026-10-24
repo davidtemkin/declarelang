@@ -11,6 +11,7 @@ import { diag } from "./errors.js";
 import type { Motion } from "./animate.js";
 import { sidesEqual, sidesUniform } from "./stroke-sides.js";
 import { parseLiteral } from "./literal-parse.js";
+import { PURPOSE_NAMES } from "./purpose.js";
 
 /** A color as one number, or `null` for "no color".
  *
@@ -560,6 +561,9 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
   // default); `baseline` aligns children by the baseline each DECLARES.
   Justify: enumType("Justify", "start", "center", "end", "fill"),
   CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline"),
+  // What a text field holds (TextInput.purpose): declarable so a control built
+  // around a field (a combobox of countries) can say it and hand it on.
+  Purpose: enumType("Purpose", ...PURPOSE_NAMES),
 };
 
 /** Resolve a written declaration type name (`count: number`), or null when

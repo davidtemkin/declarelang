@@ -32,6 +32,8 @@
   "FocusRing": "focusring.declare",
   "Accordion": "accordion.declare",
   "Pane": "accordion.declare",
+  "Carousel": "carousel.declare",
+  "CarouselLayout": "carousel.declare",
   "Tooltip": "tooltip.declare",
   "Menu": "menu.declare",
   "MenuBar": "menubar.declare",

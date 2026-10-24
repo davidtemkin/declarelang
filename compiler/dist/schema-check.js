@@ -68,46 +68,54 @@ function walkPlan(start, plan, spelled) {
 /** Check a program's path literals against its datasets' schemas. */
 export function schemaCheck(program) {
     const errors = [];
-    const walkRoot = (root, nouns) => {
-        // The root's named schema'd datasets — the resolvable cursor targets.
-        // The stored value is the document's starting CONTEXT: a record document
-        // stands at its fields; an array-root document (`schema = Task[]`, typed
-        // data) stands AT the array, so `:​[]` on the value replicates elements.
-        const datasets = new Map();
-        // A data node by its CHAIN: Dataset, DataSource, or a program class
-        // extending either (`class Feed extends DataSource`).
-        const bases = new Map(program.classes.map((c) => [c.name, c.base]));
-        const isDataNode = (tag) => {
-            const seen = new Set();
-            for (let t = tag; t !== undefined && !seen.has(t); t = bases.get(t)) {
-                seen.add(t);
-                if (t === "Dataset" || t === "DataSource")
-                    return true;
-            }
-            return false;
-        };
-        for (const c of root.children) {
-            if (c.name !== null && isDataNode(c.tag)) {
-                const sa = c.attrs.find((a) => a.name === "schema" && a.value.kind === "schema");
-                if (sa !== undefined && sa.value.kind === "schema") {
-                    const v = sa.value;
-                    datasets.set(c.name, v.arrayRoot === true
-                        ? { kind: "array", field: { name: "(document)", array: true, optional: false, type: null, fields: [...v.shape] } }
-                        : { kind: "record", fields: v.shape });
-                }
-            }
+    // A data node by its CHAIN: Dataset, DataSource, or a program class
+    // extending either (`class Feed extends DataSource`).
+    const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+    const isDataNode = (tag) => {
+        const seen = new Set();
+        for (let t = tag; t !== undefined && !seen.has(t); t = bases.get(t)) {
+            seen.add(t);
+            if (t === "Dataset" || t === "DataSource")
+                return true;
         }
-        if (datasets.size === 0)
-            return;
-        const idiom = new RegExp(`^\\s*(?:${nouns.join("|")})\\.([A-Za-z_$][\\w$]*)\\.value\\s*$`);
-        const visit = (el, ctx) => {
+        return false;
+    };
+    /** The schema'd dataset `name` among `el`'s own children, as the document's
+     *  starting CONTEXT: a record document stands at its fields; an array-root
+     *  document (`schema = Task[]`, typed data) stands AT the array, so `:​[]` on
+     *  the value replicates elements. Undefined when `el` has none so named. */
+    const datasetOf = (el, name) => {
+        const c = el.children.find((ch) => ch.name === name && isDataNode(ch.tag));
+        const sa = c?.attrs.find((a) => a.name === "schema" && a.value.kind === "schema");
+        if (sa === undefined || sa.value.kind !== "schema")
+            return undefined;
+        const v = sa.value;
+        return v.arrayRoot === true
+            ? { kind: "array", field: { name: "(document)", array: true, optional: false, type: null, fields: [...v.shape] } }
+            : { kind: "record", fields: v.shape };
+    };
+    const walkRoot = (root, rootNouns) => {
+        // A cursor names its dataset through the element it is written on — the
+        // resolved forms are `this.d.value` (its own child), `parent.d.value` and
+        // `this.parent.d.value` (an ancestor's, one `parent` per level up) and the root's by its noun
+        // (`app.d.value`, `classroot.d.value`) — so a nested element's own `items`
+        // is that one, never the root's `items` of the same name.
+        const idiom = new RegExp(`^\\s*(?:(${rootNouns.join("|")})|(this|parent)((?:\\.parent)*))\\.([A-Za-z_$][\\w$]*)\\.value\\s*$`);
+        const cursorOf = (src, chain) => {
+            const m = src.match(idiom);
+            if (m === null)
+                return undefined;
+            const up = (m[2] === "parent" ? 1 : 0) + (m[3]?.match(/\.parent/g) ?? []).length;
+            const owner = m[1] !== undefined ? root : chain[up];
+            return owner === undefined ? undefined : datasetOf(owner, m[4]);
+        };
+        const visit = (el, ctx, outer) => {
+            const chain = [el, ...outer];
             let here = ctx;
             const dp = el.attrs.find((a) => a.name === "datapath");
             if (dp !== undefined) {
                 if (dp.value.kind === "code") {
-                    const m = dp.value.src.match(idiom);
-                    const ctx2 = m !== null ? datasets.get(m[1]) : undefined;
-                    here = ctx2 ?? OPEN;
+                    here = cursorOf(dp.value.src, chain) ?? OPEN;
                 }
                 else if (dp.value.kind === "path") {
                     const v = dp.value;
@@ -170,13 +178,13 @@ export function schemaCheck(program) {
                 }
             }
             for (const child of el.children)
-                visit(child, here);
+                visit(child, here, chain);
         };
-        visit(root, OPEN);
+        visit(root, OPEN, []);
     };
-    walkRoot(program.root, ["this\\.root", "this", "app"]);
+    walkRoot(program.root, ["this\\.root", "app"]);
     for (const cls of program.classes)
-        walkRoot(cls.body, ["classroot", "this"]);
+        walkRoot(cls.body, ["classroot"]);
     return errors;
 }
 //# sourceMappingURL=schema-check.js.map

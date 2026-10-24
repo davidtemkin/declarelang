@@ -50,4 +50,4 @@ App [ width = 320, height = 180, fill = white,
 **Examples** `apps/weather/weather.declare`: `clock: Time [ tick = minute ]`, every
 row's local time · `apps/lzx-dashboard/lzx-dashboard.declare`: timed presence flashes.
 
-**Guide** Time and change events.
+**Guide** Time and changes.

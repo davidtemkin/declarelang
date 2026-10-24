@@ -354,20 +354,39 @@ bootHost(cfg);
       // returned in place of the centre (clickAt: a day on a drawn chart).
       const reach = async (path, at = null) => {
         const spot = () => at === null ? center(path) : pointIn(path, at.x, at.y);
-        let c = await spot();
+        // A TARGET STILL MOVING is aimed at where it will be, not where it was: a
+        // native smooth scroll, or a scroll request that lands a frame later,
+        // moves it between the look and the press. Wait (in real frames, up to
+        // about half a second) until three looks in a row agree — a scroll asked
+        // for this frame starts only on the next; one that never settles is said.
+        // Asked first, and again after each scroll made here.
+        const still = async () => {
+          let c = await spot();
+          for (let tries = 0, same = 0; same < 3; tries++) {
+            await frames(page);
+            const again = await spot();
+            if (Math.abs(again.x - c.x) < 0.5 && Math.abs(again.y - c.y) < 0.5) { same++; continue; }
+            same = 0;
+            c = again;
+            if (tries >= 40) throw new VerifyAssertion(`'${path}' is still moving (now at (${Math.round(c.x)}, ${Math.round(c.y)})) — a press would land where it was, not where it is going. Let its motion finish first (drive.wait, or settleMotion)`);
+          }
+          return c;
+        };
+        let c = await still();
         const vp = page.viewport() ?? { width: 1280, height: 800 };
         const off = (q) => q.x < 0 || q.y < 0 || q.x >= vp.width || q.y >= vp.height;
         if (off(c)) {
           await page.evaluate((p) => { const n = window.__declare.find(p); n?.scrollIntoView?.("nearest"); }, path);
           await page.evaluate(() => window.__declare.clock?.settleMotion?.());
-          await frames(page);   // the platform's scroll lands as an event, before the frame
-          c = await spot();
+          c = await still();   // the platform's scroll lands as an event, frames later
           if (off(c)) throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}) and scrolling did not bring it in`);
         }
         // the view a press there reaches must be the target, inside it, or what holds it;
         // one that pinned chrome covers is scrolled clear of it first, as a person would
+        // pressAt: where a real press goes, past views that take none (a
+        // container's box over a control is not in its way)
         const reaches = () => page.evaluate((p, x, y) => {
-          const d = window.__declare, at = d.at(x, y);
+          const d = window.__declare, at = (d.pressAt ?? d.at)(x, y);
           if (at === null) return { ok: false, path: null };
           const t = d.find(p), h = d.find(at.path);
           const inside = (a, b) => { for (let n = a; n != null; n = n.parent) if (n === b) return true; return false; };
@@ -381,20 +400,22 @@ bootHost(cfg);
         if (hit.clipped) {
           await page.evaluate((p) => { window.__declare.find(p)?.scrollIntoView?.("nearest"); }, path);
           await page.evaluate(() => window.__declare.clock?.settleMotion?.());
-          await frames(page);
-          c = await spot();
+          c = await still();
           hit = await reaches();
         }
         if (!hit.ok) {
           // past the covering view: its bottom edge, when it covers from above
           await page.evaluate((p, cover, y) => {
             const d = window.__declare, n = d.find(p), k = cover === null ? null : d.inspect(cover);
+            // covered from above (a header): land below its bottom edge; from
+            // below (a bar pinned to the window's foot): bring it to the top
             const below = k !== null && k.rootY < y ? k.rootY + k.height + 8 : 0;
-            if (below > 0) n?.scrollIntoView?.("start", false, below); else n?.scrollIntoView?.("nearest");
+            if (below > 0) n?.scrollIntoView?.("start", false, below);
+            else if (k !== null && k.rootY > y - 1) n?.scrollIntoView?.("start", false, 16);
+            else n?.scrollIntoView?.("nearest");
           }, path, hit.path, c.y);
           await page.evaluate(() => window.__declare.clock?.settleMotion?.());
-          await frames(page);
-          c = await spot();
+          c = await still();
           hit = await reaches();
         }
         if (!hit.ok)
@@ -410,7 +431,7 @@ bootHost(cfg);
             const inside = (a, b) => { for (let n = a; n != null; n = n.parent) if (n === b) return true; return false; };
             const presses = (v) => typeof v.press === "function" || typeof v.onClick === "function" || (typeof v.link === "string" && v.link !== "");
             for (const r of [6, 12]) for (let k = 0; k < 8; k++) {
-              const a = d.at(x + r * Math.cos(k * Math.PI / 4), y + r * Math.sin(k * Math.PI / 4));
+              const a = (d.pressAt ?? d.at)(x + r * Math.cos(k * Math.PI / 4), y + r * Math.sin(k * Math.PI / 4));
               if (a === null) continue;
               // the nearest view holding the hit that takes a press, by its path
               const segs = a.path.match(/"[^"]*"|[^.]+/g) ?? [];
@@ -432,9 +453,17 @@ bootHost(cfg);
       // phone-sized window would hover, never claim a gesture, and pass tests
       // a finger fails.
       const touching = () => page.viewport()?.hasTouch === true;
+      // WHAT A PRESS STARTS, LANDED: a handler that hands its work to the next
+      // frame (afterDelay(0) — a Menu passing on its choice) has run before the
+      // script reads, as it has for a person, who never acts within one frame
+      const landed = async () => {
+        await frames(page);
+        await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+      };
       const press = async (x, y) => {
         if (touching()) await page.touchscreen.tap(x, y);
         else await page.mouse.click(x, y);
+        await landed();
       };
       // a pointer held down between press() and release(): where it is, and the finger
       let held = null;
@@ -471,6 +500,7 @@ bootHost(cfg);
             await this.wait(ms);
             await page.mouse.up();
           }
+          await landed();
         },
         /** A pinch on the view about its centre, spread (scale > 1) or drawn
          *  together (< 1), as the device makes it. On a touch device, two
@@ -524,12 +554,14 @@ bootHost(cfg);
               await new Promise((r) => setTimeout(r, 16));
             }
             await t.end();
+            await landed();
             return;
           }
           await page.mouse.move(c.x, c.y);
           await page.mouse.down();
           await page.mouse.move(c.x + dx, c.y + dy, { steps });
           await page.mouse.up();
+          await landed();
         },
         /** A drag a step at a time, to look at it mid-gesture: `press` puts the
          *  pointer down on the view (at `x, y` inside it, else its centre) and
@@ -562,7 +594,7 @@ bootHost(cfg);
           step("release");
           if (held.finger !== null) await held.finger.end(); else await page.mouse.up();
           held = null;
-          await frames(page);
+          await landed();
         },
         /** Turn the wheel over a view: `dy` (and `dx`) in pixels, as a trackpad
          *  or wheel would — the view under the pointer, or a scroller above it,
@@ -597,8 +629,30 @@ bootHost(cfg);
         /** The requests the program has made so far: { method, url, path, body,
          *  status } each, in order (body parsed when it is JSON). */
         requests() { return requests.map(({ $req, ...q }) => q); },
-        async key(name) { step(`key ${name}`); await page.keyboard.press(name); },
-        async type(text) { step(`type "${text}"`); await page.keyboard.type(text); },
+        /** A key, or a chord written with "+": "Enter", "Shift+Tab", "Meta+Z". */
+        async key(name) {
+          step(`key ${name}`);
+          const parts = name.length > 1 ? name.split("+") : [name];
+          const mods = parts.slice(0, -1), last = parts[parts.length - 1] || "+";
+          for (const m of mods) await page.keyboard.down(m);
+          await page.keyboard.press(last);
+          for (const m of mods.reverse()) await page.keyboard.up(m);
+          await landed();
+        },
+        async type(text) { step(`type "${text}"`); await page.keyboard.type(text); await landed(); },
+        /** Select everything in a text field (focusing it): what select-all does
+         *  before typing over a value. */
+        async selectAll(path) {
+          step(`select all in ${path}`);
+          const r = await page.evaluate((p) => {
+            const n = window.__declare.find(p);
+            if (n == null) return `no view at '${p}'`;
+            if (typeof n.select !== "function") return `'${p}' is not a text field — it has no select()`;
+            n.focus?.(); n.select("all"); return null;
+          }, path);
+          if (r !== null) throw new VerifyAssertion(`selectAll: ${r}`);
+          await landed();
+        },
         async tab(n = 1) { for (let i = 0; i < n; i++) await this.key("Tab"); },
         /** Let `ms` of the app's time pass: its clock is driven through it a
          *  frame at a time — motion moves, later calls (`afterDelay`, a hold's
@@ -617,6 +671,18 @@ bootHost(cfg);
             await owed();
             for (let t = 0; t < m; t += 16.7) { c.step(Math.min(16.7, m - t)); await owed(); }
             if (was === "auto") c.auto();
+            // A NATIVE SCROLL IN FLIGHT — a smooth scrollIntoView, the browser's
+            // own glide — runs on real frames, which the driven steps above do
+            // not give it: let it land (three quiet frames, or as long as the
+            // wait asked for), or it stops where the burst left it
+            let seen = scrollY, still = 0;
+            const quietUntil = performance.now() + Math.max(m, 300);
+            while (still < 3 && performance.now() < quietUntil) {
+              await T.nextFrame();
+              const y = scrollY + [...document.querySelectorAll("[data-declare-scroll]")].reduce((n, e) => n + e.scrollTop + e.scrollLeft, 0);
+              still = Math.abs(y - seen) < 0.5 ? still + 1 : 0;
+              seen = y;
+            }
           }, ms);
           await quiet(Math.max(ms, 1000));
         },
@@ -679,7 +745,10 @@ bootHost(cfg);
           // JSON, so identity is the wrong comparator — it failed every array
           // while printing two identical-looking values at the reader.
           const same = v === expected || JSON.stringify(v) === JSON.stringify(expected);
-          if (!same) fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}`);
+          if (!same) {
+            const waiting = await page.evaluate(() => globalThis.__declareTimers?.pending?.() ?? 0);
+            fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}${waiting > 0 ? ` (${waiting} timer${waiting === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them)` : ""}`);
+          }
         },
         async approx(path, name, expected, tol = 1) {
           const v = await page.evaluate((p, a) => {
@@ -695,9 +764,24 @@ bootHost(cfg);
             fail(`expected ${label} to be ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
           }
         },
+        /** The text the view shows — its own, or, for a row or a card, all its
+         *  visible descendants' together, in tree order. */
         async text(path, contains) {
-          const n = await node(path);
-          if (!String(n.text ?? "").includes(contains)) fail(`expected '${path}' text to contain "${contains}", got "${n.text ?? ""}"`);
+          await node(path);
+          const said = await page.evaluate((p) => {
+            const words = [];
+            const walk = (v) => {
+              if (v == null || v.visible === false) return;
+              if (typeof v.text === "string" && v.text !== "") words.push(v.text);
+              for (const c of v.children ?? []) walk(c);
+            };
+            walk(window.__declare.find(p));
+            return words.join(" ");
+          }, path);
+          if (!said.includes(contains)) {
+            const waiting = await page.evaluate(() => globalThis.__declareTimers?.pending?.() ?? 0);
+            fail(`expected '${path}' text to contain "${contains}", got "${said}"${waiting > 0 ? ` (${waiting} timer${waiting === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them)` : ""}`);
+          }
         },
         async count(path, kind, expected) {
           const n = await node(path);

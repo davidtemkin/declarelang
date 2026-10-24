@@ -412,17 +412,6 @@ function projectionTail(n) {
     }
     return null;
 }
-/** Extract read-paths + callees + residue errors from one body.
- *
- *  `inlinable` decides whether `<receiver>.<name>` is a computed `{ }` default to
- *  be INLINED (no cell to subscribe to) or an ordinary subscribable slot. It is
- *  passed in rather than read from the global name map so the decision can take
- *  the receiver into account; omitted (method summaries, whose frame is unknown
- *  until rebased) it falls back to the name-only test.
- *
- *  `extraRoots` names identifiers that are reactive ROOTS for this body beyond the
- *  three scope nouns — a `script { }` function's parameters, whose reads rebase
- *  onto the call site's arguments rather than onto a receiver. */
 function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
     const reads = new Set();
     const calls = [];
@@ -544,10 +533,27 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
      *  a bare name in a body can only be module scope — a member would have been
      *  spelled `this.…` — so this is unambiguous. Recorded with the argument PATHS,
      *  which are the frame its body's reads rebase onto. */
+    // A DATASET'S VALUE HANDED TO A FUNCTION — JSON.stringify(app.book.value),
+    // Object.keys(…), a script helper: the function reads INTO the tree, as deep
+    // as it likes, and none of those reads is a path this extractor can name. The
+    // static wiring would hold only the `value` slot, which a nested write never
+    // changes — the constraint went stale in silence. Such a body takes the
+    // tracking path (DYNAMIC), where the tree's tracked view records every key
+    // the function reads.
+    const intoTree = (args) => {
+        for (const a of args) {
+            const p = nameablePath(a);
+            if (p !== null && /(^|\.)value(\.|$)/.test(p)) {
+                reads.add(DYNAMIC);
+                return;
+            }
+        }
+    };
     const noteScriptCall = (call) => {
         const callee = call.expression;
         if (!ts.isIdentifier(callee) || locals.has(callee.text) || !SCRIPT_FUNCTIONS.has(callee.text))
             return;
+        intoTree(call.arguments);
         calls.push({ kind: "script", name: callee.text, args: call.arguments.map((a) => nameablePath(a)), projected: isProjected(call), tail: projectionTail(call) });
     };
     const classifyChain = (top) => {
@@ -566,6 +572,11 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                 walk(n.argumentExpression);
             n = n.expression;
         }
+        // a builtin handed a dataset's tree — JSON.stringify(app.book.value) — reads into it
+        if (!reactive && ts.isIdentifier(base) && GLOBALS.has(base.text))
+            for (const sg of segs)
+                if (ts.isCallExpression(sg))
+                    intoTree(sg.arguments);
         // A chain can BOTTOM OUT in an EXPRESSION rather than a scope root —
         // `new Box(app).v`, and just as commonly the defensive-default idiom
         // `(chain || fallback).reduce(…)`: the parenthesized descent stops at the
@@ -616,8 +627,19 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                 pathEnd = base;
                 break;
             }
-            if (ts.isPropertyAccessExpression(s) && COMPUTED_DEFAULTS.has(s.name.text)
-                && (inlinable === undefined || inlinable(pathTextOf(s.expression), s.name.text))) {
+            const inl = ts.isPropertyAccessExpression(s) && COMPUTED_DEFAULTS.has(s.name.text)
+                ? (inlinable === undefined ? "defer" : inlinable(pathTextOf(s.expression), s.name.text)) : null;
+            if (inl === "defer" && ts.isPropertyAccessExpression(s)) {
+                // A candidate default whose receiver is not resolvable here: the name
+                // alone says nothing about whose slot this is. Keep the whole path (the
+                // tail may be the real edge — a plain slot of an element that declares
+                // no such default) and let follow1 settle the default read against the
+                // rebased receiver.
+                calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null, body: bodyPos, ofDefault: true });
+                pathEnd = s;
+                continue;
+            }
+            if (inl === "inline" && ts.isPropertyAccessExpression(s)) {
                 // A read of a computed `{ }` default is a formula: inline it like a method
                 // call so its (branch-union) deps become ours. AND record the slot itself
                 // (GitHub #20): the formula only answers while the slot is UNPROVIDED — a
@@ -629,7 +651,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                 // file's standard over-approximation — a no-op wake, never a miss.
                 // A computed default takes no arguments and is inlined at the read, so it
                 // is never "projected through a returned parameter" — there are none.
-                calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null, body: bodyPos });
+                calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null, body: bodyPos, ofDefault: true });
                 reads.add(pathTextOf(s));
                 pathEnd = base;
                 break;
@@ -665,7 +687,6 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                 if (ts.isPropertyAccessExpression(callee)) {
                     const m = callee.name.text;
                     const recv = callee.expression;
-                    const recvName = ts.isPropertyAccessExpression(recv) ? recv.name.text : (ts.isIdentifier(recv) ? recv.text : null);
                     if (m === "read") {
                         const a0 = s.arguments[0];
                         const staticArr = a0 && ts.isArrayLiteralExpression(a0) && a0.elements.every((e) => ts.isStringLiteral(e) || ts.isNumericLiteral(e));
@@ -755,49 +776,62 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                             reads.add(`this.$provided(${JSON.stringify(name)})`);
                     }
                     else if (ITER.has(m) || PURE_METHODS.has(m)) {
-                        if (ITER.has(m) && recvName && NODE_COLLECTIONS.has(recvName))
-                            errors.push(new DepError(`aggregation over a reactive node collection (.${recvName}.${m}) — a data-dependent number of attributes; derive from data`, s.getStart()));
+                        if (ts.isIdentifier(recv) && GLOBALS.has(recv.text))
+                            intoTree(s.arguments);
+                        // A collection NAME is not a collection: `members` may be a data
+                        // field. Settled in follow1, against the element the receiver names.
+                        if (ITER.has(m) && ts.isPropertyAccessExpression(recv) && NODE_COLLECTIONS.has(recv.name.text)) {
+                            calls.push({ kind: "collection", receiver: pathTextOf(recv.expression), coll: recv.name.text, m, at: s.getStart() });
+                        }
                         // A builtin's name can also be a program's method: `app.m.find(id)`
                         // on a model is not Array.prototype.find. Record the call as a method
                         // too; follow1 resolves the receiver and follows the body only when a
                         // node carrying that method is what the call reaches — an array or a
-                        // string contributes nothing, exactly as before.
-                        if (USER_METHODS.has(m) && recv.kind !== ts.SyntaxKind.SuperKeyword) {
+                        // string contributes nothing. (Gated on the name: without a body of
+                        // that name anywhere there is nothing to follow, and either way the
+                        // call is never refused.)
+                        if (USER_METHOD_NAMES.has(m) && recv.kind !== ts.SyntaxKind.SuperKeyword && pathTextOf(recv) !== "$base") {
                             calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
                         }
                     }
-                    else if (USER_METHODS.has(m)) {
-                        // the extractor reads the AUTHORED body, where a super call is still
-                        // spelled `super.` (the `$base` rewrite is an edit on the emitted text)
-                        const rt = recv.kind === ts.SyntaxKind.SuperKeyword ? "$base" : pathTextOf(recv);
-                        calls.push({ kind: "method", name: m, receiver: rt === "$base" ? "this" : rt, viaBase: rt === "$base" || undefined, args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+                    else {
+                        // Every other member call is settled by its RECEIVER in follow1 —
+                        // whether some class in the program declares a method of this name
+                        // decides nothing. A language-supplied method with a DECLARED
+                        // reactive effect (effects.ts) contributes its read-paths, rebased
+                        // to this receiver; a member call on a PARAMETER is the lenient
+                        // tier (close()'s frame.lenient). Either way a receiver that carries
+                        // no user body of this name is not refused; any other call whose
+                        // receiver is known and carries no such method is.
+                        const effects = LANGUAGE_METHOD_EFFECTS.get(m);
+                        if (effects !== undefined)
+                            for (const rp of effects)
+                                reads.add(rebase(rp, pathTextOf(recv)));
+                        const onParam = roots.has(pathTextOf(recv).split(/[.[]/, 1)[0]);
+                        // a super call: spelled `super.` in an authored body, `$base.` once
+                        // resolution has rewritten it — the same call either way
+                        const viaBase = recv.kind === ts.SyntaxKind.SuperKeyword || pathTextOf(recv) === "$base";
+                        calls.push({ kind: "method", name: m, receiver: viaBase ? "this" : pathTextOf(recv), viaBase: viaBase || undefined, args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
+                            unbacked: (effects === undefined && !onParam) || undefined, at: s.getStart() });
                     }
-                    else if (LANGUAGE_METHOD_EFFECTS.has(m)) {
-                        // A language-supplied method with a DECLARED reactive effect
-                        // (effects.ts): union its read-paths, rebased to this receiver — as
-                        // analyzable as following a user method's body, not a residue.
-                        for (const rp of LANGUAGE_METHOD_EFFECTS.get(m))
-                            reads.add(rebase(rp, pathTextOf(recv)));
-                    }
-                    else if (roots !== undefined && recv !== undefined && roots.has(pathTextOf(recv).split(/[.[]/, 1)[0])) {
-                        // A member call on a PARAMETER (the phase-4 half-close): its reads
-                        // stay untracked, exactly as before params became roots — the
-                        // lenient tier, matching close()'s frame.lenient.
-                    }
-                    else
-                        errors.push(new DepError(`unresolved call target .${m}() — its reads can't be analyzed; call an in-program method or a pure builtin`, s.getStart()));
                 }
                 else if (ts.isIdentifier(callee)) {
                     const nm = callee.text;
-                    if (CONSTRUCTORS.has(nm) || GLOBALS.has(nm) || locals.has(nm) || SCRIPT_FUNCTIONS.has(nm)) { /* pure, or already recorded by noteScriptCall */ }
-                    else if (USER_METHODS.has(nm))
-                        calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
-                    else if (LANGUAGE_METHOD_EFFECTS.has(nm)) {
-                        for (const rp of LANGUAGE_METHOD_EFFECTS.get(nm))
-                            reads.add(rebase(rp, "this"));
+                    if (CONSTRUCTORS.has(nm) || GLOBALS.has(nm) || locals.has(nm) || SCRIPT_FUNCTIONS.has(nm)) {
+                        if (!SCRIPT_FUNCTIONS.has(nm))
+                            intoTree(s.arguments); /* pure, or already recorded by noteScriptCall */
                     }
-                    else
+                    else if (roots.has(nm))
                         errors.push(new DepError(`unresolved call target ${nm}() — its reads can't be analyzed`, s.getStart()));
+                    else {
+                        // a bare call is a call on `this` — settled by its receiver, as above
+                        const effects = LANGUAGE_METHOD_EFFECTS.get(nm);
+                        if (effects !== undefined)
+                            for (const rp of effects)
+                                reads.add(rebase(rp, "this"));
+                        calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
+                            unbacked: effects === undefined || undefined, at: s.getStart() });
+                    }
                 }
                 pathEnd = base;
                 break;
@@ -845,7 +879,10 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
     walk(sf);
     return { reads, calls, errors };
 }
-let USER_METHODS = new Map();
+/** Every user method NAME in the program. Only the builtin-name arm above
+ *  consults it — whether `.find(…)` might also be a program's method worth
+ *  following; no verdict depends on it. */
+let USER_METHOD_NAMES = new Set();
 let METHODS_OF = new Map(); // element → its declared methods
 let METHOD_EL_ID = new Map(); // element → stable summary-key id
 let CLASS_EL = new Map(); // class name → its body element
@@ -874,8 +911,8 @@ const COMPONENT_TAGS = new Set(Object.keys(SCHEMAS));
 // { … }` ATTRIBUTE (a standing constraint that owns a cell), a computed default has
 // NO cell — it is evaluated inline on each read, its reads flowing to the reader.
 // So reading one is not a subscribable edge; it must be INLINED like a zero-arg
-// method call, unioning its (branch-union) deps. Keyed by name (as methods are);
-// same-named defaults on different elements union — a sound over-approximation.
+// method call, unioning its (branch-union) deps. Keyed by name only to find the
+// CANDIDATES: which one a read reaches is the receiver's to say (defaultHome).
 let COMPUTED_DEFAULTS = new Map();
 // WHICH element owns each computed `{ }` default, so the inline decision can be
 // made against the RECEIVER rather than the bare name. Without this, a name
@@ -896,19 +933,39 @@ let PROGRAM_ROOT = null;
 function memberElementOf(el, seg) {
     if (el === null || typeof el !== "object")
         return undefined;
-    const e = el;
-    for (const c of e.children ?? [])
-        if (c.name === seg)
-            return c;
-    for (const d of e.decls ?? [])
-        if (d.name === seg && CLASS_EL.has(d.type))
-            return CLASS_EL.get(d.type);
+    const own = (x) => {
+        const e = x;
+        for (const c of e.children ?? [])
+            if (c.name === seg)
+                return c;
+        for (const d of e.decls ?? [])
+            if (d.name === seg && CLASS_EL.has(d.type))
+                return CLASS_EL.get(d.type);
+        return undefined;
+    };
+    const hit = own(el);
+    if (hit !== undefined)
+        return hit;
+    // an instance carries its class body's named children too (`market.decoded`
+    // where `decoded` is declared in class Market)
+    let tag = el.tag;
+    const seen = new Set();
+    while (tag !== undefined && !seen.has(tag)) {
+        seen.add(tag);
+        const ce = CLASS_EL.get(tag);
+        if (ce === undefined)
+            return undefined;
+        const h = own(ce);
+        if (h !== undefined)
+            return h;
+        tag = CLASS_BASE.get(tag);
+    }
     return undefined;
 }
 /** Resolve a full receiver PATH (`this.root.launcher`, `classroot.spring`) to
  *  the element it addresses, walking named members and class-typed decls.
- *  `undefined` = not statically knowable (an indexed step, a parameter, a
- *  `parent` inside a class body) — the caller stays conservative. */
+ *  `undefined` = not statically knowable (an indexed step, a parameter, the
+ *  `parent` of a class root — the use site) — the caller stays conservative. */
 function receiverElementDeep(receiver, owner, classRoot) {
     const p = receiver.replace(/(\.root)+/g, ".root");
     if (/[[()]/.test(p))
@@ -916,11 +973,7 @@ function receiverElementDeep(receiver, owner, classRoot) {
     const segs = p.split(".");
     let base;
     let i;
-    if (segs[0] === "this" && segs[1] === "root") {
-        base = PROGRAM_ROOT;
-        i = 2;
-    }
-    else if (segs[0] === "this") {
+    if (segs[0] === "this") {
         base = owner;
         i = 1;
     }
@@ -928,15 +981,92 @@ function receiverElementDeep(receiver, owner, classRoot) {
         base = classRoot ?? undefined;
         i = 1;
     }
-    else if (segs[0] === "parent" && classRoot == null) {
-        base = PARENT_OF.get(owner);
-        i = 1;
+    else if (segs[0] === "parent") {
+        base = owner;
+        i = 0;
     }
     else
         return undefined;
-    for (; base !== undefined && i < segs.length; i++)
-        base = memberElementOf(base, segs[i]);
+    for (; base !== undefined && i < segs.length; i++) {
+        // `.root` from anywhere is the program root; `.parent` is knowable for every
+        // element but a class root (whose parent is the use site) and the root itself
+        if (segs[i] === "root")
+            base = PROGRAM_ROOT;
+        else if (segs[i] === "parent")
+            base = base === classRoot ? undefined : PARENT_OF.get(base);
+        else
+            base = memberElementOf(base, segs[i]);
+    }
     return base;
+}
+/** Is a type name a NODE type — a component or a program class (`Window`,
+ *  `View[]`)? Everything else a slot can hold is data. */
+function isNodeType(t) {
+    const b = t.replace(/\?$/, "").replace(/(\[\])+$/, "").trim();
+    return COMPONENT_TAGS.has(b) || CLASS_EL.has(b);
+}
+/** What `<el>.<name>` holds when `name` is one of the element's SLOTS: "node",
+ *  "data", or undefined (no such slot is declared or schema-provided). */
+function slotKind(el, name) {
+    const own = (e) => {
+        const d = (e?.decls ?? []).find((x) => x.name === name);
+        return d === undefined ? undefined : isNodeType(d.type ?? "") ? "node" : "data";
+    };
+    const k = own(el);
+    if (k !== undefined)
+        return k;
+    let tag = el?.tag;
+    const seen = new Set();
+    while (tag !== undefined && !seen.has(tag)) {
+        seen.add(tag);
+        const ce = CLASS_EL.get(tag);
+        if (ce === undefined)
+            break;
+        const kk = own(ce);
+        if (kk !== undefined)
+            return kk;
+        tag = CLASS_BASE.get(tag);
+    }
+    for (let s = tag !== undefined && Object.hasOwn(SCHEMAS, tag) ? SCHEMAS[tag] : null; s !== null; s = s.base) {
+        const a = Object.hasOwn(s.attrs, name) ? s.attrs[name] : undefined;
+        if (a === undefined)
+            continue;
+        const of = a.of;
+        return a.kind === "view" || (a.kind === "array" && of !== undefined && isNodeType(of)) ? "node" : "data";
+    }
+    return undefined;
+}
+/** Does a receiver path provably hold DATA rather than an element — a datapath
+ *  (`:` — records, never nodes), or a path that leaves the element tree through a
+ *  slot declared (or schema-provided) with a value type (`app.feed.value`)?
+ *  Nothing reached through data carries a `{ }` default. */
+function receiverIsData(receiver, owner, classRoot) {
+    if (receiver.startsWith(":"))
+        return true;
+    const segs = receiver.replace(/(\.root)+/g, ".root").split(/[.[]/);
+    let base;
+    if (segs[0] === "this" || segs[0] === "parent")
+        base = owner;
+    else if (segs[0] === "classroot")
+        base = classRoot ?? undefined;
+    for (let i = segs[0] === "parent" ? 0 : 1; base !== undefined && i < segs.length; i++) {
+        const s = segs[i];
+        if (s === "root") {
+            base = PROGRAM_ROOT;
+            continue;
+        }
+        if (s === "parent") {
+            base = base === classRoot ? undefined : PARENT_OF.get(base);
+            continue;
+        }
+        const next = memberElementOf(base, s);
+        if (next !== undefined) {
+            base = next;
+            continue;
+        }
+        return slotKind(base, s) === "data";
+    }
+    return false;
 }
 /** WHOSE method a resolved receiver's `.name()` reaches: the element's own
  *  declaration first (instance methods), then up its class chain (`tag` →
@@ -977,20 +1107,37 @@ function defaultHome(el, name) {
     }
     return undefined;
 }
-function receiverElement(receiver, owner, classRoot) {
-    const p = receiver.replace(/(\.root)+/g, ".root");
-    if (p === "this")
-        return owner;
-    if (p === "this.root")
-        return PROGRAM_ROOT; // `app.x` resolves here
-    if (p === "classroot")
-        return classRoot ?? undefined;
-    if (p === "parent") {
-        if (classRoot != null)
-            return undefined; // inside a class: the use site is unknown
-        return PARENT_OF.has(owner) ? PARENT_OF.get(owner) : undefined;
+/** The inline decision for a body owned by `owner` (extractBody's `inlinable`):
+ *  a read of `<receiver>.<name>` inlines only the default the receiver's own
+ *  element (or its class chain) declares. */
+function inlineAt(owner, classRoot) {
+    return (receiver, name) => {
+        const el = receiverElementDeep(receiver, owner, classRoot);
+        if (el === undefined)
+            return "defer";
+        return defaultHome(el, name) !== undefined ? "inline" : "slot";
+    };
+}
+/** Does this element carry `name` as one of its OWN members — a declared slot
+ *  (its own, or its class chain's) or a named child? Then `<el>.<name>` is that
+ *  member, not the node collection the runtime spells the same way. */
+function hasOwnMember(el, name) {
+    const declares = (e) => {
+        const x = e;
+        return (x?.decls ?? []).some((d) => d.name === name) || (x?.children ?? []).some((c) => c.name === name);
+    };
+    if (declares(el))
+        return true;
+    let tag = el?.tag;
+    const seen = new Set();
+    while (tag !== undefined && !seen.has(tag)) {
+        seen.add(tag);
+        const ce = CLASS_EL.get(tag);
+        if (ce !== undefined && declares(ce))
+            return true;
+        tag = CLASS_BASE.get(tag);
     }
-    return undefined;
+    return false;
 }
 /** Move one path out of a summary's frame into the caller's. */
 function rebaseIn(path, frame) {
@@ -1106,7 +1253,6 @@ function mayCarryCells(returns) {
 const NO_RET = { paths: [], viaParam: [], opaque: false };
 const NO_PARAMS = { params: [], returned: new Set() };
 function buildMethodSummaries() {
-    const own = new Map();
     // A METHOD's parameters stay opaque locals, so its frame is the receiver alone.
     //
     // KNOWN HOLE, deliberately left — and it is the PARAMETER door only. The
@@ -1126,36 +1272,22 @@ function buildMethodSummaries() {
     // class-sampler), where helpers read attributes off nodes picked at runtime
     // out of `.children.filter(…)`. Those reads genuinely cannot be wired; closing
     // this door is a migration of its own, not a side effect of phase 4.
-    for (const [name, { params, body, pos }] of USER_METHODS) {
-        const sf = parseBody(body, false);
-        if (!sf) {
-            own.set(name, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS, ret: NO_RET });
-            continue;
-        }
-        const locals = collectLocals(sf, params);
-        // PHASE-4 HOLE, HALF-CLOSED (2026-08-06; found 2026-07-27): parameters
-        // are reactive ROOTS, as script summaries below — `vOf(n){ return n.v }`
-        // now wires `n.v` through the frame instead of silently dropping it (the
-        // constraint went permanently stale before). The script tier's ESCAPE
-        // refusal is deliberately NOT applied to methods: six shipped files
-        // (desktop, inspector, sampler, tracker, datagrid, table) pass params
-        // through closures/builders in ways the tracer can't follow, and refusing
-        // them is a migration of its own (measured 2026-08-06 — the full refusal
-        // list is in that day's session notes). An escaped param's reads stay
-        // exactly as untracked as before this change; the COMMON shape — plain
-        // property reads off a parameter — is what now wires.
-        const roots = new Set(params);
-        for (const par of roots)
-            locals.delete(par);
-        const d = extractBody(sf, locals, undefined, roots, pos);
-        own.set(name, { ...d, params, returned: new Set(),
-            ret: returnedPaths(sf, locals, params), returns: USER_METHODS.get(name)?.returns });
-    }
-    // The TYPED residences (the `open` collision): the same summaries, keyed by
-    // (declaring element, name) instead of name alone, so follow1 can hand a
-    // call the body its receiver actually reaches. The name-keyed map above
-    // stays for what it is still right about — the classification gate, the
-    // computed-defaults merge, and the last-resort fallback.
+    //
+    // PHASE-4 HOLE, HALF-CLOSED (2026-08-06; found 2026-07-27): parameters
+    // are reactive ROOTS, as script summaries below — `vOf(n){ return n.v }`
+    // now wires `n.v` through the frame instead of silently dropping it (the
+    // constraint went permanently stale before). The script tier's ESCAPE
+    // refusal is deliberately NOT applied to methods: six shipped files
+    // (desktop, inspector, sampler, tracker, datagrid, table) pass params
+    // through closures/builders in ways the tracer can't follow, and refusing
+    // them is a migration of its own (measured 2026-08-06 — the full refusal
+    // list is in that day's session notes). An escaped param's reads stay
+    // exactly as untracked as before this change; the COMMON shape — plain
+    // property reads off a parameter — is what now wires.
+    //
+    // The TYPED residences (the `open` collision): summaries keyed by
+    // (declaring element, name), never by name alone, so follow1 hands a call
+    // the body its receiver actually reaches.
     const ownEl = new Map();
     const classNameOf = new Map();
     for (const [name, el] of CLASS_EL)
@@ -1223,9 +1355,8 @@ function buildMethodSummaries() {
         }
     };
     // Computed `{ }` defaults join the same callable graph — a default's body is an
-    // EXPRESSION (parseBody expr-mode), and same-named defaults union into one summary.
-    // Each body ALSO keeps its own summary, keyed by the element that declares it, so
-    // a read whose receiver resolves follows that default alone (follow1 below).
+    // EXPRESSION (parseBody expr-mode), summarized per DECLARING ELEMENT, so a read
+    // follows the default its receiver reaches and no other (follow1 below).
     const ownDefault = new Map();
     const defaultElId = new Map();
     for (const [name, bodies] of COMPUTED_DEFAULTS) {
@@ -1234,30 +1365,14 @@ function buildMethodSummaries() {
             // Resolved against the element that DECLARES this default — otherwise a
             // default reading the app's same-named slot inlines itself, the recursion
             // guard returns nothing, and the edge vanishes (L-17).
-            const inlinable = (receiver, nm) => {
-                const el = receiverElement(receiver, body.owner, body.classRoot);
-                if (el === undefined)
-                    return true;
-                return DEFAULT_OWNERS.get(nm)?.has(el) === true;
-            };
-            const d = sf ? extractBody(sf, collectLocals(sf, []), inlinable, undefined, body.pos) : { reads: new Set(), calls: [], errors: [] };
-            const ex = own.get(name);
-            if (ex) {
-                for (const r of d.reads)
-                    ex.reads.add(r);
-                ex.calls.push(...d.calls);
-                ex.errors.push(...d.errors);
-            }
-            else
-                own.set(name, { ...d, ...NO_PARAMS, ret: sf ? returnedPaths(sf, collectLocals(sf, [])) : NO_RET });
-            // COPIES, not the same Set: the union above mutates the first body's reads.
+            const d = sf ? extractBody(sf, collectLocals(sf, []), inlineAt(body.owner, body.classRoot), undefined, body.pos) : { reads: new Set(), calls: [], errors: [] };
             let perOwner = ownDefault.get(body.owner);
             if (perOwner === undefined) {
                 perOwner = new Map();
                 ownDefault.set(body.owner, perOwner);
                 defaultElId.set(body.owner, defaultElId.size);
             }
-            perOwner.set(name, { reads: new Set(d.reads), calls: [...d.calls], errors: [...d.errors], ...NO_PARAMS, ret: sf ? returnedPaths(sf, collectLocals(sf, [])) : NO_RET });
+            perOwner.set(name, { ...d, ...NO_PARAMS, ret: sf ? returnedPaths(sf, collectLocals(sf, [])) : NO_RET });
         }
     }
     // `script { }` functions are OPAQUE (the 2026-08-24 ruling: reactivity lives
@@ -1302,6 +1417,13 @@ function buildMethodSummaries() {
                 }
                 sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack, ctx);
             }
+            else if (c.kind === "collection") {
+                // an unnameable receiver names no node: nothing to refuse
+                const m = rebaseIn(c.receiver, frame);
+                if (!m.ok)
+                    continue;
+                sub = follow1({ ...c, receiver: m.path }, stack, ctx);
+            }
             else {
                 sub = follow1({ ...c, args: c.args.map(out) }, stack, ctx);
             }
@@ -1324,6 +1446,10 @@ function buildMethodSummaries() {
      *  refuses only an argument that is not a nameable path, which is the case this
      *  gate was actually protecting against. */
     const projectionGate = (_o, _c) => [];
+    /** The refusal for a method call its receiver does not carry. */
+    const unresolvedCall = (c) => c.kind === "method" && c.unbacked === true
+        ? [new DepError(`unresolved call target .${c.name}() — its reads can't be analyzed; call an in-program method or a pure builtin`, c.at ?? 0)]
+        : [];
     const follow1 = (c, stack, ctx) => {
         // SCRIPT calls: opaque. The arguments' reads were recorded at the call
         // site; the body contributes nothing. The one unsound shape is refused: an
@@ -1346,6 +1472,18 @@ function buildMethodSummaries() {
         // the receiver chain's own reads are what the constraint is wired to.
         if (c.kind === "scriptValue")
             return { reads: new Set(), errors: [] };
+        // An iterator over `<receiver>.children` (or another collection spelling):
+        // an aggregation over a data-dependent number of NODES when the receiver is
+        // a node and the name is not one of its own declared members. A receiver
+        // that is pure node navigation (`parent`, `this.root`) is a node even where
+        // the element is not statically knowable; any other unresolved receiver (a
+        // dataset's value, a record, a parameter's data) is an ordinary data read.
+        if (c.kind === "collection") {
+            const el = ctx === null ? undefined : receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
+            const isNode = el !== undefined ? !hasOwnMember(el, c.coll) : /^(this|parent|classroot)(\.(root|parent))*$/.test(c.receiver);
+            return { reads: new Set(), errors: isNode
+                    ? [new DepError(`aggregation over a reactive node collection (.${c.coll}.${c.m}) — a data-dependent number of attributes; derive from data`, c.at)] : [] };
+        }
         let o;
         let tag;
         if (c.kind === "method" && c.baseKey !== undefined) {
@@ -1355,29 +1493,27 @@ function buildMethodSummaries() {
             const ob = ownEl.get(c.baseKey);
             return ob === undefined ? { reads: new Set(), errors: [] } : followSummary(ob, c.baseKey, c, stack, ctx);
         }
-        if (COMPUTED_DEFAULTS.has(c.name)) {
+        if (c.kind === "method" && c.ofDefault === true) {
             // A computed-default read. When the receiver resolves, follow THAT element's
-            // default (its own, or its class chain's) and nothing else. The name-level
-            // union mixed every same-named default in the program into every read: an
-            // App field `ink` inherited a library icon's `ink = { textColor }`, and
-            // `textColor = { app.ink }` on the App was refused as reading itself. A
-            // receiver that cannot be resolved keeps the union — the conservative
-            // over-approximation, exactly as before.
-            let home;
-            if (ctx !== null && c.kind === "method") {
-                const el = receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
-                if (el !== undefined)
-                    home = defaultHome(el, c.name);
+            // default (its own, or its class chain's) and nothing else — plus the slot
+            // itself, whose cell a direct write fires (the decl default yields to it).
+            // A receiver that resolves to an element declaring no such default is a
+            // plain slot read, already recorded at the read site: nothing to inline.
+            // A receiver that cannot be resolved names no default at all — a default
+            // somewhere else spelled the same way is not evidence — so the constraint
+            // takes the runtime tracking path, where the real read is observed. A
+            // receiver that provably holds data reaches no default at all.
+            const el = ctx === null ? undefined : receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
+            if (el === undefined) {
+                const data = ctx !== null && receiverIsData(c.receiver, ctx.owner, ctx.classRoot);
+                return { reads: new Set(data ? [] : [DYNAMIC]), errors: [] };
             }
+            const home = defaultHome(el, c.name);
             const per = home !== undefined ? ownDefault.get(home)?.get(c.name) : undefined;
-            if (per !== undefined) {
-                o = per;
-                tag = "d" + defaultElId.get(home) + ":" + c.name;
-            }
-            else {
-                o = own.get(c.name);
-                tag = "m:" + c.name;
-            }
+            if (per === undefined)
+                return { reads: new Set(), errors: [] };
+            const r = followSummary(per, "d" + defaultElId.get(home) + ":" + c.name, c, stack, ctx);
+            return { reads: new Set([...r.reads, `${c.receiver}.${c.name}`]), errors: r.errors };
         }
         else {
             // TYPED RESIDENCE (the `open` collision): resolve the receiver to an
@@ -1385,8 +1521,10 @@ function buildMethodSummaries() {
             //   hit  — that summary alone (a combobox's `this.open()` never again
             //          follows an unrelated node verb of the same name);
             //   miss — the receiver is knowable and carries NO such method up its
-            //          chain: a same-named call in a different family (a builtin's
-            //          verb, a cast receiver) — not ours, contribute nothing;
+            //          chain: a builtin's verb. Covered by a declared language effect
+            //          (or on a parameter, the lenient tier): contribute nothing.
+            //          Otherwise its reads are unanalyzable — refused, whatever other
+            //          classes in the program happen to declare;
             //   unknown — TS SEMANTICS (L-21, RULED 2026-09-01): the CHECKER answers.
             //          The oracle types the receiver from the typecheck's own
             //          ts.Program; only that family's bodies (declared class +
@@ -1402,7 +1540,7 @@ function buildMethodSummaries() {
                 if (el !== undefined) {
                     const home = methodHome(el, c.name);
                     if (home === undefined)
-                        return { reads: new Set(), errors: [] };
+                        return { reads: new Set(), errors: unresolvedCall(c) };
                     homeKey = METHOD_EL_ID.get(home) + ":" + c.name;
                 }
             }
@@ -1429,9 +1567,12 @@ function buildMethodSummaries() {
                     overridesOf(cls, c.name, keys);
                 }
                 // typed, and no user body anywhere in the family: a builtin's verb —
-                // nothing to follow, nothing to wire (the hit arm's own miss answer)
-                if (keys.size === 0)
-                    return { reads: new Set(), errors: [] };
+                // nothing to follow. On a NODE class that is the miss answer above; on a
+                // value type (a Date, a string) the call reaches no cell.
+                if (keys.size === 0) {
+                    const onNode = t.classes.some((cls) => CLASS_EL.has(cls) || COMPONENT_TAGS.has(cls));
+                    return { reads: new Set(), errors: onNode ? unresolvedCall(c) : [] };
+                }
                 const reads = new Set();
                 const errors = [];
                 for (const k of keys) {
@@ -1546,12 +1687,12 @@ function buildMethodSummaries() {
     };
     const trans = (name, receiver, ctx = null) => follow1({ kind: "method", name, receiver, args: [], projected: false, tail: null }, new Set(), ctx);
     const follow = (c, ctx = null) => follow1(c, new Set(), ctx);
-    return { own, trans, follow };
+    return { trans, follow };
 }
 /** Extract deps for every constraint in a RESOLVED program. */
 export function extractProgram(program, oracle = null) {
     ORACLE = oracle;
-    USER_METHODS = new Map();
+    USER_METHOD_NAMES = new Set();
     METHODS_OF = new Map();
     METHOD_EL_ID = new Map();
     CLASS_EL = new Map();
@@ -1575,7 +1716,7 @@ export function extractProgram(program, oracle = null) {
                 RECORD_SLOTS.add(d.name);
         }
         for (const m of el.methods)
-            USER_METHODS.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });
+            USER_METHOD_NAMES.add(m.name);
         if (el.methods.length > 0) {
             const mm = new Map();
             for (const m of el.methods)
@@ -1629,15 +1770,8 @@ export function extractProgram(program, oracle = null) {
             continue;
         }
         // Inline a computed default only when the receiver actually OWNS one of that
-        // name. When the receiver cannot be resolved statically, stay conservative and
-        // fall back to the name-only test — the pre-L-17 behaviour.
-        const inlinable = (receiver, name) => {
-            const el = receiverElement(receiver, c.owner, c.classRoot);
-            if (el === undefined)
-                return true;
-            return DEFAULT_OWNERS.get(name)?.has(el) === true;
-        };
-        const r = extractBody(sf, collectLocals(sf, []), inlinable, undefined, c.node.pos);
+        // name; a receiver that cannot be resolved here defers to follow1.
+        const r = extractBody(sf, collectLocals(sf, []), inlineAt(c.owner, c.classRoot), undefined, c.node.pos);
         const reads = new Set(r.reads);
         const errors = [...r.errors];
         for (const call of r.calls) {

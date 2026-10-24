@@ -269,6 +269,8 @@ export function routeInput(
   let pressId: number | null = null;
   let pressFinger = false;
   let pressEl: Element | null = null;
+  // the last finger lift: where, when, and on what it pressed (trailing, below)
+  let lastTap: { x: number; y: number; at: number; el: Element | null } | null = null;
   let lastX = 0;
   let lastY = 0;
   // A pointerId whose release was already synthesized (scroll takeover): the
@@ -351,11 +353,37 @@ export function routeInput(
     };
     const onTouchMove = (e: Event): void => {
       if (!alive()) { window.removeEventListener("touchmove", onTouchMove, true); return; }
+      // a live pinch is the declaring view's whole two-finger gesture: its
+      // touch-action already retires the browser's zoom, and this refuses the
+      // two-finger pan that would otherwise move the page under the pinch
+      if (pinchGesture !== null && e.cancelable) { e.preventDefault(); return; }
       const t = (e as TouchEvent).touches[0];
       if (t !== undefined) refuse(e, t.clientX, t.clientY);
     };
     window.addEventListener("wheel", onWheel, { capture: true, passive: false });
     window.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+    // A TAP'S TRAILING MOUSE EVENTS. After a finger lifts, the browser sends the
+    // mouse events a tap stands for (mousedown, mouseup, click) at the same
+    // point. When the tap changed what is there — Continue opens the next
+    // screen — they land on the new view: a text field there takes the focus
+    // and a phone raises its keyboard, though no one touched it. They are this
+    // gesture's, and the gesture is over, so each one that lands on something
+    // other than what the finger pressed is swallowed. (A touch press cannot be
+    // canceled up front: that stops the page panning — see pointerdown.)
+    const trailing = (e: Event): void => {
+      if (!alive()) { for (const k of ["mousedown", "mouseup", "click"]) window.removeEventListener(k, trailing, true); return; }
+      const tap = lastTap;
+      if (tap === null || !e.isTrusted) return;
+      const m = e as MouseEvent;
+      if (performance.now() - tap.at > 800 || Math.hypot(m.clientX - tap.x, m.clientY - tap.y) > 24) { lastTap = null; return; }
+      const el = e.target instanceof Node ? e.target : null;
+      const same = el !== null && tap.el !== null && (tap.el === el || tap.el.contains(el) || el.contains(tap.el));
+      if (same) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.type === "click") lastTap = null;
+    };
+    for (const k of ["mousedown", "mouseup", "click"]) window.addEventListener(k, trailing, true);
   }
   listen("pointerdown", (e) => {
     // a press aimed past an open overlay: its policy first (planes.md §8.1)
@@ -562,6 +590,8 @@ export function routeInput(
     held.sink("pointerMove", p.x, p.y, moved(p.x, p.y));
   });
   listen("pointerup", (e) => {
+    // a finger's lift: the browser's trailing mouse events for it follow (see trailing)
+    if (e.pointerType === "touch") lastTap = { x: e.clientX, y: e.clientY, at: performance.now(), el: pressEl };
     // A release the scroll-takeover detector already synthesized: the gesture
     // was resolved as canceled when the browser took it; this clean up is the
     // browser closing its books, not a second release for the app.

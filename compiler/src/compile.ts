@@ -197,7 +197,7 @@ setBodySyntaxValidator(tsBodySyntax);
 import type { ClassSchema } from "../../runtime/dist/schema.js";
 import { freeIdentifiers, hexColor8Literals } from "./free-idents.js";
 import { fillDatapaths, isWriteTarget, scanDatapaths, loweredPieces, islandEdits } from "../../runtime/dist/datapath.js";
-import { CONSTRUCTOR_NAMES } from "../../runtime/dist/expr.js";
+import { CONSTRUCTOR_NAMES, bodyScopeNames } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
 import { hostGlobalHint } from "../../runtime/dist/teach.js";
@@ -544,6 +544,73 @@ function idiomDiagnostics(
     return out;
   };
 
+  // ── Member calls, resolved through the element they are written in ─────────
+  // A call names its receiver the way any body names a member: `app.a.b` from
+  // the App down, `this.a` / `parent.a` / `classroot.a` from where the body
+  // sits, and a bare `a` through the scope chain — the element the method is
+  // written in, then its parents, up to the class body (a class boundary) or
+  // the App. A name means the element it resolves to, never every element of
+  // that spelling: a local `rows`, another class's `fade` and a library's
+  // `cols` are other things. A receiver this pass cannot follow (a local, a
+  // parameter, a member that is not a named element) resolves to null.
+  /** A named child of `el`, its own or one its class chain declares. */
+  const childNamed = (el: Element, name: string): Element | null => {
+    for (const b of [el, ...chainBodies(el.tag)]) {
+      const c = b.children.find((ch) => ch.name === name);
+      if (c !== undefined) return c;
+    }
+    return null;
+  };
+  /** Does `el` (or its class chain) declare `name` as any member? */
+  const hasMember = (el: Element, name: string): boolean =>
+    [el, ...chainBodies(el.tag)].some((b) =>
+      b.children.some((c) => c.name === name) || b.decls.some((d) => d.name === name) || b.methods.some((m) => m.name === name));
+  interface MemberCall { method: string; target: Element | null; last: string }
+  const calls: MemberCall[] = [];
+  const scanCalls = (body: string, params: readonly string[], levels: readonly Element[], inClass: boolean): void => {
+    const src = fillDatapaths(body);
+    const free = freeIdentifiers(src, { expression: false, bound: [...BOUND, ...params] });
+    if (free === null) return;
+    const freeAt = new Set(free.map((f) => f.start));
+    const sf = ts.createSourceFile("body.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    /** The element a receiver's head names, before its dotted path. */
+    const headOf = (r: ts.Expression): Element | null => {
+      if (r.kind === ts.SyntaxKind.ThisKeyword) return levels[0];
+      if (!ts.isIdentifier(r)) return null;
+      if (r.text === "parent") return levels[1] ?? null;
+      if (!freeAt.has(r.getStart(sf))) return null; // a local or a parameter
+      if (r.text === "app") return program.root;
+      if (r.text === "classroot") return inClass ? levels[levels.length - 1] : null;
+      const at = levels.find((lv) => hasMember(lv, r.text));
+      return at === undefined ? null : childNamed(at, r.text);
+    };
+    const visit = (n: ts.Node): void => {
+      if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+        const segs: string[] = [];
+        let r: ts.Expression = n.expression.expression;
+        while (ts.isPropertyAccessExpression(r)) { segs.unshift(r.name.text); r = r.expression; }
+        let target = headOf(r);
+        for (const s of segs) target = target === null ? null : childNamed(target, s);
+        const last = segs.length > 0 ? segs[segs.length - 1] : ts.isIdentifier(r) ? r.text : "";
+        calls.push({ method: n.expression.name.text, target, last });
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+  };
+  const collectCalls = (el: Element, outer: readonly Element[], inClass: boolean): void => {
+    const levels = [el, ...outer];
+    for (const m of el.methods) scanCalls(m.body, m.params.map((p) => p.name), levels, inClass);
+    for (const c of el.children) collectCalls(c, levels, inClass);
+  };
+  for (const c of program.classes) collectCalls(c.body, [], true);
+  collectCalls(program.root, [], false);
+  /** Calls of one of `methods` whose receiver resolves to `target`. */
+  const callsOn = (target: Element, methods: ReadonlySet<string>): MemberCall[] =>
+    calls.filter((c) => c.target === target && methods.has(c.method));
+  const START = new Set(["start"]);
+  const WRITES = new Set(["set", "insert", "removeAt", "remove", "move", "append", "push"]);
+
   const walk = (el: Element, parent: Element | null, classRoot: Element | null): void => {
     const decl = classByBody.get(el);
 
@@ -596,11 +663,33 @@ function idiomDiagnostics(
         const setsStarted = levels.some((b) =>
           b.attrs.some((a) => a.name === "started") || b.decls.some((d) => d.name === "started"));
         const ownStart = levels.some((b) => b.methods.some((m) => /\bstart\s*\(/.test(m.body)));
-        const byName = el.name !== null && new RegExp(`\\b${el.name}\\s*\\.\\s*start\\s*\\(`).test(allBodies);
+        // started by a call whose receiver resolves to this Animator — or one
+        // this pass cannot follow that ends in its name (under-reporting again)
+        const byName = el.name !== null && (callsOn(el, START).length > 0
+          || calls.some((c) => c.method === "start" && c.target === null && c.last === el.name));
         if (!grouped && !setsStarted && !ownStart && !opaqueStart && !byName) {
           warnings.push(Diag.animatorNeverStarts(el.tag, el.name, el.pos));
         }
       }
+    }
+
+    // 4023 — a bare rowIndex on a view that is not itself replicated: its own,
+    // never the row's. A class body's root is exempt (its instances are the rows).
+    const replicated = el.attrs.some((a) => a.name === "datapath" && a.value.kind === "path" && (a.value as { many?: boolean }).many === true);
+    if (!replicated && el !== classRoot) {
+      const bare = /(?<![.\w$])rowIndex\b/;
+      const at = el.attrs.find((a) => a.value.kind === "code" && bare.test(a.value.src))
+        ?? el.decls.find((d) => d.def !== null && d.def.kind === "code" && bare.test(d.def.src));
+      if (at !== undefined) warnings.push(Diag.rowIndexUnreplicated(el.name ?? el.tag, (at as { pos: Pos }).pos));
+    }
+
+    // 4024 — a write to a dataset that computes its value with `contents`:
+    // refused at run time, so nothing the write meant to keep is kept
+    if (el.name !== null && el.attrs.some((a) => a.name === "contents")) {
+      // only a write whose receiver resolves to THIS dataset: a local of the
+      // same name, or another element's member, is something else
+      const w = callsOn(el, WRITES)[0];
+      if (w !== undefined) warnings.push(Diag.writeToComputedDataset(el.name, w.method, el.pos));
     }
 
     for (const c of el.children) walk(c, el, classRoot);
@@ -656,6 +745,12 @@ const ES_GLOBALS = new Set([
 // `tint` are the function-shaped entries; the built-in theme presets are in
 // scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
 const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Files", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
+
+/** Every name the runtime binds in a { } body's own scope (expr.ts SCOPE): the
+ *  value constructors, the literal-lowering helper, the services and presets.
+ *  A script binding cannot share one — both would be declared in one body. */
+const runtimeBodyNames = (): Set<string> =>
+  new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha", "measureText", "escapeHtml", ...RUNTIME_SERVICES, ...bodyScopeNames()]);
 
 const isKnownGlobal = (name: string): boolean =>
   hostGlobalHint(name) === null && (ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name));
@@ -1070,7 +1165,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   // provideLib; an unregistered provider throws, never silently skips). A type
   // error blocks emission like any other, mapped to its `.declare` line
   // (DECLARE6001).
-  const tc = typecheckBodies(merged, program);
+  const tc = typecheckBodies(merged, program, preludeLen);
   const typeOracle = tc.oracle;
   {
     const typeErrors = rbAll(tc.errors);
@@ -1589,7 +1684,7 @@ class Resolver {
   readonly schemas: Record<string, ClassSchema>;
   /** Per-class inherited method/named-child members (attributes already ride
    *  the schema chain) and the user-declared name set, both accumulated
-   *  through user bases — bases precede subclasses, so one pass suffices. */
+   *  through user bases, each base resolved before the class that extends it. */
   private readonly classExtras = new Map<string, { members: Set<string>; declared: Set<string> }>();
   private readonly surfaces = new Map<Element, Surface>();
   private readonly lineStarts: number[] = [0];
@@ -1637,8 +1732,17 @@ class Resolver {
     for (let i = 0; i < source.length; i++) {
       if (source[i] === "\n") this.lineStarts.push(i + 1);
     }
-    for (const cls of program.classes) {
-      const base = this.classExtras.get(cls.base);
+    // A base resolves before its subclass whatever order they are written in:
+    // each class asks for its base's extras first. `visiting` stops a cyclic
+    // chain (the checker reports it) from recursing.
+    const visiting = new Set<string>();
+    const extrasOf = (name: string): { members: Set<string>; declared: Set<string> } | undefined => {
+      const done = this.classExtras.get(name);
+      if (done !== undefined) return done;
+      const cls = this.classDecls.get(name);
+      if (cls === undefined || visiting.has(name)) return undefined;
+      visiting.add(name);
+      const base = extrasOf(cls.base);
       const members = new Set(base?.members);
       const declared = new Set(base?.declared);
       for (const d of cls.body.decls) declared.add(d.name);
@@ -1646,8 +1750,11 @@ class Resolver {
       for (const c of cls.body.children) {
         if (c.name !== null) { members.add(c.name); declared.add(c.name); }
       }
-      this.classExtras.set(cls.name, { members, declared });
-    }
+      const out = { members, declared };
+      this.classExtras.set(name, out);
+      return out;
+    };
+    for (const cls of program.classes) extrasOf(cls.name);
   }
 
   /** `export`/`import` at the top of a `script { … }` block, refused WHERE IT
@@ -1748,6 +1855,23 @@ class Resolver {
           this.errors.push(new DeclareError(
             `'export' has no meaning in a script { } block — drop the keyword; a top-level name here is already visible to every { } in the program`,
             pos(mod)));
+        }
+        // A top-level name the runtime already puts in every { } body's scope —
+        // a value constructor (`sepia`, `shadow`), a service (`escapeHtml`,
+        // `Focus`), a theme preset. Both would be bound in the same body, so
+        // the program could not start; refused where the name is declared.
+        const named: ts.Identifier[] = [];
+        const addIds = (n: ts.BindingName): void => {
+          if (ts.isIdentifier(n)) named.push(n);
+          else for (const el of n.elements) if (ts.isBindingElement(el)) addIds(el.name);
+        };
+        if ((ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) && st.name !== undefined) named.push(st.name);
+        else if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) addIds(d.name);
+        for (const id of named) {
+          if (!runtimeBodyNames().has(id.text)) continue;
+          this.errors.push(new DeclareError(
+            `script { } declares '${id.text}', a name the runtime already gives every { } body (${CONSTRUCTOR_NAMES.includes(id.text) ? `the ${id.text}(…) value constructor` : "a built-in service or preset"}) — a body could not tell the two apart; choose another name`,
+            pos(id)));
         }
       }
     }
@@ -2038,15 +2162,18 @@ class Resolver {
         continue;
       }
       const pos = this.posAt(bodyStart + id.start);
+      let k = levels.findIndex((lv) => this.surfaceOf(lv).all.has(id.name));
       // A write to a script block's `let` from a body: the body holds a const
       // COPY of the binding (expr.ts scriptPrelude), so the write can only
       // throw — and nothing else in the program could have noticed it anyway.
       // Refused here, where the name is known, with the Declare shape named.
-      if (id.assigned && this.scriptMutable.has(id.name)) {
+      // A member of the scope chain shadows the script binding for a bare name
+      // (the member search runs first), so a write that resolves to a member
+      // writes the member and is not this case.
+      if (k === -1 && id.assigned && this.scriptMutable.has(id.name)) {
         this.errors.push(Diag.scriptWrite(id.name, pos));
         continue;
       }
-      let k = levels.findIndex((lv) => this.surfaceOf(lv).all.has(id.name));
       let selfName = false;
       if (k === -1 && mainRoot !== null && id.name === "App") {
         k = levels.length - 1; // the root level itself — `App.zip` reads the anonymous App class
@@ -2101,7 +2228,7 @@ class Resolver {
       // unreachable from every body, which is rarely what was meant.
       if (this.scriptNames.has(id.name)) {
         this.warnings.push(Diag.shadowing(
-          `bare '${id.name}' means ${describe(levels[k])}'s member here, not the script { } function of the same name — the script one cannot be reached from a body while the member exists; rename one of them`,
+          `bare '${id.name}' means ${describe(levels[k])}'s member here, not the script { } binding of the same name — the script one cannot be reached from a body while the member exists; rename one of them`,
           pos
         ));
       }

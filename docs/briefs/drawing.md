@@ -54,4 +54,4 @@ App [ width = 340, height = 200, fill = white,
 `library/icons/`: the shipped icon set · `apps/swatchbook/sections/drawing.declare`: every
 `Draw` operation.
 
-**Guide** Your own views and drawing § Custom drawing · § Icons.
+**Guide** Your own views § Custom drawing · § Icons.

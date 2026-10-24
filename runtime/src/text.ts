@@ -31,6 +31,17 @@ import { holdsFamily, heldFamily, type FamilyValue } from "./font-value.js";
 /** A line count under `maxLines` (0 = no clamp). */
 const clampN = (n: number, max: number): number => (max > 0 ? Math.min(n, max) : n);
 import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
+
+/** The base direction a Text's run is laid out in: its own `direction`, else
+ *  the nearest ancestor's; "auto" reads the first strong letter of the text. */
+function runDirection(t: { text?: unknown; direction?: string; parent?: unknown }): "ltr" | "rtl" {
+  let d = "inherit";
+  for (let v: { direction?: string; parent?: unknown } | null = t; v != null && d === "inherit"; v = (v.parent as typeof v) ?? null) d = v.direction ?? "inherit";
+  if (d === "rtl") return "rtl";
+  if (d !== "auto") return "ltr";
+  const first = /[\p{L}]/u.exec(String(t.text ?? ""));
+  return first !== null && /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFC]/.test(first[0]) ? "rtl" : "ltr";
+}
 import { Constraint } from "./reactive.js";
 import { faceGenerationNow } from "./face-table.js";
 
@@ -259,7 +270,9 @@ export class Text extends View {
           shadow: this.textShadow,
           wrap: this.wrap && this.$bounded(),
           maxLines: this.maxLines,
-          align: this.textAlign,
+          // a right-to-left paragraph starts at the right unless told otherwise
+          align: !isSet(this, "textAlign") && runDirection(this) === "rtl" ? "right" : this.textAlign,
+          direction: runDirection(this),
           italic: this.italic,
           textFill: this.textFill,
           outline: this.outline,

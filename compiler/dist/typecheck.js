@@ -69,7 +69,7 @@ import { DeclareError, insetOrRadiusShape, strokeShapeMessage } from "../../runt
  *  the lines a diagnostic is reported on. Returns coded DECLARE6001 diagnostics
  *  (empty when clean). Never throws on TS internals: a body that cannot be
  *  framed is skipped, not failed. */
-export function typecheckBodies(text, program) {
+export function typecheckBodies(text, program, mainStart = 0) {
     const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
     WORD_TYPES = new Set();
     for (const sc of Object.values(schemas))
@@ -108,8 +108,21 @@ export function typecheckBodies(text, program) {
     // Each unmarked block's place in the scaffold, so a name it uses that no host
     // promises can be reported at the block (portableNames below).
     const regions = [];
+    // A script's `type`/`interface` is the program's own, and a class name is a
+    // type too. One named like a library or built-in class is scoped to its
+    // script — renamed there, so the class keeps its meaning in the library's
+    // bodies and the script's signatures keep theirs. One named like a class this
+    // program's own file declares is one name meaning two things: refused,
+    // naming both. (`mainStart` is where the program's file begins in `text`.)
+    const scoped = [];
+    const ownClasses = new Set(program.classes.filter((c) => c.pos.offset >= mainStart).map((c) => c.name));
+    const starts = lineStarts(text);
     for (const b of program.scripts) {
-        const ambient = ambientScript(b.src);
+        const ambient = scopeScriptTypes(ambientScript(b.src), schemas, ownClasses, (name) => {
+            const bodyOpen = b.span.end - b.src.length - 1;
+            const at = Math.max(0, b.src.search(new RegExp(`\\b(type|interface)\\s+${name}\\b`)));
+            scoped.push(Diag.typeError(`script { } declares the type '${name}', and this program declares class ${name} — a class name is also a type, so in a { } body the two would be one name; rename one of them`, offsetPos(bodyOpen + at, starts), 2300));
+        });
         const start = scaffold.length + 1;
         scaffold += "\n" + ambient + "\n";
         if (b.hosts === undefined && b.compiled !== true)
@@ -120,11 +133,10 @@ export function typecheckBodies(text, program) {
         emitter.walkElement(cls.body, [], true);
     emitter.walkElement(rprog.root, [], false);
     if (emitter.units.length === 0 && emitter.declTypePos.size === 0 && regions.length === 0)
-        return { errors: [], oracle: null };
+        return { errors: scoped, oracle: null };
     const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
-    const starts = lineStarts(text);
     const synthTags = emitter.synthTags;
-    const out = [];
+    const out = [...scoped];
     out.push(...portableNames(tsProgram, regions, starts));
     // A declared type name the standard library already owns: said once, at the
     // declaration, before TypeScript's errors at each use.
@@ -188,7 +200,7 @@ export function typecheckBodies(text, program) {
                 at = u.src.indexOf("\n", at) + 1;
             pos = offsetPos(u.braceOffset + 1 + unrewrite(at + d.character, u.rewrites), starts);
         }
-        out.push(Diag.typeError(explainTs(d, u, synthTags), pos, d.code));
+        out.push(Diag.typeError(explainTs(d, u, synthTags).replace(/\$script\b/g, ""), pos, d.code));
     }
     // Deterministic report: same input → same diagnostics, same order (position,
     // then TS code, then text — the loop-stability guarantee evals depend on).
@@ -1336,6 +1348,51 @@ function ambientScript(src) {
     let out = src;
     for (const e of edits.sort((a, b) => b.start - a.start))
         out = out.slice(0, e.start) + e.text + out.slice(e.end);
+    return out;
+}
+/** A script's type declarations scoped away from the scaffold's classes:
+ *  each top-level `type`/`interface` named like a class in `schemas` is renamed
+ *  `<name>$script` in this script's text — its declaration and every type
+ *  reference to it — unless `own` holds the name, which is reported through
+ *  `clash` and left as written. */
+function scopeScriptTypes(src, schemas, own, clash) {
+    let sf;
+    try {
+        sf = ts.createSourceFile("s.ts", src, ts.ScriptTarget.ESNext, true, ts.ScriptKind.TS);
+    }
+    catch {
+        return src;
+    }
+    const renamed = new Set();
+    for (const st of sf.statements) {
+        if (!ts.isTypeAliasDeclaration(st) && !ts.isInterfaceDeclaration(st))
+            continue;
+        const name = st.name.text;
+        if (!Object.hasOwn(schemas, name))
+            continue;
+        if (own.has(name))
+            clash(name);
+        else
+            renamed.add(name);
+    }
+    if (renamed.size === 0)
+        return src;
+    const edits = [];
+    const visit = (n) => {
+        if (ts.isIdentifier(n) && renamed.has(n.text)) {
+            const p = n.parent;
+            const isType = ((ts.isTypeAliasDeclaration(p) || ts.isInterfaceDeclaration(p)) && p.name === n)
+                || (ts.isTypeReferenceNode(p) && p.typeName === n)
+                || (ts.isExpressionWithTypeArguments(p) && p.expression === n && ts.isHeritageClause(p.parent) && ts.isInterfaceDeclaration(p.parent.parent));
+            if (isType)
+                edits.push([n.getStart(sf), n.end]);
+        }
+        ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    let out = src;
+    for (const [a, b] of edits.sort((x, y) => y[0] - x[0]))
+        out = out.slice(0, a) + out.slice(a, b) + "$script" + out.slice(b);
     return out;
 }
 /** The position of a source offset. */

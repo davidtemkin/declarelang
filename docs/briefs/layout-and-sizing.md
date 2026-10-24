@@ -54,5 +54,4 @@ App [ width = 560, height = 260, fill = #F4F6FA, textColor = #172530, minWidth =
 `apps/tracker/tracker.declare`: toolbar rows with `Spacer` · `apps/weather/weather.declare`:
 `MasonryLayout`, a layout written in Declare.
 
-**Guide** Size, position and layout (all of it is short) · Your own
-views and drawing § Writing a layout.
+**Guide** Size, position, layout (all of it is short) · Your own views § Writing a layout.

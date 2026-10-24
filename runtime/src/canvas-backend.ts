@@ -1543,6 +1543,7 @@ class CanvasSurface implements Surface, SceneSurface {
   // Typographical treatments (the span/Text paint vocabulary) — mirrored from
   // the DOM's setRichContent/setTextStyle so canvas runs wear the same look.
   private textOutline: Outline | null = null;
+  private textDirection: "ltr" | "rtl" = "ltr";
   private textTransform: TextTransform = "none";
   private textUnderline = false;
   private textStrike = false;
@@ -1993,6 +1994,7 @@ class CanvasSurface implements Surface, SceneSurface {
     // painter and the shared measurer synthesize the same caps; the rest are
     // paint-time decorations honored in the text branch below.
     this.textOutline = st.outline ?? null;
+    this.textDirection = st.direction ?? "ltr";
     this.fontSizePx = st.fontSize;
     this.textTransform = st.textTransform ?? "none";
     this.textUnderline = st.underline ?? false;
@@ -2207,7 +2209,9 @@ class CanvasSurface implements Surface, SceneSurface {
     s.touchAction = "auto";
     (s as CSSStyleDeclaration & { resize: string }).resize = "none";
     const self = el;
-    el.addEventListener("input", () => this.edit?.onInput(self.value));
+    // the selection the edit left comes first, so an input handler reads the
+    // caret after the keystroke, not before it
+    el.addEventListener("input", () => { this.edit?.onSelect?.(self.selectionStart ?? 0, self.selectionEnd ?? 0); this.edit?.onInput(self.value); });
     el.addEventListener("focus", () => this.edit?.onFocus());
     el.addEventListener("blur", () => { this.edit?.onBlur(); if (this.editEl === self) this.hideEditable(); });
     watchSelection(el, (s, e) => this.edit?.onSelect?.(s, e));
@@ -3459,6 +3463,10 @@ class CanvasSurface implements Surface, SceneSurface {
       // stroke` — the DOM twin), then underline/strike rule beneath, in the
       // solid text color (CSS `text-decoration-color` = currentColor, not the
       // gradient fill). Stroke width is user-space, so the CTM scales it right.
+      // a right-to-left run orders its glyphs from the right (x is the line's
+      // left edge either way: the alignment above placed it)
+      ctx.direction = this.textDirection;
+      ctx.textAlign = "left";
       const paintLine = (line: string, x: number, y: number): void => {
         const o = this.textOutline;
         if (o !== null) {

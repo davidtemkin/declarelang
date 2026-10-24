@@ -143,7 +143,9 @@ if (!flags.wrap && !hasApp && /^\s*class\s+[A-Za-z_]\w*\s*(extends\b|\[)/m.test(
 }
 if (flags.wrap && !hasApp) {
   // A layout strategy is an ATTRIBUTE, not a child (language §5) — probe it in
-  // the `layout:` slot of a view with a couple of children to arrange.
+  // the `layout:` slot of a view with a couple of children to arrange. The
+  // children declare no size: a layout may size what it places (a carousel's
+  // pages), and a child that declared its own would then be refused.
   const decls = [...bare.matchAll(/^\s*class\s+([A-Za-z_]\w*)(?:\s+extends\s+([A-Za-z_]\w*))?\s*\[/gm)]
     .map((m) => ({ name: m[1], base: m[2] ?? "View" }));
   if (decls.length === 0) {
@@ -152,7 +154,7 @@ if (flags.wrap && !hasApp) {
   }
   const probe = decls.map((d) =>
     /Layout$/.test(d.base)
-      ? `    probe${d.name}: View [ width = 400, height = 200,\n        layout: ${d.name} [ ],\n        View [ width = 40, height = 20 ],\n        View [ width = 40, height = 20 ],\n        ],`
+      ? `    probe${d.name}: View [ width = 400, height = 200,\n        layout: ${d.name} [ ],\n        View [ fill = #888888 ],\n        View [ fill = #888888 ],\n        ],`
       : `    ${d.name} [ ],`
   ).join("\n");
   source = `${source}\n\nApp [ width = 480, height = 320,\n${probe}\n    ]\n`;

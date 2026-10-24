@@ -311,6 +311,11 @@ const ViewSchema: ClassSchema = {
     // decoration over live content — a highlight rectangle, a full-viewport
     // chrome overlay — declares "none" so presses reach what is beneath it.
     pointerEvents: { kind: "string" },
+    // The direction its text runs: "ltr", "rtl", or "auto" (from its first
+    // strong letter); "inherit" (the default) takes the nearest ancestor's.
+    // A right-to-left paragraph is laid out from the right — its line starts
+    // there unless textAlign says otherwise — and a field types from the right.
+    direction: enumType("Direction", "inherit", "ltr", "rtl", "auto"),
     // R7: how the view arranges its children — a class-typed slot
     // (language §5: "a reactive Layout attribute you set on the view",
     // Appendix A: "Layout is an attribute, not a child"), written as the

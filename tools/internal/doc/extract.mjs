@@ -899,7 +899,7 @@ const CLASS_GROUPS = [
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's
   // own map already uses for these — "controls, structure, layouts, embedding".
-  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "Pane", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "Crumb", "CrumbLink", "CrumbHere", "Window", "WindowClose"]],
+  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "Pane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "Crumb", "CrumbLink", "CrumbHere", "Window", "WindowClose"]],
   // what paints above everything in its context (planes.md §3.3): one base, the
   // objects every platform converges on, and the layers they paint in
   ["Overlays",      ["Floating", "Menu", "ContextMenu", "Popover", "Dialog", "Sheet", "Toast", "Tooltip", "OverlayStrata"]],

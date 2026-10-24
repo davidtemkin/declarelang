@@ -340,6 +340,10 @@ export const Diag = {
     err(code4(4021), `${owner} hides what it holds by clipping it to a ${axis} of 0, but a screen reader still reads it and Tab still reaches it: absence is visible, not geometry. Add visible = { this.${axis} > 0 }, or the condition that collapses it`, pos),
   accessibilityUnreportedChoice: (owner: string, flag: string, pos: Pos): DeclareError =>
     err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. For one of many, use Segmented (or a RadioGroup of Radios): it reports the choice, and the arrows move between the options. Keeping your own, set accessibilityPressed = { ${flag} }: a pressed control is the one that is in`, pos),
+  rowIndexUnreplicated: (owner: string, pos: Pos): DeclareError =>
+    err(code4(4023), `${owner} reads rowIndex, but ${owner} is not replicated — that is its own rowIndex, never the row's, because a built-in never resolves outward. The index of the row it sits in is that view's: parent.rowIndex (one level up), or classroot.rowIndex inside a class whose instances are the rows`, pos),
+  writeToComputedDataset: (name: string, verb: string, pos: Pos): DeclareError =>
+    err(code4(4024), `${name} computes its value with contents, so it refuses writes — ${name}.${verb}(…) will be refused when it runs, and what it meant to keep is lost. A dataset that is written holds its records as data: ${name}: Dataset { { … } } (its first value), and a list derived from it is a second dataset with contents`, pos),
   accessibilityDrawnFocusable: (owner: string, pos: Pos): DeclareError =>
     err(code4(4018), `${owner} draws itself and takes the focus, but has no accessibilityRole — what it draws is pixels, not anything a screen reader can read. Give it the role it plays and the facts that role reads, or make it a Control`, pos),
   afterInValue: (pos: Pos): DeclareError =>
@@ -468,6 +472,8 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4020), phase: "name", summary: "a control inside a control — interactive inside interactive (warning)" },
   { code: code4(4021), phase: "name", summary: "a view clipped to zero size to hide what a screen reader still reads (warning)" },
   { code: code4(4022), phase: "name", summary: "a control that shows it is chosen and reports no state (warning)" },
+  { code: code4(4023), phase: "name", summary: "rowIndex read on a view that is not replicated — its own, never the row's (warning)" },
+  { code: code4(4024), phase: "name", summary: "a write to a dataset that computes its value with contents (warning)" },
   { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },
   { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library declares" },
   { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },

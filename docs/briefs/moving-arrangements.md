@@ -62,5 +62,5 @@ App [ width = 420, height = 240, fill = black,
 day · `apps/weather/weather.declare`: `openT`, a row growing into the page ·
 `apps/architecture/parts/ships.declare`: `Floorplan`, a `TweenLayout`.
 
-**Guide** Animated arrangements (all four sections) · Reading the
+**Guide** Animated layouts (all four sections) · Reading the
 calendar.

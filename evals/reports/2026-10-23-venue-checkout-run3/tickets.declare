@@ -1,0 +1,149 @@
+/*
+## The tickets
+
+What someone holds up at the door with a queue behind them: one ticket at a
+time, the seat in the largest type on the screen, the code to scan, and when
+to arrive. The tickets sit side by side on a strip that one spring carries —
+Previous and Next, the arrow keys, or a swipe — so each one arrives from the
+side it was waiting on.
+*/
+
+
+/* ── the code the door scans ── */
+
+class TicketCode [ width = 184, height = 184,
+    code: string = "",
+    modules: boolean[][] = { qrModules(classroot.code) },
+    accessibilityRole = image,
+    accessibilityLabel = { "Ticket code " + classroot.code },
+    draw(d: Draw) {
+        const m = this.modules, n = m.length, q = 2           // a quiet zone of two modules
+        const size = this.width / (n + 2 * q)
+        d.fillStyle = provided("theme").ticket
+        d.fillRect(0, 0, this.width, this.height)
+        d.fillStyle = provided("theme").ink
+        for (let r = 0; r < n; r++)
+            for (let c = 0; c < n; c++)
+                if (m[r][c]) d.fillRect((c + q) * size, (r + q) * size, size + 0.3, size + 0.3)
+        }
+    ]
+
+
+/* ── a caption over a big value: SECTION / Orchestra ── */
+
+class TicketFact [
+    caption: string = "",
+    value: string = "",
+    big: number = 30,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.6, textTransform = uppercase,
+        textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
+    Text [ fontFamily = { app.serif }, fontSize = { classroot.big }, numerals = lining, wrap = false,
+        textColor = { provided("theme").ink }, text = { classroot.value } ]
+    ]
+
+
+/* ── one ticket ── */
+
+class TicketCard [
+    index: number = 0,                    // which ticket of the order
+    perf: Performance? = { app.perf },
+    accessibilityRole = group,
+    accessibilityLabel = { `Ticket ${classroot.index + 1} of ${app.ticketCount}: ${:section}, row ${:row}, seat ${:number}` },
+    cornerRadius = 18, fill = { provided("theme").ticket },
+    shadow = { shadow(0, 14, 34, provided("theme").ticketShadow) },
+    padding = [26, 24, 22, 24],
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ width = 100%, fontFamily = { app.serif }, italic = true, fontSize = 22, textColor = { provided("theme").ink },
+            text = { app.production.title } ],
+        Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = { app.production.hall } ]
+        ],
+    when: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+        Text [ fontSize = 26, fontWeight = semibold, textColor = { provided("theme").ink },
+            text = { classroot.perf == null ? "" : dayLabel(classroot.perf.startsAt) } ],
+        Spacer [ ],
+        Text [ fontSize = 26, fontWeight = semibold, textColor = { provided("theme").ink },
+            text = { classroot.perf == null ? "" : timeLabel(classroot.perf.startsAt) } ]
+        ],
+    Text [ width = 100%, fontSize = 15, textColor = { provided("theme").text },
+        text = { classroot.perf == null ? "" : `Doors open ${timeLabel(classroot.perf.doorsAt)}. Please arrive by then.` } ],
+
+    // the tear line
+
+    View [ width = { parent.width }, x = -24, height = 1, fill = { provided("theme").line } ],
+
+    seat: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 22, align = end ],
+        TicketFact [ flexes = true, caption = "Section", value = { "" + :section }, big = 26 ],
+        TicketFact [ caption = "Row", value = { "" + :row }, big = 40 ],
+        TicketFact [ caption = "Seat", value = { "" + :number }, big = 40 ]
+        ],
+
+    codeBlock: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+        TicketCode [ code = { "" + :barcode } ],
+        Text [ fontSize = 15, letterSpacing = 1.5, numeralWidth = tabular, textColor = { provided("theme").ink },
+            text = { "" + :barcode } ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { `Ticket ${classroot.index + 1} of ${app.ticketCount} · Admit one` } ]
+        ]
+    ]
+
+
+/* ── the tickets, one at a time ── */
+
+class TicketPager [ width = 100%,
+    count: number = { app.ticketCount },
+    at: number = 0,                       // which ticket is shown (a whole number)
+    offset: number = 0,                   // where the strip is, in tickets
+    offsetTo: number = 0,                 // where its spring is taking it
+    pageW: number = { this.width },
+    Spring [ attribute = offset, to = { classroot.offsetTo }, stiffness = 220, damping = 28 ],
+    go(i: number) { at = Math.max(0, Math.min(count - 1, i)); offsetTo = at },
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    // above the ticket, so the next one is always a thumb away
+
+    nav: View [ visible = { classroot.count > 1 }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Button [ label = "Previous", disabled = { classroot.at == 0 },
+            onClick() { classroot.go(classroot.at - 1) }
+            ],
+        Spacer [ ],
+        Text [ fontSize = 15, numeralWidth = tabular, textColor = { provided("theme").textMuted }, accessibilityLive = polite,
+            text = { `Ticket ${classroot.at + 1} of ${classroot.count}` } ],
+        Spacer [ ],
+        Button [ label = "Next", disabled = { classroot.at >= classroot.count - 1 },
+            onClick() { classroot.go(classroot.at + 1) }
+            ]
+        ],
+
+    window: View [ width = 100%, clip = true, height = { this.strip.height + 36 },
+        grab: number = 0,
+        claim = x,
+        onPointerDown(e: PointerEvent) { grab = classroot.offset },
+        onPointerMove(e: PointerEvent) {
+            // under the hand, the strip and its target move together
+            const v = Math.max(-0.2, Math.min(classroot.count - 0.8, grab - e.deltaX / classroot.pageW))
+            classroot.offset = v
+            classroot.offsetTo = v
+            },
+        onPointerUp(e: PointerUpEvent) {
+            const moved = -e.deltaX / classroot.pageW
+            const target = Math.abs(moved) > 0.18 ? Math.round(grab) + Math.sign(moved) : Math.round(grab)
+            classroot.go(e.canceled ? Math.round(grab) : target)
+            },
+        strip: View [ y = 4, x = { -classroot.offset * classroot.pageW },
+            datapath = { app.order.value },
+            layout: SimpleLayout [ axis = x ],
+            View [ datapath = :tickets[], key = :barcode, width = { classroot.pageW }, padding = [0, 12, 24, 12],
+                TicketCard [ width = 100%, index = { parent.rowIndex } ]
+                ]
+            ]
+        ]
+    ]

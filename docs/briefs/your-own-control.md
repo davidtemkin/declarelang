@@ -48,5 +48,5 @@ App [ width = 320, height = 130, theme = { SanFrancisco },
 written in Declare · `apps/tracker/tracker.declare`: `Chip` and `RailStat`, controls that
 are also filters.
 
-**Guide** Your own views and drawing § View or Control · § What
+**Guide** Your own views § View or Control · § What
 `extends Control` gives you · § Delivering a control's value.

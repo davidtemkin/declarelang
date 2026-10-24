@@ -246,6 +246,7 @@ function realizeIgnoreScroll(el) {
     if (el.dataset.declareIgnorescroll === undefined) {
         if (el.style.position === "fixed")
             el.style.position = "absolute";
+        anchorEnds(el);
         sendHome(el);
         return;
     }
@@ -266,10 +267,46 @@ function realizeIgnoreScroll(el) {
             const embedded = p.parentElement?.closest("[data-declare-app], [data-declare-embed]") ?? null;
             if (embedded === null)
                 el.style.position = "fixed";
+            anchorEnds(el);
             sendHome(el); // this regime is not a pane's — never leave it in a frame
             return;
         }
     }
+}
+/** A view fixed against the window and placed at its end edge is anchored
+ *  there by the browser (`bottom: 0` / `right: 0`), so it stays against the
+ *  edge through Safari's bars moving and the overscroll bounce with no script
+ *  in the loop; the written top/left would follow a frame late. Elsewhere the
+ *  written position stands. */
+function anchorEnds(el) {
+    const fixed = el.style.position === "fixed";
+    const y = fixed && el.dataset.declareEndY !== undefined, x = fixed && el.dataset.declareEndX !== undefined;
+    // THE HOME INDICATOR'S BAND, by the browser. A bar at the window's foot runs
+    // its box down through the band (its fill reaches the screen's edge) while
+    // what it holds stays above it: the height grows by the inset in CSS, so it
+    // changes in the same frame as Safari's bars, which change the inset. Script
+    // measuring the inset and writing a height popped a frame or more late. The
+    // view model places the content above the band (alignRule) — 0 where the
+    // page does not reach under the phone's chrome (no `edges = cover`).
+    const h = el.dataset.declareH;
+    if (y) {
+        el.style.top = "auto";
+        el.style.bottom = "0px";
+        if (h !== undefined)
+            el.style.height = `calc(${h}px + env(safe-area-inset-bottom, 0px))`;
+    }
+    else {
+        if (el.style.bottom !== "")
+            el.style.bottom = "";
+        if (h !== undefined && el.style.height.startsWith("calc("))
+            el.style.height = h + "px";
+    }
+    if (x) {
+        el.style.left = "auto";
+        el.style.right = "0px";
+    }
+    else if (el.style.right !== "")
+        el.style.right = "";
 }
 /** Return a frame-adopted element to the parent it was taken from (no-op if it
  *  is not in a sticky frame). The remembered sibling is honoured only while it
@@ -886,7 +923,23 @@ export class DomSurface {
         else {
             this.element.style.left = this.posX + "px";
             this.element.style.top = this.posY + "px";
+            anchorEnds(this.element);
         }
+    }
+    setEndAnchor(axis, on) {
+        if (axis === "y") {
+            if (on)
+                this.element.dataset.declareEndY = "";
+            else
+                delete this.element.dataset.declareEndY;
+        }
+        else {
+            if (on)
+                this.element.dataset.declareEndX = "";
+            else
+                delete this.element.dataset.declareEndX;
+        }
+        this.placeSelf();
     }
     setWidth(v) {
         const was = this.frameW;
@@ -906,6 +959,8 @@ export class DomSurface {
         const was = this.frameH;
         this.frameH = v;
         this.element.style.height = v + "px";
+        this.element.dataset.declareH = String(v);
+        anchorEnds(this.element);
         this.box.height = v;
         if (this.isRoot) {
             this.applyRootSize();
@@ -1105,6 +1160,12 @@ export class DomSurface {
     }
     // The authored pointerEvents attr OVERRIDES the sink-driven default (setInput
     // flips auto/none by sink presence; an explicit value must survive that).
+    setDirection(d) {
+        if (d === "ltr" || d === "rtl" || d === "auto")
+            this.element.dir = d;
+        else
+            this.element.removeAttribute("dir");
+    }
     peOverride = "";
     setPointerEvents(m) {
         this.peOverride = m;
@@ -1614,6 +1675,11 @@ export class DomSurface {
         // x is never the platform's to move; "nearest" on a target that fits is inert.
         if (inset > 0)
             this.element.style.scrollMarginTop = `${inset}px`;
+        // the scrolls this causes are the PROGRAM's, on every scroller it moves —
+        // unmarked, a smooth one's events read as the user's scroll
+        PAGE_WATCH?.program();
+        for (let e = this.element.parentElement; e !== null; e = e.parentElement)
+            PANE_WATCH.get(e)?.program();
         const inline = this.inlineAxisScrolls() ? align : "nearest";
         this.element.scrollIntoView({ block: align, inline, behavior: smooth ? "smooth" : "auto" });
     }
@@ -1831,6 +1897,8 @@ export class DomSurface {
                 // must arrive already knowing whose scroll it is, or the settle it
                 // starts takes a finger's scroll for rest and writes against it.
                 this.scrollWatch = onScrolling !== undefined ? watchScrolling(el, onScrolling) : undefined;
+                if (this.scrollWatch !== undefined)
+                    PANE_WATCH.set(el, this.scrollWatch);
                 this.scrollReport = onScroll;
                 this.scrollListener = () => { if (el.clientHeight > 0)
                     onScroll(el.scrollTop); };
@@ -1840,6 +1908,7 @@ export class DomSurface {
         else if (this.scrollListener !== undefined) {
             el.removeEventListener("scroll", this.scrollListener);
             this.scrollWatch?.stop();
+            PANE_WATCH.delete(el);
             this.scrollWatch = undefined;
             this.scrollListener = undefined;
             this.scrollReport = undefined;
@@ -2239,7 +2308,9 @@ export class DomSurface {
             s.pointerEvents = "auto";
             // Native scrollbar for a scrolling code field (the platform's own).
             const self = el;
-            el.addEventListener("input", () => this.edit?.onInput(self.value));
+            // the selection the edit left comes first, so an input handler reads the
+            // caret after the keystroke, not before it
+            el.addEventListener("input", () => { this.edit?.onSelect?.(self.selectionStart ?? 0, self.selectionEnd ?? 0); this.edit?.onInput(self.value); });
             el.addEventListener("focus", () => this.edit?.onFocus());
             el.addEventListener("blur", () => { if (!MOVING_FOCUS)
                 this.edit?.onBlur(); });
@@ -3071,6 +3142,9 @@ export function watchScrolling(target, report) {
 }
 /** The page scroll's watch (boot.ts), so a request to the page marks its motion. */
 let PAGE_WATCH = null;
+/** Each scrolling pane's watcher, by its element — a scrollIntoView marks every
+ *  scroller it will move. */
+const PANE_WATCH = new WeakMap();
 export function setPageScrollWatch(w) { PAGE_WATCH = w; }
 // What a view is to assistive technology, on its own element (semantics-dom.ts):
 // the attributes last written are removed when the next set no longer has them.

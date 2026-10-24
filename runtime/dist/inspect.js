@@ -10,7 +10,7 @@
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
 import { Node, authoredName } from "./node.js";
-import { hitAt, traceHitAt, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
+import { hitAt, pressAt, traceHitAt, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { bootCheck } from "./boot-check.js";
 import { View } from "./view.js";
@@ -477,6 +477,11 @@ export function bridgeFor(root) {
             const n = find(root, path);
             return n === null ? null : expandValue(n, attr, trail);
         },
+        /** What a real PRESS at the point reaches: past views that take no presses. */
+        pressAt: (x, y) => {
+            const v = pressAt(root, x, y);
+            return v === null ? null : { path: pathOf(root, v), kind: kindName(v) };
+        },
         at: (x, y, pierce = false) => {
             // Default = the router's own rule (pointer-transparent views are
             // skipped, subtree included) — `at()` is the assert surface's "what
@@ -543,7 +548,8 @@ const BRIDGE_HELP = {
     slots: "slots(path) — every slot on the node: written, constraint-owned, and author-declared (with origin). Enumeration — how you discover what to assert on",
     expand: "expand(path, attr, trail?) — drill into a record/array/dataset value one level at a time",
     dependents: "dependents(attr) — every constraint that READS the named app attr (the other direction from explain)",
-    at: "at(x, y, pierce?) — what a press at this point would land on (the router's own answer); pierce=true includes pointer-transparent views",
+    at: "at(x, y, pierce?) — the topmost view under this point; pierce=true includes pointer-transparent views",
+    pressAt: "pressAt(x, y) — what a real press at this point reaches: past views that take no presses (no handler, link, tip or scroll axis), as the input routing does",
     explainHit: "explainHit(x, y, pierce?) — the hit walk's decisions in order: what took the point and what it stepped over",
     stats: "stats() — node/constraint counts for the whole tree",
     semantics: "semantics(path?, asData?) — what a screen reader is given: the semantic tree under the node (default the app) — roles, names, values, states, actions — as indented text, or as data",

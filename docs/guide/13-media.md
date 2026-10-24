@@ -1,4 +1,4 @@
-<!-- nav: Images, video and audio -->
+<!-- nav: Images, video, audio -->
 <!-- part: Building -->
 
 # Images, video and audio

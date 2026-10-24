@@ -134,6 +134,9 @@ const SUITE = [
   "test/size-branch.test.mjs",      // a size reading its parent's in one branch is marked by the branch taken
   "test/member-by-name.test.mjs",   // a child reached by a name: written names checked, run-time names against every child
   "test/look-touch.test.mjs",       // under --touch every press, drag, hold and pinch is a finger
+  "test/touch-workout.test.mjs",    // what a finger does, by the driver and by raw touch, agreeing
+  "test/silent-failures.test.mjs",  // what went wrong without a word, now working or said
+  "test/name-scope.test.mjs",       // a name means what its own scope says, never a namesake elsewhere
   "test/focus-reveal.test.mjs",     // focus a program moves is scrolled clear of pinned chrome
   "test/verify-requests.test.mjs",  // an assert script checks what the program sent
   "test/chrome-cleanup.test.mjs",   // a Chrome the tools start leaves no profile and no process behind

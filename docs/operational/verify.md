@@ -147,7 +147,10 @@ the program (`afterDelay`, a tooltip's wait, a press-and-hold's half second) pas
 the script says time passes — `drive.wait(ms)` advances it by exactly `ms` (real time passes
 too, for the browser's own work), and `drive.settleMotion()` runs motion to rest frame by
 frame, carrying the timers with it. Holding the mouse down for 800 ms of real time fires no
-hold; `drive.hold(path, 800)` does.
+hold; `drive.hold(path, 800)` does. What a press hands to the next frame (`afterDelay(0, …)` — a
+`Menu` passing on its choice) has run before the next step, as it has for a person; and a
+native scroll the program starts (a smooth `scrollIntoView`) lands within a `drive.wait`. A
+failed `expect` says when timers are still waiting, and `drive.wait(ms)` is what runs them.
 
 **On a touch device the press is a finger.** After `drive.device({ …, touch: true })` (or
 `declare-look --touch`, or a state's `touch: true`), every `click`, `clickAt`, `drag` and
@@ -157,7 +160,11 @@ phone-sized window is not a phone, and a check made with one passes what a finge
 A finger is also not a point: a browser moves a tap onto a control within a finger's reach,
 so a tap a few pixels from a pinned button is the button's. A press whose point another
 control covers — or, on touch, sits within a finger's width of — is refused, naming that
-control, rather than made.
+control, rather than made. It is asked as a real press is routed: a view that takes no
+presses (no handler, link, tip or scroll axis) is not in the way, so a row's box over the
+controls it holds blocks nothing. And a press waits for its target to hold still — a view
+still moving (a native smooth scroll, a scroll landing a frame late) is pressed where it
+comes to rest, and one that never settles is said.
 
 | call | what it does |
 |---|---|
@@ -168,12 +175,13 @@ control, rather than made.
 | `drive.device({ width, height, touch })` | the page becomes that device and the app loads again on it — a phone is `{ width: 390, height: 844, touch: true }` (to start on it, export `device` instead) |
 | `drive.requests()` | the requests the program has sent so far — its data sources and streams, not the page's own files: `{ method, url, path, body, status }` each, the body parsed when it is JSON |
 | `expect.request(method, path, { count?, body? })` | the program sent that request: `path` a prefix or a RegExp, `count` how many times, `body` the fields it must carry — failing, it lists what was sent |
-| `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus |
+| `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus; a chord is written with `+`: `"Shift+Tab"`, `"Meta+Z"` |
+| `drive.selectAll(path)` | focus the text field and select everything in it, as select-all does before typing over a value |
 | `drive.set(path, attr, value)` | an assignment, as a handler's write |
 | `drive.wait(ms)` | `ms` of real time, and exactly `ms` of the program's virtual time |
 | `drive.settleMotion(maxMs?)` | motion run to rest, frame by frame; loops that never end (`repeat = { Infinity }`, a `Time`) do not hold it |
 | `drive.settleData()` | the network gone quiet |
-| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)`, `expect.visible(path)`, `expect.hidden(path)`, `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
+| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together), `expect.visible(path)`, `expect.hidden(path)`, `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
 | `expect.explain(path, attr)` | why an attribute holds its value — an assertion about structure, not a number |
 | `expect.traceStart(n?)`, `expect.trace()`, `expect.traceText()` | the runtime's own record of what it did |
 

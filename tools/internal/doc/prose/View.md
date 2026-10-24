@@ -247,10 +247,13 @@ default) = no tip.
 ## ignoreScroll
 The third member of the opt-out family (`ignoreLayout` — the parent arranges everyone
 but me; `ignoreClip` — the parent clips everyone but me): **the scroll carries everyone
-but me — I ride the frame.** The child stands still against its nearest enclosing scroll
-frame — the window when the page is the regime, the pane's frame inside a `scrolls`
-view — and contributes nothing to the scroll range. The fixed header, the pinned
-toolbar, and the overlay layer that stages parked furniture are all this one attribute.
+but me — I ride the frame.** The child stands still against its parent's scroll frame —
+the window when the parent is the App, the pane's frame when the parent `scrolls` — and
+contributes nothing to the scroll range. It opts out of its **own parent's** scroll: a
+view nested deeper, under a parent that does not scroll, moves with that parent (the boot
+check names it — make it a child of the App, shown with its screen's condition). The
+fixed header, the pinned toolbar, and the overlay layer that stages parked furniture are
+all this one attribute.
 
 ## scrolls
 Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,
@@ -1114,6 +1117,21 @@ The pointer cursor shown over this view, as a CSS cursor keyword (`"col-resize"`
 before anything is pressed. A view with no handler of its own shows its cursor too, and its
 presses pass to the view beneath (a resize edge laid over a window frame); a view with
 `pointerEvents = "none"` never shows its own.
+
+## direction
+The direction this view's text runs, inherited by everything it holds: `ltr`, `rtl`, or
+`auto` (from the first strong letter of the text); unset (`inherit`), the nearest
+ancestor's, else left to right. Set it once on the App, or on the part of the page in
+another script, and its Text and fields follow: a right-to-left paragraph is laid out from
+the right — its lines start there unless its `textAlign` says otherwise — its punctuation
+falls where a reader of that language expects it, and a `TextInput` types from the right.
+Letters shape and mixed runs order themselves whatever the direction; this sets the
+paragraph's own. Layouts are not mirrored: a row still runs left to right.
+
+```declare-fragment
+App [ direction = rtl,
+    Text [ width = 100%, text = "مرحبا بالعالم، هذا نص عربي." ] ]
+```
 
 ## pointerEvents
 Whether **this view** takes pointer events: `"none"` or `"auto"`. Unset, it behaves as

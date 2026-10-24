@@ -76,6 +76,7 @@ export declare class DomSurface implements Surface {
     setX(v: number): void;
     setY(v: number): void;
     private placeSelf;
+    setEndAnchor(axis: "x" | "y", on: boolean): void;
     setWidth(v: number): void;
     setHeight(v: number): void;
     /** The view-model frame (setWidth/setHeight, verbatim) — the ROOT element
@@ -125,6 +126,7 @@ export declare class DomSurface implements Surface {
      *  hit-testable for the cursor's sake, and its presses pass to the view
      *  beneath (the router, above). */
     setCursor(c: string): void;
+    setDirection(d: string): void;
     private peOverride;
     setPointerEvents(m: string): void;
     setOpacity(o: number): void;

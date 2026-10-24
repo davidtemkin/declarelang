@@ -519,7 +519,11 @@ when a valid draft lands: `"input"` (live, the default), `"blur"`, `"enter"`, or
 `"manual"` — only on [`commit()`](declare-docs:Editor.method.commit). **`validate(v)`** returns `""` for valid or the message
 otherwise. From those, three facts follow — [`valid`](declare-docs:Editor.valid), `error` and [`dirty`](declare-docs:Editor.dirty) — and an invalid
 draft never reaches the dataset. `canSave` is an ordinary constraint over them: no form
-object, no submit handler.
+object, no submit handler. A field the program fills itself — `text = { … }` with an
+`onInput` — takes the same `validate`, and gets the same `valid` and `error`; it just has
+nothing to commit. Such a field can regroup its text as it is typed — a card number in
+fours — by putting the caret back with [`select()`](declare-docs:TextInput.method.select) after writing; `selectionStart` in
+`onInput` is the caret after the keystroke.
 
 Drafts belong to text fields because an in-progress value can be unrepresentable in the
 data (`"12/3"` is not a date). A checkbox or slider writes immediately. When *nothing*

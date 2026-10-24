@@ -1,4 +1,4 @@
-<!-- nav: Size, position and layout -->
+<!-- nav: Size, position, layout -->
 <!-- part: Building -->
 
 # Size, position and layout

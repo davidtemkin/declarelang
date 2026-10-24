@@ -58,4 +58,4 @@ App [ width = 360, height = 220, theme = { SanFrancisco }, fill = { provided("th
 `apps/desktop/desktop.declare`: the menu bar as records, with a live Window menu ·
 `library/combobox.declare`: a control that opens a layer.
 
-**Guide** Menus, dialogs and overlays.
+**Guide** Menus and overlays.

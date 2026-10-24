@@ -49,7 +49,7 @@ actions, run in the order written (each may repeat)
                                together). Under --touch, two fingers: onPinch runs.
                                Otherwise a trackpad pinch: onWheel runs, with e.pinch true
   --type TEXT                  type TEXT into whatever has the focus (--click a field first)
-  --key NAME                   press a key: Enter, Escape, Tab, ArrowDown, Backspace, …
+  --key NAME                   press a key: Enter, Escape, Tab, ArrowDown, Backspace, …; a chord with +: Shift+Tab, Meta+A
   --wait MS                    let MS milliseconds pass
   --read PATH.ATTR             print PATH's attribute: app.list.scrollY = 240 (or any
                                property past it: app.col.childViews.length)
@@ -237,7 +237,16 @@ rmSync(dir, { recursive: true, force: true });
 const said = (r.stdout ?? "") + (r.stderr ?? "");
 if (r.status === 0) {
   const ladder = /^\s+(R\d [✓·]|note |verify: |[a-z].*(synthetic backend|browser's own module|--assert <script))/;
-  const lines = said.split("\n").filter((l) => l.trim() !== "" && !ladder.test(l) && !/^\s{5,}\S/.test(l));
+  // a ladder line's continuation (indented further) goes with it; anything else
+  // indented — a semantic tree's deeper levels — is what was asked for
+  let dropping = false;
+  const lines = said.split("\n").filter((l) => {
+    if (l.trim() === "") return false;
+    if (ladder.test(l)) { dropping = true; return false; }
+    if (dropping && /^\s{5,}\S/.test(l)) return false;
+    dropping = false;
+    return true;
+  });
   if (lines.length > 0) process.stdout.write(lines.join("\n") + "\n");
 } else process.stdout.write(said);
 process.exit(r.status ?? 1);

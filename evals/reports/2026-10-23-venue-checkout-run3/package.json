@@ -1,0 +1,8 @@
+{
+  "name": "venue",
+  "private": true,
+  "description": "The Venue — performance, seats, checkout and tickets for The Marriage of Figaro",
+  "dependencies": {
+    "qrcode-generator": "^2.0.4"
+  }
+}

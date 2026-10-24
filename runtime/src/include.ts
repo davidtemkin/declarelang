@@ -434,8 +434,23 @@ export async function resolveAutoIncludes(
   // a self/mutual reference does not re-pull. The ROOT's own tag is pulled too
   // (referencedTags walks children only) — a root-position library tag then
   // reports its precise misplacement, not "unknown class".
+  // A theme, style or font of the app shares the one namespace with classes,
+  // so one named like a library class keeps that class from being pulled: a
+  // tag naming it then finds no class. Said where the tag is written, once.
+  const appKind = new Map<string, string>();
+  for (const s of program.themes) appKind.set(s.name, "theme");
+  for (const s of program.styles) appKind.set(s.name, "style");
+  for (const f of program.fonts) appKind.set(f.name, "font");
+  const hidden = new Set<string>();
   const pull = async (tag: string, pos: Element["pos"], by: string | null): Promise<void> => {
-    if (origin.has(tag)) return;
+    if (origin.has(tag)) {
+      const kind = appKind.get(tag);
+      if (kind !== undefined && origin.get(tag) === "the app" && manifest[tag] !== undefined && !hidden.has(tag)) {
+        hidden.add(tag);
+        errors.push(new DeclareError(`'${tag} [ … ]' names the library class ${tag}, but this program's ${kind} ${tag} takes that name — themes, styles, fonts and classes share one namespace, so the ${kind} hides the class; rename the ${kind} (as '${tag}${kind[0].toUpperCase()}${kind.slice(1)}')`, pos));
+      }
+      return;
+    }
     const path = manifest[tag];
     if (path === undefined) return; // not a magic tag → unknownClass, post-merge
     const resolved = await auto.resolveLibrary!(path);

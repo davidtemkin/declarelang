@@ -45,9 +45,9 @@ for (const rel of COVERED) {
   const md = readFileSync(resolve(HERE, "..", rel), "utf8");
   const programs = [...md.matchAll(/```declare\n([\s\S]*?)```/g)].map((m) => m[1]);
 
-  // the two seed files must contain programs (regression against extraction rot);
+  // the seed file must contain programs (regression against extraction rot);
   // a swept file may legitimately hold none
-  if (rel === "docs/declare.md" || rel === "apps/homepage/getstarted.md") {
+  if (rel === "docs/declare.md") {
     await test(`${rel}: has complete programs to check`, () => {
       if (programs.length < 1) throw new Error("no ```declare fences found — extraction regex or doc structure changed");
     });

@@ -1687,6 +1687,7 @@ class CanvasSurface {
     // Typographical treatments (the span/Text paint vocabulary) — mirrored from
     // the DOM's setRichContent/setTextStyle so canvas runs wear the same look.
     textOutline = null;
+    textDirection = "ltr";
     textTransform = "none";
     textUnderline = false;
     textStrike = false;
@@ -2190,6 +2191,7 @@ class CanvasSurface {
         // painter and the shared measurer synthesize the same caps; the rest are
         // paint-time decorations honored in the text branch below.
         this.textOutline = st.outline ?? null;
+        this.textDirection = st.direction ?? "ltr";
         this.fontSizePx = st.fontSize;
         this.textTransform = st.textTransform ?? "none";
         this.textUnderline = st.underline ?? false;
@@ -2404,7 +2406,9 @@ class CanvasSurface {
         s.touchAction = "auto";
         s.resize = "none";
         const self = el;
-        el.addEventListener("input", () => this.edit?.onInput(self.value));
+        // the selection the edit left comes first, so an input handler reads the
+        // caret after the keystroke, not before it
+        el.addEventListener("input", () => { this.edit?.onSelect?.(self.selectionStart ?? 0, self.selectionEnd ?? 0); this.edit?.onInput(self.value); });
         el.addEventListener("focus", () => this.edit?.onFocus());
         el.addEventListener("blur", () => { this.edit?.onBlur(); if (this.editEl === self)
             this.hideEditable(); });
@@ -3904,6 +3908,10 @@ class CanvasSurface {
             // stroke` — the DOM twin), then underline/strike rule beneath, in the
             // solid text color (CSS `text-decoration-color` = currentColor, not the
             // gradient fill). Stroke width is user-space, so the CTM scales it right.
+            // a right-to-left run orders its glyphs from the right (x is the line's
+            // left edge either way: the alignment above placed it)
+            ctx.direction = this.textDirection;
+            ctx.textAlign = "left";
             const paintLine = (line, x, y) => {
                 const o = this.textOutline;
                 if (o !== null) {

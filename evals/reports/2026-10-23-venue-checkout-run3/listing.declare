@@ -1,0 +1,73 @@
+/*
+## The performances
+
+Twenty performances, earliest first, each one line: when it is, the lowest
+price, and how full the house is — a bar that fills as it sells, and words
+when it has nearly gone. A month's first performance carries the month.
+*/
+
+
+/* ── how full: a bar that fills as the house sells ── */
+
+class FullnessBar [ height = 4, cornerRadius = 2, fill = { provided("theme").line },
+    sold: number = 0,             // 0 … 1
+    scarce: boolean = false,
+    filled: View [ height = 100%, cornerRadius = 2, width = { parent.width * classroot.sold },
+        fill = { classroot.scarce ? provided("theme").text : provided("theme").textMuted } ]
+    ]
+
+
+/* ── one performance ── */
+
+class PerformanceRow [ width = 100%,
+    perf: Performance = { :p },
+    firstOfMonth: boolean = { :firstOfMonth == true },
+    left: number = { classroot.perf.seatsLeft },
+    soldShare: number = { 1 - classroot.perf.seatsLeft / Math.max(1, classroot.perf.seats) },
+    scarce: boolean = { classroot.perf.seatsLeft / Math.max(1, classroot.perf.seats) <= 0.15 },
+    availability: string = { classroot.left == 0 ? "Sold out"
+        : classroot.scarce ? `Nearly sold out · ${classroot.left} left`
+        : `${classroot.left} of ${classroot.perf.seats} seats left` },
+
+    layout: SimpleLayout [ axis = y ],
+
+    month: Text [ visible = { classroot.firstOfMonth }, padding = [28, 0, 10, 4],
+        accessibilityRole = heading, accessibilityLevel = 2,
+        fontFamily = { app.serif }, fontSize = 22, italic = true, textColor = { provided("theme").text },
+        text = { monthName(classroot.perf.startsAt) } ],
+
+    card: Control [ width = 100%, cornerRadius = 12, padding = { app.narrow ? [14, 14, 14, 14] : [16, 20, 16, 20] },
+        disabled = { classroot.left == 0 },
+        accessibilityLabel = { `${dayLabel(classroot.perf.startsAt)}, ${timeLabel(classroot.perf.startsAt)}, from ${money(classroot.perf.priceFromCents)}, ${classroot.availability}` },
+        press() { app.openPerformance(classroot.perf.id) },
+        fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").raised : provided("theme").surface },
+        stroke = { stroke(1, provided("theme").line) },
+        layout: SimpleLayout [ axis = x, spacing = { app.narrow ? 14 : 22 }, align = center ],
+
+        date: View [ width = 52,
+            layout: SimpleLayout [ axis = y, align = center ],
+            Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.5, textTransform = uppercase,
+                textColor = { provided("theme").textMuted }, text = { weekday(classroot.perf.startsAt) } ],
+            Text [ fontFamily = { app.serif }, fontSize = 30, numerals = lining, textColor = { provided("theme").text },
+                text = { "" + dayOfMonth(classroot.perf.startsAt) } ]
+            ],
+
+        what: View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ fontSize = 17, fontWeight = semibold, textColor = { provided("theme").text },
+                text = { timeLabel(classroot.perf.startsAt) + (isMatinee(classroot.perf.startsAt) ? " · matinee" : "") } ],
+            Text [ fontSize = 14, fontWeight = { classroot.scarce ? "semibold" : "regular" },
+                textColor = { classroot.scarce ? provided("theme").text : provided("theme").textMuted },
+                text = { classroot.availability } ],
+            FullnessBar [ width = { Math.min(220, parent.width) }, sold = { classroot.soldShare }, scarce = { classroot.scarce } ]
+            ],
+
+        price: View [
+            layout: SimpleLayout [ axis = y, align = end ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "from" ],
+            Text [ fontSize = 17, fontWeight = semibold, numeralWidth = tabular, textColor = { provided("theme").text },
+                text = { money(classroot.perf.priceFromCents) } ]
+            ],
+        ChevronIcon [ dir = "right", iconSize = 16, ink = { provided("theme").textFaint } ]
+        ]
+    ]

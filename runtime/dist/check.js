@@ -36,6 +36,9 @@ import { resolveShapes, shapeNames } from "./shape-resolve.js";
 // The program-under-check's declared schema names — set at check() entry
 // (checkElement recurses too deep to thread one more parameter through).
 let CHECK_SHAPES = new Set();
+/** The program's theme and style names, by kind — a tag spelled like one is
+ *  told so, not offered its own spelling as a near-miss. */
+let CHECK_TOPS = new Map();
 /** The program's class declarations by name — what the placed-attribute check
  *  reads to learn what an author-written layout places (checkPlacedAttributes). */
 let CHECK_CLASSES = new Map();
@@ -76,6 +79,8 @@ const UNSTYLABLE = {
 function tagCandidates(schemas) {
     return [...new Set([...Object.keys(schemas), ...autoIncludableNames()])];
 }
+/** The field a misplaced `<->` named, as the one-way form spells it. */
+const twoWayField = (v) => v.kind === "path" && typeof v.path === "string" ? (v.path.startsWith(":") ? v.path : ":" + v.path) : ":field";
 export function check(input) {
     const program = "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
     // Schema resolution first (typed data): named `schema =` forms rewrite to
@@ -83,6 +88,7 @@ export function check(input) {
     // report here. CHECK_SHAPES then answers type-position lookups below.
     const shapeResolution = resolveShapes(program, (n) => Object.hasOwn(SCHEMAS, n));
     CHECK_SHAPES = shapeNames(program);
+    CHECK_TOPS = new Map([...(program.themes ?? []).map((t) => [t.name, "theme"]), ...(program.styles ?? []).map((t) => [t.name, "style"])]);
     CHECK_CLASSES = new Map(program.classes.map((c) => [c.name, c]));
     AUTHOR_CALLS = authorCalls(program);
     // A BUILT-IN CLASS NAME, taken by a program class: programSchemas refuses
@@ -479,6 +485,11 @@ classRoot = false) {
         // the name is — say so, never "unknown" (the truthful-diagnostics rule).
         if (CHECK_SHAPES.has(el.tag)) {
             errors.push(new DeclareError(`'${el.tag}' is a schema — a data shape, not a class; it cannot be instantiated. Bind its data to a view (datapath = …), or declare a class for behavior`, el.pos));
+        }
+        else if (CHECK_TOPS.has(el.tag)) {
+            // themes, styles and classes share one namespace: the name is this one
+            const kind = CHECK_TOPS.get(el.tag);
+            errors.push(new DeclareError(`'${el.tag}' is this program's ${kind}, not a class — themes, styles and classes share one namespace, so a ${kind} named ${el.tag} takes the name from any class ${el.tag}; rename the ${kind} to use the class`, el.pos));
         }
         else {
             errors.push(Diag.unknownClass(el.tag, el.pos, tagCandidates(schemas)));
@@ -1610,7 +1621,7 @@ export function checkAttr(schema, attr) {
         // datapath. Caught here so misuse is a clear compile error, not a silent
         // one-way (or literal) degrade.
         if (!descendsFrom(schema, "Editor")) {
-            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through an editor's value (e.g. 'TextInput.text') — ${schema.name} is not an editor`, attr.pos) };
+            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through an editor's value (e.g. 'TextInput.text') — ${schema.name} is not an editor. A control shows a value and hands its edits to input(v): write '${attr.name} = ${twoWayField(attr.value)}, input(v) { ${twoWayField(attr.value)} = v }'`, attr.pos) };
         }
         // The bound field: a static datapath (`:field`) or a `{ }` that NAMES one at
         // runtime (a generic editor over `classroot.field`). Not a literal.
@@ -1844,10 +1855,16 @@ function checkPlacements(program) {
         elsewhere(c.body);
     return errors;
 }
-/** Every name the author's own code calls, for checkMethodHere: `x.name(`
- *  anywhere counts as itself; a bare `name(` counts only for the element or
- *  class it is written in, as `Tag:name` — a bare call reaches its own
- *  member, so a Checkbox's own `input(!checked)` keeps a Checkbox's `input`
+/** Every name the author's own code calls, for checkMethodHere, keyed by the
+ *  class the call reaches as `Tag:name`. A bare `name(` reaches a member of
+ *  where it is written: the element's own tag, and the class (or App) whose
+ *  body it sits in, at any depth down to the next class boundary — a bare call
+ *  in a Button inside `class Stepper` reaches Stepper's member. A dotted call
+ *  belongs to its receiver, never to the bare scope: `this.name(` to where it
+ *  is written, `app.a.b.name(` to the element that path names; a receiver
+ *  this pass cannot follow counts as plain `name`, for any class. Each key is
+ *  also filed under the user bases of its class, which declare the members it
+ *  inherits. A Checkbox's own `input(!checked)` keeps a Checkbox's `input`
  *  alive and says nothing of a TextInput's. (Library code does not count where
  *  its file is known; where it is not, the scoping above is what keeps it out.) */
 let AUTHOR_CALLS = new Set();
@@ -1855,25 +1872,66 @@ let AUTHOR_CALLS = new Set();
 let REFUSED_TAGS = new Set();
 function authorCalls(program) {
     const out = new Set();
+    const byName = new Map(program.classes.map((c) => [c.name, c]));
+    /** A named child of `el`, its own or one its class chain declares. */
+    const childNamed = (el, name) => {
+        const bodies = [el];
+        const seen = new Set();
+        for (let t = el.tag; t !== undefined && !seen.has(t); t = byName.get(t)?.base) {
+            seen.add(t);
+            const c = byName.get(t);
+            if (c !== undefined)
+                bodies.push(c.body);
+        }
+        for (const b of bodies) {
+            const c = b.children.find((ch) => ch.name === name);
+            if (c !== undefined)
+                return c;
+        }
+        return null;
+    };
+    const add = (tag, name) => {
+        const seen = new Set();
+        for (let t = tag; t !== undefined && !seen.has(t); t = byName.get(t)?.base) {
+            seen.add(t);
+            out.add(t + ":" + name);
+        }
+    };
     const scan = (src, tags) => {
-        for (const m of src.matchAll(/(?<![\w$])(\.\s*)?([A-Za-z_$][\w$]*)\s*\(/g)) {
-            if (m[1] !== undefined)
-                out.add(m[2]);
-            else
+        for (const m of src.matchAll(/(?<![\w$])([A-Za-z_$][\w$]*)\s*\(/g)) {
+            const before = src.slice(0, m.index);
+            const dotted = /\??\.\s*$/.exec(before);
+            if (dotted === null) {
                 for (const t of tags)
-                    out.add(t + ":" + m[2]);
+                    add(t, m[1]);
+                continue;
+            }
+            const recv = /(?<![\w$.])((?:[A-Za-z_$][\w$]*\s*\??\.\s*)*[A-Za-z_$][\w$]*)\s*$/.exec(before.slice(0, dotted.index));
+            const segs = recv === null ? [] : recv[1].split(/\s*\??\.\s*/);
+            if (segs[0] === "this" && segs.length === 1) {
+                for (const t of tags.slice(0, 1))
+                    add(t, m[1]);
+                continue;
+            }
+            let at = segs[0] === "app" ? program.root : null;
+            for (const s2 of segs.slice(1))
+                at = at === null ? null : childNamed(at, s2);
+            if (at !== null)
+                add(at.tag, m[1]);
+            else
+                out.add(m[1]);
         }
     };
     // a library file is named from its `library/` root, or carries the whole path to it
     const ours = (pos) => !/(^|\/)library\//.test(pos?.file ?? "");
-    // `tags`: what a bare call here names — the element's own tag, and on a
-    // class's body the class too (its members are the class's)
-    const walk = (v, tags, cls = null) => {
+    // `tags`: what a bare call here names — the element's own tag, then the class
+    // (or the App) whose body it is written in
+    const walk = (v, tags, cls) => {
         if (v === null || typeof v !== "object")
             return;
         if (Array.isArray(v)) {
             for (const x of v)
-                walk(x, tags);
+                walk(x, tags, cls);
             return;
         }
         const o = v;
@@ -1881,8 +1939,11 @@ function authorCalls(program) {
             walk(o.body, tags, o.name);
             return;
         }
-        if (typeof o.tag === "string" && Array.isArray(o.children))
-            tags = cls === null ? [o.tag] : [o.tag, cls];
+        if (typeof o.tag === "string" && Array.isArray(o.children)) {
+            if (cls === null)
+                cls = o.tag; // the main tree's root: the App's own body
+            tags = o.tag === cls ? [o.tag] : [o.tag, cls];
+        }
         if (typeof o.body === "string" && typeof o.bodyPos === "object") {
             if (ours(o.bodyPos))
                 scan(o.body, tags);
@@ -1893,9 +1954,13 @@ function authorCalls(program) {
         }
         for (const k in o)
             if (k !== "pos" && k !== "bodyPos")
-                walk(o[k], tags);
+                walk(o[k], tags, cls);
     };
-    walk(program, []);
+    walk(program.classes, [], null);
+    walk(program.root, [], null);
+    for (const k in program)
+        if (k !== "classes" && k !== "root")
+            walk(program[k], [], null);
     return out;
 }
 export function checkMethod(schema, m) {

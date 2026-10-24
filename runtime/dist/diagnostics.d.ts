@@ -84,6 +84,8 @@ export declare const Diag: {
     accessibilityControlInControl: (inner: string, innerRole: string, outer: string, outerRole: string, pos: Pos) => DeclareError;
     accessibilityCollapsedRead: (owner: string, axis: string, pos: Pos) => DeclareError;
     accessibilityUnreportedChoice: (owner: string, flag: string, pos: Pos) => DeclareError;
+    rowIndexUnreplicated: (owner: string, pos: Pos) => DeclareError;
+    writeToComputedDataset: (name: string, verb: string, pos: Pos) => DeclareError;
     accessibilityDrawnFocusable: (owner: string, pos: Pos) => DeclareError;
     afterInValue: (pos: Pos) => DeclareError;
     scriptWrite: (name: string, pos: Pos) => DeclareError;

@@ -280,6 +280,14 @@ export interface Surface {
   /** "none" = this element and its subtree are transparent to the pointer;
    *  "" / "auto" = normal. Overlay chrome (the Inspector) relies on it. */
   setPointerEvents(mode: string): void;
+  /** The base direction of this view's text and fields, inherited by what it
+   *  holds: "ltr", "rtl", "auto" (from the first strong letter), "inherit". */
+  setDirection?(d: string): void;
+  /** A view pinned to the page's frame and placed at its END on an axis
+   *  (`y = end` on an ignoreScroll child of the App): the browser holds it
+   *  against the window's edge itself, through its chrome moving and the
+   *  overscroll bounce, rather than following a position written in script. */
+  setEndAnchor?(axis: "x" | "y", on: boolean): void;
 
   /** Uniform scale about a pivot in the view's own coordinates (paint-only,
    *  never layout). scale 1 = identity; the DOM brushes a CSS transform, the

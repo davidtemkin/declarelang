@@ -763,7 +763,7 @@ const sharedTypesDoc = (spine) => {
 // type exactly once, so a new enum or a new PRELUDE declaration fails the
 // assembly until it is placed.
 const TYPE_GROUPS = [
-  ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "Claim", "Credentials", "CrossAlign", "Edges", "EditorJudgeOn",
+  ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "Claim", "Credentials", "CrossAlign", "Direction", "Edges", "EditorJudgeOn",
              "FitAlign", "FocusScope", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
              "OutsidePress", "Process", "Purpose", "Scaling", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "Stretch", "TextAlign", "TextTransform", "Tick"]],
   ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "Shape", "Stroke", "BoxStroke", "Outline",
@@ -1084,15 +1084,6 @@ function setupBlock(spine) {
 // ── main ─────────────────────────────────────────────────────────────────────
 
 const spine = buildSpine();
-// the core doc's first complete program — the flagship example every surface
-// quotes (declare.md §1); projected, so a quote can never drift (the homepage's
-// hand copy shipped the pre-editorial `classroot.count` for a day — the proof)
-const flagshipExample = (() => {
-  const md = readFileSync(join(ROOT, "docs/declare.md"), "utf8");
-  const m = md.match(/```declare\n([\s\S]*?)```/);
-  if (!m) throw new Error("declare.md: no ```declare fence for the flagship example");
-  return "```declare\n" + m[1] + "```";
-})();
 // SKILL.md is now fully AUTHORED (no generated block) — assemble no longer
 // writes it, only READS it to project the Claude Code discovery copy below.
 const skillSource = readFileSync(join(ROOT, "skill/SKILL.md"), "utf8");
@@ -1116,15 +1107,14 @@ const targets = [
     return { name: "faq-md", isFile: true, path: "apps/homepage/declare-faq.md", next };
   })(),
   // the homepage's Get Started view: an AUTHORED page (apps/homepage/
-  // getstarted.md — the voice is the homepage's) whose commands and flagship
-  // example are GENERATED blocks. The DataSource reads this file directly
+  // getstarted.md — the voice is the homepage's) whose commands are a
+  // GENERATED block. The DataSource reads this file directly
   // (format = "text"); the in-app Language view reads docs/declare.md itself
   // the same way — the JSON-wrap projections retired with the text format.
   (() => {
     const p = join(ROOT, "apps/homepage/getstarted.md");
     let next = readFileSync(p, "utf8");
     next = injectStr(next, "setup-commands", setupBlock(spine));
-    next = injectStr(next, "flagship-example", flagshipExample);
     return { name: "getstarted-md", isFile: true, path: "apps/homepage/getstarted.md", next };
   })(),
 ];

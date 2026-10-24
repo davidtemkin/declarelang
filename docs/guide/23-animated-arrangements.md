@@ -1,4 +1,4 @@
-<!-- nav: Animated arrangements -->
+<!-- nav: Animated layouts -->
 <!-- part: Continuity -->
 
 # Animated arrangements

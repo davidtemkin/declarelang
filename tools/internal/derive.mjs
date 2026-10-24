@@ -173,7 +173,7 @@ const RULES = [
     // re-runs the stamper, which is what re-fills its markers.
     inputs: ["tools/internal/stamp-stats.mjs", "tools/internal/release.mjs", "apps/homepage/stats.json", "package.json", { dir: "releases", ext: ".md" }],
     outputs: [],
-    stamps: ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", { dir: "releases", ext: ".md" }],
+    stamps: ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/operational/embedding.md", { dir: "releases", ext: ".md" }],
     run: () => run("node", ["tools/internal/stamp-stats.mjs"]),
   },
   {
