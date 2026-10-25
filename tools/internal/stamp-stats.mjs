@@ -47,6 +47,10 @@ const FORMATS = {
   "tracker.code":      () => group(stats.tracker.code),
   "tracker.comment":   () => String(stats.tracker.comment),
   "tracker.wireKB":    () => String(Math.round(stats.tracker.wireGzip / 1024)),
+  // The to-do app is the skill's first read: its own file, and with the parts
+  // it includes (the two are read together).
+  "todo.code":         () => String(stats.todo.code),
+  "todo.codeWithParts": () => String(stats.todo.codeWithParts),
   // THE LANGUAGE FILE'S SIZE IN TOKENS — the one figure AREPO-2 rests on ("a
   // model can hold the complete spec while it writes"), and the only number in
   // that prose that was hand-written. It had drifted badly: the claim said ten

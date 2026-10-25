@@ -148,7 +148,8 @@ function runArtifact(prog) {
 if (!process.argv.includes("--no-stats")) {
 const stats = {};
 for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.declare",
-                   "apps/tracker/tracker.declare", "apps/desktop/desktop.declare"]) {
+                   "apps/tracker/tracker.declare", "apps/desktop/desktop.declare",
+                   "apps/todo/todo.declare"]) {
   const src = readFileSync(path.join(ROOT, rel), "utf8");
   const name = path.basename(rel, ".declare");
   // the "over the wire" figure is the STANDALONE PRODUCTION BUILD — declarec's
@@ -161,6 +162,12 @@ for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.dec
   const built = await buildProduction(src, { name, originDir: path.join(ROOT, path.dirname(rel)) });
   if (!built.ok) throw new Error(`prewarm stats: ${rel} failed the production build\n${built.report}`);
   stats[name] = { ...lineMetrics(src), wireGzip: built.sizes.totalGzip, programGzip: built.sizes.programGzip };
+}
+// The to-do app, the program the skill has an agent read first, is two files
+// read together: its own, and the parts it includes. Prose cites both.
+{
+  const parts = lineMetrics(readFileSync(path.join(ROOT, "apps/todo/todo-parts.declare"), "utf8"));
+  stats.todo.codeWithParts = stats.todo.code + parts.code;
 }
 const statsFile = path.join(ROOT, "apps/homepage/stats.json");
 const statsJson = JSON.stringify(stats, null, 2) + "\n";

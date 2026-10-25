@@ -1,0 +1,282 @@
+/*
+# To-do: the parts
+
+The look of the to-do app, kept apart from how it works: the two color
+themes, the drawn icons, and the small pieces the screen is made of (chips,
+pills, tiles, the sidebar). `todo.declare` includes this file. Read it when you
+want to see how a palette, an icon or a small control is made; the app's
+structure is all in the other file.
+*/
+
+// The appearance control names its icons by class name, so the build keeps them.
+
+use [ SunIcon, MoonIcon, AutoIcon ]
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// A `theme` is a record of design tokens. The App lays one of these over a
+// library preset (`SanFrancisco`), so library controls read the same palette
+// (`background`, `surface`, `text`, `accent` … are names they know), and views
+// read ours by name: `provided("theme").overdue`.
+//
+// Every place (a smart list or a list) has a `hue`, an index into three
+// parallel lists: `fills` (icons, checkboxes, the add button, with white on
+// top), `inks` (its title) and `tints` (its tile). A list added to the data
+// picks a hue; nothing in the code names it.
+
+theme PaperLight [
+    background = #FFFFFF, surface = #F5F4F1, card = #FFFFFF,
+    line = #ECEAE6, lineStrong = #DAD8D3, quiet = #F2F1EE, hover = #F6F5F2, selection = #E8E6E1,
+    text = #1D1D1F, textMuted = #6E6E73, textFaint = #8E8E93,
+    accent = #2563EB, linkColor = #2563EB,
+    control = #F2F1EE, controlHovered = #ECEAE6, controlSelected = #E8E6E1,
+    overdue = #D0342C, danger = #D0342C, flag = #B86E00, flagTint = #FDF3E1, fabImportant = #C77700,
+    swipeDone = #2E9A63, swipeFlag = #C77700,
+    tooltipFill = #1F1F22, tooltipTextColor = #F2F2F4,
+
+    //        Today    Scheduled Important All      Done     terracotta indigo  green    teal     rose
+
+    fills = [#2F7CF6, #E5484D, #F29B05, #5B6270, #8B8E96, #E0703A, #5B5BD6, #2E9A6A, #1F9AA8, #C2457A],
+    inks  = [#1F6FE5, #D6403A, #B86E00, #4B5563, #6E6E73, #C8572F, #5249C9, #23885C, #167F8B, #A8365F],
+    tints = [#EAF2FE, #FDECEC, #FDF3E1, #EEF0F3, #F1F1F2, #FCEEE6, #EEEDFB, #E6F4EC, #E3F4F6, #F9E8EF],
+    tagInks = [#1F75B8, #A8457D, #23825A, #B05A1E, #6A4FC9],
+    tagTints = [#E7F1F9, #F7EAF1, #E6F3EC, #F7EDE4, #EFEBFA]
+    ]
+
+
+theme PaperDark [
+    background = #1C1C1E, surface = #232325, card = #27272A,
+    line = #333336, lineStrong = #48484C, quiet = #2F2F33, hover = #262629, selection = #36363A,
+    text = #F2F2F4, textMuted = #A1A1A8, textFaint = #7C7C84,
+    accent = #5B8DEF, linkColor = #5B8DEF,
+    control = #2F2F33, controlHovered = #36363A, controlSelected = #3A3A3F,
+    overdue = #FF6A5F, danger = #FF6A5F, flag = #FFB340, flagTint = #3A2E17, fabImportant = #C77700,
+    swipeDone = #2E9A63, swipeFlag = #C77700,
+    tooltipFill = #F2F2F4, tooltipTextColor = #1F1F22,
+    fills = [#3B82F6, #E5484D, #F5A524, #8A92A0, #7A7D85, #E87A45, #6E6AE8, #34A874, #2BB3C2, #D9598F],
+    inks  = [#5A9BFF, #FF6B66, #FFB340, #A7AFBD, #A1A1A8, #F08A5D, #8D87F5, #4CC38A, #4FC9D6, #F08AB4],
+    tints = [#1C2A40, #3A1F20, #3A2E17, #2A2D33, #2C2C2F, #3A251B, #26243F, #1B3227, #16313A, #3A1E2B],
+    tagInks = [#5AAEEB, #E07BB4, #4CC38A, #F0A060, #A592F5],
+    tagTints = [#1A2C3A, #3A2130, #1B3227, #3A2A1B, #2A2440]
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// Every icon is drawn by one "pen": a 1.6px stroke with round ends, on the
+// library's 16-unit grid. `draw(d)` is a method any view can define to paint
+// itself, with canvas-style calls. An `Icon` scales the grid to `iconSize`
+// (`unit`) and keeps the stroke at `weight` device pixels at every size.
+// Fills appear only for a state: a set flag, a done check.
+
+class Glyph extends Icon [
+    shape: string = "",
+    filled: boolean = false,
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "today") {             // a calendar page with a dot for the day
+            d.roundRect(2, 3, 12, 11, 2)
+            d.moveTo(2, 6.5); d.lineTo(14, 6.5)
+            d.moveTo(5.5, 1.5); d.lineTo(5.5, 4); d.moveTo(10.5, 1.5); d.lineTo(10.5, 4)
+            d.stroke(); d.beginPath(); d.arc(8, 10, 1.6, 0, 6.3); d.fill()
+        } else if (shape == "scheduled") {  // a clock
+            d.arc(8, 8, 6, 0, 6.3); d.moveTo(8, 4.5); d.lineTo(8, 8); d.lineTo(10.5, 9.5); d.stroke()
+        } else if (shape == "important") {  // a flag with a swallow-tail
+            d.moveTo(3.5, 14.5); d.lineTo(3.5, 1.8)
+            d.stroke(); d.beginPath()
+            d.moveTo(3.5, 2); d.lineTo(13, 2); d.lineTo(10.5, 5.5); d.lineTo(13, 9); d.lineTo(3.5, 9); d.closePath()
+            if (filled) d.fill()
+            d.stroke()
+        } else if (shape == "all") {        // a list: three lines, each with a dot
+            for (const y of [4, 8, 12]) { d.moveTo(6.5, y); d.lineTo(13.5, y) }
+            d.stroke(); d.beginPath()
+            for (const y of [4, 8, 12]) { d.moveTo(3.4, y); d.arc(2.8, y, 0.9, 0, 6.3) }
+            d.fill()
+        } else if (shape == "done") {       // a check
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "home") {       // a house
+            d.moveTo(2, 7.5); d.lineTo(8, 2.5); d.lineTo(14, 7.5); d.moveTo(3.5, 6.5); d.lineTo(3.5, 13.5)
+            d.lineTo(12.5, 13.5); d.lineTo(12.5, 6.5); d.stroke()
+        } else if (shape == "work") {       // a briefcase
+            d.roundRect(2, 5, 12, 8.5, 1.5); d.moveTo(5.5, 5); d.lineTo(5.5, 3); d.lineTo(10.5, 3); d.lineTo(10.5, 5)
+            d.moveTo(2, 9); d.lineTo(14, 9); d.stroke()
+        } else if (shape == "errands") {    // a shopping bag
+            d.moveTo(3, 6); d.lineTo(13, 6); d.lineTo(12.2, 14); d.lineTo(3.8, 14); d.closePath()
+            d.moveTo(5.5, 6); d.lineTo(5.5, 4.5); d.arc(8, 4.5, 2.5, Math.PI, 0); d.lineTo(10.5, 6); d.stroke()
+        } else if (shape == "search") {     // a magnifier
+            d.arc(7, 7, 4.8, 0, 6.3); d.moveTo(10.6, 10.6); d.lineTo(14, 14); d.stroke()
+        } else if (shape == "trash") {      // a bin
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (shape == "tag") {        // a hash
+            d.moveTo(6, 2.5); d.lineTo(5, 13.5); d.moveTo(11, 2.5); d.lineTo(10, 13.5)
+            d.moveTo(2.5, 6); d.lineTo(13.5, 6); d.moveTo(2.5, 10.5); d.lineTo(13.5, 10.5); d.stroke()
+        } else if (shape == "plus") {       // a plus
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(2.5, 8); d.lineTo(13.5, 8); d.stroke()
+        } else if (shape == "up") {         // an arrow up, for "add"
+            d.moveTo(8, 13.5); d.lineTo(8, 3); d.moveTo(3.5, 7.5); d.lineTo(8, 3); d.lineTo(12.5, 7.5); d.stroke()
+        } else if (shape == "menu") {       // three lines: the lists, on a phone
+            for (const y of [4, 8, 12]) { d.moveTo(2.5, y); d.lineTo(13.5, y) }
+            d.stroke()
+        } else {                            // any other place: a list
+            for (const y of [4, 8, 12]) { d.moveTo(4, y); d.lineTo(12, y) }
+            d.stroke()
+        }
+        }
+    ]
+
+
+// A place's icon: a white glyph on a square with soft corners, in the
+// place's fill. Circles are for things you tick; soft squares are places.
+
+class Badge [ cornerRadius = { this.width * 0.3 },
+    place: string = "all",
+    fill = { app.fillOf(classroot.place) },
+    Glyph [ x = center, y = center, iconSize = { classroot.width * 0.56 }, weight = 1.7, ink = white,
+        shape = { classroot.place }, filled = true ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+//
+// Something a person presses is a `Control`: it brings focus, Space and Enter,
+// and `disabled`. Each use site says what pressing does by writing its own
+// `press()`.
+//
+// How a control looks in each state is a base value plus a `State`: a set of
+// the view's own attributes that apply while a condition holds and come off
+// when it lifts. One condition per state reads better than a chain of
+// `on ? … : hovered ? … : …` in every attribute.
+
+// A tag chip, to filter by or to toggle on a task. `dot: View [ … ]` is a
+// CHILD named `dot` (compare `label: string = …`, a declared attribute).
+// Inside a class, `classroot` is the instance itself, from any depth.
+
+class Chip extends Control [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 12, 0, 10],
+    label: string = "",
+    on: boolean = false,
+    index: number = 0,              // which tag ink
+    ink: Color = { provided("theme").tagInks[classroot.index] },
+    accessibilityRole = toggle,
+    accessibilityPressed = { on },
+    stroke = { stroke(1, provided("theme").lineStrong) },
+    fill = { hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").tagTints[classroot.index] }, stroke = null ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    dot: View [ visible = { !classroot.on }, width = 7, height = 7, cornerRadius = 4, fill = { classroot.ink } ],
+    tick: Glyph [ visible = { classroot.on }, shape = "done", iconSize = 11, weight = 2, ink = { classroot.ink } ],
+    Text [ fontSize = { app.wide ? 13 : 14 }, fontWeight = medium, wrap = false,
+        textColor = { classroot.on ? classroot.ink : provided("theme").textMuted },
+        text = { classroot.label } ]
+    ]
+
+
+// An attribute pill in the editor and the add form: a glyph and a label. A
+// pill with a `menu` is a pop-up button: the menu opens under it.
+
+class Pill extends Control [ height = 28, cornerRadius = 14, padding = [0, 11, 0, 10],
+    label: string = "",
+    glyph: string = "",
+    on: boolean = false,
+    tone: Color = gray,
+    fill = { hovered ? provided("theme").controlHovered : provided("theme").quiet },
+    State [ applied = { classroot.on }, fill = { provided("theme").flagTint } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ shape = { classroot.glyph }, iconSize = 13, filled = { classroot.on }, ink = { classroot.tone } ],
+    Text [ fontSize = 13, fontWeight = medium, wrap = false,
+        textColor = { classroot.on ? classroot.tone : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// A round icon button: the toolbar's search, add and more.
+
+class IconButton extends Control [ width = { app.wide ? 30 : 44 }, height = { this.width }, cornerRadius = { this.width / 2 },
+    shape: string = "",
+    tone: Color = gray,
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    Glyph [ x = center, y = center, iconSize = { app.wide ? 16 : 20 }, weight = 1.8,
+        shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// ── The sidebar ─────────────────────────────────────────────────────────────
+
+// A smart list's tile: its icon, its count, its name, on its tint. `link`
+// makes any view a real link: following it writes the App's `location`, Back
+// undoes it, and ⌘-click opens a tab.
+
+class SmartTile [ height = { app.wide ? 68 : 76 }, cornerRadius = { app.wide ? 12 : 14 }, padding = 10,
+    id: string = "today",
+    name: string = "",
+    here: boolean = { app.viewId == classroot.id },
+    link = { "#" + classroot.id },
+    onClick() { app.listsOpen = false },     // runs before the link is followed
+    fill = { app.tintOf(classroot.id) },
+    stroke = { here ? stroke(1.5, app.fillOf(classroot.id)) : null },
+    accessibilityLabel = { classroot.name + ", " + app.countIn(classroot.id) },
+    Badge [ width = { app.wide ? 26 : 30 }, height = { this.width }, place = { classroot.id } ],
+    TextLabel [ x = end, height = { app.wide ? 26 : 30 }, fontSize = { app.wide ? 20 : 22 }, fontWeight = bold,
+        textColor = { app.inkOf(classroot.id) }, text = { "" + app.countIn(classroot.id) } ],
+    Text [ y = end, fontSize = { app.wide ? 13 : 15 }, fontWeight = semibold, wrap = false,
+        textColor = { provided("theme").textMuted }, text = { classroot.name } ]
+    ]
+
+
+// A list in the sidebar: its icon, its name, its count, as a link.
+
+class ListItem [ width = 100%, height = { app.wide ? 34 : 48 }, cornerRadius = 7, padding = [0, 10, 0, 8],
+    id: string = "",
+    name: string = "",
+    here: boolean = { app.viewId == classroot.id },
+    link = { "#" + classroot.id },
+    onClick() { app.listsOpen = false },
+    fill = { hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.here }, fill = { provided("theme").selection } ],
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Badge [ width = { app.wide ? 22 : 28 }, height = { this.width }, place = { classroot.id } ],
+    Text [ flexes = true, fontSize = { app.wide ? 14 : 17 }, wrap = false, text = { classroot.name } ],
+    Text [ fontSize = { app.wide ? 13 : 17 }, textColor = { provided("theme").textMuted },
+        text = { "" + app.countIn(classroot.id) } ]
+    ]
+
+
+// The smart-list tiles, the lists, and the appearance. Placed twice: beside
+// the page on a wide screen, and in a sheet on a phone.
+
+class Sidebar [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+
+    // `datapath` points a view at data; what is inside reads relative to it.
+    // `:rows[]` ends in `[]`, so it builds one tile per record, and `:name`
+    // reads that record's field. `columns = 2` makes the flow a grid.
+
+    tiles: View [ width = 100%, datapath = { app.smart.value },
+        layout: WrappingLayout [ columns = 2, spacing = { app.wide ? 8 : 10 }, rowSpacing = { app.wide ? 8 : 10 } ],
+        SmartTile [ datapath = :rows[], flexes = true, id = :id, name = :name ]
+        ],
+    Text [ padding = [22, 0, 6, 8], fontSize = { app.wide ? 12 : 20 }, fontWeight = semibold,
+        fontFamily = { app.wide ? app.uiFace : app.titleFace },
+        textColor = { app.wide ? provided("theme").textFaint : provided("theme").text }, text = "My Lists" ],
+    lists: View [ width = 100%, datapath = { app.tasks.value },
+        cornerRadius = 14, padding = { app.wide ? 0 : [4, 8, 4, 8] },
+        fill = { app.wide ? null : provided("theme").card },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        ListItem [ datapath = :lists[], id = :id, name = :name ]
+        ],
+
+    // A control shows the value it is given and hands the person's change to
+    // `input`, which writes it where it lives. Every library control works so.
+
+    appearance: View [ padding = [28, 0, 0, 0],
+        Segmented [ width = 120, height = 28, value = { app.themeMode },
+            choices = { [ ({ id: "light", icon: "SunIcon" }), ({ id: "dark", icon: "MoonIcon" }), ({ id: "auto", icon: "AutoIcon" }) ] },
+            input(v: string) { app.themeMode = v as "auto" | "light" | "dark" }
+            ]
+        ]
+    ]

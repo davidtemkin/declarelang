@@ -1,0 +1,1063 @@
+/*
+# To-do
+
+A to-do list: tasks in lists, smart lists (Today, Scheduled, Important, All,
+Done), due dates, an important flag and tags, filtered and searched, on a
+desk and on a phone. Familiar on purpose, so the attention goes to how it is
+built.
+
+How to read it:
+
+- **The records live in one place**, `app.tasks`, an instance of the dataset
+  class `Tasks`. It loads `tasks.json` and knows what is true of a task
+  whoever is looking. A row writes a field of its own task where it stands
+  (`:done = v`); every other write is a method on `Tasks`.
+- **Where the user is** is a handful of attributes on the App: the view (in
+  the URL), the tag filters, the search, which task is open, whether the add
+  form is up.
+- **Everything on screen derives from those two.** Handlers write facts and the
+  screen follows. The one imperative call is `retarget`, which asks for a
+  change of arrangement to be animated.
+- **The list moves.** Change a view or a filter, tick a task, open one: rows
+  fold away, travel to their new group or grow open, and a change mid-motion
+  redirects them. One small layout (`Glide`) does all of it.
+- **One decision per constraint.** Where a value depends on more than one
+  condition, the conditions get names of their own (`shown`, `open`,
+  `scrolled`), and a choice keyed by an id is a lookup in data, not a chain of
+  `? :`. A named value costs nothing: it is worked out once and kept.
+
+The look (colors, drawn icons, chips, tiles, the sidebar) is in
+`todo-parts.declare`, which this file includes. Read this file first.
+
+The notation, in three lines: in `[ ]` is structure (attributes, children,
+methods). In `{ }` is TypeScript, and as an attribute's value it is a
+*constraint*, re-run whenever anything it reads changes. In both, `:field` reads
+a field of the record a view is bound to, and `app.name` reaches a member of
+the App from anywhere. The parts come first in this file; the App is last.
+*/
+
+include [ "todo-parts.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// `script` holds plain TypeScript outside the reactive system: functions of
+// their arguments, here date arithmetic. A constraint that calls one re-runs
+// only when the arguments it passes change.
+
+script {
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    function pad(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    // A day is written "YYYY-MM-DD", the form DatePicker reads and writes.
+    function isoDay(y: number, m: number, d: number): string {
+        const dt = new Date(y, m - 1, d)
+        return dt.getFullYear() + "-" + pad(dt.getMonth() + 1) + "-" + pad(dt.getDate())
+    }
+    function parts(iso: string): number[] { return iso.split("-").map(Number) }
+    function addDays(iso: string, n: number): string { const p = parts(iso); return isoDay(p[0], p[1], p[2] + n) }
+    function daysFrom(a: string, b: string): number {
+        const p = parts(a), q = parts(b)
+        return Math.round((Date.UTC(q[0], q[1] - 1, q[2]) - Date.UTC(p[0], p[1] - 1, p[2])) / 86400000)
+    }
+    function dueLabel(due: string, today: string): string {
+        if (due == "") return ""
+        const n = daysFrom(today, due)
+        if (n == 0) return "Today"
+        if (n == 1) return "Tomorrow"
+        if (n == -1) return "Yesterday"
+        const p = parts(due)
+        return WEEKDAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] + " " + p[2] + " " + MONTHS[p[1] - 1]
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// A `schema` is a named type for data. The compiler checks every `:field` read
+// against it, and the runtime checks every write. `?` marks an optional field;
+// `tags[]: string` is a list of strings.
+
+schema Task [ id: number, title: string, notes: string, list: string,
+    due?: string, dueIn?: number, done: boolean, important: boolean, tags[]: string ]
+
+// A place you can look at: a list, or a smart list. `hue` picks its colors
+// from the theme (todo-parts.declare).
+
+schema Place [ id: string, name: string, hue: number, emptyTitle?: string, emptyLine?: string ]
+schema Tag [ id: string, name: string ]
+
+// One entry in the list on screen: a task, or a group's heading. Both kinds
+// share one list, and a schema field has one type, so the entry declares
+// every field either kind has, optional. Each row reads its own fields once,
+// into named attributes (see TaskRow), so the `?? ""` stays in one place.
+
+schema Entry [ id: number, kind?: "head" | "donehead", group?: string, label?: string, count?: number,
+    title?: string, notes?: string, list?: string, due?: string,
+    done?: boolean, important?: boolean, tags[]?: string ]
+schema Entries [ lines[]: Entry ]
+
+// What Undo needs to put a deleted task back.
+
+schema Removed [ index: number, rec: Task ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// A class that `extends DataSource` is a dataset whose data comes from a URL,
+// together with the logic of its records. `auto = true` loads it as soon as
+// the URL is known; `schema` types what arrives. Views bind to it like any
+// dataset, and nothing copies it.
+
+class Tasks extends DataSource [ url = "tasks.json", auto = true,
+    schema = [ lists[]: Place, tags[]: Tag, tasks[]: Task ],
+
+    // `name: Type = value` DECLARES a new attribute; `name = value` (as `url`
+    // above) SETS one that exists. The App sets this one: what day it is.
+
+    today: string = "",
+    lastId: number = 0,             // ids are never reused, so Undo can't clash
+
+    all() -> Task[] { return this.read(["tasks"]) ?? [] },
+    lists() -> Place[] { return this.read(["lists"]) ?? [] },
+    tags() -> Tag[] { return this.read(["tags"]) ?? [] },
+    at(id: number) -> number { return this.all().findIndex((t) => t.id == id) },
+    byId(id: number) -> Task? { return this.all().find((t) => t.id == id) ?? null },
+    listName(id: string) -> string { return this.lists().find((l) => l.id == id)?.name ?? id },
+    tagName(id: string) -> string { return this.tags().find((t) => t.id == id)?.name ?? id },
+
+    // What is true of a task whoever is looking: its group. A done task is
+    // in Done; the rest group by their due date.
+
+    byDue(due: string) -> string {
+        if (due == "") return "someday"
+        const n = daysFrom(this.today, due)
+        if (n < 0) return "overdue"
+        if (n == 0) return "today"
+        return n <= 7 ? "week" : "later"
+        },
+    groupOf(t: Entry) -> string { return (t.done ?? false) ? "done" : this.byDue(t.due ?? "") },
+    isOverdue(t: Entry) -> boolean { return this.groupOf(t) == "overdue" },
+
+    // The sample file dates tasks relative to today ("dueIn": -2 is two days
+    // ago), so the demo never goes stale. On arrival each becomes a real date.
+
+    onLoad() {
+        this.all().forEach((t, i) => {
+            if (t.dueIn != null) this.set(["tasks", i, "due"], addDays(this.today, t.dueIn))
+            })
+        this.lastId = this.all().reduce((m, t) => Math.max(m, t.id), 0)
+        },
+
+    // The writes. A dataset changes through its verbs: set, insert, removeAt.
+
+    add(title: string, notes: string, list: string, due: string, important: boolean, tags: string[]) {
+        this.lastId = this.lastId + 1
+        this.insert(["tasks"], 0, ({ id: this.lastId, title: title, notes: notes, list: list, due: due,
+            done: false, important: important, tags: [...tags] }))
+        },
+    toggle(id: number, field: "done" | "important") {
+        const i = this.at(id)
+        if (i >= 0) this.set(["tasks", i, field], !this.all()[i][field])
+        },
+    move(id: number, list: string) { const i = this.at(id); if (i >= 0) this.set(["tasks", i, "list"], list) },
+    toggleTag(id: number, tag: string) {
+        const i = this.at(id)
+        if (i < 0) return
+        const tags = this.all()[i].tags
+        this.set(["tasks", i, "tags"], tags.includes(tag) ? tags.filter((g) => g != tag) : [...tags, tag])
+        },
+
+    // `remove` hands back what `restore` needs to put the task back.
+
+    remove(id: number) -> Removed? {
+        const i = this.at(id)
+        if (i < 0) return null
+        const rec = this.all()[i]
+        this.removeAt(["tasks"], i)
+        return ({ index: i, rec: rec })
+        },
+    restore(r: Removed) { this.insert(["tasks"], Math.min(r.index, this.all().length), r.rec) }
+    ]
+
+
+// ── The list's layout ───────────────────────────────────────────────────────
+//
+// A layout is one method, `place()`, returning a box per child. This one
+// stacks the lines, each at the height it asks for (`want`); a line that asks
+// for 0 is folded away. (`laid()` hands back the children as plain views; every
+// child of the list is a Line, so `as Line` reads each one's `want`.)
+//
+// It extends `TweenLayout`, which glides instead of jumping. When the rows
+// themselves change (they reorder, one arrives, one leaves) it glides on its
+// own. A change it cannot see, such as a line asking for a new height, needs
+// `retarget(true)`: every line then glides from where it is to where
+// `place()` now puts it, and a second call mid-glide re-aims from there.
+//
+// The price: every record keeps a built row, folded when hidden. That suits a
+// list of hundreds. For thousands, build only what is on screen with
+// `virtualize` (see apps/tracker) and let rows appear rather than glide.
+
+class Glide extends TweenLayout [ duration = 420,
+    place() {
+        const w = this.contentExtent("width")
+        let y = 0
+        return this.laid().map((c) => {
+            const h = (c as Line).want
+            const box = { x: 0, y: y, w: w, h: h, vis: h > 0 }
+            y = y + h
+            return box
+            })
+        }
+    ]
+
+
+// ── The lines ───────────────────────────────────────────────────────────────
+//
+// Three kinds of line, three classes over one base; `classFor` (on the list,
+// below) picks the class for each record. `want` is the height a line asks
+// for. A row can't re-place its neighbours, so when its `want` changes it asks
+// the list to: `trackChanges` names attributes whose change fires `onChange`.
+
+class Line [ clip = true,
+    want: number = 0,
+    trackChanges = ["want"],
+    onChange() { app.reflow() }
+    ]
+
+
+// A group's heading: Overdue, Today, … with a rule beneath. `:count` is how
+// many of its tasks the filters let through (the list's records carry it),
+// and at 0 it folds away.
+
+class HeadLabel [ width = 100%, height = 32,
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Text [ fontSize = { app.wide ? 13 : 15 }, fontWeight = semibold,
+        textColor = { :group == "overdue" ? provided("theme").overdue : provided("theme").textMuted },
+        text = { :label ?? "" } ],
+    Text [ fontSize = { app.wide ? 13 : 15 }, textColor = { provided("theme").textFaint }, text = { "" + (:count ?? 0) } ]
+    ]
+
+
+class Heading extends Line [ padding = { [0, app.edge, 0, app.edge] },
+    want = { (:count ?? 0) > 0 ? 44 : 0 },
+    HeadLabel [ y = end ]
+    ]
+
+
+// The Done heading is a different kind of line, so it is its own class: a
+// control that opens and closes the done tasks under the active ones.
+
+class DoneHeading extends Line [ padding = { [0, app.edge, 0, app.edge] },
+    want = { (:count ?? 0) > 0 ? app.tap + 14 : 0 },
+    head: Control [ y = end, width = 100%, height = { app.tap + 2 }, cornerRadius = 8,
+        accessibilityExpanded = { app.doneShown },
+        fill = { pressed ? provided("theme").selection : hovered ? provided("theme").hover : null },
+        press() { app.toggleDone() },
+        HeadLabel [ y = end ],
+        View [ x = end, y = end, height = 32, visible = { app.viewId != "done" },     // centered on the label's line
+            TextLabel [ y = center, fontSize = { app.wide ? 13 : 15 }, fontWeight = medium,
+                textColor = { provided("theme").accent }, text = { app.showDone ? "Hide" : "Show" } ]
+            ]
+        ]
+    ]
+
+
+// A task's checkbox: a ring in its list's color that fills, with a white
+// check, when done. The fill pops in on a Spring (`fillT`, 0 to 1).
+
+class TaskCheck extends Control [ width = { app.tap }, height = { app.tap },
+    on: boolean = false,
+    tone: Color = gray,
+    accessibilityRole = checkbox,
+    accessibilityChecked = { on },
+    fillT: number = 0,
+    Spring [ attribute = fillT, to = { classroot.on ? 1 : 0 }, stiffness = 420, damping = 22 ],
+    lit: boolean = { classroot.hovered || classroot.on },
+    ring: View [ x = center, y = center, width = { app.wide ? 18 : 22 }, height = { this.width },
+        cornerRadius = { this.width / 2 },
+        stroke = { stroke(1.6, classroot.tone) },
+        opacity = { classroot.lit ? 1 : 0.75 },
+        disc: View [ x = center, y = center, width = 100%, height = 100%, cornerRadius = { this.width / 2 },
+            fill = { classroot.tone }, scale = { 0.5 + 0.5 * classroot.fillT }, opacity = { classroot.fillT },
+            pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+            Glyph [ x = center, y = center, iconSize = { parent.width * 0.7 }, weight = 2, shape = "done", ink = white ]
+            ]
+        ]
+    ]
+
+
+// A dot and a word: a list or a tag, as quiet meta under a task's title.
+
+class Mark [ height = 18,
+    tone: Color = gray,
+    word: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    View [ width = 6, height = 6, cornerRadius = 3, fill = { classroot.tone } ],
+    Text [ fontSize = { app.wide ? 13 : 14 }, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.word } ]
+    ]
+
+
+// A task. A finger can swipe its line: right toggles done, left toggles
+// important. (With a mouse, a drag stays with the control it starts on while
+// it remains inside it, so the wide title rarely swipes; the checkbox, the
+// flag and the context menu do the same jobs.) Pressing the title opens the
+// task in place, as a card.
+
+class TaskRow extends Line [
+
+    // The record's fields, read once and named. `:@` is the whole record.
+
+    taskId: number = { :id ?? 0 },
+    title: string = { :title ?? "" },
+    done: boolean = { :done ?? false },
+    flagged: boolean = { :important ?? false },
+    listId: string = { :list ?? "" },
+    due: string = { :due ?? "" },
+    tone: Color = { app.fillOf(classroot.listId) },
+
+    // Where the row stands, as named facts, then its height from them.
+
+    shown: boolean = { app.showsTask(:@) },
+    open: boolean = { app.openId == classroot.taskId },
+    openH: number = { app.rowH + (classroot.card?.height ?? 0) + 8 },     // as tall as its card
+    fullH: number = { classroot.open ? classroot.openH : app.rowH },
+    want = { classroot.shown ? classroot.fullH : 0 },
+
+    // Open, the row itself becomes the card: white, rounded, lifted.
+
+    raised: boolean = { classroot.height > app.rowH + 0.5 },
+    State [ applied = { classroot.raised }, cornerRadius = 12,
+        fill = { provided("theme").card }, stroke = { stroke(1, provided("theme").line) } ],
+    layout: SimpleLayout [ axis = y ],
+
+    // The swipe. `swipe` is how far the line has moved; a Spring carries it to
+    // `swipeTo`. Under the finger both are written together, so the spring
+    // rests and the line follows exactly; on release only the target is
+    // written, and the line springs home. (A Spring per row is fine: one at
+    // rest costs nothing, and only the swiped row moves.)
+
+    swipe: number = 0,
+    swipeTo: number = 0,
+    Spring [ attribute = swipe, to = { classroot.swipeTo }, stiffness = 320, damping = 30 ],
+    reach: number = 96,     // how far a swipe must go to count
+    follow(v: number) { swipe = v; swipeTo = v },
+    release(canceled: boolean) {
+        // A drag the browser takes back to scroll arrives `canceled`: never act on it.
+        if (!canceled && swipe >= reach) app.tasks.toggle(taskId, "done")
+        if (!canceled && swipe <= -reach) app.tasks.toggle(taskId, "important")
+        swipeTo = 0
+        },
+
+    // What a swipe uncovers. Declared before the line, so they paint beneath
+    // it (declaration order is paint order); `ignoreLayout` keeps them out of
+    // the row's stack.
+
+    doneBack: View [ ignoreLayout = true, width = 100%, height = { app.rowH }, visible = { classroot.swipe > 0 },
+        fill = { provided("theme").swipeDone }, opacity = { Math.min(1, classroot.swipe / classroot.reach) },
+        Glyph [ x = 24, y = center, iconSize = 22, weight = 2.2, shape = "done", ink = white ]
+        ],
+    flagBack: View [ ignoreLayout = true, width = 100%, height = { app.rowH }, visible = { classroot.swipe < 0 },
+        fill = { provided("theme").swipeFlag }, opacity = { Math.min(1, -classroot.swipe / classroot.reach) },
+        Glyph [ x = { parent.width - 46 }, y = center, iconSize = 22, weight = 2, shape = "important", filled = true, ink = white ]
+        ],
+
+    // The line. Declaring `onPointerMove` claims the drag; `claim = x` takes
+    // only sideways drags, so a finger moving down still scrolls the page.
+    // A press that stays put is not a drag and reaches the controls inside.
+    // The first 6px are slack, so a sloppy tap doesn't wiggle the row.
+
+    face: View [ width = 100%, height = { app.rowH }, padding = { [0, app.edge, 0, app.edge - 6] },
+        x = { classroot.swipe },
+        fill = { provided("theme").background },
+        State [ applied = { hovered && app.wide }, fill = { provided("theme").hover } ],
+        State [ applied = { classroot.raised }, fill = null ],
+        claim = x,
+        grab: number = 0,
+        onPointerDown(e: PointerEvent) { grab = classroot.swipe },
+        onPointerMove(e: PointerEvent) {
+            if (Math.abs(e.deltaX) > 6) classroot.follow(grab + e.deltaX - Math.sign(e.deltaX) * 6)
+            },
+        onPointerUp(e: PointerUpEvent) { classroot.release(e.canceled) },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+
+        check: TaskCheck [ on = { classroot.done }, tone = { classroot.tone },
+            accessibilityLabel = { classroot.title },
+            press() { app.tasks.toggle(classroot.taskId, "done") }
+            ],
+
+        // The title and what is known about the task: a Control, so the
+        // keyboard can open it too. Open, a text field takes its place.
+
+        opener: Control [ flexes = true, height = { app.rowH }, padding = [10, 0, 0, 0], visible = { !classroot.open },
+            accessibilityLabel = { classroot.title },
+            press() { app.toggleOpen(classroot.taskId) },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            Text [ width = 100%, fontSize = { app.wide ? 15 : 17 }, wrap = false, maxLines = 1,
+                textColor = { classroot.done ? provided("theme").textFaint : provided("theme").text },
+                text = { classroot.title } ],
+            meta: View [ height = 18,
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                Text [ fontSize = { app.wide ? 13 : 14 }, wrap = false, visible = { classroot.due != "" },
+                    textColor = { app.tasks.isOverdue(:@) ? provided("theme").overdue : provided("theme").textMuted },
+                    text = { dueLabel(classroot.due, app.today) } ],
+                Mark [ visible = { !app.isList }, tone = { classroot.tone }, word = { app.tasks.listName(classroot.listId) } ],
+
+                // A task's tags are bare strings, so each mark's record is the string itself.
+
+                Mark [ datapath = :tags[], tone = { app.tagInk(:@) }, word = { app.tasks.tagName(:@) } ]
+                ]
+            ],
+        titleField: TextInput [ exists = { classroot.open }, flexes = true, height = 36,
+            fontSize = { app.wide ? 17 : 18 }, fontWeight = semibold, placeholder = "Title",
+            fill = null, stroke = null, text <-> :title ],
+
+        // The flag: shown when set. On a desk it also appears, faint, under the
+        // pointer; on a phone it isn't there at all until set, so a tap at the
+        // end of a row can't flag a task by accident.
+
+        flag: Control [ width = { app.tap + 6 }, height = { this.width }, cornerRadius = { this.width / 2 },
+            visible = { app.wide || classroot.flagged },
+            lit: boolean = { classroot.flagged || parent.hovered || this.focused },
+            opacity = { this.lit ? 1 : 0 },
+            accessibilityRole = toggle, accessibilityLabel = "Important",
+            accessibilityPressed = { classroot.flagged },
+            press() { app.tasks.toggle(classroot.taskId, "important") },
+            Glyph [ x = center, y = center, iconSize = { app.wide ? 14 : 16 }, shape = "important",
+                filled = { classroot.flagged },
+                ink = { classroot.flagged ? provided("theme").flag : provided("theme").textFaint } ]
+            ],
+
+        // A hairline under the row, starting where the title starts.
+
+        rule: View [ ignoreLayout = true, x = { app.edge + app.tap - 6 }, y = { parent.height - 1 },
+            width = { parent.width - this.x }, height = 1, visible = { !classroot.raised },
+            fill = { provided("theme").line } ]
+        ],
+
+    // The task, open. `exists` builds a child while it is true and discards it
+    // when false, so closed rows carry no hidden editors. It stays until the
+    // row has folded shut, so the card doesn't vanish mid-motion.
+
+    card: TaskCard [ exists = { classroot.open || classroot.raised }, width = 100% ],
+
+    // A context menu: right-click (or a two-finger tap), or press and hold.
+
+    onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
+    onHold(e: PointerEvent) { app.rowMenu.open(this, e) }
+    ]
+
+
+// An open task's details, edited in place. `text <-> :notes` binds the field
+// to the record both ways: typing writes the task, and a change to the task
+// shows in the field.
+
+class TaskCard [ padding = { [0, app.edge, 12, app.edge + app.tap] },
+    taskId: number = { :id ?? 0 },
+    taskTags: string[] = { :tags ?? [] },
+    flagged: boolean = { :important ?? false },
+    listId: string = { :list ?? "" },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+    TextInput [ width = 100%, height = 64, fontSize = { app.touchDevice ? 16 : 15 }, multiline = true, wrap = true,
+        textColor = { provided("theme").textMuted }, placeholder = "Notes",
+        fill = null, stroke = null, text <-> :notes ],
+
+    // Date, list and flag. A pill with a `menu` is a pop-up button.
+
+    facts: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+        DatePicker [ width = 150, height = 28, placeholder = "Add date",
+            value = { :due ?? "" },
+            input(v: string) { :due = v }
+            ],
+        Pill [ glyph = { classroot.listId }, tone = { app.fillOf(classroot.listId) },
+            label = { app.tasks.listName(classroot.listId) }, menu = { app.moveMenu } ],
+        Pill [ glyph = "important", on = { classroot.flagged }, tone = { provided("theme").flag },
+            label = { classroot.flagged ? "Flagged" : "Flag" },
+            press() { app.tasks.toggle(classroot.taskId, "important") }
+            ]
+        ],
+
+    // Tags to toggle. This view binds to the whole file, so its Chips
+    // replicate over the tag vocabulary (`:tags[]`), where `:id` is a tag's
+    // id. The task is out of `:` reach in there, so the card captured what it
+    // needs above (`taskId`, `taskTags`) and the chips read it as `classroot`.
+    // `rowIndex` is a replicated view's place in its list: here, which tag ink.
+
+    tags: View [ width = 100%, datapath = { app.tasks.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        Chip [ datapath = :tags[], label = :name, index = { rowIndex }, height = 28,
+            on = { classroot.taskTags.includes(:id) },
+            press() { app.tasks.toggleTag(classroot.taskId, :id) }
+            ]
+        ],
+
+    foot: View [ width = 100%, padding = [8, 0, 0, 0],
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, align = center ],
+        Control [ height = 30, padding = [0, 8, 0, 4], cornerRadius = 8,
+            fill = { hovered ? provided("theme").hover : null },
+            press() { app.remove(classroot.taskId) },
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Glyph [ shape = "trash", iconSize = 14, ink = { provided("theme").danger } ],
+            Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").danger }, text = "Delete" ]
+            ],
+        Spacer [ ],
+        Text [ visible = { app.wide }, fontSize = 12, textColor = { provided("theme").textFaint }, text = "Esc to close" ]
+        ]
+    ]
+
+
+// The new-task form: in a panel by the + on a wide screen, in a sheet on a
+// phone. It exists only while open, so every opening starts fresh. Its
+// fields are its own attributes, and the ones that start from where you are
+// are *computed defaults*: `list` follows the view until you pick a list,
+// then it is yours. Add (or Return) adds the task and closes the form; it
+// cannot be pressed until the task has a name.
+
+class AddForm [ width = 100%,
+    title: string = "",
+    notes: string = "",
+    due: string = { app.viewId == "today" ? app.today : "" },
+    list: string = { app.defaultList },
+    flagged: boolean = { app.viewId == "important" },
+    tags: string[] = { [...app.tagFilter] },
+    blank: boolean = { classroot.title.trim() == "" },
+
+    submit() {
+        if (blank) return
+        app.tasks.add(title.trim(), notes.trim(), list, due, flagged, tags)
+        app.adding = false
+        },
+    onInit() { afterSettle(() => Focus.focus(this.top.field)) },
+
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        View [ width = 22, height = 22, cornerRadius = 11, stroke = { stroke(1.6, app.fillOf(classroot.list)) } ],
+        field: TextInput [ flexes = true, height = 36, fontSize = 17, fontWeight = semibold, placeholder = "New task",
+            fill = null, stroke = null,
+            text = { classroot.title },
+            onInput(v: string) { classroot.title = v },
+            onEnter() { classroot.submit() }
+            ],
+
+        // `disabled` takes a control out of reach — no press, no Tab stop —
+        // until the task has a name; a State gives it the look that says so.
+
+        add: Control [ height = 30, cornerRadius = 15, padding = [0, 14, 0, 14], accessibilityLabel = "Add task",
+            disabled = { classroot.blank },
+            fill = { app.addTone },
+            press() { classroot.submit() },
+            State [ applied = { classroot.blank }, fill = { provided("theme").quiet } ],
+            TextLabel [ fontSize = 14, fontWeight = semibold, text = "Add",
+                textColor = { classroot.blank ? provided("theme").textFaint : 0xFFFFFF } ]
+            ]
+        ],
+    TextInput [ width = 100%, height = 30, fontSize = { app.touchDevice ? 16 : 15 }, padding = [0, 0, 0, 32],
+        placeholder = "Notes", textColor = { provided("theme").textMuted }, fill = null, stroke = null,
+        text = { classroot.notes },
+        onInput(v: string) { classroot.notes = v }
+        ],
+    attrs: View [ width = 100%, padding = [0, 0, 0, 32],
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+        DatePicker [ width = 150, height = 28, placeholder = "Add date",
+            value = { classroot.due },
+            input(v: string) { classroot.due = v }
+            ],
+        Pill [ glyph = { classroot.list }, tone = { app.fillOf(classroot.list) },
+            label = { app.tasks.listName(classroot.list) }, menu = { app.addListMenu } ],
+        Pill [ glyph = "important", on = { classroot.flagged }, tone = { provided("theme").flag },
+            label = { classroot.flagged ? "Flagged" : "Flag" },
+            press() { classroot.flagged = !classroot.flagged }
+            ],
+        Pill [ glyph = "tag", tone = { provided("theme").textMuted }, menu = { app.addTagsMenu },
+            label = { classroot.tags.length == 0 ? "Tags" : classroot.tags.map((g) => app.tasks.tagName(g)).join(", ") } ]
+        ]
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "To-do", minWidth = 320,
+    scrolls = y,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: the system face for everything, a serif for the large titles.
+    //    A `Font` with faces loads its files (here Fraunces, from Google
+    //    Fonts); a list of names is tried in order, so without the network the
+    //    title falls back to Georgia.
+
+    fraunces: Font [ FontFace [ weight = semibold,
+            src = "https://fonts.gstatic.com/s/fraunces/v38/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nhr1K03gg7S2nfgRYIcaRyTCf7Tp05GNyXk.woff2" ]
+        ],
+    titleFace: array = { [app.fraunces, "Iowan Old Style", "Georgia", "serif"] },
+    uiFace: array = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    fontFamily = { app.uiFace },
+
+    // ── appearance: follow the system until the person picks one
+
+    themeMode: "auto" | "light" | "dark" = "auto",
+    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+    theme = { app.isDark ? ({ ...SanFranciscoDark, ...PaperDark }) : ({ ...SanFrancisco, ...PaperLight }) },
+
+    // ── sizes. `app.width` follows the window, and these follow it.
+
+    wide: boolean = { app.width >= 760 },
+    big: boolean = { app.width >= 960 },
+    sideW: number = { app.big ? 256 : 232 },
+    pagePad: number = { app.big ? 40 : 28 },
+    edge: number = { app.wide ? 0 : 16 },            // a row's inset from the page edge
+    rowH: number = { app.wide ? 56 : 62 },
+    tap: number = { app.touchDevice ? 44 : 30 },    // a control's size: finger-sized on touch
+
+    // ── today, from the clock. A Time member makes the date a live fact.
+
+    clock: Time [ tick = day ],
+    today: string = { isoDay(app.clock.year, app.clock.month, app.clock.day) },
+
+    // ── the records
+
+    tasks: Tasks [ today = { app.today } ],
+
+    // The smart lists: a small fixed set, so a literal dataset holds them,
+    // with what each says when it is empty.
+
+    smart: Dataset [ schema = [ rows[]: Place ] ] { { "rows": [
+        { "id": "today", "name": "Today", "hue": 0, "emptyTitle": "All clear for today",
+          "emptyLine": "Tasks due today, and anything overdue, show up here." },
+        { "id": "scheduled", "name": "Scheduled", "hue": 1, "emptyTitle": "Nothing scheduled" },
+        { "id": "important", "name": "Important", "hue": 2, "emptyTitle": "No flagged tasks",
+          "emptyLine": "Swipe a task left, or use its flag, to mark it important." },
+        { "id": "all", "name": "All", "hue": 3, "emptyTitle": "No tasks yet" },
+        { "id": "done", "name": "Done", "hue": 4, "emptyTitle": "Nothing done yet" } ] } },
+
+    // Every place, smart or not, and its colors: a lookup in data, not a
+    // chain of `? :` over ids. A list added to tasks.json brings its own hue.
+
+    places: Place[] = { [...(app.smart.value?.rows ?? []), ...app.tasks.lists()] },
+    placeOf(id: string) -> Place? { return app.places.find((p) => p.id == id) ?? null },
+    hueOf(id: string) -> number { return app.placeOf(id)?.hue ?? 3 },
+    fillOf(id: string) -> Color { return provided("theme").fills[app.hueOf(id)] },
+    inkOf(id: string) -> Color { return provided("theme").inks[app.hueOf(id)] },
+    tintOf(id: string) -> Color { return provided("theme").tints[app.hueOf(id)] },
+    tagInk(tag: string) -> Color {
+        const i = app.tasks.tags().findIndex((t) => t.id == tag)
+        return provided("theme").tagInks[Math.max(0, i) % 5]
+        },
+
+    // ── where the user is
+    //
+    // `location` is the URL's #fragment, as an attribute: "#work" is the Work
+    // list, "#today" the Today smart list. Following a link writes it; Back
+    // writes it back; the view is derived from it, never set.
+
+    location = "today",
+    viewId: string = { app.location == "" ? "today" : app.location },
+    view: Place? = { app.placeOf(app.viewId) },
+    viewName: string = { app.view?.name ?? "Today" },
+    isList: boolean = { app.tasks.lists().some((l) => l.id == app.viewId) },
+    defaultList: string = { app.isList ? app.viewId : app.tasks.lists()[0]?.id ?? "" },
+
+    // These are the user's too, but not worth a URL.
+
+    tagFilter: string[] = [],
+    query: string = "",
+    searchOpen: boolean = false,
+    showDone: boolean = false,        // the done tasks under the active ones
+    openId: number = 0,               // the open task, 0 for none
+    listsOpen: boolean = false,       // the phone's list sheet
+    adding: boolean = false,          // the add form
+
+    doneShown: boolean = { app.showDone || app.viewId == "done" },
+    scrolled: boolean = { app.scrollY > 2 },
+
+    // A new place opens at its top, as a new page does.
+
+    trackChanges = ["viewId"],
+    onChange() { app.scrollTo(0) },
+
+    // In the App's own methods a bare name is the App's member: `openId`
+    // here is `app.openId`.
+
+    toggleOpen(id: number) { openId = openId == id ? 0 : id },
+    toggleDone() { if (viewId != "done") showDone = !showDone },
+    toggleTagFilter(tag: string) {
+        // A new array, not a push: assigning is what tells readers it changed.
+        tagFilter = tagFilter.includes(tag) ? tagFilter.filter((g) => g != tag) : [...tagFilter, tag]
+        },
+    openSearch() {
+        searchOpen = true
+        afterSettle(() => Focus.focus(app.searchField))      // the field exists once this settle closes
+        },
+    closeSearch() { searchOpen = false; query = "" },
+
+    // ── what this view shows
+    //
+    // Logic too long for one constraint goes in a method, where ordinary
+    // statements read better than one expression. `belongs` is the view's own
+    // rule, done or not; `passes` adds the done rule, the tags and the
+    // search. The open task always shows, so an edit that stops it matching
+    // doesn't fold it away under the cursor.
+
+    belongs(t: Entry, view: string) -> boolean {
+        switch (view) {
+            case "today": return ["overdue", "today"].includes(tasks.byDue(t.due ?? ""))
+            case "scheduled": return (t.due ?? "") != ""
+            case "important": return t.important ?? false
+            case "all": return true
+            case "done": return true
+            default: return t.list == view
+            }
+        },
+    passes(t: Entry) -> boolean {
+        if (!belongs(t, viewId)) return false
+        const done = t.done ?? false
+        if (viewId == "done" && !done) return false
+        if (viewId != "done" && done && !showDone) return false
+        if (!tagFilter.every((g) => (t.tags ?? []).includes(g))) return false
+        const q = query.trim().toLowerCase()
+        return q == "" || ((t.title ?? "") + " " + (t.notes ?? "")).toLowerCase().includes(q)
+        },
+    showsTask(t: Entry) -> boolean { return app.passes(t) || t.id == app.openId },
+    countIn(view: string) -> number {
+        return app.tasks.all().filter((t) => app.belongs(t, view) && t.done == (view == "done")).length
+        },
+    shownCount: number = { app.tasks.all().filter((t) => app.showsTask(t)).length },
+
+    // ── the lines on screen
+    //
+    // A derived dataset: `contents` re-runs whenever what `arrange` reads
+    // changes. It holds every task, in every list, grouped by date, with a
+    // heading per group carrying how many of its tasks show. Hidden tasks
+    // stay (their rows fold to nothing), so a change of view moves rows rather
+    // than replacing them. The tasks in it are `app.tasks`'s own records, not
+    // copies, so a row that writes `:done` writes the task. Headings take
+    // negative ids, so none shares an identity with a task.
+
+    lines: Dataset [ schema = Entries, contents = { app.arrange() } ],
+
+    groups: array = { [["overdue", "Overdue"], ["today", "Today"], ["week", "Next 7 days"],
+        ["later", "Later"], ["someday", "Someday"], ["done", "Done"]] },
+
+    arrange() -> Entries {
+        const out = []
+        groups.forEach((g, i) => {
+            const mine = tasks.all().filter((t) => tasks.groupOf(t) == g[0])
+            mine.sort((a, b) => (b.important ? 1 : 0) - (a.important ? 1 : 0)
+                || (a.due ?? "~").localeCompare(b.due ?? "~") || a.id - b.id)
+            if (g[0] == "done") {
+                // The Done heading counts the view's done tasks even while they are tucked away.
+                const n = viewId == "done" ? mine.filter((t) => showsTask(t)).length : mine.filter((t) => belongs(t, viewId)).length
+                out.push(({ id: -1 - i, kind: "donehead", group: g[0], label: g[1], count: n }))
+            } else {
+                out.push(({ id: -1 - i, kind: "head", group: g[0], label: g[1], count: mine.filter((t) => showsTask(t)).length }))
+            }
+            out.push(...mine)
+            })
+        return ({ lines: out })
+        },
+
+    // A line asked for a new height: glide the list to it. (The list's own
+    // width changing re-places at once, below.)
+
+    reflow() { (app.list.layout as Glide | null)?.retarget(true) },
+
+    // ── adding, deleting, undoing
+
+    addTone: Color = { app.viewId == "important" ? provided("theme").fabImportant : app.fillOf(app.viewId) },
+
+    lastRemoved: Removed? = null,    // what Undo puts back, while the toast offers it
+    remove(id: number) {
+        const title = tasks.byId(id)?.title ?? ""
+        lastRemoved = tasks.remove(id)
+        if (openId == id) openId = 0
+        toast.say("Deleted “" + title + "”", ({ id: "undo", label: "Undo" }))
+        },
+    undo() {
+        if (lastRemoved == null || !toast.shown) return
+        tasks.restore(lastRemoved)
+        lastRemoved = null
+        toast.close()
+        },
+
+    // ── menus: declared once, opened from wherever they are needed. Their
+    //    items are records computed from state, so a label like "Unflag" is
+    //    always current. `opener` is the view a menu was opened for (the row,
+    //    for the row menu), so one menu serves every row.
+
+    rowMenu: ContextMenu [
+        task: Task? = { app.tasks.byId((this.opener as TaskRow)?.taskId ?? 0) },
+        doneLabel: string = { (this.task?.done ?? false) ? "Mark as not done" : "Mark as done" },
+        flagLabel: string = { (this.task?.important ?? false) ? "Unflag" : "Flag" },
+        items = { [
+            ({ id: "done", label: this.doneLabel }),
+            ({ id: "important", label: this.flagLabel }),
+            ({ divider: true }),
+            ...app.tasks.lists().map((l) => ({ id: "list:" + l.id, label: "Move to " + l.name, checked: this.task?.list == l.id })),
+            ({ divider: true }),
+            ({ id: "delete", label: "Delete" }),
+        ] },
+        picked(id: string) {
+            const t = this.task
+            if (t == null) return
+            if (id == "important" || id == "done") app.tasks.toggle(t.id, id)
+            else if (id == "delete") app.remove(t.id)
+            else if (id.startsWith("list:")) app.tasks.move(t.id, id.slice(5))
+            }
+        ],
+
+    moveMenu: Menu [
+        items = { app.tasks.lists().map((l) => ({ id: l.id, label: l.name, checked: app.tasks.byId(app.openId)?.list == l.id })) },
+        picked(id: string) { app.tasks.move(app.openId, id) }
+        ],
+
+    // The add form's two menus read and write the open form (`addForm`, below).
+
+    addListMenu: Menu [
+        items = { app.tasks.lists().map((l) => ({ id: l.id, label: l.name, checked: app.addForm?.list == l.id })) },
+        picked(id: string) { if (app.addForm != null) app.addForm.list = id }
+        ],
+    addTagsMenu: Menu [
+        items = { app.tasks.tags().map((t) => ({ id: t.id, label: t.name, checked: (app.addForm?.tags ?? []).includes(t.id) })) },
+        picked(id: string) {
+            const f = app.addForm
+            if (f != null) f.tags = f.tags.includes(id) ? f.tags.filter((g) => g != id) : [...f.tags, id]
+            }
+        ],
+
+    // ── the keyboard. Commands are `Shortcuts`: records with a key and a
+    //    label; a plain key (n, /) stands down while a text field has focus.
+    //    `Keys` hears raw keys, app-wide.
+
+    shortcuts: Shortcuts [ title = "To-do",
+        items = { [ ({ id: "new", key: "n", label: "New task" }),
+                    ({ id: "find", key: "/", label: "Search" }),
+                    ({ id: "undo", key: "⌘Z", label: "Undo delete", enabled: app.toast.shown && app.lastRemoved != null }) ] },
+        picked(id: string) {
+            if (id == "new") app.adding = true
+            else if (id == "find") app.openSearch()
+            else if (id == "undo") app.undo()
+            }
+        ],
+    keys: Keys [ onKeyDown(e: KeyEvent) { if (e.key == "Escape" && !app.adding) app.openId = 0 }
+        ],
+
+    // Views used from far away get one name each here, so only these lines
+    // know where they live.
+
+    list: View = { app.main.col.list },
+    searchField: TextInput? = { app.wide ? app.toolbar.search.field : app.phoneBar.searchRow.field },
+    addForm: AddForm? = { app.wide ? app.addPanel.entry : app.addSheet.entry },
+
+    // ── the screen: the sidebar beside the page on a wide screen
+
+    layout: SimpleLayout [ axis = x ],
+
+    // `ignoreScroll`: the page scrolls, the sidebar stays put.
+
+    side: View [ visible = { app.wide }, ignoreScroll = true,
+        width = { app.sideW }, height = { app.height }, padding = [16, 12, 16, 12],
+        fill = { provided("theme").surface }, stroke = { [null, stroke(1, provided("theme").line), null, null] },
+        Sidebar [ ]
+        ],
+
+    main: View [ flexes = true,
+        padding = { app.wide ? [64, app.pagePad, 120, app.pagePad] : [52 + app.safeTop, 0, 120, 0] },
+        col: View [ width = { Math.min(720, parent.width) },
+            layout: SimpleLayout [ axis = y ],
+
+            // the title in the view's ink, its count, and the tag chips
+
+            top: View [ width = 100%, padding = { [0, app.edge, 4, app.edge] },
+                layout: SimpleLayout [ axis = y, spacing = 12 ],
+                titleRow: View [ width = 100%, visible = { app.wide || !app.searchOpen },
+                    layout: SimpleLayout [ axis = x, align = baseline ],
+                    Text [ flexes = true, fontFamily = { app.titleFace }, fontSize = { app.wide ? 32 : 34 }, fontWeight = semibold,
+                        letterSpacing = -0.6, wrap = false, textColor = { app.inkOf(app.viewId) },
+                        text = { app.viewName } ],
+                    Text [ fontSize = { app.wide ? 28 : 22 }, fontWeight = medium, opacity = 0.45,
+                        textColor = { app.inkOf(app.viewId) }, text = { "" + app.countIn(app.viewId) } ]
+                    ],
+
+                // On a narrow screen the chips scroll sideways rather than
+                // wrapping; a "Clear" appears once any is on.
+
+                chips: View [ width = 100%, height = { app.tap }, scrolls = x, hideScrollbars = true, clip = true,
+                    datapath = { app.tasks.value },
+                    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                    Chip [ datapath = :tags[], label = :name, index = { rowIndex },
+                        on = { app.tagFilter.includes(:id) },
+                        press() { app.toggleTagFilter(:id) }
+                        ],
+                    Control [ visible = { app.tagFilter.length > 0 }, height = { app.tap }, padding = [0, 6, 0, 6],
+                        press() { app.tagFilter = [] },
+                        TextLabel [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").accent }, text = "Clear" ]
+                        ]
+                    ]
+                ],
+
+            // ── the list
+            //
+            // `:lines[]` builds one line per record, as the class `classFor`
+            // names. A record's `id` is its identity, so when the lines
+            // reorder each row moves with its record instead of being rebuilt,
+            // and Glide carries it to its new place.
+
+            list: View [ width = 100%, datapath = { app.lines.value },
+                layout: Glide [ ],
+                trackChanges = ["width"],
+                onChange() { this.layout.retarget(false) },     // a new width: re-place at once
+                Line [ datapath = :lines[], classFor = { :kind == "head" ? Heading : :kind == "donehead" ? DoneHeading : TaskRow } ]
+                ],
+
+            // nothing to show: the view's icon and a line about it
+
+            empty: View [ visible = { app.tasks.loaded && app.shownCount == 0 }, width = 100%, padding = [80, 24, 0, 24],
+                searching: boolean = { app.query.trim() != "" },
+                layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+                Badge [ width = 56, height = 56, place = { app.viewId } ],
+                Text [ fontFamily = { app.titleFace }, fontSize = 20, fontWeight = semibold,
+                    text = { parent.searching ? "No results for “" + app.query.trim() + "”" : app.emptyTitle } ],
+                Text [ width = 280, textAlign = center, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+                    text = { parent.searching ? "Try another word, or another list." : app.emptyLine } ]
+                ]
+            ]
+        ],
+
+    emptyTitle: string = { app.view?.emptyTitle ?? app.viewName + " is empty" },
+    emptyLine: string = { app.view?.emptyLine ?? "Press + to add one." },
+
+    // ── the bars. They stay put while the page scrolls under them, and frost
+    //    once it does (`backdrop` filters what lies beneath).
+
+    // A wide screen: search and add, at the top right of the page.
+
+    toolbar: View [ visible = { app.wide }, ignoreScroll = true, ignoreLayout = true,
+        x = { app.sideW }, width = { app.width - app.sideW }, height = 52, padding = [0, 16, 0, 16],
+        fill = { app.scrolled ? provided("theme").background : null },
+        backdrop = { app.scrolled ? frost(20) : null },
+        stroke = { app.scrolled ? [null, null, stroke(1, provided("theme").line), null] : null },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Spacer [ ],
+
+        // The search: the magnifier grows into a field. A Spring carries the
+        // width; the field exists only while it is open, and the magnifier,
+        // drawn after it, stays on top at its start.
+
+        search: View [ height = 30, width = 30,
+            Spring [ attribute = width, to = { app.searchOpen ? 240 : 30 }, stiffness = 300, damping = 28 ],
+            field: SearchField [ exists = { app.searchOpen }, width = 100%, height = 30,
+                padding = [0, 12, 0, 30], fontSize = { app.touchDevice ? 16 : 13 },
+                placeholder = { "Search " + app.viewName },
+                text = { app.query },
+                onInput(v: string) { app.query = v },
+                onKeyDown(e: KeyEvent) {
+                    if (e.key != "Escape") return
+                    if (app.query == "") { app.closeSearch() } else { app.query = "" }
+                    },
+                onBlur() { if (app.query == "") app.searchOpen = false }
+                ],
+            open: IconButton [ shape = "search", tone = { provided("theme").textMuted }, accessibilityLabel = "Search",
+                press() { app.openSearch() }
+                ]
+            ],
+
+        // Adding is the main thing done here, so it is a labelled button in
+        // the list's own color, not one more icon.
+
+        plus: Control [ height = 30, cornerRadius = 15, padding = [0, 14, 0, 10], accessibilityLabel = "New task",
+            fill = { app.addTone },
+            opacity = { pressed ? 0.8 : hovered ? 0.92 : 1 },
+            press() { app.adding = true },
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Glyph [ iconSize = 13, weight = 2.4, shape = "plus", ink = white ],
+            TextLabel [ fontSize = 13, fontWeight = semibold, textColor = white, text = "New task" ]
+            ]
+        ],
+
+    // A phone: back to the lists, and search, along the top.
+
+    phoneBar: View [ visible = { !app.wide }, ignoreScroll = true, ignoreLayout = true,
+        width = { app.width }, height = { 52 + app.safeTop }, padding = { [app.safeTop, 6, 0, 4] },
+        fill = { app.scrolled ? provided("theme").background : null },
+        backdrop = { app.scrolled ? frost(20) : null },
+        stroke = { app.scrolled ? [null, null, stroke(1, provided("theme").line), null] : null },
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+
+        // the lists slide in from this side, so the button that opens them is here
+
+        lists: IconButton [ visible = { !app.searchOpen }, shape = "menu", tone = { provided("theme").accent },
+            accessibilityLabel = "Lists",
+            press() { app.listsOpen = true }
+            ],
+
+        // Searching on a phone: the magnifier grows leftward into a field that
+        // takes the bar, with Cancel beside it, as on the wide toolbar.
+
+        Spacer [ ],
+        searchRow: View [ height = 44,
+            Spring [ attribute = width, to = { app.searchOpen ? app.phoneBar.width - app.phoneBar.cancel.width - 26 : 44 }, stiffness = 300, damping = 28 ],
+            field: SearchField [ exists = { app.searchOpen }, y = center, width = 100%, height = 36,
+                padding = [0, 12, 0, 38], fontSize = 16,
+                placeholder = { "Search " + app.viewName },
+                text = { app.query },
+                onInput(v: string) { app.query = v }
+                ],
+            IconButton [ shape = "search", tone = { provided("theme").accent }, accessibilityLabel = "Search",
+                press() { app.openSearch() }
+                ]
+            ],
+        cancel: Control [ visible = { app.searchOpen }, height = 44, padding = [0, 12, 0, 6],
+            press() { app.closeSearch() },
+            TextLabel [ fontSize = 17, textColor = { provided("theme").accent }, text = "Cancel" ]
+            ]
+        ],
+
+    // A phone's add button, bottom right. Its dock is a strip at the window's
+    // foot that lets presses through (`pointerEvents = "none"`). `y = end`
+    // pins it there by the browser itself, so it holds still as Safari's bars
+    // come and go (a `y` computed from the window's height trails them a frame
+    // and jerks). The dock's padding keeps the button off the edges, and lifts
+    // it above the toast when one is up.
+
+    fabDock: View [ visible = { !app.wide && !app.adding && !app.searchOpen }, ignoreScroll = true, ignoreLayout = true,
+        y = end, width = { app.width }, height = { 76 + this.lift }, pointerEvents = "none",
+        lift: number = { app.toast.shown ? 60 : 0 },
+        padding = { [0, 20, 20 + this.lift, 0] },
+        fab: Control [ x = end, y = end, width = 56, height = 56, cornerRadius = 28, accessibilityLabel = "New task",
+            fill = { app.addTone },
+            shadow = { shadow(0, 6, 16, app.isDark ? 0x00000080 : 0x0000002E) },
+            scale = { pressed ? 0.92 : 1 }, pivotX = 28, pivotY = 28,
+            press() { app.adding = true },
+            Glyph [ x = center, y = center, iconSize = 22, weight = 2.5, shape = "plus", ink = white ]
+            ]
+        ],
+
+    // ── layers: they paint above everything, opened by a call (`say`) or by a
+    //    value (`shown`). `shown` follows the App's state, and `input` is where
+    //    the layer's own closing (Esc, a press outside) is written back.
+
+    addPanel: Popover [ anchorTo = { app.toolbar.plus }, shown = { app.adding && app.wide },
+        input(open: boolean) { app.adding = open },
+        accessibilityLabel = "New task",
+        entry: AddForm [ exists = { app.adding }, width = 420 ]
+        ],
+    addSheet: Sheet [ shown = { app.adding && !app.wide },
+        input(open: boolean) { app.adding = open },
+        accessibilityLabel = "New task",
+        entry: AddForm [ exists = { app.adding } ]
+        ],
+    listSheet: Sheet [ edge = "start", accessibilityLabel = "Lists", shown = { app.listsOpen && !app.wide },
+        input(open: boolean) { app.listsOpen = open },
+        Sidebar [ ]
+        ],
+
+    toast: Toast [ duration = 6000,
+        picked(id: string) { if (id == "undo") app.undo() }
+        ]
+    ]

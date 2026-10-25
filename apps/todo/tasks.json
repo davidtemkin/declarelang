@@ -1,0 +1,32 @@
+{
+  "lists": [
+    { "id": "home", "name": "Home", "hue": 5 },
+    { "id": "work", "name": "Work", "hue": 6 },
+    { "id": "errands", "name": "Errands", "hue": 7 }
+  ],
+  "tags": [
+    { "id": "quick", "name": "quick" },
+    { "id": "calls", "name": "calls" },
+    { "id": "money", "name": "money" },
+    { "id": "family", "name": "family" },
+    { "id": "focus", "name": "focus" }
+  ],
+  "tasks": [
+    { "id": 1,  "title": "Renew the car registration", "notes": "Needs the emissions certificate from the glovebox.", "list": "errands", "dueIn": -2, "done": false, "important": true,  "tags": ["money"] },
+    { "id": 2,  "title": "Call Mum about Sunday",       "notes": "",                                                   "list": "home",    "dueIn": 0,  "done": false, "important": false, "tags": ["calls", "family"] },
+    { "id": 3,  "title": "Draft the Q4 planning memo",  "notes": "Three options, one recommendation. Keep it to a page.", "list": "work",  "dueIn": 0,  "done": false, "important": true,  "tags": ["focus"] },
+    { "id": 4,  "title": "Reply to the venue about dates", "notes": "",                                                "list": "work",    "dueIn": -1, "done": false, "important": false, "tags": ["quick"] },
+    { "id": 5,  "title": "Pick up dry cleaning",        "notes": "Ticket 4471.",                                       "list": "errands", "dueIn": 1,  "done": false, "important": false, "tags": ["quick"] },
+    { "id": 6,  "title": "Book the dentist",            "notes": "",                                                   "list": "home",    "dueIn": 3,  "done": false, "important": false, "tags": ["calls"] },
+    { "id": 7,  "title": "Review Priya's pull request", "notes": "The migration part needs the closest read.",         "list": "work",    "dueIn": 2,  "done": false, "important": false, "tags": ["focus"] },
+    { "id": 8,  "title": "Pay the electricity bill",    "notes": "",                                                   "list": "home",    "dueIn": 5,  "done": false, "important": true,  "tags": ["money", "quick"] },
+    { "id": 9,  "title": "Return the library books",    "notes": "",                                                   "list": "errands", "dueIn": 6,  "done": false, "important": false, "tags": [] },
+    { "id": 10, "title": "Plan the team offsite",       "notes": "Ask for budget first.",                              "list": "work",    "dueIn": 12, "done": false, "important": false, "tags": [] },
+    { "id": 11, "title": "Fix the squeaky hinge",       "notes": "",                                                   "list": "home",    "dueIn": 20, "done": false, "important": false, "tags": ["quick"] },
+    { "id": 12, "title": "Learn a song on the guitar",  "notes": "",                                                   "list": "home",                 "done": false, "important": false, "tags": [] },
+    { "id": 13, "title": "Sort the photo archive",      "notes": "Start with 2019.",                                   "list": "home",                 "done": false, "important": false, "tags": ["family", "focus"] },
+    { "id": 14, "title": "Send the expense report",     "notes": "",                                                   "list": "work",    "dueIn": -4, "done": true,  "important": false, "tags": ["money"] },
+    { "id": 15, "title": "Buy a birthday card for Sam", "notes": "",                                                   "list": "errands", "dueIn": -1, "done": true,  "important": false, "tags": ["family"] },
+    { "id": 16, "title": "Water the plants",            "notes": "",                                                   "list": "home",    "dueIn": -1, "done": true,  "important": false, "tags": ["quick"] }
+  ]
+}

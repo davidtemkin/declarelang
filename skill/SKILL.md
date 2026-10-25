@@ -21,16 +21,16 @@ write, then check the program and look at it running.
    works and the shape of a whole app; `docs/guide/04-structure.md`, where the records,
    the user's place, the views and any script each belong; and
    `docs/guide/05-run-and-check.md`, the working loop (run, read an error, check, debug).
-3. **The calendar, whole** — `apps/calendar/calendar.declare`, with
-   `docs/guide/28-calendar.md` beside it as its commentary. It is <!--stat:calendar.code-->529<!--/stat--> lines of code,
-   and it shows a whole program in the grain Declare is designed for: a change of view is
-   one assignment, and the screen follows it continuously and interruptibly, with no
-   transition code. Read it for how the work divides — the events as a dataset class with
-   their own rules, a drag as a class with no view, the user's place on the App, a model
-   derived from both, classes for the things it has many of, four springs that every cell
-   reads — and for records edited in place. Its month surface is a scene whose geometry is
-   mapped through those springs, which is where hand-written `x` and `y` belong; an
-   ordinary page's cards and rows are a layout's job (see the drift check).
+3. **The to-do app, whole** — `apps/todo/todo.declare` and the parts it includes,
+   `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->848<!--/stat--> lines of code, with
+   comments written for a first reader. It is a familiar program written in the grain
+   Declare is designed for, one program for phone and desktop. Read it for how the work
+   divides — the tasks as a dataset class that makes every write, the user's place on the
+   App (`location`, what is open, what is being added), the list derived from both as lines
+   of more than one class, a row that opens in place and travels when its group changes —
+   and for what comes with the language rather than being built: layout that follows
+   content, swipes, a drawer, a sheet and a popover, search, menus, shortcuts and undo,
+   two themes.
 
 Then stop reading. Everything else is read when you reach the part that needs it: every
 read stays in your context for the rest of the session, so a read made early, or never
@@ -85,19 +85,27 @@ Then check every need in the plan against
   deciding Declare can't do something. A miss exits 1; `--example` shows the name in
   the guide's working code.
 - **Complete programs** — each opens with a comment on how it is put together, and the
-  table below cites the class or App member to look at. Beyond the calendar, read a
+  table below cites the class or App member to look at. Beyond the to-do app, read a
   program by its parts, not whole: its header, then `npx declare-help map <file>`, which
   lists each class and App member with its lines and what it is, and the parts your plan
   needs. Find the one nearest what you are building:
+  - **A list of things to tick off, on phone and desktop** — tasks, reminders, a reading
+    list. → `apps/todo/todo.declare` with `todo-parts.declare`, read first (above).
   - **Records people list, search, filter and edit** — most applications: issues, mail,
     tickets, listings, transactions, a catalog. → `apps/tracker/tracker.declare`, ten
     thousand records and a million on demand: one dataset class holds them and makes every
     write; the list is a dataset derived from it, virtualized, with headings as a second
     row class; editing through a draft; menus, shortcuts, undo. It is
-    <!--stat:tracker.code-->981<!--/stat--> lines of code, and worth reading whole.
+    <!--stat:tracker.code-->982<!--/stat--> lines of code, and worth reading whole.
   - **A surface over time, or things dragged between places** — a schedule, a timeline, a
-    board, a grid you zoom from years to a day. → `apps/calendar/calendar.declare`, read
-    first (above).
+    board, a grid you zoom from years to a day. → `apps/calendar/calendar.declare`, with
+    `docs/guide/28-calendar.md` beside it as its commentary: a change of view is one
+    assignment, and the screen follows it continuously, with no transition code. The
+    events as a dataset class with their own rules, a drag as a class with no view, four
+    springs that every cell reads, records edited in place. Its month surface is a scene
+    whose geometry is mapped through those springs, which is where hand-written `x` and
+    `y` belong; an ordinary page's cards and rows are a layout's job (see the drift
+    check). It is <!--stat:calendar.code-->540<!--/stat--> lines of code.
   - **Status to take in at a glance, on phone and desktop alike** — conditions, a dashboard
     of instruments, a list whose rows open into pages. → `apps/weather/weather.declare` and
     its drawn instruments in `weather-art.declare`: one program in two designs, a row that
